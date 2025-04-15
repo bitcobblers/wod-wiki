@@ -19,7 +19,7 @@ describe('IdleRuntimeBlock', () => {
     // Create a new block for each test
     block = new IdleRuntimeBlock();
     const jit = new RuntimeJit();
-    mockRuntime = new TimerRuntime(null as any, jit, () => {}, () => {}, () => {}, () => {}, () => {});    
+    mockRuntime = new TimerRuntime("", null as any, jit, () => {}, () => {}, () => {}, () => {}, () => {}, () => {});    
   });
 
   describe('onEvent', () => {

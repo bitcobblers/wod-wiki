@@ -21,7 +21,8 @@ export class TimerRuntime implements ITimerRuntime {
    * Creates a new TimerRuntime instance
    * @param script The compiled runtime to execute
    */
-  constructor(public script: RuntimeStack, 
+  constructor(public code: string,
+    public script: RuntimeStack,     
     public jit: RuntimeJit,
     private onSetDisplay: (display: TimerDisplayBag) => void,
     private onSetButtons: (buttons: ButtonConfig[]) => void,
@@ -34,6 +35,7 @@ export class TimerRuntime implements ITimerRuntime {
     // Initialize block tracker with all nodes from the script     
     this.reset();
   }  
+
   gotoComplete() {
     const report = this.current?.report() ?? [];
     this.onSetResults(this.results = [...this.results, ...report]);

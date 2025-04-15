@@ -35,8 +35,7 @@
               "title": "2025-04-14.pause-resume-duration-design"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -202,11 +201,15 @@
                 "type": "leaf",
                 "state": {
                   "type": "markdown",
+                  "type": "markdown",
                   "state": {
                     "file": "Working/2025-04-14.repair-system-button-events.kb.md",
                     "mode": "source",
                     "source": false
+                    "mode": "source",
+                    "source": false
                   },
+                  "icon": "lucide-file",
                   "icon": "lucide-file",
                   "title": "2025-04-14.repair-system-button-events.kb"
                 }
@@ -215,9 +218,9 @@
           }
         ],
         "direction": "vertical",
-        "x": 2827,
+        "x": 2759,
         "y": 0,
-        "width": 588,
+        "width": 656,
         "height": 912,
         "maximize": false,
         "zoom": 0

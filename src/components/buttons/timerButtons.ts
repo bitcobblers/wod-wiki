@@ -1,4 +1,4 @@
-import { PlayIcon, ArrowPathIcon, PauseIcon, FlagIcon } from "@heroicons/react/24/solid";
+import { PlayIcon, ArrowPathIcon, PauseIcon, FlagIcon, FolderArrowDownIcon } from "@heroicons/react/24/solid";
 import { ButtonConfig } from "@/core/timer.types";
 
 
@@ -54,6 +54,6 @@ export const startButton: ButtonConfig = {
 
   export const saveButton: ButtonConfig = {
     label: "Save",
-    icon: ArrowPathIcon,
+    icon: FolderArrowDownIcon,
     onClick: () => [{ name: "save", timestamp: new Date() }],
   };

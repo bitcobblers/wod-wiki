@@ -107,7 +107,7 @@ export function useTimerRuntime({
       const stack = new RuntimeStack(script.statements);
       
       // Create the timer runtime      
-      runtimeRef.current = new TimerRuntime(stack, jit,setDisplay, setButtons, handleResultUpdated, setCursor, setEdits, setState); 
+      runtimeRef.current = new TimerRuntime(script.source, stack, jit,setDisplay, setButtons, handleResultUpdated, setCursor, setEdits, setState); 
     } catch (error) {
       console.error("Failed to initialize runtime:", error);
     }

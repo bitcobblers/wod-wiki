@@ -172,7 +172,7 @@ export interface ITimerRuntime {
   script: RuntimeStack;
   current: IRuntimeBlock | undefined;  
   tick(events: RuntimeEvent[]): RuntimeEvent[];
-  
+  code:string;
   gotoBlock(node: StatementNode | undefined): IRuntimeBlock;  
 
   reset(): void;

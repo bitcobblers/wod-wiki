@@ -1,6 +1,6 @@
 import React, { Dispatch, SetStateAction, useEffect, useState } from "react";
-import { ButtonConfig, ITimerRuntime, RuntimeEvent } from "@/core/timer.types";
-import { startButton, resetButton, resumeButton, pauseButton, endButton, saveButton } from "./timerButtons";
+import { ButtonConfig, RuntimeEvent } from "@/core/timer.types";
+import { startButton, resetButton, endButton, saveButton } from "./timerButtons";
 
 interface RunnerControlsProps {
   setEvents: Dispatch<SetStateAction<RuntimeEvent[]>>;  
@@ -21,22 +21,22 @@ export const RunnerControls: React.FC<RunnerControlsProps> = ({
         setButtons([startButton]);
         break;
       case "running":
-        setButtons([pauseButton, endButton]);
+        setButtons([endButton]);
         break;
       case "paused":
-        setButtons([resumeButton, endButton]);
+        setButtons([endButton]);
         break;
       case "done":
-        setButtons([saveButton, resetButton]);
+        setButtons([resetButton, saveButton ]);
         break;
       default:
-        setButtons([startButton]);
+        setButtons([resetButton]);
         break;
     }
   }, [state]);
 
   const getButtonStyle = (button: ButtonConfig) => {
-    const baseStyle = "flex items-center px-3 py-1 rounded-full transition-all ";
+    const baseStyle = "flex items-center px-3 py-1 rounded-md transition-all ";
     
     if (button.variant === 'success') {
       return baseStyle + "bg-green-600 text-white hover:bg-green-700 shadow-lg";
@@ -63,7 +63,7 @@ export const RunnerControls: React.FC<RunnerControlsProps> = ({
             onClick={() => clickEvent(button)}
             className={getButtonStyle(button)}
           >
-            {button.label && <span className="mr-2">{button.label}</span>}
+            {button.label && <span className="pr-1">{button.label}</span>}
             <button.icon className="w-4 h-4" />
           </button>
         ))}
