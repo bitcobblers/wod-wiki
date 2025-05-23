@@ -63,7 +63,11 @@ export const CastReceiver: React.FC<CastReceiverProps> = ({ event$ , className})
   return (
     <div className={cn("bg-gray-200 text-black", className || "")}>
       <div className="timer-container mb-6">
-        <WodTimer display={display} />
+        <WodTimer 
+          primary={display?.primary} 
+          label={display?.label}
+          total={display?.bag?.totalTime}
+        />
       </div>      
       {/* Debug info - useful during development */}
       {debug && (

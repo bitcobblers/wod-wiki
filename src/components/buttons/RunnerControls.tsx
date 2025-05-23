@@ -69,7 +69,7 @@ export const RunnerControls: React.FC<RunnerControlsProps> = ({
             className={getButtonStyle(button)}
           >
             {button.label && <span className="pr-1">{button.label}</span>}
-            <button.icon className="w-4 h-4" />
+            {button.icon && <button.icon className="w-4 h-4" />}
           </button>
         ))}
       </div>      

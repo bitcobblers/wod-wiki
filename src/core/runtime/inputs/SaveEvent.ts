@@ -26,11 +26,11 @@ export class SaveHandler extends EventHandler {
 
   protected handleEvent(_event: IRuntimeEvent, runtime: ITimerRuntime): IRuntimeAction[] {
     // 1. Get the workout script and all result spans
-    const allSpans = runtime.trace.spanRegistry.getAllSpans();
+    // const allSpans = runtime.trace.spanRegistry.getAllSpans();
     let historyString = "";
-    if (allSpans && allSpans.length > 0) {
-      historyString = allSpans.map((span: RuntimeSpan) => JSON.stringify(span, null, 2)).join('\n\n');
-    }
+    // if (allSpans && allSpans.length > 0) {
+    //   historyString = allSpans.map((span: RuntimeSpan) => JSON.stringify(span, null, 2)).join('\n\n');
+    // }
 
     const scriptText = `${runtime.code}\n\n${historyString}`;
     // 2. Generate a filename with timestamp

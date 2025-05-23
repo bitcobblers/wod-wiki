@@ -75,7 +75,7 @@ export const SplitButton: React.FC<SplitButtonProps> = ({
         className={getMainButtonStyle()}
       >
         {mainAction.label && <span className="mr-2">{mainAction.label}</span>}
-        <mainAction.icon className="w-4 h-4" />
+        {mainAction.icon && <mainAction.icon className="w-4 h-4" />}
       </button>
       
       {/* Dropdown part */}

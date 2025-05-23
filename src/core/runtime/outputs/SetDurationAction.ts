@@ -19,10 +19,10 @@ export class SetDurationAction extends OutputAction {
         }
 
         // Get the most recent RuntimeSpan from the block
-        const latestRuntimeSpan = currentBlock.spans.length > 0 ? currentBlock.spans[currentBlock.spans.length - 1] : undefined;
-        const latestTimeSpans = latestRuntimeSpan?.timeSpans ?? [];
-
-        const duration = new TimeSpanDuration(this.originalMilliseconds, this.sign, latestTimeSpans);
+        const builder = currentBlock.getSpanBuilder();
+        const allTimeSpans = builder.Spans();
+        
+        const duration = new TimeSpanDuration(this.originalMilliseconds, this.sign, allTimeSpans);
 
         return [{
             eventType: this.eventType,

@@ -45,6 +45,7 @@ export const createSoundToggleButton = (): IActionButton => {
   
   return {
     icon: soundEnabled ? SpeakerWaveIcon : SpeakerXMarkIcon,
+    event: "sound_toggle",
     onClick: () => {
       // Return empty events array as this is handled by the toggle itself
       return [] as IRuntimeEvent[];

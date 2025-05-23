@@ -40,6 +40,7 @@ export function createScreenOnToggleButton(): IActionButton {
 
   return {
     icon: screenOnEnabled ? EyeIcon : EyeSlashIcon,
+    event: "screen_toggle",
     onClick: () => {
       toggleScreenOn();
       return [] as IRuntimeEvent[];

@@ -19,7 +19,7 @@ export class TickHandler extends EventHandler {
     const block = runtime.trace.current();      
     const spans = block?.getSpanBuilder().Spans();
     const timeSpans = spans && spans.length > 0 
-      ? spans[spans.length - 1]
+      ? spans
       : [];
     const durationFragment = block?.selectMany(getDuration)[0];
 

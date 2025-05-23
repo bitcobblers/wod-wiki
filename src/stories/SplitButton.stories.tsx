@@ -15,6 +15,7 @@ const SplitButtonDemo = () => {
   const mainAction: IActionButton = {
     label: "Primary",
     icon: PlayIcon,
+    event: "primary",
     onClick: () => {
       const time = new Date();
       setLastAction('Primary action clicked');
@@ -56,6 +57,7 @@ const SplitButtonDemo = () => {
   const customAction: IActionButton = {
     label: "Custom",
     icon: StarIcon,
+    event: "custom",
     onClick: () => {
       setLastAction('Custom action clicked');
       return [{ name: "custom", timestamp: new Date() }];

@@ -64,6 +64,7 @@ export const WikiContainer: React.FC<WikiContainerProps> = ({
   const [runtimeButtons, setRuntimeButtons] = useButtonSync("runtime");
 
   const [edits, setEdits] = useState<RuntimeMetricEdit[]>([]);   
+  const [outputEvents, setOutputEvents] = useState<OutputEvent[]>([]);   
   
   // Call onResultsUpdated when results change
   useEffect(() => {
@@ -85,6 +86,9 @@ export const WikiContainer: React.FC<WikiContainerProps> = ({
       if (event.eventType === 'SET_CLOCK') {
         // Process clock update
       }
+      
+      // Add event to output events list for timer
+      setOutputEvents(prev => [...prev.slice(-99), event]); // Keep last 100 events
       
       // Process the event through all handlers
       setPrimary(event);
@@ -153,7 +157,7 @@ export const WikiContainer: React.FC<WikiContainerProps> = ({
       </div>
       {runtimeRef.current && (
         <>
-          <WodTimer label={label} primary={primary} total={total} events={output?.value}>
+          <WodTimer label={label} primary={primary} total={total} events={outputEvents}>
             <DefaultClockLayout label={label} />
           </WodTimer>
           <div className="p-1 flex justify-center">
