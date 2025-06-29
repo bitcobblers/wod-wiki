@@ -37,7 +37,7 @@ jobs:
       - name: Replace GA tag in manager-head.html
         if: ${{ vars.G_TAG != '' }}
         run: |
-          sed -i 's/G-PDXVPQZ4PV/${{ vars.G_TAG }}/g' .storybook/manager-head.html
+          sed -i 's/G-PDXVPQZ4PV/${{ vars.G_TAG }}/g' .storybook/preview-head.html
 
       - name: Run tests
         run: npm test
