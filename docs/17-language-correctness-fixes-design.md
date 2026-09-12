@@ -26,26 +26,26 @@ It does not introduce `emom 7 x 1:00`, a new timer notation, or a two-level nest
 
 Deliverable boundaries:
 
-| Workstream | Correction | Not a prerequisite |
-| --- | --- | --- |
-| Statement identity | Unique identities and a well-formed ownership tree | Moving properties to frontmatter |
+| Workstream         | Correction                                                        | Not a prerequisite                        |
+| ------------------ | ----------------------------------------------------------------- | ----------------------------------------- |
+| Statement identity | Unique identities and a well-formed ownership tree                | Moving properties to frontmatter          |
 | Protocol selection | Explicit protocol precedence and deterministic implicit selection | Reserving protocol words in a new grammar |
-| Diagnostics | No recovered malformed input silently becoming runnable | Rejecting every unfamiliar effort name |
-| Shipped examples | Examples matching supported parser and executor contracts | Accepting every possible clause order |
+| Diagnostics        | No recovered malformed input silently becoming runnable           | Rejecting every unfamiliar effort name    |
+| Shipped examples   | Examples matching supported parser and executor contracts         | Accepting every possible clause order     |
 
 ## 2. Evidence and affected seams
 
 The following observations describe the reviewed implementation, not the proposed outcome.
 
-| Evidence | Consequence | Source |
-| --- | --- | --- |
-| Properties and Blocks receive `id` from their source line | Multiple Statements on one line can collide | [syntax-parser.ts](../packages/lang/src/parser/syntax-parser.ts) |
-| Nesting adds a Statement to every ancestor's child list while assigning its last ancestor as parent | Parent pointers and direct-child ownership need reconciliation, not only a self-parent assertion | [applyIndentationNesting](../packages/lang/src/parser/syntax-parser.ts) |
-| `ParseOptions.strict` is declared but not consulted; a returned syntax tree is mapped and reported without errors unless an exception occurs | A successful parse return does not prove complete source acceptance | [parseScript.ts](../packages/lang/src/parser/parseScript.ts) |
-| AMRAP matches duration plus rounds; interval logic also matches a repeating-interval Hint | An explicit EMOM can match both logic strategies | [AMRAP](../packages/lang/src/runtime/compiler/strategies/logic/AmrapLogicStrategy.ts), [interval](../packages/lang/src/runtime/compiler/strategies/logic/IntervalLogicStrategy.ts) |
-| CrossFit keyword detection uses substring matching | Free text can influence protocol interpretation | [CrossFitDialect.ts](../packages/lang/src/dialects/CrossFitDialect.ts) |
-| Timer direction and skip requirements live outside the numeric duration value | Numeric Metric equality misses meaningful differences | [DurationMetric.ts](../packages/lang/src/runtime/compiler/metrics/DurationMetric.ts) |
-| Inline objects map `rpe` and `rir` to typed Metrics on their owning Statement | Moving them to note metadata is not a correctness fix | [semantic-classifier.ts](../packages/lang/src/parser/semantic-classifier.ts) |
+| Evidence                                                                                                                                     | Consequence                                                                                      | Source                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Properties and Blocks receive `id` from their source line                                                                                    | Multiple Statements on one line can collide                                                      | [syntax-parser.ts](../packages/lang/src/parser/syntax-parser.ts)                                                                                                                   |
+| Nesting adds a Statement to every ancestor's child list while assigning its last ancestor as parent                                          | Parent pointers and direct-child ownership need reconciliation, not only a self-parent assertion | [applyIndentationNesting](../packages/lang/src/parser/syntax-parser.ts)                                                                                                            |
+| `ParseOptions.strict` is declared but not consulted; a returned syntax tree is mapped and reported without errors unless an exception occurs | A successful parse return does not prove complete source acceptance                              | [parseScript.ts](../packages/lang/src/parser/parseScript.ts)                                                                                                                       |
+| AMRAP matches duration plus rounds; interval logic also matches a repeating-interval Hint                                                    | An explicit EMOM can match both logic strategies                                                 | [AMRAP](../packages/lang/src/runtime/compiler/strategies/logic/AmrapLogicStrategy.ts), [interval](../packages/lang/src/runtime/compiler/strategies/logic/IntervalLogicStrategy.ts) |
+| CrossFit keyword detection uses substring matching                                                                                           | Free text can influence protocol interpretation                                                  | [CrossFitDialect.ts](../packages/lang/src/dialects/CrossFitDialect.ts)                                                                                                             |
+| Timer direction and skip requirements live outside the numeric duration value                                                                | Numeric Metric equality misses meaningful differences                                            | [DurationMetric.ts](../packages/lang/src/runtime/compiler/metrics/DurationMetric.ts)                                                                                               |
+| Inline objects map `rpe` and `rir` to typed Metrics on their owning Statement                                                                | Moving them to note metadata is not a correctness fix                                            | [semantic-classifier.ts](../packages/lang/src/parser/semantic-classifier.ts)                                                                                                       |
 
 The preceding review executed these examples: `date: 2026-05-26` produced an identity
 collision; `emom (7) 1:00` matched both protocol strategies; `emom 7 x 1:00` produced
@@ -107,14 +107,14 @@ not a migration strategy.
 Resolve protocol semantics for each compiled group before competing logic strategies apply.
 Use the existing Metric/Hint channel, not a parallel mutable protocol registry.
 
-| Recognized input situation | Proposed decision |
-| --- | --- |
-| Explicit `EMOM` with duration and numeric rounds | Repeating intervals; stated rounds govern completion; AMRAP logic cannot also apply |
-| Explicit `AMRAP` with duration | One time-bound AMRAP; incidental rounds do not switch it to intervals |
-| Multiple different explicit protocol directives in one group | Blocking conflict diagnostic identifying both spans |
-| No explicit protocol, numeric rounds + duration + children | Preserve the implicit interval interpretation declared by `CrossFitDialect`; resolve it once |
-| No explicit protocol, timer only or rounds only | Preserve generic timer/rounds behavior |
-| `TABATA` or `FOR TIME` | Preserve their current supported parameterized behavior; do not invent missing work/rest phases or timer defaults |
+| Recognized input situation                                   | Proposed decision                                                                                                 |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Explicit `EMOM` with duration and numeric rounds             | Repeating intervals; stated rounds govern completion; AMRAP logic cannot also apply                               |
+| Explicit `AMRAP` with duration                               | One time-bound AMRAP; incidental rounds do not switch it to intervals                                             |
+| Multiple different explicit protocol directives in one group | Blocking conflict diagnostic identifying both spans                                                               |
+| No explicit protocol, numeric rounds + duration + children   | Preserve the implicit interval interpretation declared by `CrossFitDialect`; resolve it once                      |
+| No explicit protocol, timer only or rounds only              | Preserve generic timer/rounds behavior                                                                            |
+| `TABATA` or `FOR TIME`                                       | Preserve their current supported parameterized behavior; do not invent missing work/rest phases or timer defaults |
 
 Recognize whole protocol words/phrases in supported directive positions, not substrings inside
 unrelated effort names. Keep existing prefix/suffix and Action spellings that actually express

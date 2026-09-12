@@ -15,7 +15,7 @@ A cross-store query finds notes or blocks based on numeric thresholds computed b
 
 **Example Query:**
 ```wql
-find:note{tags:pr} where sum:totalVolume{} > 5000 in journal last 8w
+find:note{tags:pr,source:journal} last 8w where sum:totalVolume{} > 5000
 ```
 
 This query:

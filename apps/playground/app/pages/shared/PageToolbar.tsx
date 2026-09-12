@@ -214,10 +214,20 @@ export function ActionsMenu({
   const navEntries = entries.filter((entry) => entry.nav)
   const actionEntries = entries.filter((entry) => !entry.nav)
 
+  // Nothing to select → no trigger. When only nav rows exist, the 2xl
+  // secondary rail owns them, so the trigger also hides from 2xl up where
+  // the dropdown itself would be empty.
+  if (entries.length === 0) return null
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Page options" className="text-muted-foreground">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Page options"
+          className={cn('text-muted-foreground', actionEntries.length === 0 && '2xl:hidden')}
+        >
           <EllipsisVerticalIcon className="size-5" />
           <span className="sr-only">Page options</span>
         </Button>

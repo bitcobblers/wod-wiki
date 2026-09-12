@@ -42,9 +42,9 @@ One page, every WQL construct. Copy the query pattern, plug in your metrics, and
 
 | Target | Scope | Description | Example |
 |---|---|---|---|
-| `find:note` | `journal` | Search personal user notes | `find:note{tags:pr} in journal` |
-| `find:note` | `collections` | Search Catalog sessions | `find:note{effort:fran} in collections` |
-| `find:block` | `all` | Search fenced blocks across all sources | `find:block{text:amrap} in all last 4w` |
+| `find:note` | `journal` | Search personal user notes | `find:note{tags:pr,source:journal}` |
+| `find:note` | `collections` | Search Catalog sessions | `find:note{effort:fran,source:collections}` |
+| `find:block` | `all` | Search fenced blocks across all sources | `find:block{text:amrap,source:all} last 4w` |
 
 ### Filters {#filters}
 

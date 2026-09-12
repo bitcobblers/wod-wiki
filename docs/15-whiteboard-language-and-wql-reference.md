@@ -100,16 +100,16 @@ children `[[3],[4],[5]]`; L3–L5 children of L2; L6 a child of L1.
 
 ### A3.2 Durations and timer modifiers
 
-| Syntax | Meaning | Emitted |
-| --- | --- | --- |
-| `5:00` | 5-minute timer | `Duration(300000 ms)` |
-| `:30` | 30 seconds (colon prefix required under a minute) | `Duration(30000)` |
-| `1:30:00` | 90 minutes (`H:MM:SS`) | `Duration(5400000)` |
-| `^5:00` | count **up** to 5:00 instead of down | `Duration` with trend |
-| `*:30` / `*1:00` | timer cannot be skipped | `Duration` + hint `behavior.required_timer` |
-| `:?` | collectible timer — records actual elapsed time | `Duration(undefined)` |
-| `^:?` | collectible **count-up** timer | `Duration(undefined)` with trend |
-| `5:00 Run :?` | fixed 5:00 **plus** a recorded result | two `Duration` metrics |
+| Syntax           | Meaning                                           | Emitted                                     |     |
+| ---------------- | ------------------------------------------------- | ------------------------------------------- | --- |
+| `5:00`           | 5-minute timer                                    | `Duration(300000 ms)`                       |     |
+| `:30`            | 30 seconds (colon prefix required under a minute) | `Duration(30000)`                           |     |
+| `1:30:00`        | 90 minutes (`H:MM:SS`)                            | `Duration(5400000)`                         |     |
+| `^5:00`          | count **up** to 5:00 instead of down              | `Duration` with trend                       |     |
+| `*:30` / `*1:00` | timer cannot be skipped                           | `Duration` + hint `behavior.required_timer` |     |
+| `:?`             | collectible timer — records actual elapsed time   | `Duration(undefined)`                       |     |
+| `^:?`            | collectible **count-up** timer                    | `Duration(undefined)` with trend            |     |
+| `5:00 Run :?`    | fixed 5:00 **plus** a recorded result             | two `Duration` metrics                      |     |
 
 A duration can be the whole line (`5:00`), prefix a movement (`5:00 Run`), or parent a block
 (`20:00` + indented children = time cap).

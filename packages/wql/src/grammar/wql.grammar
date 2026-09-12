@@ -1,11 +1,11 @@
 // WQL — Wod Query Language (Datadog-flavored). See CONTEXT.md glossary.
 //
 //   <aggregator>:<metric.namespace>{<tag filters>} by {<dimensions>} .rollup(<period>)
-//   find:<target>{<tag filters>} in <scope> last <n>w
+//   find:<target>{<tag filters>,source:<scope>} last <n>w
 //
 //   sum:totalVolume{discipline:strength,!effort:burpee} by {week,effort}.rollup(1w)
 //   avg:tis{effort:back*} by {session}
-//   find:note{tags:pr} in journal last 8w
+//   find:note{tags:pr,source:journal} last 8w
 //
 // Semantic reference: the dashboard POC's hand-rolled engine
 // (wod-wiki-dashboard-poc/app/src/lib/wql.ts) — the AST contract lives in

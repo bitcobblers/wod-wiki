@@ -66,12 +66,12 @@ export const EXAMPLE_QUERIES: ExampleQuery[] = [
     question: 'What workouts did I do recently?',
   },
   {
-    query: 'find:note in collections',
+    query: 'find:note{source:collections}',
     label: 'Library workouts',
     question: 'What workouts are in the library?',
   },
   {
-    query: 'find:block{text:fran} in all',
+    query: 'find:block{text:fran,source:all}',
     label: 'Find Fran everywhere',
     question: 'Which blocks mention Fran?',
   },

@@ -138,6 +138,11 @@ describe('ActionsMenu', () => {
     expect(scrollToSection).toHaveBeenCalledWith('section-1');
   });
 
+  it('renders no trigger when there are no entries', () => {
+    renderWithNav([]);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
   it('renders secondary items inside a 2xl:hidden container', () => {
     const items: NavItemL3[] = [
       { id: 'sec-1', label: 'Section 1', level: 3, action: { type: 'scroll', sectionId: 'sec-1' } },

@@ -33,7 +33,7 @@ avg:calc.acwr{}
 
 ### Search Benchmark Notes
 ```wql
-find:block{text:fran} in collections
+find:block{text:fran,source:collections}
 ```
 
 ## Embedding Queries in Notes (` ```query `) {sticky}

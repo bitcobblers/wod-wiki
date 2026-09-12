@@ -26,10 +26,10 @@ WQL operates across two distinct query planes:
 | Query Plane | Syntax Pattern | What It Searches | Example |
 |---|---|---|---|
 | **Metrics Plane** | `<agg>:<metric>{<filters>} by {<dimension>}` | Numeric fact store (`totalVolume`, `tis`, `sessionLoad`) | `sum:totalVolume{discipline:strength} by {week}.rollup(1w)` |
-| **Content Plane** | `find:<target>{<filters>} in <scope>` | Journal notes, Catalog sessions, and dated Posts | `find:note{effort:thruster} in journal last 8w` |
+| **Content Plane** | `find:<target>{<filters>,source:<scope>}` | Journal notes, Catalog sessions, and dated Posts | `find:note{effort:thruster,source:journal} last 8w` |
 
 The two planes can be joined using the `where` clause:
-`find:note{tags:pr} where sum:totalVolume{} > 5000 in journal last 8w`
+`find:note{tags:pr,source:journal} last 8w where sum:totalVolume{} > 5000`
 
 ## What's Next {sticky full-bleed dark}
 

@@ -41,18 +41,18 @@ Content queries search markdown notes and fenced blocks using the `find:` verb.
 
 **Query Shape:**
 ```wql
-find:<target>{<filters>} in <scope> last <n>w
+find:<target>{<filters>,source:<scope>} last <n>w
 ```
 
 ### 1. Targets (`target`)
 * `find:note`: Returns full markdown notes (journal Notes, Catalog Sessions, Catalog Posts).
 * `find:block`: Returns addressable subsets of notes (`wod` blocks, `dashboard` blocks, headings).
 
-### 2. Scopes (`scope`)
-* `journal`: User's personal journal notes in IndexedDB.
-* `collections`: Preloaded Catalog sessions (e.g. Fran, Murph).
-* `feeds`: Dated Catalog posts.
-* `all`: Search across all sources simultaneously.
+### 2. Sources (`source:` filter)
+* `source:journal`: User's personal journal notes in IndexedDB.
+* `source:collections`: Preloaded Catalog sessions (e.g. Fran, Murph).
+* `source:feeds`: Dated Catalog posts.
+* `source:all`: Search across all sources simultaneously (the default — omit it).
 
 ## What's Next {sticky full-bleed dark}
 

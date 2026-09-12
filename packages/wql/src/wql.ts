@@ -62,7 +62,7 @@ export interface MetricPredicate {
 
 /**
  * Content half of a cross-store join — the find predicate attached to an
- * analytics query via `where`. Example: `find:note{tags:competition} in journal`.
+ * analytics query via `where`. Example: `find:note{tags:competition,source:journal}`.
  * Restricts the metric computation to the blockContentIds owned by matching
  * content; the metric is recomputed from raw logs for those blocks only.
  */
