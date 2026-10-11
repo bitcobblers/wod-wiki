@@ -35,7 +35,7 @@
     "docker": "docker compose up --build",
     "build": "bun run build:packages && bun run build:apps",
     "build:packages": "flock /tmp/wod-wiki-build-packages.lock bun run build:packages:seq",
-    "build:packages:seq": "bun run --cwd packages/core build && bun run --cwd packages/lang build && bun run --cwd packages/storage build && bun run --cwd packages/wql build && bun run --cwd packages/engine build && bun run --cwd packages/ui build",
+    "build:packages:seq": "bun run --cwd packages/core build && bun run --cwd packages/lang build && bun run --cwd packages/wql build && bun run --cwd packages/storage build && bun run --cwd packages/engine build && bun run --cwd packages/ui build",
     "build:apps": "bun run --filter '@bitcobblers/wod-wiki-playground' build && bun run --filter '@bitcobblers/wod-wiki-storybook' build",
     "build:app": "bun run --filter '@bitcobblers/wod-wiki-playground' build",
     "build:storybook": "bun run --filter '@bitcobblers/wod-wiki-storybook' build",
