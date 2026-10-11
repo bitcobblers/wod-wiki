@@ -133,12 +133,15 @@ describe('resolveRouteView — collection workout', () => {
     expect(view.workout).toEqual({ name: 'Fran', content: '21-15-9', category: 'girls' })
   })
 
-  it('falls back to the raw name when no item matches', () => {
+  it('falls back to the raw name and URL category when no item matches', () => {
     const view = resolveRouteView('/collections/girls/Ghost', { collection: 'girls', workout: 'Ghost' }, makeDeps())
     expect(view.workout.name).toBe('Ghost')
-    // Preserved quirk: an unmatched collection workout's category falls back to
-    // 'General', not the collection slug (matches the pre-extraction behaviour).
-    expect(view.workout.category).toBe('General')
+    // The URL-declared category wins even when the corpus index has no match:
+    // usePlaygroundContent resolves stored notes by pageId(category, name), so
+    // collapsing to 'General' would hide every IndexedDB-only collection note
+    // behind the default notebook (only bundled corpus items matched before
+    // the extraction).
+    expect(view.workout.category).toBe('girls')
   })
 })
 

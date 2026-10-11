@@ -2,7 +2,11 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Mobile folding zones and 2-stage transition', () => {
   test('content width never decreases and zone-4 aside appears only at 1520px+', async ({ page }) => {
-    await page.goto('/guide/start', { waitUntil: 'domcontentloaded' });
+    // /guide/* pages drop the desktop L2 sidebar, so the width curve differs
+    // from the standard shell this test pins. /journal keeps the full
+    // L2/L3 layout: content caps ~984px until the 1280px stage, holds to
+    // 1520px, then the zone-4 aside mounts and content re-grows.
+    await page.goto('/journal', { waitUntil: 'domcontentloaded' });
 
     // Selector for content column in SidebarLayout
     const contentColumn = page.locator('main').locator('..');

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
+import { seedBundledEfforts } from '../helpers/seedEfforts';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -26,6 +27,9 @@ test.describe('Efforts catalog — /efforts', () => {
     const efforts = new EffortsPage(page);
 
     await efforts.gotoCatalog();
+    // The effort corpus lives in the wod-wiki-community repo (not bundled);
+    // seed the fixture registry this test asserts against.
+    await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.waitForCatalogLoaded();
@@ -44,6 +48,10 @@ test.describe('Efforts catalog — /efforts', () => {
     const efforts = new EffortsPage(page);
 
     await efforts.gotoCatalog();
+    await seedBundledEfforts(page);
+    await efforts.waitForSeedRegistry();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await efforts.waitForCatalogLoaded();
     await efforts.searchFor('burpee');
 
     // 'burpee' legitimately matches the whole family (Burpee, Burpee pull up,

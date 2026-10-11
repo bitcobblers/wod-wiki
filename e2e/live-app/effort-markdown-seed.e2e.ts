@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
+import { seedBundledEfforts } from '../helpers/seedEfforts';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -26,6 +27,7 @@ test.describe('Effort markdown seed visibility', () => {
     const efforts = new EffortsPage(page);
 
     await efforts.gotoDetail('burpee');
+    await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.waitForDetailLoaded();
@@ -41,6 +43,7 @@ test.describe('Effort markdown seed visibility', () => {
     const efforts = new EffortsPage(page);
 
     await efforts.gotoDetail('kettlebell-swing');
+    await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.waitForDetailLoaded();

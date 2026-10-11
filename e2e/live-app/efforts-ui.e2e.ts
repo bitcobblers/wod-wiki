@@ -15,6 +15,7 @@
 import { test, expect, Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
 import { waitForSeedReady } from '../helpers/seedReadiness';
+import { seedBundledEfforts } from '../helpers/seedEfforts';
 
 const TEST_EFFORT_PREFIX = 'e2e-test';
 
@@ -136,6 +137,7 @@ test.describe('Effort Detail Page', () => {
   test('shows high-intensity effort correctly', async ({ page }) => {
     const efforts = new EffortsPage(page);
     await efforts.gotoDetail('kettlebell-snatch');
+    await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.waitForDetailLoaded();

@@ -48,7 +48,7 @@ jobs:
   build-test-storybook:
     runs-on: ubuntu-22.04
     outputs:
-      test-status: ${{ steps.test.outcome }}
+      test-status: ${{ steps.test.outputs.status }}
       build-status: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v7
@@ -60,9 +60,31 @@ jobs:
         if: inputs.version != ''
         run: bun scripts/stamp-version.ts --version "${{ inputs.version }}"
 
-      - name: Storybook interaction tests (Playwright browser runner)
-        id: test
+      # addon-vitest browser mode occasionally flakes on a cold cache: the
+      # vite dev server behind the chromium runner fails to serve its own
+      # setup module ("Failed to fetch dynamically imported module"), failing
+      # whole suites. One bounded retry absorbs it; the status step keeps the
+      # original success/failure contract for the pipeline gate.
+      - name: Storybook interaction tests (Playwright browser runner, attempt 1)
+        id: test-attempt-1
+        continue-on-error: true
         run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
+
+      - name: Storybook interaction tests (attempt 2)
+        id: test-attempt-2
+        if: steps.test-attempt-1.outcome == 'failure'
+        run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
+
+      - name: Storybook interaction tests (status)
+        id: test
+        if: always()
+        run: |
+          if [ "${{ steps.test-attempt-1.outcome }}" = "success" ] || [ "${{ steps.test-attempt-2.outcome }}" = "success" ]; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
       - name: Build Storybook
         id: build

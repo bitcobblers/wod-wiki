@@ -2,7 +2,9 @@
  * Collection Workout — run → record → results E2E
  *
  * Flow under test (live app):
- *   1. /collections/:collection/:workout → click Play on the WOD block.
+ *   1. /c/:collection/:workout (a seeded collection-style note) → click Play
+ *      on the WOD block. Date-shaped names take the date-scoped collection
+ *      route, so the fixtures use plain slug workout names.
  *      This must CREATE A NEW RECORD: a journal note for today containing the
  *      cloned workout block, and the runtime auto-starts on the date page.
  *   2a. Stopping the workout early must persist a WorkoutResult against the
@@ -27,10 +29,10 @@ import { installFastClock } from '../utils/fastClock';
 import { TEST_IDS } from '../contracts/TestIdContract';
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
-const STOP_NOTE_ID = 'zombiefit/2010-01-10';
-const COMPLETE_NOTE_ID = 'zombiefit/2010-01-13';
-const STOP_TITLE = '2010-01-10';
-const COMPLETE_TITLE = '2010-01-13';
+const STOP_NOTE_ID = 'zombiefit/e2e-stop-run';
+const COMPLETE_NOTE_ID = 'zombiefit/e2e-complete-run';
+const STOP_TITLE = 'e2e-stop-run';
+const COMPLETE_TITLE = 'e2e-complete-run';
 
 const STOP_CONTENT = '# E2E Stop Run\n\n```time\n10:00 AMRAP\n  5 Air Squats\n  5 Push Ups\n```\n';
 const COMPLETE_CONTENT = '# E2E Complete Run\n\n```time\n0:03 AMRAP\n  5 Air Squats\n```\n';
@@ -137,11 +139,12 @@ test.describe('Collection Workout — run and record', () => {
     await seedNote(page, STOP_NOTE_ID, STOP_CONTENT, { title: 'E2E Stop Run' });
     await deleteNoteAndResults(page, await findNoteIdByTitle(page, STOP_TITLE));
 
-    // 1. Start the workout from the collection page. Gate on the stored E2E
-    // content actually being mounted (not just any editor): the IDB-first load
-    // swaps bundled markdown for the override after mount, and Play must hit
-    // the post-swap DOM.
-    await page.goto(`/collections/${STOP_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
+    // 1. Start the workout from the collection workout page. Gate on the
+    // stored E2E content actually being mounted (not just any editor): the
+    // IDB-first load swaps bundled markdown for the override after mount,
+    // and Play must hit the post-swap DOM. (Workout names must not look
+    // like dates — /c/:slug/:date is the date-scoped collection view.)
+    await page.goto(`/c/${STOP_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.cm-content')).toContainText('10:00 AMRAP', { timeout: 15_000 });
     await clickPlayOnBlock(page, '10:00 AMRAP');
 
@@ -202,7 +205,7 @@ test.describe('Collection Workout — run and record', () => {
     await seedNote(page, COMPLETE_NOTE_ID, COMPLETE_CONTENT, { title: 'E2E Complete Run' });
     await deleteNoteAndResults(page, await findNoteIdByTitle(page, COMPLETE_TITLE));
 
-    await page.goto(`/collections/${COMPLETE_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`/c/${COMPLETE_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.cm-content')).toContainText('0:03 AMRAP', { timeout: 15_000 });
     await clickPlayOnBlock(page, '0:03 AMRAP');
 

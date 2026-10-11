@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { appBaseURL } from '../utils/url-helpers';
 import { waitForSeedReady } from '../helpers/seedReadiness';
+import { seedNote } from '../helpers/wodwikiDb';
 
 /** Pageerror noise filter — production loads third-party/analytics/extension scripts. */
 function isCriticalError(message: string): boolean {
@@ -98,6 +99,13 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
       window.localStorage.setItem('wodwiki.profileInitialized.v1', 'true');
     });
     page.on('dialog', (d) => { void d.accept(); });
+
+    // The workout corpus (crossfit-girls/fran) lives in the wod-wiki-community
+    // content repo and is not bundled with the app; seed the note this smoke
+    // run exercises straight into IndexedDB.
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await waitForSeedReady(page);
+    await seedNote(page, 'crossfit-girls/fran', '# Fran\n\n```time\n0:05 AMRAP\n  5 Thrusters\n  5 Pull Ups\n```\n', { title: 'Fran' });
 
     await page.goto('/collections/crossfit-girls/fran', { waitUntil: 'domcontentloaded' });
     await waitForSeedReady(page);
