@@ -86,11 +86,14 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     }
     savingRef.current = false;
     setSaveState('idle');
-    setSavedConfirmed(sent instanceof Promise); // "Saved" only after an awaited commit
     const { results } = report;
     if (results.completed && results.logs && results.logs.length > 0) {
-      const { segments } = getAnalyticsFromLogs(results.logs, results.startTime);
-      setCompletedSegments(segments);
+      try {
+        const { segments } = getAnalyticsFromLogs(results.logs, results.startTime);
+        setCompletedSegments(segments);
+      } catch {
+        setCompletedSegments([]);
+      }
     } else if (results.completed) {
       setCompletedSegments([]);
     } else if (exitRequestedRef.current) {

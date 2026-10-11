@@ -46,6 +46,7 @@ export interface ConditionsPanelSpec {
   familyActive: (loc: Location) => boolean
   createAction?: {
     label: string
+    icon?: NavItem['icon']
     testId?: string
     onClick: (deps: { navigate: (to: string) => void; openCreateJournal: (opts?: { mode?: 'blank' | 'source' }) => void }) => void
   }
@@ -97,25 +98,28 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
     return (
       <div className="-mx-4 flex flex-col gap-1 py-3" data-testid="conditions-nav-panel">
         <SidebarSection className="px-6">
-          {spec.createAction && (
-            <div className="mb-2">
-              <button
-                type="button"
-                data-testid={spec.createAction.testId ?? 'conditions-nav-create'}
-                onClick={() => {
-                  spec.createAction!.onClick({
-                    navigate,
-                    openCreateJournal: (opts) => openCreateJournal?.(opts),
-                  })
-                  closeNavigationDrawer()
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
-              >
-                <Plus className="size-4 shrink-0" />
-                <span>{spec.createAction.label}</span>
-              </button>
-            </div>
-          )}
+          {spec.createAction && (() => {
+            const CreateIcon = spec.createAction.icon ?? Plus
+            return (
+              <div className="mb-2">
+                <button
+                  type="button"
+                  data-testid={spec.createAction.testId ?? 'conditions-nav-create'}
+                  onClick={() => {
+                    spec.createAction!.onClick({
+                      navigate,
+                      openCreateJournal: (opts) => openCreateJournal?.(opts),
+                    })
+                    closeNavigationDrawer()
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
+                >
+                  <CreateIcon className="size-4 shrink-0" />
+                  <span>{spec.createAction.label}</span>
+                </button>
+              </div>
+            )
+          })()}
           {customQuery ? (
             <div className="flex items-center gap-1" data-testid="conditions-nav-custom">
               <SidebarItem

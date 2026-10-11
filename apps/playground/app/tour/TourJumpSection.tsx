@@ -2,13 +2,13 @@
  * TourJumpSection.tsx — the "Know where you're going?" direct-exit section.
  *
  * A ~half-viewport sliding section right under the hero: three flat boxes
- * that jump straight into the app's sub views (Feeds, the Feeds library,
+ * that jump straight into the app's sub views (Library, Playgrounds,
  * and creating a new journal note) for visitors who don't want the
- * full walkthrough. Feeds carries a small work-in-progress note.
+ * full walkthrough.
  */
 import { useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Rss, Newspaper, NotebookPen } from 'lucide-react'
+import { ArrowRight, Library, FlaskConical, CalendarPlus, type LucideIcon } from 'lucide-react'
 import { telemetry, HOME_EVENTS } from '@/services/telemetry'
 import { journalNotes } from '../services/journalNotes'
 import { noteByIdPath } from '../lib/routes'
@@ -18,7 +18,7 @@ const BOX_BASE =
   'group flex flex-col rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
 
 function BoxFace(props: {
-  icon: typeof Newspaper
+  icon: LucideIcon
   title: string
   description: string
   action: string
@@ -49,9 +49,6 @@ export function TourJumpSection() {
     telemetry.record(HOME_EVENTS.libraryOpened)
   }, [])
 
-  const handleFeeds = useCallback(() => {
-    telemetry.record(HOME_EVENTS.feedsOpened)
-  }, [])
 
   const handleNewNote = useCallback(async () => {
     const today = getTodayDateKey()
@@ -74,27 +71,27 @@ export function TourJumpSection() {
       </h2>
 
       <div className="mx-auto mt-4 grid w-full max-w-3xl grid-cols-1 gap-4 xl:mt-6 sm:grid-cols-3">
-        <Link to="/feeds" onClick={handleFeeds} data-testid="jump-feeds" className={BOX_BASE}>
+        <Link to="/catalogs" onClick={handleLibrary} data-testid="jump-library" className={BOX_BASE}>
           <BoxFace
-            icon={Newspaper}
-            title="Feeds"
-            description="Programming feeds you follow, newest first."
-            action="Browse feeds"
+            icon={Library}
+            title="Library"
+            description="Curated workouts and sessions, organized by tag."
+            action="Open the library"
           />
         </Link>
 
-        <Link to="/feeds" onClick={handleLibrary} data-testid="jump-library" className={BOX_BASE}>
+        <Link to="/playgrounds" data-testid="jump-playgrounds" className={BOX_BASE}>
           <BoxFace
-            icon={Rss}
-            title="Feeds library"
-            description="Curated workouts and sessions, ready to run."
-            action="Open the library"
+            icon={FlaskConical}
+            title="Playground"
+            description="Find examples run from the homepage and explore scratchpads."
+            action="Open playgrounds"
           />
         </Link>
 
         <button type="button" onClick={handleNewNote} data-testid="jump-new-note" className={BOX_BASE}>
           <BoxFace
-            icon={NotebookPen}
+            icon={CalendarPlus}
             title="Start your own journal"
             description="Create today's note and log your first workout."
             action="Create today's note"

@@ -3,7 +3,7 @@
 import * as Headless from '@headlessui/react'
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Plus, SlidersHorizontal } from 'lucide-react'
+import { CalendarPlus, SlidersHorizontal } from 'lucide-react'
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { NavbarItem } from '@/components/organisms/layout/Navbar'
 import { AppRail } from '../../app/nav/AppRail'
@@ -242,7 +242,7 @@ export function SidebarLayout({
             {onCreate && (
               <div className="py-2.5 shrink-0">
                 <NavbarItem onClick={onCreate} aria-label="New journal note">
-                  <Plus className="size-5" />
+                  <CalendarPlus className="size-5" />
                 </NavbarItem>
               </div>
             )}

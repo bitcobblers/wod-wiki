@@ -6,11 +6,14 @@
  */
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { EditorView } from '@codemirror/view'
 import { EditorSelection } from '@codemirror/state'
 import { v7 as uuidv7 } from 'uuid'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
+import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore'
+import { notePersistence } from '@/services/persistence'
+import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { JournalPageShell } from '@/panels/page-shells'
 import type { WidgetRegistry } from '@/components/Editor/widgets/types'
 import { PlaygroundRunTipWidget } from '../components/molecules/PlaygroundRunTipWidget'
@@ -25,7 +28,9 @@ import { usePlaygroundContent } from '../hooks/usePlaygroundContent'
 import { pageId } from '../services/playgroundContent'
 import { storageService } from '@/services/storage'
 import { pendingRuntimes } from '../runtimeStore'
-import { noteByIdPath, runPath } from '../lib/routes'
+import { noteByIdPath, runPath, sessionDetailPath } from '../lib/routes'
+import { formatDurationSmart } from '@/lib/formatTime'
+import { formatDateShort } from '@/lib/dateFormat'
 import { PageActions } from './shared/PageActions'
 import { useNotePageNav } from './shared/useNotePageNav'
 import {
@@ -48,6 +53,8 @@ import { useOnboardingEvents } from '../hooks/useOnboardingEvents'
 import { CalendarPlus } from 'lucide-react'
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { provenanceLink, type ContextNoteLink } from './shared/noteContextLinks'
+
+const contentProvider = new IndexedDBContentProvider()
 
 export interface PlaygroundNotePageProps {
   theme: string
@@ -351,6 +358,9 @@ export function PlaygroundNotePage({
 
   return (
     <>
+      {/* The provider wires the persistence port the editor's block companions
+        use to load results — without it playground notes never display them. */}
+      <WorkbenchSessionProvider notePersistence={notePersistence} provider={contentProvider}>
       <JournalPageShell
         title={pageTitle}
         actions={headerActions}
@@ -362,7 +372,7 @@ export function PlaygroundNotePage({
               onChange={onChange}
               onCursorPositionChange={onLineChange}
               onBlur={onBlur}
-              noteId={noteId}
+              noteId={runtimeNoteId}
               commands={commands}
               enableInlineRuntime={false}
               onViewCreated={handleInternalViewCreated}
@@ -372,9 +382,33 @@ export function PlaygroundNotePage({
               onButtonAction={handleButtonAction}
               widgetComponents={widgetComponents}
             />
+            {results.length > 0 && (
+              <section aria-label="Workout results">
+                <h2 className="text-sm font-semibold text-muted-foreground">Results</h2>
+                <ul className="mt-1 divide-y divide-border/60">
+                  {results.map((result) => (
+                    <li key={result.id}>
+                      <Link
+                        to={sessionDetailPath(result.id)}
+                        className="flex items-center gap-2 py-1.5 text-sm hover:underline"
+                      >
+                        <span className="font-mono">{formatDurationSmart(result.duration)}</span>
+                        <span className="text-muted-foreground">
+                          {formatDateShort(new Date(result.createdAt))}
+                        </span>
+                        {!result.completed && (
+                          <span className="text-muted-foreground/70">partial</span>
+                        )}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         }
       />
+      </WorkbenchSessionProvider>
       {pendingScheduleBlock && (
         <EditorDialog
           open
