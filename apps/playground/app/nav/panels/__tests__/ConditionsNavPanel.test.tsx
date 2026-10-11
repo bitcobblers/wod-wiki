@@ -24,7 +24,7 @@ import type { Location } from 'react-router-dom'
 import { parseQuery, serialize, isFindQuery, type AnyParsedQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-wql'
 
 import { storageService } from '@/services/storage'
-import { staticNoteStore } from '@/services/content/staticBlockIndex'
+import type { Note } from '@/types/storage'
 
 import { publishStreamResults, type StreamResultSnapshot } from '../../../views/stream/streamResults'
 import { FEEDS_STREAM_PROFILE } from '../../../views/stream/streamProfile'
@@ -111,20 +111,53 @@ function renderPanel(at = '/feeds', drawerClose?: () => void) {
 
 const originalGetNoteTagLabelsBatch = storageService.getNoteTagLabelsBatch
 const originalGetEffortSlugsByNoteBatch = storageService.getEffortSlugsByNoteBatch
-const originalStaticGetAllNotes = staticNoteStore.getAllNotes
+const originalGetAllNotes = storageService.getAllNotes
 
 beforeEach(() => {
   lastLocation = null
   storageService.getNoteTagLabelsBatch = async () => MEMBERSHIP
   storageService.getEffortSlugsByNoteBatch = async () => EFFORT_MEMBERSHIP
-  staticNoteStore.getAllNotes = async () => []
+  storageService.getAllNotes = async () => []
 })
 
 afterEach(() => {
   cleanup()
   storageService.getNoteTagLabelsBatch = originalGetNoteTagLabelsBatch
   storageService.getEffortSlugsByNoteBatch = originalGetEffortSlugsByNoteBatch
-  staticNoteStore.getAllNotes = originalStaticGetAllNotes
+  storageService.getAllNotes = originalGetAllNotes
+})
+
+// ── canonical tag-membership edge ────────────────────────────────────────────
+// Canonical corpus rows are UUID-keyed — no path stem to split — so a catalog
+// entry's facet vocabulary must come from the note's `catalog` family
+// aggregation over the junction batch. Exercised through the rendered panel:
+// the family-only value ('benchmark', carried by the second corpus note) must
+// surface for an entry whose catalog is the family.
+describe('canonical tag membership through the panel', () => {
+  it('lists family-aggregated corpus tags for catalog entries with UUID note ids', async () => {
+    storageService.getAllNotes = async () => [
+      { id: 'uuid-fran', title: 'Fran', createdAt: 1, catalog: 'crossfit-girls' },
+      { id: 'uuid-readme', title: 'Crossfit Girls', createdAt: 1, catalog: 'crossfit-girls' },
+    ] as Note[];
+    storageService.getNoteTagLabelsBatch = async () =>
+      new Map([
+        ['uuid-fran', [{ label: 'strength' }]],
+        ['uuid-readme', [{ label: 'strength' }, { label: 'benchmark' }]],
+      ]);
+    renderPanel('/feeds?q=%3Afeed%7Btags%3Astrength%7D%20by%20%7Btag%7D')
+    publish({
+      pathname: '/feeds',
+      query: ':feed{tags:strength} by {tag}',
+      entries: [entry({ id: 'f1', noteId: 'uuid-fran', catalog: 'crossfit-girls', title: 'Fran' })],
+    })
+    fireEvent.click(await waitFor(() => {
+      const button = screen.getByTestId('conditions-section-tags').querySelector('button')
+      if (!button) throw new Error('tags accordion not rendered yet')
+      return button
+    }))
+    await waitFor(() => expect(screen.getByTestId('conditions-row-tags:benchmark')).toBeTruthy())
+    expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy()
+  })
 })
 
 // ── pure toggle model ────────────────────────────────────────────────────────

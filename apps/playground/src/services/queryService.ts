@@ -39,7 +39,6 @@ import type { BlockIndexRow, IOutputStatement } from '@bitcobblers/wod-wiki-core
 import { getActiveWorkbenchSessionStore } from '@/stores/workbenchSessionStore';
 import { getAppEffortRegistry } from '@/services/effortRegistry';
 import { storageService } from '@/services/storage';
-import { staticNoteStore } from '@/services/content/staticBlockIndex';
 
 /** Unified event store over IndexedDB — the `events` object store (V16). */
 export const indexedDbEventStore: EventStore = {
@@ -222,18 +221,17 @@ async function populatePageSources(ctx: ExecutionContext, gen: number): Promise<
   const start = zonedStartOfDay(today, ctx.timeZone);
   const end = zonedStartOfDay(civilDateAdd(today, 1), ctx.timeZone);
 
-  const [rangeEvents, allNotes, allLinks] = await Promise.all([
+  const [rangeEvents, allNotes, allLinks, allPages] = await Promise.all([
     storageService.getEventsByTimeRange(start, end),
     storageService.getAllNotes(),
     storageService.getAllPageNotes(),
+    storageService.getAllPages(),
   ]);
   // The store's window query treats the end as inclusive — the civil day
   // is the half-open [local midnight, next local midnight).
   const events = rangeEvents.filter((e) => e.timestamp >= start && e.timestamp < end);
 
-  const pageIds = Array.from(new Set(allLinks.map((l) => l.pageId)));
-  const pages = new Map<string, { date?: string } | undefined>();
-  await Promise.all(pageIds.map(async (id) => pages.set(id, await storageService.getPage(id))));
+  const pages = new Map(allPages.map(page => [page.id, page]));
 
   const linksByNote = new Map<string, Array<{ pageId: string; position?: number; createdAt: number }>>();
   for (const link of allLinks) {
@@ -358,7 +356,6 @@ export function createQueryService(): QueryService {
     noteStore: indexedDbNoteStore,
     blockStore: indexedDbBlockStore,
     effortStore: new RegistryEffortStore(),
-    staticNoteStore,
     blockEffortsStore: {
       getAllFromIndex: (index, key) => storageService.getAllFromIndex('block_efforts', index, key),
     },
@@ -372,6 +369,9 @@ export function createQueryService(): QueryService {
     pageStore: {
       getNotePages: (noteId) => storageService.getNotePages(noteId),
       getPage: (pageId) => storageService.getPage(pageId),
+    },
+    relationStore: {
+      getBatches: (noteIds) => storageService.getEntryBatches(noteIds),
     },
     // Named page-source datasets — @session projects live at query time;
     // everything else reads the populated registry. No database roundtrip.

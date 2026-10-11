@@ -66,48 +66,13 @@ interface SeedMetaRecord {
 }
 
 // ---------------------------------------------------------------------------
-// Frontmatter (minimal corpus subset: scalars, string lists, one nested level)
+// Frontmatter — shared helpers live in ../exchange (CLI ⇄ website parity);
+// this module keeps only the seed-classification logic.
 // ---------------------------------------------------------------------------
 
-type FrontmatterValue = string | string[] | Record<string, string>;
+import { extractTypedTags, markdownToEffort, readFrontmatterMeta, type TypedTagItem } from '../exchange';
 
-function parseFrontmatterBlock(raw: string): { meta: Record<string, FrontmatterValue>; body: string } | null {
-  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) return null;
-  const innerLines = match[1].split(/\r?\n/);
-  const meta: Record<string, FrontmatterValue> = {};
-  for (let i = 0; i < innerLines.length; i++) {
-    const line = innerLines[i];
-    const kv = line.match(/^([^:]+):\s*(.*)$/);
-    if (!kv) continue;
-    const key = kv[1].trim();
-    const value = kv[2].trim();
-    if (value) {
-      if (value.startsWith('[') && value.endsWith(']')) {
-        meta[key] = value.slice(1, -1).split(',').map((s) => s.trim()).filter(Boolean);
-      } else {
-        meta[key] = value;
-      }
-      continue;
-    }
-    // Block list ("- item") or one nested level of "sub: value".
-    const items: string[] = [];
-    const nested: Record<string, string> = {};
-    while (i + 1 < innerLines.length && /^\s+\S/.test(innerLines[i + 1])) {
-      const child = innerLines[i + 1].trim();
-      i += 1;
-      if (child.startsWith('- ')) items.push(child.slice(2).trim());
-      else {
-        const sub = child.match(/^([^:]+):\s*(.*)$/);
-        if (sub) nested[sub[1].trim()] = sub[2].trim();
-      }
-    }
-    meta[key] = items.length > 0 ? items : nested;
-  }
-  return { meta, body: raw.slice(match[0].length) };
-}
-
-const scalarOf = (value: FrontmatterValue | undefined): string | undefined =>
+const scalarOf = (value: string | string[] | undefined): string | undefined =>
   typeof value === 'string' ? value : undefined;
 
 // ---------------------------------------------------------------------------
@@ -179,7 +144,7 @@ export interface SeedSourceSummary {
 interface BuiltNoteRecord {
   note: Note;
   segment: NoteSegment;
-  tags: string[];
+  tags: TypedTagItem[];
   page?: Page;
   pageNote?: PageNote;
   rawContent: string;
@@ -189,32 +154,29 @@ interface BuiltNoteRecord {
 function buildNoteRecord(row: SeedRow, chunkId: string, seedVersion: number): BuiltNoteRecord {
   const id = seedNoteId(row.path);
   const createdAt = seedVersion; // deterministic, mirrors SeedImporter
-  const parsed = parseFrontmatterBlock(row.content);
+  const meta = readFrontmatterMeta(row.content);
+  // General `tags:` plus typed keys (equipment, quality, …) — SeedImporter parity.
+  const tags = extractTypedTags(row.content);
 
   let date: number | undefined;
   let page: Page | undefined;
   let pageNote: PageNote | undefined;
-  const tags: string[] = [];
-  if (parsed) {
-    const rawDate = scalarOf(parsed.meta['date']);
-    if (rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-      date = new Date(`${rawDate}T12:00:00Z`).getTime();
-    }
-    const slug = scalarOf(parsed.meta['slug']);
-    if (slug) {
-      const pageId = seedNoteId(`page:${slug}`);
-      page = { id: pageId, slug, title: titleFromPath(row.path), createdAt };
-      pageNote = { id: seedNoteId(`pagenote:${slug}:${row.path}`), pageId, noteId: id, createdAt };
-    }
-    const rawTags = parsed.meta['tags'];
-    if (Array.isArray(rawTags)) tags.push(...rawTags.filter((t): t is string => typeof t === 'string'));
+  const rawDate = scalarOf(meta['date']);
+  if (rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+    date = new Date(`${rawDate}T12:00:00Z`).getTime();
+  }
+  const slug = scalarOf(meta['slug']);
+  if (slug) {
+    const pageId = seedNoteId(`page:${slug}`);
+    page = { id: pageId, slug, title: titleFromPath(row.path), createdAt };
+    pageNote = { id: seedNoteId(`pagenote:${slug}:${row.path}`), pageId, noteId: id, createdAt };
   }
 
   const sourceId = seedNoteSourceId(row.path, row.content, chunkId);
   if (!sourceId) {
     throw new Error(`[wod seed] chunk "${chunkId}" row "${row.path}" has no source family — refusing to import it as journal`);
   }
-  const metaTitle = parsed ? scalarOf(parsed.meta['title']) : undefined;
+  const metaTitle = scalarOf(meta['title']);
   return {
     note: {
       id,
@@ -247,32 +209,8 @@ function buildNoteRecord(row: SeedRow, chunkId: string, seedVersion: number): Bu
   };
 }
 
-/** parseEffortFile parity-lite: scalar keys + aliases + one-level baseAttributes. */
-function buildEffortRecord(raw: string): Record<string, unknown> | null {
-  const parsed = parseFrontmatterBlock(raw);
-  if (!parsed) return null;
-  const id = scalarOf(parsed.meta['id']);
-  const slug = scalarOf(parsed.meta['slug']);
-  const label = scalarOf(parsed.meta['label']);
-  const aliases = parsed.meta['aliases'];
-  const baseAttrs = parsed.meta['baseAttributes'];
-  if (!id || !slug || !label || typeof baseAttrs !== 'object' || Array.isArray(baseAttrs)) return null;
-  const met = Number(baseAttrs['met']);
-  if (!Number.isFinite(met)) return null;
-  return {
-    id,
-    slug,
-    label,
-    ...(Array.isArray(aliases) ? { aliases } : {}),
-    baseAttributes: {
-      met,
-      ...(typeof baseAttrs['discipline'] === 'string' ? { discipline: baseAttrs['discipline'] } : {}),
-      ...(typeof baseAttrs['intensityTier'] === 'string' ? { intensityTier: baseAttrs['intensityTier'] } : {}),
-    },
-    registrySource: 'bundled',
-    ...(parsed.body.trim() ? { body: parsed.body.trim() } : {}),
-  };
-}
+/** Effort materialization lives in ../exchange (markdownToEffort) so the
+ * website and CLI parse effort files identically. */
 
 async function metaRecord(sql: SqlApi, db: CliDb['db'], sourceId: string): Promise<SeedMetaRecord> {
   const rows = (await sql.listRows(db, sql.storeDefinition('meta'))) as Array<{ key: string } & Record<string, unknown>>;
@@ -307,8 +245,8 @@ export async function importSeedDir(db: CliDb, dir: string, sourceId: string): P
     ((await sql.listRows(db.db, sql.storeDefinition('notes'))) as Array<{ id: string } & Record<string, unknown>>)
       .map((row) => [row.id, row as unknown as Note]),
   );
-  const tagIdByLabel = new Map(
-    ((await sql.listRows(db.db, sql.storeDefinition('tags'))) as Tag[]).map((t) => [t.label, t.id]),
+  const tagRowByLabel = new Map(
+    ((await sql.listRows(db.db, sql.storeDefinition('tags'))) as Tag[]).map((t) => [t.label, t]),
   );
 
   const summary: SeedSourceSummary = {
@@ -360,13 +298,20 @@ export async function importSeedDir(db: CliDb, dir: string, sourceId: string): P
         ops.push({ op: 'put', store: 'segments', value: record.segment });
         if (record.page) ops.push({ op: 'put', store: 'page', value: record.page });
         if (record.pageNote) ops.push({ op: 'put', store: 'page_notes', value: record.pageNote });
-        for (const label of record.tags) {
-          let tagId = tagIdByLabel.get(label);
-          if (!tagId) {
-            tagId = randomId();
-            tagIdByLabel.set(label, tagId);
-            ops.push({ op: 'put', store: 'tags', value: { id: tagId, label, createdAt: Date.now() } satisfies Tag });
+        for (const item of record.tags) {
+          const label = item.label;
+          let tag = tagRowByLabel.get(label);
+          if (!tag) {
+            tag = { id: randomId(), label, type: item.type, createdAt: Date.now() };
+            tagRowByLabel.set(label, tag);
+            ops.push({ op: 'put', store: 'tags', value: tag satisfies Tag });
+          } else if (item.type && !tag.type) {
+            // Upgrade an untyped tag to its typed use (SeedImportStorage parity).
+            tag = { ...tag, type: item.type };
+            tagRowByLabel.set(label, tag);
+            ops.push({ op: 'put', store: 'tags', value: tag satisfies Tag });
           }
+          const tagId = tag.id;
           ops.push({
             op: 'put',
             store: 'note_tags',
@@ -376,9 +321,9 @@ export async function importSeedDir(db: CliDb, dir: string, sourceId: string): P
           });
         }
         if (chunk.id === EFFORTS_CHUNK_ID) {
-          const effort = buildEffortRecord(record.rawContent);
+          const effort = markdownToEffort(record.rawContent);
           if (effort) {
-            ops.push({ op: 'put', store: 'efforts', value: effort });
+            ops.push({ op: 'put', store: 'efforts', value: { ...effort, registrySource: 'bundled' } });
             summary.efforts += 1;
           }
         }

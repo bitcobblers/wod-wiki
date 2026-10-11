@@ -39,6 +39,10 @@ mock.module('@/services/queryService', () => ({
     runFindEffort: mock((parsed: ParsedFindQuery) => runFindEffortImpl ? runFindEffortImpl(parsed) : runFindImpl(parsed)),
     runRows: mock((parsed: ParsedRowsQuery): Promise<RowsQueryResult> => Promise.resolve({ parsed, runs: [] })),
   },
+  indexedDbBlockStore: { getAllBlocks: async () => [] },
+  indexedDbNoteStore: { getAllNotes: async () => [] },
+  ensurePageSources: async () => {},
+  refreshPageSources: async () => {},
 }))
 
 const { searchEntries, StreamQueryEngine } = await import('./entrySearch')

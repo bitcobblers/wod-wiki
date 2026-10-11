@@ -56,6 +56,11 @@ function generateId(): string {
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
+
+/** SQL domain parser MAX_VALUES (packages/storage/src/sql/domain.ts) — the
+ *  entries-plan id selection chunks at the same bound to stay a valid wire
+ *  clause on every chunk. */
+const DOMAIN_ID_CHUNK = 64;
 export const DEFAULT_TAG_TYPES: Array<Omit<TagTypeRecord, 'createdAt'>> = [
   { id: 'type-domain', name: 'domain', label: 'Domain', color: '#10b981' },
   { id: 'type-format', name: 'format', label: 'Format', color: '#8b5cf6' },
@@ -178,18 +183,40 @@ export class StorageService implements NotePersistenceStorage {
    * Batch note metadata bundles for the domain `entries` plan: the note, its
    * latest active segments (max version per segment id, history flag applied
    * after — the MAX-before-history rule), tag rows, page links and pages.
-   * One readonly transaction over the joined stores.
+   * The one local/remote bundle chooser: a remote backend (IStorage.queryDomain
+   * present) reads the entries plan with deduped ids chunked at the SQL domain
+   * parser's 64-value limit; a per-chunk `undefined` (409 domain-unavailable)
+   * falls through to the local path below rather than yielding silent empty
+   * bundles. Local backends: one readonly transaction over the joined stores.
+   * Missing notes/pages stay absent — fail-closed, never resurrected. Storage
+   * errors propagate unchanged.
    */
   async getEntryBatches(noteIds: readonly string[]): Promise<Map<string, DomainEntry>> {
     const out = new Map<string, DomainEntry>();
     if (noteIds.length === 0) return out;
+    if (this.storage.queryDomain) {
+      const ids = [...new Set(noteIds)];
+      const remote: DomainEntry[] = [];
+      let remoteComplete = true;
+      for (let i = 0; i < ids.length && remoteComplete; i += DOMAIN_ID_CHUNK) {
+        const res = await this.storage.queryDomain({
+          plan: 'entries',
+          selection: [{ field: 'id', values: ids.slice(i, i + DOMAIN_ID_CHUNK) }],
+        });
+        if (res && res.plan === 'entries') remote.push(...res.rows);
+        else remoteComplete = false;
+      }
+      if (remoteComplete) {
+        for (const entry of remote) out.set(entry.note.id, entry);
+        return out;
+      }
+    }
     return this.storage.transaction(
       ['notes', 'segments', 'note_tags', 'tags', 'page_notes', 'page'],
       'readonly',
       async (tx) => {
         for (const noteId of noteIds) {
           const note = await tx.readonly('notes').get(noteId);
-          if (!note) continue;
 
           const latest = new Map<string, NoteSegment>();
           for (const segment of await tx.readonly('segments').getAllFromIndex('by-note', noteId)) {
@@ -214,7 +241,15 @@ export class StorageService implements NotePersistenceStorage {
             if (page) pages.push(page);
           }
 
-          out.set(noteId, { note, segments, tags, links, pages });
+          if (!note && links.length === 0 && tags.length === 0 && segments.length === 0) continue;
+
+          out.set(noteId, {
+            note: note ?? { id: noteId, title: '', createdAt: 0 },
+            segments,
+            tags,
+            links,
+            pages,
+          });
         }
         return out;
       },
@@ -294,6 +329,10 @@ export class StorageService implements NotePersistenceStorage {
 
   async getPage(id: string): Promise<Page | undefined> {
     return this.storage.readonly('page').get(id);
+  }
+
+  async getAllPages(): Promise<Page[]> {
+    return this.storage.readonly('page').getAll();
   }
 
   async getPageByDate(date: string): Promise<Page | undefined> {

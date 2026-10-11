@@ -119,6 +119,8 @@ Adapters:
 
 The SQL module lives at `@bitcobblers/wod-wiki-storage/sql`. Browser Turso and `apps/api` reuse its store schema, binary codec, transactions, and WQL domain projections. The server retains native SQLite/libSQL and PostgreSQL connection adapters; native drivers never enter the browser graph. WQL parsing and query rules remain shared rather than introducing a Turso-specific parser.
 
+Production WQL reads notes from the canonical `notes` store. The seed importer creates each parent note before mapping static blocks to its UUID; queries do not synthesize a second note plane from `block_index`. Canonical edits, tags, catalog identities, and deletions therefore decide visibility. `@today` population loads pages once with `StorageService.getAllPages()` and keeps the existing junction-page date, note date, then creation-date precedence.
+
 Provider selection happens once at browser boot in `apps/playground/src/services/storage/index.ts`: an API build override wins, otherwise validated browser-local settings select Turso or default IndexedDB. Invalid saved settings disable data access until repaired or explicitly switched. Successful changes reload the page and other tabs to discard provider-specific caches. Turso failures do not silently create or write a local database.
 
 `tursoMigration.ts` reads a consistent IndexedDB snapshot, includes remote-owned preferences and the local profile, then checks and writes an empty SQL destination in one transaction. Bulk migration rebuilds projections once and preserves row ownership. The source remains untouched; credentials never enter remote metadata. Switch-back is not reverse synchronization.

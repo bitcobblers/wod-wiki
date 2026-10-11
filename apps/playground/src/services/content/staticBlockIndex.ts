@@ -4,14 +4,14 @@
  *
  * The seed importer materializes precomputed BlockIndexRow[] rows (from the
  * `block-index.<n>` seed chunks) into `block_index` next to user rows; this
- * module derives the corpus projections the Query Service's note plane and
- * the WQL composer suggestions need. The old ~8 MB generated JSON import
+ * module derives the corpus projections the WQL composer suggestions need.
+ * Canonical note reads go through the `notes` store directly — the old
+ * static Note projection (and the executor's static-note merge) is gone.
+ * The old ~8 MB generated JSON import
  * (src/generated/static-block-index.json) is gone.
  */
-import type { BlockIndexRow, Note } from '@/types/storage';
-import type { NoteQueryStore } from '@bitcobblers/wod-wiki-engine';
+import type { BlockIndexRow } from '@/types/storage';
 import { extractFrontmatterTags } from '@/lib/frontmatter';
-import { staticCatalogRoute } from '@bitcobblers/wod-wiki-wql';
 import {
     CANONICAL_BLOCK_TYPES,
     blockTypesFromBlocks,
@@ -27,6 +27,7 @@ import { storageService } from '@/services/storage';
 import { getAppEffortRegistry } from '@/services/effortRegistry';
 import { getScriptCollections } from '@/repositories/script-collections';
 let corpusBlocksPromise: Promise<BlockIndexRow[]> | null = null;
+let staticTagIndexPromise: Promise<Map<string, Set<string>>> | null = null;
 
 /** Memoized corpus (`isStatic`) block rows from the block_index store. */
 export function loadCorpusBlocks(): Promise<BlockIndexRow[]> {
@@ -45,7 +46,6 @@ export function loadCorpusBlocks(): Promise<BlockIndexRow[]> {
 /** Drop the memoized corpus read — call when a new seed lands. */
 export function invalidateCorpusBlocks(): void {
     corpusBlocksPromise = null;
-    staticNotesPromise = null;
     staticTagIndexPromise = null;
 }
 
@@ -63,7 +63,7 @@ export function feedDateToCreatedAt(dateKey: string): number {
 /**
  * Tag → noteIds index over a block index's frontmatter rows. Static-corpus
  * notes declare tags only in frontmatter `tags:`; this recovers the mapping
- * the note store needs to answer `tags:` clauses (issue #853 — the store
+ * the suggestion tag vocabulary needs (issue #853 — the store
  * previously returned an empty set for every tag).
  */
 export function staticTagIndexFromBlocks(blocks: BlockIndexRow[]): Map<string, Set<string>> {
@@ -79,73 +79,6 @@ export function staticTagIndexFromBlocks(blocks: BlockIndexRow[]): Map<string, S
     return index;
 }
 
-/**
- * Pure projection of a block_index into static Notes — one Note per distinct
- * noteId. `id` stays the canonical storage identity (UUID for imported rows);
- * `catalog` and feed-landing status come from the sourceId route via
- * the shared `staticCatalogRoute` (`catalog` is undefined for UUID-keyed rows
- * without a route — never a UUID). The catalog (e.g. `crossfit-girls`) is
- * what the Library's panel uses to target the `+ Filter → Catalog` menu.
- */
-export function staticNotesFromBlocks(blocks: BlockIndexRow[]): Note[] {
-    const map = new Map<string, Note>();
-    const tagsByNote = new Map<string, string[]>();
-    for (const block of blocks) {
-        if (block.dataType === 'frontmatter') {
-            const tags = extractFrontmatterTags(block.rawContent);
-            if (tags.length > 0) tagsByNote.set(block.noteId, tags);
-        }
-        if (!map.has(block.noteId)) {
-            const route = staticCatalogRoute(block);
-            map.set(block.noteId, {
-                id: block.noteId,
-                title: block.noteTitle,
-                createdAt: block.createdAt,
-                type: route.landing ? 'feed' : 'note',
-                sourceId: route.sourceId,
-                catalog: route.catalog,
-                sourcePath: block.sourcePath,
-            });
-        }
-    }
-    for (const [noteId, tags] of tagsByNote.entries()) {
-        const n = map.get(noteId);
-        if (n) n.tags = tags;
-    }
-    return Array.from(map.values());
-}
-
-let staticNotesPromise: Promise<Note[]> | null = null;
-export function loadStaticNotes(): Promise<Note[]> {
-    if (!staticNotesPromise) {
-        staticNotesPromise = loadCorpusBlocks().then(async (blocks) => {
-            const notes = staticNotesFromBlocks(blocks);
-            const hasFeedLandingPages = notes.some(n => n.type === 'feed' && n.sourceId?.startsWith('page:collection:'));
-            if (!hasFeedLandingPages) {
-                try {
-                    const collections = await getScriptCollections();
-                    for (const col of collections) {
-                        notes.push({
-                            id: col.id,
-                            title: col.name,
-                            createdAt: 0,
-                            type: 'feed',
-                            sourceId: `page:collection:${col.id}`,
-                            catalog: col.id,
-                            tags: col.categories,
-                        });
-                    }
-                } catch {
-                    // test environment
-                }
-            }
-            return notes;
-        });
-    }
-    return staticNotesPromise;
-}
-
-let staticTagIndexPromise: Promise<Map<string, Set<string>>> | null = null;
 /**
  * Memoized tag → noteIds index over the static corpus, derived lazily so
  * the ~21k-row scan only runs when a `tags:` clause actually executes.
@@ -171,21 +104,6 @@ export function loadStaticTagIndex(): Promise<Map<string, Set<string>>> {
     }
     return staticTagIndexPromise;
 }
-export const staticNoteStore: NoteQueryStore = {
-    getAllNotes: () => loadStaticNotes(),
-    getNoteIdsForTag: async (label) =>
-        (await loadStaticTagIndex()).get(label) ?? new Set<string>(),
-    // The corpus notes' tags live on their frontmatter block rows.
-    getNoteTagLabels: async (noteId) => {
-        const notes = await loadStaticNotes();
-        const note = notes.find((n) => n.id === noteId);
-        if (note?.tags && note.tags.length > 0) return note.tags;
-        const blocks = await loadCorpusBlocks();
-        return blocks
-            .filter((b) => b.noteId === noteId && b.dataType === 'frontmatter')
-            .flatMap((b) => extractFrontmatterTags(b.rawContent));
-    },
-};
 
 // ── Composer suggestion bindings ───────────────────────────────────────────
 

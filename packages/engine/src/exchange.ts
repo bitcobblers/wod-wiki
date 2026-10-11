@@ -15,6 +15,7 @@
  *    import recreates the session and its events verbatim.
  */
 
+import { WQL_TYPED_TAG_KEYS } from '@bitcobblers/wod-wiki-wql';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { Note, NoteSegment, Session } from '@bitcobblers/wod-wiki-storage';
 
@@ -102,9 +103,16 @@ export function composeNoteMarkdown(
   segments: readonly NoteSegment[],
   version?: number,
 ): string {
+  // Latest composition mirrors the live note: superseded versions never
+  // appear, which also drops re-keyed positional chains (edits shift line
+  // numbers, so a changed block surfaces under a new id and its old id is
+  // history). As-of composition keeps every row ≤ the cap per segment id.
+  const pool = version === undefined
+    ? segments.filter((s) => s.isHistory !== true)
+    : segments;
   const cap = version ?? Number.MAX_SAFE_INTEGER;
   const bySegmentId: Record<string, NoteSegment> = {};
-  for (const segment of segments) {
+  for (const segment of pool) {
     if (segment.version > cap) continue;
     const current = bySegmentId[segment.id];
     if (!current || segment.version > current.version) bySegmentId[segment.id] = segment;
@@ -112,6 +120,195 @@ export function composeNoteMarkdown(
   const picked = Object.values(bySegmentId).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   const markdown = picked.map(segmentToFragment).join('');
   return injectIdentityFrontmatter(markdown, { noteId: note.id, title: note.title });
+}
+
+// ---------------------------------------------------------------------------
+// Frontmatter tags (general + typed: equipment, quality, …)
+// ---------------------------------------------------------------------------
+
+export interface TypedTagItem { label: string; type?: string }
+
+const FRONTMATTER_BLOCK_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
+
+/**
+ * Minimal frontmatter reader (the corpus subset): `key: scalar`, `key:` +
+ * `- item` lists, and inline `[a, b]` lists. Keys are lowercased. Returns {}
+ * when no leading block exists.
+ */
+export function readFrontmatterMeta(markdown: string): Record<string, string | string[]> {
+  const match = FRONTMATTER_BLOCK_RE.exec(markdown);
+  if (!match) return {};
+  const meta: Record<string, string | string[]> = {};
+  const lines = match[1].split(/\r?\n/);
+  let currentListKey: string | undefined;
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    const item = line.match(/^\s+-\s+(.*)$/);
+    if (item && currentListKey) {
+      (meta[currentListKey] as string[]).push(item[1].trim());
+      continue;
+    }
+    const kv = line.match(/^([^:]+):\s*(.*)$/);
+    if (!kv) continue;
+    const key = kv[1].trim().toLowerCase();
+    const value = kv[2].trim();
+    if (value === '') {
+      meta[key] = [];
+      currentListKey = key;
+    } else if (value.startsWith('[') && value.endsWith(']')) {
+      meta[key] = value
+        .slice(1, -1)
+        .split(',')
+        .map((v) => v.trim().replace(/^['"]|['"]$/g, ''))
+        .filter((v) => v.length > 0);
+      currentListKey = undefined;
+    } else {
+      meta[key] = value;
+      currentListKey = undefined;
+    }
+  }
+  return meta;
+}
+
+const asList = (value: string | string[] | undefined): string[] =>
+  Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',').map((v) => v.trim()).filter((v) => v.length > 0)
+      : [];
+
+/**
+ * Extract a note's frontmatter tags: the general `tags:` list plus typed
+ * keys (equipment, quality, domain, format, intent by default — the WQL
+ * typed-tag vocabulary). Mirrors the playground's
+ * `extractTypedFrontmatterTags` (frontmatter.ts) so CLI and app imports
+ * classify identically.
+ */
+export function extractTypedTags(
+  markdown: string,
+  typedKeys: readonly string[] = WQL_TYPED_TAG_KEYS,
+): TypedTagItem[] {
+  const meta = readFrontmatterMeta(markdown);
+  const results: TypedTagItem[] = asList(meta['tags']).map((label) => ({ label }));
+  const metaKeys = Object.keys(meta);
+  for (const typeName of typedKeys) {
+    if (typeName === 'tags') continue;
+    const matchedKey = metaKeys.find((k) => k === typeName.toLowerCase());
+    if (!matchedKey) continue;
+    for (const label of asList(meta[matchedKey])) {
+      results.push({ label, type: typeName });
+    }
+  }
+  return results.filter((t) => t.label.length > 0);
+}
+
+// ---------------------------------------------------------------------------
+// Effort registry (markdown round-trip — the corpus effort file format)
+// ---------------------------------------------------------------------------
+
+export interface EffortFileFields {
+  id: string;
+  slug: string;
+  label: string;
+  aliases: string[];
+  baseAttributes: Record<string, unknown>;
+  body?: string;
+}
+
+/**
+ * Parse a corpus-style effort markdown file: frontmatter `id`/`slug`/`label`
+ * (required), `aliases` list, one-level scalar `baseAttributes` with a
+ * numeric `met`, plus an optional markdown body. Parity with the seed
+ * importer's effort materialization.
+ */
+export function markdownToEffort(raw: string): EffortFileFields | null {
+  const match = FRONTMATTER_BLOCK_RE.exec(raw);
+  if (!match) return null;
+  const meta = readFrontmatterMeta(raw);
+  const body = raw.slice(match[0].length).trim();
+  const id = scalarOf(meta['id']);
+  const slug = scalarOf(meta['slug']);
+  const label = scalarOf(meta['label']);
+  if (!id || !slug || !label) return null;
+  const baseAttributes: Record<string, unknown> = {};
+  // One nested level, scalar values (met/discipline/intensityTier/…).
+  const blockRe = /^\s{2,}([^:]+):\s*(.+)$/;
+  let inAttrs = false;
+  for (const line of match[1].split(/\r?\n/)) {
+    if (/^baseAttributes:/.test(line)) {
+      inAttrs = true;
+      continue;
+    }
+    if (inAttrs) {
+      const attr = blockRe.exec(line);
+      if (attr && /^ {2,}/.test(line)) {
+        const v = attr[2].trim();
+        baseAttributes[attr[1].trim()] = /^\d+(\.\d+)?$/.test(v) ? Number(v) : v;
+      } else if (/^\S/.test(line)) {
+        inAttrs = false;
+      }
+    }
+  }
+  if (typeof baseAttributes['met'] !== 'number') return null;
+  return {
+    id,
+    slug,
+    label,
+    aliases: asList(meta['aliases']),
+    baseAttributes,
+    ...(body ? { body } : {}),
+  };
+}
+
+/** Compose an effort registry row back into corpus-style markdown. */
+export function effortToMarkdown(effort: {
+  id: string;
+  slug: string;
+  label: string;
+  aliases?: string[];
+  baseAttributes: Record<string, unknown>;
+  body?: string;
+}): string {
+  const lines = ['---', `id: ${effort.id}`, `slug: ${effort.slug}`, `label: ${effort.label}`];
+  if (effort.aliases && effort.aliases.length > 0) {
+    lines.push('aliases:');
+    for (const alias of effort.aliases) lines.push(`  - ${alias}`);
+  }
+  const attrs = Object.entries(effort.baseAttributes).filter(([, v]) => typeof v === 'number' || typeof v === 'string');
+  if (attrs.length > 0) {
+    lines.push('baseAttributes:');
+    for (const [k, v] of attrs) lines.push(`  ${k}: ${String(v)}`);
+  }
+  lines.push('---', '');
+  return `${lines.join('\n')}\n${(effort.body ?? '').trim()}`.trimEnd() + '\n';
+}
+
+function scalarOf(value: string | string[] | undefined): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Equipment catalog (typed tags, CSV round-trip)
+// ---------------------------------------------------------------------------
+
+/** One-label-per-row CSV (header `label`) for equipment catalogs. */
+export function equipmentToCsv(labels: readonly string[]): string {
+  return ['label', ...labels].map((l) => escapeCsvField(l)).join('\n') + '\n';
+}
+
+export function csvToEquipmentLabels(csv: string): string[] {
+  const lines = splitCsvRecords(csv);
+  if (lines.length === 0) return [];
+  const header = parseCsvLine(lines[0]);
+  const labelIdx = header[0] === 'label' ? 0 : -1;
+  const start = labelIdx >= 0 ? 1 : 0; // tolerate headerless files
+  const labels: string[] = [];
+  for (const line of lines.slice(start)) {
+    const cells = parseCsvLine(line);
+    const label = (labelIdx >= 0 ? cells[0] : cells.join(',')).trim();
+    if (label) labels.push(label);
+  }
+  return [...new Set(labels)];
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +337,10 @@ const EVENT_HEADER = [
   'stackLevel', 'completionReason', 'representationKind',
   'metricType', 'metricValue', 'metricUnit', 'metricImage', 'metricOrigin',
   'metricMetadata', 'metricTemporal',
+  // Verbatim JSON backstops: make the machine round-trip lossless across
+  // schema fields that have no dedicated spreadsheet column. Explicit cells
+  // above still win on import, so hand-edited values are honored.
+  'metricJson', 'eventExtraJson',
 ] as const;
 
 export const SESSION_CSV_HEADER = [...SESSION_HEADER, ...EVENT_HEADER];
@@ -191,7 +392,18 @@ function metricCells(event: EventRecord, metric: Metric, index: number): string[
     metric.type, metricValueToCell(metric.value), metric.unit, metric.image, metric.origin,
     metric.metadata === undefined ? '' : JSON.stringify(metric.metadata),
     event.metricTemporal?.[index] === undefined ? '' : JSON.stringify(event.metricTemporal[index]),
+    JSON.stringify(metric),
   ].map(escapeCsvField);
+}
+
+/** Event fields with no dedicated column, serialized verbatim (minus the
+ * metrics array, which gets its own columns). metricTemporal is kept: the
+ * importer discards it and rebuilds from the per-row column, so an empty
+ * array still round-trips where no rows carry temporals. Returns the
+ * CSV-escaped cell. */
+function eventExtraCells(event: EventRecord): string {
+  const { metrics: _metrics, ...rest } = event;
+  return escapeCsvField(JSON.stringify(rest));
 }
 
 /**
@@ -204,13 +416,14 @@ export function sessionToCsv(session: Session, events: readonly EventRecord[]): 
   lines.push([...sessionCells(session), ...EVENT_HEADER.map(() => '')].join(','));
   const ordered = [...events].sort((a, b) => a.id.localeCompare(b.id));
   for (const event of ordered) {
+    const extra = eventExtraCells(event);
     const metrics = event.metrics ?? [];
     if (metrics.length === 0) {
-      lines.push([...sessionCells(session), ...metricCells(event, { type: '' }, 0)].join(','));
+      lines.push([...sessionCells(session), ...metricCells(event, { type: '' }, 0), extra].join(','));
       continue;
     }
     for (let i = 0; i < metrics.length; i++) {
-      lines.push([...sessionCells(session), ...metricCells(event, metrics[i], i)].join(','));
+      lines.push([...sessionCells(session), ...metricCells(event, metrics[i], i), extra].join(','));
     }
   }
   return lines.join('\n') + '\n';
@@ -280,6 +493,7 @@ export interface SessionImportRows {
 }
 
 const num = (cell: string): number | undefined => (cell === '' ? undefined : Number(cell));
+const nonempty = (cell: string): string | undefined => (cell === '' ? undefined : cell);
 
 function jsonCell<T>(cell: string): T | undefined {
   if (!cell) return undefined;
@@ -337,43 +551,56 @@ export function csvToSessionRows(csv: string): SessionImportRows {
     if (!eventId) continue; // session anchor row
 
     let event = eventRows.get(eventId);
-      if (!event) {
+    if (!event) {
+      // eventExtraJson is the verbatim backstop; explicit spreadsheet cells
+      // override it so hand-edited values are honored on import.
+      const extra = jsonCell<Record<string, unknown>>(at(cells, 'eventExtraJson')) ?? {};
       event = {
+        ...extra,
         id: eventId,
         resultId: currentSession.id,
-        noteId: at(cells, 'noteId'),
-        blockContentId: at(cells, 'eventBlockContentId') || undefined,
-        pageId: at(cells, 'pageId') || undefined,
-        origin: (at(cells, 'eventOrigin') || undefined) as EventRecord['origin'],
-        timestamp: Number(at(cells, 'timestamp') || 0),
-        grain: (at(cells, 'grain') || 'event') as EventRecord['grain'],
-        effortSlug: at(cells, 'effortSlug') || undefined,
-        outputType: at(cells, 'outputType') || 'event',
-        segmentId: at(cells, 'eventSegmentId') || undefined,
-        segmentVersion: num(at(cells, 'eventSegmentVersion')),
-        timeSpan: jsonCell(at(cells, 'timeSpan')),
-        sourceBlockKey: at(cells, 'sourceBlockKey') || undefined,
-        sourceStatementId: num(at(cells, 'sourceStatementId')),
-        line: num(at(cells, 'line')),
-        text: at(cells, 'text') || undefined,
-        dialect: at(cells, 'dialect') || undefined,
-        stackLevel: num(at(cells, 'stackLevel')),
-        completionReason: at(cells, 'completionReason') || undefined,
-        representationKind: (at(cells, 'representationKind') || undefined) as EventRecord['representationKind'],
+        noteId: nonempty(at(cells, 'noteId')) ?? (extra.noteId as string | undefined) ?? currentSession.noteId,
+        blockContentId: nonempty(at(cells, 'eventBlockContentId')) ?? (extra.blockContentId as string | undefined),
+        pageId: nonempty(at(cells, 'pageId')) ?? (extra.pageId as string | undefined),
+        origin: (nonempty(at(cells, 'eventOrigin')) ?? extra.origin) as EventRecord['origin'],
+        timestamp: Number(at(cells, 'timestamp') || extra.timestamp || 0),
+        grain: (nonempty(at(cells, 'grain')) ?? extra.grain ?? 'event') as EventRecord['grain'],
+        effortSlug: nonempty(at(cells, 'effortSlug')) ?? (extra.effortSlug as string | undefined),
+        outputType: nonempty(at(cells, 'outputType')) ?? (extra.outputType as string | undefined) ?? 'event',
+        segmentId: nonempty(at(cells, 'eventSegmentId')) ?? (extra.segmentId as string | undefined),
+        segmentVersion: num(at(cells, 'eventSegmentVersion')) ?? (extra.segmentVersion as number | undefined),
+        timeSpan: jsonCell(at(cells, 'timeSpan')) ?? (extra.timeSpan as EventRecord['timeSpan']),
+        sourceBlockKey: nonempty(at(cells, 'sourceBlockKey')) ?? (extra.sourceBlockKey as string | undefined),
+        sourceStatementId: num(at(cells, 'sourceStatementId')) ?? (extra.sourceStatementId as number | undefined),
+        line: num(at(cells, 'line')) ?? (extra.line as number | undefined),
+        text: nonempty(at(cells, 'text')) ?? (extra.text as string | undefined),
+        dialect: nonempty(at(cells, 'dialect')) ?? (extra.dialect as string | undefined),
+        stackLevel: num(at(cells, 'stackLevel')) ?? (extra.stackLevel as number | undefined),
+        completionReason: nonempty(at(cells, 'completionReason')) ?? (extra.completionReason as string | undefined),
+        representationKind: (nonempty(at(cells, 'representationKind')) ??
+          extra.representationKind) as EventRecord['representationKind'],
         metrics: [],
+        // Rebuilt per-row from the metricTemporal column below — never
+        // inherited from the backstop, or rows would double-collect.
+        metricTemporal: undefined,
       };
       eventRows.set(eventId, event);
     }
 
     const metricType = at(cells, 'metricType');
     if (!metricType) continue; // metrics:[] event row
+    // metricJson is the verbatim backstop; explicit cells override it.
+    const baseMetric = jsonCell<Metric>(at(cells, 'metricJson')) ?? {};
     const metric: Metric = {
+      ...baseMetric,
       type: metricType,
-      value: metricValueFromCell(at(cells, 'metricValue')),
-      ...(at(cells, 'metricUnit') ? { unit: at(cells, 'metricUnit') } : {}),
-      ...(at(cells, 'metricImage') ? { image: at(cells, 'metricImage') } : {}),
-      ...(at(cells, 'metricOrigin') ? { origin: at(cells, 'metricOrigin') } : {}),
-      ...(at(cells, 'metricMetadata') ? { metadata: jsonCell(at(cells, 'metricMetadata')) } : {}),
+      ...(at(cells, 'metricValue') !== '' ? { value: metricValueFromCell(at(cells, 'metricValue')) } : {}),
+      ...(nonempty(at(cells, 'metricUnit')) ? { unit: at(cells, 'metricUnit') } : {}),
+      ...(nonempty(at(cells, 'metricImage')) ? { image: at(cells, 'metricImage') } : {}),
+      ...(nonempty(at(cells, 'metricOrigin')) ? { origin: at(cells, 'metricOrigin') } : {}),
+      ...(at(cells, 'metricMetadata') !== ''
+        ? { metadata: jsonCell(at(cells, 'metricMetadata')) }
+        : {}),
     };
     (event.metrics as Metric[]).push(metric);
     const temporal = jsonCell<unknown>(at(cells, 'metricTemporal'));

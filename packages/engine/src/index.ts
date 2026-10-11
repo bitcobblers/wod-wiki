@@ -373,6 +373,33 @@ export {
   formatQueryOutput,
   type OutputFormat,
 } from './cli/formatters';
+// Seed compiler — `wod build` engine + programmatic API for host builds
+// (scripts/sync-seed.ts compiles the core canvas corpus + template through it).
+export {
+  generateSeed,
+  validateDashboardNote,
+  chunkIdFor,
+  collectCorpusMarkdown,
+  partitionIntoChunks,
+  discoverUncatalogedEfforts,
+  scaffoldDiscoveredEfforts,
+  type ChunkGroup,
+  type DiscoveredEffort,
+  type GenerateSeedOptions,
+  type GenerateSeedResult,
+} from './cli/seedbuild/compiler';
+export {
+  SEED_SCHEMA,
+  TEMPLATE_CHUNK_ID,
+  DASHBOARDS_CHUNK_ID,
+  BLOCK_INDEX_CHUNK_PREFIX,
+  BLOCK_EFFORTS_CHUNK_PREFIX,
+  canvasRouteSlug,
+  type ChunkKind,
+  type ManifestChunk,
+  type SeedManifest,
+  type SeedRow,
+} from './cli/seedbuild/contract';
 // Import/Export exchange — pure row⇄string transforms shared by the CLI and
 // the website (download/upload against IndexedDB rows uses the same code).
 export {
@@ -382,10 +409,21 @@ export {
   injectIdentityFrontmatter,
   sessionToCsv,
   parseCsvLine,
+  splitCsvRecords,
   SESSION_CSV_HEADER,
   NOTE_ID_FRONTMATTER_KEY,
   type NoteIdentity,
   type SessionImportRows,
+} from './exchange';
+export {
+  readFrontmatterMeta,
+  extractTypedTags,
+  markdownToEffort,
+  effortToMarkdown,
+  equipmentToCsv,
+  csvToEquipmentLabels,
+  type TypedTagItem,
+  type EffortFileFields,
 } from './exchange';
 
 // 9. Engine Version Info

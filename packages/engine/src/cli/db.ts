@@ -305,3 +305,17 @@ export async function getSessionBundle(db: Database, resultId: string): Promise<
   const events = ((await allRows(sql, db, 'events')) as EventRecord[]).filter((e) => e.resultId === resultId);
   return { session, events };
 }
+
+/** Fetch one effort registry row by slug. */
+export async function getEffortBySlug(db: Database, slug: string): Promise<Record<string, unknown> | undefined> {
+  const sql = await loadSql();
+  const efforts = (await allRows(sql, db, 'efforts')) as Array<{ slug: string } & Record<string, unknown>>;
+  return efforts.find((e) => e.slug === slug);
+}
+
+/** Fetch tag rows of one type (e.g. 'equipment'). */
+export async function listTagsByType(db: Database, type: string): Promise<Array<{ id: string; label: string; type?: string }>> {
+  const sql = await loadSql();
+  const tags = (await allRows(sql, db, 'tags')) as Array<{ id: string; label: string; type?: string }>;
+  return tags.filter((t) => t.type === type);
+}

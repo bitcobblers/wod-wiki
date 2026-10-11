@@ -20,8 +20,10 @@ import type {
   BlockIndexRow,
   Note,
   NoteSegment,
+  NoteTag,
   Session,
   StoreName,
+  Tag,
   TxOp,
 } from '@bitcobblers/wod-wiki-storage';
 import type { ExecutionLog } from '../ir';
@@ -30,7 +32,7 @@ import type { Section, ICodeStatement } from '@bitcobblers/wod-wiki-core';
 import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
 import { parseScript } from '@bitcobblers/wod-wiki-lang';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import { loadSql, randomId, stableNoteId, type CliDb, type SqlApi } from './db';
+import { loadSql, randomId, stableNoteId, uuid5, CLI_UUID_NAMESPACE, type CliDb, type SqlApi } from './db';
 
 type SegmentDataType = NoteSegment['dataType'];
 
@@ -103,6 +105,9 @@ export interface PersistNoteOptions {
    * download → edit → parse a round-trip into the same note. */
   noteId?: string;
   title?: string;
+  /** Frontmatter tags (general + typed, e.g. equipment) to materialize:
+   * the note owns its tag set, so existing note_tags links are replaced. */
+  tags?: Array<{ label: string; type?: string }>;
   now?: number;
 }
 
@@ -112,6 +117,7 @@ export interface PersistNoteResult {
   segments: number;
   blocks: number;
   efforts: number;
+  tags: number;
   created: boolean;
 }
 
@@ -223,6 +229,39 @@ export async function persistNote(db: CliDb, options: PersistNoteOptions): Promi
     }
   }
 
+  // Tag graph: the note's frontmatter owns its tag set — replace existing
+  // links. Tags are shared: get-or-create by label, upgrading an untyped
+  // tag row when a typed use arrives (SeedImportStorage parity).
+  let tagCount = 0;
+  if (options.tags) {
+    const priorLinks = (await rowsByNote(sql, db.db, 'note_tags', noteId)) as NoteTag[];
+    for (const link of priorLinks) ops.push({ op: 'delete', store: 'note_tags', key: link.id });
+    const tagByLabel = new Map(
+      ((await sql.listRows(db.db, sql.storeDefinition('tags'))) as Tag[]).map((t) => [t.label, t]),
+    );
+    for (const item of options.tags) {
+      const label = item.label.trim();
+      if (!label) continue;
+      let tag = tagByLabel.get(label);
+      if (!tag) {
+        tag = { id: randomId(), label, type: item.type, createdAt: now };
+        tagByLabel.set(label, tag);
+        ops.push({ op: 'put', store: 'tags', value: tag });
+      } else if (item.type && !tag.type) {
+        tag = { ...tag, type: item.type };
+        tagByLabel.set(label, tag);
+        ops.push({ op: 'put', store: 'tags', value: tag });
+      }
+      tagCount += 1;
+      ops.push({
+        op: 'put',
+        store: 'note_tags',
+        // Deterministic junction id (unique [noteId, tagId] index).
+        value: { id: uuid5(CLI_UUID_NAMESPACE, `note-tag:${noteId}:${tag.id}`), noteId, tagId: tag.id } satisfies NoteTag,
+      });
+    }
+  }
+
   await db.db.transaction(async (tx) => {
     await sql.refreshDomain(tx, ops);
   });
@@ -233,7 +272,8 @@ export async function persistNote(db: CliDb, options: PersistNoteOptions): Promi
     segments: segments.length,
     blocks: blockCount,
     efforts: effortCount,
-    created: existingNote === undefined,
+    tags: tagCount,
+    created: !existingNote,
   };
 }
 
@@ -362,4 +402,44 @@ export async function persistSessionBundle(
     for (const row of events) await sql.putRow(tx, eventsDef, row);
   });
   return { events: events.length, noteCreated };
+}
+
+/** Upsert one effort registry row (keyed by slug). */
+export async function persistEffort(db: CliDb, effort: Record<string, unknown>): Promise<void> {
+  const sql = await loadSql();
+  await db.db.transaction(async (tx) => {
+    await sql.putRow(tx, sql.storeDefinition('efforts'), effort);
+  });
+}
+
+/**
+ * Ensure tags of one type exist for every label (equipment catalogs).
+ * Untyped existing tags are upgraded; labels typed as another type are
+ * left alone (a tag row carries exactly one type). Returns labels added.
+ */
+export async function persistTypedTags(db: CliDb, labels: readonly string[], type: string): Promise<number> {
+  const sql = await loadSql();
+  const now = Date.now();
+  const tagByLabel = new Map(
+    ((await sql.listRows(db.db, sql.storeDefinition('tags'))) as Tag[]).map((t) => [t.label, t]),
+  );
+  const ops: TxOp[] = [];
+  let added = 0;
+  for (const raw of labels) {
+    const label = raw.trim();
+    if (!label) continue;
+    const tag = tagByLabel.get(label);
+    if (!tag) {
+      ops.push({ op: 'put', store: 'tags', value: { id: randomId(), label, type, createdAt: now } satisfies Tag });
+      added += 1;
+    } else if (!tag.type) {
+      ops.push({ op: 'put', store: 'tags', value: { ...tag, type } satisfies Tag });
+    }
+  }
+  if (ops.length > 0) {
+    await db.db.transaction(async (tx) => {
+      await sql.refreshDomain(tx, ops);
+    });
+  }
+  return added;
 }

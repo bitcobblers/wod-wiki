@@ -338,4 +338,51 @@ describe('containers — junction-based, parent Page wins', () => {
     }).runFind(parsed);
     expect(result.containers).toBeUndefined();
   });
+
+  it('relationStore batches containers in one read: first-by-position page wins, dangling links stay standalone, tags inline on untagged notes', async () => {
+    const parsed = parseQuery(':journal{}');
+    if (parsed.family !== 'find') throw new Error('expected find query');
+    const notes: Note[] = [
+      { id: 'n-page', title: 'Bound', createdAt: T0, type: 'note' } as Note,
+      { id: 'n-loose', title: 'Standalone', createdAt: T0, type: 'note' } as Note,
+      { id: 'n-tagged', title: 'Inline', createdAt: T0, type: 'note', tags: ['authored'] } as Note,
+      { id: 'n-dangling', title: 'Dangling', createdAt: T0, type: 'note' } as Note,
+    ];
+    const batchIds: string[][] = [];
+    const result = await new QueryService({
+      noteStore: { getAllNotes: async () => notes, getNoteIdsForTag: async () => new Set<string>(), getNoteTagLabels: async () => [] },
+      relationStore: {
+        getBatches: async (ids) => {
+          batchIds.push([...ids]);
+          return new Map([
+            ['n-page', {
+              tags: [{ label: 'crossfit' }, { label: 'girl-wods' }],
+              links: [
+                { id: 'pn1', pageId: 'p-named', noteId: 'n-page', position: 2, createdAt: T0 },
+                { id: 'pn2', pageId: 'p1', noteId: 'n-page', position: 1, createdAt: T0 },
+              ],
+              pages: [{ id: 'p1', slug: 'snatches', createdAt: T0 }], // p-named missing: dangling
+            }],
+            ['n-dangling', { tags: [], links: [{ id: 'pn3', pageId: 'gone', noteId: 'n-dangling', position: 1, createdAt: T0 }], pages: [] }],
+            ['n-tagged', { tags: [{ label: 'ignored' }], links: [], pages: [] }],
+          ]);
+        },
+      },
+    }).runFind(parsed);
+    // One deduped bundle read for the whole run — no per-note page reads.
+    expect(batchIds).toHaveLength(1);
+    expect(batchIds[0]!.sort()).toEqual(['n-dangling', 'n-loose', 'n-page', 'n-tagged']);
+    expect(result.containers).toEqual({
+      // First link by position resolves p1 even though a later-position
+      // link exists; the unresolved p-named page never resurrects.
+      'n-page': { kind: 'page', id: 'p1', slug: 'snatches' },
+      'n-loose': { kind: 'note', id: 'n-loose' },
+      'n-dangling': { kind: 'note', id: 'n-dangling' },
+      'n-tagged': { kind: 'note', id: 'n-tagged' },
+    });
+    // Bundle junction tags inline only on notes without authored tags.
+    expect(notes.find(n => n.id === 'n-page')!.tags).toEqual(['crossfit', 'girl-wods']);
+    expect(notes.find(n => n.id === 'n-tagged')!.tags).toEqual(['authored']);
+    expect(notes.find(n => n.id === 'n-loose')!.tags).toBeUndefined();
+  });
 });

@@ -86,7 +86,6 @@ export interface StreamQueryService {
   runFind(parsed: ParsedFindQuery, options?: unknown): Promise<FindQueryResult>;
   runFindEffort?(parsed: ParsedFindQuery): Promise<FindQueryResult>;
   runRows?(parsed: ParsedRowsQuery, options?: unknown): Promise<RowsQueryResult>;
-  getNoteTagLabels?(noteId: string): Promise<string[]>;
 }
 
 export interface StreamQueryEngineOptions {
@@ -146,18 +145,33 @@ export class StreamQueryEngine {
     return next;
   }
 
-  private async attachPageLinks(entries: Entry[]): Promise<void> {
-    const pages = new Map<string, Promise<Page | undefined>>();
-    await Promise.all(entries.filter(entry => entry.sourceCatalog === 'journal').map(async entry => {
-      const links = await storageService.getNotePages(entry.noteId ?? entry.id);
-      links.sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity) || a.createdAt - b.createdAt);
+  /** One batched relation read per run (storageService.getEntryBatches —
+   *  local one-transaction bundles, remote ids chunked at the entries
+   *  plan's 64-value limit; empty id set → no read). Journal page links
+   *  and pages always hydrate; `withNoteFields` also fills blank titles
+   *  (block-derived notes) and junction tags from the SAME bundle. A bundle
+   *  hit with an empty tag set is final — no-tag is a valid state, never
+   *  re-fetched per note; ids absent from the notes store stay untagged
+   *  and untitled (fail-closed). */
+  private async hydrateEntries(entries: Entry[], withNoteFields: boolean): Promise<void> {
+    const parentNoteId = (entry: Entry) => entry.noteId ?? entry.id;
+    const bundleIds = new Set<string>();
+    for (const entry of entries) {
+      if (entry.sourceCatalog === 'journal') bundleIds.add(parentNoteId(entry));
+      if (withNoteFields && (!entry.title || !entry.tags || entry.tags.length === 0)) {
+        bundleIds.add(parentNoteId(entry));
+      }
+    }
+    if (bundleIds.size === 0) return;
+    const bundles = await storageService.getEntryBatches([...bundleIds]);
+    for (const entry of entries) {
+      if (entry.sourceCatalog !== 'journal') continue;
+      const bundle = bundles.get(parentNoteId(entry));
+      const links = [...(bundle?.links ?? [])].sort(
+        (a, b) => (a.position ?? Infinity) - (b.position ?? Infinity) || a.createdAt - b.createdAt,
+      );
       for (const link of links) {
-        let pending = pages.get(link.pageId);
-        if (!pending) {
-          pending = storageService.getPage(link.pageId);
-          pages.set(link.pageId, pending);
-        }
-        const page = await pending;
+        const page = bundle?.pages.find((p) => p.id === link.pageId);
         if (!page) continue;
         entry.pageId ??= page.id;
         if (!page.date && page.slug) {
@@ -165,7 +179,16 @@ export class StreamQueryEngine {
           break;
         }
       }
-    }));
+    }
+    if (!withNoteFields) return;
+    for (const entry of entries) {
+      const bundle = bundles.get(parentNoteId(entry));
+      if (!entry.title && bundle?.note.title) entry.title = bundle.note.title;
+      if ((!entry.tags || entry.tags.length === 0) && bundle) {
+        const labels = bundle.tags.map((t) => t.label);
+        if (labels.length > 0) entry.tags = labels;
+      }
+    }
   }
   async query(input: string | AnyParsedQuery, onStages?: (stages: { selected: number; matched: number }) => void): Promise<Entry[]> {
     const parsed: AnyParsedQuery = typeof input === 'string' ? parseQuery(input) : input;
@@ -188,7 +211,7 @@ export class StreamQueryEngine {
       if (parsed.target === 'block') {
         const result = await this.service.runFind(parsed);
         const entries = result.blocks.map(blockToEntry);
-        await this.attachPageLinks(entries);
+        await this.hydrateEntries(entries, false);
         emitStages(onStages, result.stages, entries);
         return entries;
       }
@@ -258,28 +281,22 @@ export class StreamQueryEngine {
         }
       }
 
-      // Block rows can carry an empty noteTitle (the index is built before
-      // the note row exists on first save); blank labels never surface —
-      // resolve those from the real note record.
-      await Promise.all([...noteMap].filter(([, note]) => !note.title).map(async ([id, note]) => {
-        const real = await storageService.getNote(id);
-        if (real?.title) noteMap.set(id, { ...note, title: real.title });
-      }));
-
       const entries = Array.from(noteMap.values()).map(toEntry);
-      await this.attachPageLinks(entries);
-      emitStages(onStages, primaryResult.stages, entries);
-      if (this.noteTagsResolver || this.service.getNoteTagLabels) {
-        const resolveTags = this.noteTagsResolver ?? ((id: string) => this.service.getNoteTagLabels!(id));
+      if (this.noteTagsResolver) {
+        // Session tag resolver keeps precedence; only page links batch here.
+        await this.hydrateEntries(entries, false);
         await Promise.all(
           entries.map(async (entry) => {
             if (!entry.tags || entry.tags.length === 0) {
-              const tags = await resolveTags(entry.id);
+              const tags = await this.noteTagsResolver!(entry.id);
               if (tags && tags.length > 0) entry.tags = tags;
             }
           }),
         );
+      } else {
+        await this.hydrateEntries(entries, true);
       }
+      emitStages(onStages, primaryResult.stages, entries);
 
       if (this.noteBlockInfo && blockResult?.blocks) {
         // Per note: prose preview lines (feed reading depth — bounded, the

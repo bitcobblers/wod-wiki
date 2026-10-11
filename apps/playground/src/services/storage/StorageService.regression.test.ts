@@ -17,6 +17,8 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 
 import { IndexedDBStorage, InMemoryStorage, StorageService } from './index';
+import type { IStorage } from './IStorage';
+import { DOMAIN_PROJECTION_VERSION, type DomainEntry } from '@bitcobblers/wod-wiki-storage';
 import type { BlockIndexRow, EventRecord, Note, Session } from '@/types/storage';
 
 const T0 = 1_700_000_000_000;
@@ -531,5 +533,86 @@ describe('IndexedDB V26 upgrade', () => {
       // dispose the open service handle BEFORE the next test's fixture opens
       await storage.close();
     }
+  });
+});
+
+describe('getEntryBatches — remote/local bundle chooser', () => {
+  /** Remote backend stand-in: entries-plan responses only. */
+  function fakeRemote(entries: DomainEntry[]): {
+    storage: IStorage;
+    chunks: string[][];
+    localFallbacks: number;
+  } {
+    const chunks: string[][] = [];
+    let localFallbacks = 0;
+    const storage: IStorage = {
+      readonly: () => { throw new Error('unexpected direct store read'); },
+      readwrite: () => { throw new Error('unexpected direct store write'); },
+      transaction: async (_stores, _mode, fn) => {
+        localFallbacks += 1;
+        return fn({ readonly: () => { throw new Error('no local stores'); }, readwrite: () => { throw new Error('no local stores'); } });
+      },
+      wipe: async () => {},
+      close: async () => {},
+      queryDomain: async (query) => {
+        if (query.plan !== 'entries') throw new Error('expected entries plan');
+        const ids = query.selection?.find((p) => 'values' in p && p.field === 'id');
+        if (!ids || !('values' in ids)) throw new Error('expected id selection');
+        chunks.push([...ids.values]);
+        const wanted = new Set(ids.values);
+        return {
+          projectionVersion: DOMAIN_PROJECTION_VERSION,
+          selectedCount: entries.length,
+          matchedCount: entries.length,
+          plan: 'entries',
+          rows: entries.filter((e) => wanted.has(e.note.id)),
+        };
+      },
+    };
+    return { storage, chunks, localFallbacks };
+  }
+
+  const entry = (id: string): DomainEntry => ({
+    note: makeNote({ id }),
+    segments: [],
+    tags: [{ id: `t-${id}`, label: `${id}-tag`, createdAt: T0 }],
+    links: [],
+    pages: [],
+  });
+
+  it('chunks deduped ids at the 64-value parser limit and merges remote rows (>64 results valid)', async () => {
+    const ids = Array.from({ length: 130 }, (_, i) => `note-${i}`);
+    const remote = fakeRemote([...ids.map(entry), entry('note-0') /* duplicate id ignored */]);
+    const out = await new StorageService(remote.storage).getEntryBatches(['note-0', ...ids, 'note-0']);
+    // 130 distinct ids → 64 + 64 + 2, deduped before chunking.
+    expect(remote.chunks.map((c) => c.length)).toEqual([64, 64, 2]);
+    expect(remote.localFallbacks).toBe(0);
+    expect(out.size).toBe(130);
+    expect(out.get('note-0')!.tags[0]!.label).toBe('note-0-tag');
+  });
+
+  it('reads nothing for empty input and reports missing ids by absence (fail-closed)', async () => {
+    const remote = fakeRemote([entry('exists')]);
+    const service = new StorageService(remote.storage);
+    expect((await service.getEntryBatches([])).size).toBe(0);
+    expect(remote.chunks).toEqual([]);
+    const out = await service.getEntryBatches(['exists', 'missing']);
+    expect(out.has('exists')).toBe(true);
+    expect(out.has('missing')).toBe(false);
+    expect(remote.chunks).toEqual([['exists', 'missing']]);
+  });
+
+  it('falls back to the local transaction path when the domain plane is unavailable (409) and propagates storage errors', async () => {
+    const failing: IStorage = {
+      readonly: () => { throw new Error('no stores'); },
+      readwrite: () => { throw new Error('no stores'); },
+      transaction: async () => { throw new Error('local path must not open a transaction on the remote probe'); },
+      wipe: async () => {},
+      close: async () => {},
+      queryDomain: async () => undefined, // 409 domain_projection_unavailable mapping
+    };
+    // 409 → undefined → falls through to the local path, which this probe
+    // rejects: the fallthrough itself is what the rejection proves.
+    await expect(new StorageService(failing).getEntryBatches(['x'])).rejects.toThrow('local path');
   });
 });

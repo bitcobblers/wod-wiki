@@ -137,6 +137,21 @@ export interface EffortQueryStore {
 }
 
 /** Optional bundle of stores for QueryService initialization. */
+/** One note's hydration relations — structurally the storage entries
+ *  bundle's relation slice, so a host can bridge its entry batch reads
+ *  (local: one transaction; remote: entries plan with ids chunked at the
+ *  domain parser's 64-value limit) straight through without mapping. WQL
+ *  reads only `label` off each tag record and never imports storage. */
+export interface NoteRelationBundle {
+  /** The note's junction tag records (label plane). */
+  tags: ReadonlyArray<{ label: string }>;
+  /** page_notes junction rows for the note; first by position is the
+   *  parent page. */
+  links: PageNote[];
+  /** Resolved junction pages by page id. */
+  pages: Page[];
+}
+
 export interface QueryServiceStores {
   eventStore?: EventStore;
   noteStore?: NoteQueryStore;
@@ -157,6 +172,13 @@ export interface QueryServiceStores {
   pageStore?: {
     getNotePages(noteId: string): Promise<PageNote[]>;
     getPage(pageId: string): Promise<Page | undefined>;
+  };
+  /** Batched relation reads for the hydration paths (containers, run
+   *  tags) — one bundle per distinct note id instead of a page/tag read
+   *  per matched result. Optional: absent → the per-note pageStore /
+   *  noteStore seams above serve each request. */
+  relationStore?: {
+    getBatches(noteIds: readonly string[]): Promise<Map<string, NoteRelationBundle>>;
   };
   /** Synchronous named datasets (`@session`, `@today`, user-stored sources)
    *  populated by the host before queries run — pipeline dataset stages

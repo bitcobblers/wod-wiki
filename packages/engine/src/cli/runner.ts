@@ -34,13 +34,21 @@ import {
   sqliteIndexStore,
   getNoteBundle,
   getSessionBundle,
+  getEffortBySlug,
+  listTagsByType,
 } from './db';
-import { persistNote, persistRun, persistSessionBundle } from './persist';
+import { persistNote, persistRun, persistSessionBundle, persistEffort, persistTypedTags } from './persist';
 import { defaultSeedDirs, importSeedDir } from './seed';
+import { generateSeed } from './seedbuild/compiler';
 import {
   composeNoteMarkdown,
+  csvToEquipmentLabels,
   csvToSessionRows,
+  effortToMarkdown,
+  equipmentToCsv,
   extractNoteIdentity,
+  extractTypedTags,
+  markdownToEffort,
   sessionToCsv,
 } from '../exchange';
 import {
@@ -53,7 +61,7 @@ import {
 const VERSION = '0.6.0';
 
 export interface CliParsedArgs {
-  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'import' | 'seed' | 'reset' | 'help' | 'version';
+  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'import' | 'build' | 'seed' | 'reset' | 'help' | 'version';
   target?: string;
   /** Second positional: the id (download) or file (import) after the kind. */
   target2?: string;
@@ -75,6 +83,10 @@ export interface CliParsedArgs {
   debug?: string;
   /** Extra seed source directories for `wod seed` (repeatable). */
   sources: string[];
+  /** `wod build`: scaffold markdown stubs for newly discovered efforts. */
+  scaffold?: boolean;
+  /** `wod build`: extra template markdown file compiled as the `template` chunk. */
+  template?: string;
 }
 
 export function parseCliArgs(args: string[]): CliParsedArgs {
@@ -160,8 +172,17 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     } else if (arg.startsWith('--source=')) {
       result.sources.push(arg.slice('--source='.length));
       i++;
+    } else if (arg === '--scaffold') {
+      result.scaffold = true;
+      i++;
+    } else if (arg === '--template') {
+      result.template = args[++i];
+      i++;
+    } else if (arg.startsWith('--template=')) {
+      result.template = arg.slice('--template='.length);
+      i++;
     } else if (!result.subcommand) {
-      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'import' || arg === 'seed' || arg === 'reset' || arg === 'help' || arg === 'version') {
+      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'import' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'help' || arg === 'version') {
         result.subcommand = arg;
       } else {
         result.target = arg;
@@ -226,8 +247,9 @@ USAGE:
   wod parse <file | -> [options]
   wod run <file | -> [options]
   wod query '<wql-string>' [options]
-  wod download <note|session> <id> [options]
-  wod import <note|session> <file> [options]
+  wod download <note|session|effort|equipment> <id> [options]
+  wod import <note|session|effort|equipment> <file> [options]
+  wod build [dir] [options]
   wod seed [options]
   wod reset [options]
 
@@ -245,15 +267,40 @@ SUBCOMMANDS:
                      write it to <id>.md. Use --at <version> to compose
                      as-of a segment version (default: latest). The stamp
                      in the frontmatter makes 'wod parse' re-import it.
+                     Frontmatter tags (general + typed equipment/quality/…)
+                     are materialized into the tag graph on parse/import.
   download session <id>
                      Write the session's generated metrics (event + summary
                      rows, one CSV row per metric) to <id>.csv. Import back
                      with 'wod import session'.
+  download effort <slug>
+                     Write the effort registry row as corpus-style markdown
+                     (frontmatter id/slug/label/aliases/baseAttributes + body)
+                     to <slug>.md. Import back with 'wod import effort'.
+  download equipment
+                     Write every equipment tag as a one-column CSV to
+                     equipment.csv. Import back with 'wod import equipment'.
   import note <file>  Re-import exported note markdown (same as parse with
                      the stamped identity).
   import session <file>
                      Recreate a session + its events from a downloaded CSV
                      into the same or a clean database (id-keyed upsert).
+  import effort <file>
+                     Upsert an effort registry row from corpus-style markdown.
+  import equipment <file>
+                     Create/upgrade equipment tags (CSV, one label per row).
+  build [dir]         Compile a seed corpus: validate every .md under
+                     <dir>/markdown (parity gate + dashboard format gate) and
+                     write manifest.json + content-hashed chunks/ +
+                     block-parent-map.json + report.html to <dir>/dist
+                     (override with -o/--output). Version stamps derive from
+                     <dir>'s git history (full checkout required).
+
+BUILD OPTIONS (for 'build'):
+  --scaffold          Also scaffold markdown/efforts/discovered/*.md stubs for
+                      workout effort labels missing from the registry.
+  --template <file>   Compile an extra markdown file as the 'template' chunk
+                      (the host's playground intake template).
 
 INPUT SOURCING (for 'query'; without these, the database is queried):
   -c, --corpus <path> Load historical corpus dataset from a versioned JSON file
@@ -389,6 +436,7 @@ export async function cliMain(
 
       const ir = runParse(source, { sport: parsed.sport, sourceLabel: `cli:wod parse ${parsed.target}` });
       const identity = extractNoteIdentity(source);
+      const tags = extractTypedTags(source);
       const db = await openCliDb(parsed.db);
       try {
         const persisted = await persistNote(db, {
@@ -396,10 +444,12 @@ export async function cliMain(
           sourceLabel: parsed.target,
           noteId: identity?.noteId,
           title: identity?.title,
+          tags,
         });
         writeOut(
           `[wod parse] note ${persisted.noteId}${persisted.created ? '' : ' (updated)'}` +
-          ` — ${persisted.segments} segments, ${persisted.blocks} blocks, ${persisted.efforts} efforts → ${db.path}`,
+          ` — ${persisted.segments} segments, ${persisted.blocks} blocks, ${persisted.efforts} efforts` +
+          `${persisted.tags > 0 ? `, ${persisted.tags} tags` : ''} → ${db.path}`,
         );
       } finally {
         await db.close();
@@ -521,14 +571,16 @@ export async function cliMain(
     if (parsed.subcommand === 'download') {
       const kind = parsed.target;
       const id = parsed.target2;
-      if (!id || (kind !== 'note' && kind !== 'session')) {
-        writeErr('[wod download] Usage: wod download <note|session> <id> [--at <version>] [-o <path>]');
+      const DOWNLOAD_KINDS = ['note', 'session', 'effort', 'equipment'];
+      if ((!id && kind !== 'equipment') || !DOWNLOAD_KINDS.includes(kind ?? '')) {
+        writeErr('[wod download] Usage: wod download <note|session|effort|equipment> <id> [--at <version>] [-o <path>]');
         return 1;
       }
+      const targetId = id as string;
       const db = await openCliDb(parsed.db);
       try {
         if (kind === 'note') {
-          const bundle = await getNoteBundle(db.db, id);
+          const bundle = await getNoteBundle(db.db, targetId);
           if (!bundle.note) {
             writeErr(`[wod download] Note not found in ${db.path}: ${id}`);
             return 1;
@@ -550,8 +602,8 @@ export async function cliMain(
             `[wod download] note ${id}${at ? ` v${at}` : ''} → ${target}` +
             ` (${bundle.segments.length} segment rows)`,
           );
-        } else {
-          const bundle = await getSessionBundle(db.db, id);
+        } else if (kind === 'session') {
+          const bundle = await getSessionBundle(db.db, targetId);
           if (!bundle) {
             writeErr(`[wod download] Session not found in ${db.path}: ${id}`);
             return 1;
@@ -564,6 +616,31 @@ export async function cliMain(
             nodeFs().writeFileSync(target, csv, 'utf-8');
           }
           writeOut(`[wod download] session ${id} → ${target} (${bundle.events.length} events)`);
+        } else if (kind === 'effort') {
+          const effort = await getEffortBySlug(db.db, targetId);
+          if (!effort) {
+            writeErr(`[wod download] Effort not found in ${db.path}: ${id}`);
+            return 1;
+          }
+          const markdown = effortToMarkdown(effort as Parameters<typeof effortToMarkdown>[0]);
+          const target = parsed.output && parsed.output !== '-' ? parsed.output : `${id}.md`;
+          if (parsed.output === '-') {
+            writeOut(markdown);
+          } else {
+            nodeFs().writeFileSync(target, markdown, 'utf-8');
+          }
+          writeOut(`[wod download] effort ${id} → ${target}`);
+        } else {
+          // equipment — id is unused; export the whole catalog.
+          const labels = (await listTagsByType(db.db, 'equipment')).map((t) => t.label).sort();
+          const csv = equipmentToCsv(labels);
+          const target = parsed.output && parsed.output !== '-' ? parsed.output : 'equipment.csv';
+          if (parsed.output === '-') {
+            writeOut(csv);
+          } else {
+            nodeFs().writeFileSync(target, csv, 'utf-8');
+          }
+          writeOut(`[wod download] equipment → ${target} (${labels.length} labels)`);
         }
       } finally {
         await db.close();
@@ -574,8 +651,9 @@ export async function cliMain(
     if (parsed.subcommand === 'import') {
       const kind = parsed.target;
       const file = parsed.target2;
-      if (!file || (kind !== 'note' && kind !== 'session')) {
-        writeErr('[wod import] Usage: wod import <note|session> <file>');
+      const IMPORT_KINDS = ['note', 'session', 'effort', 'equipment'];
+      if (!file || !IMPORT_KINDS.includes(kind ?? '')) {
+        writeErr('[wod import] Usage: wod import <note|session|effort|equipment> <file>');
         return 1;
       }
       const fs = nodeFs();
@@ -586,6 +664,7 @@ export async function cliMain(
       if (kind === 'note') {
         const source = fs.readFileSync(file, 'utf-8');
         const identity = extractNoteIdentity(source);
+        const tags = extractTypedTags(source);
         const db = await openCliDb(parsed.db);
         try {
           const persisted = await persistNote(db, {
@@ -593,11 +672,42 @@ export async function cliMain(
             sourceLabel: file,
             noteId: identity?.noteId,
             title: identity?.title,
+            tags,
           });
           writeOut(
             `[wod import] note ${persisted.noteId}${persisted.created ? '' : ' (updated)'}` +
-            ` — ${persisted.segments} segments → ${db.path}`,
+            ` — ${persisted.segments} segments${persisted.tags > 0 ? `, ${persisted.tags} tags` : ''} → ${db.path}`,
           );
+        } finally {
+          await db.close();
+        }
+        return 0;
+      }
+      if (kind === 'effort') {
+        const effort = markdownToEffort(fs.readFileSync(file, 'utf-8'));
+        if (!effort) {
+          writeErr(`[wod import] Unparseable effort file (need frontmatter id/slug/label + numeric baseAttributes.met): ${file}`);
+          return 1;
+        }
+        const db = await openCliDb(parsed.db);
+        try {
+          await persistEffort(db, { ...effort, registrySource: 'user' });
+          writeOut(`[wod import] effort ${effort.slug} — ${effort.label} → ${db.path}`);
+        } finally {
+          await db.close();
+        }
+        return 0;
+      }
+      if (kind === 'equipment') {
+        const labels = csvToEquipmentLabels(fs.readFileSync(file, 'utf-8'));
+        if (labels.length === 0) {
+          writeErr(`[wod import] No equipment labels found in ${file}`);
+          return 1;
+        }
+        const db = await openCliDb(parsed.db);
+        try {
+          const added = await persistTypedTags(db, labels, 'equipment');
+          writeOut(`[wod import] equipment — ${labels.length} labels (${added} new) → ${db.path}`);
         } finally {
           await db.close();
         }
@@ -615,6 +725,34 @@ export async function cliMain(
         await db.close();
       }
       return 0;
+    }
+
+    if (parsed.subcommand === 'build') {
+      const cwd = process.cwd();
+      const root = nodePath().resolve(cwd, parsed.target ?? '.');
+      if (!nodeFs().existsSync(nodePath().resolve(root, 'markdown'))) {
+        writeErr(`[wod build] No markdown/ corpus under ${root} — run from the content repo root (or pass its directory).`);
+        return 1;
+      }
+      try {
+        const result = generateSeed({
+          corpusRoot: root,
+          ...(parsed.output ? { outDir: nodePath().resolve(cwd, parsed.output) } : {}),
+          ...(parsed.template ? { templateFile: nodePath().resolve(cwd, parsed.template) } : {}),
+          scaffoldDiscoveredEfforts: parsed.scaffold === true,
+        });
+        const kb = (n: number): string => `${(n / 1024).toFixed(0)} KB`;
+        const totalBytes = result.manifest.chunks.reduce((s, c) => s + c.bytes, 0);
+        writeOut(`[wod build] schema v${result.manifest.schema} version ${result.manifest.version} (${result.manifest.versionLabel}) → ${result.outDir}`);
+        for (const c of result.manifest.chunks) {
+          writeOut(`  ${c.id.padEnd(48)} ${String(c.count).padStart(4)} ${c.kind === 'block-index' ? 'rows ' : 'files'}  ${kb(c.bytes).padStart(8)}`);
+        }
+        writeOut(`[wod build] ${result.manifest.chunks.length} chunks, ${result.totalFiles} files, ${kb(totalBytes)} total — scan ${result.passMs.scan}ms, block-index ${result.passMs.blockIndex}ms, block-efforts ${result.passMs.blockEfforts}ms, write ${result.passMs.write}ms`);
+        return 0;
+      } catch (error) {
+        writeErr(`[wod build] ${(error as Error).message}`);
+        return 1;
+      }
     }
 
     if (parsed.subcommand === 'seed') {

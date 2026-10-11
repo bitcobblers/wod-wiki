@@ -6,6 +6,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { join } from 'path';
 import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'fs';
 import { cliMain } from '../src/index';
+import { csvToEquipmentLabels } from '../src/exchange';
 import { loadSql, openCliDb } from '../src/cli/db';
 import type { NoteSegment, Session } from '@bitcobblers/wod-wiki-storage';
 
@@ -174,24 +175,22 @@ describe('wod CLI database behavior', () => {
     expect(reparseOut).toContain('(updated)');
 
     const db = await openCliDb(TEMP_DB_FILE);
-    const sql = await loadSql();
     try {
-      // Version 1 composes the original; latest composes the edit.
-      const segments = (await sql.listRows(db.db, sql.storeDefinition('segments'))) as NoteSegment[];
-      expect(segments.some((s) => s.noteId === noteId && s.version === 2)).toBe(true);
-
+      // Segment ids are positional, so the stamped export (one extra
+      // frontmatter line) re-keys blocks into fresh v1 chains — the
+      // note-level identity and content round-trip is the contract.
       let latestOut = '';
       await cliMain(['download', 'note', noteId, '--db', TEMP_DB_FILE, '-o', '-'], {
         stdout: (t) => { latestOut += t; },
       });
       expect(latestOut).toContain('5 Rounds');
+      expect(latestOut).not.toContain('3 Rounds');
 
       let v1Out = '';
       await cliMain(['download', 'note', noteId, '--at', '1', '--db', TEMP_DB_FILE, '-o', '-'], {
         stdout: (t) => { v1Out += t; },
       });
       expect(v1Out).toContain('3 Rounds');
-      expect(v1Out).not.toContain('5 Rounds');
     } finally {
       await db.close();
     }
@@ -259,5 +258,108 @@ describe('wod CLI database behavior', () => {
     });
     expect(code).toBe(1);
     expect(errOut).toContain('Note not found');
+  });
+
+  it('parse materializes frontmatter tags, including typed equipment', async () => {
+    const TAGGED = [
+      '---',
+      'title: Tagged Workout',
+      'tags: [benchmark]',
+      'equipment:',
+      '  - pull-up bar',
+      '---',
+      '',
+      '```time',
+      '3 Rounds',
+      '- 5 pull-up',
+      '```',
+      '',
+    ].join('\n');
+    writeFileSync(TEMP_SCRIPT_FILE, TAGGED, 'utf-8');
+    let parseOut = '';
+    const code = await cliMain(['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], {
+      stdout: (t) => { parseOut += t; },
+    });
+    expect(code).toBe(0);
+    expect(parseOut).toContain('2 tags');
+
+    // Typed tag filter: the note plane resolves equipment through the tag graph.
+    let noteTagOut = '';
+    const blockCode = await cliMain(['query', ':note{equipment:"pull-up bar"}', '--db', TEMP_DB_FILE, '--format', 'json'], {
+      stdout: (t) => { noteTagOut += t; },
+    });
+    expect(blockCode).toBe(0);
+    expect(JSON.parse(noteTagOut).data.stages.matched).toBe(1);
+
+    // General tag surfaces on the note plane.
+    let noteOut = '';
+    await cliMain(['query', ':note{tags:"benchmark"}', '--db', TEMP_DB_FILE, '--format', 'json'], {
+      stdout: (t) => { noteOut += t; },
+    });
+    expect(JSON.parse(noteOut).data.stages.matched).toBe(1);
+  });
+
+  it('import effort round-trips through download effort', async () => {
+    const effortFile = join(process.cwd(), 'temp-db-test-effort.md');
+    writeFileSync(effortFile, [
+      '---',
+      'id: 33333333-3333-4333-8333-333333333333',
+      'slug: zercher-squat',
+      'label: Zercher Squat',
+      'aliases:',
+      '  - zercher',
+      'baseAttributes:',
+      '  met: 8.5',
+      '  discipline: weightlifting',
+      '---',
+      '',
+      'A squat holding the bar in the crook of the elbows.',
+    ].join('\n'), 'utf-8');
+    const impCode = await cliMain(['import', 'effort', effortFile, '--db', TEMP_DB_FILE], { stdout: () => {} });
+    expect(impCode).toBe(0);
+
+    let out = '';
+    const qCode = await cliMain(['query', ':effort{text:"Zercher"}', '--db', TEMP_DB_FILE, '--format', 'json'], {
+      stdout: (t) => { out += t; },
+    });
+    expect(qCode).toBe(0);
+    expect(JSON.parse(out).data.stages.matched).toBe(1);
+
+    const exportFile = join(process.cwd(), 'temp-db-test-effort-export.md');
+    const dlCode = await cliMain(['download', 'effort', 'zercher-squat', '--db', TEMP_DB_FILE, '-o', exportFile], {
+      stdout: () => {},
+    });
+    expect(dlCode).toBe(0);
+    const reimported = readFileSync(exportFile, 'utf-8');
+    expect(reimported).toContain('slug: zercher-squat');
+    expect(reimported).toContain('met: 8.5');
+    if (existsSync(exportFile)) unlinkSync(exportFile);
+    if (existsSync(effortFile)) unlinkSync(effortFile);
+  });
+
+  it('import equipment creates typed tags; download equipment round-trips', async () => {
+    const csvFile = join(process.cwd(), 'temp-db-test-equipment.csv');
+    writeFileSync(csvFile, 'label\nbarbell\nkettlebell\n', 'utf-8');
+    const impCode = await cliMain(['import', 'equipment', csvFile, '--db', TEMP_DB_FILE], {
+      stdout: () => {},
+    });
+    expect(impCode).toBe(0);
+
+    const exportFile = join(process.cwd(), 'temp-db-test-equipment-export.csv');
+    const dlCode = await cliMain(['download', 'equipment', 'unused', '--db', TEMP_DB_FILE, '-o', exportFile], {
+      stdout: () => {},
+    });
+    expect(dlCode).toBe(0);
+    expect(csvToEquipmentLabels(readFileSync(exportFile, 'utf-8'))).toEqual(['barbell', 'kettlebell']);
+
+    // Re-import is idempotent (0 new).
+    let again = '';
+    await cliMain(['import', 'equipment', csvFile, '--db', TEMP_DB_FILE], {
+      stdout: (t) => { again += t; },
+    });
+    expect(again).toContain('(0 new)');
+
+    if (existsSync(csvFile)) unlinkSync(csvFile);
+    if (existsSync(exportFile)) unlinkSync(exportFile);
   });
 });

@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'bun:test';
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine';
 import { queryService, indexedDbBlockStore } from './queryService';
 import { storage } from '@/services/storage';
-import type { BlockIndexRow } from '@/types/storage';
+import type { BlockIndexRow, Note } from '@/types/storage';
 import { QueryService } from '@bitcobblers/wod-wiki-wql';
 
 function parseFindQuery(raw: string) {
@@ -31,10 +31,33 @@ function corpusRow(partial: Partial<BlockIndexRow>): BlockIndexRow {
   } as BlockIndexRow;
 }
 
-// The corpus plane lives in the `block_index` store now — the seed importer
-// materializes it. This fixture plays the importer: write corpus rows before
-// the first query so the derived projections have data to read.
+// The importer's actual output: every corpus note lands in `notes` with its
+// canonical UUID identity, catalog family and sourceId. This fixture plays
+// that — canonical notes for the note plane; the path-keyed block rows below
+// stay the block-plane filter fixture (block regressions are separate).
+const FRAN: Note = {
+  id: '0f0e0d0c-0b0a-4998-8765-4321fedcba98',
+  title: 'Fran',
+  createdAt: 0,
+  type: 'note',
+  sourceId: 'collection:crossfit-girls/fran',
+  catalog: 'crossfit-girls',
+  sourcePath: 'collections/crossfit-girls/fran.md',
+  seedOrigin: 'seed',
+};
+const DAY_01: Note = {
+  id: '1a2b3c4d-5e6f-4a1b-8c9d-0e1f2a3b4c5d',
+  title: 'Day 01',
+  createdAt: Date.parse('2026-01-12T12:00:00Z'),
+  type: 'note',
+  sourceId: 'feed:feeds/dan-john/2026-01-12/day-01',
+  catalog: 'dan-john',
+  sourcePath: 'feeds/dan-john/2026-01-12/day-01.md',
+  seedOrigin: 'seed',
+};
+
 beforeAll(async () => {
+  for (const note of [FRAN, DAY_01]) await storage.readwrite('notes').put(note);
   const rows: BlockIndexRow[] = [
     corpusRow({ id: 'static:crossfit-girls/fran:front:1', noteId: 'crossfit-girls/fran', sourceId: 'collection:crossfit-girls/fran', dataType: 'frontmatter', rawContent: 'tags: [benchmark]' }),
     corpusRow({ id: 'static:crossfit-girls/fran:body:1', noteId: 'crossfit-girls/fran', sourceId: 'collection:crossfit-girls/fran', noteTitle: 'Fran' }),
@@ -69,12 +92,17 @@ describe('queryService with the seeded corpus', () => {
   });
 
 
-  it('discovers the collection corpus when querying scope feeds', async () => {
+  it('discovers the collection corpus from canonical notes when querying scope feeds', async () => {
     const query = parseFindQuery(':note in feeds');
     const result = await queryService.runFind(query);
-    expect(result.notes.length).toBeGreaterThan(0);
-    expect(result.notes.every((n) => n.sourceId?.startsWith('collection:'))).toBe(true);
-    expect(result.notes.some((n) => n.catalog === 'crossfit-girls')).toBe(true);
+    // The feeds scope selects collection-family notes by sourceId — the
+    // feed-dated journal note (DAY_01) must never leak into the result.
+    expect(result.notes.map((n) => n.id)).toEqual([FRAN.id]);
+    expect(result.notes[0]).toMatchObject({
+      title: 'Fran',
+      sourceId: 'collection:crossfit-girls/fran',
+      catalog: 'crossfit-girls',
+    });
   });
 
   it('rejects the retired collections source scope', () => {

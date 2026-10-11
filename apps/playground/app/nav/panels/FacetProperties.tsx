@@ -40,7 +40,6 @@ import { SidebarAccordion } from '@/components/organisms/layout/SidebarAccordion
 
 import { useCloseNavigationDrawer } from '../NavigationDrawerContext'
 
-import { staticNoteStore } from '@/services/content/staticBlockIndex'
 import { storageService } from '@/services/storage'
 
 import { applyRouteWqlConfig } from '../../lib/routeWqlConfig'
@@ -69,30 +68,25 @@ const EMPTY_ENTRIES: Entry[] = []
 
 const urlQuery = (loc: Location): string => new URLSearchParams(loc.search).get('q') ?? ''
 
-/** Static-corpus tags are untyped labels on the note rows the executor's
- * static store answers `tags:` with; junction rows carry their tag type. */
+/** Corpus tag membership over the canonical plane: the note_tags junction
+ * answers per-note lookups (UUID ids carry no path stem), and each note's
+ * `catalog` family aggregates its member notes' rows so `tags:` facets
+ * resolve on collection/feed results too. */
 async function loadTagMembership(): Promise<TagMembership> {
-  const [byNote, staticNotes] = await Promise.all([
+  const [byNote, allNotes] = await Promise.all([
     storageService.getNoteTagLabelsBatch(),
-    staticNoteStore.getAllNotes(),
+    storageService.getAllNotes(),
   ])
-  for (const note of staticNotes) {
-    const cat = (note.id.startsWith('feeds/') ? note.id.slice('feeds/'.length) : note.id).split('/')[0]
-    for (const label of note.tags ?? []) {
-      const rows = byNote.get(note.id)
-      if (rows) {
-        if (!rows.some(row => row.label === label)) rows.push({ label })
-      } else {
-        byNote.set(note.id, [{ label }])
+  for (const note of allNotes) {
+    const labels = byNote.get(note.id)
+    if (!note.catalog || !labels?.length) continue
+    const rows = byNote.get(note.catalog)
+    if (rows) {
+      for (const row of labels) {
+        if (!rows.some(r => r.label === row.label)) rows.push(row)
       }
-      if (cat && cat !== note.id) {
-        const catRows = byNote.get(cat)
-        if (catRows) {
-          if (!catRows.some(row => row.label === label)) catRows.push({ label })
-        } else {
-          byNote.set(cat, [{ label }])
-        }
-      }
+    } else {
+      byNote.set(note.catalog, labels.map(({ label, type }) => ({ label, type })))
     }
   }
   return byNote

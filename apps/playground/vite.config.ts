@@ -109,6 +109,8 @@ export default defineConfig({
             { find: "node:path", replacement: resolve(import.meta.dirname, "../../scripts/empty-shim.ts") },
             { find: "fs", replacement: resolve(import.meta.dirname, "../../scripts/empty-shim.ts") },
             { find: "node:fs", replacement: resolve(import.meta.dirname, "../../scripts/empty-shim.ts") },
+            { find: "child_process", replacement: resolve(import.meta.dirname, "../../scripts/empty-shim.ts") },
+            { find: "node:child_process", replacement: resolve(import.meta.dirname, "../../scripts/empty-shim.ts") },
             // Workspace source aliases — instant HMR for packages/* edits with
             // zero build step. Most-specific first; dirs expand to their subtree.
             { find: '@bitcobblers/wod-wiki-lang/react', replacement: resolve(import.meta.dirname, '../../packages/lang/src/react.ts') },

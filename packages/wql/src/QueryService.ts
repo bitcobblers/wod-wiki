@@ -65,6 +65,7 @@ import type {
   EffortQueryStore,
   IEffort,
   QueryServiceStores,
+  NoteRelationBundle,
   WqlDomainOrder,
   WqlDomainPredicate,
 } from './stores';
@@ -784,6 +785,9 @@ export class QueryService {
     getNotePages(noteId: string): Promise<PageNote[]>;
     getPage(pageId: string): Promise<Page | undefined>;
   };
+  private readonly relationStore?: {
+    getBatches(noteIds: readonly string[]): Promise<Map<string, NoteRelationBundle>>;
+  };
   private readonly datasetStore?: {
     getDataset(name: string): { events: EventRecord[]; notes: Note[] } | undefined;
   };
@@ -816,6 +820,7 @@ export class QueryService {
         'effortStore' in storesOrEventStore ||
         'staticNoteStore' in storesOrEventStore ||
         'pageStore' in storesOrEventStore ||
+        'relationStore' in storesOrEventStore ||
         'datasetStore' in storesOrEventStore)
     ) {
       const stores = storesOrEventStore as QueryServiceStores;
@@ -825,6 +830,7 @@ export class QueryService {
       this.effortStore = stores.effortStore ?? defaultEffortStore;
       this.staticNoteStore = stores.staticNoteStore;
       this.pageStore = stores.pageStore;
+      this.relationStore = stores.relationStore;
       this.datasetStore = stores.datasetStore;
       if (stores.blockEffortsStore) this.blockEffortsStore = stores.blockEffortsStore;
       if (stores.tagsStore) this.tagsStore = stores.tagsStore;
@@ -1363,27 +1369,49 @@ export class QueryService {
       parsed,
       notes,
       blocks: [],
-      ...(notes.length && this.pageStore ? { containers: await this.containersForNotes(notes) } : {}),
+      ...(notes.length && (this.pageStore || this.relationStore)
+        ? { containers: await this.containersForNotes(notes) }
+        : {}),
       stages: { selected: selectedCount, matched: notes.length },
     };
   }
 
   /** Highest container per note id: the parent Page from the canonical
    *  page_notes junction (first link by position) wins; a note with no page
-   *  link stays a standalone Note container. */
+   *  link stays a standalone Note container. Batched when a relationStore
+   *  is injected — one bundle read per run instead of a link/page read per
+   *  matched note. */
   private async containersForNotes(notes: Note[]): Promise<Record<string, NoteContainer>> {
     const containers: Record<string, NoteContainer> = {};
+    const bundles = this.relationStore
+      ? await this.relationStore.getBatches([...new Set(notes.map((n) => n.id))])
+      : undefined;
     const pageCache = new Map<string, Page | undefined>();
     for (const note of notes) {
-      const links = await this.pageStore!.getNotePages(note.id);
       let page: Page | undefined;
-      if (links.length > 0) {
-        const [first] = [...links].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-        if (!pageCache.has(first!.pageId)) {
-          pageCache.set(first!.pageId, await this.pageStore!.getPage(first!.pageId));
+      let bundle: NoteRelationBundle | undefined;
+      if (bundles) {
+        bundle = bundles.get(note.id);
+        const [first] = [...(bundle?.links ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+        page = first ? bundle!.pages.find((p) => p.id === first.pageId) : undefined;
+        // Inline the bundle's junction tags on notes without authored tags —
+        // downstream Entry mapping hydrates from this same read (no-tag
+        // stays a valid final state; inline tags are never overwritten).
+        if (bundle && bundle.tags.length > 0 && (!note.tags || note.tags.length === 0)) {
+          note.tags = bundle.tags.map((t) => t.label);
         }
-        page = pageCache.get(first!.pageId);
+      } else {
+        const links = await this.pageStore!.getNotePages(note.id);
+        if (links.length > 0) {
+          const [first] = [...links].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+          if (!pageCache.has(first!.pageId)) {
+            pageCache.set(first!.pageId, await this.pageStore!.getPage(first!.pageId));
+          }
+          page = pageCache.get(first!.pageId);
+        }
       }
+      // Resolved parent page wins; a dangling link (page absent from the
+      // bundle/store) stays fail-closed as a standalone Note container.
       containers[note.id] = page
         ? { kind: 'page', id: page.id, ...(page.slug ? { slug: page.slug } : {}), ...(page.date ? { date: page.date } : {}) }
         : { kind: 'note', id: note.id };
@@ -2182,11 +2210,20 @@ export class QueryService {
     return ids;
   }
 
-  /** Load note tag labels only when the query touches 'tags'. */
+  /** Load note tag labels only when the query touches 'tags'. Batched when
+   *  a relationStore is injected — one bundle read per run instead of a
+   *  junction read per row's note. */
   private async loadNoteTags(rows: AnalyticsDataPoint[], touchesTags: boolean): Promise<Map<string, readonly string[]>> {
     const noteTags = new Map<string, readonly string[]>();
     if (!touchesTags) return noteTags;
     const noteIds = [...new Set(rows.map(r => r.noteId))];
+    if (this.relationStore) {
+      const bundles = await this.relationStore.getBatches(noteIds);
+      for (const id of noteIds) {
+        noteTags.set(id, (bundles.get(id)?.tags ?? []).map((t) => t.label));
+      }
+      return noteTags;
+    }
     await Promise.all(noteIds.map(async (id) => noteTags.set(id, await this.noteStore.getNoteTagLabels(id))));
     return noteTags;
   }
@@ -2204,17 +2241,6 @@ export class QueryService {
     if (!typedTag) return new Set();
     const links = await this.noteTagsStore.getAllFromIndex('by-tag', typedTag.id);
     return new Set(links.map(l => l.noteId));
-  }
-
-  /** Look up tag labels for a note across user and static stores. */
-  async getNoteTagLabels(noteId: string): Promise<string[]> {
-    const userTags = this.noteStore.getNoteTagLabels ? await this.noteStore.getNoteTagLabels(noteId) : [];
-    if (userTags && userTags.length > 0) return userTags;
-    if (this.staticNoteStore && this.staticNoteStore.getNoteTagLabels) {
-      const staticTags = await this.staticNoteStore.getNoteTagLabels(noteId);
-      if (staticTags && staticTags.length > 0) return staticTags;
-    }
-    return [];
   }
 
   /**
