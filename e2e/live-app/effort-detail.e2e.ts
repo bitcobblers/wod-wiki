@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
+import { seedBundledEfforts } from '../helpers/seedEfforts';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -43,6 +44,9 @@ test.describe('Effort detail — /effort/:slug', () => {
     const efforts = new EffortsPage(page);
 
     await efforts.gotoDetail('burpee');
+    // Bundled effort corpus is not part of the app bundle (community repo);
+    // seed the fixture row this test renders.
+    await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.waitForDetailLoaded();

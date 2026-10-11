@@ -101,9 +101,12 @@ mock.module('@/components/organisms/review/AnalyticsScorecard', () => ({
 mock.module('@/components/organisms/review/ReviewGrid', () => ({
   ReviewGrid: () => null,
 }))
-
 mock.module('@/components/organisms/cast/CastButtonRpc', () => ({
   CastButtonRpc: () => null,
+}))
+
+mock.module('@/components/atoms/AudioToggle', () => ({
+  AudioToggle: () => null,
 }))
 
 mock.module('@/components/organisms/analytics', () => ({
@@ -313,9 +316,8 @@ const completedResults = (): Sessions =>
     endTime: 60_000,
     duration: 60_000,
     completed: true,
-    logs: [{ outputType: 'segment' }],
+    logs: [{ outputType: 'segment', timeSpan: { started: 0 }, metrics: [] }],
   }) as unknown as Sessions
-
 // ── Test data ───────────────────────────────────────────────────────────────
 
 const BARE_WELCOME = '```time\n0:03 Count Down\n10 Pushups\n```'
@@ -432,16 +434,16 @@ describe('HomeTour', () => {
     window.localStorage.clear()
   })
 
-  it('renders the jump section with both feeds boxes and journal exits', async () => {
+  it('renders the jump section with library, playgrounds, and journal exits', async () => {
     await renderHomeTour()
     const jump = await screen.findByTestId('tour-jump-section')
     expect(jump).toBeTruthy()
 
-    const feedsLink = within(jump).getByTestId('jump-feeds')
-    expect(feedsLink.getAttribute('href')).toBe('/feeds')
-
     const libraryLink = within(jump).getByTestId('jump-library')
-    expect(libraryLink.getAttribute('href')).toBe('/feeds')
+    expect(libraryLink.getAttribute('href')).toBe('/catalogs')
+
+    const playgroundsLink = within(jump).getByTestId('jump-playgrounds')
+    expect(playgroundsLink.getAttribute('href')).toBe('/playgrounds')
 
     expect(within(jump).getByTestId('jump-new-note')).toBeTruthy()
   })
@@ -560,9 +562,9 @@ describe('HomeTour', () => {
     expect(runControl.starts).toBe(1)
     expect(runControl.run?.noteId).toBe('note-1')
     expect(scrollRunwayToCallCount()).toBe(0)
-    // The timer pane mounts in the hero viewport; the run section yields
-    // its pane so the identity never executes twice.
-    expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-timer-panel')).toBeTruthy()
+    // The timer opens fullscreen; the editor stays in the hero viewport.
+    expect(screen.getByTestId('mock-timer-panel')).toBeTruthy()
+    expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')).toBeTruthy()
     expect(screen.getAllByTestId('mock-timer-panel')).toHaveLength(1)
   })
 
@@ -790,7 +792,7 @@ describe('HomeTour', () => {
         fireEvent.click(within(hero()).getByRole('button', { name: 'Run' }))
         await Promise.resolve()
       })
-      expect(within(hero()).getByTestId('mock-timer-panel')).toBeTruthy()
+      expect(screen.getByTestId('mock-timer-panel')).toBeTruthy()
 
       // Scroll past the run section into Own-the-Metrics — the live runtime
       // is stopped and its partial recorded.
@@ -909,7 +911,7 @@ describe('HomeTour', () => {
       fireEvent.click(within(screen.getByTestId('tour-hero')).getByRole('button', { name: 'Run' }))
       await Promise.resolve()
     })
-    const paneBefore = within(screen.getByTestId('tour-hero')).getByTestId('mock-timer-panel')
+    const paneBefore = screen.getByTestId('mock-timer-panel')
 
     // Cross the breakpoint the way a real viewport change reports it.
     await act(async () => {
@@ -923,8 +925,8 @@ describe('HomeTour', () => {
       await Promise.resolve()
     })
 
-    // Same pane node, still inline in the hero — never a fullscreen dialog run.
-    expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-timer-panel')).toBe(paneBefore)
+    // Same timer panel node in fullscreen — persists across viewport change.
+    expect(screen.getByTestId('mock-timer-panel')).toBe(paneBefore)
     expect(screen.getAllByTestId('mock-timer-panel')).toHaveLength(1)
 
     // Stop → result remains usable in place, and the edit survives the trip

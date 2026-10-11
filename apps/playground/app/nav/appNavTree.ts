@@ -23,7 +23,7 @@
  */
 
 import { HomeIcon, CodeBracketIcon } from '@heroicons/react/20/solid'
-import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, Layers, ListFilter, Tag, Library, Plus, UserRound, Database, CloudDownload } from 'lucide-react'
+import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, Layers, ListFilter, Tag, Library, Plus, CalendarPlus, UserRound, Database, CloudDownload } from 'lucide-react'
 import type { NavItem } from './navTypes'
 import type { Location } from 'react-router-dom'
 import { JOURNAL_STREAM_PROFILE, CATALOGS_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PLAYGROUNDS_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
@@ -74,7 +74,7 @@ function buildHomeChildren(routes: CanvasRoute[]): NavItem[] {
       id: 'home-new-journal',
       label: 'New journal entry',
       level: 2,
-      icon: Plus,
+      icon: CalendarPlus,
       variant: 'notable',
       action: { type: 'route', to: '/journal?create=1' },
       isActive: () => false,
@@ -168,6 +168,7 @@ const listingZones: ListingZoneSpec[] = [
     extraChildren: [allNotesChild],
     createAction: {
       label: 'New journal entry',
+      icon: CalendarPlus,
       testId: 'journal-create-entry',
       onClick: ({ openCreateJournal, navigate }) => {
         if (openCreateJournal) openCreateJournal({ mode: 'blank' })

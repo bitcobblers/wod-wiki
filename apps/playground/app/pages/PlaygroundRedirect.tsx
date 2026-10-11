@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { playgroundPath } from '../lib/routes'
 import { createPlaygroundPage } from '../services/createPlaygroundPage'
+import { DEFAULT_PLAYGROUND_CONTENT } from '../templates/defaultPlaygroundContent'
 
 /**
  * Shared in-flight promise so that StrictMode double-mount (and rapid remounts)
@@ -15,9 +16,10 @@ async function resolvePlaygroundId(attempt: number): Promise<string> {
   if (!pendingPlaygroundId || pendingPlaygroundId.attempt !== attempt) {
     pendingPlaygroundId = {
       attempt,
-      // /playground is the "new empty playground note" entry — every visit
-      // mints a fresh note; the list at /playgrounds is how you resume.
-      promise: createPlaygroundPage(''),
+      // /playground is the "new playground note" entry — every visit mints a
+      // fresh note prefilled with the default template; the list at
+      // /playgrounds is how you resume.
+      promise: createPlaygroundPage(DEFAULT_PLAYGROUND_CONTENT.content),
     }
   }
 
@@ -31,9 +33,9 @@ async function resolvePlaygroundId(attempt: number): Promise<string> {
 }
 
 /**
- * Canonical entry route for `/playground` — mints a fresh EMPTY playground
- * note on every visit and opens it. Resuming existing notes happens through
- * the `/playgrounds` list. The dedup promise keeps StrictMode double-mounts
+ * Canonical entry route for `/playground` — mints a fresh playground note
+ * (default template) on every visit and opens it. Resuming existing notes
+ * happens through the `/playgrounds` list. The dedup promise keeps StrictMode double-mounts
  * from minting two notes; the first-note wizard is unaffected (it gates on
  * profile state, not on freshness).
  */

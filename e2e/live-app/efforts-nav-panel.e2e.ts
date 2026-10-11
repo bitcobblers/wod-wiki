@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
+import { seedBundledEfforts } from '../helpers/seedEfforts';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -26,6 +27,7 @@ test.describe('Efforts nav panel', () => {
     const efforts = new EffortsPage(page);
 
     await efforts.gotoCatalog();
+    await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.waitForCatalogLoaded();
@@ -45,6 +47,7 @@ test.describe('Efforts nav panel', () => {
     const efforts = new EffortsPage(page);
 
     await efforts.gotoCatalog();
+    await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await efforts.clearUserEfforts();
     await efforts.seedUserEffort({

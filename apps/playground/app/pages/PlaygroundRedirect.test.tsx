@@ -59,7 +59,7 @@ describe('PlaygroundRedirect', () => {
     render(<PlaygroundRedirect />)
 
     await waitFor(() => {
-      expect(createPlaygroundPageCalls).toEqual([''])
+      expect(createPlaygroundPageCalls).toEqual(['# New playground\n'])
       expect(navigateCalls).toEqual([
         {
           to: '/playground/2026-05-19%2015.30',
@@ -79,7 +79,7 @@ describe('PlaygroundRedirect', () => {
     render(<PlaygroundRedirect />)
 
     await waitFor(() => {
-      expect(createPlaygroundPageCalls).toEqual([''])
+      expect(createPlaygroundPageCalls).toEqual(['# New playground\n'])
       expect(navigateCalls).toEqual([
         {
           to: '/playground/2026-05-19%2015.30',
@@ -99,7 +99,7 @@ describe('PlaygroundRedirect', () => {
     )
 
     await waitFor(() => {
-      expect(createPlaygroundPageCalls).toEqual([''])
+      expect(createPlaygroundPageCalls).toEqual(['# New playground\n'])
       expect(navigateCalls.length).toBeGreaterThanOrEqual(1)
       expect(navigateCalls).toContainEqual({
         to: '/playground/2026-05-19%2015.30',
@@ -117,7 +117,7 @@ describe('PlaygroundRedirect', () => {
     render(<PlaygroundRedirect />)
 
     await waitFor(() => {
-      expect(createPlaygroundPageCalls).toEqual([''])
+      expect(createPlaygroundPageCalls).toEqual(['# New playground\n'])
       expect(navigateCalls).toEqual([
         {
           to: '/playground/2026-05-19%2015.30',
@@ -141,7 +141,7 @@ describe('PlaygroundRedirect', () => {
 
     await waitFor(() => {
       expect(createPlaygroundPageCalls.length).toBe(2)
-      expect(createPlaygroundPageCalls.every(content => content === '')).toBe(true)
+      expect(createPlaygroundPageCalls.every(content => content === '# New playground\n')).toBe(true)
       expect(navigateCalls).toContainEqual({
         to: '/playground/2026-05-19%2015.30',
         options: { replace: true },

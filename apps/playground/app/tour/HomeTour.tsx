@@ -44,7 +44,6 @@ import { TourFooter } from './TourFooter'
 import { OfferingTiers } from '../components/molecules/OfferingTiers'
 import { MacOSChrome } from '../components/atoms/MacOSChrome'
 import { TourEditorScreen } from './screens/TourEditorScreen'
-import { TourTimerScreen } from './screens/TourTimerScreen'
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer'
 import { TourSessionResult } from './screens/TourSessionResult'
 import {
@@ -438,6 +437,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     setRunLive(false)
     setRunLocation('tour')
     setFullscreenOpen(false)
+    setActiveBlock(null)
   }, [])
 
   const scrollTimerStage = useCallback(() => {
@@ -446,14 +446,29 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   }, [])
 
   const [demoRunning, setDemoRunning] = useState(false)
+  const [activeBlock, setActiveBlock] = useState<ScriptBlock | null>(null)
 
   const doStart = useCallback(async (docText: string, block: ScriptBlock | null, sectionTitle: string, location: 'tour' | 'hero' | 'fullscreen'): Promise<boolean> => {
     if (!block || startingRef.current) return false
     startingRef.current = true
+
+    // Optimistic presentation: launch timer dialog immediately on click
+    finalizedRef.current = false
+    runStartedRef.current = false
+    unsavedRef.current = null
+    setActiveBlock(block)
+    setTimerSessionKey((k) => k + 1)
+    setAutoStart(true)
+    setSession(null)
+    setRunLocation(location)
+    setFullscreenOpen(location === 'fullscreen' || location === 'hero')
+
     try {
       await start(docText, block, { pageTitle: 'Home', sectionTitle })
     } catch (err) {
       console.error('[HomeTour] failed to persist playground run note:', err)
+      setFullscreenOpen(false)
+      setActiveBlock(null)
       toast({
         title: 'Could not start workout',
         description: 'The playground entry could not be saved.',
@@ -463,14 +478,6 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     } finally {
       startingRef.current = false
     }
-    finalizedRef.current = false
-    runStartedRef.current = false
-    unsavedRef.current = null
-    setTimerSessionKey((k) => k + 1)
-    setAutoStart(true)
-    setSession(null)
-    setRunLocation(location)
-    setFullscreenOpen(location === 'fullscreen')
     return true
   }, [start])
 
@@ -708,9 +715,26 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
       demo: boolean,
       location: 'tour' | 'hero' | 'fullscreen' = 'tour',
     ) => {
-      if (!block || startingRef.current || pendingActionRef.current) return
+      if (!block) return
       track?.(HOME_EVENTS.demoRun)
       if (demo) setDemoRunning(true)
+
+      // Immediate UI response: open dialog or slide to timer on the click frame
+      if (location === 'tour') {
+        scrollTimerStage()
+      } else if (location === 'fullscreen' || location === 'hero') {
+        setActiveBlock(block)
+        setRunLocation(location)
+        setFullscreenOpen(true)
+        setAutoStart(true)
+        setTimerSessionKey((k) => k + 1)
+        setSession(null)
+      }
+
+      if (startingRef.current || pendingActionRef.current) {
+        pendingActionRef.current = { kind: 'restart', doc, block, sectionTitle, location }
+        return
+      }
       if (runRef.current && runStartedRef.current && !finalizedRef.current) {
         pendingActionRef.current = { kind: 'restart', doc, block, sectionTitle, location }
         externalStopRef.current = true
@@ -722,9 +746,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
         void performPending()
         return
       }
-      void doStart(doc, block, sectionTitle, location).then((ok) => {
-        if (ok && location === 'tour') scrollTimerStage()
-      })
+      void doStart(doc, block, sectionTitle, location)
     },
     [doStart, performPending, scrollTimerStage, track],
   )
@@ -817,6 +839,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
       setSession(results)
       if ((results.logs ?? []).length === 0) {
         finalizedRef.current = true
+        if (runLocation === 'hero') setFullscreenOpen(false)
         return performPending()
       }
       finalizedRef.current = true
@@ -826,6 +849,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
       return finalize(results, results.completed)
         .then(() => {
           unsavedRef.current = null
+          if (runLocation === 'hero') setFullscreenOpen(false)
           return performPending()
         })
         .catch((err) => {
@@ -845,7 +869,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
           throw err
         })
     },
-    [finalize, performPending],
+    [finalize, performPending, runLocation],
   )
 
   // The pane's ✕ returns to the write stage; a live run is saved by the
@@ -857,12 +881,6 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   const handleFullscreenClose = useCallback(() => {
     setFullscreenOpen(false)
   }, [])
-
-  // The hero pane's ✕ never scrolls: stop the run (the partial is recorded)
-  // and let the hero settle on its result state.
-  const handleHeroClose = useCallback(() => {
-    requestStop(null)
-  }, [requestStop])
 
   // Reset saves the live partial and creates a fresh, unstarted snapshot.
   const handleTimerReset = useCallback(() => {
@@ -946,27 +964,15 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     onStart: handleRun,
     onReset: handleTimerReset,
   }
-  // Hero variant: same run, but ✕ stops in place (result state) instead of
-  // scrolling away.
-  const heroTimerWiring = { ...timerWiring, block: run?.block ?? null, onClose: handleHeroClose }
+  // Hero viewport state machine: editor in view while idle/running,
+  // session results in view upon completion. Timer runs in fullscreen.
+  const heroState: 'editor' | 'result' = heroRunActive && session ? 'result' : 'editor'
 
-  // Hero viewport state machine — one viewport hosts the whole workflow:
-  // editor (idle) → run (in-place identity) → result (recorded $session).
-  // The timer pane mounts only once the identity exists and autoStart is
-  // armed, so the pane's one-shot auto-start never misses.
-  const heroRunReady = run != null || autoStart || runLive
-  const heroState: 'editor' | 'run' | 'result' = !heroRunActive
-    ? 'editor'
-    : session
-      ? 'result'
-      : heroRunReady
-        ? 'run'
-        : 'editor'
-
-  const fullscreen = fullscreenOpen && run && (
+  const fullscreenBlock = run?.block ?? activeBlock
+  const fullscreen = fullscreenOpen && fullscreenBlock && (
     <FullscreenTimer
       key={timerSessionKey}
-      block={run.block}
+      block={fullscreenBlock}
       autoStart={autoStart}
       externalStop={externalStop}
       onRunStarted={handleRunStarted}
@@ -975,9 +981,6 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
       onCompleteWorkout={handleTimerComplete}
     />
   )
-
-  // Offerings section + keep-scrolling teaser — sits above Learn the
-  // Language in both scroll paths (inline in the runway flow, via slot in
   // the reduced-motion flat stack).
   const offeringsBlock = (
     <>
@@ -1005,7 +1008,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
           onRun={handleRun}
           onHeroRun={handleHeroRun}
           onChapterRun={handleChapterRun}
-          heroContent={heroState === 'run' ? <TourTimerScreen {...heroTimerWiring} key={timerSessionKey} /> : heroState === 'result' && session ? <TourSessionResult result={session} onDismiss={clearSession} dismissLabel="Edit again" /> : undefined}
+          heroContent={heroState === 'result' && session ? <TourSessionResult result={session} onDismiss={clearSession} dismissLabel="Edit again" /> : undefined}
           onChoice={handleWorkoutChoice}
           onCommand={handleCaptionCommand}
           sharedBy={sharedBy}
@@ -1055,13 +1058,11 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
         >
           <MacOSChrome
             title={
-              heroState === 'run'
-                ? SCREEN_TITLES.timer
-                : heroState === 'result'
-                  ? SCREEN_TITLES.metrics
-                  : sharedBy
-                    ? (sharedBy.toLowerCase().startsWith('shared by') ? sharedBy : `shared by: ${sharedBy}`)
-                    : 'welcome-1.md'
+              heroState === 'result'
+                ? SCREEN_TITLES.metrics
+                : sharedBy
+                  ? (sharedBy.toLowerCase().startsWith('shared by') ? sharedBy : `shared by: ${sharedBy}`)
+                  : 'welcome-1.md'
             }
             headerActions={
               sharedBy && (
@@ -1087,7 +1088,6 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
                 onRun={handleHeroRun}
               />
             )}
-            {heroState === 'run' && <TourTimerScreen {...heroTimerWiring} key={timerWiring.sessionKey} />}
             {heroState === 'result' && session && (
               <TourSessionResult
                 result={session}

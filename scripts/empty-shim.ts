@@ -20,3 +20,4 @@ export const sep = '/';
 export const delimiter = ':';
 export const execSync = () => '';
 export const spawn = () => ({ on: () => {}, stdout: { on: () => {} }, stderr: { on: () => {} } });
+export const createHash = () => ({ update: () => ({ digest: () => '' }) });

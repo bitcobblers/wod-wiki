@@ -123,10 +123,17 @@ export function usePlaygroundRun({
   )
 
   const finalize = useCallback(
-    (results: Sessions, completed: boolean): Promise<void> => {
+    async (results: Sessions, completed: boolean): Promise<void> => {
+      if (startAttemptRef.current) {
+        try {
+          await startAttemptRef.current
+        } catch {
+          // start failure is handled by caller
+        }
+      }
       const identity = runRef.current
       // Record-exactly-once: later completion/scroll re-entries are no-ops.
-      if (!identity || recordedRef.current) return Promise.resolve()
+      if (!identity || recordedRef.current) return
       // Single-flight: a concurrent caller awaits the SAME in-flight write
       // instead of silently succeeding or double-recording.
       if (saveAttemptRef.current) return saveAttemptRef.current

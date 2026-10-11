@@ -254,9 +254,13 @@ function deriveWorkout(
     ? decodeURIComponent(urlCollection || urlCategory!)
     : 'General'
   const found = workoutItems.find(item => item.name === name && item.category === category)
+  // The corpus index only covers bundled content; notes stored in IndexedDB
+  // (user content, synced libraries) resolve by pageId(category, name) — the
+  // URL-declared category must survive the fallback or the IDB-first load
+  // looks up the wrong page and renders the default notebook.
   return found
     ? { name: found.name, content: found.content, category: found.category }
-    : { name, content: PLAYGROUND_CONTENT, category: 'General' }
+    : { name, content: PLAYGROUND_CONTENT, category }
 }
 
 function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanvasPage | null): PageKind {
