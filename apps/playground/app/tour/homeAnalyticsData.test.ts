@@ -1,5 +1,4 @@
 import { expect, it } from 'bun:test';
-import { buildDashboardDocument, parseDashboardNote } from '@bitcobblers/wod-wiki-wql';
 import { HOME_ANALYTICS_QUERIES, buildHomeExampleEvents, createHomeExampleQueryService } from './homeAnalyticsData';
 
 const NOW = new Date(2026, 5, 1, 2).getTime();
@@ -31,14 +30,14 @@ it('answers filtered, scoped, and calendar-window queries from real example obse
   expect(recent.scalar).toBe(2880);
 });
 
-it('executes the actual home board and showcase queries with complete evidence', async () => {
+it('executes the home board and showcase queries with complete evidence', async () => {
   const service = createHomeExampleQueryService(NOW);
   const queries = HOME_ANALYTICS_QUERIES.map((query) => query.query);
-  for (const slug of ['training-block-review', 'road-to-560-total', 'polarized-base-marathon']) {
-    const source = await Bun.file(new URL(`../../../../markdown/dashboards/${slug}.md`, import.meta.url)).text();
-    const { meta, sections } = parseDashboardNote(source);
-    queries.push(...buildDashboardDocument(sections, meta).widgets.map((widget) => widget.body));
-  }
+  // The prebuilt dashboard widget queries used to be read from the corpus
+  // here; that corpus lives in wod-wiki-community now, where `wod build`'s
+  // dashboard gate validates their format and WQL parseability. Whether
+  // their queries produce evidence-complete results against example data is
+  // a content-repo concern, not the app bundle's.
   for (const query of queries) {
     const result = await service.runQuery(query, all);
     expect(result.error, query).toBeUndefined();

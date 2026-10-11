@@ -77,10 +77,12 @@ export interface SeedSourceSpec {
 }
 
 /**
- * The bundled seed sources, in import order. The core seed carries the
+ * The default seed sources, in import order. The core seed carries the
  * playground's own canvas pages + template (this repo's markdown/, first
- * paint); community seed libraries follow. Third-party libraries register
- * here the same way.
+ * paint, bundled at build time by scripts/sync-seed.ts). The community seed
+ * is published by the wod-wiki-community content repo to its own GitHub
+ * Pages and syncs over HTTP — it is NOT bundled with the app. Third-party
+ * libraries register here the same way.
  */
 export function defaultSeedSources(): SeedSourceSpec[] {
   const base = import.meta.env.BASE_URL;
@@ -94,8 +96,11 @@ export function defaultSeedSources(): SeedSourceSpec[] {
     {
       id: 'community',
       label: 'Community',
-      source: new HttpSeedSource(`${base}seed/community/`),
-      embeddedVersion: EMBEDDED_SEED_VERSIONS['community'] ?? 0,
+      // Published by wod-wiki-community's main pipeline to its repo Pages;
+      // embeddedVersion stays 0 (never bundled) so every sync consults the
+      // remote manifest — GitHub Pages sends no build-stamp compatibility.
+      source: new HttpSeedSource('https://bitcobblers.github.io/wod-wiki-community/'),
+      embeddedVersion: 0,
       autoImport: false,
     },
     // User-registered libraries (/settings/sync). Never auto-import; their

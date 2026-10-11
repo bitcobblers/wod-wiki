@@ -1,25 +1,25 @@
 /**
  * sync-seed — build the bundled seed artifacts into
- * apps/playground/public/seed/<sourceId>/ from independent seed sources.
+ * apps/playground/public/seed/<sourceId>/ from this repo's own corpus.
  *
- * Multi-seed: every source is an independent corpus with its own manifest,
- * git version, and runtime import checkpoint:
+ * The playground bundles ONE source: `core` — this repo's markdown/ corpus
+ * (the playground's own canvas pages) plus the playground template, versioned
+ * by THIS repo's git history. The community corpus is NOT built here; it
+ * publishes to its own repo's GitHub Pages (wod-wiki-community) and the app
+ * syncs it over HTTP at runtime (see seedSources.ts). Third-party seed
+ * libraries register the same way.
  *
- *   core       this repo's markdown/ corpus (the playground's own canvas
- *              pages) plus the playground template — versioned by THIS
- *              repo's git history;
- *   community  the sibling wod-wiki-community checkout (collections, feeds,
- *              dashboards, efforts) — versioned by that repo's git history.
- *
- * Both corpora compile through the engine's seed compiler (the `wod build`
- * engine, exported as generateSeed from @bitcobblers/wod-wiki-engine), so
- * every seed library — including third-party ones — goes through the same
- * parity + dashboard gates. This repo only orchestrates; requires the
- * engine package built (`bun run build:packages`).
+ * The corpus compiles through the engine's seed compiler (the `wod build`
+ * engine, imported from source below), so every seed library — bundled or
+ * remote — goes through the same parity + dashboard gates. This script only
+ * orchestrates; requires the workspace's node_modules.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { generateSeed } from '@bitcobblers/wod-wiki-engine';
+// Repo-internal import: the seed compiler is not exported from the engine
+// package index (that index is browser-bundled; seedbuild statically imports
+// node builtins). The `wod build` CLI is the public surface.
+import { generateSeed } from '../packages/engine/src/cli/seedbuild/compiler';
 
 interface ManifestChunkRef {
   id: string;
@@ -46,39 +46,19 @@ interface SeedSourceSpec {
 }
 
 const ROOT = resolve(import.meta.dirname, '..');
-const SEED_DIR = resolve(process.env.WOD_WIKI_SEED_DIR ?? join(ROOT, '..', 'wod-wiki-community'));
 const TEMPLATE_FILE = join(ROOT, 'apps', 'playground', 'app', 'templates', 'new-playground.md');
 /** Historical in-repo row path for the template chunk — the runtime derives the template note's id from it; must stay stable. */
 const TEMPLATE_ROW_PATH = 'apps/playground/app/templates/new-playground.md';
 const SEED_PUBLIC_DIR = join(ROOT, 'apps', 'playground', 'public', 'seed');
 
-if (!existsSync(join(SEED_DIR, 'markdown'))) {
-  console.error(
-    `[sync-seed] community corpus not found at ${join(SEED_DIR, 'markdown')}\n` +
-    `Clone it next to this repo (git clone … wod-wiki-community) or set WOD_WIKI_SEED_DIR.`,
-  );
-  process.exit(1);
-}
-
-const scaffold = process.argv.includes('--scaffold');
-
 const SOURCES: SeedSourceSpec[] = [
-  // Core: this repo's own corpus + the playground template. Never scaffolds
-  // efforts — the effort registry is community corpus.
+  // Core: this repo's own corpus + the playground template.
   {
     id: 'core',
     corpusRoot: ROOT,
     markdownDir: join(ROOT, 'markdown'),
     outDir: join(SEED_PUBLIC_DIR, 'core'),
     template: true,
-  },
-  // Community: the seed repo's corpus, git-versioned from that repo.
-  {
-    id: 'community',
-    corpusRoot: SEED_DIR,
-    markdownDir: join(SEED_DIR, 'markdown'),
-    outDir: join(SEED_PUBLIC_DIR, 'community'),
-    template: false,
   },
 ];
 
@@ -97,7 +77,6 @@ for (const spec of SOURCES) {
     corpusRoot: spec.corpusRoot,
     outDir: spec.outDir,
     ...(spec.template ? { templateFile: TEMPLATE_FILE, templateRowPath: TEMPLATE_ROW_PATH } : {}),
-    scaffoldDiscoveredEfforts: scaffold && spec.id === 'community',
   });
 
   const prevChunks = prevManifest?.chunks ?? [];

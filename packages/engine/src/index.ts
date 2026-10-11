@@ -373,33 +373,10 @@ export {
   formatQueryOutput,
   type OutputFormat,
 } from './cli/formatters';
-// Seed compiler — `wod build` engine + programmatic API for host builds
-// (scripts/sync-seed.ts compiles the core canvas corpus + template through it).
-export {
-  generateSeed,
-  validateDashboardNote,
-  chunkIdFor,
-  collectCorpusMarkdown,
-  partitionIntoChunks,
-  discoverUncatalogedEfforts,
-  scaffoldDiscoveredEfforts,
-  type ChunkGroup,
-  type DiscoveredEffort,
-  type GenerateSeedOptions,
-  type GenerateSeedResult,
-} from './cli/seedbuild/compiler';
-export {
-  SEED_SCHEMA,
-  TEMPLATE_CHUNK_ID,
-  DASHBOARDS_CHUNK_ID,
-  BLOCK_INDEX_CHUNK_PREFIX,
-  BLOCK_EFFORTS_CHUNK_PREFIX,
-  canvasRouteSlug,
-  type ChunkKind,
-  type ManifestChunk,
-  type SeedManifest,
-  type SeedRow,
-} from './cli/seedbuild/contract';
+// NOTE: the seed compiler (cli/seedbuild, behind `wod build`) is NOT exported
+// here — it statically imports node builtins (fs/crypto/child_process), and
+// this index is bundled for the browser (playground, storybook). Repo-internal
+// consumers (scripts/sync-seed.ts) import it from source directly.
 // Import/Export exchange — pure row⇄string transforms shared by the CLI and
 // the website (download/upload against IndexedDB rows uses the same code).
 export {

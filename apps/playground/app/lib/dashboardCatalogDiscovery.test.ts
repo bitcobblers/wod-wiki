@@ -1,48 +1,72 @@
 /**
- * Dashboard corpus discovery — the prebuilt seeds live in their own corpus
- * (markdown/dashboards/, NOT collections). The corpus loader
- * (dashboardCorpus) uses Vite's import.meta.glob, which isn't available under
- * bun test — so this test reads the markdown directly (the canvasRoutes.test
- * precedent) and asserts the contract the loader depends on: six seeds, each
- * a dashboard note, slugs derivable from filename.
+ * Dashboard seed derivation — buildDashboardSeeds turns the seeded corpus's
+ * `markdown/dashboards/**` files into addressable prebuilt dashboards.
+ *
+ * The corpus itself lives in the wod-wiki-community repo (its `wod build`
+ * dashboard gate validates every shipped note's #899 format and WQL); this
+ * test pins the app-side derivation with fixtures: only dashboards/ files
+ * are kept, the slug comes from frontmatter `slug:` else the filename, and
+ * the input really is a dashboard note with parseable widgets.
  */
 import { describe, expect, it } from 'bun:test';
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { parseFrontmatter } from '@/lib/frontmatter';
-import { parseDashboardNote } from '@bitcobblers/wod-wiki-wql';
-import { buildDashboardDocument, isDashboardWidgetType, resolveWidgetType } from '@bitcobblers/wod-wiki-wql';
+import { buildDashboardDocument, isDashboardWidgetType, parseDashboardNote, parseQuery, resolveWidgetType } from '@bitcobblers/wod-wiki-wql';
+import { buildDashboardSeeds } from './dashboardSeeds';
 
-const SEEDS_DIR = join(import.meta.dir, '../../../../markdown/dashboards');
-const seedFiles = readdirSync(SEEDS_DIR).filter((f) => f.endsWith('.md'));
+const FIXTURE_FILES = {
+  'markdown/dashboards/with-slug.md': [
+    '---',
+    'dashboard: true',
+    'slug: custom-slug',
+    'title: With Slug',
+    '---',
+    '# With Slug',
+    '',
+    '## Volume',
+    '',
+    '```query:table-2',
+    'count:elapsed{} by {day}',
+    '```',
+    '',
+  ].join('\n'),
+  'markdown/dashboards/plain-name.md': [
+    '---',
+    'dashboard: true',
+    'title: Plain',
+    '---',
+    '# Plain',
+    '',
+    '## Intensity',
+    '',
+    '```query:bar',
+    'sum:tis{} by {session, day}',
+    '```',
+    '',
+  ].join('\n'),
+  'markdown/collections/other/readme.md': '# not a dashboard',
+};
 
-describe('dashboard corpus', () => {
-  it('ships the six prebuilt seeds, each a valid dashboard addressable by filename slug', () => {
-    expect(seedFiles).toHaveLength(6);
-    for (const file of seedFiles) {
-      const raw = readFileSync(join(SEEDS_DIR, file), 'utf8');
-      const { meta } = parseFrontmatter(raw);
-      const { sections } = parseDashboardNote(raw);
-      const doc = buildDashboardDocument(sections, meta);
-      expect(doc.isDashboard).toBe(true);
-      // Slug = frontmatter slug if declared, else the filename (the loader rule).
-      const slug = typeof meta.slug === 'string' && meta.slug ? meta.slug : file.replace(/\.md$/, '');
-      expect(slug).toBeTruthy();
-      for (const widget of doc.widgets) {
-        expect(isDashboardWidgetType(resolveWidgetType(widget.type))).toBe(true);
-      }
-    }
+describe('buildDashboardSeeds', () => {
+  it('keeps only markdown/dashboards/ files', () => {
+    const seeds = buildDashboardSeeds(FIXTURE_FILES);
+    expect(seeds.map((s) => s.slug).sort()).toEqual(['custom-slug', 'plain-name']);
   });
 
-  it('derives slugs from filenames (prebuilts declare no frontmatter slug)', () => {
-    const slugs = seedFiles.map((f) => f.replace(/\.md$/, '')).sort();
-    expect(slugs).toEqual([
-      'benchmark-pr-board',
-      'finger-strength-v8',
-      'polarized-base-marathon',
-      'recovery-readiness',
-      'road-to-560-total',
-      'training-block-review',
-    ]);
+  it('derives the slug from frontmatter slug, else the filename', () => {
+    const seeds = buildDashboardSeeds(FIXTURE_FILES);
+    expect(seeds.find((s) => s.title === 'With Slug')?.slug).toBe('custom-slug');
+    expect(seeds.find((s) => s.title === 'Plain')?.slug).toBe('plain-name');
+  });
+
+  it('fixtures are valid dashboard notes with parseable WQL widgets (the #899 contract)', () => {
+    for (const seed of buildDashboardSeeds(FIXTURE_FILES)) {
+      const { meta, sections } = parseDashboardNote(seed.rawContent);
+      const doc = buildDashboardDocument(sections, meta);
+      expect(doc.isDashboard, seed.slug).toBe(true);
+      expect(doc.widgets.length, seed.slug).toBeGreaterThan(0);
+      for (const widget of doc.widgets) {
+        expect(isDashboardWidgetType(resolveWidgetType(widget.type)), seed.slug).toBe(true);
+        expect(parseQuery(widget.body).error, `${seed.slug}: ${widget.body}`).toBeUndefined();
+      }
+    }
   });
 });
