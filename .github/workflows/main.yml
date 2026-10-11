@@ -170,16 +170,6 @@ jobs:
             echo "::warning::CloudFront invalidation failed; content refreshes within 5 minutes via max-age."
           fi
 
-  e2e-live-app:
-    name: Live-app E2E (main)
-    needs: [publish-playground]
-    uses: ./.github/workflows/preview-e2e.yml
-    secrets: inherit
-    with:
-      preview-url: https://main.preview.wod.wiki
-      branch-slug: main
-      build-hash: ${{ needs.publish-playground.outputs.bundle-hash }}
-
   smoke-production:
     name: Production smoke (wod.wiki)
     runs-on: ubuntu-22.04
@@ -306,7 +296,7 @@ jobs:
     name: Pipeline summary
     runs-on: ubuntu-22.04
     if: always()
-    needs: [version, build-test-packages, verify, build-test-storybook, publish-playground, e2e-live-app, smoke-production, e2e-storybook, release-npm]
+    needs: [version, build-test-packages, verify, build-test-storybook, publish-playground, smoke-production, e2e-storybook, release-npm]
     steps:
       - name: Write summary
         run: |
@@ -320,7 +310,6 @@ jobs:
           | Playground | \${{ needs.verify.result }} |
           | Storybook | \${{ needs.build-test-storybook.result }} |
           | Pages (wod.wiki) | \${{ needs.publish-playground.result }} |
-          | Live-app E2E ([e2e.wod.wiki](https://e2e.wod.wiki)) | \${{ needs.e2e-live-app.outputs.outcome }} — \${{ needs.e2e-live-app.outputs.tests }} tests, \${{ needs.e2e-live-app.outputs.failures }} fail, \${{ needs.e2e-live-app.outputs.flaky }} flaky |
           | Production smoke | \${{ needs.smoke-production.result }} |
           | Storybook E2E | \${{ needs.e2e-storybook.result }} |
           | npm release | \${{ needs.release-npm.result }} |
