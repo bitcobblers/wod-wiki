@@ -19,7 +19,7 @@
 import { WQL_FIND_TARGETS, WQL_SOURCE_VALUES } from '@bitcobblers/wod-wiki-engine'
 import type { StreamProfile } from '../views/stream/streamProfile'
 import { LocalStore } from '@/services/storage/LocalStore'
-import { apiPrefsMode, metaDeletePrefs, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
+import { remotePrefsMode, metaDeletePrefs, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
 
 export interface RouteWqlConfig {
   /** Landing default WQL when the URL carries no `?q=`. */
@@ -42,7 +42,7 @@ export const ROUTE_WQL_STORAGE_PREFIX = 'wodwiki.routeWql.v1'
 
 // api mode: reads come from the hydrated server rows; writes bypass the
 // error-swallowing LocalStore and flush through metaSetPref instead.
-export const routeWqlStore = new LocalStore(ROUTE_WQL_STORAGE_PREFIX, apiPrefsMode ? metaPrefBackend : undefined)
+export const routeWqlStore = new LocalStore(ROUTE_WQL_STORAGE_PREFIX, remotePrefsMode ? metaPrefBackend : undefined)
 
 /** Canonical Where-stored choices — the storage scopes a note surface offers. */
 export const SCOPE_OPTION_VALUES: readonly string[] = WQL_SOURCE_VALUES
@@ -187,7 +187,7 @@ export async function writeRouteWqlConfig(routeId: string, config: RouteWqlConfi
     typeOptions: sanitizeStringArray(config.typeOptions),
     groupByOptions: sanitizeStringArray(config.groupByOptions),
   }
-  if (apiPrefsMode) {
+  if (remotePrefsMode) {
     try {
       await metaSetPref(store.qualify(id), JSON.stringify(payload))
     } catch (err) {
@@ -207,7 +207,7 @@ export async function writeRouteWqlConfig(routeId: string, config: RouteWqlConfi
 export async function clearRouteWqlConfig(routeId: string, store: LocalStore = routeWqlStore): Promise<boolean> {
   const id = getRouteWqlStorageId(routeId)
   const legacyId = LEGACY_STORAGE_ALIASES[id]
-  if (apiPrefsMode) {
+  if (remotePrefsMode) {
     try {
       await metaDeletePrefs(legacyId ? [store.qualify(id), store.qualify(legacyId)] : [store.qualify(id)])
     } catch (err) {

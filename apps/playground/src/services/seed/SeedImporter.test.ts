@@ -6,7 +6,9 @@
 import { describe, expect, it } from 'bun:test';
 import { createHash } from 'node:crypto';
 import type { SeedManifest, SeedRow } from '@/types/seed';
-import { EFFORTS_CHUNK_ID, emptySeedMeta, SEED_SCHEMA, seedSegmentId } from '@/types/seed';
+import { EFFORTS_CHUNK_ID, emptySeedMeta, SEED_SCHEMA, seedMetaKey, seedSegmentId } from '@/types/seed';
+
+const META_KEY = seedMetaKey('core');
 import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 import { effortToDocument } from '@/repositories/effort-markdown';
 import { CountingSeedSource, InMemorySeedSource } from './InMemorySeedSource';
@@ -53,7 +55,7 @@ function makeSource(chunks: Record<string, SeedRow[]>, version: number) {
 
 async function importAll(storage: InMemorySeedStorage, source: InMemorySeedSource) {
   const counting = new CountingSeedSource(source);
-  const result = await new SeedImporter(storage, counting).applyAll();
+  const result = await new SeedImporter(storage, counting, 'core').applyAll();
   return { result, counting };
 }
 
@@ -95,7 +97,7 @@ describe('SeedImporter', () => {
       dataType: 'markdown',
     });
 
-    const meta = await storage.getSeedMeta();
+    const meta = await storage.getSeedMeta(META_KEY);
     expect(meta!.seedVersion).toBe(1000);
     expect(meta!.chunks['collection.girls']!.noteIds).toHaveLength(2);
   });
@@ -274,7 +276,7 @@ tags:
       blockEfforts: [],
       deleteBlockIds: [],
       deleteBlockEffortIds: [],
-      meta: (await storage.getSeedMeta())!,
+      meta: (await storage.getSeedMeta(META_KEY))!,
     });
 
     const v2 = makeSource({ canvas: [row('markdown/canvas/a.md', 'upstream edit')] }, 2000);
@@ -288,7 +290,7 @@ tags:
     expect(afterB.title).toBe('My B');
     expect(result.deleted).toBe(0);
     // The user-owned row is dropped from the checkpoint's owned set.
-    expect((await storage.getSeedMeta())!.chunks['canvas']!.noteIds).toEqual([noteA.id]);
+    expect((await storage.getSeedMeta(META_KEY))!.chunks['canvas']!.noteIds).toEqual([noteA.id]);
   });
 
   it('deletes vanished seed-origin rows (note + segment) and records it', async () => {
@@ -304,7 +306,7 @@ tags:
     expect(result.deleted).toBe(1);
     expect(storage.allNotes().find((n) => n.id === noteB.id)).toBeUndefined();
     expect(storage.allSegments().find((s) => s.noteId === noteB.id)).toBeUndefined();
-    expect((await storage.getSeedMeta())!.chunks['canvas']!.noteIds).toHaveLength(1);
+    expect((await storage.getSeedMeta(META_KEY))!.chunks['canvas']!.noteIds).toHaveLength(1);
   });
 
   it('resumes after a crash: already-applied chunk shas are skipped, version still advances', async () => {
@@ -313,7 +315,7 @@ tags:
     await importAll(storage, v1.source);
 
     // Simulate a crash after chunk 'a' but before the final version bump.
-    const meta = (await storage.getSeedMeta())!;
+    const meta = (await storage.getSeedMeta(META_KEY))!;
     meta.seedVersion = 0;
     await storage.putSeedMeta(meta);
 
@@ -322,7 +324,7 @@ tags:
 
     expect(result.status).toBe('imported');
     expect(counting.fetchChunkCalls).toEqual(['chunks/collection.b.json']);
-    expect((await storage.getSeedMeta())!.seedVersion).toBe(2000);
+    expect((await storage.getSeedMeta(META_KEY))!.seedVersion).toBe(2000);
   });
 
   it('efforts chunk materializes IEffort records with seed provenance', async () => {
@@ -360,7 +362,7 @@ tags:
       blockEfforts: [],
       deleteBlockIds: [],
       deleteBlockEffortIds: [],
-      meta: (await storage.getSeedMeta())!,
+      meta: (await storage.getSeedMeta(META_KEY))!,
     });
 
     const v2 = makeSource({ [EFFORTS_CHUNK_ID]: [effortDoc('air-squat')] }, 2000);
@@ -387,7 +389,7 @@ tags:
       blockEfforts: [],
       deleteBlockIds: [],
       deleteBlockEffortIds: [],
-      meta: (await storage.getSeedMeta())!,
+      meta: (await storage.getSeedMeta(META_KEY))!,
     });
 
     const v2 = makeSource({ [EFFORTS_CHUNK_ID]: [effortDoc('air-squat')] }, 2000);
@@ -403,14 +405,14 @@ tags:
     const storage = new InMemorySeedStorage();
     await importAll(storage, v1.source);
 
-    const meta = (await storage.getSeedMeta())!;
+    const meta = (await storage.getSeedMeta(META_KEY))!;
     meta.schema = 1; // pre-v2 checkpoint
     await storage.putSeedMeta(meta);
 
     const { result, counting } = await importAll(storage, v1.source); // unchanged manifest
     expect(result.status).toBe('imported');
     expect(counting.fetchChunkCalls).toEqual(['chunks/canvas.json']);
-    expect((await storage.getSeedMeta())!.schema).toBe(SEED_SCHEMA);
+    expect((await storage.getSeedMeta(META_KEY))!.schema).toBe(SEED_SCHEMA);
   });
 });
 
@@ -433,12 +435,12 @@ describe('SeedImporter manual re-sync (forceAll)', () => {
       deleteEffortSlugs: [],
       deleteBlockIds: [],
       deleteBlockEffortIds: [],
-      meta: (await storage.getSeedMeta())!,
+      meta: (await storage.getSeedMeta(META_KEY))!,
     });
 
     // Same manifest content, same version — force re-applies anyway.
     const counting = new CountingSeedSource(v1.source);
-    const result = await new SeedImporter(storage, counting).applyAll({ forceAll: true });
+    const result = await new SeedImporter(storage, counting, 'core').applyAll({ forceAll: true });
 
     expect(result.status).toBe('imported');
     expect(result.appliedChunks).toBe(1);
@@ -471,12 +473,12 @@ describe('SeedImporter manual re-sync (forceAll)', () => {
       deleteEffortSlugs: [],
       deleteBlockIds: [],
       deleteBlockEffortIds: [],
-      meta: (await storage.getSeedMeta())!,
+      meta: (await storage.getSeedMeta(META_KEY))!,
     });
 
     // Same manifest, same hashes, same version — the schema migration
     // re-applies anyway (root's live DB reload path).
-    const staleMeta = (await storage.getSeedMeta())!;
+    const staleMeta = (await storage.getSeedMeta(META_KEY))!;
     staleMeta.schema = SEED_SCHEMA - 1;
     await storage.putSeedMeta(staleMeta);
     const { result } = await importAll(storage, v1.source);
@@ -528,7 +530,7 @@ describe('SeedImporter first-paint ordering', () => {
     const storage = new RecordingStorage();
     let firstPaintRuns = 0;
     let fetchCallsAtFirstPaint: string[] = [];
-    const result = await new SeedImporter(storage, counting).applyAll({
+    const result = await new SeedImporter(storage, counting, 'core').applyAll({
       onFirstPaintApplied: () => {
         firstPaintRuns += 1;
         fetchCallsAtFirstPaint = [...counting.fetchChunkCalls];
@@ -564,14 +566,14 @@ describe('SeedImporter first-paint ordering', () => {
         if (path === 'chunks/collection.b.json') laterFetched.resolve();
         return source.fetchChunk(path);
       },
-    }).applyAll();
+    }, 'core').applyAll();
 
     expect(storage.allNotes().map((note) => note.sourcePath).sort()).toEqual([
       'markdown/canvas/home/README.md',
       'markdown/collections/a/fran.md',
       'markdown/collections/b/annie.md',
     ]);
-    expect((await storage.getSeedMeta())?.seedVersion).toBe(1000);
+    expect((await storage.getSeedMeta(META_KEY))?.seedVersion).toBe(1000);
   });
 
   it('keeps committed chunks and resumes after a later fetch fails early', async () => {
@@ -596,22 +598,22 @@ describe('SeedImporter first-paint ordering', () => {
         }
         return source.fetchChunk(path);
       },
-    });
+    }, 'core');
     await expect(importer.applyAll()).rejects.toThrow('chunk unavailable');
     expect(storage.allNotes().map((note) => note.sourcePath).sort()).toEqual([
       'markdown/canvas/home/README.md',
       'markdown/collections/a/fran.md',
     ]);
-    expect(Object.keys((await storage.getSeedMeta())!.chunks)).toEqual(['canvas', 'collection.a']);
+    expect(Object.keys((await storage.getSeedMeta(META_KEY))!.chunks)).toEqual(['canvas', 'collection.a']);
 
-    await new SeedImporter(storage, source).applyAll();
+    await new SeedImporter(storage, source, 'core').applyAll();
     expect(storage.allNotes().map((note) => note.sourcePath).sort()).toEqual([
       'markdown/canvas/home/README.md',
       'markdown/collections/a/fran.md',
       'markdown/collections/b/annie.md',
       'markdown/collections/c/cindy.md',
     ]);
-    expect((await storage.getSeedMeta())?.seedVersion).toBe(1000);
+    expect((await storage.getSeedMeta(META_KEY))?.seedVersion).toBe(1000);
   });
 
   it('does not fire onFirstPaintApplied when the canvas chunk is already applied (resume)', async () => {
@@ -631,10 +633,10 @@ describe('SeedImporter first-paint ordering', () => {
       'chunks/canvas.json': canvasRows,
     };
     const storage = new InMemorySeedStorage();
-    await storage.putSeedMeta({ ...emptySeedMeta(), seedVersion: 1000, chunks: { canvas: { sha256: shaOf(canvasRows) } } });
+    await storage.putSeedMeta({ ...emptySeedMeta(META_KEY), seedVersion: 1000, chunks: { canvas: { sha256: shaOf(canvasRows) } } });
     const counting = new CountingSeedSource(new InMemorySeedSource(manifest, paths));
     let firstPaintRuns = 0;
-    await new SeedImporter(storage, counting).applyAll({ onFirstPaintApplied: () => { firstPaintRuns += 1; } });
+    await new SeedImporter(storage, counting, 'core').applyAll({ onFirstPaintApplied: () => { firstPaintRuns += 1; } });
 
     expect(firstPaintRuns).toBe(0);
     expect(counting.fetchChunkCalls).toEqual(['chunks/collection.a.json']);

@@ -25,7 +25,9 @@
   "dependencies": {
     "@bitcobblers/wod-wiki-core": "^0.11.0",
     "@bitcobblers/wod-wiki-lang": "^0.11.0",
-    "@bitcobblers/wod-wiki-wql": "^0.11.0"
+    "@bitcobblers/wod-wiki-storage": "^0.11.0",
+    "@bitcobblers/wod-wiki-wql": "^0.11.0",
+    "@libsql/client": "^0.18.0"
   },
   "scripts": {
     "build": "tsup",

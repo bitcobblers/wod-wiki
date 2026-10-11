@@ -1,30 +1,29 @@
 /**
- * sync-seed — build the bundled seed artifacts from the sibling
- * `wod-wiki-seed` checkout into apps/playground/public/seed/.
+ * sync-seed — build the bundled seed artifacts into
+ * apps/playground/public/seed/<sourceId>/ from independent seed sources.
  *
- * The corpus and the compiler live in the wod-wiki-seed repo (content MRs,
- * validation, and git-based versioning all happen there); this repo only
- * supplies the playground template chunk and the output directory. See
- * ../wod-wiki-seed/README.md.
+ * Multi-seed: every source is an independent corpus with its own manifest,
+ * git version, and runtime import checkpoint:
  *
- * Versioning is owned by the seed repo: every merged MR there advances the
- * manifest `version` (commit count) and `versionLabel`/`commit` identify the
- * exact source tree. This script prints a change report against the
- * previously synced manifest so "what changed / what needs syncing" is one
- * build log away.
+ *   core       this repo's markdown/ corpus (the playground's own canvas
+ *              pages) plus the playground template — versioned by THIS
+ *              repo's git history;
+ *   community  the sibling wod-wiki-seed checkout (collections, feeds,
+ *              dashboards, efforts) — versioned by that repo's git history.
  *
- * Layout override for non-sibling checkouts:
- *   WOD_WIKI_SEED_DIR=/path/to/wod-wiki-seed bun scripts/sync-seed.ts
- *
- * Chained before `vite build` and `vite dev` in the playground package, and
- * exposed as the root `generate:seed` script.
+ * The corpus files and the compiler live in the seed repo for community
+ * content; the compiler is reused for the core corpus so every seed library
+ * (including third-party ones) goes through the same parity gate. This repo
+ * only orchestrates.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 interface ManifestChunkRef {
   id: string;
   sha256: string;
+  count?: number;
+  bytes?: number;
 }
 
 interface SeedManifestRef {
@@ -32,6 +31,7 @@ interface SeedManifestRef {
   versionLabel?: string;
   commit?: string;
   dirty?: boolean;
+  builtAt: string;
   chunks: ManifestChunkRef[];
 }
 
@@ -41,13 +41,21 @@ interface SyncResult {
   passMs: { scan: number; blockIndex: number; blockEfforts: number; write: number };
 }
 
-const ROOT = resolve(import.meta.dir, '..');
+interface SeedSourceSpec {
+  id: string;
+  corpusRoot: string;
+  markdownDir: string;
+  outDir: string;
+  template: boolean;
+}
+
+const ROOT = resolve(import.meta.dirname, '..');
 const SEED_DIR = resolve(process.env.WOD_WIKI_SEED_DIR ?? join(ROOT, '..', 'wod-wiki-seed'));
 const COMPILER = join(SEED_DIR, 'src', 'compiler.ts');
 const TEMPLATE_FILE = join(ROOT, 'apps', 'playground', 'app', 'templates', 'new-playground.md');
-const OUT_DIR = join(ROOT, 'apps', 'playground', 'public', 'seed');
 /** Historical in-repo row path for the template chunk — the runtime derives the template note's id from it; must stay stable. */
 const TEMPLATE_ROW_PATH = 'apps/playground/app/templates/new-playground.md';
+const SEED_PUBLIC_DIR = join(ROOT, 'apps', 'playground', 'public', 'seed');
 
 if (!existsSync(COMPILER)) {
   console.error(
@@ -66,40 +74,110 @@ if (!existsSync(COMPILER)) {
 const { generateSeed } = (await import(COMPILER)) as { generateSeed: (options: Record<string, unknown>) => SyncResult };
 const scaffold = process.argv.includes('--scaffold');
 
-// Previous manifest for the change report (generateSeed wipes OUT_DIR).
-let prevManifest: SeedManifestRef | undefined;
-try {
-  prevManifest = JSON.parse(readFileSync(join(OUT_DIR, 'manifest.json'), 'utf8')) as SeedManifestRef;
-} catch {
-  // First sync — everything is "added".
+const SOURCES: SeedSourceSpec[] = [
+  // Core: this repo's own corpus + the playground template. Never scaffolds
+  // efforts — the effort registry is community corpus.
+  {
+    id: 'core',
+    corpusRoot: ROOT,
+    markdownDir: join(ROOT, 'markdown'),
+    outDir: join(SEED_PUBLIC_DIR, 'core'),
+    template: true,
+  },
+  // Community: the seed repo's corpus, git-versioned from that repo.
+  {
+    id: 'community',
+    corpusRoot: SEED_DIR,
+    markdownDir: join(SEED_DIR, 'markdown'),
+    outDir: join(SEED_PUBLIC_DIR, 'community'),
+    template: false,
+  },
+];
+
+const results: Array<{ spec: SeedSourceSpec; manifest: SeedManifestRef }> = [];
+for (const spec of SOURCES) {
+  // Previous manifest for the change report (generateSeed wipes OUT_DIR).
+  let prevManifest: SeedManifestRef | undefined;
+  try {
+    prevManifest = JSON.parse(readFileSync(join(spec.outDir, 'manifest.json'), 'utf8')) as SeedManifestRef;
+  } catch {
+    // First sync — everything is "added".
+  }
+
+  const { manifest, reportPath, passMs }: SyncResult = generateSeed({
+    markdownDir: spec.markdownDir,
+    corpusRoot: spec.corpusRoot,
+    outDir: spec.outDir,
+    ...(spec.template ? { templateFile: TEMPLATE_FILE, templateRowPath: TEMPLATE_ROW_PATH } : {}),
+    scaffoldDiscoveredEfforts: scaffold && spec.id === 'community',
+  });
+
+  const prevChunks = prevManifest?.chunks ?? [];
+  const prevById = new Map(prevChunks.map((c) => [c.id, c.sha256]));
+  const nextById = new Map(manifest.chunks.map((c) => [c.id, c.sha256]));
+  const added = manifest.chunks.filter((c) => !prevById.has(c.id)).map((c) => c.id);
+  const removed = prevChunks.filter((c) => !nextById.has(c.id)).map((c) => c.id);
+  const changed = manifest.chunks.filter((c) => prevById.has(c.id) && prevById.get(c.id) !== c.sha256).map((c) => c.id);
+
+  console.log(`[sync-seed] ${spec.id}: seed ${manifest.version} (${manifest.versionLabel ?? 'unversioned'}, commit ${(manifest.commit ?? '').slice(0, 8)})${manifest.dirty ? ' [dirty]' : ''} → ${spec.outDir}`);
+  if (prevChunks.length > 0) {
+    console.log(
+      `[sync-seed] ${spec.id}: vs previous (${prevManifest?.versionLabel ?? prevManifest?.version}): ` +
+      `${changed.length} changed, ${added.length} added, ${removed.length} removed, ` +
+      `${manifest.chunks.length - changed.length - added.length} unchanged`,
+    );
+    for (const id of changed) console.log(`  ~ ${id}`);
+    for (const id of added) console.log(`  + ${id}`);
+    for (const id of removed) console.log(`  - ${id}`);
+  } else {
+    console.log(`[sync-seed] ${spec.id}: first sync — ${manifest.chunks.length} chunks`);
+  }
+  console.log(`[sync-seed] ${spec.id}: report: ${reportPath} (scan ${passMs.scan}ms, block-index ${passMs.blockIndex}ms, block-efforts ${passMs.blockEfforts}ms, write ${passMs.write}ms)`);
+  results.push({ spec, manifest });
 }
 
-const { manifest, reportPath, passMs }: SyncResult = generateSeed({
-  templateFile: TEMPLATE_FILE,
-  templateRowPath: TEMPLATE_ROW_PATH,
-  outDir: OUT_DIR,
-  corpusRoot: SEED_DIR,
-  scaffoldDiscoveredEfforts: scaffold,
-});
-
-const prevChunks = prevManifest?.chunks ?? [];
-const prevById = new Map(prevChunks.map((c) => [c.id, c.sha256]));
-const nextById = new Map(manifest.chunks.map((c) => [c.id, c.sha256]));
-const added = manifest.chunks.filter((c) => !prevById.has(c.id)).map((c) => c.id);
-const removed = prevChunks.filter((c) => !nextById.has(c.id)).map((c) => c.id);
-const changed = manifest.chunks.filter((c) => prevById.has(c.id) && prevById.get(c.id) !== c.sha256).map((c) => c.id);
-
-console.log(`[sync-seed] seed ${manifest.version} (${manifest.versionLabel ?? 'unversioned'}, commit ${(manifest.commit ?? '').slice(0, 8)})${manifest.dirty ? ' [dirty]' : ''} → ${OUT_DIR}`);
-if (prevChunks.length > 0) {
-  console.log(
-    `[sync-seed] vs previous (${prevManifest?.versionLabel ?? prevManifest?.version}): ` +
-    `${changed.length} changed, ${added.length} added, ${removed.length} removed, ` +
-    `${manifest.chunks.length - changed.length - added.length} unchanged`,
-  );
-  for (const id of changed) console.log(`  ~ ${id}`);
-  for (const id of added) console.log(`  + ${id}`);
-  for (const id of removed) console.log(`  - ${id}`);
-} else {
-  console.log(`[sync-seed] first sync — ${manifest.chunks.length} chunks`);
+/**
+ * seed index — one static HTML page (served at `/seed/index.html`) listing
+ * every compiled source: version, commit, build time, chunk stats, and links
+ * to each source's `report.html` and `manifest.json`. Regenerated on every
+ * sync (dev and build run sync-seed before vite), so it always reflects the
+ * published artifacts with zero runtime fetches.
+ */
+function writeSeedIndex(entries: Array<{ spec: SeedSourceSpec; manifest: SeedManifestRef }>): void {
+  const escape = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const sections = entries.map(({ spec, manifest }) => {
+    const bytes = manifest.chunks.reduce((sum, c) => sum + (c.bytes ?? 0), 0);
+    const rows = manifest.chunks.reduce((sum, c) => sum + (c.count ?? 0), 0);
+    return `  <section>
+    <h2><a href="${spec.id}/report.html">${escape(spec.id)}</a> <small>v${manifest.version}${manifest.dirty ? ' (dirty)' : ''}</small></h2>
+    <p><code>${escape(manifest.commit ?? 'unknown')}</code> · built ${escape(manifest.builtAt)} · ${manifest.chunks.length} chunks · ${rows} rows · ${(bytes / 1024).toFixed(0)} KB</p>
+    <p><a href="${spec.id}/manifest.json">manifest.json</a> · <a href="${spec.id}/report.html">build report</a></p>
+  </section>`;
+  });
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seed index</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem auto; max-width: 40rem; padding: 0 1rem; line-height: 1.5; }
+  h1 { font-size: 1.25rem; } h2 { font-size: 1rem; margin: 0 0 .25rem; }
+  section { border-top: 1px solid #8884; padding: .75rem 0; }
+  small { font-weight: 400; opacity: .7; }
+  code { font-family: ui-monospace, monospace; font-size: .85em; }
+</style>
+</head>
+<body>
+<h1>Seed index</h1>
+<p>Compiled content corpora bundled with this build. The app imports each source's <code>manifest.json</code> at boot and fetches changed chunks.</p>
+${sections.join('\n')}
+</body>
+</html>
+`;
+  writeFileSync(join(SEED_PUBLIC_DIR, 'index.html'), html);
+  console.log(`[sync-seed] index: ${join(SEED_PUBLIC_DIR, 'index.html')} (${entries.length} sources)`);
 }
-console.log(`[sync-seed] report: ${reportPath} (scan ${passMs.scan}ms, block-index ${passMs.blockIndex}ms, block-efforts ${passMs.blockEfforts}ms, write ${passMs.write}ms)`);
+
+writeSeedIndex(results);

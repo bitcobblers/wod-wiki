@@ -171,7 +171,9 @@
       "dependencies": {
         "@bitcobblers/wod-wiki-core": "^0.11.0",
         "@bitcobblers/wod-wiki-lang": "^0.11.0",
+        "@bitcobblers/wod-wiki-storage": "^0.11.0",
         "@bitcobblers/wod-wiki-wql": "^0.11.0",
+        "@libsql/client": "^0.18.0",
       },
     },
     "packages/lang": {
@@ -219,6 +221,10 @@
     "packages/storage": {
       "name": "@bitcobblers/wod-wiki-storage",
       "version": "0.11.0",
+      "dependencies": {
+        "@bitcobblers/wod-wiki-wql": "^0.11.0",
+        "@libsql/client": "^0.18.0",
+      },
       "devDependencies": {
         "@bitcobblers/wod-wiki-core": "^0.11.0",
         "@bitcobblers/wod-wiki-lang": "^0.11.0",

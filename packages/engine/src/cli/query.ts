@@ -17,6 +17,7 @@ import {
   parseQuery,
   isFindQuery,
   isPipelineQuery,
+  type QueryServiceStores,
   type QueryResult,
   type RowsQueryResult,
   type FindQueryResult,
@@ -49,6 +50,9 @@ export interface QueryCliOptions {
   stdinFacts?: string;
   preferredUnit?: string;
   sourceLabel?: string;
+  /** Pre-built store bundle (e.g. sqlite-backed). When set, the corpus/stdin
+   *  dataset options are ignored. */
+  stores?: QueryServiceStores;
 }
 
 interface LoadedData {
@@ -267,13 +271,9 @@ export async function runQueryCli(
     throw new WqlSyntaxError(wqlString, parsed.error);
   }
 
-  const stores = buildStoresFromData(loadQueryData(options));
-  const service = new QueryService(
-    stores.eventStore,
-    stores.noteStore,
-    stores.blockStore,
-    stores.effortStore,
-  );
+  const stores = options.stores ?? buildStoresFromData(loadQueryData(options));
+  // Bundle form — carries the optional blockEfforts/tags seams when provided.
+  const service = new QueryService(stores);
 
   if (isPipelineQuery(parsed)) {
     const result = await service.runPipeline(wqlString, {

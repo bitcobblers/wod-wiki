@@ -14,8 +14,8 @@
  * the claim TTL — converging to 'ready' whether the sibling finished
  * (fast path → 'current') or crashed (this tab imports instead).
  */
-import { useSyncExternalStore } from 'react';
-import { runSeedSync, SEED_CLAIM_TTL_MS, type SeedSyncOutcome } from './seedSync';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, type SeedSyncOutcome } from './seedSync';
 import { SEED_BROADCAST_CHANNEL } from '@/types/seed';
 
 export type SeedReadiness = 'preparing' | 'ready' | 'error';
@@ -68,14 +68,14 @@ function clearBusyWatch(): void {
   }
 }
 
-/** Called from app bootstrap, before runSeedSync. */
+/** Called from app bootstrap, before the boot seed sync. */
 export function markSeedSyncStarted(): void {
   clearBusyWatch();
   reflectOutcome(null);
   setState('preparing');
 }
 
-/** Called with the outcome of every runSeedSync attempt (including retries). */
+/** Called with the outcome of every boot seed sync attempt (including retries). */
 export function markSeedSyncSettled(outcome: SeedSyncOutcome): void {
   reflectOutcome(outcome);
   switch (outcome) {
@@ -91,7 +91,7 @@ export function markSeedSyncSettled(outcome: SeedSyncOutcome): void {
         };
       }
       busyRetryTimer = setTimeout(() => {
-        void runSeedSync().then(markSeedSyncSettled);
+        void runBootSeedSync().then(markSeedSyncSettled);
       }, SEED_CLAIM_TTL_MS);
       break;
     }
@@ -128,4 +128,23 @@ export function resetSeedReadinessForTest(): void {
   reflectState('idle');
   reflectOutcome(null);
   notify();
+}
+
+/**
+ * Reactive "no manual library imported yet" probe for the /catalogs and
+ * /feeds surfaces. Reads local checkpoints once per mount (no network);
+ * null until the read settles — callers render nothing while null. True
+ * also when the provider is unreadable: the notice's Sync link leads to a
+ * page that surfaces the actual error.
+ */
+export function useSeedLibraryMissing(): boolean | null {
+  const [missing, setMissing] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    readSeedCoverage()
+      .then(c => { if (!cancelled) setMissing(!c.libraryImported); })
+      .catch(() => { if (!cancelled) setMissing(true); });
+    return () => { cancelled = true; };
+  }, []);
+  return missing;
 }

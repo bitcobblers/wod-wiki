@@ -34,7 +34,7 @@ import {
   writeRouteShortcuts,
   type WqlShortcut,
 } from '../lib/routeWqlShortcuts'
-import { apiPrefsMode } from '@/services/storage/metaStore'
+import { remotePrefsMode } from '@/services/storage/metaStore'
 import { SaveWqlShortcutDialog } from '../components/organisms/wql/SaveWqlShortcutDialog'
 import {
   JOURNAL_STREAM_PROFILE,
@@ -441,7 +441,7 @@ export function QueryDefaultsSection() {
           Override the landing query and the Where-stored / arrangement options per surface. An empty query
           uses the system default; an emptied options list nudges you to pick instead of presetting one.
           Option lists are favorites — they reorder choices, they don't change what queries mean. Stored{' '}
-          {apiPrefsMode ? 'on the server.' : 'in this browser only.'}
+          {remotePrefsMode ? 'on the server.' : 'in this browser only.'}
         </p>
       </div>
       {CONFIGURABLE_SURFACES.map(surface => (

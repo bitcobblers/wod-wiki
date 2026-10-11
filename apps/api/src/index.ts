@@ -7,8 +7,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { openDatabase } from './database';
-import { initializeStore } from './store';
-import { initializeDomain } from './domain';
+import { initializeStore, initializeDomain } from '@bitcobblers/wod-wiki-storage/sql';
 import { createHandler } from './app';
 
 const raw = (k: string): string | undefined => process.env[k];

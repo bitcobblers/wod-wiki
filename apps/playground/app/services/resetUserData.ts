@@ -2,50 +2,54 @@
  * resetUserData — wipes every durable data store the application owns, so the
  * "Reset & Clear Cache" menu action returns the app to a first-run state.
  *
- * Stores wiped, in order:
- *  1. IndexedDB `wodwiki-db` — the single durable store (notes, segments,
- *     results, attachments, events, efforts, page, tags, note_tags). The
- *     service closes its connection before issuing `deleteDatabase`, so the
- *     request is not blocked. The next page load reopens a fresh DB: the
- *     `IndexedDBService` constructor runs `openDB` at the current DB_VERSION and the
- *     `upgrade` callback fires from version 0, recreating the full schema.
- *  2. localStorage — theme, audio, debug flag, onboarding flags, profile
- *     (wodwiki.profile.v1), and the V4
- *     migration flag (wodwiki:migrated-to-idb-v4).
- *  3. sessionStorage — the SPA redirect marker and any transient UI state.
+ * Provider-dependent behaviour:
+ *  - Local ('indexed-db', or 'invalid' — nothing usable is open): closes the
+ *    live connection, deletes the IndexedDB `wodwiki-db` (the next page load
+ *    recreates the full schema from version 0), then clears localStorage and
+ *    sessionStorage. Steps are independent and best-effort: a failure in one
+ *    store does not skip the others.
+ *  - Remote ('api' build override, or a saved Turso connection):
+ *    `storage.wipe()` clears the server-side rows (the system `memberships`
+ *    store survives — identity is not reset with data). A failed remote wipe
+ *    PROPAGATES: nothing is cleared locally and the saved connection
+ *    credentials survive, so the next boot stays on the same provider and the
+ *    caller can surface the error. On success the data settings are kept too
+ *    (the caller/UI must warn that this clears the REMOTE database) — reset
+ *    never silently disconnects.
  *
- * Each step is independent and best-effort: a failure in one store does not
- * skip the others. The caller reloads the page after this resolves so the
- * singleton services reinitialise against the now-empty state.
+ * The caller reloads the page after this resolves so the singleton services
+ * reinitialise against the now-empty state.
  */
-import { storage, storageBackend, storageService } from '@/services/storage';
+import { DATA_SETTINGS_KEY, storage, storageBackend, storageService } from '@/services/storage';
 
 export async function resetUserData(): Promise<void> {
-  // 1. Primary store — drop everything. On the IndexedDB backend the service
-  //    closes its live connection before issuing deleteDatabase, so the
-  //    request is not blocked. On the 'api' backend storage.wipe() POSTs
-  //    /v1/wipe instead (no local DB to delete).
-  //    wipe() rejects on error/blocked; we swallow it here so a transient
-  //    failure can't abort the secondary-store cleanup below. The reload that
-  //    follows re-creates the store either way.
-  try {
-    if (storageBackend === 'api') {
-      await storage.wipe();
-    } else {
+  const remote = storageBackend === 'api' || storageBackend === 'turso';
+
+  // 1. Primary store. Remote wipe failures abort before any local state is
+  //    touched; local wipes stay best-effort (the reload re-creates the store
+  //    either way).
+  if (remote) {
+    await storage.wipe();
+  } else {
+    try {
       await storageService.wipe();
+    } catch {
+      /* best-effort; secondary stores still cleared, reload re-inits */
     }
-  } catch {
-    /* best-effort; secondary stores still cleared, reload re-inits */
   }
 
-  // 2. localStorage.
+  // 2. localStorage — everything except the data settings when a remote
+  //    connection must survive the reset.
   try {
-    localStorage.clear();
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && !(remote && key === DATA_SETTINGS_KEY)) localStorage.removeItem(key);
+    }
   } catch {
     /* storage unavailable — nothing to clear */
   }
 
-  // 3. sessionStorage.
+  // 3. sessionStorage — the SPA redirect marker and transient UI state.
   try {
     sessionStorage.clear();
   } catch {

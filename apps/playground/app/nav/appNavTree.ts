@@ -23,7 +23,7 @@
  */
 
 import { HomeIcon, CodeBracketIcon } from '@heroicons/react/20/solid'
-import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, Layers, ListFilter, Tag, Library, Plus, UserRound } from 'lucide-react'
+import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, Layers, ListFilter, Tag, Library, Plus, UserRound, Database, CloudDownload } from 'lucide-react'
 import type { NavItem } from './navTypes'
 import type { Location } from 'react-router-dom'
 import { JOURNAL_STREAM_PROFILE, CATALOGS_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PLAYGROUNDS_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
@@ -335,6 +335,22 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
           icon: UserRound,
           action: { type: 'route', to: ROUTE_PATTERNS.settingsProfile },
           isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.settingsProfile,
+        },
+        {
+          id: 'settings-database',
+          label: 'Database',
+          level: 2,
+          icon: Database,
+          action: { type: 'route', to: ROUTE_PATTERNS.settingsDatabase },
+          isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.settingsDatabase,
+        },
+        {
+          id: 'settings-sync',
+          label: 'Sync',
+          level: 2,
+          icon: CloudDownload,
+          action: { type: 'route', to: ROUTE_PATTERNS.settingsSync },
+          isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.settingsSync,
         },
         {
           id: 'settings-queries',

@@ -6,7 +6,9 @@ import { cliMain, dialectRegistry, unregisterLanguagePack } from '../src/index';
 const FIXTURE_PATH = join(__dirname, '../../wql/fixtures/corpus/crossfit-multi-week.json');
 const TEMP_SCRIPT_FILE = join(process.cwd(), 'temp-test-workout.txt');
 const TEMP_OUTPUT_FILE = join(process.cwd(), 'temp-test-out.json');
+const TEMP_DEBUG_FILE = join(process.cwd(), 'wod-parse-debug.json');
 const TEMP_PACK_FILE = join(process.cwd(), 'temp-test-pack.mjs');
+const TEMP_DB_FILE = join(process.cwd(), 'temp-test-wodwiki.db');
 
 describe('wod CLI runner', () => {
   beforeEach(() => {
@@ -16,7 +18,9 @@ describe('wod CLI runner', () => {
   afterEach(() => {
     if (existsSync(TEMP_SCRIPT_FILE)) unlinkSync(TEMP_SCRIPT_FILE);
     if (existsSync(TEMP_OUTPUT_FILE)) unlinkSync(TEMP_OUTPUT_FILE);
+    if (existsSync(TEMP_DEBUG_FILE)) unlinkSync(TEMP_DEBUG_FILE);
     if (existsSync(TEMP_PACK_FILE)) unlinkSync(TEMP_PACK_FILE);
+    if (existsSync(TEMP_DB_FILE)) unlinkSync(TEMP_DB_FILE);
     unregisterLanguagePack('cli-dynamic-pack');
     dialectRegistry.unregister('cli-dynamic-dialect');
   });
@@ -26,6 +30,8 @@ describe('wod CLI runner', () => {
     const codeHelp = await cliMain(['--help'], { stdout: (t) => { out += t; } });
     expect(codeHelp).toBe(0);
     expect(out).toContain('wod CLI');
+    expect(out).toContain('wod seed');
+    expect(out).toContain('wod reset');
 
     let verOut = '';
     const codeVer = await cliMain(['--version'], { stdout: (t) => { verOut += t; } });
@@ -34,49 +40,74 @@ describe('wod CLI runner', () => {
   });
 
   describe('wod parse', () => {
-    it('parses workout file and outputs JSON IR (exit code 0)', async () => {
+    it('parses workout file, persists a note, and prints a summary (exit code 0)', async () => {
       let stdout = '';
-      const code = await cliMain(['parse', TEMP_SCRIPT_FILE, '--format', 'json'], {
+      const code = await cliMain(['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], {
         stdout: (t) => { stdout += t; },
       });
 
       expect(code).toBe(0);
-      const parsed = JSON.parse(stdout);
-      expect(parsed.$schema).toBe('https://wod-wiki.dev/ir/v1.json');
-      expect(parsed.kind).toBe('parse-tree');
-      expect(parsed.data).toBeDefined();
+      expect(stdout).toContain('[wod parse] note');
+      expect(stdout).toContain('segments');
+      expect(existsSync(TEMP_DB_FILE)).toBe(true);
     });
 
-    it('parses from stdin ("-") (exit code 0)', async () => {
+    it('parses from stdin ("-") and persists (exit code 0)', async () => {
       let stdout = '';
-      const code = await cliMain(['parse', '-', '--format', 'json'], {
+      const code = await cliMain(['parse', '-', '--db', TEMP_DB_FILE], {
         stdout: (t) => { stdout += t; },
         readStdinFn: async () => '5 RFT:\n  10 Box Jumps',
       });
 
       expect(code).toBe(0);
-      const parsed = JSON.parse(stdout);
-      expect(parsed.kind).toBe('parse-tree');
+      expect(stdout).toContain('[wod parse] note');
     });
 
-    it('formats parse tree as table and csv', async () => {
-      let tableOut = '';
-      const codeTable = await cliMain(['parse', TEMP_SCRIPT_FILE, '--format', 'table'], {
-        stdout: (t) => { tableOut += t; },
+    it('writes the parse-tree IR via --debug (default file name)', async () => {
+      const code = await cliMain(['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE, '--debug'], {
+        stdout: () => {},
       });
-      expect(codeTable).toBe(0);
-      expect(tableOut).toContain('Parse Tree');
+      expect(code).toBe(0);
+      expect(existsSync(TEMP_DEBUG_FILE)).toBe(true);
+      const parsed = JSON.parse(readFileSync(TEMP_DEBUG_FILE, 'utf-8'));
+      expect(parsed.$schema).toBe('https://wod-wiki.dev/ir/v1.json');
+      expect(parsed.kind).toBe('parse-tree');
+      expect(parsed.data).toBeDefined();
+    });
 
-      let csvOut = '';
-      const codeCsv = await cliMain(['parse', TEMP_SCRIPT_FILE, '--format', 'csv'], {
-        stdout: (t) => { csvOut += t; },
-      });
+    it('writes the parse-tree IR via --debug=<name>', async () => {
+      const custom = join(process.cwd(), 'temp-custom-debug.json');
+      const code = await cliMain(
+        ['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE, `--debug=${custom}`],
+        { stdout: () => {} },
+      );
+      expect(code).toBe(0);
+      expect(existsSync(custom)).toBe(true);
+      if (existsSync(custom)) unlinkSync(custom);
+    });
+
+    it('formats parse tree as table and csv when -o is given', async () => {
+      const tableFile = join(process.cwd(), 'temp-table-out.txt');
+      const codeTable = await cliMain(
+        ['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE, '--format', 'table', '-o', tableFile],
+        { stdout: () => {} },
+      );
+      expect(codeTable).toBe(0);
+      expect(readFileSync(tableFile, 'utf-8')).toContain('Parse Tree');
+      if (existsSync(tableFile)) unlinkSync(tableFile);
+
+      const csvFile = join(process.cwd(), 'temp-csv-out.csv');
+      const codeCsv = await cliMain(
+        ['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE, '--format', 'csv', '-o', csvFile],
+        { stdout: () => {} },
+      );
       expect(codeCsv).toBe(0);
-      expect(csvOut).toContain('id,type,from,to,raw,metrics,hints');
+      expect(readFileSync(csvFile, 'utf-8')).toContain('id,type,from,to,raw,metrics,hints');
+      if (existsSync(csvFile)) unlinkSync(csvFile);
     });
 
     it('writes output to file via -o flag', async () => {
-      const code = await cliMain(['parse', TEMP_SCRIPT_FILE, '-o', TEMP_OUTPUT_FILE]);
+      const code = await cliMain(['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE, '-o', TEMP_OUTPUT_FILE]);
       expect(code).toBe(0);
       expect(existsSync(TEMP_OUTPUT_FILE)).toBe(true);
       const content = JSON.parse(readFileSync(TEMP_OUTPUT_FILE, 'utf-8'));
@@ -94,35 +125,51 @@ describe('wod CLI runner', () => {
   });
 
   describe('wod run', () => {
-    it('executes workout script and emits execution-log IR (exit code 0)', async () => {
+    it('executes workout script, records a session, and prints a summary (exit code 0)', async () => {
       let stdout = '';
-      const code = await cliMain(['run', TEMP_SCRIPT_FILE, '--format', 'json'], {
+      const code = await cliMain(['run', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], {
         stdout: (t) => { stdout += t; },
       });
 
       expect(code).toBe(0);
-      const ir = JSON.parse(stdout);
-      expect(ir.$schema).toBe('https://wod-wiki.dev/ir/v1.json');
+      expect(stdout).toContain('[wod run] session');
+      expect(stdout).toContain('events');
+      expect(stdout).toContain('summaries');
+      expect(existsSync(TEMP_DB_FILE)).toBe(true);
+    });
+
+    it('emits execution-log IR via --debug', async () => {
+      const debugFile = join(process.cwd(), 'wod-run-debug.json');
+      const code = await cliMain(['run', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE, '--debug'], {
+        stdout: () => {},
+      });
+      expect(code).toBe(0);
+      expect(existsSync(debugFile)).toBe(true);
+      const ir = JSON.parse(readFileSync(debugFile, 'utf-8'));
       expect(ir.kind).toBe('execution-log');
       expect(ir.data.results).toBeDefined();
       expect(ir.data.results.completed).toBe(true);
-      expect(ir.data.statements.length).toBeGreaterThan(0);
+      if (existsSync(debugFile)) unlinkSync(debugFile);
     });
 
-    it('formats run output as table and csv', async () => {
-      let tableOut = '';
-      const codeTable = await cliMain(['run', TEMP_SCRIPT_FILE, '--format', 'table'], {
-        stdout: (t) => { tableOut += t; },
-      });
+    it('formats run output as table and csv when -o is given', async () => {
+      const tableFile = join(process.cwd(), 'temp-run-table.txt');
+      const codeTable = await cliMain(
+        ['run', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE, '--format', 'table', '-o', tableFile],
+        { stdout: () => {} },
+      );
       expect(codeTable).toBe(0);
-      expect(tableOut).toContain('Workout Execution Results:');
+      expect(readFileSync(tableFile, 'utf-8')).toContain('Workout Execution Results:');
+      if (existsSync(tableFile)) unlinkSync(tableFile);
 
-      let csvOut = '';
-      const codeCsv = await cliMain(['run', TEMP_SCRIPT_FILE, '--format', 'csv'], {
-        stdout: (t) => { csvOut += t; },
-      });
+      const csvFile = join(process.cwd(), 'temp-run.csv');
+      const codeCsv = await cliMain(
+        ['run', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE, '--format', 'csv', '-o', csvFile],
+        { stdout: () => {} },
+      );
       expect(codeCsv).toBe(0);
-      expect(csvOut).toContain('id,outputType,started,ended');
+      expect(readFileSync(csvFile, 'utf-8')).toContain('id,outputType,started,ended');
+      if (existsSync(csvFile)) unlinkSync(csvFile);
     });
   });
 
@@ -244,13 +291,20 @@ describe('wod CLI runner', () => {
       expect(ir.data.series[0].points[0].value).toBe(1);
     });
 
-    it('returns exit code 1 when no dataset is provided', async () => {
-      let stderr = '';
-      const code = await cliMain(['query', 'sum:totalVolume{}'], {
-        stderr: (t) => { stderr += t; },
-      });
-      expect(code).toBe(1);
-      expect(stderr).toContain('Query requires input data');
+    it('returns exit code 1 when no dataset and no database exist', async () => {
+      const previousEnv = process.env.WOD_WIKI_DB;
+      process.env.WOD_WIKI_DB = join(process.cwd(), 'definitely-missing-wodwiki.db');
+      try {
+        let stderr = '';
+        const code = await cliMain(['query', 'sum:totalVolume{}'], {
+          stderr: (t) => { stderr += t; },
+        });
+        expect(code).toBe(1);
+        expect(stderr).toContain('No input dataset');
+      } finally {
+        if (previousEnv === undefined) delete process.env.WOD_WIKI_DB;
+        else process.env.WOD_WIKI_DB = previousEnv;
+      }
     });
 
     it('returns exit code 2 on malformed WQL query syntax error', async () => {
@@ -289,16 +343,17 @@ export default {
         'utf-8',
       );
 
-      let stdout = '';
+      const debugFile = join(process.cwd(), 'wod-parse-debug.json');
       const code = await cliMain(
-        ['parse', TEMP_SCRIPT_FILE, '--pack', TEMP_PACK_FILE, '--format', 'json'],
-        { stdout: (t) => { stdout += t; } },
+        ['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE, '--pack', TEMP_PACK_FILE, '--debug'],
+        { stdout: () => {} },
       );
 
       expect(code).toBe(0);
-      const ir = JSON.parse(stdout);
+      const ir = JSON.parse(readFileSync(debugFile, 'utf-8'));
       const hints = JSON.stringify(ir);
       expect(hints).toContain('pack.thruster_found');
+      if (existsSync(debugFile)) unlinkSync(debugFile);
     });
 
     it('returns exit code 3 when Language Pack fails to load', async () => {

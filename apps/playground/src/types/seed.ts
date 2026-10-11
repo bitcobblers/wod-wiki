@@ -42,9 +42,10 @@ export interface SeedManifest {
   /** Seed format version — bump on incompatible row-shape changes. */
   schema: number;
   /**
-   * Monotonic import-order version — the wod-wiki-seed repo's commit count
+   * Monotonic import-order version — the producing corpus repo's commit count
    * (`git rev-list --count HEAD`); advances with every merged content MR.
-   * The import decision only ever compares magnitude/equality.
+   * Comparisons stay within one seed source, so independent counters per
+   * repo never mix. The import decision only ever compares magnitude/equality.
    */
   version: number;
   /** Human-readable seed repo version (`git describe --long --always --dirty`) — producer-side metadata, unused by the import decision. */
@@ -57,9 +58,10 @@ export interface SeedManifest {
   chunks: ManifestChunk[];
 }
 
-/** The `meta`-store record (key `seed`) — the import checkpoint. */
+/** The `meta`-store checkpoint record for one seed source (`key === seedMetaKey(sourceId)`). */
 export interface SeedMetaRecord {
-  key: 'seed';
+  /** IDB keyPath — `seed:<sourceId>` (see seedMetaKey). */
+  key: string;
   /** Seed format version of the last full apply — mismatch forces re-apply. */
   schema: number;
   /** manifest.version of the last fully-applied manifest. */
@@ -81,8 +83,20 @@ export interface SeedMetaRecord {
  *  even unchanged hashes — so already-seeded notes are re-attributed, and
  *  user-owned seed-path rows get their broken sourceId repaired. */
 export const SEED_SCHEMA = 7;
-/** The `meta`-store key holding the import checkpoint record. */
-export const SEED_META_KEY = 'seed';
+/** Legacy (pre-multi-seed) checkpoint key — one record owned every seed source. */
+export const LEGACY_SEED_META_KEY = 'seed';
+/**
+ * Per-source checkpoint key. Each seed source (core, community, third-party
+ * libraries) owns an independent checkpoint record, so per-chunk membership,
+ * version decisions, and vanished-chunk sweeps never cross sources.
+ */
+export function seedMetaKey(sourceId: string): string {
+  return `seed:${sourceId}`;
+}
+/** Empty checkpoint for one seed source — pre-first-import state. */
+export function emptySeedMeta(key: string): SeedMetaRecord {
+  return { key, schema: SEED_SCHEMA, seedVersion: 0, builtAt: '', importedAt: 0, chunks: {}, claim: null };
+}
 /**
  * Every seed note owns exactly one immutable segment; its id is
  * `seed:<noteId>` — unique per note (the segments store keys by
@@ -105,11 +119,6 @@ export const TEMPLATE_CHUNK_ID = 'template';
 export const BLOCK_INDEX_CHUNK_PREFIX = 'block-index.';
 /** Prefix of the split block-efforts chunks (`block-efforts.<n>`). */
 export const BLOCK_EFFORTS_CHUNK_PREFIX = 'block-efforts.';
-
-/** Empty checkpoint — pre-first-import state. */
-export function emptySeedMeta(): SeedMetaRecord {
-  return { key: SEED_META_KEY, schema: SEED_SCHEMA, seedVersion: 0, builtAt: '', importedAt: 0, chunks: {}, claim: null };
-}
 
 /** `collection.crossfit-girls` → `crossfit-girls`; `_root`/non-catalog chunks → undefined. */
 export function catalogForChunkId(chunkId: string): string | undefined {

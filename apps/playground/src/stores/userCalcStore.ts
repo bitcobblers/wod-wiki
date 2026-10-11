@@ -14,13 +14,14 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { compileLineForm, LineFormScope } from '@bitcobblers/wod-wiki-engine';
 import { CalculationDefinition } from '@bitcobblers/wod-wiki-engine';
-import { apiPrefsMode, metaDeleteRow, metaGetRow, metaListRows, metaPutRow } from '@/services/storage/metaStore';
+import { remotePrefsMode, metaDeleteRow, metaGetRow, metaListRows, metaPutRow } from '@/services/storage/metaStore';
 
 const DB_NAME = 'wodwiki-user-calcs';
 const DB_VERSION = 1;
 const STORE = 'calcs';
-/** Server-mode namespace in the shared meta store ({ key, value } rows). */
-const META_PREFIX = 'user-calc:';
+/** Remote-mode namespace in the shared meta store ({ key, value } rows);
+ *  also the key format the IDB→Turso migration writes. */
+export const META_PREFIX = 'user-calc:';
 
 export interface UserCalcRecord {
   id: string;
@@ -67,7 +68,7 @@ const DEFAULT_LINE_SCOPE: LineFormScope = { scope: 'segment' };
 
 /** List all stored user calc records, newest-first. */
 export async function listUserCalcs(): Promise<UserCalcRecord[]> {
-  if (apiPrefsMode) {
+  if (remotePrefsMode) {
     const rows = await metaListRows<UserCalcRecord>(META_PREFIX);
     return rows.map((r) => r.value).sort((a, b) => b.updatedAt - a.updatedAt);
   }
@@ -78,14 +79,14 @@ export async function listUserCalcs(): Promise<UserCalcRecord[]> {
 
 /** Get a single stored calc by id, if present. */
 export async function getUserCalc(id: string): Promise<UserCalcRecord | undefined> {
-  if (apiPrefsMode) return metaGetRow<UserCalcRecord>(META_PREFIX + id);
+  if (remotePrefsMode) return metaGetRow<UserCalcRecord>(META_PREFIX + id);
   const db = await open();
   return db.get(STORE, id);
 }
 
 /** Insert or replace a calc record. */
 export async function saveUserCalc(record: UserCalcRecord): Promise<void> {
-  if (apiPrefsMode) {
+  if (remotePrefsMode) {
     await metaPutRow(META_PREFIX + record.id, {
       id: record.id,
       lineForm: record.lineForm,
@@ -102,7 +103,7 @@ export async function saveUserCalc(record: UserCalcRecord): Promise<void> {
 
 /** Remove a calc record. */
 export async function deleteUserCalc(id: string): Promise<void> {
-  if (apiPrefsMode) return metaDeleteRow(META_PREFIX + id);
+  if (remotePrefsMode) return metaDeleteRow(META_PREFIX + id);
   const db = await open();
   await db.delete(STORE, id);
 }

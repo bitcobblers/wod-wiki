@@ -3,7 +3,9 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 
 import { IndexedDBStorage } from '@/services/storage';
-import { SEED_META_KEY, emptySeedMeta, seedSegmentId } from '@/types/seed';
+import { emptySeedMeta, seedMetaKey, seedSegmentId } from '@/types/seed';
+
+const META_KEY = seedMetaKey('core');
 import type { BlockIndexRow, Note, NoteSegment } from '@/types/storage';
 import { IndexedDBSeedImportStorage, type SeedChunkWrite } from './SeedImportStorage';
 
@@ -66,7 +68,7 @@ function chunkWrite(partial: Partial<SeedChunkWrite>): SeedChunkWrite {
     deleteEffortSlugs: [],
     deleteBlockIds: [],
     deleteBlockEffortIds: [],
-    meta: emptySeedMeta(),
+    meta: emptySeedMeta(META_KEY),
     ...partial,
   };
 }
@@ -91,7 +93,7 @@ describe('IndexedDBSeedImportStorage.applyChunk', () => {
   });
 
   it('commits every batched row and the checkpoint in one transaction', async () => {
-    const meta = { ...emptySeedMeta(), seedVersion: 7, chunks: { canvas: { sha256: 'a' } } };
+    const meta = { ...emptySeedMeta(META_KEY), seedVersion: 7, chunks: { canvas: { sha256: 'a' } } };
     await seedStorage.applyChunk(
       chunkWrite({
         notes: [note('note-0'), note('note-1')],
@@ -101,7 +103,7 @@ describe('IndexedDBSeedImportStorage.applyChunk', () => {
       }),
     );
 
-    expect(await seedStorage.getSeedMeta()).toEqual(meta);
+    expect(await seedStorage.getSeedMeta(META_KEY)).toEqual(meta);
     expect(await idb.readonly('block_index').count()).toBe(300);
     expect(await idb.readonly('notes').get('note-1')).toMatchObject({ seedOrigin: 'seed' });
     expect(await idb.readonly('segments').get([seedSegmentId('note-0'), 1])).toMatchObject({ noteId: 'note-0' });
@@ -115,12 +117,12 @@ describe('IndexedDBSeedImportStorage.applyChunk', () => {
       seedStorage.applyChunk(
         chunkWrite({
           blocks: [...Array.from({ length: 50 }, (_, i) => blockRow(i)), invalid],
-          meta: { ...emptySeedMeta(), seedVersion: 9 },
+          meta: { ...emptySeedMeta(META_KEY), seedVersion: 9 },
         }),
       ),
     ).rejects.toThrow();
 
     expect(await idb.readonly('block_index').count()).toBe(0);
-    expect(await idb.readonly('meta').get(SEED_META_KEY)).toBeUndefined();
+    expect(await idb.readonly('meta').get(META_KEY)).toBeUndefined();
   });
 });

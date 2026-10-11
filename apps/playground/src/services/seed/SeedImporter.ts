@@ -33,6 +33,7 @@ import {
   SEED_SCHEMA,
   catalogForChunkId,
   emptySeedMeta,
+  seedMetaKey,
   seedNoteSourceId,
   seedSegmentId,
 } from '@/types/seed';
@@ -44,15 +45,19 @@ import { DEFAULT_TAG_TYPES } from '@/services/storage/StorageService';
 import { assertBlockEffortRows, assertBlockRows, assertRows, type ISeedSource } from './ISeedSource';
 import type { SeedImportStorage } from './SeedImportStorage';
 
-async function* fetchChunks(source: ISeedSource, plan: ManifestChunk[]) {
+async function* fetchChunks(source: ISeedSource, plan: ManifestChunk[], onFetching?: (chunkId: string) => void) {
   for (let i = 0; i < plan.length;) {
     // ponytail: four concurrent fetches bound memory; tune only from cold-import traces.
     const batch = plan.slice(i, i + (plan[i]?.id === CANVAS_CHUNK_ID ? 1 : 4));
-    const pending = batch.map((chunk) => source.fetchChunk(chunk.path).then(
-      (payload) => ({ chunk, payload }),
-      (error: unknown) => ({ chunk, error }),
-    ));
-    for (const request of pending) {
+    const pending = batch.map((chunk) => ({
+      chunk,
+      request: source.fetchChunk(chunk.path).then(
+        (payload) => ({ chunk, payload }),
+        (error: unknown) => ({ chunk, error }),
+      ),
+    }));
+    for (const { chunk, request } of pending) {
+      onFetching?.(chunk.id);
       const result = await request;
       if ('error' in result) throw result.error;
       yield result;
@@ -184,12 +189,36 @@ export interface SeedImportResult {
   totalBlocks: number;
 }
 
+/**
+ * Live progress for the sync surface. Every emitted snapshot counts only
+ * successfully committed writes: counters move behind `applyChunk`, so a
+ * chunk that fails — or a run that dies mid-sweep — never leaks its writes
+ * into the last observed progress.
+ */
+export type SeedImportProgress = Pick<
+  SeedImportResult,
+  'totalNotes' | 'totalEfforts' | 'totalBlocks' | 'skippedUserOwned' | 'deleted'
+> & {
+  phase: 'fetching' | 'applying' | 'committed' | 'finalizing';
+  chunkId: string | null;
+  completedChunks: number;
+  totalChunks: number;
+};
+
 export class SeedImporter {
   constructor(
     private readonly storage: SeedImportStorage,
     private readonly source: ISeedSource,
+    /** Which seed library this importer serves — its checkpoint record and vanished-chunk sweep are scoped to it. */
+    private readonly sourceId: string,
     private readonly now: () => number = Date.now,
   ) {}
+
+  /** This source's checkpoint. Chunk membership, version, and the
+   *  vanished-chunk reconciliation below never cross seed sources. */
+  private metaKey(): string {
+    return seedMetaKey(this.sourceId);
+  }
 
   /**
    * Rewrite a compiled static row onto the imported note UUID through the
@@ -222,9 +251,9 @@ export class SeedImporter {
    * the remaining chunks stream in behind it. Never fires when the plan
    * has no pending canvas chunk (already applied / resuming).
    */
-  async applyAll(opts: { forceAll?: boolean; onFirstPaintApplied?: () => void } = {}): Promise<SeedImportResult> {
+  async applyAll(opts: { forceAll?: boolean; onFirstPaintApplied?: () => void; onProgress?: (progress: SeedImportProgress) => void } = {}): Promise<SeedImportResult> {
     const manifest = await this.source.fetchManifest();
-    const meta: SeedMetaRecord = (await this.storage.getSeedMeta()) ?? emptySeedMeta();
+    const meta: SeedMetaRecord = (await this.storage.getSeedMeta(this.metaKey())) ?? emptySeedMeta(this.metaKey());
     // A stored checkpoint from a different seed schema — or a manual
     // Settings re-sync — is re-applied in full: ownership rules still gate
     // every row, so user work survives.
@@ -259,7 +288,17 @@ export class SeedImporter {
     let totalEfforts = 0;
     let totalBlocks = 0;
 
-    for await (const { chunk, payload } of fetchChunks(this.source, orderedPlan)) {
+    // Progress snapshots are commit boundaries: counters only move after
+    // `applyChunk` resolves, so the last observed event never carries
+    // uncommitted (possibly rolled-back) writes.
+    const totalChunks = orderedPlan.length;
+    let completedChunks = 0;
+    const onProgress = opts.onProgress;
+    const report = (phase: SeedImportProgress['phase'], chunkId: string | null): void =>
+      onProgress?.({ phase, chunkId, completedChunks, totalChunks, totalNotes, totalEfforts, totalBlocks, skippedUserOwned, deleted });
+
+    for await (const { chunk, payload } of fetchChunks(this.source, orderedPlan, onProgress ? (chunkId) => report('fetching', chunkId) : undefined)) {
+      report('applying', chunk.id);
 
       // ── Block-index chunks: precomputed rows straight into `block_index` ──
       if ((chunk.kind ?? 'notes') === 'block-index') {
@@ -277,8 +316,6 @@ export class SeedImporter {
           if (writtenIds.has(id)) continue;
           gone.push(id);
         }
-        deleted += gone.length;
-        totalBlocks += written.length;
         meta.chunks[chunk.id] = { sha256: chunk.sha256, blockIds: rows.map((row) => row.id) };
         meta.importedAt = this.now();
         await this.storage.applyChunk({
@@ -293,6 +330,10 @@ export class SeedImporter {
           deleteBlockEffortIds: [],
           meta,
         });
+        deleted += gone.length;
+        totalBlocks += written.length;
+        completedChunks += 1;
+        report('committed', chunk.id);
         continue;
       }
 
@@ -310,8 +351,6 @@ export class SeedImporter {
           if (writtenIds.has(id)) continue;
           gone.push(id);
         }
-        deleted += gone.length;
-        totalBlocks += written.length;
         meta.chunks[chunk.id] = { sha256: chunk.sha256, blockIds: rows.map((row) => row.id) };
         meta.importedAt = this.now();
         await this.storage.applyChunk({
@@ -326,6 +365,10 @@ export class SeedImporter {
           deleteBlockEffortIds: gone,
           meta,
         });
+        deleted += gone.length;
+        totalBlocks += written.length;
+        completedChunks += 1;
+        report('committed', chunk.id);
         continue;
       }
 
@@ -339,10 +382,11 @@ export class SeedImporter {
       const pages: Page[] = [];
       const pageNotes: PageNote[] = [];
       const noteTags: { noteId: string; tags: Array<string | { label: string; type?: string }> }[] = [];
+      let chunkSkipped = 0;
       for (const [rowIndex, record] of built.entries()) {
         const existing = await this.storage.getNote(record.note.id);
         if (existing && existing.seedOrigin !== 'seed') {
-          skippedUserOwned += 1;
+          chunkSkipped += 1;
           // Attribution repair: ownership preserves the user's title,
           // content, and provenance — not a broken source family. A seed-path
           // row classified `journal` would leak into :journal{} forever.
@@ -376,7 +420,6 @@ export class SeedImporter {
         if (existing && existing.seedOrigin !== 'seed') continue;
         gone.push(id);
       }
-      deleted += gone.length;
 
       // The efforts chunk materializes IEffort projections next to its notes.
       // Provenance on an effort is `registrySource` — only 'bundled' rows are
@@ -436,6 +479,10 @@ export class SeedImporter {
       });
       totalNotes += notes.length;
       totalEfforts += efforts.length;
+      skippedUserOwned += chunkSkipped;
+      deleted += gone.length;
+      completedChunks += 1;
+      report('committed', chunk.id);
       // The canvas chunk is a notes chunk (compiler chunkIdFor), so the
       // first-paint check lives on this committed path; block-index
       // chunks (the `continue` path) are never first-paint.
@@ -446,12 +493,12 @@ export class SeedImporter {
 
     // ── Vanished chunks: membership the manifest no longer declares ──
     // Same ownership gates as vanished rows; keeps corpus shrinkage honest.
+    report('finalizing', null);
     const manifestIds = new Set(manifest.chunks.map((c) => c.id));
     for (const [chunkId, checkpoint] of Object.entries(meta.chunks)) {
       if (manifestIds.has(chunkId)) continue;
       if (checkpoint.blockIds?.length) {
         const gone = checkpoint.blockIds;
-        deleted += gone.length;
         meta.chunks[chunkId] = { sha256: checkpoint.sha256, blockIds: [] };
         await this.storage.applyChunk({
           notes: [], segments: [], efforts: [], blocks: [], blockEfforts: [],
@@ -460,6 +507,8 @@ export class SeedImporter {
           deleteBlockEffortIds: [],
           meta,
         });
+        deleted += gone.length;
+        report('finalizing', null);
       }
       if (checkpoint.noteIds?.length) {
         const gone: string[] = [];
@@ -468,7 +517,6 @@ export class SeedImporter {
           if (existing && existing.seedOrigin !== 'seed') continue;
           gone.push(id);
         }
-        deleted += gone.length;
         meta.chunks[chunkId] = { sha256: checkpoint.sha256, noteIds: [] };
         await this.storage.applyChunk({
           notes: [], segments: [], efforts: [], blocks: [], blockEfforts: [],
@@ -478,6 +526,8 @@ export class SeedImporter {
           deleteBlockEffortIds: [],
           meta,
         });
+        deleted += gone.length;
+        report('finalizing', null);
       }
     }
 
@@ -490,6 +540,7 @@ export class SeedImporter {
       deleteNoteIds: [], deleteEffortSlugs: [], deleteBlockIds: [], deleteBlockEffortIds: [],
       meta,
     });
+    report('finalizing', null);
 
     return { status: 'imported', appliedChunks: plan.length, skippedUserOwned, deleted, totalNotes, totalEfforts, totalBlocks };
   }

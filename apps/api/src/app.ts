@@ -16,9 +16,19 @@ import { join, resolve, sep } from 'node:path';
 import { stat, realpath } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { HttpError } from './errors';
-import { handleDomainQuery, refreshDomain, wipeDomain, MAX_BODY } from './domain';
-import { storeDefinition, getRow, listRows, countRows, wipeRows } from './store';
-import type { Database } from './database';
+import {
+  handleDomainQuery,
+  refreshDomain,
+  wipeDomain,
+  MAX_BODY,
+  StorageError,
+  storeDefinition,
+  getRow,
+  listRows,
+  countRows,
+  wipeRows,
+  type Database,
+} from '@bitcobblers/wod-wiki-storage/sql';
 import type { KeyDTO, RangeDTO, TxOp } from '@bitcobblers/wod-wiki-storage';
 
 const json = (value: unknown, status: number): Response =>
@@ -285,11 +295,12 @@ export function createHandler(
         : await staticResponse(distRoot, method, path);
       return response;
     } catch (e) {
-      if (e instanceof HttpError) {
-        if (e.status >= 500) console.error('[wod-wiki-api]', e.message);
-        const body: { error: string; code?: string } = { error: e.status >= 500 ? 'internal error' : e.message };
+      if (e instanceof HttpError || e instanceof StorageError) {
+        const status = e.status;
+        if (status >= 500) console.error('[wod-wiki-api]', e.message);
+        const body: { error: string; code?: string } = { error: status >= 500 ? 'internal error' : e.message };
         if (e.code) body.code = e.code;
-        return json(body, e.status);
+        return json(body, status);
       }
       console.error('[wod-wiki-api]', e);
       return json({ error: 'internal error' }, 500);

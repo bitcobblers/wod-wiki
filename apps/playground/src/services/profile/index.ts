@@ -4,7 +4,8 @@
  * Two adapters behind one interface: localStorage for the IndexedDB backend
  * (profile survives DB wipes that localStorage resets own separately), and
  * the `memberships` store through the shared `storage` singleton for the
- * HTTP ApiStorage backend (row id 'default', server-side).
+ * remote backends — HTTP ApiStorage and the direct-browser Turso connection
+ * (row id 'default', server-side).
  */
 
 import type { Membership } from '@bitcobblers/wod-wiki-storage';
@@ -128,8 +129,8 @@ export class ApiProfileService implements ProfileService {
   }
 }
 
-export function createProfileService(backend: 'api' | 'indexed-db'): ProfileService {
-  return backend === 'api' ? new ApiProfileService() : new LocalStorageProfileService();
+export function createProfileService(backend: 'api' | 'indexed-db' | 'turso'): ProfileService {
+  return backend === 'indexed-db' ? new LocalStorageProfileService() : new ApiProfileService();
 }
 
 /** Center-crops the image to a square, downscaled to at most max×max, as a

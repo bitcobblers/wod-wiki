@@ -166,9 +166,9 @@ describe('appNavTree - Settings navigation', () => {
     expect(settings?.level).toBe(1)
     expect(settings?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsAppearance })
     expect(settings?.children).toBeDefined()
-    expect(settings?.children?.length).toBe(5)
+    expect(settings?.children?.length).toBe(7)
 
-    const [appearance, profile, queries, tags, system] = settings!.children!
+    const [appearance, profile, database, sync, queries, tags, system] = settings!.children!
 
     expect(appearance.id).toBe('settings-appearance')
     expect(appearance.label).toBe('Appearance')
@@ -177,6 +177,14 @@ describe('appNavTree - Settings navigation', () => {
     expect(profile.id).toBe('settings-profile')
     expect(profile.label).toBe('Profile')
     expect(profile.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsProfile })
+
+    expect(database.id).toBe('settings-database')
+    expect(database.label).toBe('Database')
+    expect(database.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsDatabase })
+
+    expect(sync.id).toBe('settings-sync')
+    expect(sync.label).toBe('Sync')
+    expect(sync.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsSync })
 
     expect(queries.id).toBe('settings-queries')
     expect(queries.label).toBe('Query Defaults')
@@ -203,13 +211,19 @@ describe('appNavTree - Settings navigation', () => {
   it('activates appropriate L2 child based on route', () => {
     const tree = buildAppNavTree(() => {})
     const settings = tree.find(item => item.id === 'settings')!
-    const [appearance, profile, queries, tags, system] = settings.children!
+    const [appearance, profile, database, sync, queries, tags, system] = settings.children!
 
     expect(appearance.isActive!(mockLocation('/settings'))).toBe(true)
     expect(appearance.isActive!(mockLocation('/settings/appearance'))).toBe(true)
 
     expect(profile.isActive!(mockLocation('/settings/profile'))).toBe(true)
     expect(profile.isActive!(mockLocation('/settings/appearance'))).toBe(false)
+
+    expect(database.isActive!(mockLocation('/settings/database'))).toBe(true)
+    expect(database.isActive!(mockLocation('/settings/appearance'))).toBe(false)
+
+    expect(sync.isActive!(mockLocation('/settings/sync'))).toBe(true)
+    expect(sync.isActive!(mockLocation('/settings/appearance'))).toBe(false)
 
     expect(queries.isActive!(mockLocation('/settings/queries'))).toBe(true)
     expect(queries.isActive!(mockLocation('/settings/appearance'))).toBe(false)

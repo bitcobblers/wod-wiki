@@ -25,7 +25,7 @@ import { join, dirname } from 'node:path'
 const ROOT = join(import.meta.dir, '..')
 // The corpus lives in the sibling wod-wiki-seed repo; this post-build step
 // reads it from the synced seed artifact (sync-seed runs before vite build).
-const SEED_CHUNKS = join(ROOT, 'apps', 'playground', 'public', 'seed', 'chunks')
+const SEED_CHUNKS = join(ROOT, 'apps', 'playground', 'public', 'seed')
 const DIST = join(ROOT, 'apps', 'playground', 'dist')
 const SITE_URL = (process.env.SITE_URL ?? 'https://wod.wiki').replace(/\/+$/, '')
 const OG_IMAGE = `${SITE_URL}/images/wod-wiki-logo-light.png`
@@ -93,7 +93,7 @@ interface SeedRowRef {
 
 /** Read every `{path, content}` row from the content-hashed seed note chunks matching a glob (e.g. `canvas.*.json`). */
 function* readChunkRows(chunkGlob: string): Generator<SeedRowRef> {
-  for (const file of new Glob(chunkGlob).scanSync(SEED_CHUNKS)) {
+  for (const file of new Glob(`*/chunks/${chunkGlob}`).scanSync(SEED_CHUNKS)) {
     const rows = JSON.parse(readFileSync(join(SEED_CHUNKS, file), 'utf8')) as SeedRowRef[]
     yield* rows
   }

@@ -12,7 +12,7 @@ import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 import type { BlockEffort, BlockIndexRow, Note, NoteSegment, Page, PageNote } from '@/types/storage';
 import { storage, type IStorage } from '@/services/storage';
 import { DEFAULT_TAG_TYPES } from '@/services/storage/StorageService';
-import { SEED_META_KEY, seedSegmentId } from '@/types/seed';
+import { seedSegmentId } from '@/types/seed';
 
 export interface SeedChunkWrite {
   notes: Note[];
@@ -40,8 +40,10 @@ export interface SeedChunkWrite {
 }
 
 export interface SeedImportStorage {
-  getSeedMeta(): Promise<SeedMetaRecord | undefined>;
+  getSeedMeta(metaKey: string): Promise<SeedMetaRecord | undefined>;
   putSeedMeta(meta: SeedMetaRecord): Promise<void>;
+  /** Remove a checkpoint record (legacy-key cleanup). */
+  deleteSeedMeta(metaKey: string): Promise<void>;
   getNote(id: string): Promise<Note | undefined>;
   getEffort(slug: string): Promise<IEffort | undefined>;
   /** sourcePath → note UUID for every stored note carrying a sourcePath —
@@ -56,12 +58,16 @@ export interface SeedImportStorage {
 export class IndexedDBSeedImportStorage implements SeedImportStorage {
   constructor(private readonly storageInstance: IStorage = storage) {}
 
-  async getSeedMeta(): Promise<SeedMetaRecord | undefined> {
-    return (await this.storageInstance.readonly('meta').get(SEED_META_KEY)) as SeedMetaRecord | undefined;
+  async getSeedMeta(metaKey: string): Promise<SeedMetaRecord | undefined> {
+    return (await this.storageInstance.readonly('meta').get(metaKey)) as SeedMetaRecord | undefined;
   }
 
   async putSeedMeta(meta: SeedMetaRecord): Promise<void> {
     await this.storageInstance.readwrite('meta').put(meta);
+  }
+
+  async deleteSeedMeta(metaKey: string): Promise<void> {
+    await this.storageInstance.readwrite('meta').delete(metaKey);
   }
 
   async getNote(id: string): Promise<Note | undefined> {
@@ -181,15 +187,20 @@ export class InMemorySeedStorage implements SeedImportStorage {
   private readonly blockEffortRows = new Map<string, BlockEffort>();
   private readonly noteTags = new Map<string, string[]>();
   private readonly noteTagObjects = new Map<string, Array<{ label: string; type?: string }>>();
-  private meta?: SeedMetaRecord;
+  private readonly metas = new Map<string, SeedMetaRecord>();
   applyCount = 0;
 
-  getSeedMeta(): Promise<SeedMetaRecord | undefined> {
-    return Promise.resolve(this.meta);
+  getSeedMeta(metaKey: string): Promise<SeedMetaRecord | undefined> {
+    const meta = this.metas.get(metaKey);
+    return Promise.resolve(meta ? structuredClone(meta) : undefined);
   }
 
   async putSeedMeta(meta: SeedMetaRecord): Promise<void> {
-    this.meta = structuredClone(meta);
+    this.metas.set(meta.key, structuredClone(meta));
+  }
+
+  async deleteSeedMeta(metaKey: string): Promise<void> {
+    this.metas.delete(metaKey);
   }
 
   getNote(id: string): Promise<Note | undefined> {
@@ -236,7 +247,7 @@ export class InMemorySeedStorage implements SeedImportStorage {
     for (const slug of write.deleteEffortSlugs) this.effortsBySlug.delete(slug);
     for (const id of write.deleteBlockIds) this.blockRows.delete(id);
     for (const id of write.deleteBlockEffortIds) this.blockEffortRows.delete(id);
-    this.meta = structuredClone(write.meta);
+    this.metas.set(write.meta.key, structuredClone(write.meta));
   }
 
   // ── Test inspection ──

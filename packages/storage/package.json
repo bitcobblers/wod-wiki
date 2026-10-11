@@ -1,7 +1,7 @@
 {
   "name": "@bitcobblers/wod-wiki-storage",
   "version": "0.11.0",
-  "description": "Storage contract for WOD Wiki — entity types, IStorage, IndexedDB schema spec, wire DTOs, and the HTTP ApiStorage backend",
+  "description": "Storage contract for WOD Wiki — entity types, IStorage, IndexedDB schema spec, wire DTOs, the HTTP ApiStorage backend, and the shared SQL (SqlStorage/BrowserTursoStorage) backend",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
+    },
+    "./sql": {
+      "types": "./dist/sql/index.d.ts",
+      "import": "./dist/sql/index.mjs",
+      "require": "./dist/sql/index.cjs"
     }
   },
   "files": [
@@ -24,7 +29,10 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@bitcobblers/wod-wiki-wql": "^0.11.0",
+    "@libsql/client": "^0.18.0"
+  },
   "devDependencies": {
     "@bitcobblers/wod-wiki-core": "^0.11.0",
     "@bitcobblers/wod-wiki-lang": "^0.11.0"

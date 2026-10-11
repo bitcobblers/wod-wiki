@@ -13,7 +13,7 @@ Markdown ─▶ PARSE (Lezer grammar)          → CodeStatements   (parser metr
          ─▶ SEMANTICS (Dialects & Units)   → Hints + dialect metrics + fused units
          ─▶ COMPILE (JIT strategies)       → Runtime blocks + behaviors
          ─▶ RUNTIME (Stack + clock)        → OutputStatements (runtime/user metrics)
-         ─▶ PERSISTENCE (IndexedDB v23)    → Events, sessions, notes, page_notes, tags
+         ─▶ PERSISTENCE (IStorage)         → Events, sessions, notes, page_notes, tags
          ─▶ ANALYTICS (WQL QueryService)   → Fact aggregations, rollups, and joins
          ─▶ PRESENTATION (Editor/clock/journal/dashboard)
 ```
@@ -55,9 +55,9 @@ apps/
 
 ---
 
-## 3. Storage Architecture (`wodwiki-db` v23)
+## 3. Storage architecture
 
-Persistence is backed by IndexedDB (`wodwiki-db`, version 23), structured around strict ownership invariants:
+Persistence crosses the shared `IStorage` seam through IndexedDB, direct browser Turso, or the HTTP adapter for a SQL-backed WOD Wiki server. Browser Turso and the server share the SQL store and WQL projection module; the server supports SQLite, Turso, and PostgreSQL. See [persistence interfaces](./interfaces.md#istorage-and-persistence) for provider selection and migration. Every adapter preserves the same ownership invariants:
 
 $$\text{Page } \xleftarrow{1:N} \text{ PageNote } \xrightarrow{N:1} \text{ Note } \xrightarrow{1:N} \{\text{Segment, Session, EventRecord, Attachment}\}$$
 

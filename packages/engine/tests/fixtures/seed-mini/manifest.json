@@ -1,0 +1,28 @@
+{
+  "schema": 7,
+  "version": 1,
+  "builtAt": "2026-01-01T00:00:00.000Z",
+  "chunks": [
+    {
+      "id": "collection.test",
+      "path": "chunks/collection.test.aaaa1111.json",
+      "sha256": "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+      "kind": "notes",
+      "count": 1
+    },
+    {
+      "id": "block-index.0",
+      "path": "chunks/block-index.0.bbbb2222.json",
+      "sha256": "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222",
+      "kind": "block-index",
+      "count": 1
+    },
+    {
+      "id": "block-efforts.0",
+      "path": "chunks/block-efforts.0.cccc3333.json",
+      "sha256": "cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333",
+      "kind": "block-efforts",
+      "count": 1
+    }
+  ]
+}

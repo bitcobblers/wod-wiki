@@ -1,15 +1,16 @@
 /**
- * HttpSeedSource — production adapter: fetches the compiled seed from the
- * static host (same origin, `BASE_URL/seed/`). The manifest is fetched with
- * `cache: 'no-cache'` so a fresh deploy is seen immediately; chunks are
- * content-hashed filenames and cache aggressively.
+ * HttpSeedSource — production adapter: fetches one compiled seed source from
+ * the static host (same origin, `BASE_URL/seed/<sourceId>/`). The manifest is
+ * fetched with `cache: 'no-cache'` so a fresh deploy is seen immediately;
+ * chunks are content-hashed filenames and cache aggressively.
  */
 import type { SeedManifest } from '@/types/seed';
 import { assertManifest, SeedSourceError, type ISeedSource, type SeedChunkPayload } from './ISeedSource';
 
 export class HttpSeedSource implements ISeedSource {
   constructor(
-    private readonly baseUrl: string = `${import.meta.env.BASE_URL}seed/`,
+    /** Seed dir on the static host — one per seed source, e.g. `BASE_URL + 'seed/core/'`. */
+    private readonly baseUrl: string,
     private readonly fetchImpl: typeof fetch = fetch.bind(globalThis),
   ) {}
 

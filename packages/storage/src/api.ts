@@ -25,28 +25,24 @@ import { parseDomainQueryResult, type DomainQuery, type DomainQueryResult } from
 import {
   encodeKey,
   isRange,
-  compareKeys,
-  extractKeyPart,
   keyFromValue,
-  keyInRange,
   rangeFromIDB,
   type KeyDTO,
   type RangeDTO,
-  type TxOp,
 } from './wire';
+import {
+  bufferedGet,
+  bufferSlot,
+  bufferToOps,
+  isDirty,
+  overlayRows,
+  type BufferEntry,
+} from './overlay';
 
 /** Query/delete argument: IndexedDB key forms plus the wire RangeDTO. */
 type QueryArg = IDBValidKey | IDBKeyRange | RangeDTO;
 
-interface BufferedPut { kind: 'put'; value: unknown }
-interface BufferedDelete { kind: 'delete'; key: KeyDTO }
-type BufferEntry = BufferedPut | BufferedDelete;
-
 interface Http { baseUrl: string; fetchImpl: typeof fetch }
-
-// Buffer slot key: store + \u0000 + raw JSON of the key (JSON text never
-// contains a literal \u0000, so the separator is unambiguous).
-const bufferSlot = (store: StoreName, key: KeyDTO): string => `${store}\u0000${JSON.stringify(key)}`;
 
 // ── HTTP layer (module functions; one shared client instance passes `Http`) ──
 
@@ -171,14 +167,7 @@ export class ApiStorage implements IStorage {
 
   /** Sends buffered ops as one server-side SQL transaction. */
   private async flush(buffer: Map<string, BufferEntry>, cleared: Set<StoreName>): Promise<void> {
-    const ops: TxOp[] = [];
-    for (const store of cleared) ops.push({ op: 'clear', store });
-    for (const [slot, entry] of buffer) {
-      const sep = slot.indexOf('\u0000');
-      const store = slot.slice(0, sep) as StoreName;
-      if (entry.kind === 'put') ops.push({ op: 'put', store, value: entry.value });
-      else if (entry.kind === 'delete') ops.push({ op: 'delete', store, key: JSON.parse(slot.slice(sep + 1)) as KeyDTO });
-    }
+    const ops = bufferToOps(STORE_DEFS.map(d => d.name), buffer, cleared);
     if (ops.length > 0) await request(this.http, 'POST', '/tx', { body: { ops } });
   }
 
@@ -208,23 +197,7 @@ class ApiStore<T> implements IReadWriteStore<T> {
 
   /** True when this tx has buffered writes for this store. */
   private dirty(): boolean {
-    if (this.cleared?.has(this.store)) return true;
-    if (!this.buffer) return false;
-    const prefix = `${this.store}\u0000`;
-    for (const slot of this.buffer.keys()) {
-      if (slot.startsWith(prefix)) return true;
-    }
-    return false;
-  }
-
-  /**
-   * Point lookup against the buffer; undefined means consult the server.
-   */
-  private bufferedGet(key: KeyDTO): { hit: true; value: T } | { hit: false } | undefined {
-    if (!this.buffer) return undefined;
-    const entry = this.buffer.get(bufferSlot(this.store, key));
-    if (!entry) return undefined;
-    return entry.kind === 'put' ? { hit: true, value: entry.value as T } : { hit: false };
+    return isDirty(this.store, this.buffer, this.cleared);
   }
 
   async get(key: IDBValidKey | RangeDTO): Promise<T | undefined> {
@@ -239,7 +212,7 @@ class ApiStore<T> implements IReadWriteStore<T> {
       // IDBValidKey ⊃ KeyDTO (Date/ArrayBuffer keys are outside the wire subset).
       k = key as KeyDTO;
     }
-    const state = this.bufferedGet(k);
+    const state = bufferedGet<T>(this.store, k, this.buffer);
     if (state) return state.hit ? state.value : undefined;
     if (this.cleared?.has(this.store)) return undefined;
     return remoteGet<T>(this.http, this.store, k);
@@ -275,50 +248,7 @@ class ApiStore<T> implements IReadWriteStore<T> {
 
   /** Applies buffered puts and deletes before range filtering, ordering and paging. */
   private overlay(rows: T[], count?: number, range?: RangeDTO, indexName?: string): T[] {
-    if (!this.buffer || !this.dirty()) return count !== undefined ? rows.slice(0, count) : rows;
-    const out = new Map<string, T>();
-    if (!this.cleared?.has(this.store)) {
-      // Out-map keys are raw JSON key text — same form as buffer slot suffixes.
-      for (const row of rows) out.set(JSON.stringify(keyFromValue(this.def, row)), row);
-    }
-    const prefix = `${this.store}\u0000`;
-    for (const [slot, entry] of this.buffer) {
-      if (!slot.startsWith(prefix)) continue;
-      if (entry.kind === 'put') out.set(slot.slice(prefix.length), entry.value as T);
-      else out.delete(slot.slice(prefix.length));
-    }
-    // Dirty reads fetch the complete candidate range: buffered deletes can
-    // remove the remote head, and puts can change index membership or order.
-    const index = indexName ? this.def.indexes.find(i => i.name === indexName) : undefined;
-    if (indexName && !index) throw new Error(`ApiStorage: unknown index '${indexName}'`);
-    const keyOf = (row: T): KeyDTO | undefined => {
-      if (!index) return keyFromValue(this.def, row);
-      const parts = index.keyPath.map(path => extractKeyPart(row, path));
-      if (parts.some(part => part === undefined)) return undefined;
-      const keys = parts.filter((part): part is string | number => part !== undefined);
-      return keys.length === 1 ? keys[0] : keys;
-    };
-    const matches = (row: T): boolean => {
-      if (index?.multiEntry) {
-        let values: unknown = row;
-        for (const part of index.keyPath[0].split('.')) {
-          if (values === null || typeof values !== 'object' || !(part in values)) return false;
-          values = Reflect.get(values, part);
-        }
-        return Array.isArray(values) && values.some(value =>
-          (typeof value === 'string' || typeof value === 'number') && (!range || keyInRange(value, range)));
-      }
-      const key = keyOf(row);
-      return key !== undefined && (!range || keyInRange(key, range));
-    };
-    const merged = [...out.values()].filter(matches);
-    merged.sort((a, b) => {
-      const primary = compareKeys(keyFromValue(this.def, a), keyFromValue(this.def, b));
-      if (index?.multiEntry) return primary;
-      const ak = keyOf(a), bk = keyOf(b);
-      return ak !== undefined && bk !== undefined ? compareKeys(ak, bk) || primary : primary;
-    });
-    return count !== undefined ? merged.slice(0, count) : merged;
+    return overlayRows<T>(this.def, this.store, this.buffer, this.cleared, rows, count, range, indexName);
   }
 
   async put(value: T, _key?: IDBValidKey): Promise<IDBValidKey> {

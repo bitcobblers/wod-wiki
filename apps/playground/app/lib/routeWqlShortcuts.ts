@@ -42,7 +42,7 @@ import {
 } from 'lucide-react'
 import { isFindQuery, parseQuery, serialize, type AnyParsedQuery } from '@bitcobblers/wod-wiki-engine'
 import { LocalStore } from '@/services/storage/LocalStore'
-import { apiPrefsMode, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
+import { remotePrefsMode, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
 
 export interface WqlShortcut {
   id: string
@@ -78,7 +78,7 @@ export const ROUTE_SHORTCUTS_STORAGE_PREFIX = 'wodwiki.routeWqlShortcuts.v1'
 
 // api mode: reads come from the hydrated server rows; LocalStore writes are
 // bypassed (they swallow errors) — flushes go through metaSetPref instead.
-export const routeShortcutsStore = new LocalStore(ROUTE_SHORTCUTS_STORAGE_PREFIX, apiPrefsMode ? metaPrefBackend : undefined)
+export const routeShortcutsStore = new LocalStore(ROUTE_SHORTCUTS_STORAGE_PREFIX, remotePrefsMode ? metaPrefBackend : undefined)
 
 /** The built-in landing link (nav-tree label/icon vocabulary). */
 export function defaultLandingShortcut(label: string, icon: string): WqlShortcut {
@@ -140,7 +140,7 @@ function sanitizeShortcuts(value: unknown): WqlShortcut[] {
       label: s.label.trim(),
       icon: s.icon,
       wql: s.wql.trim(),
-      ...(s.to !== undefined ? { to: s.to } : {}),
+      ...(typeof s.to === 'string' ? { to: s.to } : {}),
     })
   }
   return out
@@ -180,7 +180,7 @@ export async function writeRouteShortcuts(
 ): Promise<boolean> {
   const id = normalizeRouteId(routeId)
   const clean = sanitizeShortcuts(shortcuts)
-  if (apiPrefsMode) {
+  if (remotePrefsMode) {
     try {
       await metaSetPref(store.qualify(id), JSON.stringify(clean))
     } catch (err) {
@@ -201,7 +201,7 @@ export async function writeRouteShortcuts(
  *  mode keeps the browser-backend semantics. */
 export async function resetRouteShortcuts(routeId: string, store: LocalStore = routeShortcutsStore): Promise<void> {
   const id = normalizeRouteId(routeId)
-  if (apiPrefsMode) {
+  if (remotePrefsMode) {
     await metaSetPref(store.qualify(id), null)
   } else {
     store.remove(id)

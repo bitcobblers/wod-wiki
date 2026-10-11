@@ -1,26 +1,29 @@
 /**
- * metaStore — auxiliary persistence in server (VITE_STORAGE=api) mode.
+ * metaStore — auxiliary persistence in remote mode (the VITE_STORAGE=api
+ * build override or a saved direct-browser Turso connection).
  *
  * Namespaced `{ key, value }` rows in the shared `meta` store through the
  * existing `storage` singleton: user calcs (`user-calc:*`), telemetry
  * (`telemetry:*`), notebooks (`wodwiki:notebooks`, `wodwiki:active-notebook`),
  * route WQL defaults + shortcuts (`wodwiki.routeWql.v1*`,
- * `wodwiki.routeWqlShortcuts.v1*`). Device-local in BOTH modes: theme,
+ * `wodwiki.routeWqlShortcuts.v1*`). Device-local in IndexedDB mode: theme,
  * audio, onboarding, cast pairing, consent, view settings. Local
  * (IndexedDB) mode never calls into this module.
  */
 import type { StorageBackend } from './LocalStore';
 import { storage, storageBackend } from './index';
 
-export const apiPrefsMode: boolean = storageBackend === 'api';
+/** True when prefs/notebooks/telemetry/calcs persist through the remote meta store. */
+export const remotePrefsMode: boolean = storageBackend === 'api' || storageBackend === 'turso';
 
-/** Prefix namespaces hydrated into the pref cache. */
-const PREF_NAMESPACES = ['wodwiki.routeWql.v1', 'wodwiki.routeWqlShortcuts.v1'];
+/** Prefix namespaces hydrated into the pref cache (also the vocabulary the
+ *  IDB→Turso migration copies from localStorage into remote meta rows). */
+export const PREF_NAMESPACES = ['wodwiki.routeWql.v1', 'wodwiki.routeWqlShortcuts.v1'];
 /** Exact notebook rows (kept narrow — no blanket `wodwiki:` capture). */
-const PREF_KEYS = ['wodwiki:notebooks', 'wodwiki:active-notebook'];
+export const PREF_KEYS = ['wodwiki:notebooks', 'wodwiki:active-notebook'];
 
 // Hydrated raw-JSON view of the remote pref rows: read backend for
-// LocalStore consumers in api mode. Filled by hydrateMetaPrefs (before
+// LocalStore consumers in remote mode. Filled by hydrateMetaPrefs (before
 // first render), kept in step by metaSetPref — reads never hit the network.
 const prefCache = new Map<string, string>();
 
@@ -83,7 +86,7 @@ export async function metaDeletePrefs(qualifiedKeys: string[]): Promise<void> {
 }
 
 /**
- * List `{ key, value }` rows under a namespace prefix (api mode). Real
+ * List `{ key, value }` rows under a namespace prefix (remote mode). Real
  * IDBKeyRange works on both backends (ApiStorage converts it to a wire
  * range; IndexedDB takes it natively).
  */

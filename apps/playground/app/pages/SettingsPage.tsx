@@ -1,5 +1,6 @@
 /**
- * SettingsPage — /settings, /settings/appearance, /settings/profile, /settings/system
+ * SettingsPage — /settings, /settings/appearance, /settings/profile, /settings/database,
+ * /settings/sync, /settings/system
  *
  * Dedicated settings surface for Wod Wiki, replacing the header "…" dropdown
  * configuration options.
@@ -9,6 +10,10 @@
  *     page (Home / Journal).
  *   - /settings/profile: avatar, display name, birth date, and body metrics
  *     (weight/height with unit toggles) for the single local membership.
+ *   - /settings/database: storage location (this browser / direct Turso) with
+ *     connect/migrate controls. Where data LIVES.
+ *   - /settings/sync: content seed sources — per-source status + sync,
+ *     Sync All, and custom source registration. Where content COMES FROM.
  *   - /settings/system: Audio feedback (sound effects & test chime), developer
  *     debug mode toggle, and "Reset & Clear Cache" danger zone.
  *   - /settings/queries: per-surface landing query and source / Group-By
@@ -28,17 +33,12 @@ import {
   Bug,
   AlertTriangle,
   RotateCcw,
-  RefreshCw,
-  CloudDownload,
-  CheckCircle2,
-  AlertCircle,
   Check,
   Search,
   PanelRight,
   PanelLeft,
   Plus,
   Trash2,
-  Tag as TagIcon,
 } from 'lucide-react'
 import { StickyPageHeader } from '@/panels/page-shells/StickyPageHeader'
 import { useTheme } from '@/contexts/ThemeProvider'
@@ -46,21 +46,23 @@ import { useAudio } from '@/contexts/AudioContext'
 import { useDebugMode } from '@/contexts/DebugModeContext'
 import { useFabAlignment, FAB_ALIGNMENT_OPTIONS } from '../lib/fabAlignment'
 import { useStartPage, START_PAGE_OPTIONS } from '../lib/startPage'
-import { readSeedStatus, runSeedSync, type SeedStatus } from '@/services/seed/seedSync'
-import { toast } from '@/hooks/use-toast'
 import { resetUserData } from '../services/resetUserData'
 import { QueryDefaultsSection } from './QueryDefaultsSection'
 import { ProfileSection } from './ProfileSection'
+import { DataSection } from './DataSection'
+import { SyncSection } from './SyncSection'
 import { Switch } from '@/components/atoms/primitives/switch'
 import { Button } from '@/components/atoms/primitives/button'
 import { cn } from '@/lib/utils'
-import { storage, storageService } from '@/services/storage'
+import { readDataSettings, storage, storageBackend, storageService } from '@/services/storage'
 import type { Tag, TagTypeRecord } from '@/types/storage'
 
 // Subroute switching lives in the left L2 nav (appNavTree); no in-page tab bar.
 const SETTINGS_SECTIONS = [
   { id: 'appearance', content: <AppearanceSection /> },
   { id: 'profile', content: <ProfileSection /> },
+  { id: 'database', content: <DataSection /> },
+  { id: 'sync', content: <SyncSection /> },
   { id: 'queries', content: <QueryDefaultsSection /> },
   { id: 'tags', content: <TagsSettingsSection /> },
   { id: 'routes', content: <RoutesSection /> },
@@ -77,13 +79,17 @@ export function SettingsPage() {
     ? 'system'
     : location.pathname.endsWith('/profile')
       ? 'profile'
-      : location.pathname.endsWith('/queries')
-        ? 'queries'
-        : location.pathname.endsWith('/tags')
-          ? 'tags'
-          : location.pathname.endsWith('/routes')
-            ? 'routes'
-            : 'appearance'
+      : location.pathname.endsWith('/database')
+        ? 'database'
+        : location.pathname.endsWith('/sync')
+          ? 'sync'
+          : location.pathname.endsWith('/queries')
+            ? 'queries'
+            : location.pathname.endsWith('/tags')
+              ? 'tags'
+              : location.pathname.endsWith('/routes')
+                ? 'routes'
+                : 'appearance'
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-background">
@@ -413,6 +419,17 @@ function SystemSection() {
   const { isDebugMode, toggleDebugMode } = useDebugMode()
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+
+  // Reset scope follows the active data location: a remote connection means
+  // the wipe clears the server/Turso database, not just this device.
+  const savedSettings = readDataSettings()
+  const resetTarget =
+    storageBackend === 'api'
+      ? 'your Wod Wiki server'
+      : savedSettings.state === 'turso'
+        ? `your Turso database (${savedSettings.url})`
+        : null
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -429,10 +446,15 @@ function SystemSection() {
 
   const handleConfirmReset = async () => {
     setIsResetting(true)
+    setResetError(null)
     try {
       await resetUserData()
-    } finally {
       window.location.reload()
+    } catch (err) {
+      // A failed wipe must not reload into a half-reset state; the saved
+      // connection is untouched (preserved by the reset service).
+      setResetError(err instanceof Error ? err.message : String(err))
+      setIsResetting(false)
     }
   }
 
@@ -521,10 +543,7 @@ function SystemSection() {
         </div>
       </section>
 
-      {/* 3. Bundled Content (Seed) */}
-      <SeedSyncCard />
-
-      {/* 4. Data & Storage / Danger Zone */}
+      {/* 3. Data & Storage / Danger Zone */}
       <section className="space-y-4 pt-4 border-t border-border/50">
         <div>
           <h2 className="text-base font-semibold text-destructive flex items-center gap-2">
@@ -540,10 +559,22 @@ function SystemSection() {
           <div className="space-y-1">
             <div className="font-semibold text-sm text-foreground">Reset & Clear Cache</div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Wipes all durable data stores including IndexedDB (notes, workouts, custom efforts,
-              recorded results, and attachments) and resets all localStorage preferences. The application
-              will return to a fresh first-run state — bundled content (workouts, guides, collections,
-              dashboards) re-imports automatically on the next launch.
+              {resetTarget ? (
+                <>
+                  Wipes ALL data stored in {resetTarget}: notes, workouts, custom efforts, recorded
+                  results, and attachments, plus this browser's localStorage preferences. Your separate
+                  IndexedDB copy is kept. Bundled core content re-imports automatically on the next
+                  launch; community and custom libraries must be re-synced from Settings &gt; Sync.
+                  Your connection settings are preserved.
+                </>
+              ) : (
+                <>
+                  Wipes all durable data stores including IndexedDB (notes, workouts, custom efforts,
+                  recorded results, and attachments) and resets all localStorage preferences. The application
+                  returns to a fresh first-run state: the core playground content re-imports automatically on
+                  the next launch, and community/custom libraries wait for you in Settings &gt; Sync.
+                </>
+              )}
             </p>
           </div>
 
@@ -582,9 +613,23 @@ function SystemSection() {
               Reset All Application Data?
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              This action will permanently wipe every note, result, cached effort, and local setting
-              from your browser storage. This returns Wod Wiki to its first-run state and cannot be undone.
+              {resetTarget ? (
+                <>
+                  This permanently deletes every note, result, cached effort, and local setting stored
+                  in {resetTarget}. It cannot be undone.
+                </>
+              ) : (
+                <>
+                  This action will permanently wipe every note, result, cached effort, and local setting
+                  from your browser storage. This returns Wod Wiki to its first-run state and cannot be undone.
+                </>
+              )}
             </p>
+            {resetError && (
+              <p role="alert" className="text-xs text-destructive" data-testid="reset-error">
+                Reset failed: {resetError} — your data and connection were left untouched; try again.
+              </p>
+            )}
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button
                 variant="outline"
@@ -614,142 +659,6 @@ function SystemSection() {
         </div>
       )}
     </div>
-  )
-}
-
-// ── Bundled Content (Seed) ────────────────────────────────────────────────────
-
-const formatSeedVersion = (version: number): string =>
-  new Date(version).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-
-/**
- * SeedSyncCard — bundled-content (seed) status + manual re-sync for
- * /settings/system. The seed is the only path bundled content (canvas pages,
- * syntax guides, collections, feeds, dashboards, efforts, page template)
- * takes into IndexedDB; re-syncing re-applies every published chunk with the
- * ownership rules (user edits always win).
- */
-function SeedSyncCard() {
-  const [status, setStatus] = useState<SeedStatus | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSyncing, setIsSyncing] = useState(false)
-
-  const refresh = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      setStatus(await readSeedStatus())
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  const handleResync = useCallback(async () => {
-    setIsSyncing(true)
-    try {
-      const outcome = await runSeedSync({ force: true })
-      if (outcome === 'imported') {
-        toast({ title: 'Bundled content re-synced', description: 'Workouts, guides, collections, and dashboards were restored from the published seed. Your own edits were kept.' })
-      } else if (outcome === 'error') {
-        toast({ title: 'Re-sync failed', description: 'Check your connection and the browser console for details.', variant: 'destructive' })
-      } else if (outcome === 'busy') {
-        toast({ title: 'Another tab is already syncing', description: 'Wait for it to finish, then try again.' })
-      } else {
-        toast({ title: `Nothing to import (${outcome})` })
-      }
-      await refresh()
-    } finally {
-      setIsSyncing(false)
-    }
-  }, [refresh])
-
-  const upToDate = status?.stored != null && status.remote != null && status.stored.version === status.remote.version
-
-  return (
-    <section className="space-y-4 pt-4 border-t border-border/50">
-      <div>
-        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-          <CloudDownload className="size-4 text-primary" />
-          Bundled Content
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Workouts, guides, collections, and dashboards bundled with the app are stored locally and
-          re-imported automatically when a new version is published.
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-        <div className="grid gap-2 text-sm" data-testid="seed-status-card">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-xs text-muted-foreground">Local database</span>
-            <span className="font-medium text-foreground" data-testid="seed-local-version">
-              {isLoading
-                ? 'Checking…'
-                : status?.stored
-                  ? `v${status.stored.version} · schema ${status.stored.schema} · imported ${formatSeedVersion(status.stored.importedAt)}`
-                  : 'Not imported yet'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-xs text-muted-foreground">Published version</span>
-            <span className="font-medium text-foreground flex items-center gap-1.5" data-testid="seed-remote-version">
-              {isLoading
-                ? 'Checking…'
-                : status?.remote
-                  ? `v${status.remote.version} · schema ${status.remote.schema}`
-                  : status?.remoteError
-                    ? (
-                        <>
-                          <AlertCircle className="size-3.5 text-muted-foreground" />
-                          Unavailable
-                        </>
-                      )
-                    : 'Checking…'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-xs text-muted-foreground">Status</span>
-            <span
-              className="font-medium flex items-center gap-1.5"
-              data-testid="seed-sync-status"
-            >
-              {isLoading ? (
-                'Checking…'
-              ) : upToDate ? (
-                <>
-                  <CheckCircle2 className="size-3.5 text-emerald-500" />
-                  Up to date
-                </>
-              ) : status?.remote == null ? (
-                'Unknown (remote unreachable)'
-              ) : (
-                'Update available — re-imports automatically on next launch'
-              )}
-            </span>
-          </div>
-        </div>
-
-        <div className="pt-3 border-t border-border/50 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
-            Re-applies every published chunk. Your own notes, results, and edits are never overwritten.
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleResync}
-            disabled={isSyncing || isLoading}
-            data-testid="seed-resync-button"
-            className="gap-2"
-          >
-            {isSyncing ? <RefreshCw className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-            <span>{isSyncing ? 'Re-syncing…' : 'Re-sync Now'}</span>
-          </Button>
-        </div>
-      </div>
-    </section>
   )
 }
 

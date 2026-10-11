@@ -11,6 +11,7 @@ import { pendingRuntimes } from '../../runtimeStore'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import {
   EFFORTS_STREAM_PROFILE,
+  FEEDS_STREAM_PROFILE,
   JOURNAL_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
   SESSIONS_STREAM_PROFILE,
@@ -626,6 +627,32 @@ describe('QueriableStreamView component', () => {
     } finally {
       journalNotes.resolve = originalResolve
     }
+  })
+
+  it('shows the sync notice on seedNotice routes when no manual library has imported', async () => {
+    const engine = createMockEngine([])
+    // jsdom has no IndexedDB: the coverage probe cannot find an imported
+    // library — the honest answer is "missing", so the notice must render.
+    render(
+      <MemoryRouter initialEntries={['/feeds']}>
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const notice = await waitFor(() => screen.getByTestId('seed-library-notice'))
+    expect(notice.textContent).toContain('Only the core seed is imported')
+    expect(screen.getByTestId('seed-library-notice-sync')).toBeDefined()
+  })
+
+  it('never shows the sync notice on routes whose corpus is not seed-sourced', () => {
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/efforts']}>
+        <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    expect(screen.queryByTestId('seed-library-notice')).toBeNull()
   })
 })
 

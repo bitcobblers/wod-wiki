@@ -43,7 +43,7 @@ import { StartPageGate } from './lib/startPage'
 import { PlaygroundRedirect } from './pages/PlaygroundRedirect'
 import { useZipProcessor } from './hooks/useZipProcessor'
 import { useJournalZipProcessor } from './hooks/useJournalZipProcessor'
-import { runSeedSync } from '@/services/seed/seedSync'
+import { runBootSeedSync, runSeedSync } from '@/services/seed/seedSync'
 import { markSeedSyncSettled, markSeedSyncStarted, useSeedReadiness } from '@/services/seed/seedReadiness'
 import { profileService } from '@/services/storage'
 import { initSeedContentBroadcast, invalidateSeedContent } from '@/services/content/seedContent'
@@ -92,7 +92,7 @@ function GlobalState() {
     // vault-querying routes on a skeleton until the import settles.
     initSeedContentBroadcast()
     markSeedSyncStarted()
-    void runSeedSync().then(markSeedSyncSettled)
+    void runBootSeedSync().then(markSeedSyncSettled)
   }, [])
   return null
 }
@@ -174,6 +174,10 @@ export function App() {
                   <Route path="/settings" element={<Navigate to="/settings/appearance" replace />} />
                   <Route path="/settings/appearance" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsProfile} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  {/* Retired /settings/data split into database + sync (2026-10). */}
+                  <Route path={ROUTE_PATTERNS.settingsData} element={<Navigate to={ROUTE_PATTERNS.settingsDatabase} replace />} />
+                  <Route path={ROUTE_PATTERNS.settingsDatabase} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.settingsSync} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/system" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsQueries} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsTags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />

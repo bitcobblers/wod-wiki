@@ -12,7 +12,7 @@
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import { EditorDialog, resolveQueryDraft } from '@bitcobblers/wod-wiki-ui'
-import { apiPrefsMode } from '@/services/storage/metaStore'
+import { remotePrefsMode } from '@/services/storage/metaStore'
 import { Button } from '@/components/atoms/primitives/button'
 
 import {
@@ -99,7 +99,7 @@ export function SaveWqlShortcutDialog({
       onClose={() => onOpenChange(false)}
       title={editing ? 'Edit shortcut' : 'Save search shortcut'}
       description={`Saved shortcuts appear in this route's navigation panel. Stored ${
-        apiPrefsMode ? 'on the server.' : 'in this browser only.'
+        remotePrefsMode ? 'on the server.' : 'in this browser only.'
       }`}
       footer={
         <div className="flex justify-end gap-2">

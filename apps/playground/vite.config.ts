@@ -61,19 +61,26 @@ const receiverRedirectPlugin: Plugin = {
 };
 
 /**
- * Read the seed manifest version stamped by scripts/sync-seed.ts (which runs
- * before vite in both dev and build, compiling the sibling wod-wiki-seed
- * repo). 0 when missing — the runtime then always consults the manifest
- * instead of trusting the skip-fetch fast path.
+ * Read the seed manifest versions stamped by scripts/sync-seed.ts (which runs
+ * before vite in both dev and build): one entry per seed source —
+ * `public/seed/<sourceId>/manifest.json`. A source with no manifest is
+ * absent — the runtime then always consults that manifest instead of
+ * trusting the skip-fetch fast path.
  */
-function seedManifestVersion(): number {
-    try {
-        const raw = fs.readFileSync(resolve(import.meta.dirname, 'public/seed/manifest.json'), 'utf8');
-        const parsed = JSON.parse(raw) as { version?: unknown };
-        return typeof parsed.version === 'number' ? parsed.version : 0;
-    } catch {
-        return 0;
+function seedManifestVersions(): Record<string, number> {
+    const seedDir = resolve(import.meta.dirname, 'public/seed');
+    const versions: Record<string, number> = {};
+    if (!fs.existsSync(seedDir)) return versions;
+    for (const entry of fs.readdirSync(seedDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        try {
+            const parsed = JSON.parse(fs.readFileSync(resolve(seedDir, entry.name, 'manifest.json'), 'utf-8')) as { version?: unknown };
+            if (typeof parsed.version === 'number' && parsed.version > 0) versions[entry.name] = parsed.version;
+        } catch {
+            // Absent/unreadable manifest → source not fast-pathable.
+        }
     }
+    return versions;
 }
 
 export default defineConfig({
@@ -85,11 +92,12 @@ export default defineConfig({
         // (tagged version on main/prod, X.Y.Z-pr.N on PR previews); local dev
         // and library builds fall back to package.json.
         __APP_VERSION__: JSON.stringify(process.env.VITE_APP_VERSION || pkg.version),
-        // Seed version stamp (docs/prototypes/seed-data-unification.md § Version
-        // check): read from the manifest the seed compiler just wrote (generate
-        // runs before vite in both dev and build). 0 when missing — the runtime
-        // then always consults the manifest instead of trusting the fast path.
-        __SEED_VERSION__: JSON.stringify(seedManifestVersion()),
+        // Seed version stamps (docs/prototypes/seed-data-unification.md §
+        // Version check): read from the manifests the seed compiler just
+        // wrote (generate runs before vite in both dev and build) — one
+        // entry per seed source. Absent sources are not fast-pathable; the
+        // runtime then always consults their manifest.
+        __SEED_VERSIONS__: JSON.stringify(seedManifestVersions()),
     },
     plugins: [react(), receiverRedirectPlugin],
     resolve: {

@@ -1,8 +1,8 @@
-/** Pure version-decision table + the bun-test fallback for the embedded stamp. */
+/** Pure version-decision table + the bun-test fallback for the embedded stamps. */
 import { describe, expect, it } from 'bun:test';
 import type { SeedMetaRecord } from '@/types/seed';
-import { SEED_SCHEMA } from '@/types/seed';
-import { decideSeedImport, EMBEDDED_SEED_VERSION, storedSeedIsCurrent } from './seedVersion';
+import { SEED_SCHEMA, seedMetaKey } from '@/types/seed';
+import { decideSeedImport, EMBEDDED_SEED_VERSIONS, storedSeedIsCurrent } from './seedVersion';
 
 describe('decideSeedImport', () => {
   it('imports when nothing stored or stored is pre-seed', () => {
@@ -22,13 +22,13 @@ describe('storedSeedIsCurrent (skip-fetch fast path)', () => {
     seedVersion === undefined
       ? undefined
       : {
-          key: 'seed',
+          key: seedMetaKey('core'),
           seedVersion,
+          schema: schema ?? SEED_SCHEMA,
           builtAt: '',
           importedAt: 0,
           chunks: {},
           claim: null,
-          ...(schema !== undefined ? { schema } : {}),
         };
 
   it('requires a positive stored version equal to the embedded stamp', () => {
@@ -46,8 +46,8 @@ describe('storedSeedIsCurrent (skip-fetch fast path)', () => {
   });
 });
 
-describe('EMBEDDED_SEED_VERSION', () => {
-  it('falls back to 0 where the Vite define is absent (bun test)', () => {
-    expect(EMBEDDED_SEED_VERSION).toBe(0);
+describe('EMBEDDED_SEED_VERSIONS', () => {
+  it('falls back to an empty map where the Vite define is absent (bun test)', () => {
+    expect(EMBEDDED_SEED_VERSIONS).toEqual({});
   });
 });

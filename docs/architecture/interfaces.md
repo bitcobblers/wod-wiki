@@ -108,22 +108,22 @@ Register them on the analytics profile used by `RuntimeFactory`.
 
 ## `IStorage` and persistence
 
-`IStorage` is the raw per-store seam:
-
-```typescript
-export interface IStorage {
-  readonly<T>(store: StoreName): IReadonlyStore<T>;
-  readwrite<T>(store: StoreName): IReadWriteStore<T>;
-  transaction<T>(stores: StoreName[], mode: IDBTransactionMode): ITransaction;
-}
-```
+`IStorage` in `packages/storage/src/contract.ts` is the backend-neutral persistence seam. Its interface exposes typed store reads and writes, callback transactions with rollback, wipe, close, and optional `queryDomain` execution. Callers such as `IndexedDBNotePersistence` compose this interface into note operations; the historical name does not select a backend.
 
 Adapters:
 
-- `IndexedDBStorage` — production
-- `InMemoryStorage` — tests
+- `IndexedDBStorage` for the default browser-local database.
+- `InMemoryStorage` for isolated checks.
+- `ApiStorage` for HTTP access to a WOD Wiki server.
+- `BrowserTursoStorage` for direct browser access using `@libsql/client/web`.
 
-Persistence layers (e.g., `IndexedDBNotePersistence`) compose `IStorage` into domain operations.
+The SQL module lives at `@bitcobblers/wod-wiki-storage/sql`. Browser Turso and `apps/api` reuse its store schema, binary codec, transactions, and WQL domain projections. The server retains native SQLite/libSQL and PostgreSQL connection adapters; native drivers never enter the browser graph. WQL parsing and query rules remain shared rather than introducing a Turso-specific parser.
+
+Provider selection happens once at browser boot in `apps/playground/src/services/storage/index.ts`: an API build override wins, otherwise validated browser-local settings select Turso or default IndexedDB. Invalid saved settings disable data access until repaired or explicitly switched. Successful changes reload the page and other tabs to discard provider-specific caches. Turso failures do not silently create or write a local database.
+
+`tursoMigration.ts` reads a consistent IndexedDB snapshot, includes remote-owned preferences and the local profile, then checks and writes an empty SQL destination in one transaction. Bulk migration rebuilds projections once and preserves row ownership. The source remains untouched; credentials never enter remote metadata. Switch-back is not reverse synchronization.
+
+Runnable checks cross the same interface: `bun packages/storage/tests/sql-check.ts` covers SQL transactions, binary data, and projections; `bun apps/playground/src/services/storage/tursoMigration.check.ts` covers complete migration, source retention, and nonempty-destination refusal.
 
 ## Language Pack API
 

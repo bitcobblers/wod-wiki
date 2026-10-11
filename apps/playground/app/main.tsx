@@ -1,9 +1,11 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { BootRecovery } from './BootRecovery';
 import './lib/telemetry-gtag';
 import '../src/index.css';
-import { apiPrefsMode, hydrateMetaPrefs } from '@/services/storage/metaStore';
+import { remotePrefsMode, hydrateMetaPrefs } from '@/services/storage/metaStore';
+import { readDataSettings, whenStorageReady, storageBackend } from '@/services/storage';
 
 const root = createRoot(document.getElementById('root')!);
 
@@ -15,34 +17,31 @@ function renderApp() {
   );
 }
 
-if (apiPrefsMode) {
-  // Server mode: pull notebooks + route WQL defaults/shortcuts into the
-  // hydrated pref cache BEFORE first render. On failure the app must not
-  // render into default state — later writes (e.g. ensureDefault creating
-  // "My Workouts") would clobber the unreachable remote rows. Show a
-  // blocking error with a retry instead.
-  const boot = () => {
-    hydrateMetaPrefs()
-      .then(renderApp)
-      .catch((err) => {
-        console.error('[metaStore] pref hydration failed:', err);
-        root.render(
-          <div role="alert" className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
-            <p className="text-sm font-semibold">Saved preferences couldn't be loaded from the server.</p>
-            <p className="max-w-md text-xs text-muted-foreground">
-              Notebooks and saved query defaults were not loaded, so the app stays closed to protect them.
-            </p>
-            <button
-              onClick={boot}
-              className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-accent"
-            >
-              Retry
-            </button>
-          </div>,
-        );
-      });
-  };
-  boot();
-} else {
-  renderApp();
+function renderRecovery(error: unknown) {
+  root.render(
+    <React.StrictMode>
+      <BootRecovery error={error} onRetry={boot} />
+    </React.StrictMode>,
+  );
 }
+
+// Boot gate: every provider must be ready before first render — preferences
+// (api/turso) hydrate into the meta cache, and writes before connect would
+// land in default state. A malformed saved config or a failed provider (bad
+// token, unreachable remote, transport or schema failure) renders the
+// standalone BootRecovery screen — the app never silently falls back to this
+// browser: switching to IndexedDB there is an explicit choice. /settings/data
+// lives inside the app, so recovery carries its own controls.
+function boot() {
+  const saved = readDataSettings();
+  if (storageBackend !== 'api' && saved.state === 'invalid') {
+    renderRecovery(new Error(`Saved data settings are invalid: ${saved.error}`));
+    return;
+  }
+  whenStorageReady()
+    .then(() => (remotePrefsMode ? hydrateMetaPrefs() : undefined))
+    .then(renderApp)
+    .catch(renderRecovery);
+}
+
+boot();

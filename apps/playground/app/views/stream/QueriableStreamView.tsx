@@ -13,6 +13,7 @@ import {
   CalendarIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  CloudDownload,
   Plus,
   SlidersHorizontal,
   TriangleAlertIcon,
@@ -21,7 +22,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '@/components/atoms/primitives/button'
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
-import { useSeedReadiness } from '@/services/seed/seedReadiness'
+import { useSeedLibraryMissing, useSeedReadiness } from '@/services/seed/seedReadiness'
 import { parseQuery, isFindQuery, isPipelineQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 import type { WqlExecutor } from '@bitcobblers/wod-wiki-ui'
@@ -46,7 +47,7 @@ import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
-import { effortPath } from '../../lib/routes'
+import { effortPath, ROUTE_PATTERNS } from '../../lib/routes'
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings } from '../../lib/viewSettingsStorage'
 import { useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
@@ -206,6 +207,7 @@ export function QueriableStreamView({
   // First-run gate: the vault query must not execute until the seed import
   // has settled, or a fresh profile briefly commits a permanent "0 of 0".
   const seedReadiness = useSeedReadiness()
+  const libraryMissing = useSeedLibraryMissing()
   // Synchronize composer state with URL
   const { query, setQuery, urlQueryError } = useComposerQueryState({
     defaultQuery: () => profile.defaultWql,
@@ -767,6 +769,35 @@ export function QueriableStreamView({
         >
           No source options are set for this route — pick a source by editing the query.
         </p>
+      )}
+      {/* Core-only notice: this route's corpus lives in optional seed
+          libraries and none has imported yet — the page is a dead end until
+          the user syncs. Hidden while the coverage probe is unsettled. */}
+      {profile.seedNotice && libraryMissing && (
+        <div className="px-4 pt-3 sm:px-6 lg:px-8" data-testid="seed-library-notice">
+          <div className="rounded-xl border border-border bg-card p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 space-y-1">
+              <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                <CloudDownload className="size-4 text-primary" />
+                Only the core seed is imported
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                The content for this page comes from community libraries, which are not imported yet.
+                Sync with the community library to fill it — and add more sources (mirrors, your own
+                libraries) on the Sync page.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => navigate(ROUTE_PATTERNS.settingsSync)}
+              data-testid="seed-library-notice-sync"
+              className="gap-2 shrink-0"
+            >
+              <CloudDownload className="size-3.5" />
+              <span>Sync content</span>
+            </Button>
+          </div>
+        </div>
       )}
       {isMobile && mobileSlot && (
         createPortal(

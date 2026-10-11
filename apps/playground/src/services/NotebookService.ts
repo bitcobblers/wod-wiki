@@ -12,7 +12,7 @@
 import { v7 as uuidv7 } from 'uuid';
 import type { Notebook } from '../types/notebook';
 import { LocalStore } from './storage/LocalStore';
-import { apiPrefsMode, metaPrefBackend, metaSetPref } from './storage/metaStore';
+import { remotePrefsMode, metaPrefBackend, metaSetPref } from './storage/metaStore';
 
 const NOTEBOOKS_KEY = 'notebooks';
 const ACTIVE_KEY = 'active-notebook';
@@ -20,7 +20,7 @@ const ACTIVE_KEY = 'active-notebook';
 const DEFAULT_ICONS = ['📓', '🏋️', '🔥', '💪', '⭐', '🎯', '🏃', '🧘', '🥊', '🚴'];
 
 export class NotebookService {
-    constructor(private store: LocalStore = new LocalStore('wodwiki:', apiPrefsMode ? metaPrefBackend : undefined)) {}
+    constructor(private store: LocalStore = new LocalStore('wodwiki:', remotePrefsMode ? metaPrefBackend : undefined)) {}
 
     // Invariant: mutations are serialized — an op reads committed state only after the previous op's saveAll landed.
     private tail: Promise<unknown> = Promise.resolve();
@@ -107,7 +107,7 @@ export class NotebookService {
     }
 
     private async setActiveIdNow(id: string | null): Promise<void> {
-        if (apiPrefsMode) {
+        if (remotePrefsMode) {
             await metaSetPref(this.store.qualify(ACTIVE_KEY), id);
             return;
         }
@@ -159,7 +159,7 @@ export class NotebookService {
     static readonly ICONS = DEFAULT_ICONS;
 
     private async saveAll(notebooks: Notebook[]): Promise<void> {
-        if (apiPrefsMode) {
+        if (remotePrefsMode) {
             await metaSetPref(this.store.qualify(NOTEBOOKS_KEY), JSON.stringify(notebooks));
             return;
         }

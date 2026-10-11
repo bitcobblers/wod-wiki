@@ -23,6 +23,27 @@ import { runParse, ParseSyntaxError } from './parse';
 import { runExecution } from './run';
 import { runQueryCli, WqlSyntaxError } from './query';
 import {
+  openCliDb,
+  resolveDbPath,
+  nodeFs,
+  nodePath,
+  sqliteEventStore,
+  sqliteNoteStore,
+  sqliteBlockStore,
+  sqliteEffortStore,
+  sqliteIndexStore,
+  getNoteBundle,
+  getSessionBundle,
+} from './db';
+import { persistNote, persistRun, persistSessionBundle } from './persist';
+import { defaultSeedDirs, importSeedDir } from './seed';
+import {
+  composeNoteMarkdown,
+  csvToSessionRows,
+  extractNoteIdentity,
+  sessionToCsv,
+} from '../exchange';
+import {
   formatParseOutput,
   formatExecutionOutput,
   formatQueryOutput,
@@ -32,8 +53,10 @@ import {
 const VERSION = '0.6.0';
 
 export interface CliParsedArgs {
-  subcommand?: 'parse' | 'run' | 'query' | 'help' | 'version';
+  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'import' | 'seed' | 'reset' | 'help' | 'version';
   target?: string;
+  /** Second positional: the id (download) or file (import) after the kind. */
+  target2?: string;
   corpus?: string;
   stdinLog?: boolean;
   stdinFacts?: boolean;
@@ -44,12 +67,21 @@ export interface CliParsedArgs {
   unit?: string;
   help?: boolean;
   version?: boolean;
+  /** Compose a note markdown as-of this segment version (`download note`). */
+  at?: string;
+  /** SQLite database path (--db). Defaults to WOD_WIKI_DB or ./wodwiki.db. */
+  db?: string;
+  /** IR debug output: undefined = off, '' = default file name, otherwise the file name. */
+  debug?: string;
+  /** Extra seed source directories for `wod seed` (repeatable). */
+  sources: string[];
 }
 
 export function parseCliArgs(args: string[]): CliParsedArgs {
   const result: CliParsedArgs = {
     format: 'json',
     packs: [],
+    sources: [],
   };
 
   let i = 0;
@@ -102,8 +134,34 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     } else if (arg === '--unit') {
       result.unit = args[++i];
       i++;
+    } else if (arg === '--db') {
+      result.db = args[++i];
+      i++;
+    } else if (arg.startsWith('--db=')) {
+      result.db = arg.slice('--db='.length);
+      i++;
+    } else if (arg === '--debug') {
+      // Bare flag never consumes the next arg — use --debug=<name> for a custom file.
+      result.debug = '';
+      i++;
+    } else if (arg.startsWith('--debug=')) {
+      result.debug = arg.slice('--debug='.length);
+      i++;
+    } else if (arg === '--at') {
+      result.at = args[++i];
+      i++;
+    } else if (arg.startsWith('--at=')) {
+      result.at = arg.slice('--at='.length);
+      i++;
+    } else if (arg === '--source') {
+      const source = args[++i];
+      if (source) result.sources.push(source);
+      i++;
+    } else if (arg.startsWith('--source=')) {
+      result.sources.push(arg.slice('--source='.length));
+      i++;
     } else if (!result.subcommand) {
-      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'help' || arg === 'version') {
+      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'import' || arg === 'seed' || arg === 'reset' || arg === 'help' || arg === 'version') {
         result.subcommand = arg;
       } else {
         result.target = arg;
@@ -111,6 +169,9 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       i++;
     } else if (!result.target) {
       result.target = arg;
+      i++;
+    } else if (!result.target2) {
+      result.target2 = arg;
       i++;
     } else {
       i++;
@@ -165,20 +226,58 @@ USAGE:
   wod parse <file | -> [options]
   wod run <file | -> [options]
   wod query '<wql-string>' [options]
+  wod download <note|session> <id> [options]
+  wod import <note|session> <file> [options]
+  wod seed [options]
+  wod reset [options]
 
 SUBCOMMANDS:
-  parse <file | ->    Parse Whiteboard Script into AST StatementNode IR (kind: 'parse-tree')
-  run <file | ->      Execute Whiteboard Script state machine and emit ExecutionLog IR (kind: 'execution-log')
-  query '<wql>'       Evaluate WQL query and emit QueryResult / RowsQueryResult / FindQueryResult IR
+  parse <file | ->    Parse Whiteboard Script, create a note in the database
+                     (segments + block index), optionally emit parse-tree IR.
+                     Markdown carrying a 'wod-note-id' frontmatter stamp
+                     (see download) imports back into that same note.
+  run <file | ->      Execute the script state machine, record a session +
+                     event/summary rows in the database, optionally emit
+                     execution-log IR
+  query '<wql>'       Evaluate WQL against the database (or an explicit
+                     dataset) and emit QueryResult / RowsQueryResult IR
+  download note <id>  Compose the note's markdown from its segment rows and
+                     write it to <id>.md. Use --at <version> to compose
+                     as-of a segment version (default: latest). The stamp
+                     in the frontmatter makes 'wod parse' re-import it.
+  download session <id>
+                     Write the session's generated metrics (event + summary
+                     rows, one CSV row per metric) to <id>.csv. Import back
+                     with 'wod import session'.
+  import note <file>  Re-import exported note markdown (same as parse with
+                     the stamped identity).
+  import session <file>
+                     Recreate a session + its events from a downloaded CSV
+                     into the same or a clean database (id-keyed upsert).
 
-INPUT SOURCING (for 'query'):
+INPUT SOURCING (for 'query'; without these, the database is queried):
   -c, --corpus <path> Load historical corpus dataset from a versioned JSON file
   --stdin-log         Read kind: 'execution-log' JSON payload from stdin
   --stdin-facts       Read raw kind: 'fact-set' JSON payload from stdin
 
+DATABASE (parse / run / query / download / import / seed / reset):
+  --db <path>         SQLite database file (default: $WOD_WIKI_DB or
+                      ./wodwiki.db). Created on demand by parse/run/seed.
+
+SEED SOURCING (for 'seed'):
+  --source <dir>      Extra compiled seed directory (manifest.json + chunks);
+                      repeatable. Defaults to the bundled core + community
+                      artifacts under apps/playground/public/seed.
+
 OPTIONS:
   --format <fmt>      Output format: json (default), table, csv
-  -o, --output <path> Write output to a file instead of stdout
+  -o, --output <path> Write the IR payload (or download) to a path instead of
+                      the default; '-' writes to stdout
+  --at <version>      With 'download note': compose the markdown as-of the
+                      given segment version (default: latest)
+  --debug[=name]      Also write the IR payload to <name> (default
+                      wod-<subcommand>-debug.json); without it, parse/run
+                      print a one-line summary of what was persisted
   --pack <module>     Dynamically load and register a Language Pack (repeatable)
   --sport <sport>     Target sport fence dialect (e.g. climbing, crossfit)
   --unit <unit>       Preferred display unit for queries (e.g. lb, kg)
@@ -257,6 +356,17 @@ export async function cliMain(
     }
   };
 
+  // --debug[=name]: undefined = off, '' = default file name, else custom name.
+  const debugTarget = (subcommand: string): string | undefined =>
+    parsed.debug === undefined ? undefined : parsed.debug || `wod-${subcommand}-debug.json`;
+
+  const writeDebugFile = (subcommand: string, ir: unknown) => {
+    const target = debugTarget(subcommand);
+    if (target !== undefined) {
+      getFs().writeFileSync(target, JSON.stringify(ir, null, 2) + '\n', 'utf-8');
+    }
+  };
+
   // 2. Dispatch subcommands
   try {
     if (parsed.subcommand === 'parse') {
@@ -278,9 +388,27 @@ export async function cliMain(
       }
 
       const ir = runParse(source, { sport: parsed.sport, sourceLabel: `cli:wod parse ${parsed.target}` });
-      const pretty = !parsed.output && Boolean(process.stdout.isTTY);
-      const formatted = formatParseOutput(ir, parsed.format, pretty);
-      deliverOutput(formatted);
+      const identity = extractNoteIdentity(source);
+      const db = await openCliDb(parsed.db);
+      try {
+        const persisted = await persistNote(db, {
+          source,
+          sourceLabel: parsed.target,
+          noteId: identity?.noteId,
+          title: identity?.title,
+        });
+        writeOut(
+          `[wod parse] note ${persisted.noteId}${persisted.created ? '' : ' (updated)'}` +
+          ` — ${persisted.segments} segments, ${persisted.blocks} blocks, ${persisted.efforts} efforts → ${db.path}`,
+        );
+      } finally {
+        await db.close();
+      }
+      if (parsed.output) {
+        const pretty = Boolean(process.stdout.isTTY);
+        deliverOutput(formatParseOutput(ir, parsed.format, pretty));
+      }
+      writeDebugFile('parse', ir);
       return 0;
     }
 
@@ -303,9 +431,25 @@ export async function cliMain(
       }
 
       const ir = await runExecution(source, { sport: parsed.sport, sourceLabel: `cli:wod run ${parsed.target}` });
-      const pretty = !parsed.output && Boolean(process.stdout.isTTY);
-      const formatted = formatExecutionOutput(ir, parsed.format, pretty);
-      deliverOutput(formatted);
+      const db = await openCliDb(parsed.db);
+      try {
+        const persisted = await persistRun(db, {
+          source,
+          sourceLabel: parsed.target,
+          executionLog: ir.data,
+        });
+        writeOut(
+          `[wod run] session ${persisted.resultId} — ${persisted.events} events, ` +
+          `${persisted.summaries} summaries on note ${persisted.noteId} → ${db.path}`,
+        );
+      } finally {
+        await db.close();
+      }
+      if (parsed.output) {
+        const pretty = Boolean(process.stdout.isTTY);
+        deliverOutput(formatExecutionOutput(ir, parsed.format, pretty));
+      }
+      writeDebugFile('run', ir);
       return 0;
     }
 
@@ -315,6 +459,7 @@ export async function cliMain(
         return 1;
       }
 
+      const useDb = !parsed.corpus && !parsed.stdinLog && !parsed.stdinFacts;
       let stdinLogContent: string | undefined;
       let stdinFactsContent: string | undefined;
 
@@ -322,22 +467,191 @@ export async function cliMain(
         stdinLogContent = await getStdin();
       } else if (parsed.stdinFacts) {
         stdinFactsContent = await getStdin();
-      } else if (!parsed.corpus) {
-        writeErr('[wod query] Error: Query requires input data. Specify --corpus <file>, --stdin-log, or --stdin-facts.');
-        return 1;
       }
 
-      const ir = await runQueryCli(parsed.target, {
-        corpusPath: parsed.corpus,
-        stdinLog: stdinLogContent,
-        stdinFacts: stdinFactsContent,
-        preferredUnit: parsed.unit,
-        sourceLabel: `cli:wod query "${parsed.target}"`,
-      });
+      let ir;
+      if (useDb) {
+        const dbPath = resolveDbPath(parsed.db);
+        if (!nodeFs().existsSync(dbPath)) {
+          writeErr(
+            `[wod query] No input dataset and no database at ${dbPath}. ` +
+            'Specify --corpus <file>, --stdin-log, --stdin-facts, or run `wod seed` first.',
+          );
+          return 1;
+        }
+        const db = await openCliDb(parsed.db);
+        try {
+          ir = await runQueryCli(parsed.target, {
+            preferredUnit: parsed.unit,
+            sourceLabel: `cli:wod query "${parsed.target}"`,
+            stores: {
+              eventStore: sqliteEventStore(db.db),
+              noteStore: sqliteNoteStore(db.db),
+              blockStore: sqliteBlockStore(db.db),
+              effortStore: sqliteEffortStore(db.db),
+              blockEffortsStore: sqliteIndexStore(db.db, 'block_efforts'),
+              tagsStore: sqliteIndexStore(db.db, 'tags'),
+              noteTagsStore: sqliteIndexStore(db.db, 'note_tags'),
+            },
+          });
+        } finally {
+          await db.close();
+        }
+      } else {
+        if (!parsed.corpus && !stdinLogContent && !stdinFactsContent) {
+          writeErr('[wod query] Error: Query requires input data. Specify --corpus <file>, --stdin-log, or --stdin-facts.');
+          return 1;
+        }
+        ir = await runQueryCli(parsed.target, {
+          corpusPath: parsed.corpus,
+          stdinLog: stdinLogContent,
+          stdinFacts: stdinFactsContent,
+          preferredUnit: parsed.unit,
+          sourceLabel: `cli:wod query "${parsed.target}"`,
+        });
+      }
 
       const pretty = !parsed.output && Boolean(process.stdout.isTTY);
       const formatted = formatQueryOutput(ir, parsed.format, pretty);
       deliverOutput(formatted);
+      writeDebugFile('query', ir);
+      return 0;
+    }
+
+    if (parsed.subcommand === 'download') {
+      const kind = parsed.target;
+      const id = parsed.target2;
+      if (!id || (kind !== 'note' && kind !== 'session')) {
+        writeErr('[wod download] Usage: wod download <note|session> <id> [--at <version>] [-o <path>]');
+        return 1;
+      }
+      const db = await openCliDb(parsed.db);
+      try {
+        if (kind === 'note') {
+          const bundle = await getNoteBundle(db.db, id);
+          if (!bundle.note) {
+            writeErr(`[wod download] Note not found in ${db.path}: ${id}`);
+            return 1;
+          }
+          const at = parsed.at === undefined ? undefined : Number(parsed.at);
+          if (parsed.at !== undefined && (!Number.isInteger(at) || (at as number) < 1)) {
+            writeErr(`[wod download] Invalid --at version: ${parsed.at}`);
+            return 1;
+          }
+          const markdown = composeNoteMarkdown(bundle.note, bundle.segments, at);
+          const target =
+            parsed.output && parsed.output !== '-' ? parsed.output : `${id}${at ? `.v${at}` : ''}.md`;
+          if (parsed.output === '-') {
+            writeOut(markdown);
+          } else {
+            nodeFs().writeFileSync(target, markdown, 'utf-8');
+          }
+          writeOut(
+            `[wod download] note ${id}${at ? ` v${at}` : ''} → ${target}` +
+            ` (${bundle.segments.length} segment rows)`,
+          );
+        } else {
+          const bundle = await getSessionBundle(db.db, id);
+          if (!bundle) {
+            writeErr(`[wod download] Session not found in ${db.path}: ${id}`);
+            return 1;
+          }
+          const csv = sessionToCsv(bundle.session, bundle.events);
+          const target = parsed.output && parsed.output !== '-' ? parsed.output : `${id}.csv`;
+          if (parsed.output === '-') {
+            writeOut(csv);
+          } else {
+            nodeFs().writeFileSync(target, csv, 'utf-8');
+          }
+          writeOut(`[wod download] session ${id} → ${target} (${bundle.events.length} events)`);
+        }
+      } finally {
+        await db.close();
+      }
+      return 0;
+    }
+
+    if (parsed.subcommand === 'import') {
+      const kind = parsed.target;
+      const file = parsed.target2;
+      if (!file || (kind !== 'note' && kind !== 'session')) {
+        writeErr('[wod import] Usage: wod import <note|session> <file>');
+        return 1;
+      }
+      const fs = nodeFs();
+      if (!fs.existsSync(file)) {
+        writeErr(`[wod import] File not found: ${file}`);
+        return 1;
+      }
+      if (kind === 'note') {
+        const source = fs.readFileSync(file, 'utf-8');
+        const identity = extractNoteIdentity(source);
+        const db = await openCliDb(parsed.db);
+        try {
+          const persisted = await persistNote(db, {
+            source,
+            sourceLabel: file,
+            noteId: identity?.noteId,
+            title: identity?.title,
+          });
+          writeOut(
+            `[wod import] note ${persisted.noteId}${persisted.created ? '' : ' (updated)'}` +
+            ` — ${persisted.segments} segments → ${db.path}`,
+          );
+        } finally {
+          await db.close();
+        }
+        return 0;
+      }
+      const { session, events } = csvToSessionRows(fs.readFileSync(file, 'utf-8'));
+      const db = await openCliDb(parsed.db);
+      try {
+        const result = await persistSessionBundle(db, session, events);
+        writeOut(
+          `[wod import] session ${session.id} — ${result.events} events` +
+          `${result.noteCreated ? ' (stub note created)' : ''} → ${db.path}`,
+        );
+      } finally {
+        await db.close();
+      }
+      return 0;
+    }
+
+    if (parsed.subcommand === 'seed') {
+      const dirs = parsed.sources.length > 0
+        ? parsed.sources.map((s) => nodePath().resolve(process.cwd(), s))
+        : defaultSeedDirs(process.cwd());
+      if (dirs.length === 0) {
+        writeErr(
+          '[wod seed] No seed sources found. Run `bun scripts/sync-seed.ts` to build the bundled ' +
+          'artifacts, or pass --source <dir> pointing at a compiled seed directory (manifest.json + chunks).',
+        );
+        return 1;
+      }
+      const db = await openCliDb(parsed.db);
+      try {
+        for (const dir of dirs) {
+          const summary = await importSeedDir(db, dir, '');
+          writeOut(
+            `[wod seed] ${summary.sourceId}: v${summary.version} — ${summary.notes} notes, ` +
+            `${summary.efforts} efforts, ${summary.blocks} blocks, ${summary.blockEfforts} block-efforts ` +
+            `(${summary.deleted} deleted, ${summary.skippedUserOwned} user-owned skipped) → ${db.path}`,
+          );
+        }
+      } finally {
+        await db.close();
+      }
+      return 0;
+    }
+
+    if (parsed.subcommand === 'reset') {
+      const target = resolveDbPath(parsed.db);
+      if (nodeFs().existsSync(target)) {
+        nodeFs().unlinkSync(target);
+        writeOut(`[wod reset] removed ${target}`);
+      } else {
+        writeOut(`[wod reset] nothing to reset — ${target} does not exist`);
+      }
       return 0;
     }
 

@@ -1,39 +1,49 @@
 /**
  * Schema-driven store operations: IDB-style stores persisted into SQL tables
  * (one per store, extracted key/index columns + full JSON in `data`). The
- * schema derives entirely from @bitcobblers/wod-wiki-storage STORE_DEFS /
- * COLUMN_TYPES; JSON payloads stay the source of truth.
+ * schema derives entirely from STORE_DEFS / COLUMN_TYPES; JSON payloads stay
+ * the source of truth. Shared by the API server and the browser
+ * BrowserTursoStorage/SqlStorage backends.
  */
 import {
   COLUMN_TYPES,
   DB_VERSION,
   STORE_DEFS,
+  type IndexDef,
+  type StorageColumnType,
+  type StoreDef,
+} from '../schema';
+import {
   compareKeys,
   extractKeyPart,
   isRange,
   keyInRange,
-  type IndexDef,
   type KeyDTO,
   type RangeDTO,
   type Scalar,
-  type StorageColumnType,
-  type StoreDef,
-} from '@bitcobblers/wod-wiki-storage';
-import type { Database, SqlConnection, SqlRow, SqlValue } from './database';
-import { HttpError } from './errors';
+} from '../wire';
+import type { Database, SqlConnection, SqlRow, SqlValue } from './connection';
+import { StorageError } from './errors';
+import type { StoreName } from '../contract';
+import { decodeRowJson, encodeRowJson } from './codec';
 
-const SCHEMA_TABLE = '_wodwiki_schema';
+export const SCHEMA_TABLE = '_wodwiki_schema';
 const SCHEMA_KEY = 'schema';
+
+/** Stores whose rows carry a raw binary field the codec must preserve. */
+const BINARY_FIELD: Partial<Record<StoreName, string>> = { attachments: 'data' };
+
+const binaryFieldOf = (def: StoreDef): string | undefined => BINARY_FIELD[def.name];
 
 export function storeDefinition(name: string): StoreDef {
   const def = STORE_DEFS.find((d) => d.name === name);
-  if (!def) throw new HttpError(404, `unknown store: ${name}`);
+  if (!def) throw new StorageError(404, `unknown store: ${name}`);
   return def;
 }
 
 function indexDefinition(def: StoreDef, indexName: string): IndexDef {
   const idx = def.indexes.find((i) => i.name === indexName);
-  if (!idx) throw new HttpError(404, `unknown index: ${def.name}.${indexName}`);
+  if (!idx) throw new StorageError(404, `unknown index: ${def.name}.${indexName}`);
   return idx;
 }
 
@@ -78,21 +88,21 @@ function validateKey(key: unknown): asserts key is KeyDTO {
   const scalar = (v: unknown): v is Scalar =>
     typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v));
   if (!scalar(key) && !(Array.isArray(key) && key.length > 0 && key.every(scalar))) {
-    throw new HttpError(400, 'key must be a string, finite number, or non-empty scalar tuple');
+    throw new StorageError(400, 'key must be a string, finite number, or non-empty scalar tuple');
   }
 }
 
 function validateRange(range: RangeDTO | undefined): void {
   if (range === undefined) return;
   if (range === null || typeof range !== 'object' || Array.isArray(range)) {
-    throw new HttpError(400, 'range must be an object');
+    throw new StorageError(400, 'range must be an object');
   }
   for (const key of [range.only, range.lower, range.upper]) {
     if (key !== undefined) validateKey(key);
   }
   for (const open of [range.lowerOpen, range.upperOpen]) {
     if (open !== undefined && typeof open !== 'boolean') {
-      throw new HttpError(400, 'range open flags must be boolean');
+      throw new StorageError(400, 'range open flags must be boolean');
     }
   }
 }
@@ -122,7 +132,7 @@ function requireKey(def: StoreDef, value: unknown): KeyDTO {
   const parts = def.keyPath.map((p) => extractKeyPart(value, p));
   for (const [i, part] of parts.entries()) {
     if (part === undefined) {
-      throw new HttpError(400, `keyPath part '${def.keyPath[i]}' missing on ${def.name} value`);
+      throw new StorageError(400, `keyPath part '${def.keyPath[i]}' missing on ${def.name} value`);
     }
   }
   const key = parts as Scalar[];
@@ -179,7 +189,7 @@ function rangeWhere(cols: string[], range: RangeDTO | undefined, params: SqlValu
 function clampLimit(count: number | undefined): number | undefined {
   if (count === undefined) return undefined;
   if (typeof count !== 'number' || !Number.isFinite(count)) {
-    throw new HttpError(400, `invalid count: ${String(count)}`);
+    throw new StorageError(400, `invalid count: ${String(count)}`);
   }
   return Math.max(0, Math.floor(count));
 }
@@ -187,8 +197,8 @@ function clampLimit(count: number | undefined): number | undefined {
 const limitClause = (count: number | undefined): string =>
   count === undefined ? '' : ` LIMIT ${clampLimit(count)}`;
 
-function parseRows(rows: SqlRow[]): unknown[] {
-  return rows.map((r) => JSON.parse(r.data as string));
+function parseRows(rows: SqlRow[], binaryField?: string): unknown[] {
+  return rows.map((r) => decodeRowJson(r.data as string, binaryField));
 }
 
 /** Full-table scan + in-memory IDB filtering/ordering via the shared wire
@@ -205,7 +215,7 @@ async function scanRows(
   const rows = await conn.query(`SELECT "data" FROM "${def.name}"`);
   const keyed: Array<[KeyDTO, unknown]> = [];
   for (const row of rows) {
-    const value = JSON.parse(row.data as string);
+    const value = decodeRowJson(row.data as string, binaryFieldOf(def));
     if (idx) {
       const parts = idx.keyPath.map((p) => extractKeyPart(value, p));
       if (!parts.every((p): p is Scalar => p !== undefined)) continue;
@@ -226,14 +236,14 @@ async function scanRows(
 export async function getRow(conn: SqlConnection, def: StoreDef, key: KeyDTO): Promise<unknown | undefined> {
   const parts = toParts(key);
   if (parts.length !== def.keyPath.length) {
-    throw new HttpError(400, `key arity ${parts.length} != keyPath arity ${def.keyPath.length} for ${def.name}`);
+    throw new StorageError(400, `key arity ${parts.length} != keyPath arity ${def.keyPath.length} for ${def.name}`);
   }
   const cond = keyCols(def).map((c) => `"${c}" = ?`).join(' AND ');
   const rows = await conn.query(
     `SELECT "data" FROM "${def.name}" WHERE ${cond}`,
     parts.map(toSqlScalar),
   );
-  return rows[0] ? JSON.parse(rows[0].data as string) : undefined;
+  return rows[0] ? decodeRowJson(rows[0].data as string, binaryFieldOf(def)) : undefined;
 }
 
 export async function listRows(
@@ -245,11 +255,12 @@ export async function listRows(
 ): Promise<unknown[]> {
   validateRange(range);
   const idx = indexName ? indexDefinition(def, indexName) : undefined;
+  const binaryField = binaryFieldOf(def);
   if (idx?.multiEntry) {
     // JSON encoding preserves numeric/string equality in both SQL dialects.
     const only = range?.only;
     if (only === undefined || typeof only === 'object') {
-      throw new HttpError(400, `multi-entry index ${def.name}.${idx.name} supports exact-match queries only`);
+      throw new StorageError(400, `multi-entry index ${def.name}.${idx.name} supports exact-match queries only`);
     }
     const joinOn = keyCols(def).map((c) => `j."${c}" = e."${c}"`).join(' AND ');
     // IDB multi-entry ordering: junction value first, then the primary key.
@@ -259,7 +270,7 @@ export async function listRows(
         ` WHERE j."v" = ? ORDER BY ${order}${limitClause(count)}`,
       [JSON.stringify(only)],
     );
-    return parseRows(rows);
+    return parseRows(rows, binaryField);
   }
   const cols = idx ? idx.keyPath.map((_, part) => indexCol(idx.name, part)) : keyCols(def);
   const params: SqlValue[] = [];
@@ -277,7 +288,7 @@ export async function listRows(
     `SELECT "data" FROM "${def.name}"${cond}${order}${limitClause(count)}`,
     params,
   );
-  return parseRows(rows);
+  return parseRows(rows, binaryField);
 }
 
 export async function countRows(
@@ -291,7 +302,7 @@ export async function countRows(
   if (idx?.multiEntry) {
     const only = range?.only;
     if (only === undefined || typeof only === 'object') {
-      throw new HttpError(400, `multi-entry index ${def.name}.${idx.name} supports exact-match queries only`);
+      throw new StorageError(400, `multi-entry index ${def.name}.${idx.name} supports exact-match queries only`);
     }
     const joinOn = keyCols(def).map((c) => `j."${c}" = e."${c}"`).join(' AND ');
     const rows = await conn.query(
@@ -327,7 +338,8 @@ export async function putRow(conn: SqlConnection, def: StoreDef, value: unknown)
     });
   }
   cols.push('data');
-  vals.push(JSON.stringify(value));
+  // Codec keeps attachment ArrayBuffer payloads byte-exact (attachment-only field).
+  vals.push(encodeRowJson(value, binaryFieldOf(def)));
 
   const keySet = new Set(keys);
   const updates = cols.filter((c) => !keySet.has(c)).map((c) => `"${c}" = excluded."${c}"`).join(', ');
@@ -365,7 +377,7 @@ export async function deleteRows(conn: SqlConnection, def: StoreDef, keyOrRange:
   if (!isRange(keyOrRange)) {
     const parts = toParts(keyOrRange);
     if (parts.length > def.keyPath.length) {
-      throw new HttpError(400, `key arity ${parts.length} > keyPath arity ${def.keyPath.length} for ${def.name}`);
+      throw new StorageError(400, `key arity ${parts.length} > keyPath arity ${def.keyPath.length} for ${def.name}`);
     }
     const n = Math.min(parts.length, def.keyPath.length);
     const cond = keyCols(def).slice(0, n).map((c) => `"${c}" = ?`).join(' AND ');
@@ -468,18 +480,18 @@ export async function initializeStore(db: Database): Promise<void> {
     if (guardRows[0]) {
       const guard = JSON.parse(String(guardRows[0].value)) as { version?: unknown };
       if (typeof guard.version !== 'number') {
-        throw new HttpError(500, `corrupt ${SCHEMA_TABLE} guard row`, 'bad_schema_guard');
+        throw new StorageError(500, `corrupt ${SCHEMA_TABLE} guard row`, 'bad_schema_guard');
       }
       stored = guard.version;
       if (stored !== DB_VERSION) {
-        throw new HttpError(
+        throw new StorageError(
           500,
           `database schema v${stored} does not match this server (v${DB_VERSION}); use a compatible server or migrate a backed-up database`,
           'schema_incompatible',
         );
       }
     } else if ([...tableNames].some((name) => storeTables.has(name))) {
-      throw new HttpError(
+      throw new StorageError(
         500,
         'database contains store tables but no wod-wiki schema guard; refusing to adopt a foreign database — point SQLITE_PATH/DATABASE_URL at a fresh database',
         'foreign_database',

@@ -10,7 +10,7 @@
  * after `setConsent(true)`. Consent persists in Storage.
  */
 import { SimpleEventBus } from '@/services/events/SimpleEventBus';
-import { apiPrefsMode, metaListRows, metaPutRow } from '@/services/storage/metaStore';
+import { remotePrefsMode, metaListRows, metaPutRow } from '@/services/storage/metaStore';
 
 export interface TelemetryEvent {
   name: string;
@@ -164,7 +164,7 @@ export class TelemetryService {
 /** App-wide telemetry singleton. The forwarder is wired by the playground shell (lib/telemetry-gtag).
  *  Server mode persists each event as a `telemetry:*` meta row and reads
  *  them back through the same namespace; consent stays browser-local. */
-export const telemetry = apiPrefsMode
+export const telemetry = remotePrefsMode
   ? new TelemetryService({
       sink: (event) =>
         metaPutRow(`telemetry:${crypto.randomUUID()}`, { name: event.name, payload: event.payload, at: event.at }),

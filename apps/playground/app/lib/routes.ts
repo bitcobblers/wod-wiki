@@ -65,9 +65,13 @@ export const ROUTE_PATTERNS = {
   settings: '/settings',
   settingsAppearance: '/settings/appearance',
   settingsProfile: '/settings/profile',
+  settingsDatabase: '/settings/database',
+  settingsSync: '/settings/sync',
   settingsSystem: '/settings/system',
   settingsQueries: '/settings/queries',
   settingsTags: '/settings/tags',
+  /** Retired — split into /settings/database + /settings/sync; redirects to database. */
+  settingsData: '/settings/data',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -258,7 +262,7 @@ export function parseEffortRouteOptions(searchParams: URLSearchParams): {
 }
 
 /** /settings or /settings/:section */
-export function settingsPath(section?: 'appearance' | 'profile' | 'system' | 'queries'): string {
+export function settingsPath(section?: 'appearance' | 'profile' | 'data' | 'system' | 'queries'): string {
   return section ? `/settings/${section}` : '/settings/appearance';
 }
 // Legacy-alias → canonical redirect matrix

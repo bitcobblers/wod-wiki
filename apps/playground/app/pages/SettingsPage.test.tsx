@@ -44,11 +44,21 @@ mock.module('@/contexts/DebugModeContext', () => ({
 }))
 mock.module('@/services/seed/seedSync', () => ({
   readSeedStatus: async () => ({
-    stored: { version: 1, schema: 1, builtAt: '2026-01-01', importedAt: 1000 },
-    remote: { version: 1, schema: 1, builtAt: '2026-01-01' },
-    remoteError: null,
+    sources: [
+      {
+        id: 'core',
+        label: 'Core (playground)',
+        autoImport: true,
+        stored: { version: 1, schema: 1, builtAt: '2026-01-01', importedAt: 1000 },
+        remote: { version: 1, schema: 1, builtAt: '2026-01-01' },
+        remoteError: null,
+        upToDate: true,
+      },
+    ],
   }),
-  runSeedSync: async () => {},
+  runSeedSync: async () => 'current',
+  runBootSeedSync: async () => 'current',
+  syncSeedSource: async () => 'current',
 }))
 
 function renderSettings(initialPath = '/settings/appearance') {
@@ -188,6 +198,28 @@ describe('SettingsPage', () => {
         screen.getByText('Cancel').click()
       })
       expect(screen.queryByText('Reset All Application Data?')).toBeNull()
+    })
+  })
+
+  describe('Database & Sync Subroutes', () => {
+    it('renders the Database tab with storage location options', () => {
+      renderSettings('/settings/database')
+
+      expect(screen.getByText('Storage Location')).toBeDefined()
+      expect(screen.getByTestId('storage-option-browser')).toBeDefined()
+      // Content sync is a separate page now.
+      expect(screen.queryByText('Content Sources')).toBeNull()
+    })
+
+    it('renders the Sync tab with sources and the add-source form', async () => {
+      renderSettings('/settings/sync')
+
+      expect(screen.getByText('Content Sources')).toBeDefined()
+      const sourceCard = await screen.findByTestId('seed-source-core')
+      expect(sourceCard).toBeDefined()
+      expect(screen.getByTestId('seed-sync-core')).toBeDefined()
+      expect(screen.getByTestId('seed-resync-button')).toBeDefined()
+      expect(screen.getByTestId('seed-add-source-form')).toBeDefined()
     })
   })
 

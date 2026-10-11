@@ -373,6 +373,20 @@ export {
   formatQueryOutput,
   type OutputFormat,
 } from './cli/formatters';
+// Import/Export exchange — pure row⇄string transforms shared by the CLI and
+// the website (download/upload against IndexedDB rows uses the same code).
+export {
+  composeNoteMarkdown,
+  csvToSessionRows,
+  extractNoteIdentity,
+  injectIdentityFrontmatter,
+  sessionToCsv,
+  parseCsvLine,
+  SESSION_CSV_HEADER,
+  NOTE_ID_FRONTMATTER_KEY,
+  type NoteIdentity,
+  type SessionImportRows,
+} from './exchange';
 
 // 9. Engine Version Info
 export { VERSION, GIT_SHA, BUILD_TIME, SEMVER } from './version';

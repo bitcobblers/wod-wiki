@@ -1,15 +1,20 @@
 /**
- * domain.ts — POST /api/v1/query read models + incremental projection refresh.
+ * Domain read models + incremental projection refresh over the shared SQL
+ * store tables.
  *
  * Three derived tables, rebuilt from the per-store source tables (source of
- * truth) at boot and refreshed per affected key inside the same transaction
- * as every mutation:
+ * truth) when incompatible and refreshed per affected key inside the same
+ * transaction as every mutation:
  *   domain_note  — note metadata selector + original payload
  *   query_block  — one occurrence row per block_index row, parent resolved by
  *                  exact noteId or sourcePath (ambiguous/orphan → NULL parent,
  *                  which gates ALL domain reads with 409 until healed)
  *   segment_head — MAX(version) per segment id taken BEFORE the isHistory
  *                  filter, so a superseded revision can never resurrect
+ *
+ * Rebuilds are guarded: a `_wodwiki_schema` row stamps the projection
+ * version, so repeated ready()/boot cycles skip the rebuild while the
+ * derived shape is already compatible.
  *
  * Query plans are fixed and fully validated: every value is a bound parameter,
  * names come from this module, counts run before paging, and text matching is
@@ -20,25 +25,24 @@
  * exact predicate the app applies) so no SQL regex re-implementation exists.
  */
 
-import type { Database, SqlConnection, SqlValue } from './database';
-import { HttpError } from './errors';
-import { putRow, deleteRows, clearRows, listRows, storeDefinition } from './store';
+import type { Database, SqlConnection, SqlValue } from './connection';
+import { StorageError } from './errors';
+import { putRow, deleteRows, clearRows, listRows, storeDefinition, SCHEMA_TABLE } from './store';
+import { decodeRowJson, encodeRowJson } from './codec';
+import type { StoreDef } from '../schema';
+import type { StoreName } from '../contract';
 import {
   DOMAIN_PROJECTION_VERSION,
-  isRange,
-  keyFromValue,
   type DomainPredicate,
   type DomainQueryResult,
-  type KeyDTO,
-  type RangeDTO,
-  type StoreDef,
-  type StoreName,
-  type TxOp,
-} from '@bitcobblers/wod-wiki-storage';
+} from '../domain';
+import { isRange, keyFromValue, type KeyDTO, type RangeDTO, type TxOp } from '../wire';
 // The app's own source/catalog semantics — no duplicated matchers.
 import { catalogOfItem, sourceMatches } from '@bitcobblers/wod-wiki-wql';
 
 const TABLES = ['domain_note', 'query_block', 'segment_head'] as const;
+
+const PROJECTION_GUARD_KEY = 'domain_projection';
 
 type SourceItem = Parameters<typeof sourceMatches>[0];
 
@@ -47,7 +51,7 @@ function sourceItem(row: Record<string, unknown>): SourceItem {
   for (const key of ['id', 'noteId', 'sourceId', 'type', 'seedOrigin', 'seedChunkId', 'sourcePath', 'catalog'] as const) {
     const value = row[key];
     if (typeof value === 'string') item[key] = value;
-    else if (value != null) throw new HttpError(400, `${key} must be a string`);
+    else if (value != null) throw new StorageError(400, `${key} must be a string`);
   }
   return item;
 }
@@ -106,7 +110,7 @@ async function upsertDomainNote(conn: SqlConnection, note: Record<string, unknow
       num(note.date),
       (text(note.title) ?? '').toLowerCase(),
       sourceMatches(source, 'journal') ? 1 : 0,
-      JSON.stringify(note),
+      encodeRowJson(note),
     ],
   );
 }
@@ -205,7 +209,7 @@ async function upsertQueryBlock(conn: SqlConnection, block: Record<string, unkno
       T(block.noteTitle),
       (text(block.rawContent) ?? '').toLowerCase(),
       sourceMatches(source, 'journal') ? 1 : 0,
-      JSON.stringify(block),
+      encodeRowJson(block),
     ],
   );
 }
@@ -218,7 +222,7 @@ const keyHead = (key: KeyDTO): SqlValue => (Array.isArray(key) ? (key[0] as SqlV
 async function refreshNote(conn: SqlConnection, id: KeyDTO): Promise<void> {
   const k = keyHead(id);
   const rows = await conn.query(`SELECT "data" FROM "notes" WHERE "k0" = ?`, [k]);
-  const note = rows[0] ? (JSON.parse(String(rows[0].data)) as Record<string, unknown>) : undefined;
+  const note = rows[0] ? (decodeRowJson<Record<string, unknown>>(String(rows[0].data))) : undefined;
   if (note) {
     await upsertDomainNote(conn, note);
     await healQueryBlocksForNote(conn, note);
@@ -240,7 +244,7 @@ async function refreshSegment(conn: SqlConnection, id: KeyDTO): Promise<void> {
   let head: Record<string, unknown> | undefined;
   let headVersion = -Infinity;
   for (const row of rows) {
-    const seg = JSON.parse(String(row.data)) as Record<string, unknown>;
+    const seg = decodeRowJson<Record<string, unknown>>(String(row.data));
     const v = num(seg.version) ?? 0;
     if (!head || v > headVersion) {
       head = seg;
@@ -254,7 +258,7 @@ async function refreshSegment(conn: SqlConnection, id: KeyDTO): Promise<void> {
 async function refreshBlock(conn: SqlConnection, id: KeyDTO): Promise<void> {
   const k = keyHead(id);
   const rows = await conn.query(`SELECT "data" FROM "block_index" WHERE "k0" = ?`, [k]);
-  if (rows[0]) await upsertQueryBlock(conn, JSON.parse(String(rows[0].data)) as Record<string, unknown>);
+  if (rows[0]) await upsertQueryBlock(conn, decodeRowJson<Record<string, unknown>>(String(rows[0].data)));
   else await conn.exec(`DELETE FROM "query_block" WHERE "occurrence_id" = ?`, [k]);
 }
 
@@ -279,10 +283,19 @@ async function deleteTargetKeys(conn: SqlConnection, def: StoreDef, target: KeyD
   return rows.map((row) => keyFromValue(def, row));
 }
 
-/** Applies ops in order, collecting projection impact per affected key, then
+/**
+ * Applies ops in order, collecting projection impact per affected key, then
  * refreshes derived rows — all on the caller's transaction. Returns one entry
- * per op: the put key, or null for delete/clear. */
-export async function refreshDomain(conn: SqlConnection, ops: TxOp[]): Promise<(KeyDTO | null)[]> {
+ * per op: the put key, or null for delete/clear. `opts.deferProjection`
+ * skips the per-key refresh pass; the caller MUST rebuild derived state in
+ * the same transaction afterwards (see rebuildProjections) or reads will
+ * operate on stale projections behind a valid guard.
+ */
+export async function refreshDomain(
+  conn: SqlConnection,
+  ops: TxOp[],
+  opts: { deferProjection?: boolean } = {},
+): Promise<(KeyDTO | null)[]> {
   const impact: Impact = {
     notes: [], segments: [], blocks: [],
     notesClear: false, segmentsClear: false, blocksClear: false,
@@ -290,7 +303,7 @@ export async function refreshDomain(conn: SqlConnection, ops: TxOp[]): Promise<(
   const results: (KeyDTO | null)[] = [];
   for (const op of ops) {
     if (op === null || typeof op !== 'object' || Array.isArray(op)) {
-      throw new HttpError(400, 'tx op must be an object');
+      throw new StorageError(400, 'tx op must be an object');
     }
     const store = 'store' in op ? op.store : undefined;
     const def = storeDefinition(typeof store === 'string' ? store : String(store));
@@ -315,10 +328,10 @@ export async function refreshDomain(conn: SqlConnection, ops: TxOp[]): Promise<(
       else if (def.name === 'block_index') impact.blocksClear = true;
       results.push(null);
     } else {
-      throw new HttpError(400, `tx op must be put | delete | clear, got: ${String(kind)}`);
+      throw new StorageError(400, `tx op must be put | delete | clear, got: ${String(kind)}`);
     }
   }
-  await refresh(conn, impact);
+  if (!opts.deferProjection) await refresh(conn, impact);
   return results;
 }
 
@@ -337,24 +350,54 @@ async function refresh(conn: SqlConnection, impact: Impact): Promise<void> {
   for (const id of impact.blocks) await refreshBlock(conn, id);
 }
 
-/** Boot-time derived state: DDL + full rebuild from source tables. */
+/**
+ * Rebuild the derived tables from the source-of-truth store rows and stamp
+ * the projection guard. Caller owns the transaction (atomicity) — the guard
+ * row commits together with the rebuilt rows.
+ */
+export async function rebuildProjections(conn: SqlConnection): Promise<void> {
+  await conn.exec(
+    `CREATE TABLE IF NOT EXISTS "${SCHEMA_TABLE}" ("key" TEXT PRIMARY KEY, "value" TEXT NOT NULL)`,
+  );
+  for (const t of TABLES) await conn.exec(`DELETE FROM "${t}"`);
+  const notes = await conn.query(`SELECT "data" FROM "notes"`);
+  for (const row of notes) await upsertDomainNote(conn, decodeRowJson<Record<string, unknown>>(String(row.data)));
+  const segments = await conn.query(`SELECT "k0", "data" FROM "segments"`);
+  const heads = new Map<string, { id: SqlValue; row: Record<string, unknown>; version: number }>();
+  for (const row of segments) {
+    const seg = decodeRowJson<Record<string, unknown>>(String(row.data));
+    const v = num(seg.version) ?? 0;
+    const prev = heads.get(String(row.k0));
+    if (!prev || v > prev.version) heads.set(String(row.k0), { id: row.k0 as SqlValue, row: seg, version: v });
+  }
+  for (const head of heads.values()) await upsertSegmentHead(conn, head.id, head.row);
+  const blocks = await conn.query(`SELECT "data" FROM "block_index"`);
+  for (const row of blocks) await upsertQueryBlock(conn, decodeRowJson<Record<string, unknown>>(String(row.data)));
+  await conn.exec(
+    `INSERT INTO "${SCHEMA_TABLE}" ("key", "value") VALUES (?, ?) ON CONFLICT ("key") DO UPDATE SET "value" = excluded."value"`,
+    [PROJECTION_GUARD_KEY, JSON.stringify({ version: DOMAIN_PROJECTION_VERSION })],
+  );
+}
+
+/** Boot-time derived state: DDL + rebuild only when the guard is incompatible
+ * (first run, projection version bump, or an interrupted prior rebuild). */
 export async function initializeDomain(db: Database): Promise<void> {
   await ensureDdl(db);
   await db.transaction(async (tx) => {
-    for (const t of TABLES) await tx.exec(`DELETE FROM "${t}"`);
-    const notes = await tx.query(`SELECT "data" FROM "notes"`);
-    for (const row of notes) await upsertDomainNote(tx, JSON.parse(String(row.data)));
-    const segments = await tx.query(`SELECT "k0", "data" FROM "segments"`);
-    const heads = new Map<string, { id: SqlValue; row: Record<string, unknown>; version: number }>();
-    for (const row of segments) {
-      const seg = JSON.parse(String(row.data)) as Record<string, unknown>;
-      const v = num(seg.version) ?? 0;
-      const prev = heads.get(String(row.k0));
-      if (!prev || v > prev.version) heads.set(String(row.k0), { id: row.k0 as SqlValue, row: seg, version: v });
+    await tx.exec(
+      `CREATE TABLE IF NOT EXISTS "${SCHEMA_TABLE}" ("key" TEXT PRIMARY KEY, "value" TEXT NOT NULL)`,
+    );
+    const guardRows = await tx.query(`SELECT "value" FROM "${SCHEMA_TABLE}" WHERE "key" = ?`, [PROJECTION_GUARD_KEY]);
+    let guard: { version?: unknown } | undefined;
+    if (guardRows[0]) {
+      try {
+        guard = JSON.parse(String(guardRows[0].value)) as { version?: unknown };
+      } catch {
+        guard = undefined; // corrupt guard → rebuild and restamp
+      }
     }
-    for (const head of heads.values()) await upsertSegmentHead(tx, head.id, head.row);
-    const blocks = await tx.query(`SELECT "data" FROM "block_index"`);
-    for (const row of blocks) await upsertQueryBlock(tx, JSON.parse(String(row.data)));
+    if (guard?.version === DOMAIN_PROJECTION_VERSION) return;
+    await rebuildProjections(tx);
   });
 }
 
@@ -363,7 +406,7 @@ export async function wipeDomain(conn: SqlConnection): Promise<void> {
   for (const t of TABLES) await conn.exec(`DELETE FROM "${t}"`);
 }
 
-// ── POST /api/v1/query ───────────────────────────────────────────────────────
+// ── Domain query execution ───────────────────────────────────────────────────
 
 export const MAX_BODY = 64 * 1024;
 const MAX_CLAUSES = 32;
@@ -378,8 +421,8 @@ const listFields = ['id', 'noteId', 'type', 'catalog', 'source', 'tags', 'effort
 const onlyKeys = (obj: Record<string, unknown>, allowed: string[]): boolean =>
   Object.keys(obj).every((k) => allowed.includes(k));
 
-function bad(msg: string): HttpError {
-  return new HttpError(400, msg);
+function bad(msg: string): StorageError {
+  return new StorageError(400, msg);
 }
 
 function strArray(v: unknown, what: string): string[] {
@@ -684,7 +727,7 @@ async function gate(conn: SqlConnection): Promise<void> {
   const rows = await conn.query(`SELECT COUNT(*) AS "n" FROM "query_block" WHERE "parent_note_id" IS NULL`);
   const stale = Number(rows[0]?.n ?? 0);
   if (stale > 0) {
-    throw new HttpError(
+    throw new StorageError(
       409,
       `domain projections stale: ${stale} block rows have unresolved static parents`,
       'domain_projection_unavailable',
@@ -720,7 +763,7 @@ async function execute(conn: SqlConnection, q: ParsedQuery, pg: boolean): Promis
 
   if (plan !== 'entries') {
     const pageSql = `SELECT "payload" FROM ${table}${fullWhere} ORDER BY ${ordering}${paging}`;
-    const rows: unknown[] = (await conn.query(pageSql, allParams)).map((r) => JSON.parse(String(r.payload)));
+    const rows: unknown[] = (await conn.query(pageSql, allParams)).map((r) => decodeRowJson(String(r.payload)));
     const result = { projectionVersion: DOMAIN_PROJECTION_VERSION, selectedCount, matchedCount, plan, rows };
     // Parsed payloads re-typed by the shared plan schema (JSON columns are unknown).
     return result as DomainQueryResult;
@@ -751,19 +794,20 @@ async function execute(conn: SqlConnection, q: ParsedQuery, pg: boolean): Promis
   for (const [rel, relation] of relations.entries()) {
     for (const row of await conn.query(`WITH selected AS (${pageSql}) ${relation}`, allParams)) {
       const i = index.get(String(row.note_id));
-      if (i !== undefined) buckets[i][rel].push(JSON.parse(String(row.payload)));
+      if (i !== undefined) buckets[i][rel].push(decodeRowJson(String(row.payload)));
     }
   }
   const rows = noteRows.map((r, i) => {
     const [segments, tags, links, pages] = buckets[i];
-    return { note: JSON.parse(String(r.payload)), segments, tags, links, pages };
+    return { note: decodeRowJson(String(r.payload)), segments, tags, links, pages };
   });
   const result = { projectionVersion: DOMAIN_PROJECTION_VERSION, selectedCount, matchedCount, plan, rows };
   // Parsed payloads re-typed by the shared plan schema (JSON columns are unknown).
   return result as DomainQueryResult;
 }
 
-/** POST /api/v1/query — validate, gate, execute on one consistent snapshot. */
+/** Validate, gate, execute on one consistent snapshot (server route and
+ * SqlStorage.queryDomain share this entry). */
 export async function handleDomainQuery(db: Database, body: unknown): Promise<DomainQueryResult> {
   const query = parseQuery(body);
   return db.transaction(async (tx) => {

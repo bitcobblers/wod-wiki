@@ -14,10 +14,10 @@ WOD Wiki has two hosting levels. Both run the same playground application; the d
 
 | Hosting level | Data storage | How to run it |
 |---|---|---|
-| Playground | IndexedDB in each browser. No API or database server required. | [Bun playground](#run-the-playground-with-bun) |
+| Playground | IndexedDB by default, or direct browser-to-Turso. No WOD Wiki API server required. | [Bun playground](#run-the-playground-with-bun) |
 | Server | SQL behind the Bun API. Browsers connecting to the same server use the same backend data. | [Bun server](#run-the-server-with-bun) or [container](#run-the-server-in-a-container) |
 
-Choose Playground for browser-local use and development. Choose Server to keep durable app data outside the browser. Switching modes does not move existing browser data into SQL.
+Choose Playground for browser-local use or your own Turso database. Choose Server to use SQLite, Turso, or PostgreSQL through the WOD Wiki API. Settings > Database can migrate IndexedDB to an empty Turso database; changing hosting levels does not migrate data to the server.
 
 ### Run the playground with Bun
 
@@ -28,7 +28,13 @@ bun install
 bun run playground
 ```
 
-Open the Vite URL printed in the terminal, normally [http://localhost:5173](http://localhost:5173). This command builds the packages, lints the playground, and starts the development server with hot reload. Your journal and workout data stay in that browser's IndexedDB; clearing browser storage removes them.
+Open the Vite URL printed in the terminal, normally [http://localhost:5173](http://localhost:5173). This command builds the packages, lints the playground, and starts the development server with hot reload. With no data settings, the app uses IndexedDB and imports only the core playground seed. Community catalogs and custom libraries are optional through Settings > Sync.
+
+In **Settings > Database**, enter your Turso `libsql://` URL and database-scoped auth token. **Test Connection** verifies access without saving credentials. **Connect** uses the remote data as-is; **Migrate & Connect** copies the browser's stores, revision history, attachment bytes, profile, notebooks, query preferences, and user calculations into an empty database. Migration commits atomically, keeps the local copy, and saves the connection only after success. Close other WOD Wiki tabs and avoid edits during migration.
+
+The URL and token stay in this browser's localStorage. Same-origin scripts can read the token; use one scoped to this database. Saved connection failures show recovery controls, never a silent IndexedDB fallback. Switching to **This Browser** restores the last local copy without pulling remote-only changes. Self-hosted connection settings and paid wod.wiki custody are marked coming soon; the existing server deployment remains available.
+
+**Settings > Sync** reports the current source and chunk, committed chunks, imported notes, efforts and block rows, preserved user-owned rows, and removed seed rows. Single-source sync, **Sync All Sources**, and **Add & Sync** share this progress display. Completed work and errors remain visible until the next sync. Failed chunks never advance the bar; Sync All continues with the remaining sources.
 
 ### Run the server with Bun
 

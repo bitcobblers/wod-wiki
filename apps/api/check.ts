@@ -17,8 +17,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase } from './src/database';
-import { initializeStore } from './src/store';
-import { initializeDomain } from './src/domain';
+import { initializeStore, initializeDomain } from '@bitcobblers/wod-wiki-storage/sql';
 import { createHandler } from './src/app';
 
 const driver = process.env.DB_DRIVER;
