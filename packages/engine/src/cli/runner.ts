@@ -39,7 +39,6 @@ import {
 } from './db';
 import { persistNote, persistRun, persistSessionBundle, persistEffort, persistTypedTags } from './persist';
 import { defaultSeedDirs, importSeedDir } from './seed';
-import { generateSeed } from './seedbuild/compiler';
 import {
   composeNoteMarkdown,
   csvToEquipmentLabels,
@@ -87,6 +86,8 @@ export interface CliParsedArgs {
   scaffold?: boolean;
   /** `wod build`: extra template markdown file compiled as the `template` chunk. */
   template?: string;
+  /** `wod build`: content repo root (alias for the positional directory). */
+  dir?: string;
 }
 
 export function parseCliArgs(args: string[]): CliParsedArgs {
@@ -180,6 +181,18 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       i++;
     } else if (arg.startsWith('--template=')) {
       result.template = arg.slice('--template='.length);
+      i++;
+    } else if (arg === '--out') {
+      result.output = args[++i];
+      i++;
+    } else if (arg.startsWith('--out=')) {
+      result.output = arg.slice('--out='.length);
+      i++;
+    } else if (arg === '--dir') {
+      result.dir = args[++i];
+      i++;
+    } else if (arg.startsWith('--dir=')) {
+      result.dir = arg.slice('--dir='.length);
       i++;
     } else if (!result.subcommand) {
       if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'import' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'help' || arg === 'version') {
@@ -729,11 +742,13 @@ export async function cliMain(
 
     if (parsed.subcommand === 'build') {
       const cwd = process.cwd();
-      const root = nodePath().resolve(cwd, parsed.target ?? '.');
+      const root = nodePath().resolve(cwd, parsed.dir ?? parsed.target ?? '.');
       if (!nodeFs().existsSync(nodePath().resolve(root, 'markdown'))) {
         writeErr(`[wod build] No markdown/ corpus under ${root} — run from the content repo root (or pass its directory).`);
         return 1;
       }
+      // Browser-boundary: dynamic import keeps node:crypto and child_process out of the browser graph.
+      const { generateSeed } = await import('./seedbuild/compiler');
       try {
         const result = generateSeed({
           corpusRoot: root,

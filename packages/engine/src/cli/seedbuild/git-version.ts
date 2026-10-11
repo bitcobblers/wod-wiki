@@ -27,20 +27,17 @@ export const UNKNOWN_GIT_VERSION: GitVersion = {
 };
 
 export function resolveGitVersion(repoRoot: string): GitVersion {
-  let version = 0;
-  let versionLabel = 'unknown';
-  let commit = '';
-  let dirty = false;
   try {
     const run = (args: string): string =>
       execSync(`git ${args}`, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     const count = Number(run('rev-list --count HEAD'));
-    version = Number.isFinite(count) && count > 0 ? count : 0;
-    versionLabel = run('describe --tags --long --always --dirty');
-    commit = run('rev-parse HEAD');
-    dirty = run('status --porcelain') !== '';
+    return {
+      version: Number.isFinite(count) && count > 0 ? count : 0,
+      versionLabel: run('describe --tags --long --always --dirty'),
+      commit: run('rev-parse HEAD'),
+      dirty: run('status --porcelain') !== '',
+    };
   } catch {
     return UNKNOWN_GIT_VERSION;
   }
-  return { version, versionLabel, commit, dirty };
 }

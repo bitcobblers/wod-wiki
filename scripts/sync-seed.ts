@@ -8,16 +8,18 @@
  *   core       this repo's markdown/ corpus (the playground's own canvas
  *              pages) plus the playground template — versioned by THIS
  *              repo's git history;
- *   community  the sibling wod-wiki-seed checkout (collections, feeds,
+ *   community  the sibling wod-wiki-community checkout (collections, feeds,
  *              dashboards, efforts) — versioned by that repo's git history.
  *
- * The corpus files and the compiler live in the seed repo for community
- * content; the compiler is reused for the core corpus so every seed library
- * (including third-party ones) goes through the same parity gate. This repo
- * only orchestrates.
+ * Both corpora compile through the engine's seed compiler (the `wod build`
+ * engine, exported as generateSeed from @bitcobblers/wod-wiki-engine), so
+ * every seed library — including third-party ones — goes through the same
+ * parity + dashboard gates. This repo only orchestrates; requires the
+ * engine package built (`bun run build:packages`).
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { generateSeed } from '@bitcobblers/wod-wiki-engine';
 
 interface ManifestChunkRef {
   id: string;
@@ -35,12 +37,6 @@ interface SeedManifestRef {
   chunks: ManifestChunkRef[];
 }
 
-interface SyncResult {
-  manifest: SeedManifestRef;
-  reportPath: string;
-  passMs: { scan: number; blockIndex: number; blockEfforts: number; write: number };
-}
-
 interface SeedSourceSpec {
   id: string;
   corpusRoot: string;
@@ -50,28 +46,20 @@ interface SeedSourceSpec {
 }
 
 const ROOT = resolve(import.meta.dirname, '..');
-const SEED_DIR = resolve(process.env.WOD_WIKI_SEED_DIR ?? join(ROOT, '..', 'wod-wiki-seed'));
-const COMPILER = join(SEED_DIR, 'src', 'compiler.ts');
+const SEED_DIR = resolve(process.env.WOD_WIKI_SEED_DIR ?? join(ROOT, '..', 'wod-wiki-community'));
 const TEMPLATE_FILE = join(ROOT, 'apps', 'playground', 'app', 'templates', 'new-playground.md');
 /** Historical in-repo row path for the template chunk — the runtime derives the template note's id from it; must stay stable. */
 const TEMPLATE_ROW_PATH = 'apps/playground/app/templates/new-playground.md';
 const SEED_PUBLIC_DIR = join(ROOT, 'apps', 'playground', 'public', 'seed');
 
-if (!existsSync(COMPILER)) {
+if (!existsSync(join(SEED_DIR, 'markdown'))) {
   console.error(
-    `[sync-seed] wod-wiki-seed checkout not found at ${SEED_DIR}\n` +
-    `Clone it next to this repo (git clone … wod-wiki-seed) or set WOD_WIKI_SEED_DIR.`,
+    `[sync-seed] community corpus not found at ${join(SEED_DIR, 'markdown')}\n` +
+    `Clone it next to this repo (git clone … wod-wiki-community) or set WOD_WIKI_SEED_DIR.`,
   );
   process.exit(1);
 }
 
-// ts-no-dynamic-import exception: the specifier is runtime-selected
-// (sibling checkout location, overridable via WOD_WIKI_SEED_DIR), so a
-// static import cannot work. The guard above keeps a missing checkout a
-// clear error instead of a module-resolution stack trace. Bun resolves the
-// compiler's own dependencies (@bitcobblers/*, vendored in the seed repo)
-// from the seed checkout's node_modules — keep them installed.
-const { generateSeed } = (await import(COMPILER)) as { generateSeed: (options: Record<string, unknown>) => SyncResult };
 const scaffold = process.argv.includes('--scaffold');
 
 const SOURCES: SeedSourceSpec[] = [
@@ -104,7 +92,7 @@ for (const spec of SOURCES) {
     // First sync — everything is "added".
   }
 
-  const { manifest, reportPath, passMs }: SyncResult = generateSeed({
+  const { manifest, reportPath, passMs } = generateSeed({
     markdownDir: spec.markdownDir,
     corpusRoot: spec.corpusRoot,
     outDir: spec.outDir,
