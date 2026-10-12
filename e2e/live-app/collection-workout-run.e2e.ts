@@ -44,7 +44,9 @@ function todayKey(): string {
 
 // ── IDB helpers ─────────────────────────────────────────────────────────────
 
-/** Find a note's uuid by title (journal notes created by the run flow). */
+/** Find a JOURNAL note's uuid by title (notes created by the run flow). The
+ * collection fixture shares the title, so scope to journal-typed rows —
+ * deleting the fixture would blank the page under test. */
 async function findNoteIdByTitle(page: Page, title: string): Promise<string | null> {
   return page.evaluate(async ({ dbName, title }) => {
     return new Promise<string | null>((resolve, reject) => {
@@ -54,15 +56,15 @@ async function findNoteIdByTitle(page: Page, title: string): Promise<string | nu
         const tx = db.transaction('notes', 'readonly');
         const getAll = tx.objectStore('notes').getAll();
         getAll.onsuccess = () => {
-          const match = (getAll.result as Array<{ id: string; title?: string }>)
-            .filter(n => n.title === title)
+          const match = (getAll.result as Array<{ id: string; title?: string; type?: string }>)
+            .filter(n => n.title === title && (n.type === 'journal' || n.id.startsWith('journal/')))
             .pop();
           db.close();
           resolve(match?.id ?? null);
         };
         tx.onerror = () => { db.close(); reject(tx.error); };
       };
-      req.onerror = () => reject(req.error);
+      req.onerror = () => reject(tx.error);
     });
   }, { dbName: WOD_DB, title });
 }
@@ -140,7 +142,7 @@ test.describe('Collection Workout — run and record', () => {
 
     await gotoHomeAfterSeedImport(page);
     await seedNote(page, STOP_NOTE_ID, STOP_CONTENT, { title: 'E2E Stop Run' });
-    await deleteNoteAndResults(page, await findNoteIdByTitle(page, 'E2E Stop Run'));
+    await deleteNoteAndResults(page, await findNoteIdByTitle(page, 'e2e-stop-run'));
 
     // 1. Start the workout from the collection workout page. Gate on the
     // stored E2E content actually being mounted (not just any editor): the
@@ -156,7 +158,7 @@ test.describe('Collection Workout — run and record', () => {
     // The clone carries the workout itself; the heading wording (slug vs
     // display title) is presentation, not the persistence contract.
     await expect(page.locator('.cm-content')).toContainText('10:00 AMRAP', { timeout: 15_000 });
-    const noteUuid = await findNoteIdByTitle(page, 'E2E Stop Run');
+    const noteUuid = await findNoteIdByTitle(page, 'e2e-stop-run');
     expect(noteUuid, 'Play must create a journal note for today').toBeTruthy();
 
     // Timer auto-starts the session clock; the workout waits at the
@@ -193,7 +195,7 @@ test.describe('Collection Workout — run and record', () => {
 
     // 3. The inline result survives a hard reload (persisted record).
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.cm-content')).toContainText('E2E Stop Run', { timeout: 15_000 });
+    await expect(page.locator('.cm-content')).toContainText('e2e-stop-run', { timeout: 15_000 });
     await expect(
       page.locator('.cm-query-block-preview, [data-testid="rows-table"]').first(),
       'persisted result renders inline on the WOD block',
@@ -208,14 +210,14 @@ test.describe('Collection Workout — run and record', () => {
 
     await gotoHomeAfterSeedImport(page);
     await seedNote(page, COMPLETE_NOTE_ID, COMPLETE_CONTENT, { title: 'E2E Complete Run' });
-    await deleteNoteAndResults(page, await findNoteIdByTitle(page, 'E2E Complete Run'));
+    await deleteNoteAndResults(page, await findNoteIdByTitle(page, 'e2e-complete-run'));
 
     await page.goto(`/c/${COMPLETE_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.cm-content')).toContainText('0:03 AMRAP', { timeout: 15_000 });
     await clickPlayOnBlock(page, '0:03 AMRAP');
 
     await page.waitForURL(new RegExp(`/journal/${today}`), { timeout: 15_000 });
-    const noteUuid = await findNoteIdByTitle(page, 'E2E Complete Run');
+    const noteUuid = await findNoteIdByTitle(page, 'e2e-complete-run');
     expect(noteUuid, 'Play must create a journal note for today').toBeTruthy();
 
     // Step through the Ready-to-Start gate; the 3s AMRAP then completes

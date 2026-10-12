@@ -24,7 +24,7 @@ One runtime data source. Today bundled content reaches the app through ~10 separ
 | 5 | `markdown/**` glob (all) | `app/lib/workoutIndex.ts` | "view source" resolution |
 | 6 | syntax guides, page template (`?raw` imports) | `src/content/syntaxGuideReference.ts`, `app/templates/defaultPlaygroundContent.ts` | in-memory |
 | 7 | generated `static-block-index.json` (~8 MB, 21k rows) | `src/services/content/staticBlockIndex.ts` → `queryService.ts` | in-memory rows joined with IDB |
-| 8 | `wodwiki-db` v18 | `IndexedDBService` — notes, segments, results, attachments, events, block_index, field_catalog, efforts | user data |
+| 8 | `wodwiki-db` v29 | `IndexedDBService` — notes (whole source + occurrence map), block_revisions, sessions, attachments, events, block_index, block_efforts, field_catalog, efforts | user data |
 | 9 | `wodwiki-user-calcs`, `wodwiki-telemetry` (separate DBs) | `app/stores/userCalcStore.ts`, `telemetry/TelemetryService.ts` | user data / telemetry |
 | 10 | localStorage (~10 keys), user file import, `?zip=` share links, cast RPC | various | mixed small state |
 
@@ -94,7 +94,7 @@ One interface, real adapters — the seam exists because the implementations gen
 
 `SeedImporter.apply(manifest, chunkLoader)` writes through the existing **Storage** layer in per-chunk transactions:
 
-- Materializes corpus items into Storage: **Notes** (UUID id, title, date, catalog) with versioned **segments** holding byte-faithful markdown, **Pages** (slug/date anchors via `page_notes`), **Tags** & **NoteTags** (typed via `DEFAULT_TAG_TYPES`), Efforts (`registrySource: 'bundled'`), `block_index` rows, and `block_efforts` exercise links.
+- Materializes corpus items into Storage: **Notes** (deterministic UUID id from path, title, date, catalog) holding byte-faithful markdown in `rawContent` plus the occurrence `blocks` map, initial **BlockRevision** v1 rows for actionable blocks, **Pages** (slug/date anchors via `page_notes`), **Tags** & **NoteTags** (typed via `DEFAULT_TAG_TYPES`), Efforts (`registrySource: 'bundled'`), and current-only `block_index`/`block_efforts` projections. (Schema 8; superseded the retired per-segment rows and separate derived chunks.)
 - **Checkpoint record** in a new `meta` key-value store (V19): `{ seedVersion, importedAt, chunks: { [id]: sha256 } }` — per-chunk resume, same pattern as `field_catalog_meta` backfill state.
 - **Idempotent**: re-applying a chunk with a hash already recorded in `meta` is a no-op. Crash mid-import → next boot resumes at the first unrecorded chunk.
 
@@ -129,7 +129,7 @@ Consequences:
 
 ### Module 3: Content reads through Persistence
 
-Consumers stop importing markdown and ask **Persistence** (the domain layer over **Storage**, per `CONTEXT.md`) for content. Canvas route derivation reads seeded canvas Notes; "view source" reads the Note's raw segment; the **Query Service** reads `block_index` from IDB for *all* sources.
+Consumers stop importing markdown and ask **Persistence** (the domain layer over **Storage**, per `CONTEXT.md`) for content. Canvas route derivation reads seeded canvas Notes; "view source" reads the Note's `rawContent`; the **Query Service** reads `block_index` from IDB for *all* sources.
 
 After the cutover this seam has two adapters — IDB (production) and `InMemoryStorage` (tests/Storybook) — which makes it a *real* seam by the two-adapter rule, and gives every content consumer a test surface that needs no Vite, no globs, no fixture files on disk.
 

@@ -60,7 +60,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
   - **Action Rail:** "Run", "Add to Today", "Share" block buttons.
 - **Data Sources:**
   - *Primary:* `IndexedDBContentProvider.getEntry(noteId)` loads `Note` with reconstructed `Note` source rows (with occurrence maps).
-  - *Secondary / Sync:* `WorkbenchSessionProvider` + `notePersistence` auto-saves edits to `notes` & `segments`.
+  - *Secondary / Sync:* `WorkbenchSessionProvider` + `notePersistence` auto-saves edits to `notes` (+ `block_revisions` for changed actionable blocks).
   - *Execution:* Staged to `pendingRuntimes` store on Run click.
 - **Models Involved:** Reads `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `Tag`. Writes `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `NoteTag`.
 
