@@ -323,53 +323,100 @@ export async function countRows(
   return Number(rows[0]?.n ?? 0);
 }
 
-export async function putRow(conn: SqlConnection, def: StoreDef, value: unknown): Promise<KeyDTO> {
-  const key = requireKey(def, value);
-  const keyParts = toParts(key).map(toSqlScalar);
-  const keys = keyCols(def);
+/** Bound-parameter budget per statement. SQLite ≥3.32 allows 32766; 20k
+ *  leaves headroom, and the row cap keeps single request bodies ≤ ~1 MB. */
+const PARAM_BUDGET = 20000;
+const ROW_CAP = 100;
 
+const chunks = <T>(arr: T[], size: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+};
+
+/** Multi-row `INSERT … ON CONFLICT` in param-budgeted chunks. One round trip
+ *  per chunk over Turso instead of one per row. `cols` are internal schema
+ *  identifiers (never user input); `onConflict` is the full trailing clause. */
+export async function batchInsert(
+  conn: SqlConnection,
+  table: string,
+  cols: string[],
+  rows: SqlValue[][],
+  onConflict: string,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const collist = cols.map((c) => `"${c}"`).join(', ');
+  const tuple = `(${cols.map(() => '?').join(', ')})`;
+  const per = Math.max(1, Math.min(ROW_CAP, Math.floor(PARAM_BUDGET / cols.length)));
+  for (const part of chunks(rows, per)) {
+    await conn.exec(
+      `INSERT INTO "${table}" (${collist}) VALUES ${part.map(() => tuple).join(', ')} ${onConflict}`,
+      part.flat(),
+    );
+  }
+}
+
+/** Chunked `DELETE … WHERE col IN (…)` — one round trip per chunk. */
+export async function deleteIn(conn: SqlConnection, table: string, col: string, vals: SqlValue[]): Promise<void> {
+  for (const part of chunks(vals, 500)) {
+    if (part.length === 0) continue;
+    await conn.exec(`DELETE FROM "${table}" WHERE "${col}" IN (${part.map(() => '?').join(', ')})`, part);
+  }
+}
+
+export async function putRows(conn: SqlConnection, def: StoreDef, values: unknown[]): Promise<KeyDTO[]> {
+  const keys = keyCols(def);
   const cols = [...keys];
-  const vals = [...keyParts];
   for (const idx of def.indexes) {
     if (idx.multiEntry) continue;
-    idx.keyPath.forEach((path, part) => {
-      cols.push(indexCol(idx.name, part));
-      vals.push(toSqlScalar(extractKeyPart(value, path) ?? null));
-    });
+    idx.keyPath.forEach((_, part) => cols.push(indexCol(idx.name, part)));
   }
   cols.push('data');
-  // Codec keeps attachment ArrayBuffer payloads byte-exact (attachment-only field).
-  vals.push(encodeRowJson(value, binaryFieldOf(def)));
-
   const keySet = new Set(keys);
   const updates = cols.filter((c) => !keySet.has(c)).map((c) => `"${c}" = excluded."${c}"`).join(', ');
-  const collist = cols.map((c) => `"${c}"`).join(', ');
-  const placeholders = cols.map(() => '?').join(', ');
   const pk = keys.map((k) => `"${k}"`).join(', ');
-  await conn.exec(
-    `INSERT INTO "${def.name}" (${collist}) VALUES (${placeholders}) ON CONFLICT (${pk}) DO UPDATE SET ${updates}`,
-    vals,
-  );
 
+  const rows: SqlValue[][] = [];
+  const out: KeyDTO[] = [];
+  const keyScalars: SqlValue[] = [];
+  const junction: SqlValue[][] = [];
   const multi = multiEntryIndex(def);
-  if (multi) {
-    const jt = junctionTable(def, multi);
-    const cond = keys.map((c) => `"${c}" = ?`).join(' AND ');
-    await conn.exec(`DELETE FROM "${jt}" WHERE ${cond}`, keyParts);
-    const items = arrayPart(value, multi.keyPath[0]);
-    if (Array.isArray(items)) {
-      const jcols = [...keys, 'v'];
-      const jcollist = jcols.map((c) => `"${c}"`).join(', ');
-      const jph = jcols.map(() => '?').join(', ');
-      for (const item of items) {
-        await conn.exec(
-          `INSERT INTO "${jt}" (${jcollist}) VALUES (${jph}) ON CONFLICT DO NOTHING`,
-          [...keyParts, JSON.stringify(item)],
-        );
+  for (const value of values) {
+    const k = requireKey(def, value);
+    const keyParts = toParts(k).map(toSqlScalar);
+    const vals = [...keyParts];
+    for (const idx of def.indexes) {
+      if (idx.multiEntry) continue;
+      idx.keyPath.forEach((path) => vals.push(toSqlScalar(extractKeyPart(value, path) ?? null)));
+    }
+    vals.push(encodeRowJson(value, binaryFieldOf(def)));
+    rows.push(vals);
+    out.push(k);
+    keyScalars.push(keyParts[0]);
+    if (multi) {
+      const items = arrayPart(value, multi.keyPath[0]);
+      if (Array.isArray(items)) {
+        for (const item of items) junction.push([...keyParts, JSON.stringify(item)]);
       }
     }
   }
-  return key;
+  await batchInsert(conn, def.name, cols, rows, `ON CONFLICT (${pk}) DO UPDATE SET ${updates}`);
+  if (multi) {
+    const jt = junctionTable(def, multi);
+    // ponytail: today's multiEntry stores have single-part keys; a compound
+    // key here needs tuple-IN deletes instead of the k0 shortcut.
+    if (keys.length === 1) await deleteIn(conn, jt, 'k0', keyScalars);
+    else {
+      const cond = keys.map((c) => `"${c}" = ?`).join(' AND ');
+      for (const value of values) await conn.exec(`DELETE FROM "${jt}" WHERE ${cond}`, toParts(requireKey(def, value)).map(toSqlScalar));
+    }
+    await batchInsert(conn, jt, [...keys, 'v'], junction, 'ON CONFLICT DO NOTHING');
+  }
+  return out;
+}
+
+export async function putRow(conn: SqlConnection, def: StoreDef, value: unknown): Promise<KeyDTO> {
+  return (await putRows(conn, def, [value]))[0];
 }
 
 export async function deleteRows(conn: SqlConnection, def: StoreDef, keyOrRange: KeyDTO | RangeDTO): Promise<void> {

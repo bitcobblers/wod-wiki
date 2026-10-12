@@ -44,10 +44,12 @@ class TransactionScopedStorage implements IStorage {
 }
 
 /** All event/summary grains for one resultId on the compound by-result-grain
- *  (and by-content-grain) index: `''` is the lowest string, `[]` the highest
- *  key value, so the bound covers every grain string exactly. */
+ *  (and by-content-grain) index: `''` is the lowest string, `'\uffff'` covers
+ *  all grain strings without non-scalar tuple elements that violate wire/SQL storage. */
 function grainRange(parentId: string): IDBKeyRange {
-  return IDBKeyRange.bound([parentId, ''], [parentId, []]);
+  return typeof IDBKeyRange !== 'undefined'
+    ? IDBKeyRange.bound([parentId, ''], [parentId, '\uffff'])
+    : ({ lower: [parentId, ''], upper: [parentId, '\uffff'] } as unknown as IDBKeyRange);
 }
 
 function generateId(): string {

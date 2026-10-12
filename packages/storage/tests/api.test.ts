@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import 'fake-indexeddb/auto';
 import { ApiStorage } from '../src/api';
 import { parseDomainQueryResult } from '../src/domain';
-import { keyInRange, type RangeDTO } from '../src/wire';
+import { keyInRange, rangeFromIDB, type RangeDTO } from '../src/wire';
 
 function noteServer() {
   let rows = [
@@ -115,4 +115,10 @@ it('falls back only for an explicit unavailable projection gate', async () => {
       Response.json({ error: 'query failed' }, { status }));
     await expect(failing.queryDomain({ plan: 'notes' })).rejects.toThrow(String(status));
   }
+});
+
+it('normalizes IDB compound upper bound empty array to scalar string', () => {
+  const range = IDBKeyRange.bound(['res-1', ''], ['res-1', []]);
+  const wire = rangeFromIDB(range);
+  expect(wire?.upper).toEqual(['res-1', '\uffff']);
 });

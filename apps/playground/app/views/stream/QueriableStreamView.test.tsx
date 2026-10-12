@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'
-import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { Entry } from '../../lib/entryMapper'
 import { StreamQueryEngine } from '../../lib/entrySearch'
@@ -21,7 +21,43 @@ import {
 import { journalNotes } from '../../services/journalNotes'
 import { NavContext, initialNavState } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
+
+// The notice's inline sync goes through syncSeedSource; the coverage probe
+// must report "no manual library" so seedNotice routes render the banner.
+let communitySyncOutcome: 'imported' | 'current' | 'error' | 'busy' = 'imported'
+const syncSeedSourceMock = mock(
+  async (id: string, deps?: { force?: boolean; onProgress?: (event: Record<string, unknown>) => void }) => {
+    deps?.onProgress?.({ sourceId: id, sourceLabel: 'Community', sourceIndex: 1, totalSources: 1, phase: 'checking' })
+    deps?.onProgress?.({
+      sourceId: id,
+      sourceLabel: 'Community',
+      sourceIndex: 1,
+      totalSources: 1,
+      phase: 'finished',
+      outcome: communitySyncOutcome,
+      error: communitySyncOutcome === 'error' ? 'Community seed unreachable' : null,
+    })
+    return communitySyncOutcome
+  },
+)
+
+mock.module('@/services/seed/seedSync', () => ({
+  SEED_BROADCAST_CHANNEL: 'wodwiki-seed',
+  SEED_CLAIM_TTL_MS: 45_000,
+  // Real probe resolves past a fake-indexeddb transaction (a macrotask); a
+  // bare microtask here would settle outside act and spam act warnings.
+  readSeedCoverage: () => {
+    const { promise, resolve } = Promise.withResolvers<{ coreImported: boolean; libraryImported: boolean }>()
+    setTimeout(() => resolve({ coreImported: true, libraryImported: false }), 0)
+    return promise
+  },
+  runBootSeedSync: async () => 'current' as const,
+  syncSeedSource: (...args: [string, { force?: boolean; onProgress?: (event: Record<string, unknown>) => void }?]) =>
+    syncSeedSourceMock(...args),
+}))
+
 beforeEach(() => {
+  communitySyncOutcome = 'imported'
   window.localStorage.clear()
 })
 
@@ -642,6 +678,45 @@ describe('QueriableStreamView component', () => {
     const notice = await waitFor(() => screen.getByTestId('seed-library-notice'))
     expect(notice.textContent).toContain('Only the core seed is imported')
     expect(screen.getByTestId('seed-library-notice-sync')).toBeDefined()
+    expect(screen.getByTestId('seed-library-notice-settings')).toBeDefined()
+  })
+
+  it('syncs the community library inline and drops the notice on success', async () => {
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/feeds']}>
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    await act(async () => {
+      fireEvent.click(syncButton)
+    })
+
+    expect(syncSeedSourceMock).toHaveBeenCalledWith('community', expect.anything())
+    await waitFor(() => {
+      expect(screen.queryByTestId('seed-library-notice')).toBeNull()
+    })
+  })
+
+  it('keeps the notice and shows the error when the inline sync fails', async () => {
+    communitySyncOutcome = 'error'
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/feeds']}>
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    await act(async () => {
+      fireEvent.click(syncButton)
+    })
+
+    const error = await waitFor(() => screen.getByTestId('seed-library-notice-error'))
+    expect(error.textContent).toContain('Community seed unreachable')
+    expect(screen.getByTestId('seed-library-notice')).toBeDefined()
   })
 
   it('never shows the sync notice on routes whose corpus is not seed-sourced', () => {

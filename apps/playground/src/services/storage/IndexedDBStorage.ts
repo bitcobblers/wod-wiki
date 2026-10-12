@@ -333,7 +333,7 @@ export class IndexedDBStorage implements IStorage {
             };
             const logs = legacy.data?.logs ?? [];
             let alreadyProjected = false;
-            for await (const _ev of eventsStore.index('by-result-grain').iterate(IDBKeyRange.bound([legacy.id, ''], [legacy.id, []]))) {
+            for await (const _ev of eventsStore.index('by-result-grain').iterate(IDBKeyRange.bound([legacy.id, ''], [legacy.id, '\uffff']))) {
               alreadyProjected = true;
               break;
             }

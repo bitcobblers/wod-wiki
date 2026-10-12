@@ -89,7 +89,10 @@ export function rangeFromIDB(query?: IDBValidKey | IDBKeyRange | RangeDTO): Rang
     wire.lowerOpen = query.lowerOpen === true;
   }
   if (query.upper !== undefined && query.upper !== null) {
-    wire.upper = query.upper;
+    // IDB upper bound idiom [prefix, []] uses [] > strings; normalize [] to \uffff on wire.
+    wire.upper = Array.isArray(query.upper)
+      ? (query.upper.map((p) => (Array.isArray(p) && p.length === 0 ? '\uffff' : p)) as KeyDTO)
+      : query.upper;
     wire.upperOpen = query.upperOpen === true;
   }
   return wire.lower !== undefined || wire.upper !== undefined ? wire : undefined;

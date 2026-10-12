@@ -27,7 +27,7 @@
 
 import type { Database, SqlConnection, SqlValue } from './connection';
 import { StorageError } from './errors';
-import { putRow, deleteRows, clearRows, listRows, storeDefinition, SCHEMA_TABLE } from './store';
+import { putRows, deleteRows, clearRows, listRows, storeDefinition, SCHEMA_TABLE, batchInsert, deleteIn } from './store';
 import { decodeRowJson, encodeRowJson } from './codec';
 import type { StoreDef } from '../schema';
 import type { StoreName } from '../contract';
@@ -87,131 +87,154 @@ function ensureDdl(db: Database): Promise<void> {
   });
 }
 
-// ── Row upserts ──────────────────────────────────────────────────────────────
+// ── Batched row upserts ──────────────────────────────────────────────────────
+// Every projected write path funnels through multi-row INSERTs: over remote
+// Turso each statement is one HTTP round trip, so per-row loops made imports
+// and saves scale linearly with row count in *latency*, not throughput.
 
-async function upsertDomainNote(conn: SqlConnection, note: Record<string, unknown>): Promise<void> {
+const DOMAIN_NOTE_COLS = ['note_id','note_type','catalog','source_id','source_path','title','created_at','date','text_search','journal','payload'] as const;
+const SEGMENT_HEAD_COLS = ['id','note_id','current_version','position','search_text'] as const;
+const QUERY_BLOCK_COLS = ['occurrence_id','source_note_id','parent_note_id','content_id','section_key','ordinal','data_type','source_id','source_path','catalog','effective_date','created_at','note_title','normalized_text','journal','payload'] as const;
+
+const conflictUpdate = (cols: readonly string[], keys: readonly string[]): string =>
+  `ON CONFLICT (${keys.map((k) => `"${k}"`).join(', ')}) DO UPDATE SET ` +
+  cols.filter((c) => !keys.includes(c)).map((c) => `"${c}" = excluded."${c}"`).join(',');
+
+/** One domain_note row; undefined when the note has no identity (store write
+ *  still succeeds — nothing to project). */
+function domainNoteRow(note: Record<string, unknown>): SqlValue[] | undefined {
   const id = text(note.id);
-  if (!id) return; // no identity to project — the store write itself still succeeds
+  if (!id) return undefined;
   const source = sourceItem(note);
-  await conn.exec(
-    `INSERT INTO "domain_note" ("note_id","note_type","catalog","source_id","source_path","title","created_at","date","text_search","journal","payload")
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)
-     ON CONFLICT ("note_id") DO UPDATE SET "note_type"=excluded."note_type","catalog"=excluded."catalog","source_id"=excluded."source_id",
-       "source_path"=excluded."source_path","title"=excluded."title","created_at"=excluded."created_at","date"=excluded."date",
-       "text_search"=excluded."text_search","journal"=excluded."journal","payload"=excluded."payload"`,
-    [
-      id,
-      T(note.type),
-      T(catalogOfItem(source)),
-      T(note.sourceId),
-      T(note.sourcePath),
-      T(note.title) ?? '',
-      N(note.createdAt),
-      num(note.date),
-      (text(note.title) ?? '').toLowerCase(),
-      sourceMatches(source, 'journal') ? 1 : 0,
-      encodeRowJson(note),
-    ],
-  );
+  return [
+    id,
+    T(note.type),
+    T(catalogOfItem(source)),
+    T(note.sourceId),
+    T(note.sourcePath),
+    T(note.title) ?? '',
+    N(note.createdAt),
+    num(note.date),
+    (text(note.title) ?? '').toLowerCase(),
+    sourceMatches(source, 'journal') ? 1 : 0,
+    encodeRowJson(note),
+  ];
 }
 
-/** Re-project block occurrences onto a (re)written note: every block whose
- * parent identity points here (exact id or shared source path) re-resolves
- * through the fail-closed exact-parent rule — ambiguous identities stay
- * orphaned instead of being arbitrarily re-pointed. */
-async function healQueryBlocksForNote(conn: SqlConnection, note: Record<string, unknown>): Promise<void> {
-  const id = text(note.id);
-  if (!id) return;
-  const rows = await conn.query(
-    `SELECT "occurrence_id" FROM "query_block"
-     WHERE "source_note_id" = ? OR ("source_path" IS NOT NULL AND "source_path" = ?)`,
-    [id, T(note.sourcePath)],
-  );
-  for (const row of rows) await refreshBlock(conn, String(row.occurrence_id));
+async function upsertDomainNotes(conn: SqlConnection, notes: Record<string, unknown>[]): Promise<void> {
+  const rows = notes.map(domainNoteRow).filter((r): r is SqlValue[] => r !== undefined);
+  await batchInsert(conn, 'domain_note', [...DOMAIN_NOTE_COLS], rows, conflictUpdate(DOMAIN_NOTE_COLS, ['note_id']));
 }
 
-async function upsertSegmentHead(conn: SqlConnection, id: SqlValue, head: Record<string, unknown>): Promise<void> {
-  await conn.exec(
-    `INSERT INTO "segment_head" ("id","note_id","current_version","position","search_text")
-     VALUES (?,?,?,?,?)
-     ON CONFLICT ("id") DO UPDATE SET "note_id"=excluded."note_id","current_version"=excluded."current_version",
-       "position"=excluded."position","search_text"=excluded."search_text"`,
-    [
-      id,
-      T(head.noteId) ?? '',
-      N(head.version),
-      // Local latest-segments order is position ?? createdAt — same fallback here.
-      num(head.position) ?? num(head.createdAt),
-      (text(head.rawContent) ?? '').toLowerCase(),
-    ],
-  );
+function segmentHeadRow(id: SqlValue, head: Record<string, unknown>): SqlValue[] {
+  return [
+    id,
+    T(head.noteId) ?? '',
+    N(head.version),
+    // Local latest-segments order is position ?? createdAt — same fallback here.
+    num(head.position) ?? num(head.createdAt),
+    (text(head.rawContent) ?? '').toLowerCase(),
+  ];
 }
 
-async function identityBy(conn: SqlConnection, col: 'note_id' | 'source_path', val: string): Promise<NoteIdentity[]> {
-  const rows = await conn.query(
-    `SELECT "note_id", "date", "created_at" FROM "domain_note" WHERE "${col}" = ?`,
-    [val],
-  );
-  return rows.map((r) => ({
-    note_id: String(r.note_id),
-    date: num(r.date),
-    created_at: num(r.created_at) ?? 0,
-  }));
+async function upsertSegmentHeads(conn: SqlConnection, heads: [SqlValue, Record<string, unknown>][]): Promise<void> {
+  await batchInsert(conn, 'segment_head', [...SEGMENT_HEAD_COLS], heads.map(([id, h]) => segmentHeadRow(id, h)), conflictUpdate(SEGMENT_HEAD_COLS, ['id']));
 }
 
-/** Exact noteId first, then deterministic source-path identity. Ambiguous or
- * missing identity → undefined (row stays orphaned; reads gate on it). */
-async function resolveParent(conn: SqlConnection, block: Record<string, unknown>): Promise<NoteIdentity | undefined> {
-  const byPath = async (sp: string): Promise<NoteIdentity | undefined> => {
-    const rows = await identityBy(conn, 'source_path', sp);
-    return rows.length === 1 ? rows[0] : undefined; // >1 = ambiguous, never guess
-  };
+/** One query_block row; undefined when the block has no identity. */
+function queryBlockRow(block: Record<string, unknown>, parent: NoteIdentity | undefined): SqlValue[] | undefined {
+  const id = text(block.id);
+  if (!id) return undefined;
+  const source = sourceItem(block);
+  const createdAt = N(block.createdAt);
+  const effective = parent ? (parent.date ?? parent.created_at) : createdAt;
+  return [
+    id,
+    T(block.noteId),
+    parent?.note_id ?? null,
+    T(block.blockContentId),
+    T(block.segmentId),
+    num(block.position),
+    T(block.dataType),
+    T(block.sourceId),
+    T(block.sourcePath),
+    T(catalogOfItem(source)),
+    effective,
+    createdAt,
+    T(block.noteTitle),
+    (text(block.rawContent) ?? '').toLowerCase(),
+    sourceMatches(source, 'journal') ? 1 : 0,
+    encodeRowJson(block),
+  ];
+}
+
+async function upsertQueryBlocks(conn: SqlConnection, blocks: [Record<string, unknown>, NoteIdentity | undefined][]): Promise<void> {
+  const rows = blocks.map(([b, p]) => queryBlockRow(b, p)).filter((r): r is SqlValue[] => r !== undefined);
+  await batchInsert(conn, 'query_block', [...QUERY_BLOCK_COLS], rows, conflictUpdate(QUERY_BLOCK_COLS, ['occurrence_id']));
+}
+
+// ── Parent identity resolution ───────────────────────────────────────────────
+
+/** In-memory mirror of the identityBy/resolveParent queries: exact noteId
+ *  first, then deterministic source-path identity; ambiguous or missing →
+ *  undefined (row stays orphaned; reads gate on it). A note_id can appear
+ *  once (PK), source_path can collide — multiplicity is preserved so the
+ *  fail-closed rule stays identical to the per-key query version. */
+interface ParentIndex {
+  byNoteId: Map<string, NoteIdentity[]>;
+  bySourcePath: Map<string, NoteIdentity[]>;
+}
+
+const pushIdent = (map: Map<string, NoteIdentity[]>, k: string, v: NoteIdentity): void => {
+  const list = map.get(k);
+  if (list) list.push(v);
+  else map.set(k, [v]);
+};
+
+function indexNoteIdentities(notes: Iterable<Record<string, unknown>>): ParentIndex {
+  const byNoteId = new Map<string, NoteIdentity[]>();
+  const bySourcePath = new Map<string, NoteIdentity[]>();
+  for (const note of notes) {
+    const id = text(note.id);
+    if (!id) continue;
+    const ident: NoteIdentity = { note_id: id, date: num(note.date), created_at: num(note.createdAt) ?? 0 };
+    pushIdent(byNoteId, id, ident);
+    const sp = text(note.sourcePath);
+    if (sp) pushIdent(bySourcePath, sp, ident);
+  }
+  return { byNoteId, bySourcePath };
+}
+
+function resolveParentFrom(index: ParentIndex, block: Record<string, unknown>): NoteIdentity | undefined {
   const nid = text(block.noteId);
   if (nid) {
-    const rows = await identityBy(conn, 'note_id', nid);
+    const rows = index.byNoteId.get(nid) ?? [];
     if (rows.length === 1) return rows[0];
     if (rows.length > 1) return undefined;
   }
   const sp = text(block.sourcePath);
-  return sp ? byPath(sp) : undefined;
+  if (!sp) return undefined;
+  const rows = index.bySourcePath.get(sp) ?? [];
+  return rows.length === 1 ? rows[0] : undefined;
 }
 
-async function upsertQueryBlock(conn: SqlConnection, block: Record<string, unknown>): Promise<void> {
-  const id = text(block.id);
-  if (!id) return;
-  const source = sourceItem(block);
-  const createdAt = N(block.createdAt);
-  const parent = await resolveParent(conn, block);
-  const effective = parent ? (parent.date ?? parent.created_at) : createdAt;
-  await conn.exec(
-    `INSERT INTO "query_block" ("occurrence_id","source_note_id","parent_note_id","content_id","section_key","ordinal",
-       "data_type","source_id","source_path","catalog","effective_date","created_at","note_title","normalized_text","journal","payload")
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-     ON CONFLICT ("occurrence_id") DO UPDATE SET "source_note_id"=excluded."source_note_id","parent_note_id"=excluded."parent_note_id",
-       "content_id"=excluded."content_id","section_key"=excluded."section_key","ordinal"=excluded."ordinal",
-       "data_type"=excluded."data_type","source_id"=excluded."source_id","source_path"=excluded."source_path",
-       "catalog"=excluded."catalog","effective_date"=excluded."effective_date","created_at"=excluded."created_at",
-       "note_title"=excluded."note_title","normalized_text"=excluded."normalized_text","journal"=excluded."journal",
-       "payload"=excluded."payload"`,
-    [
-      id,
-      T(block.noteId),
-      parent?.note_id ?? null,
-      T(block.blockContentId),
-      T(block.segmentId),
-      num(block.position),
-      T(block.dataType),
-      T(block.sourceId),
-      T(block.sourcePath),
-      T(catalogOfItem(source)),
-      effective,
-      createdAt,
-      T(block.noteTitle),
-      (text(block.rawContent) ?? '').toLowerCase(),
-      sourceMatches(source, 'journal') ? 1 : 0,
-      encodeRowJson(block),
-    ],
-  );
+/** Fetch identities for the given lookup values from domain_note, chunked —
+ *  one round trip per chunk instead of one per block. */
+async function fetchParentIndex(conn: SqlConnection, noteIds: string[], sourcePaths: string[]): Promise<ParentIndex> {
+  const byNoteId = new Map<string, NoteIdentity[]>();
+  const bySourcePath = new Map<string, NoteIdentity[]>();
+  const IN_CHUNK = 500;
+  for (let i = 0; i < noteIds.length; i += IN_CHUNK) {
+    const part = noteIds.slice(i, i + IN_CHUNK);
+    const rows = await conn.query(`SELECT "note_id", "date", "created_at" FROM "domain_note" WHERE "note_id" IN (${part.map(() => '?').join(', ')})`, part);
+    for (const r of rows) pushIdent(byNoteId, String(r.note_id), { note_id: String(r.note_id), date: num(r.date), created_at: num(r.created_at) ?? 0 });
+  }
+  for (let i = 0; i < sourcePaths.length; i += IN_CHUNK) {
+    const part = sourcePaths.slice(i, i + IN_CHUNK);
+    const rows = await conn.query(`SELECT "note_id", "source_path", "date", "created_at" FROM "domain_note" WHERE "source_path" IN (${part.map(() => '?').join(', ')})`, part);
+    for (const r of rows) pushIdent(bySourcePath, String(r.source_path), { note_id: String(r.note_id), date: num(r.date), created_at: num(r.created_at) ?? 0 });
+  }
+  return { byNoteId, bySourcePath };
 }
 
 // ── Per-key refresh ──────────────────────────────────────────────────────────
@@ -219,47 +242,96 @@ async function upsertQueryBlock(conn: SqlConnection, block: Record<string, unkno
 /** Segment keys are [id, version]; head pointers key on the first part. */
 const keyHead = (key: KeyDTO): SqlValue => (Array.isArray(key) ? (key[0] as SqlValue) : key);
 
-async function refreshNote(conn: SqlConnection, id: KeyDTO): Promise<void> {
-  const k = keyHead(id);
-  const rows = await conn.query(`SELECT "data" FROM "notes" WHERE "k0" = ?`, [k]);
-  const note = rows[0] ? (decodeRowJson<Record<string, unknown>>(String(rows[0].data))) : undefined;
-  if (note) {
-    await upsertDomainNote(conn, note);
-    await healQueryBlocksForNote(conn, note);
-  } else {
-    const orphans = await conn.query(
-      `SELECT "occurrence_id" FROM "query_block" WHERE "parent_note_id" = ? OR "source_note_id" = ?`,
-      [k, k],
-    );
-    await conn.exec(`DELETE FROM "domain_note" WHERE "note_id" = ?`, [k]);
-    // Re-project rather than blindly nulling: a surviving unique source-path
-    // identity re-parents; ambiguous ones fail closed and gate reads.
-    for (const row of orphans) await refreshBlock(conn, String(row.occurrence_id));
+/** Chunked `col IN (…)` SELECT returning the first column as strings. */
+async function selectIn(conn: SqlConnection, selectCol: string, table: string, col: string, vals: SqlValue[]): Promise<string[]> {
+  const IN_CHUNK = 500;
+  const out: string[] = [];
+  for (let i = 0; i < vals.length; i += IN_CHUNK) {
+    const part = vals.slice(i, i + IN_CHUNK);
+    const rows = await conn.query(`SELECT "${selectCol}" FROM "${table}" WHERE "${col}" IN (${part.map(() => '?').join(', ')})`, part);
+    for (const r of rows) out.push(String(r[selectCol]));
+  }
+  return out;
+}
+
+/** Re-project every block occurrence pointing at the given note ids: blocks
+ *  whose parent identity matches (exact id or shared source path) re-resolve
+ *  through the fail-closed exact-parent rule — ambiguous identities stay
+ *  orphaned instead of being arbitrarily re-pointed. */
+async function healQueryBlocksForNotes(conn: SqlConnection, noteIds: string[], sourcePaths: string[]): Promise<void> {
+  const ids = await selectIn(conn, 'occurrence_id', 'query_block', 'source_note_id', noteIds);
+  const byPath = await selectIn(conn, 'occurrence_id', 'query_block', 'source_path', sourcePaths);
+  await refreshBlocks(conn, [...new Set([...ids, ...byPath])]);
+}
+
+async function refreshNotes(conn: SqlConnection, ids: KeyDTO[]): Promise<void> {
+  const ks = [...new Set(ids.map((id) => String(keyHead(id))))];
+  if (ks.length === 0) return;
+  const found = new Map<string, Record<string, unknown>>();
+  for (let i = 0; i < ks.length; i += 500) {
+    const part = ks.slice(i, i + 500);
+    const rows = await conn.query(`SELECT "k0", "data" FROM "notes" WHERE "k0" IN (${part.map(() => '?').join(', ')})`, part);
+    for (const row of rows) found.set(String(row.k0), decodeRowJson<Record<string, unknown>>(String(row.data)));
+  }
+  const present: Record<string, unknown>[] = [];
+  const missing: string[] = [];
+  for (const k of ks) {
+    const note = found.get(k);
+    if (note) present.push(note);
+    else missing.push(k);
+  }
+  await upsertDomainNotes(conn, present);
+  // Present notes: re-project blocks pointing here. Deleted notes: re-project
+  // rather than blindly nulling — a surviving unique source-path identity
+  // re-parents; ambiguous ones fail closed and gate reads.
+  const presentIds = present.map((n) => text(n.id)).filter((x): x is string => !!x);
+  const paths = [...new Set(present.map((n) => text(n.sourcePath)).filter((x): x is string => !!x))];
+  await healQueryBlocksForNotes(conn, presentIds, paths);
+  await deleteIn(conn, 'domain_note', 'note_id', missing);
+  if (missing.length > 0) {
+    const orphans = [
+      ...new Set([
+        ...(await selectIn(conn, 'occurrence_id', 'query_block', 'parent_note_id', missing)),
+        ...(await selectIn(conn, 'occurrence_id', 'query_block', 'source_note_id', missing)),
+      ]),
+    ];
+    await refreshBlocks(conn, orphans);
   }
 }
 
-async function refreshSegment(conn: SqlConnection, id: KeyDTO): Promise<void> {
-  const k = keyHead(id);
-  const rows = await conn.query(`SELECT "data" FROM "segments" WHERE "k0" = ?`, [k]);
-  let head: Record<string, unknown> | undefined;
-  let headVersion = -Infinity;
-  for (const row of rows) {
-    const seg = decodeRowJson<Record<string, unknown>>(String(row.data));
-    const v = num(seg.version) ?? 0;
-    if (!head || v > headVersion) {
-      head = seg;
-      headVersion = v;
+async function refreshSegments(conn: SqlConnection, keys: KeyDTO[]): Promise<void> {
+  const ks = [...new Set(keys.map((key) => String(keyHead(key))))];
+  if (ks.length === 0) return;
+  const heads = new Map<string, { id: SqlValue; row: Record<string, unknown>; version: number }>();
+  for (let i = 0; i < ks.length; i += 500) {
+    const part = ks.slice(i, i + 500);
+    const rows = await conn.query(`SELECT "k0", "data" FROM "segments" WHERE "k0" IN (${part.map(() => '?').join(', ')})`, part);
+    for (const row of rows) {
+      const seg = decodeRowJson<Record<string, unknown>>(String(row.data));
+      const v = num(seg.version) ?? 0;
+      const prev = heads.get(String(row.k0));
+      if (!prev || v > prev.version) heads.set(String(row.k0), { id: row.k0 as SqlValue, row: seg, version: v });
     }
   }
-  if (head) await upsertSegmentHead(conn, k, head);
-  else await conn.exec(`DELETE FROM "segment_head" WHERE "id" = ?`, [k]);
+  await upsertSegmentHeads(conn, [...heads.values()].map((h) => [h.id, h.row]));
+  await deleteIn(conn, 'segment_head', 'id', ks.filter((k) => !heads.has(k)));
 }
 
-async function refreshBlock(conn: SqlConnection, id: KeyDTO): Promise<void> {
-  const k = keyHead(id);
-  const rows = await conn.query(`SELECT "data" FROM "block_index" WHERE "k0" = ?`, [k]);
-  if (rows[0]) await upsertQueryBlock(conn, decodeRowJson<Record<string, unknown>>(String(rows[0].data)));
-  else await conn.exec(`DELETE FROM "query_block" WHERE "occurrence_id" = ?`, [k]);
+async function refreshBlocks(conn: SqlConnection, ids: KeyDTO[]): Promise<void> {
+  const ks = [...new Set(ids.map((id) => String(keyHead(id))))];
+  if (ks.length === 0) return;
+  const found = new Map<string, Record<string, unknown>>();
+  for (let i = 0; i < ks.length; i += 500) {
+    const part = ks.slice(i, i + 500);
+    const rows = await conn.query(`SELECT "k0", "data" FROM "block_index" WHERE "k0" IN (${part.map(() => '?').join(', ')})`, part);
+    for (const row of rows) found.set(String(row.k0), decodeRowJson<Record<string, unknown>>(String(row.data)));
+  }
+  const blocks = [...found.values()];
+  const noteIds = [...new Set(blocks.map((b) => text(b.noteId)).filter((x): x is string => !!x))];
+  const paths = [...new Set(blocks.map((b) => text(b.sourcePath)).filter((x): x is string => !!x))];
+  const index = await fetchParentIndex(conn, noteIds, paths);
+  await upsertQueryBlocks(conn, blocks.map((b) => [b, resolveParentFrom(index, b)]));
+  await deleteIn(conn, 'query_block', 'occurrence_id', ks.filter((k) => !found.has(k)));
 }
 
 interface Impact {
@@ -301,6 +373,21 @@ export async function refreshDomain(
     notesClear: false, segmentsClear: false, blocksClear: false,
   };
   const results: (KeyDTO | null)[] = [];
+  // Consecutive puts on one store flush as chunked multi-row INSERTs; the
+  // flush also precedes any delete/clear so range deletes observe them.
+  let pending: { def: StoreDef; values: unknown[]; slots: ('notes' | 'segments' | 'blocks' | null)[] } | undefined;
+  const flushPuts = async (): Promise<void> => {
+    if (!pending) return;
+    const batch = pending;
+    pending = undefined;
+    if (batch.values.length === 0) return;
+    const keys = await putRows(conn, batch.def, batch.values);
+    keys.forEach((key, i) => {
+      const slot = batch.slots[i];
+      if (slot) impact[slot].push(key);
+      results.push(key);
+    });
+  };
   for (const op of ops) {
     if (op === null || typeof op !== 'object' || Array.isArray(op)) {
       throw new StorageError(400, 'tx op must be an object');
@@ -309,11 +396,11 @@ export async function refreshDomain(
     const def = storeDefinition(typeof store === 'string' ? store : String(store));
     const kind: unknown = typeof op.op === 'string' ? op.op : undefined; // runtime junk tolerated
     if (op.op === 'put') {
-      const key = await putRow(conn, def, op.value);
-      const slot = TRACKED[def.name];
-      if (slot) impact[slot].push(key);
-      results.push(key);
+      if (pending && pending.def.name !== def.name) await flushPuts();
+      (pending ??= { def, values: [], slots: [] }).values.push(op.value);
+      pending.slots.push(TRACKED[def.name] ?? null);
     } else if (op.op === 'delete') {
+      await flushPuts();
       const slot = TRACKED[def.name];
       if (slot) {
         // op.key types as KeyDTO on the wire, but deleteRows honours ranges too.
@@ -322,6 +409,7 @@ export async function refreshDomain(
       await deleteRows(conn, def, op.key as KeyDTO | RangeDTO);
       results.push(null);
     } else if (op.op === 'clear') {
+      await flushPuts();
       await clearRows(conn, def);
       if (def.name === 'notes') impact.notesClear = true;
       else if (def.name === 'segments') impact.segmentsClear = true;
@@ -331,6 +419,7 @@ export async function refreshDomain(
       throw new StorageError(400, `tx op must be put | delete | clear, got: ${String(kind)}`);
     }
   }
+  await flushPuts();
   if (!opts.deferProjection) await refresh(conn, impact);
   return results;
 }
@@ -345,9 +434,9 @@ async function refresh(conn: SqlConnection, impact: Impact): Promise<void> {
   }
   if (impact.segmentsClear) await conn.exec(`DELETE FROM "segment_head"`);
   if (impact.blocksClear) await conn.exec(`DELETE FROM "query_block"`);
-  for (const id of impact.notes) await refreshNote(conn, id);
-  for (const key of impact.segments) await refreshSegment(conn, key);
-  for (const id of impact.blocks) await refreshBlock(conn, id);
+  await refreshNotes(conn, impact.notes);
+  await refreshSegments(conn, impact.segments);
+  await refreshBlocks(conn, impact.blocks);
 }
 
 /**
@@ -361,7 +450,8 @@ export async function rebuildProjections(conn: SqlConnection): Promise<void> {
   );
   for (const t of TABLES) await conn.exec(`DELETE FROM "${t}"`);
   const notes = await conn.query(`SELECT "data" FROM "notes"`);
-  for (const row of notes) await upsertDomainNote(conn, decodeRowJson<Record<string, unknown>>(String(row.data)));
+  const noteObjs = notes.map((row) => decodeRowJson<Record<string, unknown>>(String(row.data)));
+  await upsertDomainNotes(conn, noteObjs);
   const segments = await conn.query(`SELECT "k0", "data" FROM "segments"`);
   const heads = new Map<string, { id: SqlValue; row: Record<string, unknown>; version: number }>();
   for (const row of segments) {
@@ -370,9 +460,13 @@ export async function rebuildProjections(conn: SqlConnection): Promise<void> {
     const prev = heads.get(String(row.k0));
     if (!prev || v > prev.version) heads.set(String(row.k0), { id: row.k0 as SqlValue, row: seg, version: v });
   }
-  for (const head of heads.values()) await upsertSegmentHead(conn, head.id, head.row);
+  await upsertSegmentHeads(conn, [...heads.values()].map((h) => [h.id, h.row]));
   const blocks = await conn.query(`SELECT "data" FROM "block_index"`);
-  for (const row of blocks) await upsertQueryBlock(conn, decodeRowJson<Record<string, unknown>>(String(row.data)));
+  const blockObjs = blocks.map((row) => decodeRowJson<Record<string, unknown>>(String(row.data)));
+  // domain_note was just rebuilt from exactly these notes — parent identity
+  // resolves in memory instead of one query per block.
+  const index = indexNoteIdentities(noteObjs);
+  await upsertQueryBlocks(conn, blockObjs.map((b) => [b, resolveParentFrom(index, b)]));
   await conn.exec(
     `INSERT INTO "${SCHEMA_TABLE}" ("key", "value") VALUES (?, ?) ON CONFLICT ("key") DO UPDATE SET "value" = excluded."value"`,
     [PROJECTION_GUARD_KEY, JSON.stringify({ version: DOMAIN_PROJECTION_VERSION })],

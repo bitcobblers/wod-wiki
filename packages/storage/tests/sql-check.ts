@@ -37,6 +37,69 @@ const attachment = (id: string, bytes: Uint8Array): Attachment => ({
   data: Uint8Array.from(bytes).buffer, timeSpan: { start: 1, end: 2 }, createdAt: 1,
 });
 
+const BULK = 250; // > 2× the 100-row insert chunk cap
+
+async function batching(): Promise<void> {
+  const dir = await mkdtemp(join(tmpdir(), 'wodwiki-sql3-'));
+  try {
+    const storage = new SqlStorage(libsqlDatabase(createClient({ url: 'file:' + join(dir, 'bulk.db') })));
+    await storage.ready();
+
+    // Bulk load crossing every chunk cap: notes, compound-key segments,
+    // blocks (parent resolution batched), and multi-entry event junctions.
+    await storage.bulkTransaction(['notes', 'segments', 'block_index', 'events'], async (tx) => {
+      for (let i = 0; i < BULK; i++) {
+        await tx.readwrite('notes').put(note(`n${i}`, `Bulk ${i}`, i));
+        await tx.readwrite('segments').put(segment(`s${i}`, 1, `seg ${i}`));
+        await tx.readwrite('segments').put(segment(`s${i}`, 2, `seg ${i} v2`));
+        await tx.readwrite('block_index').put({
+          id: `b${i}`, noteId: `n${i}`, segmentId: `s${i}`, segmentVersion: 2,
+          dataType: 'markdown', rawContent: `block ${i}`, noteTitle: `Bulk ${i}`, createdAt: i,
+        });
+        await tx.readwrite('events').put({
+          id: `e${i}`, metricDateKeys: [`2024-01-0${(i % 9) + 1}`], createdAt: i,
+        });
+      }
+    });
+    assert.equal(await storage.readonly('notes').count(), BULK);
+    assert.equal(await storage.readonly('segments').count(), BULK * 2);
+    assert.equal(await storage.readonly('block_index').count(), BULK);
+    // Multi-entry junction: one value fans out to several index entries.
+    assert.equal(await storage.readonly('events').countFromIndex('by-metric-date', '2024-01-01'), Math.ceil(BULK / 9));
+    // Projections resolved parents for every block — reads are not gated.
+    const q = await storage.queryDomain({ plan: 'notes', selection: [] });
+    assert.ok(q?.plan === 'notes' && q.rows.length === BULK, 'bulk projections must resolve all parents');
+
+    // Multi-entry re-put replaces the junction rows for that key only.
+    await storage.readwrite('events').put({ id: 'e0', metricDateKeys: ['2025-12-31'], createdAt: 0 });
+    assert.equal(await storage.readonly('events').countFromIndex('by-metric-date', '2025-12-31'), 1);
+    assert.equal(await storage.readonly('events').countFromIndex('by-metric-date', '2024-01-01'), Math.ceil(BULK / 9) - 1);
+
+    // Ordered mixed ops in one tx: put → range delete → put lands correctly.
+    await storage.transaction(['notes'], 'readwrite', async (tx) => {
+      await tx.readwrite('notes').put(note('x1', 'Temp One', 1));
+      await tx.readwrite('notes').delete({ lower: 'x1', upper: 'x1' });
+      await tx.readwrite('notes').put(note('x2', 'Temp Two', 2));
+    });
+    assert.equal(await storage.readonly('notes').get('x1'), undefined);
+    assert.equal((await storage.readonly('notes').get('x2'))?.title, 'Temp Two');
+
+    // A failing bulk tx rolls back every batched chunk.
+    await assert.rejects(
+      storage.transaction(['notes'], 'readwrite', async (tx) => {
+        for (let i = 0; i < BULK; i++) await tx.readwrite('notes').put(note(`r${i}`, 'Rollback', i));
+        throw new Error('boom');
+      }),
+      /boom/,
+    );
+    assert.equal(await storage.readonly('notes').get('r0'), undefined, 'batched writes must roll back atomically');
+    assert.equal(await storage.readonly('notes').count(), BULK + 1);
+    await storage.close();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 async function codecAndStores(storage: SqlStorage): Promise<void> {
   // Attachment bytes round-trip exactly through the SQL row codec.
   const bytes = new Uint8Array([0, 255, 1, 254, 0, 0, 128, 7]);
@@ -164,6 +227,7 @@ try {
   const storage = new SqlStorage(libsqlDatabase(createClient({ url: 'file:' + join(dir, 'check.db') })));
   await storage.ready();
   await codecAndStores(storage);
+  await batching();
   await transactions(storage);
   await projectionsAndStamping();
   await wqlProjections(storage);
