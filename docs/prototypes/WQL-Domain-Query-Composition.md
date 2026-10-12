@@ -30,7 +30,7 @@ The unified domain cleanly separates placement, authored containers, structural 
    ▲ (N:M via `page_notes`)
    │
 [Note] (canonical authored document)
-   ├── [NoteSegment] (versioned markdown / raw source)
+   ├── [BlockRevision] (immutable saved actionable-block states)
    ├── [BlockIndexRow] (searchable parsed blocks: wod, headings)
    │      │
    │      ▲ (N:M via `block_efforts`)

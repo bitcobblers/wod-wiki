@@ -2,7 +2,7 @@
 
 - **Route:** `/c/:slug/:page-slug` (legacy `/workout/:cat/:name`, `/collections/:slug/:name`)
 - **Host Component:** `apps/playground/app/pages/WorkoutEditorPage.tsx`
-- **Domain Models:** `Collection`, `Note`, `NoteSegment`, `Page`
+- **Domain Models:** `Collection`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`
 
 ---
 

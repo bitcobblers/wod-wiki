@@ -221,7 +221,11 @@ export class IndexedDBNotePersistence implements INotePersistence {
       const session: Session = { ...previous, startTime: data.startTime, endTime: data.endTime,
         duration: data.duration ?? 0, roundsCompleted: data.roundsCompleted, totalRounds: data.totalRounds,
         repsCompleted: data.repsCompleted, completed: data.completed,
-        status: data.completed === false ? 'in-progress' : 'completed', createdAt: createdAt ?? previous.createdAt };
+        // finishSession is the lifecycle finalize: the row is final whether
+        // the workout completed or the user stopped early. `completed:false`
+        // already records the partial outcome; leaving status 'in-progress'
+        // would claim a resumable session that no caller resumes.
+        status: 'completed', createdAt: createdAt ?? previous.createdAt };
       await scoped.saveSession(session);
       if (data.logs?.length) {
         const identity = { noteId: session.noteId, resultId: session.id, blockId: session.blockId,

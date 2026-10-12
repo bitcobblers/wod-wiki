@@ -61,7 +61,7 @@ Derived, not configured: IDs/display names come from slugs (`crossfit-girls` →
 | Store            | `page` table                                       | `notes` table                                  | none — derived at read               |
 | Role             | Grouping / addressing                              | Content container                              | Grouping of bundled static content   |
 | Identity         | `id`; addressed by unique `date` or `slug`         | `id` UUID; routed by `slug`                    | directory name                       |
-| Holds            | Membership only — no content                       | Content in [[NoteSegment]] versions            | Items = seed markdown files          |
+| Holds            | Membership only — no content                       | Authored source + occurrence map; saved block states in [[BlockRevision]] | Items = seed markdown files          |
 | Flavors          | Calendar (`date`) / custom (`slug`)                | `note` / `template` / `playground` / `journal` | collections / feeds                  |
 | Membership       | Notes point in via `pageId`                        | Belongs to ≤ 1 page                            | File location decides                |
 | `pageId` fan-out | Copied onto segments, results, attachments, events | Source of the copied value                     | n/a                                  |
@@ -82,7 +82,7 @@ Do not replace Catalog/Library terminology or rename its existing routes in this
 Owner: [Decide collection-page membership: WQL segment vs pageId](https://github.com/SergeiGolos/wod-wiki/issues/1031).
 
 - **Live query, stored membership or hybrid?** Recommended answer: live query-derived display. `Note.pageId` remains owned placement, especially journal dates; it does not record all queries that happen to include a note. No membership backfill or second writable list is needed.
-- **Where do non-query segments live?** Recommended answer: ordinary prose/headings/metadata in the configuration note's [[NoteSegment]] content. Do not add `Page.body`, duplicate category fields, or copy every member's source into the page.
+- **Where do non-query segments live?** Recommended answer: ordinary prose/headings/metadata in the configuration note's `rawContent`. Do not add `Page.body`, duplicate category fields, or copy every member's source into the page.
 - **How do feeds fit?** Recommended answer: the same composition with explicit date selection, grouping and ordering. Preserve source/post dates; do not treat a seed-build timestamp as the publication date or rewrite source dates to the journal day.
 - **What WQL behavior is needed?** Use existing `find:note` filters for type/text/content/source/catalog/tags where supported. Require a navigable result preview, empty/error states and deterministic order. Decide exact ordering/limit/date requirements before declaring a grammar extension; this draft does not invent unsupported query syntax.
 - **Does this replace the corpus builder or `catalog`?** No. Retain current source loading, Library filters and deep links; add query-composed presentation without requiring a Page-store roll-up. The earlier mandatory `kind: collection`/`by-page` migration is not the recommendation.

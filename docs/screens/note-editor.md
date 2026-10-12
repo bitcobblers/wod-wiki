@@ -2,7 +2,7 @@
 
 - **Route:** `/notes/:noteId`
 - **Host Component:** `apps/playground/app/pages/NoteByIdPage.tsx`
-- **Domain Models:** `Note`, `NoteSegment`, `Page`, `Tag`, `Attachment`
+- **Domain Models:** `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `Tag`, `Attachment`
 
 ---
 

@@ -143,7 +143,7 @@ const tags = extractTypedFrontmatterTags(rawContent, KNOWN_TAG_TYPES);
 - Keys matching known types (`domain: crossfit`) yield `{ label: 'crossfit', type: 'domain' }`.
 - `tags:` values yield `{ label: 'name' }` (untyped general tag).
 - Duplicate labels resolve in favor of the typed record.
-- Frontmatter in `NoteSegment.rawContent` is stored byte-identically with no synthetic re-serialization.
+- Frontmatter lives in `Note.rawContent`, stored byte-identically with no synthetic re-serialization.
 
 ---
 

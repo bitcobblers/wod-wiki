@@ -2,7 +2,7 @@
 
 - **Route:** `/sessions` (legacy `/results`)
 - **Host Component:** `apps/playground/app/views/stream/QueriableStreamView.tsx` (`SESSIONS_STREAM_PROFILE`)
-- **Domain Models:** `Session`, `EventRecord`, `Note`, `NoteSegment`
+- **Domain Models:** `Session`, `EventRecord`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`)
 
 ---
 

@@ -1,7 +1,7 @@
 'use client'
 
 import * as Headless from '@headlessui/react'
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { CalendarPlus, SlidersHorizontal } from 'lucide-react'
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine'
@@ -189,9 +189,22 @@ export function SidebarLayout({
   // CSS), so its rendered output is the source of truth for the trigger.
   const railContentRef = useRef<HTMLDivElement>(null)
   const [railHasContent, setRailHasContent] = useState(false)
-  useLayoutEffect(() => {
-    setRailHasContent((railContentRef.current?.childElementCount ?? 0) > 0)
-  }, [secondary, pageAction])
+  useEffect(() => {
+    const el = railContentRef.current
+    if (!el) return
+    // Event-driven, not commit-coupled: a layout effect keyed on the
+    // secondary/pageAction props re-runs whenever a parent re-creates them,
+    // and any state feedback loop there crashes the tree (maximum update
+    // depth). Only real DOM content changes update the flag.
+    const update = () => setRailHasContent((prev) => {
+      const next = el.childElementCount > 0
+      return prev === next ? prev : next
+    })
+    const observer = new MutationObserver(update)
+    observer.observe(el, { childList: true, subtree: true })
+    update()
+    return () => observer.disconnect()
+  }, [])
 
   // Mobile hides the facet columns behind the right drawer, so the applied
   // where-filters get no visible state — mirror them as a dot on the trigger.
@@ -320,9 +333,17 @@ function MobileQueryFooter() {
   useEffect(() => {
     const el = barRef.current
     if (!el) return
-    const observer = new ResizeObserver(() => setLift(el.offsetHeight))
-    observer.observe(el)
-    setLift(el.offsetHeight)
+    // Measure the content-box of the fixed inner wrapper: the bar's own
+    // border-box height includes the padding we apply when lift>0, and portal
+    // content can size itself off --thumb-dock-lift — either feedback loops
+    // into maximum-update-depth crashes (observed on collection routes).
+    const observer = new ResizeObserver((entries) => {
+      const h = Math.round(entries[0]?.contentRect.height ?? 0)
+      setLift((prev) => (prev === h ? prev : h))
+    })
+    observer.observe(el, { box: 'content-box' })
+    const initial = Math.round(el.getBoundingClientRect().height)
+    setLift((prev) => (prev === initial ? prev : initial))
     return () => observer.disconnect()
   }, [])
 
@@ -334,13 +355,14 @@ function MobileQueryFooter() {
   return (
     <>
       <div
-        ref={barRef}
         className={cn(
           'lg:hidden fixed inset-x-0 bottom-0 z-30',
           lift > 0 && 'bg-card border-t border-border/50 px-3 py-2',
         )}
       >
-        <MobileQuerySlotTarget className="flex w-full min-w-0" />
+        <div ref={barRef} className="w-full min-w-0">
+          <MobileQuerySlotTarget className="flex w-full min-w-0" />
+        </div>
       </div>
       <div className="lg:hidden" aria-hidden="true" style={{ height: lift }} />
     </>

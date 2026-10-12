@@ -101,8 +101,17 @@ export function deriveWorkoutFromLogs(
       derived.push(stored);
       continue;
     }
-    const enriched = engine.run(toLiveOutputStatement(stripAnalyzedMetrics(stored)));
-    derived.push(toStoredOutputStatement(enriched));
+    // Strip Tier-1 annotations so processors can't double-apply, then restore
+    // any analyzed metric the engine did NOT regenerate (e.g. externally
+    // captured analyzed SessionRPE) — purge-and-replay must not lose facts
+    // no processor can recompute.
+    const stripped = stripAnalyzedMetrics(stored);
+    const enriched = engine.run(toLiveOutputStatement(stripped));
+    const preserved = stored.metrics.filter(m =>
+      m.origin === 'analyzed' && !enriched.metrics.some(e => e.origin === 'analyzed' && e.type === m.type));
+    derived.push(toStoredOutputStatement(preserved.length
+      ? new OutputStatement({ ...enriched, metrics: [...enriched.metrics, ...preserved] })
+      : enriched));
   }
 
   return [...derived, ...engine.finalize().map(toStoredOutputStatement)];

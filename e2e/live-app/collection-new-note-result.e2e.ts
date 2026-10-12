@@ -16,7 +16,7 @@
 
 import { test, expect } from '@playwright/test';
 import { deleteNoteByRouteId, getNoteContentByRouteId, seedJournalNote, seedCompletedSessions, clearResults, getResults } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForSeedReady, syncCommunitySeed } from '../helpers/seedReadiness';
 
 // ── The collection workout used for dogfooding ─────────────────────────────
 // Any collection with a playable WOD block will do. Crossfit Girls / Fran is
@@ -33,6 +33,8 @@ function todayKey(): string {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 test.describe('Collection → New Journal Note → Result Persistence', () => {
+  // First community import into a fresh profile exceeds the default 45s.
+  test.setTimeout(180_000);
   const errors: string[] = [];
 
   test.beforeEach(async ({ page }) => {
@@ -46,6 +48,10 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
     // broken environment as green.
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 });
     await waitForSeedReady(page);
+    // /c/… and /workout/… read the community corpus (autoImport:false); sync
+    // it through the real Settings surface once per context instead of
+    // depending on leftover browser state.
+    await syncCommunitySeed(page);
   });
 
   test.afterEach(async ({ page }, testInfo) => {
@@ -105,7 +111,7 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
       .toEqual(expect.any(String));
     const content = await getNoteContentByRouteId(page, playgroundKey);
     expect(content, 'Journal note should be created in wodwiki-db').toEqual(expect.any(String));
-    expect(content, 'Journal note should contain the workout name').toContain('fran');
+    expect(content, 'Journal note should contain the workout name').toMatch(/fran/i);
 
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 5_000 });
 

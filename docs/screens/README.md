@@ -9,7 +9,7 @@ Crosswalk mapping domain models (`docs/domain-model/`) to application screens (`
 | Domain Model | Primary Store / Source | Screens Loaded To | How Loaded (Adapter / Hook / Service) | Mutation / Persistence Path |
 |---|---|---|---|---|
 | **Note** | `notes` (IndexedDB `wodwiki-db`) | `/notes/:noteId`<br>`/journal/:date`<br>`/journal`<br>`/playgrounds`<br>`/playground/:noteId`<br>`/c/:slug/:page-slug`<br>`/d/:slug` | `IndexedDBContentProvider.getEntry(id)`<br>`usePlaygroundContent(category, name)`<br>`queryService.execute("find:note ...")`<br>`useDashboardSource(slug)` | `IndexedDBContentProvider.updateEntry()`<br>`journalNotes.update()`<br>`notePersistence` (transaction-guarded) |
-| **NoteSegment** | `segments` (IndexedDB `wodwiki-db`) | `/notes/:noteId`<br>`/journal/:date`<br>`/playground/:noteId`<br>`/c/:slug/:page-slug` | Loaded with parent `Note` via `IndexedDBContentProvider` or parsed on the fly from markdown via `NoteEditor` | Segment version bumped on save via `notePersistence`; execution pins `segmentId` + `segmentVersion` |
+| **BlockRevision** | `block_revisions` (IndexedDB `wodwiki-db`) | `/notes/:noteId`<br>`/journal/:date`<br>`/playground/:noteId`<br>`/c/:slug/:page-slug` | Loaded with parent `Note` via `IndexedDBContentProvider` or parsed on the fly from markdown via `NoteEditor` | Saved block versions append via `notePersistence`; execution pins `blockId` + `blockVersion` |
 | **Page** | `page` (IndexedDB `wodwiki-db`) | `/journal/:date`<br>`/journal`<br>`/c/:slug/:date`<br>`/p/:slug` | `IndexedDBContentProvider.getEntries()` (filtered by date/slug)<br>`queryService` joins on `note.pageId`<br>`useCanvasRoutes()` | Created on journal date note creation or custom page publish |
 | **Collection** | Derived: `markdown/collections/` | `/collections`<br>`/c/:slug`<br>`/c/:slug/:date`<br>`/c/:slug/:page-slug` | `useSeedContent()` + `buildScriptCollections(files)`<br>`queryService` query over catalog notes | Read-only seed corpus; user edits write local scratch `Note` rows with `catalog` / `sourceId` |
 | **Effort** (`IEffort`) | `efforts` (IndexedDB `wodwiki-db`) | `/efforts`<br>`/e/:slug`<br>Autocompleter (all editors)<br>`/dashboards` | `useEffortRegistry()`<br>`useEffortContent(slug)`<br>`queryService.execute("find:effort")` | `registry.saveEffort(effort)` writes directly to `efforts` store |
@@ -59,10 +59,10 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
   - **Main Surface:** `NoteEditor` (CodeMirror instance wrapped in `WorkbenchSessionProvider`) rendering prose, runnable blocks, and embedded widgets.
   - **Action Rail:** "Run", "Add to Today", "Share" block buttons.
 - **Data Sources:**
-  - *Primary:* `IndexedDBContentProvider.getEntry(noteId)` loads `Note` with reconstructed `NoteSegment`s.
+  - *Primary:* `IndexedDBContentProvider.getEntry(noteId)` loads `Note` with reconstructed `Note` source rows (with occurrence maps).
   - *Secondary / Sync:* `WorkbenchSessionProvider` + `notePersistence` auto-saves edits to `notes` & `segments`.
   - *Execution:* Staged to `pendingRuntimes` store on Run click.
-- **Models Involved:** Reads `Note`, `NoteSegment`, `Page`, `Tag`. Writes `Note`, `NoteSegment`, `NoteTag`.
+- **Models Involved:** Reads `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `Tag`. Writes `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `NoteTag`.
 
 ---
 
@@ -76,7 +76,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
   - *Primary:* `IndexedDBContentProvider.getEntries()` filtered by journal calendar date.
   - *Secondary:* `journalNotes.update(noteId, content)` persists inline note changes.
   - *Execution:* `pendingRuntimes` launches inline run; workout completion logs to `sessions` and `events`.
-- **Models Involved:** Reads `Page` (by date), `Note`s, `NoteSegment`s. Writes `Note`, `NoteSegment`, `Session`, `EventRecord`.
+- **Models Involved:** Reads `Page` (by date), `Note`s, `Note` source rows (with occurrence maps). Writes `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Session`, `EventRecord`.
 
 ---
 
@@ -89,7 +89,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
 - **Data Sources:**
   - *Primary:* `queryService.execute(wql)` scans `notes`, `blockIndex`, and `page` stores.
   - *Configuration:* `routeWqlConfig` from `localStorage` / `meta` store sets landing query defaults.
-- **Models Involved:** Reads `Note`, `NoteSegment`, `Page`, `Tag`, `BlockIndexRow`.
+- **Models Involved:** Reads `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `Tag`, `BlockIndexRow`.
 
 ---
 
@@ -137,7 +137,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
 - **Data Sources:**
   - *Primary:* `usePlaygroundContent({ category, name, mdContent })` loading seed content or local scratchpad `Note`.
   - *Planning Actions:* `createJournalNoteFromWorkout` creates a new `Note` attached to today's `Page`.
-- **Models Involved:** Reads `Collection` item, `Note`, `NoteSegment`. Writes new `Note` and `Page` associations.
+- **Models Involved:** Reads `Collection` item, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`). Writes new `Note` and `Page` associations.
 
 ---
 
@@ -148,7 +148,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
   - **Card Feed:** Chronological cards of user scratchpad notes with snippet previews and delete/open actions.
 - **Data Sources:**
   - *Primary:* `queryService.execute(wql)` querying `notes` where `type = 'playground'`.
-- **Models Involved:** Reads `Note`, `NoteSegment`.
+- **Models Involved:** Reads `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`).
 
 ---
 
@@ -161,7 +161,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
 - **Data Sources:**
   - *Primary:* `usePlaygroundContent({ category: 'playground', name })` reading/writing `notes` store.
   - *Preferences:* `useOnboardingEvents`, `useFirstNoteWizardState` (`localStorage`).
-- **Models Involved:** Reads `Note`, `NoteSegment`, `Effort` (pinned). Writes `Note`, `NoteSegment`, `Configuration`.
+- **Models Involved:** Reads `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Effort` (pinned). Writes `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Configuration`.
 
 ---
 
@@ -197,7 +197,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
   - **Feed Stream:** Finished session cards displaying workout duration, rounds/reps completed, timestamp, and source note link.
 - **Data Sources:**
   - *Primary:* `queryService.execute("find:session")` scanning `sessions` store joined with `events`.
-- **Models Involved:** Reads `Session`, `EventRecord`, `Note`, `NoteSegment`.
+- **Models Involved:** Reads `Session`, `EventRecord`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`).
 
 ---
 
@@ -211,7 +211,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
   - *Primary:* `indexedDBService.getSession(sessionId)` from `sessions` store.
   - *Event Stream:* `indexedDBService.getEventsByResult(sessionId)` from `events` store.
   - *Source Context:* `IndexedDBContentProvider.getEntry(session.noteId)` from `notes` store.
-- **Models Involved:** Reads `Session`, `EventRecord`, `Note`, `NoteSegment`, `BlockIndexRow`.
+- **Models Involved:** Reads `Session`, `EventRecord`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `BlockIndexRow`.
 
 ---
 
@@ -249,7 +249,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
 - **Data Sources:**
   - *Primary:* `useSeedContent()` (canvas page markdown files) or composed user `Page` + `Note`.
   - *Challenges:* `useCanvasRuntime()` tracking quest completion.
-- **Models Involved:** Reads `Page`, `Note`, `NoteSegment`. Writes ephemeral session state.
+- **Models Involved:** Reads `Page`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`). Writes ephemeral session state.
 
 ---
 
@@ -261,7 +261,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
 - **Data Sources:**
   - *Input:* `pendingRuntimes.get(runtimeId)` in-memory payload containing compiled `ScriptBlock`, `noteId`, and `returnTo` path.
   - *Output:* `playgroundRecorder.record()` writes completed execution row to `sessions` and statement output stream to `events`.
-- **Models Involved:** Reads `Note`, `NoteSegment`. Writes `Session`, `EventRecord`.
+- **Models Involved:** Reads `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`). Writes `Session`, `EventRecord`.
 
 ---
 
@@ -273,4 +273,4 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
 - **Data Sources:**
   - *Settings:* `localStorage` and `meta` store (`Configuration`).
   - *Intake Processor:* `useJournalZipProcessor` batch-writing parsed archives into IndexedDB.
-- **Models Involved:** Reads/Writes `Configuration`. Bulk writes `Note`, `NoteSegment`, `Page`, `BlockIndexRow`.
+- **Models Involved:** Reads/Writes `Configuration`. Bulk writes `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `BlockIndexRow`.

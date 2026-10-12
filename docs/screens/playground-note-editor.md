@@ -2,7 +2,7 @@
 
 - **Route:** `/playground/:noteId`, `/playground`
 - **Host Component:** `apps/playground/app/pages/PlaygroundNotePage.tsx`
-- **Domain Models:** `Note`, `NoteSegment`, `Effort`, `Configuration`
+- **Domain Models:** `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Effort`, `Configuration`
 
 ---
 

@@ -160,10 +160,9 @@ describe('Journal Notes', () => {
 
     const firstUpdate = journalNotes.update(note, '# Fran mid-typing document');
     const secondUpdate = journalNotes.update(note, '# Fran mid-typing document + typed tail');
-    const stale = expect(secondUpdate).rejects.toThrow('stale source');
     releaseFirst();
     await firstUpdate;
-    await stale;
+    await expect(secondUpdate).rejects.toThrow('stale source');
     const latest = await persistence.getNote(note.id);
     const second = await journalNotes.update(latest, '# Fran mid-typing document + typed tail');
     expect(second.rawContent).toContain('+ typed tail');

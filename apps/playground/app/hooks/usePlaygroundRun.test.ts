@@ -167,7 +167,8 @@ describe('usePlaygroundRun — start', () => {
   });
 
   it('keeps the run current after finalize (scope views off run.noteId)', async () => {
-    const { result } = renderHook(() => usePlaygroundRun({ intake: new StubIntake() }));
+    const intake = new StubIntake();
+    const { result } = renderHook(() => usePlaygroundRun({ intake }));
 
     const identity = await startRun(result);
     await act(async () => {
@@ -192,7 +193,8 @@ describe('usePlaygroundRun — start', () => {
 describe('usePlaygroundRun — finalize', () => {
   it('records exactly once against the captured note and block', async () => {
     const recorder = new StubRecorder();
-    const { result } = renderHook(() => usePlaygroundRun({ intake: new StubIntake(), recorder }));
+    const intake = new StubIntake();
+    const { result } = renderHook(() => usePlaygroundRun({ intake, recorder }));
     const identity = await startRun(result);
     const results = makeResults();
 

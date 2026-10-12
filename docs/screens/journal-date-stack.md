@@ -2,7 +2,7 @@
 
 - **Route:** `/journal/:date`
 - **Host Component:** `apps/playground/app/pages/JournalDatePage.tsx`
-- **Domain Models:** `Page`, `Note`, `NoteSegment`, `Session`, `EventRecord`, `Tag`
+- **Domain Models:** `Page`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Session`, `EventRecord`, `Tag`
 
 ---
 
@@ -53,7 +53,7 @@
 
 - **Multi-Note Boundary Isolation:**
   - Each note in the stack retains independent CodeMirror instances.
-  - Edits in one note commit strictly to that note's `noteId` and versioned `NoteSegment` rows.
+  - Edits in one note commit strictly to that note's `noteId` and versioned `Note` source (rawContent + occurrence map; saved states in `BlockRevision`) rows.
   - Text slicing across note boundaries is prohibited.
 - **Auto-Start Handlers:**
   - Deep links containing `?autoStart=<runtimeId>` extract the pending block and mount `FullscreenTimer` overlay immediately.

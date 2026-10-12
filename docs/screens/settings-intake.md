@@ -2,7 +2,7 @@
 
 - **Route:** `/settings/*`, `/load`, `/load/journal`
 - **Host Component:** `apps/playground/app/pages/SettingsPage.tsx`, `JournalZipLoadPage.tsx`, `LoadZipPage.tsx`
-- **Domain Models:** `Configuration`, `Note`, `NoteSegment`, `Page`, `BlockIndexRow`
+- **Domain Models:** `Configuration`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `BlockIndexRow`
 
 ---
 

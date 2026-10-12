@@ -160,7 +160,7 @@ export class IndexedDBContentProvider implements IContentProvider {
                     origin: patch.origin ?? previous?.origin, startTime: data.startTime, endTime: data.endTime,
                     duration: data.duration ?? 0, completed: data.completed,
                     roundsCompleted: data.roundsCompleted, totalRounds: data.totalRounds, repsCompleted: data.repsCompleted,
-                    status: data.completed === false ? 'in-progress' : 'completed', createdAt: previous?.createdAt ?? data.endTime ?? Date.now() };
+                    status: 'completed', createdAt: previous?.createdAt ?? data.endTime ?? Date.now() };
                 await scoped.saveSession(session);
                 if (data.logs?.length) {
                     const identity = { noteId: session.noteId, resultId: session.id, blockId: session.blockId,

@@ -2,7 +2,7 @@
 
 - **Route:** `/playgrounds`
 - **Host Component:** `apps/playground/app/views/stream/QueriableStreamView.tsx` (`PLAYGROUNDS_STREAM_PROFILE`)
-- **Domain Models:** `Note`, `NoteSegment`
+- **Domain Models:** `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`)
 
 ---
 

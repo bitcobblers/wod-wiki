@@ -98,7 +98,8 @@ export function defaultSeedSources(): SeedSourceSpec[] {
       // Published by wod-wiki-community's main pipeline to its repo Pages;
       // embeddedVersion stays 0 (never bundled) so every sync consults the
       // remote manifest — GitHub Pages sends no build-stamp compatibility.
-      source: new HttpSeedSource('https://bitcobblers.github.io/wod-wiki-community/'),
+      // VITE_COMMUNITY_SEED_URL overrides the host for local/staging e2e.
+      source: new HttpSeedSource(import.meta.env.VITE_COMMUNITY_SEED_URL ?? 'https://bitcobblers.github.io/wod-wiki-community/'),
       embeddedVersion: 0,
       autoImport: false,
     },
