@@ -11,7 +11,7 @@ import type {
   EventRecord,
   Membership,
   Note,
-  NoteSegment,
+  BlockRevision,
   NoteTag,
   Page,
   PageNote,
@@ -35,7 +35,7 @@ export interface StorageSchema {
   tags: Tag;
   tag_types: TagTypeRecord;
   note_tags: NoteTag;
-  segments: NoteSegment;
+  block_revisions: BlockRevision;
   sessions: Session;
   attachments: Attachment;
   events: EventRecord;
@@ -55,14 +55,17 @@ export type StoreType<K extends StoreName> = StorageSchema[K];
 
 export interface IReadOnlyStore<T> {
   get(key: IDBValidKey): Promise<T | undefined>;
+  getMany(keys: IDBValidKey[]): Promise<(T | undefined)[]>;
   getAll(query?: IDBValidKey | IDBKeyRange, count?: number): Promise<T[]>;
   getAllFromIndex(indexName: string, query?: IDBValidKey | IDBKeyRange, count?: number): Promise<T[]>;
+  getAllFromIndexMany(indexName: string, keys: IDBValidKey[]): Promise<T[][]>;
   count(query?: IDBValidKey | IDBKeyRange): Promise<number>;
   countFromIndex(indexName: string, query?: IDBValidKey | IDBKeyRange): Promise<number>;
 }
 
 export interface IReadWriteStore<T> extends IReadOnlyStore<T> {
   put(value: T, key?: IDBValidKey): Promise<IDBValidKey>;
+  putMany(values: T[], keys?: IDBValidKey[]): Promise<IDBValidKey[]>;
   delete(key: IDBValidKey | IDBKeyRange): Promise<void>;
   clear(): Promise<void>;
 }

@@ -1,10 +1,4 @@
-/**
- * Content-stable identity for a workout block.
- *
- * A 32-bit FNV-1a hash of the trimmed fenced content, formatted as `bc-<8 hex>`.
- * Survives clone / reorder / edit-above so results and facts keyed by it stay
- * linked across runs.
- */
+/** Cross-note fingerprint of the trimmed, unfenced workout body. Never an occurrence ID. */
 export function blockContentId(content: string): string {
   const normalized = content.trim();
   let hash = 0x811c9dc5;

@@ -6,7 +6,7 @@
  *  - The snapshot is taken inside ONE source readonly transaction across every
  *    STORE_DEFS store; every getAll() is issued in the same task (Promise.all,
  *    no interleaved awaits) so the IndexedDB transaction cannot auto-commit
- *    mid-snapshot. Segments (all revisions), attachments (binary buffers),
+ *    mid-snapshot. Whole Notes, immutable block revisions, attachments (binary buffers),
  *    meta (incl. `seed:*` checkpoints), memberships and derived indexes are a
  *    consistent point-in-time image, copied verbatim — ownership (`userId`)
  *    and seed stamps preserved; the destination is constructed WITHOUT a
@@ -109,11 +109,7 @@ function readLocalMembership(): Membership | undefined {
 }
 
 async function copyStore<K extends StoreName>(tx: IStorageTransaction, name: K, rows: unknown[]): Promise<void> {
-  const readwrite = tx.readwrite(name);
-  for (const row of rows) {
-    const typed = row as StoreType<K>; // snapshot rows came from this same store's getAll — shape holds by construction
-    await readwrite.put(typed);
-  }
+  await tx.readwrite(name).putMany(rows as StoreType<K>[]);
 }
 
 

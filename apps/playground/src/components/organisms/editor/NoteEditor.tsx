@@ -44,6 +44,11 @@ import { smartIncrement } from '@bitcobblers/wod-wiki-ui/extensions';
 
 // Note editor extensions
 import { sectionField, SectionState, activeCursorSection, type EditorSection } from '@bitcobblers/wod-wiki-ui/extensions';
+import { sectionIdentity, sectionIdentityHistory, registeredSectionWidgets, sectionSaved, sectionRestore } from '@bitcobblers/wod-wiki-ui/extensions';
+import type { NoteBlock } from '@/types/storage';
+import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+import { captureRun, type CapturedRun } from '@/services/runCapture';
+import { createResultRecorder } from '@/services/resultRecorder';
 import { sessionQueryInsert } from '@bitcobblers/wod-wiki-ui/extensions';
 import { previewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
 import { embedPreviewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
@@ -96,6 +101,11 @@ import { buildHomeShareUrl, buildPlaygroundUrl } from "@/components/atoms/Whiteb
 export interface NoteEditorProps {
   /** Note ID for result lookup */
   noteId?: string;
+  noteBlocks?: Record<string, NoteBlock>;
+  sourceRevision?: number;
+  onIdentityChange?: (snapshot: EditorIdentitySnapshot) => void;
+  onSaved?: (snapshot: EditorIdentitySnapshot) => void;
+  beforeRun?: () => Promise<number | void>;
   /** Document content */
   value: string;
   /** Called on every document change */
@@ -179,9 +189,20 @@ export interface NoteEditorProps {
   /** External active section ID supplied by a parent scroll observer */
   activeSectionId?: string | null;
 }
+export interface EditorIdentitySnapshot {
+  rawContent: string;
+  blocks: Record<string, NoteBlock>;
+  sourceRevision: number;
+}
+
 
 export const NoteEditor: React.FC<NoteEditorProps> = ({
   noteId,
+  noteBlocks,
+  sourceRevision = 0,
+  onIdentityChange,
+  onSaved,
+  beforeRun,
   value,
   onChange,
   onDocUpdate,
@@ -306,11 +327,42 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   // Whether the fullscreen timer should auto-start on mount
   const [autoStartFullscreen, setAutoStartFullscreen] = useState(false);
 
-  // Toggle the full-screen timer for the given workout block (Run button).
-  const handleRun = useCallback((block: ScriptBlock, autoStart = false) => {
-    setAutoStartFullscreen(autoStart);
-    setFullscreenTimerBlock(block);
-  }, []);
+  const capturedRunRef = useRef<CapturedRun | null>(null);
+  const startingRunRef = useRef(false);
+  const savedRevisionRef = useRef(sourceRevision ?? 0);
+  useEffect(() => { savedRevisionRef.current = sourceRevision ?? 0; }, [sourceRevision]);
+  const [runError, setRunError] = useState<string | null>(null);
+  const finishedRunRef = useRef<string | null>(null);
+  const handleRun = useCallback(async (block: ScriptBlock, autoStart = false) => {
+    const view = viewRef.current;
+    if (!view || startingRunRef.current) return;
+    startingRunRef.current = true;
+    setRunError(null);
+    try {
+      const committedRevision = await beforeRun?.();
+      if (typeof committedRevision === 'number') savedRevisionRef.current = committedRevision;
+      const identity = view.state.field(sectionField);
+      const runNoteId = noteId ?? uuidv7();
+      const captured = await captureRun({
+        noteId: runNoteId,
+        rawContent: identity.rawContent,
+        blocks: identity.noteBlocks,
+        expectedSourceRevision: savedRevisionRef.current,
+        ...(!noteId ? { metadata: { title: 'Playground workout' }, noteType: 'playground' as const } : {}),
+      }, block, uuidv7(), noteId ? undefined : 'playground', notePersistence);
+      capturedRunRef.current = captured;
+      finishedRunRef.current = null;
+      savedRevisionRef.current = captured.note.sourceRevision;
+      view.dispatch({ effects: sectionSaved.of({ blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision }) });
+      onSaved?.({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
+      setAutoStartFullscreen(autoStart);
+      setFullscreenTimerBlock(captured.block);
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : String(error));
+    } finally {
+      startingRunRef.current = false;
+    }
+  }, [noteId, notePersistence, onSaved, beforeRun]);
 
   // Close the full-screen timer.
   const handleTimerClose = useCallback(() => {
@@ -325,37 +377,26 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   }, [enableInlineRuntime, handleRun]);
 
-  // The overlay re-reports the SAME results object when the host's save
-  // fails and offers a same-report Retry. Memoize the generated id until the
-  // save settles so a retry neither mints a new id nor stacks a second
-  // query:table; a settled save releases the memo for the next run.
+  // Keep the report until both the pinned completion and host save succeed.
   const lastReportRef = useRef<{
     results: ScriptBlock["results"];
     resultId: string;
     runBlock?: Pick<ScriptBlock, "id" | "contentId">;
   } | null>(null);
 
-  // Intercept workout completion: insert a ```query:table block carrying the
-  // session-scoped rows query directly after the workout block (#944 — the
-  // query block replaces the old wodResultsField optimistic write; result data
-  // still persists via the parent's onCompleteWorkout). Placement is resolved
-  // live from sectionField (content-identity section lookup at insert time),
-  // so it survives edits above the block; inserting at exactly section.to
-  // stacks re-runs newest-first between the workout block and prior tables.
+  // Position the result table by occurrence ID, never by matching workout text.
   const handleCompleteWorkout = useCallback(
     (blockId: string, results: ScriptBlock["results"]) => {
       const pending = lastReportRef.current;
       const isRetry = pending !== null && pending.results === results;
-      const resultId = isRetry ? pending.resultId : uuidv7();
-      let runBlock = isRetry ? pending.runBlock : undefined;
+      const capture = capturedRunRef.current;
+      if (!capture || !results) return Promise.reject(new Error('The saved run pin is unavailable.'));
+      const resultId = capture.session.id;
+      if (finishedRunRef.current === resultId) return Promise.resolve();
+      const runBlock = { id: capture.block.id, contentId: capture.session.blockContentId };
       if (!isRetry && results && viewRef.current) {
         const view = viewRef.current;
-        // Resolve the completed block's identity live from the editor state —
-        // the same section lookup the insert uses — so persistence records the
-        // result against the exact block that ran (contentId survives moves).
-        const section = view.state.field(sectionField).sections.find((s) => s.id === blockId);
-        if (section) runBlock = { id: section.id, contentId: section.contentId };
-        const insert = sessionQueryInsert(view.state, blockId, resultId, runBlock);
+        const insert = sessionQueryInsert(view.state, blockId, resultId);
         if (insert) {
           // #945: the inserted table IS the results moment — reveal it inline,
           // no overlay. Positions in scroll effects refer to the post-change doc.
@@ -371,19 +412,20 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       if (!isRetry) lastReportRef.current = { results, resultId, runBlock };
       let save: void | Promise<unknown>;
       try {
-        save = onCompleteWorkout?.(blockId, results, resultId, runBlock);
+        save = createResultRecorder(notePersistence).record({ resultId, noteId: capture.session.noteId, blockId: capture.session.blockId, data: results, createdAt: results.endTime }).then(() => onCompleteWorkout?.(blockId, results, resultId, runBlock));
       } catch (err) {
         return Promise.reject(err instanceof Error ? err : new Error(String(err)));
       }
       void Promise.resolve(save).then(
         () => {
           if (lastReportRef.current?.results === results) lastReportRef.current = null;
+          finishedRunRef.current = resultId;
         },
         () => {}, // failure keeps the memo — the retry must reuse id + insert
       );
       return save;
     },
-    [onChange, onCompleteWorkout],
+    [onChange, onCompleteWorkout, notePersistence],
   );
 
   // Fetch workout results for all workout (time/log) sections and push them into the editor
@@ -539,6 +581,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
       // Section tracking (required by all other unified extensions)
       sectionField,
+      sectionIdentity.of({ blocks: noteBlocks ?? reconcileNoteBlocks(value, { sourceRevision: Math.max(1, sourceRevision), registeredWidgets: widgetComponents ? [...widgetComponents.keys()] : KNOWN_SECTION_WIDGETS }), sourceRevision: Math.max(1, sourceRevision), rawContent: value }),
+      registeredSectionWidgets.of(widgetComponents ? [...widgetComponents.keys()] : KNOWN_SECTION_WIDGETS),
+      sectionIdentityHistory,
       frontmatterVisibility.of(showFrontmatter),
       ...(enablePreview || !showFrontmatter ? [frontmatterPreview] : []),
 
@@ -615,7 +660,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // Update listener
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
-          onChange(update.state.doc.toString());
+          const identity = update.state.field(sectionField);
+          onIdentityChange?.({ rawContent: identity.rawContent, blocks: identity.noteBlocks, sourceRevision: identity.sourceRevision });
+          onChange(identity.rawContent);
           onDocUpdate?.(update);
           notifyBlockChanges(update.state, onBlocksChange, lastBlocksJsonRef);
         }
@@ -651,6 +698,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       onBlur,
       onDocUpdate,
       onBlocksChange,
+      onIdentityChange,
       readonly,
       openNavigationPalette,
       showLineNums,
@@ -722,6 +770,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     setCursorSectionId(initialSection?.id ?? null);
 
     // Seed block list so onBlocksChange fires on initial mount (not just on edits)
+    const initialIdentity = view.state.field(sectionField);
+    onIdentityChange?.({ rawContent: initialIdentity.rawContent, blocks: initialIdentity.noteBlocks, sourceRevision: initialIdentity.sourceRevision });
     notifyBlockChanges(view.state, onBlocksChange, lastBlocksJsonRef);
 
     return () => {
@@ -737,16 +787,18 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
   // Sync external value changes
   useEffect(() => {
-    if (viewRef.current && value !== viewRef.current.state.doc.toString()) {
-      viewRef.current.dispatch({
-        changes: {
-          from: 0,
-          to: viewRef.current.state.doc.length,
-          insert: value,
-        },
+    const view = viewRef.current;
+    if (!view) return;
+    const identity = view.state.field(sectionField);
+    if (value !== identity.rawContent) {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: value },
+        ...(noteBlocks ? { effects: sectionRestore.of({ rawContent: value, blocks: noteBlocks, sourceRevision }) } : {}),
       });
+    } else if (noteBlocks && sourceRevision !== identity.sourceRevision) {
+      view.dispatch({ effects: sectionSaved.of({ blocks: noteBlocks, sourceRevision }) });
     }
-  }, [value]);
+  }, [value, noteBlocks, sourceRevision]);
 
   // Sync theme
   useEffect(() => {
@@ -897,6 +949,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           cursorLine={cursorLine}
         />
       )}
+      {runError && <p role="alert" className="text-sm text-destructive">Workout not started. {runError} Your draft is kept.</p>}
       {!enableOverlay && effectiveCommands.length > 0 && (
         <InlineCommandBar
           view={viewInstance ?? viewRef.current}
@@ -985,7 +1038,7 @@ function sectionToScriptBlock(section: EditorSection, state: EditorState): Scrip
     content,
     statements,
     state: "idle",
-    version: 1,
+    version: state.field(sectionField).noteBlocks[section.id]?.version ?? 1,
     createdAt: Date.now(),
     widgetIds: {},
   };

@@ -11,7 +11,10 @@
       "createdAt": 1780488000000,
       "tags": [
         "wellness"
-      ]
+      ],
+      "rawContent": "# Wellness check-in\n\nRecovery check-in and training observations.\n\n",
+      "sourceRevision": 1,
+      "blocks": {}
     },
     {
       "id": "note-journal-2026-06-05",
@@ -19,7 +22,20 @@
       "createdAt": 1780660800000,
       "tags": [
         "strength"
-      ]
+      ],
+      "rawContent": "# Strength — 5x5 back squat\n\nAuthored example workout for this journal fixture.\n\n```time\n(5)\n  5 Back Squat 185lb\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 81,
+          "to": 117,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-08",
@@ -27,7 +43,21 @@
       "createdAt": 1780920000000,
       "tags": [
         "walking"
-      ]
+      ],
+      "rawContent": "# Walk — easy\n\nAuthored example workout for this journal fixture.\n\n```time:walking\n30:00 Walk\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 67,
+          "to": 97,
+          "dialect": "time",
+          "sport": "walking"
+        }
+      }
     },
     {
       "id": "note-well-2026-06-10",
@@ -35,7 +65,10 @@
       "createdAt": 1781092800000,
       "tags": [
         "wellness"
-      ]
+      ],
+      "rawContent": "# Wellness check-in\n\nRecovery check-in and training observations.\n\n",
+      "sourceRevision": 1,
+      "blocks": {}
     },
     {
       "id": "note-journal-2026-06-12",
@@ -43,7 +76,20 @@
       "createdAt": 1781265600000,
       "tags": [
         "strength"
-      ]
+      ],
+      "rawContent": "# Strength — 5x5 back squat\n\nAuthored example workout for this journal fixture.\n\n```time\n(5)\n  5 Back Squat 185lb\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 81,
+          "to": 117,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-15",
@@ -51,7 +97,21 @@
       "createdAt": 1781524800000,
       "tags": [
         "running"
-      ]
+      ],
+      "rawContent": "# Run — easy\n\nAuthored example workout for this journal fixture.\n\n```time:running\n20:00 Run\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 66,
+          "to": 95,
+          "dialect": "time",
+          "sport": "running"
+        }
+      }
     },
     {
       "id": "note-well-2026-06-17",
@@ -59,7 +119,10 @@
       "createdAt": 1781697600000,
       "tags": [
         "wellness"
-      ]
+      ],
+      "rawContent": "# Wellness check-in\n\nRecovery check-in and training observations.\n\n",
+      "sourceRevision": 1,
+      "blocks": {}
     },
     {
       "id": "note-well-2026-06-24",
@@ -67,7 +130,10 @@
       "createdAt": 1782302400000,
       "tags": [
         "wellness"
-      ]
+      ],
+      "rawContent": "# Wellness check-in\n\nRecovery check-in and training observations.\n\n",
+      "sourceRevision": 1,
+      "blocks": {}
     },
     {
       "id": "note-journal-2026-06-26",
@@ -75,7 +141,20 @@
       "createdAt": 1782475200000,
       "tags": [
         "strength"
-      ]
+      ],
+      "rawContent": "# Strength — 5x5 back squat\n\nAuthored example workout for this journal fixture.\n\n```time\n(5)\n  5 Back Squat 185lb\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 81,
+          "to": 117,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-29",
@@ -83,7 +162,21 @@
       "createdAt": 1782734400000,
       "tags": [
         "running"
-      ]
+      ],
+      "rawContent": "# Run — easy\n\nAuthored example workout for this journal fixture.\n\n```time:running\n20:00 Run\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 66,
+          "to": 95,
+          "dialect": "time",
+          "sport": "running"
+        }
+      }
     }
   ],
   "records": [
@@ -134,8 +227,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "back-squat-5x5",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -153,7 +244,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 4500
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-str-w0:summary:tis",
@@ -165,8 +258,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "back-squat-5x5",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -184,7 +275,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 50
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-cardio-w0:summary:distance",
@@ -196,8 +289,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "easy-walk",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -215,7 +306,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 4
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "wellness:note-well-2026-06-10:sleep",
@@ -264,8 +357,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "back-squat-5x5",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -282,7 +373,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 4650
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-str-w1:summary:tis",
@@ -294,8 +387,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "back-squat-5x5",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -313,7 +404,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 52
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-cardio-w1:summary:distance",
@@ -325,8 +418,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "easy-run",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -344,7 +435,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 5.25
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "wellness:note-well-2026-06-17:sleep",
@@ -430,8 +523,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "back-squat-5x5",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -449,7 +540,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 4950
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-str-w3:summary:tis",
@@ -461,8 +554,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "back-squat-5x5",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -480,7 +571,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 56
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-cardio-w3:summary:distance",
@@ -492,8 +585,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "easy-run",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -511,7 +602,154 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 5.75
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
+    }
+  ],
+  "blockRevisions": [
+    {
+      "noteId": "note-journal-2026-06-05",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(5)\n  5 Back Squat 185lb\n```",
+      "savedAt": 1780660800000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-08",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:walking\n30:00 Walk\n```",
+      "savedAt": 1780920000000,
+      "dialect": "time",
+      "sport": "walking"
+    },
+    {
+      "noteId": "note-journal-2026-06-12",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(5)\n  5 Back Squat 185lb\n```",
+      "savedAt": 1781265600000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-15",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:running\n20:00 Run\n```",
+      "savedAt": 1781524800000,
+      "dialect": "time",
+      "sport": "running"
+    },
+    {
+      "noteId": "note-journal-2026-06-26",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(5)\n  5 Back Squat 185lb\n```",
+      "savedAt": 1782475200000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-29",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:running\n20:00 Run\n```",
+      "savedAt": 1782734400000,
+      "dialect": "time",
+      "sport": "running"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "res-str-w0",
+      "noteId": "note-journal-2026-06-05",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-5x5",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780660800000,
+      "endTime": 1780660800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780660800000
+    },
+    {
+      "id": "res-cardio-w0",
+      "noteId": "note-journal-2026-06-08",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-easy-walk",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780920000000,
+      "endTime": 1780920000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780920000000
+    },
+    {
+      "id": "res-str-w1",
+      "noteId": "note-journal-2026-06-12",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-5x5",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781265600000,
+      "endTime": 1781265600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781265600000
+    },
+    {
+      "id": "res-cardio-w1",
+      "noteId": "note-journal-2026-06-15",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-easy-run",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781524800000,
+      "endTime": 1781524800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781524800000
+    },
+    {
+      "id": "res-str-w3",
+      "noteId": "note-journal-2026-06-26",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-5x5",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782475200000,
+      "endTime": 1782475200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782475200000
+    },
+    {
+      "id": "res-cardio-w3",
+      "noteId": "note-journal-2026-06-29",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-easy-run",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782734400000,
+      "endTime": 1782734400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782734400000
     }
   ]
 }

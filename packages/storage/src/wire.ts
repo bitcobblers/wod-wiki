@@ -27,6 +27,7 @@ export interface RangeDTO {
 }
 
 export type TxOp =
+  | { op: 'check'; store: StoreName; key: KeyDTO; value: unknown | null }
   | { op: 'put'; store: StoreName; value: unknown }
   | { op: 'delete'; store: StoreName; key: KeyDTO }
   | { op: 'clear'; store: StoreName };

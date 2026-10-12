@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { EditorView } from "@codemirror/view";
 import { RuntimeTimerPanel } from "@/components/organisms/editor/RuntimeTimerPanel";
 import type { ScriptBlock, Sessions } from "@/components/Editor/types";
@@ -13,6 +13,7 @@ import { AudioToggle } from "@/components/atoms/AudioToggle";
 
 export interface FullscreenTimerProps {
   block: ScriptBlock;
+  prepareRun?: () => Promise<ScriptBlock>;
   view?: EditorView;
   onClose: () => void;
   /**
@@ -37,6 +38,7 @@ export interface FullscreenTimerProps {
 
 export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   block,
+  prepareRun,
   view,
   onClose,
   onCompleteWorkout,
@@ -45,6 +47,22 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   onRunStarted,
   externalStop,
 }) => {
+  const [preparedBlock, setPreparedBlock] = useState<ScriptBlock | null>(prepareRun ? null : block);
+  const [startError, setStartError] = useState<string | null>(null);
+  const preparingRef = useRef(false);
+  const prepare = useCallback(async () => {
+    if (!prepareRun || preparingRef.current) return;
+    preparingRef.current = true;
+    setStartError(null);
+    try {
+      setPreparedBlock(await prepareRun());
+    } catch (error) {
+      setStartError(error instanceof Error ? error.message : String(error));
+    } finally {
+      preparingRef.current = false;
+    }
+  }, [prepareRun]);
+  useEffect(() => { void prepare(); }, [prepare]);
   const [completedSegments, setCompletedSegments] = useState<Segment[] | null>(null);
   const [selectedSegmentIds, setSelectedSegmentIds] = useState<Set<number>>(new Set());
   const { isDebugMode } = useDebugMode();
@@ -183,6 +201,11 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
       </div>
     );
 
+  if (!preparedBlock) {
+    return <FocusedDialog title="Starting workout" onClose={onClose}>
+      {startError ? <div className="space-y-3 p-6"><p role="alert">Workout not started. {startError} Your draft is kept.</p><button type="button" className="rounded border px-3 py-2 focus-visible:ring-2" onClick={() => void prepare()}>Retry start</button></div> : <p role="status" className="p-6">Saving workout before starting…</p>}
+    </FocusedDialog>;
+  }
   return completedSegments !== null ? (
     /* ── Results view: shown only after the commit settled (natural completion) ── */
     <FocusedDialog
@@ -233,9 +256,13 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     >
       <div className="flex h-full min-h-0 flex-col">
         {saveBanner}
+        {startError ? <div className="space-y-2 p-4">
+          <p role="alert">Workout not started. {startError}</p>
+          <button type="button" className="rounded border px-3 py-2 hover:bg-accent focus-visible:ring-2" onClick={() => void prepare()}>Retry starting workout</button>
+        </div> : !preparedBlock ? <p role="status" aria-live="polite" className="p-4">Saving workout before starting…</p> : null}
         <div className="min-h-0 flex-1">
           <RuntimeTimerPanel
-            block={block}
+            block={preparedBlock}
             view={view}
             onClose={handleClose}
             onComplete={handleComplete}

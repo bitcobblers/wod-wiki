@@ -1,5 +1,7 @@
 import { type INowProvider, wallClockNow } from '@bitcobblers/wod-wiki-engine';
 import type { HistoryEntry } from '@/types/history';
+import { validateNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+import type { NoteBlock } from '@/types/storage';
 
 /**
  * The deserializer's output: a fully-recoverable note. `id`, `createdAt`, and
@@ -45,8 +47,8 @@ export function parseMarkdownToEntry(
     }
 
     // Extract content
-    const contentMatch = markdown.match(/## Content\s+(.*)$/s);
-    const rawContent = contentMatch ? contentMatch[1].trim() : '';
+    const contentMatch = markdown.match(/(?:^|\n)## Content\r?\n(?:\r?\n)?/);
+    const rawContent = contentMatch?.index !== undefined ? markdown.slice(contentMatch.index + contentMatch[0].length) : '';
 
     // Extract title from first line
     const titleMatch = markdown.match(/^# (.+)$/m);
@@ -85,6 +87,16 @@ export function parseMarkdownToEntry(
     if (metadata['Updated']) {
       const updatedMs = Date.parse(metadata['Updated']);
       if (!Number.isNaN(updatedMs)) result.updatedAt = updatedMs;
+    }
+    if (metadata['Source Revision']) {
+      const revision = Number(metadata['Source Revision']);
+      if (!Number.isSafeInteger(revision) || revision < 1) return null;
+      result.sourceRevision = revision;
+    }
+    if (metadata['Blocks']) {
+      const blocks: Record<string, NoteBlock> = JSON.parse(metadata['Blocks']);
+      validateNoteBlocks(rawContent, blocks, result.sourceRevision ?? 1, { registeredWidgets: KNOWN_SECTION_WIDGETS });
+      result.blocks = blocks;
     }
 
     if (metadata['Cloned From']) {

@@ -1,148 +1,81 @@
-/**
- * useEditorSave — Generic editor save timing mechanics.
- *
- * Handles WHEN to save. Callers decide HOW to save via the `onSave` callback.
- *
- * Save triggers:
- *   - Line change: flush pending save for previous line immediately, then
- *     arm an idle timer for the new line (fires after `lineIdleMs` of no edits).
- *   - Blur: flush immediately.
- *   - pagehide / visibilitychange→hidden: flush synchronously (best-effort).
- *   - flush(): callable by parent for button clicks, navigation guards, etc.
- *
- * No-op if content hasn't changed since the last save.
- */
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { useCallback, useEffect, useRef } from 'react';
-
-export interface UseEditorSaveOptions {
-  /** Called with the latest content whenever a save should occur. */
-  onSave: (content: string) => void | Promise<void>;
-  /**
-   * Idle time (ms) after the last keystroke on a given line before saving.
-   * Default: 800ms.
-   */
+export interface UseEditorSaveOptions<T = string> {
+  onSave: (snapshot: T) => void | Promise<void>;
   lineIdleMs?: number;
+  getSnapshotKey?: (snapshot: T) => string;
+  onError?: (error: unknown) => void;
 }
 
-export interface UseEditorSaveResult {
-  /** Wire to the editor's onChange. Tracks content + active line. */
-  onChange: (value: string) => void;
-  /**
-   * Wire to the editor's onCursorPositionChange (line, column).
-   * A line change flushes any pending save for the old line immediately.
-   */
+export interface UseEditorSaveResult<T = string> {
+  onChange: (snapshot: T) => void;
   onLineChange: (line: number, column: number) => void;
-  /** Wire to the editor's onBlur. Flushes immediately. */
   onBlur: () => void;
-  /**
-   * Force an immediate save. Returns a Promise that resolves when the
-   * save completes (or immediately if there's nothing pending).
-   */
   flush: () => Promise<void>;
+  error: unknown;
 }
 
-export function useEditorSave({
-  onSave,
-  lineIdleMs = 800,
-}: UseEditorSaveOptions): UseEditorSaveResult {
-  // Latest content seen — used by flush to always save the right value
-  const contentRef = useRef<string | null>(null);
-  // Content at the last completed save — used for change detection
-  const lastSavedRef = useRef<string | null>(null);
-  // Active line number being edited
-  const activeLineRef = useRef<number | null>(null);
-  // Pending idle timer
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // In-flight save promise (so flush can chain)
-  const inflightRef = useRef<Promise<void>>(Promise.resolve());
-  // Stable ref to onSave so effects/closures don't stale
-  const onSaveRef = useRef(onSave);
-  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+export function useEditorSave<T = string>({ onSave, lineIdleMs = 800, getSnapshotKey, onError }: UseEditorSaveOptions<T>): UseEditorSaveResult<T> {
+  const draft = useRef<{ value: T; key: string } | null>(null);
+  const savedKey = useRef<string | null>(null);
+  const activeLine = useRef<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inflight = useRef<Promise<void>>(Promise.resolve());
+  const callbacks = useRef({ onSave, getSnapshotKey, onError });
+  callbacks.current = { onSave, getSnapshotKey, onError };
+  const [error, setError] = useState<unknown>(null);
 
   const cancelTimer = useCallback(() => {
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
+    clearTimeout(timer.current ?? undefined);
+    timer.current = null;
   }, []);
 
-  /** Core save: write content if it changed, chain onto any in-flight write. */
-  const doSave = useCallback((value: string): Promise<void> => {
-    if (value === lastSavedRef.current) return inflightRef.current;
-    lastSavedRef.current = value;
-    const result = inflightRef.current.then(() => {
-      // Double-check: by the time the chain runs, another save may have overtaken
-      if (value !== lastSavedRef.current) return;
-      return onSaveRef.current(value) ?? undefined;
+  const save = useCallback((snapshot: { value: T; key: string }): Promise<void> => {
+    const result = inflight.current.then(async () => {
+      if (snapshot.key === savedKey.current) return;
+      await callbacks.current.onSave(snapshot.value);
+      savedKey.current = snapshot.key;
+      setError(null);
     });
-    inflightRef.current = result.then(() => {});
-    return result.then(() => {});
+    inflight.current = result.catch(failure => {
+      setError(failure);
+      callbacks.current.onError?.(failure);
+    });
+    return result;
   }, []);
-
-  /** Arm (or re-arm) the idle timer for the current line. */
-  const armTimer = useCallback((_value: string) => {
-    cancelTimer();
-    timerRef.current = setTimeout(() => {
-      timerRef.current = null;
-      if (contentRef.current !== null) {
-        doSave(contentRef.current);
-      }
-    }, lineIdleMs);
-  }, [cancelTimer, doSave, lineIdleMs]);
-
-  const onChange = useCallback((value: string) => {
-    contentRef.current = value;
-    armTimer(value);
-  }, [armTimer]);
-
-  const onLineChange = useCallback((line: number, _column: number) => {
-    if (activeLineRef.current !== null && line !== activeLineRef.current) {
-      // Crossed a line boundary — flush the pending save immediately
-      cancelTimer();
-      if (contentRef.current !== null) {
-        doSave(contentRef.current);
-      }
-    }
-    activeLineRef.current = line;
-  }, [cancelTimer, doSave]);
-
-  const onBlur = useCallback(() => {
-    cancelTimer();
-    if (contentRef.current !== null) {
-      doSave(contentRef.current);
-    }
-  }, [cancelTimer, doSave]);
 
   const flush = useCallback((): Promise<void> => {
     cancelTimer();
-    if (contentRef.current !== null) {
-      return doSave(contentRef.current);
-    }
-    return inflightRef.current;
-  }, [cancelTimer, doSave]);
+    return draft.current ? save(draft.current) : inflight.current;
+  }, [cancelTimer, save]);
 
-  // Flush on page unload (tab close, hard navigation)
+  const onChange = useCallback((value: T) => {
+    const key = callbacks.current.getSnapshotKey?.(value) ?? (typeof value === 'string' ? value : JSON.stringify(value));
+    draft.current = { value, key };
+    cancelTimer();
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      if (draft.current) void save(draft.current).catch(() => {});
+    }, lineIdleMs);
+  }, [cancelTimer, lineIdleMs, save]);
+
+  const onLineChange = useCallback((line: number, _column: number) => {
+    if (activeLine.current !== null && activeLine.current !== line) void flush().catch(() => {});
+    activeLine.current = line;
+  }, [flush]);
+  const onBlur = useCallback(() => { void flush().catch(() => {}); }, [flush]);
+
   useEffect(() => {
-    const handlePageHide = () => {
-      cancelTimer();
-      const value = contentRef.current;
-      if (value !== null && value !== lastSavedRef.current) {
-        lastSavedRef.current = value;
-        // Synchronous best-effort — IDB transactions survive pagehide
-        onSaveRef.current(value);
-      }
+    const pagehide = () => { void flush().catch(() => {}); };
+    const visibility = () => { if (document.visibilityState === 'hidden') pagehide(); };
+    window.addEventListener('pagehide', pagehide);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('pagehide', pagehide);
+      document.removeEventListener('visibilitychange', visibility);
+      void flush().catch(() => {});
     };
-    window.addEventListener('pagehide', handlePageHide);
-    return () => window.removeEventListener('pagehide', handlePageHide);
-  }, [cancelTimer]);
+  }, [flush]);
 
-  // Flush on SPA unmount
-  useEffect(() => {
-    return () => { flush(); };
-    // flush is stable (no deps change), but eslint would complain — intentional
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { onChange, onLineChange, onBlur, flush };
+  return { onChange, onLineChange, onBlur, flush, error };
 }

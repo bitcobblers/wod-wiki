@@ -125,7 +125,7 @@ describe('entryOpenHref', () => {
       kind: 'session',
       sourceCatalog: 'crossfit-girls',
       sourceItem: 'fran',
-      block: { segmentId: 'sec 1', dataType: 'wod', preview: [] },
+      block: { blockId: 'sec 1', dataType: 'wod', preview: [] },
     }))).toBe('/c/crossfit-girls/fran#sec%201')
     expect(entryOpenHref(makeEntry({
       id: 'n-1',
@@ -134,7 +134,7 @@ describe('entryOpenHref', () => {
       sourceItem: 'n-1',
       pageSlug: 'workout-plan',
       date: null,
-      block: { segmentId: 'seg-0', dataType: 'wod', preview: [] },
+      block: { blockId: 'seg-0', dataType: 'wod', preview: [] },
     }))).toBe('/p/workout-plan#seg-0')
   })
 
@@ -289,7 +289,7 @@ describe('toEntry → entryOpenHref seam (slug routing regressions)', () => {
 
   it('anchors a block hit within its parent note route', () => {
     const entry = toEntry(note({ sourceId: 'collection:crossfit-girls/fran' }))
-    expect(entryOpenHref({ ...entry, block: { segmentId: 'sec-1', dataType: 'wod', preview: [] } })).toBe('/c/crossfit-girls/fran#sec-1')
+    expect(entryOpenHref({ ...entry, block: { blockId: 'sec-1', dataType: 'wod', preview: [] } })).toBe('/c/crossfit-girls/fran#sec-1')
   })
 })
 

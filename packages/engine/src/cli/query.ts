@@ -29,10 +29,11 @@ import {
 } from '@bitcobblers/wod-wiki-wql';
 import { inMemoryEventStore } from '../store';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import type { AnalyticsDataPoint, Note, BlockIndexRow, Session, EventRecord, StoredOutputStatement } from '@bitcobblers/wod-wiki-core';
+import type { AnalyticsDataPoint, Note, BlockIndexRow, BlockRevision, Session, EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { WorkoutResults } from '@bitcobblers/wod-wiki-core';
 import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 import { bundledEfforts } from '@bitcobblers/wod-wiki-lang';
+import { validateNoteBlocks, parseDocumentSections, blockContentId } from '@bitcobblers/wod-wiki-core';
 import { createIRFile, isIRFile, type IrKind, type WodWikiIRFile, type ExecutionLog, type CorpusIRData } from '../ir';
 export class WqlSyntaxError extends Error {
   constructor(
@@ -61,15 +62,11 @@ interface LoadedData {
   results: Session[];
   notes: Note[];
   blocks: BlockIndexRow[];
+  revisions: BlockRevision[];
   efforts: IEffort[];
   noteTags: Record<string, string[]>;
 }
 
-/** Pre-V21 corpus rows carried the statement stream inline under `data`. */
-function legacyLogsOf(result: Session): StoredOutputStatement[] {
-  const legacy = result as Session & { data?: { logs?: StoredOutputStatement[] } };
-  return legacy.data?.logs ?? [];
-}
 
 function extractPayload(rawJson: string): unknown {
   try {
@@ -84,18 +81,7 @@ function extractPayload(rawJson: string): unknown {
 }
 
 function buildStoresFromData(data: LoadedData) {
-  // One event stream: direct event records, legacy fact fixtures wrapped
-  // as summary rows, plus results-derived event + summary rows.
-  const identity = (r: (typeof data.results)[number]) => ({
-    noteId: r.noteId,
-    resultId: r.id,
-    segmentId: r.segmentId,
-    segmentVersion: r.segmentVersion,
-    blockContentId: r.blockContentId,
-    origin: r.origin,
-    pageId: r.pageId,
-    workoutTimestamp: r.createdAt,
-  });
+  // Direct events and fact-set summaries share one query stream.
   const events = [
     ...data.eventRecords,
     ...data.facts.map((f, i) => ({
@@ -115,19 +101,19 @@ function buildStoresFromData(data: LoadedData) {
         ...(f.unit ? { unit: f.unit } : {}),
         origin: 'engine',
       }],
-      segmentId: f.segmentId,
-      segmentVersion: f.segmentVersion,
+      blockId: f.blockId,
+      blockVersion: f.blockVersion,
     } as EventRecord)),
-    ...data.results.flatMap((r) => {
-      const logs = legacyLogsOf(r);
-      return [...toEventRows(logs, identity(r)), ...toSummaryEventRows(logs, identity(r))];
-    }),
   ];
 
   const eventStore = inMemoryEventStore(events);
 
   const noteStore: NoteQueryStore = {
     getAllNotes: async () => [...data.notes],
+    getNotesByIds: async (ids) => {
+      const selected = new Set(ids);
+      return data.notes.filter((note) => selected.has(note.id));
+    },
     getNoteIdsForTag: async (tag: string) => {
       const matching = new Set<string>();
       for (const [noteId, tags] of Object.entries(data.noteTags)) {
@@ -156,6 +142,7 @@ export function loadQueryData(options: QueryCliOptions): LoadedData {
     results: [],
     notes: [],
     blocks: [],
+    revisions: [],
     efforts: [...bundledEfforts],
     noteTags: {},
   };
@@ -172,7 +159,10 @@ export function loadQueryData(options: QueryCliOptions): LoadedData {
       data.facts = payload as AnalyticsDataPoint[];
     } else if (payload && typeof payload === 'object') {
       const obj = payload as Record<string, unknown>;
+      if ('segments' in obj) throw new Error('Incompatible corpus segments; whole Notes and block revisions are required');
       if (obj.kind === 'event-journal' || Array.isArray(obj.records)) {
+        if (Array.isArray(obj.blockRevisions)) data.revisions = obj.blockRevisions as BlockRevision[];
+        if (Array.isArray(obj.sessions)) data.results = obj.sessions as Session[];
         if (Array.isArray(obj.records)) {
           data.eventRecords = obj.records as EventRecord[];
         }
@@ -191,22 +181,15 @@ export function loadQueryData(options: QueryCliOptions): LoadedData {
         if (corpus.notes) data.notes = corpus.notes;
         if (corpus.blocks) data.blocks = corpus.blocks;
         if (corpus.efforts) data.efforts = corpus.efforts;
+        if (corpus.revisions) data.revisions = corpus.revisions;
         if (corpus.tags) data.noteTags = corpus.tags;
 
-        // If logs are provided without separate results, synthesize results
-        if (corpus.logs && (!corpus.results || corpus.results.length === 0)) {
-          const syntheticResult: Session = {
-            id: 'corpus-result-1',
-            noteId: 'corpus-note-1',
-            blockContentId: 'corpus-block-1',
-            origin: 'journal',
-            createdAt: corpus.logs[0]?.timeSpan?.started ?? Date.now(),
-            startTime: corpus.logs[0]?.timeSpan?.started ?? Date.now(),
-            endTime: corpus.logs[corpus.logs.length - 1]?.timeSpan?.ended ?? Date.now(),
-            duration: 0,
-            completed: true,
+        if (corpus.logs) {
+          const identity = {
+            noteId: 'corpus-note-1', resultId: 'corpus-result-1', origin: 'journal' as const,
+            workoutTimestamp: corpus.logs[0]?.timeSpan?.started ?? Date.now(),
           };
-          data.results = [syntheticResult];
+          data.eventRecords = [...toEventRows(corpus.logs, identity), ...toSummaryEventRows(corpus.logs, identity)];
         }
       } else {
         throw new Error(`Unrecognized corpus payload shape in "${options.corpusPath}" (expected event-journal, fact-set, or CorpusIRData)`);
@@ -222,29 +205,14 @@ export function loadQueryData(options: QueryCliOptions): LoadedData {
       executionLog = { results: payload, logs: rawLogs, statements: rawLogs };
     }
 
-    const resultId = 'stdin-result-1';
-    const workoutResult: Session = {
-      id: resultId,
-      noteId: 'stdin-note-1',
-      blockContentId: 'stdin-block-1',
-      origin: 'journal',
-      createdAt: executionLog.results.startTime,
-      startTime: executionLog.results.startTime,
-      endTime: executionLog.results.endTime,
-      duration: executionLog.results.duration ?? 0,
-      completed: executionLog.results.completed,
+    const identity = {
+      noteId: 'stdin-note-1', resultId: 'stdin-result-1',
+      origin: 'journal' as const, workoutTimestamp: executionLog.results.startTime,
     };
-    data.results = [workoutResult];
-    data.eventRecords = toEventRows(executionLog.logs, {
-      noteId: workoutResult.noteId,
-      resultId: workoutResult.id,
-      segmentId: workoutResult.segmentId,
-      segmentVersion: workoutResult.segmentVersion,
-      blockContentId: workoutResult.blockContentId,
-      origin: workoutResult.origin,
-      pageId: workoutResult.pageId,
-      workoutTimestamp: workoutResult.createdAt,
-    });
+    data.eventRecords = [
+      ...toEventRows(executionLog.logs, identity),
+      ...toSummaryEventRows(executionLog.logs, identity),
+    ];
   } else if (options.stdinFacts) {
     const payload = extractPayload(options.stdinFacts);
     if (Array.isArray(payload)) {
@@ -254,6 +222,51 @@ export function loadQueryData(options: QueryCliOptions): LoadedData {
     }
   } else {
     throw new Error('No input dataset provided. Specify --corpus <path>, --stdin-log, or --stdin-facts.');
+  }
+  for (const note of data.notes) {
+    if (typeof note.rawContent !== 'string' || !Number.isSafeInteger(note.sourceRevision) || note.sourceRevision < 1) {
+      throw new Error('Incompatible corpus Note; exact rawContent and sourceRevision are required');
+    }
+    validateNoteBlocks(note.rawContent, note.blocks, note.sourceRevision);
+    if (!data.blocks.some((row) => row.noteId === note.id)) {
+      for (const [position, block] of Object.values(note.blocks).sort((a, b) => a.from - b.from).entries()) {
+        const rawContent = note.rawContent.slice(block.from, block.to);
+        const body = parseDocumentSections(rawContent)[0]?.displayContent ?? rawContent;
+        data.blocks.push({
+          id: `${note.id}:${block.id}`, noteId: note.id, blockId: block.id, blockVersion: block.version,
+          sourceRevision: note.sourceRevision, from: block.from, to: block.to, position,
+          dataType: block.kind, rawContent, noteTitle: note.title, createdAt: note.createdAt,
+          ...(block.kind === 'wod' ? { blockContentId: blockContentId(body) } : {}),
+        });
+      }
+    }
+  }
+  for (const session of data.results) {
+    if ('segmentId' in session || 'segmentVersion' in session || 'data' in session || 'version' in session || 'rawContent' in session || !session.blockId || !Number.isSafeInteger(session.blockVersion) || session.blockVersion < 1) {
+      throw new Error('Incompatible corpus Session; exact blockId/blockVersion pin required');
+    }
+    if (!data.revisions.some((row) => row.noteId === session.noteId && row.blockId === session.blockId && row.version === session.blockVersion && row.kind === 'wod')) {
+      throw new Error('Corpus Session immutable revision is unavailable');
+    }
+  }
+  for (const row of [...data.eventRecords, ...data.facts, ...data.blocks]) {
+    if ('segmentId' in row || 'segmentVersion' in row) throw new Error('Incompatible corpus segment pin');
+  }
+  const revisions = new Map(data.revisions.map((row) => [JSON.stringify([row.noteId, row.blockId, row.version]), row]));
+  for (const row of data.eventRecords) {
+    if (row.blockId !== undefined || row.blockVersion !== undefined) {
+      if (!row.blockId || !Number.isSafeInteger(row.blockVersion) || !revisions.has(JSON.stringify([row.noteId, row.blockId, row.blockVersion]))) {
+        throw new Error('Corpus Event immutable revision is unavailable');
+      }
+    }
+  }
+  for (const row of data.blocks) {
+    const note = data.notes.find((candidate) => candidate.id === row.noteId);
+    const block = note?.blocks[row.blockId];
+    if (!note || !block || row.blockVersion !== block.version || row.sourceRevision !== note.sourceRevision || row.from !== block.from || row.to !== block.to || row.dataType !== block.kind) {
+      throw new Error('Corpus block projection does not match current Note source');
+    }
+    row.rawContent = note.rawContent.slice(block.from, block.to);
   }
 
   return data;

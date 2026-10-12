@@ -88,14 +88,14 @@ function SaveFlow({
       if (destination === NEW_DASHBOARD) {
         const title = newTitle.trim() || DEFAULT_DASHBOARD_TITLE
         const note = await dashboardNotes.createDashboard(title)
-        await journalNotes.update(note.id, appendWidget(note.rawContent, widget))
+        await journalNotes.update(note, appendWidget(note.rawContent, widget))
         close()
         navigate(dashboardViewPath(dashboardSlug(title)))
       } else {
         // Fresh read at write time — the note may have changed since the
         // catalog listed it; appendWidget never targets stale content.
         const note = await journalNotes.resolve(destination)
-        await journalNotes.update(note.id, appendWidget(note.rawContent, widget))
+        await journalNotes.update(note, appendWidget(note.rawContent, widget))
         close()
         navigate(dashboardViewPath(destination))
       }

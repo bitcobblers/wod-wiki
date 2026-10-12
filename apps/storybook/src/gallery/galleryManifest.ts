@@ -182,7 +182,7 @@ export const GALLERY_CARDS: GalleryCardDef[] = [
 
   // ── Find — content discovery over the content plane ───────────────────
   { section: 'find', widgetType: 'find', title: 'Notes by tag', question: 'Which notes are benchmarks?', journal: 'crossfit', query: ':note{tags:benchmark}' },
-  { section: 'find', widgetType: 'find', title: 'Blocks by text', question: 'Where does Fran live?', journal: 'crossfit', query: ':block{text:fran}' },
+  { section: 'find', widgetType: 'find', title: 'Blocks by text', question: 'Which workouts contain thrusters?', journal: 'crossfit', query: ':block{text:thrusters}' },
   { section: 'find', widgetType: 'find', title: 'Efforts by intensity', question: 'Which efforts are high tier?', journal: 'crossfit', query: ':effort{intensity:high}' },
 
   // ── Edge States — empty, error, and loading states live ───────────────

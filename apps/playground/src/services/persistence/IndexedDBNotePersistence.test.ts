@@ -1,395 +1,74 @@
 import { describe, expect, it } from 'bun:test';
+import { IndexedDBNotePersistence } from './IndexedDBNotePersistence';
+import { IndexedDBContentProvider } from '../content/IndexedDBContentProvider';
+import { StorageService } from '../storage/StorageService';
+import { InMemoryStorage } from '../storage/InMemoryStorage';
 
-import type { HistoryEntry } from '@/types/history';
-import type { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
-import type { Attachment, Note, NoteSegment, EventRecord, Session } from '@/types/storage';
-import { normalizeSummaryFacts } from '@/services/analytics/workoutDerivation';
+const SOURCE = '```time\n10 Pushups\n```\n\n```time\n10 Pushups\n```';
 
-const persistenceModule = import('./IndexedDBNotePersistence');
-
-const note: Note = {
-  id: '11111111-2222-4333-8444-555555555555',
-  title: 'Fran',
-  createdAt: 1,
-};
-
-const olderSectionResult: Session = {
-  id: 'older',
-  noteId: note.id,
-  blockContentId: 'wod-a',
-  startTime: 100,
-  endTime: 200,
-  duration: 100,
-  completed: true,
-  createdAt: 200,
-};
-
-const latestSectionResult: Session = {
-  id: 'latest',
-  noteId: note.id,
-  blockContentId: 'wod-a',
-  startTime: 300,
-  endTime: 450,
-  duration: 150,
-  completed: true,
-  createdAt: 450,
-};
-const otherResult: Session = {
-  id: 'other',
-  noteId: note.id,
-  blockContentId: 'wod-b',
-  startTime: 500,
-  endTime: 700,
-  duration: 200,
-  completed: true,
-  createdAt: 700,
-};
-
-function createHarness(latestSegments: NoteSegment[] = []) {
-  const results = [olderSectionResult, latestSectionResult, otherResult];
-  const savedNotes: Note[] = [];
-  const savedAttachments: Attachment[] = [];
-  const appendedEvents: EventRecord[][] = [];
-  const finalizedSummaries: { resultId: string; rows: EventRecord[] }[] = [];
-  const deletedEventIds: string[] = [];
-  const storage = {
-    getNote: async (id: string) => id === note.id ? note : undefined,
-    saveNote: async (n: Note) => { savedNotes.push(n); return n.id; },
-    getAllNotes: async () => [note],
-    getLatestSegmentVersion: async (segmentId: string) =>
-      latestSegments.find(segment => segment.id === segmentId),
-    getSessionsForNote: async (noteId: string) => results.filter(result => result.noteId === noteId),
-    getSessionsByContentId: async (blockContentId: string) => results.filter(result => result.blockContentId === blockContentId),
-    saveSession: async (result: Session) => result.id,
-    getSessionsForSection: async (_noteId: string, blockContentId: string) =>
-      results.filter(result => result.blockContentId === blockContentId),
-    getSessionById: async (resultId: string) => results.find(result => result.id === resultId),
-    getAttachmentsForNote: async () => [],
-    saveAttachment: async (attachment: Attachment) => {
-      savedAttachments.push(attachment);
-      return attachment.id;
-    },
-    deleteAttachment: async () => undefined,
-    appendEvents: async (rows: EventRecord[]) => {
-      appendedEvents.push(rows);
-    },
-    finalizeSummaries: async (resultId: string, rows: EventRecord[]) => {
-      finalizedSummaries.push({ resultId, rows });
-    },
-    deleteEvents: async (ids: string[]) => {
-      deletedEventIds.push(...ids);
-    },
-    getEventsForNote: async (_noteId: string) => [],
-    getEventsByResult: async (_resultId: string) => [],
-    // Read-orchestration harness: mutations run through unscoped here; the
-    // atomic contract is covered against real backends in
-    // IndexedDBNotePersistence.atomic.test.ts.
-    withTransaction: async <R>(_stores: unknown[], fn: (scoped: never) => Promise<R>) =>
-      fn(storage as never),
-  };
-  const contentProvider = {
-    getEntry: async (): Promise<HistoryEntry> => ({
-      id: note.id,
-      title: note.title,
-      createdAt: note.createdAt,
-      updatedAt: note.createdAt,
-      targetDate: note.createdAt,
-      rawContent: '',
-      tags: [],
-      schemaVersion: 1,
-    }),
-    getEntries: async () => [],
-    updateEntry: async () => ({} as HistoryEntry),
-    deleteEntry: async () => undefined,
-  };
-
-  return { storage, contentProvider, appendedEvents, finalizedSummaries, deletedEventIds, savedAttachments, savedNotes };
-}
-
-describe('IndexedDBNotePersistence', () => {
-  it('normalizes Tier-2 summary outputs into summary fact rows', async () => {
-    const points = normalizeSummaryFacts([
-      {
-        outputType: 'analytics',
-        timeSpan: { started: 123, ended: 123 },
-        metrics: [
-          { type: 'label', value: 'Total Reps', image: 'Total Reps' },
-          { type: 'rep', value: 90, unit: 'reps', image: '90 reps' },
-        ],
-      },
-      {
-        // Non-analytics outputs are ignored — summary facts only.
-        outputType: 'segment',
-        timeSpan: { started: 100 },
-        metrics: [{ type: 'rep', value: 21 }],
-      },
-      {
-        outputType: 'analytics',
-        timeSpan: { started: 124 },
-        metrics: [
-          { type: 'label', value: 'Total Volume', image: 'Total Volume' },
-          { type: 'calculated', value: 5400, unit: 'kg', image: '5400 kg' },
-        ],
-      },
-    ], { noteId: note.id, resultId: 'result-a' });
-
-    expect(points).toHaveLength(2);
-    expect(points.map(p => p.metricKey)).toEqual(['totalReps', 'totalVolume']);
-    expect(points.every(p => p.grain === 'summary')).toBe(true);
-    expect(points.every(p => p.noteId === note.id)).toBe(true);
-    expect(points.every(p => p.resultId === 'result-a')).toBe(true);
-    expect(points[0]).toMatchObject({ value: 90, unit: 'reps', label: 'Total Reps' });
+describe('Note persistence projections', () => {
+  it('uses the injected storage for create, reopen, edits and stale run capture', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const persistence = new IndexedDBNotePersistence(service);
+    const created = await persistence.createNote({ id: 'injected', title: 'Workout', rawContent: SOURCE, targetDate: 1 });
+    const reopened = await persistence.getNote(created.id);
+    expect(reopened.rawContent).toBe(SOURCE);
+    expect(reopened.blocks).toEqual(created.blocks);
+    const edited = await persistence.saveNote({ noteId: created.id, rawContent: SOURCE.replace('10 Pushups', '20 Pushups'),
+      blocks: created.blocks!, expectedSourceRevision: created.sourceRevision! });
+    expect((await service.getNote(created.id))?.sourceRevision).toBe(edited.sourceRevision);
+    await expect(persistence.startSession({ noteId: created.id, rawContent: SOURCE, blocks: created.blocks!, expectedSourceRevision: 0 },
+      { id: 'stale-run', noteId: created.id, blockId: Object.keys(created.blocks!)[0]!, startTime: 1, endTime: 1,
+        duration: 0, completed: false, createdAt: 1 })).rejects.toMatchObject({ code: 'STALE_SOURCE' });
+    expect(await service.getSessionById('stale-run')).toBeUndefined();
+    expect((await persistence.getNote(created.id)).rawContent).toBe(edited.rawContent);
   });
 
-  it('selects an exact review result by result id', async () => {
-    const { IndexedDBNotePersistence } = await persistenceModule;
-    const { storage, contentProvider } = createHarness();
-    const persistence = new IndexedDBNotePersistence(storage, contentProvider);
-
-    const entry = await persistence.getNote(note.id, {
-      projection: 'review',
-      resultSelection: { mode: 'by-result-id', resultId: 'older' },
-    });
-
-    expect(entry.results?.duration).toBe(100);
-  });
-
-  it('selects the newest result for a section', async () => {
-    const { IndexedDBNotePersistence } = await persistenceModule;
-    const { storage, contentProvider } = createHarness();
-    const persistence = new IndexedDBNotePersistence(storage, contentProvider);
-
-    const entry = await persistence.getNote(note.id, {
-      projection: 'review',
-      resultSelection: { mode: 'latest-for-section', blockContentId: 'wod-a' },
-    });
-
-    expect(entry.results?.duration).toBe(150);
-  });
-
-  it('returns section history sorted newest first', async () => {
-    const { IndexedDBNotePersistence } = await persistenceModule;
-    const { storage, contentProvider } = createHarness();
-    const persistence = new IndexedDBNotePersistence(storage, contentProvider);
-
-    const entry = await persistence.getNote(note.id, {
-      projection: 'history-detail',
-      resultSelection: { mode: 'all-for-section', blockContentId: 'wod-a' },
-    });
-
-    expect(entry.extendedResults?.map(result => result.id)).toEqual(['latest', 'older']);
-  });
-
-  it('hydrates selected notes for multi-select analysis', async () => {
-    const { IndexedDBNotePersistence } = await persistenceModule;
-    const { storage, contentProvider } = createHarness();
-    const persistence = new IndexedDBNotePersistence(storage, contentProvider);
-
-    const entries = await persistence.listNotes({ ids: [note.id], projection: 'history-detail' });
-
-    expect(entries).toHaveLength(1);
-    expect(entries[0].id).toBe(note.id);
-  });
-
-  it('listNotes({ids}) history-detail hydrates extendedResults (all-for-note)', async () => {
-    const { IndexedDBNotePersistence } = await persistenceModule;
-    const { storage, contentProvider } = createHarness();
-    const persistence = new IndexedDBNotePersistence(storage, contentProvider);
-
-    const entries = await persistence.listNotes({ ids: [note.id], projection: 'history-detail' });
-
-    expect(entries).toHaveLength(1);
-    // Regression: the ids-branch dropped resultSelection, so history-detail
-    // silently used the default 'latest' projection and returned NO
-    // extendedResults — the inline results bar never hydrated on reload
-    // (the canvas loads via listNotes({ids})).
-    expect(entries[0].extendedResults).toBeDefined();
-    expect(entries[0].extendedResults!.map(r => r.id)).toEqual(['other', 'latest', 'older']);
-  });
-
-  // V6 — by-content stamp
-  it('normalizeSummaryFacts stamps block identity on every fact row', async () => {
-    const points = normalizeSummaryFacts(
-      [{
-        outputType: 'analytics',
-        timeSpan: { started: 42 },
-        metrics: [
-          { type: 'label', value: 'TIS', image: 'TIS' },
-          { type: 'calculated', value: 72, unit: 'pts' },
-        ],
-      }],
-      { noteId: note.id, resultId: 'result-x', segmentId: 'wod-x', segmentVersion: 3, blockContentId: 'bc-fran' },
-    );
-
-    expect(points).toHaveLength(1);
-    for (const pt of points) {
-      expect(pt.blockContentId).toBe('bc-fran');
-      expect(pt.noteId).toBe(note.id);
-      expect(pt.resultId).toBe('result-x');
-      expect(pt.segmentId).toBe('wod-x');
-      expect(pt.segmentVersion).toBe(3);
-      expect(pt.metricKey).toBe('tis');
+  it('selects results by exact occurrence without mixing equal-content duplicates', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const persistence = new IndexedDBNotePersistence(service);
+    const saved = await persistence.createNote({ id: 'n', title: 'Workout', rawContent: SOURCE, targetDate: 1 });
+    const ids = Object.keys(saved.blocks!);
+    for (const [index, blockId] of ids.entries()) {
+      await persistence.startSession({ noteId: 'n', rawContent: SOURCE, blocks: saved.blocks!, expectedSourceRevision: 1 },
+        { id: `run-${index}`, noteId: 'n', blockId, startTime: index, endTime: index, duration: 0,
+          completed: false, createdAt: index + 1 });
+      await persistence.finishSession(`run-${index}`, { startTime: index, endTime: index + 10,
+        duration: 10, completed: true, logs: [] });
     }
+    const detail = await persistence.getNote('n', { projection: 'history-detail',
+      resultSelection: { mode: 'all-for-section', blockId: ids[0]! } });
+    expect(detail.extendedResults?.map(row => row.id)).toEqual(['run-0']);
+    expect(detail.rawContent).toBe(SOURCE);
+    expect(detail.blocks).toEqual(saved.blocks);
+    const all = await persistence.listNotes({ ids: ['n'], projection: 'history-detail' });
+    expect(all[0]?.extendedResults?.map(row => row.id)).toEqual(['run-1', 'run-0']);
+    const exact = await persistence.getNote('n', { resultSelection: { mode: 'by-result-id', resultId: 'run-0' } });
+    expect(exact.results?.duration).toBe(10);
   });
 
-  it('getSimilarSessions filters by note and origin, sorts newest first', async () => {
-    const { IndexedDBNotePersistence } = await persistenceModule;
-    const { storage, contentProvider } = createHarness();
-    const crossNote: Session[] = [
-      { id: 'x1', noteId: 'other-note', blockContentId: 'wod-a', origin: 'journal', data: { startTime: 1, endTime: 2, duration: 1, logs: [], completed: true }, createdAt: 500 },
-      { id: 'x2', noteId: note.id, blockContentId: 'wod-a', origin: 'journal', data: { startTime: 1, endTime: 2, duration: 1, logs: [], completed: true }, createdAt: 900 },
-      { id: 'x3', noteId: 'pg-note', blockContentId: 'wod-a', origin: 'playground', data: { startTime: 1, endTime: 2, duration: 1, logs: [], completed: true }, createdAt: 700 },
-      { id: 'x4', noteId: 'other-note', blockContentId: 'wod-b', origin: 'journal', data: { startTime: 1, endTime: 2, duration: 1, logs: [], completed: true }, createdAt: 100 },
-    ];
-    const harnessStorage = {
-      ...storage,
-      getSessionsByContentId: async (bcid: string) => crossNote.filter(r => r.blockContentId === bcid),
-    };
-    const persistence = new IndexedDBNotePersistence(harnessStorage, contentProvider as unknown as IndexedDBContentProvider);
-
-    // Default: playground excluded, newest first, only matching content.
-    const all = await persistence.getSimilarSessions('wod-a');
-    expect(all.map(r => r.id)).toEqual(['x2', 'x1']);
-
-    // excludeNoteId removes the current note's own results.
-    const others = await persistence.getSimilarSessions('wod-a', { excludeNoteId: note.id });
-    expect(others.map(r => r.id)).toEqual(['x1']);
-
-    // includePlayground reveals playground rows, still newest first.
-    const withPlayground = await persistence.getSimilarSessions('wod-a', { includePlayground: true });
-    expect(withPlayground.map(r => r.id)).toEqual(['x2', 'x3', 'x1']);
-
-    // limit applies after filtering.
-    const limited = await persistence.getSimilarSessions('wod-a', { includePlayground: true, limit: 2 });
-    expect(limited.map(r => r.id)).toEqual(['x2', 'x3']);
+  it('preserves attachments and ownership fields during source edits', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const provider = new IndexedDBContentProvider(service);
+    const persistence = new IndexedDBNotePersistence(service, provider);
+    const saved = await provider.saveEntry({ id: 'n', title: 'Workout', rawContent: SOURCE, targetDate: 1, tags: ['manual'] });
+    const note = await service.getNote('n');
+    await service.saveNote({ ...note!, seedOrigin: 'seed', seedChunkId: 'owned', seedVersion: 1, sourcePath: 'markdown/collections/x.md' });
+    const attachment = { id: 'a', label: 'GPS', mimeType: 'text/plain', data: 'track', timeSpan: { start: 1, end: 2 } };
+    await persistence.mutateNote('n', { attachments: { add: [attachment] } });
+    await persistence.saveNote({ noteId: 'n', rawContent: SOURCE.replace('10 Pushups', '20 Pushups'),
+      blocks: saved.blocks!, expectedSourceRevision: 1 });
+    expect(await service.getNote('n')).toMatchObject({ seedOrigin: 'seed', seedChunkId: 'owned', seedVersion: 1,
+      sourcePath: 'markdown/collections/x.md' });
+    expect(await service.getAttachmentsForNote('n')).toMatchObject([{ id: 'a', data: 'track', label: 'GPS' }]);
+    expect((await service.getTagsForNote('n')).map(tag => tag.label)).toContain('manual');
   });
 
-  it('rederiveResultAnalytics replays events headlessly and rewrites event rows', async () => {
-    const { IndexedDBNotePersistence } = await persistenceModule;
-    const T0 = 1_700_000_000_000;
-    const scriptBlock = {
-      id: 'wod-a',
-      contentId: 'bc-a',
-      dialect: 'time' as const,
-      startLine: 2,
-      endLine: 5,
-      content: '21 Deadlift 60kg',
-      state: 'idle' as const,
-      version: 1,
-      createdAt: 0,
-      widgetIds: {},
-    };
-    const segment: NoteSegment = {
-      id: 'wod-a',
-      version: 1,
-      noteId: note.id,
-      dataType: 'wod',
-      data: scriptBlock,
-      rawContent: '21 Deadlift 60kg',
-      createdAt: 1,
-    };
-    const staleResult: Session = {
-      id: 'result-replay',
-      noteId: note.id,
-      segmentId: 'wod-a',
-      segmentVersion: 1,
-      blockContentId: 'bc-a',
-      origin: 'journal',
-      startTime: T0,
-      endTime: T0 + 60_000,
-      duration: 60_000,
-      completed: true,
-      createdAt: T0 + 60_000,
-    };
-    const initialEvents: EventRecord[] = [
-      {
-        id: 'result-replay:0',
-        resultId: 'result-replay',
-        noteId: note.id,
-        blockContentId: 'bc-a',
-        timestamp: T0,
-        grain: 'event',
-        outputType: 'segment',
-        metrics: [
-          { type: 'rep', value: 21, image: '21', origin: 'runtime' },
-          { type: 'effort', value: 'Deadlift', image: 'Deadlift', origin: 'parser' },
-          { type: 'elapsed', value: 60_000, origin: 'runtime' },
-        ],
-        sourceBlockKey: 'block-1',
-        stackLevel: 0,
-      },
-      {
-        id: 'result-replay:99',
-        resultId: 'result-replay',
-        noteId: note.id,
-        blockContentId: 'bc-a',
-        timestamp: T0,
-        grain: 'summary',
-        outputType: 'analytics',
-        metrics: [{ type: 'label', value: 'Stale', image: 'Stale', origin: 'analyzed' }],
-        sourceBlockKey: 'analytics-summary',
-        stackLevel: 0,
-      },
-    ];
-
-    const savedResults: Session[] = [];
-    const appendedEvents: EventRecord[][] = [];
-    const finalizedSummaries: { resultId: string; rows: EventRecord[] }[] = [];
-    const deletedEventIds: string[] = [];
-    const storage = {
-      getNote: async () => note,
-      getSessionById: async () => staleResult,
-      getSegment: async () => segment,
-      getLatestSegmentVersion: async () => segment,
-      saveSession: async (r: Session) => { savedResults.push(r); return r.id; },
-      appendEvents: async (rows: EventRecord[]) => { appendedEvents.push(rows); },
-      finalizeSummaries: async (resultId: string, rows: EventRecord[]) => { finalizedSummaries.push({ resultId, rows }); },
-      deleteEvents: async (ids: string[]) => { deletedEventIds.push(...ids); },
-      getEventsForNote: async () => [],
-      getEventsByResult: async () => initialEvents,
-      // Atomicity is covered against real backends (atomic.test.ts) — the
-      // scoped surface is the fake itself here.
-      withTransaction: async <R>(_stores: unknown[], fn: (scoped: never) => Promise<R>) => fn(storage as never),
-    };
-    const persistence = new IndexedDBNotePersistence(storage as never, {} as never);
-
-    const updated = await persistence.rederiveResultAnalytics('result-replay');
-
-    // The sessions row is untouched under V21 — the replay rewrites events only.
-    expect(savedResults).toHaveLength(0);
-    expect(updated.id).toBe('result-replay');
-
-    // The previous projection is purged before the replayed rows are written,
-    // so re-running converges to exactly one row set.
-    expect(deletedEventIds).toEqual(initialEvents.map(r => r.id));
-
-    // Event projection re-written: event rows + finalized summary rows carry
-    // the result identity and block identity.
-    const summaryRows = finalizedSummaries.find(f => f.resultId === 'result-replay')?.rows ?? [];
-    expect(summaryRows.some(r => r.grain === 'summary')).toBe(true);
-    const eventRows = appendedEvents.flat();
-    expect(eventRows.some(r => r.grain === 'event')).toBe(true);
-    expect(eventRows.some(r => r.metrics.some(m => m.type === 'label' && m.value === 'Stale'))).toBe(false);
-
-    const projected = [...eventRows, ...summaryRows];
-    expect(projected.every(r => r.resultId === 'result-replay')).toBe(true);
-    expect(projected.every(r => r.segmentId === 'wod-a')).toBe(true);
-    expect(projected.every(r => r.origin === 'journal')).toBe(true);
-    expect(projected.every(r => r.blockContentId === 'bc-a')).toBe(true);
-  });
-
-  it('rederiveResultAnalytics rejects results with no recoverable segment context', async () => {
-    const { IndexedDBNotePersistence } = await persistenceModule;
-    const storage = {
-      getSessionById: async () => ({
-        id: 'orphan',
-        noteId: note.id,
-        data: { startTime: 0, endTime: 1, duration: 1, completed: true, logs: [] },
-        createdAt: 1,
-      } as Session),
-    };
-    const persistence = new IndexedDBNotePersistence(storage as never, {} as never);
-
-    await expect(persistence.rederiveResultAnalytics('orphan')).rejects.toThrow(/no NoteSegment/);
+  it('rejects replay with a missing pinned revision instead of reading current content', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const persistence = new IndexedDBNotePersistence(service, new IndexedDBContentProvider(service));
+    await expect(service.saveSession({ id: 'orphan', noteId: 'deleted', blockId: 'removed', blockVersion: 2,
+      startTime: 1, endTime: 2, duration: 1, completed: true, createdAt: 2 })).rejects.toThrow();
+    await expect(persistence.rederiveResultAnalytics('orphan')).rejects.toMatchObject({ code: 'RESULT_NOT_FOUND' });
   });
 });

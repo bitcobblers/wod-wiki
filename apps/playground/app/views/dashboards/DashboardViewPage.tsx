@@ -180,7 +180,7 @@ export function DashboardViewPage() {
   // the raw revision can. A mismatch THROWS: the caller surfaces the refusal
   // and keeps the draft; the board refreshes to the latest content.
   const mutateNote = useCallback(
-    async (expectedRaw: string, mutate: (raw: string) => string | null) => {
+    async (expectedRaw: string, mutate: (raw: string) => string | Extract<WidgetOpResult, { ok: true }> | null) => {
       if (!source?.editable || !source.noteId) return;
       const note = await journalNotes.getById(source.noteId);
       if (note.rawContent !== expectedRaw) {
@@ -192,7 +192,7 @@ export function DashboardViewPage() {
         setRefreshKey((k) => k + 1);
         throw new Error('The widget changed on disk — this edit was not saved.');
       }
-      await journalNotes.update(source.noteId, next);
+      await journalNotes.update(note, typeof next === 'string' ? next : next.note, typeof next === 'string' ? undefined : next);
       setRefreshKey((k) => k + 1);
     },
     [source],
@@ -206,7 +206,7 @@ export function DashboardViewPage() {
       const { meta, body } = parseFrontmatter(note.rawContent);
       const newMeta = setDashboardTokenValue(meta, name, value);
       const raw = `---\n${serializeFrontmatter(newMeta)}\n---\n${body}`;
-      await journalNotes.update(source.noteId, raw);
+      await journalNotes.update(note, raw);
       setRefreshKey((k) => k + 1);
     },
     [source],
@@ -231,7 +231,7 @@ export function DashboardViewPage() {
               : 'Widget no longer exists — reload the dashboard.',
           );
         }
-        return result.note;
+        return result;
       }).catch((err: unknown) => {
         setActionError(err instanceof Error ? err.message : String(err));
       });
@@ -258,7 +258,7 @@ export function DashboardViewPage() {
                 : 'Widget no longer exists — reload the dashboard.',
             );
           }
-          return result.note;
+          return result;
         });
       }
     },

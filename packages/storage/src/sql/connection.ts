@@ -13,12 +13,15 @@
 
 import type { Client } from '@libsql/client';
 
+import { StorageError } from './errors';
 export type SqlValue = string | number | null; // booleans bound as 1/0 by callers
 export type SqlRow = Record<string, unknown>;
 
+export interface SqlStatement { sql: string; params?: SqlValue[] }
 export interface SqlConnection {
   query(sql: string, params?: SqlValue[]): Promise<SqlRow[]>;
   exec(sql: string, params?: SqlValue[]): Promise<void>;
+  batch?(statements: SqlStatement[]): Promise<SqlRow[][]>;
 }
 
 export interface Database extends SqlConnection {
@@ -58,6 +61,7 @@ export function libsqlDatabase(client: LibsqlClient): Database {
             exec: async (sql, params = []) => {
               await tx.execute({ sql, args: params });
             },
+            batch: async (statements) => (await tx.batch(statements.map(({ sql, params = [] }) => ({ sql, args: params })))).map(libsqlRows),
           };
           const result = await fn(txConn);
           await tx.commit();
@@ -67,6 +71,10 @@ export function libsqlDatabase(client: LibsqlClient): Database {
             await tx.rollback();
           } catch {
             // transaction already closed by the failed statement
+          }
+          const message = err instanceof Error ? err.message : String(err);
+          for (const code of ['revision_conflict', 'transaction_conflict', 'invalid_session_pin']) {
+            if (message.includes(code)) throw new StorageError(409, message, code);
           }
           throw err;
         } finally {

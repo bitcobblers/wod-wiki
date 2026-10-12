@@ -6,8 +6,7 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
-  // Kept external so the runtime dist imports them as declared dependencies:
-  // type-only core/lang, WQL matchers (sql subpath), libsql (sql subpath).
+  // Core validation is runtime code; language types stay external.
   external: [
     '@bitcobblers/wod-wiki-core',
     '@bitcobblers/wod-wiki-lang',

@@ -19,6 +19,7 @@
 
 import { parseDashboardNote, type DashboardParsedSection } from './parser';
 import { DASHBOARD_GRID_MAX_COLS } from './model';
+import type { NoteBlockChange } from '@bitcobblers/wod-wiki-core';
 
 // ── Widget spec ────────────────────────────────────────────────────────────
 
@@ -169,8 +170,37 @@ export function appendWidget(raw: string, spec: WidgetSpec): string {
 /** Structured operation result (decision 22): a missing widget is distinct
  *  from a concurrent edit, and neither silently no-ops. */
 export type WidgetOpResult =
-  | { ok: true; note: string }
+  | { ok: true; note: string; changes: NoteBlockChange[]; retainedBlocks: Array<{ from: number; to: number; nextFrom: number; nextTo: number }> }
   | { ok: false; reason: 'not-found' | 'stale-body' };
+
+function widgetResult(raw: string, note: string, order?: Array<number | null>): Extract<WidgetOpResult, { ok: true }> {
+  let from = 0;
+  while (from < raw.length && from < note.length && raw[from] === note[from]) from++;
+  let to = raw.length;
+  let nextTo = note.length;
+  while (to > from && nextTo > from && raw[to - 1] === note[nextTo - 1]) { to--; nextTo--; }
+  const queries = parseDashboardNote(raw).sections.filter(section => section.type === 'query');
+  const nextQueries = parseDashboardNote(note).sections.filter(section => section.type === 'query');
+  const oldOffsets = lineOffsets(raw);
+  const nextOffsets = lineOffsets(note);
+  const oldLines = raw.split('\n');
+  const nextLines = note.split('\n');
+  const retainedBlocks: Extract<WidgetOpResult, { ok: true }>['retainedBlocks'] = [];
+  for (const [nextIndex, oldIndex] of (order ?? queries.map((_, index) => index)).entries()) {
+    if (oldIndex === null) continue;
+    const block = queries[oldIndex];
+    const next = nextQueries[nextIndex];
+    if (!block || !next) throw new Error('Widget mutation lost its source lineage');
+    retainedBlocks.push({ from: oldOffsets[block.startLine], to: oldOffsets[block.endLine] + oldLines[block.endLine].replace(/\r$/, '').length,
+      nextFrom: nextOffsets[next.startLine], nextTo: nextOffsets[next.endLine] + nextLines[next.endLine].replace(/\r$/, '').length });
+  }
+  return { ok: true, note, changes: raw === note ? [] : [{ from, to, insert: note.slice(from, nextTo) }], retainedBlocks };
+}
+
+function lineOffsets(raw: string): number[] {
+  let offset = 0;
+  return raw.split('\n').map(line => { const from = offset; offset += line.length + 1; return from; });
+}
 
 /**
  * Replace a widget's whole group (title/question/type/body) in place.
@@ -188,7 +218,7 @@ export function updateWidget(
   const { group } = found;
   const lines = raw.split('\n');
   lines.splice(group.startLine, group.endLine - group.startLine + 1, ...renderWidgetGroup(spec));
-  return { ok: true, note: lines.join('\n') };
+  return widgetResult(raw, lines.join('\n'));
 }
 
 /** Duplicate a widget's group directly below itself. Identity-guarded. */
@@ -205,7 +235,9 @@ export function duplicateWidget(
   const copy = lines.slice(group.startLine, group.endLine + 1);
   // Insert the copy after the original, blank-line separated.
   lines.splice(group.endLine + 1, 0, '', ...copy);
-  return { ok: true, note: lines.join('\n') };
+  const order: Array<number | null> = sections.filter(section => section.type === 'query').map((_, index) => index);
+  order.splice(group.widgetIndex + 1, 0, null);
+  return widgetResult(raw, lines.join('\n'), order);
 }
 
 /**
@@ -232,7 +264,9 @@ export function removeWidget(
   ) {
     lines.splice(group.startLine, 1);
   }
-  return { ok: true, note: lines.join('\n') };
+  const order = sections.filter(section => section.type === 'query').map((_, index) => index);
+  order.splice(group.widgetIndex, 1);
+  return widgetResult(raw, lines.join('\n'), order);
 }
 
 /**
@@ -252,7 +286,7 @@ export function moveWidget(
   const { group } = found;
   const groups = widgetGroupRanges(sections);
   const neighbor = groups[group.widgetIndex + delta];
-  if (!neighbor) return { ok: true, note: raw }; // already first/last — nothing to do
+  if (!neighbor) return widgetResult(raw, raw);
 
   const lines = raw.split('\n');
   const moving = lines.slice(group.startLine, group.endLine + 1);
@@ -268,7 +302,10 @@ export function moveWidget(
     const insertAt = neighbor.endLine - shift + 1;
     lines.splice(insertAt, 0, ...moving);
   }
-  return { ok: true, note: lines.join('\n') };
+  const order = groups.map((_, index) => index);
+  order.splice(group.widgetIndex, 1);
+  order.splice(group.widgetIndex + delta, 0, group.widgetIndex);
+  return widgetResult(raw, lines.join('\n'), order);
 }
 
 /**
@@ -303,7 +340,7 @@ export function resizeWidget(
       attributes: block.attributes,
       attributeOrder: block.attributeOrder,
     });
-  return { ok: true, note: lines.join('\n') };
+  return widgetResult(raw, lines.join('\n'));
 }
 
 // ── Legacy body migration (decision 22) ───────────────────────────────────

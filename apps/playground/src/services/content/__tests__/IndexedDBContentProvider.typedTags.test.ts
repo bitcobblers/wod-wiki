@@ -76,6 +76,7 @@ Pull-ups
 
     await provider.updateEntry(entry.id, {
       rawContent: updatedContent,
+      expectedSourceRevision: entry.sourceRevision,
     });
 
     const updatedNoteTags = await service.getTagsForNote(entry.id);

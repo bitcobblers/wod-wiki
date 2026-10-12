@@ -42,9 +42,6 @@
     "@bitcobblers/wod-wiki-lang": "^0.11.0"
   },
   "peerDependenciesMeta": {
-    "@bitcobblers/wod-wiki-core": {
-      "optional": true
-    },
     "@bitcobblers/wod-wiki-lang": {
       "optional": true
     }

@@ -29,6 +29,7 @@ import {
   rangeFromIDB,
   type KeyDTO,
   type RangeDTO,
+  type TxOp,
 } from './wire';
 import {
   bufferedGet,
@@ -38,6 +39,7 @@ import {
   overlayRows,
   type BufferEntry,
 } from './overlay';
+import { rowsEqual } from './validation';
 
 /** Query/delete argument: IndexedDB key forms plus the wire RangeDTO. */
 type QueryArg = IDBValidKey | IDBKeyRange | RangeDTO;
@@ -123,8 +125,10 @@ export class ApiStorage implements IStorage {
     store: K,
     buffer?: Map<string, BufferEntry>,
     cleared?: Set<StoreName>,
+    checks?: Map<string, Extract<TxOp, {op: 'check'}>>,
+    mutable = false,
   ): IReadWriteStore<StoreType<K>> {
-    return new ApiStore<StoreType<K>>(this.http, this.def(store), store, buffer, cleared, this.getUserId);
+    return new ApiStore<StoreType<K>>(this.http, this.def(store), store, buffer, cleared, this.getUserId, checks, mutable);
   }
 
   readonly<K extends StoreName>(store: K): IReadOnlyStore<StoreType<K>> {
@@ -132,7 +136,7 @@ export class ApiStorage implements IStorage {
   }
 
   readwrite<K extends StoreName>(store: K): IReadWriteStore<StoreType<K>> {
-    return this.makeView(store);
+    return this.makeView(store, undefined, undefined, undefined, true);
   }
   async queryDomain(query: DomainQuery): Promise<DomainQueryResult | undefined> {
     const res = await this.http.fetchImpl(`${this.http.baseUrl}/v1/query`, {
@@ -150,25 +154,32 @@ export class ApiStorage implements IStorage {
   }
 
   async transaction<K extends StoreName, R>(
-    _stores: K[],
-    _mode: 'readonly' | 'readwrite',
+    stores: K[],
+    mode: 'readonly' | 'readwrite',
     fn: (tx: IStorageTransaction) => Promise<R>,
   ): Promise<R> {
     const buffer = new Map<string, BufferEntry>();
     const cleared = new Set<StoreName>();
+    const checks = new Map<string, Extract<TxOp, {op: 'check'}>>();
+    const scoped = new Set<StoreName>(stores);
+    const view = <S extends StoreName>(store: S, mutable: boolean) => {
+      if (!scoped.has(store)) throw new Error('store outside transaction scope');
+      if (mutable && mode !== 'readwrite') throw new Error('read-only transaction');
+      return this.makeView(store, buffer, cleared, checks, mutable);
+    };
     const tx: IStorageTransaction = {
-      readonly: <S extends StoreName>(store: S) => this.makeView(store, buffer, cleared),
-      readwrite: <S extends StoreName>(store: S) => this.makeView(store, buffer, cleared),
+      readonly: <S extends StoreName>(store: S) => view(store, false),
+      readwrite: <S extends StoreName>(store: S) => view(store, true),
     };
     const result = await fn(tx);
-    await this.flush(buffer, cleared);
+    await this.flush(buffer, cleared, checks);
     return result;
   }
 
   /** Sends buffered ops as one server-side SQL transaction. */
-  private async flush(buffer: Map<string, BufferEntry>, cleared: Set<StoreName>): Promise<void> {
+  private async flush(buffer: Map<string, BufferEntry>, cleared: Set<StoreName>, checks: Map<string, Extract<TxOp, {op: 'check'}>>): Promise<void> {
     const ops = bufferToOps(STORE_DEFS.map(d => d.name), buffer, cleared);
-    if (ops.length > 0) await request(this.http, 'POST', '/tx', { body: { ops } });
+    if (ops.length > 0) await request(this.http, 'POST', '/tx', { body: { ops: [...checks.values(), ...ops] } });
   }
 
   async wipe(): Promise<void> {
@@ -193,6 +204,8 @@ class ApiStore<T> implements IReadWriteStore<T> {
     private readonly buffer?: Map<string, BufferEntry>,
     private readonly cleared?: Set<StoreName>,
     private readonly getUserId?: () => string,
+    private readonly checks?: Map<string, Extract<TxOp, {op: 'check'}>>,
+    private readonly mutable = false,
   ) {}
 
   /** True when this tx has buffered writes for this store. */
@@ -215,7 +228,18 @@ class ApiStore<T> implements IReadWriteStore<T> {
     const state = bufferedGet<T>(this.store, k, this.buffer);
     if (state) return state.hit ? state.value : undefined;
     if (this.cleared?.has(this.store)) return undefined;
-    return remoteGet<T>(this.http, this.store, k);
+    const value = await remoteGet<T>(this.http, this.store, k);
+    const slot = bufferSlot(this.store, k);
+    if (!this.checks?.has(slot)) this.checks?.set(slot, { op: 'check', store: this.store, key: k, value: structuredClone(value ?? null) });
+    return value;
+  }
+
+  async getMany(keys: IDBValidKey[]): Promise<(T | undefined)[]> {
+    return Promise.all(keys.map(key => this.get(key)));
+  }
+
+  async getAllFromIndexMany(indexName: string, keys: IDBValidKey[]): Promise<T[][]> {
+    return Promise.all(keys.map(key => this.getAllFromIndex(indexName, key)));
   }
 
   async getAll(query?: QueryArg, count?: number): Promise<T[]> {
@@ -241,9 +265,14 @@ class ApiStore<T> implements IReadWriteStore<T> {
   }
 
   /** Server rows for a list path, or none when this tx cleared the store. */
-  private serverRows(path: string, range: RangeDTO | undefined, count?: number): Promise<T[]> {
-    if (this.cleared?.has(this.store)) return Promise.resolve([]);
-    return remoteList<T>(this.http, this.store, path, range, count);
+  private async serverRows(path: string, range: RangeDTO | undefined, count?: number): Promise<T[]> {
+    if (this.cleared?.has(this.store)) return [];
+    const rows = await remoteList<T>(this.http, this.store, path, range, count);
+    for (const row of rows) {
+      const key = keyFromValue(this.def, row), slot = bufferSlot(this.store, key);
+      if (!this.checks?.has(slot)) this.checks?.set(slot, { op: 'check', store: this.store, key, value: structuredClone(row) });
+    }
+    return rows;
   }
 
   /** Applies buffered puts and deletes before range filtering, ordering and paging. */
@@ -252,9 +281,14 @@ class ApiStore<T> implements IReadWriteStore<T> {
   }
 
   async put(value: T, _key?: IDBValidKey): Promise<IDBValidKey> {
+    if (!this.mutable) throw new Error('read-only store');
     const userId = this.getUserId?.();
     const stored = userId ? (stampUserOwned(this.store, value, userId) as T) : value;
     const key = keyFromValue(this.def, stored);
+    if (this.store === 'block_revisions') {
+      const previous = this.buffer?.get(bufferSlot(this.store, key));
+      if (previous?.kind === 'put' && !rowsEqual(previous.value, stored)) throw new Error('immutable block revision collision');
+    }
     if (this.buffer) {
       this.buffer.set(bufferSlot(this.store, key), { kind: 'put', value: stored });
       return key;
@@ -263,7 +297,22 @@ class ApiStore<T> implements IReadWriteStore<T> {
     return key;
   }
 
+  async putMany(values: T[], _keys?: IDBValidKey[]): Promise<IDBValidKey[]> {
+    if (!this.mutable) throw new Error('read-only store');
+    if (this.buffer) {
+      const keys: IDBValidKey[] = [];
+      for (const value of values) keys.push(await this.put(value));
+      return keys;
+    }
+    const stored = values.map(value => this.getUserId ? stampUserOwned(this.store, value, this.getUserId()) : value);
+    const keys = stored.map(value => keyFromValue(this.def, value));
+    await request(this.http, 'POST', '/tx', { body: { ops: stored.map(value => ({ op: 'put', store: this.store, value })) } });
+    return keys;
+  }
+
   async delete(key: IDBValidKey | IDBKeyRange | RangeDTO): Promise<void> {
+    if (!this.mutable) throw new Error('read-only store');
+    if (this.store === 'block_revisions') throw new Error('block history requires explicit wipe');
     const range = isRange(key) ? key : undefined;
     if (range) {
       if (this.buffer) {
@@ -287,6 +336,8 @@ class ApiStore<T> implements IReadWriteStore<T> {
   }
 
   async clear(): Promise<void> {
+    if (!this.mutable) throw new Error('read-only store');
+    if (this.store === 'block_revisions') throw new Error('block history requires explicit wipe');
     if (this.buffer) {
       this.cleared?.add(this.store);
       const prefix = `${this.store}\u0000`;

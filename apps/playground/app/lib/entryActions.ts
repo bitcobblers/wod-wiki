@@ -93,7 +93,7 @@ export function entryOpenHref(entry: Entry): string {
         return '/'
     }
   })()
-  return entry.block ? `${href}#${encodeURIComponent(entry.block.segmentId)}` : href
+  return entry.block ? `${href}#${encodeURIComponent(entry.block.blockId)}` : href
 }
 
 /** True when the entry already lives in the playground (Open is the playground

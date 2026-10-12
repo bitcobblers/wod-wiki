@@ -77,11 +77,11 @@ async function deleteNoteAndResults(page: Page, noteId: string | null): Promise<
       const req = indexedDB.open(dbName);
       req.onsuccess = () => {
         const db = req.result;
-        const stores = ['notes', 'segments', 'note_tags', 'results', 'sessions']
+        const stores = ['notes', 'block_index', 'block_efforts', 'note_tags', 'sessions']
           .filter(s => db.objectStoreNames.contains(s));
         const tx = db.transaction(stores, 'readwrite');
         tx.objectStore('notes').delete(noteId);
-        for (const storeName of ['segments', 'note_tags', 'results', 'sessions']) {
+        for (const storeName of ['block_index', 'block_efforts', 'note_tags', 'sessions']) {
           if (!stores.includes(storeName)) continue;
           const cursorReq = tx.objectStore(storeName).index('by-note').openCursor(IDBKeyRange.only(noteId));
           cursorReq.onsuccess = (e) => {

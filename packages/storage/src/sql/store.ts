@@ -26,6 +26,7 @@ import type { Database, SqlConnection, SqlRow, SqlValue } from './connection';
 import { StorageError } from './errors';
 import type { StoreName } from '../contract';
 import { decodeRowJson, encodeRowJson } from './codec';
+import { validateStorageRow } from '../validation';
 
 export const SCHEMA_TABLE = '_wodwiki_schema';
 const SCHEMA_KEY = 'schema';
@@ -246,6 +247,51 @@ export async function getRow(conn: SqlConnection, def: StoreDef, key: KeyDTO): P
   return rows[0] ? decodeRowJson(rows[0].data as string, binaryFieldOf(def)) : undefined;
 }
 
+export async function getRows(conn: SqlConnection, def: StoreDef, keys: KeyDTO[]): Promise<(unknown | undefined)[]> {
+  const found = new Map<string, unknown>();
+  for (const part of chunks(keys, 500)) {
+    const params: SqlValue[] = [];
+    const conditions = part.map(key => {
+      const parts = toParts(key);
+      if (parts.length !== def.keyPath.length) throw new StorageError(400, 'invalid compound key arity');
+      params.push(...parts.map(toSqlScalar));
+      return `(${keyCols(def).map(col => `"${col}" = ?`).join(' AND ')})`;
+    });
+    for (const row of await conn.query(`SELECT "data" FROM "${def.name}" WHERE ${conditions.join(' OR ')}`, params)) {
+      const value = decodeRowJson(String(row.data), binaryFieldOf(def));
+      found.set(JSON.stringify(requireKey(def, value)), value);
+    }
+  }
+  return keys.map(key => found.get(JSON.stringify(key)));
+}
+
+export async function listRowsFromIndexMany(conn: SqlConnection, def: StoreDef, indexName: string, keys: KeyDTO[]): Promise<unknown[][]> {
+  const idx = indexDefinition(def, indexName);
+  if (idx.multiEntry) {
+    const out: unknown[][] = [];
+    for (const key of keys) out.push(await listRows(conn, def, { only: key }, undefined, indexName));
+    return out;
+  }
+  const found = new Map<string, unknown[]>();
+  for (const part of chunks(keys, 500)) {
+    const params: SqlValue[] = [];
+    const conditions = part.map(key => {
+      const parts = toParts(key);
+      if (parts.length !== idx.keyPath.length) throw new StorageError(400, 'invalid index key arity');
+      params.push(...parts.map(toSqlScalar));
+      return `(${parts.map((_, i) => `"${indexCol(idx.name, i)}" = ?`).join(' AND ')})`;
+    });
+    for (const row of await conn.query(`SELECT "data" FROM "${def.name}" WHERE ${conditions.join(' OR ')} ORDER BY ${keyCols(def).map(col => `"${col}"`).join(', ')}`, params)) {
+      const value = decodeRowJson(String(row.data), binaryFieldOf(def));
+      const parts = idx.keyPath.map(path => extractKeyPart(value, path));
+      const key = JSON.stringify(parts.length === 1 ? parts[0] : parts);
+      const bucket = found.get(key);
+      if (bucket) bucket.push(value); else found.set(key, [value]);
+    }
+  }
+  return keys.map(key => found.get(JSON.stringify(key)) ?? []);
+}
+
 export async function listRows(
   conn: SqlConnection,
   def: StoreDef,
@@ -348,12 +394,12 @@ export async function batchInsert(
   const collist = cols.map((c) => `"${c}"`).join(', ');
   const tuple = `(${cols.map(() => '?').join(', ')})`;
   const per = Math.max(1, Math.min(ROW_CAP, Math.floor(PARAM_BUDGET / cols.length)));
-  for (const part of chunks(rows, per)) {
-    await conn.exec(
-      `INSERT INTO "${table}" (${collist}) VALUES ${part.map(() => tuple).join(', ')} ${onConflict}`,
-      part.flat(),
-    );
-  }
+  const statements = chunks(rows, per).map(part => ({
+    sql: `INSERT INTO "${table}" (${collist}) VALUES ${part.map(() => tuple).join(', ')} ${onConflict}`,
+    params: part.flat(),
+  }));
+  if (conn.batch) await conn.batch(statements);
+  else for (const statement of statements) await conn.exec(statement.sql, statement.params);
 }
 
 /** Chunked `DELETE … WHERE col IN (…)` — one round trip per chunk. */
@@ -364,7 +410,9 @@ export async function deleteIn(conn: SqlConnection, table: string, col: string, 
   }
 }
 
-export async function putRows(conn: SqlConnection, def: StoreDef, values: unknown[]): Promise<KeyDTO[]> {
+export async function putRows(conn: SqlConnection, def: StoreDef, values: unknown[], changedKeys?: KeyDTO[]): Promise<KeyDTO[]> {
+  if (values.length === 0) return [];
+  for (const value of values) validateStorageRow(def.name, value);
   const keys = keyCols(def);
   const cols = [...keys];
   for (const idx of def.indexes) {
@@ -378,7 +426,6 @@ export async function putRows(conn: SqlConnection, def: StoreDef, values: unknow
 
   const rows: SqlValue[][] = [];
   const out: KeyDTO[] = [];
-  const keyScalars: SqlValue[] = [];
   const junction: SqlValue[][] = [];
   const multi = multiEntryIndex(def);
   for (const value of values) {
@@ -392,7 +439,6 @@ export async function putRows(conn: SqlConnection, def: StoreDef, values: unknow
     vals.push(encodeRowJson(value, binaryFieldOf(def)));
     rows.push(vals);
     out.push(k);
-    keyScalars.push(keyParts[0]);
     if (multi) {
       const items = arrayPart(value, multi.keyPath[0]);
       if (Array.isArray(items)) {
@@ -400,17 +446,47 @@ export async function putRows(conn: SqlConnection, def: StoreDef, values: unknow
       }
     }
   }
-  await batchInsert(conn, def.name, cols, rows, `ON CONFLICT (${pk}) DO UPDATE SET ${updates}`);
+  const tuple = `(${cols.map(() => '?').join(', ')})`;
+  const per = Math.max(1, Math.min(ROW_CAP, Math.floor(PARAM_BUDGET / cols.length)));
+  const statements = chunks(rows, per).map(part => ({
+    sql: `INSERT INTO "${def.name}" (${cols.map(col => `"${col}"`).join(', ')}) VALUES ${part.map(() => tuple).join(', ')} `
+      + (def.name === 'block_revisions' ? `ON CONFLICT (${pk}) DO NOTHING` : `ON CONFLICT (${pk}) DO UPDATE SET ${updates} WHERE "${def.name}"."data" <> excluded."data"`)
+      + ` RETURNING ${keys.map(col => `"${col}"`).join(', ')}`,
+    params: part.flat(),
+  }));
+  let returned: SqlRow[][];
+  try {
+    if (conn.batch) returned = await conn.batch(statements);
+    else {
+      returned = [];
+      for (const statement of statements) returned.push(await conn.query(statement.sql, statement.params));
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    for (const code of ['revision_conflict', 'transaction_conflict', 'invalid_session_pin']) {
+      if (message.includes(code)) throw new StorageError(409, message, code);
+    }
+    throw error;
+  }
+  const changed = returned.flat().map(row => {
+    const parts = keys.map(col => row[col]) as Scalar[];
+    return parts.length === 1 ? parts[0] : parts;
+  });
+  changedKeys?.push(...changed);
   if (multi) {
     const jt = junctionTable(def, multi);
-    // ponytail: today's multiEntry stores have single-part keys; a compound
-    // key here needs tuple-IN deletes instead of the k0 shortcut.
-    if (keys.length === 1) await deleteIn(conn, jt, 'k0', keyScalars);
-    else {
-      const cond = keys.map((c) => `"${c}" = ?`).join(' AND ');
-      for (const value of values) await conn.exec(`DELETE FROM "${jt}" WHERE ${cond}`, toParts(requireKey(def, value)).map(toSqlScalar));
-    }
-    await batchInsert(conn, jt, [...keys, 'v'], junction, 'ON CONFLICT DO NOTHING');
+    const changedSet = new Set(changed.map(key => JSON.stringify(key)));
+    const deletes = values.flatMap(value => {
+      const key = requireKey(def, value);
+      if (!changedSet.has(JSON.stringify(key))) return [];
+      const items = arrayPart(value, multi.keyPath[0]) ?? [];
+      return [{ sql: `DELETE FROM "${jt}" WHERE ${keys.map(col => `"${col}" = ?`).join(' AND ')}`
+        + (items.length ? ` AND "v" NOT IN (${items.map(() => '?').join(', ')})` : ''),
+        params: [...toParts(key).map(toSqlScalar), ...items.map(item => JSON.stringify(item))] }];
+    });
+    if (conn.batch && deletes.length) await conn.batch(deletes);
+    else for (const statement of deletes) await conn.exec(statement.sql, statement.params);
+    await batchInsert(conn, jt, [...keys, 'v'], junction.filter(row => changedSet.has(JSON.stringify(keys.length === 1 ? row[0] : row.slice(0, keys.length)))), 'ON CONFLICT DO NOTHING');
   }
   return out;
 }
@@ -420,6 +496,7 @@ export async function putRow(conn: SqlConnection, def: StoreDef, value: unknown)
 }
 
 export async function deleteRows(conn: SqlConnection, def: StoreDef, keyOrRange: KeyDTO | RangeDTO): Promise<void> {
+  if (def.name === 'block_revisions') throw new StorageError(409, 'block history may only be removed by explicit wipe', 'revision_conflict');
   const multi = multiEntryIndex(def);
   if (!isRange(keyOrRange)) {
     const parts = toParts(keyOrRange);
@@ -454,7 +531,8 @@ export async function deleteRows(conn: SqlConnection, def: StoreDef, keyOrRange:
   await conn.exec(`DELETE FROM "${def.name}"${where}`, params);
 }
 
-export async function clearRows(conn: SqlConnection, def: StoreDef): Promise<void> {
+export async function clearRows(conn: SqlConnection, def: StoreDef, wipe = false): Promise<void> {
+  if (def.name === 'block_revisions' && !wipe) throw new StorageError(409, 'block history may only be removed by explicit wipe', 'revision_conflict');
   const multi = multiEntryIndex(def);
   if (multi) await conn.exec(`DELETE FROM "${junctionTable(def, multi)}"`);
   await conn.exec(`DELETE FROM "${def.name}"`);
@@ -464,7 +542,7 @@ export async function clearRows(conn: SqlConnection, def: StoreDef): Promise<voi
  * schema metadata table is not a store, so the version guard is untouched. */
 export async function wipeRows(conn: SqlConnection): Promise<void> {
   for (const def of STORE_DEFS) {
-    if (!def.system) await clearRows(conn, def);
+    if (!def.system) await clearRows(conn, def, true);
   }
 }
 
@@ -510,6 +588,38 @@ async function ensureStoreTables(
     );
     await conn.exec(`CREATE INDEX IF NOT EXISTS "${jt}__v" ON "${jt}" ("v")`);
   }
+  if (def.name === 'notes' && dialect === 'sqlite') {
+    await conn.exec(`CREATE TRIGGER IF NOT EXISTS "notes_revision_guard" BEFORE UPDATE ON "notes"
+      WHEN json_extract(NEW."data", '$.sourceRevision') < json_extract(OLD."data", '$.sourceRevision')
+      OR ((json_extract(NEW."data", '$.rawContent') IS NOT json_extract(OLD."data", '$.rawContent')
+        OR json_extract(NEW."data", '$.blocks') IS NOT json_extract(OLD."data", '$.blocks'))
+        AND json_extract(NEW."data", '$.sourceRevision') <= json_extract(OLD."data", '$.sourceRevision'))
+      BEGIN SELECT RAISE(ABORT, 'transaction_conflict: stale Note source revision'); END`);
+  }
+  if (def.name === 'block_revisions' && dialect === 'sqlite') {
+    await conn.exec(`CREATE TRIGGER IF NOT EXISTS "block_revision_guard" BEFORE INSERT ON "block_revisions"
+      WHEN EXISTS (SELECT 1 FROM "block_revisions" old WHERE old."k0" = NEW."k0" AND old."k1" = NEW."k1" AND old."k2" = NEW."k2" AND old."data" <> NEW."data")
+      BEGIN SELECT RAISE(ABORT, 'revision_conflict: immutable block revision collision'); END`);
+  }
+  if (def.name === 'sessions' && dialect === 'sqlite') {
+    await conn.exec(`CREATE TRIGGER IF NOT EXISTS "session_pin_guard" BEFORE UPDATE ON "sessions"
+      WHEN json_extract(NEW."data", '$.noteId') IS NOT json_extract(OLD."data", '$.noteId')
+        OR json_extract(NEW."data", '$.blockId') IS NOT json_extract(OLD."data", '$.blockId')
+        OR json_extract(NEW."data", '$.blockVersion') IS NOT json_extract(OLD."data", '$.blockVersion')
+      BEGIN SELECT RAISE(ABORT, 'invalid_session_pin: Session pin is immutable'); END`);
+  }
+  if (dialect === 'postgres' && ['notes', 'block_revisions', 'sessions'].includes(def.name)) {
+    const condition = def.name === 'block_revisions'
+      ? `EXISTS (SELECT 1 FROM "block_revisions" old WHERE old."k0" = NEW."k0" AND old."k1" = NEW."k1" AND old."k2" = NEW."k2" AND old."data" <> NEW."data")`
+      : def.name === 'notes'
+        ? `(NEW."data"::jsonb->>'sourceRevision')::bigint < (OLD."data"::jsonb->>'sourceRevision')::bigint OR ((NEW."data"::jsonb->'rawContent' IS DISTINCT FROM OLD."data"::jsonb->'rawContent' OR NEW."data"::jsonb->'blocks' IS DISTINCT FROM OLD."data"::jsonb->'blocks') AND (NEW."data"::jsonb->>'sourceRevision')::bigint <= (OLD."data"::jsonb->>'sourceRevision')::bigint)`
+        : `NEW."data"::jsonb->'noteId' IS DISTINCT FROM OLD."data"::jsonb->'noteId' OR NEW."data"::jsonb->'blockId' IS DISTINCT FROM OLD."data"::jsonb->'blockId' OR NEW."data"::jsonb->'blockVersion' IS DISTINCT FROM OLD."data"::jsonb->'blockVersion'`;
+    const code = def.name === 'block_revisions' ? 'revision_conflict' : def.name === 'notes' ? 'transaction_conflict' : 'invalid_session_pin';
+    const guard = `${def.name}_guard`;
+    await conn.exec(`CREATE OR REPLACE FUNCTION "${guard}"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF ${condition} THEN RAISE EXCEPTION '${code}'; END IF; RETURN NEW; END; $$`);
+    await conn.exec(`DROP TRIGGER IF EXISTS "${guard}" ON "${def.name}"`);
+    await conn.exec(`CREATE TRIGGER "${guard}" BEFORE ${def.name === 'block_revisions' ? 'INSERT' : 'UPDATE'} ON "${def.name}" FOR EACH ROW EXECUTE FUNCTION "${guard}"()`);
+  }
 }
 
 /** Internal schema metadata is not exposed or cleared by the store API. */
@@ -533,7 +643,7 @@ export async function initializeStore(db: Database): Promise<void> {
       if (stored !== DB_VERSION) {
         throw new StorageError(
           500,
-          `database schema v${stored} does not match this server (v${DB_VERSION}); use a compatible server or migrate a backed-up database`,
+          `database schema v${stored} is incompatible with v${DB_VERSION}; recreation required using an explicitly disposable database`,
           'schema_incompatible',
         );
       }

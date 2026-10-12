@@ -71,7 +71,7 @@ export function FeedItemPage({
   // The feed item's canonical content is the mdContent fallback.
   // seedOnMount: false — viewing a feed item is read-only against the local
   // index; seeding created undated ghost notes in the library (#856).
-  const { content, onChange, onLineChange, onBlur } = usePlaygroundContent({
+  const { content, noteBlocks, sourceRevision, onIdentityChange, onSaved, onChange, onLineChange, onBlur } = usePlaygroundContent({
     category: playgroundCategory,
     name: feedItem,
     mdContent: item?.content ?? `# ${feedItem}\n\n*Feed item not found.*\n`,
@@ -92,12 +92,12 @@ export function FeedItemPage({
           sourceNotePath: `/feeds/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
           wodContent: block.content,
         });
-        pendingRuntimes.set(runtimeId, { block, noteId: journalNote.id });
+        const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
+        if (!occurrence) throw new Error('The saved journal workout is unavailable.');
+        pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id });
         navigate(journalEntryAutoStartPath(journalNote.journalDate ?? '', runtimeId));
-      } catch {
-        const runtimeId = uuidv7();
-        pendingRuntimes.set(runtimeId, { block, noteId });
-        navigate(runPath(runtimeId));
+      } catch (error) {
+        toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
     },
     [feed, feedDate, feedItem, feedSlug, item, navigate, noteId],
@@ -201,6 +201,10 @@ export function FeedItemPage({
               onCursorPositionChange={onLineChange}
               onBlur={onBlur}
               noteId={noteId}
+              noteBlocks={noteBlocks}
+              sourceRevision={sourceRevision}
+              onIdentityChange={snapshot => onIdentityChange({ rawContent: snapshot.rawContent, noteBlocks: snapshot.blocks, sourceRevision: snapshot.sourceRevision })}
+              onSaved={onSaved}
               commands={commands}
               enableInlineRuntime={false}
               onViewCreated={onViewCreated}

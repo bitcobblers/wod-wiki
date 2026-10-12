@@ -1,6 +1,7 @@
 /** HttpSeedSource — URL building, no-cache manifest, shape validation, error paths. */
 import { describe, expect, it } from 'bun:test';
 import { HttpSeedSource } from './HttpSeedSource';
+import { SEED_SCHEMA } from '@/types/seed';
 
 function fetchJson(body: unknown, status = 200) {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -12,7 +13,7 @@ function fetchJson(body: unknown, status = 200) {
 }
 
 const manifest = {
-  schema: 1,
+  schema: SEED_SCHEMA,
   version: 1000,
   builtAt: '1970-01-01T00:00:01.000Z',
   chunks: [{ id: 'canvas', path: 'chunks/canvas.ab12cd34.json', sha256: 'a'.repeat(64), bytes: 10, count: 1 }],
@@ -45,7 +46,7 @@ describe('HttpSeedSource', () => {
 
   it('validates manifests loudly; chunk payloads are kind-agnostic', async () => {
     const badManifest = new HttpSeedSource('/seed/', fetchJson({ hello: 1 }).impl);
-    await expect(badManifest.fetchManifest()).rejects.toThrow(/shape validation/);
+    await expect(badManifest.fetchManifest()).rejects.toThrow(/Incompatible seed schema/);
 
     // Row-shape validation happens in the importer, which knows the chunk
     // kind from the manifest; the transport returns the parsed JSON as-is.

@@ -11,6 +11,8 @@ import type {
   NoteQuery,
 } from '@/services/persistence'
 import type { Session } from '@/types/storage'
+import { parseDocumentSections, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import type { Note } from '@/types/storage';
 
 import type { PanelActions } from './MarkdownCanvasPage'
 import type { ParsedCanvasPage } from './parseCanvasMarkdown'
@@ -21,12 +23,14 @@ const savedSessionCalls: Session[] = []
 const editorFocusCalls: string[] = []
 
 const playgroundNoteId = '01990e80-0000-7000-8000-000000000001'
+let snapshotSource = '';
+let startedSession: Session | null = null;
 
 mock.module('../services/createPlaygroundPage', () => ({
   ensurePlaygroundEntry: async () => ({ noteId: playgroundNoteId, routeId: 'playground/canvas-home' }),
-  // Runs mint a fresh snapshot per run via usePlaygroundRun — same note shape.
+  // The run lifecycle captures a persisted note before opening its timer.
   playgroundIntake: {
-    snapshotEntry: async () => ({ noteId: playgroundNoteId, routeId: 'playground/canvas-home' }),
+    snapshotEntry: async (source: string) => { snapshotSource = source; return { noteId: playgroundNoteId, routeId: 'playground/canvas-home' }; },
   },
 }))
 const sampleSessions = {
@@ -78,22 +82,26 @@ const fakeNotePersistence: INotePersistence = {
       extendedResults: storedResults.filter(r => r.noteId === id),
     }))
   },
-  async mutateNote(locator: NoteLocator, mutation: NoteMutation) {
-    const workoutResult = mutation.workoutResult
-    if (workoutResult) {
-      const noteId = typeof locator === 'string' ? locator : locator.id
-      const saved: Session = {
-        ...workoutResult,
-        id: workoutResult.id ?? crypto.randomUUID(),
-        createdAt: workoutResult.createdAt ?? 0,
-        noteId,
-        segmentId: workoutResult.segmentId ?? noteId,
-      }
-      savedSessionCalls.push(saved)
-      storedResults.unshift(saved)
-    }
-    return fakeEntry(typeof locator === 'string' ? locator : locator.id)
+  async saveNote(input) { snapshotSource = input.rawContent; return fakeEntry(input.noteId); },
+  async startSession(input, session) {
+    const block = input.blocks[session.blockId];
+    if (!block) throw new Error('Selected occurrence missing');
+    startedSession = { ...session, blockVersion: 1 };
+    const entry = fakeEntry(input.noteId);
+    const note: Note = { id: entry.id, title: entry.title, createdAt: 0, rawContent: input.rawContent, blocks: input.blocks, sourceRevision: 1 };
+    return { note, session: startedSession, revision: { noteId: note.id, blockId: block.id, version: 1, kind: block.kind, dialect: block.dialect, sport: block.sport, rawContent: input.rawContent.slice(block.from, block.to), savedAt: 0 } };
   },
+  async finishSession(resultId, data) {
+    if (!startedSession || startedSession.id !== resultId) throw new Error('Pinned Session missing');
+    const saved = { ...startedSession, ...data };
+    savedSessionCalls.push(saved);
+    storedResults.unshift(saved);
+    return saved;
+  },
+  async getBlockRevision() { return undefined; },
+  async getBlockHistory() { return []; },
+  async getNoteBlockHistory() { return []; },
+  async mutateNote(locator: NoteLocator, _mutation: NoteMutation) { return fakeEntry(typeof locator === 'string' ? locator : locator.id ?? ''); },
   async deleteNote() {},
 }
 
@@ -104,7 +112,9 @@ function fakeEntry(id: string): HistoryEntry {
     createdAt: 0,
     updatedAt: 0,
     targetDate: 0,
-    rawContent: '',
+    rawContent: snapshotSource,
+    blocks: reconcileNoteBlocks(snapshotSource, { sourceRevision: 1, createId: () => 'block-1' }),
+    sourceRevision: 1,
     tags: [],
     schemaVersion: 1,
   }
@@ -121,13 +131,7 @@ mock.module('@/components/organisms/editor/NoteEditor', () => ({
       props.onViewCreated?.({
         focus: () => editorFocusCalls.push(props.value),
       } as any)
-      props.onBlocksChange?.([
-        {
-          id: 'block-1',
-          contentId: 'block-1',
-          content: '10 thrusters',
-        } as any,
-      ])
+      props.onBlocksChange?.(parseDocumentSections(props.value).flatMap(section => section.scriptBlock ? [{ ...section.scriptBlock, id: 'block-1' }] : []))
     }, [props])
 
     editorSnapshots.push({
@@ -305,6 +309,8 @@ describe('MarkdownCanvasPage result persistence', () => {
     storedResults.length = 0
     savedSessionCalls.length = 0
     editorFocusCalls.length = 0
+    snapshotSource = '';
+    startedSession = null;
     Object.defineProperty(window, 'scrollY', {
       value: 0,
       writable: true,
@@ -324,7 +330,7 @@ describe('MarkdownCanvasPage result persistence', () => {
     render(
       <MarkdownCanvasPage
         page={page}
-        wodFiles={{ '../../markdown/home-source.md': '10 thrusters' }}
+        wodFiles={{ '../../markdown/home-source.md': '```time\n10 thrusters\n```' }}
         theme="light"
         onPanelActionsReady={(actions) => {
           panelActions = actions
@@ -347,8 +353,10 @@ describe('MarkdownCanvasPage result persistence', () => {
     await waitFor(() => expect(savedSessionCalls).toHaveLength(1))
     expect(savedSessionCalls[0]).toMatchObject({
       noteId: playgroundNoteId,
-      blockContentId: 'block-1',
-      data: sampleSessions,
+      blockId: 'block-1',
+      blockVersion: 1,
+      duration: sampleSessions.duration,
+      completed: true,
     })
 
     act(() => {

@@ -158,8 +158,8 @@ describe('moveWidget', () => {
   });
 
   it('is a no-op at the edges', () => {
-    expect(moveWidget(RAW, 'w0', 'sum:totalVolume{} rollup:1w', -1)).toEqual({ ok: true, note: RAW });
-    expect(moveWidget(RAW, 'w1', 'sum:totalVolume{} by {effort}', 1)).toEqual({ ok: true, note: RAW });
+    expect(moveWidget(RAW, 'w0', 'sum:totalVolume{} rollup:1w', -1)).toMatchObject({ ok: true, note: RAW, changes: [] });
+    expect(moveWidget(RAW, 'w1', 'sum:totalVolume{} by {effort}', 1)).toMatchObject({ ok: true, note: RAW, changes: [] });
   });
 });
 
@@ -219,5 +219,29 @@ describe('migrateLegacyDashboardBodies (decision 22)', () => {
   it('leaves document bodies untouched', () => {
     const doc = '---\ndashboard: true\n---\n\n```query\nsum:distance{}\nshow in km\n```\n';
     expect(migrateLegacyDashboardBodies(doc)).toBe(doc);
+  });
+});
+
+describe('authored widget occurrence lineage', () => {
+  it('retains distinct identical queries when an explicit move leaves source unchanged', () => {
+    const raw = '```query:value\nsum:tis{}\n```\n```query:value\nsum:tis{}\n```';
+    const result = moveWidget(raw, 'w0', 'sum:tis{}', 1);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.note).toBe(raw);
+    expect(result.changes).toEqual([]);
+    expect(result.retainedBlocks.map(block => [block.from, block.nextFrom])).toEqual([[29, 0], [0, 29]]);
+  });
+
+  it('reports exact UTF-16 lineage without retaining a duplicate as an original', () => {
+    const raw = '# 🏋️\r\n\r\n```query:value\r\nsum:tis{}\r\n```\r\n';
+    const result = duplicateWidget(raw, 'w0', 'sum:tis{}');
+    if (!result.ok) throw new Error(result.reason);
+    let reconstructed = raw;
+    for (const change of [...result.changes].reverse()) reconstructed = reconstructed.slice(0, change.from) + change.insert + reconstructed.slice(change.to);
+    expect(reconstructed).toBe(result.note);
+    expect(result.retainedBlocks).toHaveLength(1);
+    const original = result.retainedBlocks[0]!;
+    expect(raw.slice(original.from, original.to)).toBe('```query:value\r\nsum:tis{}\r\n```');
+    expect(result.note.slice(original.nextFrom, original.nextTo)).toBe('```query:value\r\nsum:tis{}\r\n```');
   });
 });

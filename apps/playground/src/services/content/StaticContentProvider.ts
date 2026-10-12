@@ -1,145 +1,53 @@
-/**
- * StaticContentProvider — Mutable in-memory provider.
- *
- * Wraps initial content as a HistoryEntry and maintains updates in memory.
- * Used for Storybook demos and ephemeral playground scenarios where
- * full production lifecycles (auto-save, results tracking) are needed
- * without persistent database side-effects.
- */
-
-import type { AttachmentCreateInput, IContentProvider, ContentProviderMode, NoteSaveInput } from '../../types/content-provider';
+import type { ContentProviderMode, NoteSaveInput, NoteEntryPatch } from '../../types/content-provider';
 import type { HistoryEntry, EntryQuery, ProviderCapabilities } from '../../types/history';
-import { Attachment } from '../../types/storage';
-import { v7 as uuidv7 } from 'uuid';
+import { IndexedDBContentProvider } from './IndexedDBContentProvider';
+import { StorageService } from '../storage/StorageService';
+import { InMemoryStorage } from '../storage/InMemoryStorage';
 
-const STATIC_ID = 'static';
-
-export class StaticContentProvider implements IContentProvider {
-  readonly mode: ContentProviderMode = 'static';
-  readonly capabilities: ProviderCapabilities = {
-    canWrite: true,
-    canDelete: false, // Deletion is not typically needed in static mode
-    canFilter: false,
-    canMultiSelect: false,
-    supportsHistory: true, // We support session history (in-memory)
+export class StaticContentProvider extends IndexedDBContentProvider {
+  override readonly mode: ContentProviderMode = 'static';
+  override readonly capabilities: ProviderCapabilities = {
+    canWrite: true, canDelete: false, canFilter: false, canMultiSelect: false, supportsHistory: true,
   };
-
-  private entry: HistoryEntry;
-  private attachments: Map<string, Attachment[]> = new Map();
+  readonly persistenceReady: Promise<HistoryEntry>;
+  private readonly singletonId = 'static';
 
   constructor(initialContent: string) {
-    const now = Date.now();
-    this.entry = {
-      id: STATIC_ID,
-      title: 'Untitled Workout',
-      createdAt: now,
-      updatedAt: now,
-      targetDate: now,
-      rawContent: initialContent,
-      tags: [],
-      results: undefined,
-      extendedResults: [], // Initialize extended results
-      schemaVersion: 1,
-      type: 'template',
-    };
+    const service = new StorageService(new InMemoryStorage());
+    super(service);
+    this.persistenceReady = new IndexedDBContentProvider(service).saveEntry({ id: this.singletonId,
+      title: 'Untitled Workout', rawContent: initialContent, tags: [], targetDate: Date.now(), type: 'template' });
   }
 
-  async getEntries(_query?: EntryQuery): Promise<HistoryEntry[]> {
-    return [this.entry];
+  override async getEntries(_query?: EntryQuery): Promise<HistoryEntry[]> {
+    await this.persistenceReady;
+    const entry = await super.getEntry(this.singletonId);
+    return entry ? [entry] : [];
   }
 
-  async getEntry(_id: string): Promise<HistoryEntry | null> {
-    return this.entry;
+  override async getEntry(_id: string): Promise<HistoryEntry | null> {
+    await this.persistenceReady;
+    return super.getEntry(this.singletonId);
   }
 
-  async saveEntry(entry: NoteSaveInput): Promise<HistoryEntry> {
-    // In static mode, "saving" a new entry typically just updates the singleton.
-    // Preserve recovered identity/timestamps (export → import round-trip).
-    const now = Date.now();
-    this.entry = {
-      ...entry,
-      id: entry.id ?? STATIC_ID,
-      createdAt: entry.createdAt ?? now,
-      updatedAt: entry.updatedAt ?? now,
-      schemaVersion: 1,
-    };
-    return this.entry;
+  override async saveEntry(entry: NoteSaveInput): Promise<HistoryEntry> {
+    await this.persistenceReady;
+    const previous = await super.getEntry(this.singletonId);
+    return super.saveEntry({ ...entry, id: this.singletonId,
+      targetDate: entry.targetDate ?? previous?.targetDate ?? Date.now(),
+      sourceRevision: entry.sourceRevision });
   }
 
-  async cloneEntry(_sourceId: string, _targetDate?: number): Promise<HistoryEntry> {
-    // Cloning in static mode returns the same entry with a new ID if needed, 
-    // but for the singleton provider we'll just return the current state.
-    return this.entry;
+  override async updateEntry(_id: string, patch: NoteEntryPatch): Promise<HistoryEntry> {
+    await this.persistenceReady;
+    return super.updateEntry(this.singletonId, patch);
   }
 
-  async updateEntry(
-    _id: string,
-    patch: Partial<Pick<HistoryEntry, 'rawContent' | 'results' | 'tags' | 'notes' | 'title' | 'targetDate' | 'slug' | 'type' | 'sourceId'>> & { journalDate?: string | null; blockContentId?: string; resultId?: string }
-  ): Promise<HistoryEntry> {
-    const now = Date.now();
-    
-    // Apply most patches directly
-    const nextEntry = {
-      ...this.entry,
-      ...patch,
-      updatedAt: now,
-    };
-
-    // Special handling for results: append to history instead of overwriting
-    if (patch.results) {
-        const resultId = patch.resultId || uuidv7();
-        const currentResults = this.entry.extendedResults || [];
-        console.log(`[StaticProvider] Appending result ${resultId} to extendedResults (prev count: ${currentResults.length})`);
-        
-        const newResult = {
-            id: resultId,
-            noteId: this.entry.id,
-            blockContentId: patch.blockContentId,
-            data: patch.results,
-            createdAt: patch.results.endTime || now
-        };
-        
-        nextEntry.results = patch.results; // Keep latest for compat
-        nextEntry.extendedResults = [...currentResults, newResult];
-        console.log(`[StaticProvider] Updated entry now has ${nextEntry.extendedResults.length} total completions`);
-    }
-
-    this.entry = nextEntry;
-    return this.entry;
+  override async cloneEntry(_sourceId: string, _targetDate?: number): Promise<HistoryEntry> {
+    const entry = await this.getEntry(this.singletonId);
+    if (!entry) throw new Error('Static Note not found');
+    return entry;
   }
 
-  async deleteEntry(_id: string): Promise<void> {
-    // No-op for static singleton
-  }
-
-  // --- Attachments ---
-
-  async getAttachments(noteId: string): Promise<Attachment[]> {
-    return this.attachments.get(noteId) || [];
-  }
-
-  async saveAttachment(noteId: string, attachment: AttachmentCreateInput): Promise<Attachment> {
-    const id = attachment.id ?? uuidv7();
-    const now = Date.now();
-    const fullAttachment: Attachment = {
-      ...attachment,
-      id,
-      noteId,
-      createdAt: now,
-    } as Attachment;
-
-    const current = this.attachments.get(noteId) || [];
-    this.attachments.set(noteId, [...current, fullAttachment]);
-    
-    return fullAttachment;
-  }
-
-  async deleteAttachment(id: string): Promise<void> {
-    for (const [noteId, atts] of this.attachments.entries()) {
-      if (atts.some(a => a.id === id)) {
-        this.attachments.set(noteId, atts.filter(a => a.id !== id));
-        break;
-      }
-    }
-  }
+  override async deleteEntry(_id: string): Promise<void> {}
 }

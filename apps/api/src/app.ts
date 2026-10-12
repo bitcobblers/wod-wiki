@@ -29,7 +29,7 @@ import {
   wipeRows,
   type Database,
 } from '@bitcobblers/wod-wiki-storage/sql';
-import type { KeyDTO, RangeDTO, TxOp } from '@bitcobblers/wod-wiki-storage';
+import { keyFromValue, type KeyDTO, type RangeDTO, type TxOp } from '@bitcobblers/wod-wiki-storage';
 
 const json = (value: unknown, status: number): Response =>
   new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
@@ -82,6 +82,48 @@ async function readJsonBody(req: Request, maxBytes?: number): Promise<unknown> {
   } catch {
     throw new HttpError(400, 'body must be valid JSON');
   }
+}
+
+function txOps(value: unknown): TxOp[] {
+  if (!Array.isArray(value)) throw new HttpError(400, 'tx body must be {ops: []}');
+  return value.map((op: unknown): TxOp => {
+    if (op === null || typeof op !== 'object' || Array.isArray(op) || !('store' in op) || typeof op.store !== 'string' || !('op' in op)) {
+      throw new HttpError(400, 'tx op must have a store and operation');
+    }
+    const def = storeDefinition(op.store);
+    const store = def.name;
+    switch (op.op) {
+      case 'put':
+        if (!('value' in op)) throw new HttpError(400, 'put requires value');
+        return { op: 'put', store, value: op.value };
+      case 'delete':
+        if (!('key' in op)) throw new HttpError(400, 'delete requires key');
+        return { op: 'delete', store, key: op.key as KeyDTO };
+      case 'clear':
+        return { op: 'clear', store };
+      case 'check': {
+        if (!('key' in op) || !('value' in op)) throw new HttpError(400, 'check requires key and value');
+        const scalar = (key: unknown): key is string | number => typeof key === 'string' || (typeof key === 'number' && Number.isFinite(key));
+        if (!scalar(op.key) && !(Array.isArray(op.key) && op.key.length > 0 && op.key.every(scalar))) {
+          throw new HttpError(400, 'check requires a scalar key or non-empty scalar tuple');
+        }
+        if (op.value !== null && (typeof op.value !== 'object' || Array.isArray(op.value))) {
+          throw new HttpError(400, 'check value must be a row or null');
+        }
+        const parts = Array.isArray(op.key) ? op.key : [op.key];
+        if (parts.length !== def.keyPath.length) throw new HttpError(400, 'check key arity must match the store');
+        if (op.value !== null) {
+          let rowKey: KeyDTO;
+          try { rowKey = keyFromValue(def, op.value); }
+          catch { throw new HttpError(400, 'check row must have its primary key'); }
+          if (JSON.stringify(rowKey) !== JSON.stringify(op.key)) throw new HttpError(400, 'check row primary key must match key');
+        }
+        return { op: 'check', store, key: op.key, value: op.value };
+      }
+      default:
+        throw new HttpError(400, 'tx op must be put | delete | clear | check');
+    }
+  });
 }
 
 // ── Static SPA serving ───────────────────────────────────────────────────────
@@ -256,8 +298,8 @@ async function apiRoutes(db: Database, req: Request, method: string, sub: string
   if (sub === '/v1/tx' && method === 'POST') {
     const parsed = await readJsonBody(req);
     const ops = typeof parsed === 'object' && parsed !== null && 'ops' in parsed ? parsed.ops : undefined;
-    if (!Array.isArray(ops)) throw new HttpError(400, 'tx body must be {ops: []}');
-    const results = await db.transaction((tx) => refreshDomain(tx, ops as TxOp[]));
+    const parsedOps = txOps(ops);
+    const results = await db.transaction((tx) => refreshDomain(tx, parsedOps));
     return json({ results }, 200);
   }
   if (sub === '/v1/query') {

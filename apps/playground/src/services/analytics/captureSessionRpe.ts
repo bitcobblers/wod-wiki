@@ -9,7 +9,9 @@ import type { StoredOutputStatement } from '@/components/Editor/types';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
 import { storageService } from '@/services/storage';
-import { NotePersistenceError, type NotePersistenceStorage } from '@/services/persistence/types';
+import { NotePersistenceError } from '@/services/persistence/types';
+import type { StorageService } from '@/services/storage';
+import type { EventRecord } from '@/types/storage';
 
 export type CaptureSessionRpeOutcome = 'captured' | 'captured-no-rederive' | 'not-found';
 
@@ -30,7 +32,7 @@ export function readSessionRpe(logs: StoredOutputStatement[] | undefined): numbe
 }
 
 export interface CaptureSessionRpeDeps {
-  storage?: NotePersistenceStorage;
+  storage?: StorageService;
   persistence?: IndexedDBNotePersistence;
 }
 
@@ -80,6 +82,8 @@ export async function captureSessionRpe(
     id: `${resultId}:rpe:${Date.now()}`,
     resultId,
     noteId: result.noteId,
+    blockId: result.blockId,
+    blockVersion: result.blockVersion,
     blockContentId: result.blockContentId,
     pageId: result.pageId,
     origin: 'user',
@@ -106,7 +110,7 @@ export async function captureSessionRpe(
     await persistence.rederiveResultAnalytics(resultId);
     return 'captured';
   } catch (err) {
-    if (err instanceof NotePersistenceError && err.code === 'SEGMENT_NOT_FOUND') {
+    if (err instanceof NotePersistenceError && err.code === 'BLOCK_REVISION_NOT_FOUND') {
       return 'captured-no-rederive';
     }
     throw err;

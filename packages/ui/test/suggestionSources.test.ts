@@ -35,12 +35,15 @@ describe('canonical suggestion values', () => {
 
 it('offers catalog slugs rather than imported note UUIDs', () => {
   expect(catalogIdsFromBlocks([{
-    id: 'block',
+    id: '1c36bebe-022d-5743-8d50-7ed2be4f1840:s',
     noteId: '1c36bebe-022d-5743-8d50-7ed2be4f1840',
-    segmentId: 's',
-    segmentVersion: 1,
+    blockId: 's',
+    blockVersion: 1,
+    sourceRevision: 1,
+    from: 0,
+    to: '```time\n21 Pullups\n```'.length,
     dataType: 'wod',
-    rawContent: '',
+    rawContent: '```time\n21 Pullups\n```',
     noteTitle: 'Fran',
     createdAt: 0,
     sourceId: 'collection:crossfit-girls/fran',

@@ -31,6 +31,14 @@ describe('sample analytics dataset', () => {
     expect(facts).toBeGreaterThan(0);
 
     expect(await hasSampleData()).toBe(true);
+    const notes = await service.getNotesForTag('sample');
+    const first = notes[0];
+    if (!first) throw new Error('Sample Note missing');
+    const sessions = await service.getSessionsForNote(first.id);
+    expect(first.rawContent).toContain('```log');
+    expect(Object.keys(first.blocks)).toEqual(['sample-block']);
+    expect(await service.getBlockRevision(first.id, sessions[0].blockId, sessions[0].blockVersion)).toMatchObject({ kind: 'wod', dialect: 'log' });
+    expect(sessions[0]).not.toHaveProperty('data');
 
     const query = queryService(service);
     const thrusterReps = await query.runQuery('sum:totalReps{effort:thruster}');
@@ -86,6 +94,9 @@ describe('sample analytics dataset', () => {
       id: userNoteId,
       title: 'User workout',
       createdAt: Date.now(),
+      rawContent: '',
+      sourceRevision: 1,
+      blocks: {},
     };
     await service.saveNote(userNote);
     await service.setNoteTags(userNoteId, ['user-data']);
@@ -93,8 +104,8 @@ describe('sample analytics dataset', () => {
       id: `user-fact-${crypto.randomUUID()}`,
       noteId: userNoteId,
       resultId: `user-result-${crypto.randomUUID()}`,
-      segmentId: 'user-segment',
-      segmentVersion: 1,
+      blockId: 'user-block',
+      blockVersion: 1,
       grain: 'summary',
       type: 'totalReps',
       metricKey: 'totalReps',
@@ -110,14 +121,18 @@ describe('sample analytics dataset', () => {
       id: `${userFact.resultId}:summary:${userFact.metricKey}`,
       resultId: userFact.resultId,
       noteId: userFact.noteId,
-      segmentId: userFact.segmentId,
-      segmentVersion: userFact.segmentVersion,
+      blockId: userFact.blockId,
+      blockVersion: userFact.blockVersion,
       timestamp: userFact.timestamp,
       grain: 'summary',
       outputType: 'analytics',
       metrics: [{ type: userFact.metricKey, value: userFact.value, unit: userFact.unit, origin: 'engine' }],
     } satisfies EventRecord]);
 
+    const sampleNotes = await service.getNotesForTag('sample');
+    const retainedNote = sampleNotes[0];
+    if (!retainedNote) throw new Error('Sample Note missing');
+    const retainedSession = (await service.getSessionsForNote(retainedNote.id))[0];
     await purgeSampleData();
 
     expect(await hasSampleData()).toBe(false);
@@ -125,6 +140,8 @@ describe('sample analytics dataset', () => {
     const events = await service.scanAll();
     const sampleEvents = events.filter((event) => event.noteId.startsWith('sample-'));
     expect(sampleEvents).toHaveLength(0);
+    expect(await service.getBlockRevision(retainedNote.id, retainedSession.blockId, retainedSession.blockVersion)).toBeDefined();
+    expect(await service.getSessionById(retainedSession.id)).toEqual(retainedSession);
 
     const allEvents = await service.scanAll();
     const userEvents = allEvents.filter((event) => event.noteId === userNoteId);

@@ -2,9 +2,11 @@ import { v7 as uuidv7 } from 'uuid';
 
 import { toShortId } from '@/lib/idUtils';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
-import { resolveLatestSegment, storageService } from '@/services/storage';
+import { storageService } from '@/services/storage';
+import type { StorageService } from '@/services/storage/StorageService';
 import type { HistoryEntry } from '@/types/history';
-import type { Attachment, EventRecord, Note, Session } from '@/types/storage';
+import type { IContentProvider } from '@/types/content-provider';
+import type { Attachment, EventRecord, Note, Session, BlockRevision } from '@/types/storage';
 
 import { resolveAttachmentInput } from './attachmentInput';
 import type { INotePersistence } from './INotePersistence';
@@ -15,16 +17,18 @@ import {
 import { captureWellnessFacts } from '@/services/analytics/wellness';
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import type { ScriptBlock, Sessions } from '@/components/Editor/types';
+import type { Sessions } from '@/components/Editor/types';
+import { parseDocumentSections, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import {
   NotePersistenceError,
   type CreateNoteInput,
   type GetNoteOptions,
   type NoteLocator,
   type NoteMutation,
-  type NotePersistenceStorage,
   type NoteQuery,
   type ResultSelection,
+  type SaveNoteInput,
+  type StartedSession,
 } from './types';
 
 function sortNewest(results: Session[]): Session[] {
@@ -37,11 +41,12 @@ function limitResults(results: Session[], limit?: number): Session[] {
 
 export class IndexedDBNotePersistence implements INotePersistence {
   constructor(
-    private readonly storage: NotePersistenceStorage = storageService,
-    private readonly contentProvider = new IndexedDBContentProvider(storageService),
+    private readonly storage: StorageService = storageService,
+    private readonly contentProvider: IContentProvider = new IndexedDBContentProvider(storage),
   ) {}
 
   async createNote(input: CreateNoteInput): Promise<HistoryEntry> {
+    await this.contentProvider.persistenceReady;
     const existing = await this.storage.getNote(input.id);
     if (existing) {
       throw new Error(`Note already exists: ${input.id}`);
@@ -60,6 +65,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
   }
 
   async getNote(locator: NoteLocator, options: GetNoteOptions = {}): Promise<HistoryEntry> {
+    await this.contentProvider.persistenceReady;
     const note = await this.resolveNote(locator);
     if (!note) {
       throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
@@ -133,127 +139,118 @@ export class IndexedDBNotePersistence implements INotePersistence {
   }
 
   async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryEntry> {
+    await this.contentProvider.persistenceReady;
     const note = await this.resolveNote(locator);
-    if (!note && !mutation.workoutResult) {
-      throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
+    if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
+    // Pre-flight: reject a stale draft before opening the wide write
+    // transaction. The in-transaction expectedSourceRevision check in
+    // saveNoteSource remains the authoritative race guard.
+    if (mutation.expectedSourceRevision !== undefined && mutation.expectedSourceRevision !== note.sourceRevision) {
+      throw new NotePersistenceError('STALE_SOURCE', `Note ${note.id} changed since it was loaded`);
     }
-
-    // Attachment inputs may read external data (File.arrayBuffer). IndexedDB
-    // transactions deactivate when the event loop drains with no pending
-    // requests, so unbounded external reads resolve BEFORE the one
-    // transaction below opens.
     const resolvedAttachments = mutation.attachments?.add
-      ? await Promise.all(mutation.attachments.add.map(input => resolveAttachmentInput(input)))
-      : [];
-
-    const resultId = mutation.workoutResult?.id ?? (mutation.workoutResult ? uuidv7() : undefined);
-    const patch = {
-      ...mutation.metadata,
-      rawContent: mutation.rawContent,
-      results: mutation.workoutResult?.data,
-      segmentId: mutation.workoutResult?.segmentId,  // NoteSegment FK (positional section id)
-      blockId: mutation.workoutResult?.blockId,  // line-based position key
-      blockContentId: mutation.workoutResult?.blockContentId,  // content-stable join key
-      version: mutation.workoutResult?.version,  // LEGACY — retired computeVersion path
-      origin: mutation.workoutResult?.origin,  // which surface produced the result
-      resultId,
-    };
-
-    // Content edits, wellness capture, session save, and event/detail/summary
-    // projection commit or roll back as ONE transaction: any failure rejects
-    // and leaves no source write behind — no warn-only swallows.
+      ? await Promise.all(mutation.attachments.add.map(input => resolveAttachmentInput(input))) : [];
     await this.storage.withTransaction(
-      ['notes', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'segments', 'sessions', 'events', 'attachments', 'block_index', 'block_efforts'],
+      ['notes', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'block_revisions', 'sessions', 'events', 'attachments', 'block_index', 'block_efforts'],
       async scoped => {
         const provider = new IndexedDBContentProvider(scoped);
-
-        let txNote = note;
-        if (!txNote) {
-          // Recording a result onto a note that has no row yet (e.g. a static
-          // canvas surface whose body is file-backed, never written to the
-          // store): lazily create a minimal note so the result has a home.
-          // Inside the tx — a later failure rolls the row back too.
-          const id = this.locatorToId(locator);
-          const fallbackTitle = mutation.metadata?.title ?? (id.startsWith('journal/') ? 'Journal Note' : 'Workout Note');
-          txNote = { id, title: fallbackTitle, createdAt: Date.now(), type: mutation.noteType ?? mutation.metadata?.type };
-          await scoped.saveNote(txNote);
+        await provider.updateEntry(note.id, { ...mutation.metadata, rawContent: mutation.rawContent,
+          blocks: mutation.blocks, expectedSourceRevision: mutation.expectedSourceRevision,
+          results: mutation.workoutResult?.data, blockId: mutation.workoutResult?.blockId,
+          blockVersion: mutation.workoutResult?.blockVersion, blockContentId: mutation.workoutResult?.blockContentId,
+          origin: mutation.workoutResult?.origin, resultId: mutation.workoutResult?.id });
+        if (mutation.rawContent !== undefined && mutation.rawContent !== note.rawContent) {
+          const entry = await provider.getEntry(note.id);
+          await captureWellnessFacts(note.id, mutation.rawContent, scoped, { targetDate: entry?.targetDate });
         }
-
-        if (Object.values(patch).some(value => value !== undefined)) {
-          await provider.updateEntry(txNote.id, patch);
-        }
-
-        // Wellness capture: ```wellness fences in the note body become day-grain
-        // user facts (soreness/sleep/hrv/weight/hang/hr/planned) — the raw inputs
-        // the wellness `calc.*` seeds derive from. Reconciles on every save:
-        // changed values upsert in place, removed keys delete their rows.
-        if (mutation.rawContent !== undefined && scoped.appendEvents && scoped.deleteEvents && scoped.getEventsForNote) {
-          // Journal day comes from the entry's targetDate (calendar page); other
-          // notes stamp the current day. The read-back is expected to succeed
-          // right after the source write — a miss means corrupted projection
-          // state, so it fails the transaction instead of stamping a wrong day.
-          const entry = await provider.getEntry(txNote.id);
-          await captureWellnessFacts(txNote.id, mutation.rawContent, scoped, {
-            targetDate: entry?.targetDate,
-          });
-        }
-
-        // Summary facts: extracted from Tier-2 ('analytics') outputs already in
-        // the result's logs — no separate analytics channel (CONTEXT.md 2026-07-20).
-        const resultLogs = mutation.workoutResult?.data.logs;
-        if (resultId && resultLogs?.length && scoped.appendEvents && scoped.finalizeSummaries) {
-          // Resolve AFTER updateEntry so a same-mutation content edit is reflected
-          // in the segment version stamped on event rows.
-          const segmentId = mutation.workoutResult?.segmentId;
-          const resolvedSegment = await resolveLatestSegment(scoped, txNote.id, segmentId);
-          const segmentVersion = resolvedSegment?.version;
-          const identity = {
-            noteId: txNote.id,
-            resultId,
-            segmentId: resolvedSegment?.id ?? segmentId,
-            segmentVersion,
-            blockContentId: mutation.workoutResult?.blockContentId,
-            origin: mutation.workoutResult?.origin,
-            pageId: undefined,
-            // Canonical workout time — mirrors updateEntry's result createdAt
-            // (resultData.endTime || now), so event rows and the result agree.
-            workoutTimestamp: mutation.workoutResult?.data.endTime ?? Date.now(),
-          };
-          // Event rows are the authoritative projection for the event store (V21).
-          await scoped.appendEvents(toEventRows(resultLogs, identity));
-          await scoped.finalizeSummaries(resultId, toSummaryEventRows(resultLogs, identity));
-        }
-
         for (const attachment of resolvedAttachments) {
-          await scoped.saveAttachment({
-            id: attachment.id ?? uuidv7(),
-            noteId: txNote.id,
-            pageId: undefined,
-            resultId,
-            label: attachment.label,
-            mimeType: attachment.mimeType,
-            data: attachment.data,
-            timeSpan: attachment.timeSpan,
-            createdAt: Date.now(),
-          } satisfies Attachment);
+          await scoped.saveAttachment({ ...attachment, id: attachment.id ?? uuidv7(), noteId: note.id,
+            resultId: mutation.workoutResult?.id, createdAt: Date.now() } satisfies Attachment);
         }
-        if (mutation.attachments?.remove) {
-          await Promise.all(mutation.attachments.remove.map(id => scoped.deleteAttachment(id)));
-        }
+        for (const id of mutation.attachments?.remove ?? []) await scoped.deleteAttachment(id);
       },
     );
+    return this.getNote(note.id, { includeAttachments: Boolean(mutation.attachments) });
+  }
 
-    // Post-commit read through the unscoped service: the returned entry
-    // proves durable state, not an in-transaction view.
-    const noteId = note?.id ?? this.locatorToId(locator);
-    return this.getNote(noteId, {
-      projection: 'workbench',
-      resultSelection: { mode: 'latest' },
-      includeAttachments: Boolean(mutation.attachments),
+  async saveNote(input: SaveNoteInput): Promise<HistoryEntry> {
+    await this.contentProvider.persistenceReady;
+    const exists = await this.storage.getNote(input.noteId);
+    if (exists) return this.mutateNote(input.noteId, { rawContent: input.rawContent,
+      blocks: input.blocks, expectedSourceRevision: input.expectedSourceRevision, metadata: input.metadata });
+    if (input.expectedSourceRevision !== 0) throw new NotePersistenceError('STALE_SOURCE', `Note ${input.noteId} no longer exists`);
+    return this.contentProvider.saveEntry({ id: input.noteId, rawContent: input.rawContent,
+      blocks: input.blocks, sourceRevision: 0, title: input.metadata?.title ?? 'Workout Note',
+      tags: input.metadata?.tags ?? [], targetDate: input.metadata?.targetDate ?? Date.now(),
+      journalDate: input.metadata?.journalDate, slug: input.metadata?.slug ?? undefined,
+      type: input.metadata?.type ?? input.noteType, sourceId: input.metadata?.sourceId ?? undefined,
+      createdAt: input.createdAt });
+  }
+
+  async startSession(input: SaveNoteInput, session: Omit<Session, 'blockVersion'>): Promise<StartedSession> {
+    await this.contentProvider.persistenceReady;
+    if (session.noteId !== input.noteId) throw new NotePersistenceError('RESULT_NOTE_MISMATCH', 'Session belongs to another Note');
+    return this.storage.withTransaction(
+      ['notes', 'block_revisions', 'block_index', 'block_efforts', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types'],
+      async scoped => {
+        const persistence = new IndexedDBNotePersistence(scoped, new IndexedDBContentProvider(scoped));
+        await persistence.saveNote(input);
+        const note = await scoped.getNote(input.noteId);
+        const block = note?.blocks[session.blockId];
+        if (!note || !block || block.kind !== 'wod') throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Selected workout is not in the saved Note');
+        const revision = await scoped.getBlockRevision(note.id, block.id, block.version);
+        if (!revision) throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Selected workout revision is missing');
+        const existing = await scoped.getSessionById(session.id);
+        if (existing) throw new Error(`Session already exists: ${session.id}`);
+        const section = parseDocumentSections(revision.rawContent, { registeredWidgets: KNOWN_SECTION_WIDGETS }).find(section => section.scriptBlock);
+        const pinned: Session = { ...session, blockId: block.id, blockVersion: revision.version,
+          blockContentId: section?.scriptBlock?.contentId, status: 'in-progress' };
+        await scoped.saveSession(pinned);
+        return { note, revision, session: pinned };
+      },
+    );
+  }
+
+  async finishSession(sessionId: string, data: Sessions, createdAt?: number): Promise<Session> {
+    await this.contentProvider.persistenceReady;
+    return this.storage.withTransaction(['sessions', 'block_revisions', 'events'], async scoped => {
+      const previous = await scoped.getSessionById(sessionId);
+      if (!previous) throw new NotePersistenceError('RESULT_NOT_FOUND', `Session not found: ${sessionId}`);
+      const revision = await scoped.getBlockRevision(previous.noteId, previous.blockId, previous.blockVersion);
+      if (!revision) throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Pinned workout revision is missing');
+      const session: Session = { ...previous, startTime: data.startTime, endTime: data.endTime,
+        duration: data.duration ?? 0, roundsCompleted: data.roundsCompleted, totalRounds: data.totalRounds,
+        repsCompleted: data.repsCompleted, completed: data.completed,
+        status: data.completed === false ? 'in-progress' : 'completed', createdAt: createdAt ?? previous.createdAt };
+      await scoped.saveSession(session);
+      if (data.logs?.length) {
+        const identity = { noteId: session.noteId, resultId: session.id, blockId: session.blockId,
+          blockVersion: session.blockVersion, blockContentId: session.blockContentId,
+          origin: session.origin, pageId: session.pageId, workoutTimestamp: session.endTime };
+        await scoped.appendEvents(toEventRows(data.logs, identity));
+        await scoped.finalizeSummaries(session.id, toSummaryEventRows(data.logs, identity));
+      }
+      return session;
     });
   }
 
+  async getBlockRevision(noteId: string, blockId: string, version: number): Promise<BlockRevision | undefined> {
+    await this.contentProvider.persistenceReady;
+    return this.storage.getBlockRevision(noteId, blockId, version);
+  }
+
+  async getBlockHistory(noteId: string, blockId: string): Promise<BlockRevision[]> {
+    await this.contentProvider.persistenceReady;
+    return this.storage.getBlockHistory(noteId, blockId);
+  }
+
+  async getNoteBlockHistory(noteId: string): Promise<BlockRevision[]> {
+    await this.contentProvider.persistenceReady;
+    return this.storage.getNoteBlockHistory(noteId);
+  }
+
   async deleteNote(locator: NoteLocator): Promise<void> {
+    await this.contentProvider.persistenceReady;
     const note = await this.resolveNote(locator);
     if (!note) {
       throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
@@ -261,48 +258,26 @@ export class IndexedDBNotePersistence implements INotePersistence {
     await this.contentProvider.deleteEntry(note.id);
   }
   async getSessionById(sessionId: string): Promise<Session | undefined> {
+    await this.contentProvider.persistenceReady;
     return this.storage.getSessionById(sessionId);
   }
 
-  /**
-   * Re-derivation cascade (Candidate 5 / spec §7) — the replay seam consumer.
-   *
-   * Loads the exact NoteSegment incarnation the result was recorded against
-   * (for engine context), replays data.logs through the headless
-   * AnalyticsEngine (strip Tier-1 'analyzed' annotations → re-run realtime
-   * processors → re-run summary processors), writes back data.logs with
-   * regenerated Tier-2 outputs, then purges and re-normalizes the summary
-   * fact rows.
-   *
-   * Lives on the concrete class (not INotePersistence): the provider-delegated
-   * adapter has no direct store access to drive the cascade.
-   */
+  /** Replay only the immutable workout incarnation pinned at start. */
   async rederiveResultAnalytics(resultId: string): Promise<Session> {
+    await this.contentProvider.persistenceReady;
     const result = await this.storage.getSessionById(resultId);
     if (!result) {
       throw new NotePersistenceError('RESULT_NOT_FOUND', `Result not found: ${resultId}`);
     }
 
-    // Engine context comes from the stored segment (replay deep-dive Gap A):
-    // pinned incarnation first, latest as fallback for rows recorded before
-    // segmentVersion was stamped. Ids resolve through the note-scoped
-    // ownership-aware resolver — a colliding legacy row of another note
-    // never joins (SEGMENT_NOT_FOUND instead).
-    const segment = result.segmentId
-      ? await resolveLatestSegment(this.storage, result.noteId, result.segmentId, result.segmentVersion ?? undefined)
-      : undefined;
-    const scriptBlock = segment?.data as ScriptBlock | null | undefined;
-    if (!scriptBlock) {
-      throw new NotePersistenceError(
-        'SEGMENT_NOT_FOUND',
-        `Cannot re-derive result ${resultId}: no NoteSegment with a scriptBlock for segmentId '${result.segmentId ?? '<none>'}'`,
-      );
+    const revision = await this.storage.getBlockRevision(result.noteId, result.blockId, result.blockVersion);
+    const scriptBlock = revision && parseDocumentSections(revision.rawContent).find(section => section.scriptBlock)?.scriptBlock;
+    if (!scriptBlock || revision?.kind !== 'wod') {
+      throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', `Cannot re-derive result ${resultId}: pinned workout revision is missing`);
     }
-
-    const block = scriptBlock.statements?.length
-      ? scriptBlock
-      : { ...scriptBlock, statements: createParser().read(scriptBlock.content, scriptBlock.sport).statements };
-
+    const block = { ...scriptBlock, id: result.blockId, version: result.blockVersion,
+      dialect: revision.dialect, sport: revision.sport,
+      statements: createParser().read(scriptBlock.content, revision.sport).statements };
     const events = this.storage.getEventsByResult ? await this.storage.getEventsByResult(resultId) : [];
     const derivedLogs = replayResultAnalytics(block, events);
 
@@ -315,8 +290,8 @@ export class IndexedDBNotePersistence implements INotePersistence {
       const identity = {
         noteId: result.noteId,
         resultId: result.id,
-        segmentId: result.segmentId,
-        segmentVersion: result.segmentVersion,
+        blockId: result.blockId,
+        blockVersion: result.blockVersion,
         blockContentId: result.blockContentId,
         origin: result.origin,
         pageId: result.pageId,
@@ -370,10 +345,6 @@ export class IndexedDBNotePersistence implements INotePersistence {
       : locator.id ?? locator.slug ?? locator.shortId ?? locator.title ?? '<empty locator>';
   }
 
-  private locatorToId(locator: NoteLocator): string {
-    if (typeof locator === 'string') return locator;
-    return locator.id ?? locator.slug ?? locator.shortId ?? locator.title ?? '';
-  }
 
   /**
    * Cross-note "similar workouts" read path (Candidate 1 / cross-note-result-
@@ -416,7 +387,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     }
 
     if (selection.mode === 'latest-for-section' || selection.mode === 'all-for-section') {
-      const results = sortNewest(await this.storage.getSessionsForSection(note.id, selection.blockContentId));
+      const results = sortNewest(await this.storage.getSessionsForSection(note.id, selection.blockId));
       if (selection.mode === 'all-for-section') {
         const extendedResults = limitResults(results, selection.limit);
         return { results: await this.payloadOf(extendedResults[0]), extendedResults };

@@ -143,7 +143,7 @@ describe('fieldProjection - value extraction and formatting', () => {
       date: '2026-09-02',
       tags: ['strength', 'conditioning'],
       block: {
-        segmentId: 's1',
+        blockId: 's1',
         dataType: 'wod',
         preview: ['5 rounds for time:', '10 pull-ups', '20 push-ups'],
       },

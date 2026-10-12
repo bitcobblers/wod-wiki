@@ -1,248 +1,86 @@
 import { describe, it, expect } from 'bun:test';
 import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
+import { StorageService } from '@/services/storage/StorageService';
+import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
+import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import { captureSessionRpe } from './captureSessionRpe';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
-import type { NotePersistenceStorage, EventRecord } from '@/services/persistence/types';
-import type { Session, NoteSegment } from '@/types/storage';
+import type { EventRecord, Session } from '@/types/storage';
+import { NotePersistenceError } from '@/services/persistence/types';
 
 const T0 = 1_700_000_000_000;
-const SEGMENT: NoteSegment = {
-  id: 'wod-2-test',
-  version: 1,
-  noteId: 'note-1',
-  position: 2,
-  dataType: 'wod',
-  data: {
-    id: 'block-1',
-    content: '21 Deadlift 60kg',
-    contentId: 'bc-test',
-    sport: 'crossfit',
-    dialect: 'time',
-    startLine: 0,
-    endLine: 1,
-    statements: [],
-    state: 'idle',
-    version: 1,
-    createdAt: T0,
-    widgetIds: {},
-  },
-  rawContent: '21 Deadlift 60kg',
-  createdAt: T0,
-  updatedAt: T0,
-  isHistory: false,
-};
+const source = '```time:crossfit\n21 Deadlift 60kg\n```';
+const result: Session = { id: 'result-1', noteId: 'note-1', blockId: 'workout-1', blockVersion: 1, blockContentId: 'bc-test', origin: 'journal', startTime: T0, endTime: T0 + 60_000, duration: 60_000, completed: true, createdAt: T0 + 60_000 };
 
-function baseSegmentEvent(resultId: string): EventRecord {
-  return {
-    id: `${resultId}:0`,
-    resultId,
-    noteId: 'note-1',
-    timestamp: T0,
-    grain: 'event',
-    outputType: 'segment',
-    metrics: [
-      { type: 'rep', value: 21, image: '21', origin: 'runtime' },
-      { type: 'effort', value: 'Deadlift', image: 'Deadlift', origin: 'parser' },
-      { type: 'elapsed', value: 60_000, origin: 'runtime' },
-    ],
-    sourceBlockKey: 'block-1',
-    stackLevel: 0,
-  };
+function segmentEvent(id = `${result.id}:0`): EventRecord {
+  return { id, resultId: result.id, noteId: result.noteId, blockId: result.blockId, blockVersion: result.blockVersion, timestamp: T0, grain: 'event', outputType: 'segment', metrics: [
+    { type: 'rep', value: 21, image: '21', origin: 'runtime' },
+    { type: 'effort', value: 'Deadlift', image: 'Deadlift', origin: 'parser' },
+    { type: 'elapsed', value: 60_000, origin: 'runtime' },
+  ], sourceBlockKey: 'block-1', stackLevel: 0 };
 }
 
-function makeResult(overrides: Partial<Session> = {}): Session {
-  return {
-    id: 'result-1',
-    noteId: 'note-1',
-    segmentId: 'wod-2-test',
-    segmentVersion: 1,
-    blockContentId: 'bc-test',
-    origin: 'journal',
-    startTime: T0,
-    endTime: T0 + 60_000,
-    duration: 60_000,
-    completed: true,
-    createdAt: T0 + 60_000,
-    ...overrides,
-  };
-}
-
-function createHarness(result: Session, initialEvents: EventRecord[] = [], segment: NoteSegment | undefined = SEGMENT) {
-  let currentResult = result;
-  let currentEvents = [...initialEvents];
-  const savedResults: Session[] = [];
-  const finalizedSummaries: { resultId: string; rows: EventRecord[] }[] = [];
-
-  const storage: NotePersistenceStorage = {
-    getNote: async () => undefined,
-    saveNote: async () => 'note-1',
-    getAllNotes: async () => [],
-    getLatestSegmentVersion: async (id) => (segment && segment.id === id ? segment : undefined),
-    getSegment: async (id, version) => (segment && segment.id === id && segment.version === version ? segment : undefined),
-    getSessionsForNote: async () => [currentResult],
-    saveSession: async (r) => {
-      currentResult = r;
-      savedResults.push(r);
-      return r.id;
-    },
-    getSessionsByContentId: async () => [],
-    getSessionsForSection: async () => [],
-    getSessionById: async (id) => (id === currentResult.id ? currentResult : undefined),
-    getAttachmentsForNote: async () => [],
-    saveAttachment: async () => 'att-1',
-    deleteAttachment: async () => {},
-    appendEvents: async (rows) => {
-      currentEvents.push(...rows);
-    },
-    finalizeSummaries: async (resultId, rows) => {
-      finalizedSummaries.push({ resultId, rows });
-    },
-    deleteEvents: async (ids) => {
-      const doomed = new Set(ids);
-      currentEvents = currentEvents.filter((r) => !doomed.has(r.id));
-    },
-    getEventsForNote: async () => currentEvents,
-    getEventsByResult: async (resultId: string) => currentEvents.filter((r) => r.resultId === resultId),
-    // Atomicity is covered against real backends (atomic.test.ts) — the
-    // scoped surface is the fake itself here.
-    withTransaction: async <R>(_stores: unknown[], fn: (scoped: never) => Promise<R>) => fn(storage as never),
-  };
-
+async function harness() {
+  const memory = new InMemoryStorage();
+  const storage = new StorageService(memory);
   const persistence = new IndexedDBNotePersistence(storage);
-
-  return {
-    persistence,
-    storage,
-    savedResults: () => savedResults,
-    finalizedSummaries: () => finalizedSummaries,
-    currentEvents: () => currentEvents,
-  };
+  await persistence.saveNote({ noteId: result.noteId, rawContent: source, blocks: reconcileNoteBlocks(source, { sourceRevision: 1, createId: () => result.blockId }), expectedSourceRevision: 0, metadata: { title: 'RPE' } });
+  await memory.readwrite('sessions').put(result);
+  await storage.appendEvents([segmentEvent()]);
+  return { storage, persistence };
 }
 
-function findUserRpeEvents(events: EventRecord[]) {
-  return events.filter(
-    (row) =>
-      row.outputType === 'segment' &&
-      row.metrics.some((m) => m.type === MetricType.SessionRPE && m.origin === 'user'),
-  );
+function userRatings(events: EventRecord[]) {
+  return events.filter(row => row.grain === 'event' && row.outputType === 'segment' && row.metrics.some(metric => metric.type === MetricType.SessionRPE && metric.origin === 'user'));
 }
 
 describe('captureSessionRpe', () => {
-  it('returns not-found when the result does not exist', async () => {
-    const storage: NotePersistenceStorage = {
-      getSessionById: async () => undefined,
-      saveSession: async () => '',
-      getNote: async () => undefined,
-      saveNote: async () => '',
-      getAllNotes: async () => [],
-      getLatestSegmentVersion: async () => undefined,
-      getSessionsForNote: async () => [],
-      getSessionsByContentId: async () => [],
-      getSessionsForSection: async () => [],
-      getAttachmentsForNote: async () => [],
-      saveAttachment: async () => '',
-      deleteAttachment: async () => {},
-    };
-    const persistence = new IndexedDBNotePersistence(storage);
-
-    const outcome = await captureSessionRpe('missing-id', 7, { storage, persistence });
-
-    expect(outcome).toBe('not-found');
+  it('returns not-found for an absent Session', async () => {
+    const { storage, persistence } = await harness();
+    expect(await captureSessionRpe('missing-id', 7, { storage, persistence })).toBe('not-found');
   });
 
-  it('appends a user-origin SessionRPE event row and re-derives analytics', async () => {
-    const result = makeResult();
-    const { storage, persistence, savedResults, finalizedSummaries, currentEvents } = createHarness(result, [baseSegmentEvent(result.id)]);
-
-    const outcome = await captureSessionRpe(result.id, 8, { storage, persistence });
-
-    expect(outcome).toBe('captured');
-    expect(savedResults().length).toBe(0); // Session row is untouched under V21
-
-    const rpeEvents = findUserRpeEvents(currentEvents());
-    expect(rpeEvents).toHaveLength(1);
-    expect(rpeEvents[0]!.metrics[0]).toMatchObject({
-      type: MetricType.SessionRPE,
-      value: 8,
-      origin: 'user',
-      image: 'rpe: 8',
-    });
-
-    const resultFinalizations = finalizedSummaries().filter((f) => f.resultId === result.id);
-    expect(resultFinalizations.length).toBeGreaterThan(0);
-    expect(resultFinalizations.some((f) => f.rows.some((r) => r.grain === 'summary'))).toBe(true);
+  it('appends a pinned user rating and replays after Note deletion without modifying Session', async () => {
+    const { storage, persistence } = await harness();
+    await persistence.deleteNote(result.noteId);
+    expect(await captureSessionRpe(result.id, 8, { storage, persistence })).toBe('captured');
+    const events = await storage.getEventsByResult(result.id);
+    expect(userRatings(events)).toHaveLength(1);
+    expect(userRatings(events)[0]).toMatchObject({ blockId: result.blockId, blockVersion: 1, metrics: [{ type: MetricType.SessionRPE, value: 8, origin: 'user', image: 'rpe: 8' }] });
+    expect(events.some(event => event.grain === 'summary')).toBe(true);
+    expect(await storage.getSessionById(result.id)).toEqual(result);
   });
 
-  it('replaces the existing user-origin SessionRPE on re-answer (no duplicates)', async () => {
-    const result = makeResult();
-    const firstRpe: EventRecord = {
-      id: `${result.id}:rpe:old`,
-      resultId: result.id,
-      noteId: 'note-1',
-      timestamp: T0 + 60_000,
-      grain: 'event',
-      outputType: 'segment',
-      metrics: [{ type: MetricType.SessionRPE, value: 5, origin: 'user', image: 'rpe: 5' }],
-      sourceBlockKey: 'block-1',
-      stackLevel: 0,
-    };
-    const { storage, persistence, currentEvents } = createHarness(result, [baseSegmentEvent(result.id), firstRpe]);
-
+  it('replaces a prior user rating without duplicate events', async () => {
+    const { storage, persistence } = await harness();
+    await captureSessionRpe(result.id, 5, { storage, persistence });
     await captureSessionRpe(result.id, 9, { storage, persistence });
-
-    const rpeEvents = findUserRpeEvents(currentEvents());
-    expect(rpeEvents).toHaveLength(1);
-    expect(rpeEvents[0]!.metrics[0]!.value).toBe(9);
+    const ratings = userRatings(await storage.getEventsByResult(result.id));
+    expect(ratings).toHaveLength(1);
+    expect(ratings[0].metrics[0].value).toBe(9);
   });
 
-  it('preserves non-user SessionRPE origins when replacing', async () => {
-    const result = makeResult();
-    const analyzedRpe: EventRecord = {
-      id: `${result.id}:analyzed-rpe`,
-      resultId: result.id,
-      noteId: 'note-1',
-      timestamp: T0 + 60_000,
-      grain: 'event',
-      outputType: 'segment',
-      metrics: [{ type: MetricType.SessionRPE, value: 5, origin: 'analyzed', image: 'rpe: 5' }],
-      sourceBlockKey: 'block-1',
-      stackLevel: 0,
-    };
-    const { storage, persistence, currentEvents } = createHarness(result, [baseSegmentEvent(result.id), analyzedRpe]);
-
+  it('preserves non-user metric origins', async () => {
+    const { storage, persistence } = await harness();
+    const event = segmentEvent('analyzed-rating');
+    event.metrics.push({ type: MetricType.SessionRPE, value: 5, origin: 'analyzed', image: 'rpe: 5' });
+    await storage.appendEvents([event]);
     await captureSessionRpe(result.id, 9, { storage, persistence });
-
-    const rpeEvents = currentEvents().filter(
-      (row) => row.outputType === 'segment' && row.metrics.some((m) => m.type === MetricType.SessionRPE),
-    );
-    const userRpe = rpeEvents.find((s) => s.metrics.some((m) => m.origin === 'user'));
-    expect(userRpe).toBeDefined();
-    expect(userRpe!.metrics[0]!.value).toBe(9);
+    const events = await storage.getEventsByResult(result.id);
+    expect(userRatings(events)[0].metrics[0].value).toBe(9);
+    expect(events.flatMap(row => row.metrics).some(metric => metric.type === MetricType.SessionRPE && metric.origin === 'analyzed')).toBe(true);
   });
 
-  it('returns captured-no-rederive for orphan results and still saves the event', async () => {
-    const result = makeResult({ segmentId: undefined, segmentVersion: undefined });
-    const { storage, persistence, currentEvents } = createHarness(result, [baseSegmentEvent(result.id)], undefined);
-
-    const outcome = await captureSessionRpe(result.id, 7, { storage, persistence });
-
-    expect(outcome).toBe('captured-no-rederive');
-
-    const rpeEvents = findUserRpeEvents(currentEvents());
-    expect(rpeEvents).toHaveLength(1);
-    expect(rpeEvents[0]!.metrics[0]!.value).toBe(7);
-  });
-
-  it('re-derivation preserves the user-origin SessionRPE in replayed events', async () => {
-    const result = makeResult();
-    const { storage, persistence, currentEvents } = createHarness(result, [baseSegmentEvent(result.id)]);
-
-    await captureSessionRpe(result.id, 8, { storage, persistence });
-
-    const userRpe = currentEvents()
-      .flatMap((row) => row.metrics)
-      .find((m) => m.type === MetricType.SessionRPE && m.origin === 'user');
-    expect(userRpe).toBeDefined();
-    expect(userRpe!.value).toBe(8);
+  it('retains the valid pin and rating when its immutable revision cannot be loaded for replay', async () => {
+    const { storage } = await harness();
+    class UnavailableReplay extends IndexedDBNotePersistence {
+      override async rederiveResultAnalytics(): Promise<Session> {
+        throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Pinned revision is unavailable');
+      }
+    }
+    const persistence = new UnavailableReplay(storage);
+    expect(await captureSessionRpe(result.id, 7, { storage, persistence })).toBe('captured-no-rederive');
+    expect(userRatings(await storage.getEventsByResult(result.id))[0].metrics[0].value).toBe(7);
+    expect(await storage.getSessionById(result.id)).toEqual(result);
   });
 });

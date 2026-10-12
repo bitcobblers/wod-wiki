@@ -1,86 +1,75 @@
-/**
- * Seed contract — producer side.
- *
- * Mirrors the runtime consumer copy in the wod-wiki app
- * (apps/playground/src/types/seed.ts). The two MUST stay shape-compatible:
- * the app validates the manifest with `assertManifest` (required fields
- * only, extra fields tolerated) and applies chunk rows structurally.
- *
- * ponytail: the contract is duplicated rather than shared via a published
- * package to keep this repo standalone for content contributors; upgrade
- * path is moving these types into @bitcobblers/wod-wiki-core and importing
- * from both sides.
- */
+import type { BlockEffort, BlockIndexRow, NoteBlock } from '@bitcobblers/wod-wiki-core';
+import { KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 
-/** One row of a seed chunk — a source file's identity + raw text. */
+export const SEED_SCHEMA = 8;
+export const SEED_REGISTERED_WIDGETS = KNOWN_SECTION_WIDGETS;
+
+/** Source and all current derived rows commit as one chunk. */
 export interface SeedRow {
-  /** Repo-relative POSIX path of the source markdown (`markdown/…`). */
   path: string;
-  /** Raw file text. */
   content: string;
+  blocks: Record<string, NoteBlock>;
+  blockIndex: BlockIndexRow[];
+  blockEfforts: BlockEffort[];
 }
 
-/** Chunk payload kinds. `'block-index'` chunks carry precomputed BlockIndexRow[]; `'block-efforts'` chunks carry precomputed BlockEffort[]. */
-export type ChunkKind = 'notes' | 'block-index' | 'block-efforts';
-
-/** One chunk entry in the seed manifest. */
+export type ChunkKind = 'notes';
 export interface ManifestChunk {
   id: string;
-  /** Path under the seed dir, e.g. `chunks/efforts.ab12cd34.json`. */
   path: string;
-  /**
-   * Full hex sha256 of the chunk bytes — the change-detection token for
-   * checkpointed re-import.
-   */
   sha256: string;
   bytes: number;
-  /** Row count. */
   count: number;
-  /** Row payload kind — defaults to `'notes'` (raw markdown rows). */
   kind?: ChunkKind;
 }
-
-/** `seed/manifest.json` — the only file a boot version check must fetch. */
 export interface SeedManifest {
-  /** Seed format version — bump on incompatible row-shape changes. */
   schema: number;
-  /**
-   * Monotonic import-order version: commit count of this repo
-   * (`git rev-list --count HEAD`). Advances with every merged MR, so the
-   * app can order checkpoints; per-chunk sha256 is the real change token.
-   */
   version: number;
-  /** Human-readable git version, e.g. `v1.2.0-4-gdeadbee` (git describe --long --always --dirty). */
   versionLabel?: string;
-  /** Full HEAD commit sha this artifact was built from. */
   commit?: string;
-  /** True when the working tree had uncommitted changes at build time. */
   dirty?: boolean;
   builtAt: string;
   chunks: ManifestChunk[];
 }
-
-/** v7 — notes carry their real corpus `sourceId` and dashboards chunk rows type 'dashboard'. Keep in sync with the app's copy. */
-export const SEED_SCHEMA = 7;
-/** Playground template chunk — the new-playground template is playground intake, not journal content. */
-export const TEMPLATE_CHUNK_ID = 'template';
-/** The prebuilt dashboard notes corpus — one notes chunk, gated by validateDashboardNote. */
+export interface SeedMetaRecord {
+  key: string;
+  schema: number;
+  seedVersion: number;
+  builtAt: string;
+  importedAt: number;
+  chunks: Record<string, { sha256: string; noteIds?: string[] }>;
+  claim?: { owner: string; at: number } | null;
+}
+export const SEED_BROADCAST_CHANNEL = 'wodwiki.seed';
+export const EFFORTS_CHUNK_ID = 'efforts';
+export const CANVAS_CHUNK_ID = 'canvas';
 export const DASHBOARDS_CHUNK_ID = 'dashboards';
-/** Prefix of the split block-index chunks (`block-index.<n>`). */
-export const BLOCK_INDEX_CHUNK_PREFIX = 'block-index.';
-/** Prefix of the split block-efforts chunks (`block-efforts.<n>`). */
-export const BLOCK_EFFORTS_CHUNK_PREFIX = 'block-efforts.';
-
-/** Frontmatter `route:` of a canvas page, minus the leading slash; null when
- *  absent, degenerate ('/'), or the file is not a canvas page (`template:
- *  canvas` required — section fragments and snippets carry `title:`/`section:`
- *  frontmatter instead and must never become Library entries). Mirrors the
- *  runtime's route resolution, so a guide's block-index noteId doubles as
- *  its deep-link path. */
+export const TEMPLATE_CHUNK_ID = 'template';
+export function seedMetaKey(sourceId: string): string { return `seed:${sourceId}`; }
+export function emptySeedMeta(key: string): SeedMetaRecord {
+  return { key, schema: SEED_SCHEMA, seedVersion: 0, builtAt: '', importedAt: 0, chunks: {}, claim: null };
+}
+export function catalogForChunkId(chunkId: string): string | undefined {
+  const value = /^(?:collection|feed)\.(.+)$/.exec(chunkId)?.[1];
+  return value && value !== '_root' ? value : undefined;
+}
 export function canvasRouteSlug(content: string): string | null {
   const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content);
   if (fm?.[1] && !/^template:\s*canvas\s*$/m.test(fm[1])) return null;
-  const route = fm?.[1]?.match(/^route:\s*(\S+)\s*$/m)?.[1];
-  if (!route) return null;
-  return route.replace(/^\//, '') || null;
+  return fm?.[1]?.match(/^route:\s*(\S+)\s*$/m)?.[1]?.replace(/^\//, '') || null;
+}
+export function seedNoteSourceId(path: string, content: string, chunkId: string): string | undefined {
+  const parts = path.split('/');
+  const stem = (parts.at(-1) ?? '').replace(/\.md$/i, '');
+  const under = parts.slice(2).map((p) => p.replace(/\.md$/i, '')).join('/');
+  if (chunkId === CANVAS_CHUNK_ID) return `guides:${canvasRouteSlug(content) ?? under}`;
+  if (chunkId === DASHBOARDS_CHUNK_ID) return 'dashboards';
+  if (chunkId === EFFORTS_CHUNK_ID) return 'efforts';
+  if (chunkId === TEMPLATE_CHUNK_ID) return 'playground';
+  if (chunkId.startsWith('collection.')) {
+    const catalog = catalogForChunkId(chunkId);
+    return !catalog ? 'collection:_root' : stem.toLowerCase() === 'readme' ? `collection:${catalog}` : `collection:${catalog}/${stem}`;
+  }
+  if (chunkId.startsWith('feed.')) return `feed:feeds/${under}`;
+  return undefined;
 }

@@ -34,10 +34,9 @@ export function resolveCanonicalMetricKey(projectionName: string): string {
 export interface SummaryFactIdentity {
   noteId: string;
   resultId: string;
-  /** FK to NoteSegment.id (positional section id of the block run). */
-  segmentId?: string;
-  /** NoteSegment.version at record time. */
-  segmentVersion?: number;
+  /** Actionable occurrence and saved revision that produced the result. */
+  blockId?: string;
+  blockVersion?: number;
   /** Content-stable cross-note join key. */
   blockContentId?: string;
   /** Which surface produced the result; trend queries exclude 'playground' by default. */
@@ -179,8 +178,8 @@ export function normalizeSummaryFacts(
     origin: identity.origin,
     pageId: identity.pageId,
     grain: 'summary' as const,
-    segmentId: identity.segmentId ?? '',
-    segmentVersion: identity.segmentVersion ?? 0,
+    blockId: identity.blockId ?? '',
+    blockVersion: identity.blockVersion ?? 0,
     resultId: identity.resultId,
     type: f.metricKey,
     value: f.value,
@@ -254,8 +253,8 @@ export function toEventRows(
     text: output.text,
     dialect: output.dialect,
     completionReason: output.completionReason,
-    segmentId: identity.segmentId,
-    segmentVersion: identity.segmentVersion,
+    blockId: identity.blockId,
+    blockVersion: identity.blockVersion,
   }));
 }
 
@@ -312,8 +311,8 @@ export function toSummaryEventRows(
         ...(f.grade ? { grade: f.grade } : {}),
       },
     }],
-    segmentId: identity.segmentId,
-    segmentVersion: identity.segmentVersion,
+    blockId: identity.blockId,
+    blockVersion: identity.blockVersion,
   }));
 }
 
@@ -353,8 +352,8 @@ export function projectEventToFacts(record: EventRecord): AnalyticsDataPoint[] {
       origin: record.origin,
       pageId: record.pageId,
       grain: 'summary',
-      segmentId: record.segmentId ?? '',
-      segmentVersion: record.segmentVersion ?? 0,
+      blockId: record.blockId ?? '',
+      blockVersion: record.blockVersion ?? 0,
       resultId: record.resultId,
       type: metricKey,
       value: m.value,
@@ -444,8 +443,8 @@ export function projectEventToFacts(record: EventRecord): AnalyticsDataPoint[] {
       origin: record.origin,
       pageId: record.pageId,
       grain: 'event',
-      segmentId: record.segmentId ?? '',
-      segmentVersion: record.segmentVersion ?? 0,
+      blockId: record.blockId ?? '',
+      blockVersion: record.blockVersion ?? 0,
       resultId: record.resultId,
       type: metricKey,
       value: m.value,

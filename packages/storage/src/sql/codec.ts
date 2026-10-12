@@ -46,16 +46,20 @@ function reviveBinary(value: unknown): unknown {
 
 /** Serialize a row; when `binaryField` is set and holds an ArrayBuffer, it is
  * replaced by the lossless tag (shallow copy — the input row is untouched). */
+const canonicalJson = (_key: string, value: unknown): unknown => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
+  return Object.fromEntries(Object.keys(value).sort().map(key => [key, Reflect.get(value, key)]));
+};
 export function encodeRowJson(value: unknown, binaryField?: string): string {
   if (binaryField && value !== null && typeof value === 'object' && !Array.isArray(value)) {
     const row = value as Record<string, unknown>;
     const data = row[binaryField];
     if (data instanceof ArrayBuffer) {
       const bytes = new Uint8Array(data);
-      return JSON.stringify({ ...row, [binaryField]: { [TAG]: bytesToBase64(bytes), [LEN]: bytes.length } });
+      return JSON.stringify({ ...row, [binaryField]: { [TAG]: bytesToBase64(bytes), [LEN]: bytes.length } }, canonicalJson);
     }
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value, canonicalJson);
 }
 
 /** Parse a row; when `binaryField` is set, a tagged value there revives as an

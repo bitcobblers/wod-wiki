@@ -17,11 +17,15 @@ const dir = await mkdtemp(join(tmpdir(), 'wodwiki-migrate-'));
 const source = new InMemoryStorage();
 const dest = new SqlStorage(libsqlDatabase(createClient({ url: 'file:' + join(dir, 'check.db') })));
 try {
-  const note = { id: 'n', title: 'My run', createdAt: 100, userId: 'owner' };
-  await source.readwrite('notes').put(note);
+  const rawContent = '```time\n10 Pushups\n```';
+  const note = { id: 'n', title: 'My run', createdAt: 100, userId: 'owner', rawContent,
+    sourceRevision: 2, blocks: { s: { id: 's', kind: 'wod' as const, dialect: 'time' as const,
+      version: 2, sourceRevision: 2, from: 0, to: rawContent.length } } };
   for (const version of [1, 2]) {
-    await source.readwrite('segments').put({ id: 's', version, noteId: 'n', dataType: 'markdown', data: null, rawContent: `revision ${version}`, createdAt: version, isHistory: version === 1 });
+    await source.readwrite('block_revisions').put({ noteId: 'n', blockId: 's', version,
+      kind: 'wod', dialect: 'time', rawContent: version === 2 ? rawContent : '```time\n5 Pushups\n```', savedAt: version });
   }
+  await source.readwrite('notes').put(note);
   const bytes = new Uint8Array([0, 1, 250, 255]);
   await source.readwrite('attachments').put({ id: 'a', noteId: 'n', mimeType: 'application/octet-stream', label: 'GPS', data: bytes.buffer, createdAt: 1, timeSpan: { start: 1, end: 2 } });
   await source.readwrite('meta').put({ key: 'seed:core', value: { schema: 7, version: 41 } });

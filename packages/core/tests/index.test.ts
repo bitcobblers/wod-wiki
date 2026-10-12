@@ -18,7 +18,7 @@ import {
   type Session,
   type EventRecord,
   type Note,
-  type NoteSegment,
+  type BlockRevision,
   type BlockIndexRow,
   type AnalyticsDataPoint,
   type IDialectTagDescriptor,
@@ -179,37 +179,38 @@ describe('@bitcobblers/wod-wiki-core public API', () => {
         id: 'res-1',
         noteId: 'note-1',
         createdAt: 1000,
-        data: {
-          startTime: 1000,
-          endTime: 2000,
-          completed: true,
-          logs: [storedOutput],
-        },
+        blockId: 's1',
+        blockVersion: 1,
+        startTime: 1000,
+        endTime: 2000,
+        duration: 1000,
+        completed: true,
       };
 
       const note: Note = {
         id: 'n1',
         title: 'Murph',
         createdAt: 1000,
+        rawContent: '```time\n21 pullups\n```',
+        sourceRevision: 1,
+        blocks: { s1: { id: 's1', kind: 'wod', version: 1, sourceRevision: 1, from: 0, to: '```time\n21 pullups\n```'.length, dialect: 'time' } },
       };
 
-      const segment: NoteSegment = {
-        id: 's1',
-        version: 1,
-        noteId: 'n1',
-        dataType: 'wod',
-        data: {},
-        rawContent: '21 pullups',
-        createdAt: 1000,
+      const revision: BlockRevision = {
+        blockId: 's1', version: 1, noteId: 'n1', kind: 'wod', dialect: 'time',
+        rawContent: note.rawContent, savedAt: 1000,
       };
 
       const indexRow: BlockIndexRow = {
-        id: 'n1:s1:1',
+        id: 'n1:s1',
         noteId: 'n1',
-        segmentId: 's1',
-        segmentVersion: 1,
+        blockId: 's1',
+        blockVersion: 1,
+        sourceRevision: 1,
+        from: 0,
+        to: note.rawContent.length,
         dataType: 'wod',
-        rawContent: '21 pullups',
+        rawContent: note.rawContent,
         noteTitle: 'Murph',
         createdAt: 1000,
       };
@@ -217,8 +218,8 @@ describe('@bitcobblers/wod-wiki-core public API', () => {
       const point: AnalyticsDataPoint = {
         id: 'p1',
         noteId: 'n1',
-        segmentId: 's1',
-        segmentVersion: 1,
+        blockId: 's1',
+        blockVersion: 1,
         resultId: 'res-1',
         type: 'totalLoad',
         value: 1200,
@@ -234,9 +235,9 @@ describe('@bitcobblers/wod-wiki-core public API', () => {
         runnable: true,
       };
 
-      expect(workoutResult.data.completed).toBe(true);
+      expect(workoutResult.completed).toBe(true);
       expect(note.title).toBe('Murph');
-      expect(segment.dataType).toBe('wod');
+      expect(revision.kind).toBe('wod');
       expect(indexRow.noteTitle).toBe('Murph');
       expect(point.value).toBe(1200);
       expect(dialectTag.tag).toBe('climb');

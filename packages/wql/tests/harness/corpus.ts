@@ -5,28 +5,18 @@
  * `inMemoryEventStore` provides in the engine package, kept local because
  * wql tests must not import engine (engine depends on wql).
  *
- * Envelope v1.1: journals carry a `notes` section ({id, title, createdAt,
- * tags, sourceId?}) — the NoteQueryStore side of tag filters, discovered
- * when seeding (the 002 envelope omitted it).
+ * Notes carry authored source/maps. Immutable revisions and Sessions pin
+ * the same occurrences; the corpus parser validates those relationships.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { Note, EventRecord } from '@bitcobblers/wod-wiki-core';
+import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { NoteQueryStore, EventStore } from '../../src/stores';
+import { parseCorpusJournal, type CorpusJournal } from '../../fixtures/corpus/journal';
+export type { CorpusJournal } from '../../fixtures/corpus/journal';
 
-export interface JournalNote extends Note {}
-
-export interface CorpusJournal {
-  $schema: string;
-  kind: 'event-journal';
-  id: string;
-  title: string;
-  description: string;
-  notes: JournalNote[];
-  records: EventRecord[];
-}
 
 export const CORPUS_DIR = join(__dirname, '../../fixtures/corpus');
 /** Catalog filenames in directory order. */
@@ -40,7 +30,7 @@ export const CORPUS_JOURNALS: string[] = listCorpusJournals();
 export function loadJournal(file: string): CorpusJournal {
   const raw = readFileSync(join(CORPUS_DIR, file), 'utf-8');
   try {
-    return JSON.parse(raw) as CorpusJournal;
+    return parseCorpusJournal(JSON.parse(raw));
   } catch (e) {
     throw new Error(`corpus/${file}: invalid JSON (${e instanceof Error ? e.message : String(e)})`);
   }

@@ -10,7 +10,6 @@
  */
 import {
   emptySeedMeta,
-  LEGACY_SEED_META_KEY,
   SEED_BROADCAST_CHANNEL,
   SEED_SCHEMA,
   seedMetaKey,
@@ -19,7 +18,7 @@ import {
 import { SeedImporter, type SeedImportProgress } from './SeedImporter';
 import { HttpSeedSource } from './HttpSeedSource';
 import { IndexedDBSeedImportStorage, type SeedImportStorage } from './SeedImportStorage';
-import type { ISeedSource } from './ISeedSource';
+import { assertManifest, type ISeedSource } from './ISeedSource';
 import { decideSeedImport, EMBEDDED_SEED_VERSIONS, storedSeedIsCurrent } from './seedVersion';
 import { customSeedSources } from './seedSources';
 import { invalidateSeedContent } from '@/services/content/seedContent';
@@ -156,16 +155,6 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
 
   if (!(deps.isEnabled ?? isSeedImportEnabled)()) return 'disabled';
 
-  // One-time legacy cleanup: pre-multi-seed checkpoints lived under the
-  // single 'seed' key. Per-source checkpoints start empty and re-apply
-  // everything once (ownership-gated upserts; user work is never lost).
-  try {
-    if (await storage.getSeedMeta(LEGACY_SEED_META_KEY)) {
-      await storage.deleteSeedMeta(LEGACY_SEED_META_KEY);
-    }
-  } catch {
-    // Best-effort; an unremovable legacy record is inert — nothing reads it.
-  }
 
   const owner = deps.owner ?? `seed-${(deps.now ?? Date.now)()}-${Math.random().toString(36).slice(2, 8)}`;
   const sources = deps.sources ?? defaultSeedSources();
@@ -200,12 +189,9 @@ export async function runBootSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSync
   try {
     const settings = readDataSettings();
     if (settings.state === 'turso') {
-      // Any core checkpoint (multi-source or legacy single-key) means this
-      // database was seeded before — never auto-import over it. Generic meta
-      // rows (notebook prefs etc.) must not block the boot seed.
+      // Any core checkpoint means this database was seeded before.
       const meta = storage.readonly('meta');
       if (await meta.get(seedMetaKey('core'))) return 'current';
-      if (await meta.get(LEGACY_SEED_META_KEY)) return 'current';
     }
   } catch (err) {
     // Provider unreadable (offline, bad token, malformed config): nothing to
@@ -247,25 +233,21 @@ async function runSourceSync(
       return 'busy';
     }
 
-    const manifest = await spec.source.fetchManifest();
+    const manifest = assertManifest(await spec.source.fetchManifest());
     const decision = deps.force ? 'import' : decideSeedImport(stored?.seedVersion, manifest.version);
     if (decision === 'server-stale') {
       finish('server-stale');
       return 'server-stale';
     }
-    // A stored checkpoint from a different seed schema migrates even when the
-    // manifest version is unchanged — the re-apply is the migration that
-    // repairs metadata on already-seeded rows (ownership still gates rows).
-    // Decided AFTER the version table so a rollback (server-stale) keeps its
-    // refusal: never migrate onto an older manifest.
-    if (decision === 'current' && stored?.schema === SEED_SCHEMA) {
+    if (stored && stored.schema !== SEED_SCHEMA) throw new Error('Incompatible seed checkpoint; recreate storage');
+    if (!deps.force && decision === 'current' && stored?.schema === SEED_SCHEMA && stored.builtAt === manifest.builtAt) {
       finish('current');
       return 'current';
     }
 
     // Claim before the (potentially long) chunk imports.
     const claimed: SeedMetaRecord = { ...(stored ?? emptySeedMeta(metaKey)), claim: { owner, at: now() } };
-    await storage.putSeedMeta(claimed);
+    await storage.putSeedMeta(claimed, stored ?? null);
     try {
       const result = await new SeedImporter(storage, spec.source, spec.id, now).applyAll({
         forceAll: deps.force === true,
@@ -291,7 +273,7 @@ async function runSourceSync(
     } finally {
       const after = await storage.getSeedMeta(metaKey);
       if (after?.claim?.owner === owner) {
-        await storage.putSeedMeta({ ...after, claim: null });
+        await storage.putSeedMeta({ ...after, claim: null }, after);
       }
     }
     finish('imported');

@@ -1,17 +1,4 @@
-/**
- * STORE_DEFS — runtime store/index spec for the wodwiki database, derived
- * verbatim from IndexedDBStorage.open()'s upgrade callback (DB_VERSION 25,
- * apps/playground/src/services/storage/IndexedDBStorage.ts). The API server
- * builds its SQL schema from this spec.
- *
- * V25 adds the memberships store (system) and the by-user ownership index
- * on every store that can hold user-created rows (see USER_OWNED_STORES in
- * membership.ts — the ownership crosswalk).
- *
- * keyPath convention: array of property paths in key order. A single-element
- * array is a simple (scalar) key; multiple elements form a compound key.
- * Dotted paths ('baseAttributes.discipline') address nested properties.
- */
+/** Fresh schema shared by browser, SQL and in-memory adapters. */
 
 import type { StoreName } from './contract';
 
@@ -19,19 +6,7 @@ import type { StoreName } from './contract';
 // index) — deliberately not re-exported here to avoid a star-export
 // ambiguity between ./schema and ./domain.
 
-/**
- * Shared IndexedDB schema version — the browser database opens at exactly
- * this version (apps/playground/src/services/storage/IndexedDBStorage.ts
- * imports it), so store/index drift between the app and this spec is a type
- * error, not a runtime surprise. Bump on every store/index change and add
- * the matching guarded upgrade step.
- *
- * 27 supersedes 26: real databases already upgraded to the first 26 cut
- * (before by-source / by-created / the unique note-tag pair) exist in the
- * wild, so "version 26" is ambiguous — 27's presence-guarded repairs bring
- * every mixed DB to the same shape.
- */
-export const DB_VERSION = 28;
+export const DB_VERSION = 29;
 
 /**
  * Typed field metadata — column type per extracted field path, shared with
@@ -53,16 +28,9 @@ export const COLUMN_TYPES: Record<StoreName, Record<string, StorageColumnType>> 
   tags: { createdAt: 'number' },
   tag_types: { createdAt: 'number' },
   note_tags: {},
-  segments: {
-    version: 'number',
-    position: 'number',
-    createdAt: 'number',
-    updatedAt: 'number',
-    isHistory: 'boolean',
-  },
+  block_revisions: { version: 'number', savedAt: 'number' },
   sessions: {
-    segmentVersion: 'number',
-    version: 'number',
+    blockVersion: 'number',
     startTime: 'number',
     endTime: 'number',
     duration: 'number',
@@ -75,7 +43,7 @@ export const COLUMN_TYPES: Record<StoreName, Record<string, StorageColumnType>> 
   attachments: { createdAt: 'number' },
   events: {
     timestamp: 'number',
-    segmentVersion: 'number',
+    blockVersion: 'number',
     line: 'number',
     sourceStatementId: 'number',
     stackLevel: 'number',
@@ -88,7 +56,10 @@ export const COLUMN_TYPES: Record<StoreName, Record<string, StorageColumnType>> 
   field_catalog_meta: {},
   efforts: { 'baseAttributes.met': 'number' },
   block_index: {
-    segmentVersion: 'number',
+    blockVersion: 'number',
+    sourceRevision: 'number',
+    from: 'number',
+    to: 'number',
     position: 'number',
     createdAt: 'number',
     isStatic: 'boolean',
@@ -151,17 +122,12 @@ export const STORE_DEFS: StoreDef[] = [
     { name: 'by-note-tag', keyPath: ['noteId', 'tagId'], unique: true },
     { name: 'by-user', keyPath: ['userId'] },
   ] },
-  // 5. segments
-  { name: 'segments', keyPath: ['id', 'version'], indexes: [
+  { name: 'block_revisions', keyPath: ['noteId', 'blockId', 'version'], indexes: [
     { name: 'by-note', keyPath: ['noteId'] },
-    { name: 'by-type', keyPath: ['dataType'] },
-    { name: 'by-page', keyPath: ['pageId'] },
-    { name: 'by-history', keyPath: ['isHistory'] },
-    { name: 'by-user', keyPath: ['userId'] },
+    { name: 'by-block', keyPath: ['noteId', 'blockId'] },
   ] },
   // 6. sessions
   { name: 'sessions', keyPath: ['id'], indexes: [
-    { name: 'by-segment', keyPath: ['segmentId'] },
     { name: 'by-note', keyPath: ['noteId'] },
     { name: 'by-completed', keyPath: ['createdAt'] },
     { name: 'by-content', keyPath: ['blockContentId'] },
@@ -170,9 +136,6 @@ export const STORE_DEFS: StoreDef[] = [
     { name: 'by-origin', keyPath: ['origin'] },
     { name: 'by-user', keyPath: ['userId'] },
   ] },
-  // 7. results — removed in V26: legacy alias of sessions. The V26 upgrade
-  // migrates any residual rows into `sessions` (projecting pre-V21 data.logs
-  // into event rows) before dropping the store; no compatibility alias.
   // 8. attachments
   { name: 'attachments', keyPath: ['id'], indexes: [
     { name: 'by-note', keyPath: ['noteId'] },

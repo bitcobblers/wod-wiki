@@ -1,24 +1,16 @@
 import type { IContentProvider } from '@/types/content-provider';
 
-import { ContentProviderNotePersistence } from './ContentProviderNotePersistence';
 import type { INotePersistence } from './INotePersistence';
 import { IndexedDBNotePersistence } from './IndexedDBNotePersistence';
 
 export type { INotePersistence } from './INotePersistence';
-export { ContentProviderNotePersistence } from './ContentProviderNotePersistence';
 export { IndexedDBNotePersistence } from './IndexedDBNotePersistence';
 export * from './types';
 
 export function createNotePersistence(provider: IContentProvider): INotePersistence {
-  // Pick the adapter from the provider's declared backend, not from class
-  // identity (`instanceof`). This keeps the factory decoupled from concrete
-  // provider classes — a second IndexedDB-backed provider works without
-  // editing this factory.
-  if (provider.persistenceBackend === 'indexed-db') {
-    return new IndexedDBNotePersistence();
-  }
-
-  return new ContentProviderNotePersistence(provider);
+  const storage = provider.persistenceStorage;
+  if (!storage) throw new Error('Content provider requires atomic storage for note persistence');
+  return new IndexedDBNotePersistence(storage, provider);
 }
 
 /**

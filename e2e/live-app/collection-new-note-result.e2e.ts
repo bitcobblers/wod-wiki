@@ -15,7 +15,8 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { deleteNoteByRouteId, getNoteContentByRouteId, clearResults, getResults, WOD_DB } from '../helpers/wodwikiDb';
+import { deleteNoteByRouteId, getNoteContentByRouteId, seedJournalNote, seedCompletedSessions, clearResults, getResults } from '../helpers/wodwikiDb';
+import { waitForSeedReady } from '../helpers/seedReadiness';
 
 // ── The collection workout used for dogfooding ─────────────────────────────
 // Any collection with a playable WOD block will do. Crossfit Girls / Fran is
@@ -44,6 +45,7 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
     // A navigation failure fails the test — a silent skip here would hide a
     // broken environment as green.
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 });
+    await waitForSeedReady(page);
   });
 
   test.afterEach(async ({ page }, testInfo) => {
@@ -100,9 +102,9 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
     // The journal note must have been created in wodwiki-db — poll for the write.
     await expect
       .poll(() => getNoteContentByRouteId(page, playgroundKey), { timeout: 10_000 })
-      .not.toBeNull();
+      .toEqual(expect.any(String));
     const content = await getNoteContentByRouteId(page, playgroundKey);
-    expect(content, 'Journal note should be created in wodwiki-db').not.toBeNull();
+    expect(content, 'Journal note should be created in wodwiki-db').toEqual(expect.any(String));
     expect(content, 'Journal note should contain the workout name').toContain('fran');
 
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 5_000 });
@@ -121,6 +123,7 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
     // Seed a result as if JournalPage.handleTimerComplete fired correctly
     // (simulates the fixed code path: storageService.saveSession with fullNoteId)
     await clearResults(page, fullNoteId);
+    await seedJournalNote(page, dateKey, '# Fran\n\n```time\n21 Thrusters\n```\n');
 
     await page.goto(`/journal/${dateKey}`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
     // Page-loaded signal: the date page shell mounts its editor or empty state.
@@ -128,31 +131,7 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
       page.locator('.cm-content[contenteditable="true"], h1').first(),
     ).toBeAttached({ timeout: 10_000 });
 
-    // Inject a result via the fixed path (StorageService.saveSession with full key)
-    await page.evaluate(async ({ db, fullNoteId }) => {
-      await new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open(db);
-        req.onsuccess = () => {
-          const idb = req.result;
-          if (!idb.objectStoreNames.contains('sessions')) { idb.close(); resolve(); return; }
-          const tx = idb.transaction('sessions', 'readwrite');
-          tx.objectStore('sessions').put({
-            id: 'e2e-collection-test-001',
-            noteId: fullNoteId,     // ← the critical field: must use 'journal/DATE' not just 'DATE'
-            segmentId: 'wod-fran',
-            blockContentId: 'wod-fran',
-            startTime: Date.now() - 300_000,
-            endTime: Date.now(),
-            completed: true,
-            status: 'completed',
-            createdAt: Date.now(),
-          });
-          tx.oncomplete = () => { idb.close(); resolve(); };
-          tx.onerror = () => { idb.close(); reject(tx.error); };
-        };
-        req.onerror = () => reject(req.error);
-      });
-    }, { db: WOD_DB, fullNoteId });
+    await seedCompletedSessions(page, fullNoteId, [{ id: 'e2e-collection-test-001', createdAt: Date.now(), duration: 300_000 }]);
 
     const results = await getResults(page, fullNoteId);
     expect(results, 'Result should be retrievable under journal/<date> key').toHaveLength(1);

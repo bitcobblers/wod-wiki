@@ -7,7 +7,8 @@
  */
 
 import type { HistoryEntry, EntryQuery, ProviderCapabilities } from './history';
-import type { Attachment, ResultOrigin } from './storage';
+import type { Attachment, ResultOrigin, NoteBlock } from './storage';
+import type { StorageService } from '@/services/storage/StorageService';
 
 export type AttachmentCreateInput = Omit<Attachment, 'id' | 'noteId' | 'createdAt'> & { id?: string };
 
@@ -23,6 +24,19 @@ export type NoteSaveInput = Omit<HistoryEntry, 'id' | 'createdAt' | 'updatedAt' 
     updatedAt?: number;
 };
 
+export type NoteEntryPatch = Partial<Pick<HistoryEntry, 'rawContent' | 'results' | 'tags' | 'notes' | 'title' | 'targetDate' | 'type'>> & {
+  journalDate?: string | null;
+  sourceId?: string | null;
+  slug?: string | null;
+  blocks?: Record<string, NoteBlock>;
+  expectedSourceRevision?: number;
+  resultId?: string;
+  blockId?: string;
+  blockVersion?: number;
+  blockContentId?: string;
+  origin?: ResultOrigin;
+};
+
 /**
  * Content provider mode — the highest-level branching point in the system.
  * - 'history': Full history browsing, selection, and analysis
@@ -33,20 +47,13 @@ export type ContentProviderMode = 'history' | 'static';
 /**
  * IContentProvider — async interface consumed by the workbench.
  * All methods return Promises so that components never know whether
- * data is from memory, localStorage, or HTTP.
+ * data is from memory, IndexedDB, SQL, or HTTP.
  */
 export interface IContentProvider {
   readonly mode: ContentProviderMode;
   readonly capabilities: ProviderCapabilities;
-  /**
-   * Which storage engine backs this provider. When `'indexed-db'`, the
-   * persistence factory picks `IndexedDBNotePersistence` (direct IDB access
-   * for cascade-delete and analytics). Otherwise it falls back to
-   * `ContentProviderNotePersistence` (generic, goes through the provider API).
-   * Picking the adapter from this field instead of `instanceof` keeps the
-   * factory decoupled from concrete provider classes.
-   */
-  readonly persistenceBackend?: 'indexed-db' | 'content-provider';
+  readonly persistenceStorage?: StorageService;
+  readonly persistenceReady?: Promise<unknown>;
 
   // Read (always async)
   getEntries(query?: EntryQuery): Promise<HistoryEntry[]>;
@@ -71,7 +78,7 @@ export interface IContentProvider {
    *   needed) — it never renames a shared page; `null` unlinks named-page
    *   membership only.
    */
-  updateEntry(id: string, patch: Partial<Pick<HistoryEntry, 'rawContent' | 'results' | 'tags' | 'notes' | 'title' | 'targetDate' | 'type'>> & { journalDate?: string | null; sourceId?: string | null; slug?: string | null; sectionId?: string; resultId?: string; blockId?: string; blockContentId?: string; version?: number; segmentId?: string; origin?: ResultOrigin }): Promise<HistoryEntry>;
+  updateEntry(id: string, patch: NoteEntryPatch): Promise<HistoryEntry>;
   deleteEntry(id: string): Promise<void>;
 
   // Attachments

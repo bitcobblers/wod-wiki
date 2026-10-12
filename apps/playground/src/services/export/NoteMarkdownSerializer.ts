@@ -14,6 +14,8 @@ export function noteToMarkdown(entry: HistoryEntry, _clock?: INowProvider): stri
         `- **Tags**: ${entry.tags.join(', ') || 'None'}`,
     ];
 
+    if (entry.sourceRevision !== undefined) metadata.push(`- **Source Revision**: ${entry.sourceRevision}`);
+    if (entry.blocks) metadata.push(`- **Blocks**: ${JSON.stringify(entry.blocks)}`);
     if (entry.sourceId) {
         metadata.push(`- **Cloned From**: ${entry.sourceId}`);
     }

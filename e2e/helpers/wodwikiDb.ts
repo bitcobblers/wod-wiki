@@ -1,23 +1,15 @@
 import type { Page } from '@playwright/test';
-
-/**
- * wodwikiDb — raw IndexedDB helpers for e2e tests against `wodwiki-db`.
- *
- * The app opened the DB at V11 long before the test page loads, so
- * `indexedDB.open(name)` (no version) attaches to the live schema without
- * firing `onupgradeneeded`. Every helper opens its own short-lived connection
- * and closes it in a `finally` to avoid blocking the app's singleton.
- *
- * Seeding uses a single `markdown` segment whose `rawContent` is the full
- * document. `IndexedDBContentProvider.getEntry` reconstructs content by
- * mapping segments and joining with `\n`; a lone markdown segment round-trips
- * verbatim, so pre-seeded editor content matches what the test wrote.
- */
+import { parseDocumentSections, reconcileNoteBlocks } from '../../packages/core/src/sections';
+import type { BlockRevision, Note } from '../../packages/core/src/types/storage';
+import { DB_VERSION } from '../../packages/storage/src/schema';
+import { waitForSeedReady } from './seedReadiness';
 
 export const WOD_DB = 'wodwiki-db';
 
 export interface ResultRow {
   noteId?: string;
+  blockId?: string;
+  blockVersion?: number;
   blockContentId?: string;
   duration?: number;
   completed?: boolean;
@@ -25,734 +17,260 @@ export interface ResultRow {
   createdAt?: number;
 }
 
-/**
- * Clear completed-session rows — every row, or only one note's when
- * `noteId` is given. V20 flatten: the canonical store is `sessions`
- * (StorageService.saveSession); `results` is an unwritten legacy alias.
- */
+export function noteFixture(noteId: string, content: string, opts?: { type?: string; title?: string }) {
+  const now = Date.now();
+  const blocks = reconcileNoteBlocks(content, { sourceRevision: 1 });
+  const note: Note = {
+    id: noteId, title: opts?.title ?? noteId.split('/').pop() ?? noteId,
+    type: opts?.type ?? 'note', createdAt: now, rawContent: content, sourceRevision: 1, blocks,
+  };
+  const revisions: BlockRevision[] = Object.values(blocks).map((block) => ({
+    noteId, blockId: block.id, version: block.version, kind: block.kind,
+    rawContent: content.slice(block.from, block.to), savedAt: now,
+    ...(block.dialect ? { dialect: block.dialect } : {}),
+    ...(block.sport ? { sport: block.sport } : {}),
+  }));
+  const sections = parseDocumentSections(content);
+  const index = Object.values(blocks).map((block) => ({
+    id: `${noteId}:${block.id}`, noteId, blockId: block.id, blockVersion: block.version,
+    dataType: block.kind, sourceRevision: 1, from: block.from, to: block.to,
+    rawContent: content.slice(block.from, block.to), noteTitle: note.title, createdAt: now,
+    ...(block.kind === 'wod' ? { blockContentId: sections.find((section) => section.from === block.from)?.contentId } : {}),
+  }));
+  return { note, revisions, index };
+}
+
 export async function clearResults(page: Page, noteId?: string): Promise<void> {
-  await page.evaluate(
-    async ({ dbName, noteId }) => {
-      const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const req = indexedDB.open(dbName);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-      try {
-        if (!db.objectStoreNames.contains('sessions')) return;
-        await new Promise<void>((resolve, reject) => {
-          const tx = db.transaction('sessions', 'readwrite');
-          const store = tx.objectStore('sessions');
-          if (noteId === undefined) {
-            store.clear();
-          } else {
-            const cursorReq = store.index('by-note').openCursor(IDBKeyRange.only(noteId));
-            cursorReq.onsuccess = (e) => {
-              const cursor = (e.target as IDBRequest).result;
-              if (cursor) {
-                cursor.delete();
-                cursor.continue();
-              }
-            };
-          }
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-        });
-      } finally {
-        db.close();
-      }
-    },
-    { dbName: WOD_DB, noteId },
-  );
-}
-
-/** Read session rows — every row, or only one note's. */
-export async function getResults(page: Page, noteId?: string): Promise<ResultRow[]> {
-  return page.evaluate(
-    async ({ dbName, noteId }) => {
-      const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const req = indexedDB.open(dbName);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-      try {
-        if (!db.objectStoreNames.contains('sessions')) return [];
-        return await new Promise<ResultRow[]>((resolve, reject) => {
-          const tx = db.transaction('sessions', 'readonly');
-          const store = tx.objectStore('sessions');
-          const req =
-            noteId === undefined
-              ? store.getAll()
-              : store.index('by-note').getAll(IDBKeyRange.only(noteId));
-          req.onsuccess = () => resolve(req.result as ResultRow[]);
-          req.onerror = () => reject(req.error);
-          tx.onerror = () => reject(tx.error);
-        });
-      } finally {
-        db.close();
-      }
-    },
-    { dbName: WOD_DB, noteId },
-  );
-}
-
-/** Seed a Note + single markdown segment so the app loads `content` verbatim. */
-export async function seedNote(
-  page: Page,
-  noteId: string,
-  content: string,
-  opts?: { type?: string; title?: string },
-): Promise<void> {
-  await page.evaluate(
-    async ({ dbName, noteId, content, type, title }) => {
-      const openWodDb = (name: string): Promise<IDBDatabase> =>
-        new Promise((resolve, reject) => {
-          const req = indexedDB.open(name);
-          req.onsuccess = () => {
-            const db = req.result;
-            if (db.objectStoreNames.length === 0) {
-              db.close();
-              const upReq = indexedDB.open(name, 16);
-              upReq.onupgradeneeded = () => {
-                const upDb = upReq.result;
-                if (!upDb.objectStoreNames.contains('notes')) {
-                  const store = upDb.createObjectStore('notes', { keyPath: 'id' });
-                  store.createIndex('by-slug', 'slug', { unique: true });
-                }
-                if (!upDb.objectStoreNames.contains('segments')) {
-                  const store = upDb.createObjectStore('segments', { keyPath: ['id', 'version'] });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-type', 'dataType');
-                }
-                if (!upDb.objectStoreNames.contains('results')) {
-                  const store = upDb.createObjectStore('results', { keyPath: 'id' });
-                  store.createIndex('by-segment', 'segmentId');
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-content', 'blockContentId');
-                }
-                if (!upDb.objectStoreNames.contains('attachments')) {
-                  const store = upDb.createObjectStore('attachments', { keyPath: 'id' });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-time', 'createdAt');
-                }
-                if (!upDb.objectStoreNames.contains('analytics')) {
-                  const store = upDb.createObjectStore('analytics', { keyPath: 'id' });
-                  store.createIndex('by-type', 'metricType');
-                  store.createIndex('by-segment', 'segmentId');
-                  store.createIndex('by-content', 'blockContentId');
-                }
-                if (!upDb.objectStoreNames.contains('efforts')) {
-                  const store = upDb.createObjectStore('efforts', { keyPath: 'slug' });
-                  store.createIndex('by-discipline', 'baseAttributes.discipline');
-                  store.createIndex('by-source', 'registrySource');
-                }
-                if (!upDb.objectStoreNames.contains('page')) {
-                  const store = upDb.createObjectStore('page', { keyPath: 'id' });
-                  store.createIndex('by-date', 'date', { unique: true });
-                  store.createIndex('by-slug', 'slug', { unique: true });
-                }
-                if (!upDb.objectStoreNames.contains('tags')) {
-                  const store = upDb.createObjectStore('tags', { keyPath: 'id' });
-                  store.createIndex('by-label', 'label', { unique: true });
-                  store.createIndex('by-type', 'type');
-                }
-                if (!upDb.objectStoreNames.contains('note_tags')) {
-                  const store = upDb.createObjectStore('note_tags', { keyPath: 'id' });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-tag', 'tagId');
-                }
-              };
-              upReq.onsuccess = () => resolve(upReq.result);
-              upReq.onerror = () => reject(upReq.error);
-            } else {
-              resolve(db);
-            }
-          };
-          req.onerror = () => reject(req.error);
-        });
-
-      const db = await openWodDb(dbName);
-      try {
-        const now = Date.now();
-        await new Promise<void>((resolve, reject) => {
-          const tx = db.transaction(['notes', 'segments'], 'readwrite');
-          tx.objectStore('notes').put({
-            id: noteId,
-            title: title ?? noteId.split('/').pop() ?? noteId,
-            type: type ?? 'note',
-            createdAt: now,
-          });
-          tx.objectStore('segments').put({
-            id: 'seg-0',
-            version: 1,
-            noteId,
-            position: 0,
-            dataType: 'markdown',
-            data: null,
-            rawContent: content,
-            createdAt: now,
-            updatedAt: now,
-            isHistory: false,
-          });
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-          tx.onabort = () => reject(tx.error);
-        });
-      } finally {
-        db.close();
-      }
-    },
-    { dbName: WOD_DB, noteId, content, type: opts?.type, title: opts?.title },
-  );
-}
-
-/**
- * Delete a Note (and its segments + note_tags) by route id. Tries `id` first,
- * then the `by-slug` index, mirroring `IndexedDBContentProvider.getEntry`.
- */
-export async function deleteNoteByRouteId(page: Page, routeId: string): Promise<void> {
-  await page.evaluate(
-    async ({ dbName, routeId }) => {
-      const openWodDb = (name: string): Promise<IDBDatabase> =>
-        new Promise((resolve, reject) => {
-          const req = indexedDB.open(name);
-          req.onsuccess = () => {
-            const db = req.result;
-            if (db.objectStoreNames.length === 0) {
-              db.close();
-              const upReq = indexedDB.open(name, 16);
-              upReq.onupgradeneeded = () => {
-                const upDb = upReq.result;
-                if (!upDb.objectStoreNames.contains('notes')) {
-                  const store = upDb.createObjectStore('notes', { keyPath: 'id' });
-                  store.createIndex('by-slug', 'slug', { unique: true });
-                }
-                if (!upDb.objectStoreNames.contains('segments')) {
-                  const store = upDb.createObjectStore('segments', { keyPath: ['id', 'version'] });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-type', 'dataType');
-                }
-                if (!upDb.objectStoreNames.contains('results')) {
-                  const store = upDb.createObjectStore('results', { keyPath: 'id' });
-                  store.createIndex('by-segment', 'segmentId');
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-content', 'blockContentId');
-                }
-                if (!upDb.objectStoreNames.contains('attachments')) {
-                  const store = upDb.createObjectStore('attachments', { keyPath: 'id' });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-time', 'createdAt');
-                }
-                if (!upDb.objectStoreNames.contains('analytics')) {
-                  const store = upDb.createObjectStore('analytics', { keyPath: 'id' });
-                  store.createIndex('by-type', 'metricType');
-                  store.createIndex('by-segment', 'segmentId');
-                  store.createIndex('by-content', 'blockContentId');
-                }
-                if (!upDb.objectStoreNames.contains('efforts')) {
-                  const store = upDb.createObjectStore('efforts', { keyPath: 'slug' });
-                  store.createIndex('by-discipline', 'baseAttributes.discipline');
-                  store.createIndex('by-source', 'registrySource');
-                }
-                if (!upDb.objectStoreNames.contains('page')) {
-                  const store = upDb.createObjectStore('page', { keyPath: 'id' });
-                  store.createIndex('by-date', 'date', { unique: true });
-                  store.createIndex('by-slug', 'slug', { unique: true });
-                }
-                if (!upDb.objectStoreNames.contains('tags')) {
-                  const store = upDb.createObjectStore('tags', { keyPath: 'id' });
-                  store.createIndex('by-label', 'label', { unique: true });
-                  store.createIndex('by-type', 'type');
-                }
-                if (!upDb.objectStoreNames.contains('note_tags')) {
-                  const store = upDb.createObjectStore('note_tags', { keyPath: 'id' });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-tag', 'tagId');
-                }
-              };
-              upReq.onsuccess = () => resolve(upReq.result);
-              upReq.onerror = () => reject(upReq.error);
-            } else {
-              resolve(db);
-            }
-          };
-          req.onerror = () => reject(req.error);
-        });
-
-      const db = await openWodDb(dbName);
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const stores = ['notes', 'segments', 'note_tags'];
-          if (db.objectStoreNames.contains('page')) stores.push('page');
-          if (db.objectStoreNames.contains('page_notes')) stores.push('page_notes');
-          const tx = db.transaction(stores, 'readwrite');
-          const notesStore = tx.objectStore('notes');
-
-          const deleteCascade = (noteId: string) => {
-            notesStore.delete(noteId);
-            const segCursor = tx.objectStore('segments').index('by-note').openCursor(
-              IDBKeyRange.only(noteId),
-            );
-            segCursor.onsuccess = (e) => {
-              const c = (e.target as IDBRequest<IDBCursorWithValue>).result;
-              if (c) { c.delete(); c.continue(); }
-            };
-            const tagCursor = tx.objectStore('note_tags').index('by-note').openCursor(
-              IDBKeyRange.only(noteId),
-            );
-            tagCursor.onsuccess = (e) => {
-              const c = (e.target as IDBRequest<IDBCursorWithValue>).result;
-              if (c) { c.delete(); c.continue(); }
-            };
-          };
-
-          const idReq = notesStore.get(routeId);
-          idReq.onsuccess = () => {
-            if (idReq.result) {
-              deleteCascade(idReq.result.id);
-            } else if (db.objectStoreNames.contains('page')) {
-              // V22+: slugs live on the `page` store; notes link via page_notes.
-              // Journal day pages carry no slug — resolve `journal/<date>` via
-              // the page `by-date` index so app-created UUID notes are removed
-              // across runs instead of accumulating dangling links.
-              const cascadePage = (pg: { id: string }) => {
-                if (db.objectStoreNames.contains('page_notes')) {
-                  const linkReq = tx.objectStore('page_notes').index('by-page').getAll(pg.id);
-                  linkReq.onsuccess = () => {
-                    for (const link of linkReq.result) {
-                      deleteCascade(link.noteId);
-                      tx.objectStore('page_notes').delete(link.id);
-                    }
-                    tx.objectStore('page').delete(pg.id);
-                  };
-                  linkReq.onerror = () => reject(linkReq.error);
-                } else {
-                  tx.objectStore('page').delete(pg.id);
-                }
-              };
-              const pageReq = tx.objectStore('page').index('by-slug').get(routeId);
-              pageReq.onsuccess = () => {
-                if (pageReq.result) return cascadePage(pageReq.result);
-                const dateKey = routeId.startsWith('journal/') ? routeId.slice('journal/'.length) : null;
-                if (!dateKey) return;
-                const dateReq = tx.objectStore('page').index('by-date').get(dateKey);
-                dateReq.onsuccess = () => { if (dateReq.result) cascadePage(dateReq.result); };
-                dateReq.onerror = () => reject(dateReq.error);
-              };
-              pageReq.onerror = () => reject(pageReq.error);
-            }
-          };
-
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-          tx.onabort = () => reject(tx.error);
-        });
-      } finally {
-        db.close();
-      }
-    },
-    { dbName: WOD_DB, routeId },
-  );
-}
-
-/** Clear every Note, Segment, and NoteTag row — full content reset for tests. */
-export async function clearAllNotes(page: Page): Promise<void> {
-  await page.evaluate(async ({ dbName }) => {
-    const openWodDb = (name: string): Promise<IDBDatabase> =>
-      new Promise((resolve, reject) => {
-        const req = indexedDB.open(name);
-        req.onsuccess = () => {
-          const db = req.result;
-          if (db.objectStoreNames.length === 0) {
-            db.close();
-            const upReq = indexedDB.open(name, 16);
-            upReq.onupgradeneeded = () => {
-              const upDb = upReq.result;
-              if (!upDb.objectStoreNames.contains('notes')) {
-                const store = upDb.createObjectStore('notes', { keyPath: 'id' });
-                store.createIndex('by-slug', 'slug', { unique: true });
-              }
-              if (!upDb.objectStoreNames.contains('segments')) {
-                const store = upDb.createObjectStore('segments', { keyPath: ['id', 'version'] });
-                store.createIndex('by-note', 'noteId');
-                store.createIndex('by-type', 'dataType');
-              }
-              if (!upDb.objectStoreNames.contains('results')) {
-                const store = upDb.createObjectStore('results', { keyPath: 'id' });
-                store.createIndex('by-segment', 'segmentId');
-                store.createIndex('by-note', 'noteId');
-                store.createIndex('by-content', 'blockContentId');
-              }
-              if (!upDb.objectStoreNames.contains('attachments')) {
-                const store = upDb.createObjectStore('attachments', { keyPath: 'id' });
-                store.createIndex('by-note', 'noteId');
-                store.createIndex('by-time', 'createdAt');
-              }
-              if (!upDb.objectStoreNames.contains('analytics')) {
-                const store = upDb.createObjectStore('analytics', { keyPath: 'id' });
-                store.createIndex('by-type', 'metricType');
-                store.createIndex('by-segment', 'segmentId');
-                store.createIndex('by-content', 'blockContentId');
-              }
-              if (!upDb.objectStoreNames.contains('efforts')) {
-                const store = upDb.createObjectStore('efforts', { keyPath: 'slug' });
-                store.createIndex('by-discipline', 'baseAttributes.discipline');
-                store.createIndex('by-source', 'registrySource');
-              }
-              if (!upDb.objectStoreNames.contains('page')) {
-                const store = upDb.createObjectStore('page', { keyPath: 'id' });
-                store.createIndex('by-date', 'date', { unique: true });
-                store.createIndex('by-slug', 'slug', { unique: true });
-              }
-              if (!upDb.objectStoreNames.contains('tags')) {
-                const store = upDb.createObjectStore('tags', { keyPath: 'id' });
-                store.createIndex('by-label', 'label', { unique: true });
-                store.createIndex('by-type', 'type');
-              }
-              if (!upDb.objectStoreNames.contains('note_tags')) {
-                const store = upDb.createObjectStore('note_tags', { keyPath: 'id' });
-                store.createIndex('by-note', 'noteId');
-                store.createIndex('by-tag', 'tagId');
-              }
-            };
-            upReq.onsuccess = () => resolve(upReq.result);
-            upReq.onerror = () => reject(upReq.error);
-          } else {
-            resolve(db);
-          }
-        };
-        req.onerror = () => reject(req.error);
-      });
-
-    const db = await openWodDb(dbName);
+  await page.evaluate(async ({ dbName, noteId }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(dbName);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
     try {
-      const required = ['notes', 'segments', 'note_tags'];
-      if (required.some((s) => !db.objectStoreNames.contains(s))) return;
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(['notes', 'segments', 'note_tags'], 'readwrite');
-        tx.objectStore('notes').clear();
-        tx.objectStore('segments').clear();
-        tx.objectStore('note_tags').clear();
+        const tx = db.transaction('sessions', 'readwrite');
+        const store = tx.objectStore('sessions');
+        if (noteId === undefined) store.clear();
+        else {
+          const req = store.index('by-note').openCursor(IDBKeyRange.only(noteId));
+          req.onsuccess = () => { const cursor = req.result; if (cursor) { cursor.delete(); cursor.continue(); } };
+        }
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error);
       });
-    } finally {
-      db.close();
-    }
+    } finally { db.close(); }
+  }, { dbName: WOD_DB, noteId });
+}
+
+export async function getResults(page: Page, noteId?: string): Promise<ResultRow[]> {
+  return page.evaluate(async ({ dbName, noteId }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(dbName);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      return await new Promise<ResultRow[]>((resolve, reject) => {
+        const tx = db.transaction('sessions', 'readonly');
+        const store = tx.objectStore('sessions');
+        const req = noteId === undefined ? store.getAll() : store.index('by-note').getAll(IDBKeyRange.only(noteId));
+        req.onsuccess = () => resolve(req.result);
+
+        req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }, { dbName: WOD_DB, noteId });
+}
+export async function seedCompletedSessions(
+  page: Page, noteId: string, sessions: { id: string; createdAt: number; duration: number }[],
+): Promise<void> {
+  await page.evaluate(async ({ dbName, noteId, sessions }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(dbName);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(['notes', 'block_revisions', 'sessions'], 'readwrite');
+        const noteReq = tx.objectStore('notes').get(noteId);
+        noteReq.onsuccess = () => {
+          const note: Note | undefined = noteReq.result;
+          const block = note && Object.values(note.blocks).find((item) => item.kind === 'wod');
+          if (!block) { tx.abort(); return; }
+          const revisionReq = tx.objectStore('block_revisions').get([noteId, block.id, block.version]);
+          revisionReq.onsuccess = () => {
+            if (!revisionReq.result) { tx.abort(); return; }
+            for (const session of sessions) tx.objectStore('sessions').put({
+              ...session, noteId, blockId: block.id, blockVersion: block.version,
+              startTime: session.createdAt - session.duration, endTime: session.createdAt,
+              completed: true, status: 'completed',
+            });
+          };
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error ?? new Error(`No saved workout revision for ${noteId}`));
+      });
+    } finally { db.close(); }
+  }, { dbName: WOD_DB, noteId, sessions });
+}
+
+/** Seed only an initialized current schema, never invent an older fixture DB. */
+export async function seedNote(
+  page: Page, noteId: string, content: string,
+  opts?: { type?: string; title?: string; journalDate?: string },
+): Promise<void> {
+  await waitForSeedReady(page);
+  const fixture = noteFixture(noteId, content, opts);
+  await page.evaluate(async ({ dbName, fixture, journalDate, version }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(dbName);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      if (db.version !== version || !db.objectStoreNames.contains('block_revisions')) {
+        throw new Error('Initialize the current disposable app database before seeding');
+      }
+      await new Promise<void>((resolve, reject) => {
+        const stores = ['notes', 'block_revisions', 'block_index', 'block_efforts'];
+        if (journalDate) stores.push('page', 'page_notes');
+        const tx = db.transaction(stores, 'readwrite');
+        for (const storeName of ['block_index', 'block_efforts']) {
+          const req = tx.objectStore(storeName).index('by-note').getAllKeys(fixture.note.id);
+          req.onsuccess = () => {
+            for (const key of req.result) tx.objectStore(storeName).delete(key);
+            if (storeName === 'block_index') for (const row of fixture.index) tx.objectStore(storeName).put(row);
+          };
+        }
+        tx.objectStore('notes').put(fixture.note);
+        for (const row of fixture.revisions) tx.objectStore('block_revisions').add(row);
+        if (journalDate) {
+          const pageId = `page/${journalDate}`;
+          tx.objectStore('page').put({ id: pageId, date: journalDate, title: journalDate, createdAt: fixture.note.createdAt });
+          tx.objectStore('page_notes').put({ id: `pn-${pageId}-${fixture.note.id}`, pageId, noteId: fixture.note.id, position: 0, createdAt: fixture.note.createdAt });
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }, { dbName: WOD_DB, fixture, journalDate: opts?.journalDate, version: DB_VERSION });
+}
+
+export async function seedJournalNote(page: Page, date: string, content: string, opts?: { title?: string }): Promise<void> {
+  await seedNote(page, `journal/${date}`, content, { ...opts, type: 'journal', journalDate: date });
+}
+
+/** Ordinary Note deletion retains immutable history and Session pins. */
+export async function deleteNoteByRouteId(page: Page, routeId: string): Promise<void> {
+  await page.evaluate(async ({ dbName, routeId }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(dbName);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const stores = ['notes', 'note_tags', 'block_index', 'block_efforts', 'page', 'page_notes'];
+        const tx = db.transaction(stores, 'readwrite');
+        const notes = tx.objectStore('notes');
+        const remove = (noteId: string) => {
+          notes.delete(noteId);
+          for (const name of ['note_tags', 'block_index', 'block_efforts', 'page_notes']) {
+            const req = tx.objectStore(name).index('by-note').openCursor(noteId);
+            req.onsuccess = () => { const cursor = req.result; if (cursor) { cursor.delete(); cursor.continue(); } };
+          }
+        };
+        const removePage = (page: { id: string } | undefined) => {
+          if (!page) return;
+          const req = tx.objectStore('page_notes').index('by-page').getAll(page.id);
+          req.onsuccess = () => {
+            for (const link of req.result) remove(link.noteId);
+            tx.objectStore('page').delete(page.id);
+          };
+        };
+        const noteReq = notes.get(routeId);
+        noteReq.onsuccess = () => {
+          if (noteReq.result) return remove(noteReq.result.id);
+          const pageReq = tx.objectStore('page').index('by-slug').get(routeId);
+          pageReq.onsuccess = () => {
+            if (pageReq.result) return removePage(pageReq.result);
+            if (!routeId.startsWith('journal/')) return;
+            const dateReq = tx.objectStore('page').index('by-date').get(routeId.slice('journal/'.length));
+            dateReq.onsuccess = () => removePage(dateReq.result);
+          };
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }, { dbName: WOD_DB, routeId });
+}
+
+export async function clearAllNotes(page: Page): Promise<void> {
+  await page.evaluate(async ({ dbName }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(dbName);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const stores = ['notes', 'note_tags', 'page_notes', 'block_index', 'block_efforts'];
+        const tx = db.transaction(stores, 'readwrite');
+        for (const name of stores) tx.objectStore(name).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } finally { db.close(); }
   }, { dbName: WOD_DB });
 }
 
-/**
- * Read a note's reconstructed content by route id. Mirrors
- * `IndexedDBContentProvider.getEntry` reconstruction: latest (non-history)
- * segments sorted by position, workout segments wrapped in fences.
- */
-/**
- * Seed a journal-date note that the /journal/:date page renders.
- *
- * V10/V11 schema: a HistoryEntry's `journalDate` is DERIVED from the `page`
- * store via `note.pageId` (the note row no longer stores it), and the date
- * page lists via `journalNotes.listByDate` → `listNotes({ journalDate, kind:
- * 'journal' })`. So a journal seed needs all three rows:
- *   page     — the calendar page (`date` is the join key)
- *   notes    — `type: 'journal'` + `pageId` → page
- *   segments — the markdown content the editor loads
- *
- * Ids are deterministic (`journal/<date>`, `page/<date>`) so the existing
- * route-id helpers (`clearStoredEntry` / `storedContent` in JournalEntryPage)
- * resolve the same note.
- */
-export async function seedJournalNote(
-  page: Page,
-  date: string,
-  content: string,
-  opts?: { title?: string },
-): Promise<void> {
-  await page.evaluate(
-    async ({ dbName, date, content, title }) => {
-      const openWodDb = (name: string): Promise<IDBDatabase> =>
-        new Promise((resolve, reject) => {
-          const req = indexedDB.open(name);
+export async function getNoteContentByRouteId(page: Page, routeId: string): Promise<string | null> {
+  return page.evaluate(async ({ dbName, routeId }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(dbName);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      return await new Promise<string | null>((resolve, reject) => {
+        const tx = db.transaction(['notes', 'page', 'page_notes'], 'readonly');
+        const notes = tx.objectStore('notes');
+        const readPage = (page: { id: string } | undefined) => {
+          if (!page) return resolve(null);
+          const req = tx.objectStore('page_notes').index('by-page').getAll(page.id);
           req.onsuccess = () => {
-            const db = req.result;
-            if (db.objectStoreNames.length === 0) {
-              db.close();
-              const upReq = indexedDB.open(name, 16);
-              upReq.onupgradeneeded = () => {
-                const upDb = upReq.result;
-                if (!upDb.objectStoreNames.contains('notes')) {
-                  const store = upDb.createObjectStore('notes', { keyPath: 'id' });
-                  store.createIndex('by-slug', 'slug', { unique: true });
-                }
-                if (!upDb.objectStoreNames.contains('segments')) {
-                  const store = upDb.createObjectStore('segments', { keyPath: ['id', 'version'] });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-type', 'dataType');
-                }
-                if (!upDb.objectStoreNames.contains('results')) {
-                  const store = upDb.createObjectStore('results', { keyPath: 'id' });
-                  store.createIndex('by-segment', 'segmentId');
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-content', 'blockContentId');
-                }
-                if (!upDb.objectStoreNames.contains('attachments')) {
-                  const store = upDb.createObjectStore('attachments', { keyPath: 'id' });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-time', 'createdAt');
-                }
-                if (!upDb.objectStoreNames.contains('analytics')) {
-                  const store = upDb.createObjectStore('analytics', { keyPath: 'id' });
-                  store.createIndex('by-type', 'metricType');
-                  store.createIndex('by-segment', 'segmentId');
-                  store.createIndex('by-content', 'blockContentId');
-                }
-                if (!upDb.objectStoreNames.contains('efforts')) {
-                  const store = upDb.createObjectStore('efforts', { keyPath: 'slug' });
-                  store.createIndex('by-discipline', 'baseAttributes.discipline');
-                  store.createIndex('by-source', 'registrySource');
-                }
-                if (!upDb.objectStoreNames.contains('page')) {
-                  const store = upDb.createObjectStore('page', { keyPath: 'id' });
-                  store.createIndex('by-date', 'date', { unique: true });
-                  store.createIndex('by-slug', 'slug', { unique: true });
-                }
-                if (!upDb.objectStoreNames.contains('tags')) {
-                  const store = upDb.createObjectStore('tags', { keyPath: 'id' });
-                  store.createIndex('by-label', 'label', { unique: true });
-                  store.createIndex('by-type', 'type');
-                }
-                if (!upDb.objectStoreNames.contains('note_tags')) {
-                  const store = upDb.createObjectStore('note_tags', { keyPath: 'id' });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-tag', 'tagId');
-                }
-              };
-              upReq.onsuccess = () => resolve(upReq.result);
-              upReq.onerror = () => reject(upReq.error);
-            } else {
-              resolve(db);
-            }
-          };
-          req.onerror = () => reject(req.error);
-        });
-
-      const db = await openWodDb(dbName);
-      try {
-        const now = Date.now();
-        const pageId = `page/${date}`;
-        const noteId = `journal/${date}`;
-        // V22: journalDate is derived from the page row via the page_notes
-        // junction — without the link the note is invisible to listByDate.
-        const stores = db.objectStoreNames.contains('page_notes')
-          ? ['page', 'notes', 'segments', 'page_notes']
-          : ['page', 'notes', 'segments'];
-        await new Promise<void>((resolve, reject) => {
-          const tx = db.transaction(stores as string[], 'readwrite');
-          tx.objectStore('page').put({ id: pageId, date, title: date, createdAt: now });
-          if (db.objectStoreNames.contains('page_notes')) {
-            tx.objectStore('page_notes').put({
-              id: `pn-${pageId}-${noteId}`,
-              pageId,
-              noteId,
-              position: 0,
-              createdAt: now,
-            });
-          }
-          tx.objectStore('notes').put({
-            id: noteId,
-            title: title ?? date,
-            type: 'journal',
-            pageId,
-            createdAt: now,
-          });
-          tx.objectStore('segments').put({
-            id: `seg-${noteId}-0`,
-            version: 1,
-            noteId,
-            pageId,
-            position: 0,
-            dataType: 'markdown',
-            data: null,
-            rawContent: content,
-            createdAt: now,
-            updatedAt: now,
-            isHistory: false,
-          });
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-          tx.onabort = () => reject(tx.error);
-        });
-      } finally {
-        db.close();
-      }
-    },
-    { dbName: WOD_DB, date, content, title: opts?.title },
-  );
-}
-
-export async function getNoteContentByRouteId(
-  page: Page,
-  routeId: string,
-): Promise<string | null> {
-  return page.evaluate(
-    async ({ dbName, routeId }): Promise<string | null> => {
-      const openWodDb = (name: string): Promise<IDBDatabase> =>
-        new Promise((resolve, reject) => {
-          const req = indexedDB.open(name);
-          req.onsuccess = () => {
-            const db = req.result;
-            if (db.objectStoreNames.length === 0) {
-              db.close();
-              const upReq = indexedDB.open(name, 16);
-              upReq.onupgradeneeded = () => {
-                const upDb = upReq.result;
-                if (!upDb.objectStoreNames.contains('notes')) {
-                  const store = upDb.createObjectStore('notes', { keyPath: 'id' });
-                  store.createIndex('by-slug', 'slug', { unique: true });
-                }
-                if (!upDb.objectStoreNames.contains('segments')) {
-                  const store = upDb.createObjectStore('segments', { keyPath: ['id', 'version'] });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-type', 'dataType');
-                }
-                if (!upDb.objectStoreNames.contains('results')) {
-                  const store = upDb.createObjectStore('results', { keyPath: 'id' });
-                  store.createIndex('by-segment', 'segmentId');
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-content', 'blockContentId');
-                }
-                if (!upDb.objectStoreNames.contains('attachments')) {
-                  const store = upDb.createObjectStore('attachments', { keyPath: 'id' });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-time', 'createdAt');
-                }
-                if (!upDb.objectStoreNames.contains('analytics')) {
-                  const store = upDb.createObjectStore('analytics', { keyPath: 'id' });
-                  store.createIndex('by-type', 'metricType');
-                  store.createIndex('by-segment', 'segmentId');
-                  store.createIndex('by-content', 'blockContentId');
-                }
-                if (!upDb.objectStoreNames.contains('efforts')) {
-                  const store = upDb.createObjectStore('efforts', { keyPath: 'slug' });
-                  store.createIndex('by-discipline', 'baseAttributes.discipline');
-                  store.createIndex('by-source', 'registrySource');
-                }
-                if (!upDb.objectStoreNames.contains('page')) {
-                  const store = upDb.createObjectStore('page', { keyPath: 'id' });
-                  store.createIndex('by-date', 'date', { unique: true });
-                  store.createIndex('by-slug', 'slug', { unique: true });
-                }
-                if (!upDb.objectStoreNames.contains('tags')) {
-                  const store = upDb.createObjectStore('tags', { keyPath: 'id' });
-                  store.createIndex('by-label', 'label', { unique: true });
-                  store.createIndex('by-type', 'type');
-                }
-                if (!upDb.objectStoreNames.contains('note_tags')) {
-                  const store = upDb.createObjectStore('note_tags', { keyPath: 'id' });
-                  store.createIndex('by-note', 'noteId');
-                  store.createIndex('by-tag', 'tagId');
-                }
-              };
-              upReq.onsuccess = () => resolve(upReq.result);
-              upReq.onerror = () => reject(upReq.error);
-            } else {
-              resolve(db);
-            }
-          };
-          req.onerror = () => reject(req.error);
-        });
-
-      const db = await openWodDb(dbName);
-      try {
-        return await new Promise<string | null>((resolve, reject) => {
-          const stores = ['notes', 'segments'];
-          if (db.objectStoreNames.contains('page')) stores.push('page');
-          if (db.objectStoreNames.contains('page_notes')) stores.push('page_notes');
-          const tx = db.transaction(stores, 'readonly');
-          const notesStore = tx.objectStore('notes');
-
-          const readSegments = (noteId: string) => {
-            const segIdx = tx.objectStore('segments').index('by-note');
-            const segReq = segIdx.getAll(IDBKeyRange.only(noteId));
-            segReq.onsuccess = () => {
-              const all = segReq.result as Array<{
-                id: string; version: number; dataType: string;
-                data: { dialect?: string } | null;
-                rawContent: string; position?: number; isHistory?: boolean;
-              }>;
-              // Latest version per segment id.
-              const latest = new Map<string, typeof all[number]>();
-              for (const seg of all) {
-                const cur = latest.get(seg.id);
-                if (!cur || seg.version > cur.version) latest.set(seg.id, seg);
-              }
-              const ordered = [...latest.values()]
-                .filter((s) => !s.isHistory)
-                .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-              const raw = ordered
-                .map((s) => {
-                  const isWorkout = s.dataType === 'wod' || s.dataType === 'script';
-                  if (isWorkout) {
-                    const dialect = s.data?.dialect ?? 'time';
-                    return '```' + dialect + '\n' + s.rawContent + '\n```';
-                  }
-                  return s.rawContent;
-                })
-                .join('\n');
-              resolve(raw || null);
+            const links: { noteId: string }[] = req.result;
+            const read = (i: number): void => {
+              if (i === links.length) return resolve(null);
+              const noteReq = notes.get(links[i].noteId);
+              noteReq.onsuccess = () => noteReq.result ? resolve(noteReq.result.rawContent) : read(i + 1);
             };
-            segReq.onerror = () => reject(segReq.error);
+            read(0);
           };
-
-          const idReq = notesStore.get(routeId);
-          idReq.onsuccess = () => {
-            if (idReq.result) {
-              readSegments(idReq.result.id);
-            } else if (db.objectStoreNames.contains('page')) {
-              // V22+: slugs live on the `page` store; notes link via page_notes.
-              // Journal day pages carry no slug — resolve `journal/<date>` via
-              // the page `by-date` index so app-created UUID notes are found
-              // (identity: routeId → page → page_notes → note segments).
-              const resolvePage = (pg: { id: string } | undefined) => {
-                if (!pg || !db.objectStoreNames.contains('page_notes')) return resolve(null);
-                const linkReq = tx.objectStore('page_notes').index('by-page').getAll(pg.id);
-                linkReq.onsuccess = () => {
-                  // Skip dangling links from earlier runs; first live note wins.
-                  const links = linkReq.result as Array<{ noteId: string }>;
-                  const probe = (i: number): void => {
-                    if (i >= links.length) return resolve(null);
-                    const noteReq = tx.objectStore('notes').get(links[i].noteId);
-                    noteReq.onsuccess = () => {
-                      if (noteReq.result) readSegments(links[i].noteId);
-                      else probe(i + 1);
-                    };
-                    noteReq.onerror = () => reject(noteReq.error);
-                  };
-                  probe(0);
-                };
-                linkReq.onerror = () => reject(linkReq.error);
-              };
-              const pageReq = tx.objectStore('page').index('by-slug').get(routeId);
-              pageReq.onsuccess = () => {
-                if (pageReq.result) return resolvePage(pageReq.result);
-                const dateKey = routeId.startsWith('journal/') ? routeId.slice('journal/'.length) : null;
-                if (!dateKey) return resolve(null);
-                const dateReq = tx.objectStore('page').index('by-date').get(dateKey);
-                dateReq.onsuccess = () => resolvePage(dateReq.result);
-                dateReq.onerror = () => reject(dateReq.error);
-              };
-              pageReq.onerror = () => reject(pageReq.error);
-            } else {
-              resolve(null);
-            }
+        };
+        const req = notes.get(routeId);
+        req.onsuccess = () => {
+          if (req.result) return resolve(req.result.rawContent);
+          const pageReq = tx.objectStore('page').index('by-slug').get(routeId);
+          pageReq.onsuccess = () => {
+            if (pageReq.result) return readPage(pageReq.result);
+            if (!routeId.startsWith('journal/')) return resolve(null);
+            const dateReq = tx.objectStore('page').index('by-date').get(routeId.slice('journal/'.length));
+            dateReq.onsuccess = () => readPage(dateReq.result);
           };
-          idReq.onerror = () => reject(idReq.error);
-        });
-      } finally {
-        db.close();
-      }
-    },
-    { dbName: WOD_DB, routeId },
-  );
+        };
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }, { dbName: WOD_DB, routeId });
 }

@@ -13,10 +13,10 @@ WQL queries discover notes, sessions, and emitted workout statements, then reduc
 | Head | Selected records |
 |---|---|
 | `:journal{}` | Journal notes |
-| `:collection{}` | Collection notes |
+| `:feeds{}` | Collection notes |
 | `:playground{}` | Playground notes |
-| `:note{}` | Notes, defaulting to journal, collections, and playground |
-| `:block{}` | Parsed workout blocks |
+| `:note{}` | Whole Notes, including prose-only Notes |
+| `:block{}` | Actionable workouts, queries, registered widgets, and interactive embeds |
 | `:effort{}` | Movement registry entries |
 | `:session{}` | Workout statements grouped by session |
 | `:segment{}` | Domain segment statements, `outputType === 'segment'` |
@@ -24,7 +24,7 @@ WQL queries discover notes, sessions, and emitted workout statements, then reduc
 
 `:segment` and `:event` read the same `EventRecord` store. Debug queries include system, compiler, load, completion, and other emitted statement types, including statements without numeric metrics. Finalized summary records are not emitted debug statements.
 
-The scoped note heads restrict the storage source. `:note{source:guides}` explicitly selects guides. `source:` accepts `journal`, `collections`, `guides`, and `playground`, plus collection catalog identities such as `collection:crossfit-girls`. `:collection` uses the existing `collections` storage scope. Feeds are not a WQL source.
+The scoped note heads restrict the storage source. `:note{source:guides}` explicitly selects guides. `source:` accepts `journal`, `feeds`, `guides`, `playground`, `dashboards`, and `efforts`, plus explicit storage identities such as `collection:crossfit-girls`. `:feeds` selects collection-prefixed storage sources; dated `feed:` rows remain outside that scope.
 
 ```wql
 :note{tags:benchmark}
@@ -36,6 +36,12 @@ The scoped note heads restrict the storage source. `:note{source:guides}` explic
 ```
 
 Note and block results resolve their parent through the `page_notes` relationship. Page-bound results link to the parent Page; standalone results link to the Note.
+
+`:note{text:recovery}` matches a Note's title or its complete authored Markdown body. Headings, prose, and frontmatter remain searchable even when the Note has no actionable blocks.
+
+`:block` returns only `wod`, `query`, `widget`, and `embed` occurrences. Prose, headings, frontmatter, and unknown or malformed fences do not create block results. Each result validates its occurrence ID, saved version, source revision, and UTF-16 range against the parent Note map, then reads the exact authored source slice. A stale or missing map cannot hydrate a result. Block links retain the parent route and occurrence anchor.
+
+The persisted source pin is `blockId` plus `blockVersion`. Runtime `:segment` still selects emitted segment statements and does not refer to persisted Note blocks.
 
 ## Functions and pipelines
 
@@ -124,7 +130,7 @@ Row presentation pipes remain supported:
 
 ```wql
 :segment{effort:snatch} in lb last 2w | select resistance in lb,effort | order by resistance desc | limit 5 offset 2
-:collection{} | order by title | offset 20
+:feeds{} | order by title | offset 20
 ```
 
 Segment/event tables apply selection, ordering, and pagination. Notes, blocks, and efforts apply ordering and pagination. Sessions apply pagination and retain completion-time ordering.
@@ -141,7 +147,7 @@ sum:totalVolume{} where :note{format:emom}
 ## Removed syntax
 
 - `find:<target>` is retired. Use `:<target>`.
-- `source:feed`, `source:feeds`, and `source:feed:<id>` are retired.
+- `source:collections` is retired. Use `source:feeds`.
 - `rows:all`, `rows:segment`, and `rows:event` are retired. Use `:session`, `:segment`, or `:event`; use `plane:` for session narrowing.
 - `:page` is not a source head. Use note filters and the parent Page relationship.
 - `source:page`, `source:pages`, and `source:all` are retired.

@@ -135,19 +135,20 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
   // heuristic so re-init only fires on actual block changes.
   const lastInitializedKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (viewMode === 'track' && selectedBlock && selectedBlock.statements) {
-      const currentKey = `${selectedBlock.id}-v${selectedBlock.version ?? 0}-${selectedBlock.statements.length ?? 0}-${JSON.stringify(selectedBlock.statements).length}`;
-      if (lastInitializedKeyRef.current !== currentKey) {
-        runtimeControls.initializeRuntime(selectedBlock);
-        lastInitializedKeyRef.current = currentKey;
-      }
-    } else if (viewMode !== 'track') {
-      if (lastInitializedKeyRef.current !== null) {
-        runtimeControls.disposeRuntime();
-        lastInitializedKeyRef.current = null;
-      }
+    let cancelled = false;
+    if (viewMode === 'track' && selectedBlock && lastInitializedKeyRef.current === null) {
+      lastInitializedKeyRef.current = 'starting';
+      sessionApi.getState().startPinnedRun(selectedBlock).then(block => {
+        if (cancelled) return;
+        runtimeControls.initializeRuntime(block);
+        lastInitializedKeyRef.current = block.id;
+      }).catch(() => { lastInitializedKeyRef.current = null; });
+    } else if (viewMode !== 'track' && lastInitializedKeyRef.current !== null) {
+      runtimeControls.disposeRuntime();
+      lastInitializedKeyRef.current = null;
     }
-  }, [viewMode, selectedBlock, runtimeControls]);
+    return () => { cancelled = true; };
+  }, [viewMode, selectedBlock?.id, sessionApi, runtimeControls.initializeRuntime, runtimeControls.disposeRuntime]);
 
   // ── Clear stale analytics on selection change ──
 

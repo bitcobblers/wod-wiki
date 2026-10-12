@@ -67,6 +67,8 @@ import { addEntryToTodayInput } from '../../lib/addToToday'
 import { startEntryRun } from '../../lib/entryRun'
 import { playgroundPath } from '../../lib/routes'
 import type { StreamProfile } from './streamProfile'
+import { splitReadmeQueries, hasReadmeQuery } from './readmeWql'
+import { ReadmeQueryBlock } from './ReadmeQueryBlock'
 import { CanvasProse } from '../../canvas/CanvasProse'
 import { seedNoteId } from '@/services/seed/SeedImporter'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
@@ -289,6 +291,13 @@ export function QueriableStreamView({
 
   const seedFiles = useSeedContent()
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
+  // WQL embed links (`[heading](:query)!`) — when any are present they
+  // override the catalog's default feed stream below the readme.
+  const readmeSegments = useMemo(
+    () => (readmeContent ? splitReadmeQueries(readmeContent) : []),
+    [readmeContent],
+  )
+  const readmeOverride = hasReadmeQuery(readmeSegments)
 
   useEffect(() => {
     if (!catalogSlug) {
@@ -932,19 +941,34 @@ export function QueriableStreamView({
         </div>
       )}
 
-      {/* Read-only view of the collection readme note */}
+      {/* Read-only view of the collection readme note. WQL embed links
+          (`[heading](:query)!`) inject live query results in place; any
+          embed suppresses the default stream below (the override). */}
       {readmeContent && (
         <div
           className="border-b border-border/60 bg-card/20 px-6 py-4"
           data-testid="collection-readme-note"
         >
-          <CanvasProse prose={readmeContent} />
+          {readmeSegments.map((segment, index) =>
+            segment.kind === 'markdown' ? (
+              <CanvasProse key={index} prose={segment.text} />
+            ) : (
+              <ReadmeQueryBlock
+                key={index}
+                query={segment.query}
+                heading={segment.heading}
+                onAddToToday={handleAddToToday}
+                onRunStart={handleRunEntry}
+              />
+            ),
+          )}
         </div>
       )}
 
       {/* Main Content: Rows (table) / Feed (rich cards) / Cards (grouped stream).
-          An invalid draft dims retained results — visibly stale, still inspectable. */}
-      {settings.layout === 'rows' ? (
+          An invalid draft dims retained results — visibly stale, still inspectable.
+          With readme query tokens the injected blocks replace this stream. */}
+      {readmeOverride ? null : settings.layout === 'rows' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <PropertyTable
             entries={entries}

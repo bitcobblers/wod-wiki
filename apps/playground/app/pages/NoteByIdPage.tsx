@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { v7 as uuidv7 } from 'uuid'
 import { CalendarDays, Copy } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import { JournalPageShell } from '@/panels/page-shells'
-import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
+import { NoteEditor, type EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor'
+import { BlockHistory, revertBlock } from '@/components/organisms/editor/BlockHistory'
 import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore';
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { useEditorSave } from '../hooks/useEditorSave'
@@ -20,6 +21,7 @@ import type { HistoryEntry } from '@/types/history'
 import type { Session } from '@/types/storage'
 import { playgroundRecorder, onResultSaved } from '@/services/resultRecorder'
 import { pendingRuntimes } from '../runtimeStore'
+import { captureRun } from '@/services/runCapture';
 import type { ScriptBlock } from '@/components/Editor/types'
 import { useNotePageNav } from './shared/useNotePageNav'
 import {
@@ -49,6 +51,9 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const [searchParams] = useSearchParams()
   const [entry, setEntry] = useState<HistoryEntry | null>(null)
   const [missing, setMissing] = useState(false)
+  const committedRevisionRef = useRef(0);
+  const draftRef = useRef<EditorIdentitySnapshot | null>(null);
+  const flushRef = useRef<() => Promise<void>>(async () => {});
   const isReadOnly = location.pathname.startsWith('/p/')
   const [saveError, setSaveError] = useState<{ noteId: string; message: string } | null>(null)
   const [placement, setPlacement] = useState<NotePlacementMode | null>(null)
@@ -77,6 +82,8 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           return
         }
         setEntry(loaded)
+        committedRevisionRef.current = loaded.sourceRevision ?? 0;
+        draftRef.current = { rawContent: loaded.rawContent, blocks: loaded.blocks ?? {}, sourceRevision: loaded.sourceRevision ?? 0 };
       })
       .catch(() => {
         if (!cancelled) setMissing(true)
@@ -135,18 +142,23 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   }, [noteKey])
 
   const handleStartWorkout = useCallback(
-    (block: ScriptBlock) => {
-      if (!entry) return
-      const runtimeId = uuidv7()
-      pendingRuntimes.set(runtimeId, {
-        block,
-        noteId: entry.id,
-        returnTo: noteByIdPath(entry.id),
-      })
-      navigate(runPath(runtimeId))
+    async (block: ScriptBlock) => {
+      if (!entry) return;
+      try {
+        await flushRef.current();
+        const snapshot = draftRef.current;
+        if (!snapshot) throw new Error('The note draft is unavailable.');
+        const runtimeId = uuidv7();
+        const captured = await captureRun({ noteId: entry.id, rawContent: snapshot.rawContent, blocks: snapshot.blocks, expectedSourceRevision: committedRevisionRef.current }, block, runtimeId);
+        committedRevisionRef.current = captured.note.sourceRevision;
+        pendingRuntimes.set(runtimeId, { block: captured.block, noteId: entry.id, captured, returnTo: noteByIdPath(entry.id) });
+        navigate(runPath(runtimeId));
+      } catch (error) {
+        setSaveError({ noteId, message: `Workout not started. ${error instanceof Error ? error.message : String(error)} Your draft is kept.` });
+      }
     },
-    [entry, navigate],
-  )
+    [entry, noteId, navigate],
+  );
 
   useNotePageNav({
     content: entry?.rawContent ?? '',
@@ -159,57 +171,44 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     entry ? { noteId: entry.id, stamps: ownership.stamps } : { noteId: '', stamps: [] },
   )
 
-  const save = useCallback(
-    (value: string) =>
-      // Returning the chain lets useEditorSave serialize saves.
-      contentProvider
-        .updateEntry(noteId, { rawContent: value })
-        .then((updated) => {
-          // Keep the local draft; a late response for a previous note must
-          // not touch the current one.
-          setSaveError((prev) => (prev?.noteId === noteId ? null : prev))
-          setEntry((prev) => (prev && prev.id === noteId ? { ...prev, title: updated.title } : prev))
-        })
-        .catch(() => {
-          setSaveError({ noteId, message: 'Save failed — your edit is kept below. Try again.' })
-        }),
-    [noteId],
-  )
-
-  const { onChange: saveOnChange, onBlur } = useEditorSave({ onSave: save, lineIdleMs: 500 })
-
-  const onChange = useCallback(
-    (value: string) => {
-      setEntry((prev) => (prev ? { ...prev, rawContent: value } : prev))
-      saveOnChange(value)
-    },
-    [saveOnChange],
-  )
-  const handleCompleteWorkout = useCallback(
-    (
-      blockId: string,
-      results: ScriptBlock['results'],
-      resultId?: string,
-      runBlock?: Pick<ScriptBlock, 'id' | 'contentId'>,
-    ): Promise<unknown> => {
-      // Surfaced, not silent — the overlay awaits this and offers Retry.
-      if (!results || !resultId) {
-        return Promise.reject(new Error('This run produced no results to save.'))
-      }
-      if (!entry) {
-        return Promise.reject(new Error('The note is not loaded — the run cannot be saved.'))
-      }
-      return playgroundRecorder.record({
-        runBlock,
-        blockId,
-        noteId: entry.id,
-        resultId,
-        data: results,
-        createdAt: results.endTime || Date.now(),
-      })
-    },
-    [entry],
-  )
+  const acceptSaved = useCallback((snapshot: EditorIdentitySnapshot) => {
+    committedRevisionRef.current = snapshot.sourceRevision;
+    const draft = draftRef.current;
+    const sameDraft = draft?.rawContent === snapshot.rawContent && JSON.stringify(Object.values(draft.blocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])) === JSON.stringify(Object.values(snapshot.blocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport]));
+    setEntry(previous => previous ? { ...previous, ...(sameDraft ? { blocks: snapshot.blocks } : {}), sourceRevision: snapshot.sourceRevision } : previous);
+  }, []);
+  const save = useCallback(async (snapshot: EditorIdentitySnapshot) => {
+    const updated = await notePersistence.saveNote({ noteId, rawContent: snapshot.rawContent, blocks: snapshot.blocks, expectedSourceRevision: committedRevisionRef.current });
+    acceptSaved({ rawContent: updated.rawContent, blocks: updated.blocks ?? {}, sourceRevision: updated.sourceRevision ?? committedRevisionRef.current });
+    setSaveError(null);
+    setEntry(previous => previous?.id === updated.id ? { ...previous, title: updated.title } : previous);
+    return { rawContent: updated.rawContent, blocks: updated.blocks ?? {}, sourceRevision: updated.sourceRevision ?? 0 };
+  }, [noteId, acceptSaved]);
+  const { onChange: saveOnChange, onBlur, flush } = useEditorSave<EditorIdentitySnapshot>({
+    onSave: async snapshot => { await save(snapshot); },
+    lineIdleMs: 500,
+    getSnapshotKey: snapshot => JSON.stringify([snapshot.rawContent, Object.values(snapshot.blocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])]),
+    onError: error => setSaveError({ noteId, message: `Save failed. ${error instanceof Error ? error.message : String(error)} Your draft is kept. Retry saving.` }),
+  });
+  flushRef.current = flush;
+  const identityChanged = useCallback((snapshot: EditorIdentitySnapshot) => {
+    const changed = draftRef.current?.rawContent !== snapshot.rawContent || JSON.stringify(Object.values(draftRef.current?.blocks ?? {}).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])) !== JSON.stringify(Object.values(snapshot.blocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport]));
+    draftRef.current = snapshot;
+    if (changed) saveOnChange(snapshot);
+  }, [saveOnChange]);
+  const onChange = useCallback((value: string) => {
+    setEntry(previous => previous ? { ...previous, rawContent: value } : previous);
+  }, []);
+  const restore = useCallback(async (revision: Parameters<typeof revertBlock>[1]) => {
+    await flush();
+    const current = draftRef.current;
+    if (!current) throw new Error('The note draft is unavailable.');
+    const restored = revertBlock({ ...current, sourceRevision: committedRevisionRef.current }, revision);
+    const saved = await save(restored);
+    draftRef.current = saved;
+    setEntry(previous => previous ? { ...previous, ...saved } : previous);
+  }, [flush, save]);
+  const handleCompleteWorkout = useCallback(() => Promise.resolve(), []);
 
 
   let body: ReactNode
@@ -291,6 +290,11 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   onChange={onChange}
                   onBlur={onBlur}
                   noteId={entry.id}
+                  noteBlocks={entry.blocks}
+                  sourceRevision={entry.sourceRevision}
+                  onIdentityChange={identityChanged}
+                  onSaved={acceptSaved}
+                  beforeRun={async () => { await flush(); return committedRevisionRef.current; }}
                   readonly={isReadOnly}
                   theme={theme}
                   showLineNumbers={false}
@@ -300,6 +304,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
               ) : (
                 <div className="flex items-center justify-center text-zinc-400 text-sm py-8">Loading…</div>
               )}
+              <BlockHistory noteId={entry.id} blocks={entry.blocks} sourceRevision={entry.sourceRevision} onRevert={isReadOnly ? undefined : restore} />
               {saveError?.noteId === noteId && (
                 <p role="alert" className="text-sm text-destructive">
                   {saveError.message}

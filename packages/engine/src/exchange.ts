@@ -7,9 +7,8 @@
  * design requirement: every export carries the identity needed to import
  * back into the same database (upsert) or into a clean one (recreate).
  *
- *  - Notes  → markdown composed from segment rows (as-of a chosen version),
- *    with a `wod-note-id` frontmatter key stamped for identity. `wod parse`
- *    adopts that identity, so edit-and-re-parse updates the same note.
+ *  - Notes export their exact authored source with an identity stamp.
+ *    `wod parse` adopts the stamp when importing the note.
  *  - Sessions → one CSV row per metric (event + summary grains), session
  *    fields repeated per row plus one session-only anchor row, so a clean
  *    import recreates the session and its events verbatim.
@@ -17,7 +16,7 @@
 
 import { WQL_TYPED_TAG_KEYS } from '@bitcobblers/wod-wiki-wql';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
-import type { Note, NoteSegment, Session } from '@bitcobblers/wod-wiki-storage';
+import type { Note, Session } from '@bitcobblers/wod-wiki-storage';
 
 // ---------------------------------------------------------------------------
 // Note markdown composition
@@ -70,56 +69,17 @@ export function injectIdentityFrontmatter(markdown: string, identity: NoteIdenti
 
   const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown);
   if (block) {
+    const newline = markdown.startsWith('---\r\n') ? '\r\n' : '\n';
     const lines = stamp(block[1].split(/\r?\n/));
-    return `---\n${lines.join('\n')}\n---${markdown.slice(block[0].length)}`;
+    return `---${newline}${lines.join(newline)}${newline}---${markdown.slice(block[0].length)}`;
   }
   const lines = stamp([]);
   return `---\n${lines.join('\n')}\n---\n\n${markdown}`;
 }
 
-/** Re-add source delimiters for segments without an exact source slice. */
-function segmentToFragment(segment: NoteSegment): string {
-  if (segment.sourceContent !== undefined) return segment.sourceContent;
-  if (segment.dataType === 'wod') {
-    const block = segment.data as { dialect?: string; sport?: string } | null;
-    const dialect = block?.dialect ?? 'time';
-    const fenceTag = block?.sport ? `${dialect}:${block.sport}` : dialect;
-    return `\`\`\`${fenceTag}\n${segment.rawContent}\n\`\`\``;
-  }
-  if (segment.dataType === 'frontmatter') {
-    return `---\n${segment.rawContent}\n---`;
-  }
-  return segment.rawContent;
-}
-
-/**
- * Compose a note's markdown as-of `version` (default: latest). Per segment
- * id the row with the highest version ≤ the target wins — versions beyond
- * the target never appear, segments that never reached it contribute their
- * latest. The result is stamped with the note identity for re-import.
- */
-export function composeNoteMarkdown(
-  note: Note,
-  segments: readonly NoteSegment[],
-  version?: number,
-): string {
-  // Latest composition mirrors the live note: superseded versions never
-  // appear, which also drops re-keyed positional chains (edits shift line
-  // numbers, so a changed block surfaces under a new id and its old id is
-  // history). As-of composition keeps every row ≤ the cap per segment id.
-  const pool = version === undefined
-    ? segments.filter((s) => s.isHistory !== true)
-    : segments;
-  const cap = version ?? Number.MAX_SAFE_INTEGER;
-  const bySegmentId: Record<string, NoteSegment> = {};
-  for (const segment of pool) {
-    if (segment.version > cap) continue;
-    const current = bySegmentId[segment.id];
-    if (!current || segment.version > current.version) bySegmentId[segment.id] = segment;
-  }
-  const picked = Object.values(bySegmentId).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-  const markdown = picked.map(segmentToFragment).join('');
-  return injectIdentityFrontmatter(markdown, { noteId: note.id, title: note.title });
+/** Export the exact authored Note source, with identity for re-import. */
+export function composeNoteMarkdown(note: Note): string {
+  return injectIdentityFrontmatter(note.rawContent, { noteId: note.id, title: note.title });
 }
 
 // ---------------------------------------------------------------------------
@@ -326,13 +286,13 @@ type Metric = {
 };
 
 const SESSION_HEADER = [
-  'sessionId', 'noteId', 'segmentId', 'segmentVersion', 'blockId', 'blockContentId',
-  'origin', 'status', 'startTime', 'endTime', 'duration', 'completed', 'sessionCreatedAt',
+  'sessionId', 'noteId', 'blockId', 'blockVersion', 'blockContentId',
+  'origin', 'status', 'startTime', 'endTime', 'duration', 'completed', 'sessionCreatedAt', 'sessionExtraJson',
 ] as const;
 
 const EVENT_HEADER = [
   'eventId', 'grain', 'outputType', 'timestamp', 'pageId', 'effortSlug',
-  'eventSegmentId', 'eventSegmentVersion', 'eventBlockContentId', 'eventOrigin',
+  'eventBlockId', 'eventBlockVersion', 'eventBlockContentId', 'eventOrigin',
   'timeSpan', 'sourceBlockKey', 'sourceStatementId', 'line', 'text', 'dialect',
   'stackLevel', 'completionReason', 'representationKind',
   'metricType', 'metricValue', 'metricUnit', 'metricImage', 'metricOrigin',
@@ -376,17 +336,17 @@ const metricValueFromCell = (cell: string): unknown => {
 
 function sessionCells(session: Session): string[] {
   return [
-    session.id, session.noteId, session.segmentId, session.segmentVersion,
-    session.blockId, session.blockContentId, session.origin, session.status,
+    session.id, session.noteId, session.blockId, session.blockVersion,
+    session.blockContentId, session.origin, session.status,
     session.startTime, session.endTime, session.duration, session.completed,
-    session.createdAt,
+    session.createdAt, JSON.stringify(session),
   ].map(escapeCsvField);
 }
 
 function metricCells(event: EventRecord, metric: Metric, index: number): string[] {
   return [
     event.id, event.grain, event.outputType, event.timestamp, event.pageId, event.effortSlug,
-    event.segmentId, event.segmentVersion, event.blockContentId, event.origin,
+    event.blockId, event.blockVersion, event.blockContentId, event.origin,
     event.timeSpan, event.sourceBlockKey, event.sourceStatementId, event.line, event.text, event.dialect,
     event.stackLevel, event.completionReason, event.representationKind,
     metric.type, metricValueToCell(metric.value), metric.unit, metric.image, metric.origin,
@@ -513,6 +473,9 @@ export function csvToSessionRows(csv: string): SessionImportRows {
   const lines = splitCsvRecords(csv);
   if (lines.length < 2) throw new Error('[wod import] Session CSV has no data rows');
   const header = parseCsvLine(lines[0]);
+  if (header.some((name) => /segment/i.test(name))) {
+    throw new Error('[wod import] Incompatible Session CSV segment pins; blockId/blockVersion are required');
+  }
   const col = (name: string): number => {
     const idx = header.indexOf(name);
     if (idx < 0) throw new Error(`[wod import] Session CSV missing column "${name}"`);
@@ -524,13 +487,29 @@ export function csvToSessionRows(csv: string): SessionImportRows {
   let session: Session | undefined;
 
   const ensureSession = (cells: string[]): Session => {
-    if (session) return session;
+    const id = at(cells, 'sessionId');
+    const noteId = at(cells, 'noteId');
+    const blockId = at(cells, 'blockId');
+    const blockVersion = Number(at(cells, 'blockVersion'));
+    if (!id || !noteId || !blockId || !Number.isSafeInteger(blockVersion) || blockVersion < 1) {
+      throw new Error('[wod import] Session CSV requires sessionId, noteId, blockId and positive blockVersion');
+    }
+    if (session) {
+      if (session.id !== id || session.noteId !== noteId || session.blockId !== blockId || session.blockVersion !== blockVersion) {
+        throw new Error('[wod import] Session CSV contains inconsistent source pins');
+      }
+      return session;
+    }
+    const extra = jsonCell<Partial<Session>>(at(cells, 'sessionExtraJson')) ?? {};
+    if ('segmentId' in extra || 'segmentVersion' in extra || 'version' in extra || 'rawContent' in extra || 'data' in extra) {
+      throw new Error('[wod import] Incompatible Session CSV source snapshot or segment pin');
+    }
     session = {
-      id: at(cells, 'sessionId'),
-      noteId: at(cells, 'noteId'),
-      segmentId: at(cells, 'segmentId') || undefined,
-      segmentVersion: num(at(cells, 'segmentVersion')),
-      blockId: at(cells, 'blockId') || undefined,
+      ...extra,
+      id,
+      noteId,
+      blockId,
+      blockVersion,
       blockContentId: at(cells, 'blockContentId') || undefined,
       origin: (at(cells, 'origin') || undefined) as Session['origin'],
       status: (at(cells, 'status') || undefined) as Session['status'],
@@ -540,6 +519,9 @@ export function csvToSessionRows(csv: string): SessionImportRows {
       completed: at(cells, 'completed') === 'true',
       createdAt: Number(at(cells, 'sessionCreatedAt') || 0),
     };
+    if (![session.startTime, session.endTime, session.duration, session.createdAt].every(Number.isFinite)) {
+      throw new Error('[wod import] Session CSV lifecycle values must be finite numbers');
+    }
     return session;
   };
 
@@ -555,6 +537,14 @@ export function csvToSessionRows(csv: string): SessionImportRows {
       // eventExtraJson is the verbatim backstop; explicit spreadsheet cells
       // override it so hand-edited values are honored on import.
       const extra = jsonCell<Record<string, unknown>>(at(cells, 'eventExtraJson')) ?? {};
+      if ('segmentId' in extra || 'segmentVersion' in extra) {
+        throw new Error('[wod import] Incompatible Session CSV event segment pins');
+      }
+      const blockId = nonempty(at(cells, 'eventBlockId'));
+      const blockVersion = num(at(cells, 'eventBlockVersion'));
+      if (blockId !== currentSession.blockId || blockVersion !== currentSession.blockVersion) {
+        throw new Error('[wod import] Event source pin differs from Session source pin');
+      }
       event = {
         ...extra,
         id: eventId,
@@ -567,8 +557,8 @@ export function csvToSessionRows(csv: string): SessionImportRows {
         grain: (nonempty(at(cells, 'grain')) ?? extra.grain ?? 'event') as EventRecord['grain'],
         effortSlug: nonempty(at(cells, 'effortSlug')) ?? (extra.effortSlug as string | undefined),
         outputType: nonempty(at(cells, 'outputType')) ?? (extra.outputType as string | undefined) ?? 'event',
-        segmentId: nonempty(at(cells, 'eventSegmentId')) ?? (extra.segmentId as string | undefined),
-        segmentVersion: num(at(cells, 'eventSegmentVersion')) ?? (extra.segmentVersion as number | undefined),
+        blockId,
+        blockVersion,
         timeSpan: jsonCell(at(cells, 'timeSpan')) ?? (extra.timeSpan as EventRecord['timeSpan']),
         sourceBlockKey: nonempty(at(cells, 'sourceBlockKey')) ?? (extra.sourceBlockKey as string | undefined),
         sourceStatementId: num(at(cells, 'sourceStatementId')) ?? (extra.sourceStatementId as number | undefined),
@@ -580,9 +570,8 @@ export function csvToSessionRows(csv: string): SessionImportRows {
         representationKind: (nonempty(at(cells, 'representationKind')) ??
           extra.representationKind) as EventRecord['representationKind'],
         metrics: [],
-        // Rebuilt per-row from the metricTemporal column below — never
-        // inherited from the backstop, or rows would double-collect.
-        metricTemporal: undefined,
+        // Rebuild anchors from metric rows while preserving an authored empty array.
+        metricTemporal: Array.isArray(extra.metricTemporal) ? [] : undefined,
       };
       eventRows.set(eventId, event);
     }

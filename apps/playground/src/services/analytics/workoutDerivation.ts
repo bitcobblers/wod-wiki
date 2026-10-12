@@ -111,7 +111,7 @@ export function deriveWorkoutFromLogs(
 /**
  * Replay seam (Candidate 5): re-derive a persisted result's analytics from
  * its canonical logs. Caller supplies the block context (recovered from the
- * result's NoteSegment — see IndexedDBNotePersistence.rederiveResultAnalytics).
+ * result's immutable BlockRevision pinned at start).
  */
 export function replayResultAnalytics(
   block: ScriptBlock,
@@ -145,10 +145,8 @@ export function resolveCanonicalMetricKey(projectionName: string): string {
 export interface SummaryFactIdentity {
   noteId: string;
   resultId: string;
-  /** FK to NoteSegment.id (positional section id of the block run). */
-  segmentId?: string;
-  /** NoteSegment.version at record time. */
-  segmentVersion?: number;
+  blockId: string;
+  blockVersion: number;
   /** Content-stable cross-note join key. */
   blockContentId?: string;
   /** Which surface produced the result; trend queries exclude 'playground' by default. */
@@ -250,8 +248,8 @@ export function normalizeSummaryFacts(
       origin: identity.origin,
       pageId: identity.pageId,
       grain: 'summary',
-      segmentId: identity.segmentId ?? '',
-      segmentVersion: identity.segmentVersion ?? 0,
+      blockId: identity.blockId,
+      blockVersion: identity.blockVersion,
       resultId: identity.resultId,
       type: metricKey,
       value: value.value as number,
@@ -320,8 +318,8 @@ export function normalizeAllMetrics(
         origin: identity.origin,
         pageId: identity.pageId,
         grain: 'segment',
-        segmentId: identity.segmentId ?? '',
-        segmentVersion: identity.segmentVersion ?? 0,
+        blockId: identity.blockId,
+        blockVersion: identity.blockVersion,
         resultId: identity.resultId,
         type: metricKey,
         value: metric.value,

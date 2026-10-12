@@ -15,11 +15,22 @@ import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer'
 import { playgroundRecorder } from '@/services/resultRecorder'
 import { pendingRuntimes } from '../runtimeStore'
 import type { Sessions } from '@/components/Editor/types'
+import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
 
 export function WallClockPage() {
   const { runtimeId } = useParams<{ runtimeId: string }>()
   const navigate = useNavigate()
   const pendingRef = useRef(runtimeId ? pendingRuntimes.get(runtimeId) : undefined)
+  const captureRef = useRef<CapturedRun | null>(null);
+  const prepareRun = useCallback(async () => {
+    const pending = pendingRef.current;
+    if (!pending || !runtimeId) throw new Error('The pending workout is unavailable.');
+    if (pending.captured) { captureRef.current = pending.captured; return pending.captured.block; }
+    if (!captureRef.current) captureRef.current = pending.snapshot
+      ? await captureRun(pending.snapshot, pending.block, runtimeId, pending.origin)
+      : await captureStoredRun(pending.noteId, pending.block, runtimeId, pending.origin);
+    return captureRef.current.block;
+  }, [runtimeId]);
 
   // Consume from the pending store on mount so it doesn't leak
   useEffect(() => {
@@ -73,6 +84,7 @@ export function WallClockPage() {
   return (
     <FullscreenTimer
       block={pending.block}
+      prepareRun={prepareRun}
       onClose={handleClose}
       onCompleteWorkout={handleComplete}
       autoStart

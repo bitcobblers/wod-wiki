@@ -9,7 +9,7 @@ function summaryRow(id: string, resultId: string, metricKey: string, value: numb
 } = {}): EventRecord {
   return {
     id, resultId, noteId: 'n1', timestamp: 1_700_000_000_000,
-    grain: 'summary', outputType: 'analytics', segmentId: '', segmentVersion: 0,
+    grain: 'summary', outputType: 'analytics', blockId: '', blockVersion: 0,
     ...(extra.representationKind === undefined && extra.withoutStats !== true
       ? { representationKind: 'calculated' as const, reducerStats: { observedCount: 1, sum: value } }
       : {}),
@@ -24,7 +24,7 @@ function summaryRow(id: string, resultId: string, metricKey: string, value: numb
 function detailRow(id: string, resultId: string, metricKey: string, value: number, effortSlug?: string): EventRecord {
   return {
     id, resultId, noteId: 'n1', timestamp: 1_700_000_000_000,
-    grain: 'event', outputType: 'segment', segmentId: '', segmentVersion: 0,
+    grain: 'event', outputType: 'segment', blockId: '', blockVersion: 0,
     metrics: [{
       type: metricKey, value,
       ...(effortSlug ? { metadata: { canonicalKey: metricKey, effortSlug } } : { metadata: { canonicalKey: metricKey } }),

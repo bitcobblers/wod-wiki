@@ -16,8 +16,8 @@ function segmentRow(id: string, resultId: string, outputType: string, metricKey:
     timestamp: extra.timestamp ?? T0,
     grain: 'event',
     outputType,
-    segmentId: 'seg',
-    segmentVersion: 1,
+    blockId: 'seg',
+    blockVersion: 1,
     ...(extra.effortSlug ? { effortSlug: extra.effortSlug } : {}),
     metrics: [{
       type: metricKey,

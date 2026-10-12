@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { QueryService, type EventStore } from '../src/QueryService';
 import { toSummaryEventRows } from '../src/derivation';
 import { parseQuery, type ParsedFindQuery, type ParsedAggregateQuery } from '../src/wql';
-import type { BlockIndexRow, Note, StoredOutputStatement, EventRecord } from '@bitcobblers/wod-wiki-core';
+import type { StoredOutputStatement, EventRecord } from '@bitcobblers/wod-wiki-core';
+import { actionableFixture } from './harness/actionable';
 
 const TS = 1_700_000_000_000;
 
@@ -28,39 +29,19 @@ function makeResult(
   return toSummaryEventRows([summaryLog('Total Volume', volume, 'lb', ts)], {
     noteId,
     resultId: id,
-    segmentId: `${blockContentId}-seg`,
-    segmentVersion: 1,
+    blockId: `${blockContentId}-seg`,
+    blockVersion: 1,
     blockContentId,
     workoutTimestamp: ts,
   });
 }
 
-function makeNote(id: string, title: string): Note {
-  return { id, title, createdAt: TS, type: 'note' } as Note;
-}
-
-function makeBlock(noteId: string, blockContentId: string, noteTitle: string): BlockIndexRow {
-  return {
-    id: `${noteId}:${blockContentId}:1`,
-    noteId,
-    segmentId: `${blockContentId}-seg`,
-    segmentVersion: 1,
-    dataType: 'wod',
-    blockContentId,
-    rawContent: noteTitle,
-    noteTitle,
-    createdAt: TS,
-  };
-}
-
-const noteA = makeNote('noteA', 'Fran');
-const noteB = makeNote('noteB', 'Cindy');
-const NOTES: Note[] = [noteA, noteB];
-
-const BLOCKS: BlockIndexRow[] = [
-  makeBlock('noteA', 'bc-fran', 'Fran'),
-  makeBlock('noteB', 'bc-cindy', 'Cindy'),
-];
+const fixtureA = actionableFixture({ id: 'noteA', title: 'Fran', createdAt: TS, type: 'note' },
+  [{ id: 'bc-fran-seg', body: 'Fran', blockContentId: 'bc-fran' }]);
+const fixtureB = actionableFixture({ id: 'noteB', title: 'Cindy', createdAt: TS, type: 'note' },
+  [{ id: 'bc-cindy-seg', body: 'Cindy', blockContentId: 'bc-cindy' }]);
+const NOTES = [fixtureA.note, fixtureB.note];
+const BLOCKS = [...fixtureA.blocks, ...fixtureB.blocks];
 
 const SUMMARY_ROWS: Record<string, EventRecord[]> = {
   'bc-fran': [...makeResult('r1', 'noteA', 'bc-fran', 3000), ...makeResult('r2', 'noteA', 'bc-fran', 3000)],
@@ -162,6 +143,28 @@ describe('cross-store joins — direction 1 (find where metric)', () => {
     };
     const result = await service.runFind(parsed);
     expect(result.blocks.map(b => b.blockContentId)).toEqual(['bc-fran']);
+  });
+
+  it('aggregates unitless effort facts without a conversion error row', async () => {
+    // Parser rep facts carry no unit; grouped against the count system
+    // default they must stay unitless, never feed undefined into the catalog.
+    const unitless: EventRecord = {
+      id: 'ev-unitless', resultId: 'r4', noteId: 'noteB', timestamp: TS, grain: 'event',
+      outputType: 'segment', effortSlug: 'pull-up',
+      metrics: [{ type: 'rep', value: 15, origin: 'runtime' }], metricDateKeys: [],
+    };
+    const store: EventStore = {
+      ...eventStore,
+      getEventsByContent: async () => [],
+      scanAll: async () => [unitless],
+    };
+    const service = new QueryService(store,
+      { getAllNotes: async () => NOTES, getNoteIdsForTag: async () => new Set(), getNoteTagLabels: async () => [] },
+      { getAllBlocks: async () => BLOCKS });
+    const result = await service.runQuery('sum:rep{} by {effort}');
+    const series = result.series ?? [];
+    expect(series.some(s => s.points.some(p => p.error))).toBe(false);
+    expect(series.find(s => s.label === 'pull-up')?.points[0]?.value).toBe(15);
   });
 });
 

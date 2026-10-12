@@ -68,7 +68,7 @@ export interface PlaygroundPageStore {
 }
 
 export interface PlaygroundIntakeDependencies {
-  persistence: INotePersistence;
+  persistence: Pick<INotePersistence, 'createNote' | 'mutateNote'>;
   pages: PlaygroundPageStore;
   now?: () => number;
 }
@@ -116,7 +116,7 @@ export interface PlaygroundIntake {
   snapshotEntry(content: string, opts: SnapshotEntryOptions): Promise<PlaygroundEntry>;
   /**
    * Promote a playground entry onto a journal date — the SAME Note (UUID,
-   * segments, results, attachments all preserved; nothing is copied, so no
+   * blocks, results, attachments all preserved; nothing is copied, so no
    * duplicate playground entry remains). The source bucket is cleared so the
    * note leaves the `source:playground` scope and joins the journal page.
    */
@@ -141,13 +141,14 @@ export function createPlaygroundIntake({
     return entry.id;
   }
 
-  async function updateEntry(entryId: string, routeId: string, title: string, content: string): Promise<void> {
+  async function updateEntry(entry: PlaygroundPage, routeId: string, title: string, content: string): Promise<void> {
     await pages.savePage({
-      id: entryId,
+      id: entry.id,
       slug: routeId,
       category: 'playground',
       name: title,
       content,
+      sourceRevision: entry.sourceRevision,
       updatedAt: now(),
     });
   }
@@ -160,7 +161,7 @@ export function createPlaygroundIntake({
       // piling up two Notes behind one slug (the old composite-id behavior).
       const existing = await pages.getPage(routeId);
       if (existing) {
-        await updateEntry(existing.id, existing.slug ?? routeId, existing.name || name, content);
+        await updateEntry(existing, existing.slug ?? routeId, existing.name || name, content);
         return name;
       }
       await writeEntry(routeId, name, content, opts?.sourcePath);
@@ -183,7 +184,7 @@ export function createPlaygroundIntake({
       // legacy note would still resolve here. Its type says 'journal' now:
       // never touch it, mint a fresh entry under a suffixed slug instead.
       if (existing && existing.type === 'playground') {
-        await updateEntry(existing.id, existing.slug ?? routeId, existing.name || name, content);
+        await updateEntry(existing, existing.slug ?? routeId, existing.name || name, content);
         return { noteId: existing.id, routeId };
       }
       if (existing) {
@@ -226,7 +227,7 @@ export function createPlaygroundIntake({
           // note leaves the playground scope (`:note{source:playground}`)
           // and stops answering /playground/<name>, so a later same-key
           // ensure can never update the journal note in the playground's
-          // place. UUID, segments, results, and attachments are untouched —
+          // place. UUID, blocks, results, and attachments are untouched —
           // nothing is copied, so no duplicate playground entry remains.
           sourceId: null,
           slug: null,

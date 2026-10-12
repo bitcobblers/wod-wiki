@@ -4,17 +4,22 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { join } from 'path';
-import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { cliMain } from '../src/index';
-import { csvToEquipmentLabels } from '../src/exchange';
+import { csvToEquipmentLabels, csvToSessionRows, sessionToCsv } from '../src/exchange';
 import { loadSql, openCliDb } from '../src/cli/db';
-import type { NoteSegment, Session } from '@bitcobblers/wod-wiki-storage';
+import type { Session } from '@bitcobblers/wod-wiki-storage';
+import { persistNote, startRun, persistRun } from '../src/cli/persist';
+import { parseDocumentSections, mapNoteBlockChanges } from '@bitcobblers/wod-wiki-core';
+import { runExecution } from '../src/cli/run';
+import { tmpdir } from 'node:os';
+import { generateSeed } from '../src/cli/seedbuild/compiler';
+import { createClient } from '@libsql/client';
 
 const TEMP_SCRIPT_FILE = join(process.cwd(), 'temp-db-test-workout.md');
 const TEMP_DB_FILE = join(process.cwd(), 'temp-db-test-wodwiki.db');
-const SEED_FIXTURE_DIR = join(__dirname, 'fixtures', 'seed-mini');
 
-const FENCED_WORKOUT = '# Morning\n\n```time\n3 Rounds\n- 5 pull-up\n- 10 push-up\n```\n';
+const FENCED_WORKOUT = '# Morning\n\n```time\n(3)\n- 5 pull-up\n- 10 push-up\n```\n';
 
 afterEach(() => {
   if (existsSync(TEMP_SCRIPT_FILE)) unlinkSync(TEMP_SCRIPT_FILE);
@@ -22,45 +27,139 @@ afterEach(() => {
 });
 
 describe('wod CLI database behavior', () => {
-  it('parse persists a note with segments and block rows; re-parse versions old segments', async () => {
+  it('parse stores whole source and sparse blocks; identical parse appends no revisions', async () => {
     writeFileSync(TEMP_SCRIPT_FILE, FENCED_WORKOUT, 'utf-8');
-    const code = await cliMain(['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], { stdout: () => {} });
-    expect(code).toBe(0);
-
+    expect(await cliMain(['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], { stdout: () => {} })).toBe(0);
     const db = await openCliDb(TEMP_DB_FILE);
-    const sql = await loadSql();
     try {
-      const segments = (await sql.listRows(db.db, sql.storeDefinition('segments'))) as NoteSegment[];
-      expect(segments.length).toBeGreaterThan(0);
-      expect(segments.some((s) => s.dataType === 'wod')).toBe(true);
-      expect(segments.every((s) => s.isHistory !== true)).toBe(true);
-
-      const blocks = await sql.listRows(db.db, sql.storeDefinition('block_index'));
-      expect(blocks.length).toBe(segments.length);
-
-      const blockEfforts = await sql.listRows(db.db, sql.storeDefinition('block_efforts'));
-      expect(blockEfforts.length).toBeGreaterThan(0);
+      const notes = await db.storage.readonly('notes').getAll();
+      expect(notes).toHaveLength(1);
+      expect(notes[0].rawContent).toBe(FENCED_WORKOUT);
+      expect(Object.values(notes[0].blocks)).toHaveLength(1);
+      expect(await db.storage.readonly('block_index').getAll()).toHaveLength(1);
+      expect(await db.storage.readonly('block_efforts').count()).toBeGreaterThan(0);
+      const before = await db.storage.readonly('block_revisions').getAll();
+      expect(before).toHaveLength(1);
+      await persistNote(db, { source: FENCED_WORKOUT, sourceLabel: TEMP_SCRIPT_FILE });
+      expect(await db.storage.readonly('notes').getAll()).toEqual(notes);
+      expect(await db.storage.readonly('block_revisions').getAll()).toEqual(before);
     } finally {
       await db.close();
     }
+  });
 
-    // Re-parse: same note, old segments become history, versions bump.
-    const second = await cliMain(['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], { stdout: () => {} });
-    expect(second).toBe(0);
-
-    const db2 = await openCliDb(TEMP_DB_FILE);
+  it('keeps duplicate occurrences separate and preserves Note metadata on bulk replacement', async () => {
+    const db = await openCliDb(TEMP_DB_FILE);
+    const source = '```time\n10 push-up\n```\n\n```time\n10 push-up\n```\n';
     try {
-      const sql2 = await loadSql();
-      const segments = (await sql2.listRows(db2.db, sql2.storeDefinition('segments'))) as NoteSegment[];
-      const wodSegments = segments.filter((s) => s.dataType === 'wod');
-      expect(wodSegments.some((s) => s.isHistory === true)).toBe(true);
-      expect(Math.max(...wodSegments.map((s) => s.version))).toBe(2);
-
-      // Block index follows the latest versions — one row per current segment.
-      const blocks = await sql2.listRows(db2.db, sql2.storeDefinition('block_index'));
-      expect(blocks.length).toBe(new Set(segments.filter((s) => s.isHistory !== true).map((s) => s.id)).size);
+      const first = await persistNote(db, { source, sourceLabel: TEMP_SCRIPT_FILE });
+      const ids = Object.keys(first.note.blocks);
+      expect(new Set(ids).size).toBe(2);
+      await db.storage.readwrite('notes').put({
+        ...first.note, catalog: 'training', sourceId: 'user-notebook',
+        sourcePath: 'authored/workout.md', tags: ['retained'], seedOrigin: 'user',
+      });
+      const replaced = await persistNote(db, { source: source.replaceAll('10 push-up', '12 push-up'), sourceLabel: TEMP_SCRIPT_FILE });
+      expect(replaced.note.catalog).toBe('training');
+      expect(replaced.note.sourceId).toBe('user-notebook');
+      expect(replaced.note.sourcePath).toBe('authored/workout.md');
+      expect(replaced.note.tags).toEqual(['retained']);
+      expect(replaced.note.seedOrigin).toBe('user');
+      expect(Object.keys(replaced.note.blocks).every((id) => !ids.includes(id))).toBe(true);
+      const revisions = await db.storage.readonly('block_revisions').getAllFromIndex('by-note', first.noteId);
+      expect(revisions).toHaveLength(4);
+      expect(await db.storage.readonly('block_index').count()).toBe(2);
     } finally {
-      await db2.close();
+      await db.close();
+    }
+  });
+
+  it('saved unrun versions, revert and prose edits use occurrence history without effort churn', async () => {
+    const db = await openCliDb(TEMP_DB_FILE);
+    try {
+      const first = await persistNote(db, { source: FENCED_WORKOUT, sourceLabel: TEMP_SCRIPT_FILE, now: 1 });
+      const id = Object.keys(first.note.blocks)[0];
+      const from = FENCED_WORKOUT.indexOf('(3)') + 1;
+      const edited = FENCED_WORKOUT.replace('(3)', '(5)');
+      const second = await persistNote(db, {
+        source: edited, sourceLabel: TEMP_SCRIPT_FILE, now: 2,
+        blocks: mapNoteBlockChanges(first.note.blocks, [{ from, to: from + 1, insert: '5' }]),
+      });
+      expect(second.note.blocks[id].version).toBe(2);
+      const third = await persistNote(db, {
+        source: FENCED_WORKOUT, sourceLabel: TEMP_SCRIPT_FILE, now: 3,
+        blocks: mapNoteBlockChanges(second.note.blocks, [{ from, to: from + 1, insert: '3' }]),
+      });
+      expect(third.note.blocks[id].version).toBe(3);
+      const links = await db.storage.readonly('block_efforts').getAll();
+      const prose = 'Recovery 😀\n\n';
+      const fourth = await persistNote(db, {
+        source: prose + FENCED_WORKOUT, sourceLabel: TEMP_SCRIPT_FILE, now: 4,
+        blocks: mapNoteBlockChanges(third.note.blocks, [{ from: 0, to: 0, insert: prose }]),
+      });
+      expect(fourth.note.blocks[id].version).toBe(3);
+      expect(await db.storage.readonly('block_efforts').getAll()).toEqual(links);
+      const history = await db.storage.readonly('block_revisions').getAllFromIndex('by-block', [first.noteId, id]);
+      expect(history.map((row) => [row.version, row.savedAt])).toEqual([[1, 1], [2, 2], [3, 3]]);
+      expect(await db.storage.readonly('sessions').count()).toBe(0);
+      await expect(persistNote(db, {
+        source: edited, sourceLabel: TEMP_SCRIPT_FILE, expectedSourceRevision: 1,
+      })).rejects.toThrow(/Stale/);
+      expect(await db.storage.readonly('notes').get(first.noteId)).toEqual(fourth.note);
+    } finally {
+      await db.close();
+    }
+  });
+
+  it('captures a Session before execution and completes against its pin after source deletion', async () => {
+    const db = await openCliDb(TEMP_DB_FILE);
+    try {
+      const started = await startRun(db, { source: FENCED_WORKOUT, sourceLabel: TEMP_SCRIPT_FILE }, 1000);
+      expect(await db.storage.readonly('sessions').get(started.session.id)).toEqual(started.session);
+      expect(started.session.status).toBe('in-progress');
+      const body = parseDocumentSections(started.revision.rawContent)[0].scriptBlock!.content;
+      await persistNote(db, { source: '# Removed workout\n', sourceLabel: TEMP_SCRIPT_FILE });
+      await db.storage.readwrite('notes').delete(started.session.noteId);
+      const execution = await runExecution(body, { startTime: started.session.startTime, sport: started.revision.sport, dialect: started.revision.dialect });
+      const completed = await persistRun(db, started, execution.data);
+      expect(completed.session.blockId).toBe(started.session.blockId);
+      expect(completed.session.blockVersion).toBe(started.session.blockVersion);
+      expect(completed.session.completed).toBe(true);
+      const retained = await db.storage.readonly('block_revisions').get([started.session.noteId, started.session.blockId, started.session.blockVersion]);
+      expect(retained).toEqual(started.revision);
+      expect((await db.storage.readonly('events').getAll()).every((row) => row.blockId === started.session.blockId && row.blockVersion === started.session.blockVersion)).toBe(true);
+    } finally {
+      await db.close();
+    }
+  });
+
+  it('failed run capture rolls back source, projections and saved revisions together', async () => {
+    const db = await openCliDb(TEMP_DB_FILE);
+    try {
+      await expect(startRun(db, { source: '# Prose only\n', sourceLabel: TEMP_SCRIPT_FILE })).rejects.toThrow(/no actionable workout/);
+      expect(await db.storage.readonly('notes').count()).toBe(0);
+      expect(await db.storage.readonly('block_index').count()).toBe(0);
+      expect(await db.storage.readonly('block_revisions').count()).toBe(0);
+      expect(await db.storage.readonly('sessions').count()).toBe(0);
+    } finally {
+      await db.close();
+    }
+  });
+
+  it('incompatible schema startup fails without wiping existing rows', async () => {
+    const db = await openCliDb(TEMP_DB_FILE);
+    const saved = await persistNote(db, { source: FENCED_WORKOUT, sourceLabel: TEMP_SCRIPT_FILE });
+    await db.db.exec('UPDATE "_wodwiki_schema" SET "value" = ? WHERE "key" = ?', [JSON.stringify({ version: 28 }), 'schema']);
+    await db.close();
+    await expect(openCliDb(TEMP_DB_FILE)).rejects.toThrow(/recreation required/);
+    expect(existsSync(TEMP_DB_FILE)).toBe(true);
+    const sql = await loadSql();
+    const raw = sql.libsqlDatabase(createClient({ url: `file:${TEMP_DB_FILE}` }));
+    try {
+      expect(await sql.getRow(raw, sql.storeDefinition('notes'), saved.noteId)).toEqual(saved.note);
+      expect(await sql.listRows(raw, sql.storeDefinition('block_revisions'))).toHaveLength(1);
+    } finally {
+      await raw.close();
     }
   });
 
@@ -77,7 +176,8 @@ describe('wod CLI database behavior', () => {
       expect(sessions.length).toBe(1);
       expect(sessions[0].completed).toBe(true);
       expect(sessions[0].origin).toBe('journal');
-      expect(sessions[0].segmentId).toBeDefined();
+      expect(sessions[0].blockId).toBeDefined();
+      expect(sessions[0].blockVersion).toBe(1);
       noteId = sessions[0].noteId;
 
       const events = await sql.listRows(db.db, sql.storeDefinition('events'));
@@ -106,27 +206,37 @@ describe('wod CLI database behavior', () => {
     expect(find.data.notes.some((n: { id: string }) => n.id === noteId)).toBe(true);
   });
 
-  it('seed imports a compiled source directory; queries classify the corpus', async () => {
-    const seedCode = await cliMain(['seed', '--db', TEMP_DB_FILE, '--source', SEED_FIXTURE_DIR], {
-      stdout: () => {},
-    });
-    expect(seedCode).toBe(0);
-
-    let findOut = '';
-    const noteCode = await cliMain(['query', ':note{text:"Fran"}', '--db', TEMP_DB_FILE, '--format', 'json'], {
-      stdout: (t) => { findOut += t; },
-    });
-    expect(noteCode).toBe(0);
-    const find = JSON.parse(findOut);
-    expect(find.data.stages.matched).toBe(1);
-
-    let blockOut = '';
-    const blockCode = await cliMain(['query', ':block{effort:"thruster"}', '--db', TEMP_DB_FILE, '--format', 'json'], {
-      stdout: (t) => { blockOut += t; },
-    });
-    expect(blockCode).toBe(0);
-    const blocks = JSON.parse(blockOut);
-    expect(blocks.data.stages.matched).toBe(1);
+  it('seed imports freshly compiled source and queries classify the corpus', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wod-cli-seed-'));
+    try {
+      mkdirSync(join(root, 'markdown/collections/test'), { recursive: true });
+      writeFileSync(join(root, 'markdown/collections/test/fran.md'), '---\ntitle: Fran\n---\n\n```time\n(21-15-9)\n  Thrusters @95lb\n  Pull-ups\n```\n', 'utf-8');
+      mkdirSync(join(root, 'markdown/efforts'), { recursive: true });
+      writeFileSync(join(root, 'markdown/efforts/thruster.md'), '---\nid: effort-thruster\nslug: thruster\nlabel: Thruster\naliases:\n  - Thrusters\nbaseAttributes:\n  met: 8.5\n---\n', 'utf-8');
+      const built = generateSeed({ corpusRoot: root, version: 1, outDir: join(root, 'dist') });
+      expect(await cliMain(['seed', '--db', TEMP_DB_FILE, '--source', built.outDir], { stdout: () => {} })).toBe(0);
+      const imported = await openCliDb(TEMP_DB_FILE);
+      try {
+        const links = await imported.storage.readonly('block_efforts').getAllFromIndex('by-effort', 'thruster');
+        expect(links).toHaveLength(1);
+        const block = await imported.storage.readonly('block_index').get(`${links[0].noteId}:${links[0].blockId}`);
+        expect(block?.rawContent).toContain('Thrusters @95lb');
+      } finally {
+        await imported.close();
+      }
+      let notes = '';
+      expect(await cliMain(['query', ':note{text:"Fran"}', '--db', TEMP_DB_FILE], {
+        stdout: (text) => { notes += text; },
+      })).toBe(0);
+      expect(JSON.parse(notes).data.stages.matched).toBe(1);
+      let blocks = '';
+      expect(await cliMain(['query', ':block{effort:"thruster"}', '--db', TEMP_DB_FILE], {
+        stdout: (text) => { blocks += text; },
+      })).toBe(0);
+      expect(JSON.parse(blocks).data.stages.matched).toBe(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('reset deletes the database file; resetting a missing file is a no-op', async () => {
@@ -147,8 +257,6 @@ describe('wod CLI database behavior', () => {
   });
 
   it('download note → edit → parse round-trips into the same note with versioned history', async () => {
-    // Frontmatter-bearing source keeps segment positions stable across the
-    // export → edit → re-import cycle (segment ids are positional).
     const FENCED_WITH_FRONTMATTER = '---\ntitle: Morning\nsport: crossfit\n---\n\n# Morning\n\n```time\n3 Rounds\n- 5 pull-up\n- 10 push-up\n```\n';
     writeFileSync(TEMP_SCRIPT_FILE, FENCED_WITH_FRONTMATTER, 'utf-8');
     let parseOut = '';
@@ -176,9 +284,6 @@ describe('wod CLI database behavior', () => {
 
     const db = await openCliDb(TEMP_DB_FILE);
     try {
-      // Segment ids are positional, so the stamped export (one extra
-      // frontmatter line) re-keys blocks into fresh v1 chains — the
-      // note-level identity and content round-trip is the contract.
       let latestOut = '';
       await cliMain(['download', 'note', noteId, '--db', TEMP_DB_FILE, '-o', '-'], {
         stdout: (t) => { latestOut += t; },
@@ -186,18 +291,21 @@ describe('wod CLI database behavior', () => {
       expect(latestOut).toContain('5 Rounds');
       expect(latestOut).not.toContain('3 Rounds');
 
-      let v1Out = '';
-      await cliMain(['download', 'note', noteId, '--at', '1', '--db', TEMP_DB_FILE, '-o', '-'], {
-        stdout: (t) => { v1Out += t; },
-      });
-      expect(v1Out).toContain('3 Rounds');
+      const history = await db.storage.readonly('block_revisions').getAllFromIndex('by-note', noteId);
+      expect(history.some((row) => row.rawContent.includes('3 Rounds'))).toBe(true);
+      expect(history.some((row) => row.rawContent.includes('5 Rounds'))).toBe(true);
+      let error = '';
+      expect(await cliMain(['download', 'note', noteId, '--at', '1', '--db', TEMP_DB_FILE], {
+        stdout: () => {}, stderr: (text) => { error += text; },
+      })).toBe(1);
+      expect(error).toContain('Unknown option --at');
     } finally {
       await db.close();
     }
     if (existsSync(exportFile)) unlinkSync(exportFile);
   });
 
-  it('download session → import into a clean db reproduces queryable metrics', async () => {
+  it('Session CSV import requires exact revisions and round-trips once available', async () => {
     writeFileSync(TEMP_SCRIPT_FILE, FENCED_WORKOUT, 'utf-8');
     let runOut = '';
     await cliMain(['run', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], { stdout: (t) => { runOut += t; } });
@@ -216,17 +324,44 @@ describe('wod CLI database behavior', () => {
       stdout: (t) => { srcOut += t; },
     });
 
-    // Clean target: only the imported CSV.
+    const sourceDb = await openCliDb(TEMP_DB_FILE);
+    const revisions = await sourceDb.storage.readonly('block_revisions').getAll();
+    try {
+      const originalEvents = await sourceDb.storage.readonly('events').getAll();
+      expect(await cliMain(['import', 'session', csvFile, '--db', TEMP_DB_FILE], { stdout: () => {} })).toBe(0);
+      expect(await sourceDb.storage.readonly('events').getAll()).toEqual(originalEvents);
+      expect(await sourceDb.storage.readonly('sessions').count()).toBe(1);
+      const csv = readFileSync(csvFile, 'utf-8');
+      const changed = csvToSessionRows(csv);
+      changed.events[0].outputType = 'conflicting-output';
+      writeFileSync(csvFile, sessionToCsv(changed.session, changed.events), 'utf-8');
+      let conflict = '';
+      expect(await cliMain(['import', 'session', csvFile, '--db', TEMP_DB_FILE], {
+        stdout: () => {}, stderr: (text) => { conflict += text; },
+      })).toBe(1);
+      expect(conflict).toContain('Event identity conflicts');
+      expect(await sourceDb.storage.readonly('events').getAll()).toEqual(originalEvents);
+      writeFileSync(csvFile, csv, 'utf-8');
+    } finally {
+      await sourceDb.close();
+    }
     const CLEAN_DB = join(process.cwd(), 'temp-db-test-clean.db');
     if (existsSync(CLEAN_DB)) unlinkSync(CLEAN_DB);
     try {
-      let impOut = '';
-      const impCode = await cliMain(['import', 'session', csvFile, '--db', CLEAN_DB], {
-        stdout: (t) => { impOut += t; },
-      });
-      expect(impCode).toBe(0);
-      expect(impOut).toContain(resultId);
-      expect(impOut).toContain('stub note created');
+      let error = '';
+      expect(await cliMain(['import', 'session', csvFile, '--db', CLEAN_DB], {
+        stdout: () => {}, stderr: (text) => { error += text; },
+      })).toBe(1);
+      expect(error).toContain('revision is unavailable');
+      const target = await openCliDb(CLEAN_DB);
+      try {
+        expect(await target.storage.readonly('notes').count()).toBe(0);
+        expect(await target.storage.readonly('sessions').count()).toBe(0);
+        await target.storage.readwrite('block_revisions').putMany(revisions);
+      } finally {
+        await target.close();
+      }
+      expect(await cliMain(['import', 'session', csvFile, '--db', CLEAN_DB], { stdout: () => {} })).toBe(0);
 
       let dstOut = '';
       await cliMain(['query', sumQuery, '--db', CLEAN_DB, '--format', 'json'], {

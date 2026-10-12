@@ -4,7 +4,7 @@ import { QueryService, type EventStore, type NoteQueryStore } from '../src/Query
 import type { Note } from '@bitcobblers/wod-wiki-core';
 
 const CREATED = Date.UTC(2026, 0, 10);
-const note = (id: string): Note => ({ id, title: id, type: 'note', createdAt: CREATED, sourceId: 'journal' } as unknown as Note);
+const note = (id: string): Note => ({ id, title: id, type: 'note', createdAt: CREATED, sourceId: 'journal', rawContent: '', sourceRevision: 1, blocks: {} });
 
 const makeNoteStore = (notes: Note[]): NoteQueryStore => ({
   getAllNotes: async () => notes,

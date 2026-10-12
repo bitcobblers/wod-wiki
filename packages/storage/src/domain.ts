@@ -1,6 +1,7 @@
-import type { BlockIndexRow, Note, NoteSegment, Page, PageNote, Tag } from './entities';
+import type { BlockIndexRow, Note, Page, PageNote, Tag } from './entities';
+import { validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 
-export const DOMAIN_PROJECTION_VERSION = 1;
+export const DOMAIN_PROJECTION_VERSION = 2;
 
 export type DomainPredicate =
   | { field: 'id' | 'noteId' | 'type' | 'catalog' | 'source' | 'tags' | 'effort'; values: string[]; negate?: boolean }
@@ -26,7 +27,6 @@ export type DomainQuery = {
 
 export interface DomainEntry {
   note: Note;
-  segments: NoteSegment[];
   tags: Tag[];
   links: PageNote[];
   pages: Page[];
@@ -55,31 +55,34 @@ function finiteNumbers(row: Record<string, unknown>, fields: string[]): boolean 
 }
 
 function isNote(value: unknown): value is Note {
-  return isObject(value) && typeof value.id === 'string' && typeof value.title === 'string'
-    && finiteNumbers(value, ['createdAt'])
-    && (value.date === undefined || finiteNumbers(value, ['date']))
-    && optionalStrings(value, ['type', 'sourceId', 'catalog', 'sourcePath', 'seedOrigin', 'seedChunkId'])
-    && (value.tags === undefined || (Array.isArray(value.tags) && value.tags.every(tag => typeof tag === 'string')));
+  if (!isObject(value) || typeof value.id !== 'string' || typeof value.title !== 'string'
+    || typeof value.rawContent !== 'string' || !Number.isSafeInteger(value.sourceRevision)
+    || typeof value.sourceRevision !== 'number' || value.sourceRevision < 1 || !isObject(value.blocks)
+    || !finiteNumbers(value, ['createdAt'])
+    || (value.date !== undefined && !finiteNumbers(value, ['date']))
+    || !optionalStrings(value, ['type', 'sourceId', 'catalog', 'sourcePath', 'seedOrigin', 'seedChunkId'])
+    || (value.tags !== undefined && (!Array.isArray(value.tags) || !value.tags.every(tag => typeof tag === 'string')))) return false;
+  try {
+    validateNoteBlocks(value.rawContent, value.blocks as Note['blocks'], value.sourceRevision);
+    return true;
+  } catch { return false; }
 }
 
 function isBlock(value: unknown): value is BlockIndexRow {
   return isObject(value) && typeof value.id === 'string' && typeof value.noteId === 'string'
-    && typeof value.segmentId === 'string' && finiteNumbers(value, ['segmentVersion', 'createdAt'])
-    && typeof value.dataType === 'string' && typeof value.rawContent === 'string'
+    && typeof value.blockId === 'string' && finiteNumbers(value, ['blockVersion', 'sourceRevision', 'from', 'to', 'createdAt'])
+    && value.id === `${value.noteId}:${value.blockId}`
+    && typeof value.blockVersion === 'number' && Number.isSafeInteger(value.blockVersion) && value.blockVersion > 0
+    && typeof value.sourceRevision === 'number' && Number.isSafeInteger(value.sourceRevision) && value.sourceRevision > 0
+    && typeof value.from === 'number' && Number.isSafeInteger(value.from) && value.from >= 0
+    && typeof value.to === 'number' && Number.isSafeInteger(value.to) && value.to > value.from
+    && ['wod', 'query', 'widget', 'embed'].includes(String(value.dataType)) && typeof value.rawContent === 'string'
     && typeof value.noteTitle === 'string'
     && optionalStrings(value, ['blockContentId', 'sourceId', 'sourcePath', 'routeId'])
     && (value.position === undefined || finiteNumbers(value, ['position']))
     && (value.isStatic === undefined || typeof value.isStatic === 'boolean');
 }
 
-function isSegment(value: unknown): value is NoteSegment {
-  return isObject(value) && typeof value.id === 'string' && typeof value.noteId === 'string'
-    && finiteNumbers(value, ['version', 'createdAt']) && typeof value.dataType === 'string'
-    && typeof value.rawContent === 'string' && (value.data === null || isObject(value.data))
-    && optionalStrings(value, ['sourceContent', 'pageId'])
-    && (value.position === undefined || finiteNumbers(value, ['position']))
-    && (value.isHistory === undefined || typeof value.isHistory === 'boolean');
-}
 
 function isTag(value: unknown): value is Tag {
   return isObject(value) && typeof value.id === 'string' && typeof value.label === 'string'
@@ -99,7 +102,6 @@ function isLink(value: unknown): value is PageNote {
 
 function isEntry(value: unknown): value is DomainEntry {
   return isObject(value) && isNote(value.note)
-    && Array.isArray(value.segments) && value.segments.every(isSegment)
     && Array.isArray(value.tags) && value.tags.every(isTag)
     && Array.isArray(value.links) && value.links.every(isLink)
     && Array.isArray(value.pages) && value.pages.every(isPage);

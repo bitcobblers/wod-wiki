@@ -3,7 +3,9 @@ import type {
   BlockIndexRow,
   EventRecord,
   Note,
-  NoteSegment,
+  BlockRevision,
+  NoteBlock,
+  BlockEffort,
   Page,
   PageNote,
   Session,
@@ -12,10 +14,13 @@ import type {
 } from '@/types/storage';
 import { parseScript } from '@bitcobblers/wod-wiki-lang';
 import type { IEffort } from '@bitcobblers/wod-wiki-lang';
+import { parseDocumentSections, validateNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import type { ICodeStatement } from '@bitcobblers/wod-wiki-core';
+import { rowsEqual } from '@bitcobblers/wod-wiki-storage';
 import type { DomainEntry, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
-import type { IStorage, IStorageTransaction } from './IStorage';
-import type { NotePersistenceStorage } from '../persistence/types';
+import type { IStorage, IStorageTransaction, StoreName } from './IStorage';
+import { NotePersistenceError, type NotePersistenceStorage, type SaveNoteInput } from '../persistence/types';
+const NOTE_BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
 
 /**
  * IStorage view over one open transaction. Every StorageService method called
@@ -99,7 +104,7 @@ export class StorageService implements NotePersistenceStorage {
   constructor(private readonly storage: IStorage, private readonly scopedTx = false) {}
 
   /**
-   * One mutation transaction across note/segment/tag/page/session/event/
+   * One mutation transaction across Note/tag/page/Session/event/
    * block relations: `fn` receives a scoped StorageService whose every call
    * (including nested appendEvents/setNoteTags/... transactions) joins the
    * single enclosing readwrite transaction. IndexedDB commits on scope exit;
@@ -181,18 +186,7 @@ export class StorageService implements NotePersistenceStorage {
     });
   }
 
-  /**
-   * Batch note metadata bundles for the domain `entries` plan: the note, its
-   * latest active segments (max version per segment id, history flag applied
-   * after — the MAX-before-history rule), tag rows, page links and pages.
-   * The one local/remote bundle chooser: a remote backend (IStorage.queryDomain
-   * present) reads the entries plan with deduped ids chunked at the SQL domain
-   * parser's 64-value limit; a per-chunk `undefined` (409 domain-unavailable)
-   * falls through to the local path below rather than yielding silent empty
-   * bundles. Local backends: one readonly transaction over the joined stores.
-   * Missing notes/pages stay absent — fail-closed, never resurrected. Storage
-   * errors propagate unchanged.
-   */
+  /** Hydrate note metadata through one remote plan or one local transaction. */
   async getEntryBatches(noteIds: readonly string[]): Promise<Map<string, DomainEntry>> {
     const out = new Map<string, DomainEntry>();
     if (noteIds.length === 0) return out;
@@ -214,20 +208,12 @@ export class StorageService implements NotePersistenceStorage {
       }
     }
     return this.storage.transaction(
-      ['notes', 'segments', 'note_tags', 'tags', 'page_notes', 'page'],
+      ['notes', 'note_tags', 'tags', 'page_notes', 'page'],
       'readonly',
       async (tx) => {
         for (const noteId of noteIds) {
           const note = await tx.readonly('notes').get(noteId);
 
-          const latest = new Map<string, NoteSegment>();
-          for (const segment of await tx.readonly('segments').getAllFromIndex('by-note', noteId)) {
-            const current = latest.get(segment.id);
-            if (!current || segment.version > current.version) latest.set(segment.id, segment);
-          }
-          const segments = Array.from(latest.values())
-            .filter((segment) => !segment.isHistory)
-            .sort((a, b) => (a.position ?? a.createdAt) - (b.position ?? b.createdAt));
 
           const links = await tx.readonly('page_notes').getAllFromIndex('by-note', noteId);
           const tagsStore = tx.readonly('tags');
@@ -243,11 +229,10 @@ export class StorageService implements NotePersistenceStorage {
             if (page) pages.push(page);
           }
 
-          if (!note && links.length === 0 && tags.length === 0 && segments.length === 0) continue;
+          if (!note) continue;
 
           out.set(noteId, {
-            note: note ?? { id: noteId, title: '', createdAt: 0 },
-            segments,
+            note,
             tags,
             links,
             pages,
@@ -265,27 +250,11 @@ export class StorageService implements NotePersistenceStorage {
 
   async deleteNote(id: string): Promise<void> {
     await this.storage.transaction(
-      ['notes', 'segments', 'sessions', 'attachments', 'events', 'note_tags', 'block_index', 'block_efforts', 'page_notes'],
+      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'page_notes'],
       'readwrite',
       async (tx) => {
-        // Session ids first — they key the event cascade below.
-        const sessionIds = (await tx.readonly('sessions').getAllFromIndex('by-note', id))
-          .map((session) => session.id);
-        sessionIds.push(`wellness:${id}`);
-
         await tx.readwrite('notes').delete(id);
 
-        const segments = tx.readwrite('segments');
-        for (const segment of await segments.getAllFromIndex('by-note', id)) {
-          // Compound key (id, version): deleting by row.id alone would miss
-          // every row.
-          await segments.delete([segment.id, segment.version]);
-        }
-
-        const sessions = tx.readwrite('sessions');
-        for (const session of await sessions.getAllFromIndex('by-note', id)) {
-          await sessions.delete(session.id);
-        }
 
         const attachments = tx.readwrite('attachments');
         for (const attachment of await attachments.getAllFromIndex('by-note', id)) {
@@ -312,15 +281,6 @@ export class StorageService implements NotePersistenceStorage {
           await pageNotes.delete(link.id);
         }
 
-        // Delete events by result grain range: this note's sessions plus its
-        // wellness pseudo-result cover every event row (each event carries a
-        // resultId), without scanning the whole events store.
-        const events = tx.readwrite('events');
-        for (const resultId of sessionIds) {
-          for (const ev of await events.getAllFromIndex('by-result-grain', grainRange(resultId))) {
-            await events.delete(ev.id);
-          }
-        }
       }
     );
   }
@@ -554,9 +514,6 @@ export class StorageService implements NotePersistenceStorage {
       const linksStore = tx.readwrite('note_tags');
       const tagsStore = tx.readwrite('tags');
       const existingLinks = await linksStore.getAllFromIndex('by-note', noteId);
-      for (const link of existingLinks) {
-        await linksStore.delete(link.id);
-      }
 
       const now = Date.now();
       const normalizedMap = new Map<string, { label: string; type?: string }>();
@@ -572,6 +529,7 @@ export class StorageService implements NotePersistenceStorage {
           normalizedMap.set(label, { label, type });
         }
       }
+      const kept = new Set<string>();
 
       for (const { label, type } of normalizedMap.values()) {
         const matchingTags = await tagsStore.getAllFromIndex('by-label', label);
@@ -583,45 +541,83 @@ export class StorageService implements NotePersistenceStorage {
           tag = { ...tag, type };
           await tagsStore.put(tag);
         }
-        await linksStore.put({ id: generateId(), noteId, tagId: tag.id });
+        const link = existingLinks.find(link => link.tagId === tag.id);
+        if (link) kept.add(link.id);
+        else await linksStore.put({ id: generateId(), noteId, tagId: tag.id });
+      }
+      for (const link of existingLinks) {
+        if (!kept.has(link.id)) await linksStore.delete(link.id);
       }
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Segments
-  // ---------------------------------------------------------------------------
-
-  async getSegment(segmentId: string, version: number): Promise<NoteSegment | undefined> {
-    return this.storage.readonly('segments').get([segmentId, version]);
+  async getBlockRevision(noteId: string, blockId: string, version: number): Promise<BlockRevision | undefined> {
+    return this.storage.readonly('block_revisions').get([noteId, blockId, version]);
   }
 
-  async getLatestSegmentVersion(segmentId: string): Promise<NoteSegment | undefined> {
-    const all = await this.storage.readonly('segments').getAll();
-    const matching = all.filter((s) => s.id === segmentId).sort((a, b) => b.version - a.version);
-    return matching[0];
+  async getBlockHistory(noteId: string, blockId: string): Promise<BlockRevision[]> {
+    const rows = await this.storage.readonly('block_revisions').getAllFromIndex('by-block', [noteId, blockId]);
+    return rows.sort((a, b) => a.version - b.version);
   }
 
-  async getAllSegments(): Promise<NoteSegment[]> {
-    return this.storage.readonly('segments').getAll();
+  async getNoteBlockHistory(noteId: string): Promise<BlockRevision[]> {
+    const rows = await this.storage.readonly('block_revisions').getAllFromIndex('by-note', noteId);
+    return rows.sort((a, b) => a.savedAt - b.savedAt || a.blockId.localeCompare(b.blockId) || a.version - b.version);
   }
 
-  async getLatestSegmentsForNote(noteId: string, opts?: { includeHistory?: boolean }): Promise<NoteSegment[]> {
-    const rows = await this.storage.readonly('segments').getAllFromIndex('by-note', noteId);
-    const latest = new Map<string, NoteSegment>();
-    for (const segment of rows) {
-      const current = latest.get(segment.id);
-      if (!current || segment.version > current.version) {
-        latest.set(segment.id, segment);
+  async saveNoteSource(input: SaveNoteInput): Promise<Note> {
+    return this.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts'], async scoped => {
+      const previous = await scoped.getNote(input.noteId);
+      if ((previous?.sourceRevision ?? 0) !== input.expectedSourceRevision) {
+        throw new NotePersistenceError('STALE_SOURCE', `Note ${input.noteId} changed since it was loaded`);
       }
-    }
-    return Array.from(latest.values())
-      .filter((segment) => opts?.includeHistory || !segment.isHistory)
-      .sort((a, b) => (a.position ?? a.createdAt) - (b.position ?? b.createdAt));
-  }
-
-  async saveSegment(segment: NoteSegment): Promise<IDBValidKey> {
-    return this.storage.readwrite('segments').put(segment);
+      if (!previous && !input.metadata?.title) {
+        throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${input.noteId}`);
+      }
+      const draftBlocks = Object.fromEntries(Object.entries(input.blocks).map(([id, block]) => [id,
+        { ...block, version: 1, sourceRevision: input.expectedSourceRevision || 1 }]));
+      validateNoteBlocks(input.rawContent, draftBlocks, input.expectedSourceRevision || 1, NOTE_BLOCK_OPTIONS);
+      const history = await scoped.storage.readonly('block_revisions').getAllFromIndexMany('by-block',
+        Object.keys(draftBlocks).map(blockId => [input.noteId, blockId]));
+      const latest = new Map<string, BlockRevision>();
+      for (const revisions of history) for (const revision of revisions) {
+        if (revision.version > (latest.get(revision.blockId)?.version ?? 0)) latest.set(revision.blockId, revision);
+      }
+      const blocks: Record<string, NoteBlock> = {};
+      const revisions: BlockRevision[] = [];
+      const savedAt = Date.now();
+      for (const draft of Object.values(draftBlocks)) {
+        const current = latest.get(draft.id);
+        const rawContent = input.rawContent.slice(draft.from, draft.to);
+        const unchanged = current && current.rawContent === rawContent && current.kind === draft.kind
+          && current.dialect === draft.dialect && current.sport === draft.sport;
+        const version = unchanged ? current.version : (current?.version ?? 0) + 1;
+        blocks[draft.id] = { ...draft, version, sourceRevision: previous?.sourceRevision ?? 1 };
+        if (!unchanged) revisions.push({ noteId: input.noteId, blockId: draft.id, version,
+          kind: draft.kind, rawContent, dialect: draft.dialect, sport: draft.sport, savedAt });
+      }
+      const sourceChanged = !previous || previous.rawContent !== input.rawContent
+        || Object.keys(previous.blocks).length !== Object.keys(blocks).length
+        || Object.values(blocks).some(block => {
+          const old = previous.blocks[block.id];
+          return !old || old.kind !== block.kind || old.from !== block.from || old.to !== block.to
+            || old.version !== block.version || old.dialect !== block.dialect || old.sport !== block.sport;
+        });
+      const sourceRevision = (previous?.sourceRevision ?? 0) + (sourceChanged ? 1 : 0);
+      for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
+      const note: Note = { ...previous, id: input.noteId, title: input.metadata?.title ?? previous?.title ?? '',
+        createdAt: previous?.createdAt ?? input.createdAt ?? savedAt,
+        rawContent: input.rawContent, sourceRevision, blocks,
+        type: input.metadata?.type ?? previous?.type ?? input.noteType ?? 'note',
+        date: input.metadata?.targetDate ?? previous?.date,
+        tags: input.metadata?.tags ?? previous?.tags,
+        sourceId: input.metadata?.sourceId === undefined ? previous?.sourceId : input.metadata.sourceId ?? undefined };
+      if (previous && rowsEqual(previous, note)) return previous;
+      if (revisions.length) await scoped.storage.readwrite('block_revisions').putMany(revisions);
+      await scoped.saveNote(note);
+      await scoped.rebuildBlockIndexForNote(note.id);
+      return note;
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -645,9 +641,9 @@ export class StorageService implements NotePersistenceStorage {
     return this.storage.readonly('sessions').getAllFromIndex('by-content', blockContentId);
   }
 
-  async getSessionsForSection(noteId: string, sectionId: string): Promise<Session[]> {
+  async getSessionsForSection(noteId: string, blockId: string): Promise<Session[]> {
     const sessions = await this.getSessionsForNote(noteId);
-    return sessions.filter((s) => s.blockContentId === sectionId);
+    return sessions.filter((s) => s.blockId === blockId);
   }
 
   async getRecentSessions(limit = 20): Promise<Session[]> {
@@ -768,7 +764,7 @@ export class StorageService implements NotePersistenceStorage {
     return this.storage.readonly('block_index').getAll();
   }
 
-  /** Selective block candidates by segment data type — indexed, no scan. */
+  /** Selective candidates by actionable kind. */
   async getBlockIndexByType(dataType: string): Promise<BlockIndexRow[]> {
     return this.storage.readonly('block_index').getAllFromIndex('by-type', dataType);
   }
@@ -801,56 +797,46 @@ export class StorageService implements NotePersistenceStorage {
 
   async rebuildBlockIndexForNote(noteId: string): Promise<void> {
     const note = await this.getNote(noteId);
-    const noteTitle = note?.title ?? '';
-    const segments = await this.getLatestSegmentsForNote(noteId);
-
-    await this.storage.transaction(['block_index', 'block_efforts'], 'readwrite', async (tx) => {
+    if (!note) return;
+    const sections = parseDocumentSections(note.rawContent, NOTE_BLOCK_OPTIONS);
+    await this.storage.transaction(['block_index', 'block_efforts', 'block_revisions'], 'readwrite', async tx => {
       const blockStore = tx.readwrite('block_index');
       const effortStore = tx.readwrite('block_efforts');
-
-      // 1. Clear existing rows for note
-      const existingBlocks = await blockStore.getAllFromIndex('by-note', noteId);
-      for (const row of existingBlocks) {
-        await blockStore.delete(row.id);
-      }
-      const existingEfforts = await effortStore.getAllFromIndex('by-note', noteId);
-      for (const row of existingEfforts) {
-        await effortStore.delete(row.id);
-      }
-
-      // 2. Iterate segments, write block_index + block_efforts
-      for (const segment of segments) {
-        if (segment.isHistory) continue;
-        const blockContentId = segment.data?.contentId ?? undefined;
-
-        await blockStore.put({
-          id: `${noteId}:${segment.id}:${segment.version}`,
-          noteId,
-          segmentId: segment.id,
-          segmentVersion: segment.version,
-          position: segment.position,
-          dataType: segment.dataType,
-          blockContentId,
-          rawContent: segment.rawContent,
-          noteTitle,
-          createdAt: segment.createdAt,
-        });
-
-        if (segment.dataType === 'wod' && segment.rawContent) {
-          const script = parseScript(segment.rawContent);
-          const effortSlugs = extractEffortSlugs(script.statements);
-          for (const effortSlug of effortSlugs) {
-            await effortStore.put({
-              id: `${noteId}:${segment.id}:${effortSlug}`,
-              noteId,
-              blockId: segment.id,
-              blockContentId,
-              effortSlug,
-              createdAt: segment.createdAt,
-            });
-          }
+      const oldBlocks = new Map((await blockStore.getAllFromIndex('by-note', noteId)).map(row => [row.id, row]));
+      const oldEfforts = new Map((await effortStore.getAllFromIndex('by-note', noteId)).map(row => [row.id, row]));
+      let position = 0;
+      for (const block of Object.values(note.blocks).sort((a, b) => a.from - b.from)) {
+        const id = `${noteId}:${block.id}`;
+        const old = oldBlocks.get(id);
+        oldBlocks.delete(id);
+        const section = sections.find(section => section.from === block.from && section.to === block.to);
+        const revision = await tx.readonly('block_revisions').get([noteId, block.id, block.version]);
+        if (!revision) throw new Error(`Missing saved revision ${id}:${block.version}`);
+        const row: BlockIndexRow = { id, noteId, blockId: block.id, blockVersion: block.version,
+          sourceRevision: note.sourceRevision, from: block.from, to: block.to, position: position++,
+          dataType: block.kind, blockContentId: section?.scriptBlock?.contentId,
+          rawContent: note.rawContent.slice(block.from, block.to), noteTitle: note.title,
+          createdAt: revision.savedAt, isStatic: note.seedOrigin === 'seed' || undefined,
+          sourceId: note.sourceId, sourcePath: note.sourcePath, routeId: old?.routeId };
+        if (!old || !rowsEqual(old, row)) await blockStore.put(row);
+        const oldForBlock = [...oldEfforts.values()].filter(effort => effort.blockId === block.id);
+        if (old && old.blockVersion === block.version) {
+          for (const effort of oldForBlock) oldEfforts.delete(effort.id);
+          continue;
+        }
+        if (block.kind !== 'wod' || !section?.scriptBlock) continue;
+        for (const effortSlug of extractEffortSlugs(parseScript(section.scriptBlock.content, { sport: block.sport }).statements)) {
+          const effortId = `${noteId}:${block.id}:${effortSlug}`;
+          const previous = oldEfforts.get(effortId);
+          oldEfforts.delete(effortId);
+          const effort: BlockEffort = { id: effortId, noteId, blockId: block.id,
+            blockContentId: row.blockContentId, effortSlug, createdAt: previous?.createdAt ?? revision.savedAt,
+            isStatic: row.isStatic, sourcePath: note.sourcePath };
+          if (!previous || !rowsEqual(previous, effort)) await effortStore.put(effort);
         }
       }
+      for (const row of oldBlocks.values()) await blockStore.delete(row.id);
+      for (const row of oldEfforts.values()) await effortStore.delete(row.id);
     });
   }
 
@@ -895,23 +881,8 @@ export class StorageService implements NotePersistenceStorage {
 
   async getSeedContent(): Promise<Array<{ path: string; raw: string }>> {
     const notes = await this.storage.readonly('notes').getAll();
-    const segments = await this.storage.readonly('segments').getAll();
-    const latestSegmentByNote = new Map<string, NoteSegment>();
-    for (const segment of segments) {
-      const current = latestSegmentByNote.get(segment.noteId);
-      if (!current || segment.version > current.version) {
-        latestSegmentByNote.set(segment.noteId, segment);
-      }
-    }
-    const out: Array<{ path: string; raw: string }> = [];
-    for (const note of notes) {
-      if (note.seedOrigin !== 'seed' || !note.sourcePath) continue;
-      const latest = latestSegmentByNote.get(note.id);
-      if (latest?.rawContent) {
-        out.push({ path: note.sourcePath, raw: latest.rawContent });
-      }
-    }
-    return out;
+    return notes.filter(note => note.seedOrigin === 'seed' && note.sourcePath)
+      .map(note => ({ path: note.sourcePath!, raw: note.rawContent }));
   }
 
   async wipe(): Promise<void> {
@@ -919,36 +890,3 @@ export class StorageService implements NotePersistenceStorage {
   }
 }
 
-/**
- * NoteSegment row id. The segments store is globally keyed ['id', 'version'];
- * parsed section ids are content-derived, so bare ids collide across notes.
- * Namespacing by note gives each note exclusive row ownership.
- */
-export function segmentRowId(noteId: string, sectionId: string): string {
-  return `${noteId}:${sectionId}`;
-}
-
-/**
- * Resolve a segment for this note from a possibly raw (runtime parse) id.
- * Namespaced lookup first; the raw fallback is accepted only when the row is
- * owned by this note — a colliding legacy row of another note never joins.
- * With `version`, resolves that pinned incarnation (same ownership rules).
- */
-export async function resolveLatestSegment(
-  lookup: Pick<StorageService, 'getLatestSegmentVersion'> & { getSegment?(segmentId: string, version: number): Promise<NoteSegment | undefined> },
-  noteId: string,
-  segmentId: string | undefined,
-  version?: number,
-): Promise<NoteSegment | undefined> {
-  if (!segmentId) return undefined;
-  if (version != null && lookup.getSegment) {
-    const scoped = await lookup.getSegment(segmentRowId(noteId, segmentId), version);
-    if (scoped) return scoped;
-    const raw = await lookup.getSegment(segmentId, version);
-    return raw?.noteId === noteId ? raw : undefined;
-  }
-  const namespaced = await lookup.getLatestSegmentVersion(segmentRowId(noteId, segmentId));
-  if (namespaced) return namespaced;
-  const raw = await lookup.getLatestSegmentVersion(segmentId);
-  return raw?.noteId === noteId ? raw : undefined;
-}

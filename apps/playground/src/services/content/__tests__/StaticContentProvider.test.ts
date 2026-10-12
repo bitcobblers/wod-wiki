@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import type { NoteSaveInput } from '@/types/content-provider';
 import { StaticContentProvider } from '../StaticContentProvider';
+import { createNotePersistence } from '../../persistence';
 
 describe('StaticContentProvider', () => {
   const content = '# Test Workout\n\n```time\n10:00 Run\n```';
@@ -44,7 +44,8 @@ describe('StaticContentProvider', () => {
 
   it('saveEntry should update the singleton entry', async () => {
     const provider = new StaticContentProvider(content);
-    const saved = await provider.saveEntry({ title: 'X', rawContent: 'new content', tags: [] } as unknown as NoteSaveInput);
+    const original = await provider.getEntry('static');
+    const saved = await provider.saveEntry({ title: 'X', rawContent: 'new content', tags: [], targetDate: 1, sourceRevision: original!.sourceRevision });
     expect(saved.id).toBe('static');
     expect(saved.rawContent).toBe('new content');
     const fetched = await provider.getEntry('static');
@@ -63,5 +64,25 @@ describe('StaticContentProvider', () => {
     await provider.deleteEntry('static');
     const entry = await provider.getEntry('static');
     expect(entry).not.toBeNull();
+  });
+
+  it('starts against its own immutable revision and preserves never-run versions', async () => {
+    const provider = new StaticContentProvider(content);
+    const persistence = createNotePersistence(provider);
+    const saved = await persistence.getNote('static');
+    const blockId = Object.keys(saved.blocks!)[0]!;
+    const changed = content.replace('10:00', '12:00');
+    const next = await persistence.saveNote({ noteId: saved.id, rawContent: changed,
+      blocks: saved.blocks!, expectedSourceRevision: saved.sourceRevision! });
+    const started = await persistence.startSession({ noteId: saved.id, rawContent: changed,
+      blocks: next.blocks!, expectedSourceRevision: next.sourceRevision! },
+      { id: 'static-run', noteId: saved.id, blockId, startTime: 1, endTime: 1,
+        duration: 0, completed: false, createdAt: 1 });
+    expect(started.session.blockVersion).toBe(2);
+    expect(started.revision.rawContent).toContain('12:00');
+    expect((await persistence.getBlockHistory(saved.id, blockId)).map(row => row.version)).toEqual([1, 2]);
+
+    await expect(provider.saveEntry({ title: 'Stale', rawContent: content, tags: [], targetDate: 1,
+      sourceRevision: saved.sourceRevision })).rejects.toMatchObject({ code: 'STALE_SOURCE' });
   });
 });

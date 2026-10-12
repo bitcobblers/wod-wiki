@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WQL Sort Order & Default Sort Order Proposals</title>
+<style>
+  :root, :root[data-theme="dark"] {
+    --bg: #0b0f17;
+    --paper: #111722;
+    --card: #161f30;
+    --card-hover: #1c273c;
+    --border: #222f44;
+    --border-bright: #3b506d;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-faint: #64748b;
+    --heading: #ffffff;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.15);
+    --green: #34d399;
+    --green-bg: rgba(52, 211, 153, 0.12);
+    --amber: #fbbf24;
+    --amber-bg: rgba(251, 191, 36, 0.12);
+    --rose: #f43f5e;
+    --rose-bg: rgba(244, 63, 94, 0.12);
+    --purple: #c084fc;
+    --purple-bg: rgba(192, 132, 252, 0.12);
+    --code-bg: #070a10;
+    --code-text: #f1f5f9;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color-scheme: dark;
+  }
+
+  :root[data-theme="light"] {
+    --bg: #f8fafc;
+    --paper: #ffffff;
+    --card: #f1f5f9;
+    --card-hover: #e2e8f0;
+    --border: #cbd5e1;
+    --border-bright: #94a3b8;
+    --text: #0f172a;
+    --text-dim: #475569;
+    --text-faint: #64748b;
+    --heading: #020617;
+    --accent: #0284c7;
+    --accent-glow: rgba(2, 132, 199, 0.12);
+    --green: #059669;
+    --green-bg: rgba(5, 150, 105, 0.12);
+    --amber: #d97706;
+    --amber-bg: rgba(217, 119, 6, 0.12);
+    --rose: #e11d48;
+    --rose-bg: rgba(225, 29, 72, 0.12);
+    --purple: #9333ea;
+    --purple-bg: rgba(147, 51, 234, 0.12);
+    --code-bg: #e2e8f0;
+    --code-text: #0f172a;
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 var(--font-sans);
+    padding: 0;
+    margin: 0;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 36px 24px 96px;
+  }
+
+  header {
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+  }
+
+  .badge {
+    display: inline-block;
+    font: 600 11px/1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--heading);
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 15px;
+    max-width: 900px;
+  }
+
+  nav.toc {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 24px 0 36px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+  }
+
+  nav.toc a {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  nav.toc a:hover {
+    text-decoration: underline;
+  }
+
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--heading);
+    margin: 48px 0 16px;
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--heading);
+    margin: 24px 0 10px;
+  }
+
+  p, li {
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  ul, ol {
+    padding-left: 22px;
+    margin-bottom: 16px;
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    color: var(--code-text);
+  }
+
+  pre {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 12px 0 18px;
+    color: var(--code-text);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 16px 0 24px;
+    font-size: 13px;
+  }
+
+  th, td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background: var(--card);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--heading);
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 16px 0;
+  }
+
+  @media (max-width: 860px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+
+  .card.highlight {
+    border-color: var(--accent);
+    background: var(--card);
+  }
+
+  .card h4 {
+    color: var(--heading);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .callout {
+    background: var(--paper);
+    border-left: 4px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+  }
+
+  .callout.warn {
+    border-left-color: var(--amber);
+    background: var(--amber-bg);
+  }
+
+  .callout.danger {
+    border-left-color: var(--rose);
+    background: var(--rose-bg);
+  }
+
+  .callout.success {
+    border-left-color: var(--green);
+    background: var(--green-bg);
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+  }
+  .tag.green { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+  .tag.amber { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber); }
+  .tag.rose { background: var(--rose-bg); color: var(--rose); border: 1px solid var(--rose); }
+  .tag.accent { background: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent); }
+
+  .diff-table td:first-child { width: 140px; font-weight: 600; color: var(--heading); }
+  .kpi { font-size: 24px; font-weight: 700; color: var(--heading); margin-bottom: 4px; font-family: var(--font-mono); }
+  .kpi-label { font-size: 12px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+</style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/wql-sort-order-proposals.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  :root { --wb-bar-height: 112px; }
+  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); }
+  [data-whiteboard-anchor] { scroll-margin-top: 16px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #cbd5e1; padding: 10px max(16px, calc((100% - 1032px) / 2)); }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 44px; padding: 8px 12px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button:disabled { opacity: .5; cursor: default; }
+  #wb-bar #wb-publish, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-help, #wb-status, #wb-storage-warning { margin: 4px 0 0; font-size: 12px; }
+  #wb-help { color: #475569; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; padding: 16px; border: 1px solid #b45309; border-radius: 8px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current h2 { margin: 0 0 8px; padding: 0; font-size: 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite">0 annotations</strong>
+    <button id="wb-add" type="button" aria-pressed="false">Add annotation</button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation">Previous</button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation">Next</button>
+    <button id="wb-publish" type="button" disabled>Publish</button>
+  </div>
+  <p id="wb-help">Highlight text to annotate, or click Add annotation then click any block. Drafts stay in this browser. Publish copies them for your agent.</p>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+
+<main data-whiteboard-document class="container">
+
+  <header>
+    <div class="badge">Architecture & Language Design Spec</div>
+    <h1 id="wb-h1-3eba851bd1c2483aa58af13ad0a0d59e" data-whiteboard-anchor>WQL Sort Order & Default Sort Order Proposals</h1>
+    <p class="subtitle" id="wb-p-a8e942291351477eb0708c772d67d35c" data-whiteboard-anchor>
+      Analysis of current sorting mechanics in Wod Query Language (WQL), identifying discrepancies between parser, QueryService execution, database pushdown, and UI layers, followed by three concrete architecture proposals to support explicit sorting and canonical default sort order contracts.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <a href="#executive">1. Executive Summary</a>
+    <a href="#audit">2. Current State Audit & Asymmetries</a>
+    <a href="#problems">3. Core Architectural Dilemmas</a>
+    <a href="#proposal-a">4. Proposal A: Pragmatic Standardized Pipes</a>
+    <a href="#proposal-b">5. Proposal B: Suffix Clause `sort by {}`</a>
+    <a href="#proposal-c">6. Proposal C: Two-Tier Relational Model</a>
+    <a href="#pushdown">7. Storage Pushdown & Paging Spec</a>
+    <a href="#recommendation">8. Lazy Senior Verdict & Phasing</a>
+  </nav>
+
+  <!-- 1. EXECUTIVE SUMMARY -->
+  <section id="executive">
+    <h2 id="wb-h2-134e3aa40527456ea86f6f3cb7153053" data-whiteboard-anchor>1. Executive Summary</h2>
+    <p id="wb-p-2d6c3e55a4714b44ab5497db25128dff" data-whiteboard-anchor>
+      In WQL today, sorting is treated as an optional <strong>presentation pipe</strong> (<code>| order by col [asc|desc]</code>). While simple on the surface, this creates several severe architectural asymmetries across targets, execution engines, and UI consumers:
+    </p>
+
+    <div class="grid-3">
+      <div class="card">
+        <div class="kpi" style="color:var(--rose);">0 / 6</div>
+        <div class="kpi-label">Targets with explicit default sort contract</div>
+        <p style="margin-top:8px;font-size:12.5px;" id="wb-p-47a26801aca94f5f87a4f8f4dd4426e7" data-whiteboard-anchor>WQL defines no target-level default sort orders. Results without <code>| order by</code> rely on incidental database insertion order or memory map order.</p>
+      </div>
+      <div class="card">
+        <div class="kpi" style="color:var(--amber);">1 / 5</div>
+        <div class="kpi-label">Targets actively ignoring order</div>
+        <p style="margin-top:8px;font-size:12.5px;" id="wb-p-639abbc9451849b9a146e5a2200a0d13" data-whiteboard-anchor><code>:session</code> silently ignores <code>| order by</code> with an advisory warning, hardcoding completion time descending regardless of user input.</p>
+      </div>
+      <div class="card">
+        <div class="kpi" style="color:var(--accent);">Broken</div>
+        <div class="kpi-label">Server paging & limit pushdown</div>
+        <p style="margin-top:8px;font-size:12.5px;" id="wb-p-3475c4f159d04f5fa5ce73e6fa2b5d84" data-whiteboard-anchor>Because default order is incidental <code>id asc</code>, queries like <code>:journal{} | limit 20</code> slice the 20 oldest rows, requiring UI hacks to fix.</p>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <strong>The Hidden Paging Bug:</strong> In <code>packages/wql/src/QueryService.ts</code> (line 279), server paging defaults to <code>order: [{ field: 'id', direction: 'asc' }]</code>. When an author writes <code>:journal{} last 4w | limit 20</code>, they expect the 20 most recent entries. Instead, the storage layer fetches the 20 lowest IDs. The playground UI masks this because <code>entryGrouping.ts</code> sorts client-side in React memory, but once collections exceed 100+ items, queries slice the wrong items before the UI ever sees them.
+    </div>
+  </section>
+
+  <!-- 2. AUDIT -->
+  <section id="audit">
+    <h2 id="wb-h2-7d6097c3a23f4fa7b50519493a31b247" data-whiteboard-anchor>2. Current State Audit & Asymmetries</h2>
+    <p id="wb-p-2ee1343df291468c96055b1ea308e661" data-whiteboard-anchor>
+      A line-by-line inspection of <code>wql.grammar</code>, <code>wql.ts</code>, <code>QueryService.ts</code>, <code>stores.ts</code>, and <code>document.ts</code> reveals an uneven landscape:
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th id="wb-th-c7c82d9e7faf482f83f7da673243a9c3" data-whiteboard-anchor>Target / Family</th>
+          <th id="wb-th-22a39c9f5063454f8d7c7d446db795a4" data-whiteboard-anchor>Supports `| order by`?</th>
+          <th id="wb-th-76f7bfc0e7ae485b989ce1b4323d7aac" data-whiteboard-anchor>Default Sort When Omitted</th>
+          <th id="wb-th-39f10b3ff9d54c1c979afb1a0f86c7c7" data-whiteboard-anchor>Server Pushdown</th>
+          <th id="wb-th-36f20c66bc0c41d0ae49ad676a6426f3" data-whiteboard-anchor>Known Hazards & Limitations</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td id="wb-td-4cbe53eb15fb47b0ab24fffcb7b7fdd8" data-whiteboard-anchor><code>:journal</code> / <code>:note</code></td>
+          <td id="wb-td-d692fbafd23546dc92b5aa406628010b" data-whiteboard-anchor><span class="tag green">Yes</span> (via pipes)</td>
+          <td id="wb-td-170991669ce7466a8044505e3c75d5b4" data-whiteboard-anchor>Database row / <code>id asc</code></td>
+          <td id="wb-td-89036b1bccc64d48bccafae091ceb041" data-whiteboard-anchor><span class="tag rose">Disabled</span> if order authored; defaults to <code>id asc</code></td>
+          <td id="wb-td-0757a9a5366d4587ad73b8cf04cef2d2" data-whiteboard-anchor>Chronological ordering is not guaranteed unless client re-sorts in React. <code>limit</code> slices arbitrary IDs.</td>
+        </tr>
+        <tr>
+          <td id="wb-td-03e4f05143494104a0a5ee884e0e4109" data-whiteboard-anchor><code>:session</code></td>
+          <td id="wb-td-149ef6afc7054d1484fd62b3829d2776" data-whiteboard-anchor><span class="tag rose">No</span> (Ignored + advisory)</td>
+          <td id="wb-td-3d1e9fb954434045901486c07aeaf893" data-whiteboard-anchor><code>completedAt desc</code> (hardcoded)</td>
+          <td id="wb-td-60a7f56d45994a27bf951187e7a941f3" data-whiteboard-anchor><span class="tag amber">None</span> (scans events)</td>
+          <td id="wb-td-5605d39e66114d6e9cb0f8eada2e1c94" data-whiteboard-anchor><code>wql.ts:1190</code> emits <em>":session ignores '| order by'; sessions remain ordered by completion time."</em> Users cannot sort by duration or load.</td>
+        </tr>
+        <tr>
+          <td id="wb-td-d627350fa6f94f278dc989361f5353e9" data-whiteboard-anchor><code>:block</code></td>
+          <td id="wb-td-dac990d2f0e6472eb9e7f1420a6d4eab" data-whiteboard-anchor><span class="tag green">Yes</span> (via pipes)</td>
+          <td id="wb-td-e1eed5261a114b2c8230ab7935fc9041" data-whiteboard-anchor>Store iteration order</td>
+          <td id="wb-td-c7963f50bfb24a1ea4ab85f77101b5ba" data-whiteboard-anchor><span class="tag rose">Disabled</span> if order authored</td>
+          <td id="wb-td-e1978093e7094092b97d40451d7df13d" data-whiteboard-anchor>Blocks within a note lose document sequence if sorted by arbitrary columns.</td>
+        </tr>
+        <tr>
+          <td id="wb-td-53d6e88cd2d847cd9fba7221f7debfcd" data-whiteboard-anchor><code>:effort</code></td>
+          <td id="wb-td-7ade633d584144bf99d2faeae1a39284" data-whiteboard-anchor><span class="tag green">Yes</span> (slug, label, source)</td>
+          <td id="wb-td-f58337f979a148838061ab762f86f61a" data-whiteboard-anchor>Registry load order</td>
+          <td id="wb-td-537ff637f0f447b7b4fd1a775666acc4" data-whiteboard-anchor><span class="tag amber">In-Memory</span></td>
+          <td id="wb-td-74fcf21fa11c4110ad01b76666225b02" data-whiteboard-anchor>Only supports <code>slug</code>, <code>label</code>, <code>registrySource</code> (<code>EFFORT_COLUMNS</code>).</td>
+        </tr>
+        <tr>
+          <td id="wb-td-548cf4cec7c0426ebe61f21cb52f3b11" data-whiteboard-anchor><code>:segment</code> / <code>:event</code></td>
+          <td id="wb-td-35ba771684764d47910651a1f6bda1e7" data-whiteboard-anchor><span class="tag green">Yes</span> (any column)</td>
+          <td id="wb-td-1baf22fe0b094657b0784151fb237320" data-whiteboard-anchor>Observation timestamp ascending</td>
+          <td id="wb-td-5de0e25db2dd4074b3dc8d6e0209503a" data-whiteboard-anchor><span class="tag amber">In-Memory</span></td>
+          <td id="wb-td-a05855768bda4b45814fd32c189d7013" data-whiteboard-anchor>Full scan over time window, sorted in memory via <code>runFindTable</code>.</td>
+        </tr>
+        <tr>
+          <td id="wb-td-f6669d279cea40cda6526e993a3c0b8b" data-whiteboard-anchor><code>&lt;agg&gt;:&lt;metric&gt;</code> (Aggregates)</td>
+          <td id="wb-td-9e1839cd1d0a4176bad08c951ddf4e1d" data-whiteboard-anchor><span class="tag rose">No</span> (Syntax error)</td>
+          <td id="wb-td-bb3203530c9d4f0ebda401e2442b2ffc" data-whiteboard-anchor>Points: timestamp asc<br/>Series: Map iteration order</td>
+          <td id="wb-td-4635ca00408441e7b3fd77ae41562fde" data-whiteboard-anchor><span class="tag green">Range pushdown</span></td>
+          <td id="wb-td-896a1974a5d84792ac2c9980bad3df28" data-whiteboard-anchor>Cannot express "Top-5 workouts by volume" (e.g. <code>sum:volume by {effort} | order by sum desc | limit 5</code> fails parser).</td>
+        </tr>
+        <tr>
+          <td id="wb-td-08c254ce98cc4fa28fe0fc51b1279b75" data-whiteboard-anchor><code>QueryDocument</code> (<code>defaults</code>)</td>
+          <td id="wb-td-4d4c306775c7446a899a1396e055976c" data-whiteboard-anchor><span class="tag rose">No</span></td>
+          <td id="wb-td-ecf452aa873b4a3393420a0c32b26683" data-whiteboard-anchor>None</td>
+          <td id="wb-td-ccddfa9fbfa64e34a31b7f5d6ca0170a" data-whiteboard-anchor>N/A</td>
+          <td id="wb-td-4bcdec2cf7854676b77d9a377d22166a" data-whiteboard-anchor><code>defaults</code> only accepts <code>by {dim}</code> and <code>last/from</code> windows. Cannot set default sort order for the document.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <strong>Code Evidence (<code>packages/wql/src/QueryService.ts:1138-1145</code>):</strong>
+      <pre id="wb-pre-447bf198fe344059942c40226b1cf817" data-whiteboard-anchor><code>// Current in-memory sorting reverses authored order to apply stable JS sort:
+for (const order of [...(pipes?.order ?? [])].reverse()) {
+  const dir = order.dir === 'desc' ? -1 : 1;
+  records = [...records].sort((a, b) => {
+    const av = a[order.col] ?? a.__id;
+    const bv = b[order.col] ?? b.__id;
+    if (av === bv) return 0;
+    return ((av as number | string) > (bv as number | string) ? 1 : -1) * dir;
+  });
+}</code></pre>
+      If <code>pipes.order</code> is missing, records are never sorted by date or title—they remain in the raw storage array order.
+    </div>
+  </section>
+
+  <!-- 3. CORE ARCHITECTURAL DILEMMAS -->
+  <section id="problems">
+    <h2 id="wb-h2-be533a36896d4285b14d2d835858d02a" data-whiteboard-anchor>3. Core Architectural Dilemmas</h2>
+    <p id="wb-p-001880a2970049bc9339903a0e5601b4" data-whiteboard-anchor>
+      Before choosing a syntax or API, five core design questions must be resolved:
+    </p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4 id="wb-h4-b9e18339fd9c4368890b72c03161d2c3" data-whiteboard-anchor>1. Pipe (`| order by`) vs Suffix Clause (`sort by {}`)</h4>
+        <p id="wb-p-448909fc1c9048c99544d59e7dfdc3c8" data-whiteboard-anchor>
+          WQL currently uses <code>| select | order by | limit</code> as presentation pipes. But WQL also supports <strong>value pipelines</strong> (<code>:journal{} | :count{} | :bar{}</code>). Having pipe <code>|</code> represent both <em>stage transformations</em> and <em>row shaping</em> causes parser ambiguities and prevents presentation pipes between pipeline stages.
+        </p>
+      </div>
+      <div class="card">
+        <h4 id="wb-h4-e068b2d8f20a41ee9bbcca61a43c5026" data-whiteboard-anchor>2. Target Default vs Global Default</h4>
+        <p id="wb-p-01eabfdaf41e4cc6a424c1ce208d0fd4" data-whiteboard-anchor>
+          Should default sort order be defined per target noun (e.g. <code>:journal</code> defaults to <code>date desc</code>, while <code>:effort</code> defaults to <code>label asc</code>), or should there be a universal default? The data proves a universal default fails: training journals need chronological descending, but exercise registries need alphabetical ascending.
+        </p>
+      </div>
+      <div class="card">
+        <h4 id="wb-h4-b1fa37cd53d441a3a1a3088c1212bdac" data-whiteboard-anchor>3. Grouping vs Sorting Interaction</h4>
+        <p id="wb-p-5630e7a2001e45868770ba0960356a57" data-whiteboard-anchor>
+          When a query contains both <code>by {discipline}</code> and <code>order by date desc</code>, what is sorted?
+          <br/><strong>A)</strong> The shelves/groups (e.g., sort disciplines by most recent date)?
+          <br/><strong>B)</strong> The rows inside each shelf?
+          <br/><strong>C)</strong> Both?
+        </p>
+      </div>
+      <div class="card">
+        <h4 id="wb-h4-5904bd662f3348e4bba5c355d1a1435a" data-whiteboard-anchor>4. Storage Pushdown vs In-Memory Slicing</h4>
+        <p id="wb-p-d20f1ceaa9e54e0886497fc460e932fd" data-whiteboard-anchor>
+          Currently, authoring <code>| order by</code> forces <code>paged: false</code> in <code>domainPaging</code>, loading all notes into memory. As personal journals grow to thousands of notes, sorting in JS destroys performance. Default and explicit sort orders must push into SQLite/IndexedDB queries.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. PROPOSAL A -->
+  <section id="proposal-a">
+    <h2 id="wb-h2-20a9cb744fd545678cb5d166bb6aef9e" data-whiteboard-anchor>4. Proposal A: Pragmatic Standardized Pipes (Incremental Evolution)</h2>
+    <p id="wb-p-a882e2526e774af0b9d8ce0f29854c2a" data-whiteboard-anchor>
+      Keep the existing <code>| order by &lt;col&gt; [asc|desc]</code> presentation pipe syntax, but eliminate all asymmetries, establish a formal <strong>Default Sort Order Contract</strong>, and support sorting in <code>defaults</code>.
+    </p>
+
+    <h3 id="wb-h3-6e56c85af1bd49c284007eecdb5a83c6" data-whiteboard-anchor>4.1 The Canonical Default Sort Order Contract</h3>
+    <p id="wb-p-ee820931a4a74281a099d434c83e458e" data-whiteboard-anchor>When a query omits <code>| order by</code>, the engine applies the target's canonical default ordering:</p>
+    <table>
+      <thead>
+        <tr>
+          <th id="wb-th-2c65eff705c0434ca93331774676ab06" data-whiteboard-anchor>Target</th>
+          <th id="wb-th-cda02c21935d4f9eb3dd13eafe7e99d9" data-whiteboard-anchor>Canonical Default Sort Order</th>
+          <th id="wb-th-02396a49faf34e15b3f1532147b529ba" data-whiteboard-anchor>Rationale</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td id="wb-td-21967e640e1f4e91bec362ced15684bd" data-whiteboard-anchor><code>:journal</code> / <code>:note</code></td>
+          <td id="wb-td-1bcbe41de35d4eb3bccacfdefa5c563b" data-whiteboard-anchor><code>order by date desc, createdAt desc, id desc</code></td>
+          <td id="wb-td-b3f6d3cdafc14739812bc381161b3815" data-whiteboard-anchor>Reverse-chronological journal expectation; deterministic tie-breaking.</td>
+        </tr>
+        <tr>
+          <td id="wb-td-20581528296346838598841c99ee375f" data-whiteboard-anchor><code>:session</code></td>
+          <td id="wb-td-6ac7308dfccd4cf198599bada6bca4db" data-whiteboard-anchor><code>order by completedAt desc, id desc</code></td>
+          <td id="wb-td-f6d27c639cde4482adaaada6ac935002" data-whiteboard-anchor>Most recent workout sessions first. Lift the restriction: allow author overrides!</td>
+        </tr>
+        <tr>
+          <td id="wb-td-00f1ce95752e4892b9ea8e0638f250a6" data-whiteboard-anchor><code>:block</code></td>
+          <td id="wb-td-df5915a6ba2d4f24835383479cc0cbe4" data-whiteboard-anchor><code>order by date desc, position asc</code></td>
+          <td id="wb-td-262cb491901d4c6fae058b8e96726491" data-whiteboard-anchor>Chronological parent note date, preserving authored block order within the note.</td>
+        </tr>
+        <tr>
+          <td id="wb-td-491d3e57efb848d494abd862735c242f" data-whiteboard-anchor><code>:effort</code></td>
+          <td id="wb-td-e40e64547ed04cac9ab4b34146b86774" data-whiteboard-anchor><code>order by label asc, slug asc</code></td>
+          <td id="wb-td-dea3f73785a7488591cd19c18ba369d9" data-whiteboard-anchor>Alphabetical lookup catalog.</td>
+        </tr>
+        <tr>
+          <td id="wb-td-aafbe7e3aa644a67851b9cec93bbf673" data-whiteboard-anchor><code>:segment</code> / <code>:event</code></td>
+          <td id="wb-td-3d6b10a6e9fb457d90d6773363f9c1da" data-whiteboard-anchor><code>order by date desc, timestamp desc</code></td>
+          <td id="wb-td-dd84d8bb9cb24019921120e6719e9603" data-whiteboard-anchor>Most recent performance rows first.</td>
+        </tr>
+        <tr>
+          <td id="wb-td-ce08d047a2f246288e919854b521d6a0" data-whiteboard-anchor><code>:catalog</code> / <code>:collection</code></td>
+          <td id="wb-td-7d41e6fb5fe4446ea47b94848d40af36" data-whiteboard-anchor><code>order by title asc</code></td>
+          <td id="wb-td-7cf84e946b2144e0aaf7b6ee70cc1e61" data-whiteboard-anchor>Alphabetical browse view.</td>
+        </tr>
+        <tr>
+          <td id="wb-td-898c651bcdb545e58f53f82a2bb2fbc4" data-whiteboard-anchor><code>&lt;agg&gt;:&lt;metric&gt; by {dim}</code></td>
+          <td id="wb-td-c22cb05aacae4b3287df20ac67991e4c" data-whiteboard-anchor>Points: <code>ts asc</code>; Series: <code>value desc</code> (if top-k) or <code>label asc</code></td>
+          <td id="wb-td-5ba9064dd13640fda373eb52b0c4af3a" data-whiteboard-anchor>Chronological time points; highest volume series first.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="wb-h3-d3b4bbc1858c4b7aa229c880d03591a6" data-whiteboard-anchor>4.2 Syntax Examples</h3>
+    <pre id="wb-pre-e2edbac64ebf4dd386fe653ffa0e355d" data-whiteboard-anchor><code>// 1. Session query overriding the default completion-time sort:
+:session{plane:segment} last 4w | order by duration desc | limit 10
+
+// 2. Note query explicitly sorting by title:
+:note{tags:benchmark} | order by title asc
+
+// 3. Document-level default sort declaration:
+defaults by {week} last 12w order by date desc
+
+// 4. Aggregate query with top-K sorting:
+sum:totalVolume{discipline:strength} by {effort} | order by value desc | limit 5</code></pre>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4 style="color:var(--green);" id="wb-h4-23af98aef54a4ae0b7a5d0023b411bed" data-whiteboard-anchor>Advantages</h4>
+        <ul>
+          <li id="wb-li-73e935fe62714a07a406faab788521fc" data-whiteboard-anchor>Zero breaking changes to existing WQL queries.</li>
+          <li id="wb-li-d3a8873d2bea424aa3ca747054a16386" data-whiteboard-anchor>Matches SQL and Datadog presentation conventions.</li>
+          <li id="wb-li-4cb676dabab74b51a09cdaa109456c49" data-whiteboard-anchor>Fixes the <code>:session</code> limitation immediately.</li>
+          <li id="wb-li-d48d58b93b054bbcb5e4b31ecb83897a" data-whiteboard-anchor>Requires minimal changes to Lezer grammar (pipes are already split in JS).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4 style="color:var(--rose);" id="wb-h4-4975f6dff19d4171a9bc80a9302265e7" data-whiteboard-anchor>Tradeoffs</h4>
+        <ul>
+          <li id="wb-li-4e629d13573043feb23eaeae99c0de97" data-whiteboard-anchor>Pipe <code>|</code> remains dual-purpose (presentation pipe vs pipeline stage).</li>
+          <li id="wb-li-fe6d903e4ca64b2cb324d6c51cc10229" data-whiteboard-anchor>Cannot put presentation pipes in the middle of a value pipeline.</li>
+          <li id="wb-li-ec5cfb5074ea45c2967236552be3e09d" data-whiteboard-anchor>Does not use bracketed <code>{}</code> syntax common to other WQL clauses.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. PROPOSAL B -->
+  <section id="proposal-b">
+    <h2 id="wb-h2-b7c3ff60ea5348258db5aca0f2ea18e3" data-whiteboard-anchor>5. Proposal B: First-Class Suffix Clause `sort by {}`</h2>
+    <p id="wb-p-e67894193355402fb5155300542d1009" data-whiteboard-anchor>
+      Promote sorting to a first-class bracketed suffix clause alongside <code>by {dimension}</code> and <code>last &lt;n&gt;w</code>. This cleanly separates relational query clauses from pipeline transformations.
+    </p>
+
+    <h3 id="wb-h3-5b5795ac2de349f8a504dee46860ceea" data-whiteboard-anchor>5.1 Syntax Definition</h3>
+    <pre id="wb-pre-c1590853ce02415f906b53e5ee3ca31e" data-whiteboard-anchor><code>// Grammar: Stage := Head Filters? GroupBy? Window? SortBy? DisplayUnit?
+// SortBy: 'sort' 'by' '{' SortDimension (',' SortDimension)* '}'
+// SortDimension: Word ('asc' | 'desc')?
+
+:journal{effort:snatch} last 4w sort by {date desc}
+:session{plane:load} sort by {duration desc, completedAt desc}
+:effort{discipline:strength} sort by {label asc} limit 25
+sum:totalVolume{} by {effort} sort by {value desc} limit 5</code></pre>
+
+    <h3 id="wb-h3-5ce4e2ff45a04916b4a32668cf19be46" data-whiteboard-anchor>5.2 Separation of Concerns</h3>
+    <p id="wb-p-58597ba6dcc648a3813d1a70e551f947" data-whiteboard-anchor>
+      Under Proposal B, the pipe token <code>|</code> is reserved <strong>exclusively</strong> for Unix-style value streams:
+    </p>
+    <pre id="wb-pre-526f09f6bb544d08a5714d3030233b03" data-whiteboard-anchor><code>// Clean pipeline without pipe overloading:
+:journal{tags:benchmark} sort by {date desc} | :count{} | :bar{}
+
+// Document defaults cleanly combine:
+defaults by {week} last 12w sort by {date desc}</code></pre>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4 style="color:var(--green);" id="wb-h4-2af858614bc64fc3b2f86a3b278dfc20" data-whiteboard-anchor>Advantages</h4>
+        <ul>
+          <li id="wb-li-67f543f7db6542119b63fbb3d0bccc1f" data-whiteboard-anchor>Completely eliminates grammatical ambiguity between presentation pipes and pipeline stages.</li>
+          <li id="wb-li-86736cb2f842439b82557a6e80d59338" data-whiteboard-anchor>Consistent syntax: <code>by {dim}</code> groups; <code>sort by {dim dir}</code> orders.</li>
+          <li id="wb-li-26e1b479a3744962a5af02624bb50de0" data-whiteboard-anchor>Can be extracted in JS suffix pass (<code>wqlSuffix.ts</code>) using existing brace-aware extraction.</li>
+          <li id="wb-li-a3bfcf515866408593f90236a81545b8" data-whiteboard-anchor>Natural fit for WQL composer pills (e.g. <code>[Sort: Date ↓]</code>).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4 style="color:var(--amber);" id="wb-h4-19976f6f31604840be3f7b9907f6fd00" data-whiteboard-anchor>Tradeoffs</h4>
+        <ul>
+          <li id="wb-li-f3e88e77c37b41308a7ac278bea46747" data-whiteboard-anchor>Requires deprecating legacy <code>| order by</code> or maintaining dual-path parser.</li>
+          <li id="wb-li-9747342fcfe9400bbdf709a6791563d7" data-whiteboard-anchor>Changes established habit of SQL-style <code>| order by col desc</code>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. PROPOSAL C -->
+  <section id="proposal-c">
+    <h2 id="wb-h2-d54c20c026674ca998113c823c79190b" data-whiteboard-anchor>6. Proposal C: Two-Tier Relational Model (Groups + Rows)</h2>
+    <p id="wb-p-56a5a1ec566d4b26a0f7e3c25d5568d8" data-whiteboard-anchor>
+      Addresses the subtle problem that arises when both <strong>grouping</strong> (<code>by {dim}</code>) and <strong>sorting</strong> are present. In personal training logs, users frequently want to sort both the shelves (e.g., show the most active discipline first) and the cards on each shelf (e.g., show the newest workout first).
+    </p>
+
+    <h3 id="wb-h3-1526ccda331a493dbadb9f8a4dc8ef33" data-whiteboard-anchor>6.1 Two-Tier Sorting Syntax</h3>
+    <table class="diff-table">
+      <tbody>
+        <tr>
+          <td id="wb-td-1db64240138749609f5cd5a7ca3708d2" data-whiteboard-anchor>Group Order</td>
+          <td id="wb-td-d4b2a4875ae64663849fc5b64b6a483f" data-whiteboard-anchor><code>by {discipline} order groups by {count desc}</code> or <code>by {discipline:desc}</code></td>
+        </tr>
+        <tr>
+          <td id="wb-td-0ee5e770058240c69fab506e77f84eb0" data-whiteboard-anchor>Row Order</td>
+          <td id="wb-td-bd8765b7bcb049feb4c98d54d8b819f5" data-whiteboard-anchor><code>| order by date desc</code> or <code>sort by {date desc}</code></td>
+        </tr>
+        <tr>
+          <td id="wb-td-bc5cccebe4524924bdb35b61395b7215" data-whiteboard-anchor>Combined</td>
+          <td id="wb-td-423bde63b81f4261bc54669ee223f6b6" data-whiteboard-anchor><code>:journal{} by {discipline} order groups by {count desc} | order by date desc</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card highlight">
+      <h4 id="wb-h4-018568bdf78c4d2c938a13f7684b7fef" data-whiteboard-anchor>How the Engine Evaluates Two-Tier Queries:</h4>
+      <ol>
+        <li id="wb-li-f06af380e0b6441bbf70c648e1ac4e7e" data-whiteboard-anchor><strong>Step 1 (Candidate Retrieval):</strong> Query storage with canonical default row order (<code>date desc</code>).</li>
+        <li id="wb-li-8027dca09519446d91e002519234012d" data-whiteboard-anchor><strong>Step 2 (Row Slicing / Sorting):</strong> Apply explicit row ordering (<code>| order by date desc</code>).</li>
+        <li id="wb-li-ff90129c7d4441f2bd250a76be700cea" data-whiteboard-anchor><strong>Step 3 (Grouping):</strong> Partition rows into groups keyed by <code>discipline</code>.</li>
+        <li id="wb-li-663619fa2da54e3c8720d6bfa95b8622" data-whiteboard-anchor><strong>Step 4 (Group Ordering):</strong> Sort groups according to <code>order groups by</code> (e.g., group with highest count first).</li>
+        <li id="wb-li-658ad206ebf8476db18aaff64ac61968" data-whiteboard-anchor><strong>Step 5 (Pagination):</strong> Slice groups or flattened stream according to <code>limit / offset</code>.</li>
+      </ol>
+    </div>
+
+    <div class="grid-2" style="margin-top:16px;">
+      <div class="card">
+        <h4 style="color:var(--green);" id="wb-h4-cb9abe88304c46e08ae8b24ebd0984d4" data-whiteboard-anchor>Advantages</h4>
+        <ul>
+          <li id="wb-li-c33b84ace4b844a1ab826bbcc3225f1b" data-whiteboard-anchor>The only proposal that fully solves the UI shelf ordering vs item ordering conflict.</li>
+          <li id="wb-li-4634669fa2bb452d9f7fa280dc4c7476" data-whiteboard-anchor>Allows "Top Disciplines" and "Leaderboard" views without complex subqueries.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4 style="color:var(--rose);" id="wb-h4-34eddb4a96f54f1599a4d7966ebcbeca" data-whiteboard-anchor>Tradeoffs</h4>
+        <ul>
+          <li id="wb-li-a0de2d988a40480f968b1db8dcc50d8f" data-whiteboard-anchor>Highest conceptual overhead.</li>
+          <li id="wb-li-a68703e57b4348c9bc4868078508453b" data-whiteboard-anchor>Overkill for 90% of journal queries. Violates Lazy Senior Dev simplicity rule if adopted in Phase 1.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. STORAGE PUSHDOWN & PAGING -->
+  <section id="pushdown">
+    <h2 id="wb-h2-597454b088f6480ab8f4d54b9feb64e3" data-whiteboard-anchor>7. Storage Pushdown & Paging Spec</h2>
+    <p id="wb-p-ba82628e63e64664845f3829cc694d8f" data-whiteboard-anchor>
+      Regardless of which syntax is chosen, <strong>sorting must be pushed down to the storage tier</strong> to make <code>limit</code> and <code>offset</code> deterministic and high-performance.
+    </p>
+
+    <h3 id="wb-h3-e477956e57db43b1a9a5b4e6e5bdb1f6" data-whiteboard-anchor>7.1 The Domain Order Interface</h3>
+    <p id="wb-p-5d3a1f9574ae47c590b6de0049b5a627" data-whiteboard-anchor>In <code>packages/wql/src/stores.ts</code>, <code>WqlDomainOrder</code> currently supports limited fields. We formalize and extend it:</p>
+    <pre id="wb-pre-284d6aabf8b543fc9f2c9273e49aa0ef" data-whiteboard-anchor><code>export type WqlDomainOrder = {
+  field: 'date' | 'createdAt' | 'completedAt' | 'title' | 'id' | 'duration';
+  direction: 'asc' | 'desc';
+  nulls?: 'first' | 'last';
+};</code></pre>
+
+    <h3 id="wb-h3-753ceff0ec3e4d8e94877ef9aae5675c" data-whiteboard-anchor>7.2 Corrected `domainPaging` Implementation</h3>
+    <p id="wb-p-decbff89b26f4f8fa341ffb891c6f736" data-whiteboard-anchor>In <code>packages/wql/src/QueryService.ts</code>, <code>domainPaging</code> must resolve target canonical defaults <strong>before</strong> sending the query to the database:</p>
+    <pre id="wb-pre-b7c4c75f0bd24cd79b03bcbdb3a5d8a6" data-whiteboard-anchor><code>function resolveDomainOrder(parsed: ParsedFindQuery): WqlDomainOrder[] {
+  // 1. If explicit order by is authored, map it to domain fields
+  if (parsed.pipes?.order?.length) {
+    return parsed.pipes.order.map(o => ({
+      field: mapColumnToDomainField(o.col),
+      direction: o.dir,
+    }));
+  }
+
+  // 2. Fall back to target's Canonical Default Sort Order
+  switch (parsed.target) {
+    case 'note':
+    case 'journal':
+      return [{ field: 'date', direction: 'desc' }, { field: 'id', direction: 'desc' }];
+    case 'session':
+      return [{ field: 'completedAt', direction: 'desc' }, { field: 'id', direction: 'desc' }];
+    case 'effort':
+      return [{ field: 'label', direction: 'asc' }];
+    default:
+      return [{ field: 'id', direction: 'asc' }];
+  }
+}</code></pre>
+  </section>
+
+  <!-- 8. RECOMMENDATION -->
+  <section id="recommendation">
+    <h2 id="wb-h2-9709c86d853446658ee94b0cbbbc275e" data-whiteboard-anchor>8. Lazy Senior Verdict & Phasing</h2>
+    <p id="wb-p-01b1ce42ea424fbabd56c294f0357b5b" data-whiteboard-anchor>
+      Following the Senior Developer Ladder (Stdlib/native first, shortest diff, zero unrequested abstraction, deletion over addition):
+    </p>
+
+    <div class="callout success">
+      <strong>Verdict: Adopt Proposal A (Standardized Pipes + Target Canonical Defaults) with Phased Upgrade Path</strong>
+      <p style="margin-top:6px;" id="wb-p-46cb66c0bac340e7bab8ccd4cffe9f29" data-whiteboard-anchor>
+        Do not invent new syntax like <code>sort by {}</code> today. WQL already has <code>| order by col [asc|desc]</code> in the parser and AST. The root problem is not the grammar—it is the <strong>absence of canonical defaults in QueryService</strong>, the <strong>hardcoded refusal in <code>:session</code></strong>, and the <strong>broken <code>id asc</code> pushdown</strong>.
+      </p>
+    </div>
+
+    <h3 id="wb-h3-4470b329255b4d25bc760538e5f4cf72" data-whiteboard-anchor>Implementation Roadmap</h3>
+    <table>
+      <thead>
+        <tr>
+          <th id="wb-th-315ac54c74484eccabf270b4e1835e1f" data-whiteboard-anchor>Phase</th>
+          <th id="wb-th-fe81f78955b8485eabb539613618e87f" data-whiteboard-anchor>Scope & Files Changed</th>
+          <th id="wb-th-2e75a7b216ad41fa8cf735f6aa26dece" data-whiteboard-anchor>Outcome</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td id="wb-td-78fccbd0039845bba48a52402b59101c" data-whiteboard-anchor><strong>Phase 1</strong><br/>(Immediate Bugfix)</td>
+          <td id="wb-td-d912408cc8d044ef84bf539feeac9020" data-whiteboard-anchor>
+            • <code>packages/wql/src/QueryService.ts</code><br/>
+            • <code>packages/wql/src/wql.ts</code>
+          </td>
+          <td id="wb-td-83d76192d7ea4d95b4ca1f3785e7ed8c" data-whiteboard-anchor>
+            1. Enforce Canonical Default Sort Order in <code>domainPaging</code> (notes default to <code>date desc</code>).<br/>
+            2. Remove <code>:session</code> advisory warning; make <code>runFindSession</code> honor authored <code>| order by</code>.<br/>
+            3. Fix <code>limit/offset</code> so queries slice the correct chronological rows.
+          </td>
+        </tr>
+        <tr>
+          <td id="wb-td-af29ecb6de244ed49411ea3d315504ca" data-whiteboard-anchor><strong>Phase 2</strong><br/>(Feature Parity)</td>
+          <td id="wb-td-cde6e3b24a3d4ab1b531215d42fae6b2" data-whiteboard-anchor>
+            • <code>packages/wql/src/document.ts</code><br/>
+            • <code>packages/wql/src/documentRunner.ts</code>
+          </td>
+          <td id="wb-td-192353fdc32e4dec8e7688e0f6915b88" data-whiteboard-anchor>
+            Support <code>order by</code> in document <code>defaults</code>:<br/>
+            <code>defaults by {week} last 12w order by date desc</code>.
+          </td>
+        </tr>
+        <tr>
+          <td id="wb-td-e0d27c6aef29444a84969ae2ece372b0" data-whiteboard-anchor><strong>Phase 3</strong><br/>(UI & Aggregates)</td>
+          <td id="wb-td-9a548c633541417b8b355bca345b212a" data-whiteboard-anchor>
+            • <code>apps/playground/.../PropertyTable.tsx</code><br/>
+            • <code>packages/wql/src/QueryService.ts</code>
+          </td>
+          <td id="wb-td-b9aca1f801c04d7ab7bdd922192f5a1e" data-whiteboard-anchor>
+            1. Clicking column headers in <code>PropertyTable</code> serializes directly to <code>q</code> URL as <code>| order by &lt;col&gt; &lt;dir&gt;</code>.<br/>
+            2. Support Top-K ordering on aggregate series (<code>sum:volume by {effort} | order by value desc | limit 5</code>).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card" style="margin-top:20px;">
+      <h4 id="wb-h4-cbf2f1372b7a49ef88997177c9012575" data-whiteboard-anchor>Ponytail Comment Anchor</h4>
+      <code>// ponytail: explicit | order by pipes suffice; upgrade to first-class sort by {} suffix only when pipeline stages require intermediate sorts.</code>
+    </div>
+  </section>
+
+</main>
+
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2 id="wb-current-title"></h2>
+  <a id="wb-current-source">Source block</a>
+  <p id="wb-current-quote"></p>
+  <p id="wb-current-context"></p>
+  <p id="wb-current-note"></p>
+  <div class="wb-controls">
+    <button id="wb-edit" type="button">Edit</button>
+    <button id="wb-delete" type="button">Delete</button>
+    <button id="wb-hide" type="button">Hide</button>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Publish annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Publish before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Publish before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    byId('wb-count').textContent = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : ` · ${active + 1}/${count}`}`;
+    for (const id of ['wb-prev', 'wb-next', 'wb-publish']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+
+  byId('wb-publish').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    byId('wb-copy-status').textContent = 'Copying…';
+    byId('wb-export').showModal();
+    output.focus();
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy-status').textContent = 'Copied. Paste into your agent window. Drafts are kept.';
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  new ResizeObserver(() => document.documentElement.style.setProperty('--wb-bar-height', byId('wb-bar').offsetHeight + 'px')).observe(byId('wb-bar'));
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>

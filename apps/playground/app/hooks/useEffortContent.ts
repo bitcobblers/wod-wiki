@@ -15,6 +15,7 @@ import { effortToDocument, documentToEffort } from '@/repositories/effort-markdo
 import { useEffortRegistry } from '../contexts/EffortRegistryContext';
 import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 import { storageService } from '@/services/storage';
+import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import { toast } from '@/hooks/use-toast';
 
 export interface UseEffortContentResult {
@@ -51,6 +52,7 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
   const [isAliasMatch, setIsAliasMatch] = useState(false);
   const isEditable = effort?.registrySource === 'user';
   const hasClonedRef = useRef(false);
+  const committedNote = useRef<{ id: string; revision: number } | null>(null);
 
   // Load effort on mount / slug change
   useEffect(() => {
@@ -69,10 +71,12 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
         // One resolution surface: the registry (both tiers from IndexedDB).
         const direct = registry.resolve(slug);
         const resolved = direct ?? (typeof registry.resolveByAlias === 'function' ? registry.resolveByAlias(slug) : null);
+        const note = resolved ? await storageService.getNote(`effort/${resolved.slug}`) : undefined;
         if (resolved && !cancelled) {
           setEffort(resolved);
           setIsAliasMatch(!direct);
-          setDocumentState(effortToDocument(resolved));
+          committedNote.current = { id: `effort/${resolved.slug}`, revision: note?.sourceRevision ?? 0 };
+          setDocumentState(note?.rawContent ?? effortToDocument(resolved));
           setIsLoading(false);
           return;
         }
@@ -105,7 +109,7 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
         description: errors.join('\n'),
         variant: 'destructive',
       });
-      return;
+      throw new Error(errors.join('\n'));
     }
 
     // Normalize
@@ -128,32 +132,15 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
     }
 
     try {
-      await registry.upsert(parsed);
       const noteId = `effort/${parsed.slug}`;
-      try {
-        const existingNote = await storageService.getNote(noteId);
-        const now = Date.now();
-        await storageService.saveNote({
-          id: existingNote?.id ?? noteId,
-          title: parsed.label,
-          slug: noteId,
-          createdAt: existingNote?.createdAt ?? now,
-          type: 'note',
-          sourceId: 'effort',
-        });
-        await storageService.saveSegment({
-          id: `seg-${existingNote?.id ?? noteId}`,
-          version: 1,
-          noteId: existingNote?.id ?? noteId,
-          position: 0,
-          dataType: 'markdown',
-          rawContent: value,
-          createdAt: now,
-          updatedAt: now,
-        });
-      } catch {
-        // IDB note sync fallback
-      }
+      const expectedSourceRevision = committedNote.current?.id === noteId ? committedNote.current.revision : 0;
+      const provider = new IndexedDBContentProvider();
+      const saved = expectedSourceRevision > 0
+        ? await provider.updateEntry(noteId, { rawContent: value, expectedSourceRevision, title: parsed.label, slug: noteId })
+        : await provider.saveEntry({ id: noteId, title: parsed.label, slug: noteId,
+            rawContent: value, tags: [], targetDate: Date.now(), type: 'note', sourceId: 'effort' });
+      committedNote.current = { id: saved.id, revision: saved.sourceRevision! };
+      await registry.upsert(parsed);
       await refresh();
       setEffort(parsed);
     } catch (err) {
@@ -162,6 +149,7 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
         description: err instanceof Error ? err.message : 'Failed to save effort.',
         variant: 'destructive',
       });
+      throw err;
     }
   }, [slug, effort, registry, refresh]);
 

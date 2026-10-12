@@ -122,8 +122,11 @@ const bySpelling = (() => {
   return map;
 })();
 
-/** Look up a unit by canonical spelling or alias (case-insensitive). */
+/** Look up a unit by canonical spelling or alias (case-insensitive). Stored
+ *  event rows are a trust boundary — a missing/legacy unit arrives as
+ *  undefined at runtime despite the static type. */
 export function lookupUnit(spelling: string): UnitDefinition | undefined {
+  if (typeof spelling !== 'string') return undefined;
   return bySpelling.get(spelling.trim().toLowerCase());
 }
 

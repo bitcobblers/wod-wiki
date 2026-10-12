@@ -12,10 +12,13 @@ import type { BlockIndexRow } from '@/types/storage'
 const TS = 1_700_000_000_000
 function makeBlock(noteId: string, sourceId?: string): BlockIndexRow {
   return {
-    id: `${noteId}:s:1`,
+    id: `${noteId}:s`,
     noteId,
-    segmentId: 's',
-    segmentVersion: 1,
+    blockId: 's',
+    blockVersion: 1,
+    sourceRevision: 1,
+    from: 0,
+    to: 1,
     dataType: 'wod',
     rawContent: '',
     noteTitle: noteId,

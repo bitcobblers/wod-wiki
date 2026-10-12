@@ -1,5 +1,5 @@
 /**
- * Pure exchange-format coverage: note markdown composition by version,
+ * Pure exchange-format coverage of exact source export,
  * identity stamping, and session CSV round-trips.
  */
 import { describe, it, expect } from 'vitest';
@@ -17,22 +17,13 @@ import {
   SESSION_CSV_HEADER,
 } from '../src/exchange';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
-import type { Note, NoteSegment, Session } from '@bitcobblers/wod-wiki-storage';
+import type { Note, Session } from '@bitcobblers/wod-wiki-storage';
 
-const note: Note = { id: '11111111-1111-4111-8111-111111111111', title: 'Fran', createdAt: 1 };
-
-const seg = (id: string, version: number, rawContent: string, position: number): NoteSegment => ({
-  id,
-  noteId: note.id,
-  version,
-  position,
-  dataType: 'wod',
-  data: null,
-  rawContent,
-  sourceContent: `\`\`\`time\n${rawContent}\n\`\`\``,
-  createdAt: 1,
-  isHistory: version < 2,
-});
+const note: Note = {
+  id: '11111111-1111-4111-8111-111111111111', title: 'Fran', createdAt: 1,
+  rawContent: '# Fran\r\n\r\n  prose 😀  \r\n\r\n````time:crossfit\r\n3 Rounds\r\n- 9 pull-up\r\n````\r\n\r\n```unknown\r\nleave me alone\r\n```\r\n',
+  sourceRevision: 1, blocks: {},
+};
 
 describe('exchange note markdown', () => {
   it('extracts stamped identity from frontmatter only when the id is a uuid', () => {
@@ -51,39 +42,36 @@ describe('exchange note markdown', () => {
     expect(stamped).toContain('sport: crossfit');
   });
 
-  it('composes as-of a version: rows past the cap never appear', () => {
-    const segments = [
-      { ...seg('a', 1, '3 Rounds', 0) },
-      { ...seg('a', 2, '5 Rounds', 0), sourceContent: undefined },
-      { ...seg('b', 1, '- 9 pull-up', 1) },
-      // Re-keyed chain: a history-only id (e.g. after an edit shifted line
-      // numbers) — excluded from latest, present in as-of compositions.
-      { ...seg('c', 1, '- 7 deadlift', 2) },
-    ];
-    const v1 = composeNoteMarkdown(note, segments, 1);
-    expect(v1).toContain('3 Rounds');
-    expect(v1).toContain('9 pull-up');
-    expect(v1).toContain('7 deadlift');
-    expect(v1).not.toContain('5 Rounds');
+  it('exports authored bytes without reconstructing sections or fences', () => {
+    const exported = composeNoteMarkdown(note);
+    expect(exported.endsWith(note.rawContent)).toBe(true);
+    expect(extractNoteIdentity(exported)?.noteId).toBe(note.id);
+  });
 
-    const latest = composeNoteMarkdown(note, segments);
-    expect(latest).toContain('5 Rounds');
-    expect(latest).not.toContain('7 deadlift');
-    // Version 2 lost its source slice → falls back to re-fenced rawContent.
-    expect(latest).toContain('```time');
-    expect(latest).toContain('wod-note-id: 11111111-1111-4111-8111-111111111111');
+  it('preserves CRLF frontmatter and the exact body while stamping identity', () => {
+    const rawContent = '---\r\ntitle: Fran\r\nsport: crossfit\r\n---\r\n\r\n  body 😀  \r\n';
+    const exported = composeNoteMarkdown({ ...note, rawContent });
+    expect(exported).toContain('sport: crossfit\r\n');
+    expect(exported.endsWith('\r\n---\r\n\r\n  body 😀  \r\n')).toBe(true);
+    expect(exported.replaceAll('\r\n', '')).not.toContain('\n');
   });
 });
 
 const session: Session = {
   id: '22222222-2222-4222-8222-222222222222',
   noteId: note.id,
+  blockId: 'workout-occurrence-1',
+  blockVersion: 3,
   origin: 'journal',
   status: 'completed',
   startTime: 1000,
   endTime: 2000,
   duration: 1000,
   completed: true,
+  pageId: 'page-1',
+  roundsCompleted: 3,
+  totalRounds: 3,
+  repsCompleted: 15,
   createdAt: 2000,
 };
 
@@ -92,6 +80,8 @@ const events: EventRecord[] = [
     id: `${session.id}:0`,
     resultId: session.id,
     noteId: note.id,
+    blockId: session.blockId,
+    blockVersion: session.blockVersion,
     timestamp: 1100,
     grain: 'event',
     outputType: 'rep',
@@ -102,6 +92,8 @@ const events: EventRecord[] = [
     id: `${session.id}:summary:reps`,
     resultId: session.id,
     noteId: note.id,
+    blockId: session.blockId,
+    blockVersion: session.blockVersion,
     timestamp: 2000,
     grain: 'summary',
     outputType: 'totalReps',
@@ -129,6 +121,14 @@ describe('exchange session CSV', () => {
     expect(summary.metrics).toEqual([{ type: 'round', value: 3 }]);
   });
 
+  it('preserves empty temporal arrays for events with and without metrics', () => {
+    const source: EventRecord[] = [
+      { ...events[0], metrics: [], metricTemporal: [] },
+      { ...events[1], metricTemporal: [] },
+    ];
+    expect(csvToSessionRows(sessionToCsv(session, source)).events).toEqual(source);
+  });
+
   it('preserves commas, quotes, and newlines in text fields', () => {
     const fancy: EventRecord[] = [
       {
@@ -146,6 +146,14 @@ describe('exchange session CSV', () => {
   it('rejects input that is not a session CSV', () => {
     expect(() => csvToSessionRows('a,b,c\n1,2,3\n')).toThrow(/missing column/);
     expect(() => csvToSessionRows('x\n')).toThrow(/no data rows/);
+  });
+
+  it('rejects obsolete, absent, inconsistent and fractional block pins', () => {
+    const csv = sessionToCsv(session, events);
+    expect(() => csvToSessionRows(csv.replace('blockVersion', 'segmentVersion'))).toThrow(/Incompatible/);
+    expect(() => csvToSessionRows(csv.replaceAll('workout-occurrence-1', ''))).toThrow(/requires/);
+    expect(() => csvToSessionRows(sessionToCsv({ ...session, blockVersion: 1.5 }, events))).toThrow(/positive blockVersion/);
+    expect(() => csvToSessionRows(sessionToCsv(session, [{ ...events[0], blockId: 'different' }]))).toThrow(/differs/);
   });
 });
 

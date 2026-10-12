@@ -10,7 +10,8 @@
  * The old ~8 MB generated JSON import
  * (src/generated/static-block-index.json) is gone.
  */
-import type { BlockIndexRow } from '@/types/storage';
+import type { BlockIndexRow, Note } from '@/types/storage';
+import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
 import { extractFrontmatterTags } from '@/lib/frontmatter';
 import {
     CANONICAL_BLOCK_TYPES,
@@ -60,33 +61,26 @@ export function feedDateToCreatedAt(dateKey: string): number {
     return Number.isNaN(ts) ? 0 : ts;
 }
 
-/**
- * Tag → noteIds index over a block index's frontmatter rows. Static-corpus
- * notes declare tags only in frontmatter `tags:`; this recovers the mapping
- * the suggestion tag vocabulary needs (issue #853 — the store
- * previously returned an empty set for every tag).
- */
-export function staticTagIndexFromBlocks(blocks: BlockIndexRow[]): Map<string, Set<string>> {
+/** Static tag vocabulary comes from whole Notes, never prose index rows. */
+export function staticTagIndexFromNotes(notes: readonly Pick<Note, 'id' | 'rawContent'>[]): Map<string, Set<string>> {
     const index = new Map<string, Set<string>>();
-    for (const block of blocks) {
-        if (block.dataType !== 'frontmatter') continue;
-        for (const tag of extractFrontmatterTags(block.rawContent)) {
+    for (const note of notes) {
+        for (const tag of parseDocumentSections(note.rawContent)
+            .filter(section => section.type === 'frontmatter')
+            .flatMap(section => extractFrontmatterTags(section.displayContent))) {
             const ids = index.get(tag);
-            if (ids) ids.add(block.noteId);
-            else index.set(tag, new Set([block.noteId]));
+            if (ids) ids.add(note.id);
+            else index.set(tag, new Set([note.id]));
         }
     }
     return index;
 }
 
-/**
- * Memoized tag → noteIds index over the static corpus, derived lazily so
- * the ~21k-row scan only runs when a `tags:` clause actually executes.
- */
+/** Memoized tag vocabulary over static whole Notes. */
 export function loadStaticTagIndex(): Promise<Map<string, Set<string>>> {
     if (!staticTagIndexPromise) {
-        staticTagIndexPromise = loadCorpusBlocks().then(async (blocks) => {
-            const index = staticTagIndexFromBlocks(blocks);
+        staticTagIndexPromise = storageService.getAllNotes().then(async (notes) => {
+            const index = staticTagIndexFromNotes(notes.filter(note => note.seedOrigin === 'seed'));
             try {
                 const collections = await getScriptCollections();
                 for (const col of collections) {

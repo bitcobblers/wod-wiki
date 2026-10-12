@@ -38,7 +38,6 @@ export type {
   DataSettingsRead,
 };
 export { IndexedDBStorage, InMemoryStorage, StorageService };
-export { segmentRowId, resolveLatestSegment } from './StorageService';
 export { LocalStore, InMemoryBackend, browserLocalStorageBackend };
 export { DATA_SETTINGS_KEY, readDataSettings, connectTurso, testTursoConnection, switchToIndexedDb };
 

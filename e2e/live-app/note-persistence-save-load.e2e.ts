@@ -7,9 +7,7 @@
  * 3. Complete the workout and verify the result is saved to IndexedDB
  * 4. Navigate back to the note and verify the result badge appears
  *
- * These tests specifically target flows that go through the PR #581
- * persistence seam (IndexedDBService → IndexedDBNotePersistence /
- * ContentProviderNotePersistence via WorkbenchContext).
+ * These tests exercise IndexedDBNotePersistence through WorkbenchContext.
  *
  * Test isolation: all tests use far-future dates (2099) so they never
  * collide with real user data. IndexedDB is cleared before each test.
@@ -17,7 +15,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { JournalEntryPage } from '../pages/JournalEntryPage';
-import { seedJournalNote, clearResults, getResults, WOD_DB } from '../helpers/wodwikiDb';
+import { seedJournalNote, seedCompletedSessions, clearResults, getResults, WOD_DB } from '../helpers/wodwikiDb';
 import { waitForSeedReady } from '../helpers/seedReadiness';
 import { clearSessions, getSessions } from '../utils/sessionsDb';
 import { TEST_IDS } from '../contracts/TestIdContract';
@@ -140,38 +138,14 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     //   a) the result survives navigation (IDB not wiped on page load)
     //   b) no NOTE_NOT_FOUND errors are triggered when loading the note
     // The full timer-based completion flow is covered by wod-index-play-button.e2e.ts.
-    await seedJournalNote(page, DATE_WORKOUT_SAVE, '# E2E Seed\n');
-    await clearResults(page, DATE_WORKOUT_SAVE);
+    const noteId = `journal/${DATE_WORKOUT_SAVE}`;
+    await seedJournalNote(page, DATE_WORKOUT_SAVE, '# E2E Seed\n\n```time\n5 Burpees\n```\n');
+    await clearResults(page, noteId);
     await journal.goto(DATE_WORKOUT_SAVE);
 
-    // Seed a completed workout result for this note
-    await page.evaluate(async ({ dbName, noteId }) => {
-      await new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open(dbName);
-        req.onsuccess = () => {
-          const db = req.result;
-          if (!Array.from(db.objectStoreNames).includes('sessions')) { db.close(); resolve(); return; }
-          const tx = db.transaction('sessions', 'readwrite');
-          tx.objectStore('sessions').put({
-            id: 'seeded-result-001',
-            noteId,
-            segmentId: 'wod-test',
-            blockContentId: 'wod-test',
-            createdAt: Date.now(),
-            startTime: 0,
-            endTime: 430,
-            duration: 430,
-            completed: true,
-            status: 'completed',
-          });
-          tx.oncomplete = () => { db.close(); resolve(); };
-          tx.onerror = () => { db.close(); reject(tx.error); };
-        };
-        req.onerror = () => reject(req.error);
-      });
-    }, { dbName: WOD_DB, noteId: DATE_WORKOUT_SAVE });
+    await seedCompletedSessions(page, noteId, [{ id: 'seeded-result-001', createdAt: Date.now(), duration: 430 }]);
 
-    expect(await getResults(page, DATE_WORKOUT_SAVE)).toHaveLength(1);
+    expect(await getResults(page, noteId)).toHaveLength(1);
 
     // Navigate away and back — result must persist
     await journal.gotoJournalList();
@@ -180,7 +154,7 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     // hypothetical async wipe-on-load to run before we assert survival.
 
     expect(
-      await getResults(page, DATE_WORKOUT_SAVE),
+      await getResults(page, noteId),
       'IDB results must not be deleted when note page loads'
     ).toHaveLength(1);
 
@@ -188,7 +162,7 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 20_000 });
     await journal.waitForEditor();
     expect(
-      await getResults(page, DATE_WORKOUT_SAVE),
+      await getResults(page, noteId),
       'IDB results must survive a hard page reload'
     ).toHaveLength(1);
 
@@ -203,32 +177,16 @@ test.describe('Note Persistence — save / load / workout flow', () => {
   // ── 4. Multiple results accumulate ────────────────────────────────────────
 
   test('multiple workouts accumulate results without overwriting previous ones', async ({ page }, testInfo) => {
-    await seedJournalNote(page, DATE_MULTI_RESULT, '# E2E Seed\n');
-    await clearResults(page, DATE_MULTI_RESULT);
-
-    // Pre-seed two results directly in IDB to avoid waiting for timers
-    await page.evaluate(async ({ dbName, noteId }) => {
-      await new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open(dbName);
-        req.onsuccess = () => {
-          const db = req.result;
-          const stores = Array.from(db.objectStoreNames);
-          if (!stores.includes('sessions')) { db.close(); resolve(); return; }
-          const tx = db.transaction('sessions', 'readwrite');
-          const store = tx.objectStore('sessions');
-          const base = { noteId, segmentId: 'wod-a', blockContentId: 'wod-a',
-            startTime: 0, endTime: 100, duration: 100, completed: true, status: 'completed' as const };
-          store.put({ ...base, id: 'test-result-1', createdAt: 1000 });
-          store.put({ ...base, id: 'test-result-2', createdAt: 2000 });
-          tx.oncomplete = () => { db.close(); resolve(); };
-          tx.onerror = () => { db.close(); reject(tx.error); };
-        };
-        req.onerror = () => reject(req.error);
-      });
-    }, { dbName: WOD_DB, noteId: DATE_MULTI_RESULT });
+    const noteId = `journal/${DATE_MULTI_RESULT}`;
+    await seedJournalNote(page, DATE_MULTI_RESULT, '# E2E Seed\n\n```time\n5 Burpees\n```\n');
+    await clearResults(page, noteId);
+    await seedCompletedSessions(page, noteId, [
+      { id: 'test-result-1', createdAt: 1000, duration: 100 },
+      { id: 'test-result-2', createdAt: 2000, duration: 100 },
+    ]);
 
     // Verify both results are present
-    const results = await getResults(page, DATE_MULTI_RESULT);
+    const results = await getResults(page, noteId);
     expect(results).toHaveLength(2);
 
     // Navigate to the date — results should NOT be wiped by page load
@@ -236,7 +194,7 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     // goto's editor-attached wait doubles as the settle window for any
     // hypothetical async wipe-on-load to run before we assert survival.
 
-    const afterLoad = await getResults(page, DATE_MULTI_RESULT);
+    const afterLoad = await getResults(page, noteId);
     expect(afterLoad, 'Page load must not delete existing workout results').toHaveLength(2);
 
     await page.screenshot({ path: testInfo.outputPath('persistence-04-multi-result.png') });
@@ -245,7 +203,7 @@ test.describe('Note Persistence — save / load / workout flow', () => {
   // ── 5. No NOTE_NOT_FOUND in static/read-only contexts ─────────────────────
 
   test('visiting a static syntax page causes no NOTE_NOT_FOUND errors', async ({ page }, testInfo) => {
-    // Static/syntax pages use StaticContentProvider, which wraps ContentProviderNotePersistence.
+    // Static pages use the same atomic persistence path with an in-memory store.
     // Before FIX-7, analytics persistence would throw NOTE_NOT_FOUND on workout complete in static mode.
     // This test verifies no such errors surface during normal static page navigation.
     errors.length = 0;
@@ -470,10 +428,14 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     await page.screenshot({ path: testInfo.outputPath('persistence-08-next-exit-partial.png') });
   });
 
-  test('a rejected session write shows an error with same-id Retry, leaves no partial write, and one retry persists one session', async ({ page }, testInfo) => {
+  test('a rejected completion preserves the START pin and Retry finalizes the same Session without partial writes', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     await clearSessions(page, NOTE_ID);
     await startOverlayRun(page);
+    const pinnedSessions = await getSessions(page, NOTE_ID);
+    expect(pinnedSessions, 'START commits one immutable Session pin').toHaveLength(1);
+    expect(pinnedSessions[0]!.status).toBe('in-progress');
+    const eventsBeforeCompletion = await getEventCount(page, NOTE_ID);
     await failNextSessionPut(page);
 
     // Early Stop: the partial's write fails inside the atomic transaction.
@@ -484,9 +446,8 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     const retry = page.getByRole('button', { name: 'Retry save' });
     await expect(retry).toBeVisible();
 
-    // No partial write: the aborted transaction left neither sessions nor events.
-    expect(await getSessions(page, NOTE_ID)).toHaveLength(0);
-    expect(await getEventCount(page, NOTE_ID)).toBe(0);
+    expect(await getSessions(page, NOTE_ID), 'failed completion leaves the committed START pin unchanged').toEqual(pinnedSessions);
+    expect(await getEventCount(page, NOTE_ID), 'failed completion adds no partial events').toBe(eventsBeforeCompletion);
 
     // Same-ID retry: exactly one session and its events, one query:table.
     await retry.click();
@@ -495,6 +456,8 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     const sessions = await getSessions(page, NOTE_ID);
     expect(sessions, 'retry persists exactly one session').toHaveLength(1);
     expect(sessions[0]!.completed).toBe(false);
+    expect(sessions[0]!.id, 'Retry finalizes the original Session identity').toBe(pinnedSessions[0]!.id);
+    expect(sessions[0]!.status).toBe('completed');
     expect(await getEventCount(page, NOTE_ID), 'retry persists the event metrics').toBeGreaterThanOrEqual(1);
 
     // No duplicate query:table from the retry — the one table from the first

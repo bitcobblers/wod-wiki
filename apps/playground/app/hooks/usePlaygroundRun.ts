@@ -4,6 +4,8 @@ import type { ScriptBlock, Sessions } from '@/components/Editor/types'
 import { playgroundRecorder } from '@/services/resultRecorder'
 import type { ResultRecorder } from '@/services/resultRecorder'
 import { playgroundIntake, type PlaygroundIntake } from '../services/createPlaygroundPage'
+import { captureRun } from '@/services/runCapture';
+import { notePersistence, type INotePersistence } from '@/services/persistence';
 
 /** One captured run: persisted snapshot note + pre-allocated result id + the block that ran. */
 export interface PlaygroundRun {
@@ -31,6 +33,7 @@ export interface PlaygroundRunResetContext extends PlaygroundRunMeta {
 export interface UsePlaygroundRunOptions {
   /** Test seams; production defaults to the singleton intake + recorder. */
   intake?: PlaygroundIntake
+  persistence?: INotePersistence;
   recorder?: ResultRecorder
 }
 
@@ -77,6 +80,7 @@ export interface UsePlaygroundRunReturn {
 export function usePlaygroundRun({
   intake = playgroundIntake,
   recorder = playgroundRecorder,
+  persistence = notePersistence,
 }: UsePlaygroundRunOptions = {}): UsePlaygroundRunReturn {
   const [run, setRun] = useState<PlaygroundRun | null>(null)
   const [recorded, setRecorded] = useState(false)
@@ -103,7 +107,15 @@ export function usePlaygroundRun({
           pageTitle: meta.pageTitle,
           sectionTitle: meta.sectionTitle,
         })
-        const identity: PlaygroundRun = { noteId: entry.noteId, resultId: uuidv7(), block }
+        const saved = await persistence.getNote(entry.noteId);
+        if (!saved.blocks || saved.sourceRevision === undefined) throw new Error('The saved workout map is unavailable.');
+        const ordered = Object.values(saved.blocks).filter(candidate => candidate.kind === 'wod').sort((a, b) => a.from - b.from);
+        const lineFrom = document.split('\n').slice(0, block.startLine).join('\n').length + (block.startLine > 0 ? 1 : 0);
+        const occurrence = ordered.find(candidate => candidate.from === lineFrom);
+        if (!occurrence) throw new Error('The selected workout occurrence is not in the saved note.');
+        const resultId = uuidv7();
+        const captured = await captureRun({ noteId: entry.noteId, rawContent: saved.rawContent, blocks: saved.blocks, expectedSourceRevision: saved.sourceRevision }, { ...block, id: occurrence.id }, resultId, 'playground', persistence);
+        const identity: PlaygroundRun = { noteId: entry.noteId, resultId, block: captured.block };
         runRef.current = identity
         recordedRef.current = false
         setRecorded(false)
@@ -119,7 +131,7 @@ export function usePlaygroundRun({
         if (startAttemptRef.current === attempt) startAttemptRef.current = null
       }
     },
-    [intake],
+    [intake, persistence],
   )
 
   const finalize = useCallback(

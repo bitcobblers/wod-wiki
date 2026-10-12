@@ -1,11 +1,22 @@
 import React, { useMemo } from 'react';
 import type { ScriptBlock } from '@/components/Editor/types';
-import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
+import { NoteEditor, type EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor';
+import type { NoteBlock } from '@/types/storage';
 import { useTheme } from '@/contexts/ThemeProvider';
+import { BlockHistory } from '@/components/organisms/editor/BlockHistory';
+import type { BlockRevision } from '@/types/storage';
+import type { INotePersistence } from '@/services/persistence';
 
 export interface PlanPanelProps {
   initialContent?: string;
   value?: string;
+  noteBlocks?: Record<string, NoteBlock>;
+  notePersistence?: INotePersistence;
+  sourceRevision?: number;
+  onIdentityChange?: (snapshot: EditorIdentitySnapshot) => void;
+  onSaved?: (snapshot: EditorIdentitySnapshot) => void;
+  beforeRun?: () => Promise<number | void>;
+  onRevert?: (revision: BlockRevision) => Promise<void>;
   /** @deprecated Ignored — sections are parsed internally by NoteEditor */
   sections?: unknown[] | null;
   onStartWorkout: (block: ScriptBlock) => void;
@@ -24,6 +35,13 @@ export interface PlanPanelProps {
 export const PlanPanel: React.FC<PlanPanelProps> = ({
   initialContent,
   value,
+  noteBlocks,
+  notePersistence,
+  sourceRevision,
+  onIdentityChange,
+  onSaved,
+  beforeRun,
+  onRevert,
   onStartWorkout,
   onCompleteWorkout,
   setBlocks,
@@ -49,6 +67,12 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
       <div className="flex-1 min-h-0 relative">
         <NoteEditor
           noteId={sourceNoteId}
+          notePersistence={notePersistence}
+          noteBlocks={noteBlocks}
+          sourceRevision={sourceRevision}
+          onIdentityChange={onIdentityChange}
+          onSaved={onSaved}
+          beforeRun={beforeRun}
           value={value ?? initialContent ?? ''}
           onChange={setContent}
           onBlocksChange={setBlocks}
@@ -63,6 +87,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
           className="h-full"
         />
       </div>
+      {sourceNoteId && <BlockHistory noteId={sourceNoteId} blocks={noteBlocks} sourceRevision={sourceRevision} persistence={notePersistence} onRevert={readOnly ? undefined : onRevert} />}
     </div>
   );
 };

@@ -3,7 +3,8 @@ import {
   parseDocumentSections,
   buildRawContent,
   calculateTotalLines,
-  matchSectionIds,
+  reconcileNoteBlocks,
+  mapNoteBlockChanges,
   isWorkoutSectionType,
 } from '@bitcobblers/wod-wiki-core';
 
@@ -50,11 +51,12 @@ describe('parseDocumentSections', () => {
     expect(mdSections[mdSections.length - 1].displayContent).toContain('Notes here');
   });
 
-  it('generates deterministic IDs', () => {
-    const content = '# Title\n\nSome text';
-    const first = parseDocumentSections(content);
-    const second = parseDocumentSections(content);
-    expect(first.map(s => s.id)).toEqual(second.map(s => s.id));
+  it('creates fresh transient identities rather than guessing from source', () => {
+    const source = '```time\n5:00 Run\n```';
+    const first = parseDocumentSections(source);
+    const second = parseDocumentSections(source);
+    expect(first[0].id).not.toBe(second[0].id);
+    expect(first[0].contentId).toBe(second[0].contentId);
   });
 
   describe('with workout blocks', () => {
@@ -153,23 +155,19 @@ describe('calculateTotalLines', () => {
   });
 });
 
-describe('matchSectionIds', () => {
-  it('preserves IDs for unchanged sections', () => {
-    const content = '# Title\n\nParagraph';
-    const oldSections = parseDocumentSections(content);
-    const newSections = parseDocumentSections(content);
-
-    const matched = matchSectionIds(oldSections, newSections);
-    expect(matched.map(s => s.id)).toEqual(oldSections.map(s => s.id));
+describe('persisted block identity', () => {
+  it('preserves occurrence IDs with an exact persisted map on reopen', () => {
+    const source = '# Title\n\n```time\n5:00 Run\n```';
+    const blocks = reconcileNoteBlocks(source, { sourceRevision: 1 });
+    expect(reconcileNoteBlocks(source, { sourceRevision: 1, blocks })).toEqual(blocks);
   });
 
-  it('preserves ID when content changes but position stays', () => {
-    const oldSections = parseDocumentSections('# Old Title\n\nParagraph');
-    const newSections = parseDocumentSections('# New Title\n\nParagraph');
-
-    const matched = matchSectionIds(oldSections, newSections);
-    // Title ID should be preserved via position match
-    expect(matched[0].id).toBe(oldSections[0].id);
+  it('requires source change lineage when prose shifts a block', () => {
+    const source = '```time\n5:00 Run\n```';
+    const blocks = reconcileNoteBlocks(source, { sourceRevision: 1 });
+    const mapped = mapNoteBlockChanges(blocks, [{ from: 0, to: 0, insert: '# Title\n\n' }]);
+    const next = reconcileNoteBlocks('# Title\n\n' + source, { sourceRevision: 1, blocks: mapped });
+    expect(Object.keys(next)).toEqual(Object.keys(blocks));
   });
 });
 

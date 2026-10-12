@@ -11,9 +11,10 @@
  */
 
 import { Children } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
+import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { parseFrontmatter, type ParsedFrontmatter } from '@/lib/frontmatter'
 import { QueryBlockView } from '@bitcobblers/wod-wiki-ui'
@@ -21,6 +22,7 @@ import { parseQueryWidgetSuffix } from '@bitcobblers/wod-wiki-wql'
 import { queryService } from '@/services/queryService'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { entryOpenHref } from '../lib/entryActions'
+import { wqlStreamHref } from '../lib/wqlLink'
 import { toEntry, blockToEntry } from '../lib/entryMapper'
 import type { Note } from '@/types/storage'
 
@@ -145,9 +147,30 @@ const components: Components = {
     )
   },
 
-  // Links — external opens in new tab; file links get a download hint
+  // Links — external opens in new tab; file links get a download hint;
+  // WQL links (`[label](:effort{…})`, spaces percent-encoded) route to the
+  // stream page that runs the query.
   a({ href, children }) {
     const h = href ?? ''
+    if (h.startsWith(':')) {
+      let decoded = h
+      try {
+        decoded = decodeURIComponent(h)
+      } catch {
+        // Not percent-encoded — use the raw destination.
+      }
+      const to = wqlStreamHref(decoded)
+      if (to) {
+        return (
+          <Link
+            to={to}
+            className="underline underline-offset-2 transition-colors text-primary hover:text-primary/70"
+          >
+            {children}
+          </Link>
+        )
+      }
+    }
     const external = isExternalLink(h)
     const file = isFileLink(h)
     return (
@@ -225,30 +248,30 @@ const components: Components = {
   },
 
   // Headings — styled to match the canvas design language
-  h1({ children }) {
+  h1({ children, id }) {
     return (
-      <h1 className="text-2xl lg:text-3xl font-black tracking-tight text-foreground uppercase leading-tight mt-10 mb-4 first:mt-0">
+      <h1 id={id} className="text-2xl lg:text-3xl font-black tracking-tight text-foreground uppercase leading-tight mt-10 mb-4 first:mt-0">
         {children}
       </h1>
     )
   },
-  h2({ children }) {
+  h2({ children, id }) {
     return (
-      <h2 className="text-xl lg:text-2xl font-black tracking-tight text-foreground uppercase leading-tight mt-8 mb-3 first:mt-0">
+      <h2 id={id} className="text-xl lg:text-2xl font-black tracking-tight text-foreground uppercase leading-tight mt-8 mb-3 first:mt-0">
         {children}
       </h2>
     )
   },
-  h3({ children }) {
+  h3({ children, id }) {
     return (
-      <h3 className="text-base lg:text-lg font-black tracking-wide text-foreground uppercase mt-6 mb-2 first:mt-0">
+      <h3 id={id} className="text-base lg:text-lg font-black tracking-wide text-foreground uppercase mt-6 mb-2 first:mt-0">
         {children}
       </h3>
     )
   },
-  h4({ children }) {
+  h4({ children, id }) {
     return (
-      <h4 className="text-sm font-black tracking-widest text-primary uppercase mt-5 mb-2 first:mt-0">
+      <h4 id={id} className="text-sm font-black tracking-widest text-primary uppercase mt-5 mb-2 first:mt-0">
         {children}
       </h4>
     )
@@ -364,6 +387,57 @@ const heroBodyComponents: Components = {
 
 const remarkPlugins = [remarkGfm]
 
+// WQL link destinations (`[x](:effort{…})`) are scheme-less but NOT relative
+// paths — the default transform would blank them. Pass `:`-prefixed URLs
+// through untouched; everything else keeps the safe default.
+function canvasUrlTransform(url: string): string {
+  return url.startsWith(':') ? url : defaultUrlTransform(url)
+}
+
+// ── Heading ids ───────────────────────────────────────────────────────────────
+
+interface HastNode {
+  type: string
+  value?: unknown
+  tagName?: string
+  properties?: Record<string, unknown>
+  children?: HastNode[]
+}
+
+function headingText(node: HastNode): string {
+  if (node.type === 'text' && typeof node.value === 'string') return node.value
+  return (node.children ?? []).map(headingText).join('')
+}
+
+/** Slug scheme mirrors GitHub's: lowercase, spaces → dashes, alphanumerics
+ *  and dashes kept; duplicates get -1, -2, … so repeated headings stay
+ *  addressable. */
+function slugifyHeading(text: string): string {
+  const base = text
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .replace(/ /g, '-')
+    .replace(/-+/g, '-')
+  return base || 'heading'
+}
+
+/** rehype plugin — id on every heading so prose indexes (`[2026](#2026)`)
+ *  can anchor to them. Dependency-free (no rehype-slug). */
+const rehypeHeadingIds = () => (tree: HastNode) => {
+  const counts = new Map<string, number>()
+  const walk = (node: HastNode): void => {
+    if (node.tagName && /^h[1-6]$/.test(node.tagName)) {
+      const base = slugifyHeading(headingText(node))
+      const seen = counts.get(base) ?? 0
+      counts.set(base, seen + 1)
+      ;(node.properties ??= {}).id = seen === 0 ? base : `${base}-${seen}`
+    }
+    for (const child of node.children ?? []) walk(child)
+  }
+  walk(tree)
+}
+
 // ── FrontmatterCard — styled metadata block ───────────────────────────────────
 
 function FrontmatterCard({ fields }: { fields: ParsedFrontmatter['meta'] }) {
@@ -414,6 +488,8 @@ export function CanvasProse({ prose, className, variant = 'default' }: CanvasPro
       {body && (
         <ReactMarkdown
           remarkPlugins={remarkPlugins}
+          rehypePlugins={[rehypeHeadingIds]}
+          urlTransform={canvasUrlTransform}
           components={componentsByVariant[variant]}
         >
           {body}

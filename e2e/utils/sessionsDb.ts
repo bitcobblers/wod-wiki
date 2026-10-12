@@ -1,17 +1,13 @@
 import type { Page } from '@playwright/test';
 import { WOD_DB } from '../helpers/wodwikiDb';
 
-/**
- * sessionsDb — read/clear helpers over the canonical `sessions` store.
- *
- * The V20 flatten made `sessions` the one result store (StorageService
- * .saveSession → `sessions`); the old `results` object store is an unwritten
- * legacy alias, so result assertions must read here.
- */
+/** Read and clear completed Sessions in the disposable browser test store. */
 
 export interface SessionRow {
   id?: string;
   noteId?: string;
+  blockId?: string;
+  blockVersion?: number;
   blockContentId?: string;
   duration?: number;
   completed?: boolean;

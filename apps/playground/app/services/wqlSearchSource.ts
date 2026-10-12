@@ -123,7 +123,7 @@ export function withWqlText(source: PaletteDataSource): PaletteDataSource {
  * Palette-specific slot defaults (issue #834): whole-note results across all
  * sources with no time window — the fuzzy palette this replaces searched
  * everything, unbounded by date. A stored Route WQL Config default overrides
- * the seed; the secondary :block companion dispatch is unchanged.
+ * the seed. Whole-Note text search includes the body without a companion query.
  */
 export function searchPaletteQuery(): string {
   return readRouteWqlConfig(PALETTE_ROUTE_ID).defaultWql ?? PALETTE_SEED_QUERY;

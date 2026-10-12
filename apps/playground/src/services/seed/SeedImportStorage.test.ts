@@ -1,128 +1,82 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-
 import { IndexedDBStorage } from '@/services/storage';
-import { emptySeedMeta, seedMetaKey, seedSegmentId } from '@/types/seed';
-
-const META_KEY = seedMetaKey('core');
-import type { BlockIndexRow, Note, NoteSegment } from '@/types/storage';
+import { compileSeedRow } from '../../../../../packages/engine/src/cli/seedbuild/compiler';
+import { SEED_SCHEMA, emptySeedMeta, seedMetaKey } from '@/types/seed';
+import { seedNoteId } from './SeedImporter';
 import { IndexedDBSeedImportStorage, type SeedChunkWrite } from './SeedImportStorage';
 
-// applyChunk enqueues the multi-thousand-row derived-chunk writes with
-// Promise.all (#1066). Batching must not change the transaction contract:
-// everything commits, or a failed write aborts the whole chunk.
-
+const key = seedMetaKey('core');
 const originalIndexedDB = globalThis.indexedDB;
+let idb: IndexedDBStorage;
+let storage: IndexedDBSeedImportStorage;
+beforeEach(() => { globalThis.indexedDB = new IDBFactory(); idb = new IndexedDBStorage(); storage = new IndexedDBSeedImportStorage(idb); });
+afterEach(async () => { await idb.close(); if (originalIndexedDB === undefined) Reflect.deleteProperty(globalThis, 'indexedDB'); else globalThis.indexedDB = originalIndexedDB; });
 
-function note(id: string): Note {
-  return {
-    id,
-    title: id,
-    createdAt: 1,
-    type: 'note',
-    sourceId: 'collections:test',
-    catalog: 'test',
-    seedOrigin: 'seed',
-    seedVersion: 7,
-    seedChunkId: 'canvas',
-    sourcePath: `seed/${id}.md`,
-  };
+async function writeFixture(): Promise<SeedChunkWrite> {
+  const row = compileSeedRow('markdown/collections/test/a.md', '# A\n\n```time\n10 Push-ups\n```\n');
+  const id = await seedNoteId(row.path);
+  return { chunkId: 'collection.test', rows: [row], manifest: { schema: SEED_SCHEMA, version: 1, builtAt: new Date(1).toISOString(), chunks: [] }, expectedMeta: undefined, meta: { ...emptySeedMeta(key), importedAt: 1, chunks: { 'collection.test': { sha256: 'a'.repeat(64), noteIds: [id] } } } };
 }
 
-function segmentFor(id: string): NoteSegment {
-  return {
-    id: seedSegmentId(id),
-    version: 1,
-    noteId: id,
-    position: 0,
-    dataType: 'markdown',
-    data: null,
-    rawContent: `# ${id}`,
-    createdAt: 1,
-  };
-}
-
-function blockRow(i: number): BlockIndexRow {
-  return {
-    id: `static:block-${i}`,
-    noteId: 'note-0',
-    segmentId: seedSegmentId('note-0'),
-    segmentVersion: 1,
-    dataType: 'markdown',
-    rawContent: '',
-    noteTitle: 'n',
-    createdAt: 1,
-    isStatic: true,
-  };
-}
-
-function chunkWrite(partial: Partial<SeedChunkWrite>): SeedChunkWrite {
-  return {
-    notes: [],
-    segments: [],
-    efforts: [],
-    blocks: [],
-    blockEfforts: [],
-    deleteNoteIds: [],
-    deleteEffortSlugs: [],
-    deleteBlockIds: [],
-    deleteBlockEffortIds: [],
-    meta: emptySeedMeta(META_KEY),
-    ...partial,
-  };
-}
-
-describe('IndexedDBSeedImportStorage.applyChunk', () => {
-  let seedStorage: IndexedDBSeedImportStorage;
-  let idb: IndexedDBStorage;
-
-  beforeEach(() => {
-    globalThis.indexedDB = new IDBFactory();
-    idb = new IndexedDBStorage();
-    seedStorage = new IndexedDBSeedImportStorage(idb);
+describe('atomic sparse seed storage', () => {
+  it('commits source map, immutable history, projections and checkpoint together', async () => {
+    const write = await writeFixture();
+    await storage.applyChunk(write);
+    expect(await storage.getSeedMeta(key)).toEqual(write.meta);
+    expect(await idb.readonly('notes').count()).toBe(1);
+    expect(await idb.readonly('block_revisions').count()).toBe(1);
+    expect(await idb.readonly('block_index').count()).toBe(1);
   });
-
-  afterEach(async () => {
-    await idb.close();
-    if (originalIndexedDB === undefined) {
-      Reflect.deleteProperty(globalThis, 'indexedDB');
-    } else {
-      globalThis.indexedDB = originalIndexedDB;
-    }
-  });
-
-  it('commits every batched row and the checkpoint in one transaction', async () => {
-    const meta = { ...emptySeedMeta(META_KEY), seedVersion: 7, chunks: { canvas: { sha256: 'a' } } };
-    await seedStorage.applyChunk(
-      chunkWrite({
-        notes: [note('note-0'), note('note-1')],
-        segments: [segmentFor('note-0'), segmentFor('note-1')],
-        blocks: Array.from({ length: 300 }, (_, i) => blockRow(i)),
-        meta,
+  it('commit failure rolls back source, revisions, projections and checkpoint, then retries', async () => {
+    const write = await writeFixture();
+    const failing = new IndexedDBSeedImportStorage({
+      readonly: idb.readonly.bind(idb), readwrite: idb.readwrite.bind(idb),
+      wipe: idb.wipe.bind(idb), close: idb.close.bind(idb),
+      transaction: (stores, mode, fn) => idb.transaction(stores, mode, async (tx) => {
+        await fn(tx);
+        throw new Error('forced commit failure');
       }),
-    );
-
-    expect(await seedStorage.getSeedMeta(META_KEY)).toEqual(meta);
-    expect(await idb.readonly('block_index').count()).toBe(300);
-    expect(await idb.readonly('notes').get('note-1')).toMatchObject({ seedOrigin: 'seed' });
-    expect(await idb.readonly('segments').get([seedSegmentId('note-0'), 1])).toMatchObject({ noteId: 'note-0' });
-  });
-
-  it('aborts the whole chunk when one batched write fails', async () => {
-    const invalid = blockRow(999);
-    Reflect.deleteProperty(invalid, 'id');
-
-    await expect(
-      seedStorage.applyChunk(
-        chunkWrite({
-          blocks: [...Array.from({ length: 50 }, (_, i) => blockRow(i)), invalid],
-          meta: { ...emptySeedMeta(META_KEY), seedVersion: 9 },
-        }),
-      ),
-    ).rejects.toThrow();
-
+    });
+    await expect(failing.applyChunk(write)).rejects.toThrow(/forced commit failure/);
+    expect(await idb.readonly('notes').count()).toBe(0);
     expect(await idb.readonly('block_index').count()).toBe(0);
-    expect(await idb.readonly('meta').get(META_KEY)).toBeUndefined();
+    expect(await storage.getSeedMeta(key)).toBeUndefined();
+    expect(await idb.readonly('block_revisions').count()).toBe(0);
+    await storage.applyChunk(write);
+    expect(await idb.readonly('block_revisions').count()).toBe(1);
+  });
+  it('immutable v1 collision aborts a later chunk transaction', async () => {
+    const write = await writeFixture();
+    const block = Object.values(write.rows[0].blocks)[0];
+    const noteId = await seedNoteId(write.rows[0].path);
+    await idb.readwrite('block_revisions').put({ noteId, blockId: block.id, version: 1, kind: block.kind, rawContent: write.rows[0].content.slice(block.from, block.to), dialect: 'time', savedAt: 0 });
+    const original = idb.transaction.bind(idb);
+    const failing = new IndexedDBSeedImportStorage({
+      readonly: idb.readonly.bind(idb), readwrite: idb.readwrite.bind(idb), wipe: idb.wipe.bind(idb), close: idb.close.bind(idb),
+      transaction: (stores, mode, fn) => original(stores, mode, async (tx) => {
+        const result = await fn(tx);
+        await tx.readwrite('block_revisions').put({ noteId, blockId: block.id, version: 1, kind: block.kind, rawContent: 'conflicting source', dialect: 'time', savedAt: 0 });
+        return result;
+      }),
+    });
+    await expect(failing.applyChunk(write)).rejects.toThrow();
+    expect(await idb.readonly('notes').count()).toBe(0);
+    expect(await idb.readonly('block_index').count()).toBe(0);
+    expect(await storage.getSeedMeta(key)).toBeUndefined();
+    expect(await idb.readonly('block_revisions').count()).toBe(1);
+  });
+  it('checkpoint race rejects all planned mutations', async () => {
+    const write = await writeFixture();
+    await storage.putSeedMeta({ ...emptySeedMeta(key), claim: { owner: 'other', at: 1 } });
+    await expect(storage.applyChunk(write)).rejects.toThrow(/checkpoint changed/);
+    expect(await idb.readonly('notes').count()).toBe(0);
+  });
+  it('claim acquisition verifies the original full row in the transaction', async () => {
+    const claimed = { ...emptySeedMeta(key), claim: { owner: 'first', at: 1 } };
+    await storage.putSeedMeta(claimed, null);
+    await expect(storage.putSeedMeta({ ...claimed, claim: { owner: 'second', at: 2 } }, null)).rejects.toThrow(/checkpoint changed/);
+    expect(await storage.getSeedMeta(key)).toEqual(claimed);
   });
 });

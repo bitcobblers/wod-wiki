@@ -119,8 +119,8 @@ function sessionEvents(logs: StoredOutputStatement[], id: ExampleIdentity): Even
   const rows = toSummaryEventRows(logs, {
     noteId: id.noteId,
     resultId: id.resultId,
-    segmentId: 'example-segment',
-    segmentVersion: 1,
+    blockId: 'example-block',
+    blockVersion: 1,
     blockContentId: id.blockContentId,
     origin: 'journal',
     workoutTimestamp: id.timestamp,

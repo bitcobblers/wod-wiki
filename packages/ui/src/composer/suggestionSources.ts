@@ -61,7 +61,7 @@ export function mergeTagSuggestions(userLabels: string[], corpusLabels: string[]
 }
 
 /** Canonical static block types — actual indexed corpus types rank ahead at runtime. */
-export const CANONICAL_BLOCK_TYPES = ['wod', 'movement', 'workout'] as const;
+export const CANONICAL_BLOCK_TYPES = ['wod', 'query', 'widget', 'embed'] as const;
 
 /** Suggestion items for a canonical readonly vocabulary; labels are display-only. */
 export function canonicalSuggestionItems(values: readonly string[]): SuggestionItem[] {

@@ -1,23 +1,28 @@
 import type { StoredOutputStatement } from './results';
 
-// ---------------------------------------------------------------------------
-// Segment data types
-// ---------------------------------------------------------------------------
-export type SegmentDataType =
-  | 'script'
-  | 'youtube'
-  | 'markdown'
-  | 'header'
-  | 'frontmatter'
-  | 'wod'
-  | 'title'
-  | 'h1'
-  | 'h2'
-  | 'h3'
-  | 'h4'
-  | 'h5'
-  | 'h6';
+export type NoteBlockKind = 'wod' | 'query' | 'widget' | 'embed';
 
+export interface NoteBlock {
+  id: string;
+  kind: NoteBlockKind;
+  version: number;
+  sourceRevision: number;
+  from: number;
+  to: number;
+  dialect?: 'time' | 'log';
+  sport?: string;
+}
+
+export interface BlockRevision {
+  noteId: string;
+  blockId: string;
+  version: number;
+  kind: NoteBlockKind;
+  rawContent: string;
+  savedAt: number;
+  dialect?: 'time' | 'log';
+  sport?: string;
+}
 // ---------------------------------------------------------------------------
 // Note — root container
 // ---------------------------------------------------------------------------
@@ -26,15 +31,19 @@ export type NoteKind = 'journal' | 'template' | 'playground' | 'feed' | 'dashboa
 export interface Note {
   id: string; // UUID — canonical storage identity
   title: string; // Display name
+  rawContent: string;
+  sourceRevision: number;
+  blocks: Record<string, NoteBlock>;
   date?: number; // Domain date of the record (e.g. workout date, publish date)
   createdAt: number; // Creation timestamp
   type?: NoteKind;
   sourceId?: string;
   catalog?: string;
   tags?: string[];
-  /** Original seed file path (e.g. `markdown/collections/girls/fran.md`) — the
-   *  deterministic UUID is derived from this path; retained for seed content
-   *  reconstruction (canvas routes, collection READMEs, block-index lookup). */
+  seedOrigin?: 'seed' | 'user';
+  seedVersion?: number;
+  seedChunkId?: string;
+  /** Authored seed path used for deterministic identity and routing. */
   sourcePath?: string;
 }
 
@@ -87,39 +96,27 @@ export interface NoteTag {
 }
 
 // ---------------------------------------------------------------------------
-// NoteSegment — versioned content chunk
-// ---------------------------------------------------------------------------
-export interface NoteSegment {
-  id: string;
-  version: number;
-  noteId: string;
-  position?: number;
-  pageId?: string;
-  dataType: SegmentDataType;
-  data: unknown;
-  rawContent: string;
-  createdAt: number;
-  updatedAt?: number;
-  isHistory?: boolean;
-}
-
-// ---------------------------------------------------------------------------
 // BlockIndexRow — derived block index for WQL content queries
 // ---------------------------------------------------------------------------
 export interface BlockIndexRow {
-  /** Composite key: `${noteId}:${segmentId}:${segmentVersion}` */
+  /** Current occurrence key `${noteId}:${blockId}`. */
   id: string;
   noteId: string;
-  segmentId: string;
-  segmentVersion: number;
+  blockId: string;
+  blockVersion: number;
+  sourceRevision: number;
+  from: number;
+  to: number;
   position?: number;
-  dataType: string;
+  dataType: NoteBlock['kind'];
   blockContentId?: string;
   rawContent: string;
   noteTitle: string;
   createdAt: number;
   isStatic?: boolean;
   sourceId?: string;
+  sourcePath?: string;
+  routeId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -129,17 +126,13 @@ export type ResultOrigin = 'journal' | 'playground' | 'user';
 
 export interface Session {
   id: string;
-  segmentId?: string;
-  segmentVersion?: number;
   noteId: string;
-  blockId?: string;
+  blockId: string;
+  blockVersion: number;
   blockContentId?: string;
-  version?: number;
   origin?: ResultOrigin;
   pageId?: string;
-  /** Write-path lifecycle (ticket 005): row born 'in-progress' at workout
-   *  start, flipped to 'completed' at finalize. Absent = 'completed'
-   *  (legacy rows predate streaming). */
+  /** Born in-progress at run start, completed when finalization commits. */
   status?: 'in-progress' | 'completed';
 
   /** When workout started */
@@ -202,8 +195,8 @@ export interface AnalyticsDataPoint {
    *  partitions) — normalized key → value, resolved by factTagValue after
    *  the structural switch so `by {coach}` / `{coach:greg}` work. */
   dimensions?: Record<string, string>;
-  segmentId: string;
-  segmentVersion: number;
+  blockId: string;
+  blockVersion: number;
   resultId: string;
   type: string;
   value: unknown;
@@ -287,8 +280,8 @@ export interface EventRecord {
   dialect?: string;
   stackLevel?: number;
   completionReason?: string;
-  segmentId?: string;
-  segmentVersion?: number;
+  blockId?: string;
+  blockVersion?: number;
   /** Per-metric temporal anchors (ticket 12) — parallel to `metrics` when
    *  the producing statement carries its own instants/dates:
    *  'instant' = recorded occurrence instant; 'civil-date' = recorded civil
@@ -403,4 +396,28 @@ export interface CatalogBackfillState {
   cursor?: { results?: string; notes?: string; events?: string };
   revision: number;
   updatedAt: number;
+}
+
+export interface BlockEffort {
+  id: string;
+  noteId: string;
+  blockId: string;
+  blockContentId?: string;
+  effortSlug: string;
+  isStatic?: boolean;
+  sourcePath?: string;
+  createdAt: number;
+}
+
+export interface Membership {
+  id: string;
+  displayName: string;
+  picture?: string;
+  weight?: number;
+  weightUnit?: 'kg' | 'lb';
+  height?: number;
+  heightUnit?: 'cm' | 'in';
+  birthDate?: string;
+  createdAt: number;
+  updatedAt?: number;
 }

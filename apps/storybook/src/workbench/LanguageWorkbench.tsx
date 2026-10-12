@@ -12,7 +12,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { Edit3 } from 'lucide-react';
 
-import crossfitJournal from '../../../../packages/wql/fixtures/corpus/crossfit-multi-week.json';
+import { JOURNALS, buildServiceForJournal } from '../gallery/journals';
 import {
   QueryService,
   parseQuery,
@@ -20,7 +20,6 @@ import {
   isFindQuery,
   type QueryResult,
   inMemoryEventStore,
-  type NoteQueryStore,
   createParser,
   getHints,
   hintsToContainer,
@@ -52,15 +51,15 @@ import {
   buildStatementTree,
   type ExecutionLog,
 } from '@bitcobblers/wod-wiki-engine';
-import type { Note, UnifiedEventRecord } from '@bitcobblers/wod-wiki-core';
+import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { ScriptBlock } from '@bitcobblers/wod-wiki-core';
 import { TimerStackView } from '@/components/organisms/workout/TimerStackView';
 import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
 import { VisualStatePanel } from '@/panels/visual-state-panel';
 import { calculateDuration } from '@/lib/timeUtils';
 import type { ITimerDisplayEntry } from '@/clock/types/DisplayTypes';
-import { toEventRows } from '@bitcobblers/wod-wiki-wql';
-import { toStoredOutputStatement, type StoredOutputStatement, type UnifiedEventStore } from '@bitcobblers/wod-wiki-engine';
+import { toEventRows, type EventStore } from '@bitcobblers/wod-wiki-wql';
+import { toStoredOutputStatement, type StoredOutputStatement } from '@bitcobblers/wod-wiki-engine';
 import {
   editorPreset,
   sectionField,
@@ -216,6 +215,7 @@ export function useNoteEditor(
       parent: host.current,
     });
     viewRef.current = view;
+    cb.current(view.state.doc.toString(), view.state.field(sectionField).sections);
     return () => {
       view.destroy();
       viewRef.current = null;
@@ -720,19 +720,21 @@ function inferDiscipline(effort: string): string {
   return 'strength';
 }
 
-function buildWorkbenchSessionStore(outputs: IOutputStatement[]): UnifiedEventStore {
+function buildWorkbenchSessionStore(outputs: IOutputStatement[]): EventStore {
   const stored = outputs.map(toStoredOutputStatement);
   const now = Date.now();
   const identity = {
     resultId: 'session',
     noteId: 'workbench',
+    blockId: 'workbench-workout',
+    blockVersion: 1,
     blockContentId: 'workbench',
     origin: 'playground' as const,
     workoutTimestamp: now,
   };
   const eventRows = toEventRows(stored, identity);
 
-  const summaryRows: UnifiedEventRecord[] = [];
+  const summaryRows: EventRecord[] = [];
   let _totalReps = 0;
   let _totalVolume = 0;
   let _totalDistance = 0;
@@ -841,6 +843,8 @@ function buildWorkbenchSessionStore(outputs: IOutputStatement[]): UnifiedEventSt
       id: `session:summary:sessionLoad:${disc}`,
       resultId: identity.resultId,
       noteId: identity.noteId,
+      blockId: identity.blockId,
+      blockVersion: identity.blockVersion,
       blockContentId: identity.blockContentId,
       origin: identity.origin,
       timestamp: now,
@@ -850,6 +854,7 @@ function buildWorkbenchSessionStore(outputs: IOutputStatement[]): UnifiedEventSt
         type: 'sessionLoad',
         value: loadVal,
         unit: 'pts',
+        origin: 'runtime',
         metadata: {
           canonicalKey: 'sessionLoad',
           effortDiscipline: disc,
@@ -1634,7 +1639,7 @@ export function DashboardQueryCard({
         const sessionService = new QueryService(buildWorkbenchSessionStore(outputs));
         return sessionService.run(parsed, { preferredUnit: 'lb' });
       }
-      const newest = Math.max(...crossfitJournal.records.map((r) => r.timestamp));
+      const newest = Math.max(...JOURNALS.crossfit.records.map((r) => r.timestamp));
       return corpusService.run(parsed, { rangeEnd: newest, preferredUnit: 'lb' });
     },
     // The card renders aggregates only; the modal routes find/rows here,
@@ -1673,7 +1678,7 @@ export function DashboardQueryCard({
           setResult(r);
           setError(undefined);
         } else {
-          const newest = Math.max(...crossfitJournal.records.map((r) => r.timestamp));
+          const newest = Math.max(...JOURNALS.crossfit.records.map((r) => r.timestamp));
           const r = await corpusService.run(parsed, { rangeEnd: newest, preferredUnit: 'lb' });
           setResult(r);
           setError(undefined);
@@ -1806,16 +1811,7 @@ export function DashboardAnalyticsSection({
   useEffect(() => {
     setSegments((dashboards ?? DEFAULT_DASHBOARD_QUERIES).map((d, i) => normalizeDashboardSegment(d, i)));
   }, [dashboards]);
-  const corpusService = useMemo(() => {
-    const noteStore: NoteQueryStore = {
-      getAllNotes: async () => crossfitJournal.notes as unknown as Note[],
-      getNoteIdsForTag: async (tag: string) =>
-        new Set(crossfitJournal.notes.filter((n) => n.tags?.includes(tag)).map((n) => n.id)),
-      getNoteTagLabels: async (id: string) =>
-        crossfitJournal.notes.find((n) => n.id === id)?.tags ?? [],
-    };
-    return new QueryService(inMemoryEventStore(crossfitJournal.records as unknown as UnifiedEventRecord[]), noteStore);
-  }, []);
+  const corpusService = useMemo(() => buildServiceForJournal(JOURNALS.crossfit), []);
 
   // Add flow: compose in the dialog first — the widget is appended only on
   // Apply. Diagnostics run against the corpus (always populated); the card
@@ -1828,7 +1824,7 @@ export function DashboardAnalyticsSection({
       if (isFindQuery(parsed)) {
         return Promise.reject(new Error('Dashboard widgets evaluate aggregate queries — find/rows queries are for table views.'));
       }
-      const newest = Math.max(...crossfitJournal.records.map((r) => r.timestamp));
+      const newest = Math.max(...JOURNALS.crossfit.records.map((r) => r.timestamp));
       return corpusService.run(parsed, { rangeEnd: newest, preferredUnit: 'lb' });
     },
     runFind: () => Promise.reject(new Error('Dashboard widgets evaluate aggregate queries — find/rows queries are for table views.')),
@@ -2027,6 +2023,12 @@ export function LanguageWorkbench({
         factory.disposeRuntime(runtime);
       }
       const block: ScriptBlock = {
+        id: activeBlock?.section.id ?? 'workbench-workout',
+        startLine: activeBlock?.section.startLine ?? 0,
+        endLine: activeBlock?.section.endLine ?? 0,
+        state: 'idle',
+        version: 1,
+        createdAt: Date.now(),
         content: runSource,
         statements: currentScript.statements,
       };
@@ -2049,6 +2051,12 @@ export function LanguageWorkbench({
       factory.disposeRuntime(runtime);
     }
     const block: ScriptBlock = {
+      id: activeBlock?.section.id ?? 'workbench-workout',
+      startLine: activeBlock?.section.startLine ?? 0,
+      endLine: activeBlock?.section.endLine ?? 0,
+      state: 'idle',
+      version: 1,
+      createdAt: Date.now(),
       content: runSource,
       statements: currentScript.statements,
     };
@@ -2087,6 +2095,12 @@ export function LanguageWorkbench({
     }
     if (currentScript && currentScript.statements.length > 0) {
       const block: ScriptBlock = {
+        id: activeBlock?.section.id ?? 'workbench-workout',
+        startLine: activeBlock?.section.startLine ?? 0,
+        endLine: activeBlock?.section.endLine ?? 0,
+        state: 'idle',
+        version: 1,
+        createdAt: Date.now(),
         content: runSource,
         statements: currentScript.statements,
       };

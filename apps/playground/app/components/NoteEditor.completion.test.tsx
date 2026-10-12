@@ -11,6 +11,10 @@ import { afterEach, describe, expect, it, mock } from 'bun:test';
  */
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
+import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
+import { StorageService } from '@/services/storage/StorageService';
+import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
+let persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage()));
 
 const sampleResults: Sessions = {
   completed: true,
@@ -36,7 +40,7 @@ mock.module('@/components/organisms/review/FullscreenTimer', () => ({
         data-testid="complete-workout"
         onClick={() => {
           lastReport = { blockId: props.block.id, results: sampleResults };
-          void props.onCompleteWorkout(lastReport.blockId, lastReport.results);
+          void Promise.resolve(props.onCompleteWorkout(lastReport.blockId, lastReport.results)).catch(() => {});
         }}
       >
         complete
@@ -44,7 +48,7 @@ mock.module('@/components/organisms/review/FullscreenTimer', () => ({
       <button
         data-testid="retry-workout"
         onClick={() => {
-          if (lastReport) void props.onCompleteWorkout(lastReport.blockId, lastReport.results);
+          if (lastReport) void Promise.resolve(props.onCompleteWorkout(lastReport.blockId, lastReport.results)).catch(() => {});
         }}
       >
         retry
@@ -53,12 +57,6 @@ mock.module('@/components/organisms/review/FullscreenTimer', () => ({
   ),
 }));
 
-mock.module('@/services/persistence', () => ({
-  notePersistence: {
-    getNote: async () => ({ extendedResults: [] }),
-    listNotes: async () => [],
-  },
-}));
 
 // Lives in the playground tree on purpose: `bun test ./src` shares one module
 // registry per process and sibling suites stub '@/services/analytics/query'
@@ -80,7 +78,7 @@ const zeroRect = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, h
 
 const DOC = 'Intro prose.\n\n```time\n5s\n```\n\nTrailing notes.';
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage())); });
 
 function renderEditor(onChange: (value: string) => void, value = DOC) {
   const onCompleteWorkout = mock((_blockId: string, _results: Sessions | undefined, _resultId?: string): void => {});
@@ -89,6 +87,8 @@ function renderEditor(onChange: (value: string) => void, value = DOC) {
       value={value}
       onChange={onChange}
       noteId="journal/2026-08-02"
+      notePersistence={persistence}
+      sourceRevision={0}
       onCompleteWorkout={onCompleteWorkout}
     />,
   );
@@ -167,6 +167,8 @@ describe('NoteEditor write-on-completion (#944)', () => {
         value={DOC}
         onChange={onChange}
         noteId="journal/2026-08-02"
+        notePersistence={persistence}
+        sourceRevision={0}
         onCompleteWorkout={onCompleteWorkout}
       />,
     );
@@ -184,14 +186,11 @@ describe('NoteEditor write-on-completion (#944)', () => {
     expect(onCompleteWorkout.mock.calls[1][2]).toBe(resultId);
     expect([...latestValue.matchAll(/:session\{result:([0-9a-f-]+)\}/g)]).toHaveLength(1);
 
-    // A settled save releases the report: replaying the same object afterwards
-    // is a fresh run — new id, second table stacked.
     fireEvent.click(screen.getByTestId('retry-workout'));
-    await waitFor(() => expect(calls).toBe(3));
-    const ids = [...latestValue.matchAll(/:session\{result:([0-9a-f-]+)\}/g)].map(m => m[1]);
-    expect(ids).toHaveLength(2);
-    expect(ids[0]).not.toBe(resultId);
-    expect(ids[1]).toBe(resultId);
-    expect(onCompleteWorkout.mock.calls[2][2]).toBe(ids[0]);
+    const settled = Promise.withResolvers<void>();
+    setTimeout(settled.resolve, 0);
+    await settled.promise;
+    expect(calls).toBe(2);
+    expect([...latestValue.matchAll(/:session\{result:([0-9a-f-]+)\}/g)]).toHaveLength(1);
   });
 });

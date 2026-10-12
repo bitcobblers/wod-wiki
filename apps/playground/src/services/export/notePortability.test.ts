@@ -3,6 +3,7 @@ import { noteToMarkdown } from './NoteMarkdownSerializer';
 import { parseMarkdownToEntry } from './NoteMarkdownDeserializer';
 import { frozenNow } from '@bitcobblers/wod-wiki-engine';
 import type { HistoryEntry } from '@/types/history';
+import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 
 /**
  * Round-trip test for the note portability surface.
@@ -18,11 +19,6 @@ import type { HistoryEntry } from '@/types/history';
  *   - sourceId (the note this one was created from)
  *   - clonedIds are no longer persisted; reverse links are derived from sourceId
  *
- * The deserializer's return type is currently `Omit<HistoryEntry, 'id' |
- * 'createdAt' | 'updatedAt' | 'schemaVersion'>` — it drops ID, Created, and
- * Updated even though the serializer writes them. Until S7c fixes the
- * deserializer to recover those metadata fields, the ID/Created/Updated
- * assertions in this test FAIL. That failure is the data-loss bug.
  */
 describe('notePortability round-trip', () => {
     const fixedDate = new Date('2025-06-01T12:00:00.000Z');
@@ -72,10 +68,6 @@ describe('notePortability round-trip', () => {
         expect(recovered!.sourceId).toBe('template-orig');
     });
 
-    // ── FAILING until S7c fixes the deserializer ──────────────────────────
-    // The serializer writes ID, Created, and Updated into the metadata block.
-    // The deserializer currently drops them (return type Omits them). These
-    // three tests are RED until parseMarkdownToEntry recovers those fields.
 
     /**
      * Read an unknown-typed field from a parsed entry, narrowing with `in`.
@@ -94,7 +86,6 @@ describe('notePortability round-trip', () => {
         const md = noteToMarkdown(entry, clock);
         const recovered = parseMarkdownToEntry(md, clock);
 
-        // Until S7c, `recovered` has no `id` field — this fails.
         expect(fieldOf(recovered, 'id')).toBe('preserve-me-42');
     });
 
@@ -112,5 +103,22 @@ describe('notePortability round-trip', () => {
         const recovered = parseMarkdownToEntry(md, clock);
 
         expect(fieldOf(recovered, 'updatedAt')).toBe(ts + 120_000);
+    });
+
+    it('preserves exact whitespace, UTF-16 locations and occurrence IDs', () => {
+        const rawContent = '\uFEFF  \r\n```time\r\n10 Pushups  \r\n```\r\n\r\n';
+        const blocks = reconcileNoteBlocks(rawContent, { sourceRevision: 4, createId: () => 'occurrence' });
+        const entry = baseEntry({ rawContent, blocks, sourceRevision: 4 });
+        const recovered = parseMarkdownToEntry(noteToMarkdown(entry, clock), clock);
+        expect(recovered?.rawContent).toBe(rawContent);
+        expect(recovered?.blocks).toEqual(blocks);
+        expect(recovered?.sourceRevision).toBe(4);
+    });
+
+    it('round-trips registered widget occurrence maps', () => {
+        const rawContent = '```widget:attention\n{"headline":"Tip"}\n```';
+        const blocks = reconcileNoteBlocks(rawContent, { sourceRevision: 2 });
+        const recovered = parseMarkdownToEntry(noteToMarkdown(baseEntry({ rawContent, blocks, sourceRevision: 2 }), clock), clock);
+        expect(recovered?.blocks).toEqual(blocks);
     });
 });

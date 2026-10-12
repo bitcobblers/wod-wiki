@@ -8,6 +8,7 @@ import type { ParsedFindQuery, ParsedRowsQuery } from '@bitcobblers/wod-wiki-eng
 import { QueriableStreamView } from './QueriableStreamView'
 import type { Note, BlockIndexRow } from '@/types/storage'
 import { pendingRuntimes } from '../../runtimeStore'
+import { InMemoryStorage, setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import {
   EFFORTS_STREAM_PROFILE,
@@ -56,8 +57,34 @@ mock.module('@/services/seed/seedSync', () => ({
     syncSeedSourceMock(...args),
 }))
 
+// Collection READMEs read through useSeedContent; tests drive the readme by
+// pointing it at an in-memory corpus file. The default-engine override feeds
+// {{:wql}} token blocks — the view's own queryEngine prop is untouched.
+// Dynamic import (load-boundary exception): static bindings would resolve to
+// the mock.module replacement; we need the real module to spread it.
+const realSeedContent = await import('@/services/content/seedContent')
+let seedFilesMock: Record<string, string> | null = null
+mock.module('@/services/content/seedContent', () => ({
+  ...realSeedContent,
+  useSeedContent: () => seedFilesMock,
+}))
+
+// Same load-boundary exception: capture the real entrySearch before the
+// mock.module replacement so {{:wql}} token blocks get a controllable engine.
+const realEntrySearch = await import('../../lib/entrySearch')
+let tokenEntries: Entry[] = []
+mock.module('../../lib/entrySearch', () => ({
+  ...realEntrySearch,
+  defaultStreamQueryEngine: {
+    query: mock(async () => tokenEntries),
+    withNoteBlockInfo: () => realEntrySearch.defaultStreamQueryEngine,
+  },
+}))
+
 beforeEach(() => {
   communitySyncOutcome = 'imported'
+  seedFilesMock = null
+  tokenEntries = []
   window.localStorage.clear()
 })
 
@@ -477,21 +504,31 @@ describe('QueriableStreamView component', () => {
       visibleFields: ['title', 'excerpt', 'date'],
     })
 
+    const memory = new InMemoryStorage()
+    setStorageForTesting(memory)
+    try {
     const note: Note = {
       id: 'uuid-1',
       title: 'Fran Experiment',
       createdAt: 1_700_000_000_000,
       type: 'playground',
       sourceId: 'playground',
+      rawContent: '```time\n21-15-9\nThrusters\nPull-ups\n```',
+      sourceRevision: 1,
+      blocks: { s1: { id: 's1', kind: 'wod', version: 1, sourceRevision: 1, from: 0, to: 38, dialect: 'time' } },
     }
+    await storageService.saveNoteSource({ noteId: note.id, rawContent: note.rawContent,
+      blocks: note.blocks, expectedSourceRevision: 0, createdAt: note.createdAt,
+      metadata: { title: note.title, type: note.type, sourceId: note.sourceId } })
     const wodBlock: BlockIndexRow = {
-      id: 'b:uuid-1',
+      id: `${note.id}:s1`,
       noteId: 'uuid-1',
-      segmentId: 's1',
-      segmentVersion: 1,
+      blockId: 's1',
+      blockVersion: 1,
+      sourceRevision: 1, from: 0, to: 38,
       position: 0,
       dataType: 'wod',
-      rawContent: '21-15-9\nThrusters\nPull-ups',
+      rawContent: note.rawContent,
       noteTitle: 'Fran Experiment',
       createdAt: 1_700_000_000_000,
       blockContentId: 'wod-hash-1',
@@ -552,6 +589,11 @@ describe('QueriableStreamView component', () => {
     expect(pending?.returnTo).toBe('/playground/uuid-1')
     expect(pending?.block.content).toContain('21-15-9')
     pendingRuntimes.clear()
+    } finally {
+      pendingRuntimes.clear()
+      resetStorageForTesting()
+      await memory.close()
+    }
   })
 
   it('View ▸ Arrange-by writes through to the WQL line and the grid follows', async () => {
@@ -717,6 +759,77 @@ describe('QueriableStreamView component', () => {
     const error = await waitFor(() => screen.getByTestId('seed-library-notice-error'))
     expect(error.textContent).toContain('Community seed unreachable')
     expect(screen.getByTestId('seed-library-notice')).toBeDefined()
+  })
+
+  it('catalog readme [heading](:query)! embeds inject results and suppress the default stream', async () => {
+    seedFilesMock = {
+      'markdown/collections/testcat/README.md':
+        'About this catalog.\n\n[Recent entries](:feed{catalog:testcat})!\n\nMore copy after.',
+    }
+    tokenEntries = [
+      { id: 'injected-1', kind: 'note', sourceCatalog: 'testcat', sourceItem: 'injected-1', title: 'Injected Entry', date: null },
+    ]
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/c/testcat']}>
+        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const block = await waitFor(() => screen.getByTestId('readme-query-block'), { timeout: 5000 })
+    expect(block.textContent).toContain('Injected Entry')
+    // The embed link text becomes the block heading.
+    expect(screen.getByTestId('readme-query-heading').textContent).toBe('Recent entries')
+    expect(screen.getByTestId('collection-readme-note').textContent).toContain('About this catalog.')
+    expect(screen.getByTestId('collection-readme-note').textContent).toContain('More copy after.')
+    // The override replaces the default feed stream below the readme.
+    expect(screen.queryByTestId('stream-empty-state')).toBeNull()
+  })
+
+  it('embed with an empty heading renders no heading element', async () => {
+    seedFilesMock = { 'markdown/collections/testcat/README.md': '[](:feed{catalog:testcat})!' }
+    tokenEntries = [
+      { id: 'injected-2', kind: 'note', sourceCatalog: 'testcat', sourceItem: 'injected-2', title: 'Injected Entry', date: null },
+    ]
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/c/testcat']}>
+        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => screen.getByTestId('readme-query-block'), { timeout: 5000 })
+    expect(screen.queryByTestId('readme-query-heading')).toBeNull()
+  })
+
+  it('bang-less WQL links in the readme stay navigation links and keep the default stream', async () => {
+    seedFilesMock = { 'markdown/collections/testcat/README.md': 'Browse [all feeds](:feed{catalog:testcat}).' }
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/c/testcat']}>
+        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => screen.getByTestId('collection-readme-note'), { timeout: 5000 })
+    const link = screen.getByRole('link', { name: 'all feeds' })
+    expect(link.getAttribute('href')).toBe(`/c/testcat?q=${encodeURIComponent(':feed{catalog:testcat}')}`)
+    expect(screen.queryByTestId('readme-query-block')).toBeNull()
+    expect(screen.getByTestId('stream-empty-state')).toBeDefined()
+  })
+
+  it('catalog page keeps the default stream when the readme has no query tokens', async () => {
+    seedFilesMock = { 'markdown/collections/testcat/README.md': 'Plain readme, no tokens.' }
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/c/testcat']}>
+        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => screen.getByTestId('collection-readme-note'), { timeout: 5000 })
+    expect(screen.getByTestId('stream-empty-state')).toBeDefined()
+    expect(screen.queryByTestId('readme-query-block')).toBeNull()
   })
 
   it('never shows the sync notice on routes whose corpus is not seed-sourced', () => {

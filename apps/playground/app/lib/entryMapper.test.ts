@@ -24,6 +24,7 @@ function makeNote(overrides: Partial<Note> & { slug?: string; pageId?: string } 
   return {
     id: 'n',
     title: 't',
+    rawContent: '', sourceRevision: 1, blocks: {},
     createdAt: 0,
     type: 'note',
     ...overrides,
@@ -330,8 +331,11 @@ function makeBlock(overrides: Partial<BlockIndexRow> = {}): BlockIndexRow {
   return {
     id: 'static:note:seg:1',
     noteId: 'feeds/crossfit-programming/2026-01-12/wednesday-hero',
-    segmentId: 'sec-7',
-    segmentVersion: 1,
+    blockId: 'sec-7',
+    blockVersion: 1,
+    sourceRevision: 1,
+    from: 0,
+    to: 16,
     position: 2,
     dataType: 'wod',
     rawContent: 'Murph\n\n1 mile run',
@@ -352,7 +356,7 @@ describe('blockToEntry (#855)', () => {
     expect(entry.date).toBe('2026-01-12')
     expect(entry.title).toBe('Wednesday Hero')
     expect(entry.block).toEqual({
-      segmentId: 'sec-7',
+      blockId: 'sec-7',
       dataType: 'wod',
       preview: ['Murph', '1 mile run'],
     })

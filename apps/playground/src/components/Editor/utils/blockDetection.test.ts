@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { detectScriptBlocks, findBlockAtLine, extractBlockContent } from '@bitcobblers/wod-wiki-core';
+import { detectScriptBlocks, findBlockAtLine, extractBlockContent, parseDocumentSections, buildRawContent, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 
 describe('detectScriptBlocks', () => {
   it('should detect a single time block', () => {
@@ -14,7 +14,7 @@ describe('detectScriptBlocks', () => {
     expect(blocks).toHaveLength(1);
     expect(blocks[0].startLine).toBe(2);
     expect(blocks[0].endLine).toBe(5);
-    expect(blocks[0].content).toBe('20:00 AMRAP\n  + 5 Pullups');
+    expect(blocks[0].content).toBe('20:00 AMRAP\n  + 5 Pullups\n');
     expect(blocks[0].state).toBe('idle');
     expect(blocks[0].dialect).toBe('time');
   });
@@ -25,8 +25,8 @@ describe('detectScriptBlocks', () => {
     const blocks = detectScriptBlocks(content);
 
     expect(blocks).toHaveLength(2);
-    expect(blocks[0].content).toBe('(21-15-9)\n  Thrusters');
-    expect(blocks[1].content).toBe('10:00\n  Run');
+    expect(blocks[0].content).toBe('(21-15-9)\n  Thrusters\n');
+    expect(blocks[1].content).toBe('10:00\n  Run\n');
   });
 
   it('should handle empty document', () => {
@@ -41,15 +41,11 @@ describe('detectScriptBlocks', () => {
     expect(blocks).toHaveLength(0);
   });
 
-  it('should handle incomplete block (no closing backticks)', () => {
+  it('keeps unclosed fences recoverable without actionable workout rows', () => {
     const content = '```time\n20:00 AMRAP\n  + 5 Pullups';
-
-    const blocks = detectScriptBlocks(content);
-
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0].startLine).toBe(0);
-    expect(blocks[0].endLine).toBe(2);
-    expect(blocks[0].content).toBe('20:00 AMRAP\n  + 5 Pullups');
+    expect(detectScriptBlocks(content)).toHaveLength(0);
+    expect(Object.keys(reconcileNoteBlocks(content, { sourceRevision: 1 }))).toHaveLength(0);
+    expect(buildRawContent(parseDocumentSections(content))).toBe(content);
   });
 
   it('should handle time blocks with extra spaces after ```time', () => {
@@ -64,7 +60,7 @@ describe('detectScriptBlocks', () => {
 
     const blocks = detectScriptBlocks(content);
     expect(blocks).toHaveLength(1);
-    expect(blocks[0].content).toBe('21-15-9');
+    expect(blocks[0].content).toBe('21-15-9\n');
   });
 
   it('should not detect code blocks that are not time/log', () => {
@@ -72,7 +68,7 @@ describe('detectScriptBlocks', () => {
 
     const blocks = detectScriptBlocks(content);
     expect(blocks).toHaveLength(1);
-    expect(blocks[0].content).toBe('20:00 AMRAP');
+    expect(blocks[0].content).toBe('20:00 AMRAP\n');
   });
 
   it('should handle empty time block', () => {
@@ -118,11 +114,11 @@ describe('detectScriptBlocks', () => {
     expect(blocks[0].sport).toBe('climbing');
   });
 
-  it('should parse ```time: with empty sport suffix as dialect time only', () => {
-    const blocks = detectScriptBlocks('```time:\n10:00 Run\n```');
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0].dialect).toBe('time');
-    expect(blocks[0].sport).toBeUndefined();
+  it('keeps an empty sport suffix recoverable without coercing it to a workout', () => {
+    const content = '```time:\n10:00 Run\n```';
+    expect(detectScriptBlocks(content)).toHaveLength(0);
+    expect(Object.keys(reconcileNoteBlocks(content, { sourceRevision: 1 }))).toHaveLength(0);
+    expect(buildRawContent(parseDocumentSections(content))).toBe(content);
   });
 });
 
@@ -166,14 +162,14 @@ describe('extractBlockContent', () => {
     const content = '# Title\n```time\n20:00 AMRAP\n  + 5 Pullups\n```\nText';
 
     const extracted = extractBlockContent(content, 1, 4);
-    expect(extracted).toBe('20:00 AMRAP\n  + 5 Pullups');
+    expect(extracted).toBe('20:00 AMRAP\n  + 5 Pullups\n');
   });
 
   it('should handle single line block', () => {
     const content = '```time\n20:00\n```';
 
     const extracted = extractBlockContent(content, 0, 2);
-    expect(extracted).toBe('20:00');
+    expect(extracted).toBe('20:00\n');
   });
 
   it('should handle empty block', () => {
@@ -181,5 +177,12 @@ describe('extractBlockContent', () => {
 
     const extracted = extractBlockContent(content, 0, 1);
     expect(extracted).toBe('');
+  });
+
+  it('preserves CRLF body bytes and astral UTF-16 text inside longer fences', () => {
+    const content = '# 😀\r\n````log:running\r\n😀 Run\r\n```\r\n````\r\nAfter';
+    expect(extractBlockContent(content, 1, 4)).toBe('😀 Run\r\n```\r\n');
+    const section = parseDocumentSections(content).find(section => section.scriptBlock)!;
+    expect(section.scriptBlock!.content).toBe(content.slice(section.contentFrom, section.contentTo));
   });
 });

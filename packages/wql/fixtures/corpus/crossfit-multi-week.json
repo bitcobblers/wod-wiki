@@ -13,7 +13,20 @@
         "crossfit",
         "girl-wods",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# WOD — Fran\n\nAuthored example workout for this journal fixture.\n\n```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 66,
+          "to": 115,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-03",
@@ -22,7 +35,20 @@
       "tags": [
         "crossfit",
         "kettlebell"
-      ]
+      ],
+      "rawContent": "# Strength — Simple & Sinister\n\nAuthored example workout for this journal fixture.\n\n```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 84,
+          "to": 156,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-06",
@@ -31,7 +57,20 @@
       "tags": [
         "crossfit",
         "bodyweight"
-      ]
+      ],
+      "rawContent": "# Metcon — bodyweight chipper\n\nAuthored example workout for this journal fixture.\n\n```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 83,
+          "to": 144,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-08",
@@ -41,7 +80,20 @@
         "crossfit",
         "girl-wods",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# WOD — Fran\n\nAuthored example workout for this journal fixture.\n\n```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 66,
+          "to": 115,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-10",
@@ -50,7 +102,20 @@
       "tags": [
         "crossfit",
         "kettlebell"
-      ]
+      ],
+      "rawContent": "# Strength — Simple & Sinister\n\nAuthored example workout for this journal fixture.\n\n```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 84,
+          "to": 156,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-13",
@@ -59,7 +124,20 @@
       "tags": [
         "crossfit",
         "bodyweight"
-      ]
+      ],
+      "rawContent": "# Metcon — bodyweight chipper\n\nAuthored example workout for this journal fixture.\n\n```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 83,
+          "to": 144,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-15",
@@ -69,7 +147,20 @@
         "crossfit",
         "girl-wods",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# WOD — Fran\n\nAuthored example workout for this journal fixture.\n\n```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 66,
+          "to": 115,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-17",
@@ -78,7 +169,20 @@
       "tags": [
         "crossfit",
         "kettlebell"
-      ]
+      ],
+      "rawContent": "# Strength — Simple & Sinister\n\nAuthored example workout for this journal fixture.\n\n```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 84,
+          "to": 156,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-20",
@@ -87,7 +191,20 @@
       "tags": [
         "crossfit",
         "bodyweight"
-      ]
+      ],
+      "rawContent": "# Metcon — bodyweight chipper\n\nAuthored example workout for this journal fixture.\n\n```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 83,
+          "to": 144,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-22",
@@ -97,7 +214,20 @@
         "crossfit",
         "girl-wods",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# WOD — Fran\n\nAuthored example workout for this journal fixture.\n\n```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 66,
+          "to": 115,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-24",
@@ -106,7 +236,20 @@
       "tags": [
         "crossfit",
         "kettlebell"
-      ]
+      ],
+      "rawContent": "# Strength — Simple & Sinister\n\nAuthored example workout for this journal fixture.\n\n```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 84,
+          "to": 156,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-27",
@@ -115,7 +258,20 @@
       "tags": [
         "crossfit",
         "bodyweight"
-      ]
+      ],
+      "rawContent": "# Metcon — bodyweight chipper\n\nAuthored example workout for this journal fixture.\n\n```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 83,
+          "to": 144,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-29",
@@ -125,7 +281,20 @@
         "crossfit",
         "girl-wods",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# WOD — Fran\n\nAuthored example workout for this journal fixture.\n\n```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 66,
+          "to": 115,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-31",
@@ -134,7 +303,20 @@
       "tags": [
         "crossfit",
         "kettlebell"
-      ]
+      ],
+      "rawContent": "# Strength — Simple & Sinister\n\nAuthored example workout for this journal fixture.\n\n```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 84,
+          "to": 156,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-34",
@@ -143,7 +325,20 @@
       "tags": [
         "crossfit",
         "bodyweight"
-      ]
+      ],
+      "rawContent": "# Metcon — bodyweight chipper\n\nAuthored example workout for this journal fixture.\n\n```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 83,
+          "to": 144,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-36",
@@ -153,7 +348,20 @@
         "crossfit",
         "girl-wods",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# WOD — Fran\n\nAuthored example workout for this journal fixture.\n\n```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 66,
+          "to": 115,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-38",
@@ -162,7 +370,20 @@
       "tags": [
         "crossfit",
         "kettlebell"
-      ]
+      ],
+      "rawContent": "# Strength — Simple & Sinister\n\nAuthored example workout for this journal fixture.\n\n```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 84,
+          "to": 156,
+          "dialect": "time"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-41",
@@ -171,7 +392,20 @@
       "tags": [
         "crossfit",
         "bodyweight"
-      ]
+      ],
+      "rawContent": "# Metcon — bodyweight chipper\n\nAuthored example workout for this journal fixture.\n\n```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 83,
+          "to": 144,
+          "dialect": "time"
+        }
+      }
     }
   ],
   "records": [
@@ -185,8 +419,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -204,7 +436,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 2790
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w0:summary:tis",
@@ -216,8 +450,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -235,7 +467,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 46
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w0:summary:sessionLoad",
@@ -247,8 +481,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -266,7 +498,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 210
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w0:summary:totalVolume",
@@ -278,8 +512,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -297,7 +529,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 5400
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w0:summary:tis",
@@ -309,8 +543,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -328,7 +560,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 52
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w0:summary:sessionLoad",
@@ -340,8 +574,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -359,7 +591,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 260
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w0:summary:totalVolume",
@@ -371,8 +605,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -390,7 +622,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 360
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w0:summary:tis",
@@ -402,8 +636,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -421,7 +653,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 38
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w0:summary:sessionLoad",
@@ -433,8 +667,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -452,7 +684,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 150
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w1:summary:totalVolume",
@@ -464,8 +698,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -483,7 +715,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 2850
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w1:summary:tis",
@@ -495,8 +729,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -514,7 +746,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 47.5
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w1:summary:sessionLoad",
@@ -526,8 +760,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -545,7 +777,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 218
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w1:summary:totalVolume",
@@ -557,8 +791,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -576,7 +808,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 5490
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w1:summary:tis",
@@ -588,8 +822,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -607,7 +839,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 54
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w1:summary:sessionLoad",
@@ -619,8 +853,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -638,7 +870,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 270
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w1:summary:totalVolume",
@@ -650,8 +884,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -669,7 +901,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 375
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w1:summary:tis",
@@ -681,8 +915,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -700,7 +932,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 39
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w1:summary:sessionLoad",
@@ -712,8 +946,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -731,7 +963,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 156
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w2:summary:totalVolume",
@@ -743,8 +977,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -762,7 +994,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 2910
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w2:summary:tis",
@@ -774,8 +1008,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -793,7 +1025,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 49
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w2:summary:sessionLoad",
@@ -805,8 +1039,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -824,7 +1056,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 226
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w2:summary:totalVolume",
@@ -836,8 +1070,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -855,7 +1087,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 5580
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w2:summary:tis",
@@ -867,8 +1101,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -886,7 +1118,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 56
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w2:summary:sessionLoad",
@@ -898,8 +1132,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -917,7 +1149,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 280
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w2:summary:totalVolume",
@@ -929,8 +1163,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -948,7 +1180,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 390
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w2:summary:tis",
@@ -960,8 +1194,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -979,7 +1211,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 40
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w2:summary:sessionLoad",
@@ -991,8 +1225,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1010,7 +1242,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 162
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w3:summary:totalVolume",
@@ -1022,8 +1256,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -1041,7 +1273,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 2970
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w3:summary:tis",
@@ -1053,8 +1287,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1072,7 +1304,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 50.5
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w3:summary:sessionLoad",
@@ -1084,8 +1318,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1103,7 +1335,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 234
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w3:summary:totalVolume",
@@ -1115,8 +1349,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -1134,7 +1366,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 5670
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w3:summary:tis",
@@ -1146,8 +1380,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1165,7 +1397,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 58
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w3:summary:sessionLoad",
@@ -1177,8 +1411,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1196,7 +1428,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 290
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w3:summary:totalVolume",
@@ -1208,8 +1442,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -1227,7 +1459,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 405
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w3:summary:tis",
@@ -1239,8 +1473,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1258,7 +1490,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 41
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w3:summary:sessionLoad",
@@ -1270,8 +1504,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1289,7 +1521,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 168
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w4:summary:totalVolume",
@@ -1301,8 +1535,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -1320,7 +1552,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 3030
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w4:summary:tis",
@@ -1332,8 +1566,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1351,7 +1583,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 52
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w4:summary:sessionLoad",
@@ -1363,8 +1597,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1382,7 +1614,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 242
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w4:summary:totalVolume",
@@ -1394,8 +1628,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -1413,7 +1645,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 5760
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w4:summary:tis",
@@ -1425,8 +1659,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1444,7 +1676,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 60
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w4:summary:sessionLoad",
@@ -1456,8 +1690,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1475,7 +1707,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 300
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w4:summary:totalVolume",
@@ -1487,8 +1721,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -1506,7 +1738,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 420
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w4:summary:tis",
@@ -1518,8 +1752,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1537,7 +1769,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 42
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w4:summary:sessionLoad",
@@ -1549,8 +1783,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1568,7 +1800,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 174
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w5:summary:totalVolume",
@@ -1580,8 +1814,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -1599,7 +1831,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 3090
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w5:summary:tis",
@@ -1611,8 +1845,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1630,7 +1862,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 53.5
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w5:summary:sessionLoad",
@@ -1642,8 +1876,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "fran",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1661,7 +1893,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 250
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w5:summary:totalVolume",
@@ -1673,8 +1907,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -1692,7 +1924,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 5850
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w5:summary:tis",
@@ -1704,8 +1938,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1723,7 +1955,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 62
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-ss-w5:summary:sessionLoad",
@@ -1735,8 +1969,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "simple-sinister",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1754,7 +1986,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 310
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w5:summary:totalVolume",
@@ -1766,8 +2000,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "totalVolume",
@@ -1785,7 +2017,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 435
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w5:summary:tis",
@@ -1797,8 +2031,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1816,7 +2048,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 43
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w5:summary:sessionLoad",
@@ -1828,8 +2062,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1847,7 +2079,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 180
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w5:1",
@@ -1858,8 +2092,6 @@
       "timestamp": 1783340928000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-fran#1",
       "metrics": [
@@ -1868,7 +2100,9 @@
           "value": 21,
           "unit": "thruster"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w5:2",
@@ -1879,8 +2113,6 @@
       "timestamp": 1783340988000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-fran#2",
       "metrics": [
@@ -1889,7 +2121,9 @@
           "value": 21,
           "unit": "pull-up"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w5:3",
@@ -1900,8 +2134,6 @@
       "timestamp": 1783341048000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-fran#3",
       "metrics": [
@@ -1910,7 +2142,9 @@
           "value": 15,
           "unit": "thruster"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w5:4",
@@ -1921,8 +2155,6 @@
       "timestamp": 1783341108000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-fran#4",
       "metrics": [
@@ -1931,7 +2163,9 @@
           "value": 15,
           "unit": "pull-up"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w5:5",
@@ -1942,8 +2176,6 @@
       "timestamp": 1783341168000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-fran#5",
       "metrics": [
@@ -1952,7 +2184,9 @@
           "value": 9,
           "unit": "thruster"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-fran-w5:6",
@@ -1963,8 +2197,6 @@
       "timestamp": 1783341228000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-fran#6",
       "metrics": [
@@ -1973,7 +2205,9 @@
           "value": 9,
           "unit": "pull-up"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w0:summary:calc.acwr",
@@ -1985,8 +2219,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.acwr",
@@ -2004,7 +2236,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 0.87
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w0:summary:calc.monotony",
@@ -2016,8 +2250,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.monotony",
@@ -2035,7 +2267,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1.4
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w0:summary:calc.strain",
@@ -2047,8 +2281,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.strain",
@@ -2066,7 +2298,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 950
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w1:summary:calc.acwr",
@@ -2078,8 +2312,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.acwr",
@@ -2097,7 +2329,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1.02
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w1:summary:calc.monotony",
@@ -2109,8 +2343,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.monotony",
@@ -2128,7 +2360,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1.8
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w1:summary:calc.strain",
@@ -2140,8 +2374,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.strain",
@@ -2159,7 +2391,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1220
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w2:summary:calc.acwr",
@@ -2171,8 +2405,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.acwr",
@@ -2190,7 +2422,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1.15
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w2:summary:calc.monotony",
@@ -2202,8 +2436,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.monotony",
@@ -2221,7 +2453,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 2.1
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w2:summary:calc.strain",
@@ -2233,8 +2467,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.strain",
@@ -2252,7 +2484,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1430
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w3:summary:calc.acwr",
@@ -2264,8 +2498,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.acwr",
@@ -2283,7 +2515,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 0.94
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w3:summary:calc.monotony",
@@ -2295,8 +2529,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.monotony",
@@ -2314,7 +2546,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1.3
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w3:summary:calc.strain",
@@ -2326,8 +2560,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.strain",
@@ -2345,7 +2577,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 880
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w4:summary:calc.acwr",
@@ -2357,8 +2591,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.acwr",
@@ -2376,7 +2608,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1.21
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w4:summary:calc.monotony",
@@ -2388,8 +2622,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.monotony",
@@ -2407,7 +2639,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 2.3
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w4:summary:calc.strain",
@@ -2419,8 +2653,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.strain",
@@ -2438,7 +2670,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1560
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w5:summary:calc.acwr",
@@ -2450,8 +2684,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.acwr",
@@ -2469,7 +2701,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1.08
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w5:summary:calc.monotony",
@@ -2481,8 +2715,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.monotony",
@@ -2500,7 +2732,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1.7
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-chip-w5:summary:calc.strain",
@@ -2512,8 +2746,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bodyweight-chipper",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "calc.strain",
@@ -2531,7 +2763,427 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1150
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
+    }
+  ],
+  "blockRevisions": [
+    {
+      "noteId": "note-journal-2026-06-01",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```",
+      "savedAt": 1780315200000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-03",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```",
+      "savedAt": 1780488000000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-06",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```",
+      "savedAt": 1780747200000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-08",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```",
+      "savedAt": 1780920000000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-10",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```",
+      "savedAt": 1781092800000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-13",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```",
+      "savedAt": 1781352000000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-15",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```",
+      "savedAt": 1781524800000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-17",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```",
+      "savedAt": 1781697600000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-20",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```",
+      "savedAt": 1781956800000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-22",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```",
+      "savedAt": 1782129600000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-24",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```",
+      "savedAt": 1782302400000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-27",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```",
+      "savedAt": 1782561600000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-29",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```",
+      "savedAt": 1782734400000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-31",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```",
+      "savedAt": 1782907200000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-34",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```",
+      "savedAt": 1783166400000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-36",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(21-15-9)\n  Thrusters 95lb\n  Pull-ups\n```",
+      "savedAt": 1783339200000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-38",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n(10)\n  10 Kettlebell Swings 24kg\n(5)\n  1 Turkish Get-up 24kg\n```",
+      "savedAt": 1783512000000,
+      "dialect": "time"
+    },
+    {
+      "noteId": "note-journal-2026-06-41",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time\n100 Air Squats\n80 Sit-ups\n60 Push-ups\n40 Pull-ups\n```",
+      "savedAt": 1783771200000,
+      "dialect": "time"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "res-fran-w0",
+      "noteId": "note-journal-2026-06-01",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-fran",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780315200000,
+      "endTime": 1780315200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780315200000
+    },
+    {
+      "id": "res-ss-w0",
+      "noteId": "note-journal-2026-06-03",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-simple-sinister",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780488000000,
+      "endTime": 1780488000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780488000000
+    },
+    {
+      "id": "res-chip-w0",
+      "noteId": "note-journal-2026-06-06",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-chipper",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780747200000,
+      "endTime": 1780747200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780747200000
+    },
+    {
+      "id": "res-fran-w1",
+      "noteId": "note-journal-2026-06-08",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-fran",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780920000000,
+      "endTime": 1780920000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780920000000
+    },
+    {
+      "id": "res-ss-w1",
+      "noteId": "note-journal-2026-06-10",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-simple-sinister",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781092800000,
+      "endTime": 1781092800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781092800000
+    },
+    {
+      "id": "res-chip-w1",
+      "noteId": "note-journal-2026-06-13",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-chipper",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781352000000,
+      "endTime": 1781352000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781352000000
+    },
+    {
+      "id": "res-fran-w2",
+      "noteId": "note-journal-2026-06-15",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-fran",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781524800000,
+      "endTime": 1781524800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781524800000
+    },
+    {
+      "id": "res-ss-w2",
+      "noteId": "note-journal-2026-06-17",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-simple-sinister",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781697600000,
+      "endTime": 1781697600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781697600000
+    },
+    {
+      "id": "res-chip-w2",
+      "noteId": "note-journal-2026-06-20",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-chipper",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781956800000,
+      "endTime": 1781956800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781956800000
+    },
+    {
+      "id": "res-fran-w3",
+      "noteId": "note-journal-2026-06-22",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-fran",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782129600000,
+      "endTime": 1782129600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782129600000
+    },
+    {
+      "id": "res-ss-w3",
+      "noteId": "note-journal-2026-06-24",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-simple-sinister",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782302400000,
+      "endTime": 1782302400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782302400000
+    },
+    {
+      "id": "res-chip-w3",
+      "noteId": "note-journal-2026-06-27",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-chipper",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782561600000,
+      "endTime": 1782561600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782561600000
+    },
+    {
+      "id": "res-fran-w4",
+      "noteId": "note-journal-2026-06-29",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-fran",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782734400000,
+      "endTime": 1782734400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782734400000
+    },
+    {
+      "id": "res-ss-w4",
+      "noteId": "note-journal-2026-06-31",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-simple-sinister",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782907200000,
+      "endTime": 1782907200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782907200000
+    },
+    {
+      "id": "res-chip-w4",
+      "noteId": "note-journal-2026-06-34",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-chipper",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783166400000,
+      "endTime": 1783166400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783166400000
+    },
+    {
+      "id": "res-fran-w5",
+      "noteId": "note-journal-2026-06-36",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-fran",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783339200000,
+      "endTime": 1783339200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783339200000
+    },
+    {
+      "id": "res-ss-w5",
+      "noteId": "note-journal-2026-06-38",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-simple-sinister",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783512000000,
+      "endTime": 1783512000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783512000000
+    },
+    {
+      "id": "res-chip-w5",
+      "noteId": "note-journal-2026-06-41",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-chipper",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783771200000,
+      "endTime": 1783771200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783771200000
     }
   ]
 }
