@@ -249,7 +249,8 @@ export async function getRow(conn: SqlConnection, def: StoreDef, key: KeyDTO): P
 
 export async function getRows(conn: SqlConnection, def: StoreDef, keys: KeyDTO[]): Promise<(unknown | undefined)[]> {
   const found = new Map<string, unknown>();
-  for (const part of chunks(keys, 500)) {
+  // Batch in chunks of 50 to respect SQLite/D1 SQLITE_LIMIT_EXPR_DEPTH (100) on chained OR expressions
+  for (const part of chunks(keys, 50)) {
     const params: SqlValue[] = [];
     const conditions = part.map(key => {
       const parts = toParts(key);
@@ -273,7 +274,8 @@ export async function listRowsFromIndexMany(conn: SqlConnection, def: StoreDef, 
     return out;
   }
   const found = new Map<string, unknown[]>();
-  for (const part of chunks(keys, 500)) {
+  // Batch in chunks of 50 to respect SQLite/D1 SQLITE_LIMIT_EXPR_DEPTH (100) on chained OR expressions
+  for (const part of chunks(keys, 50)) {
     const params: SqlValue[] = [];
     const conditions = part.map(key => {
       const parts = toParts(key);
