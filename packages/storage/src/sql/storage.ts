@@ -1,17 +1,4 @@
-/**
- * SqlStorage — IStorage over the shared SQL store operations (server or
- * browser). Transactions buffer writes and flush them as one refreshDomain
- * pass inside a real SQL transaction: throw → rollback, success → commit,
- * and buffered reads overlay committed rows (read-your-writes). Projections
- * refresh inside the same transaction; bulkTransaction() batches a migration
- * into one rebuild instead of per-key refreshes. verifyWritable() proves the
- * backend accepts writes with a real INSERT that is rolled back.
- *
- * BrowserTursoStorage opens a direct-to-Turso backend via @libsql/client/web;
- * the constructor only builds the client (HTTP is connectionless), `ready()`
- * initializes schema + projections and every operation awaits it, so a
- * transient init failure never wedges the backend — ready() retries.
- */
+/** SQL storage with atomic, change-scoped projections and buffered reads. */
 
 import type {
   IReadWriteStore,
@@ -47,17 +34,19 @@ import {
   listRows,
   putRow,
   wipeRows,
+  getRows,
+  listRowsFromIndexMany,
 } from './store';
 import {
   handleDomainQuery,
   initializeDomain,
   refreshDomain,
-  rebuildProjections,
   wipeDomain,
 } from './domain';
 import { StorageError } from './errors';
 import { libsqlDatabase, type Database, type SqlConnection } from './connection';
 import { createClient } from '@libsql/client/web';
+import { rowsEqual } from '../validation';
 
 export interface SqlStorageOptions {
   /** Rows in user-owned stores are stamped with this userId on write. Omit
@@ -142,27 +131,22 @@ export class SqlStorage implements IStorage {
     fn: (tx: IStorageTransaction) => Promise<R>,
   ): Promise<R> {
     await this.ensureReady();
-    return this.runTx(stores, mode === 'readwrite', fn, false);
+    return this.runTx(stores, mode === 'readwrite', fn);
   }
 
-  /**
-   * Bulk load for migration destinations: like transaction(), but the
-   * buffered writes skip per-key projection refresh and derived state is
-   * rebuilt once — everything inside one SQL transaction (throw → rollback).
-   */
+  /** Bulk writes use the same affected-key refresh as ordinary transactions. */
   async bulkTransaction<K extends StoreName, R>(
     stores: K[],
     fn: (tx: IStorageTransaction) => Promise<R>,
   ): Promise<R> {
     await this.ensureReady();
-    return this.runTx(stores, true, fn, true);
+    return this.runTx(stores, true, fn);
   }
 
   private runTx<K extends StoreName, R>(
     stores: K[],
     mutableMode: boolean,
     fn: (tx: IStorageTransaction) => Promise<R>,
-    deferProjection: boolean,
   ): Promise<R> {
     const scoped = new Set<StoreName>(stores);
     const buffer = new Map<string, BufferEntry>();
@@ -189,9 +173,7 @@ export class SqlStorage implements IStorage {
       const result = await fn(tx);
       const ops = bufferToOps(STORE_DEFS.map((d) => d.name), buffer, cleared);
       if (ops.length > 0) {
-        await refreshDomain(conn, ops, deferProjection ? { deferProjection: true } : {});
-        // Deferred batches rebuild derived state once, inside this same tx.
-        if (deferProjection) await rebuildProjections(conn);
+        await refreshDomain(conn, ops);
       }
       return result;
     });
@@ -274,6 +256,23 @@ class SqlStore<T> implements IReadWriteStore<T> {
     return getRow(this.conn, this.def, k) as Promise<T | undefined>;
   }
 
+  async getMany(keys: IDBValidKey[]): Promise<(T | undefined)[]> {
+    await this.owner.ensureReady();
+    const normalized = keys.map(key => this.pointKey(key));
+    const committed = this.cleared?.has(this.store) ? keys.map(() => undefined)
+      : await getRows(this.conn, this.def, normalized) as (T | undefined)[];
+    return normalized.map((key, i) => {
+      const state = bufferedGet<T>(this.store, key, this.buffer);
+      return state ? (state.hit ? state.value : undefined) : committed[i];
+    });
+  }
+
+  async getAllFromIndexMany(indexName: string, keys: IDBValidKey[]): Promise<T[][]> {
+    await this.owner.ensureReady();
+    const rows = await listRowsFromIndexMany(this.conn, this.def, indexName, keys.map(key => this.pointKey(key)));
+    return rows.map((values, i) => overlayRows<T>(this.def, this.store, this.buffer, this.cleared, values as T[], undefined, { only: this.pointKey(keys[i]) }, indexName));
+  }
+
   async getAll(query?: IDBValidKey | IDBKeyRange | RangeDTO, count?: number): Promise<T[]> {
     await this.owner.ensureReady();
     const range = rangeFromIDB(query);
@@ -309,6 +308,10 @@ class SqlStore<T> implements IReadWriteStore<T> {
     this.assertMutable();
     const stored = this.owner.stamp(this.store, value) as T;
     const key = keyFromValue(this.def, stored);
+    if (this.store === 'block_revisions') {
+      const previous = this.buffer?.get(bufferSlot(this.store, key));
+      if (previous?.kind === 'put' && !rowsEqual(previous.value, stored)) throw new StorageError(409, 'immutable block revision collision', 'revision_conflict');
+    }
     if (this.buffer) {
       this.buffer.set(bufferSlot(this.store, key), { kind: 'put', value: stored });
       return key;
@@ -317,9 +320,29 @@ class SqlStore<T> implements IReadWriteStore<T> {
     return key;
   }
 
+  async putMany(values: T[], _keys?: IDBValidKey[]): Promise<IDBValidKey[]> {
+    await this.owner.ensureReady();
+    this.assertMutable();
+    const stored = values.map(value => this.owner.stamp(this.store, value) as T);
+    const keys = stored.map(value => keyFromValue(this.def, value));
+    if (this.store === 'block_revisions') {
+      const seen = new Map<string, unknown>();
+      keys.forEach((key, i) => {
+        const slot = bufferSlot(this.store, key), previous = this.buffer?.get(slot);
+        const value = seen.has(slot) ? seen.get(slot) : previous?.kind === 'put' ? previous.value : undefined;
+        if (value !== undefined && !rowsEqual(value, stored[i])) throw new StorageError(409, 'immutable block revision collision', 'revision_conflict');
+        seen.set(slot, stored[i]);
+      });
+    }
+    if (this.buffer) keys.forEach((key, i) => this.buffer!.set(bufferSlot(this.store, key), { kind: 'put', value: stored[i] }));
+    else await this.owner.applyOps(stored.map(value => ({ op: 'put', store: this.store, value })));
+    return keys;
+  }
+
   async delete(key: IDBValidKey | IDBKeyRange | RangeDTO): Promise<void> {
     await this.owner.ensureReady();
     this.assertMutable();
+    if (this.store === 'block_revisions') throw new StorageError(409, 'block history requires explicit wipe', 'revision_conflict');
     const range = isRange(key) ? key : undefined;
     const target = range ?? (key as KeyDTO);
     if (this.buffer) {
@@ -340,6 +363,7 @@ class SqlStore<T> implements IReadWriteStore<T> {
   async clear(): Promise<void> {
     await this.owner.ensureReady();
     this.assertMutable();
+    if (this.store === 'block_revisions') throw new StorageError(409, 'block history requires explicit wipe', 'revision_conflict');
     if (this.buffer) {
       this.cleared?.add(this.store);
       const prefix = `${this.store}\u0000`;

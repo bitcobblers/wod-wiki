@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import noteEditorData from './data/note-editor.json';
-import journalDateStackData from './data/journal-date-stack.json';
+import noteEditorData from './data/note-editor';
+import journalDateStackData from './data/journal-date-stack';
 import journalStreamData from './data/journal-stream.json';
 import collectionLandingData from './data/collection-landing.json';
 import effortDetailData from './data/effort-detail.json';
-import sessionDetailData from './data/session-detail.json';
+import sessionDetailData from './data/session-detail';
 import dashboardViewData from './data/dashboard-view.json';
 import wallClockData from './data/wall-clock.json';
 import {
@@ -92,7 +92,7 @@ function UniversalNoteEditorView() {
           {/* Content Body */}
           <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-4">
             <div className="flex gap-2 mb-2">
-              {note.tags.map((t: string) => (
+              {(note.tags ?? []).map((t) => (
                 <span key={t} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                   #{t}
                 </span>
@@ -151,12 +151,12 @@ export const JournalDateStack: StoryObj = {
 
           {/* Stack of Notes */}
           <main className="max-w-3xl w-full mx-auto p-6 space-y-6">
-            {notes.map((n: { id: string; title: string; tags: string[]; rawContent: string }) => (
+            {notes.map((n) => (
               <div key={n.id} id={n.id} className="border border-border rounded-xl bg-card p-6 shadow-sm space-y-3">
                 <div className="flex items-center justify-between border-b border-border/60 pb-2">
                   <h2 className="text-base font-semibold">{n.title}</h2>
                   <div className="flex gap-1.5">
-                    {n.tags.map((t) => (
+                    {(n.tags ?? []).map((t) => (
                       <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
                         #{t}
                       </span>
@@ -362,14 +362,14 @@ export const EffortDetail: StoryObj = {
 export const SessionExecutionDetail: StoryObj = {
   name: 'Session Execution Detail (/sessions/:sessionId)',
   render: () => {
-    const { session, metrics, statements } = sessionDetailData;
+    const { workoutTitle, metrics, statements } = sessionDetailData;
     return (
       <div className="flex h-screen w-full bg-background text-foreground font-sans">
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           <header className="px-6 py-4 border-b border-border bg-background flex items-center justify-between">
             <div>
               <div className="text-xs font-mono text-muted-foreground">SESSION OUTCOME</div>
-              <h1 className="text-xl font-bold">{session.workoutTitle}</h1>
+              <h1 className="text-xl font-bold">{workoutTitle}</h1>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">

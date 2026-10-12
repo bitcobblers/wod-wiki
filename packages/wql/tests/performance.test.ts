@@ -63,8 +63,8 @@ describe('ticket 20 — measured budgets', () => {
         timestamp: 1_700_000_000_000 + i * 1000,
         grain: 'event',
         outputType: 'segment',
-        segmentId: 's',
-        segmentVersion: 1,
+        blockId: 's',
+        blockVersion: 1,
         effortSlug: i % 2 ? 'running' : 'cycling',
         metrics: [{ type: 'distance', value: 100 + (i % 7), metadata: { canonicalKey: 'distance' } }],
       } as unknown as EventRecord);

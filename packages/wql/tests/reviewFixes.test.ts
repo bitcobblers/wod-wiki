@@ -28,7 +28,7 @@ describe('ticket 13 — unit-normalized chronological delta', () => {
     const rows = [4, 5].map((value, index) => ({
       id: `row-${index}`, resultId: `result-${index}`, noteId: 'n1',
       timestamp: 1_700_000_000_000 + index * 1000,
-      grain: 'event', outputType: 'segment', segmentId: 's1', segmentVersion: 1,
+      grain: 'event', outputType: 'segment', blockId: 's1', blockVersion: 1,
       metrics: [{ type: 'distance', value, unit: 'km', origin: 'parser', metadata: { canonicalKey: 'distance' } }],
     })) as unknown as EventRecord[];
     const result = await new QueryService({ eventStore: store(rows) }).runQuery('delta:distance{}');
@@ -41,7 +41,7 @@ describe('ticket 12/14 — metric-date complete selection', () => {
   it('a date-only observation is selected when its civil date is in range', async () => {
     const row: EventRecord = {
       id: 'wellness:n1:hrv', resultId: 'wellness:n1', noteId: 'n1',
-      timestamp: Date.UTC(2026, 8, 5, 4), grain: 'summary', outputType: 'wellness', segmentId: '', segmentVersion: 0,
+      timestamp: Date.UTC(2026, 8, 5, 4), grain: 'summary', outputType: 'wellness', blockId: '', blockVersion: 0,
       metrics: [{ type: 'hrv', value: 48, origin: 'parser', metadata: { canonicalKey: 'hrv' } }] as unknown as EventRecord['metrics'],
       metricTemporal: [{ temporalKind: 'civil-date', civilDate: '2026-09-05' }],
     };
@@ -110,7 +110,7 @@ describe('ticket 18 — rows filtering over every projected fact', () => {
   it('a matching non-first metric is included', async () => {
     const row = {
       id: 'row1', resultId: 'r1', noteId: 'n1', timestamp: identity.workoutTimestamp,
-      grain: 'event', outputType: 'segment', segmentId: 's1', segmentVersion: 1,
+      grain: 'event', outputType: 'segment', blockId: 's1', blockVersion: 1,
       metrics: [
         { type: 'reps', value: 10, metadata: { canonicalKey: 'reps' } },
         { type: 'weight', value: 75, unit: 'kg', metadata: { canonicalKey: 'weight' } },

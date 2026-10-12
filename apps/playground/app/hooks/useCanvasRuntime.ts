@@ -89,10 +89,10 @@ export function useCanvasRuntime({
     starting.current = true
     const request = ++generation.current
     try {
-      await playground.start(content ?? getContent(), block, { pageTitle: title ?? 'Playground' })
+      const captured = await playground.start(content ?? getContent(), block, { pageTitle: title ?? 'Playground' });
       if (request !== generation.current) return
       setCompletedResults(null)
-      setFullscreen({ kind: 'timer', block, results: null })
+      setFullscreen({ kind: 'timer', block: captured.block, results: null });
     } catch (error) {
       if (request === generation.current) {
         toast({
@@ -165,7 +165,9 @@ export function useCanvasRuntime({
         // swallow externalStop without reporting, add a settle timeout.
         resetDocRef.current = { doc, meta }
         setResetRequested(true)
-        await new Promise<void>((resolve) => { resetSettledRef.current = resolve })
+        const settled = Promise.withResolvers<void>();
+        resetSettledRef.current = settled.resolve;
+        await settled.promise;
         return true
       }
       await playground.reset(doc, meta)

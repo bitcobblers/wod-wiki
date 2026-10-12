@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import {
   buildBlockEffortRows,
   buildBlockIndexRows,
+  compileSeedRow,
   chunkIdFor,
   collectCorpusMarkdown,
   discoverUncatalogedEfforts,
@@ -91,7 +92,7 @@ describe('generateSeed', () => {
       expect(manifest.schema).toBe(SEED_SCHEMA);
       expect(manifest.version).toBe(12345);
       expect(manifest.chunks.map((c) => c.id)).toEqual([
-        'canvas', 'collection.cat1', 'feed.f', 'template', 'block-index.0',
+        'canvas', 'collection.cat1', 'feed.f', 'template',
       ]);
 
       for (const c of manifest.chunks) {
@@ -102,12 +103,6 @@ describe('generateSeed', () => {
         expect(c.sha256).toBe(sha256(bytes));
         const rows = JSON.parse(bytes.toString('utf8')) as Array<Record<string, unknown>>;
         expect(rows).toHaveLength(c.count);
-        if (c.kind === 'block-index') {
-          // Derived corpus rows carry block identity, not source paths —
-          // one row per section of the collections/feeds/guides corpus.
-          expect(rows[0]).toMatchObject({ noteId: 'cat1/c', sourceId: 'collection:cat1/c', isStatic: true });
-          continue;
-        }
         for (const row of rows) {
           expect(row.content).toBe(readFileSync(join(tmp, row.path as string), 'utf8'));
         }
@@ -143,6 +138,20 @@ describe('generateSeed', () => {
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
+  });
+});
+
+describe('sparse seed occurrences', () => {
+  it('preserves exact UTF-16 slices and deterministic distinct duplicates', () => {
+    const source = '# 🏋️\r\n\r\n```time\r\n10 Push-ups\r\n```\r\n\r\n```time\r\n10 Push-ups\r\n```\r\n';
+    const a = compileSeedRow('markdown/collections/test/a.md', source);
+    const b = compileSeedRow(a.path, source);
+    expect(a).toEqual(b);
+    expect(Object.keys(a.blocks)).toHaveLength(2);
+    expect(a.blockIndex.map((r) => r.dataType)).toEqual(['wod', 'wod']);
+    for (const row of a.blockIndex) expect(row.rawContent).toBe(source.slice(row.from, row.to));
+    expect(a.blockIndex[0].blockId).not.toBe(a.blockIndex[1].blockId);
+    expect(a.blockIndex[0].blockContentId).toBe(a.blockIndex[1].blockContentId);
   });
 });
 
@@ -205,13 +214,13 @@ describe('buildBlockIndexRows — guides (canvas corpus)', () => {
       const rows = buildBlockIndexRows(join(tmp, 'markdown'), tmp);
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
-        expect(row.noteId).toBe('guide/syntax/basics');
+        expect(row.routeId).toBe('guide/syntax/basics');
         expect(row.sourceId).toBe('guides:guide/syntax/basics');
         expect(row.isStatic).toBe(true);
       }
-      // READMEs and pages without a route never reach the index.
-      const ids = new Set(rows.map((r) => r.noteId));
-      expect(ids).toEqual(new Set(['guide/syntax/basics']));
+      const guideRows = rows.filter((r) => r.sourcePath === 'markdown/canvas/syntax/basics.md');
+      expect(guideRows).toHaveLength(1);
+      expect(guideRows[0].dataType).toBe('wod');
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
@@ -288,7 +297,7 @@ describe('wod build (CLI)', () => {
         stdout: (t) => { stdout += t; },
       });
       expect(code).toBe(0);
-      expect(stdout).toContain('[wod build] schema v7 version');
+      expect(stdout).toContain(`[wod build] schema v${SEED_SCHEMA} version`);
       expect(stdout).toContain('collection.cat1');
       expect(existsSync(join(tmp, 'cli-out', 'manifest.json'))).toBe(true);
     } finally {

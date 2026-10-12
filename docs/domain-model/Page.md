@@ -58,14 +58,14 @@ None.
 #### Incoming (referenced by)
 
 - [[PageNote]].`pageId` — membership junction between Page and Note
-- Legacy denormalized `pageId` on child rows ([[NoteSegment]], [[Session]], [[Attachment]], [[EventRecord]]) is deprecated; canonical joins and telemetry resolve exclusively through [[Note]].`id`.
+- Legacy denormalized `pageId` on child rows ([[Session]], [[Attachment]], [[EventRecord]]) is deprecated; canonical joins and telemetry resolve exclusively through [[Note]].`id`.
 ---
 
 ## Future State (Proposed)
 
 ### Recommended composition contract
 
-- A rendered page composes one or more [[Note]]s. Any authored description/configuration belongs to an owning note's [[NoteSegment]]s, not a duplicate `Page.body` or categories/provenance payload on the grouping row.
+- A rendered page composes one or more [[Note]]s. Any authored description/configuration belongs to the owning note's `rawContent`, not a duplicate `Page.body` or categories/provenance payload on the grouping row.
 - Keep calendar/custom addressing and existing placement. A note may appear in multiple query-composed pages without acquiring multiple `pageId` values; query inclusion belongs in [[collection]].
 - A composed view must retain each note's identity, order and write target. Start with per-note editing; seamless whole-page editing needs transaction-mapped ownership boundaries before it is safe.
 - Do not extend `pageId` copying to more stores merely for reuse. Existing copies need a defined update policy when a note moves; this review does not prescribe an index-drop migration.

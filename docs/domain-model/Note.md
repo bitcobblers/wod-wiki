@@ -2,7 +2,7 @@
 tags: [domain-model]
 store: notes
 keyPath: "id"
-db: wodwiki-db (v23)
+db: wodwiki-db (v29)
 ---
 
 # Note
@@ -14,12 +14,12 @@ db: wodwiki-db (v23)
 
 - **Store:** `notes`
 - **Key path:** `id` (string; UUID is the intended canonical identity, with current exceptions below)
-- **Type source:** `apps/playground/src/types/storage.ts`
-- **Database version:** `wodwiki-db` (v23)
+- **Type source:** `packages/core/src/types/storage.ts`
+- **Database version:** `wodwiki-db` (v29)
 
 ### Domain role (Current)
 
-A note is the owning unit of authored content. The `notes` row holds identity, routing, placement and provenance; its content lives in ordered, versioned [[NoteSegment]] rows rather than a second `Note.rawContent` field.
+A note is the owning unit of authored content. The `notes` row holds identity, routing, placement and provenance, plus the authored Markdown itself in `rawContent` and an embedded `blocks` map of actionable occurrences (workouts, queries, registered widgets, interactive embeds) with revision-bound UTF-16 ranges. Prose, headings and frontmatter stay in the source only; saved block states live in [[BlockRevision]].
 
 | Representation today | Distinction |
 |---|---|
@@ -37,6 +37,9 @@ The stored [[Page]] is a grouping/address record, not automatically a note row. 
 |---|---|---|
 | `id` | string | Canonical storage identity (UUID) |
 | `title` | string | Display name |
+| `rawContent` | string | Exact authored Markdown source (single copy) |
+| `sourceRevision` | number | Positive integer; bumps only when source/map change; stale writers reject |
+| `blocks` | Record<string, NoteBlock> | Occurrence map: id → kind, version, sourceRevision, half-open UTF-16 range, workout dialect/sport |
 | `date?` | number | Domain date (Unix ms), e.g. workout date from frontmatter |
 | `createdAt` | number | Unix ms when note was created |
 | `tags?` | string[] | Optional denormalized tag array projection; canonical persistence in `note_tags` |
@@ -62,7 +65,7 @@ Identity is not yet uniform across sources: seed import derives an ID from its p
 #### Incoming (referenced by)
 
 - [[PageNote]].`noteId` — placement and grouping on pages
-- [[NoteSegment]].`noteId`
+- [[BlockRevision]].`noteId`
 - [[Session]].`noteId`
 - [[Attachment]].`noteId`
 - [[NoteTag]].`noteId`
@@ -80,10 +83,10 @@ Identity is not yet uniform across sources: seed import derives an ID from its p
 
 ### Recommended contract
 
-- Keep one owning note identity and one authored content representation in [[NoteSegment]]. Page composition must not copy or merge away ownership.
+- Keep one owning note identity and one authored content representation: `Note.rawContent` plus its occurrence map, with saved states in [[BlockRevision]]. Page composition must not copy or merge away ownership.
 - Keep `Note.type` as the existing app descriptor; use type for validation/configuration and default presentation, not permission, date, provenance or responsive layout. Do not create a parallel `Page.kind` solely to duplicate it.
 - Preserve `catalog` and current Library locators. Query-defined collection pages do not require replacing them with `pageId`; membership belongs in [[collection]].
-- Do not add note-level `contentHash` or a `by-content` index for this effort. Block-content comparison and occurrence identity are different concerns owned by [[NoteSegment]] and [[BlockIndexRow]]. Note deduplication is not a requirement here.
+- Do not add note-level `contentHash` or a `by-content` index for this effort. Block-content comparison and occurrence identity are different concerns owned by [[BlockRevision]] and [[BlockIndexRow]]. Note deduplication is not a requirement here.
 - Tags classify content; they neither create page/effort ownership nor grant source-write access. Mode and write destinations belong in [[Page#Mode and write destinations]].
 - **Dual-ID contract on query/provider outputs:** queries and content providers return note records carrying both `noteId` (authoring/editor target) and `pageId` (composition/page render target). This enables list surfaces to link to either the canonical editor or the containing page.
 - **Universal editor route:** every stored note opens in the canonical editor at `/notes/:noteId`. Sub-selection in dates (`/journal/:date/:noteId`) and collection-scoped notes (`/collection/:slug/:noteId`) fold into `/notes/:noteId`.

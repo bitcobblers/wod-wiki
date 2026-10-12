@@ -11,8 +11,11 @@ import { EditorView } from '@codemirror/view'
 import { EditorSelection } from '@codemirror/state'
 import { v7 as uuidv7 } from 'uuid'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
+import { BlockHistory, revertBlock } from '@/components/organisms/editor/BlockHistory'
+import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
 import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore'
 import { notePersistence } from '@/services/persistence'
+import { captureStoredRun } from '@/services/runCapture';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { JournalPageShell } from '@/panels/page-shells'
 import type { WidgetRegistry } from '@/components/Editor/widgets/types'
@@ -77,7 +80,7 @@ export function PlaygroundNotePage({
   const noteId = pageId('playground', pageName)
   const pageTitle = useMemo(() => (id ? formatPlaygroundPageTitle(id) : 'Playground'), [id])
   const navigate = useNavigate()
-  const { content, loading, entryId, onChange: persistOnChange, onLineChange, onBlur, resetToOriginal } = usePlaygroundContent({
+  const { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange: persistOnChange, onLineChange, onBlur, flush, committedSourceRevision, resetToOriginal } = usePlaygroundContent({
     category: 'playground',
     name: pageName,
     mdContent: DEFAULT_PLAYGROUND_CONTENT.content,
@@ -111,7 +114,9 @@ export function PlaygroundNotePage({
 
   // Place cursor at the $CURSOR token position on first mount.
   const cursorPlaced = useRef(false)
+  const editorRef = useRef<EditorView | null>(null);
   const handleInternalViewCreated = useCallback((view: EditorView) => {
+    editorRef.current = view;
     onViewCreated?.(view)
     if (cursorPlaced.current) return
     cursorPlaced.current = true
@@ -120,18 +125,20 @@ export function PlaygroundNotePage({
   }, [onViewCreated])
 
   const handleStartWorkout = useCallback(
-    (block: ScriptBlock) => {
-      onRunWorkout()
-      const runtimeId = uuidv7()
-      pendingRuntimes.set(runtimeId, {
-        block,
-        noteId: runtimeNoteId,
-        origin: 'playground',
-        returnTo: `/playground/${encodeURIComponent(pageName)}`,
-      })
-      navigate(runPath(runtimeId))
+    async (block: ScriptBlock) => {
+      try {
+        await flush();
+        const runtimeId = uuidv7();
+        const captured = await captureStoredRun(runtimeNoteId, block, runtimeId, 'playground');
+        onSaved({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
+        pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.session.noteId, captured, origin: 'playground', returnTo: `/playground/${encodeURIComponent(pageName)}` });
+        onRunWorkout();
+        navigate(runPath(runtimeId));
+      } catch (error) {
+        toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
+      }
     },
-    [runtimeNoteId, pageName, navigate, onRunWorkout],
+    [runtimeNoteId, pageName, navigate, onRunWorkout, flush, onSaved],
   )
 
   const handleAddToToday = useCallback(
@@ -373,6 +380,11 @@ export function PlaygroundNotePage({
               onCursorPositionChange={onLineChange}
               onBlur={onBlur}
               noteId={runtimeNoteId}
+              noteBlocks={noteBlocks}
+              sourceRevision={sourceRevision}
+              onIdentityChange={snapshot => onIdentityChange({ rawContent: snapshot.rawContent, noteBlocks: snapshot.blocks, sourceRevision: snapshot.sourceRevision })}
+              onSaved={onSaved}
+              beforeRun={async () => { await flush(); return committedSourceRevision(); }}
               commands={commands}
               enableInlineRuntime={false}
               onViewCreated={handleInternalViewCreated}
@@ -382,6 +394,15 @@ export function PlaygroundNotePage({
               onButtonAction={handleButtonAction}
               widgetComponents={widgetComponents}
             />
+            {error ? <p role="alert">Save failed. {error instanceof Error ? error.message : String(error)} Your draft is kept.</p> : null}
+            <BlockHistory noteId={runtimeNoteId} blocks={noteBlocks} sourceRevision={sourceRevision} onRevert={async revision => {
+              await flush();
+              const identity = editorRef.current?.state.field(sectionField);
+              if (!identity) throw new Error('The current note editor is unavailable.');
+              const restored = revertBlock({ rawContent: identity.rawContent, blocks: identity.noteBlocks, sourceRevision: committedSourceRevision() }, revision);
+              onIdentityChange({ rawContent: restored.rawContent, noteBlocks: restored.blocks, sourceRevision: restored.sourceRevision });
+              await flush();
+            }} />
             {results.length > 0 && (
               <section aria-label="Workout results">
                 <h2 className="text-sm font-semibold text-muted-foreground">Results</h2>

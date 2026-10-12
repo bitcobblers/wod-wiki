@@ -16,7 +16,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { whiteboardScriptLanguage, whiteboardScript } from '@bitcobblers/wod-wiki-lang';
 import { wql, wqlLanguage, type IFieldCatalog } from '@bitcobblers/wod-wiki-wql';
 import { editorTheme } from "./theme";
-import { sectionField } from "./section-state";
+import { sectionField, sectionIdentityHistory } from './section-state';
 import { previewDecorations } from "./preview-decorations";
 import { wodLinter } from "./whiteboard-linter";
 import { wodAutocompletion, wodEditorKeymap, wodAutoWrap } from "./whiteboard-autocomplete";
@@ -120,6 +120,7 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
     extensions.push(
       markdown({ codeLanguages: resolveCodeLanguage }),
       sectionField,
+      sectionIdentityHistory,
       previewDecorations,
       wodLinter,
       wodAutocompletion,

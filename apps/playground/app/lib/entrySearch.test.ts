@@ -1,9 +1,6 @@
 /**
- * searchEntries — :block emits one Entry per block (parent identity +
- * block payload, #855) in executor order: pipes (order/limit) are applied
- * upstream and the stream must not re-sort presentation. :note behavior
- * is unchanged (whole-note entries, blocks only expand text hits) — but its
- * stage counts describe the actual mapped union.
+ * :block emits one Entry per occurrence in executor order.
+ * :note maps whole Notes without broadening the executor's filters or page.
  */
 import { describe, expect, it, mock } from 'bun:test'
 
@@ -12,22 +9,28 @@ import type { BlockIndexRow, Note } from '@/types/storage'
 import { parseQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import type { IEffort, RowsRun } from '@bitcobblers/wod-wiki-wql'
 import type { EventRecord } from '@bitcobblers/wod-wiki-core'
+import { blockContentId } from '@bitcobblers/wod-wiki-core'
 import { InMemoryStorage, setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage'
 import { entryOpenHref } from './entryActions'
 function makeBlock(i: number, createdAt = i): BlockIndexRow {
+  const noteId = `feeds/feed-a/2026-01-1${i % 5}/note-${i % 5}`
+  const rawContent = `\`\`\`time\n${i + 1} Thrusters\n\`\`\``
   return {
-    id: `static:note-${i % 5}:seg-${i}:1`,
-    noteId: `feeds/feed-a/2026-01-1${i % 5}/note-${i % 5}`,
-    segmentId: `seg-${i}`,
-    segmentVersion: 1,
+    id: `${noteId}:seg-${i}`,
+    noteId,
+    blockId: `seg-${i}`,
+    blockVersion: 1,
+    sourceRevision: 1,
+    from: 0,
+    to: rawContent.length,
     position: 0,
     dataType: 'wod',
-    rawContent: `block ${i} content`,
+    rawContent,
     noteTitle: `Note ${i % 5}`,
     createdAt,
     isStatic: true,
     sourceId: `feed:feeds/feed-a/2026-01-1${i % 5}/note-${i % 5}`,
-  } as BlockIndexRow
+  }
 }
 
 let runFindImpl: (parsed: ParsedFindQuery) => Promise<FindQueryResult>
@@ -64,7 +67,7 @@ describe('searchEntries — :block (#855, #861)', () => {
     const entries = await searchEntries(':block in all')
     expect(entries).toHaveLength(2)
     // Executor order is presentation order — no local re-sort.
-    expect(entries[0]!.block?.segmentId).toBe('seg-0')
+    expect(entries[0]!.block?.blockId).toBe('seg-0')
     for (const entry of entries) {
       expect(entry.kind).toBe('post')
       expect(entry.block?.dataType).toBe('wod')
@@ -79,7 +82,7 @@ describe('searchEntries — :block (#855, #861)', () => {
 
     const entries = await searchEntries(':block in all')
     expect(entries).toHaveLength(500)
-    expect(entries[0]!.block?.segmentId).toBe('seg-0')
+    expect(entries[0]!.block?.blockId).toBe('seg-0')
   })
 })
 
@@ -99,33 +102,21 @@ describe('searchEntries — :note unchanged', () => {
   })
 })
 
-describe('StreamQueryEngine — secondary text search for :note', () => {
-  it('searches block bodies when text: filter is present and combines with notes', async () => {
+describe('StreamQueryEngine whole-Note text search', () => {
+  it('does not broaden paged Note results through a block companion', async () => {
     const calls: ParsedFindQuery[] = []
     runFindImpl = async parsed => {
       calls.push(parsed)
-      if (parsed.target === 'block') {
-        return {
-          parsed,
-          notes: [],
-          blocks: [makeBlock(1, 200)],
-          stages: { selected: 1, matched: 1 },
-        }
-      }
-      return {
-        parsed,
-        notes: [{ id: 'note-0', title: 'Note 0', createdAt: 100, type: 'note' } as never],
-        blocks: [],
-        stages: { selected: 1, matched: 1 },
-      }
+      return { parsed, notes: [{ id: 'note-0', title: 'Note 0', createdAt: 100,
+        rawContent: 'Prose-only squat observations.', sourceRevision: 1, blocks: {} }],
+        blocks: [], stages: { selected: 4, matched: 1 } }
     }
-
-    const engine = new StreamQueryEngine()
-    const entries = await engine.query(':note{text:squat} in all')
-    expect(calls).toHaveLength(2)
+    const stages: Array<{ selected: number; matched: number }> = []
+    const entries = await new StreamQueryEngine().query(':note{text:squat} | limit 1', count => stages.push(count))
+    expect(calls).toHaveLength(1)
     expect(calls[0]!.target).toBe('note')
-    expect(calls[1]!.target).toBe('block')
-    expect(entries).toHaveLength(2)
+    expect(entries).toHaveLength(1)
+    expect(stages).toEqual([{ selected: 4, matched: 1 }])
   })
 
   it('handles AST input directly for :note with text: filter', async () => {
@@ -149,42 +140,22 @@ describe('StreamQueryEngine — secondary text search for :note', () => {
 })
 
 describe('StreamQueryEngine — note block info (feed previews)', () => {
-  it('attaches excerpt lines and the first wod blockContentId per note, same scope', async () => {
+  it('attaches authored prose preview and the first workout Run target without another query', async () => {
     const calls: ParsedFindQuery[] = []
+    const source = '```time\n21 Thrusters\n```'
+    const prefix = 'Recovery observations.\n\n'
+    const note: Note = { id: 'note-0', title: 'Note 0', createdAt: 100, sourceId: 'playground',
+      rawContent: prefix + source, sourceRevision: 1,
+      blocks: { w1: { id: 'w1', kind: 'wod', version: 1, sourceRevision: 1,
+        from: prefix.length, to: prefix.length + source.length, dialect: 'time' } } }
     runFindImpl = async parsed => {
       calls.push(parsed)
-      if (parsed.target === 'block') {
-        return {
-          parsed,
-          notes: [],
-          blocks: [
-            { ...makeBlock(1, 200), noteId: 'note-0', rawContent: '21-15-9\nThrusters', position: 0, blockContentId: 'wod-1' },
-            { ...makeBlock(2, 200), noteId: 'note-0', rawContent: 'Pull-ups', position: 1, blockContentId: undefined },
-          ],
-          stages: { selected: 2, matched: 2 },
-        }
-      }
-      return {
-        parsed,
-        notes: [{ id: 'note-0', title: 'Note 0', createdAt: 100, type: 'playground', sourceId: 'playground' } as never],
-        blocks: [],
-        stages: { selected: 1, matched: 1 },
-      }
+      return { parsed, notes: [note], blocks: [], stages: { selected: 1, matched: 1 } }
     }
-
-    const engine = new StreamQueryEngine({ noteBlockInfo: true })
-    const entries = await engine.query(':note{source:playground}')
-
-    // One companion query, identical scope (only the target pivots).
-    expect(calls).toHaveLength(2)
-    expect(calls[0]!.target).toBe('note')
-    expect(calls[1]!.target).toBe('block')
-    expect(calls[1]!.filters).toEqual(calls[0]!.filters)
-
-    expect(entries).toHaveLength(1)
-    expect(entries[0]!.excerpt).toEqual(['21-15-9', 'Thrusters', 'Pull-ups'])
-    expect(entries[0]!.blockContentId).toBe('wod-1')
-    expect(entries[0]!.wodBlock).toEqual({ blockContentId: 'wod-1', content: '21-15-9\nThrusters' })
+    const entries = await new StreamQueryEngine({ noteBlockInfo: true }).query(':note{source:playground}')
+    expect(calls).toHaveLength(1)
+    expect(entries[0]!.excerpt?.[0]).toBe('Recovery observations.')
+    expect(entries[0]!.wodBlock).toEqual({ blockId: 'w1', blockVersion: 1, blockContentId: blockContentId('21 Thrusters'), content: '21 Thrusters\n' })
   })
 
   it('does not run the companion query by default', async () => {
@@ -206,22 +177,11 @@ describe('StreamQueryEngine — note block info (feed previews)', () => {
   })
 
   it('withNoteBlockInfo forks the same engine with the flag on', async () => {
-    runFindImpl = async parsed => {
-      if (parsed.target === 'block') {
-        return {
-          parsed,
-          notes: [],
-          blocks: [{ ...makeBlock(1, 200), noteId: 'note-0', rawContent: 'Grace' }],
-          stages: { selected: 1, matched: 1 },
-        }
-      }
-      return {
-        parsed,
-        notes: [{ id: 'note-0', title: 'Note 0', createdAt: 100, type: 'note' } as never],
-        blocks: [],
-        stages: { selected: 1, matched: 1 },
-      }
-    }
+    runFindImpl = async parsed => ({
+      parsed,
+      notes: [{ id: 'note-0', title: 'Note 0', createdAt: 100, rawContent: 'Grace', sourceRevision: 1, blocks: {} }],
+      blocks: [], stages: { selected: 1, matched: 1 },
+    })
 
     const base = new StreamQueryEngine()
     const forked = base.withNoteBlockInfo()
@@ -449,52 +409,22 @@ describe('StreamQueryEngine — tabular rows plane (:segment / :event, #1042)', 
   })
 })
 
-describe('StreamQueryEngine — stage counts reconcile the companion union', () => {
-  it('matched counts the actual note union when body companions widen the result', async () => {
-    runFindImpl = async parsed => {
-      if (parsed.target === 'block') {
-        return {
-          parsed,
-          notes: [],
-          blocks: [
-            { ...makeBlock(1, 200), noteId: 'note-0' },
-            { ...makeBlock(2, 200), noteId: 'note-extra' },
-          ],
-          stages: { selected: 2, matched: 2 },
-        }
-      }
-      return {
-        parsed,
-        notes: [{ id: 'note-0', title: 'Note 0', createdAt: 100, type: 'note' } as never],
-        blocks: [],
-        stages: { selected: 1, matched: 1 },
-      }
-    }
-
-    let stages: { selected: number; matched: number } | undefined
-    const engine = new StreamQueryEngine()
-    const entries = await engine.query(':note{text:squat}', next => { stages = next })
-    // Two notes render (primary + companion-only), so matched is 2 — and
-    // selected (scope population) never drops below the union.
-    expect(entries).toHaveLength(2)
-    expect(stages).toEqual({ selected: 2, matched: 2 })
-  })
-})
 
 describe('StreamQueryEngine — blank block noteTitle', () => {
-  it('fills a body-hit entry label from the real note record', async () => {
+  it('fills an actionable block entry label from its stored parent Note', async () => {
     const memory = new InMemoryStorage()
     setStorageForTesting(memory)
     try {
-      const note: Note = { id: 'note-uuid', title: 'Dogfod smoke original', type: 'note', createdAt: 1 }
-      await storageService.saveNote(note)
-      // First-save indexing runs before the note row exists, so block rows
-      // can carry an empty noteTitle.
-      const block = { ...makeBlock(0), noteId: note.id, noteTitle: '', sourceId: undefined }
+      const source = makeBlock(0).rawContent
+      const note = await storageService.saveNoteSource({ noteId: 'note-uuid', rawContent: source,
+        expectedSourceRevision: 0, metadata: { title: 'Dogfod smoke original' },
+        blocks: { 'seg-0': { id: 'seg-0', kind: 'wod', version: 1, sourceRevision: 1,
+          from: 0, to: source.length, dialect: 'time' } } })
+      const block = { ...makeBlock(0), id: `${note.id}:seg-0`, noteId: note.id, noteTitle: '', sourceId: undefined }
       const engine = new StreamQueryEngine({
         service: { runFind: async parsed => ({ parsed, notes: [], blocks: parsed.target === 'block' ? [block] : [], stages: { selected: 1, matched: 1 } }) },
       })
-      const entries = await engine.query(':note{text:pushup} in all')
+      const entries = await engine.query(':block{text:thrusters} in all')
       expect(entries.map(e => e.id)).toEqual([note.id])
       expect(entries[0]!.title).toBe('Dogfod smoke original')
     } finally {
@@ -509,8 +439,12 @@ describe('StreamQueryEngine — named page navigation', () => {
     const memory = new InMemoryStorage()
     setStorageForTesting(memory)
     try {
-      const note: Note = { id: 'note-uuid', title: 'Workout plan', type: 'note', createdAt: 1 }
-      const block = { ...makeBlock(0), noteId: note.id, noteTitle: note.title, sourceId: undefined }
+      const source = makeBlock(0).rawContent
+      const note = await storageService.saveNoteSource({ noteId: 'note-uuid', rawContent: source,
+        expectedSourceRevision: 0, metadata: { title: 'Workout plan' },
+        blocks: { 'seg-0': { id: 'seg-0', kind: 'wod', version: 1, sourceRevision: 1,
+          from: 0, to: source.length, dialect: 'time' } } })
+      const block = { ...makeBlock(0), id: `${note.id}:seg-0`, noteId: note.id, noteTitle: note.title, sourceId: undefined }
       await storageService.savePage({ id: 'calendar-uuid', date: '2026-10-08', createdAt: 1 })
       await storageService.savePage({ id: 'named-uuid', slug: 'workout-plan', createdAt: 2 })
       await storageService.savePage({ id: 'other-uuid', slug: 'other-plan', createdAt: 3 })

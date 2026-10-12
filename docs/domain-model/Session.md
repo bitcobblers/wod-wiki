@@ -3,36 +3,34 @@ tags: [domain-model]
 store: sessions
 legacyStore: results
 keyPath: "id"
-db: wodwiki-db (v23)
+db: wodwiki-db (v29)
 ---
 
 # Session
 
 > [!info] Implementation Note
-> Renamed from `WorkoutResult` (table `results` → `sessions`, DB v20) and flattened in V21: the statement stream no longer lives on the row. Every statement is an [[EventRecord]].
+> Renamed from `WorkoutResult` (table `results` → `sessions`, DB v20) and flattened in V21: the statement stream no longer lives on the row. Every statement is an [[EventRecord]]. The sparse cutover (DB v29) replaced segment pins with the immutable block revision pin.
 
 ## Current State (Implemented in Code)
 
 - **Store:** `sessions` (legacy `results` copied on V20, flattened on V21)
 - **Key path:** `id`
-- **Type source:** `apps/playground/src/types/storage.ts` (`Session`)
-- **Database version:** `wodwiki-db` (v23)
+- **Type source:** `packages/core/src/types/storage.ts` (`Session`)
+- **Database version:** `wodwiki-db` (v29)
 
-Outcome of running a specific [[NoteSegment]] version. Born `status: 'in-progress'` at workout start, flipped to `'completed'` at finalize. A session row is **execution metadata only** (V21): statements and metrics live as [[EventRecord]] rows, and display/replay shapes are reconstructed from them (`eventsToStoredLogs`).
+Outcome of running one specific saved [[BlockRevision]]. Born `status: 'in-progress'` at workout start — the exact Note source/map, the revision row and this pin commit atomically before the runtime begins — and flipped to `'completed'` when the lifecycle write finalizes (workout finished or user stopped early; `completed` records which). A session row is **execution metadata only** (V21): statements and metrics live as [[EventRecord]] rows, and display/replay shapes are reconstructed from them (`eventsToStoredLogs`). Replay reads the pinned revision; a duplicate source snapshot is unnecessary and absent.
 
 ### Fields (Current)
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | string | UUID |
-| `segmentId?` | string | Recorded occurrence identity → [[NoteSegment]].id |
-| `segmentVersion?` | number | Pinned segment version at record time |
 | `noteId` | string | FK → [[Note]] |
-| `blockId?` | string | Section-position identity |
+| `blockId` | string | Pinned occurrence identity → [[BlockRevision]].blockId |
+| `blockVersion` | number | Pinned saved version → [[BlockRevision]].version |
 | `blockContentId?` | string | Same-content history join with [[BlockIndexRow]]; not a foreign key or occurrence identifier |
-| `version?` | number | LEGACY — retired computeVersion() generation |
 | `origin?` | ResultOrigin | 'journal' \| 'playground' \| 'user'; playground excluded from default filters |
-| `status?` | 'in-progress' \| 'completed' | Absent = 'completed' (legacy rows) |
+| `status` | 'in-progress' \| 'completed' | in-progress until the finalize write commits |
 | `pageId?` | string | @deprecated V10 legacy placement field (placements now owned by [[PageNote]]) |
 | `startTime` | number | When the workout started (flattened from `data` in V21) |
 | `endTime` | number | When the workout ended |
@@ -40,25 +38,24 @@ Outcome of running a specific [[NoteSegment]] version. Born `status: 'in-progres
 | `roundsCompleted?` / `totalRounds?` | number | Rounds-based workouts |
 | `repsCompleted?` | number | Rep-based workouts |
 | `completed` | boolean | Finished vs stopped early |
-| `createdAt` | number | When the workout was finished |
+| `createdAt` | number | When the session was captured |
 
 ### Indexes (Current)
 
 | Index | Key path | Unique | Purpose |
 |-------|----------|--------|---------|
-| `by-segment` | `segmentId` | no | per-block journal queries |
-| `by-note` | `noteId` | no |  |
+| `by-note` | `noteId` | no | per-note history |
 | `by-completed` | `createdAt` | no | recency ordering |
 | `by-content` | `blockContentId` | no | cross-workout joins (V6) |
-| `by-block` | `blockId` | no | position identity (V6) |
+| `by-block` | `blockId` | no | occurrence identity (V6) |
 | `by-page` | `pageId` | no | legacy page index (V10) |
 
 ### Relationships (Current)
 
 #### Outgoing (this row references)
 
-- `noteId` → [[Note]] — parent
-- `segmentId + segmentVersion` → [[NoteSegment]] — pinned recorded occurrence/version
+- `noteId` → [[Note]] — parent (deletion retains the Session and its pinned revision)
+- `noteId + blockId + blockVersion` → [[BlockRevision]] — pinned recorded occurrence/version, required
 - `pageId` → [[Page]] — legacy denormalized context
 - `blockContentId` → [[BlockIndexRow]] — content-hash join
 
@@ -78,7 +75,7 @@ Outcome of running a specific [[NoteSegment]] version. Born `status: 'in-progres
 
 ### Typed-note composition recommendations
 
-These recommendations do not implement behavior or resolve a ticket; mode policy lives in [[Page#Mode and write destinations]] and identity questions in [[NoteSegment#Identity and round-trip questions]].
+These recommendations do not implement behavior or resolve a ticket; mode policy lives in [[Page#Mode and write destinations]] and identity questions in [[BlockRevision]].
 
 - Saving a result is separate from editing note source. Run may be available in read presentation, but its owning note, occurrence/version and save destination must be explicit.
 - Preserve the two identity axes: a specific recorded occurrence/version versus intentional same-content history. Identical blocks do not share edit targets merely because their content IDs match.

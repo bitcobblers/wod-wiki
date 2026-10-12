@@ -27,15 +27,13 @@ import {
   captureContext,
   civilDateOf,
   civilDateAdd,
-  sourceMatches,
-  WQL_SOURCE_VALUES,
   zonedStartOfDay,
   toEventRows,
   type PageSourceEntry,
   type ExecutionContext,
 } from '@bitcobblers/wod-wiki-wql';
 import { toStoredOutputStatement } from '@bitcobblers/wod-wiki-lang';
-import type { BlockIndexRow, IOutputStatement } from '@bitcobblers/wod-wiki-core';
+import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
 import { getActiveWorkbenchSessionStore } from '@/stores/workbenchSessionStore';
 import { getAppEffortRegistry } from '@/services/effortRegistry';
 import { storageService } from '@/services/storage';
@@ -55,6 +53,7 @@ export const indexedDbEventStore: EventStore = {
 
 export const indexedDbNoteStore: NoteQueryStore = {
   getAllNotes: () => storageService.getAllNotes(),
+  getNotesByIds: async (ids) => [...(await storageService.getEntryBatches(ids)).values()].map(bundle => bundle.note),
   getNoteIdsForTag: async (label: string) =>
     new Set((await storageService.getNotesForTag(label)).map((n) => n.id)),
   getNoteTagLabels: async (noteId: string) =>
@@ -72,72 +71,10 @@ export const indexedDbNoteStore: NoteQueryStore = {
 
 export const indexedDbBlockStore: BlockQueryStore = {
   getAllBlocks: () => storageService.getAllBlockIndex(),
-  // API mode: exact wire read (counts, selection, server paging). Local
-  // (offline IndexedDB) mode: indexed candidate reads — selective queries
-  // never hydrate the whole block store. Only the exact clause shapes WQL
-  // compiles are served locally; anything else returns undefined (the
-  // engine's whole-store fallback), never a degraded count. Storage errors
-  // propagate — a failing read is not silently turned into a scan.
   queryDomain: async (req) => {
-    if (storageService.queryDomain) {
-      const res = await storageService.queryDomain({ ...req, plan: 'blocks' });
-      if (res && res.plan === 'blocks') return res;
-    }
-    const types: string[] = [];
-    const noteIds: string[] = [];
-    for (const predicate of req.filters ?? []) {
-      // Only literal value-list clauses are served from the index. Other
-      // predicate shapes ({ field: 'text', value } and friends) have no
-      // values list and no block-index surface — fall back to the
-      // whole-store read where WQL re-applies them in JS.
-      if (!('values' in predicate)) return undefined;
-      if (predicate.negate || predicate.values.length === 0) return undefined;
-      if (predicate.field === 'type' && types.length === 0) types.push(...predicate.values);
-      else if (predicate.field === 'noteId' && noteIds.length === 0) noteIds.push(...predicate.values);
-      else return undefined;
-    }
-    // Authored source selection cannot be counted locally (no per-kind
-    // count surface) — the wire baseline would overstate the historical
-    // post-source population, so those shapes fall back to the whole-store
-    // read where the JS source filter counts exactly.
-    if ((req.selection ?? []).some((p) => p.field === 'source')) return undefined;
-    let rows: BlockIndexRow[];
-    if (types.length > 0 && noteIds.length > 0) {
-      // Values OR within a clause, clauses AND across — intersect by id.
-      const [byType, byNote] = await Promise.all([
-        Promise.all(types.map((v) => storageService.getBlockIndexByType(v))),
-        Promise.all(noteIds.map((v) => storageService.getBlockIndexByNote(v))),
-      ]);
-      const noteIdSet = new Set(byNote.flat().map((r) => r.id));
-      rows = byType.flat().filter((r) => noteIdSet.has(r.id));
-    } else if (types.length > 0) {
-      rows = (await Promise.all(types.map((v) => storageService.getBlockIndexByType(v)))).flat();
-    } else if (noteIds.length > 0) {
-      rows = (await Promise.all(noteIds.map((v) => storageService.getBlockIndexByNote(v)))).flat();
-    } else {
-      rows = await storageService.getAllBlockIndex();
-    }
-    // Local selection before paging: the wire's sourceFence clause is
-    // applied here so a paged local read can never return fence-illegal
-    // rows the caller would treat as the page (authored source clauses
-    // already fell back above). Mirrors the JS pipeline's fence exactly.
-    rows = rows.filter((r) => !r.sourceId || WQL_SOURCE_VALUES.some((k) => sourceMatches(r, k)));
-    // Natural id order — exactly the whole-store iteration order the JS
-    // pipeline surfaces when no `| order` pipe exists.
-    const direction = req.order?.[0]?.direction === 'desc' ? -1 : 1;
-    rows = [...rows].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) * direction);
-    const offset = req.offset ?? 0;
-    const matchedCount = rows.length; // wire: before limit
-    const page = req.limit !== undefined ? rows.slice(offset, offset + req.limit) : rows.slice(offset);
-    return {
-      plan: 'blocks',
-      // 0 = not a server domain projection; selectedCount is the local
-      // fence-selected source population (no hydration).
-      projectionVersion: 0,
-      selectedCount: await storageService.countBlockIndexInDomain(),
-      matchedCount,
-      rows: page,
-    };
+    if (!storageService.queryDomain) return undefined;
+    const res = await storageService.queryDomain({ ...req, plan: 'blocks' });
+    return res && res.plan === 'blocks' ? res : undefined;
   },
 };
 
@@ -180,9 +117,10 @@ function projectLiveSession(): PageSourceEntry {
   const session = getActiveWorkbenchSessionStore().getState();
   const outputs: IOutputStatement[] = session.runtime?.getOutputStatements() ?? [];
   const entry = session.currentEntry;
-  sessionEntry.notes = entry
-    ? [{ id: entry.id, title: entry.title, createdAt: entry.createdAt, date: entry.targetDate }]
-    : [];
+  sessionEntry.notes = entry ? [{
+    id: entry.id, title: entry.title, createdAt: entry.createdAt, date: entry.targetDate,
+    rawContent: entry.rawContent, sourceRevision: entry.sourceRevision ?? 1, blocks: entry.blocks ?? {},
+  }] : [];
   if (outputs.length === 0) {
     sessionEntry.events = [];
     return sessionEntry;

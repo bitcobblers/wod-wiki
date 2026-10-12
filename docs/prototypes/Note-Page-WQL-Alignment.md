@@ -39,7 +39,7 @@ There is a fundamental semantic collision in the codebase between two definition
 erDiagram
     Page ||--o{ PageNote : "pageId"
     Note ||--o{ PageNote : "noteId"
-    Note ||--|{ NoteSegment : "noteId (authored content)"
+    Note ||--|{ BlockRevision : "noteId, blockId, version (saved actionable states)"
     Note ||--o{ BlockIndexRow : "noteId (parsed blocks)"
     BlockIndexRow ||--o{ BlockEffort : "blockContentId (exercise links)"
     Effort ||--o{ BlockEffort : "effortSlug"
@@ -69,9 +69,9 @@ erDiagram
 * **Former Fields (Retired in V11)**:
   - `slug`: Removed from `Note`. Route slugs live exclusively on `Page.slug`.
   - `pageId`: Removed from `Note`. Placements live in the `page_notes` junction table.
-  - `rawContent`, `segmentIds`, `journalDate`, `templateId`, `updatedAt`, `targetDate`: Removed from `Note` storage row.
+  - `segmentIds`, `templateId`, `updatedAt`: removed from `Note` storage rows (rawContent restored as the single authored source by the sparse cutover).
 * **Content Relation**:
-  - Raw markdown does **not** live on `Note`. It lives in 1:N versioned rows in [[NoteSegment]] (`segments` table).
+  - Raw markdown lives once on `Note.rawContent`; saved actionable block states live in [[BlockRevision]] (`block_revisions` table). (Superseded the retired per-segment rows.)
   - Derived blocks live in [[BlockIndexRow]] (`block_index` table).
 
 ### 2.2 Page (`page` table)
@@ -106,7 +106,7 @@ Under the current domain model, **this denormalization is an architectural vesti
 1. **Authored content and telemetry belong to `noteId`, not `pageId`**.
 2. A single note can belong to multiple pages (e.g. a date page and a custom collection page) via `page_notes`. A single denormalized `pageId` on segments or events cannot represent this and causes dangling or arbitrary references.
 3. Queries no longer use child `by-page` indexes (retrieval is driven by `noteId`, and pages resolve notes via `page_notes`).
-4. **Alignment Rule**: Subordinate entities (`NoteSegment`, `Session`, `Attachment`, `EventRecord`) must treat `pageId` as **deprecated legacy context only**. Identity, retrieval, telemetry aggregation, and deletion cascade exclusively via `noteId`.
+4. **Alignment Rule**: Subordinate entities (`Session`, `Attachment`, `EventRecord`) must treat `pageId` as **deprecated legacy context only**. Identity, retrieval, telemetry aggregation, and deletion cascade exclusively via `noteId`.
 
 ## 3. How WQL Queries Compose Note and Page
 
@@ -203,4 +203,4 @@ Use these sections to mark decisions and track consensus.
   - `docs/domain-model/Note.md`
   - `docs/domain-model/Page.md`
   - `docs/domain-model/collection.md`
-  - `docs/domain-model/NoteSegment.md`
+  - `docs/domain-model/BlockRevision.md`

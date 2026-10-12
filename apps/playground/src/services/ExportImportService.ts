@@ -139,9 +139,9 @@ export async function importFromZip(
             const content = await zip.files[filename].async('text');
             const entry = parseMarkdownToEntry(content, clock);
             if (entry) {
-                // saveEntry honors a recovered id (NoteSaveInput) so a re-imported
-                // note overwrites its original instead of duplicating.
-                await provider.saveEntry(entry);
+                const existing = entry.id ? await provider.getEntry(entry.id) : null;
+                await provider.saveEntry({ ...entry, sourceRevision: existing?.sourceRevision ?? entry.sourceRevision,
+                    blocks: existing?.rawContent === entry.rawContent ? existing.blocks : entry.blocks });
                 imported++;
             } else {
                 errors.push(`Failed to import ${filename}: Invalid markdown format or missing metadata`);

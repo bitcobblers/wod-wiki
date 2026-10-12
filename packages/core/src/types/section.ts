@@ -72,7 +72,7 @@ export type FrontMatterSubtype = 'default' | 'youtube' | 'strava' | 'amazon' | '
 export interface ScriptBlock {
   /** Unique identifier for this block */
   id: string;
-  /** Content-stable identity */
+  /** Cross-note content fingerprint, never occurrence identity. */
   contentId?: string;
   /** Workout fence tag ('time' runnable / 'log' recorded) */
   dialect?: FenceDialect;
@@ -105,6 +105,13 @@ export interface Section {
   id: string;
   contentId?: string;
   type: SectionType;
+  /** Half-open UTF-16 offsets in the exact authored document. */
+  from: number;
+  to: number;
+  contentFrom?: number;
+  contentTo?: number;
+  querySuffix?: string;
+  separatorAfter?: string;
   subtype?: string;
   rawContent: string;
   displayContent: string;

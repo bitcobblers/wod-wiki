@@ -47,12 +47,14 @@ describe('#1050 — time windows filter on "when it happened"', () => {
     createdAt: NOW, // typed today…
     date: twoWeeksAgo, // …but dated two weeks ago
     type: 'note',
+    rawContent: '', sourceRevision: 1, blocks: {},
   } as Note;
   const noDateNote: Note = {
     id: 'jrnl-fresh',
     title: 'Fresh note',
     createdAt: NOW,
     type: 'note',
+    rawContent: '', sourceRevision: 1, blocks: {},
   } as Note;
   const events = [eventRow('jrnl-backdated', '2026-09-16', 1000)];
 

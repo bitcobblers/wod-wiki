@@ -148,8 +148,8 @@ describe('replayResultAnalytics', () => {
       ...toEventRows([segmentLog(), STALE_SUMMARY], {
         noteId: 'n1',
         resultId: 'r1',
-        segmentId: 'wod-2-test',
-        segmentVersion: 1,
+        blockId: 'wod-2-test',
+        blockVersion: 1,
         blockContentId: 'bc-test',
         origin: 'journal',
         workoutTimestamp: T0 + 60_000,
@@ -172,8 +172,8 @@ describe('replayResultAnalytics', () => {
     const events = toEventRows([segmentLog(), rpeStatement], {
       noteId: 'n1',
       resultId: 'r1',
-      segmentId: 'wod-2-test',
-      segmentVersion: 1,
+      blockId: 'wod-2-test',
+      blockVersion: 1,
       blockContentId: 'bc-test',
       origin: 'journal',
       workoutTimestamp: T0 + 60_000,

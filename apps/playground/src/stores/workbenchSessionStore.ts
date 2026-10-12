@@ -37,10 +37,9 @@ import type { Segment, AnalyticsGroup } from '@bitcobblers/wod-wiki-engine';
 import { getAnalyticsFromLogs, getAnalyticsFromRuntime } from '@/services/AnalyticsTransformer';
 import type { NoteLocator, GetNoteOptions } from '@/services/persistence';
 import type { INotePersistence } from '@/services/persistence';
-import { toNotebookTag } from '@/types/notebook';
+import { revertBlock } from '@/components/organisms/editor/BlockHistory';
 import { fileProcessor } from '@/hooks/useBrowserServices';
 import { loadStaticWorkbenchContent } from '@/app/workbench/workbenchProviders';
-import { createResultRecorder } from '@/services/resultRecorder';
 import type { HistoryEntry } from '@/types/history';
 import type { Attachment } from '@/types/storage';
 import { sharedCastSessionManager } from '@/services/cast/rpc/CastSessionManager';
@@ -52,6 +51,10 @@ import type { INowProvider } from '@bitcobblers/wod-wiki-engine';
 import { MetricContainer } from '@bitcobblers/wod-wiki-engine';
 import type { IMetric } from '@bitcobblers/wod-wiki-engine';
 import { deriveWorkbenchDocumentState } from '@/app/workbench/workbenchDocumentModel';
+import { captureRun, type CapturedRun } from '@/services/runCapture';
+import type { NoteBlock } from '@/types/storage';
+import type { EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor';
+import { v7 as uuidv7 } from 'uuid';
 
 // ─── Shared route vocabulary (used by Workbench Session + Workbench Effect) ─
 
@@ -107,6 +110,10 @@ export interface WorkbenchSessionState {
   // --- Document (S1a: migrated from WorkbenchContext) ---
   content: string;
   sections: Section[] | null;
+  noteBlocks: Record<string, NoteBlock>;
+  sourceRevision: number;
+  capturedRun: CapturedRun | null;
+  saveError: string | null;
   blocks: ScriptBlock[];
   activeBlockId: string | null;
   saveState: SaveState;
@@ -174,6 +181,10 @@ export interface WorkbenchSessionState {
 export interface WorkbenchSessionActions {
   // --- Document (S1a) ---
   setContent: (content: string) => void;
+  setEditorIdentity: (snapshot: EditorIdentitySnapshot) => void;
+  acceptSaved: (snapshot: EditorIdentitySnapshot) => void;
+  restoreBlock: (revision: import('@/types/storage').BlockRevision) => Promise<void>;
+  startPinnedRun: (block: ScriptBlock) => Promise<ScriptBlock>;
   setBlocks: (blocks: ScriptBlock[]) => void;
   setActiveBlockId: (id: string | null) => void;
   /** Mark the autosave machine's state (e.g. 'saving' / 'saved' / 'error'). */
@@ -287,6 +298,10 @@ export type WorkbenchSessionStore = WorkbenchSessionState & WorkbenchSessionActi
 const initialState: WorkbenchSessionState = {
   content: '',
   sections: null,
+  noteBlocks: {},
+  sourceRevision: 0,
+  capturedRun: null,
+  saveError: null,
   blocks: [],
   activeBlockId: null,
   saveState: 'idle',
@@ -432,41 +447,30 @@ export function createWorkbenchSessionStore(
   let subscriptionDisposers: Array<() => void> = [];
 
   const store = createStore<WorkbenchSessionStore>()((set, get): WorkbenchSessionStore => {
+    let saveChain = Promise.resolve();
+    const saveSnapshot = async (snapshot: EditorIdentitySnapshot) => {
+      const state = get();
+      const targetId = state.currentEntry?.id ?? state.loadedRouteId;
+      if (!targetId || !notePersistence || !deps.provider?.capabilities.canWrite) return;
+      if (snapshot.rawContent === state.lastSavedContent && JSON.stringify(Object.values(snapshot.blocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])) === JSON.stringify(Object.values(state.currentEntry?.blocks ?? {}).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport]))) return;
+      set({ saveState: 'saving', saveError: null });
+      try {
+        const saved = await notePersistence.saveNote({ noteId: targetId, rawContent: snapshot.rawContent, blocks: snapshot.blocks, expectedSourceRevision: state.sourceRevision, metadata: { title: snapshot.rawContent.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? 'Untitled Session' }, noteType: 'playground' });
+        const current = get();
+        const sameDraft = current.content === snapshot.rawContent && JSON.stringify(Object.values(current.noteBlocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])) === JSON.stringify(Object.values(snapshot.blocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport]));
+        set({ currentEntry: saved, ...(sameDraft ? { noteBlocks: saved.blocks } : {}), sourceRevision: saved.sourceRevision ?? state.sourceRevision, lastSavedContent: snapshot.rawContent, saveState: 'saved' });
+      } catch (error) {
+        set({ saveState: 'error', saveError: error instanceof Error ? error.message : String(error) });
+        throw error;
+      }
+    };
     const runAutosave = () => {
       autosaveHandle = null;
       const state = get();
-      const { content, lastSavedContent, saveState, currentEntry, loadedRouteId } = state;
-      const provider = deps.provider;
-      if (!provider) return;
-      if (!provider.capabilities.canWrite) return;
-      if (content === lastSavedContent) return;
-      if (saveState === 'saving') return;
-
-      const titleMatch = content.match(/^#\s+(.+)$/m);
-      const title = titleMatch ? titleMatch[1].trim() : 'Untitled Session';
-
-      // Existing note → update; new note (not yet persisted) → create via saveEntry.
-      const targetId = currentEntry?.id ?? loadedRouteId;
-      if (!targetId) return;
-
-      set({ saveState: 'saving' });
-      const saveOp = currentEntry
-        ? provider.updateEntry(targetId, { rawContent: content, title })
-        : provider.saveEntry({ id: targetId, title, rawContent: content, tags: [], targetDate: Date.now(), type: 'playground' });
-
-      saveOp.then((saved: HistoryEntry) => {
-        set({ lastSavedContent: content, saveState: 'saved', ...(currentEntry ? {} : { currentEntry: saved }) });
-        // Grace period: reset to 'idle' after 3s, mirroring the prior UX.
-        setTimeoutFn(() => {
-          const current = get();
-          if (current.saveState === 'saved') {
-            set({ saveState: 'idle' });
-          }
-        }, 3000);
-      }).catch((err: unknown) => {
-        console.error('[WorkbenchSession] Auto-save failed:', err);
-        set({ saveState: 'error' });
-      });
+      const snapshot = { rawContent: state.content, blocks: state.noteBlocks, sourceRevision: state.sourceRevision };
+      const operation = saveChain.catch(() => {}).then(() => saveSnapshot(snapshot));
+      saveChain = operation;
+      return operation;
     };
 
     return {
@@ -477,12 +481,13 @@ export function createWorkbenchSessionStore(
       setContent: (content) => {
         // Document derivation: sections + blocks derive from content via
         // `deriveWorkbenchDocumentState` (same logic the Context used).
-        const next = deriveWorkbenchDocumentState(content, get().sections);
+        const next = deriveWorkbenchDocumentState(content, { noteBlocks: get().noteBlocks, sourceRevision: Math.max(1, get().sourceRevision) });
         const prior = get();
         const nextState: Partial<WorkbenchSessionState> = {
           content,
           sections: next.sections,
           blocks: next.blocks,
+          noteBlocks: next.noteBlocks,
         };
 
         // Autosave machine: if content differs from lastSaved, mark 'changed'
@@ -496,7 +501,7 @@ export function createWorkbenchSessionStore(
             clearTimeoutFn(autosaveHandle);
           }
           if (deps.provider && deps.provider.capabilities.canWrite) {
-            autosaveHandle = setTimeoutFn(() => runAutosave(), AUTOSAVE_DEBOUNCE_MS);
+            autosaveHandle = setTimeoutFn(() => { void runAutosave().catch(() => {}); }, AUTOSAVE_DEBOUNCE_MS);
           }
         }
 
@@ -504,39 +509,47 @@ export function createWorkbenchSessionStore(
       },
 
       setBlocks: (blocks) => set({ blocks }),
+      setEditorIdentity: snapshot => {
+        const changed = JSON.stringify(Object.values(get().noteBlocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])) !== JSON.stringify(Object.values(snapshot.blocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport]));
+        set({ content: snapshot.rawContent, noteBlocks: snapshot.blocks });
+        if (changed && deps.provider?.capabilities.canWrite) {
+          if (autosaveHandle !== null) clearTimeoutFn(autosaveHandle);
+          autosaveHandle = setTimeoutFn(() => { void runAutosave().catch(() => {}); }, AUTOSAVE_DEBOUNCE_MS);
+        }
+      },
+      acceptSaved: snapshot => set(state => ({ ...(state.content === snapshot.rawContent && JSON.stringify(Object.values(state.noteBlocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])) === JSON.stringify(Object.values(snapshot.blocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])) ? { noteBlocks: snapshot.blocks } : {}), sourceRevision: snapshot.sourceRevision, lastSavedContent: snapshot.rawContent })),
+      restoreBlock: async revision => {
+        if (!notePersistence) throw new Error('Note persistence is unavailable.');
+        await runAutosave();
+        const state = get();
+        const snapshot = revertBlock({ rawContent: state.content, blocks: state.noteBlocks, sourceRevision: state.sourceRevision }, revision);
+        const saved = await notePersistence.saveNote({ noteId: revision.noteId, rawContent: snapshot.rawContent, blocks: snapshot.blocks, expectedSourceRevision: state.sourceRevision });
+        const next = deriveWorkbenchDocumentState(saved.rawContent, { noteBlocks: saved.blocks, sourceRevision: saved.sourceRevision });
+        set({ content: saved.rawContent, noteBlocks: saved.blocks, sourceRevision: saved.sourceRevision, lastSavedContent: saved.rawContent, currentEntry: saved, sections: next.sections, blocks: next.blocks });
+      },
+      startPinnedRun: async (block) => {
+        await saveChain.catch(() => {});
+        const state = get();
+        const noteId = state.currentEntry?.id ?? state.loadedRouteId;
+        if (!noteId || !notePersistence) throw new Error('Save the note before starting a workout.');
+        try {
+          const captured = await captureRun({ noteId, rawContent: state.content, blocks: state.noteBlocks, expectedSourceRevision: state.sourceRevision }, block, uuidv7(), undefined, notePersistence);
+          set({ capturedRun: captured, noteBlocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision, currentEntry: { ...state.currentEntry, ...captured.note, updatedAt: Date.now(), targetDate: state.currentEntry?.targetDate ?? Date.now(), schemaVersion: 1 }, lastSavedContent: captured.note.rawContent, saveError: null });
+          return captured.block;
+        } catch (error) {
+          set({ saveState: 'error', saveError: error instanceof Error ? error.message : String(error) });
+          throw error;
+        }
+      },
 
       setActiveBlockId: (id) => set({ activeBlockId: id }),
 
       setSaveState: (saveState) => set({ saveState }),
 
       flushSave: async () => {
-        if (autosaveHandle !== null) {
-          clearTimeoutFn(autosaveHandle);
-          autosaveHandle = null;
-        }
-        const state = get();
-        const provider = deps.provider;
-        if (!provider || !provider.capabilities.canWrite) return;
-        if (state.content === state.lastSavedContent) return;
-        if (state.saveState === 'saving') return; // autosave in flight — trust it to complete
-        const titleMatch = state.content.match(/^#\s+(.+)$/m);
-        const title = titleMatch ? titleMatch[1].trim() : 'Untitled Session';
-        const targetId = state.currentEntry?.id ?? state.loadedRouteId;
-        if (!targetId) return;
-
-        set({ saveState: 'saving' });
-        try {
-          if (state.currentEntry) {
-            await provider.updateEntry(targetId, { rawContent: state.content, title });
-          } else {
-            const saved = await provider.saveEntry({ id: targetId, title, rawContent: state.content, tags: [], targetDate: Date.now(), type: 'playground' });
-            set({ currentEntry: saved });
-          }
-          set({ lastSavedContent: state.content, saveState: 'saved' });
-        } catch (err: unknown) {
-          console.error('[WorkbenchSession] Flush-save failed:', err);
-          set({ saveState: 'error' });
-        }
+        if (autosaveHandle !== null) clearTimeoutFn(autosaveHandle);
+        autosaveHandle = null;
+        await runAutosave();
       },
 
       markSaved: (content) => set({ lastSavedContent: content, saveState: 'saved' }),
@@ -547,7 +560,14 @@ export function createWorkbenchSessionStore(
 
       resetResults: () => set({ results: [] }),
 
-      setCurrentEntry: (entry) => set({ currentEntry: entry }),
+      setCurrentEntry: (entry) => {
+        if (entry && entry.id !== get().currentEntry?.id) {
+          const next = deriveWorkbenchDocumentState(entry.rawContent, { noteBlocks: entry.blocks, sourceRevision: Math.max(1, entry.sourceRevision ?? 0) });
+          set({ currentEntry: entry, content: entry.rawContent, noteBlocks: next.noteBlocks, sections: next.sections, blocks: next.blocks, sourceRevision: entry.sourceRevision ?? 0, lastSavedContent: entry.rawContent });
+        } else {
+          set({ currentEntry: entry });
+        }
+      },
 
       setHistoryEntries: (entries) => set({ historyEntries: entries }),
 
@@ -648,98 +668,16 @@ export function createWorkbenchSessionStore(
       }),
 
       /**
-       * `completeWorkout` — the unified single-source write path for finishing a
-       * workout. Reads `content` / `selectedBlockId` / `analyticsSegments` /
-       * `currentEntry` from the session state and persists the result.
-       * Returns the generated resultId so callers can navigate synchronously
-       * before the persistence promise resolves. (#946 removed the goToReview
-       * intent — the explorer with a rows query is the review now.)
+       * Finish the Session pinned before runtime initialization. Editor-owned
+       * runs pass their already-persisted result ID; no current source lookup.
        */
-      completeWorkout: async (result, explicitResultId, runBlock) => {
-        const { v7: uuidv7 } = await import('uuid');
-        const resultId = explicitResultId ?? uuidv7();
-        const state = get();
-        const { content, selectedBlock, selectedBlockId, currentEntry } = state;
-
-        // The completed block may arrive from the editor (inline runs) or the
-        // session selection (track view); `setSelectedBlock` is only used by
-        // tests today, so never require `selectedBlock` to persist — fall back
-        // to blockId alone rather than dropping the result (a crash here used
-        // to silently lose every editor-run completion).
-        const identity = runBlock ?? selectedBlock;
-
-        const provider = deps.provider;
-        const notePersistence = deps.notePersistence;
-        if (!provider) return resultId;
-
-        const titleMatch = content.match(/^#\s+(.+)$/m);
-        const title = titleMatch ? titleMatch[1].trim() : 'Untitled Session';
-
-        const payload = {
-          title,
-          rawContent: content,
-          results: result,
-          resultId,
-        };
-
-        if (provider.capabilities.canWrite) {
-          // Determine persistence target: existing entry via routeId (read from
-          // `currentEntry.id`), or a brand-new entry when no route is bound.
-          const routeId = currentEntry?.id;
-          if (routeId || provider.mode === 'static') {
-            const targetId = routeId || 'static';
-            if (notePersistence) {
-              // First persist any pending note content update (separate from result write).
-              if (payload.rawContent !== undefined) {
-                await notePersistence.mutateNote(targetId, {
-                  rawContent: payload.rawContent,
-                  metadata: { title: payload.title },
-                });
-              }
-              // Then resolve identity + persist the result via the Recorder (placement A).
-              // Guarded: a failure to persist must surface in the console, not
-              // silently drop the completion (the query:table already references
-              // `resultId`, so an unrecorded run shows an empty table).
-              try {
-                await createResultRecorder(notePersistence).record({
-                  runBlock: identity,
-                  blockId: selectedBlockId ?? identity?.id ?? '',
-                  noteId: targetId,
-                  resultId: payload.resultId,
-                  data: payload.results,
-                  createdAt: payload.results.endTime,
-                });
-              } catch (err) {
-                console.error('[workbench] failed to persist workout result:', err);
-              }
-              const refreshed = await notePersistence.getNote(targetId, {
-                projection: 'workbench',
-                includeAttachments: true,
-              });
-              if (refreshed) set({ currentEntry: refreshed });
-            }
-          } else {
-            // Brand-new entry — auto-tag with active notebook.
-            const tags: string[] = [];
-            if (typeof localStorage !== 'undefined') {
-              const activeNotebookId = localStorage.getItem('wodwiki:active-notebook');
-              if (activeNotebookId) tags.push(toNotebookTag(activeNotebookId));
-            }
-            await provider.saveEntry({
-              ...payload,
-              tags,
-              notes: '',
-              targetDate: Date.now(),
-            })
-              .then((saved) => set({ currentEntry: saved }))
-              .catch((err: unknown) => console.error('Failed to auto-save workout:', err));
-          }
-        }
-
-        // Append to the session's results list (used by review view).
-        set((s) => ({ results: [...s.results, result] }));
-
-        return resultId;
+      completeWorkout: async (result, explicitResultId) => {
+        const capture = get().capturedRun;
+        const resultId = explicitResultId ?? capture?.session.id;
+        if (!resultId || !notePersistence?.finishSession) throw new Error('The saved run pin is unavailable.');
+        const saved = await notePersistence.finishSession(resultId, result, result.endTime);
+        set(state => ({ results: [...state.results, result] }));
+        return saved.id;
       },
 
       /**
@@ -775,7 +713,7 @@ export function createWorkbenchSessionStore(
               const resultSelection = routeResultId
                 ? { mode: 'by-result-id' as const, resultId: routeResultId }
                 : routeSectionId && routeView === 'review'
-                  ? { mode: 'latest-for-section' as const, blockContentId: routeSectionId }
+                  ? { mode: 'latest-for-section' as const, blockId: routeSectionId }
                   : { mode: 'latest' as const };
               const entry = await notePersistence.getNote(routeId, {
                 projection: routeView === 'review' ? 'review' : 'workbench',
@@ -792,9 +730,8 @@ export function createWorkbenchSessionStore(
                 return provider.getEntry(routeId);
               });
               if (entry) {
-                set({ currentEntry: entry });
-                get().setContent(entry.rawContent);
-                get().markSaved(entry.rawContent);
+                const next = deriveWorkbenchDocumentState(entry.rawContent, { noteBlocks: entry.blocks, sourceRevision: Math.max(1, entry.sourceRevision ?? 0) });
+                set({ currentEntry: entry, content: entry.rawContent, sections: next.sections, blocks: next.blocks, noteBlocks: next.noteBlocks, sourceRevision: entry.sourceRevision ?? 0, lastSavedContent: entry.rawContent, saveState: 'saved' });
 
                 // For review routes, apply the route result selection.
                 if (routeView === 'review') {

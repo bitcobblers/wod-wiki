@@ -1,6 +1,6 @@
 /**
  * playgroundContent — the single source for playground note content, backed by
- * the `wodwiki-db` notes/segments stores (via IndexedDBContentProvider).
+ * the `wodwiki-db` whole Note store via IndexedDBContentProvider.
  *
  * Content and results are consolidated into this one database. The API
  * surface (pageId / getPage / savePage / addPage / getAllPages /
@@ -14,6 +14,7 @@
  */
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import type { HistoryEntry } from '@/types/history';
+import type { NoteBlock } from '@/types/storage';
 
 export interface PlaygroundPage {
   /** `category/name` composite — also the Note.id and Session.noteId. */
@@ -23,8 +24,10 @@ export interface PlaygroundPage {
   category: string;
   name: string;
   content: string;
+  noteBlocks?: Record<string, NoteBlock>;
+  sourceRevision?: number;
   updatedAt: number;
-  /** Note kind ('playground', 'journal', …) — undefined for unmigrated rows. */
+  /** Note kind ('playground', 'journal', …). */
   type?: string;
   /** Source bucket ('playground', 'collection:…', …) — drives source: filters. */
   sourceId?: string;
@@ -40,11 +43,7 @@ function categoryOf(id: string): string {
   return idx < 0 ? id : id.slice(0, idx);
 }
 
-/**
- * Resolve the "routing id" — the `category/name` composite used by the rest
- * of the app. For UUID-keyed notes (post-V8-migration), this comes from the
- * `slug` field; for legacy notes it's the `id` itself.
- */
+/** UUID-keyed Notes route through their slug; composite IDs route directly. */
 function routeIdOf(entry: HistoryEntry): string {
   return entry.slug ?? entry.id;
 }
@@ -57,6 +56,8 @@ function toPage(entry: HistoryEntry): PlaygroundPage {
     category: categoryOf(rid),
     name: entry.title || rid,
     content: entry.rawContent ?? '',
+    noteBlocks: entry.blocks,
+    sourceRevision: entry.sourceRevision,
     updatedAt: entry.updatedAt ?? Date.now(),
     type: entry.type,
     sourceId: entry.sourceId,
@@ -76,16 +77,14 @@ export const playgroundContent = {
     return entry ? toPage(entry) : undefined;
   },
 
-  /** Upsert a page by id (creates the Note + segments if absent, updates if present). */
+  /** Upsert a whole Note with optimistic source revision protection. */
   async savePage(page: PlaygroundPage): Promise<string> {
-    // True upsert: updates MUST go through updateEntry — its retire sweep
-    // marks superseded segment incarnations as history. The saveEntry
-    // (create) path has no sweep, so routing edits through it piles up live
-    // segment rows and reconstruction duplicates the document (#705).
     const existing = await provider.getEntry(page.id);
     if (existing) {
       await provider.updateEntry(existing.id, {
         rawContent: page.content,
+        expectedSourceRevision: page.sourceRevision,
+        blocks: page.noteBlocks,
         title: page.name,
         slug: page.slug,
       });
@@ -96,6 +95,7 @@ export const playgroundContent = {
       slug: page.slug,
       title: page.name,
       rawContent: page.content,
+      blocks: page.noteBlocks,
       tags: [],
       targetDate: page.updatedAt,
       type: 'playground',

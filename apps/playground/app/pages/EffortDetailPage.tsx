@@ -50,7 +50,9 @@ import { effortToDocument, documentToEffort } from '@/repositories/effort-markdo
 import { ResponsiveActions } from '../nav/ResponsiveActions';
 import { fileToDisplayName } from '@/repositories/groupings';
 import { storageService } from '@/services/storage';
+import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 
+import { pendingRuntimes } from '../runtimeStore';
 /* ── Resolved view (inline widget) ─────────────────────────────────────────── */
 
 function EffortResolvedInline({ resolved, effort }: { resolved: ResolvedEffort; effort: IEffort }) {
@@ -191,30 +193,12 @@ export function EffortDetailPage() {
     try {
       await registry.upsert(parsed);
       const noteId = `effort/${parsed.slug}`;
-      try {
-        const existingNote = await storageService.getNote(noteId);
-        const now = Date.now();
-        await storageService.saveNote({
-          id: existingNote?.id ?? noteId,
-          title: parsed.label,
-          slug: noteId,
-          createdAt: existingNote?.createdAt ?? now,
-          type: 'note',
-          sourceId: 'effort',
-        });
-        await storageService.saveSegment({
-          id: `seg-${existingNote?.id ?? noteId}`,
-          version: 1,
-          noteId: existingNote?.id ?? noteId,
-          position: 0,
-          dataType: 'markdown',
-          rawContent: createDocument,
-          createdAt: now,
-          updatedAt: now,
-        });
-      } catch {
-        // IDB note sync fallback
-      }
+      const existing = await storageService.getNote(noteId);
+      const provider = new IndexedDBContentProvider();
+      if (existing) await provider.updateEntry(existing.id, { rawContent: createDocument,
+        expectedSourceRevision: existing.sourceRevision, title: parsed.label, slug: noteId });
+      else await provider.saveEntry({ id: noteId, title: parsed.label, slug: noteId,
+        rawContent: createDocument, tags: [], targetDate: Date.now(), type: 'note', sourceId: 'effort' });
       await refresh();
       navigate(effortPath(parsed.slug), { replace: true });
     } catch (err) {
@@ -234,14 +218,18 @@ export function EffortDetailPage() {
   }, [effort, isReady, resolver]);
 
   // ── WOD block handlers ───────────────────────────────────────────────────
-  const handleStartWorkout = useCallback((block: ScriptBlock) => {
-    const runtimeId = uuidv7();
-    // Store in runtime store and navigate
-    import('../runtimeStore').then(({ pendingRuntimes }) => {
-      pendingRuntimes.set(runtimeId, { block, noteId: `effort/${slug}` });
+  const handleStartWorkout = useCallback(async (block: ScriptBlock) => {
+    try {
+      const note = await createJournalNoteFromWorkout({ workoutName: effort?.label ?? slug ?? 'Effort', category: 'effort', sourceNotePath: effortPath(slug ?? ''), wodContent: block.content });
+      const occurrence = Object.values(note.blocks ?? {}).find(candidate => candidate.kind === 'wod');
+      if (!occurrence) throw new Error('The saved journal workout is unavailable.');
+      const runtimeId = uuidv7();
+      pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: note.id });
       navigate(`/run/${runtimeId}`);
-    });
-  }, [slug, navigate]);
+    } catch (error) {
+      toast({ title: 'Workout not started', description: error instanceof Error ? error.message : String(error), variant: 'destructive' });
+    }
+  }, [slug, effort?.label, navigate]);
 
   const handleScheduleBlock = useCallback(async (block: ScriptBlock, date: Date) => {
     if (!effort) return;

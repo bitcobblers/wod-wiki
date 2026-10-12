@@ -1,46 +1,44 @@
-import { parseDocumentSections, matchSectionIds } from '@bitcobblers/wod-wiki-core';
+import { actionableSectionKind, parseDocumentSections, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import { parseScriptBlock } from '@/components/Editor/utils/parseScriptBlock';
 import { appError } from '@/lib/log';
-import type { ScriptBlock, Section } from '@bitcobblers/wod-wiki-core';
-import { isWorkoutSectionType } from '@bitcobblers/wod-wiki-core';
+import type { NoteBlock, ScriptBlock, Section, SectionRecognitionOptions } from '@bitcobblers/wod-wiki-core';
+
 export interface WorkbenchDocumentState {
   readonly sections: Section[];
   readonly blocks: ScriptBlock[];
+  readonly noteBlocks: Record<string, NoteBlock>;
+  readonly rawContent: string;
+  readonly sourceRevision: number;
 }
 
-export function deriveWorkbenchDocumentState(
-  content: string,
-  previousSections?: Section[] | null,
-): WorkbenchDocumentState {
-  if (!content) {
-    return { sections: [], blocks: [] };
+export interface WorkbenchDocumentOptions extends SectionRecognitionOptions {
+  noteBlocks?: Record<string, NoteBlock>;
+  sourceRevision?: number;
+}
+
+export function deriveWorkbenchDocumentState(content: string, options: WorkbenchDocumentOptions = {}): WorkbenchDocumentState {
+  const sourceRevision = options.sourceRevision ?? 1;
+  const noteBlocks = reconcileNoteBlocks(content, { ...options, blocks: options.noteBlocks, sourceRevision });
+  const sections = parseDocumentSections(content, options);
+  const blocks: ScriptBlock[] = [];
+  for (const section of sections) {
+    if (!actionableSectionKind(section)) continue;
+    const occurrence = Object.values(noteBlocks).find(block => block.from === section.from && block.to === section.to);
+    if (!occurrence) continue;
+    section.id = occurrence.id;
+    section.version = occurrence.version;
+    if (section.scriptBlock) {
+      section.scriptBlock = hydrateScriptBlock({ ...section.scriptBlock, id: occurrence.id, version: occurrence.version });
+      blocks.push(section.scriptBlock);
+    }
   }
-
-  const parsedSections = parseDocumentSections(content);
-  const sections = previousSections
-    ? matchSectionIds(previousSections, parsedSections)
-    : parsedSections;
-
-  const blocks = sections
-    .filter((section: EditorSection) => isWorkoutSectionType(section.type) && section.scriptBlock)
-    .map((section: EditorSection) => hydrateScriptBlock(section.scriptBlock!));
-
-  return { sections, blocks };
+  return { sections, blocks, noteBlocks, rawContent: content, sourceRevision };
 }
 
 function hydrateScriptBlock(block: ScriptBlock): ScriptBlock {
-  if (block.statements && block.statements.length > 0) {
-    return block;
-  }
-
   try {
     const result = parseScriptBlock(block.content, block.sport);
-    return {
-      ...block,
-      statements: result.statements,
-      errors: result.errors,
-      state: (result.success ? 'parsed' : 'error') as ScriptBlock['state'],
-    };
+    return { ...block, statements: result.statements, errors: result.errors, state: result.success ? 'parsed' : 'error' };
   } catch (error) {
     appError('WorkbenchDocumentModel', 'Block parse error:', error);
     return block;

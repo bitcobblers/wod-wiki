@@ -14,6 +14,7 @@ import { ToastAction } from '@/components/atoms/primitives/toast'
 import { EditorView } from '@codemirror/view'
 import { v7 as uuidv7 } from 'uuid'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
+import { captureRun } from '@/services/runCapture';
 import { JournalPageShell } from '@/panels/page-shells'
 import type { ScriptBlock } from '@/components/Editor/types'
 import { CalendarCard } from '@/components/atoms/CalendarCard'
@@ -77,7 +78,7 @@ export function WorkoutEditorPage({
   // seedOnMount: collections are read-only bundled content — viewing one
   // must not create an undated ghost note in the library (#856). Journal
   // categories keep the seed (navigate-to-today creates the day's note).
-  const { content, loading, onChange, onLineChange, onBlur } = usePlaygroundContent({ category, name, mdContent, seedOnMount: !isCollection })
+  const { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange, onLineChange, onBlur, flush, committedSourceRevision } = usePlaygroundContent({ category, name, mdContent, seedOnMount: !isCollection })
   const sourceNote = useMemo(() => {
     if (!isCollection) return null
 
@@ -94,8 +95,15 @@ export function WorkoutEditorPage({
       const runtimeId = uuidv7()
       // For syntax/inline categories keep the original popup behaviour.
       if (usePopup) {
-        pendingRuntimes.set(runtimeId, { block, noteId })
-        navigate(runPath(runtimeId))
+        try {
+          await flush();
+          const captured = await captureRun({ noteId: entryId ?? noteId, rawContent: content, blocks: noteBlocks, expectedSourceRevision: committedSourceRevision(), metadata: { title: name }, noteType: 'playground' }, block, runtimeId);
+          onSaved({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
+          pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.session.noteId, captured });
+          navigate(runPath(runtimeId));
+        } catch (error) {
+          toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
+        }
         return
       }
       // Append the wod block to today's journal note and navigate there.
@@ -107,15 +115,15 @@ export function WorkoutEditorPage({
           sourceNotePath: sourceNote?.path,
           wodContent: block.content,
         })
-        pendingRuntimes.set(runtimeId, { block, noteId: journalNote.id })
+        const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
+        if (!occurrence) throw new Error('The saved journal workout is unavailable.');
+        pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id })
         navigate(journalEntryAutoStartPath(journalNote.journalDate ?? '', runtimeId))
-      } catch {
-        // IndexedDB unavailable — fall back to the fullscreen tracker route
-        pendingRuntimes.set(runtimeId, { block, noteId })
-        navigate(runPath(runtimeId))
+      } catch (error) {
+        toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
     },
-    [usePopup, noteId, name, category, sourceNote, navigate],
+    [usePopup, noteId, entryId, name, category, sourceNote, navigate, content, noteBlocks, flush, committedSourceRevision, onSaved],
   )
 
   const handleScheduleBlock = useCallback(
@@ -216,6 +224,11 @@ export function WorkoutEditorPage({
               onCursorPositionChange={onLineChange}
               onBlur={onBlur}
               noteId={noteId}
+              noteBlocks={noteBlocks}
+              sourceRevision={sourceRevision}
+              onIdentityChange={snapshot => onIdentityChange({ rawContent: snapshot.rawContent, noteBlocks: snapshot.blocks, sourceRevision: snapshot.sourceRevision })}
+              onSaved={onSaved}
+              beforeRun={async () => { await flush(); return committedSourceRevision(); }}
               readonly={true}
               enableInlineRuntime={usePopup}
               commands={commands}
@@ -224,6 +237,7 @@ export function WorkoutEditorPage({
               showLineNumbers={false}
               onBlocksChange={setScriptBlocks}
             />
+            {error ? <p role="alert">Save failed. {error instanceof Error ? error.message : String(error)} Your draft is kept.</p> : null}
           </div>
         }
       />

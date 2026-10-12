@@ -29,6 +29,9 @@ import { ParseSyntaxError } from './parse';
 
 export interface RunOptions {
   sport?: string;
+  dialect?: 'time' | 'log';
+  blockId?: string;
+  blockVersion?: number;
   startTime?: number;
   maxIterations?: number;
   now?: INowProvider;
@@ -83,14 +86,14 @@ export async function runExecution(
   );
 
   const { engine, analyticsContext } = createAnalyticsEngineForBlock({
-    id: 'cli-block',
+    id: options.blockId ?? 'cli-block',
     content: source,
     statements: script.statements,
     sport: options.sport,
-    version: 1,
+    version: options.blockVersion ?? 1,
     startLine: 0,
     endLine: 0,
-    dialect: 'time',
+    dialect: options.dialect ?? 'time',
     state: 'idle',
     createdAt: Date.now(),
   });
@@ -129,6 +132,7 @@ export async function runExecution(
       results: workoutResults,
       logs,
       statements: logs,
+      sourceScript: source,
     },
     { source: options.sourceLabel ?? 'cli:wod run' },
   );

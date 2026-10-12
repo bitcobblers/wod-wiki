@@ -2,7 +2,7 @@
 
 - **Route:** `/journal`
 - **Host Component:** `apps/playground/app/views/stream/QueriableStreamView.tsx` (`JOURNAL_STREAM_PROFILE`)
-- **Domain Models:** `Note`, `NoteSegment`, `Page`, `Tag`, `BlockIndexRow`
+- **Domain Models:** `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `Tag`, `BlockIndexRow`
 
 ---
 

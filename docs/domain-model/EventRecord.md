@@ -2,7 +2,7 @@
 tags: [domain-model]
 store: events
 keyPath: "id"
-db: wodwiki-db (v23)
+db: wodwiki-db (v29)
 ---
 
 # EventRecord
@@ -38,7 +38,7 @@ THE single stored record for workout data (renamed from `UnifiedEventRecord`). G
 | `sourceBlockKey?` | string |  |
 | `stackLevel?` | number |  |
 | `completionReason?` | string |  |
-| `segmentId? / segmentVersion?` | string / number | → [[NoteSegment]] |
+| `blockId? / blockVersion?` | string / number | Occurrence pin → [[BlockRevision]] `[noteId, blockId, version]` |
 | `metricTemporal?` | MetricTemporal[] | Per-metric temporal anchors — instant or civil-date (ticket 12) |
 | `metricDateKeys?` | string[] | `d:YYYY-MM-DD` keys — multiEntry index source (ticket 14) |
 | `representationKind?` | 'direct' \| 'calculated' \| 'substitute_summary' |  |
@@ -65,7 +65,7 @@ THE single stored record for workout data (renamed from `UnifiedEventRecord`). G
 - `noteId` → [[Note]]
 - `pageId` → [[Page]] — legacy denormalized context
 - `effortSlug` → [[Effort]]
-- `segmentId` → [[NoteSegment]]
+- `blockId + blockVersion` → [[BlockRevision]] — pinned saved block state (workout rows)
 - `blockContentId` → [[BlockIndexRow]] — content-hash join
 
 ---
@@ -75,7 +75,7 @@ THE single stored record for workout data (renamed from `UnifiedEventRecord`). G
 ### Typed-note composition recommendations
 
 - Keep event/query representation separate from authored source and recorded-result ownership. A reusable graph consumes query results; it must not write event rows as an alternative editor-save path.
-- Preserve source identity and provenance through note deletion/re-key or projection rebuild. Runtime output type `segment` is not a new [[NoteSegment]] kind.
+- Preserve source identity and provenance through note deletion/re-key or projection rebuild. Runtime output type `segment` is not a new [[BlockRevision]] kind.
 - Do not create another page-membership projection here. Existing `pageId` semantics follow [[Page#Recommended composition contract]]; query-derived membership does not rewrite events.
 
 **Feedback case:** a workout note appears in a second collection or switches to read presentation. Its recorded facts must remain attached to the original run, not be duplicated or reassigned because presentation changed. See [[Session#Typed-note composition recommendations]].

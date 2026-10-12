@@ -26,7 +26,7 @@ export interface ObservationContext {
     effortSlug?: string;
     noteId?: string;
     resultId?: string;
-    segmentId?: string;
+    blockId?: string;
 }
 
 /** Live reader supplied by the app — returns the raw assignments the source

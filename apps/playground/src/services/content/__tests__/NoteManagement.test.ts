@@ -1,94 +1,43 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import type { NoteSaveInput } from '@/types/content-provider';
-import { LocalStorageContentProvider } from '../LocalStorageContentProvider';
+import { describe, it, expect } from 'bun:test';
+import { IndexedDBContentProvider } from '../IndexedDBContentProvider';
+import { StorageService } from '../../storage/StorageService';
+import { InMemoryStorage } from '../../storage/InMemoryStorage';
 
-// Mock localStorage
-const localStorageMock = (() => {
-    let store: Record<string, string> = {};
-    return {
-        getItem: (key: string) => store[key] || null,
-        setItem: (key: string, value: string) => { store[key] = value.toString(); },
-        removeItem: (key: string) => { delete store[key]; },
-        clear: () => { store = {}; },
-        key: (i: number) => Object.keys(store)[i] || null,
-        get length() { return Object.keys(store).length; },
-    };
-})();
-
-Object.defineProperty(global, 'localStorage', { value: localStorageMock });
+function setup() {
+    return new IndexedDBContentProvider(new StorageService(new InMemoryStorage()));
+}
 
 describe('Note Management', () => {
-    let provider: LocalStorageContentProvider;
-
-    beforeEach(() => {
-        localStorage.clear();
-        provider = new LocalStorageContentProvider();
-    });
-
-    it('should save a template entry', async () => {
-        const entry = await provider.saveEntry({
-            title: 'My Template',
-            rawContent: '# Template',
-            tags: ['template'],
-            type: 'template',
-            blocks: [], // Legacy field from test mock if needed, or update provider to not need it
-            // Note: provider expects Omit<..., 'blocks' | 'sections'>... wait, let's check input type
-            // The input type is Omit<HistoryEntry, ...> & { ... }
-            // HistoryEntry has sections, optional blocks (deprecated/removed from my interface?)
-            // Start again: HistoryEntry has sections.
-            sections: [],
-        } as unknown as NoteSaveInput);
-
+    it('saves a template entry', async () => {
+        const provider = setup();
+        const entry = await provider.saveEntry({ title: 'My Template', rawContent: '# Template',
+            tags: ['template'], type: 'template', targetDate: 1 });
         expect(entry.type).toBe('template');
         expect(entry.id).toBeDefined();
-
-        const fetched = await provider.getEntry(entry.id);
-        expect(fetched?.type).toBe('template');
+        expect((await provider.getEntry(entry.id))?.type).toBe('template');
     });
 
-    it('should clone a template into a note', async () => {
-        // 1. Create Template
-        const template = await provider.saveEntry({
-            title: 'Benchmark WOD',
-            rawContent: '21-15-9',
-            tags: ['benchmark'],
-            type: 'template',
-            sections: [],
-        } as unknown as NoteSaveInput);
-
-        // 2. Clone it
+    it('clones a template into a note with fresh workout occurrences', async () => {
+        const provider = setup();
+        const template = await provider.saveEntry({ title: 'Benchmark WOD', rawContent: '```time\n21-15-9 Thrusters\n```',
+            tags: ['benchmark'], type: 'template', targetDate: 1 });
         const cloned = await provider.cloneEntry(template.id);
-
-        // 3. Verify Clone
         expect(cloned.id).not.toBe(template.id);
         expect(cloned.sourceId).toBe(template.id);
-        expect(cloned.type).toBe('note');
-        expect(cloned.title).toBe('Benchmark WOD'); // Title preserved
-        expect(cloned.rawContent).toBe('21-15-9');
-
-        // Verify it's effectively "Open" (today's date)
-        const isToday = new Date(cloned.targetDate).toDateString() === new Date().toDateString();
-        expect(isToday).toBe(true);
+        expect(cloned.type).toBe('journal');
+        expect(cloned.title).toBe('Benchmark WOD');
+        expect(cloned.rawContent).toBe(template.rawContent);
+        expect(Object.keys(cloned.blocks ?? {})).not.toEqual(Object.keys(template.blocks ?? {}));
+        expect(new Date(cloned.targetDate).toDateString()).toBe(new Date().toDateString());
     });
 
-    it('should clone a note into another note', async () => {
-        // 1. Create Note
-        const source = await provider.saveEntry({
-            title: 'Yesterday Run',
-            rawContent: 'Run 5k',
-            tags: [],
-            type: 'note',
-            targetDate: Date.now() - 86400000, // Yesterday
-            sections: [],
-        } as unknown as NoteSaveInput);
-
-        // 2. Clone it
+    it('clones a note into another note for today', async () => {
+        const provider = setup();
+        const source = await provider.saveEntry({ title: 'Yesterday Run', rawContent: 'Run 5k',
+            tags: [], type: 'note', targetDate: Date.now() - 86400000 });
         const cloned = await provider.cloneEntry(source.id);
-
-        // 3. Verify Clone
         expect(cloned.sourceId).toBe(source.id);
-        expect(cloned.type).toBe('note');
-        // Should be today
+        expect(cloned.type).toBe('journal');
         expect(new Date(cloned.targetDate).toDateString()).toBe(new Date().toDateString());
     });
 });

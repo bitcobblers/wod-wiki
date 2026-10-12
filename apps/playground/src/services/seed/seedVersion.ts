@@ -32,10 +32,7 @@ export function decideSeedImport(
   return 'server-stale';
 }
 
-/** True when the boot check can skip the manifest fetch for one source. A stored
- *  checkpoint from ANY other schema — older or newer — never skips: this bundle
- *  can only apply its own schema, and the importer's re-apply is the migration
- *  that re-attributes already-seeded rows, even unchanged. */
+/** Only the current schema and matching embedded version can skip fetching. */
 export function storedSeedIsCurrent(meta: SeedMetaRecord | undefined, embeddedVersion: number): boolean {
   if (meta?.schema !== undefined && meta.schema !== SEED_SCHEMA) return false;
   return meta?.seedVersion != null && meta.seedVersion > 0 && meta.seedVersion === embeddedVersion;

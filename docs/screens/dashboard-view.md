@@ -2,7 +2,7 @@
 
 - **Route:** `/dashboard/:dashboardId`, `/d/:slug`
 - **Host Component:** `apps/playground/app/views/dashboards/DashboardViewPage.tsx`
-- **Domain Models:** `Note`, `NoteSegment`, `Page`, `EventRecord`, `Session`, `Configuration`
+- **Domain Models:** `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `EventRecord`, `Session`, `Configuration`
 
 ---
 

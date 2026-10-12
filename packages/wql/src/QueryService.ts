@@ -20,7 +20,7 @@
  */
 
 import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, Page, PageNote } from '@bitcobblers/wod-wiki-core';
-import { normalizeFieldComponent } from '@bitcobblers/wod-wiki-core';
+import { normalizeFieldComponent, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   parseQuery,
   isFindQuery,
@@ -222,9 +222,7 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
       continue;
     }
     if (filter.key === 'text' && literal) {
-      // Wire text = case-insensitive substring on the plane's text column
-      // (block rawContent / note title) — the same space-joined needle the
-      // JS stage applies, so the JS filter stays as the exact mirror.
+      // Wire and JS both match title or the full authored Note body.
       compiled.push({ field: 'text', value: values.join(' ') });
       continue;
     }
@@ -780,7 +778,6 @@ export class QueryService {
   private readonly noteStore: NoteQueryStore;
   private readonly blockStore: BlockQueryStore;
   private readonly effortStore: EffortQueryStore;
-  private readonly staticNoteStore?: NoteQueryStore;
   private readonly pageStore?: {
     getNotePages(noteId: string): Promise<PageNote[]>;
     getPage(pageId: string): Promise<Page | undefined>;
@@ -809,7 +806,6 @@ export class QueryService {
     noteStore?: NoteQueryStore,
     blockStore?: BlockQueryStore,
     effortStore?: EffortQueryStore,
-    staticNoteStore?: NoteQueryStore,
   ) {
     if (
       storesOrEventStore &&
@@ -818,7 +814,6 @@ export class QueryService {
         'noteStore' in storesOrEventStore ||
         'blockStore' in storesOrEventStore ||
         'effortStore' in storesOrEventStore ||
-        'staticNoteStore' in storesOrEventStore ||
         'pageStore' in storesOrEventStore ||
         'relationStore' in storesOrEventStore ||
         'datasetStore' in storesOrEventStore)
@@ -828,7 +823,6 @@ export class QueryService {
       this.noteStore = stores.noteStore ?? defaultNoteStore;
       this.blockStore = stores.blockStore ?? defaultBlockStore;
       this.effortStore = stores.effortStore ?? defaultEffortStore;
-      this.staticNoteStore = stores.staticNoteStore;
       this.pageStore = stores.pageStore;
       this.relationStore = stores.relationStore;
       this.datasetStore = stores.datasetStore;
@@ -840,7 +834,6 @@ export class QueryService {
       this.noteStore = noteStore ?? defaultNoteStore;
       this.blockStore = blockStore ?? defaultBlockStore;
       this.effortStore = effortStore ?? defaultEffortStore;
-      this.staticNoteStore = staticNoteStore;
     }
   }
 
@@ -1214,20 +1207,15 @@ export class QueryService {
       && (parsed.filters.some(f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feed' || v.value === 'feeds'))
           || parsed.sourceScope?.includes('feeds'));
     if (isCatalogHead) {
-      const notes = (await this.noteStore.getAllNotes()).concat(
-        this.staticNoteStore ? await this.staticNoteStore.getAllNotes() : [],
-      );
-      return this.runFindCatalog(parsed, options, notes);
+      return this.runFindCatalog(parsed, options, await this.noteStore.getAllNotes());
     }
     // Domain candidate read: selection (source clauses + the explicit source
     // fence) narrows before the wire's selectedCount; compiled positive
     // literal type/id clauses ride as post-count FILTERS — never selection —
     // so the wire count baselines the historical pre-filter stages.selected.
-    // A static fallback must merge with complete canonical rows before
-    // filtering, or a filtered-out edited note could reappear as its seed.
     const read = compileContentRead(parsed.filters, 'note', parsed.sourceScope);
-    const paging = domainPaging(parsed, options, read.residual || !!this.staticNoteStore);
-    const fetchedNotes = !this.staticNoteStore && (read.filters.length > 0 || read.selection.length > 0 || paging.paged) && this.noteStore.queryDomain
+    const paging = domainPaging(parsed, options, read.residual);
+    const fetchedNotes = (read.filters.length > 0 || read.selection.length > 0 || paging.paged) && this.noteStore.queryDomain
       ? await this.noteStore.queryDomain({
           plan: 'notes',
           selection: read.selection,
@@ -1241,14 +1229,6 @@ export class QueryService {
     let notes = domainNotes ? domainNotes.rows : await this.noteStore.getAllNotes();
     const selectedFromDomain = domainNotes ? domainNotes.selectedCount : undefined;
     const notesPaged = !!domainNotes && paging.paged;
-    if (this.staticNoteStore) {
-      const staticRows = applyNoteSelectionStages(await this.staticNoteStore.getAllNotes(), parsed);
-      // Canonical noteStore rows win: a static corpus row mirroring an
-      // imported note (same id) is fallback-only, so the inclusive plane
-      // never double-counts an id.
-      const known = new Set(notes.map((n) => n.id));
-      notes = notes.concat(staticRows.filter((n) => !known.has(n.id)));
-    }
     notes = applyNoteSelectionStages(notes, parsed);
     const selectedCount = selectedFromDomain ?? notes.length;
     const ctx = runContext(options);
@@ -1260,16 +1240,13 @@ export class QueryService {
         const matchingIds = new Set<string>();
         for (const v of filter.values) {
           const ids = await this.noteStore.getNoteIdsForTag(v.value);
-          const sIds = this.staticNoteStore ? await this.staticNoteStore.getNoteIdsForTag(v.value) : new Set<string>();
           ids.forEach(id => matchingIds.add(id));
-          sIds.forEach(id => matchingIds.add(id));
         }
         notes = notes.filter(n => matchingIds.has(n.id));
       } else if (filter.key === 'tags' && filter.negate) {
         for (const v of filter.values) {
           const ids = await this.noteStore.getNoteIdsForTag(v.value);
-          const sIds = this.staticNoteStore ? await this.staticNoteStore.getNoteIdsForTag(v.value) : new Set<string>();
-          notes = notes.filter(n => !ids.has(n.id) && !sIds.has(n.id));
+          notes = notes.filter(n => !ids.has(n.id));
         }
       } else if (filter.key === 'effort' && !filter.negate) {
         const matchingIds = new Set<string>();
@@ -1288,11 +1265,13 @@ export class QueryService {
       }
     }
 
-    // Text filter — substring on title
     for (const filter of parsed.filters) {
-      if (filter.key === 'text' && !filter.negate) {
+      if (filter.key === 'text') {
         const search = filter.values.map(v => v.value).join(' ').toLowerCase();
-        notes = notes.filter(n => n.title.toLowerCase().includes(search));
+        notes = notes.filter(n => {
+          const hit = n.title.toLowerCase().includes(search) || n.rawContent.toLowerCase().includes(search);
+          return filter.negate ? !hit : hit;
+        });
       }
     }
 
@@ -1419,6 +1398,31 @@ export class QueryService {
     return containers;
   }
 
+  private async hydrateBlocks(rows: BlockIndexRow[]): Promise<BlockIndexRow[]> {
+    const ids = [...new Set(rows.map(row => row.noteId))];
+    if (ids.length === 0) return [];
+    const notes = this.noteStore.getNotesByIds
+      ? await this.noteStore.getNotesByIds(ids)
+      : await this.noteStore.getAllNotes();
+    const parents = new Map<string, Note>();
+    for (const note of notes) {
+      if (!Number.isSafeInteger(note.sourceRevision) || note.sourceRevision < 1) continue;
+      try {
+        validateNoteBlocks(note.rawContent, note.blocks, note.sourceRevision);
+        parents.set(note.id, note);
+      } catch {
+        // Corrupt source maps cannot supply actionable query results.
+      }
+    }
+    return rows.flatMap(row => {
+      const note = parents.get(row.noteId);
+      const block = note?.blocks[row.blockId];
+      if (!note || !block || row.id !== `${note.id}:${block.id}` || block.id !== row.blockId || block.kind !== row.dataType
+        || block.version !== row.blockVersion || block.sourceRevision !== row.sourceRevision
+        || note.sourceRevision !== row.sourceRevision || block.from !== row.from || block.to !== row.to) return [];
+      return [{ ...row, rawContent: note.rawContent.slice(block.from, block.to) }];
+    });
+  }
   /**
    * Execute a :block query against the derived block_index store.
    */
@@ -1442,9 +1446,12 @@ export class QueryService {
         })
       : undefined;
     const domainBlocks = fetchedBlocks && fetchedBlocks.plan === 'blocks' ? fetchedBlocks : undefined;
-    let blocks = domainBlocks ? domainBlocks.rows : await this.blockStore.getAllBlocks();
-    const selectedFromDomain = domainBlocks ? domainBlocks.selectedCount : undefined;
-    const blocksPaged = !!domainBlocks && paging.paged;
+    const candidates = domainBlocks ? domainBlocks.rows : await this.blockStore.getAllBlocks();
+    let blocks = await this.hydrateBlocks(candidates);
+    const invalidCandidates = blocks.length !== candidates.length;
+    const selectedFromDomain = domainBlocks && !invalidCandidates ? domainBlocks.selectedCount : undefined;
+    const blocksPaged = !!domainBlocks && paging.paged && !invalidCandidates;
+    if (domainBlocks && invalidCandidates) blocks = await this.hydrateBlocks(await this.blockStore.getAllBlocks());
     blocks = applySourceFilter(blocks, parsed.filters);
     // WQL boundary (same as notes): the four allowed kinds plus sourceless
     // legacy rows — feeds excised at the vocabulary never enter results.
@@ -1453,13 +1460,13 @@ export class QueryService {
     const ctx = runContext(options);
     // Text filter — substring on rawContent
     for (const filter of parsed.filters) {
-      if (filter.key === 'text' && !filter.negate) {
+      if (filter.key === 'text') {
         const search = filter.values.map(v => v.value).join(' ').toLowerCase();
-        blocks = blocks.filter(b => b.rawContent.toLowerCase().includes(search));
+        blocks = blocks.filter(b => filter.negate !== b.rawContent.toLowerCase().includes(search));
       }
     }
 
-    // Type filter — dataType (wod, prose, etc.)
+    // Type filter selects actionable kinds only.
     for (const filter of parsed.filters) {
       if (filter.key === 'type' && !filter.negate) {
         const wanted = new Set(filter.values.map(v => v.value));
@@ -1486,18 +1493,16 @@ export class QueryService {
         const matchingNoteIds = new Set<string>();
         for (const v of filter.values) {
           const ids = await this.noteStore.getNoteIdsForTag(v.value);
-          const sIds = this.staticNoteStore ? await this.staticNoteStore.getNoteIdsForTag(v.value) : new Set<string>();
           ids.forEach(id => matchingNoteIds.add(id));
-          sIds.forEach(id => matchingNoteIds.add(id));
         }
         blocks = blocks.filter(b => matchingNoteIds.has(b.noteId));
       } else if (filter.key === 'effort' && !filter.negate) {
         const matchingBlockIds = new Set<string>();
         for (const v of filter.values) {
           const rows = await this.blockEffortsStore.getAllFromIndex('by-effort', v.value);
-          for (const r of rows) matchingBlockIds.add(r.blockContentId);
+          for (const row of rows) matchingBlockIds.add(`${row.noteId}:${row.blockId}`);
         }
-        blocks = blocks.filter(b => b.blockContentId && matchingBlockIds.has(b.blockContentId));
+        blocks = blocks.filter(block => matchingBlockIds.has(`${block.noteId}:${block.blockId}`));
       }
     }
 
@@ -1511,11 +1516,7 @@ export class QueryService {
 
     // Time window: parent note's date, falling back to note createdAt, falling back to block createdAt
     if (parsed.window || options.range) {
-      let allNotes: Note[] = [];
-      allNotes = allNotes.concat(await this.noteStore.getAllNotes());
-      if (this.staticNoteStore) {
-        allNotes = allNotes.concat(await this.staticNoteStore.getAllNotes());
-      }
+      const allNotes = await this.noteStore.getAllNotes();
       const noteTimeMap = new Map<string, number>(allNotes.map((n) => [n.id, n.date ?? n.createdAt]));
       blocks = blocks.filter(b => effectiveTimeWindow(noteTimeMap.get(b.noteId) ?? b.createdAt, parsed.window, options.range, ctx));
     }
@@ -2014,7 +2015,7 @@ export class QueryService {
         let values: number[];
         try {
           values = members.map((m) =>
-            shouldConvert && targetUnit
+            shouldConvert && targetUnit && (m.unit ?? m.metricUnit) !== undefined
               ? convertViaCatalog(m.value as number, (m.unit ?? m.metricUnit) as string, targetUnit)
               : m.value as number,
           );
@@ -2181,7 +2182,7 @@ export class QueryService {
 
   /** All content blocks — journal and seeded corpus in one store. */
   private async allContentBlocks(): Promise<BlockIndexRow[]> {
-    return this.blockStore.getAllBlocks();
+    return this.hydrateBlocks(await this.blockStore.getAllBlocks());
   }
 
   /** Map each note id to the wod blockContentIds it owns. */
@@ -2263,6 +2264,7 @@ export class QueryService {
           sourceId: `page:collection:${cat}`,
           catalog: cat,
           createdAt: n.createdAt ?? 0,
+          rawContent: '', sourceRevision: 1, blocks: {},
         });
         existingCatIds.add(cat);
       }
@@ -2316,9 +2318,7 @@ export class QueryService {
         const matchingIds = new Set<string>();
         for (const v of filter.values) {
           const ids = await this.noteStore.getNoteIdsForTag(v.value);
-          const sIds = this.staticNoteStore ? await this.staticNoteStore.getNoteIdsForTag(v.value) : new Set<string>();
           ids.forEach(id => matchingIds.add(id));
-          sIds.forEach(id => matchingIds.add(id));
         }
         matchingCatalogs = matchingCatalogs.filter(c => {
           const catId = catalogOfItem(c) ?? c.id;
@@ -2343,7 +2343,7 @@ export class QueryService {
         matchingCatalogs = matchingCatalogs.filter(c => {
           const catId = catalogOfItem(c) ?? c.id;
           const members = membersByCat.get(catId) ?? [];
-          const hit = members.some(m => m.title.toLowerCase().includes(search));
+          const hit = members.some(m => m.title.toLowerCase().includes(search) || m.rawContent.toLowerCase().includes(search));
           return filter.negate ? !hit : hit;
         });
       } else if (filter.key === 'note') {

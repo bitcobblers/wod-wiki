@@ -19,13 +19,15 @@ import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from '@/components/atoms/primitives/button'
 import { notePersistence } from '@/services/persistence';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
-import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { sessionQueryInsert, sessionQueryWql } from '@bitcobblers/wod-wiki-ui/extensions';
-import { resolveCompletionTargets } from '../lib/workoutCompletion';
 import { useNotePageNav, wirePageIndexLinks } from './shared/useNotePageNav';
 import { canGoBack, extractPageIndex, mapIndexToL3 } from './shared/pageUtils';
 import type { NavItemL3 } from '../nav/navTypes';
 import { useNav } from '../nav/NavContext';
+import { SavedNoteEditor } from './shared/SavedNoteEditor';
+import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
+import type { PendingRuntime } from '../runtimeStore';
+import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
 
 import { JournalPageShell } from '@/panels/page-shells';
 const journalContentProvider = new IndexedDBContentProvider();
@@ -46,6 +48,19 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   const [timerBlock, setTimerBlock] = useState<ScriptBlock | null>(null);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const pendingRunRef = useRef<PendingRuntime | null>(null);
+  const capturedRunRef = useRef<CapturedRun | null>(null);
+  const noteRunStarts = useRef(new Map<string, (block: ScriptBlock, resultId: string) => Promise<CapturedRun>>());
+  const [runError, setRunError] = useState<string | null>(null);
+  const prepareRun = useCallback(async () => {
+    const pending = pendingRunRef.current;
+    if (!pending || !activeRuntimeId) throw new Error('The pending workout is unavailable.');
+    if (pending.captured) { capturedRunRef.current = pending.captured; return pending.captured.block; }
+    if (!capturedRunRef.current) capturedRunRef.current = pending.snapshot
+      ? await captureRun(pending.snapshot, pending.block, activeRuntimeId, pending.origin)
+      : await captureStoredRun(pending.noteId, pending.block, activeRuntimeId, pending.origin);
+    return capturedRunRef.current.block;
+  }, [activeRuntimeId]);
 
   // Per-editor script blocks, keyed by note id — the shared state this
   // replaces let the last-mounted editor win, which mis-attributed Run
@@ -80,6 +95,8 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     const pending = pendingRuntimes.get(autoStartId);
     if (pending) {
       pendingRuntimes.delete(autoStartId);
+      pendingRunRef.current = pending;
+      capturedRunRef.current = null;
       setTimerBlock(pending.block);
       setActiveRuntimeId(autoStartId);
       setActiveNoteId(pending.noteId);
@@ -93,59 +110,21 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   const handleNoteContentChange = useCallback((noteId: string, newContent: string) => {
     setNotes((prev) => prev?.map((n) => (n.id === noteId ? { ...n, rawContent: newContent } : n)) ?? prev);
-    journalNotes.update(noteId, newContent).catch(() => {});
   }, []);
 
-  const handleCompleteWorkout = useCallback((blockId: string, results: ScriptBlock["results"], editorResultId?: string, editorRunBlock?: Pick<ScriptBlock, "id" | "contentId">, targetNoteId?: string): Promise<unknown> => {
-    const noteId = targetNoteId ?? activeNoteId ?? notes?.[0]?.id ?? journalDate;
-    const targets = resolveCompletionTargets({
-      blockId,
-      editorRunBlock,
-      blocks: blocksByNote[noteId] ?? [],
-      activeNoteId: noteId,
-      timerBlock,
-      activeRuntimeId,
-      editorResultId,
-      resolveNoteUuid: () => noteId,
-    });
-    // Surfaced, not silent — the overlay awaits this and offers Retry.
+  const handleCompleteWorkout = useCallback((_blockId: string, results: ScriptBlock['results'], editorResultId?: string, _editorRunBlock?: Pick<ScriptBlock, 'id' | 'contentId'>, _targetNoteId?: string): Promise<unknown> => {
     if (!results) return Promise.reject(new Error('This run produced no results to save.'));
-    if (!targets) return Promise.reject(new Error('Could not match this run to a note block — nothing was saved.'));
-    const { runBlock, resultId } = targets;
-
-    // Retry-stable: the overlay re-reports the same run after a failed save;
-    // the marker check keeps retries from stacking duplicate tables.
-    const marker = sessionQueryWql(resultId);
-    const view = editorViewsRef.current.get(noteId) ?? editorViewRef.current ?? editorView;
-    if (!editorRunBlock && view) {
-      const insert = sessionQueryInsert(view.state, blockId, resultId, runBlock);
-      if (insert && !view.state.doc.toString().includes(marker)) {
-        view.dispatch({ changes: insert });
-        const updatedContent = view.state.doc.toString();
-        handleNoteContentChange(noteId, updatedContent);
-      }
-    } else if (!editorRunBlock && noteId) {
-      journalNotes.getById(noteId).then((entry) => {
-        if (!entry || entry.rawContent.includes(marker)) return;
-        const updatedContent = entry.rawContent.trim() + `\n\n\`\`\`query:table\n${marker}\n\`\`\``;
-        journalNotes.update(noteId, updatedContent).then(() => {
-          journalNotes.listByDate(journalDate).then((entries) => {
-            if (entries.length) setNotes(entries);
-          });
-        });
-      }).catch(() => {});
+    if (editorResultId) return Promise.resolve();
+    const captured = capturedRunRef.current;
+    if (!captured) return Promise.reject(new Error('The saved run pin is unavailable.'));
+    const resultId = captured.session.id;
+    const view = editorViewsRef.current.get(captured.session.noteId);
+    if (view && !view.state.doc.toString().includes(sessionQueryWql(resultId))) {
+      const insert = sessionQueryInsert(view.state, captured.session.blockId, resultId);
+      if (insert) view.dispatch({ changes: insert });
     }
-
-    // Runtime ids stay live until overlay close — a retry must reuse the id.
-    return playgroundRecorder.record({
-      runBlock,
-      blockId,
-      noteId,
-      resultId,
-      data: results,
-      createdAt: results.endTime || Date.now(),
-    });
-  }, [blocksByNote, activeRuntimeId, activeNoteId, timerBlock, editorView, journalDate, notes, handleNoteContentChange]);
+    return playgroundRecorder.record({ blockId: captured.session.blockId, noteId: captured.session.noteId, resultId, data: results, createdAt: results.endTime });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,16 +174,19 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   const singleNote = notes !== null && notes.length === 1 ? notes[0] : null;
   const results = singleNote ? resultsByNote[singleNote.id] : undefined;
 
+  const startOutlineRun = useCallback(async (noteId: string, block: ScriptBlock) => {
+    try {
+      const start = noteRunStarts.current.get(noteId);
+      if (!start) throw new Error('The saved note editor is unavailable.');
+      const runtimeId = uuidv7();
+      const captured = await start(block, runtimeId);
+      pendingRuntimes.set(runtimeId, { noteId, block: captured.block, captured, returnTo: journalDatePath(journalDate) });
+      navigate(runPath(runtimeId));
+    } catch (error) { setRunError(error instanceof Error ? error.message : String(error)); }
+  }, [journalDate, navigate]);
   const handleOutlineRun = useCallback((block: ScriptBlock) => {
-    if (!singleNote) return;
-    const runtimeId = uuidv7();
-    pendingRuntimes.set(runtimeId, {
-      block,
-      noteId: singleNote.id,
-      returnTo: journalDatePath(journalDate),
-    });
-    navigate(runPath(runtimeId));
-  }, [singleNote, journalDate, navigate]);
+    if (singleNote) void startOutlineRun(singleNote.id, block);
+  }, [singleNote, startOutlineRun]);
 
   useNotePageNav({
     content: singleNote?.rawContent ?? '',
@@ -217,15 +199,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   // wired to THAT note's blocks. Entry ids are prefixed with the note-card
   // DOM id (`note-<uuid>:…`) so the scroll fallback lands on the right
   // note's card; Run secondary navigates with the per-note closure.
-  const handleOutlineRunFor = useCallback((noteId: string) => (block: ScriptBlock) => {
-    const runtimeId = uuidv7();
-    pendingRuntimes.set(runtimeId, {
-      block,
-      noteId,
-      returnTo: journalDatePath(journalDate),
-    });
-    navigate(runPath(runtimeId));
-  }, [journalDate, navigate]);
+  const handleOutlineRunFor = useCallback((noteId: string) => (block: ScriptBlock) => { void startOutlineRun(noteId, block); }, [startOutlineRun]);
 
   const groupedL3 = useMemo(() => {
     if (!notes || notes.length <= 1) return [];
@@ -291,6 +265,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           }
           editor={
         <div className="flex flex-col gap-8 px-4 py-6 sm:px-6">
+          {runError && <p role="alert">Workout not started. {runError} Your draft is kept.</p>}
           <nav aria-label="Journal navigation" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <button
               type="button"
@@ -343,11 +318,11 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
                   {notes[0].title || 'Untitled note'}
                 </Link>
               </div>
-              <NoteEditor
+              <SavedNoteEditor
                 key={notes[0].id}
-                value={notes[0].rawContent}
+                entry={notes[0]}
+                registerRun={start => { if (start) noteRunStarts.current.set(notes[0].id, start); else noteRunStarts.current.delete(notes[0].id); }}
                 onChange={(val) => handleNoteContentChange(notes[0].id, val)}
-                noteId={notes[0].id}
                 readonly={false}
                 theme={theme}
                 showLineNumbers={false}
@@ -368,10 +343,10 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
                       {note.title || `Note ${index + 1}`}
                     </Link>
                   </div>
-                  <NoteEditor
-                    value={note.rawContent}
+                  <SavedNoteEditor
+                    entry={note}
+                    registerRun={start => { if (start) noteRunStarts.current.set(note.id, start); else noteRunStarts.current.delete(note.id); }}
                     onChange={(val) => handleNoteContentChange(note.id, val)}
-                    noteId={note.id}
                     readonly={false}
                     theme={theme}
                     showLineNumbers={false}
@@ -395,6 +370,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       {isTimerOpen && timerBlock && (
         <FullscreenTimer
           block={timerBlock}
+          prepareRun={prepareRun}
           onClose={() => {
             setIsTimerOpen(false);
             setActiveRuntimeId(null);

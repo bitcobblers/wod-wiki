@@ -19,7 +19,7 @@ import type { PlaygroundPage } from './playgroundContent';
 
 type MemoryNote = HistoryEntry;
 
-class MemoryPersistence implements INotePersistence {
+class MemoryPersistence implements Pick<INotePersistence, 'createNote' | 'mutateNote'> {
   readonly notes = new Map<string, MemoryNote>();
   readonly mutations: Array<{ locator: NoteLocator; mutation: NoteMutation }> = [];
 
@@ -296,7 +296,7 @@ describe('playground intake — moveToJournal', () => {
     expect(note.type).toBe('journal');
     expect(note.sourceId).toBeUndefined();
     expect(note.slug).toBeUndefined();
-    // Content and title survive the move (segments/results/attachments join
+    // Content and title survive the move (blocks/results/attachments join
     // on the unchanged UUID).
     expect(note.rawContent).toBe('keep me');
     expect(note.title).toBe('Home playground');

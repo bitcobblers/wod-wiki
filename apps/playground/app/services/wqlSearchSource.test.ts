@@ -5,7 +5,7 @@
  * Asserts:
  *   1. Invalid WQL-intent drafts (':' prefix) yield no rows and never execute.
  *   2. :note results map to entry palette items (kind → category).
- *   3. A text filter also runs a :block body search, deduped by note.
+ *   3. Whole-Note text search preserves executor filtering and paging.
  *   4. :block hits map to entries via the synthesized note.
  *   5. Find-mode plain prose merges VERBATIM as a `text:` phrase into the
  *      live scope (context.scopeWql, else the route default); an empty draft
@@ -61,13 +61,15 @@ const JOURNAL_NOTE: Note = {
   title: 'Heavy Fran',
   createdAt: Date.parse('2026-07-30T10:00:00Z'),
   type: 'note',
+  rawContent: 'Heavy training observations.', sourceRevision: 1, blocks: {},
 } as Note
 
 const STATIC_BLOCK: BlockIndexRow = {
   id: 'girl-wods/fran:s1:1',
   noteId: 'girl-wods/fran',
-  segmentId: 's1',
-  segmentVersion: 1,
+  blockId: 's1',
+  blockVersion: 1,
+  sourceRevision: 1, from: 0, to: 35,
   dataType: 'wod',
   rawContent: '21-15-9 Thrusters and Pull-ups',
   noteTitle: 'Fran',
@@ -120,24 +122,10 @@ describe('wqlSearchSource', () => {
     expect(entry.sourceItem).toBe('journal/2026-07-30')
   })
 
-  it('runs a secondary :block body search for text filters, deduped by note', async () => {
-    setup(async parsed => {
-      const result = emptyResult(parsed.raw ?? '')
-      if ((parsed.raw ?? '').startsWith(':block')) {
-        // Body-text hit for the note the primary query already returned.
-        result.blocks = [{ ...STATIC_BLOCK, noteId: JOURNAL_NOTE.id, noteTitle: JOURNAL_NOTE.title, sourceId: undefined }]
-      } else {
-        result.notes = [JOURNAL_NOTE]
-      }
-      return result
-    })
+  it('keeps whole-Note text filtering in one executor request', async () => {
+    setup(async parsed => ({ ...emptyResult(parsed.raw ?? ''), notes: [JOURNAL_NOTE] }))
     const results = await wqlSearchSource().search(':note{text:fran} in all')
-
-    expect(runFindCalls.map(c => c.raw)).toEqual([
-      ':note{text:fran} in all',
-      ':block{text:fran} in all',
-    ])
-    // The block hit dedupes into the note the primary query returned.
+    expect(runFindCalls.map(c => c.raw)).toEqual([':note{text:fran} in all'])
     expect(results.map(r => r.id)).toEqual(['entry:journal/2026-07-30'])
   })
 
@@ -219,7 +207,7 @@ const JOURNAL_ROW: CorpusRow = {
 }
 
 const FEED_ROW: CorpusRow = {
-  note: { id: 'feeds/feed-a/2026-01-01/note-0', title: 'Feed note', createdAt: 1, type: 'note', sourceId: 'feed:feeds/feed-a/2026-01-01/note-0' } as unknown as Note,
+  note: { id: 'feeds/feed-a/2026-01-01/note-0', title: 'Feed note', createdAt: 1, type: 'note', sourceId: 'feed:feeds/feed-a/2026-01-01/note-0', rawContent: 'pushup ladder', sourceRevision: 1, blocks: {} },
   body: 'pushup ladder',
   source: 'feeds',
 }

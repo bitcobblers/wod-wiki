@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'path';
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'fs';
 import { cliMain, dialectRegistry, unregisterLanguagePack } from '../src/index';
+import * as execution from '../src/cli/run';
+import { cliNoteSource } from '../src/cli/runner';
+import { openCliDb } from '../src/cli/db';
+import { persistNote } from '../src/cli/persist';
+import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
 
 const FIXTURE_PATH = join(__dirname, '../../wql/fixtures/corpus/crossfit-multi-week.json');
 const TEMP_SCRIPT_FILE = join(process.cwd(), 'temp-test-workout.txt');
@@ -48,7 +53,7 @@ describe('wod CLI runner', () => {
 
       expect(code).toBe(0);
       expect(stdout).toContain('[wod parse] note');
-      expect(stdout).toContain('segments');
+      expect(stdout).toContain('blocks');
       expect(existsSync(TEMP_DB_FILE)).toBe(true);
     });
 
@@ -125,6 +130,40 @@ describe('wod CLI runner', () => {
   });
 
   describe('wod run', () => {
+    it('commits the pin before execution and freezes the original bare body during concurrent edit', async () => {
+      const source = readFileSync(TEMP_SCRIPT_FILE, 'utf-8');
+      const execute = execution.runExecution;
+      const spy = vi.spyOn(execution, 'runExecution').mockImplementation(async (body, options) => {
+        expect(body).toBe(source);
+        const db = await openCliDb(TEMP_DB_FILE);
+        try {
+          const sessions = await db.storage.readonly('sessions').getAll();
+          expect(sessions).toHaveLength(1);
+          expect(sessions[0].status).toBe('in-progress');
+          const revision = await db.storage.readonly('block_revisions').get([sessions[0].noteId, sessions[0].blockId, sessions[0].blockVersion]);
+          expect(revision).toBeDefined();
+          expect(revision!.rawContent).toBe(cliNoteSource(source, TEMP_SCRIPT_FILE).slice(0, -1));
+          await persistNote(db, { source: '# Replaced while running\n', sourceLabel: TEMP_SCRIPT_FILE });
+        } finally {
+          await db.close();
+        }
+        return execute(body, options);
+      });
+      try {
+        expect(await cliMain(['run', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], { stdout: () => {} })).toBe(0);
+        expect(spy).toHaveBeenCalledOnce();
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('wraps bare content with a longer fence without changing body bytes', () => {
+      const source = '10 push-up\r\n``` in body 😀\r\n';
+      const wrapped = cliNoteSource(source, '-', 'crossfit');
+      expect(wrapped.startsWith('````time:crossfit\n')).toBe(true);
+      expect(parseDocumentSections(wrapped)[0].scriptBlock!.content.slice(0, -1)).toBe(source);
+      expect(cliNoteSource('# Plain prose\r\n', 'note.md')).toBe('# Plain prose\r\n');
+    });
     it('executes workout script, records a session, and prints a summary (exit code 0)', async () => {
       let stdout = '';
       const code = await cliMain(['run', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], {

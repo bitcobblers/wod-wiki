@@ -44,6 +44,8 @@ export interface EventStore {
 /** Store surface for content queries (`:note`). */
 export interface NoteQueryStore {
   getAllNotes(): Promise<Note[]>;
+  /** Scoped hydration of actionable block parents. */
+  getNotesByIds?(noteIds: readonly string[]): Promise<Note[]>;
   getNoteIdsForTag(label: string): Promise<Set<string>>;
   /** Note-tags label set of one note (moved here from FactQueryStore — it
    *  reads note tags, not facts). */
@@ -159,8 +161,6 @@ export interface QueryServiceStores {
    *  seed importer materializes corpus rows into the same store). */
   blockStore?: BlockQueryStore;
   effortStore?: EffortQueryStore;
-  /** Derived corpus-note projections (catalog/tag planes). */
-  staticNoteStore?: NoteQueryStore;
   /** Serves exercise containment rows (`block_efforts` store). */
   blockEffortsStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
   /** Serves tag records (`tags` store). */

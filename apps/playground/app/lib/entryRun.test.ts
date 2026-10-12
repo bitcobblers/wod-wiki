@@ -8,7 +8,7 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test'
 
 const createFromWorkoutMock = mock(() =>
-  Promise.resolve({ id: 'journal-note-1', journalDate: '2026-09-05' } as never),
+  Promise.resolve({ id: 'journal-note-1', journalDate: '2026-09-05', blocks: { 'journal-workout': { id: 'journal-workout', kind: 'wod', version: 1, sourceRevision: 1, from: 0, to: 30 } } } as never),
 )
 mock.module('../services/journalWorkout', () => ({
   createJournalNoteFromWorkout: createFromWorkoutMock,
@@ -69,11 +69,13 @@ describe('startEntryRun — playground entries', () => {
       sourceCatalog: 'playground',
       sourceItem: 'fran-experiment',
       sourceId: 'playground',
-      wodBlock: { blockContentId: 'wod-hash-1', content: '21-15-9 Thrusters / Pull-ups' },
+      wodBlock: { blockId: 'playground-workout', blockVersion: 1, blockContentId: 'wod-hash-1', content: '21-15-9 Thrusters / Pull-ups' },
     })
     const { navigate, calls } = makeNavigate()
+    const original = journalNotes.getById;
+    journalNotes.getById = mock(async () => ({ id: entry.id, blocks: { 'playground-workout': { id: 'playground-workout', kind: 'wod' } } }) as never);
 
-    await startEntryRun(entry, navigate)
+    try { await startEntryRun(entry, navigate); } finally { journalNotes.getById = original; }
 
     expect(pendingRuntimes.size).toBe(1)
     const [runtimeId, pending] = [...pendingRuntimes.entries()][0]!
@@ -89,7 +91,7 @@ describe('startEntryRun — playground entries', () => {
 describe('startEntryRun — catalog adoption', () => {
   it('writes the block to today\'s journal and auto-starts on the journal date', async () => {
     const entry = makeEntry({
-      wodBlock: { blockContentId: 'wod-grace', content: '30 Clean & Jerks for time' },
+      wodBlock: { blockId: 'source-workout', blockVersion: 1, blockContentId: 'wod-grace', content: '30 Clean & Jerks for time' },
     })
     const { navigate, calls } = makeNavigate()
 

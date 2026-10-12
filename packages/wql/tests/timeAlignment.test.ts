@@ -26,8 +26,8 @@ function summaryRow(id: string, resultId: string, timestamp: number, temporal?: 
     timestamp,
     grain: 'summary',
     outputType: 'analytics',
-    segmentId: '',
-    segmentVersion: 0,
+    blockId: '',
+    blockVersion: 0,
     metrics: [
       { type: "distance", value: timestamp === Date.UTC(2026, 8, 5, 16) ? 1000 : 2000, metadata: { canonicalKey: "distance" } } as unknown as Metrics,
     ] as Metrics,
@@ -87,7 +87,7 @@ describe('ticket 12 — engine-level time alignment', () => {
       {
         id: 'wellness:n1:hrv', resultId: 'wellness:n1', noteId: 'n1',
         timestamp: Date.UTC(2026, 8, 5, 4), // Sep 5 00:00 EDT hint
-        grain: 'summary', outputType: 'wellness', segmentId: '', segmentVersion: 0,
+        grain: 'summary', outputType: 'wellness', blockId: '', blockVersion: 0,
         metrics: [{ type: "hrv", value: 48, metadata: { canonicalKey: "hrv" } }] as unknown as Metrics,
         metricTemporal: [{ temporalKind: 'civil-date', civilDate: '2026-09-05' }],
       },

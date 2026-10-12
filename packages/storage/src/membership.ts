@@ -22,7 +22,7 @@ export function createDefaultMembership(now: number = Date.now()): Membership {
  *  mirrors this list — keep in lockstep. */
 export const USER_OWNED_STORES: readonly StoreName[] = [
   'notes', 'page', 'page_notes', 'tags', 'tag_types', 'note_tags',
-  'segments', 'sessions', 'attachments', 'events',
+  'sessions', 'attachments', 'events',
   'efforts', 'block_index', 'block_efforts',
 ];
 

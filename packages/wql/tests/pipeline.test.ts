@@ -8,7 +8,7 @@ const DAY = 86_400_000;
 
 function eventRow(id: string, resultId: string, outputType: string, metrics: Array<{ type: string; value?: number; unit?: string }>, ts = T0): EventRecord {
   return {
-    id, resultId, noteId: 'n1', timestamp: ts, grain: 'event', outputType, segmentId: 'seg', segmentVersion: 1,
+    id, resultId, noteId: 'n1', timestamp: ts, grain: 'event', outputType, blockId: 'seg', blockVersion: 1,
     metrics: metrics.map((m) => ({ ...m, metadata: { canonicalKey: m.type } })),
   } as unknown as EventRecord;
 }
@@ -51,7 +51,7 @@ const SESSION_EVENTS: EventRecord[] = [
   eventRow('s2:0', 'r2', 'segment', [{ type: 'tis', value: 300 }], T0 - 2 * DAY),
   eventRow('s2:1', 'r2', 'segment', [], T0 - 2 * DAY), // zero-metric debug statement
 ];
-const SESSION_DATASET = { events: SESSION_EVENTS, notes: [{ id: 'n1', title: 'Today', createdAt: T0, type: 'note' } as Note] };
+const SESSION_DATASET = { events: SESSION_EVENTS, notes: [{ id: 'n1', title: 'Today', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} } satisfies Note] };
 // Weighted loads in two sessions, w2 one hour after w1 (last-ordering).
 const KG_ROWS: EventRecord[] = [
   eventRow('w1:0', 'w1', 'segment', [{ type: 'weight', value: 60, unit: 'kg' }]),
@@ -267,8 +267,8 @@ describe('runPipeline — functions reduce the preceding stage left to right', (
 
 describe('runPipeline — source-scoped content resolution', () => {
   const NOTES: Note[] = [
-    { id: 'n1', title: 'Alpha', createdAt: T0, type: 'note' } as Note,
-    { id: 'n2', title: 'Beta', createdAt: T0, type: 'note' } as Note,
+    { id: 'n1', title: 'Alpha', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} },
+    { id: 'n2', title: 'Beta', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} },
   ];
   const NOTE_EVENTS: Record<string, EventRecord[]> = {
     n1: [eventRow('n1:0', 'r1', 'segment', [{ type: 'tis', value: 42 }])],
@@ -301,7 +301,7 @@ describe('runPipeline — source-scoped content resolution', () => {
   });
 
   it(':note default scope restricts to journal|feeds|playground', async () => {
-    const feedNote = { id: 'feed-1', title: 'Feed', createdAt: T0, type: 'note', sourceId: 'feed:x' } as Note;
+    const feedNote: Note = { id: 'feed-1', title: 'Feed', createdAt: T0, type: 'note', sourceId: 'feed:x', rawContent: '', sourceRevision: 1, blocks: {} };
     const store: EventStore = { ...explodingStore(), getEventsForNote: async (noteId) => NOTE_EVENTS[noteId] ?? [] };
     const result = await noteService([...NOTES, feedNote], store).runPipeline(':note{} | :sum{metric:tis}');
     expect(result.series![0]!.points[0]!.value).toBe(50); // feed note excluded by default scope
@@ -310,8 +310,8 @@ describe('runPipeline — source-scoped content resolution', () => {
 
 describe('containers — junction-based, parent Page wins', () => {
   const NOTES: Note[] = [
-    { id: 'n-page', title: 'Bound', createdAt: T0, type: 'note' } as Note,
-    { id: 'n-loose', title: 'Standalone', createdAt: T0, type: 'note' } as Note,
+    { id: 'n-page', title: 'Bound', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} },
+    { id: 'n-loose', title: 'Standalone', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} },
   ];
 
   it('find results map page-bound notes to their parent Page and loose notes to Note', async () => {
@@ -343,10 +343,10 @@ describe('containers — junction-based, parent Page wins', () => {
     const parsed = parseQuery(':journal{}');
     if (parsed.family !== 'find') throw new Error('expected find query');
     const notes: Note[] = [
-      { id: 'n-page', title: 'Bound', createdAt: T0, type: 'note' } as Note,
-      { id: 'n-loose', title: 'Standalone', createdAt: T0, type: 'note' } as Note,
-      { id: 'n-tagged', title: 'Inline', createdAt: T0, type: 'note', tags: ['authored'] } as Note,
-      { id: 'n-dangling', title: 'Dangling', createdAt: T0, type: 'note' } as Note,
+      { id: 'n-page', title: 'Bound', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'n-loose', title: 'Standalone', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'n-tagged', title: 'Inline', createdAt: T0, type: 'note', tags: ['authored'], rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'n-dangling', title: 'Dangling', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} },
     ];
     const batchIds: string[][] = [];
     const result = await new QueryService({

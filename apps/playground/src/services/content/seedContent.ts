@@ -6,13 +6,12 @@
  * After the seed import, every bundled-content read loads from IndexedDB
  * through here: one bulk read builds a `markdown/…`-keyed file map (the same
  * shape the old build-time globs served), cached in memory and invalidated
-import { SEED_BROADCAST_CHANNEL } from '@/types/seed';
  * `useSeedContent()` returns `null` until the corpus is loaded — consumers
  * render their empty/loading state first, then re-render when it arrives.
  */
 import { useEffect, useSyncExternalStore } from 'react';
 import { storageService } from '@/services/storage';
-import { SEED_BROADCAST_CHANNEL } from '@/services/seed/seedSync';
+import { SEED_BROADCAST_CHANNEL } from '@/types/seed';
 import { invalidateCorpusBlocks } from '@/services/content/staticBlockIndex';
 
 export type SeedContentFiles = Record<string, string>;

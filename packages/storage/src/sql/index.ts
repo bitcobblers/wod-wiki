@@ -3,8 +3,7 @@
  *
  * Shared by the API server (node libsql client, Bun postgres driver) and the
  * browser (BrowserTursoStorage over @libsql/client/web). Importing this
- * subpath pulls @libsql/client/web and the WQL package — the root entry
- * stays dependency-free for IndexedDB-only consumers.
+ * subpath pulls @libsql/client/web and WQL; the root imports core validation.
  *
  *  StorageError       — shared error with status + stable code
  *  Database/…         — connection contracts + libsqlDatabase() adapter
@@ -21,12 +20,16 @@ export {
   type SqlConnection,
   type SqlRow,
   type SqlValue,
+  type SqlStatement,
 } from './connection';
 export { encodeRowJson, decodeRowJson } from './codec';
 export {
   initializeStore,
   storeDefinition,
   getRow,
+  getRows,
+  listRowsFromIndexMany,
+  putRows,
   listRows,
   countRows,
   putRow,

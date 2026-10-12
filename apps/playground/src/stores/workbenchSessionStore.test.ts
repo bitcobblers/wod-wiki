@@ -16,6 +16,12 @@ import type { CreateNoteInput, NoteMutation, NoteLocator, GetNoteOptions } from 
 import type { HistoryEntry } from '@/types/history';
 import type { Sessions, StoredOutputStatement } from '@/components/Editor/types';
 import type { Attachment } from '@/types/storage';
+import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
+import { StorageService } from '@/services/storage/StorageService';
+import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
+import type { SaveNoteInput } from '@/services/persistence';
+import type { Session } from '@/types/storage';
+import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import type {
   IContentProvider,
   ContentProviderMode,
@@ -25,7 +31,21 @@ import type {
 
 /* ─── Mocks ────────────────────────────────────────────────────────────── */
 
-class FakeNotePersistence implements INotePersistence {
+class FakeNotePersistence extends IndexedDBNotePersistence {
+  readonly saved: SaveNoteInput[] = [];
+  readonly finished: Session[] = [];
+  constructor() { super(new StorageService(new InMemoryStorage())); }
+  override async saveNote(input: SaveNoteInput) {
+    const note = await super.saveNote(input);
+    this.saved.push(input);
+    this.notes.set(note.id, note);
+    return note;
+  }
+  override async finishSession(id: string, outcome: Sessions, createdAt?: number) {
+    const result = await super.finishSession(id, outcome, createdAt);
+    this.finished.push(result);
+    return result;
+  }
   public readonly mutated: Array<{ locator: NoteLocator; mutation: NoteMutation }> = [];
   private readonly notes = new Map<string, HistoryEntry>();
 
@@ -43,8 +63,9 @@ class FakeNotePersistence implements INotePersistence {
     const id = typeof locator === 'string' ? locator : locator.id;
     if (!id) throw new Error('missing note id in locator');
     const note = this.notes.get(id);
-    if (!note) throw new Error(`note not found: ${id}`);
-    return note;
+    if (note && !note.blocks) return note;
+    try { return await super.getNote(locator, _options); }
+    catch (error) { if (note) return note; throw error; }
   }
 
   async listNotes() {
@@ -55,13 +76,13 @@ class FakeNotePersistence implements INotePersistence {
     this.mutated.push({ locator, mutation });
     const id = typeof locator === 'string' ? locator : locator.id;
     if (!id) throw new Error('missing note id in locator');
-    const existing = this.notes.get(id);
-    if (!existing) throw new Error(`note not found: ${id}`);
-    return existing;
+    return super.mutateNote(locator, mutation);
   }
 
-  async deleteNote() {
-    /* no-op */
+  async deleteNote(locator: NoteLocator) {
+    await super.deleteNote(locator);
+    const id = typeof locator === 'string' ? locator : locator.id;
+    if (id) this.notes.delete(id);
   }
 
   seed(note: HistoryEntry) {
@@ -168,6 +189,8 @@ function makeEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
     updatedAt: Date.parse('2026-01-01T00:00:00Z'),
     targetDate: Date.parse('2026-01-01T00:00:00Z'),
     schemaVersion: 1,
+    sourceRevision: 0,
+    blocks: {},
     ...overrides,
   };
 }
@@ -208,7 +231,7 @@ describe('workbenchSessionStore', () => {
     expect(store.getState().blocks.length).toBeGreaterThan(0);
   });
 
-  it('setContent schedules a debounced autosave via the injected provider', () => {
+  it('setContent debounces the source and identity snapshot through persistence', async () => {
     const store = createWorkbenchSessionStore({
       nowProvider: now,
       notePersistence,
@@ -232,9 +255,10 @@ describe('workbenchSessionStore', () => {
     expect(timer.getLiveCount()).toBe(1);
 
     timer.fireFirst();
-
-    expect(provider.updated.length).toBe(1);
-    expect(provider.updated[0].rawContent).toContain('body v3');
+    await store.getState().flushSave();
+    expect(notePersistence.saved).toHaveLength(1);
+    expect(notePersistence.saved[0].rawContent).toContain('body v3');
+    expect(Object.values(notePersistence.saved[0].blocks)).toHaveLength(1);
   });
 
   it('flushSave runs the provider immediately when the debounce is pending', async () => {
@@ -253,132 +277,46 @@ describe('workbenchSessionStore', () => {
     expect(provider.updated.length).toBe(0);
 
     await store.getState().flushSave();
-    expect(provider.updated.length).toBe(1);
+    expect(notePersistence.saved).toHaveLength(1);
   });
 
-  it('completeWorkout calls mutateNote with analytics (#946: no review intent)', async () => {
-    const store = createWorkbenchSessionStore({
-      nowProvider: now,
-      notePersistence,
-      provider,
-      setTimeout: timer.setTimeoutFn,
-      clearTimeout: timer.clearTimeoutFn,
-      navigate: (i) => intents.push(i),
-    });
-
-    const entry = makeEntry({ id: 'note-3' });
-    notePersistence.seed(entry);
-    store.setState({ currentEntry: entry });
-    store.setState({
-      selectedBlock: {
-        id: 'block-1',
-        contentId: 'block-1',
-        content: '10 thrusters',
-      },
-      selectedBlockId: 'block-1',
-    });
-
-    // Pre-seed analytics segments (the live runtime seam populates these).
-    store.setState({
-      analyticsSegments: [
-        {
-          id: 1,
-          name: 'seg-1',
-          type: 'segment',
-          startTime: Date.parse('2026-01-01T00:00:00Z'),
-          endTime: Date.parse('2026-01-01T00:01:00Z'),
-          elapsed: 60,
-          total: 60,
-          parentId: null,
-          depth: 0,
-          metric: {},
-          lane: 0,
-        },
-      ],
-    });
-    const result: Sessions = {
-      startTime: Date.parse('2026-01-01T00:00:00Z'),
-      endTime: Date.parse('2026-01-01T00:01:00Z'),
-      duration: 60_000,
-      completed: true,
-    };
-
-    const resultId = await store.getState().completeWorkout(result);
-    expect(resultId).toMatch(/^[0-9a-f-]+$/);
-
-    expect(notePersistence.mutated.length).toBe(2);
-    const call = notePersistence.mutated[1];
-    expect(typeof call.locator === 'string' ? call.locator : call.locator.id).toBe('note-3');
-    expect(call.mutation.workoutResult).toBeDefined();
-    // `workoutResult.id` is the generated `resultId` (separate from
-    // `Sessions.startTime`/etc.); the session's `completeWorkout`
-    // mints it and passes it through.
-    expect(call.mutation.workoutResult?.id).toBe(resultId);
-
-    expect(intents.length).toBe(0);
-
-    expect(store.getState().results.length).toBe(1);
-    expect(store.getState().results[0]).toEqual(result);
+  it('captures a saved occurrence before execution and completes its pin after source changes', async () => {
+    const store = createWorkbenchSessionStore({ nowProvider: now, notePersistence, provider, setTimeout: timer.setTimeoutFn, clearTimeout: timer.clearTimeoutFn, navigate: i => intents.push(i) });
+    store.getState().setCurrentEntry(makeEntry({ id: 'note-run' }));
+    store.getState().setContent('```time:crossfit\n10 Thrusters\n```');
+    const selected = store.getState().blocks[0];
+    const frozen = await store.getState().startPinnedRun(selected);
+    expect(frozen.content.trim()).toBe('10 Thrusters');
+    expect(frozen.dialect).toBe('time');
+    const pin = store.getState().capturedRun?.session;
+    if (!pin) throw new Error('Run pin missing');
+    store.getState().setContent('The workout was removed.');
+    await notePersistence.deleteNote('note-run');
+    const outcome: Sessions = { startTime: 1, endTime: 2, duration: 1, completed: true };
+    expect(await store.getState().completeWorkout(outcome)).toBe(pin.id);
+    expect(notePersistence.finished[0]).toMatchObject({ noteId: 'note-run', blockId: frozen.id, blockVersion: 1 });
+    expect(notePersistence.mutated).toEqual([]);
+    expect(store.getState().results).toEqual([outcome]);
+    expect(intents).toEqual([]);
   });
-  it('completeWorkout records the editor-supplied block when selectedBlock is unset (inline run)', async () => {
-    const store = createWorkbenchSessionStore({
-      nowProvider: now,
-      notePersistence,
-      provider,
-      setTimeout: timer.setTimeoutFn,
-      clearTimeout: timer.clearTimeoutFn,
-      navigate: () => undefined,
-    });
 
-    const entry = makeEntry({ id: 'note-inline' });
-    notePersistence.seed(entry);
-    store.setState({ currentEntry: entry });
-    // Simulate an inline NoteEditor run: no selectedBlock is ever set.
+  it('finishes an editor-owned explicit persisted pin without selectedBlock', async () => {
+    const store = createWorkbenchSessionStore({ nowProvider: now, notePersistence, provider, setTimeout: timer.setTimeoutFn, clearTimeout: timer.clearTimeoutFn });
+    store.getState().setCurrentEntry(makeEntry({ id: 'inline-note' }));
+    store.getState().setContent('```time\n10 Pushups\n```');
+    const block = await store.getState().startPinnedRun(store.getState().blocks[0]);
+    const pin = store.getState().capturedRun?.session;
+    if (!pin) throw new Error('Run pin missing');
+    store.setState({ capturedRun: null });
     expect(store.getState().selectedBlock).toBeNull();
-
-    const result: Sessions = {
-      startTime: 1, endTime: 2, duration: 1, completed: true,
-    };
-    const resultId = await store.getState().completeWorkout(
-      result,
-      'run-editor-1',
-      { id: 'wod-5', contentId: 'bc-wod5' },
-    );
-    expect(resultId).toBe('run-editor-1');
-
-    const call = notePersistence.mutated.at(-1)!;
-    expect(call.mutation.workoutResult).toMatchObject({
-      id: 'run-editor-1',
-      blockId: 'wod-5',
-      blockContentId: 'bc-wod5',
-      segmentId: 'wod-5',
-    });
+    expect(await store.getState().completeWorkout({ startTime: 1, endTime: 2, duration: 1, completed: true }, pin.id)).toBe(pin.id);
+    expect(notePersistence.finished[0]).toMatchObject({ blockId: block.id, blockVersion: 1 });
   });
-  it('completeWorkout degrades to blockId identity instead of crashing when no block is resolvable', async () => {
-    const store = createWorkbenchSessionStore({
-      nowProvider: now,
-      notePersistence,
-      provider,
-      setTimeout: timer.setTimeoutFn,
-      clearTimeout: timer.clearTimeoutFn,
-      navigate: () => undefined,
-    });
 
-    const entry = makeEntry({ id: 'note-orphan' });
-    notePersistence.seed(entry);
-    store.setState({ currentEntry: entry });
-
-    const result: Sessions = {
-      startTime: 1, endTime: 2, duration: 1, completed: true,
-    };
-    const resultId = await store.getState().completeWorkout(result, 'run-orphan-1');
-    expect(resultId).toBe('run-orphan-1');
-
-    const call = notePersistence.mutated.find(
-      (c) => (c.mutation.workoutResult?.id ?? '') === 'run-orphan-1',
-    )!;
-    expect(call.mutation.workoutResult?.blockContentId).toBeUndefined();
-    expect(call.mutation.workoutResult?.segmentId).toBe('');
+  it('rejects unpinned completion rather than inventing a latest occurrence', async () => {
+    const store = createWorkbenchSessionStore({ nowProvider: now, notePersistence, provider });
+    await expect(store.getState().completeWorkout({ startTime: 1, endTime: 2, duration: 1, completed: true })).rejects.toThrow('saved run pin');
+    expect(notePersistence.finished).toEqual([]);
   });
   it('loadEntry populates content + currentEntry', async () => {
     const store = createWorkbenchSessionStore({
@@ -393,6 +331,8 @@ describe('workbenchSessionStore', () => {
     const entry = makeEntry({
       id: 'note-4',
       rawContent: '# Loaded Title\n\n```time\nwod-A\n```\n',
+      sourceRevision: 1,
+      blocks: reconcileNoteBlocks('# Loaded Title\n\n```time\nwod-A\n```\n', { sourceRevision: 1, createId: () => 'saved-workout' }),
     });
     notePersistence.seed(entry);
 
@@ -409,6 +349,8 @@ describe('workbenchSessionStore', () => {
     const state = store.getState();
     expect(state.content).toContain('Loaded Title');
     expect(state.currentEntry).toEqual(entry);
+    expect(state.sourceRevision).toBe(1);
+    expect(state.blocks[0].id).toBe('saved-workout');
     // loadEntry marks the content as already saved to avoid an immediate
     // autosave firing.
     expect(state.lastSavedContent).toBe(entry.rawContent);

@@ -7,13 +7,11 @@
  * toSummaryEventRows(...))`. Every session is backed by a Note tagged `sample`
  * in the `note_tags` store.
  *
- * Purge-by-marker uses the shared `sample` tag: all sample notes are found
- * through the `note_tags.by-tag` index, and `deleteNote` cascades to their
- * dependent result/event rows. Rows not linked to a sample-tagged note are
- * never touched.
+ * Purge removes sample-tagged live notes and analytics events. Immutable
+ * revisions and Session pins remain available until an explicit store wipe.
  */
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import { MetricType } from '@bitcobblers/wod-wiki-core';
+import { MetricType, blockContentId, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import type { StoredOutputStatement } from '@/components/Editor/types';
 import type { Session } from '@/types/storage';
 import { storageService, type StorageService } from '@/services/storage';
@@ -29,7 +27,6 @@ let service: StorageService = storageService;
 export function setSampleDataService(instance: StorageService): void {
   service = instance;
 }
-import type { Note } from '@/types/storage';
 
 const SAMPLE_TAG = 'sample';
 
@@ -307,7 +304,7 @@ function buildSessionLogs(session: SampleSession): StoredOutputStatement[] {
   return logs;
 }
 
-function buildSampleResult(session: SampleSession, logs: StoredOutputStatement[]): Session {
+function buildSampleResult(session: SampleSession, contentId: string): Session {
   const baseId = `sample-${session.noteId}`;
   const resultId = `${baseId}-result`;
   const startTime = session.timestamp;
@@ -316,19 +313,16 @@ function buildSampleResult(session: SampleSession, logs: StoredOutputStatement[]
   return {
     id: resultId,
     noteId: session.noteId,
-    segmentId: 'sample-segment',
-    segmentVersion: 1,
-    blockContentId: `sample-content-${session.workoutType}`,
+    blockId: 'sample-block',
+    blockVersion: 1,
+    blockContentId: contentId,
     origin: 'journal',
     status: 'completed',
     createdAt: Date.now(),
-    data: {
-      startTime,
-      endTime,
-      duration: session.durationSeconds * 1000,
-      completed: true,
-      logs,
-    },
+    startTime,
+    endTime,
+    duration: session.durationSeconds * 1000,
+    completed: true,
   };
 }
 
@@ -361,33 +355,31 @@ export async function loadSampleData(): Promise<{ facts: number }> {
   let factsWritten = 0;
 
   for (const session of sessions) {
-    const note: Note = {
-      id: session.noteId,
-      title: session.title,
-      createdAt: session.timestamp,
-      type: 'playground',
-    };
-    await service.saveNote(note);
-    await service.setNoteTags(session.noteId, [SAMPLE_TAG]);
-
+    const body = session.movements.map(movement => `${movement.distanceMeters ? `${movement.distanceMeters}m` : movement.reps} ${movement.effortSlug.replaceAll('-', ' ')}${movement.loadLbs ? ` ${movement.loadLbs}lb` : ''}`).join('\n');
+    const rawContent = `# ${session.title}\n\n\`\`\`log\n${body}\n\`\`\`\n`;
+    const blocks = reconcileNoteBlocks(rawContent, { sourceRevision: 1, createId: () => 'sample-block' });
     const logs = buildSessionLogs(session);
-    const result = buildSampleResult(session, logs);
+    const result = buildSampleResult(session, blockContentId(body));
     const identity = {
       noteId: session.noteId,
       resultId: result.id,
-      segmentId: result.segmentId,
-      segmentVersion: result.segmentVersion,
+      blockId: result.blockId,
+      blockVersion: result.blockVersion,
       blockContentId: result.blockContentId,
       origin: result.origin,
       pageId: result.pageId,
       workoutTimestamp: session.timestamp,
     };
 
-    await service.saveSession(result);
-    await service.appendEvents(toEventRows(logs, identity));
-    const summaries = toSummaryEventRows(logs, identity);
-    await service.finalizeSummaries(result.id, summaries);
-    factsWritten += summaries.length;
+    factsWritten += await service.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'tags', 'note_tags', 'tag_types', 'sessions', 'events'], async scoped => {
+      await scoped.saveNoteSource({ noteId: session.noteId, rawContent, blocks, expectedSourceRevision: 0, metadata: { title: session.title }, noteType: 'playground', createdAt: session.timestamp });
+      await scoped.setNoteTags(session.noteId, [SAMPLE_TAG]);
+      await scoped.saveSession(result);
+      await scoped.appendEvents(toEventRows(logs, identity));
+      const summaries = toSummaryEventRows(logs, identity);
+      await scoped.finalizeSummaries(result.id, summaries);
+      return summaries.length;
+    });
   }
 
   return { facts: factsWritten };
@@ -397,9 +389,9 @@ export async function purgeSampleData(): Promise<void> {
   const noteIds = await getSampleNoteIds();
   if (noteIds.length === 0) return;
 
-  // Delete each sample note. This cascades to note_tags, segments, results,
-  // attachments, and the unified event store via IndexedDBService.deleteNote.
+  // Removing a sample Note does not garbage-collect its pinned history.
   for (const noteId of noteIds) {
+    await service.deleteEvents((await service.getEventsForNote(noteId)).map(event => event.id));
     await service.deleteNote(noteId);
   }
 

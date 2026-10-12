@@ -1,9 +1,8 @@
 #!/usr/bin/env bun
 /**
- * check.ts — one assert-based API check: CRUD, indexes/ranges, compound keys,
- * multi-entry, tx rollback, wipe (memberships survive), the /v1/query domain
- * boundary (counts before paging, MAX-before-history segments, orphan gate +
- * heal), invalid-input statuses, and static serving (traversal/symlink/SPA).
+ * Assert-based API checks cover CRUD, whole-Note search, immutable block
+ * history, pinned Sessions, optimistic conflicts, rollback, indexes/ranges,
+ * memberships, invalid inputs and confined static serving.
  *
  * Default: local SQLite in a temp file — close/reopen proves persistence.
  * Explicit DB_DRIVER (postgres/turso/...) requires WOD_CHECK_ALLOW_REMOTE=1:
@@ -19,12 +18,13 @@ import { join } from 'node:path';
 import { openDatabase } from './src/database';
 import { initializeStore, initializeDomain } from '@bitcobblers/wod-wiki-storage/sql';
 import { createHandler } from './src/app';
+import { ApiStorage, type Note, type BlockRevision, type BlockIndexRow, type Session } from '@bitcobblers/wod-wiki-storage';
 
 const driver = process.env.DB_DRIVER;
 if (driver) {
   if (process.env.WOD_CHECK_ALLOW_REMOTE !== '1') {
     console.error(
-      `check: DB_DRIVER=${driver} targets a real database (${process.env.DATABASE_URL ?? 'no DATABASE_URL'}). ` +
+      `check: DB_DRIVER=${driver} selects an external database. ` +
         'The check writes and WIPES data. Point DB_DRIVER/DATABASE_URL at a fresh disposable database, ' +
         'then re-run with WOD_CHECK_ALLOW_REMOTE=1.',
     );
@@ -34,7 +34,16 @@ if (driver) {
 
 interface Res { status: number; headers: Headers; json: unknown }
 const enc = (v: unknown): string => encodeURIComponent(JSON.stringify(v));
+const field = (value: unknown, name: string): unknown => {
+  assert.ok(value !== null && typeof value === 'object' && name in value, `response has ${name}`);
+  return Reflect.get(value, name);
+};
+const matched = (response: Res): unknown => field(response.json, 'matchedCount');
 
+
+const wholeNote = (id: string, title: string, createdAt: number, rawContent = '') => ({
+  id, title, createdAt, rawContent, sourceRevision: 1, blocks: {},
+});
 async function main(): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), 'wodwiki-check-'));
   try {
@@ -95,7 +104,7 @@ async function suite(dir: string): Promise<void> {
   assert.equal((await call('POST', '/api/v1/wipe')).status, 204);
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
-  const note = { id: 'n1', title: 'Fran Bench', date: 20261004, createdAt: 100 };
+  const note = { ...wholeNote('n1', 'Fran Bench', 100), date: 20261004 };
   assert.deepEqual(await call('PUT', '/api/v1/notes', { value: note }), { status: 200, headers: health.headers, json: { key: 'n1' } });
   const got = await call('GET', `/api/v1/notes/get?key=${enc('n1')}`);
   assert.equal(got.status, 200);
@@ -106,7 +115,7 @@ async function suite(dir: string): Promise<void> {
   assert.equal(errBody(missingKey.json), 'missing ?key');
 
   // ── lists, indexes, ranges ────────────────────────────────────────────────
-  const n2 = { id: 'n2', title: 'Annie Row', date: 20261005, createdAt: 101 };
+  const n2 = { ...wholeNote('n2', 'Annie Row', 101), date: 20261005 };
   assert.equal((await call('PUT', '/api/v1/notes', { value: n2 })).status, 200);
   assert.equal(((await call('GET', '/api/v1/notes/all')).json as unknown[]).length, 2);
   const byDate = await call('GET', `/api/v1/notes/index/by-date?range=${enc(20261004)}`);
@@ -119,18 +128,19 @@ async function suite(dir: string): Promise<void> {
   assert.equal((await call('GET', '/api/v1/notes/count?index=bogus')).status, 404);
   assert.match(errBody((await call('GET', '/api/v1/notes/count?index=bogus')).json), /bogus/);
 
-  // compound keys
-  const seg = (version: number, raw: string) =>
-    ({ id: 's1', version, noteId: 'n1', dataType: 'markdown', data: null, rawContent: raw, createdAt: 50 + version });
-  assert.equal((await call('PUT', '/api/v1/segments', { value: seg(1, 'v1') })).status, 200);
-  assert.equal((await call('PUT', '/api/v1/segments', { value: seg(2, 'v2') })).status, 200);
-  const seg2 = await call('GET', `/api/v1/segments/get?key=${enc(['s1', 2])}`);
-  assert.deepEqual(seg2.json, seg(2, 'v2'));
-  assert.deepEqual(((await call('GET', '/api/v1/segments/all')).json as { version: number }[]).map((s) => s.version), [1, 2]);
-  assert.equal((await call('DELETE', `/api/v1/segments?key=${enc(['s1', 1])}`)).status, 204);
-  assert.deepEqual(((await call('GET', '/api/v1/segments/all')).json as { version: number }[]).map((s) => s.version), [2]);
-  assert.equal((await call('DELETE', `/api/v1/segments?key=${enc(['s1', 2])}`)).status, 204, 'tuple-key delete binds scalars only');
-  assert.deepEqual(await call('GET', '/api/v1/segments/all').then((r) => r.json), []);
+  const revision = (version: number, rawContent: string) => ({
+    noteId: 'n1', blockId: 'b1', version, kind: 'wod', dialect: 'time', rawContent, savedAt: 50 + version,
+  });
+  assert.equal((await call('PUT', '/api/v1/block_revisions', { value: revision(1, '```time\nv1\n```') })).status, 200);
+  assert.equal((await call('PUT', '/api/v1/block_revisions', { value: revision(2, '```time\nv2\n```') })).status, 200);
+  assert.deepEqual((await call('GET', `/api/v1/block_revisions/get?key=${enc(['n1', 'b1', 2])}`)).json, revision(2, '```time\nv2\n```'));
+  assert.deepEqual((await call('GET', `/api/v1/block_revisions/index/by-block?range=${enc(['n1', 'b1'])}`)).json, [revision(1, '```time\nv1\n```'), revision(2, '```time\nv2\n```')]);
+  assert.equal((await call('PUT', '/api/v1/block_revisions', { value: revision(1, '```time\nv1\n```') })).status, 200, 'identical immutable write is a no-op');
+  const collision = await call('PUT', '/api/v1/block_revisions', { value: revision(1, '```time\nchanged\n```') });
+  assert.equal(collision.status, 409);
+  assert.equal(field(collision.json, 'code'), 'revision_conflict');
+  assert.equal((await call('DELETE', `/api/v1/block_revisions?key=${enc(['n1', 'b1', 1])}`)).status, 409, 'ordinary delete cannot erase history');
+  assert.equal((await call('POST', '/api/v1/block_revisions/clear')).status, 409, 'ordinary clear cannot erase history');
 
   // multi-entry index: scalar exact-match membership, replacement, removal
   const ev = { id: 'e1', metricDateKeys: [20261004, 20261006], timestamp: 1 };
@@ -174,7 +184,7 @@ async function suite(dir: string): Promise<void> {
   const member = { id: 'default', displayName: 'Serge', createdAt: 1 };
   assert.equal((await call('PUT', '/api/v1/memberships', { value: member })).status, 200);
   assert.equal((await call('POST', '/api/v1/wipe')).status, 204);
-  for (const store of ['notes', 'segments', 'events', 'tags']) {
+  for (const store of ['notes', 'block_revisions', 'events', 'tags']) {
     assert.deepEqual(await call('GET', `/api/v1/${store}/count`).then((r) => r.json), { count: 0 }, `${store} wiped`);
   }
   assert.deepEqual(await call('GET', `/api/v1/memberships/get?key=${enc('default')}`).then((r) => r.json), member);
@@ -182,15 +192,15 @@ async function suite(dir: string): Promise<void> {
   // clear-put ordering: projection follows the FINAL source state either way
   const cp = await call('POST', '/api/v1/tx', { ops: [
     { op: 'clear', store: 'notes' },
-    { op: 'put', store: 'notes', value: { id: 'cp1', title: 'Survivor', createdAt: 1 } },
+    { op: 'put', store: 'notes', value: wholeNote('cp1', 'Survivor', 1) },
   ] });
   assert.deepEqual(cp.json, { results: [null, 'cp1'] });
-  assert.deepEqual(await call('POST', '/api/v1/query', { plan: 'notes' }).then((r) => (r.json as { matchedCount: number }).matchedCount), 1);
+  assert.equal(matched(await call('POST', '/api/v1/query', { plan: 'notes' })), 1);
   await call('POST', '/api/v1/tx', { ops: [
-    { op: 'put', store: 'notes', value: { id: 'cp2', title: 'Doomed', createdAt: 2 } },
+    { op: 'put', store: 'notes', value: wholeNote('cp2', 'Doomed', 2) },
     { op: 'clear', store: 'notes' },
   ] });
-  assert.deepEqual(await call('POST', '/api/v1/query', { plan: 'notes' }).then((r) => (r.json as { matchedCount: number }).matchedCount), 0);
+  assert.equal(matched(await call('POST', '/api/v1/query', { plan: 'notes' })), 0);
   assert.equal((await call('POST', '/api/v1/tx', { ops: [{ op: 'bogus', store: 'notes' }] })).status, 400, 'unknown op must fail, never clear');
 
   // ── domain query boundary ─────────────────────────────────────────────────
@@ -199,21 +209,84 @@ async function suite(dir: string): Promise<void> {
   const u3 = '33333333-3333-4333-8333-333333333333';
   const u4 = '44444444-4444-4444-8444-444444444444';
   const u5 = '55555555-5555-4555-8555-555555555555';
+  const workout = '```time\nspank clean\n```';
+  const source = `Prose-only silverneedle match.\n\n${workout}\n`;
+  const from = source.indexOf(workout);
+  const currentNote = {
+    ...wholeNote(u1, 'Fran Bench', 100, source), date: 20261004, userId: 'default',
+    blocks: { b1: { id: 'b1', kind: 'wod', dialect: 'time', version: 2, sourceRevision: 1, from, to: from + workout.length } },
+  } satisfies Note & { userId: string };
+  const oldRevision = { noteId: u1, blockId: 'b1', version: 1, kind: 'wod', dialect: 'time', rawContent: '```time\nOLDSPANKE\n```', savedAt: 50 } satisfies BlockRevision;
+  const currentRevision = { ...oldRevision, version: 2, rawContent: workout, savedAt: 60 };
+  const liveIndex = { id: `${u1}:b1`, noteId: u1, blockId: 'b1', blockVersion: 2, dataType: 'wod', sourceRevision: 1, from, to: from + workout.length, rawContent: workout, noteTitle: 'Fran Bench', createdAt: 60 } satisfies BlockIndexRow;
   const seeded = await call('POST', '/api/v1/tx', { ops: [
-    { op: 'put', store: 'notes', value: { id: u1, title: 'Fran Bench', date: 20261004, createdAt: 100, userId: 'default' } },
-    { op: 'put', store: 'notes', value: { id: u2, title: 'Annie Row', date: 20261005, createdAt: 101, userId: 'default' } },
-    { op: 'put', store: 'notes', value: { id: u3, title: 'Page Home', type: 'page', sourceId: 'page:home', createdAt: 102 } },
-    { op: 'put', store: 'notes', value: { id: u4, title: 'Feed G', type: 'feed', sourceId: 'collection:g', createdAt: 103 } },
-    { op: 'put', store: 'notes', value: { id: u5, title: 'No Date', createdAt: 500 } },
-    { op: 'put', store: 'segments', value: { id: 's1', version: 1, noteId: u1, position: 0, dataType: 'markdown', data: null, rawContent: 'OLDSPANKE', createdAt: 50, isHistory: true } },
-    { op: 'put', store: 'segments', value: { id: 's1', version: 2, noteId: u1, position: 0, dataType: 'markdown', data: null, rawContent: 'spank clean', createdAt: 60, isHistory: false } },
-    { op: 'put', store: 'block_index', value: { id: `${u1}:s1:2`, noteId: u1, segmentId: 's1', segmentVersion: 2, dataType: 'markdown', rawContent: 'spank clean', noteTitle: 'Fran Bench', createdAt: 60 } },
+    { op: 'put', store: 'notes', value: currentNote },
+    { op: 'put', store: 'notes', value: { ...wholeNote(u2, 'Annie Row', 101), date: 20261005, userId: 'default' } },
+    { op: 'put', store: 'notes', value: { ...wholeNote(u3, 'Page Home', 102), type: 'page', sourceId: 'page:home' } },
+    { op: 'put', store: 'notes', value: { ...wholeNote(u4, 'Feed G', 103), type: 'feed', sourceId: 'collection:g' } },
+    { op: 'put', store: 'notes', value: wholeNote(u5, 'No Date', 500) },
+    { op: 'put', store: 'block_revisions', value: oldRevision },
+    { op: 'put', store: 'block_revisions', value: currentRevision },
+    { op: 'put', store: 'block_index', value: liveIndex },
+    { op: 'put', store: 'block_efforts', value: { id: `${u1}:b1:clean`, noteId: u1, blockId: 'b1', effortSlug: 'clean', createdAt: 60 } },
     { op: 'put', store: 'tags', value: { id: 't1', label: 'hero', createdAt: 1 } },
     { op: 'put', store: 'note_tags', value: { id: 'nt1', noteId: u1, tagId: 't1' } },
     { op: 'put', store: 'page', value: { id: 'p1', title: 'P', createdAt: 1 } },
     { op: 'put', store: 'page_notes', value: { id: 'pn1', pageId: 'p1', noteId: u1, createdAt: 1 } },
   ] });
   assert.equal(seeded.status, 200);
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: handler });
+  const txStatuses: number[] = [];
+  const recordFetch: typeof fetch = async (input, init) => {
+    const response = await fetch(input, init);
+    if (new URL(response.url).pathname === '/api/v1/tx') txStatuses.push(response.status);
+    return response;
+  };
+  const client = new ApiStorage(`http://127.0.0.1:${server.port}/api`, recordFetch);
+  try {
+    await client.transaction(['notes'], 'readwrite', async (tx) => {
+      const notes = tx.readwrite('notes');
+      const original = await notes.get(u1);
+      assert.deepEqual(original, currentNote);
+      assert.ok(original);
+      const pending = { ...original, title: 'Buffered title' };
+      await notes.put(pending);
+      assert.deepEqual(await notes.get(u1), pending, 'callback reads its buffered writes');
+      await notes.put(original);
+    });
+    await assert.rejects(client.transaction(['notes', 'meta'], 'readwrite', async (tx) => {
+      const notes = tx.readwrite('notes');
+      const originals = await notes.getMany([u1, 'http-absent']);
+      assert.deepEqual(originals, [currentNote, undefined]);
+      assert.equal((await call('PUT', '/api/v1/notes', { value: { ...currentNote, title: 'Concurrent metadata' } })).status, 200);
+      await notes.put(currentNote);
+      await tx.readwrite('meta').put({ key: 'http-race-checkpoint', completed: true });
+    }), 'ApiStorage callback must forward original-row checks');
+    assert.equal(txStatuses.at(-1), 409);
+    assert.equal((await call('GET', `/api/v1/meta/get?key=${enc('http-race-checkpoint')}`)).status, 404);
+    assert.equal(field((await call('GET', `/api/v1/notes/get?key=${enc(u1)}`)).json, 'title'), 'Concurrent metadata');
+    assert.equal((await call('PUT', '/api/v1/notes', { value: currentNote })).status, 200);
+    await assert.rejects(client.transaction(['notes', 'meta'], 'readwrite', async (tx) => {
+      assert.equal(await tx.readonly('notes').get('http-absent'), undefined);
+      assert.equal((await call('PUT', '/api/v1/notes', { value: wholeNote('http-absent', 'Created concurrently', 1) })).status, 200);
+      await tx.readwrite('meta').put({ key: 'http-absent-checkpoint', completed: true });
+    }), 'ApiStorage forwards expected absence');
+    assert.equal(txStatuses.at(-1), 409);
+    assert.equal((await call('GET', `/api/v1/meta/get?key=${enc('http-absent-checkpoint')}`)).status, 404);
+    assert.equal((await call('DELETE', `/api/v1/notes?key=${enc('http-absent')}`)).status, 204);
+    await assert.rejects(client.transaction(['notes', 'meta'], 'readwrite', async (tx) => {
+      const rows = await tx.readonly('notes').getAllFromIndex('by-date', 20261004);
+      assert.deepEqual(rows, [currentNote]);
+      assert.equal((await call('PUT', '/api/v1/notes', { value: { ...currentNote, seedOrigin: 'user' } })).status, 200);
+      await tx.readwrite('meta').put({ key: 'http-list-checkpoint', completed: true });
+    }), 'ApiStorage records returned scoped rows for ownership assertions');
+    assert.equal(txStatuses.at(-1), 409);
+    assert.equal((await call('GET', `/api/v1/meta/get?key=${enc('http-list-checkpoint')}`)).status, 404);
+    assert.equal((await call('PUT', '/api/v1/notes', { value: currentNote })).status, 200);
+  } finally {
+    await client.close();
+    server.stop(true);
+  }
   const q = (body: unknown) => call('POST', '/api/v1/query', body);
 
   const entries = await q({
@@ -223,18 +296,19 @@ async function suite(dir: string): Promise<void> {
   });
   assert.equal(entries.status, 200, String(entries.json));
   const entryRows = entries.json as { selectedCount: number; matchedCount: number; rows: {
-    note: { id: string }; segments: { version: number; rawContent: string }[]; tags: { label: string }[]; links: unknown[]; pages: unknown[];
+    note: { id: string; rawContent: string }; tags: { label: string }[]; links: unknown[]; pages: unknown[];
   }[] };
   assert.equal(entryRows.selectedCount, 3, 'page + feed excluded pre-count; dateless u5 stays');
   assert.equal(entryRows.matchedCount, 1);
   assert.equal(entryRows.rows[0].note.id, u1);
-  assert.equal(entryRows.rows[0].segments.length, 1, 'history filtered');
-  assert.equal(entryRows.rows[0].segments[0].version, 2, 'MAX before history — no resurrection');
-  assert.equal(entryRows.rows[0].segments[0].rawContent, 'spank clean');
+  assert.equal(entryRows.rows[0].note.rawContent, source, 'whole authored Note body round-trips');
+  assert.ok(!('segments' in entryRows.rows[0]), 'DomainEntry has no persisted segment payload');
+  assert.equal(matched(await q({ plan: 'notes', filters: [{ field: 'text', value: 'silverneedle' }] })), 1, 'prose-only body match finds Note');
+  assert.equal(matched(await q({ plan: 'blocks', filters: [{ field: 'text', value: 'silverneedle' }] })), 0, 'prose never becomes an actionable block');
   assert.equal(entryRows.rows[0].tags[0].label, 'hero');
   assert.equal(entryRows.rows[0].links.length, 1);
   assert.equal(entryRows.rows[0].pages.length, 1);
-  assert.deepEqual(await q({ plan: 'entries', filters: [{ field: 'text', value: 'oldspanke' }] }).then((r) => (r.json as { matchedCount: number }).matchedCount), 0, 'superseded revision invisible to active-only search');
+  assert.equal(matched(await q({ plan: 'entries', filters: [{ field: 'text', value: 'oldspanke' }] })), 0, 'saved history stays outside current body search');
 
   // paging counts run before limit/offset
   const paged = await q({
@@ -250,19 +324,23 @@ async function suite(dir: string): Promise<void> {
   assert.equal(pagedRows.rows.length, 1);
   assert.equal(pagedRows.rows[0].id, u2, 'raw date asc NULLS LAST: u1,u2 then dateless u5; offset 1 lands on u2');
 
-  assert.deepEqual(await q({ plan: 'notes', selection: [{ field: 'defaultNotes', feeds: true }] }).then((r) => (r.json as { selectedCount: number }).selectedCount), 4, 'feeds=true excludes only page rows');
-  assert.deepEqual(await q({ plan: 'notes', selection: [{ field: 'catalog', values: ['g'], negate: true }] }).then((r) => (r.json as { matchedCount: number }).matchedCount), 4, 'NULL-safe catalog negation');
-  assert.deepEqual(await q({ plan: 'notes', selection: [{ field: 'source', values: ['feeds'], negate: true }] }).then((r) => (r.json as { matchedCount: number }).matchedCount), 4, 'negated source never drops NULL sourceId');
+  assert.equal(field((await q({ plan: 'notes', selection: [{ field: 'defaultNotes', feeds: true }] })).json, 'selectedCount'), 4, 'feeds=true excludes only page rows');
+  assert.equal(matched(await q({ plan: 'notes', selection: [{ field: 'catalog', values: ['g'], negate: true }] })), 4, 'NULL-safe catalog negation');
+  assert.equal(matched(await q({ plan: 'notes', selection: [{ field: 'source', values: ['feeds'], negate: true }] })), 4, 'negated source never drops NULL sourceId');
   const journals = await q({ plan: 'notes', selection: [{ field: 'source', values: ['journal'] }] });
-  assert.deepEqual((journals.json as { rows: { id: string }[] }).rows.map((r) => r.id).sort(), [u1, u2, u5].sort(), 'journal matches every sourceless UUID note');
-  assert.deepEqual(await q({ plan: 'notes', selection: [{ field: 'date', start: 20261004, end: 20261004 }] }).then((r) => (r.json as { matchedCount: number }).matchedCount), 1);
-  assert.deepEqual(await q({ plan: 'notes', selection: [{ field: 'date', start: 20261004, end: 20261004, endExclusive: true }] }).then((r) => (r.json as { matchedCount: number }).matchedCount), 0);
-  assert.deepEqual(await q({ plan: 'notes', selection: [{ field: 'date', start: 400, end: 600 }] }).then((r) => (r.json as { rows: { id: string }[] }).rows[0]?.id), u5, 'date falls back to createdAt');
+  const journalRows = field(journals.json, 'rows');
+  assert.ok(Array.isArray(journalRows));
+  assert.deepEqual(journalRows.map((row) => field(row, 'id')).sort(), [u1, u2, u5].sort(), 'journal matches every sourceless UUID note');
+  assert.equal(matched(await q({ plan: 'notes', selection: [{ field: 'date', start: 20261004, end: 20261004 }] })), 1);
+  assert.equal(matched(await q({ plan: 'notes', selection: [{ field: 'date', start: 20261004, end: 20261004, endExclusive: true }] })), 0);
+  const fallbackRows = field((await q({ plan: 'notes', selection: [{ field: 'date', start: 400, end: 600 }] })).json, 'rows');
+  assert.ok(Array.isArray(fallbackRows));
+  assert.equal(field(fallbackRows[0], 'id'), u5, 'date falls back to createdAt');
 
-  const blocks = await q({ plan: 'blocks', selection: [{ field: 'sourceFence' }], filters: [{ field: 'text', value: 'SPANk' }, { field: 'type', values: ['markdown'] }] });
+  const blocks = await q({ plan: 'blocks', selection: [{ field: 'sourceFence' }], filters: [{ field: 'text', value: 'SPANk' }, { field: 'type', values: ['wod'] }] });
   const blockRows = blocks.json as { matchedCount: number; rows: { id: string }[] };
-  assert.equal(blockRows.matchedCount, 1, 'literal lowercased text + type filter');
-  assert.equal(blockRows.rows[0].id, `${u1}:s1:2`);
+  assert.equal(blockRows.matchedCount, 1, 'literal lowercased text + actionable type filter');
+  assert.equal(blockRows.rows[0].id, `${u1}:b1`);
   assert.equal((await q({ plan: 'blocks', selection: [{ field: 'page', value: true }] })).status, 400, 'page predicate rejected on blocks');
   assert.equal((await q({ plan: 'notes', order: [{ field: 'noteTitle' }] })).status, 400, 'noteTitle order rejected on notes');
   assert.equal((await q({ plan: 'widgets' })).status, 400);
@@ -272,13 +350,204 @@ async function suite(dir: string): Promise<void> {
   const huge = await call('POST', '/api/v1/query', { plan: 'notes', padding: 'x'.repeat(70_000) });
   assert.equal(huge.status, 413);
 
-  // orphan gate: deleting the parent note fails domain reads closed; re-put heals
   assert.equal((await call('DELETE', `/api/v1/notes?key=${enc(u1)}`)).status, 204);
-  const gated = await q({ plan: 'blocks' });
-  assert.equal(gated.status, 409);
-  assert.equal((gated.json as { code?: string }).code, 'domain_projection_unavailable');
-  assert.equal((await call('PUT', '/api/v1/notes', { value: { id: u1, title: 'Fran Bench', date: 20261004, createdAt: 100, userId: 'default' } })).status, 200);
-  assert.deepEqual(await q({ plan: 'blocks' }).then((r) => (r.json as { matchedCount: number }).matchedCount), 1, 'healed after identity restored');
+  assert.equal(matched(await q({ plan: 'blocks' })), 0, 'deletion removes current blocks');
+  assert.deepEqual((await call('GET', `/api/v1/block_revisions/index/by-note?range=${enc(u1)}`)).json, [oldRevision, currentRevision], 'never-run saved history survives Note deletion');
+  assert.equal((await call('PUT', '/api/v1/notes', { value: currentNote })).status, 200);
+  assert.equal((await call('PUT', '/api/v1/block_index', { value: liveIndex })).status, 200);
+  assert.equal(matched(await q({ plan: 'blocks' })), 1);
+
+  const pin = { id: 'pinned', noteId: u1, blockId: 'b1', blockVersion: 1, startTime: 1, endTime: 2, duration: 1, completed: true, status: 'completed', createdAt: 2 } satisfies Session;
+  assert.equal((await call('PUT', '/api/v1/sessions', { value: pin })).status, 200, 'Session pins older immutable source');
+  assert.deepEqual((await call('GET', `/api/v1/block_revisions/get?key=${enc([u1, pin.blockId, pin.blockVersion])}`)).json, oldRevision, 'replay uses pinned revision rather than latest');
+  assert.equal((await call('DELETE', `/api/v1/notes?key=${enc(u1)}`)).status, 204);
+  assert.deepEqual((await call('GET', `/api/v1/sessions/get?key=${enc(pin.id)}`)).json, pin, 'Note deletion preserves Session pin');
+  assert.deepEqual((await call('GET', `/api/v1/block_revisions/get?key=${enc([u1, pin.blockId, pin.blockVersion])}`)).json, oldRevision, 'deleted Note remains replayable');
+  assert.equal((await call('POST', '/api/v1/tx', { ops: [
+    { op: 'put', store: 'notes', value: currentNote },
+    { op: 'put', store: 'block_index', value: liveIndex },
+  ] })).status, 200);
+  const missingPin = await call('PUT', '/api/v1/sessions', { value: { ...pin, id: 'bad-pin', blockVersion: 99 } });
+  assert.equal(missingPin.status, 409);
+  assert.equal(field(missingPin.json, 'code'), 'invalid_session_pin');
+  for (const value of [
+    { ...pin, segmentId: 'b1' },
+    { ...pin, segmentVersion: 1 },
+    { ...pin, version: 1 },
+    { ...pin, rawContent: workout },
+    { ...pin, blockVersion: 0 },
+  ]) assert.equal((await call('PUT', '/api/v1/sessions', { value })).status, 400, 'old or invalid Session source shapes rejected');
+
+  const checkpoint = { key: 'seed-checkpoint', completed: false };
+  assert.equal((await call('PUT', '/api/v1/meta', { value: checkpoint })).status, 200);
+  const changedSource = source.replace('spank clean', 'spank press');
+  const changedNote = { ...currentNote, rawContent: changedSource, sourceRevision: 2, blocks: { b1: { ...currentNote.blocks.b1, version: 3, sourceRevision: 2 } } };
+  const changedIndex = { ...liveIndex, blockVersion: 3, sourceRevision: 2, rawContent: workout.replace('clean', 'press') };
+  const writes = [
+    { op: 'put', store: 'notes', value: changedNote },
+    { op: 'put', store: 'block_revisions', value: { ...currentRevision, version: 3, rawContent: changedIndex.rawContent, savedAt: 70 } },
+    { op: 'put', store: 'sessions', value: { ...pin, id: 'rolled-session', blockVersion: 3 } },
+    { op: 'put', store: 'events', value: { id: 'rolled-event', noteId: u1, blockId: 'b1', blockVersion: 3, resultId: 'rolled-session', timestamp: 70, outputType: 'segment' } },
+    { op: 'put', store: 'block_index', value: changedIndex },
+    { op: 'put', store: 'block_efforts', value: { id: `${u1}:b1:press`, noteId: u1, blockId: 'b1', effortSlug: 'press', createdAt: 70 } },
+    { op: 'put', store: 'meta', value: { ...checkpoint, completed: true } },
+  ];
+  const immutableRollback = await call('POST', '/api/v1/tx', { ops: [
+    ...writes,
+    { op: 'put', store: 'block_revisions', value: { ...oldRevision, rawContent: '```time\nconflict\n```' } },
+  ] });
+  assert.equal(immutableRollback.status, 409);
+  assert.deepEqual((await call('GET', `/api/v1/notes/get?key=${enc(u1)}`)).json, currentNote, 'revision conflict rolls back Note');
+  const assertRollback = async (expectedIndex = liveIndex) => {
+    assert.equal((await call('GET', `/api/v1/block_revisions/get?key=${enc([u1, 'b1', 3])}`)).status, 404);
+    assert.equal((await call('GET', `/api/v1/sessions/get?key=${enc('rolled-session')}`)).status, 404);
+    assert.equal((await call('GET', `/api/v1/events/get?key=${enc('rolled-event')}`)).status, 404);
+    assert.deepEqual((await call('GET', `/api/v1/block_index/get?key=${enc(liveIndex.id)}`)).json, expectedIndex);
+    assert.equal((await call('GET', `/api/v1/block_efforts/get?key=${enc(`${u1}:b1:press`)}`)).status, 404, 'failed save leaves no new effort joins');
+    assert.deepEqual((await call('GET', `/api/v1/meta/get?key=${enc(checkpoint.key)}`)).json, checkpoint);
+    assert.equal(matched(await q({ plan: 'blocks', filters: [{ field: 'text', value: 'press' }] })), 0, 'failed writes leave no searchable projection');
+  };
+  await assertRollback();
+
+  const observed = (await call('GET', `/api/v1/notes/get?key=${enc(u1)}`)).json;
+  const concurrentNote = { ...currentNote, rawContent: source.replace('silverneedle', 'copperneedle'), sourceRevision: 2, blocks: { b1: { ...currentNote.blocks.b1, sourceRevision: 2 } } };
+  const concurrentIndex = { ...liveIndex, sourceRevision: 2 };
+  assert.equal((await call('POST', '/api/v1/tx', { ops: [
+    { op: 'put', store: 'notes', value: concurrentNote },
+    { op: 'put', store: 'block_index', value: concurrentIndex },
+  ] })).status, 200);
+  const staleSave = await call('POST', '/api/v1/tx', { ops: [
+    ...writes,
+    { op: 'check', store: 'notes', key: u1, value: observed },
+  ] });
+  assert.equal(staleSave.status, 409, 'remote callback observation is reasserted inside server transaction');
+  assert.equal(field(staleSave.json, 'code'), 'transaction_conflict');
+  assert.deepEqual((await call('GET', `/api/v1/notes/get?key=${enc(u1)}`)).json, concurrentNote, 'stale save preserves concurrent source');
+  await assertRollback(concurrentIndex);
+
+  const seedOwned = { ...currentNote, seedOrigin: 'seed', sourceRevision: 3, blocks: { b1: { ...currentNote.blocks.b1, sourceRevision: 3 } } };
+  assert.equal((await call('POST', '/api/v1/tx', { ops: [
+    { op: 'put', store: 'notes', value: seedOwned },
+    { op: 'put', store: 'block_index', value: { ...liveIndex, sourceRevision: 3 } },
+  ] })).status, 200);
+  const userOwned = { ...seedOwned, seedOrigin: 'user' };
+  assert.equal((await call('PUT', '/api/v1/notes', { value: userOwned })).status, 200);
+  const ownershipRace = await call('POST', '/api/v1/tx', { ops: [
+    { op: 'put', store: 'meta', value: { ...checkpoint, completed: true } },
+    { op: 'put', store: 'notes', value: seedOwned },
+    { op: 'check', store: 'notes', key: u1, value: seedOwned },
+  ] });
+  assert.equal(ownershipRace.status, 409, 'ownership changes reject even when sourceRevision matches');
+  assert.deepEqual((await call('GET', `/api/v1/notes/get?key=${enc(u1)}`)).json, userOwned);
+  assert.deepEqual((await call('GET', `/api/v1/meta/get?key=${enc(checkpoint.key)}`)).json, checkpoint);
+  const absentRace = await call('POST', '/api/v1/tx', { ops: [
+    { op: 'put', store: 'meta', value: { ...checkpoint, completed: true } },
+    { op: 'check', store: 'notes', key: u1, value: null },
+  ] });
+  assert.equal(absentRace.status, 409, 'expected absence cannot replace an existing Note');
+  assert.deepEqual((await call('GET', `/api/v1/meta/get?key=${enc(checkpoint.key)}`)).json, checkpoint);
+  assert.equal((await call('POST', '/api/v1/tx', { ops: [
+    { op: 'check', store: 'notes', key: u1, value: userOwned },
+    { op: 'check', store: 'notes', key: 'absent-note', value: null },
+  ] })).status, 200, 'matching full row and absence pass');
+
+  const committedSource = { ...changedNote, sourceRevision: 4, blocks: { b1: { ...changedNote.blocks.b1, sourceRevision: 4 } } };
+  const committedIndex = { ...changedIndex, sourceRevision: 4 };
+  const committedRevision = { ...currentRevision, version: 3, rawContent: committedIndex.rawContent, savedAt: 70 };
+  const committedSession = { ...pin, id: 'committed-session', blockVersion: 3 };
+  const atomicStart = await call('POST', '/api/v1/tx', { ops: [
+    { op: 'check', store: 'notes', key: u1, value: userOwned },
+    { op: 'put', store: 'notes', value: committedSource },
+    { op: 'put', store: 'block_revisions', value: committedRevision },
+    { op: 'put', store: 'block_index', value: committedIndex },
+    { op: 'put', store: 'sessions', value: committedSession },
+  ] });
+  assert.equal(atomicStart.status, 200, String(atomicStart.json));
+  assert.deepEqual((await call('GET', `/api/v1/notes/get?key=${enc(u1)}`)).json, committedSource);
+  assert.deepEqual((await call('GET', `/api/v1/sessions/get?key=${enc(committedSession.id)}`)).json, committedSession);
+  assert.deepEqual((await call('GET', `/api/v1/block_revisions/get?key=${enc([u1, 'b1', 3])}`)).json, committedRevision);
+  assert.equal((await call('POST', '/api/v1/tx', { ops: [
+    { op: 'delete', store: 'notes', key: u1 },
+    { op: 'put', store: 'notes', value: currentNote },
+    { op: 'put', store: 'block_index', value: liveIndex },
+  ] })).status, 200);
+
+  for (const value of [
+    { ...currentNote, rawContent: 42 },
+    { ...currentNote, sourceRevision: 0 },
+    { ...currentNote, blocks: [] },
+    { ...currentNote, blocks: {} },
+    { ...currentNote, blocks: { b1: currentNote.blocks.b1, b2: { ...currentNote.blocks.b1, id: 'b2' } } },
+    { ...currentNote, blocks: { b1: { ...currentNote.blocks.b1, version: 0 } } },
+    { ...currentNote, segmentIds: ['b1'] },
+    { ...currentNote, segments: [] },
+    { ...currentNote, blocks: { wrong: currentNote.blocks.b1 } },
+    { ...currentNote, blocks: { b1: { ...currentNote.blocks.b1, from: -1 } } },
+    { ...currentNote, blocks: { b1: { ...currentNote.blocks.b1, to: source.length + 1 } } },
+    { ...currentNote, blocks: { b1: { ...currentNote.blocks.b1, sourceRevision: 2 } } },
+    { ...currentNote, blocks: { b1: { ...currentNote.blocks.b1, kind: 'markdown' } } },
+    { ...currentNote, blocks: { b1: { ...currentNote.blocks.b1, dialect: 'invalid' } } },
+  ]) assert.equal((await call('PUT', '/api/v1/notes', { value })).status, 400, 'invalid Note source/map rejected');
+  for (const value of [
+    { ...currentRevision, version: 0 },
+    { ...currentRevision, kind: 'markdown' },
+    { ...currentRevision, rawContent: 42 },
+    { ...currentRevision, savedAt: 'now' },
+    { ...currentRevision, dialect: 'invalid' },
+    { ...currentRevision, rawContent: 'not an actionable block' },
+    { ...currentRevision, dialect: 'log' },
+    { ...currentRevision, kind: 'query', dialect: undefined },
+  ]) assert.equal((await call('PUT', '/api/v1/block_revisions', { value })).status, 400, 'invalid revision rejected');
+  for (const op of [
+    { op: 'check', store: 'notes', key: u1 },
+    { op: 'check', store: 'notes', key: [], value: null },
+    { op: 'check', store: 'notes', key: u1, value: 42 },
+    { op: 'check', store: 'notes', key: [u1, 'extra'], value: null },
+    { op: 'check', store: 'notes', key: u1, value: {} },
+    { op: 'check', store: 'notes', key: u1, value: { ...currentNote, id: u2 } },
+  ]) assert.equal((await call('POST', '/api/v1/tx', { ops: [op] })).status, 400, 'invalid optimistic assertion rejected');
+
+  const actionBodies = [
+    { id: 'w', kind: 'wod', rawContent: '```log:crossfit\n1 Burpee\n```', dialect: 'log', sport: 'crossfit' },
+    { id: 'q', kind: 'query', rawContent: '```query:table\n:note{tag:hero}\n```' },
+    { id: 'g', kind: 'widget', rawContent: '```widget:attention\nfixture tip\n```' },
+    { id: 'e', kind: 'embed', rawContent: '![fixture clip](https://youtu.be/example)' },
+  ] as const;
+  const actionSource = actionBodies.map((block) => block.rawContent).join('\n\n');
+  const actionNote = {
+    ...wholeNote('action-note', 'Actionable Fixture', 1, actionSource),
+    blocks: Object.fromEntries(actionBodies.map((block) => {
+      const from = actionSource.indexOf(block.rawContent);
+      return [block.id, { id: block.id, kind: block.kind, version: 1, sourceRevision: 1, from, to: from + block.rawContent.length,
+        ...('dialect' in block ? { dialect: block.dialect, sport: block.sport } : {}),
+      }];
+    })),
+  };
+  assert.equal((await call('POST', '/api/v1/tx', { ops: [
+    { op: 'put', store: 'notes', value: actionNote },
+    ...actionBodies.map((block) => ({ op: 'put', store: 'block_revisions', value: {
+      noteId: actionNote.id, blockId: block.id, version: 1, kind: block.kind, rawContent: block.rawContent, savedAt: 1,
+      ...('dialect' in block ? { dialect: block.dialect, sport: block.sport } : {}),
+    } })),
+    ...Object.values(actionNote.blocks).map((block) => ({ op: 'put', store: 'block_index', value: {
+      id: `${actionNote.id}:${block.id}`, noteId: actionNote.id, blockId: block.id, blockVersion: 1, dataType: block.kind,
+      sourceRevision: 1, from: block.from, to: block.to, rawContent: actionSource.slice(block.from, block.to), noteTitle: actionNote.title, createdAt: 1,
+    } })),
+  ] })).status, 200);
+  for (const block of actionBodies) {
+    assert.equal(matched(await q({ plan: 'blocks', filters: [
+      { field: 'text', value: block.rawContent }, { field: 'type', values: [block.kind] },
+    ] })), 1, `${block.kind} exact source is searchable`);
+  }
+  assert.equal((await call('DELETE', `/api/v1/notes?key=${enc(actionNote.id)}`)).status, 204);
+  const retainedHistory = (await call('GET', `/api/v1/block_revisions/index/by-note?range=${enc(actionNote.id)}`)).json;
+  assert.ok(Array.isArray(retainedHistory));
+  assert.equal(retainedHistory.length, 4, 'all actionable histories survive deletion');
+  const unknownFenceNote = wholeNote('unknown-fence', 'Recoverable source', 1, '```widget:not-registered\nunknown\n```\n\n```time\nunclosed');
+  assert.equal((await call('PUT', '/api/v1/notes', { value: unknownFenceNote })).status, 200, 'unknown and malformed fences stay authored source');
+  assert.deepEqual((await call('GET', `/api/v1/notes/get?key=${enc(unknownFenceNote.id)}`)).json, unknownFenceNote);
+  assert.equal(matched(await q({ plan: 'blocks', filters: [{ field: 'text', value: 'not-registered' }] })), 0, 'unknown fences produce no block rows');
+  assert.equal((await call('DELETE', `/api/v1/notes?key=${enc(unknownFenceNote.id)}`)).status, 204);
 
   // ── invalid input ─────────────────────────────────────────────────────────
   assert.equal((await call('GET', '/api/v1/bogus/all')).status, 404);
@@ -294,7 +563,7 @@ async function suite(dir: string): Promise<void> {
   assert.equal((await call('PUT', '/api/v1/notes', { value: { id: 'bad-source', sourcePath: 42 } })).status, 400);
   assert.equal((await call('GET', `/api/v1/notes/get?key=${enc('bad-source')}`)).status, 404);
   assert.equal((await call('POST', '/api/v1/tx', { ops: [
-    { op: 'put', store: 'notes', value: { id: u1, title: 'Must roll back', createdAt: 100 } },
+    { op: 'put', store: 'notes', value: { ...currentNote, title: 'Must roll back' } },
     { op: 'put', store: 'notes', value: { id: 'bad-source', noteId: 42 } },
   ] })).status, 400);
   const retainedNote = (await call('GET', `/api/v1/notes/get?key=${enc(u1)}`)).json;
@@ -304,17 +573,19 @@ async function suite(dir: string): Promise<void> {
   assert.equal((await call('GET', `/api/v1/notes/all?range=${enc([])}`)).status, 400, '[] is not a range');
   assert.equal((await call('GET', `/api/v1/notes/all?range=${enc({ only: [] })}`)).status, 400, 'empty tuple key invalid');
   assert.equal((await call('GET', `/api/v1/notes/all?range=${enc({})}`)).status, 200, 'explicit unbounded range stays legal');
-  assert.equal(((await call('GET', '/api/v1/notes/all?range=' + enc({}))).json as unknown[]).length, 5);
+  const allNotes = (await call('GET', '/api/v1/notes/all?range=' + enc({}))).json;
+  assert.ok(Array.isArray(allNotes));
+  assert.equal(allNotes.length, 5);
   assert.equal((await call('DELETE', `/api/v1/notes?key=${enc([])}`)).status, 400);
   assert.equal((await call('DELETE', `/api/v1/notes?key=${enc({ only: [] })}`)).status, 400);
-  const beforeNoMatch = await call('GET', '/api/v1/notes/count').then((r) => (r.json as { count: number }).count);
+  const beforeNoMatch = field((await call('GET', '/api/v1/notes/count')).json, 'count');
   assert.equal((await call('DELETE', `/api/v1/notes?range=${enc({ lower: 'zz-none', upper: 'zz-none' })}`)).status, 204);
-  assert.equal(await call('GET', '/api/v1/notes/count').then((r) => (r.json as { count: number }).count), beforeNoMatch, 'no-match delete is a no-op');
+  assert.equal(field((await call('GET', '/api/v1/notes/count')).json, 'count'), beforeNoMatch, 'no-match delete is a no-op');
   // unknown op fails the whole tx and clears nothing
   assert.equal((await call('POST', '/api/v1/tx', { ops: [{ op: 'bogus', store: 'notes' }] })).status, 400, 'unknown op must fail, never clear');
   assert.equal((await call('POST', '/api/v1/tx', { ops: [
     { op: 'bogus', store: 'notes' },
-    { op: 'put', store: 'notes', value: { id: 'bad-op-put', title: 'x', createdAt: 1 } },
+    { op: 'put', store: 'notes', value: wholeNote('bad-op-put', 'x', 1) },
   ] })).status, 400);
   assert.equal((await call('GET', `/api/v1/notes/get?key=${enc('bad-op-put')}`)).status, 404, 'failed tx left nothing behind');
 
@@ -339,8 +610,10 @@ async function suite(dir: string): Promise<void> {
   db = await open();
   handler = createHandler(db, { playgroundDist: dist });
   assert.equal((await call('GET', `/api/v1/notes/get?key=${enc(u1)}`)).status, 200, 'data survives reopen');
-  assert.deepEqual(await call('POST', '/api/v1/query', { plan: 'blocks' }).then((r) => (r.json as { matchedCount: number }).matchedCount), 1, 'projection rebuilt on boot');
+  assert.equal(matched(await call('POST', '/api/v1/query', { plan: 'blocks' })), 1, 'current projection survives reopen');
   assert.deepEqual(await call('GET', `/api/v1/memberships/get?key=${enc('default')}`).then((r) => r.json), member, 'membership durable');
+  assert.deepEqual((await call('GET', `/api/v1/block_revisions/get?key=${enc([u1, 'b1', 3])}`)).json, committedRevision, 'saved intermediate history is durable');
+  assert.deepEqual((await call('GET', `/api/v1/sessions/get?key=${enc(committedSession.id)}`)).json, committedSession, 'exact Session pin is durable');
 
   // dist shell symlink escape: the SPA fallback follows the same confinement
   await rm(join(dist, 'index.html'));
@@ -351,6 +624,7 @@ async function suite(dir: string): Promise<void> {
   // Rerunnable: leave explicitly opted-in disposables empty.
   assert.equal((await call('POST', '/api/v1/wipe')).status, 204);
   assert.deepEqual(await call('GET', '/api/v1/notes/count').then((r) => r.json), { count: 0 });
+  assert.deepEqual((await call('GET', '/api/v1/block_revisions/count')).json, { count: 0 }, 'explicit wipe alone removes immutable history');
 
   await db.close();
   process.stdout.write('check: all assertions passed\n');

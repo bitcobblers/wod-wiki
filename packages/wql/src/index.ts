@@ -44,9 +44,8 @@ export {
   type PageSourceEntry,
 } from './queryDocumentRunner';
 
-// 7. Derivation & Static projections
+// 7. Event derivation
 export * from './derivation';
-export * from './static';
 
 // 8. Stores & QueryService
 export * from './stores';

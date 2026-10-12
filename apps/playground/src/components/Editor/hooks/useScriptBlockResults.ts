@@ -9,7 +9,6 @@
 import { useState, useEffect } from 'react';
 import type { Session } from '@/types/storage';
 import { useWorkbenchSession } from '@/stores/workbenchSessionStore'
-import { groupResultsByVersion } from '@/utils/groupResultsByVersion';
 
 export interface UseScriptBlockResultsReturn {
   /** All results for this section, sorted most recent first */
@@ -24,9 +23,7 @@ export interface UseScriptBlockResultsReturn {
  * @param noteId   - The note containing the WOD block (short or full UUID)
  * @param sectionId - The WOD section ID within the note
  * @param extendedResultsOverride - Optional explicit in-memory results (bypasses context)
- * @param contentId - Optional content-stable block id; when present, results are
- *                    matched on `blockContentId` first (survives line moves),
- *                    falling back to the line-based `sectionId` / `segmentId`.
+ * @param contentId - Cross-note fingerprint, never occurrence identity.
  */
 export function useScriptBlockResults(
   noteId: string | undefined,
@@ -56,8 +53,7 @@ export function useScriptBlockResults(
       // 1. Check for in-memory results (Static Mode or immediate UI update)
       // Use extendedResults array if available (Mutable Static mode)
       if (Array.isArray(extendedResults)) {
-        const { current } = groupResultsByVersion(extendedResults, sectionId ?? '', contentId)
-        const inMemoryMatches = current
+        const inMemoryMatches = extendedResults.filter(result => result.noteId === noteId && result.blockId === sectionId);
 
         if (inMemoryMatches.length > 0) {
           if (!cancelled) {
@@ -84,7 +80,7 @@ export function useScriptBlockResults(
           projection: 'history-detail',
           resultSelection: {
             mode: 'all-for-section',
-            blockContentId: (contentId ?? sectionId) as string,
+            blockId: sectionId!,
           },
         });
         if (!cancelled) {

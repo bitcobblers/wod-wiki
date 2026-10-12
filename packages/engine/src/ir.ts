@@ -11,7 +11,7 @@ import type {
   ICodeStatement,
   AnalyticsDataPoint,
   Note,
-  NoteSegment,
+  BlockRevision,
   BlockIndexRow,
   Session,
   StoredOutputStatement,
@@ -171,7 +171,7 @@ export interface ExecutionLog {
 
 export interface CorpusIRData {
   notes?: Note[];
-  segments?: NoteSegment[];
+  revisions?: BlockRevision[];
   blocks?: BlockIndexRow[];
   results?: Session[];
   facts?: AnalyticsDataPoint[];

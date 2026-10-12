@@ -2,7 +2,7 @@
 
 - **Route:** `/c/:slug` (legacy `/collections/:slug`)
 - **Host Component:** `apps/playground/app/canvas/MarkdownCanvasPage.tsx` / `CollectionDetailPage`
-- **Domain Models:** `Collection`, `Page`, `Note`, `NoteSegment`
+- **Domain Models:** `Collection`, `Page`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`)
 
 ---
 

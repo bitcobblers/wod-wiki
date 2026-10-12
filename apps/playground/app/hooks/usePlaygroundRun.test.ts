@@ -14,7 +14,18 @@ import type { Session } from '@/types/storage';
 import type { RecordResultInput, ResultRecorder } from '@/services/resultRecorder';
 import type { PlaygroundIntake, SnapshotEntryOptions } from '../services/createPlaygroundPage';
 
-import { usePlaygroundRun, type PlaygroundRun, type UsePlaygroundRunReturn } from './usePlaygroundRun';
+import { usePlaygroundRun as useRun, type PlaygroundRun, type UsePlaygroundRunReturn, type UsePlaygroundRunOptions } from './usePlaygroundRun';
+import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
+import { StorageService } from '@/services/storage/StorageService';
+import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
+import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { createResultRecorder } from '@/services/resultRecorder';
+
+function usePlaygroundRun(options: UsePlaygroundRunOptions) {
+  const intake = options.intake;
+  if (!(intake instanceof StubIntake)) throw new Error('Expected the in-memory intake');
+  return useRun({ ...options, persistence: intake.persistence, recorder: options.recorder ?? createResultRecorder(intake.persistence) });
+}
 
 const DOC = '# Demo\n```time\nAMRAP 5:00\n```\n';
 const RESET_DOC = '# Demo (reset)\n';
@@ -37,6 +48,7 @@ function makeResults(overrides: Partial<Sessions> = {}): Sessions {
 }
 
 class StubIntake implements PlaygroundIntake {
+  readonly persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage()));
   created = 0;
   snapshots: Array<{ content: string; opts: SnapshotEntryOptions }> = [];
   failNext: Error | null = null;
@@ -60,6 +72,8 @@ class StubIntake implements PlaygroundIntake {
     }
     this.created += 1;
     this.snapshots.push({ content, opts });
+    let occurrence = 0;
+    await this.persistence.saveNote({ noteId: `note-${this.created}`, rawContent: content, blocks: reconcileNoteBlocks(content, { sourceRevision: 1, createId: () => `blk-${++occurrence}` }), expectedSourceRevision: 0, metadata: { title: opts.pageTitle } });
     return { noteId: `note-${this.created}`, routeId: `playground/snap-${this.created}` };
   }
 
@@ -85,7 +99,7 @@ class StubRecorder implements ResultRecorder {
     return {
       id: input.resultId,
       noteId: input.noteId,
-      segmentId: input.runBlock?.id ?? input.blockId,
+      blockVersion: 1,
       blockId: input.blockId,
       origin: 'playground',
       startTime: input.data.startTime,
@@ -115,8 +129,26 @@ describe('usePlaygroundRun — start', () => {
 
     expect(result.current.run).toBe(identity);
     expect(identity.noteId).toBe('note-1');
-    expect(identity.block).toBe(block);
+    expect(identity.block).not.toBe(block);
+    expect(identity.block.content.trim()).toBe(block.content);
+    expect(identity.block.dialect).toBe('time');
     expect(intake.snapshots).toEqual([{ content: DOC, opts: { pageTitle: 'Home', sectionTitle: 'Run' } }]);
+  });
+
+  it('pins the selected duplicate occurrence and freezes its saved input before execution', async () => {
+    const intake = new StubIntake();
+    const { result } = renderHook(() => usePlaygroundRun({ intake }));
+    const source = '```time\n10 Pushups\n```\n\n```log:crossfit\n20 Pushups\n```';
+    const selected = { ...makeBlock('editor-second'), startLine: 4, content: 'mutable editor body', dialect: 'time' as const };
+    let identity!: PlaygroundRun;
+    await act(async () => { identity = await result.current.start(source, selected, { pageTitle: 'Duplicates' }); });
+    expect(identity.block.id).toBe('blk-2');
+    expect(identity.block.dialect).toBe('log');
+    expect(identity.block.sport).toBe('crossfit');
+    expect(identity.block.content.trim()).toBe('20 Pushups');
+    expect(await intake.persistence.getSessionById(identity.resultId)).toMatchObject({ noteId: identity.noteId, blockId: 'blk-2', blockVersion: 1 });
+    selected.content = 'changed after start';
+    expect(identity.block.content.trim()).toBe('20 Pushups');
   });
 
   it('mints a NEW note per run and never touches the previous one', async () => {
@@ -135,7 +167,8 @@ describe('usePlaygroundRun — start', () => {
   });
 
   it('keeps the run current after finalize (scope views off run.noteId)', async () => {
-    const { result } = renderHook(() => usePlaygroundRun({ intake: new StubIntake() }));
+    const intake = new StubIntake();
+    const { result } = renderHook(() => usePlaygroundRun({ intake }));
 
     const identity = await startRun(result);
     await act(async () => {
@@ -160,7 +193,8 @@ describe('usePlaygroundRun — start', () => {
 describe('usePlaygroundRun — finalize', () => {
   it('records exactly once against the captured note and block', async () => {
     const recorder = new StubRecorder();
-    const { result } = renderHook(() => usePlaygroundRun({ intake: new StubIntake(), recorder }));
+    const intake = new StubIntake();
+    const { result } = renderHook(() => usePlaygroundRun({ intake, recorder }));
     const identity = await startRun(result);
     const results = makeResults();
 

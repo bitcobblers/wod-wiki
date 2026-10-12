@@ -12,7 +12,7 @@
  */
 
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
-import type { Note, NoteSegment, Session } from '@bitcobblers/wod-wiki-storage';
+import type { IStorage, KeyDTO, Note, Session } from '@bitcobblers/wod-wiki-storage';
 import type { RangeDTO, StoreDef } from '@bitcobblers/wod-wiki-storage';
 import type {
   Database,
@@ -63,10 +63,13 @@ function nodeRequire(): CjsRequire {
 /** The storage/sql surface the CLI uses — structural mirror so the lazy import types check. */
 export interface SqlApi {
   libsqlDatabase(client: LibsqlClient): Database;
+  SqlStorage: new (db: Database) => IStorage;
   initializeStore(db: Database): Promise<void>;
   initializeDomain(db: Database): Promise<void>;
   storeDefinition(name: string): StoreDef;
   listRows(conn: SqlConnection, def: StoreDef, range?: RangeDTO, count?: number, indexName?: string): Promise<unknown[]>;
+  getRow(conn: SqlConnection, def: StoreDef, key: KeyDTO): Promise<unknown | undefined>;
+  getRows(conn: SqlConnection, def: StoreDef, keys: KeyDTO[]): Promise<(unknown | undefined)[]>;
   putRow(conn: SqlConnection, def: StoreDef, value: unknown): Promise<unknown>;
   deleteRows(conn: SqlConnection, def: StoreDef, keyOrRange: unknown): Promise<void>;
   refreshDomain(conn: SqlConnection, ops: unknown[]): Promise<unknown>;
@@ -83,6 +86,7 @@ export function loadSql(): Promise<SqlApi> {
 
 export interface CliDb {
   db: Database;
+  storage: IStorage;
   /** Absolute path of the underlying .sqlite file. */
   path: string;
   close(): Promise<void>;
@@ -106,9 +110,14 @@ export async function openCliDb(dbPath?: string): Promise<CliDb> {
   const resolved = resolveDbPath(dbPath);
   nodeFs().mkdirSync(nodePath().dirname(resolved), { recursive: true });
   const db = sql.libsqlDatabase(createClient({ url: `file:${resolved}` }));
-  await sql.initializeStore(db);
-  await sql.initializeDomain(db);
-  return { db, path: resolved, close: () => db.close() };
+  try {
+    await sql.initializeStore(db);
+    await sql.initializeDomain(db);
+    return { db, storage: new sql.SqlStorage(db), path: resolved, close: () => db.close() };
+  } catch (error) {
+    await db.close();
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -204,6 +213,11 @@ interface StoredNoteTag { id: string; noteId: string; tagId: string }
 export function sqliteNoteStore(db: Database): NoteQueryStore {
   return {
     getAllNotes: async () => (await allRows(await loadSql(), db, 'notes')) as never,
+    getNotesByIds: async (noteIds) => {
+      const sql = await loadSql();
+      const rows = await sql.getRows(db, sql.storeDefinition('notes'), [...noteIds]) as Array<Note | undefined>;
+      return rows.filter((row): row is Note => row !== undefined);
+    },
     getNoteIdsForTag: async (label) => {
       const sql = await loadSql();
       const tags = ((await allRows(sql, db, 'tags')) as StoredTag[]).filter((t) => t.label === label);
@@ -279,7 +293,6 @@ export function sqliteIndexStore(db: Database, store: 'block_efforts' | 'tags' |
 
 export interface NoteBundle {
   note: Note | undefined;
-  segments: NoteSegment[];
 }
 
 export interface SessionBundle {
@@ -287,22 +300,19 @@ export interface SessionBundle {
   events: EventRecord[];
 }
 
-/** Fetch a note + all its segment rows (every version). */
+/** Fetch the whole authored Note. */
 export async function getNoteBundle(db: Database, noteId: string): Promise<NoteBundle> {
   const sql = await loadSql();
-  const notes = (await allRows(sql, db, 'notes')) as Array<{ id: string } & Record<string, unknown>>;
-  const note = notes.find((n) => n.id === noteId) as Note | undefined;
-  const segments = (await rowsByIndex(sql, db, 'segments', 'by-note', noteId)) as NoteSegment[];
-  return { note, segments };
+  const note = await sql.getRow(db, sql.storeDefinition('notes'), noteId) as Note | undefined;
+  return { note };
 }
 
 /** Fetch a session + its event/summary rows. */
 export async function getSessionBundle(db: Database, resultId: string): Promise<SessionBundle | undefined> {
   const sql = await loadSql();
-  const sessions = (await allRows(sql, db, 'sessions')) as Array<{ id: string } & Record<string, unknown>>;
-  const session = sessions.find((s) => s.id === resultId) as Session | undefined;
+  const session = await sql.getRow(db, sql.storeDefinition('sessions'), resultId) as Session | undefined;
   if (!session) return undefined;
-  const events = ((await allRows(sql, db, 'events')) as EventRecord[]).filter((e) => e.resultId === resultId);
+  const events = await sql.listRows(db, sql.storeDefinition('events'), { only: resultId }, undefined, 'by-result-grain') as EventRecord[];
   return { session, events };
 }
 

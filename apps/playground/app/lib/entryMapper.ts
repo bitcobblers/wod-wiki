@@ -22,7 +22,7 @@ export type EntryKind = 'note' | 'session' | 'post' | 'result' | 'segment' | 'ef
  *  a content preview, so count and presentation describe the same entity. */
 export interface EntryBlock {
   /** Section id of the block within its note — the open-at-block anchor. */
-  segmentId: string
+  blockId: string
   dataType: string
   /** Up to 3 non-empty preview lines from the block's raw content. */
   preview: string[]
@@ -74,13 +74,10 @@ export interface Entry {
   subtitle?: string
   detail?: string
   tags?: string[]
-  /** Rich-preview lines for whole-note entries (feed mode's engine companion
-   *  query) — up to 3 non-empty lines from the note's blocks. */
+  /** Preview lines from the authored Note source. */
   excerpt?: string[]
-  /** The note's first wod block (feed companion query): full script content
-   *  powers the rich reading preview and the feed's Run action — the runtime
-   *  parses this content, so it is carried verbatim. */
-  wodBlock?: { blockContentId: string; content: string }
+  /** First validated workout occurrence and its unfenced Run source. */
+  wodBlock?: { blockId: string; blockVersion: number; blockContentId: string; content: string }
   blockContentId?: string
   /** Set when the Entry represents one block (:block), not a whole note. */
   block?: EntryBlock
@@ -397,9 +394,12 @@ export function noteFromBlock(block: {
     type: 'note',
     sourceId: block.sourceId,
     sourcePath: block.sourcePath,
+    rawContent: '',
+    sourceRevision: 1,
+    blocks: {},
     // No `catalog` pre-set: toEntry derives it through the executor's
     // catalogOfItem (sourceId first), matching what `catalog:` filters hit.
-  } as Note
+  }
 }
 
 const PREVIEW_LINE_CAP = 3
@@ -430,7 +430,7 @@ export function blockToEntry(block: BlockIndexRow): Entry {
     // derived from the row's own sourceId, not the synthesized parent note's.
     catalog: catalogOfItem(block),
     block: {
-      segmentId: block.segmentId,
+      blockId: block.blockId,
       dataType: block.dataType,
       preview: blockPreview(block.rawContent),
     },

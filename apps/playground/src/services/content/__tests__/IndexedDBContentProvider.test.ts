@@ -1,307 +1,40 @@
-import { afterEach, describe, expect, it } from 'bun:test';
-import type { Note, NoteSegment } from '../../../types/storage';
-import type { DomainEntry } from '@bitcobblers/wod-wiki-storage';
-import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
-import { parseDashboardNote, buildDashboardDocument, isDashboardMeta } from '@bitcobblers/wod-wiki-wql';
+import { describe, expect, it } from 'bun:test';
+import { IndexedDBContentProvider } from '../IndexedDBContentProvider';
+import { InMemoryStorage } from '../../storage/InMemoryStorage';
+import { StorageService } from '../../storage/StorageService';
+import { parseDashboardNote } from '@bitcobblers/wod-wiki-wql';
 
-const savedNotes: Note[] = [];
-const savedSegments: NoteSegment[] = [];
-const notes: Note[] = [];
-// T4 bridge capture: noteId -> labels from the last setNoteTags call.
-const noteTagsByNote = new Map<string, string[]>();
-
-import { storageService } from '@/services/storage';
-storageService.getNote = async (id: string) => notes.find(note => note.id === id) ?? savedNotes.find(note => note.id === id);
-storageService.getAllNotes = async () => [...notes, ...savedNotes];
-storageService.getTagsForNote = async (noteId: string) =>
-  (noteTagsByNote.get(noteId) ?? []).map(label => ({ id: `tag-${label}`, label, createdAt: 0 }));
-storageService.setNoteTags = async (noteId: string, labels: string[]) => {
-  noteTagsByNote.set(noteId, labels);
-};
-storageService.getPage = async (_id: string) => undefined;
-storageService.getNotePages = async () => [];
-storageService.getAllPageNotes = async () => [];
-storageService.getAllTagTypes = async () => [];
-storageService.getAllSegments = async () => savedSegments;
-storageService.getSessionsForNote = async () => [];
-storageService.getAttachmentsForNote = async () => [];
-storageService.rebuildBlockIndexForNote = async () => {};
-storageService.saveNote = async (note: Note) => {
-  savedNotes.push(note);
-  return note.id;
-};
-storageService.saveSegment = async (segment: NoteSegment) => {
-  const index = savedSegments.findIndex(s => s.id === segment.id && s.version === segment.version);
-  if (index >= 0) savedSegments[index] = segment;
-  else savedSegments.push(segment);
-  return segment.id;
-};
-storageService.getLatestSegmentsForNote = async (noteId: string) => {
-  const latest = new Map<string, NoteSegment>();
-  for (const segment of savedSegments.filter(s => s.noteId === noteId)) {
-    const current = latest.get(segment.id);
-    if (!current || segment.version > current.version) latest.set(segment.id, segment);
-  }
-  return [...latest.values()]
-    .filter(s => !s.isHistory)
-    .sort((a, b) => (a.position ?? a.createdAt) - (b.position ?? b.createdAt));
-};
-// Same fixture store as the stubs above: MAX-before-history segments, tags
-// from the last setNoteTags, no pages (getNotePages stubs []). Real getEntryBatches
-// would read the (empty) backing store behind the singleton.
-storageService.getEntryBatches = async (noteIds: readonly string[]) => {
-  const out = new Map<string, DomainEntry>();
-  for (const noteId of noteIds) {
-    const note = notes.find(n => n.id === noteId) ?? savedNotes.find(n => n.id === noteId);
-    if (!note) continue;
-    const segments = await storageService.getLatestSegmentsForNote(noteId);
-    out.set(noteId, {
-      note,
-      segments,
-      tags: await storageService.getTagsForNote(noteId),
-      links: [],
-      pages: [],
-    });
-  }
-  return out;
-};
-
-const providerModule = import('../IndexedDBContentProvider');
-const originalDateNow = Date.now;
-
-afterEach(() => {
-  Date.now = originalDateNow;
-  notes.length = 0;
-  savedNotes.length = 0;
-  savedSegments.length = 0;
-  noteTagsByNote.clear();
-});
-
-describe('IndexedDBContentProvider', () => {
-  it('uses timestamp IDs for new playground entries', async () => {
-    Date.now = () => Date.UTC(2026, 3, 27, 14, 30, 22, 481);
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-
-    const entry = await provider.saveEntry({
-      title: '',
-      rawContent: '',
-      tags: [],
-      targetDate: Date.now(),
-      type: 'playground',
-    });
-
-    expect(entry.id).toBe('2026-04-27-14-30-22-481');
-    expect(savedNotes[0].id).toBe('2026-04-27-14-30-22-481');
-    expect(savedNotes[0].type).toBe('playground');
+describe('whole Note provider', () => {
+  it('stores prose as source, indexes only registered actionable blocks and preserves metadata', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const provider = new IndexedDBContentProvider(service);
+    const rawContent = '---\ntags: [benchmark]\n---\n# Heading\n\nParagraph\n\n```time\n10 Pushups\n```\n\n```query\n:note{}\n```\n\n```widget:attention\n{"headline":"Tip"}\n```\n\n```widget:unknown\n{}\n```';
+    const entry = await provider.saveEntry({ title: 'Workout', rawContent, tags: ['manual'], targetDate: 1, sourceId: 'origin' });
+    expect((await service.getNote(entry.id))?.rawContent).toBe(rawContent);
+    expect(Object.values(entry.blocks!).map(block => block.kind)).toEqual(['wod', 'query', 'widget']);
+    expect((await service.getBlockIndexByNote(entry.id)).sort((a, b) => a.position - b.position).map(row => row.dataType)).toEqual(['wod', 'query', 'widget']);
+    expect(entry.tags.sort()).toEqual(['benchmark', 'manual']);
+    expect(entry.sourceId).toBe('origin');
   });
 
-  it('preserves playground type when listing entries', async () => {
-    notes.push({
-      id: '2026-04-27-14-30-22-481',
-      title: '',
-      createdAt: Date.UTC(2026, 3, 27, 14, 30, 22, 481),
-      type: 'playground',
-    });
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-
-    const entries = await provider.getEntries();
-
-    expect(entries[0].type).toBe('playground');
+  it('keeps manual tags separate from authored frontmatter and retains untyped additions', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const provider = new IndexedDBContentProvider(service);
+    const entry = await provider.saveEntry({ title: 'Tags', rawContent: '---\ntags: [crossfit]\n---\nProse', tags: ['manual'], targetDate: 1 });
+    const updated = await provider.updateEntry(entry.id, { rawContent: '---\ntags: [hero]\n---\nProse',
+      expectedSourceRevision: entry.sourceRevision, blocks: {} });
+    expect(updated.tags.sort()).toEqual(['hero', 'manual']);
+    expect(updated.rawContent).not.toContain('manual');
   });
 
-  it('adds a suffix when a playground timestamp ID already exists', async () => {
-    Date.now = () => Date.UTC(2026, 3, 27, 14, 30, 22, 481);
-    notes.push({
-      id: '2026-04-27-14-30-22-481',
-      title: 'Existing playground',
-      createdAt: Date.now(),
-      type: 'playground',
-    });
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-
-    const entry = await provider.saveEntry({
-      title: '',
-      rawContent: '',
-      tags: [],
-      targetDate: Date.now(),
-      type: 'playground',
-    });
-
-    expect(entry.id).toBe('2026-04-27-14-30-22-481-1');
-    expect(savedNotes[0].id).toBe('2026-04-27-14-30-22-481-1');
-  });
-
-  it('keeps UUID IDs for non-playground entries', async () => {
-    Date.now = () => Date.UTC(2026, 3, 27, 14, 30, 22, 481);
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-
-    const entry = await provider.saveEntry({
-      title: 'Fran',
-      rawContent: '',
-      tags: [],
-      targetDate: Date.now(),
-      type: 'note',
-    });
-
-    expect(entry.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-  });
-
-  it('round-trips frontmatter delimiters on read (dashboard notes stay parseable)', async () => {
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-    const raw = `---
-dashboard: true
-title: Benchmark PR Board
-slug: benchmark-pr-board
----
-
-# Benchmark PR Board
-
-\`\`\`query:value
-sum:totalVolume{}
-\`\`\`
-`;
-
-    const entry = await provider.saveEntry({
-      title: 'Benchmark PR Board',
-      rawContent: raw,
-      tags: [],
-      targetDate: Date.now(),
-      type: 'note',
-    });
-
-    // Single-note read AND list read must both restore the --- delimiters —
-    // segments store the frontmatter's inner content only.
-    const read = await provider.getEntry(entry.id);
-    expect(read?.rawContent.startsWith('---\n')).toBe(true);
-    expect(read?.rawContent).toContain('\n---\n');
-
-    const listed = await provider.getEntries();
-    expect(listed.find(e => e.id === entry.id)?.rawContent).toBe(read?.rawContent);
-
-    // The Dashboard Note actually resolves: frontmatter parses, widget found.
-    const { meta, sections } = parseDashboardNote(read!.rawContent);
-    expect(isDashboardMeta(meta)).toBe(true);
-    expect(buildDashboardDocument(sections, meta).widgets).toHaveLength(1);
-  });
-
-  it('collapses per-keystroke updates to a single live segment (#705)', async () => {
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-
-    const entry = await provider.saveEntry({
-      title: '',
-      rawContent: 'Note\n',
-      tags: [],
-      targetDate: Date.now(),
-      type: 'note',
-    });
-
-    // Simulate per-keystroke saves: each update re-parses content-addressed
-    // section ids, so superseded rows must be retired on every save.
-    const typed = 'NoteE2E-RELOAD-1784826347490';
-    for (let i = 5; i <= typed.length; i++) {
-      await provider.updateEntry(entry.id, { rawContent: typed.slice(0, i) + '\n' });
-    }
-
-    const latestById = new Map<string, NoteSegment>();
-    for (const segment of savedSegments) {
-      const current = latestById.get(segment.id);
-      if (!current || segment.version >= current.version) latestById.set(segment.id, segment);
-    }
-    const live = [...latestById.values()].filter(s => !s.isHistory);
-
-    // Live rows are exactly the sections of the final content — no pile-up.
-    // (Row ids are an implementation detail — never pinned in assertions.)
-    const finalSections = parseDocumentSections(typed + '\n');
-    expect(live).toHaveLength(finalSections.length);
-    expect(live.find(s => s.rawContent.trim())?.rawContent.trim()).toBe(typed);
-    // Every superseded snapshot is history, not a live duplicate.
-    const liveIds = new Set(live.map(s => s.id));
-    for (const segment of latestById.values()) {
-      if (!liveIds.has(segment.id)) expect(segment.isHistory).toBe(true);
-    }
-  });
-
-  it('bridges frontmatter tags into note_tags at note creation', async () => {
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-
-    const entry = await provider.saveEntry({
-      title: 'Fran',
-      rawContent: '---\ntags:\n  - crossfit\n  - girl-wods\n---\n# Fran\n',
-      tags: ['manual'],
-      targetDate: Date.now(),
-      type: 'note',
-    });
-
-    // Frontmatter labels ∪ explicit tags, deduped.
-    expect(noteTagsByNote.get(entry.id)?.sort()).toEqual(['crossfit', 'girl-wods', 'manual']);
-  });
-
-  it('unions new frontmatter tags into existing note_tags on content save', async () => {
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-
-    const entry = await provider.saveEntry({
-      title: 'Fran',
-      rawContent: '---\ntags:\n  - crossfit\n---\n# Fran\n',
-      tags: [],
-      targetDate: Date.now(),
-      type: 'note',
-    });
-    expect(noteTagsByNote.get(entry.id)).toEqual(['crossfit']);
-
-    // Editing content to carry a new frontmatter label ADDS it; the old label
-    // survives (frontmatter is additive-only, never destructive).
-    await provider.updateEntry(entry.id, {
-      rawContent: '---\ntags:\n  - hero\n---\n# Fran\n',
-    });
-    expect(noteTagsByNote.get(entry.id)?.sort()).toEqual(['crossfit', 'hero']);
-  });
-
-  it('does not let a manual tag replace wipe frontmatter tags', async () => {
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-
-    const entry = await provider.saveEntry({
-      title: 'Fran',
-      rawContent: '---\ntags:\n  - crossfit\n---\n# Fran\n',
-      tags: [],
-      targetDate: Date.now(),
-      type: 'note',
-    });
-
-    // A tag-editor save replaces the manual portion but re-adds the
-    // frontmatter labels still present in content.
-    await provider.updateEntry(entry.id, { tags: ['benchmark'] });
-  });
-
-  it('keeps manual tags separate from the saved markdown body', async () => {
-    const { IndexedDBContentProvider } = await providerModule;
-    const provider = new IndexedDBContentProvider();
-
-    const entry = await provider.saveEntry({
-      title: 'Workout Without FM',
-      rawContent: '# Workout Without FM\nJust some notes.\n',
-      tags: ['strength', 'conditioning'],
-      targetDate: Date.now(),
-      type: 'note',
-    });
-
-    const retrieved = await provider.getEntry(entry.id);
-    expect(retrieved).not.toBeNull();
-    expect(retrieved!.rawContent).toBe('# Workout Without FM\nJust some notes.\n');
-    expect(retrieved!.tags).toEqual(['strength', 'conditioning']);
-
-    const all = await provider.getEntries();
-    const fromAll = all.find((e) => e.id === entry.id);
-    expect(fromAll).toBeDefined();
-    expect(fromAll!.rawContent).toBe(retrieved!.rawContent);
-    expect(fromAll!.tags).toEqual(['strength', 'conditioning']);
+  it('reopens dashboard frontmatter verbatim without persisted frontmatter blocks', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const provider = new IndexedDBContentProvider(service);
+    const rawContent = '---\ndashboard: "true"\ntitle: My dashboard\n---\n\n```query\n:note{}\n```';
+    const entry = await provider.saveEntry({ title: 'Dashboard', rawContent, tags: [], targetDate: 1 });
+    const reopened = await provider.getEntry(entry.id);
+    expect(reopened?.rawContent).toBe(rawContent);
+    expect(parseDashboardNote(reopened!.rawContent)).toBeDefined();
+    expect(Object.values(entry.blocks!).map(block => block.kind)).toEqual(['query']);
   });
 });

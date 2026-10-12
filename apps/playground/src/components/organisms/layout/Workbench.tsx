@@ -74,6 +74,7 @@ const WorkbenchContent: React.FC<WorkbenchProps> = ({
   theme: propTheme,
   hidePlanUnlessDebug = false,
   provider,
+  notePersistence,
   ...editorProps
 }) => {
   // Step 3's thin adapter — reads its inputs from the Workbench Session
@@ -84,6 +85,13 @@ const WorkbenchContent: React.FC<WorkbenchProps> = ({
   const content = useWorkbenchSession((s) => s.content);
   const setContent = useWorkbenchSession((s) => s.setContent);
   const setBlocks = useWorkbenchSession((s) => s.setBlocks);
+  const noteBlocks = useWorkbenchSession(state => state.noteBlocks);
+  const sourceRevision = useWorkbenchSession(state => state.sourceRevision);
+  const setEditorIdentity = useWorkbenchSession(state => state.setEditorIdentity);
+  const acceptSaved = useWorkbenchSession(state => state.acceptSaved);
+  const restoreBlock = useWorkbenchSession(state => state.restoreBlock);
+  const flushSave = useWorkbenchSession(state => state.flushSave);
+  const saveError = useWorkbenchSession(state => state.saveError);
   const activeBlockId = useWorkbenchSession((s) => s.activeBlockId);
   const setActiveBlockId = useWorkbenchSession((s) => s.setActiveBlockId);
   const setSelectedBlockId = useWorkbenchSession((s) => s.setSelectedBlockId);
@@ -304,24 +312,24 @@ const WorkbenchContent: React.FC<WorkbenchProps> = ({
     return () => { cleanup(); };
   }, [documentItems, setHighlightedLine]);
 
-  const handleCompleteWorkout = useCallback((blockId: string, results: Sessions | undefined, resultId?: string, runBlock?: Pick<ScriptBlock, 'id' | 'contentId'>) => {
-    if (results) {
-      void completeWorkout(results, resultId, runBlock);
-    }
-    void blockId;
-  }, [completeWorkout]);
 
   const planPanel = useMemo(() => (
     <PlanPanel
       sourceNoteId={contextEntry?.id}
+      notePersistence={notePersistence}
+      noteBlocks={noteBlocks}
+      sourceRevision={sourceRevision}
+      onIdentityChange={setEditorIdentity}
+      onSaved={acceptSaved}
+      beforeRun={async () => { await flushSave(); return useWorkbenchSessionStore.getState().sourceRevision; }}
+      onRevert={restoreBlock}
       initialContent={initialContent}
       value={content}
       onStartWorkout={handleStartWorkoutAction}
-      onCompleteWorkout={handleCompleteWorkout}
       setBlocks={setBlocks}
       setContent={setContent}
     />
-  ), [contextEntry?.id, initialContent, content, handleStartWorkoutAction, handleCompleteWorkout, setBlocks, setContent]);
+  ), [contextEntry?.id, initialContent, content, noteBlocks, sourceRevision, notePersistence, setEditorIdentity, acceptSaved, flushSave, restoreBlock, handleStartWorkoutAction, setBlocks, setContent]);
 
   const trackPrimaryPanel = useMemo(() => (
     <TimerScreen
@@ -393,6 +401,7 @@ const WorkbenchContent: React.FC<WorkbenchProps> = ({
 
   return (
     <React.Fragment>
+      {saveError && <p role="alert" className="p-3 text-sm text-destructive">Save failed. {saveError} Your draft is kept.</p>}
       <WorkbenchTemplate
         dragOverlay={
           isDragging ? (
@@ -475,7 +484,7 @@ export const Workbench: React.FC<WorkbenchProps> = (props) => {
       >
         <RuntimeLifecycleProvider factory={runtimeFactory}>
           <WorkbenchCastBridge />
-          <WorkbenchContent {...props} initialContent={initialContent} initialActiveEntryId={initialActiveEntryId} initialViewMode={initialViewMode} provider={resolved.provider} />
+          <WorkbenchContent {...props} initialContent={initialContent} initialActiveEntryId={initialActiveEntryId} initialViewMode={initialViewMode} provider={resolved.provider} notePersistence={resolved.notePersistence} />
         </RuntimeLifecycleProvider>
       </WorkbenchSessionProvider>
     </DebugModeProvider>

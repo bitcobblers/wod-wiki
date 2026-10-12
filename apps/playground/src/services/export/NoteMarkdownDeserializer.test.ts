@@ -11,6 +11,7 @@ describe('parseMarkdownToEntry', () => {
 - **Target Date**: 2025-01-15T10:00:00.000Z
 
 ## Content
+
 Some workout content here.`;
 
     const result = parseMarkdownToEntry(markdown);

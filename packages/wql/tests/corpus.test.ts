@@ -9,8 +9,9 @@ import {
   journalStores,
   CORPUS_JOURNALS,
 } from './harness/corpus';
+import { parseCorpusJournal } from '../fixtures/corpus/journal';
 
-const KNOWN_ENVELOPE_KEYS = ['$schema', 'kind', 'id', 'title', 'description', 'notes', 'records'] as const;
+const KNOWN_ENVELOPE_KEYS = ['$schema', 'kind', 'id', 'title', 'description', 'notes', 'records', 'blockRevisions', 'sessions'] as const;
 
 describe('fake-data corpus', () => {
   it('discovers the four catalog journals', () => {
@@ -22,6 +23,12 @@ describe('fake-data corpus', () => {
     ]);
   });
 
+  it('rejects a Note without authored source and a conflicting revision slice', () => {
+    const journal = loadJournal('crossfit-multi-week.json');
+    expect(() => parseCorpusJournal({ ...journal, notes: [{ ...journal.notes[0], blocks: undefined }] })).toThrow();
+    expect(() => parseCorpusJournal({ ...journal, blockRevisions: journal.blockRevisions.map((row, index) =>
+      index === 0 ? { ...row, rawContent: 'wrong source' } : row) })).toThrow();
+  });
   describe.each(CORPUS_JOURNALS)('%s', (file) => {
     const journal = loadJournal(file);
 
@@ -32,6 +39,20 @@ describe('fake-data corpus', () => {
       expect(Object.keys(journal).every((k) => (KNOWN_ENVELOPE_KEYS as readonly string[]).includes(k))).toBe(true);
       expect(journal.records.length).toBeGreaterThan(0);
       expect(journal.notes.length).toBeGreaterThan(0);
+    });
+    it('keeps authored source slices and immutable session pins coherent', () => {
+      for (const note of journal.notes) {
+        expect(note.sourceRevision).toBe(1);
+        expect(note.rawContent).toContain(note.title);
+        for (const block of Object.values(note.blocks)) {
+          const revision = journal.blockRevisions.find(row => row.noteId === note.id && row.blockId === block.id && row.version === block.version);
+          expect(revision?.rawContent).toBe(note.rawContent.slice(block.from, block.to));
+          expect(block.kind).toBe('wod');
+        }
+      }
+      for (const session of journal.sessions) {
+        expect(journal.blockRevisions.some(row => row.noteId === session.noteId && row.blockId === session.blockId && row.version === session.blockVersion)).toBe(true);
+      }
     });
 
     it('record ids are unique and follow the id grammar', () => {

@@ -25,7 +25,7 @@ import { useNav } from '../nav/NavContext'
 import type { NavStateAction } from '../nav/navTypes'
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown'
 import { mapIndexToL3 } from '../pages/shared/pageUtils'
-import { parseDocumentSections } from '@bitcobblers/wod-wiki-core'
+import { sectionField } from '@bitcobblers/wod-wiki-ui'
 export interface UsePageScrollSync {
   /** Pass to a CodeMirror factory so we can hold the live `EditorView` for editor-scroll fallback. */
   handleViewCreated: (view: EditorView) => void
@@ -95,11 +95,9 @@ export function usePageScrollSync(currentNavLinks: PageNavLink[]): UsePageScroll
       if (lineMatch) {
         lineIdx = Number(lineMatch[1]) - 1
       } else {
-        // Section / segmentId match via parseDocumentSections
-        const sections = parseDocumentSections(content)
+        const sections = view.state.field(sectionField, false)?.sections ?? []
         const matchedSec = sections.find((s) => {
           if (s.id === id) return true
-          if (s.scriptBlock?.id === id) return true
           if (id.includes(`:${s.id}:`) || id.endsWith(`:${s.id}`)) return true
           return false
         })

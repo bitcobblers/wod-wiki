@@ -12,7 +12,21 @@
       "tags": [
         "climb",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# Climb — boulder session\n\nAuthored example workout for this journal fixture.\n\n```time:climbing\n45:00 Boulder\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 79,
+          "to": 113,
+          "dialect": "time",
+          "sport": "climbing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-07",
@@ -21,7 +35,21 @@
       "tags": [
         "yoga",
         "recovery"
-      ]
+      ],
+      "rawContent": "# Yoga — vinyasa flow\n\nAuthored example workout for this journal fixture.\n\n```time:yoga\n30:00 Vinyasa Flow\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 75,
+          "to": 110,
+          "dialect": "time",
+          "sport": "yoga"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-06",
@@ -29,7 +57,21 @@
       "createdAt": 1780747200000,
       "tags": [
         "swimming"
-      ]
+      ],
+      "rawContent": "# Swim — drill focus\n\nAuthored example workout for this journal fixture.\n\n```time:swimming\n(8)\n  100m Swim\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 110,
+          "dialect": "time",
+          "sport": "swimming"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-11",
@@ -38,7 +80,21 @@
       "tags": [
         "climb",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# Climb — boulder session\n\nAuthored example workout for this journal fixture.\n\n```time:climbing\n45:00 Boulder\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 79,
+          "to": 113,
+          "dialect": "time",
+          "sport": "climbing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-14",
@@ -47,7 +103,21 @@
       "tags": [
         "yoga",
         "recovery"
-      ]
+      ],
+      "rawContent": "# Yoga — vinyasa flow\n\nAuthored example workout for this journal fixture.\n\n```time:yoga\n30:00 Vinyasa Flow\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 75,
+          "to": 110,
+          "dialect": "time",
+          "sport": "yoga"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-13",
@@ -55,7 +125,21 @@
       "createdAt": 1781352000000,
       "tags": [
         "swimming"
-      ]
+      ],
+      "rawContent": "# Swim — drill focus\n\nAuthored example workout for this journal fixture.\n\n```time:swimming\n(8)\n  100m Swim\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 110,
+          "dialect": "time",
+          "sport": "swimming"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-18",
@@ -64,7 +148,21 @@
       "tags": [
         "climb",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# Climb — boulder session\n\nAuthored example workout for this journal fixture.\n\n```time:climbing\n45:00 Boulder\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 79,
+          "to": 113,
+          "dialect": "time",
+          "sport": "climbing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-21",
@@ -73,7 +171,21 @@
       "tags": [
         "yoga",
         "recovery"
-      ]
+      ],
+      "rawContent": "# Yoga — vinyasa flow\n\nAuthored example workout for this journal fixture.\n\n```time:yoga\n30:00 Vinyasa Flow\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 75,
+          "to": 110,
+          "dialect": "time",
+          "sport": "yoga"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-20",
@@ -81,7 +193,21 @@
       "createdAt": 1781956800000,
       "tags": [
         "swimming"
-      ]
+      ],
+      "rawContent": "# Swim — drill focus\n\nAuthored example workout for this journal fixture.\n\n```time:swimming\n(8)\n  100m Swim\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 110,
+          "dialect": "time",
+          "sport": "swimming"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-25",
@@ -90,7 +216,21 @@
       "tags": [
         "climb",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# Climb — boulder session\n\nAuthored example workout for this journal fixture.\n\n```time:climbing\n45:00 Boulder\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 79,
+          "to": 113,
+          "dialect": "time",
+          "sport": "climbing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-28",
@@ -99,7 +239,21 @@
       "tags": [
         "yoga",
         "recovery"
-      ]
+      ],
+      "rawContent": "# Yoga — vinyasa flow\n\nAuthored example workout for this journal fixture.\n\n```time:yoga\n30:00 Vinyasa Flow\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 75,
+          "to": 110,
+          "dialect": "time",
+          "sport": "yoga"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-27",
@@ -107,7 +261,21 @@
       "createdAt": 1782561600000,
       "tags": [
         "swimming"
-      ]
+      ],
+      "rawContent": "# Swim — drill focus\n\nAuthored example workout for this journal fixture.\n\n```time:swimming\n(8)\n  100m Swim\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 110,
+          "dialect": "time",
+          "sport": "swimming"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-32",
@@ -116,7 +284,21 @@
       "tags": [
         "climb",
         "benchmark"
-      ]
+      ],
+      "rawContent": "# Climb — boulder session\n\nAuthored example workout for this journal fixture.\n\n```time:climbing\n45:00 Boulder\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 79,
+          "to": 113,
+          "dialect": "time",
+          "sport": "climbing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-35",
@@ -125,7 +307,21 @@
       "tags": [
         "yoga",
         "recovery"
-      ]
+      ],
+      "rawContent": "# Yoga — vinyasa flow\n\nAuthored example workout for this journal fixture.\n\n```time:yoga\n30:00 Vinyasa Flow\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 75,
+          "to": 110,
+          "dialect": "time",
+          "sport": "yoga"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-34",
@@ -133,7 +329,21 @@
       "createdAt": 1783166400000,
       "tags": [
         "swimming"
-      ]
+      ],
+      "rawContent": "# Swim — drill focus\n\nAuthored example workout for this journal fixture.\n\n```time:swimming\n(8)\n  100m Swim\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 110,
+          "dialect": "time",
+          "sport": "swimming"
+        }
+      }
     }
   ],
   "records": [
@@ -147,8 +357,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -166,7 +374,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 30
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w0:summary:sessionLoad",
@@ -178,8 +388,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -197,7 +405,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 120
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w0:summary:tis",
@@ -209,8 +419,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -228,7 +436,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 20
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w0:summary:sessionLoad",
@@ -240,8 +450,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -259,7 +467,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 60
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w0:summary:distance",
@@ -271,8 +481,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -290,7 +498,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1500
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w0:summary:tis",
@@ -302,8 +512,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -321,7 +529,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 35
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w1:summary:tis",
@@ -333,8 +543,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -352,7 +560,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 31
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w1:summary:sessionLoad",
@@ -364,8 +574,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -383,7 +591,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 125
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w1:summary:tis",
@@ -395,8 +605,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -414,7 +622,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 20.5
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w1:summary:sessionLoad",
@@ -426,8 +636,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -445,7 +653,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 62
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w1:summary:distance",
@@ -457,8 +667,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -476,7 +684,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1550
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w1:summary:tis",
@@ -488,8 +698,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -507,7 +715,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 36
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w2:summary:tis",
@@ -519,8 +729,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -538,7 +746,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 32
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w2:summary:sessionLoad",
@@ -550,8 +760,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -569,7 +777,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 130
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w2:summary:tis",
@@ -581,8 +791,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -600,7 +808,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 21
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w2:summary:sessionLoad",
@@ -612,8 +822,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -631,7 +839,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 64
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w2:summary:distance",
@@ -643,8 +853,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -662,7 +870,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1600
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w2:summary:tis",
@@ -674,8 +884,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -693,7 +901,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 37
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w3:summary:tis",
@@ -705,8 +915,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -724,7 +932,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 33
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w3:summary:sessionLoad",
@@ -736,8 +946,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -755,7 +963,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 135
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w3:summary:tis",
@@ -767,8 +977,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -786,7 +994,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 21.5
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w3:summary:sessionLoad",
@@ -798,8 +1008,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -817,7 +1025,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 66
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w3:summary:distance",
@@ -829,8 +1039,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -848,7 +1056,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1650
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w3:summary:tis",
@@ -860,8 +1070,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -879,7 +1087,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 38
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:summary:tis",
@@ -891,8 +1101,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -910,7 +1118,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 34
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:summary:sessionLoad",
@@ -922,8 +1132,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "boulder-session",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -941,7 +1149,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 140
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w4:summary:tis",
@@ -953,8 +1163,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -972,7 +1180,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 22
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-yoga-w4:summary:sessionLoad",
@@ -984,8 +1194,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "vinyasa-flow",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1003,7 +1211,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 68
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w4:summary:distance",
@@ -1015,8 +1225,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1034,7 +1242,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 1700
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-swim-w4:summary:tis",
@@ -1046,8 +1256,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "swim-drill",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1065,7 +1273,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 39
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:1",
@@ -1076,8 +1286,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#1",
       "metrics": [
@@ -1086,7 +1294,9 @@
           "value": 1,
           "unit": "problem"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:2",
@@ -1097,8 +1307,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#2",
       "metrics": [
@@ -1107,7 +1315,9 @@
           "value": 1,
           "unit": "problem"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:3",
@@ -1118,8 +1328,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#3",
       "metrics": [
@@ -1128,7 +1336,9 @@
           "value": 1,
           "unit": "problem"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:4",
@@ -1139,8 +1349,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#4",
       "metrics": [
@@ -1153,7 +1361,9 @@
             "grade": "V1"
           }
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:5",
@@ -1164,8 +1374,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#5",
       "metrics": [
@@ -1178,7 +1386,9 @@
             "grade": "V2"
           }
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:6",
@@ -1189,8 +1399,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#6",
       "metrics": [
@@ -1203,7 +1411,9 @@
             "grade": "V2"
           }
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:7",
@@ -1214,8 +1424,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#7",
       "metrics": [
@@ -1228,7 +1436,9 @@
             "grade": "V3"
           }
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:8",
@@ -1239,8 +1449,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#8",
       "metrics": [
@@ -1253,7 +1461,9 @@
             "grade": "V4"
           }
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:9",
@@ -1264,8 +1474,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#9",
       "metrics": [
@@ -1278,7 +1486,9 @@
             "grade": "V4"
           }
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:10",
@@ -1289,8 +1499,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#10",
       "metrics": [
@@ -1303,7 +1511,9 @@
             "grade": "V5"
           }
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-boulder-w4:11",
@@ -1314,8 +1524,6 @@
       "timestamp": 1782995328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-boulder#11",
       "metrics": [
@@ -1328,7 +1536,373 @@
             "grade": "V6"
           }
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
+    }
+  ],
+  "blockRevisions": [
+    {
+      "noteId": "note-journal-2026-06-04",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:climbing\n45:00 Boulder\n```",
+      "savedAt": 1780574400000,
+      "dialect": "time",
+      "sport": "climbing"
+    },
+    {
+      "noteId": "note-journal-2026-06-07",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:yoga\n30:00 Vinyasa Flow\n```",
+      "savedAt": 1780833600000,
+      "dialect": "time",
+      "sport": "yoga"
+    },
+    {
+      "noteId": "note-journal-2026-06-06",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:swimming\n(8)\n  100m Swim\n```",
+      "savedAt": 1780747200000,
+      "dialect": "time",
+      "sport": "swimming"
+    },
+    {
+      "noteId": "note-journal-2026-06-11",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:climbing\n45:00 Boulder\n```",
+      "savedAt": 1781179200000,
+      "dialect": "time",
+      "sport": "climbing"
+    },
+    {
+      "noteId": "note-journal-2026-06-14",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:yoga\n30:00 Vinyasa Flow\n```",
+      "savedAt": 1781438400000,
+      "dialect": "time",
+      "sport": "yoga"
+    },
+    {
+      "noteId": "note-journal-2026-06-13",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:swimming\n(8)\n  100m Swim\n```",
+      "savedAt": 1781352000000,
+      "dialect": "time",
+      "sport": "swimming"
+    },
+    {
+      "noteId": "note-journal-2026-06-18",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:climbing\n45:00 Boulder\n```",
+      "savedAt": 1781784000000,
+      "dialect": "time",
+      "sport": "climbing"
+    },
+    {
+      "noteId": "note-journal-2026-06-21",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:yoga\n30:00 Vinyasa Flow\n```",
+      "savedAt": 1782043200000,
+      "dialect": "time",
+      "sport": "yoga"
+    },
+    {
+      "noteId": "note-journal-2026-06-20",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:swimming\n(8)\n  100m Swim\n```",
+      "savedAt": 1781956800000,
+      "dialect": "time",
+      "sport": "swimming"
+    },
+    {
+      "noteId": "note-journal-2026-06-25",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:climbing\n45:00 Boulder\n```",
+      "savedAt": 1782388800000,
+      "dialect": "time",
+      "sport": "climbing"
+    },
+    {
+      "noteId": "note-journal-2026-06-28",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:yoga\n30:00 Vinyasa Flow\n```",
+      "savedAt": 1782648000000,
+      "dialect": "time",
+      "sport": "yoga"
+    },
+    {
+      "noteId": "note-journal-2026-06-27",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:swimming\n(8)\n  100m Swim\n```",
+      "savedAt": 1782561600000,
+      "dialect": "time",
+      "sport": "swimming"
+    },
+    {
+      "noteId": "note-journal-2026-06-32",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:climbing\n45:00 Boulder\n```",
+      "savedAt": 1782993600000,
+      "dialect": "time",
+      "sport": "climbing"
+    },
+    {
+      "noteId": "note-journal-2026-06-35",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:yoga\n30:00 Vinyasa Flow\n```",
+      "savedAt": 1783252800000,
+      "dialect": "time",
+      "sport": "yoga"
+    },
+    {
+      "noteId": "note-journal-2026-06-34",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:swimming\n(8)\n  100m Swim\n```",
+      "savedAt": 1783166400000,
+      "dialect": "time",
+      "sport": "swimming"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "res-boulder-w0",
+      "noteId": "note-journal-2026-06-04",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-boulder",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780574400000,
+      "endTime": 1780574400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780574400000
+    },
+    {
+      "id": "res-yoga-w0",
+      "noteId": "note-journal-2026-06-07",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-vinyasa",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780833600000,
+      "endTime": 1780833600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780833600000
+    },
+    {
+      "id": "res-swim-w0",
+      "noteId": "note-journal-2026-06-06",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-swim-drill",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780747200000,
+      "endTime": 1780747200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780747200000
+    },
+    {
+      "id": "res-boulder-w1",
+      "noteId": "note-journal-2026-06-11",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-boulder",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781179200000,
+      "endTime": 1781179200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781179200000
+    },
+    {
+      "id": "res-yoga-w1",
+      "noteId": "note-journal-2026-06-14",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-vinyasa",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781438400000,
+      "endTime": 1781438400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781438400000
+    },
+    {
+      "id": "res-swim-w1",
+      "noteId": "note-journal-2026-06-13",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-swim-drill",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781352000000,
+      "endTime": 1781352000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781352000000
+    },
+    {
+      "id": "res-boulder-w2",
+      "noteId": "note-journal-2026-06-18",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-boulder",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781784000000,
+      "endTime": 1781784000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781784000000
+    },
+    {
+      "id": "res-yoga-w2",
+      "noteId": "note-journal-2026-06-21",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-vinyasa",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782043200000,
+      "endTime": 1782043200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782043200000
+    },
+    {
+      "id": "res-swim-w2",
+      "noteId": "note-journal-2026-06-20",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-swim-drill",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781956800000,
+      "endTime": 1781956800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781956800000
+    },
+    {
+      "id": "res-boulder-w3",
+      "noteId": "note-journal-2026-06-25",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-boulder",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782388800000,
+      "endTime": 1782388800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782388800000
+    },
+    {
+      "id": "res-yoga-w3",
+      "noteId": "note-journal-2026-06-28",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-vinyasa",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782648000000,
+      "endTime": 1782648000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782648000000
+    },
+    {
+      "id": "res-swim-w3",
+      "noteId": "note-journal-2026-06-27",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-swim-drill",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782561600000,
+      "endTime": 1782561600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782561600000
+    },
+    {
+      "id": "res-boulder-w4",
+      "noteId": "note-journal-2026-06-32",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-boulder",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782993600000,
+      "endTime": 1782993600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782993600000
+    },
+    {
+      "id": "res-yoga-w4",
+      "noteId": "note-journal-2026-06-35",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-vinyasa",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783252800000,
+      "endTime": 1783252800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783252800000
+    },
+    {
+      "id": "res-swim-w4",
+      "noteId": "note-journal-2026-06-34",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-swim-drill",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783166400000,
+      "endTime": 1783166400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783166400000
     }
   ]
 }

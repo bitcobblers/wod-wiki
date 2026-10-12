@@ -2,7 +2,7 @@
 
 - **Route:** `/sessions/:sessionId` (legacy `/results/:resultId`)
 - **Host Component:** `apps/playground/app/pages/SessionDetailPage.tsx` (or Result Detail component)
-- **Domain Models:** `Session`, `EventRecord`, `Note`, `NoteSegment`, `BlockIndexRow`
+- **Domain Models:** `Session`, `EventRecord`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `BlockIndexRow`
 
 ---
 

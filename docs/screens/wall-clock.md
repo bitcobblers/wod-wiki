@@ -2,7 +2,7 @@
 
 - **Route:** `/run/:runtimeId`
 - **Host Component:** `apps/playground/app/pages/WallClockPage.tsx`
-- **Domain Models:** `Note`, `NoteSegment`, `Session`, `EventRecord`
+- **Domain Models:** `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Session`, `EventRecord`
 
 ---
 

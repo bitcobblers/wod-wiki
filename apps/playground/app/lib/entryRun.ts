@@ -54,7 +54,7 @@ async function resolveWodScript(entry: Entry): Promise<string> {
  *  are irrelevant here. */
 function buildRunBlock(entry: Entry, content: string): ScriptBlock {
   return {
-    id: entry.wodBlock?.blockContentId ?? entry.blockContentId ?? uuidv7(),
+    id: entry.wodBlock?.blockId ?? entry.block?.blockId ?? uuidv7(),
     contentId: entry.wodBlock?.blockContentId ?? entry.blockContentId,
     dialect: 'time',
     startLine: 0,
@@ -76,8 +76,11 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction): P
   if (entryIsPlayground(entry)) {
     // Retain the entry's Note UUID — results, attachments, and events join
     // on it; origin/returnTo override the recorder's id-derived defaults.
+    const saved = await journalNotes.getById(entry.id);
+    const occurrence = entry.wodBlock || entry.block ? saved.blocks?.[block.id] : Object.values(saved.blocks ?? {}).find(candidate => candidate.kind === 'wod');
+    if (!occurrence) throw new Error('The selected saved workout is unavailable.');
     pendingRuntimes.set(runtimeId, {
-      block,
+      block: { ...block, id: occurrence.id },
       noteId: entry.id,
       origin: 'playground',
       returnTo: entryOpenHref(entry),
@@ -94,6 +97,8 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction): P
     sourceNotePath: entryOpenHref(entry),
     wodContent: content,
   })
-  pendingRuntimes.set(runtimeId, { block, noteId: journalNote.id })
+  const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
+  if (!occurrence) throw new Error('The saved journal workout is unavailable.');
+  pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id })
   navigate(journalEntryAutoStartPath(journalNote.journalDate ?? '', runtimeId))
 }

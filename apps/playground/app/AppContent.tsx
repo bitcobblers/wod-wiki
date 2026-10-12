@@ -59,6 +59,7 @@ import { PageDownloadAction } from './pages/shared/PageToolbar'
 import { mapIndexToL3 } from './pages/shared/pageUtils'
 import { useWorkoutItems, EMPTY_WOD_FILES } from './lib/workoutIndex'
 import { useSeedContent } from '@/services/content/seedContent'
+import { SessionSource } from '@/components/organisms/review/SessionSource';
 
 export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefObject<() => void> }) {
   const navigate = useNavigate()
@@ -292,12 +293,12 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     library: () => {
       const profile = streamProfile ?? applyRouteWqlConfig(resolveStreamProfile(location.pathname))
       return (
-        <QueriableStreamView
+        <><SessionSourceBoundary pathname={location.pathname} /><QueriableStreamView
           key={profile.route}
           profile={profile}
           registerStreamDraft={registerStreamDraft}
           actions={<PageActions mode="collection-readonly" currentWorkout={currentWorkout} index={[]} />}
-        />
+        /></>
       )
     },
     settings: () => <SettingsPage />,
@@ -413,4 +414,9 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       <PaletteShell />
     </SidebarLayout>
   )
+}
+
+function SessionSourceBoundary({ pathname }: { pathname: string }) {
+  const match = /^\/results\/([^/]+)\/?$/.exec(pathname);
+  return match ? <SessionSource sessionId={decodeURIComponent(match[1])} /> : null;
 }

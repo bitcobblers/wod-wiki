@@ -15,6 +15,8 @@ import {
   ChevronRightIcon,
   CloudDownload,
   Plus,
+  RefreshCw,
+  Settings2,
   SlidersHorizontal,
   TriangleAlertIcon,
 } from 'lucide-react'
@@ -23,6 +25,8 @@ import { Button } from '@/components/atoms/primitives/button'
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
 import { useSeedLibraryMissing, useSeedReadiness } from '@/services/seed/seedReadiness'
+import { syncSeedSource, type SeedSyncProgress } from '@/services/seed/seedSync'
+import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 import type { WqlExecutor } from '@bitcobblers/wod-wiki-ui'
@@ -63,6 +67,8 @@ import { addEntryToTodayInput } from '../../lib/addToToday'
 import { startEntryRun } from '../../lib/entryRun'
 import { playgroundPath } from '../../lib/routes'
 import type { StreamProfile } from './streamProfile'
+import { splitReadmeQueries, hasReadmeQuery } from './readmeWql'
+import { ReadmeQueryBlock } from './ReadmeQueryBlock'
 import { CanvasProse } from '../../canvas/CanvasProse'
 import { seedNoteId } from '@/services/seed/SeedImporter'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
@@ -103,6 +109,18 @@ function BatchingSentinel({
 /** Host-owned execution debounce for stream queries — the composer resolves
  *  drafts synchronously; only the run coalesces (existing 150ms behavior). */
 const STREAM_EXECUTE_DEBOUNCE_MS = 150
+
+/** Inline notice sync label — same phase vocabulary as the Settings sync surface. */
+function seedSyncLabel(event: SeedSyncProgress): string {
+  switch (event.phase) {
+    case 'checking': return 'Checking the community library…'
+    case 'fetching': return `Downloading ${event.chunkId ?? 'library'}…`
+    case 'applying': return `Importing ${event.chunkId ?? 'library'}…`
+    case 'committed': return `Committed ${event.chunkId ?? 'chunk'}`
+    case 'finalizing': return 'Finalizing checkpoints…'
+    case 'finished': return event.error ?? 'Done'
+  }
+}
 
 /** Compact query truth strip beneath the composer (desktop) / top of the
  *  stream (mobile): validity, target, matched of total, applied vs ignored
@@ -208,6 +226,12 @@ export function QueriableStreamView({
   // has settled, or a fresh profile briefly commits a permanent "0 of 0".
   const seedReadiness = useSeedReadiness()
   const libraryMissing = useSeedLibraryMissing()
+  // Inline community sync from the core-only notice (the probe above is
+  // mount-only, so a successful sync suppresses it via librarySynced).
+  const [librarySynced, setLibrarySynced] = useState(false)
+  const [seedSyncRunning, setSeedSyncRunning] = useState(false)
+  const [seedSyncEvent, setSeedSyncEvent] = useState<SeedSyncProgress | null>(null)
+  const [seedSyncError, setSeedSyncError] = useState<string | null>(null)
   // Synchronize composer state with URL
   const { query, setQuery, urlQueryError } = useComposerQueryState({
     defaultQuery: () => profile.defaultWql,
@@ -267,6 +291,13 @@ export function QueriableStreamView({
 
   const seedFiles = useSeedContent()
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
+  // WQL embed links (`[heading](:query)!`) — when any are present they
+  // override the catalog's default feed stream below the readme.
+  const readmeSegments = useMemo(
+    () => (readmeContent ? splitReadmeQueries(readmeContent) : []),
+    [readmeContent],
+  )
+  const readmeOverride = hasReadmeQuery(readmeSegments)
 
   useEffect(() => {
     if (!catalogSlug) {
@@ -404,6 +435,33 @@ export function QueriableStreamView({
   // A committed result bumps savedTick so the mounted listing re-queries.
   const [savedTick, setSavedTick] = useState(0)
   useEffect(() => onResultSaved(() => setSavedTick((t) => t + 1)), [])
+
+  // Inline sync of the bundled community library from the core-only notice —
+  // the same syncSeedSource path the Settings per-source Sync button uses.
+  const runLibrarySync = useCallback(async () => {
+    setSeedSyncRunning(true)
+    setSeedSyncError(null)
+    setSeedSyncEvent(null)
+    try {
+      const outcome = await syncSeedSource('community', {
+        force: true,
+        onProgress: setSeedSyncEvent,
+      })
+      if (outcome === 'imported' || outcome === 'current') {
+        // Content landed in the active storage: drop the notice and re-run
+        // the mounted query so imported entries appear without a refresh.
+        setLibrarySynced(true)
+        setSavedTick((t) => t + 1)
+      } else if (outcome === 'busy') {
+        setSeedSyncError('Another tab is already syncing — wait for it to finish, then try again.')
+      } else if (outcome === 'disabled') {
+        setSeedSyncError('Seed import is disabled.')
+      }
+      // 'error' surfaces through the finished progress event's message.
+    } finally {
+      setSeedSyncRunning(false)
+    }
+  }, [])
   useEffect(() => {
     if (seedReadiness === 'preparing') return
     if (parsed.error) {
@@ -773,7 +831,7 @@ export function QueriableStreamView({
       {/* Core-only notice: this route's corpus lives in optional seed
           libraries and none has imported yet — the page is a dead end until
           the user syncs. Hidden while the coverage probe is unsettled. */}
-      {profile.seedNotice && libraryMissing && (
+      {profile.seedNotice && libraryMissing && !librarySynced && (
         <div className="px-4 pt-3 sm:px-6 lg:px-8" data-testid="seed-library-notice">
           <div className="rounded-xl border border-border bg-card p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1 space-y-1">
@@ -783,19 +841,49 @@ export function QueriableStreamView({
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 The content for this page comes from community libraries, which are not imported yet.
-                Sync with the community library to fill it — and add more sources (mirrors, your own
-                libraries) on the Sync page.
+                Sync now to import the community library — or open Sync settings to add more sources
+                (mirrors, your own libraries).
               </p>
+              {seedSyncEvent && (
+                <div className="space-y-1.5 pt-1" data-testid="seed-library-notice-progress">
+                  <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+                    {seedSyncLabel(seedSyncEvent)}
+                  </p>
+                  {seedSyncEvent.phase !== 'checking' && seedSyncEvent.phase !== 'finished'
+                    ? <ProgressBar value={seedSyncEvent.completedChunks} max={seedSyncEvent.totalChunks} label="Community library import progress" className="max-w-sm" />
+                    : seedSyncRunning
+                      ? <progress aria-label="Checking the community library" className="h-2 max-w-sm w-full" />
+                      : null}
+                </div>
+              )}
+              {(seedSyncError ?? (seedSyncEvent?.phase === 'finished' ? seedSyncEvent.error : null)) && (
+                <p className="text-xs text-destructive" data-testid="seed-library-notice-error">
+                  {seedSyncError ?? (seedSyncEvent?.phase === 'finished' ? seedSyncEvent.error : null)}
+                </p>
+              )}
             </div>
-            <Button
-              size="sm"
-              onClick={() => navigate(ROUTE_PATTERNS.settingsSync)}
-              data-testid="seed-library-notice-sync"
-              className="gap-2 shrink-0"
-            >
-              <CloudDownload className="size-3.5" />
-              <span>Sync content</span>
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                onClick={() => void runLibrarySync()}
+                disabled={seedSyncRunning}
+                data-testid="seed-library-notice-sync"
+                className="gap-2"
+              >
+                <RefreshCw className={`size-3.5 ${seedSyncRunning ? 'animate-spin' : ''}`} />
+                <span>{seedSyncRunning ? 'Syncing…' : 'Sync now'}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(ROUTE_PATTERNS.settingsSync)}
+                data-testid="seed-library-notice-settings"
+                className="gap-2"
+              >
+                <Settings2 className="size-3.5" />
+                <span>Sync settings</span>
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -853,19 +941,34 @@ export function QueriableStreamView({
         </div>
       )}
 
-      {/* Read-only view of the collection readme note */}
+      {/* Read-only view of the collection readme note. WQL embed links
+          (`[heading](:query)!`) inject live query results in place; any
+          embed suppresses the default stream below (the override). */}
       {readmeContent && (
         <div
           className="border-b border-border/60 bg-card/20 px-6 py-4"
           data-testid="collection-readme-note"
         >
-          <CanvasProse prose={readmeContent} />
+          {readmeSegments.map((segment, index) =>
+            segment.kind === 'markdown' ? (
+              <CanvasProse key={index} prose={segment.text} />
+            ) : (
+              <ReadmeQueryBlock
+                key={index}
+                query={segment.query}
+                heading={segment.heading}
+                onAddToToday={handleAddToToday}
+                onRunStart={handleRunEntry}
+              />
+            ),
+          )}
         </div>
       )}
 
       {/* Main Content: Rows (table) / Feed (rich cards) / Cards (grouped stream).
-          An invalid draft dims retained results — visibly stale, still inspectable. */}
-      {settings.layout === 'rows' ? (
+          An invalid draft dims retained results — visibly stale, still inspectable.
+          With readme query tokens the injected blocks replace this stream. */}
+      {readmeOverride ? null : settings.layout === 'rows' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <PropertyTable
             entries={entries}

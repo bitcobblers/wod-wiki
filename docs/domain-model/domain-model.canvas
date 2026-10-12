@@ -12,7 +12,7 @@
 		{"id":"b6755d218d5f4e1c","type":"file","file":"domain-model/Configuration.md","x":20,"y":2160,"width":300,"height":580},
 		{"id":"ef933d5554cd75b1","type":"file","file":"domain-model/Session.md","x":-2040,"y":1200,"width":340,"height":320},
 		{"id":"3b0649c72650c313","type":"file","file":"domain-model/Note.md","x":-2020,"y":535,"width":300,"height":190},
-		{"id":"152e22186fc04c8a","type":"file","file":"domain-model/NoteSegment.md","x":-1540,"y":928,"width":360,"height":205},
+		{"id":"152e22186fc04c8a","type":"file","file":"domain-model/BlockRevision.md","x":-1540,"y":928,"width":360,"height":205},
 		{"id":"c101058e7ea21bbb","type":"file","file":"domain-model/Tag.md","x":-3400,"y":515,"width":300,"height":210},
 		{"id":"193cfc9be3b99583","type":"file","file":"domain-model/Page.md","x":-2650,"y":130,"width":300,"height":180},
 		{"id":"035b9ae578574cdf","type":"file","file":"domain-model/Effort.md","x":-1540,"y":130,"width":320,"height":180},

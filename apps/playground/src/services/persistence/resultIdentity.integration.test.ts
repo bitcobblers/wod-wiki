@@ -1,188 +1,51 @@
-/**
- * End-to-end identity test through the REAL IndexedDB stack (fake-indexeddb
- * backing): IndexedDBNotePersistence → IndexedDBContentProvider →
- * IndexedDBService. Defends the result-identity contract:
- *   - result rows carry segmentId (NoteSegment FK), segmentVersion, origin
- *   - event rows carry the same block identity + blockContentId
- *   - rows are queryable through the by-content index
- *   - NoteSegment version lineage stamps onto subsequent results
- *
- * Registry note: sibling test files mock.module('@/services/db/IndexedDBService')
- * with partial stubs and Bun shares one module registry per process, so the
- * real service class is imported via a '?real' query specifier (a distinct
- * module key that bypasses the mock) and injected explicitly. This file never
- * calls mock.module itself. Dynamic import is intentional — a test exercising
- * the module-loading boundary (documented exception).
- */
 import { describe, expect, it } from 'bun:test';
-
+import { InMemoryStorage } from '../storage/InMemoryStorage';
+import { StorageService } from '../storage/StorageService';
+import { IndexedDBContentProvider } from '../content/IndexedDBContentProvider';
 import { IndexedDBNotePersistence } from './IndexedDBNotePersistence';
-import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
-import { parseDocumentSections, isWorkoutSectionType } from '@bitcobblers/wod-wiki-core';
 import { projectEventToFacts } from '@bitcobblers/wod-wiki-wql';
-import { InMemoryStorage, StorageService, resolveLatestSegment } from '@/services/storage';
 
-const storage = new InMemoryStorage();
-const service = new StorageService(storage);
-const persistence = new IndexedDBNotePersistence(service, new IndexedDBContentProvider(service));
+const SOURCE = '# Fran\n\n```time\n21 Thrusters 95lb\n```\n';
 
-const RAW_CONTENT = [
-  '# Fran',
-  '',
-  '```time',
-  '21-15-9',
-  'Thrusters 95lb',
-  'Pull-ups',
-  '```',
-  '',
-].join('\n');
-
-describe('result identity (real IndexedDB stack)', () => {
-  it('stamps segmentId, segmentVersion and origin on result + event rows', async () => {
-    const noteId = `it-${crypto.randomUUID()}`;
-
-    await persistence.createNote({
-      id: noteId,
-      title: 'Fran',
-      rawContent: RAW_CONTENT,
-      targetDate: Date.now(),
-    });
-
-    const section = parseDocumentSections(RAW_CONTENT).find(s => isWorkoutSectionType(s.type));
-    expect(section).toBeDefined();
-
-    await persistence.mutateNote(noteId, {
-      workoutResult: {
-        id: `result-${noteId}`,
-        blockId: section!.id,
-        blockContentId: section!.contentId,
-        segmentId: section!.id,
-        origin: 'playground',
-        data: {
-          startTime: 0, endTime: 60_000, duration: 60_000, completed: true,
-          logs: [
-            {
-              id: 1, outputType: 'segment', timeSpan: { started: 0, ended: 60_000 },
-              metrics: [{ type: 'rep', value: 90, origin: 'runtime' }],
-              sourceBlockKey: 'block-1', stackLevel: 0,
-            },
-            {
-              id: 2, outputType: 'analytics', timeSpan: { started: 60_000, ended: 60_000 },
-              metrics: [
-                { type: 'label', value: 'Total Reps', image: 'Total Reps', origin: 'analyzed' },
-                { type: 'rep', value: 90, unit: 'reps', origin: 'analyzed' },
-              ],
-              sourceBlockKey: 'analytics-summary', stackLevel: 0,
-            },
-          ],
-        } as never,
-        createdAt: 60_000,
-      },
-    });
-
-    // ── Result row: full identity stamped and readable via indexes ────────
-    const results = await service.getSessionsForNote(noteId);
-    expect(results).toHaveLength(1);
-    const result = results[0]!;
-    // segmentId is an opaque persisted key — assert it resolves to a real
-    // segment row of THIS note (the consumer-visible join), never a literal.
-    const resultSegment = await service.getSegment(result.segmentId, result.segmentVersion);
-    expect(resultSegment?.noteId).toBe(noteId);
-    expect(resultSegment?.version).toBe(1);
-    expect(result.segmentVersion).toBe(1); // first version of the segment
-    expect(result.origin).toBe('playground');
-    expect(result.blockContentId).toBe(section!.contentId);
-
-    const byContent = await service.getSessionsByContentId(section!.contentId!);
-    expect(byContent.some(r => r.id === result.id)).toBe(true);
-
-    // ── Event rows: summary + event rows with block identity, queryable by content ─
-    const events = await service.getEventsByContent(section!.contentId!);
-    expect(events.length).toBeGreaterThan(0);
-
-    const facts = events.flatMap(e => projectEventToFacts(e));
-    const summaries = facts.filter(p => p.grain === 'summary');
-    expect(summaries).toHaveLength(1);
-    for (const point of summaries) {
-      expect(point.grain).toBe('summary');
-      expect(point.metricKey).toBe('totalReps');
-      expect(point.value).toBe(90);
-      expect(point.segmentId).toBe(result.segmentId); // event identity agrees with the result row
-      expect(point.segmentVersion).toBe(1);
-      expect(point.origin).toBe('playground');
-      expect(point.resultId).toBe(result.id);
-      expect(point.blockContentId).toBe(section!.contentId);
-    }
-
-    expect(events.every(e => e.blockContentId === section!.contentId)).toBe(true);
-    expect(events.some(e => e.grain === 'event')).toBe(true);
-
-    // ── Version lineage: editing the content bumps the segment version ────
-    // An edit chains the matched section to version 2 (position + type).
-    // The version number is the lineage; the persisted segmentId is an
-    // opaque note-scoped key resolved through storage, never a literal.
-    const edited = RAW_CONTENT.replace('Thrusters 95lb', 'Thrusters 75lb');
-    await persistence.mutateNote(noteId, { rawContent: edited });
-    const editedSection = parseDocumentSections(edited).find(s => isWorkoutSectionType(s.type))!;
-    const bumped = await resolveLatestSegment(service, noteId, editedSection.id);
-    expect(bumped?.version).toBe(2);
-    expect(bumped?.noteId).toBe(noteId);
-
-    await persistence.mutateNote(noteId, {
-      workoutResult: {
-        id: `result-2-${noteId}`,
-        blockId: editedSection.id,
-        blockContentId: editedSection.contentId,
-        segmentId: editedSection.id,
-        origin: 'journal',
-        data: { startTime: 100, endTime: 160_000, duration: 60_000, logs: [], completed: true } as never,
-        createdAt: 160_000,
-      },
-    });
-    const all = await service.getSessionsForNote(noteId);
-    const second = all.find(r => r.id === `result-2-${noteId}`)!;
-    expect(second.segmentVersion).toBe(2);
-    expect(second.origin).toBe('journal');
+describe('pinned result identities', () => {
+  it('pins exact version at start and preserves that pin after an edit and finish', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const provider = new IndexedDBContentProvider(service);
+    const persistence = new IndexedDBNotePersistence(service, provider);
+    const saved = await persistence.createNote({ id: 'n', title: 'Fran', rawContent: SOURCE, targetDate: 1 });
+    const blockId = Object.keys(saved.blocks!)[0]!;
+    const started = await persistence.startSession({ noteId: saved.id, rawContent: SOURCE, blocks: saved.blocks!, expectedSourceRevision: 1 },
+      { id: 'run', noteId: saved.id, blockId, origin: 'journal', startTime: 1, endTime: 1, duration: 0, completed: false, createdAt: 1 });
+    await provider.updateEntry(saved.id, { rawContent: SOURCE.replace('95lb', '75lb'), blocks: saved.blocks, expectedSourceRevision: 1 });
+    const result = await persistence.finishSession('run', { startTime: 1, endTime: 10, duration: 9, completed: true,
+      logs: [{ id: 1, outputType: 'segment', metrics: [{ type: 'rep', value: 21, origin: 'runtime' }], sourceBlockKey: '1', stackLevel: 0 }] });
+    expect(result.blockId).toBe(blockId);
+    expect(result.blockVersion).toBe(1);
+    expect(await persistence.getBlockRevision(saved.id, blockId, 1)).toEqual(started.revision);
+    const events = await service.getEventsByResult('run');
+    expect(events.every(row => row.blockId === blockId && row.blockVersion === 1)).toBe(true);
+    expect(events.flatMap(projectEventToFacts).every(row => row.blockId === blockId && row.blockVersion === 1)).toBe(true);
   });
 
-  it('reads similar workouts across notes via blockContentId, excluding playground by default', async () => {
-    // Distinct content from the first test so the shared DB's by-content rows don't bleed across tests.
-    const CONTENT = RAW_CONTENT.replace('21-15-9', '27-21-15');
-    const noteA = `it-a-${crypto.randomUUID()}`;
-    const noteB = `it-b-${crypto.randomUUID()}`;
-    // Identical content in two notes => same blockContentId (shared workout).
-    for (const id of [noteA, noteB]) {
-      await persistence.createNote({ id, title: 'Fran', rawContent: CONTENT, targetDate: Date.now() });
+  it('keeps duplicate occurrence histories separate while fingerprints join across notes', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const provider = new IndexedDBContentProvider(service);
+    const persistence = new IndexedDBNotePersistence(service, provider);
+    for (const id of ['a', 'b']) {
+      const saved = await provider.saveEntry({ id, title: 'Fran', rawContent: SOURCE + SOURCE, tags: [], targetDate: 1 });
+      const blockIds = Object.keys(saved.blocks!);
+      expect(blockIds).toHaveLength(2);
+      for (const [index, blockId] of blockIds.entries()) {
+        await persistence.startSession({ noteId: id, rawContent: saved.rawContent, blocks: saved.blocks!, expectedSourceRevision: 1 },
+          { id: `run-${id}-${index}`, noteId: id, blockId, origin: id === 'a' ? 'journal' : 'playground',
+            startTime: 1, endTime: 1, duration: 0, completed: false, createdAt: index + 1 });
+      }
+      expect(await service.getBlockHistory(id, blockIds[0]!)).toHaveLength(1);
+      expect(await service.getBlockHistory(id, blockIds[1]!)).toHaveLength(1);
     }
-    const section = parseDocumentSections(CONTENT).find(s => isWorkoutSectionType(s.type))!;
-
-    const record = (noteId: string, origin: 'journal' | 'playground', at: number) =>
-      persistence.mutateNote(noteId, {
-        workoutResult: {
-          id: `r-${origin}-${noteId}`,
-          blockId: section.id,
-          blockContentId: section.contentId,
-          segmentId: section.id,
-          origin,
-          data: { startTime: at, endTime: at + 1000, duration: 1000, logs: [], completed: true } as never,
-          createdAt: at + 1000,
-        },
-      });
-
-    await record(noteA, 'journal', 1000);
-    await record(noteB, 'journal', 2000);
-    await record(noteB, 'playground', 3000);
-
-    // Cross-note: both journal results, newest first, playground hidden.
-    const similar = await persistence.getSimilarSessions(section.contentId!);
-    expect(similar.map(r => r.id)).toEqual([`r-journal-${noteB}`, `r-journal-${noteA}`]);
-
-    // Playground toggle reveals the playground run.
-    const withPlayground = await persistence.getSimilarSessions(section.contentId!, { includePlayground: true });
-    expect(withPlayground.map(r => r.id)).toEqual([`r-playground-${noteB}`, `r-journal-${noteB}`, `r-journal-${noteA}`]);
-
-    // excludeNoteId scopes to other notes only.
-    const othersOnly = await persistence.getSimilarSessions(section.contentId!, { excludeNoteId: noteA });
-    expect(othersOnly.map(r => r.id)).toEqual([`r-journal-${noteB}`]);
+    const result = await service.getSessionById('run-a-0');
+    const similar = await persistence.getSimilarSessions(result!.blockContentId!);
+    expect(similar.map(row => row.id).sort()).toEqual(['run-a-0', 'run-a-1']);
+    expect(await persistence.getSimilarSessions(result!.blockContentId!, { includePlayground: true })).toHaveLength(4);
   });
 });

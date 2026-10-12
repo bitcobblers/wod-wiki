@@ -14,7 +14,7 @@ import { parseFrontmatter } from '@/lib/frontmatter';
 import { createJournalNotes } from './journalNotes';
 import { createDashboardNotes } from './dashboardNotes';
 
-class MemoryNotePersistence implements INotePersistence {
+class MemoryNotePersistence implements Pick<INotePersistence, 'createNote' | 'getNote' | 'listNotes' | 'mutateNote' | 'deleteNote'> {
   readonly notes = new Map<string, HistoryEntry>();
 
   async createNote(input: CreateNoteInput): Promise<HistoryEntry> {
@@ -22,6 +22,8 @@ class MemoryNotePersistence implements INotePersistence {
       id: input.id,
       title: input.title,
       rawContent: input.rawContent,
+      blocks: {},
+      sourceRevision: 1,
       tags: input.tags ?? [],
       createdAt: 1_720_828_800_000,
       updatedAt: 1_720_828_800_000,

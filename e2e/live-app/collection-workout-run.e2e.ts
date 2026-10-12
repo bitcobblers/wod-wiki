@@ -23,7 +23,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { seedNote, WOD_DB } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForSeedReady, syncCommunitySeed } from '../helpers/seedReadiness';
 import { getSessions } from '../utils/sessionsDb';
 import { installFastClock } from '../utils/fastClock';
 import { TEST_IDS } from '../contracts/TestIdContract';
@@ -31,8 +31,6 @@ import { TEST_IDS } from '../contracts/TestIdContract';
 // ── Fixtures ────────────────────────────────────────────────────────────────
 const STOP_NOTE_ID = 'zombiefit/e2e-stop-run';
 const COMPLETE_NOTE_ID = 'zombiefit/e2e-complete-run';
-const STOP_TITLE = 'e2e-stop-run';
-const COMPLETE_TITLE = 'e2e-complete-run';
 
 const STOP_CONTENT = '# E2E Stop Run\n\n```time\n10:00 AMRAP\n  5 Air Squats\n  5 Push Ups\n```\n';
 const COMPLETE_CONTENT = '# E2E Complete Run\n\n```time\n0:03 AMRAP\n  5 Air Squats\n```\n';
@@ -46,7 +44,9 @@ function todayKey(): string {
 
 // ── IDB helpers ─────────────────────────────────────────────────────────────
 
-/** Find a note's uuid by title (journal notes created by the run flow). */
+/** Find a JOURNAL note's uuid by title (notes created by the run flow). The
+ * collection fixture shares the title, so scope to journal-typed rows —
+ * deleting the fixture would blank the page under test. */
 async function findNoteIdByTitle(page: Page, title: string): Promise<string | null> {
   return page.evaluate(async ({ dbName, title }) => {
     return new Promise<string | null>((resolve, reject) => {
@@ -56,15 +56,15 @@ async function findNoteIdByTitle(page: Page, title: string): Promise<string | nu
         const tx = db.transaction('notes', 'readonly');
         const getAll = tx.objectStore('notes').getAll();
         getAll.onsuccess = () => {
-          const match = (getAll.result as Array<{ id: string; title?: string }>)
-            .filter(n => n.title === title)
+          const match = (getAll.result as Array<{ id: string; title?: string; type?: string }>)
+            .filter(n => n.title === title && (n.type === 'journal' || n.id.startsWith('journal/')))
             .pop();
           db.close();
           resolve(match?.id ?? null);
         };
         tx.onerror = () => { db.close(); reject(tx.error); };
       };
-      req.onerror = () => reject(req.error);
+      req.onerror = () => reject(tx.error);
     });
   }, { dbName: WOD_DB, title });
 }
@@ -77,11 +77,11 @@ async function deleteNoteAndResults(page: Page, noteId: string | null): Promise<
       const req = indexedDB.open(dbName);
       req.onsuccess = () => {
         const db = req.result;
-        const stores = ['notes', 'segments', 'note_tags', 'results', 'sessions']
+        const stores = ['notes', 'block_index', 'block_efforts', 'note_tags', 'sessions']
           .filter(s => db.objectStoreNames.contains(s));
         const tx = db.transaction(stores, 'readwrite');
         tx.objectStore('notes').delete(noteId);
-        for (const storeName of ['segments', 'note_tags', 'results', 'sessions']) {
+        for (const storeName of ['block_index', 'block_efforts', 'note_tags', 'sessions']) {
           if (!stores.includes(storeName)) continue;
           const cursorReq = tx.objectStore(storeName).index('by-note').openCursor(IDBKeyRange.only(noteId));
           cursorReq.onsuccess = (e) => {
@@ -111,8 +111,9 @@ async function clickPlayOnBlock(page: Page, blockText: string) {
 
 test.describe('Collection Workout — run and record', () => {
   // Fresh browser profiles re-run the seed corpus import (~25s in dev) before
-  // /c/:collection/:workout resolves its content, so the default 45s is too tight.
-  test.setTimeout(120_000);
+  // /c/:collection/:workout resolves its content, plus the first community
+  // import, so the default 45s is too tight.
+  test.setTimeout(180_000);
 
   // Fast clock (20×): the 0:03 AMRAP completes in ~150ms wall time; the
   // 10:00 AMRAP stop-early flow is unaffected (it never runs to completion).
@@ -130,6 +131,10 @@ test.describe('Collection Workout — run and record', () => {
   async function gotoHomeAfterSeedImport(page: Page): Promise<void> {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await waitForSeedReady(page);
+    // The /c/ route's bundled markdown comes from the community corpus
+    // (autoImport:false) — sync it through the real Settings surface so the
+    // page has content to swap against the seeded E2E override.
+    await syncCommunitySeed(page);
   }
 
   test('creates a journal record on start; stopping early saves and displays results', async ({ page }, testInfo) => {
@@ -137,7 +142,7 @@ test.describe('Collection Workout — run and record', () => {
 
     await gotoHomeAfterSeedImport(page);
     await seedNote(page, STOP_NOTE_ID, STOP_CONTENT, { title: 'E2E Stop Run' });
-    await deleteNoteAndResults(page, await findNoteIdByTitle(page, STOP_TITLE));
+    await deleteNoteAndResults(page, await findNoteIdByTitle(page, 'e2e-stop-run'));
 
     // 1. Start the workout from the collection workout page. Gate on the
     // stored E2E content actually being mounted (not just any editor): the
@@ -150,8 +155,10 @@ test.describe('Collection Workout — run and record', () => {
 
     // A new record (journal note for today) is created and the runtime opens.
     await page.waitForURL(new RegExp(`/journal/${today}`), { timeout: 15_000 });
-    await expect(page.locator('.cm-content')).toContainText(STOP_TITLE, { timeout: 15_000 });
-    const noteUuid = await findNoteIdByTitle(page, STOP_TITLE);
+    // The clone carries the workout itself; the heading wording (slug vs
+    // display title) is presentation, not the persistence contract.
+    await expect(page.locator('.cm-content')).toContainText('10:00 AMRAP', { timeout: 15_000 });
+    const noteUuid = await findNoteIdByTitle(page, 'e2e-stop-run');
     expect(noteUuid, 'Play must create a journal note for today').toBeTruthy();
 
     // Timer auto-starts the session clock; the workout waits at the
@@ -188,7 +195,7 @@ test.describe('Collection Workout — run and record', () => {
 
     // 3. The inline result survives a hard reload (persisted record).
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.cm-content')).toContainText(STOP_TITLE, { timeout: 15_000 });
+    await expect(page.locator('.cm-content')).toContainText('e2e-stop-run', { timeout: 15_000 });
     await expect(
       page.locator('.cm-query-block-preview, [data-testid="rows-table"]').first(),
       'persisted result renders inline on the WOD block',
@@ -203,14 +210,14 @@ test.describe('Collection Workout — run and record', () => {
 
     await gotoHomeAfterSeedImport(page);
     await seedNote(page, COMPLETE_NOTE_ID, COMPLETE_CONTENT, { title: 'E2E Complete Run' });
-    await deleteNoteAndResults(page, await findNoteIdByTitle(page, COMPLETE_TITLE));
+    await deleteNoteAndResults(page, await findNoteIdByTitle(page, 'e2e-complete-run'));
 
     await page.goto(`/c/${COMPLETE_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.cm-content')).toContainText('0:03 AMRAP', { timeout: 15_000 });
     await clickPlayOnBlock(page, '0:03 AMRAP');
 
     await page.waitForURL(new RegExp(`/journal/${today}`), { timeout: 15_000 });
-    const noteUuid = await findNoteIdByTitle(page, COMPLETE_TITLE);
+    const noteUuid = await findNoteIdByTitle(page, 'e2e-complete-run');
     expect(noteUuid, 'Play must create a journal note for today').toBeTruthy();
 
     // Step through the Ready-to-Start gate; the 3s AMRAP then completes

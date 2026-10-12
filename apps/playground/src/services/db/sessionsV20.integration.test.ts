@@ -14,12 +14,16 @@ describe('StorageService sessions operations', () => {
     const session: Session = {
       id: 'session-123',
       noteId: 'note-abc',
+      blockId: 'block-1',
+      blockVersion: 1,
       createdAt: 1000,
       startTime: 1000,
       endTime: 2000,
       duration: 1000,
       completed: true,
     };
+    await storage.readwrite('block_revisions').put({ noteId: 'note-abc', blockId: 'block-1', version: 1,
+      kind: 'wod', dialect: 'time', rawContent: '```time\n10 Pushups\n```', savedAt: 1 });
 
     await service.saveSession(session);
 

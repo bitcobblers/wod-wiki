@@ -69,7 +69,7 @@ let updateCalls: string[] = [];
 mock.module('../../services/journalNotes', () => ({
   journalNotes: {
     getById: mock(async () => ({ id: 'n1', rawContent: storedRaw })),
-    update: mock(async (_id: string, raw: string) => {
+    update: mock(async (_note: { id: string }, raw: string) => {
       updateCalls.push(raw);
       storedRaw = raw;
       return { id: 'n1', rawContent: raw };

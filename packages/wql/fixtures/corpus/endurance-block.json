@@ -12,7 +12,21 @@
       "tags": [
         "endurance",
         "running"
-      ]
+      ],
+      "rawContent": "# Run — 400m intervals\n\nAuthored example workout for this journal fixture.\n\n```time:running\n(6)\n  400m Run\n  1:00 Rest\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 76,
+          "to": 122,
+          "dialect": "time",
+          "sport": "running"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-04",
@@ -21,7 +35,21 @@
       "tags": [
         "endurance",
         "rowing"
-      ]
+      ],
+      "rawContent": "# Row — steady state\n\nAuthored example workout for this journal fixture.\n\n```time:rowing\n20:00 Row\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 102,
+          "dialect": "time",
+          "sport": "rowing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-07",
@@ -30,7 +58,21 @@
       "tags": [
         "endurance",
         "cycling"
-      ]
+      ],
+      "rawContent": "# Bike — tempo\n\nAuthored example workout for this journal fixture.\n\n```time:cycling\n30:00 Bike\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 68,
+          "to": 98,
+          "dialect": "time",
+          "sport": "cycling"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-09",
@@ -39,7 +81,21 @@
       "tags": [
         "endurance",
         "running"
-      ]
+      ],
+      "rawContent": "# Run — 400m intervals\n\nAuthored example workout for this journal fixture.\n\n```time:running\n(6)\n  400m Run\n  1:00 Rest\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 76,
+          "to": 122,
+          "dialect": "time",
+          "sport": "running"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-11",
@@ -48,7 +104,21 @@
       "tags": [
         "endurance",
         "rowing"
-      ]
+      ],
+      "rawContent": "# Row — steady state\n\nAuthored example workout for this journal fixture.\n\n```time:rowing\n20:00 Row\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 102,
+          "dialect": "time",
+          "sport": "rowing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-14",
@@ -57,7 +127,21 @@
       "tags": [
         "endurance",
         "cycling"
-      ]
+      ],
+      "rawContent": "# Bike — tempo\n\nAuthored example workout for this journal fixture.\n\n```time:cycling\n30:00 Bike\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 68,
+          "to": 98,
+          "dialect": "time",
+          "sport": "cycling"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-16",
@@ -66,7 +150,21 @@
       "tags": [
         "endurance",
         "running"
-      ]
+      ],
+      "rawContent": "# Run — 400m intervals\n\nAuthored example workout for this journal fixture.\n\n```time:running\n(6)\n  400m Run\n  1:00 Rest\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 76,
+          "to": 122,
+          "dialect": "time",
+          "sport": "running"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-18",
@@ -75,7 +173,21 @@
       "tags": [
         "endurance",
         "rowing"
-      ]
+      ],
+      "rawContent": "# Row — steady state\n\nAuthored example workout for this journal fixture.\n\n```time:rowing\n20:00 Row\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 102,
+          "dialect": "time",
+          "sport": "rowing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-21",
@@ -84,7 +196,21 @@
       "tags": [
         "endurance",
         "cycling"
-      ]
+      ],
+      "rawContent": "# Bike — tempo\n\nAuthored example workout for this journal fixture.\n\n```time:cycling\n30:00 Bike\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 68,
+          "to": 98,
+          "dialect": "time",
+          "sport": "cycling"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-23",
@@ -93,7 +219,21 @@
       "tags": [
         "endurance",
         "running"
-      ]
+      ],
+      "rawContent": "# Run — 400m intervals\n\nAuthored example workout for this journal fixture.\n\n```time:running\n(6)\n  400m Run\n  1:00 Rest\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 76,
+          "to": 122,
+          "dialect": "time",
+          "sport": "running"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-25",
@@ -102,7 +242,21 @@
       "tags": [
         "endurance",
         "rowing"
-      ]
+      ],
+      "rawContent": "# Row — steady state\n\nAuthored example workout for this journal fixture.\n\n```time:rowing\n20:00 Row\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 102,
+          "dialect": "time",
+          "sport": "rowing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-28",
@@ -111,7 +265,21 @@
       "tags": [
         "endurance",
         "cycling"
-      ]
+      ],
+      "rawContent": "# Bike — tempo\n\nAuthored example workout for this journal fixture.\n\n```time:cycling\n30:00 Bike\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 68,
+          "to": 98,
+          "dialect": "time",
+          "sport": "cycling"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-30",
@@ -120,7 +288,21 @@
       "tags": [
         "endurance",
         "running"
-      ]
+      ],
+      "rawContent": "# Run — 400m intervals\n\nAuthored example workout for this journal fixture.\n\n```time:running\n(6)\n  400m Run\n  1:00 Rest\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 76,
+          "to": 122,
+          "dialect": "time",
+          "sport": "running"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-32",
@@ -129,7 +311,21 @@
       "tags": [
         "endurance",
         "rowing"
-      ]
+      ],
+      "rawContent": "# Row — steady state\n\nAuthored example workout for this journal fixture.\n\n```time:rowing\n20:00 Row\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 102,
+          "dialect": "time",
+          "sport": "rowing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-35",
@@ -138,7 +334,21 @@
       "tags": [
         "endurance",
         "cycling"
-      ]
+      ],
+      "rawContent": "# Bike — tempo\n\nAuthored example workout for this journal fixture.\n\n```time:cycling\n30:00 Bike\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 68,
+          "to": 98,
+          "dialect": "time",
+          "sport": "cycling"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-37",
@@ -147,7 +357,21 @@
       "tags": [
         "endurance",
         "running"
-      ]
+      ],
+      "rawContent": "# Run — 400m intervals\n\nAuthored example workout for this journal fixture.\n\n```time:running\n(6)\n  400m Run\n  1:00 Rest\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 76,
+          "to": 122,
+          "dialect": "time",
+          "sport": "running"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-39",
@@ -156,7 +380,21 @@
       "tags": [
         "endurance",
         "rowing"
-      ]
+      ],
+      "rawContent": "# Row — steady state\n\nAuthored example workout for this journal fixture.\n\n```time:rowing\n20:00 Row\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 74,
+          "to": 102,
+          "dialect": "time",
+          "sport": "rowing"
+        }
+      }
     },
     {
       "id": "note-journal-2026-06-42",
@@ -165,7 +403,21 @@
       "tags": [
         "endurance",
         "cycling"
-      ]
+      ],
+      "rawContent": "# Bike — tempo\n\nAuthored example workout for this journal fixture.\n\n```time:cycling\n30:00 Bike\n```\n",
+      "sourceRevision": 1,
+      "blocks": {
+        "s1": {
+          "id": "s1",
+          "kind": "wod",
+          "version": 1,
+          "sourceRevision": 1,
+          "from": 68,
+          "to": 98,
+          "dialect": "time",
+          "sport": "cycling"
+        }
+      }
     }
   ],
   "records": [
@@ -179,8 +431,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -198,7 +448,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 8
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w0:summary:tis",
@@ -210,8 +462,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -229,7 +479,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 44
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w0:summary:sessionLoad",
@@ -241,8 +493,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -260,7 +510,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 190
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w0:summary:distance",
@@ -272,8 +524,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -291,7 +541,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 6000
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w0:summary:tis",
@@ -303,8 +555,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -322,7 +572,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 40
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w0:summary:sessionLoad",
@@ -334,8 +586,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -353,7 +603,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 170
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w0:summary:distance",
@@ -365,8 +617,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -384,7 +634,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 28
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w0:summary:tis",
@@ -396,8 +648,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -415,7 +665,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 42
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w0:summary:sessionLoad",
@@ -427,8 +679,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -446,7 +696,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 200
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w1:summary:distance",
@@ -458,8 +710,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -477,7 +727,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 8.4
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w1:summary:tis",
@@ -489,8 +741,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -508,7 +758,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 45
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w1:summary:sessionLoad",
@@ -520,8 +772,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -539,7 +789,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 197
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w1:summary:distance",
@@ -551,8 +803,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -570,7 +820,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 6150
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w1:summary:tis",
@@ -582,8 +834,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -601,7 +851,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 41
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w1:summary:sessionLoad",
@@ -613,8 +865,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -632,7 +882,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 175
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w1:summary:distance",
@@ -644,8 +896,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -663,7 +913,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 29.2
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w1:summary:tis",
@@ -675,8 +927,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -694,7 +944,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 43
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w1:summary:sessionLoad",
@@ -706,8 +958,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -725,7 +975,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 206
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w2:summary:distance",
@@ -737,8 +989,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -756,7 +1006,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 8.8
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w2:summary:tis",
@@ -768,8 +1020,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -787,7 +1037,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 46
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w2:summary:sessionLoad",
@@ -799,8 +1051,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -818,7 +1068,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 204
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w2:summary:distance",
@@ -830,8 +1082,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -849,7 +1099,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 6300
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w2:summary:tis",
@@ -861,8 +1113,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -880,7 +1130,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 42
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w2:summary:sessionLoad",
@@ -892,8 +1144,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -911,7 +1161,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 180
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w2:summary:distance",
@@ -923,8 +1175,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -942,7 +1192,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 30.4
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w2:summary:tis",
@@ -954,8 +1206,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -973,7 +1223,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 44
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w2:summary:sessionLoad",
@@ -985,8 +1237,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1004,7 +1254,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 212
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w3:summary:distance",
@@ -1016,8 +1268,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1035,7 +1285,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 9.2
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w3:summary:tis",
@@ -1047,8 +1299,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1066,7 +1316,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 47
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w3:summary:sessionLoad",
@@ -1078,8 +1330,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1097,7 +1347,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 211
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w3:summary:distance",
@@ -1109,8 +1361,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1128,7 +1378,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 6450
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w3:summary:tis",
@@ -1140,8 +1392,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1159,7 +1409,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 43
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w3:summary:sessionLoad",
@@ -1171,8 +1423,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1190,7 +1440,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 185
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w3:summary:distance",
@@ -1202,8 +1454,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1221,7 +1471,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 31.6
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w3:summary:tis",
@@ -1233,8 +1485,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1252,7 +1502,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 45
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w3:summary:sessionLoad",
@@ -1264,8 +1516,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1283,7 +1533,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 218
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w4:summary:distance",
@@ -1295,8 +1547,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1314,7 +1564,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 9.6
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w4:summary:tis",
@@ -1326,8 +1578,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1345,7 +1595,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 48
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w4:summary:sessionLoad",
@@ -1357,8 +1609,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1376,7 +1626,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 218
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w4:summary:distance",
@@ -1388,8 +1640,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1407,7 +1657,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 6600
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w4:summary:tis",
@@ -1419,8 +1671,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1438,7 +1688,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 44
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w4:summary:sessionLoad",
@@ -1450,8 +1702,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1469,7 +1719,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 190
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w4:summary:distance",
@@ -1481,8 +1733,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1500,7 +1750,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 32.8
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w4:summary:tis",
@@ -1512,8 +1764,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1531,7 +1781,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 46
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w4:summary:sessionLoad",
@@ -1543,8 +1795,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1562,7 +1812,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 224
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w5:summary:distance",
@@ -1574,8 +1826,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1593,7 +1843,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 10
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w5:summary:tis",
@@ -1605,8 +1857,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1624,7 +1874,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 49
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w5:summary:sessionLoad",
@@ -1636,8 +1888,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "run-400s",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1655,7 +1905,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 225
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w5:summary:distance",
@@ -1667,8 +1919,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1686,7 +1936,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 6750
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w5:summary:tis",
@@ -1698,8 +1950,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1717,7 +1967,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 45
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-row-w5:summary:sessionLoad",
@@ -1729,8 +1981,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "row-steady",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1748,7 +1998,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 195
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w5:summary:distance",
@@ -1760,8 +2012,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "distance",
@@ -1779,7 +2029,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 34
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w5:summary:tis",
@@ -1791,8 +2043,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "tis",
@@ -1810,7 +2060,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 47
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-bike-w5:summary:sessionLoad",
@@ -1822,8 +2074,6 @@
       "grain": "summary",
       "outputType": "analytics",
       "effortSlug": "bike-tempo",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "metrics": [
         {
           "type": "sessionLoad",
@@ -1841,7 +2091,9 @@
       "reducerStats": {
         "observedCount": 1,
         "sum": 230
-      }
+      },
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w5:1",
@@ -1852,8 +2104,6 @@
       "timestamp": 1783427328000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-run-intervals#1",
       "metrics": [
@@ -1862,7 +2112,9 @@
           "value": 95000,
           "unit": "ms"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
     },
     {
       "id": "res-run-w5:2",
@@ -1873,8 +2125,6 @@
       "timestamp": 1783429056000,
       "grain": "event",
       "outputType": "segment",
-      "segmentId": "s1",
-      "segmentVersion": 1,
       "stackLevel": 1,
       "sourceBlockKey": "blk-run-intervals#2",
       "metrics": [
@@ -1883,7 +2133,445 @@
           "value": 98000,
           "unit": "ms"
         }
-      ]
+      ],
+      "blockId": "s1",
+      "blockVersion": 1
+    }
+  ],
+  "blockRevisions": [
+    {
+      "noteId": "note-journal-2026-06-02",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:running\n(6)\n  400m Run\n  1:00 Rest\n```",
+      "savedAt": 1780401600000,
+      "dialect": "time",
+      "sport": "running"
+    },
+    {
+      "noteId": "note-journal-2026-06-04",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:rowing\n20:00 Row\n```",
+      "savedAt": 1780574400000,
+      "dialect": "time",
+      "sport": "rowing"
+    },
+    {
+      "noteId": "note-journal-2026-06-07",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:cycling\n30:00 Bike\n```",
+      "savedAt": 1780833600000,
+      "dialect": "time",
+      "sport": "cycling"
+    },
+    {
+      "noteId": "note-journal-2026-06-09",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:running\n(6)\n  400m Run\n  1:00 Rest\n```",
+      "savedAt": 1781006400000,
+      "dialect": "time",
+      "sport": "running"
+    },
+    {
+      "noteId": "note-journal-2026-06-11",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:rowing\n20:00 Row\n```",
+      "savedAt": 1781179200000,
+      "dialect": "time",
+      "sport": "rowing"
+    },
+    {
+      "noteId": "note-journal-2026-06-14",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:cycling\n30:00 Bike\n```",
+      "savedAt": 1781438400000,
+      "dialect": "time",
+      "sport": "cycling"
+    },
+    {
+      "noteId": "note-journal-2026-06-16",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:running\n(6)\n  400m Run\n  1:00 Rest\n```",
+      "savedAt": 1781611200000,
+      "dialect": "time",
+      "sport": "running"
+    },
+    {
+      "noteId": "note-journal-2026-06-18",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:rowing\n20:00 Row\n```",
+      "savedAt": 1781784000000,
+      "dialect": "time",
+      "sport": "rowing"
+    },
+    {
+      "noteId": "note-journal-2026-06-21",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:cycling\n30:00 Bike\n```",
+      "savedAt": 1782043200000,
+      "dialect": "time",
+      "sport": "cycling"
+    },
+    {
+      "noteId": "note-journal-2026-06-23",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:running\n(6)\n  400m Run\n  1:00 Rest\n```",
+      "savedAt": 1782216000000,
+      "dialect": "time",
+      "sport": "running"
+    },
+    {
+      "noteId": "note-journal-2026-06-25",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:rowing\n20:00 Row\n```",
+      "savedAt": 1782388800000,
+      "dialect": "time",
+      "sport": "rowing"
+    },
+    {
+      "noteId": "note-journal-2026-06-28",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:cycling\n30:00 Bike\n```",
+      "savedAt": 1782648000000,
+      "dialect": "time",
+      "sport": "cycling"
+    },
+    {
+      "noteId": "note-journal-2026-06-30",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:running\n(6)\n  400m Run\n  1:00 Rest\n```",
+      "savedAt": 1782820800000,
+      "dialect": "time",
+      "sport": "running"
+    },
+    {
+      "noteId": "note-journal-2026-06-32",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:rowing\n20:00 Row\n```",
+      "savedAt": 1782993600000,
+      "dialect": "time",
+      "sport": "rowing"
+    },
+    {
+      "noteId": "note-journal-2026-06-35",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:cycling\n30:00 Bike\n```",
+      "savedAt": 1783252800000,
+      "dialect": "time",
+      "sport": "cycling"
+    },
+    {
+      "noteId": "note-journal-2026-06-37",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:running\n(6)\n  400m Run\n  1:00 Rest\n```",
+      "savedAt": 1783425600000,
+      "dialect": "time",
+      "sport": "running"
+    },
+    {
+      "noteId": "note-journal-2026-06-39",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:rowing\n20:00 Row\n```",
+      "savedAt": 1783598400000,
+      "dialect": "time",
+      "sport": "rowing"
+    },
+    {
+      "noteId": "note-journal-2026-06-42",
+      "blockId": "s1",
+      "version": 1,
+      "kind": "wod",
+      "rawContent": "```time:cycling\n30:00 Bike\n```",
+      "savedAt": 1783857600000,
+      "dialect": "time",
+      "sport": "cycling"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "res-run-w0",
+      "noteId": "note-journal-2026-06-02",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-run-intervals",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780401600000,
+      "endTime": 1780401600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780401600000
+    },
+    {
+      "id": "res-row-w0",
+      "noteId": "note-journal-2026-06-04",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-row-steady",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780574400000,
+      "endTime": 1780574400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780574400000
+    },
+    {
+      "id": "res-bike-w0",
+      "noteId": "note-journal-2026-06-07",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-bike-tempo",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1780833600000,
+      "endTime": 1780833600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1780833600000
+    },
+    {
+      "id": "res-run-w1",
+      "noteId": "note-journal-2026-06-09",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-run-intervals",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781006400000,
+      "endTime": 1781006400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781006400000
+    },
+    {
+      "id": "res-row-w1",
+      "noteId": "note-journal-2026-06-11",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-row-steady",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781179200000,
+      "endTime": 1781179200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781179200000
+    },
+    {
+      "id": "res-bike-w1",
+      "noteId": "note-journal-2026-06-14",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-bike-tempo",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781438400000,
+      "endTime": 1781438400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781438400000
+    },
+    {
+      "id": "res-run-w2",
+      "noteId": "note-journal-2026-06-16",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-run-intervals",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781611200000,
+      "endTime": 1781611200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781611200000
+    },
+    {
+      "id": "res-row-w2",
+      "noteId": "note-journal-2026-06-18",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-row-steady",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1781784000000,
+      "endTime": 1781784000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1781784000000
+    },
+    {
+      "id": "res-bike-w2",
+      "noteId": "note-journal-2026-06-21",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-bike-tempo",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782043200000,
+      "endTime": 1782043200000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782043200000
+    },
+    {
+      "id": "res-run-w3",
+      "noteId": "note-journal-2026-06-23",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-run-intervals",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782216000000,
+      "endTime": 1782216000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782216000000
+    },
+    {
+      "id": "res-row-w3",
+      "noteId": "note-journal-2026-06-25",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-row-steady",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782388800000,
+      "endTime": 1782388800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782388800000
+    },
+    {
+      "id": "res-bike-w3",
+      "noteId": "note-journal-2026-06-28",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-bike-tempo",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782648000000,
+      "endTime": 1782648000000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782648000000
+    },
+    {
+      "id": "res-run-w4",
+      "noteId": "note-journal-2026-06-30",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-run-intervals",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782820800000,
+      "endTime": 1782820800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782820800000
+    },
+    {
+      "id": "res-row-w4",
+      "noteId": "note-journal-2026-06-32",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-row-steady",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1782993600000,
+      "endTime": 1782993600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1782993600000
+    },
+    {
+      "id": "res-bike-w4",
+      "noteId": "note-journal-2026-06-35",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-bike-tempo",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783252800000,
+      "endTime": 1783252800000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783252800000
+    },
+    {
+      "id": "res-run-w5",
+      "noteId": "note-journal-2026-06-37",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-run-intervals",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783425600000,
+      "endTime": 1783425600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783425600000
+    },
+    {
+      "id": "res-row-w5",
+      "noteId": "note-journal-2026-06-39",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-row-steady",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783598400000,
+      "endTime": 1783598400000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783598400000
+    },
+    {
+      "id": "res-bike-w5",
+      "noteId": "note-journal-2026-06-42",
+      "blockId": "s1",
+      "blockVersion": 1,
+      "blockContentId": "blk-bike-tempo",
+      "origin": "journal",
+      "status": "completed",
+      "startTime": 1783857600000,
+      "endTime": 1783857600000,
+      "duration": 0,
+      "completed": true,
+      "createdAt": 1783857600000
     }
   ]
 }

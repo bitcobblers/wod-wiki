@@ -57,7 +57,7 @@ Each section is one open taxonomy question. Under **Variations found** are the a
 
 ### Four senses found
 
-- **S1 — `NoteSegment` storage rows:** versioned chunks keyed `[id, version]`, typed by `SegmentDataType` (`apps/playground/src/types/storage.ts`)
+- **S1 — `BlockRevision` storage rows:** immutable saved actionable-block states keyed `[noteId, blockId, version]` (`packages/core/src/types/storage.ts`); prose/headings/frontmatter stay in `Note.rawContent` only
 - **S2 — `BlockIndexRow`:** derived projections of blocks (`docs/domain-model/BlockIndexRow.md`)
 - **S3 — Runtime/analytics segment:** the output grain (`runtime` and `analytics` packages)
 - **S4 — `CanvasSection` / `ProseChunk`:** canvas UI chunks (`apps/playground/app/canvas/`)

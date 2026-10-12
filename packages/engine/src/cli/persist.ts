@@ -1,80 +1,31 @@
-/**
- * Playground-parity persistence for `wod parse` / `wod run`.
- *
- * Replicates what the playground writes when a note is saved and when a
- * workout is recorded (IndexedDBContentProvider.saveEntry +
- * IndexedDBNotePersistence.mutateNote), against the shared sqlite storage:
- *
- *  - parse → one `notes` row + one `segments` row per document section +
- *    rebuilt `block_index` / `block_efforts` rows (+ domain projections)
- *  - run   → one `sessions` row + `grain:'event'` rows (1:1 per output
- *    statement) + `grain:'summary'` rows (toEventRows/toSummaryEventRows)
- *
- * Re-parsing a source versions its segments (old rows become isHistory)
- * instead of duplicating the note — segment ids are positional, so sessions
- * keep pointing at the latest version.
- */
-
 import type {
   BlockEffort,
   BlockIndexRow,
+  BlockRevision,
+  IStorageTransaction,
   Note,
-  NoteSegment,
+  NoteBlock,
   NoteTag,
   Session,
-  StoreName,
   Tag,
-  TxOp,
 } from '@bitcobblers/wod-wiki-storage';
+import { rowsEqual as sameRow } from '@bitcobblers/wod-wiki-storage';
 import type { ExecutionLog } from '../ir';
-import type { EventRecord, StoredOutputStatement, WorkoutResults } from '@bitcobblers/wod-wiki-core';
-import type { Section, ICodeStatement } from '@bitcobblers/wod-wiki-core';
-import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
+import type { EventRecord, ICodeStatement } from '@bitcobblers/wod-wiki-core';
+import {
+  blockContentId,
+  KNOWN_SECTION_WIDGETS,
+  parseDocumentSections,
+  reconcileNoteBlocks,
+  validateNoteBlocks,
+} from '@bitcobblers/wod-wiki-core';
 import { parseScript } from '@bitcobblers/wod-wiki-lang';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import { loadSql, randomId, stableNoteId, uuid5, CLI_UUID_NAMESPACE, type CliDb, type SqlApi } from './db';
+import { loadSql, randomId, stableNoteId, uuid5, CLI_UUID_NAMESPACE, type CliDb } from './db';
 
-type SegmentDataType = NoteSegment['dataType'];
+const registeredWidgets = KNOWN_SECTION_WIDGETS;
+const saveStores = ['notes', 'block_revisions', 'block_index', 'block_efforts', 'tags', 'note_tags', 'sessions'] as const;
 
-/** Mirror of the playground's toSegmentDataType (IndexedDBContentProvider). */
-function toSegmentDataType(section: Pick<Section, 'type' | 'level'>): SegmentDataType {
-  switch (section.type) {
-    case 'time':
-    case 'log':
-      return 'wod';
-    case 'title': {
-      const level = Math.min(6, Math.max(1, section.level ?? 1));
-      return `h${level}` as SegmentDataType;
-    }
-    case 'frontmatter':
-      return 'frontmatter';
-    case 'markdown':
-    default:
-      return 'markdown';
-  }
-}
-
-/** Mirror of sectionSourceFragments — exact document slice per section. */
-function sectionSourceFragments(content: string, sections: readonly Section[]): string[] {
-  const starts = [0];
-  for (let i = 0; i < content.length; i++) {
-    if (content[i] === '\n') starts.push(i + 1);
-  }
-  return sections.map((section, index) => content.slice(
-    starts[section.startLine],
-    index + 1 < sections.length ? starts[sections[index + 1].startLine] : content.length,
-  ));
-}
-
-/** Read ScriptBlock.contentId with runtime narrowing (segment.data is loosely typed). */
-function scriptBlockContentId(data: unknown): string | undefined {
-  if (data && typeof data === 'object' && 'contentId' in data && typeof data.contentId === 'string') {
-    return data.contentId;
-  }
-  return undefined;
-}
-
-/** Mirror of StorageService.extractEffortSlugs. */
 export function extractEffortSlugs(statements: readonly ICodeStatement[]): string[] {
   const slugs = new Set<string>();
   for (const statement of statements) {
@@ -92,29 +43,21 @@ export function extractEffortSlugs(statements: readonly ICodeStatement[]): strin
   return [...slugs];
 }
 
-async function rowsByNote(sql: SqlApi, db: CliDb['db'], store: StoreName, noteId: string): Promise<unknown[]> {
-  return sql.listRows(db, sql.storeDefinition(store), { only: noteId }, undefined, 'by-note');
-}
-
 export interface PersistNoteOptions {
   source: string;
-  /** File path or '-' (stdin) — drives the stable note identity. */
   sourceLabel: string;
-  /** Explicit note id — exported markdown carries a `wod-note-id` stamp
-   * (exchange.ts) which overrides the path-derived id when present, making
-   * download → edit → parse a round-trip into the same note. */
   noteId?: string;
   title?: string;
-  /** Frontmatter tags (general + typed, e.g. equipment) to materialize:
-   * the note owns its tag set, so existing note_tags links are replaced. */
   tags?: Array<{ label: string; type?: string }>;
+  /** Exact current-source lineage, supplied only by a caller that owns the edits. */
+  blocks?: Record<string, NoteBlock>;
+  expectedSourceRevision?: number;
   now?: number;
 }
 
 export interface PersistNoteResult {
   noteId: string;
   note: Note;
-  segments: number;
   blocks: number;
   efforts: number;
   tags: number;
@@ -127,167 +70,171 @@ function titleFromLabel(sourceLabel: string): string {
   return stem.replace(/\.[^.]+$/, '') || sourceLabel;
 }
 
-/** Upsert the note for a parsed source with fresh segments + block index. */
-export async function persistNote(db: CliDb, options: PersistNoteOptions): Promise<PersistNoteResult> {
-  const sql = await loadSql();
-  const now = options.now ?? Date.now();
+
+async function saveSource(
+  db: CliDb,
+  options: PersistNoteOptions,
+  startTime?: number,
+): Promise<PersistNoteResult & { session?: Session; revision?: BlockRevision }> {
   const noteId = options.noteId ?? stableNoteId(options.sourceLabel, options.source);
-  const title = options.title ?? titleFromLabel(options.sourceLabel);
-
-  const sections = parseDocumentSections(options.source);
-  const fragments = sectionSourceFragments(options.source, sections);
-  const existingNote = (await noteById(sql, db.db, noteId)) as Note | undefined;
-  const priorSegments = (await rowsByNote(sql, db.db, 'segments', noteId)) as NoteSegment[];
-
-  // Version bump: existing segment ids get max(version)+1, new ids get 1;
-  // every prior non-history row is marked history inside the same tx.
-  const versionBySegmentId: Record<string, number> = {};
-  for (const segment of priorSegments) {
-    versionBySegmentId[segment.id] = Math.max(versionBySegmentId[segment.id] ?? 0, segment.version);
-  }
-
-  const createdAt = existingNote?.createdAt ?? now;
-  const note: Note = {
-    id: noteId,
-    title,
-    type: existingNote?.type ?? 'note',
-    date: existingNote?.date ?? now,
-    createdAt,
-  };
-
-  const ops: TxOp[] = [];
-  const segments: NoteSegment[] = sections.map((section, position) => {
-    const id = `${noteId}:${section.id}`;
-    const version = (versionBySegmentId[id] ?? 0) + 1;
-    return {
-      id,
-      version,
-      noteId,
-      position,
-      dataType: toSegmentDataType(section),
-      data: section.scriptBlock || null,
-      rawContent: section.displayContent,
-      sourceContent: fragments[position],
-      createdAt: version === 1 ? createdAt : now,
-      updatedAt: now,
-      isHistory: false,
-    };
-  });
-  for (const segment of priorSegments) {
-    if (segment.isHistory !== true) {
-      ops.push({ op: 'put', store: 'segments', value: { ...segment, isHistory: true, updatedAt: now } });
+  const observed = await db.storage.readonly('notes').get(noteId);
+  const expected = options.expectedSourceRevision ?? observed?.sourceRevision ?? 0;
+  const now = options.now ?? Date.now();
+  return db.storage.transaction([...saveStores], 'readwrite', async (tx) => {
+    const existing = await tx.readonly('notes').get(noteId);
+    if ((existing?.sourceRevision ?? 0) !== expected) {
+      throw new Error(`Stale Note source revision for ${noteId}; expected ${expected}`);
     }
-  }
-  ops.push({ op: 'put', store: 'notes', value: note });
-  for (const segment of segments) ops.push({ op: 'put', store: 'segments', value: segment });
-
-  // Block index rebuild: replace every derived row for this note.
-  const priorBlocks = (await rowsByNote(sql, db.db, 'block_index', noteId)) as BlockIndexRow[];
-  const priorBlockEfforts = (await rowsByNote(sql, db.db, 'block_efforts', noteId)) as BlockEffort[];
-  for (const row of priorBlocks) ops.push({ op: 'delete', store: 'block_index', key: row.id });
-  for (const row of priorBlockEfforts) ops.push({ op: 'delete', store: 'block_efforts', key: row.id });
-
-  let blockCount = 0;
-  let effortCount = 0;
-  for (const segment of segments) {
-    const blockContentId = segment.dataType === 'wod' ? scriptBlockContentId(segment.data) : undefined;
-    ops.push({
-      op: 'put',
-      store: 'block_index',
-      value: {
-        id: `${noteId}:${segment.id}:${segment.version}`,
-        noteId,
-        segmentId: segment.id,
-        segmentVersion: segment.version,
-        position: segment.position,
-        dataType: segment.dataType,
-        blockContentId,
-        rawContent: segment.rawContent,
-        noteTitle: title,
-        createdAt: segment.createdAt,
-      } satisfies BlockIndexRow,
+    let sourceRevision = existing?.rawContent === options.source
+      ? existing.sourceRevision
+      : (existing?.sourceRevision ?? 0) + 1;
+    const blocks = reconcileNoteBlocks(options.source, {
+      sourceRevision,
+      blocks: options.blocks ?? (existing?.rawContent === options.source ? existing.blocks : undefined),
+      registeredWidgets,
+      createId: randomId,
     });
-    blockCount += 1;
-
-    if (segment.dataType === 'wod' && segment.rawContent) {
-      const script = parseScript(segment.rawContent);
-      for (const effortSlug of extractEffortSlugs(script.statements)) {
-        ops.push({
-          op: 'put',
-          store: 'block_efforts',
-          value: {
-            id: `${noteId}:${segment.id}:${effortSlug}`,
-            noteId,
-            blockId: segment.id,
-            blockContentId,
-            effortSlug,
-            createdAt: segment.createdAt,
-          } satisfies BlockEffort,
-        });
-        effortCount += 1;
-      }
+    validateNoteBlocks(options.source, blocks, sourceRevision, { registeredWidgets });
+    const history = await tx.readonly('block_revisions').getAllFromIndex('by-note', noteId);
+    const latest = new Map<string, BlockRevision>();
+    for (const row of history) {
+      if ((latest.get(row.blockId)?.version ?? 0) < row.version) latest.set(row.blockId, row);
     }
-  }
-
-  // Tag graph: the note's frontmatter owns its tag set — replace existing
-  // links. Tags are shared: get-or-create by label, upgrading an untyped
-  // tag row when a typed use arrives (SeedImportStorage parity).
-  let tagCount = 0;
-  if (options.tags) {
-    const priorLinks = (await rowsByNote(sql, db.db, 'note_tags', noteId)) as NoteTag[];
-    for (const link of priorLinks) ops.push({ op: 'delete', store: 'note_tags', key: link.id });
-    const tagByLabel = new Map(
-      ((await sql.listRows(db.db, sql.storeDefinition('tags'))) as Tag[]).map((t) => [t.label, t]),
-    );
-    for (const item of options.tags) {
-      const label = item.label.trim();
-      if (!label) continue;
-      let tag = tagByLabel.get(label);
-      if (!tag) {
-        tag = { id: randomId(), label, type: item.type, createdAt: now };
-        tagByLabel.set(label, tag);
-        ops.push({ op: 'put', store: 'tags', value: tag });
-      } else if (item.type && !tag.type) {
-        tag = { ...tag, type: item.type };
-        tagByLabel.set(label, tag);
-        ops.push({ op: 'put', store: 'tags', value: tag });
-      }
-      tagCount += 1;
-      ops.push({
-        op: 'put',
-        store: 'note_tags',
-        // Deterministic junction id (unique [noteId, tagId] index).
-        value: { id: uuid5(CLI_UUID_NAMESPACE, `note-tag:${noteId}:${tag.id}`), noteId, tagId: tag.id } satisfies NoteTag,
+    const revisions: BlockRevision[] = [];
+    for (const block of Object.values(blocks)) {
+      const saved = latest.get(block.id);
+      const rawContent = options.source.slice(block.from, block.to);
+      const unchanged = saved && saved.rawContent === rawContent && saved.kind === block.kind &&
+        saved.dialect === block.dialect && saved.sport === block.sport;
+      block.version = unchanged ? saved.version : (saved?.version ?? 0) + 1;
+      if (!unchanged) revisions.push({
+        noteId, blockId: block.id, version: block.version, kind: block.kind,
+        rawContent, savedAt: now,
+        ...(block.dialect ? { dialect: block.dialect } : {}),
+        ...(block.sport ? { sport: block.sport } : {}),
       });
     }
-  }
-
-  await db.db.transaction(async (tx) => {
-    await sql.refreshDomain(tx, ops);
+    if (existing?.rawContent === options.source && !sameRow(existing.blocks, blocks)) {
+      sourceRevision++;
+      for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
+    }
+    const note: Note = {
+      ...existing,
+      id: noteId,
+      title: options.title ?? existing?.title ?? titleFromLabel(options.sourceLabel),
+      type: existing?.type ?? 'note',
+      date: existing?.date ?? now,
+      createdAt: existing?.createdAt ?? now,
+      rawContent: options.source,
+      sourceRevision,
+      blocks,
+    };
+    const priorRows = await tx.readonly('block_index').getAllFromIndex('by-note', noteId);
+    const priorEfforts = await tx.readonly('block_efforts').getAllFromIndex('by-note', noteId);
+    const priorById = new Map(priorRows.map((row) => [row.id, row]));
+    const nextRows: BlockIndexRow[] = [];
+    const nextEfforts: BlockEffort[] = [];
+    for (const [position, block] of Object.values(blocks).sort((a, b) => a.from - b.from).entries()) {
+      const id = `${noteId}:${block.id}`;
+      const prior = priorById.get(id);
+      const rawContent = options.source.slice(block.from, block.to);
+      const body = parseDocumentSections(rawContent, { registeredWidgets })[0]?.displayContent ?? rawContent;
+      const fingerprint = block.kind === 'wod' ? blockContentId(body) : undefined;
+      nextRows.push({
+        ...prior,
+        id, noteId, blockId: block.id, blockVersion: block.version,
+        dataType: block.kind, sourceRevision, from: block.from, to: block.to, position,
+        rawContent, noteTitle: note.title, createdAt: prior?.createdAt ?? now,
+        blockContentId: fingerprint,
+        ...(note.sourceId ? { sourceId: note.sourceId } : {}),
+      });
+      if (block.kind === 'wod') {
+        for (const effortSlug of extractEffortSlugs(parseScript(body, { sport: block.sport, dialect: block.dialect }).statements)) {
+          const effortId = `${noteId}:${block.id}:${effortSlug}`;
+          const previous = priorEfforts.find((row) => row.id === effortId);
+          nextEfforts.push({
+            ...previous, id: effortId, noteId, blockId: block.id,
+            blockContentId: fingerprint, effortSlug, createdAt: previous?.createdAt ?? now,
+          });
+        }
+      }
+    }
+    if (!sameRow(existing, note)) await tx.readwrite('notes').put(note);
+    if (revisions.length) await tx.readwrite('block_revisions').putMany(revisions);
+    await diffProjection(tx, 'block_index', priorRows, nextRows);
+    await diffProjection(tx, 'block_efforts', priorEfforts, nextEfforts);
+    const tags = await saveTags(tx, noteId, options.tags, now);
+    let session: Session | undefined;
+    let revision: BlockRevision | undefined;
+    if (startTime !== undefined) {
+      const block = Object.values(blocks).filter((row) => row.kind === 'wod').sort((a, b) => a.from - b.from)[0];
+      if (!block) throw new Error('[wod run] Note has no actionable workout block');
+      revision = revisions.find((row) => row.blockId === block.id) ?? latest.get(block.id);
+      if (!revision) throw new Error('[wod run] Saved workout revision is unavailable');
+      session = {
+        id: randomId(), noteId, blockId: block.id, blockVersion: block.version,
+        blockContentId: blockContentId(parseDocumentSections(revision.rawContent)[0]?.displayContent ?? revision.rawContent),
+        origin: 'journal', status: 'in-progress',
+        startTime, endTime: startTime, duration: 0, completed: false, createdAt: startTime,
+      };
+      await tx.readwrite('sessions').put(session);
+    }
+    return { noteId, note, blocks: nextRows.length, efforts: nextEfforts.length, tags, created: !existing, session, revision };
   });
-
-  return {
-    noteId,
-    note,
-    segments: segments.length,
-    blocks: blockCount,
-    efforts: effortCount,
-    tags: tagCount,
-    created: !existingNote,
-  };
 }
 
-async function noteById(sql: SqlApi, db: CliDb['db'], noteId: string): Promise<unknown> {
-  const rows = await sql.listRows(db, sql.storeDefinition('notes'));
-  return (rows as Array<{ id: string }>).find((row) => row.id === noteId);
+async function diffProjection(
+  tx: IStorageTransaction,
+  store: 'block_index' | 'block_efforts',
+  previous: Array<BlockIndexRow | BlockEffort>,
+  next: Array<BlockIndexRow | BlockEffort>,
+): Promise<void> {
+  const nextIds = new Set(next.map((row) => row.id));
+  for (const row of previous) if (!nextIds.has(row.id)) await tx.readwrite(store).delete(row.id);
+  const old = new Map(previous.map((row) => [row.id, row]));
+  for (const row of next) {
+    if (!sameRow(old.get(row.id), row)) {
+      if (store === 'block_index' && 'blockVersion' in row) await tx.readwrite('block_index').put(row);
+      if (store === 'block_efforts' && 'effortSlug' in row) await tx.readwrite('block_efforts').put(row);
+    }
+  }
 }
 
-export interface PersistRunOptions {
-  source: string;
-  sourceLabel: string;
-  title?: string;
-  executionLog: ExecutionLog;
-  now?: number;
+async function saveTags(tx: IStorageTransaction, noteId: string, items: PersistNoteOptions['tags'], now: number): Promise<number> {
+  const previous = await tx.readonly('note_tags').getAllFromIndex('by-note', noteId);
+  if (!items) return previous.length;
+  const next = new Map<string, NoteTag>();
+  for (const item of items) {
+    const label = item.label.trim();
+    if (!label) continue;
+    const found = (await tx.readonly('tags').getAllFromIndex('by-label', label))[0];
+    const tag: Tag = found
+      ? { ...found, ...(!found.type && item.type ? { type: item.type } : {}) }
+      : { id: uuid5(CLI_UUID_NAMESPACE, `tag:${label}`), label, type: item.type, createdAt: now };
+    if (!sameRow(found, tag)) await tx.readwrite('tags').put(tag);
+    const id = previous.find((link) => link.tagId === tag.id)?.id ?? uuid5(CLI_UUID_NAMESPACE, `note-tag:${noteId}:${tag.id}`);
+    next.set(id, { ...previous.find((link) => link.id === id), id, noteId, tagId: tag.id });
+  }
+  for (const link of previous) if (!next.has(link.id)) await tx.readwrite('note_tags').delete(link.id);
+  const old = new Map(previous.map((row) => [row.id, row]));
+  for (const link of next.values()) if (!sameRow(old.get(link.id), link)) await tx.readwrite('note_tags').put(link);
+  return next.size;
+}
+
+export function persistNote(db: CliDb, options: PersistNoteOptions): Promise<PersistNoteResult> {
+  return saveSource(db, options);
+}
+
+export interface StartedRun {
+  session: Session;
+  revision: BlockRevision;
+  noteCreated: boolean;
+}
+
+export async function startRun(db: CliDb, options: PersistNoteOptions, startTime = Date.now()): Promise<StartedRun> {
+  const saved = await saveSource(db, options, startTime);
+  if (!saved.session || !saved.revision) throw new Error('[wod run] Atomic run capture failed');
+  return { session: saved.session, revision: saved.revision, noteCreated: saved.created };
 }
 
 export interface PersistRunResult {
@@ -299,112 +246,58 @@ export interface PersistRunResult {
   noteCreated: boolean;
 }
 
-/**
- * Record an execution against the note for its source: session row +
- * event/summary rows, the same grain model the playground writes.
- */
-export async function persistRun(db: CliDb, options: PersistRunOptions): Promise<PersistRunResult> {
-  const sql = await loadSql();
-  const results: WorkoutResults = options.executionLog.results;
-  const logs: StoredOutputStatement[] = options.executionLog.logs ?? [];
-
-  // Ensure the note exists (playground saves pending content before recording).
-  const noteState = await persistNote(db, {
-    source: options.source,
-    sourceLabel: options.sourceLabel,
-    title: options.title,
-    now: options.now,
-  });
-
-  // The run block is the first wod segment of the note (document order).
-  const segments = ((await rowsByNote(sql, db.db, 'segments', noteState.noteId)) as NoteSegment[])
-    .filter((s) => s.isHistory !== true && s.dataType === 'wod')
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-  const runSegment = segments[0];
-  const blockContentId = runSegment ? scriptBlockContentId(runSegment.data) : undefined;
-
-  const resultId = randomId();
+export async function persistRun(db: CliDb, started: StartedRun, executionLog: ExecutionLog): Promise<PersistRunResult> {
+  const results = executionLog.results;
   const session: Session = {
-    id: resultId,
-    segmentId: runSegment?.id,
-    segmentVersion: runSegment?.version,
-    noteId: noteState.noteId,
-    blockId: runSegment?.id,
-    blockContentId,
-    origin: 'journal',
-    status: results.completed === false ? 'in-progress' : 'completed',
-    startTime: results.startTime,
-    endTime: results.endTime,
-    duration: results.duration ?? 0,
-    completed: results.completed,
-    createdAt: results.endTime || Date.now(),
+    ...started.session,
+    status: results.completed ? 'completed' : 'in-progress',
+    endTime: results.endTime, duration: results.duration ?? 0, completed: results.completed,
   };
-
   const identity = {
-    noteId: noteState.noteId,
-    resultId,
-    segmentId: session.segmentId,
-    segmentVersion: session.segmentVersion,
-    blockContentId,
-    origin: session.origin,
-    pageId: session.pageId,
+    noteId: session.noteId, resultId: session.id, blockId: session.blockId, blockVersion: session.blockVersion,
+    blockContentId: session.blockContentId, origin: session.origin, pageId: session.pageId,
     workoutTimestamp: session.createdAt,
   };
-  const eventRows = toEventRows(logs, identity);
-  const summaryRows = toSummaryEventRows(logs, identity);
-
-  await db.db.transaction(async (tx) => {
-    await sql.putRow(tx, sql.storeDefinition('sessions'), session);
-    const eventsDef = sql.storeDefinition('events');
-    for (const row of [...eventRows, ...summaryRows]) await sql.putRow(tx, eventsDef, row);
+  const events = toEventRows(executionLog.logs, identity);
+  const summaries = toSummaryEventRows(executionLog.logs, identity);
+  await db.storage.transaction(['sessions', 'events', 'block_revisions'], 'readwrite', async (tx) => {
+    const saved = await tx.readonly('sessions').get(session.id);
+    if (!saved || saved.noteId !== session.noteId || saved.blockId !== session.blockId || saved.blockVersion !== session.blockVersion) {
+      throw new Error('[wod run] Captured Session source pin changed');
+    }
+    const revision = await tx.readonly('block_revisions').get([session.noteId, session.blockId, session.blockVersion]);
+    if (!revision || !sameRow(revision, started.revision)) throw new Error('[wod run] Captured revision is unavailable');
+    await tx.readwrite('sessions').put(session);
+    await tx.readwrite('events').putMany([...events, ...summaries]);
   });
-
-  return {
-    noteId: noteState.noteId,
-    resultId,
-    session,
-    events: eventRows.length,
-    summaries: summaryRows.length,
-    noteCreated: noteState.created,
-  };
+  return { noteId: session.noteId, resultId: session.id, session, events: events.length, summaries: summaries.length, noteCreated: started.noteCreated };
 }
 
-/**
- * Upsert an exported session + its events verbatim (id-keyed, so re-imports
- * are idempotent). Used by `wod import session` for round-tripping a
- * downloaded CSV into the same — or a clean — database. Rows referencing a
- * note the target database does not have get a stub note so the session
- * stays visible and queryable.
- */
-export async function persistSessionBundle(
-  db: CliDb,
-  session: Session,
-  events: readonly EventRecord[],
-): Promise<{ events: number; noteCreated: boolean }> {
-  const sql = await loadSql();
-  const existing = await noteById(sql, db.db, session.noteId);
-  let noteCreated = false;
-  if (!existing) {
-    noteCreated = true;
-    const now = session.createdAt || Date.now();
-    await db.db.transaction(async (tx) => {
-      await sql.putRow(tx, sql.storeDefinition('notes'), {
-        id: session.noteId,
-        title: `imported-${session.noteId.slice(0, 8)}`,
-        createdAt: now,
-        type: 'note',
-      });
-    });
+/** Import only when the exact immutable revision is already available. */
+export async function persistSessionBundle(db: CliDb, session: Session, events: readonly EventRecord[]): Promise<{ events: number }> {
+  if ('segmentId' in session || 'segmentVersion' in session || 'version' in session || 'rawContent' in session || 'data' in session || !session.noteId || !session.blockId || !Number.isSafeInteger(session.blockVersion) || session.blockVersion < 1) {
+    throw new Error('[wod import] Session requires an exact block revision pin');
   }
-  await db.db.transaction(async (tx) => {
-    await sql.putRow(tx, sql.storeDefinition('sessions'), session);
-    const eventsDef = sql.storeDefinition('events');
-    for (const row of events) await sql.putRow(tx, eventsDef, row);
+  await db.storage.transaction(['sessions', 'events', 'block_revisions'], 'readwrite', async (tx) => {
+    const revision = await tx.readonly('block_revisions').get([session.noteId, session.blockId, session.blockVersion]);
+    if (!revision || revision.kind !== 'wod') throw new Error('[wod import] Exact immutable workout revision is unavailable');
+    for (const event of events) {
+      if (event.resultId !== session.id || event.noteId !== session.noteId || event.blockId !== session.blockId || event.blockVersion !== session.blockVersion) {
+        throw new Error('[wod import] Event source pin differs from Session source pin');
+      }
+    }
+    const existing = await tx.readonly('sessions').get(session.id);
+    if (existing && !sameRow(existing, session)) throw new Error('[wod import] Session identity conflicts with existing row');
+    if (!existing) await tx.readwrite('sessions').put(session);
+    for (const event of events) {
+      const old = await tx.readonly('events').get(event.id);
+      if (old && !sameRow(old, event)) throw new Error('[wod import] Event identity conflicts with existing row');
+      if (!old) await tx.readwrite('events').put(event);
+    }
   });
-  return { events: events.length, noteCreated };
+  return { events: events.length };
 }
 
-/** Upsert one effort registry row (keyed by slug). */
 export async function persistEffort(db: CliDb, effort: Record<string, unknown>): Promise<void> {
   const sql = await loadSql();
   await db.db.transaction(async (tx) => {
@@ -412,34 +305,20 @@ export async function persistEffort(db: CliDb, effort: Record<string, unknown>):
   });
 }
 
-/**
- * Ensure tags of one type exist for every label (equipment catalogs).
- * Untyped existing tags are upgraded; labels typed as another type are
- * left alone (a tag row carries exactly one type). Returns labels added.
- */
 export async function persistTypedTags(db: CliDb, labels: readonly string[], type: string): Promise<number> {
-  const sql = await loadSql();
-  const now = Date.now();
-  const tagByLabel = new Map(
-    ((await sql.listRows(db.db, sql.storeDefinition('tags'))) as Tag[]).map((t) => [t.label, t]),
-  );
-  const ops: TxOp[] = [];
-  let added = 0;
-  for (const raw of labels) {
-    const label = raw.trim();
-    if (!label) continue;
-    const tag = tagByLabel.get(label);
-    if (!tag) {
-      ops.push({ op: 'put', store: 'tags', value: { id: randomId(), label, type, createdAt: now } satisfies Tag });
-      added += 1;
-    } else if (!tag.type) {
-      ops.push({ op: 'put', store: 'tags', value: { ...tag, type } satisfies Tag });
+  return db.storage.transaction(['tags'], 'readwrite', async (tx) => {
+    let added = 0;
+    for (const raw of labels) {
+      const label = raw.trim();
+      if (!label) continue;
+      const tag = (await tx.readonly('tags').getAllFromIndex('by-label', label))[0];
+      if (!tag) {
+        await tx.readwrite('tags').put({ id: uuid5(CLI_UUID_NAMESPACE, `tag:${label}`), label, type, createdAt: Date.now() });
+        added++;
+      } else if (!tag.type) {
+        await tx.readwrite('tags').put({ ...tag, type });
+      }
     }
-  }
-  if (ops.length > 0) {
-    await db.db.transaction(async (tx) => {
-      await sql.refreshDomain(tx, ops);
-    });
-  }
-  return added;
+    return added;
+  });
 }

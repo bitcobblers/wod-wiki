@@ -111,7 +111,9 @@ _Avoid_: resolve (overloaded with ownership resolution), pick.
 **Storage**:
 The raw per-store layer below Persistence. A typed interface (`IStorage`,
 `apps/playground/src/services/storage/IStorage.ts`) with operations keyed by **Store Name**
-(`notes`, `segments`, `results`, `sessions`, `attachments`, `events`, `efforts`, `block_index`, `meta`):
+(`notes`, `page`, `page_notes`, `block_revisions`, `block_index`, `block_efforts`,
+`sessions`, `events`, `attachments`, `tags`, `note_tags`, `tag_types`, `efforts`,
+`memberships`, `field_catalog`, `field_sources`, `field_values`, `meta`):
 `readonly(store).get/getAll/getAllFromIndex`, `readwrite(store).put/delete`,
 and `transaction(stores)` for cross-store atomic work. The interface is
 parameterized by store name so callers and tests cross the same seam
@@ -119,23 +121,24 @@ without knowing which engine backs it. Schema (stores, key paths, indexes)
 lives in the **Storage Adapter**, not the interface.
 _Avoid_: database, table, repository (in the data-access sense).
 **Storage Adapter**:
-A concrete `IStorage` implementation. Two adapters ship in-tree:
-`IndexedDBStorage` (production, over `idb`) and `InMemoryStorage` (test
-default, pure `Map`-backed). Adapters own the schema, the open/close
-lifecycle, and the per-store keying rule. Tests construct a fresh
-`InMemoryStorage` per case — no IndexedDB globals, no `fake-indexeddb`,
-no shared state.
+A concrete `IStorage` implementation: `IndexedDBStorage` (browser, over `idb`),
+`InMemoryStorage` (test default, pure `Map`-backed), and the shared SQL adapter
+(`packages/storage/src/sql`, libSQL/SQLite/PostgreSQL wire shapes). Adapters own
+the schema, the open/close lifecycle, and the per-store keying rule; incompatible
+schemas fail closed and require explicit recreation — startup never auto-wipes.
+Tests construct a fresh `InMemoryStorage` per case — no shared state.
 _Avoid_: backend, store implementation, persistence impl.
 **Persistence**:
 The domain layer above Storage. `IndexedDBNotePersistence` exposes
 `getNote / listNotes / mutateNote / deleteNote` for the Note
 domain; it depends on the `NotePersistenceStorage` interface, which the
 Storage layer satisfies. Persistence adapters compose raw **Storage**
-calls into domain operations (latest-version lookup, cascade delete,
+calls into domain operations (whole-note source/map saves, immutable
+block-revision appends, pinned-session capture, cascade delete,
 analytics write) — they do not embed engine specifics.
 _Avoid_: data layer, store (overloaded).
 **Seed**:
-A seed library: an immutable, timestamped compilation of one content corpus into versioned artifacts a static host serves and the app imports into Storage (`wodwiki-db`; import seam — `docs/prototypes/seed-data-unification.md`). Seeds are the only path bundled content takes into Storage. **Multi-seed**: each source (the playground's own **core** seed — `markdown/canvas/` + the page template, compiled from this repo; the **community** seed — collections/feeds/dashboards/efforts from the sibling `wod-wiki-seed` repo; future third-party libraries) compiles via the seed repo's compiler (`scripts/sync-seed.ts`, run by the playground build) into `public/seed/<sourceId>/`: a manifest + content-hashed chunks of `{ path, content }` notes rows and `block-index.<n>` chunks of precomputed `BlockIndexRow[]` corpus rows. Each source has an independent import checkpoint (`seed:<sourceId>` meta record) and git version, so version decisions and vanished-chunk sweeps never cross sources. Seed provenance (`'seed' | 'user'`) decides whether the Seed Import may overwrite or delete a row — user edits always win. After the import, **every runtime content read loads from Storage**: canvas routes, collections/feeds, dashboards, guide snippets, and view-source go through the seed-content seam (`src/services/content/seedContent.ts`), and the Query Service reads one `block_index` store (user + corpus rows; the generated `static-block-index.json` predecessor is retired).
+A seed library: an immutable, timestamped compilation of one content corpus into versioned artifacts a static host serves and the app imports into Storage (`wodwiki-db`; import seam — `docs/prototypes/seed-data-unification.md`). Seeds are the only path bundled content takes into Storage. **Multi-seed**: each source (the playground's own **core** seed — `markdown/canvas/` + the page template, compiled from this repo; the **community** seed — collections/feeds/dashboards/efforts from the sibling `wod-wiki-seed` repo; future third-party libraries) compiles via the seed repo's compiler (`scripts/sync-seed.ts`, run by the playground build) into `public/seed/<sourceId>/` (schema 8): a manifest + content-hashed chunks of whole-note rows carrying `{ path, content, blocks, blockIndex, blockEfforts }` — source, occurrence map and sparse projections travel together; unchanged refreshes write nothing of precomputed `BlockIndexRow[]` corpus rows. Each source has an independent import checkpoint (`seed:<sourceId>` meta record) and git version, so version decisions and vanished-chunk sweeps never cross sources. Seed provenance (`'seed' | 'user'`) decides whether the Seed Import may overwrite or delete a row — user edits always win. After the import, **every runtime content read loads from Storage**: canvas routes, collections/feeds, dashboards, guide snippets, and view-source go through the seed-content seam (`src/services/content/seedContent.ts`), and the Query Service reads one `block_index` store (user + corpus rows; the generated `static-block-index.json` predecessor is retired).
 _Avoid_: bundle, corpus dump, static index (the generated `static-block-index.json` predecessor).
 ### Analytics
 **Canonical Metric Key**:

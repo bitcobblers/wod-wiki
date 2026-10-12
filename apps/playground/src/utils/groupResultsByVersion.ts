@@ -37,12 +37,9 @@ export function groupResultsByVersion(
     return { current: [], currentVersion: 0, history: new Map() };
   }
 
-  // Group all results by version. segmentVersion (NoteSegment.version, written
-  // by the current recorder path) wins; version (legacy computeVersion rows)
-  // is the fallback for results recorded before the consolidation.
   const byVersion = new Map<number, Session[]>();
   for (const r of blockResults) {
-    const v = r.segmentVersion ?? r.version ?? 1;
+    const v = r.blockVersion;
     if (!byVersion.has(v)) byVersion.set(v, []);
     byVersion.get(v)!.push(r);
   }

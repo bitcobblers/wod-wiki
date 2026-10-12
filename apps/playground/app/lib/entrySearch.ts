@@ -9,8 +9,7 @@
  *      runFindEffort) transparently behind a single seam.
  *   3. Maps all returned records into an extended, uniform Entry model
  *      carrying optional execution metrics or effort metadata.
- *   4. Preserves secondary text searching (e.g. searching block bodies
- *      alongside note titles when text: is present).
+ *   4. Preserves executor filtering, ordering, pagination and stage counts.
  *
  * Invalid WQL (parse error or non-find query) resolves to an empty list;
  * callers surface the error separately via their own parse.
@@ -26,11 +25,10 @@ import {
   type FindQueryResult,
   type RowsQueryResult,
 } from '@bitcobblers/wod-wiki-engine';
-import type { Note, Page } from '@/types/storage';
+import { blockContentId, parseDocumentSections, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   toEntry,
   blockToEntry,
-  noteFromBlock,
   effortToEntry,
   rowsQueryResultToEntries,
   formatEffortName,
@@ -67,9 +65,7 @@ function tableRowToEntry(row: Record<string, unknown>, target: 'segment' | 'even
   };
 }
 
-/** Emit one honest stage count per run: `matched` is the actual mapped
- *  entries (the note-plane count understates text-companion unions),
- *  `selected` (scope population) never drops below it. */
+/** Stage counts describe the executor's mapped page without another search. */
 function emitStages(
   onStages: ((stages: { selected: number; matched: number }) => void) | undefined,
   stages: { selected: number; matched: number } | undefined,
@@ -92,12 +88,7 @@ export interface StreamQueryEngineOptions {
   service?: StreamQueryService;
   noteTitleResolver?: (noteId: string) => Promise<string | undefined> | string | undefined;
   noteTagsResolver?: (noteId: string) => Promise<string[]> | string[];
-  /**
-   * When true, a :note run also fetches the same query's block plane
-   * (identical scope — no broadening) and attaches each note's excerpt lines
-   * plus its first wod block's content id. The feed's rich preview cards and
-   * their Run action consume this; one extra query per executed WQL, not per item.
-   */
+  /** Attach authored note excerpts and the first actionable workout's Run target. */
   noteBlockInfo?: boolean;
 }
 
@@ -211,7 +202,7 @@ export class StreamQueryEngine {
       if (parsed.target === 'block') {
         const result = await this.service.runFind(parsed);
         const entries = result.blocks.map(blockToEntry);
-        await this.hydrateEntries(entries, false);
+        await this.hydrateEntries(entries, true);
         emitStages(onStages, result.stages, entries);
         return entries;
       }
@@ -244,44 +235,8 @@ export class StreamQueryEngine {
         return entries;
       }
 
-      // :note (or other content target)
-      const hasText = parsed.filters.some(f => f.key === 'text' && !f.negate);
-      const primaryPromise = this.service.runFind(parsed);
-
-      // When free-text is present — or the caller asked for note block info —
-      // also run :block to search body text / collect per-note previews.
-      const isCatalogSearch = parsed.target === 'note'
-        && parsed.filters.some(f => f.key === 'type' && !f.negate && f.values.some(v => v.value === 'collection'));
-      const blockParsed: ParsedFindQuery | null = (hasText || this.noteBlockInfo) && parsed.target === 'note' && !isCatalogSearch
-        ? (typeof input === 'string'
-            ? (parseQuery(input.replace(/^:note/, ':block')) as ParsedFindQuery)
-            : {
-                ...parsed,
-                target: 'block',
-                raw: parsed.raw ? parsed.raw.replace(/^:note/, ':block') : ':block',
-              })
-        : null;
-
-      const blockPromise = (blockParsed && isFindQuery(blockParsed) && !blockParsed.error)
-        ? this.service.runFind(blockParsed)
-        : Promise.resolve(null);
-
-      const [primaryResult, blockResult] = await Promise.all([primaryPromise, blockPromise]);
-      const noteMap = new Map<string, Note>();
-
-      for (const note of primaryResult.notes) {
-        noteMap.set(note.id, note);
-      }
-      for (const block of primaryResult.blocks) {
-        if (!noteMap.has(block.noteId)) noteMap.set(block.noteId, noteFromBlock(block));
-      }
-      if (blockResult?.blocks) {
-        for (const block of blockResult.blocks) {
-          if (!noteMap.has(block.noteId)) noteMap.set(block.noteId, noteFromBlock(block));
-        }
-      }
-
-      const entries = Array.from(noteMap.values()).map(toEntry);
+      const primaryResult = await this.service.runFind(parsed);
+      const entries = primaryResult.notes.map(toEntry);
       if (this.noteTagsResolver) {
         // Session tag resolver keeps precedence; only page links batch here.
         await this.hydrateEntries(entries, false);
@@ -298,31 +253,25 @@ export class StreamQueryEngine {
       }
       emitStages(onStages, primaryResult.stages, entries);
 
-      if (this.noteBlockInfo && blockResult?.blocks) {
-        // Per note: prose preview lines (feed reading depth — bounded, the
-        // card collapses/ expands) and the first wod block's content id and
-        // script — the feed's excerpt and Run target.
-        const EXCERPT_LINE_CAP = 6;
-        const previewByNote = new Map<string, string[]>();
-        const wodByNote = new Map<string, { blockContentId: string; content: string }>();
-        for (const block of [...blockResult.blocks].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))) {
-          const preview = previewByNote.get(block.noteId);
-          if (preview) {
-            const room = EXCERPT_LINE_CAP - preview.length;
-            if (room > 0) preview.push(...blockPreview(block.rawContent).slice(0, room));
-          } else {
-            previewByNote.set(block.noteId, blockPreview(block.rawContent));
+      if (this.noteBlockInfo) {
+        for (let index = 0; index < entries.length; index++) {
+          const entry = entries[index]!;
+          const note = primaryResult.notes[index]!;
+          entry.excerpt = blockPreview(note.rawContent);
+          try {
+            validateNoteBlocks(note.rawContent, note.blocks, note.sourceRevision);
+          } catch {
+            continue;
           }
-          if (!wodByNote.has(block.noteId) && block.dataType === 'wod' && block.blockContentId) {
-            wodByNote.set(block.noteId, { blockContentId: block.blockContentId, content: block.rawContent });
+          const blocks = Object.values(note.blocks).sort((a, b) => a.from - b.from);
+          const first = blocks.find(block => block.kind === 'wod');
+          const workout = first && parseDocumentSections(note.rawContent).find(section => section.from === first.from && section.scriptBlock);
+          if (first && workout?.scriptBlock) {
+            const content = workout.scriptBlock.content;
+            const fingerprint = blockContentId(content);
+            entry.wodBlock = { blockId: first.id, blockVersion: first.version, blockContentId: fingerprint, content };
+            entry.blockContentId = fingerprint;
           }
-        }
-        for (const entry of entries) {
-          const preview = previewByNote.get(entry.id);
-          if (preview && preview.length > 0) entry.excerpt = preview.slice(0, EXCERPT_LINE_CAP);
-          const wod = wodByNote.get(entry.id);
-          if (wod && !entry.wodBlock) entry.wodBlock = wod;
-          if (wod && !entry.blockContentId) entry.blockContentId = wod.blockContentId;
         }
       }
 

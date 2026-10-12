@@ -1,17 +1,4 @@
-/**
- * Public-storage regression tests for the domain/WQL cutover (V26):
- *  - indexed event reads: row-set parity across backends, all grains,
- *    wellness pseudo-result;
- *  - note_tags unique (noteId, tagId) pair with deterministic duplicate
- *    cleanup on upgrade;
- *  - latest-segment (MAX-before-history) resolution and complete deleteNote
- *    cascade incl. compound segment keys and block_efforts;
- *  - complete date candidates with createdAt fallback (indexed union);
- *  - legacy `results` store migration into sessions (with inline log
- *    projection) before the store is dropped;
- *  - withTransaction rollback (IDB abort + InMemory snapshot restore) and
- *    nested-transaction join.
- */
+/** StorageService behavior against real local stores and remote bundle plans. */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
@@ -24,13 +11,15 @@ import type { BlockIndexRow, EventRecord, Note, Session } from '@/types/storage'
 const T0 = 1_700_000_000_000;
 
 function makeNote(overrides: Partial<Note> = {}): Note {
-  return { id: 'note-1', title: 'Note 1', createdAt: T0, ...overrides };
+  return { id: 'note-1', title: 'Note 1', createdAt: T0, rawContent: '', sourceRevision: 1, blocks: {}, ...overrides };
 }
 
 function makeSession(overrides: Partial<Session> = {}): Session {
   return {
     id: 'run-1',
     noteId: 'note-1',
+    blockId: 'block-1',
+    blockVersion: 1,
     blockContentId: 'bc-1',
     origin: 'journal',
     startTime: T0,
@@ -54,8 +43,11 @@ function makeEvent(overrides: Partial<EventRecord> & { id: string; resultId: str
 }
 
 async function seedEventCorpus(service: StorageService): Promise<void> {
-  await service.saveNote(makeNote());
-  await service.saveNote(makeNote({ id: 'note-2', title: 'Note 2', createdAt: T0 + 5 }));
+  for (const noteId of ['note-1', 'note-2']) {
+    await service.saveNoteSource({ noteId, rawContent: '```time\n10 Pushups\n```', expectedSourceRevision: 0,
+      blocks: { 'block-1': { id: 'block-1', kind: 'wod', dialect: 'time', version: 1, sourceRevision: 1, from: 0, to: '```time\n10 Pushups\n```'.length } },
+      metadata: { title: noteId }, createdAt: T0 });
+  }
   await service.saveSession(makeSession());
   await service.saveSession(makeSession({ id: 'run-2', noteId: 'note-2' }));
   await service.appendEvents([
@@ -85,16 +77,19 @@ describe('StorageService indexed event reads — parity across backends', () => 
 
   let local: StorageService;
   let remote: StorageService;
+  let remoteStorage: IndexedDBStorage;
 
   beforeEach(async () => {
     globalThis.indexedDB = new IDBFactory();
     local = await makeService();
-    remote = new StorageService(new IndexedDBStorage());
+    remoteStorage = new IndexedDBStorage();
+    remote = new StorageService(remoteStorage);
     await seedEventCorpus(remote);
   });
 
   afterEach(async () => {
     await remote.wipe();
+    await remoteStorage.close();
     Reflect.deleteProperty(globalThis, 'indexedDB');
   });
 
@@ -145,65 +140,28 @@ describe('StorageService indexed event reads — parity across backends', () => 
   });
 });
 
-describe('StorageService note history and cascade deletes', () => {
-  it('resolves the latest segment (MAX version before the history flag) and deletes the whole note cascade', async () => {
+describe('StorageService live Note deletion', () => {
+  it('retains immutable history, Sessions and events while deleting live projections', async () => {
     const storage = new InMemoryStorage();
     const service = new StorageService(storage);
     await service.saveNote(makeNote({ id: 'doomed' }));
-    await service.saveNote(makeNote({ id: 'survivor', title: 'Keep' }));
-    for (const version of [1, 2, 3]) {
-      await service.saveSegment({
-        id: 'doomed:sec-1', version, noteId: 'doomed', position: 0,
-        dataType: 'wod', data: null, rawContent: 'v' + version,
-        createdAt: T0 + version, isHistory: version < 3,
-      });
-    }
-    // history-flagged newest incarnation: MAX version wins first, then the
-    // flag filters — an active older version must not shadow the latest.
-    await service.saveSegment({
-      id: 'doomed:sec-2', version: 5, noteId: 'doomed', position: 1,
-      dataType: 'wod', data: null, rawContent: 'retired', createdAt: T0, isHistory: true,
-    });
-    await service.saveSegment({
-      id: 'doomed:sec-2', version: 2, noteId: 'doomed', position: 1,
-      dataType: 'wod', data: null, rawContent: 'older-active', createdAt: T0, isHistory: false,
-    });
-    await service.saveSession(makeSession({ id: 'doomed-run', noteId: 'doomed' }));
-    await service.appendEvents([
-      makeEvent({ id: 'doomed-run:0', resultId: 'doomed-run', noteId: 'doomed' }),
-      makeEvent({ id: 'wellness:doomed:hr', resultId: 'wellness:doomed', noteId: 'doomed' }),
-    ]);
+    await service.saveNote(makeNote({ id: 'survivor' }));
+    await storage.readwrite('block_revisions').put({ noteId: 'doomed', blockId: 'b', version: 1,
+      kind: 'wod', rawContent: '```time\n10 Pushups\n```', dialect: 'time', savedAt: T0 });
+    await service.saveSession(makeSession({ id: 'doomed-run', noteId: 'doomed', blockId: 'b' }));
+    await service.appendEvents([makeEvent({ id: 'doomed-run:0', resultId: 'doomed-run', noteId: 'doomed' })]);
     await service.setNoteTags('doomed', ['tag-x']);
-    // block_index rows for the doomed note (one non-history segment) plus
-    // containment rows: doomed's must go, the survivor's must stay
-    await service.rebuildBlockIndexForNote('doomed');
-    await storage.readwrite('block_efforts').put({
-      id: 'doomed:sec-1:thruster', noteId: 'doomed', blockId: 'sec-1',
-      effortSlug: 'thruster', createdAt: T0,
-    });
-    await storage.readwrite('block_efforts').put({
-      id: 'survivor:sec-1:run', noteId: 'survivor', blockId: 'sec-1',
-      effortSlug: 'run', createdAt: T0,
-    });
-
-    const latest = await service.getLatestSegmentsForNote('doomed');
-    expect(latest.map((s) => `${s.id}:${s.version}:${s.rawContent}`))
-      .toEqual(['doomed:sec-1:3:v3']);
-    expect(await service.getBlockIndexByNote('doomed')).toHaveLength(1);
-
+    await storage.readwrite('block_efforts').put({ id: 'doomed:b:push-up', noteId: 'doomed', blockId: 'b', effortSlug: 'push-up', createdAt: T0 });
+    await storage.readwrite('block_efforts').put({ id: 'survivor:b:run', noteId: 'survivor', blockId: 'b', effortSlug: 'run', createdAt: T0 });
     await service.deleteNote('doomed');
-
     expect(await service.getNote('doomed')).toBeUndefined();
-    expect(await service.getAllSegments()).toEqual([]); // every (id, version) row gone
-    expect(await service.getSessionsForNote('doomed')).toEqual([]);
-    expect(await service.getEventsForNote('doomed')).toEqual([]);
-    expect((await service.getNoteTagLabelsBatch()).has('doomed')).toBe(false);
-    expect((await service.getAllBlockIndex()).filter((r) => r.noteId === 'doomed')).toEqual([]);
+    expect(await service.getBlockHistory('doomed', 'b')).toHaveLength(1);
+    expect(await service.getSessionsForNote('doomed')).toHaveLength(1);
+    expect(await service.getEventsForNote('doomed')).toHaveLength(1);
+    expect(await service.getTagsForNote('doomed')).toEqual([]);
     expect(await service.getBlockIndexByNote('doomed')).toEqual([]);
-    // block_efforts cleaned transactionally, survivor rows untouched
     expect(await service.getAllFromIndex('block_efforts', 'by-note', 'doomed')).toEqual([]);
     expect(await service.getAllFromIndex('block_efforts', 'by-note', 'survivor')).toHaveLength(1);
-    expect(await service.getNote('survivor')).toBeDefined();
   });
 });
 
@@ -224,24 +182,14 @@ describe('StorageService note date candidates', () => {
     expect(open.map((n) => n.id).sort()).toEqual(['dated', 'fallback']);
   });
 
-  it('batches entry metadata (segments MAX-before-history, tags, links, pages)', async () => {
+  it('batches whole Note source, tags and placement metadata', async () => {
     const service = new StorageService(new InMemoryStorage());
-    await service.saveNote(makeNote({ id: 'n1' }));
-    await service.saveSegment({
-      id: 'n1:s1', version: 1, noteId: 'n1', position: 1,
-      dataType: 'wod', data: null, rawContent: 'old', createdAt: T0, isHistory: true,
-    });
-    await service.saveSegment({
-      id: 'n1:s1', version: 2, noteId: 'n1', position: 1,
-      dataType: 'wod', data: null, rawContent: 'new', createdAt: T0 + 1,
-    });
+    await service.saveNote(makeNote({ id: 'n1', rawContent: 'Exact\r\n' }));
     await service.setNoteTags('n1', ['tag-y']);
-    const tagBatches = await service.getEntryBatches(['n1', 'missing']);
-    const batch = tagBatches.get('n1');
-    expect(batch).toBeDefined();
-    expect(batch!.segments.map((s) => s.rawContent)).toEqual(['new']);
-    expect(batch!.tags.map((t) => t.label)).toEqual(['tag-y']);
-    expect(tagBatches.has('missing')).toBe(false);
+    const batches = await service.getEntryBatches(['n1', 'missing']);
+    expect(batches.get('n1')?.note.rawContent).toBe('Exact\r\n');
+    expect(batches.get('n1')?.tags.map(tag => tag.label)).toEqual(['tag-y']);
+    expect(batches.has('missing')).toBe(false);
   });
 });
 
@@ -297,15 +245,12 @@ describe('withTransaction — scope, nested join, rollback', () => {
 
 describe('countBlockIndexInDomain — local sourceFence parity', () => {
   function makeBlock(overrides: Partial<BlockIndexRow> & { id: string }): BlockIndexRow {
+    const noteId = overrides.noteId ?? '01990e80-0000-7000-8000-0000000000aa';
+    const blockId = overrides.id;
     return {
-      noteId: '01990e80-0000-7000-8000-0000000000aa',
-      segmentId: 'sec-1',
-      segmentVersion: 1,
-      dataType: 'wod',
-      rawContent: 'x',
-      noteTitle: 'b',
-      createdAt: T0,
-      ...overrides,
+      blockVersion: 1, sourceRevision: 1, from: 0, to: 1, dataType: 'wod',
+      rawContent: 'x', noteTitle: 'b', createdAt: T0,
+      ...overrides, noteId, blockId, id: `${noteId}:${blockId}`,
     };
   }
 
@@ -348,191 +293,18 @@ describe('countBlockIndexInDomain — local sourceFence parity', () => {
   });
 });
 
-describe('IndexedDB V26 upgrade', () => {
-  const DB_NAME = 'wodwiki-db';
-
-  function openLegacyDb(version: number, setup: (db: IDBDatabase) => void): Promise<void> {
-    const { promise, resolve, reject } = Promise.withResolvers<void>();
-    const req = indexedDB.open(DB_NAME, version);
-    req.onblocked = () => reject(new Error(`v${version} fixture open blocked by an undisposed connection`));
-    req.onupgradeneeded = () => setup(req.result);
-    req.onsuccess = () => {
-      req.result.close();
-      resolve();
-    };
-    req.onerror = () => reject(req.error);
-    return promise;
-  }
-
-  beforeEach(() => {
+describe('incompatible IndexedDB', () => {
+  it('requires deliberate recreation rather than migrating or wiping', async () => {
     globalThis.indexedDB = new IDBFactory();
-  });
-
-  afterEach(() => {
-    Reflect.deleteProperty(globalThis, 'indexedDB');
-  });
-
-  it('migrates residual results rows into sessions (projecting inline logs) and drops the store', async () => {
-    await openLegacyDb(25, (db) => {
-      // sessions/events are deliberately NOT created here — the upgrade
-      // creates them with the full index set. sessions is created so the
-      // "already migrated, but logs never projected" case is covered.
-      const sessions = db.createObjectStore('sessions', { keyPath: 'id' });
-      const results = db.createObjectStore('results', { keyPath: 'id' });
-      // (a) plain flattened row missing from sessions
-      results.put({
-        id: 'legacy-a', noteId: 'note-1', createdAt: T0,
-        startTime: T0, endTime: T0 + 10, duration: 10, completed: true,
-      });
-      // (b) pre-V21 inline logs, no session row, no events → project logs
-      results.put({
-        id: 'legacy-b', noteId: 'note-1', createdAt: T0,
-        data: {
-          logs: [{ outputType: 'segment', metrics: [{ type: 'rep', value: 21, image: '21', origin: 'runtime' }] }],
-          startTime: T0,
-          endTime: T0 + 5,
-        },
-      });
-      // (c) session row exists BUT its inline logs were never projected
-      sessions.put({
-        id: 'legacy-c', noteId: 'note-1', createdAt: T0,
-        startTime: T0, endTime: T0 + 7, duration: 7, completed: true,
-      });
-      results.put({
-        id: 'legacy-c', noteId: 'note-1', createdAt: T0,
-        data: {
-          logs: [{ outputType: 'segment', metrics: [{ type: 'round', value: 3, image: '3', origin: 'runtime' }] }],
-        },
-      });
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('wodwiki-db', 28);
+      request.onupgradeneeded = () => request.result.createObjectStore('notes', { keyPath: 'id' });
+      request.onsuccess = () => { request.result.close(); resolve(); };
+      request.onerror = () => reject(request.error);
     });
-
     const storage = new IndexedDBStorage();
-    try {
-      const service = new StorageService(storage);
-
-      // (a) migrated as-is, scalar fields intact
-      const a = await service.getSessionById('legacy-a');
-      expect(a?.startTime).toBe(T0);
-      expect(a?.duration).toBe(10);
-      // (b) flattened from the inline data blob
-      const b = await service.getSessionById('legacy-b');
-      expect(b?.startTime).toBe(T0);
-      expect(b?.completed).toBe(true);
-      expect(b).not.toHaveProperty('data');
-      // inline logs of (b) and (c) became event rows — exactly one row per
-      // deterministic id, never duplicated
-      const bEvents = await service.getEventsByResult('legacy-b');
-      expect(bEvents.length).toBeGreaterThan(0);
-      expect(new Set(bEvents.map((e) => e.id)).size).toBe(bEvents.length);
-      expect(bEvents.map((e) => e.grain)).toContain('event');
-      const cEvents = await service.getEventsByResult('legacy-c');
-      expect(cEvents.length).toBeGreaterThan(0);
-      expect(new Set(cEvents.map((e) => e.id)).size).toBe(cEvents.length);
-      // (c) canonical session row kept, not clobbered by the legacy duplicate
-      expect((await service.getSessionById('legacy-c'))?.duration).toBe(7);
-
-      // the legacy store is gone
-      await expect(new Promise<boolean>((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME);
-        req.onblocked = () => reject(new Error('probe blocked by an open connection'));
-        req.onsuccess = () => {
-          const has = req.result.objectStoreNames.contains('results');
-          req.result.close();
-          resolve(!has);
-        };
-        req.onerror = () => reject(req.error);
-      })).resolves.toBe(true);
-    } finally {
-      // dispose the open service handle BEFORE the next test's fixture opens
-      await storage.close();
-    }
-  });
-
-  it('repairs a mixed first-V26 database (no by-source/by-created/by-note-tag) on open', async () => {
-    // Real databases exist at the first V26 cut — before by-created,
-    // by-source and the unique by-note-tag pair shipped. Version 26 is
-    // ambiguous; opening at the current version must presence-repair all
-    // three without touching the data (V24 lesson: never trust oldVersion
-    // alone, guard on index presence).
-    await openLegacyDb(26, (db) => {
-      const notes = db.createObjectStore('notes', { keyPath: 'id' });
-      notes.createIndex('by-date', 'date');
-      const blocks = db.createObjectStore('block_index', { keyPath: 'id' });
-      blocks.createIndex('by-note', 'noteId');
-      blocks.put({
-        id: 'n1:s:1', noteId: 'n1', segmentId: 's', segmentVersion: 1,
-        dataType: 'wod', rawContent: 'x', noteTitle: 't', createdAt: T0,
-        sourceId: 'collection:girls',
-      });
-      blocks.put({
-        id: 'f:s:1', noteId: 'feed/n', segmentId: 's', segmentVersion: 1,
-        dataType: 'wod', rawContent: 'x', noteTitle: 't', createdAt: T0,
-        sourceId: 'feed:dir/2024-01-01/file',
-      });
-      const noteTags = db.createObjectStore('note_tags', { keyPath: 'id' });
-      noteTags.createIndex('by-note', 'noteId');
-      noteTags.createIndex('by-tag', 'tagId');
-      noteTags.put({ id: 'aaa', noteId: 'n1', tagId: 't1' });
-      noteTags.put({ id: 'zzz', noteId: 'n1', tagId: 't1' });
-    });
-
-    const storage = new IndexedDBStorage();
-    try {
-      // by-created: the date-candidate union half
-      expect(await storage.readonly('notes').getAllFromIndex('by-created', IDBKeyRange.bound(0, Infinity)))
-        .toEqual([]);
-      // by-source: the fence-count half
-      expect(await storage.readonly('block_index').getAllFromIndex('by-source', IDBKeyRange.bound('collection:', 'collection;', false, true)))
-        .toHaveLength(1);
-      // by-note-tag: dedupe ran and the unique pair is declared
-      const pairs = await storage.readonly('note_tags').getAllFromIndex('by-note-tag');
-      expect(pairs.map((r) => r.id).sort()).toEqual(['aaa']);
-      expect(pairs.every((r) => r.noteId === 'n1' && r.tagId === 't1')).toBe(true);
-    } finally {
-      await storage.close();
-    }
-  });
-
-  it('dedupes note_tags pairs deterministically and enforces the unique by-note-tag pair', async () => {
-    await openLegacyDb(25, (db) => {
-      const noteTags = db.createObjectStore('note_tags', { keyPath: 'id' });
-      noteTags.createIndex('by-note', 'noteId');
-      noteTags.createIndex('by-tag', 'tagId');
-      // duplicate (n1, t1): lexicographically smallest id must win
-      noteTags.put({ id: 'aaa', noteId: 'n1', tagId: 't1' });
-      noteTags.put({ id: 'zzz', noteId: 'n1', tagId: 't1' });
-      noteTags.put({ id: 'mmm', noteId: 'n1', tagId: 't1' });
-      noteTags.put({ id: 'bbb', noteId: 'n2', tagId: 't1' });
-    });
-
-    const storage = new IndexedDBStorage();
-    try {
-      // whole-index read + JS filter (no compound range through the wrapper —
-      // the dedupe+unique-create upgrade path is the thing under test here)
-      const pairs = await storage.readonly('note_tags').getAllFromIndex('by-note-tag');
-      expect(pairs.map((r) => r.id).sort()).toEqual(['aaa', 'bbb']);
-      expect(await storage.readonly('note_tags').count()).toBe(2);
-
-      // the unique pair constraint is live on the upgraded store: the index
-      // exists and is declared unique (native IDB rejects violating puts on
-      // it — asserting the declaration here keeps the test free of
-      // environment-specific abort handling).
-      await expect(new Promise<boolean>((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME);
-        req.onblocked = () => reject(new Error('probe blocked by an undisposed connection'));
-        req.onsuccess = () => {
-          const store = req.result.transaction('note_tags', 'readonly').objectStore('note_tags');
-          const unique = store.indexNames.contains('by-note-tag')
-            && store.index('by-note-tag').unique === true;
-          req.result.close();
-          resolve(unique);
-        };
-        req.onerror = () => reject(req.error);
-      })).resolves.toBe(true);
-    } finally {
-      // dispose the open service handle BEFORE the next test's fixture opens
-      await storage.close();
-    }
+    await expect(storage.readonly('notes').getAll()).rejects.toThrow(/recreat|incompatib/i);
+    await storage.close();
   });
 });
 
@@ -574,7 +346,6 @@ describe('getEntryBatches — remote/local bundle chooser', () => {
 
   const entry = (id: string): DomainEntry => ({
     note: makeNote({ id }),
-    segments: [],
     tags: [{ id: `t-${id}`, label: `${id}-tag`, createdAt: T0 }],
     links: [],
     pages: [],

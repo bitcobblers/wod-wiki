@@ -17,7 +17,7 @@ import { buildDashboardScaffold, DEFAULT_DASHBOARD_TITLE } from '@bitcobblers/wo
 import { journalNotes, type JournalNotes } from './journalNotes';
 
 export interface DashboardNotesDependencies {
-  persistence: INotePersistence;
+  persistence: Pick<INotePersistence, 'listNotes'>;
   journal: JournalNotes;
 }
 
@@ -31,9 +31,8 @@ export interface DashboardNotes {
 export function createDashboardNotes({ persistence, journal }: DashboardNotesDependencies): DashboardNotes {
   // Deactivate every other active dashboard so the just-created/cloned note
   // is the one the namespace lands on. Runs before the create so a failure
-  // leaves the vault's existing dashboards intact. Typed discovery — the
-  // V28 repair (IndexedDBStorage) guarantees legacy `dashboard: true` notes
-  // carry type 'dashboard' before any create can run.
+  // leaves the vault's existing dashboards intact. Typed discovery uses the
+  // canonical Note kind rather than frontmatter to select dashboard notes.
   async function deactivateOthers(excludeId?: string): Promise<void> {
     const notes = await persistence.listNotes({ kind: 'dashboard' });
     for (const note of notes) {
@@ -42,7 +41,7 @@ export function createDashboardNotes({ persistence, journal }: DashboardNotesDep
       if (meta['dashboard'] !== 'true' || meta['dashboard.active'] !== 'true') continue;
       const next = { ...meta };
       delete next['dashboard.active'];
-      await journal.update(note.id, `---\n${serializeFrontmatter(next)}\n---\n${body}`);
+      await journal.update(note, `---\n${serializeFrontmatter(next)}\n---\n${body}`);
     }
   }
 

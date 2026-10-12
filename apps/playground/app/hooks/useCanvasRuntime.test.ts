@@ -13,6 +13,17 @@ import type { ScriptBlock, Sessions } from '@/components/Editor/types'
 import type { RecordResultInput, ResultRecorder } from '@/services/resultRecorder'
 import type { PlaygroundIntake } from '../services/createPlaygroundPage';
 import { useCanvasRuntime } from './useCanvasRuntime'
+import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
+import { StorageService } from '@/services/storage/StorageService';
+import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
+import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
+let persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage()));
+mock.module('@/services/persistence', () => ({
+  notePersistence: {
+    getNote: (...args: Parameters<IndexedDBNotePersistence['getNote']>) => persistence.getNote(...args),
+    startSession: (...args: Parameters<IndexedDBNotePersistence['startSession']>) => persistence.startSession(...args),
+  },
+}));
 
 const toasts: Array<{ title: string }> = []
 const snapshotDocs: string[] = []
@@ -29,6 +40,7 @@ mock.module('../services/createPlaygroundPage', () => ({
       }
       snapshotCount += 1
       snapshotDocs.push(content)
+      await persistence.saveNote({ noteId: `note-${snapshotCount}`, rawContent: content, blocks: reconcileNoteBlocks(content, { sourceRevision: 1, createId: () => 'blk-1' }), expectedSourceRevision: 0, metadata: { title: 'Syntax Basics' } });
       return { noteId: `note-${snapshotCount}`, routeId: `playground/snap-${snapshotCount}` }
     },
   } satisfies Pick<PlaygroundIntake, 'snapshotEntry'>,
@@ -53,6 +65,7 @@ mock.module('@/services/resultRecorder', () => ({
 // counters/arrays leak across cases (bun runs a file's tests in one process).
 beforeEach(() => {
   snapshotCount = 0
+  persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage()));
   failSnapshot = false
   failRecord = false
   recorded.length = 0
@@ -83,7 +96,7 @@ function setup() {
     useCanvasRuntime({
       title: 'Syntax Basics',
       getBlock: () => block,
-      getContent: () => '# doc',
+      getContent: () => '# doc\n```time\nAMRAP 5:00\n```',
     }),
   )
 }
@@ -97,7 +110,8 @@ describe('useCanvasRuntime — startRun', () => {
     })
 
     expect(snapshotCount).toBe(1)
-    expect(result.current.fullscreen).toEqual({ kind: 'timer', block, results: null })
+    expect(result.current.fullscreen).toMatchObject({ kind: 'timer', block: { id: 'blk-1', dialect: 'time' }, results: null });
+    expect(result.current.fullscreen?.block).not.toBe(block);
     expect(result.current.run?.noteId).toBe('note-1')
   });
 

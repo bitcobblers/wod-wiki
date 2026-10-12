@@ -2,7 +2,7 @@
 
 - **Route:** `/notes/:noteId`
 - **Host Component:** `apps/playground/app/pages/NoteByIdPage.tsx`
-- **Domain Models:** `Note`, `NoteSegment`, `Page`, `Tag`, `Attachment`
+- **Domain Models:** `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `Tag`, `Attachment`
 
 ---
 
@@ -18,7 +18,7 @@
 ### Services, Providers, & Stores
 - `IndexedDBContentProvider` (`apps/playground/src/services/content/IndexedDBContentProvider.ts`). Loads `HistoryEntry` by UUID and persists content updates.
 - `WorkbenchSessionProvider` (`apps/playground/src/stores/workbenchSessionStore.ts`). Provides active session context and execution output subscriptions.
-- `notePersistence` (`apps/playground/src/services/persistence/index.ts`). Coordinates transactional saves to the `notes` and `segments` IndexedDB stores.
+- `notePersistence` (`apps/playground/src/services/persistence/index.ts`). Coordinates transactional saves to the `notes` and `block_revisions` IndexedDB stores (whole-note source/map plus changed actionable-block states).
 - `pendingRuntimes` (`apps/playground/app/runtimeStore.ts`). Holds in-memory execution payload when the user initiates a run.
 
 ### Hooks

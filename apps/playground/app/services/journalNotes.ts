@@ -3,6 +3,9 @@ import { v7 as uuidv7 } from 'uuid';
 import type { INotePersistence } from '@/services/persistence';
 import { notePersistence } from '@/services/persistence';
 import type { HistoryEntry } from '@/types/history';
+import type { NoteBlock } from '@/types/storage';
+import { reconcileNoteBlocks, mapNoteBlockChanges, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+import type { WidgetOpResult } from '@bitcobblers/wod-wiki-wql';
 
 import { normalizeNoteTitle } from '@/lib/noteTitle';
 import { parseJournalDate } from './parseJournalDate';
@@ -23,13 +26,13 @@ export interface JournalNotes {
   getById(noteId: string): Promise<HistoryEntry>;
   resolve(idOrSlug: string): Promise<HistoryEntry>;
   listByDate(journalDate: string): Promise<HistoryEntry[]>;
-  update(noteId: string, rawContent: string): Promise<HistoryEntry>;
+  update(note: Pick<HistoryEntry, 'id' | 'rawContent' | 'blocks' | 'sourceRevision'>, rawContent: string, lineage?: Pick<Extract<WidgetOpResult, { ok: true }>, 'changes' | 'retainedBlocks'>): Promise<HistoryEntry>;
   moveToDate(noteId: string, journalDate: string): Promise<HistoryEntry>;
   delete(noteId: string): Promise<void>;
 }
 
 export interface JournalNotesDependencies {
-  persistence: INotePersistence;
+  persistence: Pick<INotePersistence, 'createNote' | 'getNote' | 'listNotes' | 'mutateNote' | 'deleteNote'>;
   uuid?: () => string;
 }
 
@@ -90,13 +93,26 @@ export function createJournalNotes({
       return notes.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
     },
 
-    update(noteId, rawContent) {
+    update(note, rawContent, lineage) {
+      const noteId = note.id;
       const heading = normalizeNoteTitle(rawContent.match(/^#\s+(.+)$/m)?.[1]?.trim());
-      const write = async () =>
-        persistence.mutateNote({ id: noteId }, {
-          rawContent,
-          metadata: heading ? { title: heading } : undefined,
-        });
+      const revision = note.sourceRevision;
+      if (revision === undefined) return Promise.reject(new Error('Loaded Note source revision is required'));
+      let from = 0;
+      while (from < note.rawContent.length && from < rawContent.length && note.rawContent[from] === rawContent[from]) from++;
+      let oldTo = note.rawContent.length;
+      let newTo = rawContent.length;
+      while (oldTo > from && newTo > from && note.rawContent[oldTo - 1] === rawContent[newTo - 1]) { oldTo--; newTo--; }
+      const mapped: Record<string, NoteBlock> = mapNoteBlockChanges(note.blocks ?? {}, lineage?.changes ?? [{ from, to: oldTo, insert: rawContent.slice(from, newTo) }]);
+      for (const retained of lineage?.retainedBlocks ?? []) {
+        const block = Object.values(note.blocks ?? {}).find(block => block.from === retained.from && block.to === retained.to);
+        if (block) mapped[block.id] = { ...block, from: retained.nextFrom, to: retained.nextTo };
+      }
+      const blocks = reconcileNoteBlocks(rawContent, { sourceRevision: revision, registeredWidgets: KNOWN_SECTION_WIDGETS, blocks: mapped });
+      const write = async () => persistence.mutateNote({ id: noteId }, {
+        rawContent, blocks, expectedSourceRevision: revision,
+        metadata: heading ? { title: heading } : undefined,
+      });
       // Chain onto this note's pending write so a rejection never wedges it.
       const prev = updateQueue.get(noteId) ?? Promise.resolve();
       const next = prev.then(write, write);

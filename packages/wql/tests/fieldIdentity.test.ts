@@ -37,8 +37,8 @@ function eventRow(overrides: Partial<EventRecord> = {}): EventRecord {
     grain: 'event',
     outputType: 'segment',
     metrics: [],
-    segmentId: 'seg1',
-    segmentVersion: 1,
+    blockId: 'seg1',
+    blockVersion: 1,
     ...overrides,
   };
 }

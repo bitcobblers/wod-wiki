@@ -1,134 +1,61 @@
-import type { AttachmentCreateInput, IContentProvider, ContentProviderMode, NoteSaveInput } from '../../types/content-provider';
-import { v7 as uuidv7 } from 'uuid';
-import { HistoryEntry, ProviderCapabilities, EntryQuery } from '../../types/history';
-import { Attachment } from '../../types/storage';
+import type { ContentProviderMode, NoteSaveInput, NoteEntryPatch } from '../../types/content-provider';
+import type { HistoryEntry, EntryQuery } from '../../types/history';
+import { IndexedDBContentProvider } from './IndexedDBContentProvider';
+import { StorageService } from '../storage/StorageService';
+import { InMemoryStorage } from '../storage/InMemoryStorage';
 
-/**
- * MockContentProvider
- * 
- * In-memory content provider for Storybook and tests.
- * Allows seeding with a specific set of entries.
- */
-export class MockContentProvider implements IContentProvider {
-    readonly mode: ContentProviderMode = 'static';
+export class MockContentProvider extends IndexedDBContentProvider {
+  override readonly mode: ContentProviderMode = 'static';
+  readonly persistenceReady: Promise<void>;
 
-    readonly capabilities: ProviderCapabilities = {
-        canWrite: true,
-        canDelete: true,
-        canFilter: true,
-        canMultiSelect: true,
-        supportsHistory: true
-    };
-
-    private entries: Map<string, HistoryEntry> = new Map();
-    private attachments: Map<string, Attachment[]> = new Map();
-
-    constructor(initialEntries: HistoryEntry[] = []) {
-        initialEntries.forEach(entry => this.entries.set(entry.id, entry));
-    }
-
-    async getEntries(query?: EntryQuery): Promise<HistoryEntry[]> {
-        let results = Array.from(this.entries.values());
-
-        // Basic sorting by targetDate desc
-        results.sort((a, b) => b.targetDate - a.targetDate);
-
-        if (query?.limit) {
-            results = results.slice(0, query.limit);
+  constructor(initialEntries: HistoryEntry[] = []) {
+    const service = new StorageService(new InMemoryStorage());
+    super(service);
+    this.persistenceReady = (async () => {
+      const provider = new IndexedDBContentProvider(service);
+      for (const entry of initialEntries) {
+        const saved = await provider.saveEntry({ ...entry, sourceRevision: 0 });
+        for (const session of entry.extendedResults ?? []) await service.saveSession(session);
+        for (const attachment of entry.attachments ?? []) await service.saveAttachment(attachment);
+        if (entry.results) {
+          const block = Object.values(saved.blocks ?? {}).find(block => block.kind === 'wod');
+          if (!block) throw new Error('Mock result requires a workout occurrence');
+          await provider.updateEntry(saved.id, { results: entry.results, blockId: block.id, blockVersion: block.version });
         }
+      }
+    })();
+  }
 
-        return results;
-    }
+  override async getEntries(query?: EntryQuery): Promise<HistoryEntry[]> {
+    await this.persistenceReady;
+    return super.getEntries(query);
+  }
 
-    async getEntry(id: string): Promise<HistoryEntry | null> {
-        return this.entries.get(id) || null;
-    }
+  override async getEntry(id: string): Promise<HistoryEntry | null> {
+    await this.persistenceReady;
+    return super.getEntry(id);
+  }
 
-    async saveEntry(entry: NoteSaveInput): Promise<HistoryEntry> {
-        const id = entry.id ?? uuidv7();
-        const now = Date.now();
+  override async saveEntry(entry: NoteSaveInput): Promise<HistoryEntry> {
+    await this.persistenceReady;
+    return super.saveEntry(entry);
+  }
 
-        const newEntry: HistoryEntry = {
-            ...entry,
-            id,
-            createdAt: entry.createdAt ?? now,
-            updatedAt: entry.updatedAt ?? now,
-            schemaVersion: 1
-        };
+  override async updateEntry(id: string, patch: NoteEntryPatch): Promise<HistoryEntry> {
+    await this.persistenceReady;
+    return super.updateEntry(id, patch);
+  }
 
-        this.entries.set(id, newEntry);
-        return newEntry;
-    }
+  override async cloneEntry(sourceId: string, targetDate?: number): Promise<HistoryEntry> {
+    await this.persistenceReady;
+    const source = await super.getEntry(sourceId);
+    if (!source) throw new Error(`Entry ${sourceId} not found`);
+    const cloned = await super.cloneEntry(sourceId, targetDate);
+    return super.updateEntry(cloned.id, { title: `${source.title} (Copy)` });
+  }
 
-    async cloneEntry(sourceId: string, targetDate?: number): Promise<HistoryEntry> {
-        const source = this.entries.get(sourceId);
-        if (!source) throw new Error(`Entry ${sourceId} not found`);
-
-        const id = uuidv7();
-        const now = Date.now();
-
-        const newEntry: HistoryEntry = {
-            ...source,
-            id,
-            createdAt: now,
-            updatedAt: now,
-            targetDate: targetDate || now,
-            results: undefined, // Don't clone results
-            title: `${source.title} (Copy)`,
-            sourceId: source.id
-        };
-
-        this.entries.set(id, newEntry);
-
-        return newEntry;
-    }
-
-    async updateEntry(id: string, patch: IContentProvider['updateEntry'] extends (id: string, patch: infer P) => unknown ? P : never): Promise<HistoryEntry> {
-        const entry = this.entries.get(id);
-        if (!entry) throw new Error(`Entry ${id} not found`);
-
-        const updatedEntry = {
-            ...entry,
-            ...patch,
-            updatedAt: Date.now()
-        };
-
-        this.entries.set(id, updatedEntry);
-        return updatedEntry;
-    }
-
-    async deleteEntry(id: string): Promise<void> {
-        this.entries.delete(id);
-    }
-
-    // --- Attachments ---
-
-    async getAttachments(noteId: string): Promise<Attachment[]> {
-        return this.attachments.get(noteId) || [];
-    }
-
-    async saveAttachment(noteId: string, attachment: AttachmentCreateInput): Promise<Attachment> {
-        const id = attachment.id ?? uuidv7();
-        const now = Date.now();
-        const fullAttachment: Attachment = {
-            ...attachment,
-            id,
-            noteId,
-            createdAt: now,
-        } as Attachment;
-
-        const current = this.attachments.get(noteId) || [];
-        this.attachments.set(noteId, [...current, fullAttachment]);
-        
-        return fullAttachment;
-    }
-
-    async deleteAttachment(id: string): Promise<void> {
-        for (const [noteId, atts] of this.attachments.entries()) {
-            if (atts.some(a => a.id === id)) {
-                this.attachments.set(noteId, atts.filter(a => a.id !== id));
-                break;
-            }
-        }
-    }
+  override async deleteEntry(id: string): Promise<void> {
+    await this.persistenceReady;
+    await super.deleteEntry(id);
+  }
 }

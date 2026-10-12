@@ -1,9 +1,5 @@
 /**
- * Pure derivations over the static block-index corpus (issue #853):
- *   - feedDateToCreatedAt: feed path date keys → createdAt ms, 0 when
- *     malformed (undated rows are excluded from dated windows).
- *   - staticTagIndexFromBlocks: tag → noteIds from frontmatter rows — the
- *     corpus tag vocabulary the composer's `tag:` suggestions list.
+ * Pure date-key and whole-Note tag derivations for composer suggestions.
  */
 import { describe, expect, it } from 'bun:test';
 import type { BlockIndexRow } from '@/types/storage';
@@ -17,7 +13,7 @@ storageService.getAllTags = async () => [];
 import {
   feedDateToCreatedAt,
   invalidateCorpusBlocks,
-  staticTagIndexFromBlocks,
+  staticTagIndexFromNotes,
 } from './staticBlockIndex';
 import { getAppEffortRegistry } from '@/services/effortRegistry';
 import { invalidateSuggestions, loadSuggestions } from '@bitcobblers/wod-wiki-ui';
@@ -25,12 +21,15 @@ import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 
 function blockRow(partial: Partial<BlockIndexRow>): BlockIndexRow {
   return {
-    id: 'static:note:seg:1',
+    id: 'note:block',
     noteId: 'feeds/feed-a/2026-01-12/note',
-    segmentId: 'seg',
-    segmentVersion: 1,
+    blockId: 'block',
+    blockVersion: 1,
+    sourceRevision: 1,
+    from: 0,
+    to: 1,
     position: 0,
-    dataType: 'markdown',
+    dataType: 'query',
     rawContent: '',
     noteTitle: 'Note',
     createdAt: 0,
@@ -55,27 +54,20 @@ describe('feedDateToCreatedAt', () => {
   });
 });
 
-describe('staticTagIndexFromBlocks', () => {
-  it('maps frontmatter tags to their note ids, both YAML forms', () => {
-    const blocks = [
-      blockRow({ noteId: 'feeds/feed-a/2026-01-12/note-a', dataType: 'frontmatter', rawContent: 'tags:\n  - strength\n  - conditioning' }),
-      blockRow({ noteId: 'crossfit-girls/fran', dataType: 'frontmatter', rawContent: 'tags: [strength, benchmark]' }),
-      blockRow({ noteId: 'crossfit-girls/fran', dataType: 'wod', rawContent: 'tags: not-frontmatter' }),
-      blockRow({ noteId: 'feeds/feed-a/2026-01-13/note-b', dataType: 'frontmatter', rawContent: 'met: 7.0' }),
-    ];
-    const index = staticTagIndexFromBlocks(blocks);
-    expect([...(index.get('strength') ?? [])].sort()).toEqual([
-      'crossfit-girls/fran',
-      'feeds/feed-a/2026-01-12/note-a',
+describe('staticTagIndexFromNotes', () => {
+  it('maps authored frontmatter tags including prose-only Notes', () => {
+    const index = staticTagIndexFromNotes([
+      { id: 'feed-a', rawContent: '---\ntags:\n  - strength\n  - conditioning\n---\nProse' },
+      { id: 'fran', rawContent: '---\ntags: [strength, benchmark]\n---\n```time\n10 Pushups\n```' },
+      { id: 'untagged', rawContent: 'tags: not-frontmatter' },
     ]);
-    expect(index.get('conditioning')).toEqual(new Set(['feeds/feed-a/2026-01-12/note-a']));
-    expect(index.get('benchmark')).toEqual(new Set(['crossfit-girls/fran']));
+    expect([...(index.get('strength') ?? [])].sort()).toEqual(['feed-a', 'fran']);
+    expect(index.get('conditioning')).toEqual(new Set(['feed-a']));
+    expect(index.get('benchmark')).toEqual(new Set(['fran']));
     expect(index.get('not-frontmatter')).toBeUndefined();
-    expect(index.get('met')).toBeUndefined();
   });
-
-  it('returns an empty index when no frontmatter rows carry tags', () => {
-    expect(staticTagIndexFromBlocks([blockRow({})]).size).toBe(0);
+  it('returns an empty index without tags', () => {
+    expect(staticTagIndexFromNotes([{ id: 'n', rawContent: 'Prose' }]).size).toBe(0);
   });
 });
 
@@ -121,6 +113,6 @@ describe('composer suggestion bindings (vault/canonical normalization)', () => {
     expect(efforts.map((item) => item.value)).toEqual(['air-squat', 'Rowing-Intervals']);
     expect(efforts.map((item) => item.label)).toEqual(['Air Squat', 'Rowing Intervals']);
 
-    expect((await loadSuggestions('type')).map((item) => item.value)).toEqual(['wod', 'movement', 'workout']);
+    expect((await loadSuggestions('type')).map((item) => item.value)).toEqual(['wod', 'query', 'widget', 'embed']);
   });
 });

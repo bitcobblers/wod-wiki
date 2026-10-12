@@ -104,7 +104,7 @@ function GroupedEntryList({ entries, stickyOffset, idPrefix = '' }: { entries: E
           <div className="flex flex-col gap-0 pb-1">
             {group.entries.map(entry => (
               <LibraryRow
-                key={entry.block ? `${entry.id}#${entry.block.segmentId}` : entry.id}
+                key={entry.block ? `${entry.id}#${entry.block.blockId}` : entry.id}
                 entry={entry}
                 dateLabel={entry.date ? formatDateHeader(entry.date) : undefined}
               />

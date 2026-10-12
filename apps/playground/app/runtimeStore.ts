@@ -7,9 +7,13 @@
  */
 import type { ScriptBlock } from '@/components/Editor/types'
 import type { ResultOrigin } from '@/types/storage'
+import type { SaveNoteInput } from '@/services/persistence';
+import type { CapturedRun } from '@/services/runCapture';
 
 export interface PendingRuntime {
   block: ScriptBlock
+  snapshot?: SaveNoteInput;
+  captured?: CapturedRun;
   /**
    * Canonical Note UUID (or legacy composite id). Pass `origin` explicitly
    * when the id doesn't self-describe ('playground/<name>' → 'playground',

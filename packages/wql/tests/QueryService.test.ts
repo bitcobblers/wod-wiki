@@ -35,8 +35,8 @@ function fact(
     noteId: 'note-fran',
     grain: 'summary',
     outputType: 'analytics',
-    segmentId: 's1',
-    segmentVersion: 1,
+    blockId: 's1',
+    blockVersion: 1,
     timestamp,
     ...identity,
     // Post-V14 engine output: summaries carry substitution-proof stats.
@@ -545,7 +545,7 @@ describe(':catalog search by efforts, tags, text, etc.', () => {
       tags: ['kettlebell'],
       createdAt: 2000,
     },
-  ];
+  ].map(note => ({ ...note, rawContent: '', sourceRevision: 1, blocks: {} }));
 
   const blockEfforts = [
     { noteId: 'crossfit-girls/fran', effortSlug: 'pull-up' },

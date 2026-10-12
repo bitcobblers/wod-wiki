@@ -1,11 +1,9 @@
 import '@testing-library/jest-dom';
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
-import crossfitJournal from '../../../packages/wql/fixtures/corpus/crossfit-multi-week.json';
+import { JOURNALS, buildServiceForJournal } from '../src/gallery/journals';
 import {
-  QueryService,
-  inMemoryEventStore,
   createParser,
   getHints,
   hintsToContainer,
@@ -19,6 +17,8 @@ import {
   type LanguagePack,
 } from '@bitcobblers/wod-wiki-engine';
 import { LanguageWorkbench } from '../src/workbench';
+import { EditorView } from '@codemirror/view';
+import { sectionField } from '@bitcobblers/wod-wiki-ui';
 
 const DEMO_PACK_ID = 'demo-pack';
 
@@ -79,15 +79,13 @@ describe('LanguageWorkbench in apps/storybook', () => {
   });
 
   it('loads the crossfit corpus journal with 78 records', () => {
-    expect(crossfitJournal.kind).toBe('event-journal');
-    expect(crossfitJournal.records).toHaveLength(78);
+    expect(JOURNALS.crossfit.kind).toBe('event-journal');
+    expect(JOURNALS.crossfit.records).toHaveLength(78);
   });
 
   it('evaluates WQL queries against inMemoryEventStore in real time', async () => {
-    const store = inMemoryEventStore(crossfitJournal.records as Parameters<typeof inMemoryEventStore>[0]);
-    const service = new QueryService(store);
-
-    const newest = Math.max(...crossfitJournal.records.map((f) => f.timestamp));
+    const service = buildServiceForJournal(JOURNALS.crossfit);
+    const newest = Math.max(...JOURNALS.crossfit.records.map((record) => record.timestamp));
     const result = await service.runQuery('sum:totalVolume{} by {week}', {
       rangeEnd: newest,
       preferredUnit: 'lb',
@@ -165,6 +163,24 @@ describe('LanguageWorkbench in apps/storybook', () => {
     expect(screen.getByTestId('output-filter-preset-all')).toBeInTheDocument();
     expect(screen.getByTestId('output-filter-preset-segments')).toBeInTheDocument();
     expect(screen.getByTestId('output-filter-preset-events')).toBeInTheDocument();
+  });
+
+  it('keeps the selected duplicate workout occurrence after a prose insertion', () => {
+    const fence = '```time\n10 Push-ups\n```';
+    render(<LanguageWorkbench initialNote={`# Duplicates\n\n${fence}\n\n${fence}`} />);
+    const editor = screen.getByTestId('script-editor-host').querySelector('.cm-editor');
+    if (!(editor instanceof HTMLElement)) throw new Error('Expected mounted note editor');
+    const view = EditorView.findFromDOM(editor);
+    if (!view) throw new Error('Expected CodeMirror view');
+    const before = view.state.field(sectionField).sections.filter((section) => section.type === 'time');
+    expect(before).toHaveLength(2);
+    expect(before[0].id).not.toBe(before[1].id);
+    fireEvent.click(screen.getByTestId('time-block-chip-1'));
+    expect(screen.getByTestId('time-block-chip-1')).toHaveClass('border-primary');
+    act(() => view.dispatch({ changes: { from: 0, insert: 'Recovery prose.\n\n' } }));
+    const after = view.state.field(sectionField).sections.filter((section) => section.type === 'time');
+    expect(after.map((section) => section.id)).toEqual(before.map((section) => section.id));
+    expect(screen.getByTestId('time-block-chip-1')).toHaveClass('border-primary');
   });
 
   it('supports custom primary WQL, secondary filter presets, and dashboards', () => {

@@ -3,7 +3,7 @@
  *
  * Groups: entity types, the backend-neutral IStorage contract, the IndexedDB
  * schema spec (STORE_DEFS), wire DTOs + key helpers, and the HTTP ApiStorage
- * backend. Type-only deps (core/lang) are external at runtime.
+ * backend. Core supplies canonical types and actionable-source validation.
  */
 
 export * from './entities';
@@ -13,3 +13,4 @@ export * from './membership';
 export * from './wire';
 export * from './api';
 export * from './domain';
+export * from './validation';

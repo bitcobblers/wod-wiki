@@ -2,7 +2,7 @@
 
 - **Route:** `/p/:slug` (and legacy `/guide/*`, `/syntax/*`)
 - **Host Component:** `apps/playground/app/canvas/ScrollCanvasPage.tsx` / `MarkdownCanvasPage.tsx`
-- **Domain Models:** `Page`, `Note`, `NoteSegment`
+- **Domain Models:** `Page`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`)
 
 ---
 

@@ -13,7 +13,7 @@
 
 
 import type { Sessions, Section } from '../components/Editor/types';
-import type { Attachment, NoteKind, Session } from './storage';
+import type { Attachment, NoteKind, NoteBlock, Session } from './storage';
 
 export type { Sessions, Section };
 
@@ -30,6 +30,8 @@ export interface HistoryEntry {
 
   // Source
   rawContent: string;                  // Original markdown
+  sourceRevision?: number;
+  blocks?: Record<string, NoteBlock>;
 
   // Execution results (optional — present after completion)
   results?: Sessions;
@@ -40,7 +42,7 @@ export interface HistoryEntry {
   // Metadata
   tags: string[];
   notes?: string;
-  // Pre-parsed segments for instant rendering
+  // Transient presentation sections.
   sections?: Section[];
   // Attachments requested by richer note projections.
   attachments?: Attachment[];

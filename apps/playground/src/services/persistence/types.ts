@@ -1,6 +1,6 @@
 import type { Sessions } from '@/components/Editor/types';
 import type { HistoryEntry } from '@/types/history';
-import type { Attachment, AnalyticsDataPoint, Note, NoteKind, NoteSegment, ResultOrigin, EventRecord, Session } from '@/types/storage';
+import type { Attachment, AnalyticsDataPoint, Note, NoteKind, NoteBlock, BlockRevision, ResultOrigin, EventRecord, Session } from '@/types/storage';
 import type { StoreName } from '@bitcobblers/wod-wiki-storage';
 import type { StorageService } from '@/services/storage/StorageService';
 
@@ -30,11 +30,11 @@ export type ResultSelection =
     }
   | {
       mode: 'latest-for-section';
-      blockContentId: string;
+      blockId: string;
     }
   | {
       mode: 'all-for-section';
-      blockContentId: string;
+      blockId: string;
       limit?: number;
     }
   | {
@@ -53,6 +53,22 @@ export interface CreateNoteInput {
   slug?: string;
   /** N-10 — the note this one was created from (template/collection source). */
   sourceId?: string;
+}
+
+export interface SaveNoteInput {
+  noteId: string;
+  rawContent: string;
+  blocks: Record<string, NoteBlock>;
+  expectedSourceRevision: number;
+  metadata?: NoteMutation['metadata'];
+  noteType?: NoteKind;
+  createdAt?: number;
+}
+
+export interface StartedSession {
+  note: Note;
+  revision: BlockRevision;
+  session: Session;
 }
 
 export interface NoteQuery {
@@ -88,6 +104,8 @@ export type AttachmentInput = AttachmentFileInput | AttachmentDataInput;
 
 export interface NoteMutation {
   rawContent?: string;
+  blocks?: Record<string, NoteBlock>;
+  expectedSourceRevision?: number;
   metadata?: Partial<{
     title: string;
     tags: string[];
@@ -107,16 +125,14 @@ export interface NoteMutation {
   }>;
   workoutResult?: {
     id?: string;
-    blockId?: string;       // Section position identity
-    blockContentId?: string;  // Content-stable join key
-    version?: number;        // LEGACY — content generation from the retired computeVersion path
-    segmentId?: string;     // NoteSegment FK (positional section id)
+    blockId: string;
+    blockVersion: number;
+    blockContentId?: string;
     origin?: ResultOrigin;  // Which surface produced the result; default filters exclude 'playground'
     data: Sessions;
     createdAt?: number;
   };
-  /** Note kind applied ONLY when the mutation lazily creates a missing note;
-   *  never overwrites an existing note's type. */
+  /** Kind supplied by callers creating a missing Note through saveNote. */
   noteType?: NoteKind;
   attachments?: {
     add?: Array<File | AttachmentInput>;
@@ -128,7 +144,8 @@ export type NotePersistenceErrorCode =
   | 'NOTE_NOT_FOUND'
   | 'RESULT_NOT_FOUND'
   | 'RESULT_NOTE_MISMATCH'
-  | 'SEGMENT_NOT_FOUND';
+  | 'BLOCK_REVISION_NOT_FOUND'
+  | 'STALE_SOURCE';
 
 export class NotePersistenceError extends Error {
   constructor(
@@ -145,14 +162,15 @@ export interface NotePersistenceStorage {
   getNote(id: string): Promise<Note | undefined>;
   saveNote(note: Note): Promise<string>;
   getAllNotes(): Promise<Note[]>;
-  getLatestSegmentVersion(segmentId: string): Promise<NoteSegment | undefined>;
-  /** Compound-key read: the exact segment incarnation recorded for a result. */
-  getSegment?(segmentId: string, version: number): Promise<NoteSegment | undefined>;
+  saveNoteSource(input: SaveNoteInput): Promise<Note>;
+  getBlockRevision(noteId: string, blockId: string, version: number): Promise<BlockRevision | undefined>;
+  getBlockHistory(noteId: string, blockId: string): Promise<BlockRevision[]>;
+  getNoteBlockHistory(noteId: string): Promise<BlockRevision[]>;
   getSessionsForNote(noteId: string): Promise<Session[]>;
   saveSession(session: Session): Promise<string>;
   /** V6 — cross-note collection aggregation: every session for one blockContentId, across all notes. */
   getSessionsByContentId(blockContentId: string): Promise<Session[]>;
-  getSessionsForSection(noteId: string, sectionId: string): Promise<Session[]>;
+  getSessionsForSection(noteId: string, blockId: string): Promise<Session[]>;
   getSessionById(sessionId: string): Promise<Session | undefined>;
   getAttachmentsForNote(noteId: string): Promise<Attachment[]>;
   saveAttachment(attachment: Attachment): Promise<string>;

@@ -37,7 +37,7 @@ import {
   getEffortBySlug,
   listTagsByType,
 } from './db';
-import { persistNote, persistRun, persistSessionBundle, persistEffort, persistTypedTags } from './persist';
+import { persistNote, startRun, persistRun, persistSessionBundle, persistEffort, persistTypedTags } from './persist';
 import { defaultSeedDirs, importSeedDir } from './seed';
 import {
   composeNoteMarkdown,
@@ -57,7 +57,18 @@ import {
   type OutputFormat,
 } from './formatters';
 
+import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
+import type { ExecutionLog, WodWikiIRFile } from '../ir';
 const VERSION = '0.6.0';
+
+/** Bare CLI scripts become authored Markdown at the persistence boundary. */
+export function cliNoteSource(source: string, label: string, sport?: string): string {
+  if (/\.(?:md|markdown)$/i.test(label) || parseDocumentSections(source).some((section) => section.scriptBlock)) return source;
+  let length = 3;
+  for (const match of source.matchAll(/`+/g)) length = Math.max(length, match[0].length + 1);
+  const fence = '`'.repeat(length);
+  return `${fence}time${sport ? `:${sport}` : ''}\n${source}\n${fence}\n`;
+}
 
 export interface CliParsedArgs {
   subcommand?: 'parse' | 'run' | 'query' | 'download' | 'import' | 'build' | 'seed' | 'reset' | 'help' | 'version';
@@ -74,8 +85,6 @@ export interface CliParsedArgs {
   unit?: string;
   help?: boolean;
   version?: boolean;
-  /** Compose a note markdown as-of this segment version (`download note`). */
-  at?: string;
   /** SQLite database path (--db). Defaults to WOD_WIKI_DB or ./wodwiki.db. */
   db?: string;
   /** IR debug output: undefined = off, '' = default file name, otherwise the file name. */
@@ -100,6 +109,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
   let i = 0;
   while (i < args.length) {
     const arg = args[i];
+    if (arg === '--at' || arg.startsWith('--at=')) throw new Error('Unknown option --at; whole Note exports have no as-of version');
 
     if (arg === '--help' || arg === '-h') {
       result.help = true;
@@ -159,12 +169,6 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       i++;
     } else if (arg.startsWith('--debug=')) {
       result.debug = arg.slice('--debug='.length);
-      i++;
-    } else if (arg === '--at') {
-      result.at = args[++i];
-      i++;
-    } else if (arg.startsWith('--at=')) {
-      result.at = arg.slice('--at='.length);
       i++;
     } else if (arg === '--source') {
       const source = args[++i];
@@ -268,7 +272,7 @@ USAGE:
 
 SUBCOMMANDS:
   parse <file | ->    Parse Whiteboard Script, create a note in the database
-                     (segments + block index), optionally emit parse-tree IR.
+                     (whole source + saved revisions + sparse block index), optionally emit parse-tree IR.
                      Markdown carrying a 'wod-note-id' frontmatter stamp
                      (see download) imports back into that same note.
   run <file | ->      Execute the script state machine, record a session +
@@ -276,10 +280,8 @@ SUBCOMMANDS:
                      execution-log IR
   query '<wql>'       Evaluate WQL against the database (or an explicit
                      dataset) and emit QueryResult / RowsQueryResult IR
-  download note <id>  Compose the note's markdown from its segment rows and
-                     write it to <id>.md. Use --at <version> to compose
-                     as-of a segment version (default: latest). The stamp
-                     in the frontmatter makes 'wod parse' re-import it.
+  download note <id>  Export the note's authored markdown to <id>.md.
+                     The frontmatter identity stamp allows re-import.
                      Frontmatter tags (general + typed equipment/quality/…)
                      are materialized into the tag graph on parse/import.
   download session <id>
@@ -296,8 +298,8 @@ SUBCOMMANDS:
   import note <file>  Re-import exported note markdown (same as parse with
                      the stamped identity).
   import session <file>
-                     Recreate a session + its events from a downloaded CSV
-                     into the same or a clean database (id-keyed upsert).
+                     Import a session + its events from a downloaded CSV.
+                     The exact saved block revision must already exist.
   import effort <file>
                      Upsert an effort registry row from corpus-style markdown.
   import equipment <file>
@@ -305,7 +307,7 @@ SUBCOMMANDS:
   build [dir]         Compile a seed corpus: validate every .md under
                      <dir>/markdown (parity gate + dashboard format gate) and
                      write manifest.json + content-hashed chunks/ +
-                     block-parent-map.json + report.html to <dir>/dist
+                     report.html to <dir>/dist with source/maps/projections bundled
                      (override with -o/--output). Version stamps derive from
                      <dir>'s git history (full checkout required).
 
@@ -333,8 +335,6 @@ OPTIONS:
   --format <fmt>      Output format: json (default), table, csv
   -o, --output <path> Write the IR payload (or download) to a path instead of
                       the default; '-' writes to stdout
-  --at <version>      With 'download note': compose the markdown as-of the
-                      given segment version (default: latest)
   --debug[=name]      Also write the IR payload to <name> (default
                       wod-<subcommand>-debug.json); without it, parse/run
                       print a one-line summary of what was persisted
@@ -377,7 +377,13 @@ export async function cliMain(
   const writeErr = io.stderr ?? ((t: string) => process.stderr.write(t + '\n'));
   const getStdin = io.readStdinFn ?? readStdin;
 
-  const parsed = parseCliArgs(argv);
+  let parsed: CliParsedArgs;
+  try {
+    parsed = parseCliArgs(argv);
+  } catch (error) {
+    writeErr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
 
   if (parsed.version || parsed.subcommand === 'version') {
     writeOut(`wod v${VERSION}`);
@@ -409,7 +415,7 @@ export async function cliMain(
 
   // Output destination helper
   const deliverOutput = (formattedText: string) => {
-    if (parsed.output) {
+    if (parsed.output && parsed.output !== '-') {
       getFs().writeFileSync(parsed.output, formattedText, 'utf-8');
     } else {
       writeOut(formattedText);
@@ -447,13 +453,14 @@ export async function cliMain(
         source = fs.readFileSync(parsed.target, 'utf-8');
       }
 
+      const noteSource = cliNoteSource(source, parsed.target, parsed.sport);
       const ir = runParse(source, { sport: parsed.sport, sourceLabel: `cli:wod parse ${parsed.target}` });
       const identity = extractNoteIdentity(source);
       const tags = extractTypedTags(source);
       const db = await openCliDb(parsed.db);
       try {
         const persisted = await persistNote(db, {
-          source,
+          source: noteSource,
           sourceLabel: parsed.target,
           noteId: identity?.noteId,
           title: identity?.title,
@@ -461,7 +468,7 @@ export async function cliMain(
         });
         writeOut(
           `[wod parse] note ${persisted.noteId}${persisted.created ? '' : ' (updated)'}` +
-          ` — ${persisted.segments} segments, ${persisted.blocks} blocks, ${persisted.efforts} efforts` +
+          ` — ${persisted.blocks} blocks, ${persisted.efforts} efforts` +
           `${persisted.tags > 0 ? `, ${persisted.tags} tags` : ''} → ${db.path}`,
         );
       } finally {
@@ -493,14 +500,30 @@ export async function cliMain(
         source = fs.readFileSync(parsed.target, 'utf-8');
       }
 
-      const ir = await runExecution(source, { sport: parsed.sport, sourceLabel: `cli:wod run ${parsed.target}` });
+      const identity = extractNoteIdentity(source);
       const db = await openCliDb(parsed.db);
+      let ir: WodWikiIRFile<ExecutionLog>;
       try {
-        const persisted = await persistRun(db, {
-          source,
+        const started = await startRun(db, {
+          source: cliNoteSource(source, parsed.target, parsed.sport),
           sourceLabel: parsed.target,
-          executionLog: ir.data,
+          noteId: identity?.noteId,
+          title: identity?.title,
+          tags: extractTypedTags(source),
         });
+        const section = parseDocumentSections(started.revision.rawContent).find((row) => row.scriptBlock);
+        if (!section?.scriptBlock) throw new Error('[wod run] Captured workout source cannot be parsed');
+        const bare = !/\.(?:md|markdown)$/i.test(parsed.target) && !parseDocumentSections(source).some((row) => row.scriptBlock);
+        const frozenBody = bare ? section.scriptBlock.content.slice(0, -1) : section.scriptBlock.content;
+        ir = await runExecution(frozenBody, {
+          sport: started.revision.sport,
+          dialect: started.revision.dialect,
+          blockId: started.session.blockId,
+          blockVersion: started.session.blockVersion,
+          startTime: started.session.startTime,
+          sourceLabel: `cli:wod run ${parsed.target}`,
+        });
+        const persisted = await persistRun(db, started, ir.data);
         writeOut(
           `[wod run] session ${persisted.resultId} — ${persisted.events} events, ` +
           `${persisted.summaries} summaries on note ${persisted.noteId} → ${db.path}`,
@@ -586,7 +609,7 @@ export async function cliMain(
       const id = parsed.target2;
       const DOWNLOAD_KINDS = ['note', 'session', 'effort', 'equipment'];
       if ((!id && kind !== 'equipment') || !DOWNLOAD_KINDS.includes(kind ?? '')) {
-        writeErr('[wod download] Usage: wod download <note|session|effort|equipment> <id> [--at <version>] [-o <path>]');
+        writeErr('[wod download] Usage: wod download <note|session|effort|equipment> <id> [-o <path>]');
         return 1;
       }
       const targetId = id as string;
@@ -598,23 +621,14 @@ export async function cliMain(
             writeErr(`[wod download] Note not found in ${db.path}: ${id}`);
             return 1;
           }
-          const at = parsed.at === undefined ? undefined : Number(parsed.at);
-          if (parsed.at !== undefined && (!Number.isInteger(at) || (at as number) < 1)) {
-            writeErr(`[wod download] Invalid --at version: ${parsed.at}`);
-            return 1;
-          }
-          const markdown = composeNoteMarkdown(bundle.note, bundle.segments, at);
-          const target =
-            parsed.output && parsed.output !== '-' ? parsed.output : `${id}${at ? `.v${at}` : ''}.md`;
+          const markdown = composeNoteMarkdown(bundle.note);
+          const target = parsed.output && parsed.output !== '-' ? parsed.output : `${id}.md`;
           if (parsed.output === '-') {
             writeOut(markdown);
           } else {
             nodeFs().writeFileSync(target, markdown, 'utf-8');
           }
-          writeOut(
-            `[wod download] note ${id}${at ? ` v${at}` : ''} → ${target}` +
-            ` (${bundle.segments.length} segment rows)`,
-          );
+          if (parsed.output !== '-') writeOut(`[wod download] note ${id} → ${target}`);
         } else if (kind === 'session') {
           const bundle = await getSessionBundle(db.db, targetId);
           if (!bundle) {
@@ -628,7 +642,7 @@ export async function cliMain(
           } else {
             nodeFs().writeFileSync(target, csv, 'utf-8');
           }
-          writeOut(`[wod download] session ${id} → ${target} (${bundle.events.length} events)`);
+          if (parsed.output !== '-') writeOut(`[wod download] session ${id} → ${target} (${bundle.events.length} events)`);
         } else if (kind === 'effort') {
           const effort = await getEffortBySlug(db.db, targetId);
           if (!effort) {
@@ -689,7 +703,7 @@ export async function cliMain(
           });
           writeOut(
             `[wod import] note ${persisted.noteId}${persisted.created ? '' : ' (updated)'}` +
-            ` — ${persisted.segments} segments${persisted.tags > 0 ? `, ${persisted.tags} tags` : ''} → ${db.path}`,
+            ` — ${persisted.blocks} blocks${persisted.tags > 0 ? `, ${persisted.tags} tags` : ''} → ${db.path}`,
           );
         } finally {
           await db.close();
@@ -731,8 +745,7 @@ export async function cliMain(
       try {
         const result = await persistSessionBundle(db, session, events);
         writeOut(
-          `[wod import] session ${session.id} — ${result.events} events` +
-          `${result.noteCreated ? ' (stub note created)' : ''} → ${db.path}`,
+          `[wod import] session ${session.id} — ${result.events} events → ${db.path}`,
         );
       } finally {
         await db.close();
@@ -760,7 +773,7 @@ export async function cliMain(
         const totalBytes = result.manifest.chunks.reduce((s, c) => s + c.bytes, 0);
         writeOut(`[wod build] schema v${result.manifest.schema} version ${result.manifest.version} (${result.manifest.versionLabel}) → ${result.outDir}`);
         for (const c of result.manifest.chunks) {
-          writeOut(`  ${c.id.padEnd(48)} ${String(c.count).padStart(4)} ${c.kind === 'block-index' ? 'rows ' : 'files'}  ${kb(c.bytes).padStart(8)}`);
+          writeOut(`  ${c.id.padEnd(48)} ${String(c.count).padStart(4)} files  ${kb(c.bytes).padStart(8)}`);
         }
         writeOut(`[wod build] ${result.manifest.chunks.length} chunks, ${result.totalFiles} files, ${kb(totalBytes)} total — scan ${result.passMs.scan}ms, block-index ${result.passMs.blockIndex}ms, block-efforts ${result.passMs.blockEfforts}ms, write ${result.passMs.write}ms`);
         return 0;

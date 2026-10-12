@@ -27,8 +27,6 @@ import {
   EFFORT_DISCIPLINES,
   convertViaCatalog,
   resolveOutputUnit,
-  staticNotesFromBlocks,
-  staticTagIndexFromBlocks,
   normalizeSummaryFacts,
   toEventRows,
   toSummaryEventRows,
@@ -135,11 +133,9 @@ describe('@bitcobblers/wod-wiki-wql public surface', () => {
     expect(emptyResult.series).toEqual([]);
   });
 
-  it('exports pure utilities: units, static projections, derivation', () => {
+  it('exports pure utilities for units and event derivation', () => {
     expect(convertViaCatalog(100, 'kg', 'lb')).toBeGreaterThan(200);
     expect(resolveOutputUnit([{ unit: 'lb' }], { directive: 'kg' }).unit).toBe('kg');
-    expect(staticNotesFromBlocks([])).toEqual([]);
-    expect(staticTagIndexFromBlocks([])).toBeInstanceOf(Map);
     expect(normalizeSummaryFacts([], { noteId: 'n1', resultId: 'r1' })).toEqual([]);
     expect(toEventRows([], { noteId: 'n1', resultId: 'r1' })).toEqual([]);
     expect(toSummaryEventRows([], { noteId: 'n1', resultId: 'r1' })).toEqual([]);

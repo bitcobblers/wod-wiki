@@ -8,7 +8,8 @@ import { EditorView } from '@codemirror/view';
 import { MemoryRouter } from 'react-router-dom';
 import { usePageScrollSync } from './usePageScrollSync';
 import { NavProvider } from '../nav/NavContext';
-import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
+import { sectionField, sectionIdentity } from '@bitcobblers/wod-wiki-ui';
+import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 
 if (typeof window !== 'undefined' && !window.requestAnimationFrame) {
   window.requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(cb, 0) as unknown as number;
@@ -19,9 +20,10 @@ const NAV_TREE = [
 ];
 
 describe('usePageScrollSync — section anchor scrolling (#868)', () => {
-  it('scrolls CodeMirror editor to the section matching segmentId', () => {
+  it('scrolls CodeMirror to a persisted occurrence after a prose edit', () => {
     const doc = `# Title\n\nSome introductory markdown text.\n\n\`\`\`time\n5:00 Run\n\`\`\``;
-    const state = EditorState.create({ doc });
+    const blocks = reconcileNoteBlocks(doc, { sourceRevision: 1, createId: () => 'workout-occurrence' });
+    const state = EditorState.create({ doc, extensions: [sectionField, sectionIdentity.of({ blocks, sourceRevision: 1, rawContent: doc })] });
     const view = new EditorView({ state });
 
     const { result } = renderHook(() => usePageScrollSync([]), {
@@ -36,8 +38,8 @@ describe('usePageScrollSync — section anchor scrolling (#868)', () => {
       result.current.handleViewCreated(view);
     });
 
-    const parsedSections = parseDocumentSections(doc);
-    const targetSection = parsedSections.find(s => s.type === 'time');
+    act(() => { view.dispatch({ changes: { from: 0, insert: 'New prose\n\n' } }); });
+    const targetSection = view.state.field(sectionField).sections.find(s => s.id === 'workout-occurrence');
     expect(targetSection).toBeDefined();
 
     act(() => {
@@ -50,9 +52,10 @@ describe('usePageScrollSync — section anchor scrolling (#868)', () => {
     if (actual !== pos) {
       throw new Error(`Expected pos ${pos} (line ${expectedLine}), but actual is ${actual}`);
     }
+    view.destroy();
   });
 
-  it('scrolls to DOM element matching segmentId or data-section-id', () => {
+  it('scrolls to a DOM occurrence ID or data-section-id', () => {
     const el = document.createElement('div');
     el.setAttribute('id', 'wod-1-deadbeef');
     document.body.appendChild(el);

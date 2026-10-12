@@ -1,160 +1,112 @@
-# WQL (Wod Query Language) Reference
+# WQL reference
 
-**WQL** is a Datadog-inspired declarative query language designed to explore training documents, session runs, and cross-workout telemetry facts.
-
-Every query answers four questions, in the same order:
-
-```
-WHAT{WHICH} WHEN by {GROUP} | SHAPE
-```
-
----
-
-## 1. Query Kinds
-
-WQL has two query kinds — things or numbers:
-
-```
-find:<noun>{filters} [window] [by {dims}] [| pipes]      ← Things
-<agg>:<metric>{filters} [window] [by {dims}] [.rollup]   ← Numbers
-```
-
-* **Things**: `find:note`, `find:block`, `find:effort`, `find:session`, `find:segment`, `find:event`.
-* **Numbers**: `sum|avg|min|max|count|last|delta:<metric>`.
-
-The noun decides the result shape: `session` returns grouped run cards, `segment` and `event` return flat tables, the content nouns return lists.
-
----
-
-## 2. Discovery Queries (`find:`)
+WQL discovers training documents and emitted workout statements, then filters, groups, reduces, and presents the results.
 
 ```wql
-find:note{category:benchmark}
-find:note{equipment:barbell, source:journal}
-find:block{effort:thruster} last 8w | limit 20
-find:effort{discipline:strength, intensity:high}
+:journal{tags:benchmark}
+:block{type:wod,text:thrusters} | limit 20
+:segment{effort:snatch} | :sum{metric:tis} by {week} | :timeseries{}
 ```
 
-### Nouns (`find:<noun>`)
-* `note`: Notes filtered by tags, types, or frontmatter properties.
-* `block`: Parsed workout blocks from `block_index`.
-* `effort`: Movements from the effort registry.
-* `session`: Completed workout sessions — run cards grouped per result.
-* `segment`: Cross-workout table at segment grain.
-* `event`: Cross-workout table at event grain.
+## Source heads
 
-### Sessions & tables
-```wql
-find:session{} last 4w                              ← sessions in a window
-find:session{result:r1}                             ← one session's run
-find:session{result:r1, plane:segment}              ← narrowed to one output plane
-find:segment{effort:snatch} last 12w                ← cross-workout table
-find:segment{effort:snatch} by {effort} in lb       ← grouped rows, converted units
-```
+| Head | Result |
+|---|---|
+| `:note{}` | Whole Notes across the inclusive note plane |
+| `:journal{}` | Journal Notes |
+| `:feeds{}` | Collection-prefixed Notes |
+| `:catalog{}` | Collection catalog landings |
+| `:playground{}` | Playground Notes |
+| `:dashboard{}` | Notes typed `dashboard` |
+| `:block{}` | Actionable `wod`, `query`, registered `widget`, and interactive `embed` occurrences |
+| `:effort{}` | Effort registry entries |
+| `:session{}` | Run cards grouped by result |
+| `:segment{}` | Emitted statements with `outputType === 'segment'` |
+| `:event{}` | Emitted debug statements |
 
-`plane:` accepts the known output types (`segment`, `system`, `load`, `event`, `compiler`, `completion`, `analytics`, `wellness`) and supports `|` OR and `!` NOT.
+`:note{text:recovery}` searches the title or the complete authored `Note.rawContent`. Prose-only Notes, headings, and frontmatter are searchable without any block rows.
 
-### Pipes (`| select / order by / limit`)
-Any find query accepts presentation pipes:
+`:block` reads exact authored source slices from the parent's validated sparse map. The index's `blockId`, `blockVersion`, `sourceRevision`, and half-open UTF-16 `from`/`to` must match that map. Stale, missing, or invalid maps cannot hydrate a result. Prose, headings, frontmatter, unknown widgets, and malformed fences are not actionable blocks.
 
-```wql
-find:note{source:feeds} | order by title | limit 50
-find:block{effort:back*} last 8w | limit 20
-find:segment{effort:fran} last 26w | select date, elapsed | order by elapsed | limit 5
-```
+Block results keep their parent Note identity and occurrence anchor. Page relationships determine the parent route. Storage UUIDs are not route slugs or workout fingerprints.
 
----
+Persisted execution source pins use `blockId` and `blockVersion`. Runtime `:segment` is unrelated to those persisted blocks and remains an emitted-statement query.
 
-## 3. Analytics Queries (`<agg>:<metric>`)
-
-Evaluates aggregations over `EventRecord` telemetry facts:
+## Filters
 
 ```wql
-sum:totalVolume{} by {week} last 12w
-max:resistance{effort:back-squat}
-avg:pace{effort:run} by {week}
-count:reps{discipline:gymnastics} last 4w
-sum:sessionLoad{} by {intensity, week}
+:note{text:"recovery café",source:journal}
+:block{type:query,note:note-id}
+:session{result:r1,plane:segment}
+:effort{discipline:strength,intensity:high}
 ```
 
-### Head Aggregators
-`sum`, `avg`, `min`, `max`, `count`, `last`, `delta`.
+Filters use `key:value` clauses in braces. A value list is an OR; repeated clauses are an AND. `!` negates a clause where the target supports it. Quoted values preserve spaces and literal pipes. Unsupported target clauses produce advisories.
 
-### Metric Keys
-* **Physical Families**: `reps`, `distance`, `resistance`, `elapsed`, `power`, `pace`.
-* **Derived Aggregates**: `totalVolume`, `totalDistance`, `tis`, `sessionLoad`.
-* **Calculated Targets**: `calc.e1rm`, `calc.metMinutes`, `calc.acwr`, `calc.monotony`, `calc.strain`.
+| Key | Meaning |
+|---|---|
+| `text` | Whole Note title/body or actionable block source substring |
+| `type` | Note type or actionable block kind |
+| `tags` | Parent Note tag label |
+| `effort` | Registered effort or workout containment |
+| `source` | Storage source scope |
+| `catalog` | Catalog directory identity |
+| `note` | Exact stored parent Note ID |
+| `result` | Result ID |
+| `block` | Cross-workout content join key on telemetry queries |
+| `plane` | Emitted output type on sessions |
 
----
+Source values include `journal`, `feeds`, `guides`, `playground`, `dashboards`, and `efforts`. Stored collection identities retain their `collection:` prefix. The `feeds` scope selects collection-prefixed rows, not dated `feed:` rows.
 
-## 4. Filter Vocabulary
+Typed Note tags include `domain`, `format`, `equipment`, `quality`, and `intent`. Numeric facts and segment/event tables also support registered custom dimensions.
 
-Filters are comma-separated within curly braces `{key:value}`:
+## Functions and pipelines
 
-| Key | Description | Example |
-|---|---|---|
-| `effort` | Movement slug | `{effort:fran}`, `{effort:clean-and-jerk}` |
-| `discipline` | Sport classification | `{discipline:strength}`, `{discipline:gymnastics}` |
-| `intensity` | Workout tier | `{intensity:high}` |
-| `origin` | Producer provenance | `{origin:user}`, `{origin:runtime}` |
-| `tags` | Tag label | `{tags:pr}`, `{tags:benchmark}` |
-| `<tagType>` | Any registered dynamic tag type | `{equipment:barbell}`, `{category:girl}` |
-| `source` | Where a note lives | `{source:journal}`, `{source:feeds}` |
-| `plane` | Output type on sessions | `{plane:segment}`, `{!plane:compiler}` |
-| `result` / `block` / `note` | Session scope | `{result:r1}`, `{note:n1}` |
-
-`source:` accepts exactly `journal | feeds | guides | playground | dashboards | efforts`. Page-ness is expressed with `type:`.
-
-### Filter Modifiers
-* **OR**: Use pipe `|` (`{effort:fran|helen}`).
-* **NOT**: Prefix with exclamation mark `!` (`{!discipline:recovery}`).
-* **Prefix**: Trailing `*` (`{effort:back*}`).
-
----
-
-## 5. Time Windows & Buckets
-
-* **Relative windows**: `last 2w`, `last 30d`.
-* **Civil ranges**: `from 2026-09-01 to 2026-09-30`.
-* **Time buckets**: `by {day}`, `by {week}` — civil days and Monday-aligned weeks in the user's timezone. Combine with other dims: `by {intensity, week}`.
-* **Multi-unit rollups**: `.rollup(2w)`, `.rollup(7d)` for widths other than one, aligned to civil Mondays / civil days.
-
-The window always filters on *when it happened*: a note's own `date` (falling back to `createdAt`), a block's parent note date, a session's completion time, a fact's metric date.
-
----
-
-## 6. Cross-Store Relational Joins (`where`)
-
-Queries join content discovery with telemetry facts — the right-hand side is always the other kind:
+A source selects the input. Each following function consumes the previous result. Chart heads consume the final dataset.
 
 ```wql
-// Numbers, restricted to these things
-sum:totalVolume{} where find:note{format:emom}
-
-// Things, restricted by a number
-find:note{intent:benchmark} where sum:totalVolume{} > 5000
+@session | :sum{metric:tis} by {effort} | :bar{}
+:segment{effort:snatch} | :sum{metric:tis} by {session} | :max{} | :value{}
+:sum{metric:totalVolume} by {week} last 12w | :timeseries{}
 ```
 
----
+Numeric functions are `sum`, `avg`, `min`, `max`, `count`, `last`, and `delta`. The retained aggregate form also accepts `sum:totalVolume{}`. Units convert through the field catalog; a query cannot attach an unrelated unit.
 
-## 7. Dashboard Widgets
+Query fences can contain the same pipelines.
 
-Chart and value widgets take numbers (`<agg>:` queries); `table` and `list` widgets take things (`find:` queries):
-
-````
-```query:table
-find:segment{effort:fran} last 26w | select date, elapsed | order by elapsed | limit 5
+````markdown
+```query
+@today | :sum{metric:tis} by {effort} | :bar{}
 ```
 ````
 
----
+## Time and presentation
 
-## 8. Removed forms
+`last 2w` selects a relative window. `from 2026-09-01 to 2026-09-30` selects an inclusive civil-date range. `by {day}` and `by {week}` use local civil days and Monday-aligned weeks. `.rollup(2w)` sets a wider bucket.
 
-* `rows:all{…}` / `rows:<plane>{…}` — removed; use `find:session{…}` (add `plane:<plane>` for plane narrowing).
-* `rows:segment{…}` unscoped — removed; use `find:segment{…}`.
-* `rows:event{…}` — removed; use `find:event{…}`.
-* `find:page` — removed; page-ness is `type:` (e.g. `find:note{type:feed}`).
-* `source:page` / `source:pages` / `source:all` — removed; omit `source:` for all sources.
-* `source:collections` / `in collections` — retired; the benchmark library is `source:feeds` / `in feeds` (storage keeps `collection:`-prefixed sourceIds; pin one catalog with `catalog:<id>`).
-* `.rollup(1d)` / `.rollup(1w)` — removed; use `by {day}` / `by {week}`.
+Notes use `date`, falling back to `createdAt`. Blocks use their parent Note date. Sessions use completion time. Numeric observations use their metric date.
+
+```wql
+:note{text:recovery} | order by title | limit 20 offset 20
+:block{type:wod} | order by noteTitle | limit 10
+:segment{effort:snatch} in lb | select resistance,effort | order by resistance desc | limit 5
+```
+
+Note and block ordering and pagination operate on matched records, not a union of title hits and separate block hits. Stage counts retain the selected source population and the returned matched page.
+
+## Cross-store joins
+
+```wql
+sum:totalVolume{} where :note{format:emom}
+:note{intent:benchmark} where :sum{metric:totalVolume} > 5000
+:block{type:wod} where sum:totalVolume{} > 5000
+```
+
+Workouts join across Notes by their content fingerprint. Occurrence IDs remain distinct, including equal-source duplicates. Effort containment uses the current parent Note and block occurrence.
+
+## Removed syntax
+
+- `find:<target>` is retired. Use `:<target>`.
+- `source:collections` is retired. Use `source:feeds`.
+- `rows:all`, `rows:segment`, and `rows:event` are retired. Use `:session`, `:segment`, and `:event`.
+- Persisted prose-block and NoteSegment query compatibility is not supported.

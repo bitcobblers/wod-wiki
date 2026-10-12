@@ -2,26 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { QueryService } from '../src/QueryService';
 import { parseQuery, type ParsedFindQuery } from '../src/wql';
 import type { BlockIndexRow, Note } from '@bitcobblers/wod-wiki-core';
+import { actionableFixture } from './harness/actionable';
 
 const TS = 1_700_000_000_000;
 
 function makeNote(id: string, sourceId: string | undefined): Note {
-  return { id, title: id, createdAt: TS, type: 'note', sourceId } as Note;
+  return actionableFixture({ id, title: id, createdAt: TS, type: 'note', sourceId }, [{ id: 's', body: '10 Push-ups' }]).note;
 }
 
 function makeBlock(noteId: string, sourceId: string | undefined): BlockIndexRow {
-  return {
-    id: `b:${noteId}`,
-    noteId,
-    segmentId: 's',
-    segmentVersion: 1,
-    position: 0,
-    dataType: 'wod',
-    rawContent: '',
-    noteTitle: noteId,
-    createdAt: TS,
-    sourceId,
-  } as BlockIndexRow;
+  return actionableFixture({ id: noteId, title: noteId, createdAt: TS, sourceId }, [{ id: 's', body: '10 Push-ups' }]).blocks[0]!;
 }
 
 const NOTES: Note[] = [
@@ -56,11 +46,10 @@ const BLOCKS: BlockIndexRow[] = [
 ];
 
 function makeService() {
-  return new QueryService(
-    { getFactsByMetric: async () => [], getFactsByTimeRange: async () => [], getNoteTagLabels: async () => [] },
-    { getAllNotes: async () => NOTES, getNoteIdsForTag: async () => new Set<string>() },
-    { getAllBlocks: async () => BLOCKS },
-  );
+  return new QueryService({
+    noteStore: { getAllNotes: async () => NOTES, getNoteIdsForTag: async () => new Set<string>(), getNoteTagLabels: async () => [] },
+    blockStore: { getAllBlocks: async () => BLOCKS },
+  });
 }
 
 describe('source: filter — runFind (Note[])', () => {
