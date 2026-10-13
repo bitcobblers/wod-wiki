@@ -573,11 +573,12 @@ function validateSourceFilter(filters: TagFilter[]): string | undefined {
       if (
         (WQL_SOURCE_VALUES as readonly string[]).includes(val) ||
         val === 'feed' ||
-        val.startsWith('collection:')
+        val.startsWith('collection:') ||
+        val.startsWith('feed:')
       ) {
         continue;
       }
-      return `Unknown source "${val}". Try: ${WQL_SOURCE_VALUES.join(', ')} (or collection:<id>)`;
+      return `Unknown source "${val}". Try: ${WQL_SOURCE_VALUES.join(', ')} (or collection:<id>, feed:<id>)`;
     }
   }
   return undefined;
@@ -1175,7 +1176,8 @@ export function findTargetAdvisories(query: ParsedFindQuery): string[] {
     const dimensions = wqlGroupingDimensions(target, 'find');
     const unsupported = query.groupBy.filter(dim => !dimensions.some(d => d.toLowerCase() === dim.toLowerCase()));
     if (target === 'note' || target === 'block') {
-      if (unsupported.length) advisories.push(`:${target} cannot group by ${unsupported.join(', ')}; grouped by tag instead. Valid alternatives: ${dimensions.join(', ')}.`);
+      // Content grouping is open: any note property (typed-tag key) names a
+      // valid dimension — values resolve from entry metadata, missing → Unassigned.
     } else if (target === 'segment' || target === 'event') {
       const selected = query.pipes?.select?.map(column => column.col);
       const unavailable = query.groupBy.filter(dim => selected ? !selected.includes(dim) : !dimensions.includes(dim));

@@ -16,7 +16,21 @@ import { playgroundRecorder } from '@/services/resultRecorder'
 import { pendingRuntimes } from '../runtimeStore'
 import type { Sessions } from '@/components/Editor/types'
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
+import { storageService } from '@/services/storage';
+import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 
+async function injectSessionQueryIntoNote(noteId: string, blockId: string, resultId: string): Promise<void> {
+  // ponytail: insert query block at end of workout fence if not already present; upgrade to card widget when parser expands.
+  const note = await storageService.getNote(noteId);
+  if (!note) return;
+  const wql = `:session{result:${resultId}}`;
+  if (note.rawContent.includes(wql)) return;
+  const block = Object.values(note.blocks ?? {}).find(b => b.id === blockId);
+  if (!block || block.to == null) return;
+  const newContent = `${note.rawContent.slice(0, block.to)}\n\n\`\`\`query:table\n${wql}\n\`\`\`${note.rawContent.slice(block.to)}`;
+  const provider = new IndexedDBContentProvider();
+  await provider.updateEntry(note.id, { rawContent: newContent, expectedSourceRevision: note.sourceRevision });
+}
 export function WallClockPage() {
   const { runtimeId } = useParams<{ runtimeId: string }>()
   const navigate = useNavigate()
@@ -53,8 +67,11 @@ export function WallClockPage() {
         data: results,
         createdAt: results.endTime || Date.now(),
         ...(pending.origin ? { origin: pending.origin } : {}),
-      }).then(() => {
+      }).then(async () => {
         if (results.completed) {
+          try {
+            await injectSessionQueryIntoNote(pending.noteId, pending.block.id, runtimeId);
+          } catch {}
           navigate(sessionDetailPath(runtimeId), { replace: true })
         }
       })

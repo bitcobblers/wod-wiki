@@ -55,10 +55,10 @@ import {
   TourSectionRunway,
   type TourSectionRunwayApi,
 } from './TourSectionRunway'
-import { TourJumpSection } from './TourJumpSection'
 import { CelebrationBridge } from './CelebrationBridge'
 import { TourChapterPicker } from './TourChapterPicker'
 import { TourFlatStack } from './TourFlatStack'
+import { TourJumpSection } from './TourJumpSection'
 import {
   ScrollGate,
   ScrollTrackProvider,
@@ -115,16 +115,6 @@ function renormalize(stages: ScrollStage[]): ScrollStage[] {
 }
 
 const DEFAULT_HOME_STAGES: ScrollStage[] = [
-  {
-    id: 'editor-blank',
-    range: [0.0, 0.12],
-    screen: 'editor',
-    accent: TOUR_ACCENTS.editor,
-    label: 'Blank Page & Typeahead',
-    source: HOME_DEMO_SOURCE,
-    caption: 'Start with a Blank Page. Freeform entry & WOD fences.',
-    ring: { key: 'editor.window', tag: 'Live Editor' },
-  },
   {
     id: 'editor-metrics',
     range: [0.12, 0.24],
@@ -356,6 +346,8 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
 
   const [runInView, setRunInView] = useState(false)
   const handleRunViewport = useCallback((inView: boolean) => setRunInView(inView), [])
+  const [runReached, setRunReached] = useState(false)
+  const handleRunReached = useCallback((reached: boolean) => setRunReached(reached), [])
   const [ownInView, setOwnInView] = useState(false)
   const handleOwnViewport = useCallback((inView: boolean) => setOwnInView(inView), [])
   const [activeStages, setActiveStages] = useState<Partial<Record<SectionId, string>>>({})
@@ -442,11 +434,12 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
 
   const scrollTimerStage = useCallback(() => {
     runApiRef.current?.scrollToStage('timer-wallclock')
-    document.getElementById('tour-stack-timer')?.scrollIntoView({ behavior: 'instant', block: 'center' })
+    document.getElementById('tour-stack-timer')?.scrollIntoView?.({ behavior: 'instant', block: 'center' })
   }, [])
 
   const [demoRunning, setDemoRunning] = useState(false)
   const [activeBlock, setActiveBlock] = useState<ScriptBlock | null>(null)
+  const hasResetRef = useRef(false)
 
   const doStart = useCallback(async (docText: string, block: ScriptBlock | null, sectionTitle: string, location: 'tour' | 'hero' | 'fullscreen'): Promise<boolean> => {
     if (!block || startingRef.current) return false
@@ -636,7 +629,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   const runStageId = activeStages.run
   const stageInTimer = prefersReducedMotion
     ? stackTimerInView
-    : runInView && runStageId != null && runStageId.startsWith('timer-')
+    : (runReached || runLive) && runInView && runStageId != null && runStageId.startsWith('timer-')
 
   const [everInTimer, setEverInTimer] = useState(false)
   useEffect(() => {
@@ -718,6 +711,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
       if (!block) return
       track?.(HOME_EVENTS.demoRun)
       if (demo) setDemoRunning(true)
+      hasResetRef.current = false
 
       // Immediate UI response: open dialog or slide to timer on the click frame
       if (location === 'tour') {
@@ -763,6 +757,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   }, [beginRun])
 
   useEffect(() => {
+    if (hasResetRef.current) return
     if (!stageInTimer || fullscreenOpen || startingRef.current || pendingActionRef.current) return
     if (run && runLocation === 'tour') return
     if (run && !finalizedRef.current) return
@@ -784,6 +779,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   useEffect(() => {
     const outline: NavItemL3[] = [
       { id: 'tour-hero', label: 'Welcome', level: 3, action: { type: 'scroll', sectionId: 'tour-hero' } },
+      { id: 'community-feeds', label: 'Library & Community Feeds', level: 3, action: { type: 'scroll', sectionId: 'tour-section-community-feeds' } },
       { id: 'write', label: 'Write it in Markdown', level: 3, action: { type: 'scroll', sectionId: 'tour-section-write' } },
       {
         id: 'run',
@@ -876,7 +872,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   // The pane's ✕ returns to the write stage; a live run is saved by the
   // scroll-out rule when the run section's viewport releases.
   const handleTimerClose = useCallback(() => {
-    writeApiRef.current?.scrollToStage('editor-blank')
+    writeApiRef.current?.scrollToStage('editor-metrics')
   }, [])
 
   const handleFullscreenClose = useCallback(() => {
@@ -886,6 +882,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   // Reset saves the live partial and creates a fresh, unstarted snapshot.
   const handleTimerReset = useCallback(() => {
     setRunLocation('tour')
+    hasResetRef.current = true
     requestStop({ kind: 'reset' })
   }, [requestStop])
 
@@ -1100,9 +1097,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
         </ScrollGate>
       </section>
 
-      {/* Jump exits sit between the editor window and the first tagline —
-          the hero (and its scroll cue) are fully scrolled out by the time the
-          write track pins. */}
+
       <TourJumpSection />
 
       <TourSectionRunway
@@ -1152,6 +1147,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
         onCommand={handleCaptionCommand}
         onActiveStageChange={stageHandlers.run}
         onViewportChange={handleRunViewport}
+        onReachedChange={handleRunReached}
         timer={timerWiring}
         tvRuntime={tourRuntime}
         tvStageId="timer-cast"
@@ -1220,7 +1216,6 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
         theme={theme}
         onRun={handleChapterRun}
       />
-      <OfferingTiers />
       <GuideIndexFooter />
       <TourFooter />
       {fullscreen}

@@ -51,11 +51,6 @@ mock.module('../lib/routes', () => ({
   ROUTE_PATTERNS: { home: '/' },
 }))
 
-let startPage: 'home' | 'journal' = 'home'
-mock.module('../lib/startPage', () => ({
-  getStartPage: () => startPage,
-}))
-
 import { useZipProcessor } from './useZipProcessor'
 
 const SHARED_KEY = 'wodwiki.homeShared.v1'
@@ -65,7 +60,6 @@ describe('useZipProcessor', () => {
     mockNavigate = mock(() => {})
     mockPathname = '/load'
     params = {}
-    startPage = 'home'
     ensureEntryMock.mockClear()
     createPageMock.mockClear()
     toastMock.mockClear()
@@ -89,7 +83,7 @@ describe('useZipProcessor', () => {
     expect(toastMock).not.toHaveBeenCalled()
   })
 
-  it('lands the ?z= home-hero share on home under the default startup setting', async () => {
+  it('lands the ?z= home-hero share on home', async () => {
     params = { z: 'abc' }
     renderHook(() => useZipProcessor())
 
@@ -117,16 +111,6 @@ describe('useZipProcessor', () => {
     await Promise.resolve()
     expect(mockNavigate).not.toHaveBeenCalled()
     expect(createPageMock).not.toHaveBeenCalled()
-  })
-  it('sends the ?z= home-hero share to the loaded playground page under the journal startup setting', async () => {
-    startPage = 'journal'
-    params = { z: 'abc', by: 'Tester' }
-    renderHook(() => useZipProcessor())
-
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/playground/home', { replace: true }))
-    expect(ensureEntryMock).toHaveBeenCalled()
-    expect(window.localStorage.getItem(SHARED_KEY)).not.toBeNull()
-    expect(toastMock).not.toHaveBeenCalled()
   })
   it.each(['z', 'zip'])('rejects an undecodable %s share without persisting an entry', async (parameter) => {
     params = { [parameter]: 'bad' }

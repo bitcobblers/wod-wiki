@@ -9,16 +9,6 @@ runway: 1300vh
 screen: editor
 typewriter: true
 stages:
-  - id: editor-blank
-    range: [0.0, 0.12]
-    screen: editor
-    accent: hsl(var(--primary))
-    label: Blank Page & Typeahead
-    source: wods/examples/home/welcome-1.md
-    caption: "Start with a Blank Page. Freeform entry & WOD fences. WOD Wiki notes are freeform Markdown. To get live timer execution and metric tracking, open a fenced block with triple backticks — ```time for workouts or ```wql for queries."
-    ring:
-      key: editor.window
-      tag: "Live Editor"
   - id: editor-metrics
     range: [0.12, 0.24]
     screen: editor

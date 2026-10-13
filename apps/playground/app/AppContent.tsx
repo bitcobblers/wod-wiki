@@ -13,6 +13,7 @@ import { NavSidebar } from './nav/NavSidebar'
 import { useRouteView } from './lib/useRouteView'
 import { useSelectWorkout } from './lib/useSelectWorkout'
 import { NavbarActions } from './nav/ResponsiveActions'
+import { SyncActivityIndicators, SyncActivityNotifier } from './nav/SyncActivityUi'
 import type { PageKind } from './lib/routeView'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import { PaletteShell } from '@/components/organisms/command-palette/PaletteShell'
@@ -383,6 +384,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
               surface as stacked buttons in the dock sheet via the global
               fallback registration below. */}
           <div className="ml-auto flex shrink-0 items-center gap-1">
+            <SyncActivityIndicators />
             <NavbarActions />
             <CastButtonRpc />
           </div>
@@ -412,6 +414,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       </div>
 
       <PaletteShell />
+      <SyncActivityNotifier />
     </SidebarLayout>
   )
 }

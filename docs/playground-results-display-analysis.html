@@ -493,45 +493,35 @@
   </section>
 
   <section>
-    <h2 id="wb-h2-f983a691f7354ec8bed820fd5c429975" data-whiteboard-anchor>5. The Standardization Strategy: A 5-Tier Results Hierarchy</h2>
-    <p id="wb-p-df7948e00f834047a100f59246b482ce" data-whiteboard-anchor>Rather than treating results presentation as screen-specific ad-hoc UI, the playground should adopt a unified, composable 5-tier presentation hierarchy:</p>
+    <h2 id="wb-h2-f983a691f7354ec8bed820fd5c429975" data-whiteboard-anchor>5. Standardization Strategy: WQL Summary Cards &amp; Markdown Injection</h2>
+    <p id="wb-p-df7948e00f834047a100f59246b482ce" data-whiteboard-anchor>Workout results across all note surfaces (Journal, Playground, and Vault) must share a single source of truth: <strong>results belong inside document Markdown</strong>, injected beneath the corresponding workout block upon run completion as concise WQL summary cards.</p>
 
     <div class="screen-card">
-      <h4 id="wb-h4-53480bb507174d669dc384351f8d477d" data-whiteboard-anchor><span>Tier 1: Micro Badge (Navigation & TOC)</span></h4>
-      <p id="wb-p-b9a43555757444b79e27c4882109ac9b" data-whiteboard-anchor><strong>Role:</strong> Presence indicator.</p>
-      <p id="wb-p-56acc5f33e7e470e9fdfad42f249cffd" data-whiteboard-anchor><strong>Component:</strong> <code>ResultBadge</code> (extracted from <code>useNotePageNav</code>).</p>
-      <p id="wb-p-bc88de5e2abf4832aa2d7164caee5278" data-whiteboard-anchor><strong>Display:</strong> Pill showing execution count and latest badge (e.g. <code>2 runs · 04:12 PR</code>). Appears in table-of-contents rails and companion headers.</p>
+      <h4 id="wb-h4-53480bb507174d669dc384351f8d477d" data-whiteboard-anchor><span>5.1 Markdown Injection Parity Across Note Types</span></h4>
+      <p id="wb-p-b9a43555757444b79e27c4882109ac9b" data-whiteboard-anchor><strong>The Flaw:</strong> In <code>JournalDatePage</code> and standalone <code>NoteEditor</code>, completing a run triggers <code>sessionQueryInsert</code>, which writes a WQL block into the document prose directly beneath the completed timer/track block. In contrast, <code>PlaygroundNotePage</code> currently navigates through <code>WallClockPage</code> and returns to the note without touching the document text, dumping runs into an ad-hoc bottom list instead.</p>
+      <p id="wb-p-56acc5f33e7e470e9fdfad42f249cffd" data-whiteboard-anchor><strong>The Unification:</strong> Playground notes must follow the exact same lifecycle as the journal. When a workout finishes on a playground note, the result card is written directly into the note's markdown beneath the timer/track fence.</p>
+      <p id="wb-p-bc88de5e2abf4832aa2d7164caee5278" data-whiteboard-anchor><strong>Dashboard Isolation Maintained:</strong> Playground notes carry <code>type: 'playground'</code> and <code>sourceId: 'playground'</code>. Global dashboard queries (like <code>:session{}</code> or <code>:note{}</code>) filter on standard training scopes, so scratchpad runs remain isolated from global training analytics unless explicitly queried. However, <em>inside the note itself</em>, the document Markdown and rendering behavior are 100% identical.</p>
     </div>
 
     <div class="screen-card">
-      <h4 id="wb-h4-60dc427d821c4c00baaf2570e58b066c" data-whiteboard-anchor><span>Tier 2: Inline Summary Row (Document Flow)</span></h4>
-      <p id="wb-p-cf554889e2064903b60bdf01eb153124" data-whiteboard-anchor><strong>Role:</strong> Compact record beneath the block.</p>
-      <p id="wb-p-ab943fe7de8a40ec90dcdbb77e112459" data-whiteboard-anchor><strong>Component:</strong> Standardized <code>ResultListItem</code> (React component & CodeMirror widget share exact same view-model).</p>
-      <p id="wb-p-08ea8e49d9c24a529dfa36de4fcb98d1" data-whiteboard-anchor><strong>Display:</strong> Timestamp, completion icon, total duration, score/load, and chevron to expand detail.</p>
-      <p id="wb-p-836fba3a6c1348c389d64af69bf1ceda" data-whiteboard-anchor><strong>Placement:</strong> Directly underneath completed blocks in Journal, Playground, and Vault notes.</p>
+      <h4 id="wb-h4-60dc427d821c4c00baaf2570e58b066c" data-whiteboard-anchor><span>5.2 The Concise WQL Expression: <code>:summary{session:&lt;uuid&gt;}</code></span></h4>
+      <p id="wb-p-cf554889e2064903b60bdf01eb153124" data-whiteboard-anchor><strong>The Problem with <code>```query:table</code>:</strong> Injecting a full multi-column data table (<code>```query:table\n:session{result:&lt;id&gt;}\n```</code>) into a document is visually heavy and disrupts reading flow. Users want a clean, compact summary card inside the note, with a direct link to the full telemetry grid.</p>
+      <p id="wb-p-ab943fe7de8a40ec90dcdbb77e112459" data-whiteboard-anchor><strong>The Expression:</strong> Expand WQL syntax to support concise session summary targets: <code>:summary{session:&lt;uuid&gt;}</code> (or fence <code>```query:card</code> / <code>```query:summary</code>):</p>
+      <pre id="wb-pre-b253521438644999ac828f6c3a0066c9" data-whiteboard-anchor><code>```query:card
+:summary{session:0194a2b3-c4d5-7e8f-9012-3456789abcde}
+```</code></pre>
+      <p id="wb-p-08ea8e49d9c24a529dfa36de4fcb98d1" data-whiteboard-anchor><strong>Rendered Card Anatomy:</strong></p>
+      <ul>
+        <li id="wb-li-2a9004181b914875acd2362dfdda480b" data-whiteboard-anchor><strong>Card Header:</strong> Workout Title, completion status badge (Rx / PR / Scaled / Stopped), and execution date/time.</li>
+        <li id="wb-li-20b5904bc4bd480ba26be001626c3a58" data-whiteboard-anchor><strong>Metrics Strip:</strong> Total duration (e.g. <code>03:45</code>), rounds/reps completed, average split pace, and workload.</li>
+        <li id="wb-li-cfb5cf517c12481d92e7acfbd56c2611" data-whiteboard-anchor><strong>Action Footer:</strong> Direct action link <strong>"View Full Results &amp; Splits →"</strong> navigating to <code>/results/:sessionId</code> to show the full segment table, timeseries charts, and raw event data.</li>
+      </ul>
+      <p id="wb-p-836fba3a6c1348c389d64af69bf1ceda" data-whiteboard-anchor><strong>Universal Behavior:</strong> Across Journal, Playground, and Vault notes, completing a workout writes this concise <code>:summary{session:&lt;uuid&gt;}</code> card into the markdown immediately beneath the WOD block.</p>
     </div>
 
     <div class="screen-card">
-      <h4 id="wb-h4-02322a167cd64746bb2bb8d618288a91" data-whiteboard-anchor><span>Tier 3: Document Results Ledger (Note Bottom / Drawer)</span></h4>
-      <p id="wb-p-c39817b030d7403a86051f50e2026750" data-whiteboard-anchor><strong>Role:</strong> Comprehensive session history for the entire document.</p>
-      <p id="wb-p-8295b221d91f46d793c0966593da6b45" data-whiteboard-anchor><strong>Component:</strong> <code>&lt;NoteSessionLedger noteId={...} /&gt;</code>.</p>
-      <p id="wb-p-bfc5a1dcb11443efa0a719d397579dc8" data-whiteboard-anchor><strong>Display:</strong> Grouped by workout block. Each section header identifies the workout name, followed by chronological <code>ResultListItem</code> cards with quick-expand triggers for segment splits.</p>
-      <p id="wb-p-374bcc7c37374ad1bd0fb74c457c0135" data-whiteboard-anchor><strong>Placement:</strong> Replaces the raw <code>&lt;section&gt;</code> in <code>PlaygroundNotePage</code> and added to <code>NoteByIdPage</code>.</p>
-    </div>
-
-    <div class="screen-card">
-      <h4 id="wb-h4-6303a43b2c904ff4a47bf997cb85cb4d" data-whiteboard-anchor><span>Tier 4: Scorecard & Segment Matrix (Detailed Debrief)</span></h4>
-      <p id="wb-p-366ae571d349477cb65041c75d0451d5" data-whiteboard-anchor><strong>Role:</strong> Full execution debrief.</p>
-      <p id="wb-p-1477fc04e9a94292b811d0cafe97dd90" data-whiteboard-anchor><strong>Component:</strong> <code>ResultsView</code> (composed of <code>AnalyticsScorecard</code> + <code>ReviewGrid</code>).</p>
-      <p id="wb-p-71ffc31676f549cf87f7a325f06ba18a" data-whiteboard-anchor><strong>Display:</strong> Segment splits, round paces, stroke rates, heart rate zones, and personal record trophies.</p>
-      <p id="wb-p-802ccfd2c0b342c1b8f35af3520fd172" data-whiteboard-anchor><strong>Placement:</strong> Used in <code>FullscreenTimer</code> post-workout modal AND accessible via drawer/dialog from any <code>ResultListItem</code>.</p>
-    </div>
-
-    <div class="screen-card">
-      <h4 id="wb-h4-cb6cb860ac724fe792d0f585d27f76a9" data-whiteboard-anchor><span>Tier 5: Telemetry Stream & Exploration</span></h4>
-      <p id="wb-p-15eda1861276423bb04dd9828a259313" data-whiteboard-anchor><strong>Role:</strong> Cross-session querying and granular data analysis.</p>
-      <p id="wb-p-3437f78c16044f649980e7f664fb181b" data-whiteboard-anchor><strong>Component:</strong> <code>QueriableStreamView</code> (with <code>PropertyTable</code> or <code>StreamFeed</code>).</p>
-      <p id="wb-p-7c473fedfa8e46188e482085a4de7564" data-whiteboard-anchor><strong>Placement:</strong> <code>/results/:sessionId</code>, <code>/sessions</code>, and <code>/analytics/explorer</code>.</p>
+      <h4 id="wb-h4-02322a167cd64746bb2bb8d618288a91" data-whiteboard-anchor><span>5.3 Fallback Reconciliation: Document Markdown vs Database Ledger</span></h4>
+      <p id="wb-p-c39817b030d7403a86051f50e2026750" data-whiteboard-anchor><strong>Decoupling Protection:</strong> Injected WQL cards live in Markdown. If a user deletes the code fence, the <code>Session</code> and <code>EventRecord</code> rows still persist in IndexedDB. A subtle bottom ledger or editor companion acts as a fallback reconciliation view, allowing the athlete to re-insert deleted WQL cards or inspect runs orphaned from the text.</p>
     </div>
   </section>
 
@@ -554,9 +544,9 @@
           <td id="wb-td-cbe38652d43c472380183d344c43fedb" data-whiteboard-anchor><code>/playground/:id</code></td>
           <td id="wb-td-36890679cdc743a8bba1abd8c429b242" data-whiteboard-anchor>Drafting workouts, testing syntax, rapid iteration.</td>
           <td id="wb-td-7e3de0cf375b4329a4f389003985ebfd" data-whiteboard-anchor>
-            <strong>Tier 2 (Inline Row)</strong> under blocks<br/>
-            <strong>Tier 3 (Session Ledger)</strong> at bottom<br/>
-            <strong>Tier 4 (Scorecard)</strong> on stop
+            <strong>Tier 2 (Inline WQL Summary Card)</strong> injected into markdown<br/>
+            <strong>Tier 4 (Scorecard)</strong> modal on stop<br/>
+            <strong>Deep link</strong> to /results/:id for full telemetry
           </td>
         </tr>
         <tr>
@@ -602,12 +592,11 @@
   <section>
     <h2 id="wb-h2-c6d34e47889a4844bc605560c7178aaf" data-whiteboard-anchor>7. Implementation Steps & Action Items</h2>
     <ol>
-      <li id="wb-li-356949e4fd96490dbdb063dece837fbd" data-whiteboard-anchor><strong>Extract <code>&lt;NoteSessionLedger&gt;</code>:</strong> Replace the bespoke raw <code>&lt;section aria-label="Workout results"&gt;</code> in <code>PlaygroundNotePage.tsx</code> with a reusable component that groups sessions by block and renders standardized <code>ResultListItem</code> cards.</li>
-      <li id="wb-li-e2d6350f15f34f46ab2725ec7b4c9606" data-whiteboard-anchor><strong>Unify <code>ResultListItem</code> View-Models:</strong> Align <code>ResultListItemViewModel</code> between the React component and <code>resultListItemDOM.ts</code>, adding block name attribution and quick metric pills (e.g. total reps, average pace).</li>
-      <li id="wb-li-256ec7aa87a54b43a25d58429de150a9" data-whiteboard-anchor><strong>Add Direct Modal Inspection:</strong> Allow clicking any <code>ResultListItem</code> anywhere in the app to open the full <code>ResultsView</code> (Scorecard + ReviewGrid) in an inline dialog without forcing a full-page navigation to <code>/results/:sessionId</code>.</li>
-      <li id="wb-li-fdf5f760ae51423db01aa6431899e2f8" data-whiteboard-anchor><strong>Adopt Ledger in <code>NoteByIdPage</code>:</strong> Expose the <code>&lt;NoteSessionLedger&gt;</code> behind a collapsible "History & Results" disclosure in canonical vault notes.</li>
+      <li id="wb-li-356949e4fd96490dbdb063dece837fbd" data-whiteboard-anchor><strong>Unify Playground with Journal Completion Injection:</strong> Wire <code>sessionQueryInsert</code> into <code>PlaygroundNotePage</code> / <code>WallClockPage</code> so running a workout on a playground note appends the WQL card directly into the document markdown, retiring the raw bottom <code>&lt;section&gt;</code>.</li>
+      <li id="wb-li-e2d6350f15f34f46ab2725ec7b4c9606" data-whiteboard-anchor><strong>Implement Concise <code>:summary{session:&lt;uuid&gt;}</code> Widget:</strong> Add <code>query:card</code> / <code>query:summary</code> support in <code>QueryBlockView.tsx</code> that renders a compact summary card with duration, date, PR indicator, and a prominent "View Full Results &amp; Splits →" link.</li>
+      <li id="wb-li-256ec7aa87a54b43a25d58429de150a9" data-whiteboard-anchor><strong>Maintain Dashboard Scope Isolation:</strong> Ensure playground results retain their <code>sourceId: 'playground'</code> tag so they do not pollute default training dashboards while functioning identically in markdown.</li>
+      <li id="wb-li-fdf5f760ae51423db01aa6431899e2f8" data-whiteboard-anchor><strong>Standardize ResultListItem View-Models:</strong> Share a single view-model interface across CodeMirror inlays, WQL summary cards, and stream rows.</li>
     </ol>
-  </section>
 
 </main>
 

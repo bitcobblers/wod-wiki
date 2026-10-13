@@ -4,11 +4,9 @@
  * Branches on the param name (#882):
  *  - `?z=` (+ optional `by`) is the home-hero share contract: decode, persist
  *    to the home-shared localStorage store AND to a persisted playground
- *    entry (the runtime binds to it on Run), then land per the startup-page
- *    setting — home (default): redirect to `/`, where the hero editor renders
- *    the shared script instead of welcome-1.md until the visitor resets it;
- *    journal: go straight to the loaded entry's /playground/<name> page.
- *    Arrival never auto-runs the workout.
+ *    entry (the runtime binds to it on Run), then redirect to `/`, where the
+ *    hero editor renders the shared script instead of welcome-1.md until the
+ *    visitor resets it. Arrival never auto-runs the workout.
  *  - `?zip=` stays the playground flow: import as a new playground entry via
  *    the intake module, redirect to /playground/:id. Importing never
  *    auto-runs the workout.
@@ -25,8 +23,7 @@ import { useQueryState } from 'nuqs';
 import { playgroundPath, ROUTE_PATTERNS } from '../lib/routes';
 import { decodeZip } from '../services/decodeZip';
 import { buildSharedScript, saveHomeShared } from '../services/homeSharedScript';
-import { getStartPage } from '../lib/startPage';
-import { createPlaygroundPage, ensurePlaygroundEntry, type PlaygroundEntry } from '../services/createPlaygroundPage';
+import { createPlaygroundPage, ensurePlaygroundEntry } from '../services/createPlaygroundPage';
 import { toast } from '@/hooks/use-toast';
 
 export function useZipProcessor() {
@@ -45,7 +42,6 @@ export function useZipProcessor() {
 
     if (zParam) {
       let cancelled = false;
-      let entry: PlaygroundEntry | undefined;
       (async () => {
         try {
           const content = await decodeZip(zParam);
@@ -55,7 +51,7 @@ export function useZipProcessor() {
           // Persist the shared script as the home playground entry — the
           // hero's Run updates this entry and records results against its
           // UUID. Arrival itself never starts a run.
-          entry = await ensurePlaygroundEntry(script, { reuseKey: 'home', title: 'Home playground' });
+          await ensurePlaygroundEntry(script, { reuseKey: 'home', title: 'Home playground' });
           if (cancelled) return;
           saveHomeShared({ content: script, by: byParam ?? undefined });
         } catch (err) {
@@ -69,13 +65,7 @@ export function useZipProcessor() {
           }
         }
         if (!cancelled) {
-          if (location.pathname === '/') {
-            navigate('/', { replace: true });
-          } else if (getStartPage() === 'journal' && entry) {
-            navigate(playgroundPath(entry.routeId.replace(/^playground\//, '')), { replace: true });
-          } else {
-            navigate('/', { replace: true });
-          }
+          navigate('/', { replace: true });
         }
       })();
       return () => { cancelled = true; };

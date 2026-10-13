@@ -400,9 +400,11 @@ test.describe('Note Persistence — save / load / workout flow', () => {
       await expect(page.getByText('3 of 3')).toBeVisible();
     };
     await page.goto(`/sessions?q=${encodeURIComponent(':session{}')}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await page.getByTestId('stream-view-settings-trigger').click();
-    await page.getByTestId('view-settings-layout-feed').click();
-    await page.getByTestId('view-settings-close').click();
+    const layoutFeed = page.getByTestId('l3-layout-feed');
+    if (!(await layoutFeed.isVisible())) {
+      await page.getByLabel('Page options').click();
+    }
+    await layoutFeed.click();
     await expectExactSessions();
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 20_000 });
     await expectExactSessions();

@@ -6,7 +6,7 @@
  */
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { useNavigate, useParams, Link } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { EditorView } from '@codemirror/view'
 import { EditorSelection } from '@codemirror/state'
 import { v7 as uuidv7 } from 'uuid'
@@ -31,9 +31,7 @@ import { usePlaygroundContent } from '../hooks/usePlaygroundContent'
 import { pageId } from '../services/playgroundContent'
 import { storageService } from '@/services/storage'
 import { pendingRuntimes } from '../runtimeStore'
-import { noteByIdPath, runPath, sessionDetailPath } from '../lib/routes'
-import { formatDurationSmart } from '@/lib/formatTime'
-import { formatDateShort } from '@/lib/dateFormat'
+import { noteByIdPath, runPath } from '../lib/routes'
 import { PageActions } from './shared/PageActions'
 import { useNotePageNav } from './shared/useNotePageNav'
 import {
@@ -106,8 +104,9 @@ export function PlaygroundNotePage({
   const [results, setResults] = useState<Session[]>([])
 
   const refreshResults = useCallback(() => {
+    // ponytail: TOC badges only count completed runs; in-progress sessions ignored.
     storageService.getSessionsForNote(runtimeNoteId)
-      .then(results => setResults(results))
+      .then(results => setResults(results.filter(r => r.completed)))
       .catch(() => {})
   }, [runtimeNoteId])
 
@@ -406,29 +405,6 @@ export function PlaygroundNotePage({
               onIdentityChange({ rawContent: restored.rawContent, noteBlocks: restored.blocks, sourceRevision: restored.sourceRevision });
               await flush();
             }} />
-            {results.length > 0 && (
-              <section aria-label="Workout results">
-                <h2 className="text-sm font-semibold text-muted-foreground">Results</h2>
-                <ul className="mt-1 divide-y divide-border/60">
-                  {results.map((result) => (
-                    <li key={result.id}>
-                      <Link
-                        to={sessionDetailPath(result.id)}
-                        className="flex items-center gap-2 py-1.5 text-sm hover:underline"
-                      >
-                        <span className="font-mono">{formatDurationSmart(result.duration)}</span>
-                        <span className="text-muted-foreground">
-                          {formatDateShort(new Date(result.createdAt))}
-                        </span>
-                        {!result.completed && (
-                          <span className="text-muted-foreground/70">partial</span>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
           </div>
         }
       />

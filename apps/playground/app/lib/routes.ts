@@ -65,13 +65,15 @@ export const ROUTE_PATTERNS = {
   settings: '/settings',
   settingsAppearance: '/settings/appearance',
   settingsProfile: '/settings/profile',
-  settingsDatabase: '/settings/database',
+  settingsStorage: '/settings/storage',
   settingsSync: '/settings/sync',
   settingsSystem: '/settings/system',
   settingsQueries: '/settings/queries',
   settingsTags: '/settings/tags',
-  /** Retired — split into /settings/database + /settings/sync; redirects to database. */
+  /** Retired — split into /settings/database + /settings/sync; redirects to storage. */
   settingsData: '/settings/data',
+  /** Retired — /settings/database renamed to /settings/storage; redirects. */
+  settingsDatabase: '/settings/database',
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import { ROUTE_PATTERNS, noteByIdPath } from '../../lib/routes'
 import { getTodayDateKey } from '../../services/dateUtils'
 import { journalNotes } from '../../services/journalNotes'
 import { telemetry, HOME_EVENTS } from '@/services/telemetry'
+import { readDataSettings, storageBackend } from '@/services/storage'
 import { TaglineHeader } from '../../tour/TaglineHeader'
 import { TOUR_ACCENTS } from '../../tour/tourConstants'
 
@@ -15,7 +16,6 @@ const REPO_URL = 'https://github.com/bitcobblers/wod-wiki'
 const FORM_URL = 'https://forms.gle/6YHpxwAJh6PAsyAQ6'
 
 const quietLink = 'underline-offset-4 transition-colors hover:text-foreground hover:underline'
-
 function CardLink(props: { to?: string; href?: string; onClick?: () => void; children: React.ReactNode }) {
   const className = 'inline-flex items-center gap-1.5 font-medium text-foreground underline-offset-4 transition-colors hover:underline'
   const inner = (
@@ -54,6 +54,14 @@ function Bullet({ children }: { children: React.ReactNode }) {
   )
 }
 
+function ActiveBadge() {
+  return (
+    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-emerald-600">
+      Active
+    </span>
+  )
+}
+
 function OfferingCard(props: {
   icon: typeof Database
   title: string
@@ -81,6 +89,18 @@ export function OfferingTiers() {
   const [clearing, setClearing] = useState(false)
   const navigate = useNavigate()
 
+  // Sync reads — localStorage-backed, read once per mount (settings switches
+  // reload the page).
+  const [dataSettings] = useState(readDataSettings)
+  const isApiBuild = storageBackend === 'api'
+  const activeMode: 'browser' | 'turso' | 'turso-invalid' | 'api' = isApiBuild
+    ? 'api'
+    : dataSettings.state === 'turso'
+      ? 'turso'
+      : dataSettings.state === 'invalid'
+        ? 'turso-invalid'
+        : 'browser'
+
   const clearData = async () => {
     if (!window.confirm('Wipe every note, result, and setting stored in this browser? This cannot be undone.')) return
     setClearing(true)
@@ -104,19 +124,28 @@ export function OfferingTiers() {
           accentText="Own the Data"
           after=""
           accent={TOUR_ACCENTS.library}
-          blurb="Zero custody — your journal never leaves hardware you control. Run it in this browser, sync it to your own free Turso database, or run the server yourself."
+          blurb="Browser modes run from IndexedDB, with optional backup and sync to your own Turso database. API deployments use a server you choose."
         />
 
         <div className="mx-auto w-full max-w-[1500px] 2xl:max-w-[1720px] px-6 pb-16 pt-10 lg:px-12 xl:px-16">
+          <p className="mx-auto mb-5 flex max-w-5xl flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground" role="status">
+            <span>{activeMode === 'api' ? 'Current mode: API server' : activeMode === 'turso' ? 'Current mode: local browser with Turso backup and sync' : activeMode === 'turso-invalid' ? 'Current mode: local browser. Repair the Turso connection to resume sync.' : 'Current mode: local browser only'}</span>
+            <Link to={ROUTE_PATTERNS.settingsStorage} className={quietLink}>Configure data storage</Link>
+          </p>
           <div className="mx-auto grid max-w-5xl grid-cols-1 gap-5 md:grid-cols-3">
               <OfferingCard
                 icon={HardDrive}
-                title="IndexedDB"
-                text="Everything lives in this browser — zero latency, works offline, no account, no server copy."
+                title="Browser only"
+                badge={activeMode === 'browser' ? <ActiveBadge /> : undefined}
+                text="Everything lives in this browser's IndexedDB — the default mode. Works offline, no account, no server copy."
               >
                 <CardLink onClick={() => void createJournal()}>Create your journal</CardLink>
                 <CardLink to={ROUTE_PATTERNS.playgroundRoot}>Start Writing in a Playground</CardLink>
                 <CardLink to="/feeds">Explore the feeds</CardLink>
+                <ul className="mt-1 space-y-1.5">
+                  <Bullet>Offline and fast. Notes and results stay in this browser.</Bullet>
+                  <Bullet>Tied to this browser — export or back it up before switching browsers or clearing site data.</Bullet>
+                </ul>
                 <button
                   type="button"
                   onClick={clearData}
@@ -129,30 +158,32 @@ export function OfferingTiers() {
 
               <OfferingCard
                 icon={Database}
-                title="Turso Sync"
-                text="Sync your local data across browsers and devices with a free database from Turso."
+                title="Browser + your Turso"
+                badge={activeMode === 'turso' ? <ActiveBadge /> : activeMode === 'turso-invalid' ? (
+                  <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-amber-600">
+                    Invalid config
+                  </span>
+                ) : undefined}
+                text="Same local execution — plus a background backup of your data to a free Turso database you own, so multiple browsers stay in sync."
               >
-                <CardLink to={ROUTE_PATTERNS.settingsDatabase}>Set up Turso Sync</CardLink>
+                <CardLink to={ROUTE_PATTERNS.settingsStorage}>Configure backup &amp; sync</CardLink>
                 <ul className="mt-1 space-y-1.5">
-                  <Bullet>Bring your own free Turso database — URL and auth token.</Bullet>
-                  <Bullet>Your data stays local — sync copies it to your database in the background.</Bullet>
+                  <Bullet>Queries still run locally in the browser — sync copies committed changes in the background.</Bullet>
+                  <Bullet>Bring your own free Turso database — URL and auth token, kept in this browser only.</Bullet>
+                  <Bullet>Sync needs network; without it you keep working locally and changes upload later.</Bullet>
                 </ul>
               </OfferingCard>
 
               <OfferingCard
                 icon={Server}
-                title="Self-hosted"
-                badge={
-                  <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[11px] font-medium text-muted-foreground">
-                    Coming soon
-                  </span>
-                }
-                text="Run your own server on SQLite or Postgres — complete control over every byte."
+                title="API server"
+                badge={activeMode === 'api' ? <ActiveBadge /> : undefined}
+                text="Build the app for API storage and run the Wod Wiki server yourself — local or cloud data access through a server you administer."
               >
                 <CardLink href={REPO_URL}>View source</CardLink>
                 <ul className="mt-1 space-y-1.5">
-                  <Bullet>One Bun server backed by a local SQLite file, Turso, or Postgres.</Bullet>
-                  <Bullet>Docker images and CLI recipes coming soon — nerd out on your own infra.</Bullet>
+                  <Bullet>Centralized data for a team or gym — one SQLite, Turso, or Postgres backend.</Bullet>
+                  <Bullet>You run the server — network required, and server admin is on you.</Bullet>
                 </ul>
               </OfferingCard>
           </div>
@@ -161,12 +192,12 @@ export function OfferingTiers() {
 
       <section id="tour-section-hosted" data-testid="tour-section-hosted" aria-label="Wod-Wiki hosted">
         <TaglineHeader
-          index="07"
+          index="08"
           before="Wod-Wiki "
           accentText="Hosted"
           after=""
           accent={TOUR_ACCENTS.library}
-          blurb="Wod Wiki acts as caretaker — we host and look after your data. Plans are still taking shape; fill out the survey and help shape them."
+          blurb="Rather hand the caretaking to us? Wod-Wiki hosted is still taking shape — fill out the survey and help shape the plans."
         />
 
         <div className="mx-auto w-full max-w-[1500px] 2xl:max-w-[1720px] px-6 pb-16 pt-10 lg:px-12 xl:px-16">

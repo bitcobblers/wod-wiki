@@ -51,6 +51,13 @@ describe('find target capability advisories', () => {
     const offDims = parseQuery(':effort{text:fran} by {grade}');
     expect(offDims.advisories?.join(' ') ?? '').toContain('grade');
   });
+
+  it('note and block grouping is open over note properties — typed tags and custom types stay silent', () => {
+    expect(parseQuery(':note{source:journal} by {domain}').advisories).toBeUndefined();
+    expect(parseQuery(':block{source:journal} by {equipment}').advisories).toBeUndefined();
+    // Any configured tag type names a property dimension — no vocabulary check.
+    expect(parseQuery(':note{source:journal} by {gym}').advisories).toBeUndefined();
+  });
 });
 
 describe('consumer regression: unsupported filters change nothing but the advisories', () => {

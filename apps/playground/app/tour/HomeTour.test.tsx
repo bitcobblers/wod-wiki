@@ -117,6 +117,14 @@ mock.module('../hooks/useQuickStartAutoComplete', () => ({
   useQuickStartAutoComplete: () => {},
 }))
 
+// The jump section's Library exit reads real IndexedDB coverage, which is
+// empty in tests and would disable the card — pin a populated library.
+import * as seedSyncModule from '@/services/seed/seedSync'
+mock.module('@/services/seed/seedSync', () => ({
+  ...seedSyncModule,
+  readSeedCoverage: async () => ({ coreImported: true, libraryImported: true }),
+}))
+
 mock.module('../hooks/useCompletionChallenge', () => ({
   useCompletionChallenge: () => {},
 }))
@@ -434,7 +442,7 @@ describe('HomeTour', () => {
     window.localStorage.clear()
   })
 
-  it('renders the jump section with library, playgrounds, and journal exits', async () => {
+  it('renders the jump section with library and journal exits, no playground exit', async () => {
     await renderHomeTour()
     const jump = await screen.findByTestId('tour-jump-section')
     expect(jump).toBeTruthy()
@@ -442,10 +450,8 @@ describe('HomeTour', () => {
     const libraryLink = within(jump).getByTestId('jump-library')
     expect(libraryLink.getAttribute('href')).toBe('/catalogs')
 
-    const playgroundsLink = within(jump).getByTestId('jump-playgrounds')
-    expect(playgroundsLink.getAttribute('href')).toBe('/playgrounds')
-
     expect(within(jump).getByTestId('jump-new-note')).toBeTruthy()
+    expect(within(jump).queryByTestId('jump-playgrounds')).toBeNull()
   })
 
   it('exposes timer drop-offs with correct hrefs', async () => {
@@ -504,6 +510,26 @@ describe('HomeTour', () => {
     const own = lastOutline().find((i) => i.id === 'own')
     expect(own?.secondaryAction?.id).toBe('run-stop')
     expect(own?.secondaryRunIcon).toBe('stop')
+  })
+  it('renders a run button in the timer header and center view that flashes and starts', async () => {
+    await renderHomeTour()
+    // Wait for editor in hero to initialize and parse blocks
+    await within(screen.getByTestId('tour-hero')).findByRole('button', { name: 'Run' })
+
+    const runSection = screen.getByTestId('tour-section-run')
+    const centerBtn = within(runSection).getByTestId('tour-timer-center-run')
+    const headerBtn = within(runSection).getByTestId('tour-timer-header-run')
+    expect(centerBtn).toBeTruthy()
+    expect(headerBtn).toBeTruthy()
+    expect(centerBtn.textContent).toContain('Run')
+
+    await act(async () => {
+      fireEvent.click(centerBtn)
+      const { promise, resolve } = Promise.withResolvers<void>()
+      setTimeout(resolve, 550)
+      await promise
+    })
+    await waitFor(() => expect(runControl.starts).toBe(1))
   })
 
   it('does not start a hidden run when the visitor blows past the timer stages', async () => {
@@ -650,33 +676,6 @@ describe('HomeTour', () => {
     })
     expect(writeEditor.value).toBe('EDIT IN HERO')
   })
-
-  it('offers workout presets that replace the shared document', async () => {
-    await renderHomeTour()
-    await act(async () => {
-      setTestTourProgress(0.05)
-      await Promise.resolve()
-    })
-    const input = await screen.findByRole('combobox', { name: /load a workout into the demo/i })
-    expect(input).toBeTruthy()
-
-    const wrapper = screen.getByTestId('tour-workout-choices')
-    const toggle = wrapper.querySelector('button')
-    expect(toggle).toBeTruthy()
-    fireEvent.click(toggle!)
-
-    const option = await screen.findByText('21-15-9 Rep Scaling')
-    await act(async () => {
-      fireEvent.mouseDown(option)
-      await Promise.resolve()
-    })
-
-    // The pick replaces the one shared document — the single write editor
-    // shows the preset.
-    const editors = screen.getAllByTestId('mock-note-editor') as HTMLTextAreaElement[]
-    expect(editors[0].value).toContain('21-15-9')
-  })
-
 
   it('restarts the run from the timer header Reset button (#885)', async () => {
     await renderHomeTour()

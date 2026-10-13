@@ -6,7 +6,12 @@ import type { StoreName } from './contract';
 // index) — deliberately not re-exported here to avoid a star-export
 // ambiguity between ./schema and ./domain.
 
-export const DB_VERSION = 29;
+// V30 adds the browser-local sync journal stores (sync_outbox/sync_state in
+// IndexedDBStorage) to the versioned browser schema. SQL/API StoreDefs are
+// UNCHANGED — the sync tables are layered separately (_wodwiki_sync_*) — so
+// SQL databases at v29 pass the StoreDef equality guard and migrate forward
+// without touching rows (see sql/store.ts initializeStore).
+export const DB_VERSION = 30;
 
 /**
  * Typed field metadata — column type per extracted field path, shared with

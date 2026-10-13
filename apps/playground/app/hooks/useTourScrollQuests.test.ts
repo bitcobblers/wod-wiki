@@ -56,9 +56,9 @@ describe('useTourScrollQuests', () => {
   });
 
   it('maps the editor runway stages to the editor quest', () => {
-    // The runway resolves discrete stage ids (editor-blank / editor-metrics /
-    // editor-run); all of them count as "the editor stage scrolled into view".
-    for (const stageId of ['editor-blank', 'editor-metrics', 'editor-run']) {
+    // The runway resolves discrete stage ids (editor-metrics / editor-run);
+    // all of them count as "the editor stage scrolled into view".
+    for (const stageId of ['editor-metrics', 'editor-run']) {
       window.localStorage.clear();
       const { result, unmount } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
       act(() => result.current(stageId));

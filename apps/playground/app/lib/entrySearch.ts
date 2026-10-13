@@ -175,9 +175,13 @@ export class StreamQueryEngine {
     for (const entry of entries) {
       const bundle = bundles.get(parentNoteId(entry));
       if (!entry.title && bundle?.note.title) entry.title = bundle.note.title;
-      if ((!entry.tags || entry.tags.length === 0) && bundle) {
-        const labels = bundle.tags.map((t) => t.label);
-        if (labels.length > 0) entry.tags = labels;
+      if (bundle && bundle.tags.length > 0) {
+        if (!entry.tags || entry.tags.length === 0) {
+          entry.tags = bundle.tags.map((t) => t.label);
+        }
+        // Property grouping needs the type plane even when flat labels were
+        // already present on the note record.
+        entry.typedTags = bundle.tags.map((t) => ({ label: t.label, type: t.type }));
       }
     }
   }

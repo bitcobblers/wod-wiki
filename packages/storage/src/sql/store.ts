@@ -624,30 +624,61 @@ async function ensureStoreTables(
   }
 }
 
-/** Internal schema metadata is not exposed or cleared by the store API. */
+/** Internal schema metadata is not exposed or cleared by the store API.
+ *
+ * Version policy: the SQL DDL derives entirely from STORE_DEFS, so two
+ * schema versions are compatible iff their derived table sets are equal.
+ *  - stored > DB_VERSION → refuse (never downgrade).
+ *  - stored < DB_VERSION with EQUAL table sets (v29 → v30: defs unchanged,
+ *    only browser-local sync stores were added) → bump the guard in place;
+ *    no row is read, rewritten or erased.
+ *  - stored < DB_VERSION with different tables → fail closed with the same
+ *    actionable schema_incompatible error as before.
+ *  - no guard + store tables → foreign database, refuse. */
 export async function initializeStore(db: Database): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.exec(
       `CREATE TABLE IF NOT EXISTS "${SCHEMA_TABLE}" ("key" TEXT PRIMARY KEY, "value" TEXT NOT NULL)`,
     );
+    // Layered sync protocol tables + libsql internals are not part of the
+    // STORE_DEFS-derived schema and never participate in the comparison.
+    const ignored = (name: string): boolean =>
+      name.startsWith('_wodwiki_') || name.startsWith('sqlite_');
     const storeTables = new Set<string>(STORE_DEFS.map((d) => d.name));
+    for (const def of STORE_DEFS) {
+      const multi = def.indexes.find((i) => i.multiEntry);
+      if (multi) storeTables.add(junctionTable(def, multi));
+    }
     const tableNames = new Set(
-      (await tx.query(tableListSql(db.dialect))).map((r) => String(Object.values(r)[0])),
+      (await tx.query(tableListSql(db.dialect))).map((r) => String(Object.values(r)[0])).filter((n) => !ignored(n)),
     );
     const guardRows = await tx.query(`SELECT "value" FROM "${SCHEMA_TABLE}" WHERE "key" = ?`, [SCHEMA_KEY]);
     let stored: number | undefined;
     if (guardRows[0]) {
       const guard = JSON.parse(String(guardRows[0].value)) as { version?: unknown };
-      if (typeof guard.version !== 'number') {
+      if (typeof guard.version !== 'number' || !Number.isSafeInteger(guard.version) || guard.version < 0) {
         throw new StorageError(500, `corrupt ${SCHEMA_TABLE} guard row`, 'bad_schema_guard');
       }
       stored = guard.version;
-      if (stored !== DB_VERSION) {
+      if (stored > DB_VERSION) {
         throw new StorageError(
           500,
-          `database schema v${stored} is incompatible with v${DB_VERSION}; recreation required using an explicitly disposable database`,
+          `database schema v${stored} is newer than this server supports (v${DB_VERSION}); refusing to downgrade`,
           'schema_incompatible',
         );
+      }
+      if (stored < DB_VERSION) {
+        const missing = [...storeTables].filter((name) => !tableNames.has(name));
+        const unexpected = [...tableNames].filter((name) => name !== SCHEMA_TABLE && !storeTables.has(name));
+        if (missing.length > 0 || unexpected.length > 0) {
+          throw new StorageError(
+            500,
+            `database schema v${stored} is incompatible with v${DB_VERSION} (missing tables: ${missing.join(', ') || 'none'}; unrecognized tables: ${unexpected.join(', ') || 'none'}); recreation required using an explicitly disposable database`,
+            'schema_incompatible',
+          );
+        }
+        // StoreDef equality holds — the stored rows already match the current
+        // schema; only the guard version moves forward.
       }
     } else if ([...tableNames].some((name) => storeTables.has(name))) {
       throw new StorageError(

@@ -126,7 +126,7 @@ export const TOUR_CAPTIONS: TourCaption[] = [
   },
   {
     id: 'editor-metrics',
-    num: '01b',
+    num: '01a',
     title: (
       <>
         Every Line Collects Metrics.{' '}
@@ -146,7 +146,7 @@ export const TOUR_CAPTIONS: TourCaption[] = [
   },
   {
     id: 'editor-run',
-    num: '01c',
+    num: '01b',
     title: (
       <>
         Press Run to Execute.{' '}

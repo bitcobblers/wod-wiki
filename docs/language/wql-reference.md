@@ -24,7 +24,7 @@ WQL queries discover notes, sessions, and emitted workout statements, then reduc
 
 `:segment` and `:event` read the same `EventRecord` store. Debug queries include system, compiler, load, completion, and other emitted statement types, including statements without numeric metrics. Finalized summary records are not emitted debug statements.
 
-The scoped note heads restrict the storage source. `:note{source:guides}` explicitly selects guides. `source:` accepts `journal`, `feeds`, `guides`, `playground`, `dashboards`, and `efforts`, plus explicit storage identities such as `collection:crossfit-girls`. `:feeds` selects collection-prefixed storage sources; dated `feed:` rows remain outside that scope.
+The scoped note heads restrict the storage source. `:note{source:guides}` explicitly selects guides. `source:` accepts `journal`, `feeds`, `guides`, `playground`, `dashboards`, and `efforts`, plus explicit storage identities such as `collection:crossfit-girls` and `feed:<id>` — one feed (`source:feed:crossfit-programming`) or one quoted feed item (`source:"feed:crossfit-programming/2026-01-12"`). `:feeds` selects collection-prefixed storage sources; dated `feed:` rows remain outside that scope.
 
 ```wql
 :note{tags:benchmark}
@@ -121,6 +121,7 @@ Filter support depends on the target. Unsupported filters and presentation claus
 - `last 2w` and `last 30d` select relative windows.
 - `from 2026-09-01 to 2026-09-30` selects a civil range, including the end day.
 - `by {day}` and `by {week}` use civil days and Monday-aligned weeks in the execution timezone.
+- Note and block grouping is open over note properties: `by {<tag-type>}` groups by any configured tag type (`domain`, `equipment`, custom types from tag settings), resolving each entry's value from its typed tags; entries without the property group under `Unassigned`.
 - `.rollup(2w)` and `.rollup(7d)` select multi-unit buckets. Use grouping instead of `.rollup(1d)` or `.rollup(1w)`.
 - `in kg` and `in lb` request display-unit conversion.
 

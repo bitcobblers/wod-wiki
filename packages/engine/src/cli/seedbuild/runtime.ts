@@ -50,6 +50,10 @@ export interface SeedChunkResult {
   totalBlocks: number;
   skippedUserOwned: number;
   deleted: number;
+  /** Committed canonical notes that did not exist before this chunk. */
+  addedNotes: number;
+  /** Committed canonical notes whose content changed in this chunk. */
+  updatedNotes: number;
 }
 
 async function putChanged<T>(store: IReadWriteStore<T>, values: T[], keys: IDBValidKey[]): Promise<void> {
@@ -62,7 +66,7 @@ async function putChanged<T>(store: IReadWriteStore<T>, values: T[], keys: IDBVa
 export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): Promise<SeedChunkResult> {
   assertSeedManifest(write.manifest);
   assertSeedRows(write.rows);
-  const result: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0 };
+  const result: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
   const ids = await Promise.all(write.rows.map((row) => seedNoteId(row.path)));
   const pagesBySlug = new Map<string, string>();
   const linkIds = new Map<string, string>();
@@ -111,6 +115,11 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     for (const [i, row] of write.rows.entries()) {
       const id = ids[i], existing = existingById.get(id);
       if (!owned.has(id)) { result.skippedUserOwned++; continue; }
+      // Count only rows this transaction actually commits: new canonical
+      // notes vs changed content. User-owned skips, deletions, and pure
+      // metadata rewrites (unchanged rawContent) are never counted.
+      if (!existing) result.addedNotes++;
+      else if (existing.rawContent !== row.content) result.updatedNotes++;
       validateNoteBlocks(row.content, row.blocks, 1, { registeredWidgets: SEED_REGISTERED_WIDGETS });
       const sourceRevision = existing ? existing.sourceRevision + (existing.rawContent === row.content ? 0 : 1) : 1;
       let ordinal = 0;

@@ -16,7 +16,6 @@ import {
   CalendarPlus,
   Edit3,
   Eye,
-  SlidersHorizontal,
   ChevronRight,
   ChevronLeft,
 } from 'lucide-react';
@@ -192,9 +191,6 @@ export const JournalStream: StoryObj = {
               <span className="text-xs font-mono text-foreground flex-1">{profile.defaultWql}</span>
               <span className="text-[10px] text-muted-foreground font-mono">⌘K</span>
             </div>
-            <button className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-border hover:bg-muted">
-              <SlidersHorizontal className="size-3.5" /> View
-            </button>
           </header>
 
           {/* Stream Feed */}

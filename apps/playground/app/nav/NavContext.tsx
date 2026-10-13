@@ -83,9 +83,8 @@ export interface StreamNavControls {
   groupDims: string[]
   onToggleGroupDim: (dim: string) => void
   availableGroupDims: { id: string; label: string }[]
-  /** Per-route view settings (layout + visible fields) — the same state the
-   *  header View dialog edits, published so the L3 rail and ⋯ fallbacks
-   *  carry the same view controls. Cast stays header-only chrome. */
+  /** Per-route view settings (layout + visible fields), published so the
+   *  L3 rail and ⋯ fallbacks carry view controls. Cast stays header-only chrome. */
   settings: ViewSettings
   onLayoutChange: (layout: LayoutMode) => void
   onToggleField: (fieldId: string) => void

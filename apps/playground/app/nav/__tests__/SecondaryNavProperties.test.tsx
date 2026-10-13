@@ -1,9 +1,8 @@
 /**
  * SecondaryNav — the L3 right rail on stream routes carries VIEW controls
- * only (date window, group-by, layout, visible fields — the same state the
- * header View dialog edits). Where-clause filters are L2-only: even with a
- * committed result snapshot published, no facet accordion and no
- * "Properties" block render here.
+ * only (date window, group-by, layout, visible fields). Where-clause filters
+ * are L2-only: even with a committed result snapshot published, no facet accordion
+ * and no "Properties" block render here.
  */
 
 import { describe, it, expect, afterEach, mock } from 'bun:test'

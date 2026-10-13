@@ -19,7 +19,6 @@ import { usePageQuests, type Quest } from './usePageQuests';
 /** Tour stage id → quest id. `overview` deliberately has no quest. */
 export const TOUR_STAGE_QUEST_IDS: Record<string, string> = {
   editor: 'qs-tour-editor',
-  'editor-blank': 'qs-tour-editor',
   'editor-metrics': 'qs-tour-editor',
   'editor-run': 'qs-tour-editor',
   timer: 'qs-tour-timer',

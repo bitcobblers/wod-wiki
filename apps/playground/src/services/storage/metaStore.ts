@@ -1,23 +1,23 @@
 /**
- * metaStore — auxiliary persistence in remote mode (the VITE_STORAGE=api
- * build override or a saved direct-browser Turso connection).
+ * metaStore — auxiliary persistence for the VITE_STORAGE=api build.
  *
  * Namespaced `{ key, value }` rows in the shared `meta` store through the
  * existing `storage` singleton: user calcs (`user-calc:*`), telemetry
  * (`telemetry:*`), notebooks (`wodwiki:notebooks`, `wodwiki:active-notebook`),
  * route WQL defaults + shortcuts (`wodwiki.routeWql.v1*`,
- * `wodwiki.routeWqlShortcuts.v1*`). Device-local in IndexedDB mode: theme,
- * audio, onboarding, cast pairing, consent, view settings. Local
- * (IndexedDB) mode never calls into this module.
+ * `wodwiki.routeWqlShortcuts.v1*`). Device-local in browser builds — even
+ * with a Turso backup configured, browser identity/preferences stay local
+ * (remotePrefsMode is API-only under the local-first cutover): theme, audio,
+ * onboarding, cast pairing, consent, view settings, profile, calcs.
  */
 import type { StorageBackend } from './LocalStore';
 import { storage, storageBackend } from './index';
 
 /** True when prefs/notebooks/telemetry/calcs persist through the remote meta store. */
-export const remotePrefsMode: boolean = storageBackend === 'api' || storageBackend === 'turso';
+export const remotePrefsMode: boolean = storageBackend === 'api';
 
-/** Prefix namespaces hydrated into the pref cache (also the vocabulary the
- *  IDB→Turso migration copies from localStorage into remote meta rows). */
+/** Prefix namespaces hydrated into the pref cache (the vocabulary of remote
+ *  pref rows in API builds). */
 export const PREF_NAMESPACES = ['wodwiki.routeWql.v1', 'wodwiki.routeWqlShortcuts.v1'];
 /** Exact notebook rows (kept narrow — no blanket `wodwiki:` capture). */
 export const PREF_KEYS = ['wodwiki:notebooks', 'wodwiki:active-notebook'];

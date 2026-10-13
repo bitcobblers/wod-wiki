@@ -116,32 +116,6 @@ describe('SettingsPage', () => {
       expect(mockSetTheme).toHaveBeenCalledWith('light')
     })
 
-    it('offers Startup Page options with Home default, and persists a Journal pick', () => {
-      renderSettings('/settings/appearance')
-
-      // Home is the default (unset preference) and renders selected.
-      expect(screen.getByText('Startup Page')).toBeDefined()
-      expect(screen.getByTestId('start-page-home').getAttribute('aria-pressed')).toBe('true')
-      expect(screen.getByTestId('start-page-journal').getAttribute('aria-pressed')).toBe('false')
-
-      act(() => {
-        screen.getByTestId('start-page-journal').click()
-      })
-      expect(localStorage.getItem('wodwiki:startPage')).toBe('journal')
-
-      // Re-render to observe state update
-      cleanup()
-      renderSettings('/settings/appearance')
-
-      expect(screen.getByTestId('start-page-journal').getAttribute('aria-pressed')).toBe('true')
-      expect(screen.getByTestId('start-page-home').getAttribute('aria-pressed')).toBe('false')
-
-      // Switching back to Home clears the stored override
-      act(() => {
-        screen.getByTestId('start-page-home').click()
-      })
-      expect(localStorage.getItem('wodwiki:startPage')).toBeNull()
-    })
   })
 
   describe('System Subroute', () => {
@@ -201,12 +175,15 @@ describe('SettingsPage', () => {
     })
   })
 
-  describe('Database & Sync Subroutes', () => {
-    it('renders the Database tab with storage location options', () => {
-      renderSettings('/settings/database')
+  describe('Storage & Sync Subroutes', () => {
+    it('renders the Storage tab with the combined browser + Turso Sync card', () => {
+      renderSettings('/settings/storage')
 
-      expect(screen.getByText('Local Storage')).toBeDefined()
+      expect(screen.getByText('Storage')).toBeDefined()
       expect(screen.getByTestId('storage-option-browser')).toBeDefined()
+      // Turso Sync lives inside the combined card as a wide subsection.
+      expect(screen.getByTestId('storage-option-turso')).toBeDefined()
+      expect(screen.getByTestId('turso-connect-form')).toBeDefined()
       // Content sync is a separate page now.
       expect(screen.queryByText('Content Sources')).toBeNull()
     })

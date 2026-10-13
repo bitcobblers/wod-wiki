@@ -57,7 +57,7 @@ apps/
 
 ## 3. Storage architecture
 
-Persistence crosses the shared `IStorage` seam through IndexedDB, direct browser Turso, or the HTTP adapter for a SQL-backed WOD Wiki server. Browser Turso and the server share the SQL store and WQL projection module; the server supports SQLite, Turso, and PostgreSQL. See [persistence interfaces](./interfaces.md#istorage-and-persistence) for provider selection and migration. Every adapter preserves the same ownership invariants:
+Browser storage, WQL, and reports use IndexedDB. Optional Turso sync backs up committed transactions and downloads changes from other browsers. API deployments use the shared `IStorage` HTTP adapter with server-managed SQLite, Turso, or PostgreSQL. See [persistence interfaces](./interfaces.md#istorage-and-persistence) for sync and schema-upgrade rules. Every adapter preserves the same ownership invariants:
 
 $$\text{Page } \xleftarrow{1:N} \text{ PageNote } \xrightarrow{N:1} \text{ Note } \xrightarrow{1:N} \{\text{Segment, Session, EventRecord, Attachment}\}$$
 

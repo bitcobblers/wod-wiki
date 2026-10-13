@@ -6,13 +6,15 @@ import type {
   StoreName,
   StoreType,
 } from './IStorage';
-import { IndexedDBStorage } from './IndexedDBStorage';
+import { IndexedDBStorage, IDB_DB_NAME } from './IndexedDBStorage';
 import { InMemoryStorage } from './InMemoryStorage';
 import { StorageService } from './StorageService';
-import { ApiStorage } from '@bitcobblers/wod-wiki-storage';
-import { BrowserTursoStorage } from '@bitcobblers/wod-wiki-storage/sql';
+import { ApiStorage, DB_VERSION } from '@bitcobblers/wod-wiki-storage';
 import type { DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
 import { createProfileService } from '../profile';
+import { reportSyncError } from '../syncActivity';
+import { TursoSyncEngine } from './syncEngine';
+import { beginStorageUpgrade, markStorageChecking, markStorageIdle, failStorageUpdate, getStorageUpdate } from './storageUpdate';
 
 import { LocalStore, InMemoryBackend, browserLocalStorageBackend, type StorageBackend } from './LocalStore';
 import {
@@ -40,71 +42,34 @@ export type {
 export { IndexedDBStorage, InMemoryStorage, StorageService };
 export { LocalStore, InMemoryBackend, browserLocalStorageBackend };
 export { DATA_SETTINGS_KEY, readDataSettings, connectTurso, testTursoConnection, switchToIndexedDb };
+export { getStorageUpdate, subscribeStorageUpdate } from './storageUpdate';
 
-// Data provider selection: the VITE_STORAGE=api build override always wins;
-// otherwise a saved Turso data setting picks 'turso'. A saved-but-invalid
-// config picks 'invalid': NO provider is opened — the storage adapter throws
-// until the config is repaired in Data settings (surfaced at boot through
-// whenStorageReady()'s rejection), never a silent IndexedDB fallback.
-// Read once per page load: switching providers persists the setting and
+// Data-plane selection: the VITE_STORAGE=api build override wins; EVERY
+// other build — including one with a saved Turso backup target — reads and
+// writes IndexedDB. The saved Turso setting is a sync/backup destination
+// (see startBackgroundStorageSync), never the data plane, so a broken or
+// unreachable backup never disables local reads.
+// Read once per page load: switching targets persists the setting and
 // reloads, and other tabs reload via the storage-event guard in
-// dataSettings, so a live page never writes to a stale provider.
+// dataSettings, so a live page never syncs to a stale target.
 export const storageBackend: StorageProvider =
-  import.meta.env.VITE_STORAGE === 'api'
-    ? 'api'
-    : readDataSettings().state === 'turso'
-      ? 'turso'
-      : readDataSettings().state === 'invalid'
-        ? 'invalid'
-        : 'indexed-db';
-
-/** Thrown by every UnconfiguredStorage method. */
-export const UNCONFIGURED_ERROR = 'Saved data settings are invalid — open Settings → Data to repair the connection.';
-
-/**
- * Placeholder adapter for the 'invalid' provider: every access throws, so no
- * IndexedDB database is created or written with an unrepairable config.
- */
-class UnconfiguredStorage implements IStorage {
-  readonly(): never {
-    throw new Error(UNCONFIGURED_ERROR);
-  }
-  readwrite(): never {
-    throw new Error(UNCONFIGURED_ERROR);
-  }
-  transaction(): never {
-    throw new Error(UNCONFIGURED_ERROR);
-  }
-  // Placeholder implements the full contract; queryDomain stays optional on IStorage.
-  queryDomain(): Promise<never> {
-    return Promise.reject(new Error(UNCONFIGURED_ERROR));
-  }
-  wipe(): Promise<never> {
-    return Promise.reject(new Error(UNCONFIGURED_ERROR));
-  }
-  close(): Promise<never> {
-    return Promise.reject(new Error(UNCONFIGURED_ERROR));
-  }
-}
+  import.meta.env.VITE_STORAGE === 'api' ? 'api' : 'indexed-db';
 
 // Identity getter is a lazy closure: resolved at put-time, after the profile
 // bootstrap ran (currentSync() undefined until then → rows stored unstamped).
-export const profileService = createProfileService(storageBackend === 'invalid' ? 'api' : storageBackend);
+// Browser builds keep identity local even with a Turso backup configured —
+// only the API build stores membership remotely.
+export const profileService = createProfileService(storageBackend === 'api' ? 'api' : 'indexed-db');
 
 function createDefaultStorage(): IStorage {
-  const options = { getUserId: () => profileService.currentSync()?.id };
   if (storageBackend === 'api') {
-    return new ApiStorage(import.meta.env.VITE_API_URL ?? '/api', undefined, options);
+    return new ApiStorage(import.meta.env.VITE_API_URL ?? '/api', undefined,
+      { getUserId: () => profileService.currentSync()?.id });
   }
-  if (storageBackend === 'turso') {
-    const settings = readDataSettings();
-    if (settings.state !== 'turso') {
-      throw new Error('Turso provider selected but the saved data settings are missing or invalid.');
-    }
-    return new BrowserTursoStorage({ url: settings.url, authToken: settings.authToken }, options);
-  }
-  if (storageBackend === 'invalid') return new UnconfiguredStorage();
-  return new IndexedDBStorage(options);
+  return new IndexedDBStorage({
+    getUserId: () => profileService.currentSync()?.id,
+    onUpgradeStart: (fromVersion) => beginStorageUpgrade(fromVersion, DB_VERSION),
+  });
 }
 
 let currentStorage: IStorage = createDefaultStorage();
@@ -125,7 +90,8 @@ export const storage: IStorage = {
   },
   /** Remote domain-query pass-through — undefined on local backends
    *  (IStorage.queryDomain is optional and local adapters don't implement
-   *  it), the API result on ApiStorage. */
+   *  it), the API result on ApiStorage. Browser WQL/reporting stays local;
+   *  the Turso backup never receives domain queries. */
   async queryDomain(query: DomainQuery): Promise<DomainQueryResult | undefined> {
     return currentStorage.queryDomain?.(query);
   },
@@ -138,22 +104,77 @@ export const storage: IStorage = {
 };
 export const storageService = new StorageService(storage);
 
-// Turso needs an async activation (ready()) before first use; boot awaits
-// this before first render/write (api/IndexedDB resolve immediately, an
-// invalid config rejects so recovery stops before any storage use). The memo
-// clears on failure so a boot retry re-attempts the connection.
+// Boot gate: resolves when the local database is readable and the migration
+// policy has completed. Never touches the network — the remote schema probe
+// is the sync engine's job (startBackgroundStorageSync), not ordinary boot.
 let readyPromise: Promise<void> | undefined;
 
 export function whenStorageReady(): Promise<void> {
-  if (storageBackend === 'invalid') return Promise.reject(new Error(UNCONFIGURED_ERROR));
-  if (storageBackend !== 'turso') return Promise.resolve();
-  readyPromise ??= (currentStorage as BrowserTursoStorage)
-    .ready() // guarded: storageBackend === 'turso' ⇒ currentStorage is a BrowserTursoStorage
-    .catch((err: unknown) => {
+  if (readyPromise) return readyPromise;
+  readyPromise = (async () => {
+    if (storageBackend === 'api') return; // ApiStorage is ready on first request
+    try {
+      // Inspect the ACTUAL local schema version WITHOUT opening or mutating
+      // anything: ordinary boots stay silent (no checking flash, no blank
+      // app), an older schema announces the blocking update screen before
+      // the upgrade runs, a newer one fails fast with an actionable error.
+      const idb = globalThis.indexedDB;
+      if (idb && typeof idb.databases === 'function') {
+        const entry = (await idb.databases().catch(() => [] as IDBDatabaseInfo[]))
+          .find(db => db.name === IDB_DB_NAME);
+        if (entry && typeof entry.version === 'number') {
+          if (entry.version > DB_VERSION) {
+            const message = `local database schema v${entry.version} is newer than this app supports (v${DB_VERSION}); refusing to downgrade`;
+            failStorageUpdate(message);
+            throw new Error(message);
+          }
+          if (entry.version < DB_VERSION) {
+            markStorageChecking(`Checking local database schema v${entry.version}…`);
+          }
+        }
+      }
+      await (currentStorage as IndexedDBStorage).open();
+      markStorageIdle(DB_VERSION);
+    } catch (error) {
+      // The memo clears on failure so a boot retry re-attempts the open.
       readyPromise = undefined;
-      throw err;
-    });
+      if (getStorageUpdate().phase !== 'error') {
+        failStorageUpdate(error instanceof Error ? error.message : String(error));
+      }
+      throw error;
+    }
+  })();
   return readyPromise;
+}
+
+// Background Turso backup/sync. Idempotent start: the returned cleanup is
+// memoized while a session runs — repeated calls return the same stopper —
+// and calling it stops the session (a later start re-creates it).
+let syncSession: { stop: () => void } | undefined;
+let syncCleanup: (() => void) | undefined;
+
+export function startBackgroundStorageSync(): () => void {
+  if (!syncSession) {
+    if (storageBackend === 'api' || !(currentStorage instanceof IndexedDBStorage)) {
+      syncSession = { stop: () => { syncSession = undefined; } };
+    } else {
+      const settings = readDataSettings();
+      if (settings.state === 'invalid') {
+        const message = `Saved backup settings are invalid: ${settings.error}`;
+        reportSyncError(message);
+        failStorageUpdate(message);
+        syncSession = { stop: () => { syncSession = undefined; } };
+      } else if (settings.state === 'turso') {
+        const engine = new TursoSyncEngine(currentStorage, settings);
+        const stop = engine.start();
+        syncSession = { stop: () => { stop(); syncSession = undefined; } };
+      } else {
+        syncSession = { stop: () => { syncSession = undefined; } };
+      }
+    }
+    syncCleanup = () => { syncSession?.stop(); syncCleanup = undefined; };
+  }
+  return syncCleanup;
 }
 
 export function setStorageForTesting(newStorage: IStorage): void {

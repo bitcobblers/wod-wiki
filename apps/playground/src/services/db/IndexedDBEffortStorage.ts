@@ -8,8 +8,13 @@ import { storageService, type StorageService } from '@/services/storage';
  * user-defined custom efforts in the browser's 'efforts' object store.
  */
 export class IndexedDBEffortStorage implements EffortStorageAdapter {
-  constructor(private readonly db: StorageService = storageService) {}
-
+  private _db?: StorageService;
+  constructor(db?: StorageService) {
+    this._db = db;
+  }
+  private get db(): StorageService {
+    return this._db ?? storageService;
+  }
   async load(): Promise<IEffort[]> {
     return this.db.getAllEfforts();
   }

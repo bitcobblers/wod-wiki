@@ -342,9 +342,10 @@ describe('find: retirement and feed scope', () => {
     expect(_parseQuery(':note{source:feeds}').error).toBeUndefined();
   });
 
-  it('rejects feed:<id> literal sources (unknown, not retired)', () => {
-    expect(_parseQuery(':note{source:feed:crossfit-programming}').error).toContain('Unknown source');
-    expect(_parseQuery(':note{source:"feed:crossfit-programming/2026-01-12"}').error).toContain('Unknown source');
+  it('accepts feed:<id> literal sources — one feed or one feed item', () => {
+    expect(_parseQuery(':note{source:feed:crossfit-programming}').error).toBeUndefined();
+    expect(_parseQuery(':note{source:"feed:crossfit-programming/2026-01-12"}').error).toBeUndefined();
+    expect(_parseQuery(':note{source:"feed:feeds/crossfit-programming/2026-01-12/monday"}').error).toBeUndefined();
   });
 
   it('keeps guides as an explicit source value', () => {

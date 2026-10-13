@@ -101,6 +101,8 @@ export interface TourSectionRunwayProps {
   onActiveStageChange?: (stageId: string) => void
   /** Persistent viewport signal (scroll-out pause derivation for the host). */
   onViewportChange?: (inView: boolean) => void
+  /** Persistent signal when section top reaches or passes viewport top. */
+  onReachedChange?: (reached: boolean) => void
   /** Choose-your-own-adventure combobox (write section only). */
   onChoice?: (wod: string) => void
   /** Caption command buttons (Try it / query presets / board picks). */
@@ -156,6 +158,7 @@ export const TourSectionRunway = forwardRef<TourSectionRunwayApi, TourSectionRun
       captions,
       onActiveStageChange,
       onViewportChange,
+      onReachedChange,
       onChoice,
       onCommand,
       session,
@@ -191,6 +194,10 @@ export const TourSectionRunway = forwardRef<TourSectionRunwayApi, TourSectionRun
     useEffect(() => {
       onViewportChange?.(inView)
     }, [inView, onViewportChange])
+    useEffect(() => {
+      onReachedChange?.(runwayReached)
+    }, [runwayReached, onReachedChange])
+
 
     const [everReached, setEverReached] = useState(false)
     const reachedOnce = useReachedOnce(runwayRef)

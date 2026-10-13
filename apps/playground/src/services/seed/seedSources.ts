@@ -4,9 +4,13 @@
  * defaultSeedSources() so every sync path (boot, manual, status) sees them.
  * Custom sources never auto-import at boot (autoImport: false) and carry
  * embeddedVersion 0 — never fast-pathable, the manifest is consulted on
- * every sync. Type-only dependency on seedSync keeps the runtime graph
- * acyclic (seedSync imports this module's values).
+ * every sync. Also home to the built-in community demo feeds (real
+ * components of the wod-wiki-community corpus). Type-only dependency on
+ * seedSync keeps the runtime graph acyclic (seedSync imports this module's
+ * values).
  */
+import type { ISeedSource } from './ISeedSource';
+import type { SeedManifest } from '@/types/seed';
 
 /** Shape persisted in localStorage — a seed dir URL serving the standard
  *  manifest/chunks layout (see HttpSeedSource). */
@@ -18,6 +22,12 @@ export interface CustomSeedSource {
 }
 
 const STORAGE_KEY = 'wodwiki.seedSources';
+
+/** Same-origin seed dir of the bundled core source (HttpSeedSource concatenates file names). */
+export const CORE_SEED_URL = `${import.meta.env.BASE_URL}seed/core/`;
+/** Community corpus, published by wod-wiki-community's pipeline to its repo Pages. */
+export const COMMUNITY_SEED_URL =
+  import.meta.env.VITE_COMMUNITY_SEED_URL ?? 'https://bitcobblers.github.io/wod-wiki-community/';
 
 function readAll(): CustomSeedSource[] {
   try {
@@ -65,8 +75,10 @@ export function addCustomSeedSource(label: string, url: string): CustomSeedSourc
     throw new Error('This source is already registered.');
   }
   const cleanLabel = label.trim() || (() => { try { return new URL(normalized).hostname; } catch { return 'Source'; } })();
-  // Static string-keyed uniqueness table — the source ids already issued.
-  const taken: Record<string, true> = {};
+  // Static string-keyed uniqueness table — the source ids already issued,
+  // plus the built-in feed ids below (a custom slug collision would hijack
+  // a feed's checkpoint namespace, so reserved ids get a suffix instead).
+  const taken: Record<string, true> = { ...RESERVED_SEED_SOURCE_IDS };
   for (const s of list) taken[s.id] = true;
   let id = slugify(cleanLabel);
   for (let n = 2; taken[id]; n++) id = `${slugify(cleanLabel)}-${n}`;
@@ -78,4 +90,207 @@ export function addCustomSeedSource(label: string, url: string): CustomSeedSourc
  *  removing a source only removes it from sync runs and the status list. */
 export function removeCustomSeedSource(id: string): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(readAll().filter(s => s.id !== id)));
+}
+
+/** The wod-wiki-community content repository — source of every community feed. */
+export const COMMUNITY_REPOSITORY_URL = 'https://github.com/bitcobblers/wod-wiki-community';
+
+/** A package source is where the files are hosted (e.g. Common or custom mirrors). */
+export interface PackageSource {
+  id: string;
+  label: string;
+  url: string;
+  repositoryUrl?: string;
+  description?: string;
+}
+
+/** An individual package — a category/directory unit within a package source. */
+export interface SyncPackage {
+  id: string;
+  chunkId: string;
+  label: string;
+  category: string;
+  description: string;
+  sourceId: string;
+  sourceLabel: string;
+  repositoryUrl?: string;
+}
+
+/** The default 'Common' package source (wod-wiki-community content repo). */
+export const COMMON_PACKAGE_SOURCE: PackageSource = {
+  id: 'common',
+  label: 'Common',
+  url: COMMUNITY_SEED_URL,
+  repositoryUrl: COMMUNITY_REPOSITORY_URL,
+  description: 'Shared workouts, benchmark collections, and dashboards from the common content repository.',
+};
+
+/**
+ * Built-in packages belonging to the Common package source.
+ * Each category directory forms one package with its own chunkId.
+ */
+export const SYNC_PACKAGES: SyncPackage[] = [
+  {
+    id: 'community-crossfit-programming',
+    chunkId: 'feed.crossfit-programming',
+    label: 'CrossFit Programming',
+    category: 'feeds',
+    sourceId: 'common',
+    sourceLabel: 'Common',
+    description: 'Weekly CrossFit programming — daily strength, conditioning, and skill sessions on a rotation with a weekly benchmark.',
+    repositoryUrl: COMMUNITY_REPOSITORY_URL,
+  },
+  {
+    id: 'community-dan-john-40-day',
+    chunkId: 'feed.dan-john-40-day',
+    label: 'Dan John 40-Day Program',
+    category: 'feeds',
+    sourceId: 'common',
+    sourceLabel: 'Common',
+    description: "Dan John's 40-day barbell program — five lifts, five sets of five, five days a week for 40 sessions.",
+    repositoryUrl: COMMUNITY_REPOSITORY_URL,
+  },
+  {
+    id: 'community-crossfit-girls',
+    chunkId: 'collection.crossfit-girls',
+    label: 'CrossFit Girls',
+    category: 'collections',
+    sourceId: 'common',
+    sourceLabel: 'Common',
+    description: 'Classic benchmark workouts — Fran, Helen, Grace, Diane, and more, formatted for Wod Wiki.',
+    repositoryUrl: COMMUNITY_REPOSITORY_URL,
+  },
+  {
+    id: 'community-crossfit-heroes',
+    chunkId: 'collection.crossfit-heroes',
+    label: 'CrossFit Heroes',
+    category: 'collections',
+    sourceId: 'common',
+    sourceLabel: 'Common',
+    description: 'Hero benchmark workouts honoring service members — Murph, DT, Badger, and more.',
+    repositoryUrl: COMMUNITY_REPOSITORY_URL,
+  },
+  {
+    id: 'community-dashboards',
+    chunkId: 'dashboards',
+    label: 'Common Dashboards',
+    category: 'dashboards',
+    sourceId: 'common',
+    sourceLabel: 'Common',
+    description: 'Prebuilt WQL analytics dashboards tracking training volume, intensity distribution, and movement frequency.',
+    repositoryUrl: COMMUNITY_REPOSITORY_URL,
+  },
+];
+
+/** Returns all registered package sources (Common + custom). */
+export function listPackageSources(): PackageSource[] {
+  return [
+    COMMON_PACKAGE_SOURCE,
+    ...customSeedSources().map((c) => ({
+      id: c.id,
+      label: c.label,
+      url: c.url,
+      description: `Custom package source synced from ${c.url}`,
+    })),
+  ];
+}
+
+/** Returns all syncable packages across package sources. */
+export function listSyncPackages(): SyncPackage[] {
+  const list = [...SYNC_PACKAGES];
+  for (const src of customSeedSources()) {
+    list.push({
+      id: src.id,
+      chunkId: src.id,
+      label: src.label,
+      category: 'custom',
+      sourceId: src.id,
+      sourceLabel: src.label,
+      description: `Custom package synced from ${src.url}`,
+    });
+  }
+  return list;
+}
+
+/** A built-in community feed surfaced on the home Community feeds section. */
+export interface DemoSeedSource {
+  id: string;
+  label: string;
+  url: string;
+  description: string;
+  repositoryUrl: string;
+}
+
+/** One component of the published community corpus: the manifest's
+ *  `feed.<name>` chunk plus the metadata the home card renders. */
+export interface CommunityFeedDef {
+  id: string;
+  chunkId: string;
+  label: string;
+  description: string;
+}
+
+/**
+ * The two existing demo feeds — real components of the wod-wiki-community
+ * corpus (verified manifest: `feed.crossfit-programming`, 8 notes;
+ * `feed.dan-john-40-day`, 6 notes), not stand-ins for the bundled core.
+ * Both sync from the same community Pages URL; FeedSeedSource filters the
+ * manifest so each button downloads only its own chunk.
+ */
+export const COMMUNITY_FEEDS: CommunityFeedDef[] = [
+  {
+    id: 'community-crossfit-programming',
+    chunkId: 'feed.crossfit-programming',
+    label: 'CrossFit Programming',
+    description: 'Weekly CrossFit programming — daily strength, conditioning, and skill sessions on a push/pull/hinge/squat rotation with a benchmark or chipper each week (60–75 min per session).',
+  },
+  {
+    id: 'community-dan-john-40-day',
+    chunkId: 'feed.dan-john-40-day',
+    label: 'Dan John 40-Day Program',
+    description: "Dan John's 40-day barbell program (from *Can You Go?*, 2014) — five lifts, five sets of five, five days a week for 40 sessions.",
+  },
+];
+
+/** Ids owned by the built-in feeds — addCustomSeedSource must never issue them. */
+const RESERVED_SEED_SOURCE_IDS: Record<string, true> = Object.fromEntries([
+  ...COMMUNITY_FEEDS.map((feed) => [feed.id, true] as const),
+  ...SYNC_PACKAGES.map((pkg) => [pkg.id, true] as const),
+]);
+
+/**
+ * A filtered view of a published seed directory exposing only ONE
+ * `feed.<name>` manifest chunk, so a feed sync downloads just that
+ * component instead of the whole community corpus. Note identity is
+ * path-derived (seedNoteId) and the `feed:` sourceId family is shared
+ * with a full community import, so a feed and the library-wide community
+ * source never double-own a row — only their checkpoints
+ * (`seed:<sourceId>`) are disjoint.
+ */
+export class FeedSeedSource implements ISeedSource {
+  constructor(
+    private readonly inner: ISeedSource,
+    /** Exact manifest chunk id, e.g. 'feed.crossfit-programming'. */
+    readonly chunkId: string,
+  ) {}
+
+  async fetchManifest(): Promise<SeedManifest> {
+    const manifest = await this.inner.fetchManifest();
+    return { ...manifest, chunks: manifest.chunks.filter((chunk) => chunk.id === this.chunkId) };
+  }
+
+  fetchChunk(path: string) {
+    return this.inner.fetchChunk(path);
+  }
+}
+
+/** The home Community feeds cards — same shape the home component renders. */
+export function demoSeedSources(): DemoSeedSource[] {
+  return COMMUNITY_FEEDS.map((feed) => ({
+    id: feed.id,
+    label: feed.label,
+    url: COMMUNITY_SEED_URL,
+    description: feed.description,
+    repositoryUrl: COMMUNITY_REPOSITORY_URL,
+  }));
 }
