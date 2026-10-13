@@ -77,7 +77,12 @@ export class IndexedDBContentProvider implements IContentProvider {
     }
 
     async getEntry(id: string): Promise<HistoryEntry | null> {
-        const note = await this.db.getNote(id) ?? await this.db.getNoteBySlug(id);
+        // ponytail: fallback to stripped playground prefix and slug before failing; upgrade to unified locator resolver when route models merge.
+        const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
+        const note = await this.db.getNote(id)
+            ?? (rawId !== id ? await this.db.getNote(rawId) : undefined)
+            ?? await this.db.getNoteBySlug(id)
+            ?? (rawId !== id ? await this.db.getNoteBySlug(rawId) : undefined);
         if (!note) return null;
         const bundle = (await this.db.getEntryBatches([note.id])).get(note.id);
         if (!bundle) return null;
@@ -129,7 +134,11 @@ export class IndexedDBContentProvider implements IContentProvider {
     }
 
     async updateEntry(id: string, patch: NoteEntryPatch): Promise<HistoryEntry> {
-        const resolved = await this.db.getNote(id) ?? await this.db.getNoteBySlug(id);
+        const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
+        const resolved = await this.db.getNote(id)
+            ?? (rawId !== id ? await this.db.getNote(rawId) : undefined)
+            ?? await this.db.getNoteBySlug(id)
+            ?? (rawId !== id ? await this.db.getNoteBySlug(rawId) : undefined);
         if (!resolved) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${id}`);
         await this.db.withTransaction([...MUTATION_STORES], async scoped => {
             const note = await scoped.getNote(resolved.id);

@@ -80,10 +80,13 @@ export function PlaygroundNotePage({
   const noteId = pageId('playground', pageName)
   const pageTitle = useMemo(() => (id ? formatPlaygroundPageTitle(id) : 'Playground'), [id])
   const navigate = useNavigate()
+  // ponytail: only seed template on bare /playground route; detail routes stay read-only on load.
+  const isDefaultPlayground = !id || id === 'playground'
   const { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange: persistOnChange, onLineChange, onBlur, flush, committedSourceRevision, resetToOriginal } = usePlaygroundContent({
     category: 'playground',
     name: pageName,
     mdContent: DEFAULT_PLAYGROUND_CONTENT.content,
+    seedOnMount: isDefaultPlayground,
   })
   const runtimeNoteId = entryId ?? noteId
 

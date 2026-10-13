@@ -37,4 +37,24 @@ describe('whole Note provider', () => {
     expect(parseDashboardNote(reopened!.rawContent)).toBeDefined();
     expect(Object.values(entry.blocks!).map(block => block.kind)).toEqual(['query']);
   });
+
+  it('resolves snapshot notes by UUID, slug, or playground routeId', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const provider = new IndexedDBContentProvider(service);
+    const routeId = 'playground/home-run-2026-10-12';
+    const entry = await provider.saveEntry({
+      slug: routeId,
+      title: 'Home Run',
+      rawContent: '10 Thrusters',
+      tags: [],
+      targetDate: 1,
+      type: 'playground',
+    });
+
+    expect(await provider.getEntry(entry.id)).toMatchObject({ id: entry.id, rawContent: '10 Thrusters' });
+    expect(await provider.getEntry(routeId)).toMatchObject({ id: entry.id, rawContent: '10 Thrusters' });
+    expect(await provider.getEntry('home-run-2026-10-12')).toMatchObject({ id: entry.id, rawContent: '10 Thrusters' });
+    expect(await provider.getEntry(`playground/${entry.id}`)).toMatchObject({ id: entry.id, rawContent: '10 Thrusters' });
+    expect(await service.getNote(routeId)).toBeUndefined();
+  });
 });
