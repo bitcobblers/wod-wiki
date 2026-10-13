@@ -37,13 +37,21 @@ describe('TelemetryService', () => {
     expect(typeof events[0].at).toBe('number');
   });
 
-  it('defaults to no consent: records locally but never forwards', async () => {
+  it('defaults to consent enabled (opt-out): records locally and forwards', () => {
     service.record(HOME_EVENTS.explorerOpened);
+    expect(forwarded).toHaveLength(1);
+    expect(forwarded[0].name).toBe('home:explorer_opened');
+  });
+
+  it('revoking consent (opt-out) stops forwarding but keeps local recording', async () => {
+    service.setConsent(false);
+    service.record(HOME_EVENTS.lessonStarted);
     expect(forwarded).toHaveLength(0);
     expect(await service.list()).toHaveLength(1);
   });
 
-  it('forwards only after consent is granted', () => {
+  it('re-enabling consent resumes forwarding', () => {
+    service.setConsent(false);
     service.record(HOME_EVENTS.demoEdited);
     expect(forwarded).toHaveLength(0);
     service.setConsent(true);
@@ -52,21 +60,13 @@ describe('TelemetryService', () => {
     expect(forwarded[0].name).toBe('home:demo_edited');
   });
 
-  it('revoking consent stops forwarding but keeps local recording', async () => {
-    service.setConsent(true);
-    service.setConsent(false);
-    service.record(HOME_EVENTS.lessonStarted);
-    expect(forwarded).toHaveLength(0);
-    expect(await service.list()).toHaveLength(1);
-  });
-
-  it('persists consent across instances via storage', () => {
+  it('persists opt-out across instances via storage', () => {
     const storage = memoryStorage();
     const first = new TelemetryService({ storage });
-    expect(first.consent).toBe(false);
-    first.setConsent(true);
+    expect(first.consent).toBe(true);
+    first.setConsent(false);
     const second = new TelemetryService({ storage });
-    expect(second.consent).toBe(true);
+    expect(second.consent).toBe(false);
   });
 
   it('emits recorded events on the bus', () => {
@@ -80,9 +80,9 @@ describe('TelemetryService', () => {
   it('notifies consent subscribers on change', () => {
     const seen: boolean[] = [];
     service.subscribeConsent((c) => seen.push(c));
-    service.setConsent(true);
     service.setConsent(false);
-    expect(seen).toEqual([true, false]);
+    service.setConsent(true);
+    expect(seen).toEqual([false, true]);
   });
 
   it('exposes the 17 home funnel event names', () => {

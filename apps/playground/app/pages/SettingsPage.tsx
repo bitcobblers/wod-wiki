@@ -39,7 +39,9 @@ import {
   Trash2,
   Info,
   ExternalLink,
+  Activity,
 } from 'lucide-react'
+import { useTelemetry } from '@/services/telemetry'
 import { APP_VERSION, releaseUrlFor } from '../lib/appVersion'
 import { StickyPageHeader } from '@/panels/page-shells/StickyPageHeader'
 import { useTheme } from '@/contexts/ThemeProvider'
@@ -346,6 +348,7 @@ function AppearanceSection() {
 function SystemSection() {
   const { isEnabled: isAudioEnabled, toggleAudio, playTestSound } = useAudio()
   const { isDebugMode, toggleDebugMode } = useDebugMode()
+  const { consent: isTelemetryConsent, setConsent: setTelemetryConsent } = useTelemetry()
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [resetError, setResetError] = useState<string | null>(null)
@@ -503,7 +506,39 @@ function SystemSection() {
         </div>
       </section>
 
-      {/* 3. Data & Storage / Danger Zone */}
+      {/* 3. Anonymous Telemetry */}
+      <section className="space-y-4 pt-4 border-t border-border/50" data-testid="settings-telemetry">
+        <div>
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Activity className="size-4 text-primary" />
+            Anonymous Telemetry
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Anonymous usage telemetry is internal to Wod Wiki only. It helps us improve timer accuracy, workout execution, and query reliability. Your data will never be sold or shared with third parties.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <label htmlFor="telemetry-switch" className="text-sm font-medium text-foreground cursor-pointer">
+                Share Anonymous Usage Statistics
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Sends anonymous feature usage events. Turn off to opt out at any time.
+              </p>
+            </div>
+            <Switch
+              id="telemetry-switch"
+              data-testid="telemetry-toggle"
+              checked={isTelemetryConsent}
+              onChange={setTelemetryConsent}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* 4. Data & Storage / Danger Zone */}
       <section className="space-y-4 pt-4 border-t border-border/50">
         <div>
           <h2 className="text-base font-semibold text-destructive flex items-center gap-2">

@@ -6,8 +6,8 @@
  * workout fact store so funnel events never reach WQL queries or rollups.
  *
  * Local-always: `record()` persists regardless of consent. External
- * forwarding (gtag) happens only through the injected forwarder and only
- * after `setConsent(true)`. Consent persists in Storage.
+ * forwarding (gtag) happens only through the injected forwarder and is
+ * enabled by default (opt-out via `setConsent(false)`). Consent persists in Storage.
  */
 import { SimpleEventBus } from '@/services/events/SimpleEventBus';
 import { remotePrefsMode, metaListRows, metaPutRow } from '@/services/storage/metaStore';
@@ -65,7 +65,8 @@ export class TelemetryService {
     this.idb = options.sink ? undefined : (options.idb ?? (typeof indexedDB !== 'undefined' ? indexedDB : undefined));
     this.sink = options.sink;
     this.load = options.load;
-    this._consent = this.storage?.getItem(CONSENT_KEY) === 'granted';
+    // ponytail: opt-out default; add granular consent categories when privacy regulations require it.
+    this._consent = this.storage?.getItem(CONSENT_KEY) !== 'denied';
   }
 
   get consent(): boolean {
@@ -88,7 +89,7 @@ export class TelemetryService {
     return () => this.consentListeners.delete(fn);
   }
 
-  /** Local-always record; forwards only when consent is granted. */
+  /** Local-always record; forwards unless consent is opted out. */
   record(name: string, payload?: Record<string, unknown>): void {
     const event: TelemetryEvent = { name, payload, at: Date.now() };
     // Persistence failure is logged, never an unhandled rejection and never

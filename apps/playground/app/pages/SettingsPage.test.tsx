@@ -119,7 +119,7 @@ describe('SettingsPage', () => {
   })
 
   describe('System Subroute', () => {
-    it('renders the System tab with Audio, Debug, and Danger Zone controls', () => {
+    it('renders the System tab with Audio, Debug, Telemetry, and Danger Zone controls', () => {
       renderSettings('/settings/system')
 
       expect(screen.getByText('Audio Feedback')).toBeDefined()
@@ -128,6 +128,9 @@ describe('SettingsPage', () => {
 
       expect(screen.getByText('Developer Diagnostics')).toBeDefined()
       expect(screen.getByTestId('debug-mode-toggle')).toBeDefined()
+
+      expect(screen.getByText('Anonymous Telemetry')).toBeDefined()
+      expect(screen.getByTestId('telemetry-toggle')).toBeDefined()
 
       expect(screen.getByText('Data & Cache (Danger Zone)')).toBeDefined()
       expect(screen.getByTestId('reset-cache-button')).toBeDefined()
@@ -154,6 +157,24 @@ describe('SettingsPage', () => {
         screen.getByTestId('debug-mode-toggle').click()
       })
       expect(mockToggleDebugMode).toHaveBeenCalled()
+    })
+
+    it('defaults telemetry toggle to enabled and toggles to opt out', () => {
+      renderSettings('/settings/system')
+      const toggle = screen.getByTestId('telemetry-toggle')
+      expect(toggle.getAttribute('data-headlessui-state')).toContain('checked')
+
+      act(() => {
+        toggle.click()
+      })
+      expect(localStorage.getItem('wodwiki.telemetry.consent')).toBe('denied')
+      expect(toggle.getAttribute('data-headlessui-state')).not.toContain('checked')
+
+      act(() => {
+        toggle.click()
+      })
+      expect(localStorage.getItem('wodwiki.telemetry.consent')).toBe('granted')
+      expect(toggle.getAttribute('data-headlessui-state')).toContain('checked')
     })
 
     it('opens confirmation modal when clicking Reset & Clear Cache', () => {

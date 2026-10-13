@@ -1,7 +1,7 @@
 /**
  * gtag wiring for the telemetry seam (PRD #767). The inline gtag loader was
- * removed from index.html; this module injects the script only after the
- * visitor grants telemetry consent, and forwards recorded events through the
+ * removed from index.html; this module injects the script unless the
+ * visitor opts out in settings, and forwards recorded events through the
  * TelemetryService forwarder hook (which itself gates on consent).
  *
  * G-PROD-ID is the build-time placeholder the production build rewrites,
