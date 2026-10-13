@@ -483,10 +483,20 @@ export async function readSeedCoverage(deps: Pick<SeedSyncDeps, 'sources' | 'sto
 /** Per-source local + remote seed versions for the Settings status card. */
 export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatus> {
   const storage = new IndexedDBSeedImportStorage();
+  // Per-feed packages share the community library checkpoint: no per-package
+  // meta record exists, so coverage comes from the package's chunk membership.
+  const communityMeta = await storage.getSeedMeta(seedMetaKey('community'));
+  const syncPackages = listSyncPackages();
   const sources = await Promise.all(
     (deps.sources ?? defaultSeedSources()).map(async (spec) => {
       const metaKey = seedMetaKey(spec.id);
-      const stored = await storage.getSeedMeta(metaKey);
+      let stored = await storage.getSeedMeta(metaKey);
+      if (!stored && communityMeta) {
+        const pkg = syncPackages.find(p => p.id === spec.id);
+        if (pkg && communityMeta.chunks[pkg.chunkId]) {
+          stored = communityMeta;
+        }
+      }
       let remote: SeedSourceStatus['remote'] = null;
       let remoteError: string | null = null;
       try {

@@ -291,6 +291,7 @@ function ConditionSection({
   routeKnownOptions: Map<string, Map<string, FacetOption>>
   onApply: (wql: string) => void
 }) {
+  const location = useLocation()
   const config = conditionSectionConfig(entryKey)
   if (config.enabled === false) return null
   const meta = getClauseMeta(clauseTypeFor(entryKey))
@@ -354,7 +355,8 @@ function ConditionSection({
     || a.label.localeCompare(b.label),
   )
 
-  const visibleRows = (config.hideZero || entryKey === 'effort')
+  const isJournalRoute = location.pathname.startsWith('/journal')
+  const visibleRows = (config.hideZero || entryKey === 'effort' || (isJournalRoute && (entryKey === 'tags' || (WQL_TYPED_TAG_KEYS as readonly string[]).includes(entryKey))))
     ? rows.filter(row => (row.count !== null && row.count > 0) || row.state !== 'off')
     : rows
 

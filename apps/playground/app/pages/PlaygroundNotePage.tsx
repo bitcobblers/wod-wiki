@@ -218,7 +218,7 @@ export function PlaygroundNotePage({
           wodContent: block.content,
           date: date,
         })
-        navigate(`/journal?s=${dateKey}`)
+        navigate(journalEntryPath(dateKey))
         toast({
           title: 'Scheduled',
           description: `Added to journal for ${dateKey}`,

@@ -117,6 +117,13 @@ describe('groupEntriesByDimension — date (playground createdAt fallback)', () 
     expect(groups[0]!.entries.map(e => e.id)).toEqual(['p1', 'p2'])
   })
 
+  it('groups playground notes with small sentinel createdAt under Undated', () => {
+    const groups = groupEntriesByDimension([
+      entry('p-sentinel', { sourceCatalog: 'playground', createdAt: 2829 }),
+    ], 'date')
+    expect(groups.map(g => g.label)).toEqual(['Undated'])
+  })
+
   it('keeps undated collection sessions on the shelf while playgrounds date-group', () => {
     const groups = groupEntriesByDimension([
       entry('c1', { kind: 'session', sourceCatalog: 'crossfit-girls', date: null }),

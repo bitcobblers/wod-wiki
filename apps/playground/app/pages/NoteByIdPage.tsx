@@ -301,6 +301,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                     showLineNumbers={false}
                     onCompleteWorkout={handleCompleteWorkout}
                     onBlocksChange={setScriptBlocks}
+                    placeholder="Write workout or notes here…"
                   />
                 </div>
               ) : (

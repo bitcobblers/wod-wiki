@@ -25,6 +25,7 @@ import {
   highlightSpecialChars,
   lineNumbers,
   highlightActiveLineGutter,
+  placeholder,
 } from "@codemirror/view";
 import {
   defaultKeymap,
@@ -188,6 +189,8 @@ export interface NoteEditorProps {
   scrollToSectionId?: string;
   /** External active section ID supplied by a parent scroll observer */
   activeSectionId?: string | null;
+  /** Placeholder text shown when the document is empty */
+  placeholder?: string;
 }
 export interface EditorIdentitySnapshot {
   rawContent: string;
@@ -234,6 +237,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   activeSectionId: externalActiveSectionId,
   scrollToSectionId,
   results,
+  placeholder: placeholderText,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -691,6 +695,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // Read-only state
       EditorState.readOnly.of(readonly),
       EditorView.editable.of(!readonly),
+      ...(placeholderText ? [placeholder(placeholderText)] : []),
     ],
     [
       onChange,
@@ -710,6 +715,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       noteId,
       notePersistence,
       widgetComponents,
+      placeholderText,
     ]
   );
 

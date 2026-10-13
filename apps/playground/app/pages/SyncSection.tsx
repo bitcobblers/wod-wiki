@@ -16,9 +16,10 @@ import { addCustomSeedSource, customSeedSources, removeCustomSeedSource, type Cu
 import { isSeedSubscribed, setSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
 import { ProgressBar } from '../components/atoms/ProgressBar'
 import { toast } from '@/hooks/use-toast'
+import { formatDateTimeMediumShort } from '@/lib/dateFormat'
 
 const formatSeedVersion = (version: number): string =>
-  new Date(version).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  formatDateTimeMediumShort(new Date(version))
 
 /** One toast per sync outcome, labeled with the source that produced it. */
 function announceOutcome(outcome: string, label: string): void {

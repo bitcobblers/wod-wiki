@@ -22,7 +22,7 @@ import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
 import { usePlaygroundContent } from '../hooks/usePlaygroundContent'
 import { pageId } from '../services/playgroundContent'
 import { pendingRuntimes } from '../runtimeStore'
-import { noteByIdPath, runPath, workoutPath, journalEntryAutoStartPath } from '../lib/routes'
+import { journalEntryPath, noteByIdPath, runPath, workoutPath, journalEntryAutoStartPath } from '../lib/routes'
 import { createJournalNoteFromWorkout } from '../services/journalWorkout'
 import { PageActions } from './shared/PageActions'
 import { useNotePageNav } from './shared/useNotePageNav'
@@ -129,7 +129,6 @@ export function WorkoutEditorPage({
   const handleScheduleBlock = useCallback(
     async (block: ScriptBlock, date: Date) => {
       const dateLabel = formatDateHeader(date);
-      let journalNoteId: string
       let journalDate: string
       try {
         const journalNote = await createJournalNoteFromWorkout({
@@ -141,7 +140,6 @@ export function WorkoutEditorPage({
           date,
           wrapInWod: true,
         })
-        journalNoteId = journalNote.id
         journalDate = journalNote.journalDate ?? ''
       } catch {
         toast({
@@ -151,8 +149,8 @@ export function WorkoutEditorPage({
         })
         return
       }
-      navigate(`/journal?s=${journalDate}`)
-      const journalRoute = noteByIdPath(journalNoteId)
+      navigate(journalEntryPath(journalDate))
+      const journalRoute = journalEntryPath(journalDate)
       toast({
         title: `Added to ${dateLabel}`,
         description: `"${name}" was added to your journal.`,
