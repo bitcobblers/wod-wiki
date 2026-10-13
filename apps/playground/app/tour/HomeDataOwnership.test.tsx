@@ -24,7 +24,7 @@ mock.module('@/services/storage', () => ({
 }))
 
 import { HomeCommunityFeeds, HomeDataOwnership } from './HomeDataOwnership'
-import { isSeedSubscribed, resetSeedSubscriptionsForTest } from '@/services/seed/seedSubscriptions'
+import { isSeedSubscribed, resetSeedSubscriptionsForTest, setSeedSubscribed } from '@/services/seed/seedSubscriptions'
 
 beforeEach(() => {
   localStorage.clear()
@@ -66,10 +66,11 @@ describe('HomeCommunityFeeds', () => {
     )
     const feeds = screen.getByTestId('home-community-feeds')
     expect(feeds.children).toHaveLength(2)
-    expect(screen.getByTestId('home-feed-core').textContent).toContain('Demo')
-    expect(screen.getByTestId('home-feed-community').textContent).toContain('Demo')
-    const repo = screen.getByText('https://github.com/bitcobblers/wod-wiki') as HTMLAnchorElement
-    expect(repo.getAttribute('href')).toBe('https://github.com/bitcobblers/wod-wiki')
+    expect(screen.getByTestId('home-feed-community-crossfit-programming').textContent).toContain('Demo')
+    expect(screen.getByTestId('home-feed-community-dan-john-40-day').textContent).toContain('Demo')
+    const repos = screen.getAllByText('https://github.com/bitcobblers/wod-wiki-community') as HTMLAnchorElement[]
+    expect(repos.length).toBe(2)
+    expect(repos[0].getAttribute('href')).toBe('https://github.com/bitcobblers/wod-wiki-community')
     expect(screen.getAllByText(/bun run generate:seed/).length).toBeGreaterThan(0)
   })
 
@@ -79,12 +80,12 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    fireEvent.click(screen.getByTestId('home-feed-sync-community'))
+    fireEvent.click(screen.getByTestId('home-feed-sync-community-dan-john-40-day'))
     await waitFor(() => {
-      expect(screen.getByTestId('home-feed-status-community').textContent).toContain('Synced')
+      expect(screen.getByTestId('home-feed-status-community-dan-john-40-day').textContent).toContain('Synced')
     })
-    expect(isSeedSubscribed('community')).toBe(true)
-    expect(screen.getByTestId('home-feed-subscribe-community').textContent).toBe('Unsubscribe')
+    expect(isSeedSubscribed('community-dan-john-40-day')).toBe(true)
+    expect(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day').textContent).toBe('Unsubscribe')
   })
 
   it('does not subscribe when the sync fails', async () => {
@@ -94,12 +95,12 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    fireEvent.click(screen.getByTestId('home-feed-sync-community'))
+    fireEvent.click(screen.getByTestId('home-feed-sync-community-dan-john-40-day'))
     await waitFor(() => {
-      expect(screen.getByTestId('home-feed-status-community').textContent).toContain('Sync failed')
+      expect(screen.getByTestId('home-feed-status-community-dan-john-40-day').textContent).toContain('Sync failed')
     })
-    expect(isSeedSubscribed('community')).toBe(false)
-    expect(screen.getByTestId('home-feed-subscribe-community').textContent).toBe('Subscribe')
+    expect(isSeedSubscribed('community-dan-john-40-day')).toBe(false)
+    expect(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day').textContent).toBe('Subscribe')
   })
 
   it('unsubscribe is explicit and persistent — nothing re-subscribes automatically', async () => {
@@ -108,12 +109,12 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    fireEvent.click(screen.getByTestId('home-feed-sync-community'))
-    await waitFor(() => expect(isSeedSubscribed('community')).toBe(true))
+    fireEvent.click(screen.getByTestId('home-feed-sync-community-dan-john-40-day'))
+    await waitFor(() => expect(isSeedSubscribed('community-dan-john-40-day')).toBe(true))
 
-    fireEvent.click(screen.getByTestId('home-feed-subscribe-community'))
-    expect(isSeedSubscribed('community')).toBe(false)
-    expect(screen.getByTestId('home-feed-subscribe-community').textContent).toBe('Subscribe')
+    fireEvent.click(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day'))
+    expect(isSeedSubscribed('community-dan-john-40-day')).toBe(false)
+    expect(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day').textContent).toBe('Subscribe')
 
     // Re-render (fresh mount) — the flag stays off with no sync involved.
     cleanup()
@@ -122,8 +123,8 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    expect(isSeedSubscribed('community')).toBe(false)
-    expect(screen.getByTestId('home-feed-subscribe-community').textContent).toBe('Subscribe')
+    expect(isSeedSubscribed('community-dan-john-40-day')).toBe(false)
+    expect(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day').textContent).toBe('Subscribe')
   })
 
   it('core is always subscribed and cannot be unsubscribed', () => {
@@ -133,7 +134,8 @@ describe('HomeCommunityFeeds', () => {
       </MemoryRouter>,
     )
     expect(isSeedSubscribed('core')).toBe(true)
-    fireEvent.click(screen.getByTestId('home-feed-subscribe-core'))
+    // The core seed has no feed card; the invariant lives in seedSubscriptions.
+    setSeedSubscribed('core', false)
     expect(isSeedSubscribed('core')).toBe(true)
   })
 })
