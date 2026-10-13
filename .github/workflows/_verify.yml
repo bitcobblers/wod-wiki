@@ -109,6 +109,17 @@ jobs:
         if: inputs.build-preview-artifact && steps.build.outcome == 'success'
         run: bun x vite build --config apps/playground/vite.receiver.config.ts --outDir dist
 
+      # GA measurement ID substitution, restored from the pre-consolidation
+      # _build-bun.yml step: the sources ship a G-PROD-ID placeholder
+      # (app/lib/telemetry-gtag.ts bundled into assets/*.js, receiver-rpc.html)
+      # and this rewrites the built dist. Empty vars.G_TAG → placeholder
+      # ships untouched (dev/fork builds).
+      - name: Inject GA tag
+        if: inputs.build-preview-artifact && steps.build.outcome == 'success' && vars.G_TAG != ''
+        run: |
+          grep -rl 'G-PROD-ID' apps/playground/dist \
+            | xargs -r sed -i 's/G-PROD-ID/${{ vars.G_TAG }}/g'
+
       - name: Upload playground dist
         if: inputs.build-preview-artifact && steps.build.outcome == 'success'
         uses: actions/upload-artifact@v7

@@ -20,6 +20,7 @@ import { executeNavAction } from './navTypes'
 import { isItemActive } from './NavSidebar'
 import { useCloseNavigationDrawer } from './NavigationDrawerContext'
 import type { NavItem, NavActionDeps } from './navTypes'
+import { APP_VERSION } from '../lib/appVersion'
 
 export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate?: () => void }) {
   const { tree, navState, dispatch } = useNav()
@@ -146,7 +147,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
         aria-current={isSettingsActive ? 'page' : undefined}
         data-testid="nav-settings"
         className={cn(
-          'relative grid size-9 place-items-center rounded-lg transition-colors mt-1.5',
+          'group relative grid size-9 place-items-center rounded-lg transition-colors mt-1.5',
           isSettingsActive
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
@@ -156,6 +157,13 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
           <span className="absolute -left-[14px] top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
         )}
         <Settings className="size-5" />
+        {/* Hover/focus popover: build version (System settings has the full About block). */}
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute bottom-0 left-full z-50 ml-2 w-max rounded-md border border-border bg-popover px-2 py-1 font-mono text-[10px] text-popover-foreground opacity-0 shadow-md transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+        >
+          v{APP_VERSION}
+        </span>
       </button>
     </>
   )
