@@ -99,7 +99,7 @@ for (const spec of SOURCES) {
   } else {
     console.log(`[sync-seed] ${spec.id}: first sync — ${manifest.chunks.length} chunks`);
   }
-  console.log(`[sync-seed] ${spec.id}: report: ${reportPath} (scan ${passMs.scan}ms, block-index ${passMs.blockIndex}ms, block-efforts ${passMs.blockEfforts}ms, write ${passMs.write}ms)`);
+  console.log(`[sync-seed] ${spec.id}: report: ${reportPath} (scan ${passMs.scan}ms, block-index ${passMs.blockIndex}ms, parse-gate ${passMs.parseGate}ms, block-efforts ${passMs.blockEfforts}ms, write ${passMs.write}ms)`);
   results.push({ spec, manifest });
 }
 

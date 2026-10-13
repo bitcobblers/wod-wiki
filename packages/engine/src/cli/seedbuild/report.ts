@@ -13,7 +13,7 @@ export interface BuildReportData {
   /** Wall-clock ms for the full build. */
   totalMs: number;
   /** Per-pass timings (ms): corpus scan, block-index derivation, effort-row derivation, chunk writes. */
-  passMs: { scan: number; blockIndex: number; blockEfforts: number; write: number };
+  passMs: { scan: number; blockIndex: number; parseGate: number; blockEfforts: number; write: number };
   /** Number of corpus markdown files. */
   fileCount: number;
   outDir: string;
@@ -63,6 +63,7 @@ export function writeBuildReport(outDir: string, data: BuildReportData): string 
   <dt>total</dt><dd>${totalMs} ms</dd>
   <dt>corpus scan + partition</dt><dd>${passMs.scan} ms (${fileCount} files)</dd>
   <dt>block-index derivation</dt><dd>${passMs.blockIndex} ms</dd>
+  <dt>block syntax gate</dt><dd>${passMs.parseGate} ms</dd>
   <dt>block-efforts derivation</dt><dd>${passMs.blockEfforts} ms</dd>
   <dt>chunk writes</dt><dd>${passMs.write} ms</dd>
 </dl>

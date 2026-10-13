@@ -1,5 +1,5 @@
 /** Compiles exact source, occurrence maps and sparse projections into atomic notes chunks. */
-import { parseScript } from '@bitcobblers/wod-wiki-lang';
+import { parseScript, whiteboardParser } from '@bitcobblers/wod-wiki-lang';
 import { blockContentId, parseDocumentSections, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import type { BlockEffort, BlockIndexRow } from '@bitcobblers/wod-wiki-storage';
 import {
@@ -85,7 +85,7 @@ export interface GenerateSeedResult {
   totalFiles: number;
   reportPath: string;
   /** ms timings per pass (mirrored into report.html). */
-  passMs: { scan: number; blockIndex: number; blockEfforts: number; write: number };
+  passMs: { scan: number; blockIndex: number; parseGate: number; blockEfforts: number; write: number };
 }
 
 // ── Corpus partition ──────────────────────────────────────────────────────
@@ -242,6 +242,35 @@ export function buildBlockIndexRows(markdownDir: string, corpusRoot: string): Bl
     rows.push(...compileSeedRow(path, content, { routeId, sourceId, createdAt }).blockIndex);
   }
   return rows;
+}
+
+/**
+ * Syntax gate — every `wod` block's script must parse with zero Lezer error
+ * nodes. `WhiteboardScript.errors` only carries mapper exceptions (the Lezer
+ * parser recovers silently), so the tree is scanned for `isError` nodes
+ * directly; a single bad block fails the build with `path:line` diagnostics.
+ */
+export function validateWodBlockSyntax(blocks: BlockIndexRow[]): string[] {
+  const problems: string[] = [];
+  for (const block of blocks) {
+    if (block.dataType !== 'wod' || !block.rawContent?.trim()) continue;
+    const section = parseDocumentSections(block.rawContent, { registeredWidgets: SEED_REGISTERED_WIDGETS })
+      .find((s) => s.scriptBlock);
+    const source = section?.scriptBlock?.content ?? block.rawContent;
+    if (!source.trim()) continue;
+
+    const doc = source.endsWith('\n') ? source : source + '\n';
+    const tree = whiteboardParser.parse(doc);
+    tree.iterate({
+      enter: (node) => {
+        if (!node.type.isError) return;
+        const line = doc.slice(0, node.from).split('\n').length;
+        const snippet = source.slice(node.from, Math.min(node.to, node.from + 60)).split('\n')[0];
+        problems.push(`${block.sourcePath ?? block.noteId}:${line} \`${snippet}\``);
+      },
+    });
+  }
+  return problems;
 }
 
 /**
@@ -427,7 +456,7 @@ function sha256Hex(data: string | Buffer): string {
 
 export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedResult {
   const t0 = Date.now();
-  const passMs = { scan: 0, blockIndex: 0, blockEfforts: 0, write: 0 };
+  const passMs = { scan: 0, blockIndex: 0, parseGate: 0, blockEfforts: 0, write: 0 };
   const corpusRoot = options.corpusRoot ?? process.cwd();
   const markdownDir = options.markdownDir ?? join(corpusRoot, 'markdown');
   const outDir = options.outDir ?? join(corpusRoot, 'dist');
@@ -452,14 +481,23 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
   }
   passMs.scan = Date.now() - tScan;
 
+  const tBlockIndex = Date.now();
+  const blockRows = buildBlockIndexRows(markdownDir, corpusRoot);
+  passMs.blockIndex = Date.now() - tBlockIndex;
+  const tParseGate = Date.now();
+  const syntaxProblems = validateWodBlockSyntax(blockRows);
+  passMs.parseGate = Date.now() - tParseGate;
+  if (syntaxProblems.length > 0) {
+    const shown = syntaxProblems.slice(0, 20).map((p) => `  ${p}`).join('\n');
+    const more = syntaxProblems.length > 20 ? `\n  … and ${syntaxProblems.length - 20} more` : '';
+    throw new Error(`[wod build] block syntax gate failed — ${syntaxProblems.length} block(s) do not parse:\n${shown}${more}`);
+  }
+
   const chunksDir = join(outDir, 'chunks');
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(chunksDir, { recursive: true });
 
   const manifestChunks: ManifestChunk[] = [];
-  const tBlockIndex = Date.now();
-  const blockRows = buildBlockIndexRows(markdownDir, corpusRoot);
-  passMs.blockIndex = Date.now() - tBlockIndex;
   const tBlockEfforts = Date.now();
   const effortRows = buildBlockEffortRows(markdownDir, corpusRoot, blockRows);
   passMs.blockEfforts = Date.now() - tBlockEfforts;

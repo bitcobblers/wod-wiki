@@ -27,6 +27,7 @@ import {
   partitionIntoChunks,
   scaffoldDiscoveredEfforts,
   validateDashboardNote,
+  validateWodBlockSyntax,
 } from '../src/cli/seedbuild/compiler';
 import { SEED_SCHEMA, canvasRouteSlug } from '../src/cli/seedbuild/contract';
 import { cliMain } from '../src/index';
@@ -174,6 +175,43 @@ describe('dashboard gate (#906)', () => {
         corpusRoot: tmp,
         version: 1,
       })).toThrow(/Dashboard validation failed for 'markdown\/dashboards\/bad\.md'/);
+      expect(existsSync(join(tmp, 'out'))).toBe(false);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('block syntax gate', () => {
+  function makeCorpus(script: string): string {
+    const tmp = mkdtempSync(join(tmpdir(), 'seed-syntax-gate-'));
+    mkdirSync(join(tmp, 'markdown/collections/workout'), { recursive: true });
+    writeFileSync(
+      join(tmp, 'markdown/collections/workout/day1.md'),
+      `# Day 1\n\n\`\`\`time\n${script}\n\`\`\`\n`,
+    );
+    return tmp;
+  }
+
+  it('passes a corpus whose wod blocks all parse', () => {
+    const tmp = makeCorpus('10 Pullups\n5 Back Squat 100kg');
+    try {
+      const rows = buildBlockIndexRows(join(tmp, 'markdown'), tmp);
+      expect(validateWodBlockSyntax(rows)).toEqual([]);
+      // And the full build succeeds end to end.
+      const result = generateSeed({ markdownDir: join(tmp, 'markdown'), outDir: join(tmp, 'out'), corpusRoot: tmp, version: 1 });
+      expect(result.totalFiles).toBe(1);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('fails the build on an unparseable block, naming the source file', () => {
+    const tmp = makeCorpus('!!! not valid wod at all @@@');
+    try {
+      expect(() =>
+        generateSeed({ markdownDir: join(tmp, 'markdown'), outDir: join(tmp, 'out'), corpusRoot: tmp, version: 1 }),
+      ).toThrow(/block syntax gate failed[\s\S]*markdown\/collections\/workout\/day1\.md:1/);
       expect(existsSync(join(tmp, 'out'))).toBe(false);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
