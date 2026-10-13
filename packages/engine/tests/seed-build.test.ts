@@ -217,6 +217,21 @@ describe('block syntax gate', () => {
       rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  it('accepts dialect-fenced blocks whose key: value lines the dialect stack owns', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'seed-syntax-dialect-'));
+    try {
+      mkdirSync(join(tmp, 'markdown/collections/climb'), { recursive: true });
+      writeFileSync(
+        join(tmp, 'markdown/collections/climb/day1.md'),
+        '# Day 1\n\n```log:climbing\ndate: 2026-05-20\nlocation: Red Rock Canyon\ndiscipline: sport\n```\n',
+      );
+      const rows = buildBlockIndexRows(join(tmp, 'markdown'), tmp);
+      expect(validateWodBlockSyntax(rows)).toEqual([]);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('canvasRouteSlug', () => {

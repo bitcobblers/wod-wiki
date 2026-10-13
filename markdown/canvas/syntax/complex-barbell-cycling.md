@@ -9,7 +9,7 @@ order: 7
 (5) :60 EMOM
   3 Power Clean 135lb
 
-[Change Plates]
+(Change Plates)
 
 (5) :60 EMOM
   2 Power Clean 155lb

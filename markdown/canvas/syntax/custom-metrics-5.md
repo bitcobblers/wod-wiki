@@ -11,6 +11,6 @@ order: 5
   *2:00 Rest
 
 calculate
-  totalLoad = sum(reps * weight)
+  totalLoad = sum(load)
   avgRPE = mean(rpe)
 ```

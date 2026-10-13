@@ -1,13 +1,13 @@
 ---
 search: hidden
 title: "Actions"
-subtitle: "[Square brackets] = non-movement steps"
+subtitle: "(Parentheses) = non-movement steps"
 section: supplemental
 order: 1
 ---
 ```time
 (5 Sets)
   5 Back Squat ?lb
-  [Adjust plates]
+  (Adjust plates)
   *2:00 Rest
 ```

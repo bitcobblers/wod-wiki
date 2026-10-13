@@ -245,10 +245,15 @@ export function buildBlockIndexRows(markdownDir: string, corpusRoot: string): Bl
 }
 
 /**
- * Syntax gate — every `wod` block's script must parse with zero Lezer error
- * nodes. `WhiteboardScript.errors` only carries mapper exceptions (the Lezer
- * parser recovers silently), so the tree is scanned for `isError` nodes
- * directly; a single bad block fails the build with `path:line` diagnostics.
+ * Syntax gate — every `wod` block's script must parse cleanly.
+ *
+ * Plain fences get a strict scan of the Lezer tree for error nodes
+ * (`WhiteboardScript.errors` only carries mapper exceptions; the parser
+ * recovers silently, so the tree is scanned directly) with `path:line`
+ * diagnostics. Dialect-fenced blocks (`log:climbing`, …) are owned by the
+ * dialect stack — their `key: value` lines are recovered by dialect
+ * handlers, not the base grammar — so those gate on the exception channel
+ * of a dialect-aware parse instead, matching how the app consumes them.
  */
 export function validateWodBlockSyntax(blocks: BlockIndexRow[]): string[] {
   const problems: string[] = [];
@@ -259,6 +264,15 @@ export function validateWodBlockSyntax(blocks: BlockIndexRow[]): string[] {
     const source = section?.scriptBlock?.content ?? block.rawContent;
     if (!source.trim()) continue;
 
+    const where = block.sourcePath ?? block.noteId;
+    if (section?.sport) {
+      const parsed = parseScript(source, { sport: section.sport });
+      for (const error of parsed.errors) {
+        problems.push(`${where}: ${error.message}`);
+      }
+      continue;
+    }
+
     const doc = source.endsWith('\n') ? source : source + '\n';
     const tree = whiteboardParser.parse(doc);
     tree.iterate({
@@ -266,7 +280,7 @@ export function validateWodBlockSyntax(blocks: BlockIndexRow[]): string[] {
         if (!node.type.isError) return;
         const line = doc.slice(0, node.from).split('\n').length;
         const snippet = source.slice(node.from, Math.min(node.to, node.from + 60)).split('\n')[0];
-        problems.push(`${block.sourcePath ?? block.noteId}:${line} \`${snippet}\``);
+        problems.push(`${where}:${line} \`${snippet}\``);
       },
     });
   }

@@ -177,7 +177,7 @@ Back-to-back EMOM windows with changing loads — cue cards prompt the plate cha
 (5) :60 EMOM
   3 Power Clean 135lb
 
-[Change Plates]
+(Change Plates)
 
 (5) :60 EMOM
   2 Power Clean 155lb
@@ -205,7 +205,7 @@ rpe: 7
 With the climbing suffix, plain text becomes structured signals — grades, send types, attempt counts, high points, and discipline stay readable as Markdown but queryable via `grade`, `calc.sends`, and friends ([finger-strength board](/guide/dashboards?h=seeded-boards)):
 
 ```log
-Night session. Sent "Midnight Lightning" V8, 3 attempts. High point on the 5.12a proj.
+Night session. Sent Midnight Lightning V8, 3 attempts. High point on the 5.12a proj.
 ```
 
 ## Try it {#try-it}

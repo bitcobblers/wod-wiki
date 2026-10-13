@@ -134,7 +134,7 @@ pipeline:
 ```time
 // Warmup — get loose
   400m Run
-[Chalk up]
+(Chalk up)
   10 Air Squats
 ```
 
