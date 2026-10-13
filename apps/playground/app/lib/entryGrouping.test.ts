@@ -67,15 +67,40 @@ describe('groupEntriesByDimension — ordered dimensions', () => {
     expect(composite.id).toBe('group-source-journal--date-group-2026-09-04')
   })
 
-  it('keeps a single dimension flat and falls back to the tag bucket off-vocabulary', () => {
+  it('keeps a single dimension flat and groups off-vocabulary dimensions as properties', () => {
     expect(groupEntriesByDimension(dated, ['date']).map(g => g.key)).toEqual([
       '2026-09-04',
       '2026-08-15',
     ])
-    // Dimensions outside CONTENT_GROUPING_DIMENSIONS execute as the tag
-    // bucket — these entries carry no tags, so all land in Untagged.
+    // Dimensions outside CONTENT_GROUPING_DIMENSIONS name note properties —
+    // these entries carry no typed tags, so all land in Unassigned.
     const unknown = groupEntriesByDimension(dated, ['resistance'])
-    expect(unknown.map(g => g.label)).toEqual(['Untagged'])
+    expect(unknown.map(g => g.label)).toEqual(['Unassigned'])
+    expect(unknown[0]!.id).toBe('group-property-resistance-unassigned')
+  })
+})
+
+describe('groupEntriesByDimension — property dimensions (typed tags)', () => {
+  const tagged = [
+    entry('a', { typedTags: [{ label: 'strength', type: 'domain' }, { label: 'amrap', type: 'format' }] }),
+    entry('b', { typedTags: [{ label: 'engine', type: 'domain' }] }),
+    entry('c', { typedTags: [{ label: 'benchmark', type: undefined }] }),
+  ]
+
+  it('groups by a configured tag type value', () => {
+    const groups = groupEntriesByDimension(tagged, ['domain'])
+    expect(groups.map(g => g.label).sort()).toEqual(['Unassigned', 'engine', 'strength'])
+    expect(groups.find(g => g.label === 'strength')!.entries.map(e => e.id)).toEqual(['a'])
+  })
+
+  it('matches the tag type case-insensitively', () => {
+    const groups = groupEntriesByDimension(tagged, ['DOMAIN'])
+    expect(groups.map(g => g.label)).toContain('strength')
+  })
+
+  it('untyped tags never satisfy a property dimension', () => {
+    const groups = groupEntriesByDimension(tagged, ['format'])
+    expect(groups.map(g => g.label)).toEqual(['amrap', 'Unassigned'])
   })
 })
 

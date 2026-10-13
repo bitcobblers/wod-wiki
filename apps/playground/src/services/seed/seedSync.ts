@@ -20,10 +20,12 @@ import { HttpSeedSource } from './HttpSeedSource';
 import { IndexedDBSeedImportStorage, type SeedImportStorage } from './SeedImportStorage';
 import { assertManifest, type ISeedSource } from './ISeedSource';
 import { decideSeedImport, EMBEDDED_SEED_VERSIONS, storedSeedIsCurrent } from './seedVersion';
-import { customSeedSources } from './seedSources';
+import { customSeedSources, CORE_SEED_URL, COMMUNITY_SEED_URL, FeedSeedSource, listSyncPackages } from './seedSources';
+import { isSeedSubscribed, setSeedSubscribed } from './seedSubscriptions';
+import { beginSyncActivity, reportSyncResult, reportSyncError } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
-import { readDataSettings, storage, storageBackend } from '@/services/storage';
+import { storage, storageBackend, storageService } from '@/services/storage';
 
 export { SEED_BROADCAST_CHANNEL } from '@/types/seed';
 export const SEED_IMPORT_FLAG = 'wodwiki.seedImport.enabled';
@@ -84,12 +86,11 @@ export interface SeedSourceSpec {
  * libraries register here the same way.
  */
 export function defaultSeedSources(): SeedSourceSpec[] {
-  const base = import.meta.env.BASE_URL;
   return [
     {
       id: 'core',
       label: 'Core (playground)',
-      source: new HttpSeedSource(`${base}seed/core/`),
+      source: new HttpSeedSource(CORE_SEED_URL),
       embeddedVersion: EMBEDDED_SEED_VERSIONS['core'] ?? 0,
     },
     {
@@ -99,10 +100,20 @@ export function defaultSeedSources(): SeedSourceSpec[] {
       // embeddedVersion stays 0 (never bundled) so every sync consults the
       // remote manifest — GitHub Pages sends no build-stamp compatibility.
       // VITE_COMMUNITY_SEED_URL overrides the host for local/staging e2e.
-      source: new HttpSeedSource(import.meta.env.VITE_COMMUNITY_SEED_URL ?? 'https://bitcobblers.github.io/wod-wiki-community/'),
+      source: new HttpSeedSource(COMMUNITY_SEED_URL),
       embeddedVersion: 0,
       autoImport: false,
     },
+    // Built-in package sources (Common category packages): each is a
+    // filtered view of the community corpus syncing only its own
+    // chunk — a package sync never downloads the whole library.
+    ...listSyncPackages().map((pkg): SeedSourceSpec => ({
+      id: pkg.id,
+      label: pkg.label,
+      source: new FeedSeedSource(new HttpSeedSource(COMMUNITY_SEED_URL), pkg.chunkId),
+      embeddedVersion: 0,
+      autoImport: false,
+    })),
     // User-registered libraries (/settings/sync). Never auto-import; their
     // manifests are not build-stamped, so embeddedVersion 0 keeps them
     // off the skip-fetch fast path — every sync consults the manifest.
@@ -131,18 +142,48 @@ export interface SeedSyncDeps {
    * rules still gate every row).
    */
   force?: boolean;
+  /**
+   * Background refresh (return visits): consult the remote manifest even
+   * when the bundled embedded version matches the stored checkpoint.
+   */
+  probeManifests?: boolean;
   /** Live progress stream (Settings → Sync): checking → chunk phases → finished per source. */
   onProgress?: (progress: SeedSyncProgress) => void;
+  /**
+   * Fires when this source's canvas chunk commits (first paint). The boot
+   * orchestrator uses it to ungate the readiness skeleton while the rest
+   * of the library is still importing.
+   */
+  onFirstPaint?: () => void;
 }
 
 function defaultBroadcast(message: unknown): void {
   try {
     if (typeof BroadcastChannel !== 'undefined') {
-      new BroadcastChannel(SEED_BROADCAST_CHANNEL).postMessage(message);
+      const channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);
+      channel.postMessage(message);
+      channel.close();
     }
   } catch {
     // Cross-tab notification is best-effort.
   }
+}
+
+/** User-display-safe error text: credential fragments and hosts only, capped. */
+function safeSyncErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const cleaned = raw
+    .replace(/(authToken["'=:\s]+)[^&\s,"']+/gi, '$1…')
+    .replace(/(Bearer\s+)[\w.-]+/gi, '$1…')
+    .replace(/https?:\/\/[^\s]+/gi, (url) => {
+      try {
+        const parsed = new URL(url);
+        return `${parsed.protocol}//${parsed.host}/…`;
+      } catch {
+        return '…';
+      }
+    });
+  return cleaned.slice(0, 300);
 }
 
 function freshClaimIsOther(meta: SeedMetaRecord | undefined, owner: string, now: number): boolean {
@@ -175,32 +216,33 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
 
 /**
  * Boot-time seed policy (app bootstrap), layered on runSeedSync:
- *  - browser providers (IndexedDB / Turso) auto-import the core seed only —
- *    community/catalog libraries never import on launch (Re-sync Now covers
- *    them);
- *  - on Turso, a database that already carries a core seed checkpoint keeps
- *    its content — migration copies checkpoints, so only a fresh-empty
- *    remote gets the core boot seed (the core seed owns only its own rows,
- *    so a user-data-only remote is safe to seed into);
- *  - API builds keep the prior behavior: every registered source syncs.
+ *  - API builds keep the prior behavior: every registered source syncs;
+ *  - fresh browser (no core checkpoint): the core seed only — home ungates
+ *    on the committed canvas chunk while the rest of the library imports;
+ *    subscribed community libraries join from the next visit (a fresh
+ *    browser has no imported checkpoints to subscribe);
+ *  - returning browser: core + subscribed sources refresh in the
+ *    background, nonblocking, consulting remote manifests even when the
+ *    bundled core's embedded version matches the stored checkpoint.
  */
 export async function runBootSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
   if (storageBackend === 'api') return runSeedSync(deps);
-  const sources = (deps.sources ?? defaultSeedSources()).filter((s) => s.autoImport !== false);
+  const all = deps.sources ?? defaultSeedSources();
+  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  let coreCheckpoint: SeedMetaRecord | undefined;
   try {
-    const settings = readDataSettings();
-    if (settings.state === 'turso') {
-      // Any core checkpoint means this database was seeded before.
-      const meta = storage.readonly('meta');
-      if (await meta.get(seedMetaKey('core'))) return 'current';
-    }
+    coreCheckpoint = await storage.getSeedMeta(seedMetaKey('core'));
   } catch (err) {
     // Provider unreadable (offline, bad token, malformed config): nothing to
     // probe or import — the Data settings surface owns the error details.
     console.warn('[seedSync] boot provider probe failed', err);
     return 'error';
   }
-  return runSeedSync({ ...deps, sources });
+  if (!coreCheckpoint || coreCheckpoint.seedVersion <= 0) {
+    return runSeedSync({ ...deps, sources: all.filter((s) => s.autoImport !== false) });
+  }
+  const sources = all.filter((s) => s.id === 'core' || isSeedSubscribed(s.id));
+  return runSeedSync({ ...deps, sources, probeManifests: true });
 }
 
 async function runSourceSync(
@@ -221,11 +263,13 @@ async function runSourceSync(
     onProgress?.({ phase: 'finished', outcome, error, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
 
   onProgress?.({ phase: 'checking', sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
+  const endActivity = beginSyncActivity('download', spec.label);
   try {
     const stored = await storage.getSeedMeta(metaKey);
 
-    // Skip-fetch fast path: this bundle's own seed is already stored.
-    if (!deps.force && storedSeedIsCurrent(stored, spec.embeddedVersion)) {
+    // Skip-fetch fast path: this bundle's own seed is already stored
+    // (return-visit background refresh passes probeManifests to bypass).
+    if (!deps.force && !deps.probeManifests && storedSeedIsCurrent(stored, spec.embeddedVersion)) {
       finish('current');
       return 'current';
     }
@@ -250,13 +294,19 @@ async function runSourceSync(
     const claimed: SeedMetaRecord = { ...(stored ?? emptySeedMeta(metaKey)), claim: { owner, at: now() } };
     await storage.putSeedMeta(claimed, stored ?? null);
     try {
+      // addedNotes/updatedNotes are counted inside applySeedChunk's
+      // transaction — the commit boundary — so concurrent local edits can
+      // never skew them and no extra note reads happen outside the import.
       const result = await new SeedImporter(storage, spec.source, spec.id, now).applyAll({
         forceAll: deps.force === true,
         // First paint: as soon as the canvas chunk (home page + canvas
         // routes) is committed, refresh content consumers — the home page
         // renders while the rest of the library is still importing. Sources
         // without a canvas chunk never trigger it.
-        onFirstPaintApplied: invalidateSeedContent,
+        onFirstPaintApplied: () => {
+          invalidateSeedContent();
+          deps.onFirstPaint?.();
+        },
         // Tag importer chunk phases with this source's identity. No
         // subscriber → no per-event allocation.
         onProgress: onProgress
@@ -270,6 +320,7 @@ async function runSourceSync(
         invalidateSeedContent();
         const registry = getAppEffortRegistry();
         if (registry.isInitialized()) await hydrateAppEffortRegistry(registry);
+        reportSyncResult({ source: spec.label, added: result.addedNotes, updated: result.updatedNotes });
       }
     } finally {
       const after = await storage.getSeedMeta(metaKey);
@@ -281,8 +332,12 @@ async function runSourceSync(
     return 'imported';
   } catch (err) {
     console.warn(`[seedSync] ${spec.id} seed sync failed`, err);
-    finish('error', err instanceof Error ? err.message : String(err));
+    const message = safeSyncErrorMessage(err);
+    reportSyncError(message);
+    finish('error', message);
     return 'error';
+  } finally {
+    endActivity();
   }
 }
 
@@ -324,7 +379,76 @@ export async function syncSeedSource(id: string, deps: SeedSyncDeps = {}): Promi
     console.warn(`[seedSync] unknown seed source: ${id}`);
     return 'error';
   }
-  return runSeedSync({ ...deps, sources: [spec] });
+  const outcome = await runSeedSync({ ...deps, sources: [spec] });
+  // A manual sync that restored a healthy checkpoint subscribes the library
+  // for background refresh — both a fresh import and an already-current
+  // library the user explicitly chose. 'busy'/'error'/'server-stale' never
+  // change a persisted choice. (Core is a no-op: always subscribed.)
+  if (outcome === 'imported' || outcome === 'current') setSeedSubscribed(id, true);
+  return outcome;
+}
+/**
+ * Remove a package and its imported notes from the active library.
+ * Deletes all seed-origin notes matching the package's chunk/catalog,
+ * clears its seed checkpoint, unsets its subscription, and invalidates caches.
+ */
+export async function removePackageFromLibrary(packageId: string): Promise<{ deleted: number }> {
+  const pkg = listSyncPackages().find((p) => p.id === packageId);
+  const chunkId = pkg?.chunkId ?? packageId;
+  const chunkSlug = chunkId.replace(/^(?:feed|collection)\./, '');
+  const category = pkg?.category;
+
+  const allNotes = await storageService.getAllNotes();
+  const toDelete = allNotes.filter((note) => {
+    if (note.seedOrigin !== 'seed') return false;
+    if (note.seedChunkId === chunkId) return true;
+    if (category && note.catalog === category) return true;
+    if (note.catalog === chunkSlug) return true;
+    if (note.sourceId && (note.sourceId.includes(chunkSlug) || note.sourceId.startsWith(`feed:feeds/${chunkSlug}`))) return true;
+    return false;
+  });
+
+  for (const note of toDelete) {
+    await storageService.deleteNote(note.id);
+  }
+
+  try {
+    const metaKey = seedMetaKey(packageId);
+    await storage.readwrite('meta').delete(metaKey);
+  } catch {
+    // meta delete is best-effort
+  }
+
+  setSeedSubscribed(packageId, false);
+  invalidateSeedContent();
+
+  try {
+    const channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);
+    channel.postMessage({ kind: 'seed-removed', source: packageId });
+    channel.close();
+  } catch {
+    // optional broadcast
+  }
+
+  return { deleted: toDelete.length };
+}
+
+/**
+ * Check whether a package is present in the library (subscribed or has notes).
+ */
+export async function isPackageInLibrary(packageId: string): Promise<boolean> {
+  if (isSeedSubscribed(packageId)) return true;
+  const pkg = listSyncPackages().find((p) => p.id === packageId);
+  const chunkId = pkg?.chunkId ?? packageId;
+  const chunkSlug = chunkId.replace(/^(?:feed|collection)\./, '');
+  const allNotes = await storageService.getAllNotes();
+  return allNotes.some((note) =>
+    note.seedOrigin === 'seed' && (
+      note.seedChunkId === chunkId ||
+      note.catalog === chunkSlug ||
+      (note.sourceId && note.sourceId.includes(chunkSlug))
+    )
+  );
 }
 
 export interface SeedCoverage {

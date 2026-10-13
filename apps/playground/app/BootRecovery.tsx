@@ -1,10 +1,4 @@
-/**
- * BootRecovery — the standalone screen rendered when the saved data provider
- * can't be readied at boot (wrong token, unreachable Turso, transport or
- * schema failure). The app proper is not mounted, so this screen carries its
- * own recovery controls: retry, switch to this browser (IndexedDB), and
- * credential repair via the same TursoConnectForm Settings ▸ Data uses.
- */
+/** Recovery for local database open/migration failures and API bootstrap errors. */
 
 import { readDataSettings, switchToIndexedDb, storageBackend } from '@/services/storage';
 import { TursoConnectForm } from './pages/DataSection';
@@ -15,7 +9,7 @@ export function BootRecovery({ error, onRetry }: { error: unknown; onRetry: () =
 
   return (
     <div role="alert" className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
-      <p className="text-sm font-semibold">Your saved data location couldn't be reached.</p>
+      <p className="text-sm font-semibold">{storageBackend === 'api' ? 'The API data store could not be opened.' : 'The local database could not be opened.'}</p>
       <p
         className="max-w-md text-xs text-muted-foreground font-mono break-all"
         data-testid="boot-recovery-error"
@@ -23,7 +17,8 @@ export function BootRecovery({ error, onRetry }: { error: unknown; onRetry: () =
         {message}
       </p>
       <p className="max-w-md text-xs text-muted-foreground">
-        Repair the connection here or switch to this browser; Settings → Data has the full controls once the app loads.
+        Your stored data has not been cleared. Retry after resolving the error above.
+        {storageBackend !== 'api' && saved.state !== 'indexed-db' && ' Turn off Turso Sync to skip backup comparison. Settings → Storage has the full controls once the app loads.'}
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2">
         <button
@@ -34,7 +29,7 @@ export function BootRecovery({ error, onRetry }: { error: unknown; onRetry: () =
         >
           Retry
         </button>
-        {storageBackend !== 'api' && (
+        {storageBackend !== 'api' && saved.state !== 'indexed-db' && (
           <button
             type="button"
             onClick={() => {
@@ -44,11 +39,11 @@ export function BootRecovery({ error, onRetry }: { error: unknown; onRetry: () =
             data-testid="boot-recovery-local"
             className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-accent"
           >
-            Use this browser (IndexedDB)
+            Turn off Turso Sync
           </button>
         )}
       </div>
-      {storageBackend !== 'api' && (
+      {storageBackend !== 'api' && saved.state !== 'indexed-db' && (
         <details className="w-full max-w-md rounded-xl border border-border bg-card p-4 text-left">
           <summary className="cursor-pointer text-xs font-medium">Fix Turso credentials</summary>
           <div className="pt-3">

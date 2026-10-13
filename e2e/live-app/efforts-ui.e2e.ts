@@ -67,7 +67,6 @@ test.describe('Efforts Catalog Page', () => {
     await waitForSeedReady(page);
 
     await expect(page.getByTestId('stream-query-bar')).toBeVisible();
-    await expect(page.getByTestId('stream-view-settings-trigger')).toBeVisible();
   });
 
   test('filtering by custom shows empty state initially', async ({ page }) => {

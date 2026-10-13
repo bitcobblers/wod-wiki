@@ -71,6 +71,29 @@ describe('source: filter — runFind (Note[])', () => {
     expect(result.notes.map(n => n.id)).toEqual(['coll-1', 'page-1']);
   });
 
+  it('source:feed:<slug> targets one feed across feed-id conventions', async () => {
+    const service = makeService();
+    const result = await service.runFind(parseQuery(':note{source:feed:crossfit-programming} in all') as ParsedFindQuery);
+    expect(result.notes.map(n => n.id)).toEqual(['feed-1']);
+  });
+
+  it('source:feed:<slug>/<date> targets that feed item specifically', async () => {
+    const service = makeService();
+    const result = await service.runFind(parseQuery(':note{source:"feed:crossfit-programming/2026-01-12"} in all') as ParsedFindQuery);
+    expect(result.notes.map(n => n.id)).toEqual(['feed-1']);
+    const miss = await service.runFind(parseQuery(':note{source:"feed:crossfit-programming/2026-01-13"} in all') as ParsedFindQuery);
+    expect(miss.notes.map(n => n.id)).toEqual([]);
+  });
+
+  it('!source:feed:<slug> negation removes that feed but keeps other sources', async () => {
+    const service = makeService();
+    const result = await service.runFind(parseQuery(':note{!source:feed:crossfit-programming}') as ParsedFindQuery);
+    const ids = result.notes.map(n => n.id);
+    expect(ids).not.toContain('feed-1');
+    expect(ids).toContain('coll-1');
+    expect(ids).toContain('jrnl-1');
+  });
+
   it(':note is the inclusive plane — feeds, arbitrary sources, pages, typed dashboards', async () => {
     const service = makeService();
     const result = await service.runFind(parseQuery(':note') as ParsedFindQuery);

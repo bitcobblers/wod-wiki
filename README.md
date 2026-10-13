@@ -17,7 +17,7 @@ WOD Wiki has two hosting levels. Both run the same playground application; the d
 | Playground | IndexedDB by default, or direct browser-to-Turso. No WOD Wiki API server required. | [Bun playground](#run-the-playground-with-bun) |
 | Server | SQL behind the Bun API. Browsers connecting to the same server use the same backend data. | [Bun server](#run-the-server-with-bun) or [container](#run-the-server-in-a-container) |
 
-Choose Playground for browser-local use or your own Turso database. Choose Server to use SQLite, Turso, or PostgreSQL through the WOD Wiki API. Settings > Database can migrate IndexedDB to an empty Turso database; changing hosting levels does not migrate data to the server.
+Choose Playground for browser-local use or your own Turso database. Choose Server to use SQLite, Turso, or PostgreSQL through the WOD Wiki API. Settings > Storage can migrate IndexedDB to an empty Turso database; changing hosting levels does not migrate data to the server.
 
 ### Run the playground with Bun
 
@@ -30,7 +30,7 @@ bun run playground
 
 Open the Vite URL printed in the terminal, normally [http://localhost:5173](http://localhost:5173). This command builds the packages, lints the playground, and starts the development server with hot reload. With no data settings, the app uses IndexedDB and imports only the core playground seed. Community catalogs and custom libraries are optional through Settings > Sync.
 
-In **Settings > Database**, enter your Turso `libsql://` URL and database-scoped auth token. **Test Connection** verifies access without saving credentials. **Connect** uses the remote data as-is; **Migrate & Connect** copies the browser's stores, revision history, attachment bytes, profile, notebooks, query preferences, and user calculations into an empty database. Migration commits atomically, keeps the local copy, and saves the connection only after success. Close other WOD Wiki tabs and avoid edits during migration.
+In **Settings > Storage**, enter your Turso `libsql://` URL and database-scoped auth token. **Test Connection** verifies access without saving credentials. **Connect** uses the remote data as-is; **Migrate & Connect** copies the browser's stores, revision history, attachment bytes, profile, notebooks, query preferences, and user calculations into an empty database. Migration commits atomically, keeps the local copy, and saves the connection only after success. Close other WOD Wiki tabs and avoid edits during migration.
 
 The URL and token stay in this browser's localStorage. Same-origin scripts can read the token; use one scoped to this database. Saved connection failures show recovery controls, never a silent IndexedDB fallback. Switching to **This Browser** restores the last local copy without pulling remote-only changes. Self-hosted connection settings and paid wod.wiki custody are marked coming soon; the existing server deployment remains available.
 
@@ -281,9 +281,9 @@ the report records the tested commit, build hash, deploy URL, timestamp, and run
 Failed-test artifacts retain the initial trace, browser console, network, and video.
 
 Quarantines must cite an open issue: unsupported effort actions and the CI
-performance budget are tracked in [#719](https://github.com/SergeiGolos/wod-wiki/issues/719);
-production Chromecast round-trips in [#1067](https://github.com/SergeiGolos/wod-wiki/issues/1067);
-storage-denial bootstrap recovery in [#1068](https://github.com/SergeiGolos/wod-wiki/issues/1068).
+performance budget are tracked in [#719](https://github.com/bitcobblers/wod-wiki/issues/719);
+production Chromecast round-trips in [#1067](https://github.com/bitcobblers/wod-wiki/issues/1067);
+storage-denial bootstrap recovery in [#1068](https://github.com/bitcobblers/wod-wiki/issues/1068).
 Retired routes and widgets are removed from the suite rather than silently skipped.
 
 ---

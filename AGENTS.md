@@ -80,7 +80,7 @@ bun x tsc --noEmit                    # Type check only
 
 The project provides a unified test harness under `tests/harness/`. **Use this instead of inline mocks.**
 
-**📚 Full Guide:** [Block Isolation Testing Guide](https://github.com/SergeiGolos/wod-wiki/wiki/Block-Isolation-Testing-Guide)
+**📚 Full Guide:** [Block Isolation Testing Guide](https://github.com/bitcobblers/wod-wiki/wiki/Block-Isolation-Testing-Guide)
 
 ### Available Classes
 

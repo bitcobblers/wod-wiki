@@ -100,14 +100,15 @@ One interface, real adapters — the seam exists because the implementations gen
 
 #### Version check (stale-while-revalidate)
 
-Three versions are known: `embedded` (build-injected `__SEED_VERSION__` define), `stored` (`meta.seedVersion`), `remote` (fetched manifest).
+Seed versions are independent of the database schema version. Each source has its own `seed:<sourceId>` checkpoint and chunk hashes.
 
-1. Boot → open DB → read `stored`.
-2. If `stored === embedded` → seed is current for this bundle; **no network fetch at all** (the common boot).
-3. Else fetch `seed/manifest.json` (`cache: 'no-cache'`).
-   - `remote > stored` → import changed chunks in the background → post `BroadcastChannel('wodwiki.seed')` → open views refresh from Storage.
-   - `remote < stored` (rollback / odd CDN state) → log, keep stored data.
-4. First-ever run (no `stored`): the `canvas` chunk — the home page plus every canvas route — is applied first and content consumers refresh immediately (`SeedImporter.onFirstPaintApplied` → `invalidateSeedContent()`), so first paint never waits for the library; the remaining chunks stream in behind it in the background.
+1. Boot opens IndexedDB and reads the core checkpoint.
+2. On a first visit, only core imports automatically. The committed `canvas` chunk makes the home page available while remaining core chunks continue importing.
+3. On a return visit, cached content renders immediately. Core and subscribed sources fetch manifests in the background, even when the stored core version matches the embedded build version.
+4. Changed chunks import in transactions. An older published version never replaces a newer local copy. User-edited notes remain untouched.
+5. Completion invalidates content consumers, broadcasts to other tabs, and reports committed new/updated note counts. The header shows download activity; the completion toast links to `/catalogs`.
+
+The home Community feeds section offers CrossFit Programming and Dan John 40-Day Program as demos. Each subscribes to one `feed.*` chunk from the community repository, not the full corpus. `npx wod build` compiles a markdown repository into manifest/chunk artifacts; the repository's publishing pipeline deploys them to GitHub Pages. Manual successful sync, including an already-current checkpoint, subscribes the source. Explicit unsubscribe survives later launches. Existing imported library checkpoints become subscriptions only when no explicit choice exists.
 
 Import coordination across tabs: claim via the `meta` record (single writer), notify via `BroadcastChannel('wodwiki.seed')` — same shapes as the existing `wodwiki.analytics` invalidation bus and the IDB upgrade yield logic in `IndexedDBService`.
 
@@ -151,7 +152,7 @@ After the cutover this seam has two adapters — IDB (production) and `InMemoryS
 
 - Vite copies `public/seed/` verbatim into `dist/` — works on GitHub Pages unchanged.
 - `manifest.json`: served with `cache: 'no-cache'` fetch (and/or a deploy-injected `?v=` bust). Chunks: immutable filenames, far-future cache headers where the host allows.
-- The `stored === embedded` fast path means a normal boot does **zero** seed requests.
+- Returning visitors probe core and subscribed manifests without blocking cached content. Unchanged chunk hashes prevent redundant downloads and writes.
 
 ## Rollout phases
 
@@ -165,7 +166,7 @@ After the cutover this seam has two adapters — IDB (production) and `InMemoryS
 - **Parity**: seed output ≡ glob corpus (counts + content hashes) — fails the build on drift.
 - **Importer** (on `InMemoryStorage`): fresh import; re-import idempotency; newer-version re-import touches only changed chunks; user-edited rows survive; vanished seed rows are deleted only when unmodified; crash-resume from checkpoint.
 - **Version check**: fake `SeedSource` with stale / equal / newer / rolled-back manifests; embedded fast path skips fetch.
-- **E2E**: Playwright against `vite preview` — first run imports, second run performs no seed fetch, content routes render identical to today.
+- **E2E**: first visit imports core; returning cached content remains usable while manifests refresh; each demo imports only its chosen chunk; completion counts reflect committed notes.
 
 ## Risks & open questions
 

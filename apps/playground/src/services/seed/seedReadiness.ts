@@ -15,8 +15,10 @@
  * (fast path → 'current') or crashed (this tab imports instead).
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, type SeedSyncOutcome } from './seedSync';
-import { SEED_BROADCAST_CHANNEL } from '@/types/seed';
+import { defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, type SeedSyncDeps, type SeedSyncOutcome } from './seedSync';
+import { IndexedDBSeedImportStorage } from './SeedImportStorage';
+import { migrateSeedSubscriptions } from './seedSubscriptions';
+import { SEED_BROADCAST_CHANNEL, seedMetaKey } from '@/types/seed';
 
 export type SeedReadiness = 'preparing' | 'ready' | 'error';
 
@@ -124,10 +126,55 @@ export function useSeedReadiness(): SeedReadiness {
 /** Test-only: reset the gate to its 'idle' (ungated) state. */
 export function resetSeedReadinessForTest(): void {
   clearBusyWatch();
+  bootstrapPromise = null;
   state = 'idle';
   reflectState('idle');
   reflectOutcome(null);
   notify();
+}
+
+// ── Boot orchestrator ──────────────────────────────────────────────────────
+
+let bootstrapPromise: Promise<void> | null = null;
+
+/**
+ * App-bootstrap seed entry point — App.tsx calls this once; StrictMode's
+ * double effect is single-flighted on bootstrapPromise. A returning
+ * visitor (core checkpoint present) ungates immediately and refreshes core
+ * + subscribed feeds in the background — background outcomes never touch
+ * the readiness gate. A first visit (no core checkpoint) gates: the gate
+ * flips 'ready' the moment the core canvas chunk commits (first paint),
+ * while the rest of the library keeps importing.
+ */
+export function startSeedBootstrap(deps: SeedSyncDeps = {}): Promise<void> {
+  bootstrapPromise ??= runSeedBootstrap(deps);
+  return bootstrapPromise;
+}
+
+async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
+  const all = deps.sources ?? defaultSeedSources();
+  // Prior imported libraries become subscriptions (explicit on/off wins).
+  await migrateSeedSubscriptions(all, deps.storage)
+    .catch((err) => console.error('[seedSync] subscription migration failed', err));
+  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  let coreMeta;
+  try {
+    coreMeta = await storage.getSeedMeta(seedMetaKey('core'));
+  } catch {
+    coreMeta = undefined; // Provider unreadable — the sync run itself surfaces it.
+  }
+  if (!coreMeta || coreMeta.seedVersion <= 0) {
+    markSeedSyncStarted();
+    const outcome = await runBootSeedSync({ ...deps, sources: all, onFirstPaint: () => markSeedSyncSettled('imported') });
+    markSeedSyncSettled(outcome);
+    return;
+  }
+  markSeedSyncSettled('current');
+  // Returning visitor: the vault is queryable offline from the committed
+  // core — feeds keep refreshing in the background; their outcomes only
+  // reach sync activity, never the gate (no late 'error' flip, no retry).
+  await runBootSeedSync({ ...deps, sources: all })
+    .catch((err) => console.error('[seedSync] background boot sync failed', err));
 }
 
 /**

@@ -9,13 +9,57 @@ import { InMemoryStorage } from './InMemoryStorage';
 beforeEach(() => { globalThis.indexedDB = new IDBFactory(); });
 afterEach(() => { Reflect.deleteProperty(globalThis, 'indexedDB'); });
 
-it.each([28, DB_VERSION + 1])('rejects incompatible schema v%s without upgrading or wiping data', async version => {
-  const legacy = await openDB('wodwiki-db', version, { upgrade(db) { db.createObjectStore('notes', { keyPath: 'id' }); } });
+it('migrates an older schema in place, rebuilding note-owned blocks from segments', async () => {
+  // A v28-era database: pre-note-plan notes (no rawContent/blocks), a
+  // segments store with a historical and a current segment version.
+  const legacy = await openDB('wodwiki-db', 28, {
+    upgrade(db) {
+      const notes = db.createObjectStore('notes', { keyPath: 'id' });
+      notes.createIndex('by-date', 'date');
+      notes.createIndex('by-created', 'createdAt');
+      const segments = db.createObjectStore('segments', { keyPath: ['id', 'version'] });
+      segments.createIndex('by-note', 'noteId');
+      db.createObjectStore('meta', { keyPath: 'key' });
+    },
+  });
+  await legacy.put('notes', { id: 'n', title: 'Legacy', createdAt: 5 });
+  await legacy.put('segments', { id: 'seg-1', version: 1, noteId: 'n', position: 0, dataType: 'wod',
+    rawContent: '```time\n5 Pushups\n```', createdAt: 1, isHistory: true });
+  await legacy.put('segments', { id: 'seg-1', version: 2, noteId: 'n', position: 0, dataType: 'wod',
+    rawContent: '```time\n10 Pushups\n```', createdAt: 2 });
+  legacy.close();
+
+  const storage = new IndexedDBStorage();
+  const note = (await storage.readonly('notes').get('n'))!;
+  expect(note.title).toBe('Legacy');
+  expect(note.rawContent).toBe('```time\n10 Pushups\n```\n');
+  expect(note.sourceRevision).toBe(1);
+  const blocks = Object.values(note.blocks);
+  expect(blocks).toHaveLength(1);
+  expect(blocks[0]).toMatchObject({ id: 'seg-1', kind: 'wod', version: 2, sourceRevision: 1, dialect: 'time' });
+  const revisions = await storage.readonly('block_revisions').getAllFromIndex('by-block', ['n', 'seg-1']);
+  expect(revisions.map(revision => revision.version).sort()).toEqual([1, 2]);
+  expect(await storage.readonly('block_revisions').get(['n', 'seg-1', 1]))
+    .toMatchObject({ rawContent: '```time\n5 Pushups\n```', savedAt: 1 });
+  await storage.close();
+
+  // Reopen: the migration is durable, the segments store is gone, the
+  // rebuilt note reads back exactly.
+  const reopened = new IndexedDBStorage();
+  const db = await reopened.open();
+  expect(db.version).toBe(DB_VERSION);
+  expect(db.objectStoreNames.contains('segments')).toBe(false);
+  expect((await reopened.readonly('notes').get('n'))!.blocks['seg-1'].kind).toBe('wod');
+  await reopened.close();
+});
+
+it('rejects a newer schema without upgrading or wiping data', async () => {
+  const legacy = await openDB('wodwiki-db', DB_VERSION + 1, { upgrade(db) { db.createObjectStore('notes', { keyPath: 'id' }); } });
   await legacy.put('notes', { id: 'retained', title: 'Do not erase' });
   legacy.close();
   const incompatible = new IndexedDBStorage();
-  await expect(incompatible.readonly('notes').get('retained')).rejects.toThrow('recreation required');
-  const retained = await openDB('wodwiki-db', version);
+  await expect(incompatible.readonly('notes').get('retained')).rejects.toThrow('newer than this client');
+  const retained = await openDB('wodwiki-db', DB_VERSION + 1);
   expect(await retained.get('notes', 'retained')).toEqual({ id: 'retained', title: 'Do not erase' });
   retained.close();
 });
@@ -24,8 +68,11 @@ it('creates history compound indexes from shared definitions', async () => {
   const storage = new IndexedDBStorage();
   const db = await storage.open();
   expect(db.version).toBe(DB_VERSION);
-  expect(Array.from(db.objectStoreNames).sort()).toEqual(STORE_DEFS.map(def => def.name).sort());
   expect(db.objectStoreNames.contains('segments')).toBe(false);
+  // Browser-local sync stores ride along but are not part of the shared spec.
+  expect(db.objectStoreNames.contains('sync_outbox')).toBe(true);
+  expect(db.objectStoreNames.contains('sync_state')).toBe(true);
+  for (const def of STORE_DEFS) expect(db.objectStoreNames.contains(def.name)).toBe(true);
   const tx = db.transaction('block_revisions');
   expect(tx.store.keyPath).toEqual(['noteId', 'blockId', 'version']);
   expect(tx.store.index('by-block').keyPath).toEqual(['noteId', 'blockId']);

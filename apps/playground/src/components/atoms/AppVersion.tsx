@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-const REPO_URL = 'https://github.com/SergeiGolos/wod-wiki';
+const REPO_URL = 'https://github.com/bitcobblers/wod-wiki';
 
 // Preview builds are stamped X.Y.Z-pr.N by the CI pipeline (see
 // pull-request.yml); release builds are plain X.Y.Z.

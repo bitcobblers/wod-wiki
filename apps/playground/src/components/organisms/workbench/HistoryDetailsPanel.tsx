@@ -148,7 +148,7 @@ const LinksSection: React.FC = () => {
             </div>
             <div className="space-y-0.5">
                 <a
-                    href="https://github.com/SergeiGolos/wod-wiki"
+                    href="https://github.com/bitcobblers/wod-wiki"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-left"
@@ -158,7 +158,7 @@ const LinksSection: React.FC = () => {
                     <ExternalLink className="w-3 h-3 shrink-0 opacity-50" />
                 </a>
                 <a
-                    href="https://github.com/SergeiGolos/wod-wiki/wiki"
+                    href="https://github.com/bitcobblers/wod-wiki/wiki"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-left"

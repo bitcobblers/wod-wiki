@@ -1,16 +1,15 @@
 /**
- * SettingsPage — /settings, /settings/appearance, /settings/profile, /settings/database,
+ * SettingsPage — /settings, /settings/appearance, /settings/profile, /settings/storage,
  * /settings/sync, /settings/system
  *
  * Dedicated settings surface for Wod Wiki, replacing the header "…" dropdown
  * configuration options.
  *
- *   - /settings/appearance (default): Interface theme (System / Light / Dark),
- *     mobile actions button position (Bottom left / Bottom right), and startup
- *     page (Home / Journal).
+ *   - /settings/appearance (default): Interface theme (System / Light / Dark)
+ *     and mobile actions button position (Bottom left / Bottom right).
  *   - /settings/profile: avatar, display name, birth date, and body metrics
  *     (weight/height with unit toggles) for the single local membership.
- *   - /settings/database: storage location (this browser / direct Turso) with
+ *   - /settings/storage: storage location (this browser / direct Turso) with
  *     connect/migrate controls. Where data LIVES.
  *   - /settings/sync: content seed sources — per-source status + sync,
  *     Sync All, and custom source registration. Where content COMES FROM.
@@ -26,8 +25,6 @@ import {
   Sun,
   Moon,
   Laptop,
-  Home,
-  BookOpen,
   Volume2,
   VolumeX,
   Bug,
@@ -45,7 +42,6 @@ import { useTheme } from '@/contexts/ThemeProvider'
 import { useAudio } from '@/contexts/AudioContext'
 import { useDebugMode } from '@/contexts/DebugModeContext'
 import { useFabAlignment, FAB_ALIGNMENT_OPTIONS } from '../lib/fabAlignment'
-import { useStartPage, START_PAGE_OPTIONS } from '../lib/startPage'
 import { resetUserData } from '../services/resetUserData'
 import { QueryDefaultsSection } from './QueryDefaultsSection'
 import { ProfileSection } from './ProfileSection'
@@ -61,7 +57,7 @@ import type { Tag, TagTypeRecord } from '@/types/storage'
 const SETTINGS_SECTIONS = [
   { id: 'appearance', content: <AppearanceSection /> },
   { id: 'profile', content: <ProfileSection /> },
-  { id: 'database', content: <DataSection /> },
+  { id: 'storage', content: <DataSection /> },
   { id: 'sync', content: <SyncSection /> },
   { id: 'queries', content: <QueryDefaultsSection /> },
   { id: 'tags', content: <TagsSettingsSection /> },
@@ -79,8 +75,8 @@ export function SettingsPage() {
     ? 'system'
     : location.pathname.endsWith('/profile')
       ? 'profile'
-      : location.pathname.endsWith('/database')
-        ? 'database'
+      : location.pathname.endsWith('/storage')
+        ? 'storage'
         : location.pathname.endsWith('/sync')
           ? 'sync'
           : location.pathname.endsWith('/queries')
@@ -178,8 +174,6 @@ function AppearanceSection() {
   const { theme, setTheme } = useTheme()
   const [fabAlignment, setFabAlignment] = useFabAlignment()
   const fabAlignmentIcons = { right: PanelRight, left: PanelLeft } as const
-  const [startPage, setStartPage] = useStartPage()
-  const startPageIcons = { home: Home, journal: BookOpen } as const
 
   const themeOptions = [
     {
@@ -339,75 +333,6 @@ function AppearanceSection() {
         </div>
       </section>
 
-      {/* 3. Startup Page */}
-      <section className="space-y-4 pt-4 border-t border-border/50">
-        <div>
-          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-            <Home className="size-4 text-primary" />
-            Startup Page
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Choose which page Wod Wiki opens on. The other page stays reachable
-            from the navigation either way.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          {START_PAGE_OPTIONS.map(option => {
-            const isSelected = startPage === option.id
-            const Icon = startPageIcons[option.id]
-
-            return (
-              <button
-                key={option.id}
-                type="button"
-                data-testid={`start-page-${option.id}`}
-                aria-pressed={isSelected}
-                onClick={() => setStartPage(option.id)}
-                className={cn(
-                  'relative flex flex-col items-start p-4 rounded-xl border text-left transition-all',
-                  isSelected
-                    ? 'border-primary ring-2 ring-primary/20 bg-primary/5 text-foreground shadow-xs'
-                    : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40',
-                )}
-              >
-                <div className="w-full flex items-center justify-between mb-3">
-                  <div
-                    className={cn(
-                      'p-2 rounded-lg',
-                      isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
-                    )}
-                  >
-                    <Icon className="size-5" />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {option.id === 'home' && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                        Default
-                      </span>
-                    )}
-                    <div
-                      className={cn(
-                        'size-4 rounded-full border flex items-center justify-center transition-colors',
-                        isSelected
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-muted-foreground/40',
-                      )}
-                    >
-                      {isSelected && <Check className="size-2.5 stroke-[3]" />}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="font-semibold text-foreground text-sm">{option.label}</div>
-                <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  {option.description}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </section>
     </div>
   )
 }

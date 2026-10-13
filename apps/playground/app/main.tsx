@@ -1,47 +1,61 @@
-import React from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { BootRecovery } from './BootRecovery';
+import { StorageUpdateScreen } from './StorageUpdateScreen';
 import './lib/telemetry-gtag';
 import '../src/index.css';
 import { remotePrefsMode, hydrateMetaPrefs } from '@/services/storage/metaStore';
-import { readDataSettings, whenStorageReady, storageBackend } from '@/services/storage';
+import { whenStorageReady, startBackgroundStorageSync } from '@/services/storage';
+import { getStorageUpdate, subscribeStorageUpdate } from '@/services/storage/storageUpdate';
 
 const root = createRoot(document.getElementById('root')!);
 
-function renderApp() {
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>,
-  );
-}
+/** Open the local data plane before starting optional background sync. */
+function BootGate() {
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
+  const update = useSyncExternalStore(subscribeStorageUpdate, getStorageUpdate);
 
-function renderRecovery(error: unknown) {
-  root.render(
-    <React.StrictMode>
-      <BootRecovery error={error} onRetry={boot} />
-    </React.StrictMode>,
-  );
-}
+  useEffect(() => {
+    let cancelled = false;
+    let cleanupSync: (() => void) | undefined;
+    whenStorageReady()
+      .then(() => (remotePrefsMode ? hydrateMetaPrefs() : undefined))
+      .then(() => {
+        if (!cancelled) {
+          cleanupSync = startBackgroundStorageSync();
+          setReady(true);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setFailed(err);
+      });
+    return () => {
+      cancelled = true;
+      cleanupSync?.();
+    };
+  }, [attempt]);
 
-// Boot gate: every provider must be ready before first render — preferences
-// (api/turso) hydrate into the meta cache, and writes before connect would
-// land in default state. A malformed saved config or a failed provider (bad
-// token, unreachable remote, transport or schema failure) renders the
-// standalone BootRecovery screen — the app never silently falls back to this
-// browser: switching to IndexedDB there is an explicit choice. /settings/data
-// lives inside the app, so recovery carries its own controls.
-function boot() {
-  const saved = readDataSettings();
-  if (storageBackend !== 'api' && saved.state === 'invalid') {
-    renderRecovery(new Error(`Saved data settings are invalid: ${saved.error}`));
-    return;
+  if (failed) {
+    return <BootRecovery error={failed} onRetry={() => { setFailed(null); setAttempt((n) => n + 1); }} />;
   }
-  whenStorageReady()
-    .then(() => (remotePrefsMode ? hydrateMetaPrefs() : undefined))
-    .then(renderApp)
-    .catch(renderRecovery);
+  if (update.phase === 'checking' || update.phase === 'updating') {
+    return <StorageUpdateScreen />;
+  }
+  if (!ready) {
+    return (
+      <div role="status" className="flex min-h-dvh items-center justify-center text-muted-foreground">
+        Loading…
+      </div>
+    );
+  }
+  return <App />;
 }
 
-boot();
+root.render(
+  <React.StrictMode>
+    <BootGate />
+  </React.StrictMode>,
+);

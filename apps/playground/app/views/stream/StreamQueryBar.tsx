@@ -42,8 +42,7 @@ export interface StreamQueryBarProps {
 }
 
 /** Open the shared query dialog (palette WQL mode) on `query`; Apply writes
- *  the composed WQL through `onApply`. Also the ViewSettingsDialog "Edit
- *  query" action. */
+ *  the composed WQL through `onApply`. */
 export function openStreamQueryEditor(
   query: string,
   execute: WqlExecutor,

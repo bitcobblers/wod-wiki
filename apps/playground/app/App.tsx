@@ -39,12 +39,11 @@ import { CalcAuthoringPanel } from '@/components/organisms/calc-authoring/CalcAu
 import { LoadZipPage } from './pages/LoadZipPage'
 import { JournalZipLoadPage } from './pages/JournalZipLoadPage'
 import { WallClockPage } from './pages/WallClockPage'
-import { StartPageGate } from './lib/startPage'
 import { PlaygroundRedirect } from './pages/PlaygroundRedirect'
 import { useZipProcessor } from './hooks/useZipProcessor'
 import { useJournalZipProcessor } from './hooks/useJournalZipProcessor'
-import { runBootSeedSync, runSeedSync } from '@/services/seed/seedSync'
-import { markSeedSyncSettled, markSeedSyncStarted, useSeedReadiness } from '@/services/seed/seedReadiness'
+import { runSeedSync } from '@/services/seed/seedSync'
+import { startSeedBootstrap, useSeedReadiness } from '@/services/seed/seedReadiness'
 import { profileService } from '@/services/storage'
 import { initSeedContentBroadcast, invalidateSeedContent } from '@/services/content/seedContent'
 import { Button } from '@/components/atoms/primitives/button'
@@ -88,11 +87,12 @@ function GlobalState() {
     // Profile first: rows written by the seed sync onward get stamped with
     // the membership id (best-effort — unstamped until current() resolves).
     void profileService.current().catch(console.error)
-    // Cross-tab corpus refresh (idempotent); the readiness gate keeps
-    // vault-querying routes on a skeleton until the import settles.
+    // Cross-tab corpus refresh (idempotent). The boot orchestrator owns
+    // subscription migration + the readiness gate: first visit gates until
+    // the core canvas chunk commits; a returning browser ungates
+    // immediately and refreshes subscribed feeds in the background.
     initSeedContentBroadcast()
-    markSeedSyncStarted()
-    void runBootSeedSync().then(markSeedSyncSettled)
+    void startSeedBootstrap()
   }, [])
   return null
 }
@@ -175,8 +175,10 @@ export function App() {
                   <Route path="/settings/appearance" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsProfile} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Retired /settings/data split into database + sync (2026-10). */}
-                  <Route path={ROUTE_PATTERNS.settingsData} element={<Navigate to={ROUTE_PATTERNS.settingsDatabase} replace />} />
-                  <Route path={ROUTE_PATTERNS.settingsDatabase} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.settingsData} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
+                  {/* Retired /settings/database renamed to /settings/storage (2026-10). */}
+                  <Route path={ROUTE_PATTERNS.settingsDatabase} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
+                  <Route path={ROUTE_PATTERNS.settingsStorage} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsSync} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/system" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsQueries} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
@@ -245,13 +247,7 @@ export function App() {
                     <Route
                       key={route}
                       path={route}
-                      element={route === ROUTE_PATTERNS.home ? (
-                        <StartPageGate>
-                          <AppContent searchHandlerRef={searchHandlerRef} />
-                        </StartPageGate>
-                      ) : (
-                        <AppContent searchHandlerRef={searchHandlerRef} />
-                      )}
+                      element={<AppContent searchHandlerRef={searchHandlerRef} />}
                     />
                   ))}
                 </Routes>

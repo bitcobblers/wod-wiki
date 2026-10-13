@@ -20,7 +20,7 @@ import {
   createCollectionCatalogProfile,
 } from './streamProfile'
 import { journalNotes } from '../../services/journalNotes'
-import { NavContext, initialNavState } from '../../nav/NavContext'
+import { NavContext, initialNavState, type StreamNavControls } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 
 // The notice's inline sync goes through syncSeedSource; the coverage probe
@@ -190,22 +190,6 @@ describe('QueriableStreamView component', () => {
     })
   })
 
-  it('opens ViewSettingsDialog when settings trigger button is clicked', async () => {
-    const engine = createMockEngine([])
-    render(
-      <MemoryRouter initialEntries={['/efforts']}>
-        <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
-      </MemoryRouter>,
-    )
-
-    const trigger = screen.getByTestId('stream-view-settings-trigger')
-    expect(trigger).toBeDefined()
-
-    fireEvent.click(trigger)
-
-    expect(screen.getByTestId('view-settings-dialog')).toBeDefined()
-    expect(screen.getByText('View Settings')).toBeDefined()
-  })
   it('renders custom actions in the header action slot', async () => {
     const engine = createMockEngine([])
 
@@ -596,25 +580,37 @@ describe('QueriableStreamView component', () => {
     }
   })
 
-  it('View ▸ Arrange-by writes through to the WQL line and the grid follows', async () => {
+  it('L3 toggleGroupDim writes through to the WQL line and the grid follows', async () => {
     const engine = createMockEngine(sampleEffortEntries)
-
+    let capturedControls: StreamNavControls | null = null
     render(
       <MemoryRouter initialEntries={['/efforts']}>
-        <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
+        <NavContext.Provider
+          value={{
+            tree: [],
+            navState: initialNavState,
+            dispatch: () => {},
+            l3Items: [],
+            setL3Items: () => {},
+            scrollToSection: () => {},
+            registerScrollFn: () => {},
+            setContextNav: () => {},
+            setStreamControls: (c) => { capturedControls = c },
+          }}
+        >
+          <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
+        </NavContext.Provider>
       </MemoryRouter>,
     )
-
-    // Open View settings and pick the Tags arrangement…
-    fireEvent.click(screen.getByTestId('stream-view-settings-trigger'))
-    fireEvent.click(screen.getByTestId('view-settings-group-tag'))
-
-    // …the query now owns grouping: the committed run's `by {tag}` surfaces
-    // in the truth strip (source: query) and the dialog's disclosure notice.
+    await waitFor(() => {
+      expect(capturedControls).not.toBeNull()
+    })
+    act(() => {
+      capturedControls?.onToggleGroupDim('tag')
+    })
     await waitFor(() => {
       expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag (query)')
     })
-    expect(screen.getByTestId('view-settings-query-grouped').textContent).toContain('by {tag}')
   })
 
   it('keeps grouping when switching layouts — groupBy survives mode changes', async () => {
@@ -973,31 +969,26 @@ describe('QueriableStreamView — query truth and retained state', () => {
     expect(screen.queryByTestId('date-group-2026-09-04')).toBeNull()
   })
 
-  it('discloses an unknown grouping dimension and switches to tags in one click', async () => {
-    const { engine, executed } = stubEngine(() => DATED_NOTE_ENTRIES)
+  it('groups an open property dimension without a fallback badge', async () => {
+    const { engine } = stubEngine(() => DATED_NOTE_ENTRIES)
 
     render(
       <MemoryRouter initialEntries={['/journal']}>
         <QueriableStreamView
-          profile={{ ...JOURNAL_STREAM_PROFILE, defaultWql: ':journal{} by {nonsense}' }}
+          profile={{ ...JOURNAL_STREAM_PROFILE, defaultWql: ':journal{} by {domain}' }}
           queryEngine={engine}
         />
       </MemoryRouter>,
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId('stream-grouping-fallback-badge')).toBeDefined()
+      expect(screen.getByTestId('stream-query-status').textContent).toContain('by domain (query)')
     })
-    // Status reports the EFFECTIVE dimension with the fallback disclosed —
-    // not the requested-but-unsupported one.
-    const status = screen.getByTestId('stream-query-status').textContent ?? ''
-    expect(status).toContain('by tag (query fallback)')
-
-    fireEvent.click(screen.getByTestId('stream-grouping-fallback-badge'))
-
-    await waitFor(() => {
-      expect(executed.at(-1)).toBe(':journal{} by {tag}')
-    })
+    // Entries carry no domain typed tags → one Unassigned property group;
+    // no fallback badge, no silent tag-bucket switch.
+    expect(screen.getByTestId('stream-dated-content')).toBeDefined()
+    expect(screen.queryByTestId('stream-grouping-fallback-badge')).toBeNull()
+    expect(screen.queryByTestId('stream-grouping-fallback')).toBeNull()
   })
 
   it('offers Edit query first when an advisory no-ops the empty result', async () => {

@@ -53,3 +53,21 @@ export {
   type SqlStorageOptions,
   type TursoSettings,
 } from './storage';
+export {
+  SYNC_OPS_TABLE,
+  SYNC_STATE_TABLE,
+  SYNC_ARCHIVE_TABLE,
+  probeSyncTarget,
+  initSyncTarget,
+  applySyncBatch,
+  fetchSyncOps,
+  type ApplySyncBatchOptions,
+  replaceSyncLog,
+  readRawSyncOps,
+  type RawSyncOp,
+  readLegacyRows,
+  type SyncEntry,
+  type SyncMutation,
+  type StoredSyncOp,
+  type SyncTargetKind,
+} from './sync';

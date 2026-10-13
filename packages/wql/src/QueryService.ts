@@ -151,6 +151,16 @@ export function sourceMatches(
   if (kind === 'playground') {
     return sourceId === 'playground' || item.type === 'playground';
   }
+  if (kind.startsWith('feed:')) {
+    // `feed:<slug>` targets one feed's notes; a full `feed:<slug>/<date>/<item>`
+    // id targets that single note. Both the query value and the storage
+    // sourceId may carry the optional `feeds/` path segment — compare with
+    // it normalized away so the two feed-id conventions agree.
+    const rest = kind.slice('feed:'.length).replace(/^feeds\//, '');
+    if (!rest || !sourceId?.startsWith('feed:')) return false;
+    const idRest = sourceId.slice('feed:'.length).replace(/^feeds\//, '');
+    return idRest === rest || idRest.startsWith(`${rest}/`);
+  }
   return sourceId === kind;
 }
 

@@ -189,7 +189,14 @@ export function RowsResultsChrome({
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <a
+            href={`/results/${encodeURIComponent(resultId)}`}
+            className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-0.5"
+            data-testid="view-in-results-link"
+          >
+            View in Results &rarr;
+          </a>
           <RpeChip
             resultId={resultId}
             events={sessionRun?.events}

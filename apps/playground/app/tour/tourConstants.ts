@@ -8,7 +8,6 @@
 export type TourScreen = 'editor' | 'timer' | 'analytics' | 'metrics'
 
 export type TourStageId =
-  | 'editor-blank'
   | 'editor-metrics'
   | 'editor-run'
   | 'editor-typeahead'
@@ -75,7 +74,6 @@ export interface TourStage {
 }
 
 export const TOUR_STAGES: TourStage[] = [
-  { id: 'editor-blank', screen: 'editor', accent: TOUR_ACCENTS.editor, label: 'Blank Page & Typeahead', ringA: 'editor.window', tagA: 'Live Editor' },
   { id: 'editor-metrics', screen: 'editor', accent: TOUR_ACCENTS.editor, label: 'Every Line Collects Metrics', ringA: 'editor.wodBlock', tagA: 'Line Metrics' },
   { id: 'editor-run', screen: 'editor', accent: TOUR_ACCENTS.editor, label: 'Press Run to Start', ringA: 'editor.runButton', tagA: 'Run Button' },
   { id: 'timer-wallclock', screen: 'timer', accent: TOUR_ACCENTS.timer, label: 'What Happens When It Runs', ringA: 'timer.floor', tagA: 'Clock' },

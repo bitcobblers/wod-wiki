@@ -1,4 +1,4 @@
-const REPO_URL = 'https://github.com/SergeiGolos/wod-wiki'
+const REPO_URL = 'https://github.com/bitcobblers/wod-wiki'
 
 export function TourFooter() {
   return (

@@ -109,7 +109,7 @@ These are review targets, **not a proposed closed enum** or new tables.
 
 ### Wayfinder questions and proposed answers
 
-Owner: [Pick the note-type taxonomy and where type lives](https://github.com/SergeiGolos/wod-wiki/issues/1026).
+Owner: [Pick the note-type taxonomy and where type lives](https://github.com/bitcobblers/wod-wiki/issues/1026).
 
 - **What is a type, versus placement or grouping?** Recommended answer: a content/configuration descriptor. Page placement, tags, creation source and import ownership stay separate. No new supertype/tag mechanism is needed just to compose notes.
 - **Where does the descriptor live and how do routes use it?** Recommended answer: consume the existing note descriptor plus relevant configuration through the host; it selects a default presentation, never authorizes a write. Keep current frontmatter-driven flavors until an explicit descriptor migration is agreed.

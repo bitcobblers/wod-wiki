@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { TourHeroHeading } from './TourHero'
-import { TourJumpSection } from './TourJumpSection'
 import { TourLearnSection } from './TourLearnSection'
 import { TourChapterPicker } from './TourChapterPicker'
 import { HomeAnalyticsSection } from './HomeAnalyticsSection'
@@ -10,6 +9,7 @@ import { TourSessionAnalytics, DEFAULT_TABLE_QUERY_KEY, DEFAULT_BOARD_SLUG } fro
 import { TourSessionResult } from './screens/TourSessionResult'
 import type { TourSectionTimerWiring, TourSectionSessionWiring } from './TourSectionRunway'
 import { TaglineHeader } from './TaglineHeader'
+import { TourJumpSection } from './TourJumpSection'
 import { CaptionBody, TOUR_CAPTIONS } from './TourCaptions'
 import { TOUR_ACCENTS } from './tourConstants'
 import type { ScriptBlock } from '@/components/Editor/types'
@@ -62,6 +62,7 @@ export function TourFlatStack(props: TourFlatStackProps) {
           {props.heroContent ?? <TourEditorScreen doc={props.doc} theme={props.theme} onDocChange={props.onDocChange} onBlocksChange={props.onBlocksChange} onRun={props.onHeroRun ?? props.onRun} />}
         </div>
       </section>
+
       <TourJumpSection />
 
       {/* Section 01: Write it in Markdown — hosts the page's ONE editor */}

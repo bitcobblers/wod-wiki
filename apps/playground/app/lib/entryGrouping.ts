@@ -85,18 +85,18 @@ export function groupEntriesByDimension(
 }
 
 /**
- * Group entries by one dimension — the vocabulary-backed primitive
- * (CONTENT_GROUPING_DIMENSIONS). Unknown dimensions execute as the tag
- * bucket: favorites/pickers never widen what the consumer can honor.
+ * Group entries by one dimension. The CONTENT_GROUPING_DIMENSIONS vocabulary
+ * keeps its special buckets below; any other dimension names a note property
+ * (a configured tag type) and resolves from the entry's typed tags —
+ * entries without that property land in an Unassigned group, matching the
+ * aggregate plane's open-dimension policy.
  */
 function groupByDimension(
   entries: Entry[],
   dimension: string,
   options?: { shelfVisible?: boolean },
 ): StreamGroup[] {
-  const dim = (CONTENT_GROUPING_DIMENSIONS as readonly string[]).includes(dimension.toLowerCase())
-    ? dimension.toLowerCase()
-    : 'tag'
+  const dim = dimension.toLowerCase()
   const today = todayKey()
   const locale = 'en'
 
@@ -357,6 +357,25 @@ function groupByDimension(
     }
     return Array.from(map.entries()).map(([key, groupEntries]) => ({
       id: `group-kind-${safeSlug(key)}`,
+      key,
+      label: key,
+      entries: groupEntries,
+    }))
+  }
+
+  // Property dimension — any configured tag type (domain, equipment, custom
+  // types from tag settings). First matching value wins, same as the tag
+  // bucket; entries without the property group under Unassigned.
+  if (!(CONTENT_GROUPING_DIMENSIONS as readonly string[]).includes(dim)) {
+    const map = new Map<string, Entry[]>()
+    for (const e of entries) {
+      const value = e.typedTags?.find((t) => t.type?.toLowerCase() === dim)?.label ?? 'Unassigned'
+      const arr = map.get(value)
+      if (arr) arr.push(e)
+      else map.set(value, [e])
+    }
+    return Array.from(map.entries()).map(([key, groupEntries]) => ({
+      id: `group-property-${safeSlug(dim)}-${safeSlug(key)}`,
       key,
       label: key,
       entries: groupEntries,

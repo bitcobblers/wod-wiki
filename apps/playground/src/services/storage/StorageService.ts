@@ -137,11 +137,22 @@ export class StorageService implements NotePersistenceStorage {
   }
 
   async getNoteBySlug(slug: string): Promise<Note | undefined> {
-    const page = await this.getPageBySlug(slug);
-    if (!page) return undefined;
-    const links = await this.getPageNotes(page.id);
-    if (links.length === 0) return undefined;
-    return this.getNote(links[0].noteId);
+    // ponytail: linear scan across candidate slugs and duplicate page records; upgrade to dedicated slug index if note volume explodes.
+    const candidateSlugs = [slug];
+    if (slug.startsWith('playground/')) candidateSlugs.push(slug.slice('playground/'.length));
+    else candidateSlugs.push(`playground/${slug}`);
+
+    for (const candidate of candidateSlugs) {
+      const pages = await this.storage.readonly('page').getAllFromIndex('by-slug', candidate);
+      for (const page of pages) {
+        const links = await this.getPageNotes(page.id);
+        for (const link of links) {
+          const note = await this.getNote(link.noteId);
+          if (note) return note;
+        }
+      }
+    }
+    return undefined;
   }
 
   async getAllNotes(): Promise<Note[]> {

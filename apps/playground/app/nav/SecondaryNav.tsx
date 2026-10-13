@@ -80,8 +80,7 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
         </div>
       )}
 
-      {/* Layout + visible fields — the same per-route view settings the
-          header View dialog edits; cast stays header-only chrome. */}
+      {/* Layout + visible fields — per-route view settings; cast stays header-only chrome. */}
       <div className="flex flex-col gap-1.5">
         <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
           Layout

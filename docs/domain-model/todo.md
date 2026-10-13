@@ -8,15 +8,15 @@ These are working review drafts, **not ticket resolutions**. GitHub remains the 
 
 | Datatype | Review here | Wayfinder question owner |
 |---|---|---|
-| [[Note]] | Type descriptor versus placement, provenance and tags; each note flavor | [Pick the note-type taxonomy and where type lives](https://github.com/SergeiGolos/wod-wiki/issues/1026) |
-| [[BlockRevision]] | Meaning/kinds, extension criteria and persistence mapping | [Name and bound the segment taxonomy](https://github.com/SergeiGolos/wod-wiki/issues/1027) |
-| [[Page#Mode and write destinations]] | Source authority, modes, local actions and save destinations | [Define the mode-resolution rule matrix (read-only vs edit)](https://github.com/SergeiGolos/wod-wiki/issues/1028) |
-| [[BlockRevision]] | Per-kind presentation/editing and recovery | [Map every segment kind to edit and read-only rendering](https://github.com/SergeiGolos/wod-wiki/issues/1029) |
-| [[Effort]] | Owning note, registry projection, validation and matching | [Resolve effort linkage and indexable effort metadata](https://github.com/SergeiGolos/wod-wiki/issues/1030) |
-| [[collection]] | Query inclusion versus placement, dates and Catalog boundaries | [Decide collection-page membership: WQL segment vs pageId](https://github.com/SergeiGolos/wod-wiki/issues/1031) |
-| [[BlockRevision]] | Existing research carried forward with source-write/lifecycle caveats | [Research: CodeMirror 6 patterns for mode-aware block widgets](https://github.com/SergeiGolos/wod-wiki/issues/1032) — already closed research |
-| [[Page#Syntax and dashboard composition]] | Teaching source, canvas layout and live local examples | [Resolve syntax pages as typed notes](https://github.com/SergeiGolos/wod-wiki/issues/1033) |
-| [[Page#Composition completeness questions]] | Cross-datatype acceptance, not another storage model | [Assemble the crosswalk & behavioral spec](https://github.com/SergeiGolos/wod-wiki/issues/1034) |
+| [[Note]] | Type descriptor versus placement, provenance and tags; each note flavor | [Pick the note-type taxonomy and where type lives](https://github.com/bitcobblers/wod-wiki/issues/1026) |
+| [[BlockRevision]] | Meaning/kinds, extension criteria and persistence mapping | [Name and bound the segment taxonomy](https://github.com/bitcobblers/wod-wiki/issues/1027) |
+| [[Page#Mode and write destinations]] | Source authority, modes, local actions and save destinations | [Define the mode-resolution rule matrix (read-only vs edit)](https://github.com/bitcobblers/wod-wiki/issues/1028) |
+| [[BlockRevision]] | Per-kind presentation/editing and recovery | [Map every segment kind to edit and read-only rendering](https://github.com/bitcobblers/wod-wiki/issues/1029) |
+| [[Effort]] | Owning note, registry projection, validation and matching | [Resolve effort linkage and indexable effort metadata](https://github.com/bitcobblers/wod-wiki/issues/1030) |
+| [[collection]] | Query inclusion versus placement, dates and Catalog boundaries | [Decide collection-page membership: WQL segment vs pageId](https://github.com/bitcobblers/wod-wiki/issues/1031) |
+| [[BlockRevision]] | Existing research carried forward with source-write/lifecycle caveats | [Research: CodeMirror 6 patterns for mode-aware block widgets](https://github.com/bitcobblers/wod-wiki/issues/1032) — already closed research |
+| [[Page#Syntax and dashboard composition]] | Teaching source, canvas layout and live local examples | [Resolve syntax pages as typed notes](https://github.com/bitcobblers/wod-wiki/issues/1033) |
+| [[Page#Composition completeness questions]] | Cross-datatype acceptance, not another storage model | [Assemble the crosswalk & behavioral spec](https://github.com/bitcobblers/wod-wiki/issues/1034) |
 | [[Note-Page-WQL-Alignment]] | Audit of Note vs Page data ownership, semantic conflations, and WQL query composition | [Audit: Note vs Page WQL Alignment](Note-Page-WQL-Alignment.md) |
 Supporting datatypes keep their own focused questions: [[BlockIndexRow]] for derived-search identity/lifecycle; [[Session]] and [[Attachment]] for non-source save destinations; [[EventRecord]] for recorded-fact ownership; [[Tag]]/[[NoteTag]] for classification; [[FieldSourceRecord]] for reversible contributions.
 

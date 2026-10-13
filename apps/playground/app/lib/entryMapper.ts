@@ -104,6 +104,10 @@ export interface Entry {
    *  drop the `page:collection:` prefix), while `note:` filters match the
    *  stored note id. */
   noteId?: string
+  /** The note's junction tags WITH their configured type — the property
+   *  plane `by {<type>}` grouping resolves against (domain, equipment, any
+   *  custom tag type). Flat `tags` above stays label-only. */
+  typedTags?: Array<{ label: string; type?: string }>
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

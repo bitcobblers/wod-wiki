@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef } from 'react'
-import { RotateCcw, X } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Play, RotateCcw, X } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
+import { cn } from '@/lib/utils'
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc'
 import { RuntimeTimerPanel } from '@/components/organisms/editor/RuntimeTimerPanel'
 import { TEST_IDS } from '@/testing/contracts/TestIdContract'
@@ -45,6 +46,21 @@ export const TourTimerScreen: React.FC<TourTimerScreenProps> = ({
   externalStop,
   onReset,
 }) => {
+  const [isFlashing, setIsFlashing] = useState(false)
+
+  const triggerRun = useCallback(() => {
+    if (isFlashing || block) return
+    setIsFlashing(true)
+    onStart?.()
+    setTimeout(() => {
+      setIsFlashing(false)
+    }, 450)
+  }, [isFlashing, block, onStart])
+
+  const handleResetClick = () => {
+    setIsFlashing(false)
+    onReset?.()
+  }
   const floorRef = useRingRef('timer.floor')
   const nextButtonRef = useRingRef('timer.nextButton')
   const castButtonRef = useRingRef('timer.castButton')
@@ -89,12 +105,31 @@ export const TourTimerScreen: React.FC<TourTimerScreenProps> = ({
   return (
     <div className="flex h-full flex-col bg-background">
       <header className="flex items-center justify-end gap-2 border-b border-border px-3 py-2">
+        {onStart && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={triggerRun}
+            disabled={isFlashing || Boolean(block)}
+            title="Run timer"
+            aria-label="Run timer"
+            data-testid="tour-timer-header-run"
+            className={cn(
+              "h-8 gap-1.5 px-3 font-mono text-xs font-semibold text-foreground transition-all duration-150",
+              isFlashing && "animate-[pulse_0.2s_ease-in-out_2] ring-2 ring-primary scale-105 bg-primary/20 text-primary",
+              Boolean(block) && "opacity-50"
+            )}
+          >
+            <Play className="size-3.5 fill-current" aria-hidden />
+            Run
+          </Button>
+        )}
         {onReset && (
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground"
-            onClick={onReset}
+            onClick={handleResetClick}
             title="Reset timer"
             aria-label="Reset timer"
             data-testid="tour-timer-reset"
@@ -133,9 +168,21 @@ export const TourTimerScreen: React.FC<TourTimerScreenProps> = ({
           <div className="flex h-full min-h-0 flex-col overflow-y-auto">
             <div className="m-auto flex flex-col items-center gap-5 px-5 py-6 text-center">
               <span className="font-mono text-[clamp(48px,8vw,96px)] font-bold tabular-nums tracking-tight">00:00</span>
-              <p className="max-w-sm text-sm text-muted-foreground">Ready when you are. Run your edited workout, then use Next to advance.</p>
-              {onStart && <Button onClick={onStart}>Run this example</Button>}
-              <p className="text-xs text-muted-foreground">The tour starts this workout when the timer comes into view.</p>
+              {onStart && (
+                <Button
+                  onClick={triggerRun}
+                  disabled={isFlashing || Boolean(block)}
+                  aria-label="Run this example"
+                  data-testid="tour-timer-center-run"
+                  className={cn(
+                    "gap-2 px-6 py-2.5 font-mono text-sm font-semibold transition-all duration-150",
+                    isFlashing && "animate-[pulse_0.2s_ease-in-out_2] ring-4 ring-primary scale-105 bg-primary text-primary-foreground"
+                  )}
+                >
+                  <Play className="size-4 fill-current" aria-hidden />
+                  Run
+                </Button>
+              )}
             </div>
           </div>
         )}

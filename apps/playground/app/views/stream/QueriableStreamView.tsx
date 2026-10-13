@@ -17,7 +17,6 @@ import {
   Plus,
   RefreshCw,
   Settings2,
-  SlidersHorizontal,
   TriangleAlertIcon,
 } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -30,7 +29,6 @@ import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 import type { WqlExecutor } from '@bitcobblers/wod-wiki-ui'
-import { CONTENT_GROUPING_DIMENSIONS } from '@bitcobblers/wod-wiki-ui'
 import { toggleGroupDimension } from '../../nav/panels/conditionsFacets'
 import { createPortal } from 'react-dom'
 import {
@@ -60,7 +58,6 @@ import { withoutFilters, withoutWindow, withGroupBy } from '../../lib/wqlEdits'
 import { LibraryRow } from '../library/LibraryRow'
 import { PropertyTable } from './PropertyTable'
 import { StreamFeed } from './StreamFeed'
-import { ViewSettingsDialog } from './ViewSettingsDialog'
 import { journalNotes } from '../../services/journalNotes'
 import { ensurePlaygroundEntry } from '../../services/createPlaygroundPage'
 import { addEntryToTodayInput } from '../../lib/addToToday'
@@ -124,8 +121,8 @@ function seedSyncLabel(event: SeedSyncProgress): string {
 
 /** Compact query truth strip beneath the composer (desktop) / top of the
  *  stream (mobile): validity, target, matched of total, applied vs ignored
- *  filters, ignored advisories, EFFECTIVE grouping (fallback disclosed) and
- *  its precedence source. Fed from the run's own stage callback — no extra
+ *  filters, ignored advisories, the grouping dimensions and their
+ *  precedence source. Fed from the run's own stage callback — no extra
  *  scans. */
 function StreamQueryStatus({
   error,
@@ -136,9 +133,8 @@ function StreamQueryStatus({
   applied,
   ignored,
   advisories,
-  effectiveDims,
-  groupingSourceLabel,
-  onRegroupTags,
+  groupDims,
+  groupingSource,
 }: {
   error: string | null
   target: string | null
@@ -148,11 +144,9 @@ function StreamQueryStatus({
   applied: number
   ignored: number
   advisories: readonly string[]
-  effectiveDims: string[]
-  groupingSourceLabel: string
-  onRegroupTags: () => void
+  groupDims: string[]
+  groupingSource: string
 }) {
-  const fallback = groupingSourceLabel.endsWith('fallback')
   return (
     <div
       role="status"
@@ -174,21 +168,9 @@ function StreamQueryStatus({
       </span>
       <span aria-hidden="true">·</span>
       <span>
-        by {effectiveDims.join(', ')}{' '}
-        <span className={fallback ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground/60'}>
-          ({groupingSourceLabel})
-        </span>
+        by {groupDims.join(', ')}{' '}
+        <span className="text-muted-foreground/60">({groupingSource})</span>
       </span>
-      {fallback && (
-        <button
-          type="button"
-          onClick={onRegroupTags}
-          data-testid="stream-grouping-fallback"
-          className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 hover:bg-amber-500/25 dark:text-amber-400"
-        >
-          switch to tag
-        </button>
-      )}
       {advisories.map(advisory => (
         <p key={advisory} className="w-full break-words text-amber-700 dark:text-amber-400">
           {advisory}
@@ -243,7 +225,7 @@ export function QueriableStreamView({
   useEffect(() => registerStreamDraft?.(() => query), [registerStreamDraft, query])
 
   // Per-route view settings (layout + field visibility)
-  const { settings, setLayout, toggleField, setGroupBy, resetSettings } = useViewSettings(
+  const { settings, setLayout, toggleField, setGroupBy } = useViewSettings(
     profile.route,
     profile.level,
     profile.defaultLayout,
@@ -258,7 +240,6 @@ export function QueriableStreamView({
   const [queryRunDims, setQueryRunDims] = useState<string[] | null>(null)
   const [shelfOpen, setShelfOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   // Mobile: the query bar portals into the app navbar (no page header).
   const isMobile = useIsMobile()
@@ -520,12 +501,6 @@ export function QueriableStreamView({
     : settings.groupBy
       ? 'view'
       : 'level'
-  // Disclosed fallback: a requested dimension outside the vocabulary executes
-  // as the tag bucket — badge at the group headers + one-click valid dim.
-  const contentDims = CONTENT_GROUPING_DIMENSIONS as readonly string[]
-  const groupingFallback = groupDims.some(d => !contentDims.includes(d))
-  const effectiveDims = Array.from(new Set(groupDims.map(d => (contentDims.includes(d) ? d : 'tag'))))
-  const groupingSourceLabel = groupingFallback ? `${groupingSource} fallback` : groupingSource
   // Filter truth vs the target's own vocabulary: the executor IGNORES
   // unsupported keys (advisory) — the strip says applied vs ignored instead
   // of implying every requested filter ran.
@@ -535,13 +510,6 @@ export function QueriableStreamView({
   )
   const appliedFilters = parsed.error || isPipelineQuery(parsed) ? 0 : parsed.filters.filter(f => supportedFilterKeys.has(f.key)).length
   const ignoredFilters = (parsed.error || isPipelineQuery(parsed) ? 0 : parsed.filters.length) - appliedFilters
-  const regroupTags = useCallback(() => {
-    if (queryRunDims?.some(d => !contentDims.includes(d))) {
-      setQuery(query.replace(/by\s*\{[^}]*\}/i, 'by {tag}'))
-    } else {
-      setGroupBy('tag')
-    }
-  }, [queryRunDims, query, setQuery, setGroupBy, contentDims])
 
   // Full dataset grouped by dimension
   const shelfVisible = profile.shelfVisible && !isPlaygroundScope
@@ -756,30 +724,17 @@ export function QueriableStreamView({
         actions={
           <ResponsiveActions
             primary={
-              <div className="flex items-center gap-1.5">
+              profile.route === '/efforts' ? (
                 <Button
-                  variant="outline"
                   size="sm"
-                  onClick={() => setIsSettingsOpen(true)}
-                  className="h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5"
-                  title="View Settings"
-                  data-testid="stream-view-settings-trigger"
+                  onClick={() => navigate(effortPath('new', undefined, { mode: 'create' }))}
+                  className="h-9 px-2.5 text-xs gap-1.5"
+                  data-testid="efforts-catalog-create-btn"
                 >
-                  <SlidersHorizontal className="size-3.5" />
-                  <span className="hidden sm:inline">View</span>
+                  <Plus className="size-3.5" />
+                  <span>New</span>
                 </Button>
-                {profile.route === '/efforts' && (
-                  <Button
-                    size="sm"
-                    onClick={() => navigate(effortPath('new', undefined, { mode: 'create' }))}
-                    className="h-9 px-2.5 text-xs gap-1.5"
-                    data-testid="efforts-catalog-create-btn"
-                  >
-                    <Plus className="size-3.5" />
-                    <span>New</span>
-                  </Button>
-                )}
-              </div>
+              ) : undefined
             }
             label="Stream actions"
           >
@@ -811,9 +766,8 @@ export function QueriableStreamView({
           applied={appliedFilters}
           ignored={ignoredFilters}
           advisories={parsed.error ? [] : parsed.advisories ?? []}
-          effectiveDims={effectiveDims}
-          groupingSourceLabel={groupingSourceLabel}
-          onRegroupTags={regroupTags}
+          groupDims={groupDims}
+          groupingSource={groupingSource}
         />
       </div>
 
@@ -1048,17 +1002,7 @@ export function QueriableStreamView({
                       top={stickyOffset}
                       icon={<CalendarIcon className="size-3.5 shrink-0 text-muted-foreground" />}
                       label={group.label}
-                      badge={groupingFallback ? (
-                        <button
-                          type="button"
-                          onClick={regroupTags}
-                          data-testid="stream-grouping-fallback-badge"
-                          title="This dimension is not groupable — switch to tag"
-                          className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 hover:bg-amber-500/25 dark:text-amber-400"
-                        >
-                          tags fallback — switch
-                        </button>
-                      ) : group.isToday ? (
+                      badge={group.isToday ? (
                         <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
                           Today
                         </span>
@@ -1092,22 +1036,7 @@ export function QueriableStreamView({
           ) : null}
         </div>
       )}
-
-      {/* View Settings Dialog */}
-      <ViewSettingsDialog
-        open={isSettingsOpen}
-        onOpenChange={setIsSettingsOpen}
-        route={profile.route}
-        level={profile.level}
-        settings={settings}
-        activeGroupBy={groupDims[0]}
-        queryGrouping={queryRunDims}
-        onEditQuery={() => openStreamQueryEditor(query, execute, setQuery)}
-        onGroupByChange={handleGroupByChange}
-        onLayoutChange={setLayout}
-        onToggleField={toggleField}
-        onReset={resetSettings}
-      />
+      {/* ponytail: view controls (layout, visible fields, grouping) live in L3 (SecondaryNav) */}
     </div>
   )
 }

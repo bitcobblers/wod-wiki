@@ -5,7 +5,7 @@ import { IDBFactory } from 'fake-indexeddb';
 
 import { IndexedDBStorage, InMemoryStorage, StorageService } from './index';
 import type { IStorage } from './IStorage';
-import { DOMAIN_PROJECTION_VERSION, type DomainEntry } from '@bitcobblers/wod-wiki-storage';
+import { DOMAIN_PROJECTION_VERSION, DB_VERSION, type DomainEntry } from '@bitcobblers/wod-wiki-storage';
 import type { BlockIndexRow, EventRecord, Note, Session } from '@/types/storage';
 
 const T0 = 1_700_000_000_000;
@@ -294,7 +294,20 @@ describe('countBlockIndexInDomain — local sourceFence parity', () => {
 });
 
 describe('incompatible IndexedDB', () => {
-  it('requires deliberate recreation rather than migrating or wiping', async () => {
+  it('refuses a newer schema without migrating or wiping it', async () => {
+    globalThis.indexedDB = new IDBFactory();
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('wodwiki-db', DB_VERSION + 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('notes', { keyPath: 'id' });
+      request.onsuccess = () => { request.result.close(); resolve(); };
+      request.onerror = () => reject(request.error);
+    });
+    const storage = new IndexedDBStorage();
+    await expect(storage.readonly('notes').getAll()).rejects.toThrow(/newer than this client/i);
+    await storage.close();
+  });
+
+  it('migrates an older schema instead of rejecting it', async () => {
     globalThis.indexedDB = new IDBFactory();
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.open('wodwiki-db', 28);
@@ -303,7 +316,7 @@ describe('incompatible IndexedDB', () => {
       request.onerror = () => reject(request.error);
     });
     const storage = new IndexedDBStorage();
-    await expect(storage.readonly('notes').getAll()).rejects.toThrow(/recreat|incompatib/i);
+    expect(await storage.readonly('notes').getAll()).toEqual([]);
     await storage.close();
   });
 });

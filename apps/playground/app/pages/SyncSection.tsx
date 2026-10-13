@@ -3,7 +3,7 @@
  * location: the bundled core seed (auto-imports at boot), the bundled
  * community library, and user-registered custom libraries. Per-source
  * status + Sync, Sync All, and source registration. Where data LIVES is
- * /settings/database; this page is where content COMES FROM.
+ * /settings/storage; this page is where content COMES FROM.
  */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -13,6 +13,7 @@ import { Input } from '@/components/atoms/primitives/input'
 import { readSeedStatus, runSeedSync, syncSeedSource, type SeedSourceStatus, type SeedStatus, type SeedSyncOutcome, type SeedSyncProgress } from '@/services/seed/seedSync'
 import type { SeedImportProgress } from '@/services/seed/SeedImporter'
 import { addCustomSeedSource, customSeedSources, removeCustomSeedSource, type CustomSeedSource } from '@/services/seed/seedSources'
+import { isSeedSubscribed, setSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
 import { ProgressBar } from '../components/atoms/ProgressBar'
 import { toast } from '@/hooks/use-toast'
 
@@ -69,6 +70,13 @@ function SourceCard({ source, custom, running, disabled, onSync, onRemove }: {
   onSync: (id: string) => void
   onRemove: (id: string) => void
 }) {
+  // Launch-sync subscription flag — mirrors the home Community feeds cards
+  // (same seedSubscriptions service, no duplicated business logic).
+  const [subscribed, setSubscribed] = useState(() => isSeedSubscribed(source.id))
+  useEffect(() => subscribeSeedSubscriptions(() => {
+    setSubscribed(isSeedSubscribed(source.id))
+  }), [source.id])
+
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3" data-testid={`seed-source-${source.id}`}>
       <div className="flex items-center justify-between gap-4">
@@ -85,6 +93,20 @@ function SourceCard({ source, custom, running, disabled, onSync, onRemove }: {
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {!source.autoImport && (
+            <button
+              type="button"
+              onClick={() => setSeedSubscribed(source.id, !subscribed)}
+              disabled={disabled}
+              data-testid={`seed-subscribe-${source.id}`}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+              title={subscribed
+                ? 'Subscribed — syncs at launch. Click to unsubscribe; your imported content stays.'
+                : 'Subscribe to sync this source at launch.'}
+            >
+              {subscribed ? 'Subscribed ✓' : 'Subscribe'}
+            </button>
+          )}
           {custom && (
             <Button
               variant="ghost"

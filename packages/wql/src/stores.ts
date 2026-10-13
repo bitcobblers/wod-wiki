@@ -145,8 +145,9 @@ export interface EffortQueryStore {
  *  domain parser's 64-value limit) straight through without mapping. WQL
  *  reads only `label` off each tag record and never imports storage. */
 export interface NoteRelationBundle {
-  /** The note's junction tag records (label plane). */
-  tags: ReadonlyArray<{ label: string }>;
+  /** The note's junction tag records — label plus its configured tag type
+   *  (domain, equipment, custom types), the property grouping resolves by. */
+  tags: ReadonlyArray<{ label: string; type?: string }>;
   /** page_notes junction rows for the note; first by position is the
    *  parent page. */
   links: PageNote[];

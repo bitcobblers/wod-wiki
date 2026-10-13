@@ -64,7 +64,7 @@ Bundled import creates note content and parsed effort records alongside each oth
 
 ### Linkage questions and proposed answers
 
-Owner: [Resolve effort linkage and indexable effort metadata](https://github.com/SergeiGolos/wod-wiki/issues/1030).
+Owner: [Resolve effort linkage and indexable effort metadata](https://github.com/bitcobblers/wod-wiki/issues/1030).
 
 - **What is authoritative?** Recommended answer: authored effort-note content, with the existing effort registry as its parsed projection. Keep separate stores if useful; a universal store merge is not required.
 - **How is an effort linked to its note?** Recommended answer: explicit owning-note identity on the parsed record (proposed `noteId`), separate from slug lookup. Make the valid note and its projection one coherent create/update operation for both bundled and user content. Do not claim that linkage exists today.

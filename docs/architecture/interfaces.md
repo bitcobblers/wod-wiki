@@ -115,17 +115,22 @@ Adapters:
 - `IndexedDBStorage` for the default browser-local database.
 - `InMemoryStorage` for isolated checks.
 - `ApiStorage` for HTTP access to a WOD Wiki server.
-- `BrowserTursoStorage` for direct browser access using `@libsql/client/web`.
 
-The SQL module lives at `@bitcobblers/wod-wiki-storage/sql`. Browser Turso and `apps/api` reuse its store schema, binary codec, transactions, and WQL domain projections. The server retains native SQLite/libSQL and PostgreSQL connection adapters; native drivers never enter the browser graph. WQL parsing and query rules remain shared rather than introducing a Turso-specific parser.
+The SQL module lives at `@bitcobblers/wod-wiki-storage/sql`. The API server uses its store schema, binary codec, transactions, and WQL domain projections with SQLite/libSQL or PostgreSQL. Browser backup sync uses `@libsql/client/web` and the same codec; native drivers never enter the browser graph.
 
 Production WQL reads notes from the canonical `notes` store. The seed importer creates each parent note before mapping static blocks to its UUID; queries do not synthesize a second note plane from `block_index`. Canonical edits, tags, catalog identities, and deletions therefore decide visibility. `@today` population loads pages once with `StorageService.getAllPages()` and keeps the existing junction-page date, note date, then creation-date precedence.
 
-Provider selection happens once at browser boot in `apps/playground/src/services/storage/index.ts`: an API build override wins, otherwise validated browser-local settings select Turso or default IndexedDB. Invalid saved settings disable data access until repaired or explicitly switched. Successful changes reload the page and other tabs to discard provider-specific caches. Turso failures do not silently create or write a local database.
+Browser builds always read, save, run WQL, and report against IndexedDB. Turso is an optional backup and multi-browser sync target, configured under `/settings/storage`. An API build uses `ApiStorage` instead; the server supplies its data-access implementation. Invalid backup credentials stop sync, not local work. Connection changes reload other tabs; disabling sync deletes neither copy. Tokens stay in browser localStorage and are sent only to the configured target.
 
-`tursoMigration.ts` reads a consistent IndexedDB snapshot, includes remote-owned preferences and the local profile, then checks and writes an empty SQL destination in one transaction. Bulk migration rebuilds projections once and preserves row ownership. The source remains untouched; credentials never enter remote metadata. Switch-back is not reverse synchronization.
+Every committed local write transaction journals one group in `sync_outbox` in the same IndexedDB transaction. Aborts journal nothing. The sync engine debounces uploads into bounded batches, assigns remote revisions, and retries with stable group IDs. Pulls advance a per-target cursor only after applying whole revision groups. Deletes, clears, and wipes propagate. Pending local writes overlay downloaded rows and upload afterward. Immutable block-revision collisions retain both versions; lower-revision note updates cannot replace newer notes.
 
-Runnable checks cross the same interface: `bun packages/storage/tests/sql-check.ts` covers SQL transactions, binary data, and projections; `bun apps/playground/src/services/storage/tursoMigration.check.ts` covers complete migration, source retention, and nonempty-destination refusal.
+Database v30 adds `sync_outbox` and `sync_state`. Ordinary launches render cached content without waiting for Turso or feed manifests. Real schema upgrades show the blocking update screen. Older local and remote data run through the versioned IndexedDB migration chain; remote conversion archives the old log and replaces it atomically. A current remote restores into the migrated local database without losing unsent edits. Newer schemas and unrelated remote tables are never overwritten. Pre-v20 local databases remain intact and require export through an intermediate app version.
+
+The first browser visit imports core content before rendering the home page. Returning visits use the cached library while refreshing core and subscribed feeds in the background. The home page offers the CrossFit Programming and Dan John 40-Day demo feeds independently. Feed repositories use `npx wod build` to compile Markdown into manifest and chunk files, then publish those files through their hosting pipeline. The header shows upload/download activity; completion toasts count committed new and updated records and link to `/catalogs`.
+
+Concurrent tabs serialize backup cycles with the browser's Web Locks `request` API. Offline saves and WQL queries never await Turso; reconnecting retries the durable outbox, and other browsers download the committed changes.
+
+Runnable checks: `bun apps/playground/src/services/storage/sync.check.ts` covers local transactions, offline retry, multi-browser replay, binary attachments, tombstones, conflicts, target changes, and schema migrations. `bun packages/storage/tests/sql-check.ts` covers SQL persistence and projections. `bun apps/api/check.ts` exercises the server adapter.
 
 ## Language Pack API
 

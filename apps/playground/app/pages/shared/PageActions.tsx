@@ -24,6 +24,7 @@ import { DEFAULT_PLAYGROUND_CONTENT } from '../../templates/defaultPlaygroundCon
 import { createPlaygroundPage } from '../../services/createPlaygroundPage'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { useInResponsiveActionsProvider } from '../../nav/ResponsiveActions'
+import { SyncActivityIndicators } from '../../nav/SyncActivityUi'
 
 export interface PageActionsProps {
   /** Current page mode — controls which extras are shown. */
@@ -104,6 +105,7 @@ export function PageActions({
         />
       )}
 
+      {!dockOwnsGeneric && <SyncActivityIndicators />}
       {!dockOwnsGeneric && <CastButtonRpc />}
       {!dockOwnsGeneric && (
         <ActionsMenu currentWorkout={currentWorkout} items={index && index.length > 0 ? mapIndexToL3(index) : undefined} />

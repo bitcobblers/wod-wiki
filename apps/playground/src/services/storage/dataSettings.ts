@@ -1,7 +1,13 @@
 /**
- * dataSettings — the browser-side data-provider choice, persisted in
+ * dataSettings — the browser-side backup/sync target choice, persisted in
  * localStorage only (never remotely; the token is same-origin readable by
  * design and the UI warns about that).
+ *
+ * Local-first cutover: this setting NEVER selects the data plane. The app
+ * always reads and writes IndexedDB (API builds excepted); a saved Turso
+ * target is a backup/sync destination driven by startBackgroundStorageSync.
+ * The three display modes — plain IndexedDB, Turso backup/sync, API server —
+ * are this setting's state, separate from the actual data plane.
  *
  * Expected saved shape: `{ kind: 'turso', url, authToken }` or
  * `{ kind: 'indexed-db' }`. The `VITE_STORAGE=api` build override always
@@ -10,17 +16,19 @@
  * Guarantees:
  *  - readDataSettings() is total — a malformed saved value surfaces as
  *    `{ state: 'invalid', raw, error }` so the Data settings page can offer
- *    repair instead of silently dropping to IndexedDB.
- *  - connectTurso() persists the config ONLY after connect (+ optional
- *    migration) fully succeeded; on any failure nothing is written, the
- *    active provider is untouched, and the thrown error is presentable and
- *    never contains the token.
+ *    repair instead of silently dropping the backup target. An invalid
+ *    config never disables the local app — it only surfaces as a sync
+ *    error (storage/index.ts startBackgroundStorageSync).
+ *  - connectTurso() persists the config ONLY after the connection verified
+ *    (schema probe + writability); on any failure nothing is written and the
+ *    thrown error is presentable and never contains the token. The initial
+ *    backup upload itself is the sync engine's snapshot step — ordinary
+ *    saves never await Turso.
  *  - Other tabs reload through a `storage` event guard, so writes can never
- *    land on the wrong provider after a cross-tab switch.
+ *    land on the wrong target after a cross-tab switch.
  */
-import { BrowserTursoStorage } from '@bitcobblers/wod-wiki-storage/sql';
-import { storage, storageBackend } from './index';
-import { migrateToSql } from './tursoMigration';
+import { createClient } from '@libsql/client/web';
+import { libsqlDatabase } from '@bitcobblers/wod-wiki-storage/sql';
 
 export type DataSettings = { kind: 'turso'; url: string; authToken: string } | { kind: 'indexed-db' };
 
@@ -112,36 +120,47 @@ export function readDataSettings(): DataSettingsRead {
   return { state: 'turso', url, authToken };
 }
 
+/** Prove connectivity + INSERT permission WITHOUT the SqlStorage schema
+ *  guard: existing direct-Turso databases (old or foreign schemas) must stay
+ *  connectable — the sync engine imports them. One real write into a probe
+ *  table inside a transaction that is then rolled back — zero rows committed. */
+async function verifyTursoTarget(settings: { url: string; authToken: string }): Promise<void> {
+  const db = libsqlDatabase(createClient({ url: settings.url.trim(), authToken: settings.authToken }));
+  try {
+    await db.query('SELECT 1');
+    const sentinel = new Error('verifyTursoTarget: deliberate rollback');
+    try {
+      await db.transaction(async (tx) => {
+        await tx.exec('CREATE TABLE IF NOT EXISTS "_wodwiki_write_check" ("v" TEXT)');
+        await tx.exec('INSERT INTO "_wodwiki_write_check" ("v") VALUES (?)', [crypto.randomUUID()]);
+        throw sentinel;
+      });
+    } catch (error) {
+      if (error !== sentinel) throw error;
+    }
+  } finally {
+    await db.close().catch(() => undefined);
+  }
+}
+
 /**
- * Validate + connect (+ optionally migrate the current local data), then
- * persist. Resolves only after everything succeeded — the caller reloads so
- * every provider cache re-initialises against the new provider. Throws a
- * presentable Error (never containing the token) and persists nothing on
- * failure; the active provider stays exactly as it was. Migration is only
- * offered from the local IndexedDB provider — never API→Turso or
- * Turso→Turso; switch back to local data first.
+ * Validate + verify the target, then persist. Resolves only after the
+ * connection verified — the caller reloads so the sync engine starts fresh
+ * against the new target. Throws a presentable Error (never containing the
+ * token) and persists nothing on failure. The sync engine uploads the first
+ * IndexedDB snapshot in the background after reload.
  */
 let connectInFlight: Promise<void> | undefined;
 
-export async function connectTurso(settings: { url: string; authToken: string }, opts: { migrate: boolean }): Promise<void> {
-  if (connectInFlight) throw new Error('A connect or migration is already running — wait for it to finish.');
+export async function connectTurso(settings: { url: string; authToken: string }): Promise<void> {
+  if (connectInFlight) throw new Error('A connect is already running — wait for it to finish.');
   const invalid = validateTursoTarget(settings.url, settings.authToken);
   if (invalid) throw new Error(invalid);
-  if (opts.migrate && storageBackend !== 'indexed-db') {
-    throw new Error('Migration copies your local browser data and is only available while using local (IndexedDB) data.');
-  }
   const run = async (): Promise<void> => {
-    const dest = new BrowserTursoStorage({ url: settings.url.trim(), authToken: settings.authToken });
     try {
-      await dest.ready();
-      await dest.verifyWritable();
-      if (opts.migrate) await migrateToSql(storage, dest);
+      await verifyTursoTarget(settings);
     } catch (err) {
       throw presentable(err, settings.authToken);
-    } finally {
-      // Cleanup must not masquerade: once ready/migration resolved, the copy
-      // is committed; a close failure is irrelevant on either path.
-      await dest.close().catch(() => undefined);
     }
     localStorage.setItem(DATA_SETTINGS_KEY, JSON.stringify({ kind: 'turso', url: settings.url.trim(), authToken: settings.authToken }));
   };
@@ -153,24 +172,18 @@ export async function connectTurso(settings: { url: string; authToken: string },
   }
 }
 
-/** Prove INSERT permission with a rolled-back SQL write, without saving settings. */
+/** Prove INSERT permission with a rolled-back write, without saving settings. */
 export async function testTursoConnection(settings: { url: string; authToken: string }): Promise<void> {
   const invalid = validateTursoTarget(settings.url, settings.authToken);
   if (invalid) throw new Error(invalid);
-  const dest = new BrowserTursoStorage({ url: settings.url.trim(), authToken: settings.authToken });
   try {
-    await dest.ready();
-    await dest.verifyWritable();
+    await verifyTursoTarget(settings);
   } catch (err) {
     throw presentable(err, settings.authToken);
-  } finally {
-    await dest.close().catch(() => undefined);
   }
 }
 
-/** Switch back to the local IndexedDB provider; the caller reloads. The
- *  remote keeps its data and is NOT pulled into the local copy (disconnect
- *  returns you to your last local state). */
+/** Disable backup sync without deleting the local or remote data. */
 export function switchToIndexedDb(): void {
   localStorage.setItem(DATA_SETTINGS_KEY, JSON.stringify({ kind: 'indexed-db' } satisfies DataSettings));
 }
