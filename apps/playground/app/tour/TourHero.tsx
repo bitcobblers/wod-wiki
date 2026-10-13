@@ -6,8 +6,7 @@ export function TourHeroHeading() {
     <div className="@container flex w-full flex-col items-center text-center">
       <h1 className="text-[clamp(32px,6.5cqi,64px)] font-extrabold leading-[1.02] tracking-[-0.04em]">
         <span className="block">
-          <span className="inline-flex items-center gap-[0.2em] mr-[0.35em]">
-            <CalendarPlus className="size-[0.8em] text-violet-400 dark:text-violet-300 shrink-0" aria-hidden="true" />
+          <span className="inline-flex items-center gap-[0.2em] mr-[0.35em]">            
             Write it.
           </span>
           <span className="inline-flex items-center gap-[0.2em]">
@@ -21,8 +20,7 @@ export function TourHeroHeading() {
             Track it.
           </span>
           <span className="inline-flex items-center gap-[0.2em]">
-            <Database className="size-[0.8em] text-sky-400 dark:text-sky-300 shrink-0" aria-hidden="true" />
-            Own it.
+                        Own it.
           </span>
         </span>
       </h1>
