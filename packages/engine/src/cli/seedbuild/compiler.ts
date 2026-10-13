@@ -267,7 +267,7 @@ export function validateWodBlockSyntax(blocks: BlockIndexRow[]): string[] {
     const where = block.sourcePath ?? block.noteId;
     if (section?.sport) {
       const parsed = parseScript(source, { sport: section.sport });
-      for (const error of parsed.errors) {
+      for (const error of parsed.errors ?? []) {
         problems.push(`${where}: ${error.message}`);
       }
       continue;
