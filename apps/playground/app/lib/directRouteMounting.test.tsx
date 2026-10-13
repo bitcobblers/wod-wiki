@@ -74,7 +74,7 @@ describe('Route-aware stream profile resolution', () => {
     expect(resolveStreamProfile('/catalogs').defaultWql).toBe(':catalog{} by {tag}')
 
     expect(resolveStreamProfile('/feeds')).toBe(FEEDS_STREAM_PROFILE)
-    expect(resolveStreamProfile('/feeds').defaultWql).toBe(':feed{} last 2w')
+    expect(resolveStreamProfile('/feeds').defaultWql).toBe(':feed{}')
 
     expect(resolveStreamProfile('/efforts')).toBe(EFFORTS_STREAM_PROFILE)
     expect(resolveStreamProfile('/efforts').defaultWql).toBe(':effort')

@@ -77,6 +77,9 @@ describe('routeWqlShortcuts — built-in library-group links', () => {
     expect(builtinShortcuts('/feeds')).toEqual([
       { id: ALL_SHORTCUT_ID, label: 'All feeds', icon: 'rss', wql: '' },
     ])
+    expect(builtinShortcuts('/catalogs')).toEqual([
+      { id: ALL_SHORTCUT_ID, label: 'All catalogs', icon: 'library', wql: '' },
+    ])
   })
 
   it('resolve to built-ins until stored, then the stored list is authoritative for user links', async () => {

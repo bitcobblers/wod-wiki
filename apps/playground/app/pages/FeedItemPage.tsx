@@ -25,7 +25,7 @@ import { useSeedContent } from '@/services/content/seedContent';
 import { usePlaygroundContent } from '../hooks/usePlaygroundContent';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
 import { pendingRuntimes } from '../runtimeStore';
-import { noteByIdPath, runPath, journalEntryAutoStartPath } from '../lib/routes';
+import { runPath, journalEntryAutoStartPath, journalEntryPath } from '../lib/routes';
 import { useNotePageNav } from './shared/useNotePageNav';
 import {
   NoteContextNav,
@@ -117,7 +117,7 @@ export function FeedItemPage({
         title: 'Added to journal',
         description: journalNote.journalDate === today ? `Added to today's journal` : `Added to ${journalNote.journalDate}`,
         action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(noteByIdPath(journalNote.id))}>
+          <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(journalNote.journalDate ?? today))}>
             Open
           </ToastAction>
         ),
@@ -135,7 +135,7 @@ export function FeedItemPage({
     const d = String(date.getDate()).padStart(2, '0');
     const dateKey = `${y}-${m}-${d}`;
     try {
-      const journalNote = await createJournalNoteFromWorkout({
+      await createJournalNoteFromWorkout({
         workoutName: item?.name ?? feedItem,
         category: feedSlug,
         sourceNoteLabel: feed?.name,
@@ -148,7 +148,7 @@ export function FeedItemPage({
         title: 'Scheduled',
         description: `Added to journal for ${dateKey}`,
         action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(noteByIdPath(journalNote.id))}>
+          <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(dateKey))}>
             Open
           </ToastAction>
         ),

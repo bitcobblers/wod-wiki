@@ -533,7 +533,8 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     // not a path inside this repo — read it from the template file itself.
     const templateSource = id === TEMPLATE_CHUNK_ID ? options.templateFile : undefined;
     const rows: SeedRow[] = files.map((p) => {
-      const content = readFileSync(templateSource ?? join(corpusRoot, p), 'utf8');
+      const raw = readFileSync(templateSource ?? join(corpusRoot, p), 'utf8');
+      const content = id === TEMPLATE_CHUNK_ID ? raw.replace(/\$CURSOR/g, '') : raw;
       const compiled = compileSeedRow(p, content);
       compiled.blockIndex = blocksByPath.get(p) ?? compiled.blockIndex;
       compiled.blockEfforts = effortsByPath.get(p) ?? [];

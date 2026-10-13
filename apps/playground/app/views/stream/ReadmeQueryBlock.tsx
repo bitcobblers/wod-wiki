@@ -26,7 +26,7 @@ function formatDateGroup(date: string): string {
   const parsed = new Date(`${date}T12:00:00`)
   return Number.isNaN(parsed.getTime())
     ? date
-    : parsed.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+    : parsed.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export function ReadmeQueryBlock({

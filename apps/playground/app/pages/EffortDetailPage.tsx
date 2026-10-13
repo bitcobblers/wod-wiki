@@ -38,7 +38,7 @@ import { canGoBack } from './shared/pageUtils';
 import { useScriptBlockCommands } from '../hooks/useScriptBlockCommands';
 import { useEffortRegistry } from '../contexts/EffortRegistryContext';
 import { EffortResolver, addAliasToEffort, type IEffort, type ResolvedEffort } from '@bitcobblers/wod-wiki-lang';
-import { effortsPath, parseEffortRouteOptions, effortPath, noteByIdPath } from '../lib/routes';
+import { effortsPath, parseEffortRouteOptions, effortPath, journalEntryPath } from '../lib/routes';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/atoms/primitives/toast';
 import { TEST_IDS } from '@/testing/contracts/TestIdContract';
@@ -238,7 +238,7 @@ export function EffortDetailPage() {
     const d = String(date.getDate()).padStart(2, '0');
     const dateKey = `${y}-${m}-${d}`;
     try {
-      const journalNote = await createJournalNoteFromWorkout({
+      await createJournalNoteFromWorkout({
         workoutName: effort.label,
         category: 'effort',
         sourceNoteLabel: effort.label,
@@ -251,7 +251,7 @@ export function EffortDetailPage() {
         title: 'Scheduled',
         description: `Added to journal for ${dateKey}`,
         action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(noteByIdPath(journalNote.id))}>
+          <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(dateKey))}>
             Open
           </ToastAction>
         ),

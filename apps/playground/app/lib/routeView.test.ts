@@ -102,6 +102,13 @@ describe('resolveRouteView — named routes', () => {
     }
   })
 
+  it('sets content to empty string for named stream routes so download is suppressed', () => {
+    for (const path of ['/efforts', '/catalogs', '/feeds']) {
+      const view = resolveRouteView(path, NO_PARAMS, makeDeps())
+      expect(view.workout.content).toBe('')
+    }
+  })
+
   it('returns no nav for bare routes like /feeds', () => {
     const view = resolveRouteView('/feeds', NO_PARAMS, makeDeps())
     expect(view.nav).toEqual([])

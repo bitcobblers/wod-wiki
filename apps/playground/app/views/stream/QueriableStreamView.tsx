@@ -25,6 +25,7 @@ import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
 import { useSeedLibraryMissing, useSeedReadiness } from '@/services/seed/seedReadiness'
 import { syncSeedSource, type SeedSyncProgress } from '@/services/seed/seedSync'
+import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
@@ -416,6 +417,20 @@ export function QueriableStreamView({
   // A committed result bumps savedTick so the mounted listing re-queries.
   const [savedTick, setSavedTick] = useState(0)
   useEffect(() => onResultSaved(() => setSavedTick((t) => t + 1)), [])
+  // A sync that commits records (inline notice run, Settings page, another
+  // tab) changes the vault under the mounted query — re-run it so imported
+  // entries appear without a refresh. Only `result` bumps (not task
+  // start/end) so unrelated activity never re-executes.
+  useEffect(() => {
+    let lastSeen = getSyncActivity().result?.id ?? -1
+    return subscribeSyncActivity(() => {
+      const id = getSyncActivity().result?.id ?? -1
+      if (id !== lastSeen) {
+        lastSeen = id
+        setSavedTick((t) => t + 1)
+      }
+    })
+  }, [])
 
   // Inline sync of the bundled community library from the core-only notice —
   // the same syncSeedSource path the Settings per-source Sync button uses.
@@ -663,7 +678,9 @@ export function QueriableStreamView({
       data-testid="stream-empty-state"
     >
       <p className="text-sm font-medium">
-        {profile.emptyMessage ?? 'No entries match your search.'}
+        {profile.emptyMessage ?? (parsed.window
+          ? 'No entries found within the selected time window.'
+          : 'No entries match your search.')}
       </p>
       {emptyStateRemedies.length > 0 && (
         <div className="flex flex-wrap items-center justify-center gap-2 mt-1">

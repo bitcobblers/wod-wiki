@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { parseNoteId } from '@/lib/noteIdentity';
 import { noteRefToPath } from './noteIdentity';
-import { journalEntryPath, playgroundPath, workoutPath, effortPath } from './routes';
+import { journalEntryPath, playgroundPath, workoutPath, effortPath, noteByIdPath } from './routes';
 
 describe('noteRefToPath', () => {
   it('routes journal → /journal/:id', () => {
@@ -22,7 +22,7 @@ describe('noteRefToPath', () => {
     expect(noteRefToPath(parseNoteId('effort/heavy grace'))).toBe(effortPath('heavy grace'));
   });
 
-  it('routes a bare id → / (preserves the prior fallback)', () => {
-    expect(noteRefToPath(parseNoteId('bare'))).toBe('/');
+  it('routes a bare id → /notes/:id (canonical fallback instead of /)', () => {
+    expect(noteRefToPath(parseNoteId('bare'))).toBe(noteByIdPath('bare'));
   });
 });

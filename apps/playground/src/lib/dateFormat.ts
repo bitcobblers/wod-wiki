@@ -42,6 +42,10 @@ export function formatDateTimeMediumShort(date: Date): string {
   return date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+export function formatDateTimeMedium(date: Date): string {
+  return date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' });
+}
+
 export function formatDateDefault(date: Date): string {
   return date.toLocaleDateString('en-US');
 }

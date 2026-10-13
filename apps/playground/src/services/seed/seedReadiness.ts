@@ -19,6 +19,7 @@ import { defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_M
 import { IndexedDBSeedImportStorage } from './SeedImportStorage';
 import { migrateSeedSubscriptions } from './seedSubscriptions';
 import { SEED_BROADCAST_CHANNEL, seedMetaKey } from '@/types/seed';
+import { subscribeSyncActivity } from '@/services/syncActivity';
 
 export type SeedReadiness = 'preparing' | 'ready' | 'error';
 
@@ -179,19 +180,35 @@ async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
 
 /**
  * Reactive "no manual library imported yet" probe for the /catalogs and
- * /feeds surfaces. Reads local checkpoints once per mount (no network);
- * null until the read settles — callers render nothing while null. True
- * also when the provider is unreadable: the notice's Sync link leads to a
- * page that surfaces the actual error.
+ * /feeds surfaces. Reads local checkpoints on mount and re-probes when sync
+ * activity reports results or a 'seed-imported'/'seed-removed' broadcast
+ * lands (no network); null until the read settles — callers render nothing
+ * while null. True also when the provider is unreadable: the notice's Sync
+ * link leads to a page that surfaces the actual error.
  */
 export function useSeedLibraryMissing(): boolean | null {
   const [missing, setMissing] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
-    readSeedCoverage()
-      .then(c => { if (!cancelled) setMissing(!c.libraryImported); })
-      .catch(() => { if (!cancelled) setMissing(true); });
-    return () => { cancelled = true; };
+    const probe = () => {
+      readSeedCoverage()
+        .then(c => { if (!cancelled) setMissing(!c.libraryImported); })
+        .catch(() => { if (!cancelled) setMissing(true); });
+    };
+    probe();
+    const unsubSync = subscribeSyncActivity(() => probe());
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);
+        channel.onmessage = () => probe();
+      } catch {}
+    }
+    return () => {
+      cancelled = true;
+      unsubSync();
+      channel?.close();
+    };
   }, []);
   return missing;
 }

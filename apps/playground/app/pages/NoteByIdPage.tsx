@@ -285,22 +285,24 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                 </div>
               )}
               {sourcesReady ? (
-                <NoteEditor
-                  value={entry.rawContent}
-                  onChange={onChange}
-                  onBlur={onBlur}
-                  noteId={entry.id}
-                  noteBlocks={entry.blocks}
-                  sourceRevision={entry.sourceRevision}
-                  onIdentityChange={identityChanged}
-                  onSaved={acceptSaved}
-                  beforeRun={async () => { await flush(); return committedRevisionRef.current; }}
-                  readonly={isReadOnly}
-                  theme={theme}
-                  showLineNumbers={false}
-                  onCompleteWorkout={handleCompleteWorkout}
-                  onBlocksChange={setScriptBlocks}
-                />
+                <div className="rounded-lg border border-border bg-card p-4 shadow-sm min-h-[240px] focus-within:border-accent/80 transition-colors">
+                  <NoteEditor
+                    value={entry.rawContent}
+                    onChange={onChange}
+                    onBlur={onBlur}
+                    noteId={entry.id}
+                    noteBlocks={entry.blocks}
+                    sourceRevision={entry.sourceRevision}
+                    onIdentityChange={identityChanged}
+                    onSaved={acceptSaved}
+                    beforeRun={async () => { await flush(); return committedRevisionRef.current; }}
+                    readonly={isReadOnly}
+                    theme={theme}
+                    showLineNumbers={false}
+                    onCompleteWorkout={handleCompleteWorkout}
+                    onBlocksChange={setScriptBlocks}
+                  />
+                </div>
               ) : (
                 <div className="flex items-center justify-center text-zinc-400 text-sm py-8">Loading…</div>
               )}

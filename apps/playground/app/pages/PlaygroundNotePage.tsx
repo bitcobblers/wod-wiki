@@ -31,7 +31,7 @@ import { usePlaygroundContent } from '../hooks/usePlaygroundContent'
 import { pageId } from '../services/playgroundContent'
 import { storageService } from '@/services/storage'
 import { pendingRuntimes } from '../runtimeStore'
-import { noteByIdPath, runPath } from '../lib/routes'
+import { journalEntryPath, noteByIdPath, runPath } from '../lib/routes'
 import { PageActions } from './shared/PageActions'
 import { useNotePageNav } from './shared/useNotePageNav'
 import {
@@ -159,7 +159,7 @@ export function PlaygroundNotePage({
           title: 'Added to journal',
           description: journalNote.journalDate === today ? "Added to today's journal" : `Added to ${journalNote.journalDate}`,
           action: (
-            <ToastAction altText="Open journal" onClick={() => navigate(noteByIdPath(journalNote.id))}>
+            <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(journalNote.journalDate ?? today))}>
               Open
             </ToastAction>
           ),
@@ -190,7 +190,7 @@ export function PlaygroundNotePage({
           title: 'Moved to journal',
           description: `This playground now lives on ${dateKey}.`,
           action: (
-            <ToastAction altText="Open journal" onClick={() => navigate(noteByIdPath(runtimeNoteId))}>
+            <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(dateKey))}>
               Open
             </ToastAction>
           ),
@@ -210,7 +210,7 @@ export function PlaygroundNotePage({
       const d = String(date.getDate()).padStart(2, '0')
       const dateKey = `${y}-${m}-${d}`
       try {
-        const journalNote = await createJournalNoteFromWorkout({
+        await createJournalNoteFromWorkout({
           workoutName: pageTitle,
           category: 'playground',
           sourceNoteLabel: pageTitle,
@@ -223,7 +223,7 @@ export function PlaygroundNotePage({
           title: 'Scheduled',
           description: `Added to journal for ${dateKey}`,
           action: (
-            <ToastAction altText="Open journal" onClick={() => navigate(noteByIdPath(journalNote.id))}>
+            <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(dateKey))}>
               Open
             </ToastAction>
           ),

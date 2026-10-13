@@ -22,7 +22,7 @@ export interface RowsTableProps {
 }
 
 function formatRunHeader(run: RowsRun): string {
-  const date = new Date(run.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const date = new Date(run.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return date;
 }
 

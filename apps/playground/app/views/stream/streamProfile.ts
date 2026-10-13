@@ -124,10 +124,11 @@ export const CATALOGS_STREAM_PROFILE: StreamProfile = {
 export const FEEDS_STREAM_PROFILE: StreamProfile = {
   route: '/feeds',
   title: 'Feeds',
-  defaultWql: ':feed{} last 2w',
+  defaultWql: ':feed{}',
   level: 'note',
   target: 'note',
   scopeOptions: ['feeds'],
+  emptyMessage: 'No feed entries match your search.',
   // Corpus comes from seed libraries — surface the core-only notice.
   seedNotice: true,
   legacy: createContentLegacyConfig('feeds'),

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { notePersistence, type INotePersistence } from '@/services/persistence';
+import { formatDateTimeMedium } from '@/lib/dateFormat';
 import type { BlockRevision, NoteBlock } from '@/types/storage';
 import type { EditorIdentitySnapshot } from './NoteEditor';
 
@@ -81,7 +82,7 @@ export function BlockHistory({ noteId, sourceRevision, blocks = {}, persistence 
           </select>
         </label>
         <ol aria-label="Saved versions" className="space-y-1 text-sm" style={{ contentVisibility: 'auto' }}>
-          {versions.map(row => <li key={row.version}>v{row.version} · <time dateTime={new Date(row.savedAt).toISOString()}>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(row.savedAt)}</time> · {row.kind}{row.dialect ? ` · ${row.dialect}` : ''}{row.sport ? ` · ${row.sport}` : ''}</li>)}
+          {versions.map(row => <li key={row.version}>v{row.version} · <time dateTime={new Date(row.savedAt).toISOString()}>{formatDateTimeMedium(new Date(row.savedAt))}</time> · {row.kind}{row.dialect ? ` · ${row.dialect}` : ''}{row.sport ? ` · ${row.sport}` : ''}</li>)}
         </ol>
         <div className="grid gap-3 sm:grid-cols-2">
           {[{ label: 'Compare saved version', row: left, set: setLeftVersion }, { label: 'With saved version', row: right, set: setRightVersion }].map(({ label, row, set }) => <div key={label} className="min-w-0">

@@ -236,7 +236,7 @@ function deriveWorkout(
   const streamTitle = streamRouteTitle(cleanPath)
   const namedMatch = streamTitle ?? named[pathname] ?? named[cleanPath]
   if (namedMatch) {
-    return { name: namedMatch, content: PLAYGROUND_CONTENT, category: 'General' }
+    return { name: namedMatch, content: '', category: 'General' }
   }
   if (cleanPath.startsWith('/results/')) {
     return { name: 'Result', content: PLAYGROUND_CONTENT, category: 'Results' }

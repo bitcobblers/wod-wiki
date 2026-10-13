@@ -13,7 +13,7 @@ import { playgroundContent } from '../services/playgroundContent';
 import { localDateKey } from '../views/queriable-list/JournalDateScroll';
 import type { JournalEntrySummary } from '../views/queriable-list/JournalDateScroll';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
-import { noteByIdPath } from '../lib/routes';
+import { journalEntryPath } from '../lib/routes';
 import { useFeedsQueryState } from '../hooks/useFeedsQueryState';
 import { FeedFeed, type FeedItem } from '../views/FeedFeed';
 import { toast } from '@/hooks/use-toast';
@@ -110,7 +110,7 @@ export function FeedDetailPage({ feedSlug }: FeedDetailPageProps) {
         title: 'Added to journal',
         description: journalNote.journalDate === today ? `Added to today's journal` : `Added to ${journalNote.journalDate}`,
         action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(noteByIdPath(journalNote.id))}>
+          <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(journalNote.journalDate ?? today))}>
             Open
           </ToastAction>
         ),

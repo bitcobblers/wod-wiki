@@ -15,6 +15,7 @@ import type { BlockEffort, BlockIndexRow, Note } from '@/types/storage'
 import { extractPageIndex, mapIndexToL3 } from './pageUtils'
 import {
   backlinkNotes,
+  effortLinks,
   effortUsageLinks,
   noteLinkPath,
   noteOwnership,
@@ -157,6 +158,25 @@ describe('relatedBlockLinks — same block ideas', () => {
       id: `r${i}`, noteId: `018f-note-${i}`, dataType: 'wod', blockContentId: 'hash-fran', noteTitle: `N${i}`,
     })) as BlockIndexRow[]
     expect(relatedBlockLinks([...rows, ...many], 'crossfit-girls/fran', 8)).toHaveLength(8)
+  })
+})
+
+describe('effortLinks — note-referenced efforts', () => {
+  const rows = [
+    { noteId: 'n1', effortSlug: 'grace' },
+    { noteId: 'n1', effortSlug: 'unsung-hero-wod' },
+    { noteId: 'n1', effortSlug: 'grace' },
+  ] as unknown as BlockEffort[]
+
+  it('links uncataloged slugs to the efforts search, cataloged ones to the detail page', () => {
+    const known = new Set(['grace'])
+    const links = effortLinks(rows, known)
+    expect(links.map(l => l.to)).toEqual(['/e/grace', '/efforts?q=unsung-hero-wod'])
+  })
+
+  it('links every slug to the detail page when no catalog is provided', () => {
+    const links = effortLinks(rows)
+    expect(links.map(l => l.to)).toEqual(['/e/grace', '/e/unsung-hero-wod'])
   })
 })
 

@@ -47,6 +47,17 @@ describe('toEntry — playground entries', () => {
     expect(entry.createdAt).toBe(123)
   })
 
+  it('does not map sentinel targetDate: 0 to epoch 1970-01-01', () => {
+    const entry = toEntry(makeNote({
+      id: 'uuid-2',
+      sourceId: 'playground',
+      type: 'playground',
+      targetDate: 0,
+      createdAt: 0,
+    } as any))
+    expect(entry.date).toBeNull()
+  })
+
   it('classifies a legacy composite-id playground page (type playground, no sourceId) as playground', () => {
     const entry = toEntry(makeNote({
       id: 'playground/2026-09-04-abc',

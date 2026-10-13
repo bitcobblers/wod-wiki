@@ -25,6 +25,7 @@ export interface ConditionSectionConfig {
   order?: number
   enabled?: boolean
   expectedValues?: readonly ConditionValueSpec[]
+  hideZero?: boolean
 }
 
 const capitalized = (values: readonly string[]): ConditionValueSpec[] =>

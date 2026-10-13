@@ -161,14 +161,21 @@ export function provenanceLink(sourceId: string): ContextNoteLink | null {
 
 // ── Index-derived link builders (pure) ───────────────────────────────────────
 
-/** Efforts referenced by a note, from its block_efforts rows (de-duped, in order). */
-export function effortLinks(rows: BlockEffort[]): ContextNoteLink[] {
+/** Efforts referenced by a note, from its block_efforts rows (de-duped, in order).
+ *  Slugs absent from the catalog link to the efforts search (`?q=slug`) —
+ *  a direct detail route would 404 for an uncataloged effort. */
+export function effortLinks(rows: BlockEffort[], knownSlugs?: ReadonlySet<string>): ContextNoteLink[] {
   const seen = new Set<string>()
   const out: ContextNoteLink[] = []
   for (const row of rows) {
     if (!row.effortSlug || seen.has(row.effortSlug)) continue
     seen.add(row.effortSlug)
-    out.push({ id: row.effortSlug, title: row.effortSlug, to: effortPath(row.effortSlug) })
+    const isKnown = !knownSlugs || knownSlugs.has(row.effortSlug)
+    out.push({
+      id: row.effortSlug,
+      title: row.effortSlug,
+      to: isKnown ? effortPath(row.effortSlug) : `${effortsPath()}?q=${encodeURIComponent(row.effortSlug)}`,
+    })
   }
   return out
 }
@@ -256,12 +263,14 @@ export function useNoteContextLinks({ noteId, stamps, effortSlug }: UseNoteConte
       storageService.getAllFromIndex('block_efforts', 'by-note', noteId) as Promise<BlockEffort[]>,
       storageService.getAllFromIndex('block_index', 'by-note', noteId) as Promise<BlockIndexRow[]>,
       storageService.getAllNotes(),
+      storageService.getAllEfforts(),
       effortSlug
         ? (storageService.getAllFromIndex('block_efforts', 'by-effort', effortSlug) as Promise<BlockEffort[]>)
         : Promise.resolve([]),
     ])
-      .then(async ([effortRows, blockRows, notes, usageRows]) => {
+      .then(async ([effortRows, blockRows, notes, allEfforts, usageRows]) => {
         if (cancelled) return EMPTY_CONTEXT
+        const knownEffortSlugs = new Set(allEfforts.map(e => e.slug))
         const ownContentIds = [...new Set(
           blockRows.filter(r => r.dataType === 'wod' && r.blockContentId).map(r => r.blockContentId as string),
         )]
@@ -280,7 +289,7 @@ export function useNoteContextLinks({ noteId, stamps, effortSlug }: UseNoteConte
           }
         }
         return {
-          efforts: effortLinks(effortRows),
+          efforts: effortLinks(effortRows, knownEffortSlugs),
           related,
           backlinks: backlinkNotes(notes, stampList, noteId),
         }

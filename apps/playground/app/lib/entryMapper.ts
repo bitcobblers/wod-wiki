@@ -360,7 +360,7 @@ function toEntryBase(note: Note): Entry {
     journalDate = note.journalDate
   } else if ('date' in note && typeof note.date === 'string') {
     journalDate = note.date
-  } else if ('targetDate' in note && (typeof note.targetDate === 'number' || typeof note.targetDate === 'string')) {
+  } else if ('targetDate' in note && Boolean(note.targetDate) && (typeof note.targetDate === 'number' || typeof note.targetDate === 'string')) {
     journalDate = formatDateKey(new Date(note.targetDate))
   } else if (note.createdAt) {
     journalDate = formatDateKey(new Date(note.createdAt))

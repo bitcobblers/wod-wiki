@@ -354,11 +354,15 @@ function ConditionSection({
     || a.label.localeCompare(b.label),
   )
 
-  if (rows.length === 0 && !freeform) return null
+  const visibleRows = (config.hideZero || entryKey === 'effort')
+    ? rows.filter(row => (row.count !== null && row.count > 0) || row.state !== 'off')
+    : rows
+
+  if (visibleRows.length === 0 && !freeform) return null
   return (
     <SidebarAccordion
       title={config.label ?? meta.label}
-      count={rows.length}
+      count={visibleRows.length}
       defaultOpen={rows.some(row => row.state !== 'off') || freeform}
       sticky
       buttonClassName="gap-1.5 py-1.5 text-[11px] font-semibold normal-case tracking-normal [&>span:last-child]:h-auto [&>span:last-child]:w-auto [&>span:last-child]:min-w-0 [&>span:last-child]:rounded-sm [&>span:last-child]:px-1 [&>span:last-child]:bg-transparent [&>span:last-child]:text-[10px] [&>span:last-child]:font-semibold [&>span:last-child]:text-muted-foreground"
@@ -367,7 +371,7 @@ function ConditionSection({
       {/* Every current-result value renders — long lists flow through the
           shared scroller, never a per-section viewport. */}
       <ul className="flex flex-col">
-        {rows.map(row => (
+        {visibleRows.map(row => (
           <ConditionRow
             key={row.value}
             query={query}
