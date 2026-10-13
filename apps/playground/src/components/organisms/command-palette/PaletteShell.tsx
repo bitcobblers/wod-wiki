@@ -338,8 +338,12 @@ export const PaletteShell: React.FC = () => {
     </div>
   ) : undefined;
 
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) _dismiss();
+  }, [_dismiss]);
+
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) _dismiss(); }}>
+    <Dialog.Root open={isOpen} onOpenChange={handleDialogOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
         <Dialog.Content

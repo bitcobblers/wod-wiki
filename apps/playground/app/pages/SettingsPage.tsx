@@ -13,8 +13,9 @@
  *     connect/migrate controls. Where data LIVES.
  *   - /settings/sync: content seed sources — per-source status + sync,
  *     Sync All, and custom source registration. Where content COMES FROM.
- *   - /settings/system: Audio feedback (sound effects & test chime), developer
- *     debug mode toggle, and "Reset & Clear Cache" danger zone.
+ *   - /settings/system: About (build version + GitHub release link), audio
+ *     feedback (sound effects & test chime), developer debug mode toggle, and
+ *     "Reset & Clear Cache" danger zone.
  *   - /settings/queries: per-surface landing query and source / Group-By
  *     option overrides (routeWqlConfig).
  */
@@ -36,7 +37,10 @@ import {
   PanelLeft,
   Plus,
   Trash2,
+  Info,
+  ExternalLink,
 } from 'lucide-react'
+import { APP_VERSION, releaseUrlFor } from '../lib/appVersion'
 import { StickyPageHeader } from '@/panels/page-shells/StickyPageHeader'
 import { useTheme } from '@/contexts/ThemeProvider'
 import { useAudio } from '@/contexts/AudioContext'
@@ -385,6 +389,37 @@ function SystemSection() {
 
   return (
     <div className="space-y-8">
+      {/* 0. About — build version + link to the GitHub release */}
+      <section className="space-y-4" data-testid="settings-about">
+        <div>
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Info className="size-4 text-primary" />
+            About
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Build version and release information for this playground.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-4 flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium text-foreground font-mono">v{APP_VERSION}</p>
+            <p className="text-xs text-muted-foreground">Wod Wiki playground build</p>
+          </div>
+          <Button asChild variant="outline" size="sm" className="gap-2">
+            <a
+              href={releaseUrlFor(APP_VERSION)}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="settings-release-link"
+            >
+              <ExternalLink className="size-3.5" />
+              <span>Release notes</span>
+            </a>
+          </Button>
+        </div>
+      </section>
+
       {/* 1. Audio Feedback */}
       <section className="space-y-4">
         <div>

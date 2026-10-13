@@ -89,8 +89,12 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [selectedNoteId, notes]);
+  // ponytail: depend on the search STRING, not the URLSearchParams object —
+  // react-router v7 returns a fresh object identity per render, which would
+  // re-run this effect (and its setSearchParams replace) every render.
+  const searchKey = searchParams.toString();
   useEffect(() => {
-    const autoStartId = searchParams.get('autoStart');
+    const autoStartId = new URLSearchParams(searchKey).get('autoStart');
     if (!autoStartId) return;
     const pending = pendingRuntimes.get(autoStartId);
     if (pending) {
@@ -106,7 +110,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       prev.delete('autoStart');
       return prev;
     }, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [searchKey, setSearchParams]);
 
   const handleNoteContentChange = useCallback((noteId: string, newContent: string) => {
     setNotes((prev) => prev?.map((n) => (n.id === noteId ? { ...n, rawContent: newContent } : n)) ?? prev);

@@ -50,11 +50,14 @@ export const initialNavState: NavState = {
 
 export function navReducer(state: NavState, action: NavStateAction): NavState {
   switch (action.type) {
-    case 'SET_ACTIVE_L1': return { ...state, activeL1Id: action.id }
-    case 'SET_ACTIVE_L2': return { ...state, activeL2Id: action.id }
-    case 'SET_ACTIVE_L3': return { ...state, activeL3Id: action.id }
-    case 'SET_LEFT_DRAWER':  return { ...state, leftDrawerOpen: action.open }
-    case 'SET_RIGHT_DRAWER': return { ...state, rightDrawerOpen: action.open }
+    // ponytail: equality guards — dispatching the current value must return the
+    // same state object, or every dispatch forces a provider re-render (and any
+    // per-render dispatch becomes an infinite loop).
+    case 'SET_ACTIVE_L1': return state.activeL1Id === action.id ? state : { ...state, activeL1Id: action.id }
+    case 'SET_ACTIVE_L2': return state.activeL2Id === action.id ? state : { ...state, activeL2Id: action.id }
+    case 'SET_ACTIVE_L3': return state.activeL3Id === action.id ? state : { ...state, activeL3Id: action.id }
+    case 'SET_LEFT_DRAWER':  return state.leftDrawerOpen === action.open ? state : { ...state, leftDrawerOpen: action.open }
+    case 'SET_RIGHT_DRAWER': return state.rightDrawerOpen === action.open ? state : { ...state, rightDrawerOpen: action.open }
     case 'TOGGLE_EXPANDED': {
       const next = new Set(state.expandedIds)
       if (next.has(action.id)) {

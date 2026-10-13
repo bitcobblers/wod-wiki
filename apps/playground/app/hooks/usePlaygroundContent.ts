@@ -125,8 +125,12 @@ export function usePlaygroundContent({ category, name, mdContent, seedOnMount = 
     await saves.flush();
   }, [mdContent, onIdentityChange, saves.flush]);
 
+  // ponytail: stable callback identity — consumers put this in useCallback
+  // dep arrays; a fresh arrow per render would invalidate them every render.
+  const committedSourceRevision = useCallback(() => committed.current.revision, []);
+
   return { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved,
     onChange, onLineChange: saves.onLineChange, onBlur: saves.onBlur, flush: saves.flush,
-    committedSourceRevision: () => committed.current.revision,
+    committedSourceRevision,
     resetToOriginal, isModified: content !== mdContent, error: saves.error ?? loadError };
 }
