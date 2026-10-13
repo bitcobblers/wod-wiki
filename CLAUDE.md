@@ -288,7 +288,7 @@ After making changes, always validate:
 
 ### Issue tracker
 
-GitHub Issues on `github.com/SergeiGolos/wod-wiki` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+GitHub Issues on `github.com/bitcobblers/wod-wiki` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

@@ -205,7 +205,7 @@ describe('SettingsPage', () => {
     it('renders the Database tab with storage location options', () => {
       renderSettings('/settings/database')
 
-      expect(screen.getByText('Storage Location')).toBeDefined()
+      expect(screen.getByText('Local Storage')).toBeDefined()
       expect(screen.getByTestId('storage-option-browser')).toBeDefined()
       // Content sync is a separate page now.
       expect(screen.queryByText('Content Sources')).toBeNull()

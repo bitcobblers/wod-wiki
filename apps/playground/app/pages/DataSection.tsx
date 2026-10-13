@@ -1,17 +1,18 @@
 /**
- * DataSection — /settings/database. Where your notes and results live: this
- * browser (IndexedDB, default) or a direct-browser Turso database. Content
- * sync (seed sources) lives on /settings/sync.
+ * DataSection — /settings/database. Local-first storage: notes and results
+ * always live in this browser (IndexedDB). Turso Sync is an optional
+ * background backup to your own Turso database — enable, update, or disable
+ * it below. Content sync (seed sources) lives on /settings/sync.
  *
  * Connection rules: the token is stored in this browser's localStorage only,
- * never sent anywhere except the configured Turso API URL. Connecting never
- * silently falls back; a failed connect changes nothing. Switching back to
- * this browser keeps both copies — nothing is deleted from Turso or locally.
+ * never sent anywhere except the configured Turso API URL. Enabling sync
+ * never silently falls back; a failed enable changes nothing. Disabling sync
+ * keeps everything local — nothing is deleted from either copy.
  * Self-hosted API and the paid wod.wiki custodian are future options.
  */
 
 import { useEffect, useState } from 'react'
-import { CloudDownload, RefreshCw, CheckCircle2, AlertCircle, Database, Server, Cloud, Check, Lock, Search } from 'lucide-react'
+import { CloudDownload, RefreshCw, CheckCircle2, AlertCircle, CloudOff, Database, Server, Cloud, Check, Lock, Search } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import {
   readDataSettings,
@@ -31,8 +32,8 @@ export interface TursoConnectFormProps {
   saved?: { url: string; authToken: string }
   /** Defaults to a full reload so every provider caches reset. */
   onConnected?: () => void
-  /** Migration copies this browser's IndexedDB into the (empty) remote —
-   *  only offered when the active provider is a healthy local IndexedDB. */
+  /** Upload copies this browser's IndexedDB into the (empty) remote before
+   *  sync starts — only offered when sync is off (healthy local state). */
   allowMigrate?: boolean
 }
 
@@ -72,10 +73,10 @@ export function TursoConnectForm({ saved, onConnected, allowMigrate = false }: T
     try {
       await connectTurso({ url: url.trim(), authToken }, { migrate })
       toast({
-        title: migrate ? 'Migrated and connected' : 'Connected',
+        title: migrate ? 'Uploaded and enabled' : 'Turso Sync enabled',
         description: migrate
-          ? 'Your local data was copied to Turso. Reloading…'
-          : 'Reloading with Turso as your data location…',
+          ? 'Your local data was uploaded to Turso. Reloading…'
+          : 'Reloading… Turso Sync is now on.',
       })
       finish?.()
     } catch (err) {
@@ -164,20 +165,20 @@ export function TursoConnectForm({ saved, onConnected, allowMigrate = false }: T
         </Button>
         <Button size="sm" onClick={() => connect(false)} disabled={busy !== null} data-testid="turso-connect-button" className="gap-2">
           {busy === 'connect' ? <RefreshCw className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-          <span>{busy === 'connect' ? 'Connecting…' : 'Connect'}</span>
+          <span>{busy === 'connect' ? 'Enabling…' : saved ? 'Update Connection' : 'Enable Sync'}</span>
         </Button>
         {allowMigrate && (
           <Button size="sm" variant="outline" onClick={() => connect(true)} disabled={busy !== null} data-testid="turso-migrate-button" className="gap-2">
             {busy === 'migrate' ? <RefreshCw className="size-3.5 animate-spin" /> : <CloudDownload className="size-3.5" />}
-            <span>{busy === 'migrate' ? 'Migrating…' : 'Migrate & Connect'}</span>
+            <span>{busy === 'migrate' ? 'Uploading…' : 'Upload & Enable'}</span>
           </Button>
         )}
         <span className="text-xs text-muted-foreground">
           {busy === 'migrate'
-            ? 'Copying your local data to the (empty) remote database — avoid edits and close other Wod Wiki tabs until it finishes.'
+            ? 'Uploading your local data to the (empty) remote database — avoid edits and close other Wod Wiki tabs until it finishes.'
             : allowMigrate
-              ? 'Connect uses the remote as-is; Migrate & Connect first copies this browser\'s data into it.'
-              : 'Connect uses the remote as-is.'}
+              ? 'Enable Sync uses the remote as-is; Upload & Enable first copies this browser\'s existing data into it.'
+              : 'Sync writes to your Turso database in the background; your local copy stays the one you edit.'}
         </span>
       </div>
     </div>
@@ -208,23 +209,23 @@ export function DataSection() {
   }, [])
 
   const onTurso = settings?.state === 'turso'
-  const isLocal = settings?.state === 'indexed-db'
   const isApiBuild = storageBackend === 'api'
 
-  const switchToLocal = () => {
-    if (isLocal) return
+  const disableSync = () => {
+    if (!onTurso) return
     switchToIndexedDb()
     window.location.reload()
   }
 
   return (
     <div className="space-y-8">
-      {/* 1. Storage Location */}
+      {/* 1. Local Storage */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Storage Location</h2>
+          <h2 className="text-base font-semibold text-foreground">Local Storage</h2>
           <p className="text-sm text-muted-foreground">
-            Where your notes, results, and workouts are saved. The default is this browser.
+            Your notes, results, and workouts are stored locally in this browser (IndexedDB) — zero
+            latency, works offline, always on.
           </p>
         </div>
 
@@ -242,53 +243,49 @@ export function DataSection() {
               >
                 <AlertCircle className="size-4 mt-0.5 shrink-0" />
                 <div className="space-y-1">
-                  <div className="font-semibold">Saved data settings are invalid; no data location is active</div>
+                  <div className="font-semibold">Turso Sync settings are invalid; sync is off</div>
                   <p className="text-xs text-muted-foreground">
-                    {settings.error} Fix the Turso connection below or select This Browser to use your local copy. Neither copy was deleted.
+                    {settings.error} Fix the connection below or turn off Turso Sync to keep working from
+                    your local copy. Neither copy was deleted.
                   </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      switchToIndexedDb()
+                      window.location.reload()
+                    }}
+                    data-testid="data-settings-invalid-disable"
+                    className="mt-1"
+                  >
+                    Turn off Turso Sync
+                  </Button>
                 </div>
               </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          {/* This browser — default and always available */}
-          <button
-            type="button"
-            aria-pressed={isLocal}
+          {/* This browser — the always-on local store, not a choice */}
+          <div
             data-testid="storage-option-browser"
-            onClick={switchToLocal}
-            className={cn(
-              'relative flex flex-col items-start p-4 rounded-xl border text-left transition-all',
-              isLocal
-                ? 'border-primary ring-2 ring-primary/20 bg-primary/5 text-foreground shadow-xs'
-                : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40',
-            )}
+            className="relative flex flex-col items-start p-4 rounded-xl border border-border bg-card text-left"
           >
             <div className="w-full flex items-center justify-between mb-3">
-              <div className={cn('p-2 rounded-lg', isLocal ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground')}>
+              <div className="p-2 rounded-lg bg-muted text-foreground">
                 <Database className="size-5" />
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                  Default
-                </span>
-                <div className={cn(
-                  'size-4 rounded-full border flex items-center justify-center transition-colors',
-                  isLocal ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40',
-                )}>
-                  {isLocal && <Check className="size-2.5 stroke-[3]" />}
-                </div>
-              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                Always on
+              </span>
             </div>
             <div className="font-semibold text-foreground text-sm">This Browser</div>
             <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Private storage in this browser (IndexedDB). Switching back keeps both copies — nothing is
-              deleted from Turso or from this browser. Changes made while connected stay in the Turso copy
-              and are not pulled into this browser's copy.
+              Private local storage (IndexedDB). Everything is stored locally with zero latency —
+              Turso Sync, when enabled, backs it up to your database in the background.
             </div>
-          </button>
+          </div>
 
-          {/* Turso — active connection status (edit in the form below) */}
+          {/* Turso Sync — status summary (enable/disable below) */}
           <div
             data-testid="storage-option-turso"
             className={cn(
@@ -302,16 +299,20 @@ export function DataSection() {
               <div className={cn('p-2 rounded-lg', onTurso ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground')}>
                 <Database className="size-5" />
               </div>
-              <div className={cn(
-                'size-4 rounded-full border flex items-center justify-center transition-colors',
-                onTurso ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40',
-              )}>
-                {onTurso && <Check className="size-2.5 stroke-[3]" />}
-              </div>
+              <span
+                className={cn(
+                  'text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
+                  onTurso ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {onTurso ? 'Sync on' : 'Sync off'}
+              </span>
             </div>
-            <div className="font-semibold text-foreground text-sm">Turso Database</div>
+            <div className="font-semibold text-foreground text-sm">Turso Sync</div>
             <div className="text-xs text-muted-foreground mt-1 leading-relaxed font-mono break-all">
-              {settings?.state === 'turso' ? settings.url : 'Connect directly to your own Turso database below.'}
+              {settings?.state === 'turso'
+                ? `Backing up to ${settings.url} in the background.`
+                : 'Off — enable below to back up your local data to your own Turso database in the background.'}
             </div>
           </div>
 
@@ -343,20 +344,33 @@ export function DataSection() {
         )}
       </section>
 
-      {/* 2. Turso Connection */}
+      {/* 2. Turso Sync */}
       {!isApiBuild && settings && (
         <section className="space-y-4 pt-4 border-t border-border/50">
           <div>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
               <Database className="size-4 text-primary" />
-              Turso Connection
+              Turso Sync
             </h2>
             <p className="text-sm text-muted-foreground">
               {onTurso
-                ? 'Connected. Update the credentials or switch back to this browser above.'
-                : 'Point Wod Wiki at your own Turso database. The connection is used directly from this browser.'}
+                ? 'Sync is on — your local data is backed up to your Turso database in the background. Update credentials below, or turn sync off.'
+                : 'Turso Sync backs up your local data to your own Turso database in the background. Your data stays local; sync keeps a copy of it in your database.'}
             </p>
           </div>
+
+          {onTurso && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
+              <Button variant="outline" size="sm" onClick={disableSync} data-testid="turso-sync-disable" className="gap-2">
+                <CloudOff className="size-3.5" />
+                <span>Turn off Turso Sync</span>
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Turning off sync keeps everything in this browser. Nothing is deleted from your Turso
+                database.
+              </span>
+            </div>
+          )}
 
           <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
             <TursoConnectForm

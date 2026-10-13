@@ -79,7 +79,7 @@ Do not replace Catalog/Library terminology or rename its existing routes in this
 
 ### Membership questions and proposed answers
 
-Owner: [Decide collection-page membership: WQL segment vs pageId](https://github.com/SergeiGolos/wod-wiki/issues/1031).
+Owner: [Decide collection-page membership: WQL segment vs pageId](https://github.com/bitcobblers/wod-wiki/issues/1031).
 
 - **Live query, stored membership or hybrid?** Recommended answer: live query-derived display. `Note.pageId` remains owned placement, especially journal dates; it does not record all queries that happen to include a note. No membership backfill or second writable list is needed.
 - **Where do non-query segments live?** Recommended answer: ordinary prose/headings/metadata in the configuration note's `rawContent`. Do not add `Page.body`, duplicate category fields, or copy every member's source into the page.

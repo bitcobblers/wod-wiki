@@ -4,13 +4,13 @@
   "private": true,
   "type": "module",
   "description": "WOD Wiki monorepo — Whiteboard Language & WQL engine packages (@bitcobblers/wod-wiki-*), the wod.wiki playground app, and the Storybook workbench.",
-  "homepage": "https://github.com/SergeiGolos/wod-wiki#readme",
+  "homepage": "https://github.com/bitcobblers/wod-wiki#readme",
   "bugs": {
-    "url": "https://github.com/SergeiGolos/wod-wiki/issues"
+    "url": "https://github.com/bitcobblers/wod-wiki/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SergeiGolos/wod-wiki.git"
+    "url": "git+https://github.com/bitcobblers/wod-wiki.git"
   },
   "license": "MIT",
   "packageManager": "bun@1.4.0",

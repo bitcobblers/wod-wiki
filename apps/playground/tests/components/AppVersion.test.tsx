@@ -15,7 +15,7 @@ describe('AppVersion', () => {
     const html = renderToStaticMarkup(<AppVersion version="0.13.211-pr.724" />)
 
     expect(html).toContain('v0.13.211')
-    expect(html).toContain('href="https://github.com/SergeiGolos/wod-wiki/pull/724"')
+    expect(html).toContain('href="https://github.com/bitcobblers/wod-wiki/pull/724"')
     expect(html).toContain('pr.724')
   })
 

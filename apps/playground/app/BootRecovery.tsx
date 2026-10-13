@@ -1,9 +1,10 @@
 /**
- * BootRecovery — the standalone screen rendered when the saved data provider
- * can't be readied at boot (wrong token, unreachable Turso, transport or
- * schema failure). The app proper is not mounted, so this screen carries its
- * own recovery controls: retry, switch to this browser (IndexedDB), and
- * credential repair via the same TursoConnectForm Settings ▸ Data uses.
+ * BootRecovery — the standalone screen rendered when the saved Turso Sync
+ * config can't be readied at boot (wrong token, unreachable Turso, transport
+ * or schema failure). The app proper is not mounted, so this screen carries
+ * its own recovery controls: retry, turn off Turso Sync (keep working from
+ * your local copy), and credential repair via the same TursoConnectForm
+ * Settings ▸ Data uses.
  */
 
 import { readDataSettings, switchToIndexedDb, storageBackend } from '@/services/storage';
@@ -23,7 +24,8 @@ export function BootRecovery({ error, onRetry }: { error: unknown; onRetry: () =
         {message}
       </p>
       <p className="max-w-md text-xs text-muted-foreground">
-        Repair the connection here or switch to this browser; Settings → Data has the full controls once the app loads.
+        Repair the connection below, or turn off Turso Sync and keep working from your local copy.
+        Settings → Data has the full controls once the app loads.
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2">
         <button
@@ -44,7 +46,7 @@ export function BootRecovery({ error, onRetry }: { error: unknown; onRetry: () =
             data-testid="boot-recovery-local"
             className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-accent"
           >
-            Use this browser (IndexedDB)
+            Turn off Turso Sync
           </button>
         )}
       </div>

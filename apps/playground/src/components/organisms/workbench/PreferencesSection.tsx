@@ -142,7 +142,7 @@ export const PreferencesSection: React.FC<PreferencesSectionProps> = ({ provider
         )}
 
         <a
-          href="https://github.com/SergeiGolos/wod-wiki"
+          href="https://github.com/bitcobblers/wod-wiki"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-left"

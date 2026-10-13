@@ -281,9 +281,9 @@ the report records the tested commit, build hash, deploy URL, timestamp, and run
 Failed-test artifacts retain the initial trace, browser console, network, and video.
 
 Quarantines must cite an open issue: unsupported effort actions and the CI
-performance budget are tracked in [#719](https://github.com/SergeiGolos/wod-wiki/issues/719);
-production Chromecast round-trips in [#1067](https://github.com/SergeiGolos/wod-wiki/issues/1067);
-storage-denial bootstrap recovery in [#1068](https://github.com/SergeiGolos/wod-wiki/issues/1068).
+performance budget are tracked in [#719](https://github.com/bitcobblers/wod-wiki/issues/719);
+production Chromecast round-trips in [#1067](https://github.com/bitcobblers/wod-wiki/issues/1067);
+storage-denial bootstrap recovery in [#1068](https://github.com/bitcobblers/wod-wiki/issues/1068).
 Retired routes and widgets are removed from the suite rather than silently skipped.
 
 ---

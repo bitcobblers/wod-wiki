@@ -806,7 +806,8 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
           : {}),
       },
       { id: 'explore', label: 'Explore your analytics', level: 3, action: { type: 'scroll', sectionId: 'tour-section-explore' } },
-      { id: 'offerings', label: 'Run it your way', level: 3, action: { type: 'scroll', sectionId: 'tour-section-offerings' } },
+      { id: 'offerings', label: 'You Own the Data', level: 3, action: { type: 'scroll', sectionId: 'tour-section-offerings' } },
+      { id: 'hosted', label: 'Wod-Wiki Hosted', level: 3, action: { type: 'scroll', sectionId: 'tour-section-hosted' } },
       { id: 'learn', label: 'Learn the Language', level: 3, action: { type: 'scroll', sectionId: 'tour-chapter-picker' } },
     ]
     setL3Items(outline)

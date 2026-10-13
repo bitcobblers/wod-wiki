@@ -592,7 +592,7 @@ _Avoid_: scroll hook, scroll spy (that's reading-zone geometry).
 The engine and query layer decomposes into five packages hosted within the
 `wod-wiki-engine` workspace repository, publishing to the `@wod-wiki/*` npm scope with
 a strict one-way DAG. Companion execution map:
-[Wayfinder map #953](https://github.com/SergeiGolos/wod-wiki/issues/953) (absorbing
+[Wayfinder map #953](https://github.com/bitcobblers/wod-wiki/issues/953) (absorbing
 [`docs/wayfinder/split-into-packages.md`](./docs/wayfinder/split-into-packages.md)).
 
 - **@bitcobblers/wod-wiki-core** — the shared data vocabulary every other package depends on.

@@ -78,7 +78,7 @@ None.
 
 ### Mode and write destinations
 
-Owner: [Define the mode-resolution rule matrix (read-only vs edit)](https://github.com/SergeiGolos/wod-wiki/issues/1028).
+Owner: [Define the mode-resolution rule matrix (read-only vs edit)](https://github.com/bitcobblers/wod-wiki/issues/1028).
 
 **Proposed precedence:** source authority limits writes → selected mode controls authoring → note type supplies defaults → layout places controls. Evaluate authority against the actual owning note, not one permission flag for the whole page.
 
@@ -97,7 +97,7 @@ Owner: [Define the mode-resolution rule matrix (read-only vs edit)](https://gith
 
 ### Syntax and dashboard composition
 
-Owner for syntax: [Resolve syntax pages as typed notes](https://github.com/SergeiGolos/wod-wiki/issues/1033).
+Owner for syntax: [Resolve syntax pages as typed notes](https://github.com/bitcobblers/wod-wiki/issues/1033).
 
 | Question | Proposed answer / remaining feedback |
 |---|---|
@@ -110,7 +110,7 @@ Dashboard notes already use `dashboard: true` and `query` fences with presentati
 
 ### Composition completeness questions
 
-Owner: [Assemble the crosswalk & behavioral spec](https://github.com/SergeiGolos/wod-wiki/issues/1034).
+Owner: [Assemble the crosswalk & behavioral spec](https://github.com/bitcobblers/wod-wiki/issues/1034).
 
 Recommended answer: judge completeness against the datatype contracts, then assemble their links; do not reopen storage design in a second spec. The final acceptance remains human review, not an automatic resolution from these draft answers.
 

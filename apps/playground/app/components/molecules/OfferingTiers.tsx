@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Cloud, GitFork, MonitorSmartphone } from 'lucide-react'
+import { ArrowRight, Database, HardDrive, Server, User, Users } from 'lucide-react'
 import { resetUserData } from '../../services/resetUserData'
 import { ROUTE_PATTERNS, noteByIdPath } from '../../lib/routes'
 import { getTodayDateKey } from '../../services/dateUtils'
@@ -11,7 +11,7 @@ import { TOUR_ACCENTS } from '../../tour/tourConstants'
 
 // ponytail: form is a Google Form — swap for an in-app interest endpoint
 // when the API grows one.
-const REPO_URL = 'https://github.com/SergeiGolos/wod-wiki'
+const REPO_URL = 'https://github.com/bitcobblers/wod-wiki'
 const FORM_URL = 'https://forms.gle/6YHpxwAJh6PAsyAQ6'
 
 const quietLink = 'underline-offset-4 transition-colors hover:text-foreground hover:underline'
@@ -54,65 +54,22 @@ function Bullet({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** Line-rendering timer scene — monochrome token strokes, no fills. */
-function OfferingBanner() {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 1500 170"
-      className="h-40 w-full"
-      preserveAspectRatio="xMidYMax meet"
-      fill="none"
-      strokeLinecap="round"
-    >
-      {/* stopwatch dial */}
-      <g stroke="hsl(var(--muted-foreground))">
-        <circle cx="750" cy="95" r="62" strokeOpacity="0.55" strokeWidth="2" />
-        {Array.from({ length: 12 }, (_, i) => {
-          const a = (i * Math.PI) / 6
-          const x1 = 750 + Math.cos(a) * 54
-          const y1 = 95 + Math.sin(a) * 54
-          const x2 = 750 + Math.cos(a) * 62
-          const y2 = 95 + Math.sin(a) * 62
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeOpacity="0.35" />
-        })}
-        {/* elapsed sweep (accent) + hand */}
-        <path d="M 750 23 A 72 72 0 0 1 812 40" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="4 7" strokeOpacity="0.8" />
-        <line x1="750" y1="95" x2="785" y2="55" stroke="hsl(var(--primary))" strokeWidth="3.5" strokeOpacity="0.9" />
-        <circle cx="750" cy="95" r="4" fill="hsl(var(--primary))" fillOpacity="0.9" stroke="none" />
-        {/* crown + side button */}
-        <rect x="740" y="14" width="20" height="11" rx="3" strokeOpacity="0.55" strokeWidth="2" />
-        <line x1="804" y1="44" x2="816" y2="32" strokeOpacity="0.55" strokeWidth="2" />
-      </g>
-      {/* kettlebell */}
-      <g stroke="hsl(var(--muted-foreground))" strokeOpacity="0.5" strokeWidth="2">
-        <circle cx="200" cy="96" r="26" />
-        <path d="M 184 74 q 16 -26 32 0" />
-      </g>
-      {/* barbell */}
-      <g stroke="hsl(var(--muted-foreground))" strokeOpacity="0.5" strokeWidth="2">
-        <line x1="1230" y1="86" x2="1330" y2="86" />
-        <rect x="1218" y="68" width="14" height="36" rx="5" />
-        <rect x="1328" y="68" width="14" height="36" rx="5" />
-      </g>
-      {/* floor line */}
-      <line x1="140" y1="150" x2="1360" y2="150" stroke="hsl(var(--border))" strokeWidth="2" strokeDasharray="2 10" />
-    </svg>
-  )
-}
-
 function OfferingCard(props: {
-  icon: typeof Cloud
+  icon: typeof Database
   title: string
   text: string
+  badge?: React.ReactNode
   children: React.ReactNode
 }) {
   const Icon = props.icon
   return (
     <article className="flex flex-col rounded-xl border border-border bg-background p-5">
-      <span className="flex size-10 items-center justify-center rounded-lg bg-foreground text-background">
-        <Icon className="size-5" aria-hidden />
-      </span>
+      <div className="flex items-center justify-between">
+        <span className="flex size-10 items-center justify-center rounded-lg bg-foreground text-background">
+          <Icon className="size-5" aria-hidden />
+        </span>
+        {props.badge}
+      </div>
       <h3 className="mt-4 text-base font-semibold text-foreground">{props.title}</h3>
       <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{props.text}</p>
       <div className="mt-4 flex flex-1 flex-col gap-2 text-sm">{props.children}</div>
@@ -139,71 +96,121 @@ export function OfferingTiers() {
   }
 
   return (
-    <section id="tour-section-offerings" data-testid="tour-section-offerings" aria-label="Ways to run Wod Wiki">
-      <TaglineHeader
-        index="06"
-        before="Run it "
-        accentText="your way"
-        after=""
-        accent={TOUR_ACCENTS.library}
-        blurb="One journal, three homes. Keep it in this browser, run the open-source server yourself, or let us host it — pick the custody model that fits."
-      />
+    <>
+      <section id="tour-section-offerings" data-testid="tour-section-offerings" aria-label="You own your data">
+        <TaglineHeader
+          index="06"
+          before="You "
+          accentText="Own the Data"
+          after=""
+          accent={TOUR_ACCENTS.library}
+          blurb="Zero custody — your journal never leaves hardware you control. Run it in this browser, sync it to your own free Turso database, or run the server yourself."
+        />
 
-      <div className="mx-auto w-full max-w-[1500px] 2xl:max-w-[1720px] px-6 pb-16 pt-10 lg:px-12 xl:px-16">
-        <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/30 px-6 pt-3">
-          <OfferingBanner />
+        <div className="mx-auto w-full max-w-[1500px] 2xl:max-w-[1720px] px-6 pb-16 pt-10 lg:px-12 xl:px-16">
+          <div className="mx-auto grid max-w-5xl grid-cols-1 gap-5 md:grid-cols-3">
+              <OfferingCard
+                icon={HardDrive}
+                title="IndexedDB"
+                text="Everything lives in this browser — zero latency, works offline, no account, no server copy."
+              >
+                <CardLink onClick={() => void createJournal()}>Create your journal</CardLink>
+                <CardLink to={ROUTE_PATTERNS.playgroundRoot}>Start Writing in a Playground</CardLink>
+                <CardLink to="/feeds">Explore the feeds</CardLink>
+                <button
+                  type="button"
+                  onClick={clearData}
+                  disabled={clearing}
+                  className={`mt-1 text-left text-xs text-muted-foreground disabled:opacity-50 ${quietLink}`}
+                >
+                  {clearing ? 'Clearing…' : 'Clear my data'}
+                </button>
+              </OfferingCard>
+
+              <OfferingCard
+                icon={Database}
+                title="Turso Sync"
+                text="Sync your local data across browsers and devices with a free database from Turso."
+              >
+                <CardLink to={ROUTE_PATTERNS.settingsDatabase}>Set up Turso Sync</CardLink>
+                <ul className="mt-1 space-y-1.5">
+                  <Bullet>Bring your own free Turso database — URL and auth token.</Bullet>
+                  <Bullet>Your data stays local — sync copies it to your database in the background.</Bullet>
+                </ul>
+              </OfferingCard>
+
+              <OfferingCard
+                icon={Server}
+                title="Self-hosted"
+                badge={
+                  <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[11px] font-medium text-muted-foreground">
+                    Coming soon
+                  </span>
+                }
+                text="Run your own server on SQLite or Postgres — complete control over every byte."
+              >
+                <CardLink href={REPO_URL}>View source</CardLink>
+                <ul className="mt-1 space-y-1.5">
+                  <Bullet>One Bun server backed by a local SQLite file, Turso, or Postgres.</Bullet>
+                  <Bullet>Docker images and CLI recipes coming soon — nerd out on your own infra.</Bullet>
+                </ul>
+              </OfferingCard>
+          </div>
         </div>
+      </section>
 
-        <div className="relative z-10 mx-auto -mt-14 grid max-w-5xl grid-cols-1 gap-5 px-1 md:grid-cols-3">
-          <OfferingCard
-            icon={MonitorSmartphone}
-            title="In this browser"
-            text="Your journal lives on this device — no account, no server copy."
-          >
-            <CardLink onClick={() => void createJournal()}>Create your journal</CardLink>
-            <CardLink to={ROUTE_PATTERNS.playgroundRoot}>Start Writing in a Playground</CardLink>
-            <CardLink to="/feeds">Explore the feeds</CardLink>
-            <button
-              type="button"
-              onClick={clearData}
-              disabled={clearing}
-              className={`mt-1 text-left text-xs text-muted-foreground disabled:opacity-50 ${quietLink}`}
+      <section id="tour-section-hosted" data-testid="tour-section-hosted" aria-label="Wod-Wiki hosted">
+        <TaglineHeader
+          index="07"
+          before="Wod-Wiki "
+          accentText="Hosted"
+          after=""
+          accent={TOUR_ACCENTS.library}
+          blurb="Wod Wiki acts as caretaker — we host and look after your data. Plans are still taking shape; fill out the survey and help shape them."
+        />
+
+        <div className="mx-auto w-full max-w-[1500px] 2xl:max-w-[1720px] px-6 pb-16 pt-10 lg:px-12 xl:px-16">
+          <div className="mx-auto grid max-w-5xl grid-cols-1 gap-5 md:grid-cols-2">
+            <OfferingCard
+              icon={User}
+              title="Individuals"
+              text="For people who don't want dev-level configuration — we host the database for you and keep every device in sync."
             >
-              {clearing ? 'Clearing…' : 'Clear my data'}
-            </button>
-          </OfferingCard>
+              <ul className="space-y-1.5">
+                <Bullet>Managed hosting — we run the database; you just sign in.</Bullet>
+                <Bullet>Profile page with a public feed.</Bullet>
+                <Bullet>Sync across your apps and devices.</Bullet>
+              </ul>
+              <div className="mt-auto pt-3">
+                <CardLink href={FORM_URL}>Fill out interest survey</CardLink>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Takes two minutes — tell us what you'd like in a hosted personal account.
+                </span>
+              </div>
+            </OfferingCard>
 
-          <OfferingCard
-            icon={GitFork}
-            title="Self-hosted"
-            text="Open source — run your own copy on your own infrastructure."
-          >
-            <CardLink href={REPO_URL}>View source</CardLink>
-            <span className="text-xs leading-5 text-muted-foreground">
-              One Bun server backed by a local SQLite file, Turso, or Postgres — run it yourself, keep every byte.
-            </span>
-          </OfferingCard>
-
-          <OfferingCard
-            icon={Cloud}
-            title="Hosted by wod.wiki"
-            text="We run it for you as custodians — your data stays yours. Plans are still taking shape."
-          >
-            <ul className="space-y-1.5">
-              <Bullet>Safe cloud storage and a personal page URL with a public feed.</Bullet>
-              <Bullet>Website hosting for your gym.</Bullet>
-              <Bullet>Coaches portal — aggregate athlete data, dashboards, competition timers.</Bullet>
-              <Bullet>Athlete portal — private journals that roll up to their coach.</Bullet>
-            </ul>
-            <div className="mt-auto pt-2">
-              <CardLink href={FORM_URL}>Answer the questionnaire</CardLink>
-              <span className="mt-1 block text-xs text-muted-foreground">
-                Two minutes — same form for athletes, gyms, and coaches.
-              </span>
-            </div>
-          </OfferingCard>
+            <OfferingCard
+              icon={Users}
+              title="Coaching & gyms"
+              text="For gyms and coaches — member accounts, coach views, and your brand on the surface."
+            >
+              <ul className="space-y-1.5">
+                <Bullet>Member accounts with coach views of athlete data.</Bullet>
+                <Bullet>Coaches portal — programming dashboards and leaderboards.</Bullet>
+                <Bullet>Athlete portal — private journals that roll up to their coach.</Bullet>
+                <Bullet>Gym website hosting, competition timers, and whiteboard displays.</Bullet>
+                <Bullet>Website branding — your gym's brand on pages and feeds.</Bullet>
+              </ul>
+              <div className="mt-auto pt-3">
+                <CardLink href={FORM_URL}>Fill out interest survey</CardLink>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Takes two minutes — help shape our coaching and gym features.
+                </span>
+              </div>
+            </OfferingCard>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </>
   )
 }
