@@ -25,8 +25,10 @@ function injectGtag(): void {
   injected = true;
 
   window.dataLayer = window.dataLayer ?? [];
-  window.gtag = (...args: unknown[]) => {
-    window.dataLayer!.push(args);
+  // ponytail: gtag.js requires an Arguments object (Pb check). Pushing a JS Array drops events silently.
+  window.gtag = function () {
+    // eslint-disable-next-line prefer-rest-params
+    window.dataLayer!.push(arguments);
   };
 
   const script = document.createElement('script');
