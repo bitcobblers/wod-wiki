@@ -162,7 +162,7 @@ Packs override; they never replace the base grammar and default analytics.
 
 ## `wod` CLI
 
-The engine CLI exposes the pipeline for scripts, tests, and self-hosting. `bun install` builds the CLI in `packages/engine`; invoke it from the repository root with `bun run wod …` or `./node_modules/.bin/wod …`.
+The engine CLI exposes the pipeline for scripts, tests, and self-hosting. Install globally with `bun add --global @bitcobblers/wod-wiki-engine`, or run `bun install && bun run build:cli` in a checkout. The distribution includes the shared API handler and both prebuilt hosting apps; global use needs no checkout or build tools.
 
 ```bash
 # Prepare the configured database (idempotent; preserves notes/metrics)
@@ -179,7 +179,7 @@ bun run wod query "sum:rep{} by {effort}"
 bun run wod query "sum:rep{} by {effort}" --corpus dataset.json
 
 # Serve the app + API over the configured database (Bun; requires init)
-bun run wod serve --db ./wodwiki.db
+bun run wod server --db ./wodwiki.db
 
 # Serve the browser-local (IndexedDB) static app — no backend, no database
 bun run wod playground
@@ -188,6 +188,6 @@ bun run wod playground
 bun run wod reset --db ./wodwiki.db
 ```
 
-One configuration seam backs every database-backed subcommand (`packages/engine/src/cli/config.ts`): flags beat the process environment, which beats `.env` (working directory first, then the workspace root; `--env-file <path>` requires that exact file). `--db` always selects local SQLite, even when the environment names a remote backend; `--db-driver sqlite|postgres|turso` with `--database-url`, `--postgres-*`, or `--turso-url`/`--turso-auth-token` selects a backend explicitly. Hosting subcommands (`serve`, `playground`) add `--host`/`--port`/`--dist` (loopback `:3000` default), require the Bun runtime and a repository checkout — the npm package ships the pipeline but not the website assets — and build the frontend on demand on first launch. `wod serve` refuses an uninitialized database; PostgreSQL uses Bun's built-in driver, while Node.js runs the SQLite and Turso subcommands. Corresponding variables: `WOD_WIKI_DB`/`SQLITE_PATH`, `DB_DRIVER`, `DATABASE_URL`, `POSTGRES_HOST`/`_PORT`/`_USER`/`_PASSWORD`/`_DATABASE`/`_SSL`, `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`/`LIBSQL_AUTH_TOKEN`, and `HOST`/`PORT`/`PLAYGROUND_DIST`.
+Every database-backed subcommand uses `packages/engine/src/cli/config.ts`: flags beat the process environment, which beats `.env`. `--db` selects local SQLite even when the environment names a remote backend. `--db-driver`, `--database-url`, `--postgres-*`, and `--turso-*` select remote backends. `wod server` (also `wod serve`) and `wod playground` require Bun and load their packaged frontend relative to the installed module. They never build at startup. `--host`, `--port`, and `--dist` override hosting defaults; custom frontend paths, database paths, and environment files are working-directory relative. `server` requires an initialized database; `playground` never opens one. The shared handler lives at `packages/engine/src/server/app.ts` and is exported as `@bitcobblers/wod-wiki-engine/server` for `apps/api`.
 
 See [`overview.md`](./overview.md) and the engine package READMEs for more.

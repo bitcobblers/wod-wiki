@@ -25,6 +25,8 @@ bun run check:storybook-deps  # Verify Storybook packages stay dev-only
 bun run docs:check       # Validate documentation links (<1 second)
 ```
 
+`bun run build:cli` builds packages and bundles both hosting apps into the engine distribution. Use it before packaging or running `wod server`/`wod playground` from a checkout. Hosting never builds assets at startup. The shared HTTP handler lives in `packages/engine/src/server/app.ts`; `apps/api` consumes the engine's `/server` export. After building, `bun packages/engine/tests/cli-extension-check.ts` checks relocated hosting and database persistence outside the checkout.
+
 ## Build/Lint/Test Commands
 
 ### Unit Tests (src/)

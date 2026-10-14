@@ -10,12 +10,12 @@ WOD Wiki is a TypeScript monorepo toolkit for parsing, executing, and analyzing 
 
 ## Getting started
 
-WOD Wiki has two hosting levels. Both run the same playground application; the difference is where your data lives. A container runs server mode, not a third storage mode. The `wod` CLI is the repository's self-hosting path: `wod init` prepares a database, then `wod serve` or `wod playground` hosts either level from built assets ([self-host with the `wod` CLI](#self-host-with-the-wod-cli)).
+WOD Wiki has two hosting levels. Both run the same playground application; the difference is where your data lives. A container runs server mode, not a third storage mode. The globally installed `wod` CLI includes both apps: `wod init` prepares a database, then `wod server` or `wod playground` hosts either level ([self-host with the `wod` CLI](#self-host-with-the-wod-cli)).
 
 | Hosting level | Data storage | How to run it |
 |---|---|---|
 | Playground | IndexedDB by default, or direct browser-to-Turso. No WOD Wiki API server required. | [Bun playground](#run-the-playground-with-bun) or `wod playground` |
-| Server | SQL behind the Bun API. Browsers connecting to the same server use the same backend data. | [Bun server](#run-the-server-with-bun), [`wod serve`](#self-host-with-the-wod-cli), or [container](#run-the-server-in-a-container) |
+| Server | SQL behind the Bun API. Browsers connecting to the same server use the same backend data. | [Bun server](#run-the-server-with-bun), [`wod server`](#self-host-with-the-wod-cli), or [container](#run-the-server-in-a-container) |
 
 Choose Playground for browser-local use or your own Turso database. Choose Server to use SQLite, Turso, or PostgreSQL through the WOD Wiki API. Settings > Storage can migrate IndexedDB to an empty Turso database; changing hosting levels does not migrate data to the server.
 
@@ -38,17 +38,19 @@ The URL and token stay in this browser's localStorage. Same-origin scripts can r
 
 ### Self-host with the `wod` CLI
 
-`bun install` builds the `wod` CLI from [`packages/engine`](./packages/engine/). Invoke it from the repository root with `bun run wod …`; its package binary is also available at `node_modules/.bin/wod`. Hosting requires a checkout because the published package does not include the website assets or API server. `serve` and `playground` require Bun; the other subcommands also run under Node.js for SQLite and Turso.
+Install [Bun](https://bun.sh/) v1.4 or newer, then install the CLI globally. The package includes the API and prebuilt website, so no checkout, frontend build, or development dependencies are needed. The executable requires Bun even when installed through another package manager.
 
 ```bash
-bun install
-bun run wod init --db ./data/wodwiki.db    # create the SQLite file + schema
-bun run wod serve --db ./data/wodwiki.db   # app + API at http://127.0.0.1:3000
+bun add --global @bitcobblers/wod-wiki-engine
+wod init --db ./data/wodwiki.db    # create the SQLite file + schema
+wod server --db ./data/wodwiki.db  # app + API at http://127.0.0.1:3000
 ```
 
 `wod init` prepares the configured database and is idempotent — re-running it preserves existing notes and metrics. It creates the SQLite file and schema; for PostgreSQL it creates the target database when your role is authorized to and otherwise initializes an existing one; for Turso it installs the schema into a database you have already provisioned.
 
-`wod serve` requires `wod init` first and refuses to create or silently initialize a database. On first launch it builds the frontend on demand (`apps/playground/dist-api`), then serves the same app + API stack as `bun run server` from one origin. `wod playground` serves the same app as a static build backed by browser IndexedDB — no backend, no database. It builds `apps/playground/dist` on demand unless `--dist` names an existing build. `bun run playground` remains the Vite dev server with hot reload for development. Hosting binds to loopback `127.0.0.1:3000` by default; override with `--host`/`--port`.
+`wod server` requires `wod init` first and refuses to create or silently initialize a database. It serves the packaged app and API from one origin. `wod serve` is an equivalent spelling. `wod playground` serves the packaged IndexedDB-backed app without opening a database. Neither command builds or downloads assets at startup. `--dist` or `PLAYGROUND_DIST` selects an existing custom frontend, resolved relative to the working directory. Hosting binds to `127.0.0.1:3000` by default; override with `--host`/`--port`. Database paths and `.env` are relative to where you run `wod`, not the installation directory.
+
+For a checkout, run `bun install && bun run build:cli` to build the CLI and both hosting apps, then use `bun run wod server`. `bun run playground` remains the Vite development server with hot reload.
 
 The served API is a [trusted single-user deployment without authentication](#before-exposing-a-server): keep it on loopback and add access control before exposing it.
 
@@ -260,6 +262,7 @@ Full map: [`docs/architecture/overview.md`](./docs/architecture/overview.md).
 | Command | Action |
 |---|---|
 | `bun run build:packages` | Builds ESM/CJS bundles and declaration files for all packages in `packages/*` |
+| `bun run build:cli` | Builds packages and stages both prebuilt hosting apps into the engine distribution |
 | `bun run playground` | Builds packages, runs linter, and starts Vite dev server (`http://localhost:5173`) |
 | `bun run storybook` | Starts Storybook workbench (`http://localhost:6006`) |
 | `bun run test` | Runs all test suites: packages (Vitest) + playground (Bun) + storybook + seed |
@@ -273,7 +276,7 @@ Full map: [`docs/architecture/overview.md`](./docs/architecture/overview.md).
 | `bun run server` | Builds packages + API SPA (`dist-api`) and starts the Bun API server |
 | `bun run start:server` | Starts the API server from an existing build |
 | `bun run build:server` | Builds packages + API SPA only (no server launch) |
-| `bun run wod` | Runs the `wod` CLI provisioned by `bun install`: `init`, `serve`, `playground`, `parse`, `run`, `query`, `reset`, … |
+| `bun run wod` | Runs the `wod` CLI: `init`, `server`, `playground`, `parse`, `run`, `query`, `reset`, … |
 | `bun run docker` | Builds and starts the Docker Compose server stack |
 | `bun run check:server` | Runs the assert-based API check suite (`apps/api/check.ts`) |
 | `bun run typecheck:server` | Type checks `apps/api` |

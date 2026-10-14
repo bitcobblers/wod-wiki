@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase } from '@bitcobblers/wod-wiki-storage/sql/node';
 import { initializeStore, initializeDomain } from '@bitcobblers/wod-wiki-storage/sql';
-import { createHandler } from './src/app';
+import { createHandler } from '@bitcobblers/wod-wiki-engine/server';
 import { ApiStorage, type Note, type BlockRevision, type BlockIndexRow, type Session } from '@bitcobblers/wod-wiki-storage';
 
 const driver = process.env.DB_DRIVER;

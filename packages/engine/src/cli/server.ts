@@ -1,12 +1,13 @@
 /**
- * server.ts — `wod serve` / `wod playground` (Bun-only front door).
+ * server.ts — `wod server` (alias `serve`) / `wod playground` (Bun-only front
+ * door).
  *
- * Reuses the REAL server stack from the repository checkout: the apps/api
- * fetch handler (same code the Docker image serves) plus a real frontend
- * build. Outside a checkout the command reports honestly that a checkout is
- * required — no placeholder UI.
+ * Serves the packaged engine stack: the shared fetch handler shipped in this
+ * package (the same code the Docker image serves) plus the frontend build
+ * packaged under the engine's dist/web/ — no repository checkout, no runtime
+ * build.
  *
- * serve       probes the configured database first (never creates schema —
+ * server      probes the configured database first (never creates schema —
  *             that's `wod init`), then serves API + SPA.
  * playground  serves the browser-storage SPA build and never opens a database
  *             (every /api request answers 404).
@@ -18,12 +19,14 @@
 import { openCliDb, nodeFs, nodePath } from './db';
 import type { CliDatabaseConfig } from './config';
 import type { CliDb } from './db';
-import type { Database } from '@bitcobblers/wod-wiki-storage/sql';
+import type * as HttpServer from '../server/app';
 
 type WriteOut = (text: string) => void;
 
+export type CliServerMode = 'server' | 'playground';
+
 export interface CliServerOptions {
-  /** Resolved database configuration. REQUIRED for 'serve'; ignored — never
+  /** Resolved database configuration. REQUIRED for 'server'; ignored — never
    * opened or validated — for 'playground'. */
   database?: CliDatabaseConfig;
   host?: string;
@@ -36,112 +39,83 @@ export interface CliServerOptions {
 
 interface BunServerLike { stop(): Promise<void> }
 interface BunGlobalLike { serve(options: { port: number; hostname: string; fetch: (request: Request) => Promise<Response> }): BunServerLike }
-interface CreateHandler {
-  (db: Database | null, options: { playgroundDist: string }): (request: Request) => Promise<Response>;
-}
-/** Narrow spawnSync surface — CJS require results are untyped. */
-interface SpawnSyncLike {
-  (cmd: string, args: string[], opts: { cwd: string; stdio: 'inherit' }): { status: number | null };
-}
-
-/** Lazy CJS require — keeps node builtins out of browser bundles. */
-function serverRequire(): (id: string) => unknown {
-  const g = globalThis as { require?: (id: string) => unknown };
-  const req = g.require ?? (typeof require === 'function' ? require : undefined);
-  if (!req) throw new Error('wod serve/playground requires a CJS require shim (missing tsup banner?)');
-  return req;
-}
 
 function bun(): BunGlobalLike {
   // Bun-specific global, absent from the ambient TS lib shapes on purpose
   // (engine stays Node-compilable); the access chain is proven at runtime.
   const b = (globalThis as { Bun?: BunGlobalLike }).Bun;
   if (!b) {
-    throw new Error('wod serve/playground requires the Bun runtime — start with: bun wod serve');
+    throw new Error('wod server/playground requires the Bun runtime — start with: bun wod server');
   }
   return b;
 }
 
-/** The checkout marker: real API handler sources plus the SPA workspace. */
-function isRepoRoot(dir: string): boolean {
+/**
+ * This module's directory, robust across shipped layouts: ESM via
+ * import.meta.url (works under node and Bun; esbuild shims it in CJS too) and
+ * Bun's import.meta.dir. ESM code splitting may relocate this module to a
+ * chunk at dist/ root, so never assume dist/cli.
+ */
+function moduleDir(): string {
+  const p = nodePath();
+  const meta: { dir?: unknown; url?: unknown } = import.meta; // Bun adds `dir`; the TS lib knows neither.
+  if (typeof meta.dir === 'string') return p.resolve(meta.dir);
+  if (typeof meta.url === 'string' && meta.url.startsWith('file:')) {
+    return p.resolve(p.dirname(decodeURIComponent(new URL('.', meta.url).pathname)));
+  }
+  throw new Error('wod server/playground: cannot determine the installed engine module directory');
+}
+
+/**
+ * The installed engine package root: nearest enclosing package.json belonging
+ * to this package, walking up from the executing module (dist/cli, a split
+ * chunk at dist/ root, dist/bin, or src/cli in a checkout).
+ */
+function engineRoot(): string {
+  const p = nodePath();
   const fs = nodeFs();
-  const p = nodePath();
-  return fs.existsSync(p.resolve(dir, 'apps/api/src/app.ts'))
-    && fs.existsSync(p.resolve(dir, 'apps/playground/package.json'));
+  for (let dir = moduleDir(); ; dir = p.dirname(dir)) {
+    try {
+      if (JSON.parse(fs.readFileSync(p.resolve(dir, 'package.json'), 'utf8')).name === '@bitcobblers/wod-wiki-engine') return dir;
+    } catch { /* no manifest here — keep walking */ }
+    const parent = p.dirname(dir);
+    if (parent === dir) break;
+  }
+  throw new Error('wod server/playground: cannot locate the installed @bitcobblers/wod-wiki-engine package');
 }
 
 /**
- * Locate the repository checkout by walking up from this module's directory
- * (works for src and built dist layouts) and then the process cwd.
+ * Resolve the frontend dist directory. The packaged default lives inside the
+ * installed engine module (dist/web/server or dist/web/playground); an
+ * explicit --dist/PLAYGROUND_DIST is cwd-relative and must already contain a
+ * built SPA (index.html). Nothing is built at runtime.
  */
-function findRepoRoot(): string {
+function resolveDist(mode: CliServerMode, options: CliServerOptions): string {
   const p = nodePath();
-  const starts: string[] = [p.resolve()];
-  const meta = import.meta; // Bun adds `dir`; the TS lib only knows `url`.
-  if ('dir' in meta && typeof meta.dir === 'string') {
-    starts.push(p.resolve(meta.dir));
-  } else if (typeof meta.url === 'string') {
-    starts.push(p.resolve(p.dirname(decodeURIComponent(new URL('.', meta.url).pathname))));
-  }
-  for (const start of starts) {
-    for (let dir = p.resolve(start); ; dir = p.dirname(dir)) {
-      if (isRepoRoot(dir)) return dir;
-      const parent = p.dirname(dir);
-      if (parent === dir) break;
-    }
-  }
-  throw new Error(
-    'wod serve/playground need a wod-wiki repository checkout (apps/api + apps/playground with frontend sources). '
-    + 'The published package ships neither the server sources nor the website assets — run from a checkout: '
-    + 'git clone https://github.com/bitcobblers/wod-wiki && cd wod-wiki && bun install && bun wod serve',
-  );
-}
-
-/** Build the matching SPA via the playground workspace's own script. */
-function buildSpa(repoRoot: string, mode: 'serve' | 'playground', writeOut: WriteOut): void {
-  const script = mode === 'serve' ? 'build:api' : 'build';
-  const { spawnSync } = serverRequire()('node:child_process') as { spawnSync: SpawnSyncLike };
-  writeOut(`wod ${mode}: frontend build missing — running bun run --filter @bitcobblers/wod-wiki-playground ${script} …`);
-  const res = spawnSync(process.execPath, ['run', '--filter', '@bitcobblers/wod-wiki-playground', script], {
-    cwd: repoRoot,
-    stdio: 'inherit',
-  });
-  if (res.status !== 0) {
-    throw new Error(
-      `wod ${mode}: frontend build failed (exit ${res.status}). Build it manually: `
-      + `bun run --filter @bitcobblers/wod-wiki-playground ${script}`,
-    );
-  }
-}
-
-/**
- * Resolve the dist directory. An explicit --dist/PLAYGROUND_DIST must already
- * contain a built SPA (index.html); the per-mode default is built on demand.
- */
-function resolveDist(repoRoot: string, mode: 'serve' | 'playground', options: CliServerOptions, writeOut: WriteOut): string {
-  const p = nodePath();
-  const script = mode === 'serve' ? 'build:api' : 'build';
-  const isBuilt = (dir: string): boolean => nodeFs().existsSync(p.resolve(dir, 'index.html'));
   const explicit = options.dist?.trim() || options.env.PLAYGROUND_DIST?.trim() || undefined;
-  const dist = explicit
-    ? p.resolve(explicit)
-    : p.resolve(repoRoot, mode === 'serve' ? 'apps/playground/dist-api' : 'apps/playground/dist');
-  if (isBuilt(dist)) return dist;
   if (explicit) {
-    throw new Error(
-      `wod ${mode}: no built SPA (index.html) at ${dist} — build it `
-      + `(bun run --filter @bitcobblers/wod-wiki-playground ${script}) or drop --dist/PLAYGROUND_DIST`,
-    );
+    const dist = p.resolve(explicit); // cwd-relative override
+    if (!nodeFs().existsSync(p.resolve(dist, 'index.html'))) {
+      throw new Error(
+        `wod ${mode}: no built frontend (index.html) at ${dist} — --dist/PLAYGROUND_DIST must `
+        + 'point at an already-built directory (the CLI never builds frontends at runtime)',
+      );
+    }
+    return dist;
   }
-  buildSpa(repoRoot, mode, writeOut);
-  if (!isBuilt(dist)) {
-    throw new Error(`wod ${mode}: dist still missing after build: ${dist}`);
+  const dist = p.resolve(engineRoot(), 'dist', 'web', mode === 'playground' ? 'playground' : 'server');
+  if (!nodeFs().existsSync(p.resolve(dist, 'index.html'))) {
+    throw new Error(
+      `wod ${mode}: packaged frontend missing — expected ${dist}/index.html. `
+      + 'Reinstall @bitcobblers/wod-wiki-engine (bun add @bitcobblers/wod-wiki-engine), '
+      + 'or rebuild the release assets from a checkout (bun run build:cli) and reinstall the package.',
+    );
   }
   return dist;
 }
 
 /** Validate bind address first: flag > HOST/PORT env > loopback:3000. */
-function resolveBind(mode: 'serve' | 'playground', options: CliServerOptions): { host: string; port: number } {
+function resolveBind(mode: CliServerMode, options: CliServerOptions): { host: string; port: number } {
   const host = options.host?.trim() || options.env.HOST?.trim() || '127.0.0.1';
   const rawPort = options.port?.trim() || options.env.PORT?.trim() || '3000';
   const port = Number(rawPort);
@@ -151,61 +125,49 @@ function resolveBind(mode: 'serve' | 'playground', options: CliServerOptions): {
   return { host, port };
 }
 
-// A static import is impossible: the handler lives in apps/api inside the
-// checkout, a path discovered only at runtime (the engine never depends on
-// apps/api at build time). Bun resolves plain absolute paths in import();
-// non-Bun runtimes already failed the bun() guard before this runs.
-async function importCreateHandler(repoRoot: string): Promise<CreateHandler> {
-  const appPath = nodePath().resolve(repoRoot, 'apps/api/src/app.ts');
-  const mod = (await import(appPath)) as { createHandler?: CreateHandler };
-  if (typeof mod.createHandler !== 'function') {
-    throw new Error(`wod serve: apps/api handler not found at ${appPath}`);
-  }
-  return mod.createHandler;
-}
-
 /**
- * Start the shared server for `wod serve` / `wod playground`. Throws on any
+ * Start the shared server for `wod server` / `wod playground`. Throws on any
  * startup failure; on success it never returns until SIGINT/SIGTERM (drain,
  * close database, exit 0).
  */
 export async function runCliServer(
-  mode: 'serve' | 'playground',
+  mode: CliServerMode,
   options: CliServerOptions,
   writeOut: WriteOut,
 ): Promise<void> {
   const runtime = bun(); // Fail before any side effect when not under Bun.
-  const repoRoot = findRepoRoot();
   const { host, port } = resolveBind(mode, options); // Validate bind before opening anything.
 
-  // Serve probes the database BEFORE building the SPA or binding a socket:
-  // a missing/uninitialized database refuses with `wod init` guidance.
+  // Server probes the database BEFORE binding a socket: a missing/uninitialized
+  // database refuses with `wod init` guidance.
   let db: CliDb | undefined;
   let dbLabel = 'no database';
-  if (mode === 'serve') {
+  if (mode === 'server') {
     const database = options.database; // hoisted so the guard's narrowing sticks
     if (!database) {
-      throw new Error('wod serve: no database configuration resolved — this is a runner bug (expected resolveDatabaseConfig output)');
+      throw new Error('wod server: no database configuration resolved — this is a runner bug (expected resolveDatabaseConfig output)');
     }
     try {
       db = await openCliDb(database, { initialize: false });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      throw new Error(`wod serve: database not ready — run \`wod init\` first. ${message}`, { cause: e });
+      throw new Error(`wod server: database not ready — run \`wod init\` first. ${message}`, { cause: e });
     }
     dbLabel = db.path;
   }
 
   let server: BunServerLike;
   try {
-    const dist = resolveDist(repoRoot, mode, options, writeOut);
-    const createHandler = await importCreateHandler(repoRoot);
+    const dist = resolveDist(mode, options);
+    // Static imports pull Bun-only filesystem APIs into the browser engine graph.
+    const handlerModule = '@bitcobblers/wod-wiki-engine/server';
+    const { createHandler } = await import(/* @vite-ignore */ handlerModule) as typeof HttpServer;
     // Playground: no database exists to close — createHandler(null) answers
     // every /api request with 404 and serves the browser-storage build.
     const handler = createHandler(db?.db ?? null, { playgroundDist: dist });
     server = runtime.serve({ port, hostname: host, fetch: handler });
-    if (mode === 'serve') {
-      writeOut(`wod serve: http://${host}:${port} — ${dbLabel} · dist ${dist}`);
+    if (mode === 'server') {
+      writeOut(`wod server: http://${host}:${port} — ${dbLabel} · dist ${dist}`);
     } else {
       writeOut(`wod playground: http://${host}:${port} — in-browser storage (no database) · dist ${dist}`);
     }

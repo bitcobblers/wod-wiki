@@ -74,7 +74,7 @@ export function cliNoteSource(source: string, label: string, sport?: string): st
 }
 
 export interface CliParsedArgs {
-  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'import' | 'build' | 'seed' | 'reset' | 'init' | 'serve' | 'playground' | 'help' | 'version';
+  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'import' | 'build' | 'seed' | 'reset' | 'init' | 'server' | 'serve' | 'playground' | 'help' | 'version';
   target?: string;
   /** Second positional: the id (download) or file (import) after the kind. */
   target2?: string;
@@ -105,7 +105,7 @@ export interface CliParsedArgs {
   tursoAuthToken?: string;
   /** Explicit environment file (--env-file); a missing file is an error. */
   envFile?: string;
-  /** Hosting bind address/port and prebuilt frontend directory (serve/playground). */
+  /** Hosting bind address/port and prebuilt frontend directory (server/playground). */
   host?: string;
   port?: string;
   dist?: string;
@@ -279,7 +279,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       result.dir = arg.slice('--dir='.length);
       i++;
     } else if (!result.subcommand) {
-      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'import' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'serve' || arg === 'playground' || arg === 'help' || arg === 'version') {
+      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'import' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'help' || arg === 'version') {
         result.subcommand = arg;
       } else {
         result.target = arg;
@@ -356,7 +356,8 @@ USAGE:
   wod seed [options]
   wod reset [options]
   wod init            Initialize the configured database (idempotent)
-  wod serve [options] Serve the app (HTTP API + static frontend dist)
+  wod server [options]
+                      Serve the app (HTTP API + packaged frontend; alias: serve)
   wod playground [options]
                       Serve the local playground (browser IndexedDB build)
 
@@ -412,13 +413,13 @@ INPUT SOURCING (for 'query'; without these, the database is queried):
   --stdin-log         Read kind: 'execution-log' JSON payload from stdin
   --stdin-facts       Read raw kind: 'fact-set' JSON payload from stdin
 
-DATABASE (init / parse / run / query / download / import / seed / reset / serve):
+DATABASE (init / parse / run / query / download / import / seed / reset / server):
   Pick one backend; explicit flags win over the process environment, the
   process environment wins over .env files. Run 'wod init' once first: it
   creates the SQLite file + schema, creates the PostgreSQL database when
   your role is authorized to (otherwise use an existing/provisioned one),
   or installs the schema in your provisioned Turso database — idempotently,
-  preserving existing notes. 'wod serve' refuses an uninitialized database.
+  preserving existing notes. 'wod server' refuses an uninitialized database.
   --db <path>                Local SQLite database file (default: $WOD_WIKI_DB
                       or ./wodwiki.db). Passing --db always selects SQLite,
                       even when the environment names a remote backend.
@@ -442,16 +443,17 @@ DATABASE (init / parse / run / query / download / import / seed / reset / serve)
                       an error. Without it: ./.env when present, otherwise
                       the workspace-root .env. Credentials are never logged.
 
-HOSTING (for 'serve' / 'playground'; requires the Bun runtime):
-  serve                HTTP API over the configured database plus the app's
-                       static dist. Requires an initialized database.
+HOSTING (for 'server' / 'playground'; requires the Bun runtime):
+  server               HTTP API over the configured database plus the frontend
+                       packaged inside the engine module. Requires an
+                       initialized database. ('serve' is an accepted alias.)
   playground           Serves the playground app backed by browser IndexedDB;
                        the configured database is not touched.
   --host <host>        Bind address (default 127.0.0.1, $HOST)
   --port <port>        TCP port (default 3000, $PORT)
-  --dist <dir>         Serve this prebuilt frontend directory instead of
-                       building it on demand ($PLAYGROUND_DIST); an explicit
-                       but missing directory is an error.
+  --dist <dir>         Serve this prebuilt frontend directory instead of the
+                       packaged one ($PLAYGROUND_DIST); must already contain
+                       index.html.
 
 SEED SOURCING (for 'seed'):
   --source <dir>      Extra compiled seed directory (manifest.json + chunks);
@@ -478,7 +480,7 @@ ENVIRONMENT (flags > process env > .env):
   POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER,
   POSTGRES_PASSWORD, POSTGRES_DATABASE, POSTGRES_SSL
   TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, LIBSQL_AUTH_TOKEN
-  HOST, PORT, PLAYGROUND_DIST       serve / playground defaults
+  HOST, PORT, PLAYGROUND_DIST       server / playground defaults
 
 EXIT CODES:
   0 - OK / Success
@@ -990,23 +992,25 @@ export async function cliMain(
       return 0;
     }
 
-    if (parsed.subcommand === 'serve' || parsed.subcommand === 'playground') {
+    if (parsed.subcommand === 'server' || parsed.subcommand === 'serve' || parsed.subcommand === 'playground') {
       // Hosting needs Bun (Bun.serve; lazy Bun.SQL for PostgreSQL) — fail fast under Node.
       if (!('Bun' in globalThis)) {
         writeErr(
           `[wod ${parsed.subcommand}] Error: hosting requires the Bun runtime ` +
-          '(https://bun.sh) — run `bun wod serve` / `bun wod playground`.',
+          '(https://bun.sh) — run `bun wod server` / `bun wod playground`.',
         );
         return 1;
       }
+      // 'server' is canonical; 'serve' is an accepted alias for the same branch.
+      const mode = parsed.subcommand === 'playground' ? 'playground' as const : 'server' as const;
       // Lazy import: Bun-only server module must stay out of Node/browser graphs.
       const { runCliServer } = await import('./server');
       const options: CliServerOptions = { env: cliEnv() };
-      if (parsed.subcommand === 'serve') options.database = cliDb();
+      if (mode === 'server') options.database = cliDb();
       if (parsed.host !== undefined) options.host = parsed.host;
       if (parsed.port !== undefined) options.port = parsed.port;
       if (parsed.dist !== undefined) options.dist = parsed.dist;
-      await runCliServer(parsed.subcommand, options, writeOut);
+      await runCliServer(mode, options, writeOut);
       return 0;
     }
 

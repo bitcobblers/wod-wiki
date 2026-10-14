@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { openDatabase } from '@bitcobblers/wod-wiki-storage/sql/node';
 import { initializeStore, initializeDomain } from '@bitcobblers/wod-wiki-storage/sql';
-import { createHandler } from './app';
+import { createHandler } from '@bitcobblers/wod-wiki-engine/server';
 
 const env = (key: string): string | undefined => process.env[key]?.trim() || undefined;
 const port = Number(env('PORT') ?? '3000');
