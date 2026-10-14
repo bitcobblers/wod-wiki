@@ -66,6 +66,9 @@ const ReceiverApp: React.FC<{
     // Was undeclared prior to Finding 05 Step 1 — caused a device-only
     // ReferenceError on real Chromecast hardware.
     const bootTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastModeRef = useRef<string | null>(null);
+    const lastTitleRef = useRef<string | undefined>(undefined);
+    const modeStartRef = useRef<number>(Date.now());
 
     // Persistent signaling instance (lives for the life of the Receiver app)
     const signalingRef = useRef<ReceiverCastSignaling | null>(null);
@@ -179,6 +182,90 @@ const ReceiverApp: React.FC<{
             setFocusedId('btn-dismiss');
         }
     }, [workbenchState.mode, workbenchState.previewData, setFocusedId]);
+    // Track receiver mode changes (browsing, timer, showing results) and durations in GA4
+    useEffect(() => {
+        const currentMode = workbenchState.mode;
+        const currentTitle = workbenchState.previewData?.title;
+
+        if (lastModeRef.current === currentMode && lastTitleRef.current === currentTitle) {
+            return;
+        }
+
+        const now = Date.now();
+        const prevMode = lastModeRef.current;
+        const durationMs = now - modeStartRef.current;
+
+        const modeCategory: Record<string, string> = {
+            preview: 'browsing',
+            active: 'timer',
+            review: 'showing_results',
+            idle: 'idle',
+        };
+
+        if (prevMode && durationMs >= 1000) {
+            window.gtag?.('event', 'receiver_mode_duration', {
+                receiver_mode: modeCategory[prevMode] ?? prevMode,
+                duration_seconds: Math.round(durationMs / 1000),
+                engagement_time_msec: durationMs,
+                workout_title: lastTitleRef.current,
+            });
+        }
+
+        const titleMap: Record<string, string> = {
+            idle: 'Wod.Wiki TV - Idle',
+            preview: `Wod.Wiki TV - Browsing${currentTitle ? ': ' + currentTitle : ''}`,
+            active: `Wod.Wiki TV - Timer${currentTitle ? ': ' + currentTitle : ''}`,
+            review: `Wod.Wiki TV - Showing Results${currentTitle ? ': ' + currentTitle : ''}`,
+        };
+        const pathMap: Record<string, string> = {
+            idle: '/tv/idle',
+            preview: '/tv/browsing',
+            active: '/tv/timer',
+            review: '/tv/results',
+        };
+
+        const pageTitle = titleMap[currentMode] || `Wod.Wiki TV - ${currentMode}`;
+        const pagePath = pathMap[currentMode] || `/tv/${currentMode}`;
+
+        document.title = pageTitle;
+        window.gtag?.('event', 'page_view', {
+            page_title: pageTitle,
+            page_path: pagePath,
+            page_location: `${window.location.origin}${pagePath}`,
+        });
+
+        lastModeRef.current = currentMode;
+        lastTitleRef.current = currentTitle;
+        modeStartRef.current = now;
+    }, [workbenchState.mode, workbenchState.previewData?.title]);
+
+    // Flush final mode duration on unmount or tab close
+    useEffect(() => {
+        const flush = () => {
+            const mode = lastModeRef.current;
+            const durationMs = Date.now() - modeStartRef.current;
+            const modeCategory: Record<string, string> = {
+                preview: 'browsing',
+                active: 'timer',
+                review: 'showing_results',
+                idle: 'idle',
+            };
+            if (mode && durationMs >= 1000) {
+                window.gtag?.('event', 'receiver_mode_duration', {
+                    receiver_mode: modeCategory[mode] ?? mode,
+                    duration_seconds: Math.round(durationMs / 1000),
+                    engagement_time_msec: durationMs,
+                    workout_title: lastTitleRef.current,
+                });
+            }
+        };
+
+        window.addEventListener('beforeunload', flush);
+        return () => {
+            window.removeEventListener('beforeunload', flush);
+            flush();
+        };
+    }, []);
 
     // Global click listener for on-screen interactions on receiver
     useEffect(() => {

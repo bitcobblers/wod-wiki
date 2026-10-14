@@ -10,7 +10,7 @@ import type { Segment } from '@bitcobblers/wod-wiki-engine';
 import { FocusedDialog } from "@/components/molecules/FocusedDialog";
 import { CastButtonRpc } from "@/components/organisms/cast/CastButtonRpc";
 import { AudioToggle } from "@/components/atoms/AudioToggle";
-
+import { telemetry } from "@/services/telemetry";
 export interface FullscreenTimerProps {
   block: ScriptBlock;
   prepareRun?: () => Promise<ScriptBlock>;
@@ -66,6 +66,61 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   const [completedSegments, setCompletedSegments] = useState<Segment[] | null>(null);
   const [selectedSegmentIds, setSelectedSegmentIds] = useState<Set<number>>(new Set());
   const { isDebugMode } = useDebugMode();
+  // Track runtime dialog load, review screen, and duration in GA4 & telemetry
+  const mountTimeRef = useRef(Date.now());
+  const prevTitleRef = useRef(typeof document !== 'undefined' ? document.title : 'Wod.Wiki');
+
+  useEffect(() => {
+    const workoutLabel = block.label || block.id;
+    const isReview = completedSegments !== null;
+
+    const pageTitle = isReview
+      ? `Wod.Wiki - Workout Complete${workoutLabel ? ': ' + workoutLabel : ''}`
+      : `Wod.Wiki - Workout Timer${workoutLabel ? ': ' + workoutLabel : ''}`;
+    const pagePath = isReview ? '/workout/review' : '/workout/timer';
+
+    document.title = pageTitle;
+
+    window.gtag?.('event', 'page_view', {
+      page_title: pageTitle,
+      page_path: pagePath,
+      page_location: typeof window !== 'undefined' ? `${window.location.origin}${pagePath}` : pagePath,
+    });
+
+    if (!isReview) {
+      telemetry.record('runtime:dialog_loaded', {
+        workout_label: workoutLabel,
+        block_type: block.blockType,
+      });
+      window.gtag?.('event', 'runtime_dialog_loaded', {
+        workout_label: workoutLabel,
+        block_type: block.blockType,
+      });
+    } else {
+      window.gtag?.('event', 'runtime_dialog_review', {
+        workout_label: workoutLabel,
+        block_type: block.blockType,
+      });
+    }
+  }, [block.id, block.label, block.blockType, completedSegments]);
+
+  useEffect(() => {
+    const prevTitle = prevTitleRef.current;
+    const workoutLabel = block.label || block.id;
+    return () => {
+      const durationMs = Date.now() - mountTimeRef.current;
+      if (durationMs >= 1000) {
+        window.gtag?.('event', 'runtime_dialog_closed', {
+          workout_label: workoutLabel,
+          duration_seconds: Math.round(durationMs / 1000),
+          engagement_time_msec: durationMs,
+        });
+      }
+      if (typeof document !== 'undefined') {
+        document.title = prevTitle;
+      }
+    };
+  }, [block.id, block.label]);
 
   // Exit/Stop on a live run must not discard outputs: flip the panel's halt
   // flag (RuntimeTimerPanel externalStop), which stops the execution and

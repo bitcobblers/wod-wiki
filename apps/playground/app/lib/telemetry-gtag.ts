@@ -35,9 +35,18 @@ function injectGtag(): void {
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${GTAG_ID}`;
   document.head.appendChild(script);
-
   window.gtag('js', new Date());
-  window.gtag('config', GTAG_ID);
+  window.gtag('config', GTAG_ID, { send_page_view: false });
+}
+
+/** Emit a page_view event to GA4 with current title and path. */
+export function trackPageView(title?: string, path?: string): void {
+  if (typeof window === 'undefined' || !telemetry.consent) return;
+  window.gtag?.('event', 'page_view', {
+    page_title: title ?? document.title,
+    page_location: window.location.href,
+    page_path: path ?? (window.location.pathname + window.location.search),
+  });
 }
 
 // External sink: record() gates on consent; gtag presence guards the sink.

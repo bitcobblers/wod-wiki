@@ -45,4 +45,27 @@ describe('saved runtime start gate', () => {
     expect(attempts).toBe(2);
     expect(initialized.every(block => block === pinned)).toBe(true);
   });
+
+  it('emits page_view and runtime_dialog_loaded when the runtime dialog mounts', () => {
+    const events: Array<{ name: string; payload?: unknown }> = [];
+    window.gtag = (cmd, name, payload) => {
+      if (cmd === 'event') events.push({ name: name as string, payload });
+    };
+    const blockWithLabel: ScriptBlock = { ...pinned, label: 'Hero WOD' };
+    render(<FullscreenTimer block={blockWithLabel} onClose={() => {}} />);
+
+    expect(document.title).toBe('Wod.Wiki - Workout Timer: Hero WOD');
+    const pageView = events.find(e => e.name === 'page_view');
+    expect(pageView).toBeDefined();
+    expect(pageView?.payload).toMatchObject({
+      page_title: 'Wod.Wiki - Workout Timer: Hero WOD',
+      page_path: '/workout/timer',
+    });
+
+    const dialogLoaded = events.find(e => e.name === 'runtime_dialog_loaded');
+    expect(dialogLoaded).toBeDefined();
+    expect(dialogLoaded?.payload).toMatchObject({
+      workout_label: 'Hero WOD',
+    });
+  });
 });
