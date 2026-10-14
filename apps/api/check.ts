@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openDatabase } from './src/database';
+import { openDatabase } from '@bitcobblers/wod-wiki-storage/sql/node';
 import { initializeStore, initializeDomain } from '@bitcobblers/wod-wiki-storage/sql';
 import { createHandler } from './src/app';
 import { ApiStorage, type Note, type BlockRevision, type BlockIndexRow, type Session } from '@bitcobblers/wod-wiki-storage';

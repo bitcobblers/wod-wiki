@@ -68,8 +68,9 @@
     "check:architecture": "node scripts/check-architecture-regressions.cjs && node scripts/check-unused-exports-regressions.cjs",
     "check:server": "bun run --cwd apps/api check",
     "analyze:deps": "bun x madge --extensions ts,tsx --ts-config tsconfig.json --exclude __tests__ --circular apps/playground/src",
-    "wod": "wod",
-    "setup": "bun setup-testing.js"
+    "wod": "bun --no-env-file ./packages/engine/dist/bin/wod.mjs",
+    "setup": "bun setup-testing.js",
+    "postinstall": "if [ -f packages/engine/src/bin/wod.ts ] && [ ! -f packages/engine/dist/bin/wod.mjs ]; then bun run build:packages; fi"
   },
   "dependencies": {
     "@bitcobblers/wod-wiki-core": "^0.11.0",

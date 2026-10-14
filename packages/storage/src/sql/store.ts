@@ -612,7 +612,7 @@ async function ensureStoreTables(
   }
   if (dialect === 'postgres' && ['notes', 'block_revisions', 'sessions'].includes(def.name)) {
     const condition = def.name === 'block_revisions'
-      ? `EXISTS (SELECT 1 FROM "block_revisions" old WHERE old."k0" = NEW."k0" AND old."k1" = NEW."k1" AND old."k2" = NEW."k2" AND old."data" <> NEW."data")`
+      ? `EXISTS (SELECT 1 FROM "block_revisions" saved WHERE saved."k0" = NEW."k0" AND saved."k1" = NEW."k1" AND saved."k2" = NEW."k2" AND saved."data" <> NEW."data")`
       : def.name === 'notes'
         ? `(NEW."data"::jsonb->>'sourceRevision')::bigint < (OLD."data"::jsonb->>'sourceRevision')::bigint OR ((NEW."data"::jsonb->'rawContent' IS DISTINCT FROM OLD."data"::jsonb->'rawContent' OR NEW."data"::jsonb->'blocks' IS DISTINCT FROM OLD."data"::jsonb->'blocks') AND (NEW."data"::jsonb->>'sourceRevision')::bigint <= (OLD."data"::jsonb->>'sourceRevision')::bigint)`
         : `NEW."data"::jsonb->'noteId' IS DISTINCT FROM OLD."data"::jsonb->'noteId' OR NEW."data"::jsonb->'blockId' IS DISTINCT FROM OLD."data"::jsonb->'blockId' OR NEW."data"::jsonb->'blockVersion' IS DISTINCT FROM OLD."data"::jsonb->'blockVersion'`;

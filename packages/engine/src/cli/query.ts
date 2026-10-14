@@ -177,7 +177,7 @@ export function loadQueryData(options: QueryCliOptions): LoadedData {
       } else if (obj.facts || obj.results || obj.notes || obj.blocks || obj.efforts || obj.tags || obj.logs) {
         const corpus = payload as CorpusIRData;
         if (corpus.facts) data.facts = corpus.facts;
-        if (corpus.results) data.results = corpus.results;
+        if (Array.isArray(corpus.results)) data.results = corpus.results;
         if (corpus.notes) data.notes = corpus.notes;
         if (corpus.blocks) data.blocks = corpus.blocks;
         if (corpus.efforts) data.efforts = corpus.efforts;

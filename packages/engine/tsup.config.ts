@@ -19,8 +19,11 @@ export default defineConfig({
     '@bitcobblers/wod-wiki-wql',
     '@bitcobblers/wod-wiki-storage',
     '@bitcobblers/wod-wiki-storage/sql',
+    '@bitcobblers/wod-wiki-storage/sql/node',
     '@libsql/client',
     '@libsql/client/web',
+    // Server-only Bun APIs (Bun.serve, lazy Bun.SQL) resolve at runtime, never bundled.
+    'bun',
   ],
   esbuildOptions(options, context) {
     if (context.format === 'esm') {

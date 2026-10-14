@@ -162,17 +162,32 @@ Packs override; they never replace the base grammar and default analytics.
 
 ## `wod` CLI
 
-The engine CLI exposes the pipeline for scripts and tests:
+The engine CLI exposes the pipeline for scripts, tests, and self-hosting. `bun install` builds the CLI in `packages/engine`; invoke it from the repository root with `bun run wod …` or `./node_modules/.bin/wod …`.
 
 ```bash
-# Parse a file
-wod parse workout.txt
+# Prepare the configured database (idempotent; preserves notes/metrics)
+bun run wod init --db ./wodwiki.db
 
-# Run a file (headless)
-wod run workout.txt
+# Parse a file — saves the authored note
+bun run wod parse workout.txt
 
-# Query saved facts (stdin or file)
-wod query "sum:reps{} by effort"
+# Run a file (headless) — saves session metrics
+bun run wod run workout.txt
+
+# Query saved facts: the database by default, or a corpus/stdin dataset
+bun run wod query "sum:rep{} by {effort}"
+bun run wod query "sum:rep{} by {effort}" --corpus dataset.json
+
+# Serve the app + API over the configured database (Bun; requires init)
+bun run wod serve --db ./wodwiki.db
+
+# Serve the browser-local (IndexedDB) static app — no backend, no database
+bun run wod playground
+
+# Delete the local SQLite file only; remote backends are never touched
+bun run wod reset --db ./wodwiki.db
 ```
 
-See [`05-architecture.md`](./05-architecture.md) and the engine package READMEs for more.
+One configuration seam backs every database-backed subcommand (`packages/engine/src/cli/config.ts`): flags beat the process environment, which beats `.env` (working directory first, then the workspace root; `--env-file <path>` requires that exact file). `--db` always selects local SQLite, even when the environment names a remote backend; `--db-driver sqlite|postgres|turso` with `--database-url`, `--postgres-*`, or `--turso-url`/`--turso-auth-token` selects a backend explicitly. Hosting subcommands (`serve`, `playground`) add `--host`/`--port`/`--dist` (loopback `:3000` default), require the Bun runtime and a repository checkout — the npm package ships the pipeline but not the website assets — and build the frontend on demand on first launch. `wod serve` refuses an uninitialized database; PostgreSQL uses Bun's built-in driver, while Node.js runs the SQLite and Turso subcommands. Corresponding variables: `WOD_WIKI_DB`/`SQLITE_PATH`, `DB_DRIVER`, `DATABASE_URL`, `POSTGRES_HOST`/`_PORT`/`_USER`/`_PASSWORD`/`_DATABASE`/`_SSL`, `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`/`LIBSQL_AUTH_TOKEN`, and `HOST`/`PORT`/`PLAYGROUND_DIST`.
+
+See [`overview.md`](./overview.md) and the engine package READMEs for more.

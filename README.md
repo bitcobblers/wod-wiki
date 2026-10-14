@@ -10,12 +10,12 @@ WOD Wiki is a TypeScript monorepo toolkit for parsing, executing, and analyzing 
 
 ## Getting started
 
-WOD Wiki has two hosting levels. Both run the same playground application; the difference is where your data lives. A container runs server mode, not a third storage mode.
+WOD Wiki has two hosting levels. Both run the same playground application; the difference is where your data lives. A container runs server mode, not a third storage mode. The `wod` CLI is the repository's self-hosting path: `wod init` prepares a database, then `wod serve` or `wod playground` hosts either level from built assets ([self-host with the `wod` CLI](#self-host-with-the-wod-cli)).
 
 | Hosting level | Data storage | How to run it |
 |---|---|---|
-| Playground | IndexedDB by default, or direct browser-to-Turso. No WOD Wiki API server required. | [Bun playground](#run-the-playground-with-bun) |
-| Server | SQL behind the Bun API. Browsers connecting to the same server use the same backend data. | [Bun server](#run-the-server-with-bun) or [container](#run-the-server-in-a-container) |
+| Playground | IndexedDB by default, or direct browser-to-Turso. No WOD Wiki API server required. | [Bun playground](#run-the-playground-with-bun) or `wod playground` |
+| Server | SQL behind the Bun API. Browsers connecting to the same server use the same backend data. | [Bun server](#run-the-server-with-bun), [`wod serve`](#self-host-with-the-wod-cli), or [container](#run-the-server-in-a-container) |
 
 Choose Playground for browser-local use or your own Turso database. Choose Server to use SQLite, Turso, or PostgreSQL through the WOD Wiki API. Settings > Storage can migrate IndexedDB to an empty Turso database; changing hosting levels does not migrate data to the server.
 
@@ -28,13 +28,29 @@ bun install
 bun run playground
 ```
 
-Open the Vite URL printed in the terminal, normally [http://localhost:5173](http://localhost:5173). This command builds the packages, lints the playground, and starts the development server with hot reload. With no data settings, the app uses IndexedDB and imports only the core playground seed. Community catalogs and custom libraries are optional through Settings > Sync.
+Open the Vite URL printed in the terminal, normally [http://localhost:5173](http://localhost:5173). This command builds the packages, lints the playground, and starts the development server with hot reload. It is the development workflow; `wod playground` serves a production build of the same browser-local app without dev tooling ([self-host with the `wod` CLI](#self-host-with-the-wod-cli)). With no data settings, the app uses IndexedDB and imports only the core playground seed. Community catalogs and custom libraries are optional through Settings > Sync.
 
 In **Settings > Storage**, enter your Turso `libsql://` URL and database-scoped auth token. **Test Connection** verifies access without saving credentials. **Connect** uses the remote data as-is; **Migrate & Connect** copies the browser's stores, revision history, attachment bytes, profile, notebooks, query preferences, and user calculations into an empty database. Migration commits atomically, keeps the local copy, and saves the connection only after success. Close other WOD Wiki tabs and avoid edits during migration.
 
 The URL and token stay in this browser's localStorage. Same-origin scripts can read the token; use one scoped to this database. Saved connection failures show recovery controls, never a silent IndexedDB fallback. Switching to **This Browser** restores the last local copy without pulling remote-only changes. Self-hosted connection settings and paid wod.wiki custody are marked coming soon; the existing server deployment remains available.
 
 **Settings > Sync** reports the current source and chunk, committed chunks, imported notes, efforts and block rows, preserved user-owned rows, and removed seed rows. Single-source sync, **Sync All Sources**, and **Add & Sync** share this progress display. Completed work and errors remain visible until the next sync. Failed chunks never advance the bar; Sync All continues with the remaining sources.
+
+### Self-host with the `wod` CLI
+
+`bun install` builds the `wod` CLI from [`packages/engine`](./packages/engine/). Invoke it from the repository root with `bun run wod …`; its package binary is also available at `node_modules/.bin/wod`. Hosting requires a checkout because the published package does not include the website assets or API server. `serve` and `playground` require Bun; the other subcommands also run under Node.js for SQLite and Turso.
+
+```bash
+bun install
+bun run wod init --db ./data/wodwiki.db    # create the SQLite file + schema
+bun run wod serve --db ./data/wodwiki.db   # app + API at http://127.0.0.1:3000
+```
+
+`wod init` prepares the configured database and is idempotent — re-running it preserves existing notes and metrics. It creates the SQLite file and schema; for PostgreSQL it creates the target database when your role is authorized to and otherwise initializes an existing one; for Turso it installs the schema into a database you have already provisioned.
+
+`wod serve` requires `wod init` first and refuses to create or silently initialize a database. On first launch it builds the frontend on demand (`apps/playground/dist-api`), then serves the same app + API stack as `bun run server` from one origin. `wod playground` serves the same app as a static build backed by browser IndexedDB — no backend, no database. It builds `apps/playground/dist` on demand unless `--dist` names an existing build. `bun run playground` remains the Vite dev server with hot reload for development. Hosting binds to loopback `127.0.0.1:3000` by default; override with `--host`/`--port`.
+
+The served API is a [trusted single-user deployment without authentication](#before-exposing-a-server): keep it on loopback and add access control before exposing it.
 
 ### Run the server with Bun
 
@@ -45,7 +61,7 @@ bun install
 bun run server
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The command builds the packages and API-enabled playground into `apps/playground/dist-api`, then starts [`apps/api`](./apps/api/) to serve both the app and API from one origin. The default database is `./data/wodwiki.db`, a local SQLite file accessed through `@libsql/client`, the same driver used for Turso.
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The command builds the packages and API-enabled playground into `apps/playground/dist-api`, then starts [`apps/api`](./apps/api/) to serve both the app and API from one origin. The default database is `./data/wodwiki.db`, a local SQLite file accessed through `@libsql/client`, the same driver used for Turso. This default is unchanged; the `wod` CLI serves the same stack with its own `./wodwiki.db` default and `--db` override.
 
 Keep the `data` directory to preserve your data between launches. After a build, `bun run start:server` starts the server without rebuilding. Ordinary playground builds use `apps/playground/dist`, separate from the server build.
 
@@ -67,7 +83,7 @@ The default SQLite database is `/data/wodwiki.db` inside the container, persiste
 
 ### Configure the server database
 
-Local SQLite is the default. To select another database for a Bun launch, set its environment variables inline or export them in your shell:
+Local SQLite is the default. To select another database, set environment variables inline or in your shell, or — with the `wod` CLI — pass flags. For the CLI, precedence is flags, then the process environment, then `.env` (the working directory's file, falling back to the repository root); `--env-file <path>` loads an explicit file and is an error when it is missing. The bundled server reads the process environment only:
 
 ```bash
 # Local SQLite at a chosen path
@@ -79,6 +95,8 @@ DB_DRIVER=turso DATABASE_URL=libsql://your-db.turso.io LIBSQL_AUTH_TOKEN=your-to
 # PostgreSQL, using an existing database
 DB_DRIVER=postgres DATABASE_URL=postgres://user:password@localhost:5432/wodwiki bun run server
 ```
+
+The `wod` CLI takes the same settings as flags: `--db <path>` (always selects SQLite, even when the environment names a remote backend), `--db-driver sqlite|postgres|turso`, `--database-url <url>`, `--postgres-host/--postgres-port/--postgres-user/--postgres-password/--postgres-database/--postgres-ssl`, and `--turso-url`/`--turso-auth-token`; `--host`, `--port`, and `--dist` configure hosting (`--dist` resolves relative to the working directory; the server's `PLAYGROUND_DIST` is repo-root relative). Matching variables: `WOD_WIKI_DB` or `SQLITE_PATH` for the SQLite file (`WOD_WIKI_DB` wins for the CLI), `DB_DRIVER`, `DATABASE_URL`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE`, `POSTGRES_SSL`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (or `LIBSQL_AUTH_TOKEN`), and `HOST`, `PORT`, `PLAYGROUND_DIST` for hosting. Labels and error messages never contain credentials. PostgreSQL and hosting need Bun (its built-in driver and HTTP server); Node.js runs the CLI's SQLite and Turso subcommands.
 
 For a container launch, use the same database variables with `docker compose up --build`, or set them in the root `.env` file. Do not commit database credentials. [`.env.example`](./.env.example) also documents `HOST`, `PORT`, and `PLAYGROUND_DIST` for native Bun launches.
 
@@ -255,6 +273,7 @@ Full map: [`docs/architecture/overview.md`](./docs/architecture/overview.md).
 | `bun run server` | Builds packages + API SPA (`dist-api`) and starts the Bun API server |
 | `bun run start:server` | Starts the API server from an existing build |
 | `bun run build:server` | Builds packages + API SPA only (no server launch) |
+| `bun run wod` | Runs the `wod` CLI provisioned by `bun install`: `init`, `serve`, `playground`, `parse`, `run`, `query`, `reset`, … |
 | `bun run docker` | Builds and starts the Docker Compose server stack |
 | `bun run check:server` | Runs the assert-based API check suite (`apps/api/check.ts`) |
 | `bun run typecheck:server` | Type checks `apps/api` |

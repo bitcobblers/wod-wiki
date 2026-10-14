@@ -16,6 +16,11 @@
       "types": "./dist/sql/index.d.ts",
       "import": "./dist/sql/index.mjs",
       "require": "./dist/sql/index.cjs"
+    },
+    "./sql/node": {
+      "types": "./dist/sql/node.d.ts",
+      "import": "./dist/sql/node.mjs",
+      "require": "./dist/sql/node.cjs"
     }
   },
   "files": [

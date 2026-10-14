@@ -4,6 +4,7 @@ import type { Database, SqlConnection, SqlValue } from './connection';
 import { StorageError } from './errors';
 import { putRows, deleteRows, clearRows, getRows, listRows, storeDefinition, SCHEMA_TABLE, batchInsert, deleteIn } from './store';
 import { decodeRowJson, encodeRowJson } from './codec';
+import { DB_VERSION, STORE_DEFS } from '../schema';
 import type { StoreDef } from '../schema';
 import type { StoreName } from '../contract';
 import {
@@ -66,10 +67,10 @@ function ensureDdl(db: Database): Promise<void> {
 const DOMAIN_NOTE_COLS = ['note_id','note_type','catalog','source_id','source_path','title','title_search','created_at','date','text_search','journal','payload'] as const;
 const QUERY_BLOCK_COLS = ['occurrence_id','source_note_id','parent_note_id','content_id','section_key','ordinal','data_type','source_id','source_path','catalog','effective_date','created_at','note_title','normalized_text','journal','payload'] as const;
 
-const conflictUpdate = (cols: readonly string[], keys: readonly string[]): string =>
+const conflictUpdate = (table: string, cols: readonly string[], keys: readonly string[]): string =>
   `ON CONFLICT (${keys.map((k) => `"${k}"`).join(', ')}) DO UPDATE SET ` +
   cols.filter((c) => !keys.includes(c)).map((c) => `"${c}" = excluded."${c}"`).join(',') +
-  ` WHERE ` + cols.filter(col => !keys.includes(col)).map(col => `"${col}" IS DISTINCT FROM excluded."${col}"`).join(' OR ');
+  ` WHERE ` + cols.filter(col => !keys.includes(col)).map(col => `"${table}"."${col}" IS DISTINCT FROM excluded."${col}"`).join(' OR ');
 
 /** One domain_note row; undefined when the note has no identity (store write
  *  still succeeds — nothing to project). */
@@ -95,7 +96,7 @@ function domainNoteRow(note: Record<string, unknown>): SqlValue[] | undefined {
 
 async function upsertDomainNotes(conn: SqlConnection, notes: Record<string, unknown>[]): Promise<void> {
   const rows = notes.map(domainNoteRow).filter((r): r is SqlValue[] => r !== undefined);
-  await batchInsert(conn, 'domain_note', [...DOMAIN_NOTE_COLS], rows, conflictUpdate(DOMAIN_NOTE_COLS, ['note_id']));
+  await batchInsert(conn, 'domain_note', [...DOMAIN_NOTE_COLS], rows, conflictUpdate('domain_note', DOMAIN_NOTE_COLS, ['note_id']));
 }
 
 
@@ -128,7 +129,7 @@ function queryBlockRow(block: Record<string, unknown>, parent: NoteIdentity | un
 
 async function upsertQueryBlocks(conn: SqlConnection, blocks: [Record<string, unknown>, NoteIdentity | undefined][]): Promise<void> {
   const rows = blocks.map(([b, p]) => queryBlockRow(b, p)).filter((r): r is SqlValue[] => r !== undefined);
-  await batchInsert(conn, 'query_block', [...QUERY_BLOCK_COLS], rows, conflictUpdate(QUERY_BLOCK_COLS, ['occurrence_id']));
+  await batchInsert(conn, 'query_block', [...QUERY_BLOCK_COLS], rows, conflictUpdate('query_block', QUERY_BLOCK_COLS, ['occurrence_id']));
 }
 
 // ── Parent identity resolution ───────────────────────────────────────────────
@@ -373,6 +374,92 @@ export async function initializeDomain(db: Database): Promise<void> {
     if (guard?.version === DOMAIN_PROJECTION_VERSION) return;
     await rebuildProjections(tx);
   });
+}
+
+/** Read-only readiness check (no DDL, no writes): both real guards — the
+ * store schema version row and the domain projection version row — must be
+ * current, and every store/projection table must exist. Missing table →
+ * db_not_initialized; version drift or corrupt guards → schema_incompatible;
+ * auth/network errors propagate untouched. Used by
+ * openCliDb(…, { initialize: false }). */
+export async function verifyReadiness(db: Database): Promise<void> {
+  // Only "missing relation" SQL failures mean uninitialized; everything
+  // else (auth, network, permissions) surfaces as-is.
+  const isMissingRelation = (error: unknown): boolean => {
+    if (typeof error !== 'object' || error === null) return false;
+    // Bun.SQL: code ERR_POSTGRES_SERVER_ERROR, SQLSTATE in errno; postgres
+    // 42P01 = undefined_table. libsql node: SQLITE_ERROR + "no such table".
+    if ('errno' in error && error.errno === '42P01') return true;
+    if ('code' in error && error.code === '42P01') return true;
+    return (
+      'code' in error &&
+      error.code === 'SQLITE_ERROR' &&
+      /no such table/i.test(error instanceof Error ? error.message : String(error))
+    );
+  };
+
+  /** Safe parse: a missing row → undefined; a corrupt guard → incompatible. */
+  const readGuard = async (key: string): Promise<{ version?: unknown } | undefined> => {
+    const rows = await db.query(`SELECT "value" FROM "${SCHEMA_TABLE}" WHERE "key" = ?`, [key]);
+    if (!rows.length || typeof rows[0].value !== 'string') return undefined;
+    try {
+      return JSON.parse(rows[0].value) as { version?: unknown };
+    } catch {
+      throw new StorageError(500, `database guard "${key}" is corrupt; re-run initialization`, 'schema_incompatible');
+    }
+  };
+
+  let schemaGuard: { version?: unknown } | undefined;
+  let projectionGuard: { version?: unknown } | undefined;
+  try {
+    schemaGuard = await readGuard('schema');
+    projectionGuard = await readGuard(PROJECTION_GUARD_KEY);
+  } catch (error) {
+    if (isMissingRelation(error)) {
+      throw new StorageError(500, 'database is not initialized (schema guard table missing)', 'db_not_initialized');
+    }
+    throw error;
+  }
+  const schemaVersion = schemaGuard?.version;
+  const projectionVersion = projectionGuard?.version;
+  if (typeof schemaVersion !== 'number') {
+    throw new StorageError(500, 'database is not initialized (no schema guard row)', 'db_not_initialized');
+  }
+  if (typeof projectionVersion !== 'number') {
+    throw new StorageError(500, 'database is not initialized (projections never built)', 'db_not_initialized');
+  }
+  if (schemaVersion > DB_VERSION) {
+    throw new StorageError(
+      500,
+      `database schema v${schemaVersion} is newer than this server supports (v${DB_VERSION}); refusing to downgrade`,
+      'schema_incompatible',
+    );
+  }
+  if (schemaVersion !== DB_VERSION) {
+    throw new StorageError(
+      500,
+      `database schema v${schemaVersion} is incompatible with v${DB_VERSION}; re-run initialization`,
+      'schema_incompatible',
+    );
+  }
+  if (projectionVersion !== DOMAIN_PROJECTION_VERSION) {
+    throw new StorageError(
+      500,
+      `database projections v${projectionVersion} are incompatible with v${DOMAIN_PROJECTION_VERSION}; re-run initialization`,
+      'schema_incompatible',
+    );
+  }
+  // Table readiness: known-safe internal identifiers, LIMIT 0 → no rows move.
+  for (const table of [...STORE_DEFS.map((def) => def.name), ...TABLES]) {
+    try {
+      await db.query(`SELECT * FROM "${table}" LIMIT 0`);
+    } catch (error) {
+      if (isMissingRelation(error)) {
+        throw new StorageError(500, `database is not initialized (missing table: ${table})`, 'db_not_initialized');
+      }
+      throw error;
+    }
+  }
 }
 
 /** Clears derived tables after a data wipe (empty is a consistent state). */

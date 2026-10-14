@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/sql/index.ts'],
+  entry: ['src/index.ts', 'src/sql/index.ts', 'src/sql/node.ts'],
   format: ['esm', 'cjs'],
   dts: true,
   sourcemap: true,
@@ -13,6 +13,7 @@ export default defineConfig({
     '@bitcobblers/wod-wiki-wql',
     '@libsql/client',
     '@libsql/client/web',
+    'bun',
   ],
   outExtension({ format }) {
     return {

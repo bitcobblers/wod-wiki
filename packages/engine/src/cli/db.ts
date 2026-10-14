@@ -19,6 +19,7 @@ import type {
   LibsqlClient,
   SqlConnection,
 } from '@bitcobblers/wod-wiki-storage/sql';
+import type { CliDatabaseConfig } from './config';
 import type {
   BlockQueryStore,
   EventStore,
@@ -32,7 +33,7 @@ import { bundledEfforts } from '@bitcobblers/wod-wiki-lang';
 type CjsRequire = (id: string) => unknown;
 
 /** Minimal node builtin surfaces the CLI uses (kept out of browser bundles). */
-export interface PathShim { resolve(...parts: string[]): string; dirname(p: string): string; basename(p: string): string }
+export interface PathShim { resolve(...parts: string[]): string; join(...parts: string[]): string; dirname(p: string): string; basename(p: string): string }
 export interface FsShim {
   mkdirSync(p: string, opts: { recursive: boolean }): void;
   existsSync(p: string): boolean;
@@ -66,6 +67,7 @@ export interface SqlApi {
   SqlStorage: new (db: Database) => IStorage;
   initializeStore(db: Database): Promise<void>;
   initializeDomain(db: Database): Promise<void>;
+  verifyReadiness(db: Database): Promise<void>;
   storeDefinition(name: string): StoreDef;
   listRows(conn: SqlConnection, def: StoreDef, range?: RangeDTO, count?: number, indexName?: string): Promise<unknown[]>;
   getRow(conn: SqlConnection, def: StoreDef, key: KeyDTO): Promise<unknown | undefined>;
@@ -87,7 +89,8 @@ export function loadSql(): Promise<SqlApi> {
 export interface CliDb {
   db: Database;
   storage: IStorage;
-  /** Absolute path of the underlying .sqlite file. */
+  /** Absolute path of the underlying .sqlite file — or the sanitized display
+   * label (URL without credentials) for remote backends. */
   path: string;
   close(): Promise<void>;
 }
@@ -101,23 +104,102 @@ export function resolveDbPath(dbPath?: string): string {
   return nodePath().resolve(process.cwd(), chosen);
 }
 
-/** Open (creating if necessary) a local sqlite database with the wodwiki schema. */
-export async function openCliDb(dbPath?: string): Promise<CliDb> {
+/**
+ * Open the CLI database: a legacy local sqlite path (internal callers,
+ * created/initialized as before) or a resolved backend config from ./config.
+ *
+ * opts.initialize (default true): run the schema + projection
+ * initialization. false → verify the schema/projection guards only: a
+ * missing local sqlite file is NOT created and yields an actionable
+ * `wod init` error; remote targets are only probed, never created.
+ *
+ * opts.create (explicit init requests only, postgres): when the configured
+ * PostgreSQL database is missing, openDatabase creates it through the admin
+ * "postgres" database before initializing. Turso has no management API —
+ * its hosted target must already exist.
+ */
+export async function openCliDb(
+  target?: string | CliDatabaseConfig,
+  opts?: { initialize?: boolean; create?: boolean },
+): Promise<CliDb> {
+  if (target === undefined || typeof target === 'string') {
+    return openSqliteDb(resolveDbPath(target), opts);
+  }
+  switch (target.kind) {
+    case 'sqlite':
+      return openSqliteDb(target.path, opts);
+    case 'turso':
+      return openRemoteDb(
+        { DB_DRIVER: 'turso', DATABASE_URL: target.url, LIBSQL_AUTH_TOKEN: target.authToken },
+        target.label,
+        opts,
+      );
+    case 'postgres':
+      return openRemoteDb({ DB_DRIVER: 'postgres', DATABASE_URL: target.url }, target.label, opts);
+  }
+}
+
+async function openSqliteDb(resolved: string, opts?: { initialize?: boolean; create?: boolean }): Promise<CliDb> {
   const [{ createClient }, sql] = await Promise.all([
     import(/* @vite-ignore */ '@libsql/client') as Promise<{ createClient: (config: { url: string }) => LibsqlClient }>,
     loadSql(),
   ]);
-  const resolved = resolveDbPath(dbPath);
-  nodeFs().mkdirSync(nodePath().dirname(resolved), { recursive: true });
+  const initialize = opts?.initialize ?? true;
+  if (!initialize && !nodeFs().existsSync(resolved)) {
+    throw new Error(`[wod] no database at ${resolved} — run \`wod init\` to create and initialize it`);
+  }
+  if (initialize) nodeFs().mkdirSync(nodePath().dirname(resolved), { recursive: true });
   const db = sql.libsqlDatabase(createClient({ url: `file:${resolved}` }));
   try {
-    await sql.initializeStore(db);
-    await sql.initializeDomain(db);
+    if (initialize) {
+      await sql.initializeStore(db);
+      await sql.initializeDomain(db);
+    } else {
+      // Guards only — no schema creation on an existing file either.
+      await sql.verifyReadiness(db).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${message} — run \`wod init\` to initialize it`, { cause: error });
+      });
+    }
     return { db, storage: new sql.SqlStorage(db), path: resolved, close: () => db.close() };
   } catch (error) {
     await db.close();
     throw error;
   }
+}
+
+/** Open a postgres/turso/remote-sqlite backend through the extracted server
+ * adapter (dynamic on purpose: node-only subpath kept out of browser
+ * bundles and external in the CLI bundle). Never falls back locally. */
+async function openRemoteDb(
+  env: Record<string, string | undefined>,
+  label: string,
+  opts?: { initialize?: boolean; create?: boolean },
+): Promise<CliDb> {
+  const [{ openDatabase }, sql] = await Promise.all([
+    import(/* @vite-ignore */ '@bitcobblers/wod-wiki-storage/sql/node') as Promise<{
+      openDatabase: (env?: Record<string, string | undefined>, opts?: { create?: boolean }) => Promise<Database>;
+    }>,
+    loadSql(),
+  ]);
+  let db: Database | undefined;
+  try {
+    db = await openDatabase(env, { create: opts?.create });
+    if (opts?.initialize === false) {
+      await sql.verifyReadiness(db);
+    } else {
+      await sql.initializeStore(db);
+      await sql.initializeDomain(db);
+    }
+  } catch (error) {
+    await db?.close().catch(() => {});
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `[wod] ${label}: ${message}${opts?.initialize === false ? ' — run `wod init` to initialize it' : ''}`,
+      { cause: error },
+    );
+  }
+  return { db, storage: new sql.SqlStorage(db), path: label, close: () => db.close() };
 }
 
 // ---------------------------------------------------------------------------

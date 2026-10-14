@@ -40,6 +40,7 @@ export {
 } from './store';
 export {
   initializeDomain,
+  verifyReadiness,
   rebuildProjections,
   refreshDomain,
   wipeDomain,

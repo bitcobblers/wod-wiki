@@ -10,6 +10,9 @@
  * everything else: static SPA serving from playgroundDist (asset miss with an
  * extension → 404; extensionless → index.html; traversal/symlink escapes →
  * 403; /api never falls through to the SPA).
+ *
+ * `db` may be null for the CLI playground mode: static SPA serving only, every
+ * /api request answers 404 — the playground never touches a server database.
  */
 
 import { join, resolve, sep } from 'node:path';
@@ -323,7 +326,7 @@ function distRootOf(playgroundDist: string | undefined): string | undefined {
 }
 
 export function createHandler(
-  db: Database,
+  db: Database | null,
   options: { playgroundDist: string },
 ): (request: Request) => Promise<Response> {
   const distRoot = distRootOf(options.playgroundDist);
@@ -333,7 +336,9 @@ export function createHandler(
       const method = request.method === 'HEAD' ? 'GET' : request.method; // Bun strips HEAD bodies
       const path = url.pathname;
       const response = path === '/api' || path.startsWith('/api/')
-        ? await apiRoutes(db, request, method, path.slice('/api'.length) || '/', url)
+        ? db
+          ? await apiRoutes(db, request, method, path.slice('/api'.length) || '/', url)
+          : notFound()
         : await staticResponse(distRoot, method, path);
       return response;
     } catch (e) {

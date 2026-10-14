@@ -24,7 +24,6 @@ import { runExecution } from './run';
 import { runQueryCli, WqlSyntaxError } from './query';
 import {
   openCliDb,
-  resolveDbPath,
   nodeFs,
   nodePath,
   sqliteEventStore,
@@ -37,6 +36,10 @@ import {
   getEffortBySlug,
   listTagsByType,
 } from './db';
+import { loadCliEnvironment, resolveDatabaseConfig, type CliDatabaseConfig } from './config';
+// Type-only: erased at build time, keeps the Bun-only server module out of the
+// browser/Node import graph (runCliServer itself is lazily imported).
+import type { CliServerOptions } from './server';
 import { persistNote, startRun, persistRun, persistSessionBundle, persistEffort, persistTypedTags } from './persist';
 import { defaultSeedDirs, importSeedDir } from './seed';
 import {
@@ -71,7 +74,7 @@ export function cliNoteSource(source: string, label: string, sport?: string): st
 }
 
 export interface CliParsedArgs {
-  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'import' | 'build' | 'seed' | 'reset' | 'help' | 'version';
+  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'import' | 'build' | 'seed' | 'reset' | 'init' | 'serve' | 'playground' | 'help' | 'version';
   target?: string;
   /** Second positional: the id (download) or file (import) after the kind. */
   target2?: string;
@@ -87,6 +90,25 @@ export interface CliParsedArgs {
   version?: boolean;
   /** SQLite database path (--db). Defaults to WOD_WIKI_DB or ./wodwiki.db. */
   db?: string;
+  /** Backend driver override (--db-driver): sqlite | postgres | turso. */
+  dbDriver?: string;
+  /** PostgreSQL connection URL (--database-url) or component flags below. */
+  databaseUrl?: string;
+  postgresHost?: string;
+  postgresPort?: string;
+  postgresUser?: string;
+  postgresPassword?: string;
+  postgresDatabase?: string;
+  postgresSsl?: string;
+  /** Turso/libSQL target (--turso-url) plus its auth token. */
+  tursoUrl?: string;
+  tursoAuthToken?: string;
+  /** Explicit environment file (--env-file); a missing file is an error. */
+  envFile?: string;
+  /** Hosting bind address/port and prebuilt frontend directory (serve/playground). */
+  host?: string;
+  port?: string;
+  dist?: string;
   /** IR debug output: undefined = off, '' = default file name, otherwise the file name. */
   debug?: string;
   /** Extra seed source directories for `wod seed` (repeatable). */
@@ -99,17 +121,81 @@ export interface CliParsedArgs {
   dir?: string;
 }
 
+/**
+ * Property flags that take a value in both `--flag value` and `--flag=value`
+ * forms. Missing, empty, or flag-like (`--…`) values are parse errors.
+ */
+/** The CliParsedArgs properties settable through VALUE_FLAGS — all `string | undefined`. */
+type CliValueFlagArgs = Pick<
+  CliParsedArgs,
+  | 'db'
+  | 'dbDriver'
+  | 'databaseUrl'
+  | 'postgresHost'
+  | 'postgresPort'
+  | 'postgresUser'
+  | 'postgresPassword'
+  | 'postgresDatabase'
+  | 'postgresSsl'
+  | 'tursoUrl'
+  | 'tursoAuthToken'
+  | 'envFile'
+  | 'host'
+  | 'port'
+  | 'dist'
+>;
+
+const VALUE_FLAGS: ReadonlyArray<readonly [flag: string, key: keyof CliValueFlagArgs]> = [
+  ['--db', 'db'],
+  ['--db-driver', 'dbDriver'],
+  ['--database-url', 'databaseUrl'],
+  ['--postgres-host', 'postgresHost'],
+  ['--postgres-port', 'postgresPort'],
+  ['--postgres-user', 'postgresUser'],
+  ['--postgres-password', 'postgresPassword'],
+  ['--postgres-database', 'postgresDatabase'],
+  ['--postgres-ssl', 'postgresSsl'],
+  ['--turso-url', 'tursoUrl'],
+  ['--turso-auth-token', 'tursoAuthToken'],
+  ['--env-file', 'envFile'],
+  ['--host', 'host'],
+  ['--port', 'port'],
+  ['--dist', 'dist'],
+];
+
+function readValueFlag(args: string[], i: number, flag: string): { value: string; next: number } {
+  const inline = args[i].startsWith(`${flag}=`);
+  if (inline) {
+    const value = args[i].slice(flag.length + 1);
+    if (!value) throw new Error(`Missing value for ${flag}`);
+    return { value, next: i + 1 };
+  }
+  const value = args[i + 1];
+  if (value === undefined || value === '' || value.startsWith('--')) throw new Error(`Missing value for ${flag}`);
+  return { value, next: i + 2 };
+}
+
 export function parseCliArgs(args: string[]): CliParsedArgs {
   const result: CliParsedArgs = {
     format: 'json',
     packs: [],
     sources: [],
   };
+  const valueArgs: CliValueFlagArgs = result;
 
   let i = 0;
   while (i < args.length) {
     const arg = args[i];
     if (arg === '--at' || arg.startsWith('--at=')) throw new Error('Unknown option --at; whole Note exports have no as-of version');
+
+    const valueFlag = VALUE_FLAGS.find(([flag]) => arg === flag || arg.startsWith(`${flag}=`));
+    if (valueFlag) {
+      const [flag, key] = valueFlag;
+      const { value, next } = readValueFlag(args, i, flag);
+      valueArgs[key] = value;
+      i = next;
+      continue;
+    }
 
     if (arg === '--help' || arg === '-h') {
       result.help = true;
@@ -157,12 +243,6 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     } else if (arg === '--unit') {
       result.unit = args[++i];
       i++;
-    } else if (arg === '--db') {
-      result.db = args[++i];
-      i++;
-    } else if (arg.startsWith('--db=')) {
-      result.db = arg.slice('--db='.length);
-      i++;
     } else if (arg === '--debug') {
       // Bare flag never consumes the next arg — use --debug=<name> for a custom file.
       result.debug = '';
@@ -199,7 +279,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       result.dir = arg.slice('--dir='.length);
       i++;
     } else if (!result.subcommand) {
-      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'import' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'help' || arg === 'version') {
+      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'import' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'serve' || arg === 'playground' || arg === 'help' || arg === 'version') {
         result.subcommand = arg;
       } else {
         result.target = arg;
@@ -213,6 +293,12 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       i++;
     } else {
       i++;
+    }
+  }
+
+  for (const [flag, value] of [['--port', result.port], ['--postgres-port', result.postgresPort]] as const) {
+    if (value !== undefined && (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 65535)) {
+      throw new Error(`Invalid value for ${flag}: "${value}" is not a TCP port (1-65535)`);
     }
   }
 
@@ -269,6 +355,10 @@ USAGE:
   wod build [dir] [options]
   wod seed [options]
   wod reset [options]
+  wod init            Initialize the configured database (idempotent)
+  wod serve [options] Serve the app (HTTP API + static frontend dist)
+  wod playground [options]
+                      Serve the local playground (browser IndexedDB build)
 
 SUBCOMMANDS:
   parse <file | ->    Parse Whiteboard Script, create a note in the database
@@ -322,9 +412,46 @@ INPUT SOURCING (for 'query'; without these, the database is queried):
   --stdin-log         Read kind: 'execution-log' JSON payload from stdin
   --stdin-facts       Read raw kind: 'fact-set' JSON payload from stdin
 
-DATABASE (parse / run / query / download / import / seed / reset):
-  --db <path>         SQLite database file (default: $WOD_WIKI_DB or
-                      ./wodwiki.db). Created on demand by parse/run/seed.
+DATABASE (init / parse / run / query / download / import / seed / reset / serve):
+  Pick one backend; explicit flags win over the process environment, the
+  process environment wins over .env files. Run 'wod init' once first: it
+  creates the SQLite file + schema, creates the PostgreSQL database when
+  your role is authorized to (otherwise use an existing/provisioned one),
+  or installs the schema in your provisioned Turso database — idempotently,
+  preserving existing notes. 'wod serve' refuses an uninitialized database.
+  --db <path>                Local SQLite database file (default: $WOD_WIKI_DB
+                      or ./wodwiki.db). Passing --db always selects SQLite,
+                      even when the environment names a remote backend.
+                      Created on demand by parse/run/seed.
+  --db-driver <name>         Backend driver: sqlite (default), postgres, or
+                      turso ($DB_DRIVER)
+  --database-url <url>       Database connection URL ($DATABASE_URL); accepts
+                      PostgreSQL, local SQLite, and remote libSQL URLs.
+  --postgres-host <host>     PostgreSQL host ($POSTGRES_HOST)
+  --postgres-port <port>     PostgreSQL port ($POSTGRES_PORT)
+  --postgres-user <user>     PostgreSQL user ($POSTGRES_USER)
+  --postgres-password <pw>   PostgreSQL password ($POSTGRES_PASSWORD)
+  --postgres-database <db>   PostgreSQL database name ($POSTGRES_DATABASE)
+  --postgres-ssl <mode>      PostgreSQL SSL mode, e.g. disable/prefer/require
+                      ($POSTGRES_SSL)
+  --turso-url <url>          Turso/libSQL database URL (libsql://…). The
+                      hosted database must already exist (provisioned on
+                      Turso); only its schema is installed.
+  --turso-auth-token <token> Turso authentication token (never printed)
+  --env-file <path>          Load variables from this file; a missing file is
+                      an error. Without it: ./.env when present, otherwise
+                      the workspace-root .env. Credentials are never logged.
+
+HOSTING (for 'serve' / 'playground'; requires the Bun runtime):
+  serve                HTTP API over the configured database plus the app's
+                       static dist. Requires an initialized database.
+  playground           Serves the playground app backed by browser IndexedDB;
+                       the configured database is not touched.
+  --host <host>        Bind address (default 127.0.0.1, $HOST)
+  --port <port>        TCP port (default 3000, $PORT)
+  --dist <dir>         Serve this prebuilt frontend directory instead of
+                       building it on demand ($PLAYGROUND_DIST); an explicit
+                       but missing directory is an error.
 
 SEED SOURCING (for 'seed'):
   --source <dir>      Extra compiled seed directory (manifest.json + chunks);
@@ -343,6 +470,15 @@ OPTIONS:
   --unit <unit>       Preferred display unit for queries (e.g. lb, kg)
   -h, --help          Show help message
   -v, --version       Show version number
+
+ENVIRONMENT (flags > process env > .env):
+  WOD_WIKI_DB, SQLITE_PATH          SQLite file path
+  DB_DRIVER                         sqlite | postgres | turso
+  DATABASE_URL                      PostgreSQL connection URL
+  POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER,
+  POSTGRES_PASSWORD, POSTGRES_DATABASE, POSTGRES_SSL
+  TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, LIBSQL_AUTH_TOKEN
+  HOST, PORT, PLAYGROUND_DIST       serve / playground defaults
 
 EXIT CODES:
   0 - OK / Success
@@ -376,6 +512,16 @@ export async function cliMain(
   const writeOut = io.stdout ?? ((t: string) => process.stdout.write(t + '\n'));
   const writeErr = io.stderr ?? ((t: string) => process.stderr.write(t + '\n'));
   const getStdin = io.readStdinFn ?? readStdin;
+
+  // Lazy environment/config: .env parsing and backend resolution run only for
+  // database-backed commands and hosting — never for --corpus/--stdin dataset
+  // queries, build, or playground, so a malformed remote config cannot break them.
+  // loadCliEnvironment returns file values only; process env must overlay them
+  // (bun --no-env-file keeps .env loading solely in this loader).
+  let envLoaded: Record<string, string | undefined> | undefined;
+  const cliEnv = () => (envLoaded ??= { ...loadCliEnvironment(parsed.envFile), ...process.env });
+  let dbResolved: CliDatabaseConfig | undefined;
+  const cliDb = () => (dbResolved ??= resolveDatabaseConfig(parsed, cliEnv()));
 
   let parsed: CliParsedArgs;
   try {
@@ -457,7 +603,7 @@ export async function cliMain(
       const ir = runParse(source, { sport: parsed.sport, sourceLabel: `cli:wod parse ${parsed.target}` });
       const identity = extractNoteIdentity(source);
       const tags = extractTypedTags(source);
-      const db = await openCliDb(parsed.db);
+      const db = await openCliDb(cliDb());
       try {
         const persisted = await persistNote(db, {
           source: noteSource,
@@ -501,7 +647,7 @@ export async function cliMain(
       }
 
       const identity = extractNoteIdentity(source);
-      const db = await openCliDb(parsed.db);
+      const db = await openCliDb(cliDb());
       let ir: WodWikiIRFile<ExecutionLog>;
       try {
         const started = await startRun(db, {
@@ -557,15 +703,15 @@ export async function cliMain(
 
       let ir;
       if (useDb) {
-        const dbPath = resolveDbPath(parsed.db);
-        if (!nodeFs().existsSync(dbPath)) {
+        const config = cliDb();
+        if (config.kind === 'sqlite' && !nodeFs().existsSync(config.path)) {
           writeErr(
-            `[wod query] No input dataset and no database at ${dbPath}. ` +
+            `[wod query] No input dataset and no database at ${config.path}. ` +
             'Specify --corpus <file>, --stdin-log, --stdin-facts, or run `wod seed` first.',
           );
           return 1;
         }
-        const db = await openCliDb(parsed.db);
+        const db = await openCliDb(config, config.kind === 'sqlite' ? undefined : { initialize: false });
         try {
           ir = await runQueryCli(parsed.target, {
             preferredUnit: parsed.unit,
@@ -613,7 +759,7 @@ export async function cliMain(
         return 1;
       }
       const targetId = id as string;
-      const db = await openCliDb(parsed.db);
+      const db = await openCliDb(cliDb());
       try {
         if (kind === 'note') {
           const bundle = await getNoteBundle(db.db, targetId);
@@ -692,7 +838,7 @@ export async function cliMain(
         const source = fs.readFileSync(file, 'utf-8');
         const identity = extractNoteIdentity(source);
         const tags = extractTypedTags(source);
-        const db = await openCliDb(parsed.db);
+        const db = await openCliDb(cliDb());
         try {
           const persisted = await persistNote(db, {
             source,
@@ -716,7 +862,7 @@ export async function cliMain(
           writeErr(`[wod import] Unparseable effort file (need frontmatter id/slug/label + numeric baseAttributes.met): ${file}`);
           return 1;
         }
-        const db = await openCliDb(parsed.db);
+        const db = await openCliDb(cliDb());
         try {
           await persistEffort(db, { ...effort, registrySource: 'user' });
           writeOut(`[wod import] effort ${effort.slug} — ${effort.label} → ${db.path}`);
@@ -731,7 +877,7 @@ export async function cliMain(
           writeErr(`[wod import] No equipment labels found in ${file}`);
           return 1;
         }
-        const db = await openCliDb(parsed.db);
+        const db = await openCliDb(cliDb());
         try {
           const added = await persistTypedTags(db, labels, 'equipment');
           writeOut(`[wod import] equipment — ${labels.length} labels (${added} new) → ${db.path}`);
@@ -741,7 +887,7 @@ export async function cliMain(
         return 0;
       }
       const { session, events } = csvToSessionRows(fs.readFileSync(file, 'utf-8'));
-      const db = await openCliDb(parsed.db);
+      const db = await openCliDb(cliDb());
       try {
         const result = await persistSessionBundle(db, session, events);
         writeOut(
@@ -794,7 +940,7 @@ export async function cliMain(
         );
         return 1;
       }
-      const db = await openCliDb(parsed.db);
+      const db = await openCliDb(cliDb());
       try {
         for (const dir of dirs) {
           const summary = await importSeedDir(db, dir, '');
@@ -811,13 +957,56 @@ export async function cliMain(
     }
 
     if (parsed.subcommand === 'reset') {
-      const target = resolveDbPath(parsed.db);
+      const config = cliDb();
+      if (config.kind !== 'sqlite') {
+        // Never unlink a remote backend; the message names only the driver
+        // kind so URLs/tokens can never leak through reset output.
+        writeErr(
+          `[wod reset] refusing to reset the configured ${config.kind} database — ` +
+          'reset only removes a local SQLite file. Clear remote databases through their provider.',
+        );
+        return 1;
+      }
+      const target = config.path;
       if (nodeFs().existsSync(target)) {
         nodeFs().unlinkSync(target);
         writeOut(`[wod reset] removed ${target}`);
       } else {
         writeOut(`[wod reset] nothing to reset — ${target} does not exist`);
       }
+      return 0;
+    }
+
+    if (parsed.subcommand === 'init') {
+      // Idempotent: opens and initializes the chosen backend. SQLite gets the
+      // file + schema; PostgreSQL may create the target database when the
+      // role authorizes it; Turso gets schema installed in the provisioned DB.
+      const db = await openCliDb(cliDb(), { create: true });
+      try {
+        writeOut(`[wod init] database ready at ${db.path}`);
+      } finally {
+        await db.close();
+      }
+      return 0;
+    }
+
+    if (parsed.subcommand === 'serve' || parsed.subcommand === 'playground') {
+      // Hosting needs Bun (Bun.serve; lazy Bun.SQL for PostgreSQL) — fail fast under Node.
+      if (!('Bun' in globalThis)) {
+        writeErr(
+          `[wod ${parsed.subcommand}] Error: hosting requires the Bun runtime ` +
+          '(https://bun.sh) — run `bun wod serve` / `bun wod playground`.',
+        );
+        return 1;
+      }
+      // Lazy import: Bun-only server module must stay out of Node/browser graphs.
+      const { runCliServer } = await import('./server');
+      const options: CliServerOptions = { env: cliEnv() };
+      if (parsed.subcommand === 'serve') options.database = cliDb();
+      if (parsed.host !== undefined) options.host = parsed.host;
+      if (parsed.port !== undefined) options.port = parsed.port;
+      if (parsed.dist !== undefined) options.dist = parsed.dist;
+      await runCliServer(parsed.subcommand, options, writeOut);
       return 0;
     }
 
