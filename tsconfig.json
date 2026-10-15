@@ -36,6 +36,7 @@
       "@bitcobblers/wod-wiki-engine": ["./packages/engine/src/index.ts"],
       "@bitcobblers/wod-wiki-storage": ["./packages/storage/src/index.ts"],
       "@bitcobblers/wod-wiki-storage/sql": ["./packages/storage/src/sql/index.ts"],
+      "@bitcobblers/wod-wiki-storage/sql/node": ["./packages/storage/src/sql/node.ts"],
       "@bitcobblers/wod-wiki-tools": ["./packages/tools/src/index.ts"],
       "@bitcobblers/wod-wiki-tools/server": ["./packages/tools/src/server/app.ts"],
       "@bitcobblers/wod-wiki-ui": ["./packages/ui/src/index.ts"]
