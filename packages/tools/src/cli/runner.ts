@@ -996,8 +996,8 @@ export async function cliMain(
       // Hosting needs Bun (Bun.serve; lazy Bun.SQL for PostgreSQL) — fail fast under Node.
       if (!('Bun' in globalThis)) {
         writeErr(
-          `[wod ${parsed.subcommand}] Error: hosting requires the Bun runtime ` +
-          '(https://bun.sh) — run `bun wod server` / `bun wod playground`.',
+          `[wod ${parsed.subcommand}] Error: hosting requires the Bun runtime (https://bun.sh). ` +
+          `Install Bun to host: https://bun.sh`,
         );
         return 1;
       }

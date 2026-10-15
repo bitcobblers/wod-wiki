@@ -44,7 +44,7 @@ function bun(): BunGlobalLike {
   // (engine stays Node-compilable); the access chain is proven at runtime.
   const b = (globalThis as { Bun?: BunGlobalLike }).Bun;
   if (!b) {
-    throw new Error('wod server/playground requires the Bun runtime — start with: bun wod server');
+    throw new Error('wod server/playground requires the Bun runtime (https://bun.sh)');
   }
   return b;
 }
