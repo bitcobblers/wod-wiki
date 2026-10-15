@@ -8,6 +8,7 @@
         "@bitcobblers/wod-wiki-core": "^0.11.0",
         "@bitcobblers/wod-wiki-engine": "^0.11.0",
         "@bitcobblers/wod-wiki-lang": "^0.11.0",
+        "@bitcobblers/wod-wiki-tools": "^0.11.0",
         "@bitcobblers/wod-wiki-ui": "^0.11.0",
         "@bitcobblers/wod-wiki-wql": "^0.11.0",
         "@codemirror/autocomplete": "^6.20.3",
@@ -93,8 +94,8 @@
       "name": "@bitcobblers/wod-wiki-api",
       "version": "0.11.0",
       "dependencies": {
-        "@bitcobblers/wod-wiki-engine": "^0.11.0",
         "@bitcobblers/wod-wiki-storage": "^0.11.0",
+        "@bitcobblers/wod-wiki-tools": "^0.11.0",
         "@bitcobblers/wod-wiki-wql": "^0.11.0",
         "@libsql/client": "^0.18.0",
       },
@@ -166,9 +167,6 @@
     "packages/engine": {
       "name": "@bitcobblers/wod-wiki-engine",
       "version": "0.11.0",
-      "bin": {
-        "wod": "./dist/bin/wod.mjs",
-      },
       "dependencies": {
         "@bitcobblers/wod-wiki-core": "^0.11.0",
         "@bitcobblers/wod-wiki-lang": "^0.11.0",
@@ -179,7 +177,6 @@
         "@lezer/common": "^1.0.0",
         "@lezer/highlight": "^1.0.0",
         "@lezer/lr": "^1.0.0",
-        "@libsql/client": "^0.18.0",
       },
     },
     "packages/lang": {
@@ -242,6 +239,22 @@
       "optionalPeers": [
         "@bitcobblers/wod-wiki-lang",
       ],
+    },
+    "packages/tools": {
+      "name": "@bitcobblers/wod-wiki-tools",
+      "version": "0.11.0",
+      "bin": {
+        "wod": "./dist/bin/wod.mjs",
+        "wod-wiki": "./dist/bin/wod.mjs",
+      },
+      "dependencies": {
+        "@bitcobblers/wod-wiki-core": "^0.11.0",
+        "@bitcobblers/wod-wiki-engine": "^0.11.0",
+        "@bitcobblers/wod-wiki-lang": "^0.11.0",
+        "@bitcobblers/wod-wiki-storage": "^0.11.0",
+        "@bitcobblers/wod-wiki-wql": "^0.11.0",
+        "@libsql/client": "^0.18.0",
+      },
     },
     "packages/ui": {
       "name": "@bitcobblers/wod-wiki-ui",
@@ -411,6 +424,8 @@
     "@bitcobblers/wod-wiki-storage": ["@bitcobblers/wod-wiki-storage@workspace:packages/storage"],
 
     "@bitcobblers/wod-wiki-storybook": ["@bitcobblers/wod-wiki-storybook@workspace:apps/storybook"],
+
+    "@bitcobblers/wod-wiki-tools": ["@bitcobblers/wod-wiki-tools@workspace:packages/tools"],
 
     "@bitcobblers/wod-wiki-ui": ["@bitcobblers/wod-wiki-ui@workspace:packages/ui"],
 
