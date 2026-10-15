@@ -7,7 +7,7 @@
  * committed NEW vs UPDATED record counting (user-owned rows excluded).
  */
 import { describe, expect, it, beforeEach, spyOn } from 'bun:test';
-import { compileSeedRow } from '../../../../../packages/engine/src/cli/seedbuild/compiler';
+import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
 import { emptySeedMeta, seedMetaKey, SEED_SCHEMA } from '@/types/seed';
 import { InMemorySeedStorage } from './SeedImportStorage';
 import { CountingSeedSource, InMemorySeedSource } from './InMemorySeedSource';

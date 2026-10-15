@@ -75,12 +75,12 @@ jobs:
         id: build
         run: bun run build:packages
 
-      # Stage playground app builds into packages/engine/dist/web so the
-      # published engine package can serve `wod server`/`wod playground`
+      # Stage playground app builds into packages/tools/dist/web so the
+      # published tools package can serve `wod server`/`wod playground`
       # without a repo checkout.
       - name: Build CLI web assets
         id: assets
-        run: bun run build:cli:assets && bun packages/engine/tests/cli-extension-check.ts
+        run: bun run build:cli:assets && bun packages/tools/tests/cli-extension-check.ts
 
       - name: Upload packages-dist artifact
         if: inputs.upload-dist && steps.build.outcome == 'success' && steps.assets.outcome == 'success'

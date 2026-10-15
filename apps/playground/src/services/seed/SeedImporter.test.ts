@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { compileSeedRow } from '../../../../../packages/engine/src/cli/seedbuild/compiler';
+import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
 import { SEED_SCHEMA, seedMetaKey } from '@/types/seed';
 import { InMemorySeedStorage, type SeedChunkWrite, type SeedChunkResult } from './SeedImportStorage';
 import { CountingSeedSource, InMemorySeedSource } from './InMemorySeedSource';

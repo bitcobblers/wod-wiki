@@ -40,7 +40,6 @@ describe('@bitcobblers/wod-wiki-engine re-exports', () => {
     expect(engine.createAnalyticsEngineForBlock).toBeDefined();
     expect(engine.AnalyticsEngine).toBeDefined();
     expect(engine.StandardAnalyticsProfile).toBeDefined();
-    expect(engine.buildWorkoutResults).toBeDefined();
   });
 
   it('re-exports pure wql query execution, grammar, and vocabulary', () => {
@@ -74,15 +73,4 @@ describe('@bitcobblers/wod-wiki-engine re-exports', () => {
     expect(engine.buildStatementTree).toBeDefined();
   });
 
-  it('exports CLI runners and formatters', () => {
-    expect(engine.runParse).toBeDefined();
-    expect(engine.runExecution).toBeDefined();
-    expect(engine.runQueryCli).toBeDefined();
-    expect(engine.loadLanguagePack).toBeDefined();
-    expect(engine.formatParseOutput).toBeDefined();
-    expect(engine.formatExecutionOutput).toBeDefined();
-    expect(engine.formatQueryOutput).toBeDefined();
-    expect(engine.cliMain).toBeDefined();
-    expect(engine.parseCliArgs).toBeDefined();
-  });
 });

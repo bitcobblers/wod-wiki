@@ -3,6 +3,10 @@
   "version": "0.11.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "wod": "./bin/wod",
+    "wod-wiki": "./bin/wod"
+  },
   "description": "WOD Wiki monorepo — Whiteboard Language & WQL engine packages (@bitcobblers/wod-wiki-*), the wod.wiki playground app, and the Storybook workbench.",
   "homepage": "https://github.com/bitcobblers/wod-wiki#readme",
   "bugs": {
@@ -35,7 +39,7 @@
     "docker": "docker compose up --build",
     "build": "bun run build:packages && bun run build:apps",
     "build:packages": "flock /tmp/wod-wiki-build-packages.lock bun run build:packages:seq",
-    "build:packages:seq": "bun run --cwd packages/core build && bun run --cwd packages/lang build && bun run --cwd packages/wql build && bun run --cwd packages/storage build && bun run --cwd packages/engine build && bun run --cwd packages/ui build",
+    "build:packages:seq": "bun run --cwd packages/core build && bun run --cwd packages/lang build && bun run --cwd packages/wql build && bun run --cwd packages/storage build && bun run --cwd packages/engine build && bun run --cwd packages/tools build && bun run --cwd packages/ui build",
     "build:apps": "bun run --filter '@bitcobblers/wod-wiki-playground' build && bun run --filter '@bitcobblers/wod-wiki-storybook' build",
     "build:cli": "bun run build:packages && bun run build:cli:assets",
     "build:cli:assets": "bun scripts/build-cli-assets.ts",
@@ -70,13 +74,13 @@
     "check:architecture": "node scripts/check-architecture-regressions.cjs && node scripts/check-unused-exports-regressions.cjs",
     "check:server": "bun run --cwd apps/api check",
     "analyze:deps": "bun x madge --extensions ts,tsx --ts-config tsconfig.json --exclude __tests__ --circular apps/playground/src",
-    "wod": "bun --no-env-file ./packages/engine/dist/bin/wod.mjs",
-    "setup": "bun setup-testing.js",
-    "postinstall": "if [ -f packages/engine/src/bin/wod.ts ] && [ ! -f packages/engine/dist/bin/wod.mjs ]; then bun run build:packages; fi"
+    "wod": "bun --no-env-file ./bin/wod",
+    "setup": "bun setup-testing.js"
   },
   "dependencies": {
     "@bitcobblers/wod-wiki-core": "^0.11.0",
     "@bitcobblers/wod-wiki-engine": "^0.11.0",
+    "@bitcobblers/wod-wiki-tools": "^0.11.0",
     "@bitcobblers/wod-wiki-lang": "^0.11.0",
     "@bitcobblers/wod-wiki-ui": "^0.11.0",
     "@bitcobblers/wod-wiki-wql": "^0.11.0",

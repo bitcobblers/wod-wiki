@@ -1,0 +1,48 @@
+{
+  "name": "@bitcobblers/wod-wiki-tools",
+  "version": "0.11.0",
+  "description": "CLI tools and server runner for Whiteboard Language & WQL engine",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "wod": "./dist/bin/wod.mjs",
+    "wod-wiki": "./dist/bin/wod.mjs"
+  },
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./server": {
+      "bun": "./src/server/app.ts",
+      "types": "./dist/server/app.d.ts",
+      "import": "./dist/server/app.mjs",
+      "require": "./dist/server/app.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@bitcobblers/wod-wiki-core": "^0.11.0",
+    "@bitcobblers/wod-wiki-engine": "^0.11.0",
+    "@bitcobblers/wod-wiki-lang": "^0.11.0",
+    "@bitcobblers/wod-wiki-storage": "^0.11.0",
+    "@bitcobblers/wod-wiki-wql": "^0.11.0",
+    "@libsql/client": "^0.18.0"
+  },
+  "scripts": {
+    "prepack": "node -e \"const fs=require('fs');const missing=['dist/bin/wod.mjs','dist/server/app.mjs','dist/server/app.cjs','dist/server/app.d.ts','dist/web/server/index.html','dist/web/playground/index.html'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('prepack: refusing to publish broken package, missing build outputs:\\n  '+missing.join('\\n  ')+'\\nBuild first: bun run build:cli (repo root)');process.exit(1)}\"",
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

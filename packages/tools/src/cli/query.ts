@@ -27,14 +27,13 @@ import {
   type EffortQueryStore,
   type IEffort as WqlEffort,
 } from '@bitcobblers/wod-wiki-wql';
-import { inMemoryEventStore } from '../store';
+import { inMemoryEventStore, createIRFile, isIRFile, type IrKind, type WodWikiIRFile, type ExecutionLog, type CorpusIRData } from '@bitcobblers/wod-wiki-engine';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import type { AnalyticsDataPoint, Note, BlockIndexRow, BlockRevision, Session, EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { WorkoutResults } from '@bitcobblers/wod-wiki-core';
 import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 import { bundledEfforts } from '@bitcobblers/wod-wiki-lang';
 import { validateNoteBlocks, parseDocumentSections, blockContentId } from '@bitcobblers/wod-wiki-core';
-import { createIRFile, isIRFile, type IrKind, type WodWikiIRFile, type ExecutionLog, type CorpusIRData } from '../ir';
 export class WqlSyntaxError extends Error {
   constructor(
     public readonly query: string,

@@ -19,8 +19,7 @@
 import { openCliDb, nodeFs, nodePath } from './db';
 import type { CliDatabaseConfig } from './config';
 import type { CliDb } from './db';
-import type * as HttpServer from '../server/app';
-
+import { createHandler } from '../server/app';
 type WriteOut = (text: string) => void;
 
 export type CliServerMode = 'server' | 'playground';
@@ -76,12 +75,12 @@ function engineRoot(): string {
   const fs = nodeFs();
   for (let dir = moduleDir(); ; dir = p.dirname(dir)) {
     try {
-      if (JSON.parse(fs.readFileSync(p.resolve(dir, 'package.json'), 'utf8')).name === '@bitcobblers/wod-wiki-engine') return dir;
+      if (JSON.parse(fs.readFileSync(p.resolve(dir, 'package.json'), 'utf8')).name === '@bitcobblers/wod-wiki-tools') return dir;
     } catch { /* no manifest here — keep walking */ }
     const parent = p.dirname(dir);
     if (parent === dir) break;
   }
-  throw new Error('wod server/playground: cannot locate the installed @bitcobblers/wod-wiki-engine package');
+  throw new Error('wod server/playground: cannot locate the installed @bitcobblers/wod-wiki-tools package');
 }
 
 /**
@@ -107,7 +106,7 @@ function resolveDist(mode: CliServerMode, options: CliServerOptions): string {
   if (!nodeFs().existsSync(p.resolve(dist, 'index.html'))) {
     throw new Error(
       `wod ${mode}: packaged frontend missing — expected ${dist}/index.html. `
-      + 'Reinstall @bitcobblers/wod-wiki-engine (bun add @bitcobblers/wod-wiki-engine), '
+      + 'Reinstall @bitcobblers/wod-wiki-tools (bun add @bitcobblers/wod-wiki-tools), '
       + 'or rebuild the release assets from a checkout (bun run build:cli) and reinstall the package.',
     );
   }
@@ -159,12 +158,9 @@ export async function runCliServer(
   let server: BunServerLike;
   try {
     const dist = resolveDist(mode, options);
-    // Static imports pull Bun-only filesystem APIs into the browser engine graph.
-    const handlerModule = '@bitcobblers/wod-wiki-engine/server';
-    const { createHandler } = await import(/* @vite-ignore */ handlerModule) as typeof HttpServer;
-    // Playground: no database exists to close — createHandler(null) answers
-    // every /api request with 404 and serves the browser-storage build.
+    // Bundled server handler
     const handler = createHandler(db?.db ?? null, { playgroundDist: dist });
+    // Playground: no database exists to close — createHandler(null) answers
     server = runtime.serve({ port, hostname: host, fetch: handler });
     if (mode === 'server') {
       writeOut(`wod server: http://${host}:${port} — ${dbLabel} · dist ${dist}`);

@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bitcobblers/wod-wiki-engine": "^0.11.0",
+    "@bitcobblers/wod-wiki-tools": "^0.11.0",
     "@bitcobblers/wod-wiki-storage": "^0.11.0",
     "@bitcobblers/wod-wiki-wql": "^0.11.0",
     "@libsql/client": "^0.18.0"

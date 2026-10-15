@@ -5,7 +5,7 @@
  * and WQL query results across json, table, and csv formats.
  */
 
-import type { WodWikiIRFile, StatementNode, ExecutionLog } from '../ir';
+import type { WodWikiIRFile, StatementNode, ExecutionLog } from '@bitcobblers/wod-wiki-engine';
 import type { QueryResult, RowsQueryResult, FindQueryResult, PipelineResult } from '@bitcobblers/wod-wiki-wql';
 
 export type OutputFormat = 'json' | 'table' | 'csv';

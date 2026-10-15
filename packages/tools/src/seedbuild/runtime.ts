@@ -1,6 +1,6 @@
 import { mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core';
 import type { IStorage, IReadWriteStore } from '@bitcobblers/wod-wiki-storage';
-import { extractTypedTags, readFrontmatterMeta } from '../../exchange';
+import { extractTypedTags, readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
 import { parseEffortFile } from './effort-file';
 import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, seedNoteSourceId, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
 import { assertSeedManifest, assertSeedRows } from './validation';

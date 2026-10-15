@@ -41,7 +41,7 @@ The URL and token stay in this browser's localStorage. Same-origin scripts can r
 Install [Bun](https://bun.sh/) v1.4 or newer, then install the CLI globally. The package includes the API and prebuilt website, so no checkout, frontend build, or development dependencies are needed. The executable requires Bun even when installed through another package manager.
 
 ```bash
-bun add --global @bitcobblers/wod-wiki-engine
+bun add --global @bitcobblers/wod-wiki-tools
 wod init --db ./data/wodwiki.db    # create the SQLite file + schema
 wod server --db ./data/wodwiki.db  # app + API at http://127.0.0.1:3000
 ```
@@ -248,7 +248,8 @@ markdown ─▶ PARSE (lezer grammar)          → CodeStatements   (parser metr
 | `packages/lang` | `@bitcobblers/wod-wiki-lang` | Whiteboard Lezer grammar, dialects, compiler, effort registry |
 | `packages/wql` | `@bitcobblers/wod-wiki-wql` | Wod Query Language grammar, AST, and QueryService execution engine |
 | `packages/ui` | `@bitcobblers/wod-wiki-ui` | CodeMirror 6 extensions, widgets, preview decorations, themes |
-| `packages/engine` | `@bitcobblers/wod-wiki-engine` | Runtime orchestration, CLI runner, and umbrella exports |
+| `packages/engine` | `@bitcobblers/wod-wiki-engine` | Runtime orchestration and umbrella library exports |
+| `packages/tools` | `@bitcobblers/wod-wiki-tools` | CLI tools runner (`wod`), database drivers, and HTTP server |
 | `apps/playground` | *private* | Full React web application (journal, editor, settings, dashboards) |
 | `apps/storybook` | *private* | Component workbench and visual testing workshop |
 | `apps/api` | *private* | Bun API and static playground hosting with SQLite, Turso, or PostgreSQL |

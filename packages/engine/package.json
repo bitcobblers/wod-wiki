@@ -1,24 +1,17 @@
 {
   "name": "@bitcobblers/wod-wiki-engine",
   "version": "0.11.0",
-  "description": "Umbrella package for Whiteboard Language & WQL engine with CLI runner",
+  "description": "Umbrella package for Whiteboard Language & WQL engine",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "wod": "./dist/bin/wod.mjs"
-  },
   "exports": {
     ".": {
+      "bun": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
-    },
-    "./server": {
-      "types": "./dist/server/app.d.ts",
-      "import": "./dist/server/app.mjs",
-      "require": "./dist/server/app.cjs"
     }
   },
   "files": [
@@ -36,11 +29,10 @@
     "@codemirror/language": "^6.0.0",
     "@lezer/common": "^1.0.0",
     "@lezer/highlight": "^1.0.0",
-    "@lezer/lr": "^1.0.0",
-    "@libsql/client": "^0.18.0"
+    "@lezer/lr": "^1.0.0"
   },
   "scripts": {
-    "prepack": "node -e \"const fs=require('fs');const missing=['dist/index.mjs','dist/index.cjs','dist/index.d.ts','dist/bin/wod.mjs','dist/server/app.mjs','dist/server/app.cjs','dist/server/app.d.ts','dist/web/server/index.html','dist/web/playground/index.html'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('prepack: refusing to publish broken package, missing build outputs:\\n  '+missing.join('\\n  ')+'\\nBuild first: bun run build:cli (repo root)');process.exit(1)}\"",
+    "prepack": "node -e \"const fs=require('fs');const missing=['dist/index.mjs','dist/index.cjs','dist/index.d.ts'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('prepack: refusing to publish broken package, missing build outputs:\\n  '+missing.join('\\n  '));process.exit(1)}\"",
     "build": "tsup",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",

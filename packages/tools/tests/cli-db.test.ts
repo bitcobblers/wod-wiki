@@ -6,14 +6,14 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { join } from 'path';
 import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { cliMain } from '../src/index';
-import { csvToEquipmentLabels, csvToSessionRows, sessionToCsv } from '../src/exchange';
+import { csvToEquipmentLabels, csvToSessionRows, sessionToCsv } from '@bitcobblers/wod-wiki-engine';
 import { loadSql, openCliDb } from '../src/cli/db';
 import type { Session } from '@bitcobblers/wod-wiki-storage';
 import { persistNote, startRun, persistRun } from '../src/cli/persist';
 import { parseDocumentSections, mapNoteBlockChanges } from '@bitcobblers/wod-wiki-core';
 import { runExecution } from '../src/cli/run';
 import { tmpdir } from 'node:os';
-import { generateSeed } from '../src/cli/seedbuild/compiler';
+import { generateSeed } from '../src/seedbuild/compiler';
 import { createClient } from '@libsql/client';
 
 const TEMP_SCRIPT_FILE = join(process.cwd(), 'temp-db-test-workout.md');

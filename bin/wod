@@ -1,0 +1,34 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const isBun = typeof process.versions.bun !== 'undefined';
+const selfDir = path.dirname(fileURLToPath(import.meta.url));
+const distBin = path.resolve(selfDir, '../packages/tools/dist/bin/wod.mjs');
+
+if (!isBun) {
+  // If invoked via Node but Bun is installed, prefer Bun (supports server/playground and raw TS).
+  const checkBun = spawnSync('bun', ['--version'], { stdio: 'ignore' });
+  if (checkBun.status === 0) {
+    const res = spawnSync('bun', ['--no-env-file', fileURLToPath(import.meta.url), ...process.argv.slice(2)], {
+      stdio: 'inherit',
+    });
+    process.exit(res.status ?? 0);
+  }
+}
+
+// 1. If precompiled bundle exists, load it (works under both Bun and Node).
+if (fs.existsSync(distBin)) {
+  await import(distBin);
+} else if (isBun) {
+  // 2. Under Bun, run TypeScript source directly without a build step.
+  const { cliMain } = await import('../packages/tools/src/cli/runner');
+  const exitCode = await cliMain(process.argv.slice(2));
+  process.exitCode = exitCode;
+} else {
+  console.error('[wod] Running directly from Git checkout requires Bun (https://bun.sh).');
+  console.error('      Install Bun or run `bun run build:packages` first.');
+  process.exit(1);
+}

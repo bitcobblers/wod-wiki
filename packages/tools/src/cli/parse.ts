@@ -5,7 +5,7 @@
  */
 
 import { createParser, type IScript } from '@bitcobblers/wod-wiki-lang';
-import { createIRFile, buildStatementTree, type WodWikiIRFile, type StatementNode } from '../ir';
+import { createIRFile, buildStatementTree, type WodWikiIRFile, type StatementNode } from '@bitcobblers/wod-wiki-engine';
 
 export class ParseSyntaxError extends Error {
   constructor(

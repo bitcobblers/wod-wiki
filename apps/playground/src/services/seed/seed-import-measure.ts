@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createClient, type InStatement, type ResultSet } from '@libsql/client';
 import { SqlStorage, libsqlDatabase, type LibsqlClient } from '../../../../../packages/storage/src/sql';
-import { compileSeedRow } from '../../../../../packages/engine/src/cli/seedbuild/compiler';
+import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
 import { seedFixture } from './seedFixture';
 import { IndexedDBSeedImportStorage } from './SeedImportStorage';
 import { SeedImporter, seedNoteId } from './SeedImporter';

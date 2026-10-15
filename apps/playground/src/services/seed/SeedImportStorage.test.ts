@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { IndexedDBStorage } from '@/services/storage';
-import { compileSeedRow } from '../../../../../packages/engine/src/cli/seedbuild/compiler';
+import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
 import { SEED_SCHEMA, emptySeedMeta, seedMetaKey } from '@/types/seed';
 import { seedNoteId } from './SeedImporter';
 import { IndexedDBSeedImportStorage, type SeedChunkWrite } from './SeedImportStorage';

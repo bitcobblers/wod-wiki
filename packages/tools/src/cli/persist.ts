@@ -10,7 +10,7 @@ import type {
   Tag,
 } from '@bitcobblers/wod-wiki-storage';
 import { rowsEqual as sameRow } from '@bitcobblers/wod-wiki-storage';
-import type { ExecutionLog } from '../ir';
+import type { ExecutionLog } from '@bitcobblers/wod-wiki-engine';
 import type { EventRecord, ICodeStatement } from '@bitcobblers/wod-wiki-core';
 import {
   blockContentId,

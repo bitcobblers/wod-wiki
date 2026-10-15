@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'path';
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'fs';
-import { cliMain, dialectRegistry, unregisterLanguagePack } from '../src/index';
+import { cliMain } from '../src/index';
+import { dialectRegistry, unregisterLanguagePack } from '@bitcobblers/wod-wiki-engine';
 import * as execution from '../src/cli/run';
 import { cliNoteSource } from '../src/cli/runner';
 import { openCliDb } from '../src/cli/db';

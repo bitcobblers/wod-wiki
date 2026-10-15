@@ -8,10 +8,10 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const distribution = resolve(root, 'packages/engine/dist');
+const distribution = resolve(root, 'packages/tools/dist');
 const directory = mkdtempSync(join(tmpdir(), 'wod-cli-check-'));
 cpSync(distribution, join(directory, 'dist'), { recursive: true });
-cpSync(resolve(root, 'packages/engine/package.json'), join(directory, 'package.json'));
+cpSync(resolve(root, 'packages/tools/package.json'), join(directory, 'package.json'));
 symlinkSync(resolve(root, 'node_modules'), join(directory, 'node_modules'), 'dir');
 const cli = join(directory, 'dist/bin/wod.mjs');
 const env = { ...process.env };

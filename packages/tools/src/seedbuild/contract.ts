@@ -1,0 +1,75 @@
+import type { BlockEffort, BlockIndexRow, NoteBlock } from '@bitcobblers/wod-wiki-core';
+import { KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+
+export const SEED_SCHEMA = 8;
+export const SEED_REGISTERED_WIDGETS = KNOWN_SECTION_WIDGETS;
+
+/** Source and all current derived rows commit as one chunk. */
+export interface SeedRow {
+  path: string;
+  content: string;
+  blocks: Record<string, NoteBlock>;
+  blockIndex: BlockIndexRow[];
+  blockEfforts: BlockEffort[];
+}
+
+export type ChunkKind = 'notes';
+export interface ManifestChunk {
+  id: string;
+  path: string;
+  sha256: string;
+  bytes: number;
+  count: number;
+  kind?: ChunkKind;
+}
+export interface SeedManifest {
+  schema: number;
+  version: number;
+  versionLabel?: string;
+  commit?: string;
+  dirty?: boolean;
+  builtAt: string;
+  chunks: ManifestChunk[];
+}
+export interface SeedMetaRecord {
+  key: string;
+  schema: number;
+  seedVersion: number;
+  builtAt: string;
+  importedAt: number;
+  chunks: Record<string, { sha256: string; noteIds?: string[] }>;
+  claim?: { owner: string; at: number } | null;
+}
+export const SEED_BROADCAST_CHANNEL = 'wodwiki.seed';
+export const EFFORTS_CHUNK_ID = 'efforts';
+export const CANVAS_CHUNK_ID = 'canvas';
+export const DASHBOARDS_CHUNK_ID = 'dashboards';
+export const TEMPLATE_CHUNK_ID = 'template';
+export function seedMetaKey(sourceId: string): string { return `seed:${sourceId}`; }
+export function emptySeedMeta(key: string): SeedMetaRecord {
+  return { key, schema: SEED_SCHEMA, seedVersion: 0, builtAt: '', importedAt: 0, chunks: {}, claim: null };
+}
+export function catalogForChunkId(chunkId: string): string | undefined {
+  const value = /^(?:collection|feed)\.(.+)$/.exec(chunkId)?.[1];
+  return value && value !== '_root' ? value : undefined;
+}
+export function canvasRouteSlug(content: string): string | null {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content);
+  if (fm?.[1] && !/^template:\s*canvas\s*$/m.test(fm[1])) return null;
+  return fm?.[1]?.match(/^route:\s*(\S+)\s*$/m)?.[1]?.replace(/^\//, '') || null;
+}
+export function seedNoteSourceId(path: string, content: string, chunkId: string): string | undefined {
+  const parts = path.split('/');
+  const stem = (parts.at(-1) ?? '').replace(/\.md$/i, '');
+  const under = parts.slice(2).map((p) => p.replace(/\.md$/i, '')).join('/');
+  if (chunkId === CANVAS_CHUNK_ID) return `guides:${canvasRouteSlug(content) ?? under}`;
+  if (chunkId === DASHBOARDS_CHUNK_ID) return 'dashboards';
+  if (chunkId === EFFORTS_CHUNK_ID) return 'efforts';
+  if (chunkId === TEMPLATE_CHUNK_ID) return 'playground';
+  if (chunkId.startsWith('collection.')) {
+    const catalog = catalogForChunkId(chunkId);
+    return !catalog ? 'collection:_root' : stem.toLowerCase() === 'readme' ? `collection:${catalog}` : `collection:${catalog}/${stem}`;
+  }
+  if (chunkId.startsWith('feed.')) return `feed:feeds/${under}`;
+  return undefined;
+}

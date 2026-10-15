@@ -24,7 +24,7 @@ import type {
   WorkoutResults,
   IOutputStatement,
 } from '@bitcobblers/wod-wiki-core';
-import { createIRFile, type WodWikiIRFile, type ExecutionLog } from '../ir';
+import { createIRFile, type WodWikiIRFile, type ExecutionLog } from '@bitcobblers/wod-wiki-engine';
 import { ParseSyntaxError } from './parse';
 
 export interface RunOptions {

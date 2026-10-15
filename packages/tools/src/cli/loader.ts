@@ -16,7 +16,7 @@ function getPathUtils() {
     pathToFileURL: require('url').pathToFileURL,
   };
 }
-import { registerLanguagePack, type LanguagePack } from '../pack';
+import { registerLanguagePack, type LanguagePack } from '@bitcobblers/wod-wiki-engine';
 
 export class PackLoadError extends Error {
   constructor(

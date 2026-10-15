@@ -19,7 +19,7 @@ import { join, resolve } from 'node:path';
 // Repo-internal import: the seed compiler is not exported from the engine
 // package index (that index is browser-bundled; seedbuild statically imports
 // node builtins). The `wod build` CLI is the public surface.
-import { generateSeed } from '../packages/engine/src/cli/seedbuild/compiler';
+import { generateSeed } from '../packages/tools/src/seedbuild/compiler';
 
 interface ManifestChunkRef {
   id: string;

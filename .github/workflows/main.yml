@@ -246,7 +246,7 @@ jobs:
           name: packages-dist
           path: packages/
 
-      - name: Publish all five packages
+      - name: Publish all six packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |

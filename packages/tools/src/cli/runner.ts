@@ -52,7 +52,7 @@ import {
   extractTypedTags,
   markdownToEffort,
   sessionToCsv,
-} from '../exchange';
+} from '@bitcobblers/wod-wiki-engine';
 import {
   formatParseOutput,
   formatExecutionOutput,
@@ -61,8 +61,8 @@ import {
 } from './formatters';
 
 import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
-import type { ExecutionLog, WodWikiIRFile } from '../ir';
-const VERSION = '0.6.0';
+import type { ExecutionLog, WodWikiIRFile } from '@bitcobblers/wod-wiki-engine';
+import { VERSION } from '../version';
 
 /** Bare CLI scripts become authored Markdown at the persistence boundary. */
 export function cliNoteSource(source: string, label: string, sport?: string): string {
@@ -909,7 +909,7 @@ export async function cliMain(
         return 1;
       }
       // Browser-boundary: dynamic import keeps node:crypto and child_process out of the browser graph.
-      const { generateSeed } = await import('./seedbuild/compiler');
+      const { generateSeed } = await import('../seedbuild/compiler');
       try {
         const result = generateSeed({
           corpusRoot: root,

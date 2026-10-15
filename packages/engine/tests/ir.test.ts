@@ -9,7 +9,7 @@ import {
 import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runQueryCli } from '../src/cli/query';
+import { runQueryCli } from '@bitcobblers/wod-wiki-tools';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 
 describe('IR Envelope and StatementNode', () => {

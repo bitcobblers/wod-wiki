@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 const ROOT = join(import.meta.dir, '..')
 const PLAYGROUND = join(ROOT, 'apps', 'playground')
-const ENGINE_WEB = join(ROOT, 'packages', 'engine', 'dist', 'web')
+const TOOLS_WEB = join(ROOT, 'packages', 'tools', 'dist', 'web')
 
 const CLEAN_ENV = {
   ...process.env,
@@ -44,8 +44,8 @@ function copyFiltered(src: string, dest: string): void {
 run('build:api')
 run('build')
 
-rmSync(join(ENGINE_WEB, 'server'), { recursive: true, force: true })
-rmSync(join(ENGINE_WEB, 'playground'), { recursive: true, force: true })
-copyFiltered(join(PLAYGROUND, 'dist-api'), join(ENGINE_WEB, 'server'))
-copyFiltered(join(PLAYGROUND, 'dist'), join(ENGINE_WEB, 'playground'))
+rmSync(join(TOOLS_WEB, 'server'), { recursive: true, force: true })
+rmSync(join(TOOLS_WEB, 'playground'), { recursive: true, force: true })
+copyFiltered(join(PLAYGROUND, 'dist-api'), join(TOOLS_WEB, 'server'))
+copyFiltered(join(PLAYGROUND, 'dist'), join(TOOLS_WEB, 'playground'))
 process.stdout.write('[build-cli-assets] staged dist/web/server (API) and dist/web/playground (IndexedDB)\n')

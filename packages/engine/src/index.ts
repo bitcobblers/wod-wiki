@@ -340,43 +340,6 @@ export {
   type CorpusIRData,
 } from './ir';
 
-// 8. CLI Runners & Formatters (#967)
-export {
-  runParse,
-  ParseSyntaxError,
-  type ParseOptions,
-} from './cli/parse';
-export {
-  runExecution,
-  buildWorkoutResults,
-  type RunOptions,
-} from './cli/run';
-export {
-  runQueryCli,
-  WqlSyntaxError,
-  loadQueryData,
-  type QueryCliOptions,
-} from './cli/query';
-export {
-  loadLanguagePack,
-  PackLoadError,
-} from './cli/loader';
-export {
-  cliMain,
-  parseCliArgs,
-  readStdin,
-  type CliParsedArgs,
-} from './cli/runner';
-export {
-  formatParseOutput,
-  formatExecutionOutput,
-  formatQueryOutput,
-  type OutputFormat,
-} from './cli/formatters';
-// NOTE: the seed compiler (cli/seedbuild, behind `wod build`) is NOT exported
-// here — it statically imports node builtins (fs/crypto/child_process), and
-// this index is bundled for the browser (playground, storybook). Repo-internal
-// consumers (scripts/sync-seed.ts) import it from source directly.
 // Import/Export exchange — pure row⇄string transforms shared by the CLI and
 // the website (download/upload against IndexedDB rows uses the same code).
 export {
@@ -515,6 +478,6 @@ export type {
   Val,
   LineFormScope,
 } from '@bitcobblers/wod-wiki-lang';
-export * from './cli/seedbuild/contract';
-export * from './cli/seedbuild/runtime';
-export * from './cli/seedbuild/validation';
+export * from './seed/contract';
+export * from './seed/runtime';
+export * from './seed/validation';

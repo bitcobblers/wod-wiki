@@ -28,8 +28,8 @@ import {
   scaffoldDiscoveredEfforts,
   validateDashboardNote,
   validateWodBlockSyntax,
-} from '../src/cli/seedbuild/compiler';
-import { SEED_SCHEMA, canvasRouteSlug } from '../src/cli/seedbuild/contract';
+} from '../src/seedbuild/compiler';
+import { SEED_SCHEMA, canvasRouteSlug } from '../src/seedbuild/contract';
 import { cliMain } from '../src/index';
 
 const sha256 = (data: string | Buffer): string =>
