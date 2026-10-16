@@ -13,7 +13,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
 import type { Quest, Chapter, ScrollStage } from '../canvas/parseCanvasMarkdown'
 import type { ScriptBlock, Sessions } from '@/components/Editor/types'
-import { telemetry, HOME_EVENTS } from '@/services/telemetry'
+import { telemetry } from '@/services/telemetry'
 
 // ── Heavy / browser-only dependencies ───────────────────────────────────────
 
@@ -393,14 +393,9 @@ async function renderHomeTour() {
 }
 
 async function startRunAtTimerStage() {
-  // Drive the shared track onto the wallclock stage so its 'Run this
-  // example' caption command is rendered, then click it.
+  // Arrival starts the demo; an extra Try click would start a second run.
   await act(async () => {
     setTestTourProgress(0.25)
-    await Promise.resolve()
-  })
-  await act(async () => {
-    fireEvent.click(screen.getByTestId('tour-caption-command-timer-wallclock-try'))
     await Promise.resolve()
   })
 }

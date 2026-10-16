@@ -337,8 +337,14 @@ const StackIntegratedTimer: React.FC<TimerDisplayProps> = (props) => {
   }, [primaryTimerEntry, activeTimerEntry, mainLabel, activeElapsed]);
 
   return (
-    <div className="flex h-full min-h-0 flex-shrink-0 flex-col gap-4">
-      <MetricTrackerCard />
+    // min-h-0 (no flex-shrink-0): bounded hosts (home pane gate, landscape) must
+    // be able to shrink this stack; the tracker strip yields first and scrolls.
+    // pb-2 + gap-2 reproduces the old 16px desktop gap while collapsing to 8px
+    // (then 0 with the strip) when the host is short.
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      <div className="min-h-0 shrink overflow-y-auto pb-2">
+        <MetricTrackerCard />
+      </div>
       <TimerStackView
         // Use our calculated elapsed time from the active selection
         elapsedMs={activeElapsed}

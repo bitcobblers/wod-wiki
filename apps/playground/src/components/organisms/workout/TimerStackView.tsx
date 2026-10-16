@@ -138,11 +138,11 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
         audio = useAudio();
     } catch { /* ignore if provider missing */ }
 
-    // dense = bounded vertical context (short measured panel) or narrow
-    // panel. Shrinks fixed vertical chrome and control sizes so the clock
-    // band keeps a real share of the height instead of being squeezed to a
-    // sliver. Wide-but-short keeps the desktop (non-compact) arrangement.
-    const dense = compact || panelIsShort;
+    // Very short hosts fit clock and controls side by side instead of vertically.
+    const tight = panelHeight > 0 && panelHeight < 200;
+
+    // Tight hosts need 48px controls even if the context's short flag is false.
+    const dense = compact || panelIsShort || tight;
 
     const primaryTimerFontSizePx = useMemo(
         () => getPrimaryTimerFontSizePx(panelWidth, compact, panelHeight),
@@ -278,7 +278,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
 
     return (
         <div 
-            className={`flex w-full min-h-[192px] flex-1 flex-col ${compact ? '' : dense ? 'gap-2' : 'gap-4'}`}
+            className={`flex w-full flex-1 ${tight ? `flex-row items-stretch gap-2 min-h-[80px]` : `flex-col ${dense ? (compact ? 'min-h-[136px]' : 'min-h-[112px]') : 'min-h-[192px]'} ${compact ? '' : dense ? 'gap-2' : 'gap-4'}`}`}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -294,7 +294,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
             `}</style>
 
             {/* Main Content Area */}
-            <div className={`flex-1 min-h-0 flex flex-col items-center justify-center overflow-hidden ${dense ? 'px-4 py-2' : 'p-4'}`}>
+            <div className={`flex-1 min-h-0 flex flex-col items-center justify-center overflow-hidden ${dense ? 'px-4 py-1' : 'p-4'} ${tight ? 'min-w-0' : ''}`}>
 
                 {/* Timer & Controls Container */}
                 <div className="flex flex-col items-center justify-center h-full relative w-full">
@@ -314,7 +314,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                         renders identically in every state; FitArea scales the
                         content to fit, so label/summary churn never shifts the
                         clock or controls. */}
-                    <div className={`flex w-full shrink-0 items-center justify-center overflow-hidden ${dense ? 'h-8 mb-1' : 'h-24 mb-6'}`}>
+                    <div className={`flex w-full items-center justify-center overflow-hidden ${dense ? 'h-8 min-h-0 shrink mb-1' : 'h-24 mb-6 shrink-0'}`}>
                         <FitArea>
                             {primaryTimer?.label && (
                                 <h2 className={`font-semibold text-foreground tracking-tight ${dense ? 'text-lg' : 'text-3xl lg:text-4xl'}`}>
@@ -343,7 +343,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                         digits to the measured width AND height of that band, so
                         bounded embedded contexts shrink digits instead of
                         clipping them. */}
-                    <div className="relative flex min-h-0 w-full flex-1 items-center justify-center">
+                    <div className="relative flex min-h-12 w-full flex-1 items-center justify-center">
                         <button
                             onClick={isPaused ? handleStart : isRunning ? handlePause : handleStart}
                             {...(getFocusProps ? getFocusProps('timer-main') : {})}
@@ -367,7 +367,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                     {/* Secondary Timers — smaller context clocks for parent
                         intervals. Reserved fixed-height band renders identically
                         when empty, so chips appearing never shifts the clock. */}
-                    <div className={`flex w-full shrink-0 items-center justify-center overflow-hidden ${dense ? 'mt-1 h-6' : 'mt-6 h-[60px]'}`}>
+                    <div className={`flex w-full items-center justify-center overflow-hidden ${dense ? 'mt-1 h-6 min-h-0 shrink' : 'mt-6 h-[60px] shrink-0'}`}>
                         <div className={`flex items-center justify-center gap-2 ${dense ? 'flex-wrap' : 'gap-4'}`}>
                             {secondaryTimerData.map((st, index) => (
                                 <div
@@ -395,7 +395,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                 Sizing follows the dense tier so short embedded contexts keep controls
                 usable instead of pushing them out of the panel; the shape (pill vs
                 circular) follows the compact tier only. */}
-            <div className={`flex flex-shrink-0 items-center justify-center flex-wrap ${compact ? 'px-4 py-3 bg-background border-t border-border gap-3' : dense ? 'gap-6 px-2 py-2' : 'gap-8 px-2 pb-8'}`}>
+            <div className={`flex flex-shrink-0 items-center justify-center flex-wrap ${tight ? 'gap-3 px-2 py-1' : compact ? 'px-4 py-3 bg-background border-t border-border gap-3' : dense ? 'gap-6 px-2 py-1' : 'gap-8 px-2 pb-8'}`}>
                 {/* Stop Button */}
                 <div className={`flex flex-col items-center ${dense ? 'gap-1' : 'gap-2'}`}>
                     <button
@@ -415,7 +415,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                     <button
                         onClick={isPaused ? handleStart : isRunning ? handlePause : handleStart}
                         {...(getFocusProps ? getFocusProps('btn-pause') : {})}
-                        className={`tv-focusable group flex items-center justify-center rounded-full transition-all active:scale-95 ${dense ? 'w-14 h-14 bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'w-20 h-20 bg-surface-container-low border border-outline-variant hover:bg-surface-variant shadow-sm'}`}
+                        className={`tv-focusable group flex items-center justify-center rounded-full transition-all active:scale-95 ${dense ? 'w-12 h-12 bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'w-20 h-20 bg-surface-container-low border border-outline-variant hover:bg-surface-variant shadow-sm'}`}
                         title={primaryControlLabel}
                         data-testid={TEST_IDS.TIMER_PLAY_PAUSE}
                     >
@@ -437,7 +437,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                         disabled={isNextDisabled}
                         aria-disabled={isNextDisabled ? 'true' : undefined}
                         {...(getFocusProps ? getFocusProps('btn-next') : {})}
-                        className={`tv-focusable flex-1 h-14 rounded-2xl flex items-center justify-center gap-2 transition-transform shadow-lg ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary text-primary-foreground shadow-primary/20 active:scale-[0.98]'}`}
+                        className={`tv-focusable ${tight ? 'h-12 flex-none px-3' : 'flex-1 h-14'} rounded-2xl flex items-center justify-center gap-2 transition-transform shadow-lg ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary text-primary-foreground shadow-primary/20 active:scale-[0.98]'}`}
                         title="Next Block"
                         data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
                     >
@@ -452,7 +452,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                             disabled={isNextDisabled}
                             aria-disabled={isNextDisabled ? 'true' : undefined}
                             {...(getFocusProps ? getFocusProps('btn-next') : {})}
-                            className={`tv-focusable flex items-center justify-center rounded-full transition-all shadow-xl ${dense ? 'w-16 h-16' : 'w-24 h-24'} ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-primary-foreground active:scale-90'}`}
+                            className={`tv-focusable flex items-center justify-center rounded-full transition-all shadow-xl ${dense ? 'w-12 h-12' : 'w-24 h-24'} ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-primary-foreground active:scale-90'}`}
                             title="Next Block"
                         data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
                         >

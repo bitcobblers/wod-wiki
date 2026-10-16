@@ -744,24 +744,21 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourPr
     requestStop({ kind: 'reset' })
   }, [requestStop])
 
-  // Inline runtime — stored for the TV card. Every tour run auto-starts, so
-  // the WaitingToStart gate is popped as soon as the runtime exists (deferred
-  // one microtask so the panel's auto-start effect has begun execution).
+  // The panel's output subscription captures onRunStarted before runtime state commits.
+  const tourRuntimeRef = useRef<IScriptRuntime | null>(null)
   const handleRuntimeReady = useCallback((runtime: IScriptRuntime) => {
     setTourRuntime(runtime)
-    if (autoStart) {
-      queueMicrotask(() => runtime.handle(new NextEvent(undefined, runtime.nowProvider)))
-    }
-  }, [autoStart])
+    tourRuntimeRef.current = runtime
+  }, [])
 
-  // First idle→running transition of the current pane's execution. The
-  // one-shot autoStart is consumed here so a later remount of the pane can
-  // never spawn a second execution of the same identity.
+  // Consume auto-start only after execution starts; skipping the gate earlier leaves its clock at zero.
   const handleRunStarted = useCallback(() => {
     runStartedRef.current = true
     setRunLive(true)
+    const runtime = tourRuntimeRef.current
+    if (autoStart && runtime) runtime.handle(new NextEvent(undefined, runtime.nowProvider))
     setAutoStart(false)
-  }, [])
+  }, [autoStart])
 
   // Caption command buttons: Try-it.
   const handleCaptionCommand = useCallback(

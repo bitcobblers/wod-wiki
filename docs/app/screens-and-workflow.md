@@ -19,13 +19,17 @@ Run the browser regression against a running playground with
 390×844 and 844×390, desktop wheel gestures at 1440×1000, editor capture,
 caption access, analytics yielding and forward/reverse section transitions.
 
-Embedded clocks measure their own column and fit their digits into the remaining clock band. On narrow panels the clock reserves up to 280px before the visual-state summary takes the remaining height; shorter hosts scroll the clock column. Stop, Pause and Next remain reachable. Metric-table controls and recorded-result headers stay fixed while their rows scroll.
+Embedded clocks measure their own column and fit their digits into the remaining clock band. Short hosts put the clock beside 48px controls; the metric tracker yields before Stop, Pause or Next can be clipped. Taller narrow panels stack the clock above its controls. Metric-table controls and recorded-result headers stay fixed while their rows scroll.
 
 The hero uses the editor's Run control. The duplicate hero Run action and four chapter-jump buttons are removed; guide, library and journal links remain.
 
 Hero Run keeps the clock and recorded results in the hero viewport on desktop and phone, including workouts opened through `/load?z=`. Learn the Language examples use the normal fullscreen runner. Stop and Exit report partial results; natural completion shows recorded results in place for hero runs and opens review for fullscreen examples.
 
 The middle tour starts the current workout when its timer stage enters view. Write-section Run and Try it move to that timer. Leaving the timer or arriving at results stops and records the partial once; returning does not rerun the recorded identity.
+
+Home analytics mount only while their stage is active and the section is in view. Dashboard query windows stay fixed until the selected week range changes, so scrolling does not rerun queries against a moving timestamp.
+
+Run the homepage control, saved-duration and dashboard regressions with `bun run test:e2e e2e/live-app/home-tour.e2e.ts --project=journal-chromium`.
 
 ---
 

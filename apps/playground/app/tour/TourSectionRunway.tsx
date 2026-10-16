@@ -7,7 +7,8 @@
  * Markdown / Run it as a Timer / Own the Metrics / Explore your analytics —
  * so each tagline level gets a real scroll-past header and a focused stage
  * group. Heavy screens mount lazily on first section entry and stay alive
- * after, matching the old single-driver `entered` contract; the write
+ * after (session analytics/result panes mount only while their stage is
+ * shown), matching the old single-driver `entered` contract; the write
  * section's editor stays mounted from load exactly as before (the hero view
  * above it is a separate HomeTour-level display of the same shared doc).
  *
@@ -204,6 +205,8 @@ export const TourSectionRunway = forwardRef<TourSectionRunwayApi, TourSectionRun
 
     const activeScreen: TourScreen =
       (slice.stage?.screen as TourScreen | undefined) ?? 'editor'
+    const sessionStageShown =
+      activeScreen === 'analytics' || activeScreen === 'metrics' || activeScreen === 'result'
     // Heavy panes mount once their section first enters; keep alive. The
     // runtime-carrying timer pane additionally mounts only after its stage
     // was ACTIVELY visited — skipping straight past the run stages (e.g.
@@ -333,12 +336,8 @@ export const TourSectionRunway = forwardRef<TourSectionRunwayApi, TourSectionRun
                       />
                     </Screen>
                   )}
-                  {/* Session panes mount once the section is first reached;
-                      hidden mounting is fine — the explore section has always
-                      done it. The run section hosts these alongside its
-                      editor/timer panes (result + dashboard stages). */}
-                  {showScreens && session && (
-                    <Screen visible={activeScreen === 'analytics' || activeScreen === 'metrics' || activeScreen === 'result'}>
+                  {showScreens && session && sessionStageShown && inView && (
+                    <Screen visible={sessionStageShown}>
                       {activeScreen === 'result' ? (
                         session.result ? (
                           <TourSessionResult result={session.result} />
@@ -414,7 +413,7 @@ function useReachedOnce(runwayRef: React.RefObject<HTMLElement | null>): boolean
  * degrades to "never externally paused" rather than freezing mid-demo.
  */
 function useInView(runwayRef: React.RefObject<HTMLElement | null>): boolean {
-  const [inView, setInView] = useState(false)
+  const [inView, setInView] = useState(() => typeof IntersectionObserver === 'undefined')
   useEffect(() => {
     const el = runwayRef.current
     if (!el || typeof IntersectionObserver === 'undefined') return

@@ -268,9 +268,12 @@ function DashboardPane({ boardSlug }: { boardSlug: string }) {
     }
   }, [seed])
 
-  const [weeks] = useAnalyticsRange()
-  const rangeStart = Date.now() - weeks * 7 * 86400000
-  const rangeEnd = Date.now()
+  const [weeks, setWeeks] = useAnalyticsRange()
+  // Refresh the query window only when the selected range changes.
+  const [rangeStart, rangeEnd] = useMemo(() => {
+    const end = Date.now()
+    return [end - weeks * 7 * 86400000, end]
+  }, [weeks])
 
   const [inspect, setInspect] = useState<ModelWidget | null>(null)
 
@@ -289,7 +292,7 @@ function DashboardPane({ boardSlug }: { boardSlug: string }) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <RangeSelector />
+          <RangeSelector weeks={weeks} onWeeksChange={setWeeks} />
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto px-5 pb-5 pt-3 [&_[data-testid=dashboard-view]>div.grid]:grid-cols-1 [&_[data-testid=dashboard-view]>div.grid]:sm:grid-cols-2 [&_[data-testid=dashboard-view]>div.grid]:lg:grid-cols-2 [&_[data-testid=dashboard-view]>div.grid>*]:col-span-1">
