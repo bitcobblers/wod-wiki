@@ -28,6 +28,7 @@ export function DocumentTitleSync() {
       else if (pathname.startsWith('/sessions') || pathname.startsWith('/session/') || pathname.startsWith('/results')) title = 'Wod.Wiki - Sessions'
       else if (pathname.startsWith('/dashboards') || pathname === '/dashboard' || pathname.startsWith('/dashboard/') || pathname.startsWith('/d/')) title = 'Wod.Wiki - Dashboards'
       else if (pathname.startsWith('/playgrounds')) title = 'Wod.Wiki - Playgrounds'
+      else if (pathname.startsWith('/syntax')) title = 'Wod.Wiki - Syntax'
       else if (pathname.startsWith('/analytics')) title = 'Wod.Wiki - Analytics'
       document.title = title
     }

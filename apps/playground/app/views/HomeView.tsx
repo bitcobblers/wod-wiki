@@ -2,19 +2,17 @@
  * HomeView — the homepage: a scroll-driven product walkthrough.
  *
  * The redesigned home page renders the interactive hero (with live editor),
- * a short-circuit strip, the Learn section, the sticky Timer/Analytics runway,
- * and the Registry/Reference static areas. See playground/src/tour/HomeTour.tsx
+ * the sticky Timer/Analytics runways, the Library & Community Feeds strip,
+ * and the data-ownership sections. See playground/src/tour/HomeTour.tsx
  * for the section-level implementation.
  *
  * Preserved from the markdown-driven home (markdown/canvas/home/README.md):
  *  - quick-start quests (qs-arrive / qs-edit / qs-run) plus scroll quests
  *    (qs-tour-*) fired as each tour stage scrolls into view
  *  - ChallengeHeaderBadge on '/' (mounted by App.tsx) — home quests only
- *  - chapter quest list with live progress (now in the Learn section)
  */
 
-import { useMemo } from 'react'
-import { useCanvasRoutes, useFindCanvasPage } from '../canvas/canvasRoutes'
+import { useFindCanvasPage } from '../canvas/canvasRoutes'
 import { HomeTour } from '../tour/HomeTour'
 import type { WorkoutItem } from '../App'
 
@@ -26,18 +24,7 @@ export interface HomeViewProps {
 }
 
 export function HomeView({ wodFiles, theme }: HomeViewProps) {
-  const canvasRoutes = useCanvasRoutes()
   const page = useFindCanvasPage('/')
-
-  // Cross-page quest id → label, so chapter quest rows can show the real
-  // labels declared on their owning guide pages.
-  const questLabels = useMemo(() => {
-    const labels: Record<string, string> = {}
-    for (const { page: p } of canvasRoutes) {
-      for (const q of p.quests) labels[q.id] = q.label
-    }
-    return labels
-  }, [canvasRoutes])
 
   if (!page) {
     return (
@@ -53,7 +40,6 @@ export function HomeView({ wodFiles, theme }: HomeViewProps) {
       theme={theme}
       quests={page.quests ?? []}
       chapters={page.chapters ?? []}
-      questLabels={questLabels}
       scroll={page.scroll}
     />
   )

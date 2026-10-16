@@ -32,6 +32,7 @@ import {
 } from './lib/routeRedirects'
 import { DocumentTitleSync } from './lib/DocumentTitleSync'
 import { PlaygroundLandingPage } from './pages/PlaygroundLandingPage'
+import { SyntaxView } from './views/SyntaxView'
 import { NotFoundPage } from './pages/NotFoundPage'
 import CalcAuthoringPrototypePage from './pages/CalcAuthoringPrototypePage'
 import QueryBlockComposerPrototypePage from './pages/QueryBlockComposerPrototypePage'
@@ -185,6 +186,7 @@ export function App() {
                   <Route path={ROUTE_PATTERNS.settingsTags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/library/calcs" element={<div className="p-6"><CalcAuthoringPanel /></div>} />
                   <Route path="/legacy" element={<PlaygroundLandingPage />} />
+                  <Route path="/syntax" element={<SyntaxView />} />
                   <Route path="/chapters/basics" element={<Navigate to="/guide/start" replace />} />
                   <Route path="/chapters/sequences" element={<Navigate to="/guide/start" replace />} />
                   <Route path="/chapters/protocols" element={<Navigate to="/guide/protocols" replace />} />

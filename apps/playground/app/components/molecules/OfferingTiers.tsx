@@ -119,7 +119,7 @@ export function OfferingTiers() {
     <>
       <section id="tour-section-offerings" data-testid="tour-section-offerings" aria-label="You own your data">
         <TaglineHeader
-          index="06"
+          index="03"
           before="You "
           accentText="Own the Data"
           after=""
@@ -192,7 +192,7 @@ export function OfferingTiers() {
 
       <section id="tour-section-hosted" data-testid="tour-section-hosted" aria-label="Wod-Wiki hosted">
         <TaglineHeader
-          index="08"
+          index="04"
           before="Wod-Wiki "
           accentText="Hosted"
           after=""

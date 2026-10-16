@@ -1,18 +1,19 @@
 /**
- * HomeTour.tsx — the home page: hero + jump section + four tagged
- * walkthrough sections (Write it in Markdown / Run it as a Timer / Own the
- * Metrics / Explore your analytics) + the Learn-the-Language chapter picker.
+ * HomeTour.tsx — the home page: hero + the Run it as a Timer walkthrough
+ * section, then the Library & Community Feeds jump section, the offerings,
+ * and the footer.
  *
- * Each tagged section owns a sticky mini-runway (TourSectionRunway) driven by
- * its own scroll progress over a partition of the canonical ```scroll spec;
- * the metrics explainer section is code-declared (it has no markdown source).
+ * The run section owns a sticky mini-runway (TourSectionRunway) driven by its
+ * own scroll progress over the timer-* partition of the canonical ```scroll
+ * spec.
  *
- * One shared editor document: the desktop hero view and the write-section
- * sticky pane are two displays of the same doc + block list (edits in either
- * place are edits to the run document; neither resets at the boundary).
- * Hero runs stay in place at every width; chapter example runs use fullscreen.
- * The middle tour starts on timer arrival and saves on results arrival.
- * Analytics examples are isolated; recorded results stay scoped to their note.
+ * The section opens on an editor pane showing home-example.md (click Run —
+ * or just keep scrolling — to start the demo timer; sliding back resets it
+ * into a fresh playground session) and ends with the recorded output and a
+ * dashboard view of the same data.
+ *
+ * One shared editor document lives in the hero viewport; the run-section
+ * intro pane hosts its own home-example.md document.
  *
  * Preserved contracts:
  *  - Arrival (#882): /load?z= shared script replaces welcome-1.md in the hero.
@@ -22,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { clearHomeShared, loadHomeShared, type HomeSharedScript } from '../services/homeSharedScript'
 import { resolveSource } from '../canvas/canvasUtils'
 import { GuideIndexFooter } from '../canvas/GuideIndexFooter'
@@ -47,7 +49,6 @@ import { TourEditorScreen } from './screens/TourEditorScreen'
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer'
 import { TourSessionResult } from './screens/TourSessionResult'
 import {
-  buildAdventureScript,
   TOUR_CAPTIONS,
   type TourCaption,
 } from './TourCaptions'
@@ -56,7 +57,6 @@ import {
   type TourSectionRunwayApi,
 } from './TourSectionRunway'
 import { CelebrationBridge } from './CelebrationBridge'
-import { TourChapterPicker } from './TourChapterPicker'
 import { TourFlatStack } from './TourFlatStack'
 import { TourJumpSection } from './TourJumpSection'
 import {
@@ -69,10 +69,8 @@ import { HOME_EVENTS, useTelemetry, useScrollTelemetry } from '@/services/teleme
 import { toast } from '@/hooks/use-toast'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import {
-  BOARD_SLUGS,
   DEFAULT_BOARD_SLUG,
   DEFAULT_TABLE_QUERY_KEY,
-  TABLE_QUERIES,
 } from './screens/TourSessionAnalytics'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -83,18 +81,8 @@ const fmtClock = (ms: number) => {
 }
 
 const HOME_DEMO_SOURCE = 'wods/examples/home/welcome-1.md'
-
-/** Home quest id → the tour stage that demonstrates it. */
-const HOME_QUEST_STAGE: Record<string, string> = {
-  'qs-tour-timer': 'timer-wallclock',
-  'qs-edit': 'timer-wallclock',
-  'qs-run': 'timer-wallclock',
-  'qs-tour-analytics': 'wql-idea',
-}
-
-/** Stage groups of the canonical runway, in tagline order. */
-const SECTION_ORDER = ['write', 'run', 'own', 'explore'] as const
-type SectionId = (typeof SECTION_ORDER)[number]
+/** The run-section intro pane example — a standalone file (copy of welcome-1.md for now). */
+const HOME_EXAMPLE_SOURCE = 'wods/examples/home/home-example.md'
 
 /**
  * Renormalize a partition of stages onto [0, 1] so each section's driver
@@ -116,129 +104,63 @@ function renormalize(stages: ScrollStage[]): ScrollStage[] {
 
 const DEFAULT_HOME_STAGES: ScrollStage[] = [
   {
-    id: 'editor-metrics',
-    range: [0.12, 0.24],
+    id: 'timer-intro',
+    range: [0.10, 0.20],
     screen: 'editor',
     accent: TOUR_ACCENTS.editor,
-    label: 'Every Line Collects Metrics',
-    source: HOME_DEMO_SOURCE,
-    caption: 'Every Line Collects Metrics. Reps, distance & load.',
-    ring: { key: 'editor.wodBlock', tag: 'Line Metrics' },
-  },
-  {
-    id: 'editor-run',
-    range: [0.24, 0.36],
-    screen: 'editor',
-    accent: TOUR_ACCENTS.editor,
-    label: 'Press Run to Start',
-    source: HOME_DEMO_SOURCE,
-    caption: 'Press Run to Execute. Launch the working clock.',
+    label: 'Click Run to Start the Timer',
+    source: HOME_EXAMPLE_SOURCE,
+    caption: 'Click Run to start the Timer. Weight, distance, reps & effort notation.',
     ring: { key: 'editor.runButton', tag: 'Run Button' },
   },
   {
     id: 'timer-wallclock',
-    range: [0.36, 0.47],
+    range: [0.20, 0.32],
     screen: 'timer',
     accent: TOUR_ACCENTS.timer,
     label: 'What Happens When It Runs',
-    source: HOME_DEMO_SOURCE,
+    source: HOME_EXAMPLE_SOURCE,
     caption: 'What Happens When It Runs. The script becomes the clock.',
     ring: { key: 'timer.floor', tag: 'Clock' },
   },
   {
     id: 'timer-next',
-    range: [0.47, 0.57],
+    range: [0.32, 0.42],
     screen: 'timer',
     accent: TOUR_ACCENTS.timer,
     label: 'Advance Rounds with Next',
-    source: HOME_DEMO_SOURCE,
+    source: HOME_EXAMPLE_SOURCE,
     caption: 'Next Advances the Workout. Every click locks a time.',
     ring: { key: 'timer.nextButton', tag: 'Next Button' },
   },
   {
     id: 'timer-cast',
-    range: [0.57, 0.65],
+    range: [0.42, 0.50],
     screen: 'timer',
     accent: TOUR_ACCENTS.timer,
     label: 'Cast to the Big Screen',
-    source: HOME_DEMO_SOURCE,
+    source: HOME_EXAMPLE_SOURCE,
     caption: 'Cast to the Big Screen. Real-time mirror for the gym floor.',
     ring: { key: 'timer.castButton', tag: 'Cast' },
   },
   {
-    id: 'wql-idea',
-    range: [0.65, 0.72],
-    screen: 'analytics',
-    accent: TOUR_ACCENTS.analytics,
-    label: 'Query what you just did',
-    caption: 'Query what you just did. Every result is one query away.',
-    ring: { key: 'analytics.vocab', tag: 'WQL elements' },
-  },
-  {
-    id: 'wql-table',
-    range: [0.72, 0.79],
-    screen: 'analytics',
-    accent: TOUR_ACCENTS.analytics,
-    label: 'Read it as a list',
-    caption: 'Read it as a list. One aggregator, one metric, one dimension.',
-    ring: { key: 'analytics.table', tag: 'Table list' },
-  },
-  {
-    id: 'wql-graphs',
-    range: [0.79, 0.86],
-    screen: 'analytics',
-    accent: TOUR_ACCENTS.analytics,
-    label: 'See it as trends',
-    caption: 'See it as trends. A graph is a rollup away.',
-    ring: { key: 'analytics.graphs', tag: 'Graphs' },
-  },
-  {
-    id: 'wql-dashboard',
-    range: [0.86, 0.93],
-    screen: 'analytics',
-    accent: TOUR_ACCENTS.analytics,
-    label: 'Compose a dashboard',
-    caption: 'Compose a dashboard. N queries on one screen.',
-    ring: { key: 'analytics.dashboard', tag: 'Dashboard' },
-  },
-  {
-    id: 'wql-live',
-    range: [0.93, 1.0],
-    screen: 'analytics',
-    accent: TOUR_ACCENTS.analytics,
-    label: "It's your data",
-    caption: "It's your data. Open the Dashboards tab to query anything, your way.",
-  },
-]
-
-/** Code-declared stages for the Own-the-Metrics explainer (no md source). */
-const OWN_METRICS_STAGES: ScrollStage[] = [
-  {
-    id: 'metrics-e',
-    range: [0.0, 0.34],
-    screen: 'analytics',
+    id: 'timer-output',
+    range: [0.50, 0.58],
+    screen: 'result',
     accent: TOUR_ACCENTS.timer,
-    label: 'Everything is an effort',
-    caption: 'Every line tracks an effort from the movement registry.',
-    ring: { key: 'metrics.efforts', tag: 'Efforts' },
+    label: 'Stop and See What You Logged',
+    source: HOME_EXAMPLE_SOURCE,
+    caption: 'Stop and See What You Logged. The run becomes a saved note.',
   },
   {
-    id: 'metrics-d',
-    range: [0.34, 0.67],
-    screen: 'analytics',
-    accent: TOUR_ACCENTS.editor,
-    label: 'Measures ride along',
-    caption: 'Reps, load, distance, timed rest — typed micro data points.',
-    ring: { key: 'metrics.data', tag: 'Measures' },
-  },
-  {
-    id: 'metrics-c',
-    range: [0.67, 1.0],
+    id: 'timer-dashboard',
+    range: [0.58, 0.66],
     screen: 'analytics',
     accent: TOUR_ACCENTS.analytics,
-    label: 'They compound',
-    caption: 'Efforts × measures compound into queryable analytics facts.',
-    ring: { key: 'metrics.compound', tag: 'Your data' },
+    label: 'Your Data Becomes a Dashboard',
+    source: HOME_EXAMPLE_SOURCE,
+    caption: 'Your Data Becomes a Dashboard. Every widget one query away.',
+    ring: { key: 'analytics.dashboard', tag: 'Dashboard' },
   },
 ]
 
@@ -258,15 +180,13 @@ export interface HomeTourProps {
   quests: Quest[]
   /** Page-level chapters from the home canvas markdown (home-tour first). */
   chapters: Chapter[]
-  /** Cross-page quest id → label, collected from every canvas route. */
-  questLabels?: Record<string, string>
-  /** Main tour ```scroll runway spec (partitioned across the four sections). */
+  /** Main tour ```scroll runway spec (partitioned across the two sections). */
   scroll?: ScrollSpec | null
 }
 
 // ── Inner (needs RingTargetsContext) ──────────────────────────────────────────
 
-function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll }: HomeTourProps) {
+function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourProps) {
   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const telemetry = useTelemetry()
   const track = telemetry?.track
@@ -280,6 +200,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   // pane are two displays of the same doc state. Edits in either place are
   // edits to the run document.
   const welcomeScript = useMemo(() => resolveSource(HOME_DEMO_SOURCE, wodFiles), [wodFiles])
+  const homeExampleScript = useMemo(() => resolveSource(HOME_EXAMPLE_SOURCE, wodFiles), [wodFiles])
   const [sharedScript, setSharedScript] = useState<HomeSharedScript | null>(() => loadHomeShared())
   const initialContent = sharedScript?.content ?? welcomeScript
   const sharedBy = sharedScript ? sharedScript.by?.trim() || 'anonymous' : undefined
@@ -301,77 +222,46 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   const blocksRef = useRef<ScriptBlock[]>([])
   const editedRecordedRef = useRef(false)
 
+  // The run-section intro pane hosts its OWN document (home-example.md) —
+  // separate from the hero's shared welcome doc. Its Run button starts the
+  // demo timer from this example, and slide-back resets restart it.
+  const [exampleDoc, setExampleDoc] = useState(homeExampleScript)
+  const exampleDocRef = useRef(exampleDoc)
+  exampleDocRef.current = exampleDoc
+  const exampleBlocksRef = useRef<ScriptBlock[]>([])
+  const handleExampleDocChange = useCallback((next: string) => setExampleDoc(next), [])
+  const handleExampleBlocksChange = useCallback((blocks: ScriptBlock[]) => {
+    exampleBlocksRef.current = blocks
+  }, [])
+
   // Runway runtime — set by the run section's inline timer pane; feeds the TV
   // card and lets the host pop the auto-start gate.
   const [tourRuntime, setTourRuntime] = useState<IScriptRuntime | null>(null)
 
-  // ── Canonical runway partitioned across the four tagged sections ──
+  // ── Runway: the run section owns every timer-* stage of the canonical
+  // ```scroll spec (a markdown-provided spec may still list wql-* stages —
+  // the explore section they belonged to is gone, so they are dropped here).
   const canonicalStages = useMemo(() =>
     (scroll?.stages ?? DEFAULT_HOME_STAGES).map((stage) => ({ ...stage, accent: 'hsl(var(--primary))' })),
     [scroll],
   )
-  const sectionStages = useMemo<Record<SectionId, ScrollStage[]>>(() => ({
-    write: renormalize(canonicalStages.filter((s) => s.screen === 'editor')),
-    run: renormalize(canonicalStages.filter((s) => s.screen === 'timer')),
-    // Own is code-declared only; markdown never contributes metrics-* stages,
-    // but stay defensive about the partition boundary.
-    own: OWN_METRICS_STAGES,
-    // Explore is dashboard-primary: a brief vocabulary beat, then the real
-    // seeded boards (the session table lives in Own-the-Metrics).
-    explore: [
-      { id: 'wql-idea', range: [0.0, 0.3] as [number, number], screen: 'analytics', accent: TOUR_ACCENTS.analytics, label: 'The WQL vocabulary', caption: 'The whole language fits on one strip.', ring: { key: 'analytics.vocab', tag: 'WQL elements' } },
-      { id: 'wql-dashboard', range: [0.3, 1.0] as [number, number], screen: 'analytics', accent: TOUR_ACCENTS.analytics, label: 'Seeded dashboards', caption: 'Real boards, range, units, inspect.', ring: { key: 'analytics.dashboard', tag: 'Dashboard' } },
-    ],
-  }), [canonicalStages])
-  const sectionCaptions = useMemo<Record<SectionId, TourCaption[]>>(() => ({
-    write: captionsForStages(sectionStages.write),
-    run: captionsForStages(sectionStages.run),
-    own: captionsForStages(sectionStages.own),
-    explore: captionsForStages(sectionStages.explore).map((caption, index) => ({ ...caption, num: `04${String.fromCharCode(97 + index)}` })),
-  }), [sectionStages])
-
-  const writeApiRef = useRef<TourSectionRunwayApi | null>(null)
-  const runApiRef = useRef<TourSectionRunwayApi | null>(null)
-  const ownApiRef = useRef<TourSectionRunwayApi | null>(null)
-  const exploreApiRef = useRef<TourSectionRunwayApi | null>(null)
-  const sectionApis: Record<SectionId, React.MutableRefObject<TourSectionRunwayApi | null>> = useMemo(
-    () => ({
-      write: writeApiRef,
-      run: runApiRef,
-      own: ownApiRef,
-      explore: exploreApiRef,
-    }),
-    [],
+  const runStages = useMemo(
+    () => renormalize(canonicalStages.filter((s) => s.id.startsWith('timer-'))),
+    [canonicalStages],
   )
+  const runCaptions = useMemo(() => captionsForStages(runStages), [runStages])
+
+  const runApiRef = useRef<TourSectionRunwayApi | null>(null)
 
   const [runInView, setRunInView] = useState(false)
   const handleRunViewport = useCallback((inView: boolean) => setRunInView(inView), [])
   const [runReached, setRunReached] = useState(false)
   const handleRunReached = useCallback((reached: boolean) => setRunReached(reached), [])
-  const [ownInView, setOwnInView] = useState(false)
-  const handleOwnViewport = useCallback((inView: boolean) => setOwnInView(inView), [])
-  const [activeStages, setActiveStages] = useState<Partial<Record<SectionId, string>>>({})
-  const activeStagesRef = useRef(activeStages)
-  activeStagesRef.current = activeStages
-  const handleActiveStage = useCallback(
-    (section: SectionId) => (stageId: string) => {
-      setActiveStages((prev) => (prev[section] === stageId ? prev : { ...prev, [section]: stageId }))
-      markStageViewedRef.current?.(stageId as TourStageId)
-    },
-    [],
-  )
-
-  // Stable per-section callbacks: the section runways notify on stage change
-  // and must not observe a fresh closure every render.
-  const stageHandlers = useMemo(
-    () => ({
-      write: handleActiveStage('write'),
-      run: handleActiveStage('run'),
-      own: handleActiveStage('own'),
-      explore: handleActiveStage('explore'),
-    }),
-    [handleActiveStage],
-  )
+  const [runStageId, setRunStageId] = useState<string | null>(null)
+  const handleRunStageChange = useCallback((stageId: string) => {
+    setRunStageId(stageId)
+    markStageViewedRef.current?.(stageId as TourStageId)
+  }, [])
 
   // ── Session results (inline playground run) ──
   const [session, setSession] = useState<Sessions | null>(null)
@@ -381,7 +271,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   // True while a visitor-initiated in-place run owns the hero viewport
   // (editor → timer → result). The tour's run section yields its timer pane
   // for the duration so two runtimes never execute the same identity.
-  const [runLocation, setRunLocation] = useState<'tour' | 'hero' | 'fullscreen'>('tour')
+  const [runLocation, setRunLocation] = useState<'tour' | 'hero'>('tour')
   const heroRunActive = runLocation === 'hero'
   const [fullscreenOpen, setFullscreenOpen] = useState(false)
   const startingRef = useRef(false)
@@ -408,15 +298,11 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   const externalStopRef = useRef(false)
   const pendingActionRef = useRef<
     | { kind: 'apply-doc'; doc: string }
-    | { kind: 'restart'; doc: string; block: ScriptBlock; sectionTitle: string; location: 'tour' | 'hero' | 'fullscreen' }
-    | { kind: 'restart-unstarted'; doc: string; block: ScriptBlock; sectionTitle: string; location: 'tour' | 'hero' | 'fullscreen' }
+    | { kind: 'restart'; doc: string; block: ScriptBlock; sectionTitle: string; location: 'tour' | 'hero' }
+    | { kind: 'restart-unstarted'; doc: string; block: ScriptBlock; sectionTitle: string; location: 'tour' | 'hero' }
     | { kind: 'reset' }
     | null
   >(null)
-
-  // ── Explore stage state: caption-driven WQL query + dashboard board ──
-  const [tableQueryKey, setTableQueryKey] = useState(DEFAULT_TABLE_QUERY_KEY)
-  const [boardSlug, setBoardSlug] = useState<string>(DEFAULT_BOARD_SLUG)
 
   // ── Session key for remounting the inline timer pane between runs ──
   const [timerSessionKey, setTimerSessionKey] = useState(0)
@@ -441,7 +327,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   const [activeBlock, setActiveBlock] = useState<ScriptBlock | null>(null)
   const hasResetRef = useRef(false)
 
-  const doStart = useCallback(async (docText: string, block: ScriptBlock | null, sectionTitle: string, location: 'tour' | 'hero' | 'fullscreen'): Promise<boolean> => {
+  const doStart = useCallback(async (docText: string, block: ScriptBlock | null, sectionTitle: string, location: 'tour' | 'hero'): Promise<boolean> => {
     if (!block || startingRef.current) return false
     startingRef.current = true
 
@@ -454,7 +340,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     setAutoStart(true)
     setSession(null)
     setRunLocation(location)
-    setFullscreenOpen(location === 'fullscreen' || location === 'hero')
+    setFullscreenOpen(location === 'hero')
 
     try {
       await start(docText, block, { pageTitle: 'Home', sectionTitle })
@@ -609,27 +495,26 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   }, [welcomeScript, requestStop])
 
   const [stackTimerInView, setStackTimerInView] = useState(false)
-  const [stackOwnInView, setStackOwnInView] = useState(false)
   useEffect(() => {
     if (!prefersReducedMotion || typeof IntersectionObserver === 'undefined') return
     const timer = document.getElementById('tour-stack-timer')
-    const own = document.getElementById('tour-section-own')
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (entry.target === timer) setStackTimerInView(entry.isIntersecting)
-        if (entry.target === own) setStackOwnInView(entry.isIntersecting)
       }
     })
     if (timer) observer.observe(timer)
-    if (own) observer.observe(own)
     return () => observer.disconnect()
   }, [prefersReducedMotion])
   // ── Timer-stage presence: the run section's sticky window with a timer-*
   // stage active (reduced motion: the flat stack's timer card in view). ──
-  const runStageId = activeStages.run
   const stageInTimer = prefersReducedMotion
     ? stackTimerInView
     : (runReached || runLive) && runInView && runStageId != null && runStageId.startsWith('timer-')
+  // The intro stage never auto-starts the demo — only the running stages do.
+  // Arrival at the intro is the read-the-example beat; the timer starts when
+  // the visitor clicks Run or scrolls on into the wallclock stage.
+  const autoStartStage = runStageId != null && runStageId !== 'timer-intro' && runStageId.startsWith('timer-')
 
   const [everInTimer, setEverInTimer] = useState(false)
   useEffect(() => {
@@ -648,17 +533,30 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     prevStageInTimerRef.current = stageInTimer
   }, [stageInTimer, everInTimer, requestStop, runLocation])
 
-  // Metrics-arrival stop: scrolling into Own-the-Metrics while a run is live
-  // halts it (the section's pane shows the recorded $session segments). The
-  // run-section timer stage owns the stop while it is active — this catches
-  // the blow-past path where the run stages were never dwelled in.
-  const ownStageActive = prefersReducedMotion ? stackOwnInView : ownInView && activeStages.own != null
+  // Slide-back reset: returning to the intro stage after a run started (or
+  // finished) resets the pane — the saved playground stays saved, and the
+  // next forward scroll or Run click mints a fresh session of the example.
+  const prevRunStageRef = useRef<string | null>(null)
   useEffect(() => {
-    if (runLocation === 'fullscreen' || !ownStageActive || stageInTimer) return
-    if (!runRef.current || finalizedRef.current || !runStartedRef.current) return
-    if (externalStopRef.current) return
-    requestStop(null)
-  }, [ownStageActive, stageInTimer, requestStop, runLocation, runLive])
+    const stage = runStageId ?? null
+    const prev = prevRunStageRef.current
+    prevRunStageRef.current = stage
+    if (stage !== 'timer-intro' || prev === 'timer-intro') return
+    if (runLocation !== 'tour') return
+    if (runRef.current && (runStartedRef.current || finalizedRef.current)) {
+      requestStop({ kind: 'reset' })
+    }
+  }, [runStageId, requestStop, runLocation])
+
+  // Output-stage stop: dwelling on the result stage halts a live run so the
+  // pane can show the recorded output. Never-started runs have nothing to
+  // stop — the pane's empty state covers them.
+  useEffect(() => {
+    if (runLocation !== 'tour' || runStageId !== 'timer-output') return
+    if (runRef.current && runStartedRef.current && !finalizedRef.current && !externalStopRef.current) {
+      requestStop(null)
+    }
+  }, [runStageId, requestStop, runLocation])
 
   // ── Quest + challenge hooks ──
   useQuickStartAutoComplete({
@@ -675,7 +573,8 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   // Chapter runs validate their own quest; explicit home runs validate this one.
   useRunStartedChallenge({ pageRoute: '/', quests, running: demoRunning })
 
-  // ── Editor interactions (one shared document: hero + write pane) ──
+  // ── Editor interactions: the hero hosts the shared welcome document; the
+  // run-section intro pane hosts its own home-example.md (see above). ──
   const handleDocChange = useCallback(
     (next: string) => {
       setDoc(next)
@@ -691,22 +590,13 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     blocksRef.current = blocks
   }, [])
 
-  // A workout choice replaces the shared script after saving any live run.
-  const handleWorkoutChoice = useCallback(
-    (wod: string) => {
-      track?.(HOME_EVENTS.demoEdited)
-      requestStop({ kind: 'apply-doc', doc: buildAdventureScript(wod) })
-    },
-    [requestStop, track],
-  )
-
   const beginRun = useCallback(
     (
       sectionTitle: string,
       doc: string,
       block: ScriptBlock | null,
       demo: boolean,
-      location: 'tour' | 'hero' | 'fullscreen' = 'tour',
+      location: 'tour' | 'hero' = 'tour',
     ) => {
       if (!block) return
       track?.(HOME_EVENTS.demoRun)
@@ -716,7 +606,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
       // Immediate UI response: open dialog or slide to timer on the click frame
       if (location === 'tour') {
         scrollTimerStage()
-      } else if (location === 'fullscreen' || location === 'hero') {
+      } else {
         setActiveBlock(block)
         setRunLocation(location)
         setFullscreenOpen(true)
@@ -745,8 +635,10 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     [doStart, performPending, scrollTimerStage, track],
   )
 
+  // The run section's Run (intro pane + caption Try-it + L3 ▶): starts the
+  // home-example.md demo and glides to the wallclock stage.
   const handleRun = useCallback(() => {
-    beginRun('Run', docRef.current, blocksRef.current[0], true)
+    beginRun('Run', exampleDocRef.current, exampleBlocksRef.current[0] ?? null, true)
   }, [beginRun])
 
   // Explicit hero/editor Run: start in place — the hero viewport switches
@@ -758,29 +650,20 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
 
   useEffect(() => {
     if (hasResetRef.current) return
-    if (!stageInTimer || fullscreenOpen || startingRef.current || pendingActionRef.current) return
+    if (!stageInTimer || !autoStartStage || fullscreenOpen || startingRef.current || pendingActionRef.current) return
     if (run && runLocation === 'tour') return
     if (run && !finalizedRef.current) return
     setDemoRunning(true)
-    void doStart(docRef.current, blocksRef.current[0] ?? null, 'Run', 'tour')
-  }, [stageInTimer, fullscreenOpen, run, runLocation, doStart])
+    void doStart(exampleDocRef.current, exampleBlocksRef.current[0] ?? null, 'Run', 'tour')
+  }, [stageInTimer, autoStartStage, fullscreenOpen, run, runLocation, doStart])
 
   // ── L3 outline (right rail + ⋯ menu): links to the tour sections. The run
   // row's secondary ▶ button IS the idle→running state transition — clicking
-  // it mints a fresh run identity and glides to the timer stage. The metrics
-  // row's secondary ■ button is the running→stopped transition — while a run
-  // is live it halts the execution, records the partial, and glides to the
-  // metrics section (the same bridge a natural finish takes). ──
-  const { setL3Items, scrollToSection } = useNav()
-  const handleStopToMetrics = useCallback(() => {
-    requestStop(null)
-    scrollToSection('tour-section-own')
-  }, [requestStop, scrollToSection])
+  // it mints a fresh run identity and glides to the timer stage. ──
+  const { setL3Items } = useNav()
   useEffect(() => {
     const outline: NavItemL3[] = [
       { id: 'tour-hero', label: 'Welcome', level: 3, action: { type: 'scroll', sectionId: 'tour-hero' } },
-      { id: 'community-feeds', label: 'Library & Community Feeds', level: 3, action: { type: 'scroll', sectionId: 'tour-section-community-feeds' } },
-      { id: 'write', label: 'Write it in Markdown', level: 3, action: { type: 'scroll', sectionId: 'tour-section-write' } },
       {
         id: 'run',
         label: 'Run it as a Timer',
@@ -788,45 +671,20 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
         action: { type: 'scroll', sectionId: 'tour-section-run' },
         secondaryAction: { id: 'run-start', label: 'Start the run', action: { type: 'call', handler: handleRun } },
       },
-      {
-        id: 'own',
-        label: 'Own the Metrics',
-        level: 3,
-        action: { type: 'scroll', sectionId: 'tour-section-own' },
-        // Gated on a live execution — idle has no stop transition to offer.
-        ...(runLive
-          ? {
-              secondaryAction: { id: 'run-stop', label: 'Stop the timer', action: { type: 'call' as const, handler: handleStopToMetrics } },
-              secondaryRunIcon: 'stop' as const,
-            }
-          : {}),
-      },
-      { id: 'explore', label: 'Explore your analytics', level: 3, action: { type: 'scroll', sectionId: 'tour-section-explore' } },
+      { id: 'community-feeds', label: 'Library & Community Feeds', level: 3, action: { type: 'scroll', sectionId: 'tour-section-community-feeds' } },
       { id: 'offerings', label: 'You Own the Data', level: 3, action: { type: 'scroll', sectionId: 'tour-section-offerings' } },
       { id: 'hosted', label: 'Wod-Wiki Hosted', level: 3, action: { type: 'scroll', sectionId: 'tour-section-hosted' } },
-      { id: 'learn', label: 'Learn the Language', level: 3, action: { type: 'scroll', sectionId: 'tour-chapter-picker' } },
     ]
     setL3Items(outline)
     return () => setL3Items([])
-  }, [setL3Items, handleRun, handleStopToMetrics, runLive])
+  }, [setL3Items, handleRun])
 
-  // Chapter example run — scoped per chapter (#919): runs inline WITHOUT
-  // firing the global run-started quest; the chapter's own lead quest is
-  // completed by the picker. Each run mints a fresh note named for it.
-  const handleChapterRun = useCallback(
-    (chapterId: string, block: ScriptBlock | null, chapterDoc: string) => {
-      track?.(HOME_EVENTS.chapterExampleRun, { chapter: chapterId })
-      beginRun(`Chapter ${chapterId}`, chapterDoc, block, false, 'fullscreen')
-    },
-    [beginRun, track],
-  )
-
-  // Stop click / metrics arrival / scroll-out: the panel reports partial or
-  // completed results; finalize records them against the run's note exactly
-  // once, then any parked action (reset/restart/doc swap) executes.
+  // Stop click / output-stage arrival / scroll-out: the panel reports partial
+  // or completed results; finalize records them against the run's note
+  // exactly once, then any parked action (reset/restart/doc swap) executes.
   // The completion never scrolls — the result state shows in place (hero
-  // viewport for in-place runs, the finished pane for dwell runs); the
-  // Own-the-Metrics section shows the recorded segments when scrolled to.
+  // viewport for in-place runs, the run section's result stage for dwell
+  // runs).
   const handleTimerComplete = useCallback(
     (_blockId: string, results: Sessions) => {
       // Record-once: a duplicate report (Stop after natural complete, or a
@@ -869,10 +727,10 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     [finalize, performPending, runLocation],
   )
 
-  // The pane's ✕ returns to the write stage; a live run is saved by the
+  // The pane's ✕ returns to the intro stage; a live run is saved by the
   // scroll-out rule when the run section's viewport releases.
   const handleTimerClose = useCallback(() => {
-    writeApiRef.current?.scrollToStage('editor-metrics')
+    runApiRef.current?.scrollToStage('timer-intro')
   }, [])
 
   const handleFullscreenClose = useCallback(() => {
@@ -905,18 +763,9 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     setAutoStart(false)
   }, [])
 
-  // Caption command buttons: query presets, board picks, Try-it.
+  // Caption command buttons: Try-it.
   const handleCaptionCommand = useCallback(
     (_captionId: string, key: string) => {
-      if (TABLE_QUERIES[key]) {
-        setTableQueryKey(key)
-        return
-      }
-      const selectedBoard = key.startsWith('board-') ? key.slice(6) : key
-      if ((BOARD_SLUGS as readonly string[]).includes(selectedBoard)) {
-        setBoardSlug(selectedBoard)
-        return
-      }
       if (key === 'try') handleRun()
     },
     [handleRun],
@@ -926,25 +775,10 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   const sessionWiring = useMemo(
     () => ({
       noteId: run?.noteId ?? null,
-      queryKey: tableQueryKey,
-      boardSlug,
+      queryKey: DEFAULT_TABLE_QUERY_KEY,
+      boardSlug: DEFAULT_BOARD_SLUG,
     }),
-    [run?.noteId, tableQueryKey, boardSlug],
-  )
-
-  // Quest navigation: route the stage id to whichever section owns it.
-  const handleHomeQuestClick = useCallback(
-    (questId: string) => {
-      const stageId = HOME_QUEST_STAGE[questId]
-      if (!stageId) return
-      for (const section of SECTION_ORDER) {
-        if (sectionStages[section].some((s) => s.id === stageId)) {
-          sectionApis[section].current?.scrollToStage(stageId)
-          return
-        }
-      }
-    },
-    [sectionStages, sectionApis],
+    [run?.noteId],
   )
 
   // Inline timer pane wiring — one shape for the section runway and the
@@ -984,7 +818,10 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
     <>
       <OfferingTiers />
       <p className="-mt-8 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60 xl:text-[11px]">
-        — or keep scrolling for more wod wiki examples ↓
+        — or learn the language with examples{' '}
+        <Link to="/syntax" className="text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline">
+          on the syntax page →
+        </Link>
       </p>
     </>
   )
@@ -995,19 +832,15 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
       <div data-testid="home-tour">
         <TourFlatStack
           theme={theme}
-          wodFiles={wodFiles}
-          quests={quests}
-          chapters={chapters}
-          questLabels={questLabels}
-          onHomeQuestClick={handleHomeQuestClick}
           doc={doc}
           onDocChange={handleDocChange}
           onBlocksChange={handleBlocksChange}
           onRun={handleRun}
           onHeroRun={handleHeroRun}
-          onChapterRun={handleChapterRun}
+          exampleDoc={exampleDoc}
+          onExampleDocChange={handleExampleDocChange}
+          onExampleBlocksChange={handleExampleBlocksChange}
           heroContent={heroState === 'result' && session ? <TourSessionResult result={session} onDismiss={clearSession} dismissLabel="Edit again" /> : undefined}
-          onChoice={handleWorkoutChoice}
           onCommand={handleCaptionCommand}
           sharedBy={sharedBy}
           onResetShared={handleClearShared}
@@ -1023,9 +856,9 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
   }
 
   // ── One runway for every width: a normal-flow hero view (heading + THE
-  // editor at first paint — it scrolls out completely before the write track
-  // pins), then the write section in the standard tagline-header +
-  // sticky-runway pattern, then run / own / explore sections → chapters ──
+  // editor at first paint), then the run and explore sections in the
+  // standard tagline-header + sticky-runway pattern, then feeds →
+  // offerings → footer. ──
   return (
     <div data-testid="home-tour">
       {/* Arrival sentinel (#882): a 1px mark at the very top of the page —
@@ -1044,9 +877,8 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
         </div>
         {/* The hero viewport hosts the workflow states in place — editor →
             run → result — so the demo never scrolls away from the editor
-            context. The write section's sticky pane below is a second
-            display of the same shared document. The chrome title names the
-            loaded doc (shared attribution or the default welcome note). */}
+            context. The chrome title names the loaded doc (shared
+            attribution or the default welcome note). */}
         {/* The hero editor is a scroll gate: while traveling, gestures
             scroll the track; editing inside captures the gate. */}
         <ScrollGate
@@ -1098,104 +930,37 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
       </section>
 
 
-      <TourJumpSection />
-
-      <TourSectionRunway
-        ref={writeApiRef}
-        id="write"
-        heightVh="300vh"
-        header={
-          <TaglineHeader
-            index="01"
-            before="Write it in "
-            accentText="Markdown"
-            after=""
-            accent={TOUR_ACCENTS.editor}
-            blurb="Freeform Markdown notes, fenced ```time blocks, property and tag suggestions. Everything starts as plain text you can edit."
-          />
-        }
-        stages={sectionStages.write}
-        captions={sectionCaptions.write}
-        onChoice={handleWorkoutChoice}
-        onCommand={handleCaptionCommand}
-        onActiveStageChange={stageHandlers.write}
-        editor={{
-          doc,
-          theme,
-          onDocChange: handleDocChange,
-          onBlocksChange: handleBlocksChange,
-          onRun: handleRun,
-        }}
-      />
-
       <TourSectionRunway
         ref={runApiRef}
         id="run"
-        heightVh="300vh"
+        heightVh="420vh"
         header={
           <TaglineHeader
-            index="02"
+            index="01"
             before="Run it as a "
             accentText="Timer"
             after=""
             accent={TOUR_ACCENTS.timer}
-            blurb="The script becomes the clock. Step through rounds, cast to the big screen, and pace the room together."
+            blurb="The workout reads like plain text — press Run and the script becomes the clock. Step through rounds, cast to the big screen, then see what you logged."
           />
         }
-        stages={sectionStages.run}
-        captions={sectionCaptions.run}
+        stages={runStages}
+        captions={runCaptions}
         onCommand={handleCaptionCommand}
-        onActiveStageChange={stageHandlers.run}
+        onActiveStageChange={handleRunStageChange}
         onViewportChange={handleRunViewport}
         onReachedChange={handleRunReached}
+        editor={{
+          doc: exampleDoc,
+          theme,
+          onDocChange: handleExampleDocChange,
+          onBlocksChange: handleExampleBlocksChange,
+          onRun: handleRun,
+        }}
         timer={timerWiring}
+        session={{ ...sessionWiring, fixedStage: 'wql-dashboard', result: session }}
         tvRuntime={tourRuntime}
         tvStageId="timer-cast"
-      />
-
-      <TourSectionRunway
-        ref={ownApiRef}
-        id="own"
-        heightVh="260vh"
-        header={
-          <TaglineHeader
-            index="03"
-            before="Own the "
-            accentText="Metrics"
-            after=""
-            accent={TOUR_ACCENTS.analytics}
-            blurb="Everything you log is an effort carrying measured data points — and together they compound into rich, queryable analytics."
-          />
-        }
-        stages={sectionStages.own}
-        captions={sectionCaptions.own}
-        onCommand={handleCaptionCommand}
-        onActiveStageChange={stageHandlers.own}
-        onViewportChange={handleOwnViewport}
-        // Once a run has been recorded, the pane answers with the recorded
-        // $session segments; before that it shows the session-scoped table.
-        session={{ ...sessionWiring, fixedStage: 'wql-table', result: session }}
-      />
-
-      <TourSectionRunway
-        ref={exploreApiRef}
-        id="explore"
-        heightVh="320vh"
-        header={
-          <TaglineHeader
-            index="04"
-            before=""
-            accentText="Explore"
-            after=" your analytics"
-            accent={TOUR_ACCENTS.analytics}
-            blurb="WQL turns your journal into queryable facts: lists, trends, dashboards — every widget one query away from anything you've logged."
-          />
-        }
-        stages={sectionStages.explore}
-        captions={sectionCaptions.explore}
-        onCommand={handleCaptionCommand}
-        onActiveStageChange={stageHandlers.explore}
-        session={sessionWiring}
         toastLabel={
           session
             ? `Stopped at ${fmtClock(session.duration)}. ${pendingResults ? 'Results not saved' : recorded ? 'Results saved' : 'Saving results…'}`
@@ -1206,16 +971,12 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
       {/* Analytics shares the canonical editor/timer sticky runway. */}
       <CelebrationBridge chapters={chapters} />
 
+      {/* Library & Community Feeds — collections/packages land above the
+          data-ownership sections. */}
+      <TourJumpSection />
+
       {offeringsBlock}
 
-      {/* Learn the Language — single-slide chapter picker with a shared editor */}
-      <TourChapterPicker
-        wodFiles={wodFiles}
-        chapters={chapters}
-        allQuests={quests}
-        theme={theme}
-        onRun={handleChapterRun}
-      />
       <GuideIndexFooter />
       <TourFooter />
       {fullscreen}
@@ -1228,7 +989,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, questLabels, scroll 
 export function HomeTour(props: HomeTourProps) {
   return (
     <RingTargetsProvider>
-      {/* One continuous scroll track for the whole page: the four runway
+      {/* One continuous scroll track for the whole page: the runway
           sections resolve their stages from the shared track position,
           and the panes inside the pinned windows gate their inner
           scrollers to it (see app/scroll). */}

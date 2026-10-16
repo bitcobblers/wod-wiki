@@ -73,16 +73,16 @@ export interface TourSectionTimerWiring {
   onReset: () => void
 }
 
-/** Session WQL/dashboard wiring for a section's stage pane (TourSessionAnalytics). */
+/** Session WQL/dashboard/result wiring for a section's stage pane. */
 export interface TourSectionSessionWiring {
   noteId: string | null
   queryKey: string
   boardSlug: string
-  /** Pin the pane to one stage (e.g. the metrics section's live table). */
+  /** Pin the pane to one stage (e.g. the run section's dashboard board). */
   fixedStage?: string
   /**
-   * Recorded run results — when set, the pane shows the recorded $session
-   * segments (metrics section after a stop) instead of the WQL table.
+   * Recorded run results — the run section's result stage renders them via
+   * TourSessionResult; without a result the stage shows an empty-state note.
    */
   result?: Sessions | null
 }
@@ -103,8 +103,6 @@ export interface TourSectionRunwayProps {
   onViewportChange?: (inView: boolean) => void
   /** Persistent signal when section top reaches or passes viewport top. */
   onReachedChange?: (reached: boolean) => void
-  /** Choose-your-own-adventure combobox (write section only). */
-  onChoice?: (wod: string) => void
   /** Caption command buttons (Try it / query presets / board picks). */
   onCommand?: (captionId: string, key: string) => void
   /** Session WQL/dashboard pane (explore section). Omitted → static showcase. */
@@ -159,7 +157,6 @@ export const TourSectionRunway = forwardRef<TourSectionRunwayApi, TourSectionRun
       onActiveStageChange,
       onViewportChange,
       onReachedChange,
-      onChoice,
       onCommand,
       session,
       editor,
@@ -336,13 +333,20 @@ export const TourSectionRunway = forwardRef<TourSectionRunwayApi, TourSectionRun
                       />
                     </Screen>
                   )}
-                  {/* Sections that carry an editor never host these panes;
-                      mounting them hidden re-runs their fit measurement
-                      against a zero-size box forever. */}
-                  {showScreens && !timer && !editor && session && (
-                    <Screen visible={activeScreen === 'analytics' || activeScreen === 'metrics'}>
-                      {session.result ? (
-                        <TourSessionResult result={session.result} />
+                  {/* Session panes mount once the section is first reached;
+                      hidden mounting is fine — the explore section has always
+                      done it. The run section hosts these alongside its
+                      editor/timer panes (result + dashboard stages). */}
+                  {showScreens && session && (
+                    <Screen visible={activeScreen === 'analytics' || activeScreen === 'metrics' || activeScreen === 'result'}>
+                      {activeScreen === 'result' ? (
+                        session.result ? (
+                          <TourSessionResult result={session.result} />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center p-6 text-sm text-muted-foreground" data-testid="tour-result-empty">
+                            Run the example above to see your output here.
+                          </div>
+                        )
                       ) : (
                         <TourSessionAnalytics
                           activeStageId={session.fixedStage ?? slice.stage.id}
@@ -370,7 +374,6 @@ export const TourSectionRunway = forwardRef<TourSectionRunwayApi, TourSectionRun
             <TourCaptions
               activeIndex={slice.index}
               captions={captions}
-              onChoice={onChoice}
               onCommand={onCommand}
             />
           }

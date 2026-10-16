@@ -213,8 +213,8 @@ export interface ScrollStage {
   id: string
   /** [start, end) runway progress, like TourStage. */
   range: [number, number]
-  /** Screen visible during this stage (e.g. 'editor' | 'timer' | 'analytics'). */
-  screen?: 'editor' | 'timer' | 'analytics'
+  /** Screen visible during this stage ('editor' | 'timer' | 'analytics' | 'result'). */
+  screen?: 'editor' | 'timer' | 'analytics' | 'result'
   /** Stage-bar label. */
   label?: string
   /** wods/examples path; resolved via resolveSource. */
@@ -624,7 +624,7 @@ function parseScrollStages(lines: string[]): ScrollStage[] {
         break
       }
       case 'screen':
-        if (value === 'editor' || value === 'timer' || value === 'analytics') cur.screen = value
+        if (value === 'editor' || value === 'timer' || value === 'analytics' || value === 'result') cur.screen = value
         break
       case 'label': cur.label = unquote(value); break
       case 'source': cur.source = unquote(value); break

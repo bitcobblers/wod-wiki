@@ -151,7 +151,6 @@ const wodFiles: Record<string, string> = {
 
 const homeQuests: Quest[] = []
 const chapters: Chapter[] = []
-const questLabels: Record<string, string> = {}
 
 function heroEditor(): HTMLTextAreaElement {
   return screen.getAllByTestId('mock-note-editor')[0] as HTMLTextAreaElement
@@ -214,7 +213,6 @@ describe('HomeTour arrival & hero-reset contract', () => {
           theme="light"
           quests={homeQuests}
           chapters={chapters}
-          questLabels={questLabels}
         />
       </MemoryRouter>,
     )

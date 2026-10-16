@@ -12,6 +12,7 @@ import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
 import { render, cleanup, act } from '@testing-library/react'
 import * as React from 'react'
 import { MemoryRouter } from 'react-router-dom'
+import { NuqsAdapter } from 'nuqs/adapters/react-router'
 import type { Quest, Chapter } from '../canvas/parseCanvasMarkdown'
 
 const STORAGE_KEY = 'wodwiki.quests.v1'
@@ -175,13 +176,14 @@ function readHomeProgress(): Record<string, boolean> {
 function renderHomeTour() {
   return render(
     <MemoryRouter>
-      <HomeTour
-        wodFiles={wodFiles}
-        theme="light"
-        quests={homeQuests}
-        chapters={chapters}
-        questLabels={{}}
-      />
+      <NuqsAdapter>
+        <HomeTour
+          wodFiles={wodFiles}
+          theme="light"
+          quests={homeQuests}
+          chapters={chapters}
+        />
+      </NuqsAdapter>
     </MemoryRouter>,
   )
 }

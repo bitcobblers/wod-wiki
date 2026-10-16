@@ -5,26 +5,15 @@
  * no ad-hoc palette. Use as `hsl(var(--metric-*))`.
  */
 
-export type TourScreen = 'editor' | 'timer' | 'analytics' | 'metrics'
+export type TourScreen = 'editor' | 'timer' | 'analytics' | 'metrics' | 'result'
 
 export type TourStageId =
-  | 'editor-metrics'
-  | 'editor-run'
-  | 'editor-typeahead'
+  | 'timer-intro'
   | 'timer-wallclock'
   | 'timer-next'
   | 'timer-cast'
-  | 'metrics-e'
-  | 'metrics-m'
-  | 'metrics-d'
-  | 'metrics-c'
-  | 'wql-idea'
-  | 'wql-table'
-  | 'wql-graphs'
-  | 'wql-dashboard'
-  | 'wql-live'
-  | 'timer'
-  | 'analytics'
+  | 'timer-output'
+  | 'timer-dashboard'
 
 /**
  * Registry keys for elements the highlight ring can target. Screens
@@ -60,44 +49,18 @@ export const TOUR_ACCENTS = {
   timer: TOUR_ACTION,
   analytics: TOUR_ACTION,
   library: TOUR_ACTION,
-  /** Alias for the analytics accent used by explore-section chrome. */
+  /** Alias for the analytics accent used by flat-stack chrome. */
   rounds: TOUR_ACTION,
 } as const
 
-export interface TourStage {
-  id: TourStageId
-  screen: TourScreen
-  accent?: string
-  label?: string
-  ringA?: RingTargetKey | null
-  tagA?: string
-}
-
-export const TOUR_STAGES: TourStage[] = [
-  { id: 'editor-metrics', screen: 'editor', accent: TOUR_ACCENTS.editor, label: 'Every Line Collects Metrics', ringA: 'editor.wodBlock', tagA: 'Line Metrics' },
-  { id: 'editor-run', screen: 'editor', accent: TOUR_ACCENTS.editor, label: 'Press Run to Start', ringA: 'editor.runButton', tagA: 'Run Button' },
-  { id: 'timer-wallclock', screen: 'timer', accent: TOUR_ACCENTS.timer, label: 'What Happens When It Runs', ringA: 'timer.floor', tagA: 'Clock' },
-  { id: 'timer-next', screen: 'timer', accent: TOUR_ACCENTS.timer, label: 'Advance Rounds with Next', ringA: 'timer.nextButton', tagA: 'Next Button' },
-  { id: 'timer-cast', screen: 'timer', accent: TOUR_ACCENTS.timer, label: 'Cast to the Big Screen', ringA: 'timer.castButton', tagA: 'Cast' },
-  { id: 'metrics-e', screen: 'metrics', accent: TOUR_ACCENTS.analytics, label: 'Everything Is an Effort', ringA: 'metrics.efforts', tagA: 'Effort' },
-  { id: 'metrics-m', screen: 'metrics', accent: TOUR_ACCENTS.analytics, label: 'Efforts Collect Metrics', ringA: 'metrics.data', tagA: 'Micro Data' },
-  { id: 'metrics-c', screen: 'metrics', accent: TOUR_ACCENTS.analytics, label: 'Compounding Facts', ringA: 'metrics.compound', tagA: 'Analytics Facts' },
-  { id: 'wql-idea', screen: 'analytics', accent: TOUR_ACCENTS.analytics, label: 'Query what you just did', ringA: 'analytics.vocab', tagA: 'WQL elements' },
-  { id: 'wql-table', screen: 'analytics', accent: TOUR_ACCENTS.analytics, label: 'Read it as a list', ringA: 'analytics.table', tagA: 'Table list' },
-  { id: 'wql-graphs', screen: 'analytics', accent: TOUR_ACCENTS.analytics, label: 'See it as trends', ringA: 'analytics.graphs', tagA: 'Graphs' },
-  { id: 'wql-dashboard', screen: 'analytics', accent: TOUR_ACCENTS.analytics, label: 'Compose a dashboard', ringA: 'analytics.dashboard', tagA: 'Dashboard' },
-  { id: 'wql-live', screen: 'analytics', accent: TOUR_ACCENTS.analytics, label: "It's your data" },
-]
 /** Window-chrome title shown while each screen is active. */
 export const SCREEN_TITLES: Record<TourScreen, string> = {
   editor: 'WOD Editor & Autocomplete',
   timer: 'Clock',
   analytics: 'WQL Analytics',
   metrics: 'Own the Metrics',
+  result: 'Run Results',
 }
-
-/** Runway height — legacy single-runway constant, retained for mobile layouts. */
-export const TOUR_RUNWAY_HEIGHT = '1300vh'
 
 /**
  * Chapter id → its consolidated guide route (markdown/canvas/guide/**,

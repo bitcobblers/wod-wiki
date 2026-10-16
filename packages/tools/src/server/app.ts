@@ -17,7 +17,8 @@
 
 import { join, resolve, sep } from 'node:path';
 import { stat, realpath } from 'node:fs/promises';
-import { realpathSync } from 'node:fs';
+import { realpathSync, createReadStream } from 'node:fs';
+import { Readable } from 'node:stream';
 import { HttpError } from './errors';
 import {
   handleDomainQuery,
@@ -37,13 +38,11 @@ import { keyFromValue, type KeyDTO, type RangeDTO, type TxOp } from '@bitcobbler
 const json = (value: unknown, status: number): Response =>
   new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 
-/** Bun.file without the bun-types ambient global (the engine stays
- * Node-compilable; server code only ever runs under Bun). */
-function bunFile(path: string): BodyInit {
-  // Well-known runtime global invisible to the compiler (no bun-types here).
-  const bun = globalThis as { Bun?: { file(path: string): BodyInit } };
-  if (!bun.Bun) throw new Error('the wod-wiki server handler requires the Bun runtime (https://bun.sh)');
-  return bun.Bun.file(path);
+function streamFile(path: string): BodyInit {
+  const bun = (globalThis as { Bun?: { file(p: string): BodyInit } }).Bun;
+  if (bun?.file) return bun.file(path);
+  // ponytail: node:fs Readable.toWeb streams files in pure Node.js (v18+) without dependencies
+  return Readable.toWeb(createReadStream(path)) as unknown as BodyInit;
 }
 
 const plain = (body: string, status: number): Response =>
@@ -177,7 +176,7 @@ async function serveFile(real: string, rel: string): Promise<Response> {
     ? 'public, max-age=31536000, immutable'
     : 'no-cache';
   const ext = rel.slice(rel.lastIndexOf('.') + 1).toLowerCase();
-  return new Response(bunFile(real), {
+  return new Response(streamFile(real), {
     headers: { 'content-type': MIME[ext] ?? 'application/octet-stream', 'cache-control': cache },
   });
 }
@@ -188,7 +187,7 @@ async function serveSpaShell(distRoot: string): Promise<Response | undefined> {
   // outside must not become the shell.
   if (index && (index === distRoot || index.startsWith(distRoot + sep))
     && (await stat(index).then((s) => s.isFile(), () => false))) {
-    return new Response(bunFile(index), {
+    return new Response(streamFile(index), {
       headers: { 'content-type': MIME.html, 'cache-control': 'no-cache' },
     });
   }

@@ -493,8 +493,194 @@ describe('wod CLI database behavior', () => {
       stdout: (t) => { again += t; },
     });
     expect(again).toContain('(0 new)');
-
     if (existsSync(csvFile)) unlinkSync(csvFile);
     if (existsSync(exportFile)) unlinkSync(exportFile);
+  });
+
+  it('roundtrip: parse workout, run timer, export playground + session CSV, import to clean db, and query identical session data', async () => {
+    const workoutFile = join(process.cwd(), 'temp-roundtrip-workout.md');
+    const db1 = join(process.cwd(), 'temp-roundtrip-db1.db');
+    const db2 = join(process.cwd(), 'temp-roundtrip-db2.db');
+    const exportMd = join(process.cwd(), 'temp-roundtrip-export.md');
+    const exportCsv = join(process.cwd(), 'temp-roundtrip-session.csv');
+
+    const WORKOUT_CONTENT = [
+      '---',
+      'title: Roundtrip Fran',
+      '---',
+      '',
+      '# Roundtrip Fran',
+      '',
+      '```time',
+      '2 Rounds',
+      '- 5 thruster @95lb',
+      '- 5 pull-up',
+      '```',
+      '',
+    ].join('\n');
+
+    for (const f of [workoutFile, db1, db2, exportMd, exportCsv]) {
+      if (existsSync(f)) unlinkSync(f);
+    }
+
+    try {
+      writeFileSync(workoutFile, WORKOUT_CONTENT, 'utf-8');
+
+      // 1. Parse workout into db1
+      let parseOut = '';
+      const parseCode = await cliMain(['parse', workoutFile, '--db', db1], {
+        stdout: (t) => { parseOut += t; },
+      });
+      expect(parseCode).toBe(0);
+      const noteId = /\[wod parse\] note ([0-9a-f-]+)/.exec(parseOut)![1];
+
+      // 2. Run timers to completion in db1
+      let runOut = '';
+      const runCode = await cliMain(['run', workoutFile, '--db', db1], {
+        stdout: (t) => { runOut += t; },
+      });
+      expect(runCode).toBe(0);
+      const sessionId = /\[wod run\] session ([0-9a-f-]+)/.exec(runOut)![1];
+
+      // 3. Export playground markdown and session CSV from db1
+      const exportMdCode = await cliMain(['export', 'playground', noteId, '--db', db1, '-o', exportMd], {
+        stdout: () => {},
+      });
+      expect(exportMdCode).toBe(0);
+      expect(existsSync(exportMd)).toBe(true);
+      expect(readFileSync(exportMd, 'utf-8')).toContain(`wod-note-id: ${noteId}`);
+
+      const exportCsvCode = await cliMain(['export', 'session', sessionId, '--db', db1, '-o', exportCsv], {
+        stdout: () => {},
+      });
+      expect(exportCsvCode).toBe(0);
+      expect(existsSync(exportCsv)).toBe(true);
+
+      // 4. Initialize a clean db2
+      const initCode = await cliMain(['init', '--db', db2], {
+        stdout: () => {},
+      });
+      expect(initCode).toBe(0);
+
+      // 5. Import playground markdown and session CSV into clean db2
+      const importMdCode = await cliMain(['import', 'playground', exportMd, '--db', db2], {
+        stdout: () => {},
+      });
+      expect(importMdCode).toBe(0);
+
+      const importCsvCode = await cliMain(['import', 'session', exportCsv, '--db', db2], {
+        stdout: () => {},
+      });
+      expect(importCsvCode).toBe(0);
+
+      // 6. Run WQL queries against both databases and verify identical session data
+      const query = ':session';
+      let q1Out = '';
+      let q2Out = '';
+      const q1Code = await cliMain(['query', query, '--db', db1, '--format', 'json'], {
+        stdout: (t) => { q1Out += t; },
+      });
+      const q2Code = await cliMain(['query', query, '--db', db2, '--format', 'json'], {
+        stdout: (t) => { q2Out += t; },
+      });
+      expect(q1Code).toBe(0);
+      expect(q2Code).toBe(0);
+
+      const q1Data = JSON.parse(q1Out).data;
+      const q2Data = JSON.parse(q2Out).data;
+      expect(q1Data.runs).toHaveLength(1);
+      expect(q2Data.runs).toHaveLength(1);
+      expect(q2Data.runs).toEqual(q1Data.runs);
+
+      // 7. Aggregate query against both databases also matches
+      const aggQuery = 'sum:rep{} by {effort}';
+      let agg1Out = '';
+      let agg2Out = '';
+      await cliMain(['query', aggQuery, '--db', db1, '--format', 'json'], {
+        stdout: (t) => { agg1Out += t; },
+      });
+      await cliMain(['query', aggQuery, '--db', db2, '--format', 'json'], {
+        stdout: (t) => { agg2Out += t; },
+      });
+      expect(JSON.parse(agg2Out).data.series).toEqual(JSON.parse(agg1Out).data.series);
+    } finally {
+      for (const f of [workoutFile, db1, db2, exportMd, exportCsv]) {
+        if (existsSync(f)) unlinkSync(f);
+      }
+    }
+  });
+
+  it('publish catalog from database into seed directory and import via wod seed', async () => {
+    const workoutFile = join(process.cwd(), 'temp-publish-workout.md');
+    const sourceDb = join(process.cwd(), 'temp-publish-source.db');
+    const cleanDb = join(process.cwd(), 'temp-publish-clean.db');
+    const seedDir = join(process.cwd(), 'temp-publish-seed-dist');
+
+    for (const f of [workoutFile, sourceDb, cleanDb]) {
+      if (existsSync(f)) unlinkSync(f);
+    }
+    if (existsSync(seedDir)) rmSync(seedDir, { recursive: true, force: true });
+
+    try {
+      writeFileSync(workoutFile, [
+        '---',
+        'title: Murph',
+        'catalog: heroes',
+        '---',
+        '',
+        '# Murph',
+        '',
+        '```time',
+        '100 pull-up',
+        '200 push-up',
+        '300 air-squat',
+        '```',
+        '',
+      ].join('\n'), 'utf-8');
+
+      // 1. Parse note with catalog into sourceDb
+      const parseCode = await cliMain(['parse', workoutFile, '--db', sourceDb], { stdout: () => {} });
+      expect(parseCode).toBe(0);
+
+      // 2. Publish catalog to seed directory
+      let pubOut = '';
+      const pubCode = await cliMain(['publish', 'heroes', '-o', seedDir, '--db', sourceDb, '--seed-version', '5'], {
+        stdout: (t) => { pubOut += t; },
+      });
+      expect(pubCode).toBe(0);
+      expect(pubOut).toContain('published heroes (1 notes)');
+      expect(existsSync(join(seedDir, 'manifest.json'))).toBe(true);
+      expect(existsSync(join(seedDir, 'report.html'))).toBe(true);
+
+      const manifest = JSON.parse(readFileSync(join(seedDir, 'manifest.json'), 'utf-8'));
+      expect(manifest.version).toBe(5);
+      expect(manifest.chunks).toHaveLength(1);
+      expect(manifest.chunks[0].id).toBe('collection.heroes');
+      expect(existsSync(join(seedDir, manifest.chunks[0].path))).toBe(true);
+
+      // 3. Initialize cleanDb and import published seed via wod seed
+      await cliMain(['init', '--db', cleanDb], { stdout: () => {} });
+      let seedOut = '';
+      const seedCode = await cliMain(['seed', '--source', seedDir, '--db', cleanDb], {
+        stdout: (t) => { seedOut += t; },
+      });
+      expect(seedCode).toBe(0);
+      expect(seedOut).toContain('v5 — 1 notes');
+
+      // 4. Query cleanDb for the catalog
+      let queryOut = '';
+      const qCode = await cliMain(['query', ':note{catalog:heroes}', '--db', cleanDb, '--format', 'json'], {
+        stdout: (t) => { queryOut += t; },
+      });
+      expect(qCode).toBe(0);
+      const queryData = JSON.parse(queryOut).data;
+      expect(queryData.notes).toHaveLength(1);
+      expect(queryData.notes[0].title).toBe('Murph');
+    } finally {
+      for (const f of [workoutFile, sourceDb, cleanDb]) {
+        if (existsSync(f)) unlinkSync(f);
+      }
+      if (existsSync(seedDir)) rmSync(seedDir, { recursive: true, force: true });
+    }
   });
 });

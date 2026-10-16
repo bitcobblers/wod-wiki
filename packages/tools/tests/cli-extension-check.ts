@@ -33,14 +33,14 @@ function query(args: string[], extraEnv: Record<string, string> = {}) {
 }
 const metricValues = (series: { key: string; unit: string; points: { value: number }[] }[]) =>
   series.map(({ key, unit, points }) => ({ key, unit, values: points.map(({ value }) => value) }));
-async function hosted(mode: 'server' | 'serve' | 'playground', check: (url: string) => Promise<void>) {
+async function hosted(mode: 'server' | 'serve' | 'playground', check: (url: string) => Promise<void>, runtime = 'node') {
   const socket = createServer();
   await new Promise<void>((resolve) => socket.listen(0, '127.0.0.1', resolve));
   const address = socket.address();
   assert.ok(address && typeof address === 'object');
   const port = address.port;
   await new Promise<void>((resolve, reject) => socket.close((error) => error ? reject(error) : resolve()));
-  const child = spawn('bun', ['--no-env-file', cli, mode, '--host', '127.0.0.1', '--port', String(port)], {
+  const child = spawn(runtime, [...(runtime === 'bun' ? ['--no-env-file'] : []), cli, mode, '--host', '127.0.0.1', '--port', String(port)], {
     cwd: directory,
     env: { ...env, ...(mode === 'playground' ? { DB_DRIVER: 'invalid' } : {}) },
     stdio: ['ignore', 'pipe', 'pipe'],

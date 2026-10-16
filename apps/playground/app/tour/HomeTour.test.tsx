@@ -1,10 +1,10 @@
 /**
  * HomeTour.test.tsx — route-level component test for the home page.
  *
- * Asserts the four tagged runway sections (write / run / own / explore), the
- * jump section exits, the chapter picker, per-stage drop-off hrefs, and the
- * telemetry funnel events, arrival auto-start, record-once finalization,
- * and note-scoped results.
+ * Asserts the two tagged runway sections (run / explore), the jump section
+ * exits, per-stage drop-off hrefs, and the telemetry funnel events, arrival
+ * auto-start, record-once finalization, the output-stage stop, the
+ * slide-back reset, and note-scoped results.
  */
 
 import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
@@ -289,8 +289,6 @@ mock.module('../canvas/useScrollRunway', () => {
 })
 
 import { HomeTour } from './HomeTour'
-import { NavContext, initialNavState } from '../nav/NavContext'
-import type { NavItemL3 } from '../nav/navTypes'
 
 // jsdom lacks ResizeObserver; Headless UI's combobox machine touches it when
 // the option list closes after a selection.
@@ -395,9 +393,14 @@ async function renderHomeTour() {
 }
 
 async function startRunAtTimerStage() {
+  // Drive the shared track onto the wallclock stage so its 'Run this
+  // example' caption command is rendered, then click it.
   await act(async () => {
-    fireEvent.click(screen.getByTestId('tour-caption-command-editor-run-try'))
-    setTestTourProgress(0.50)
+    setTestTourProgress(0.25)
+    await Promise.resolve()
+  })
+  await act(async () => {
+    fireEvent.click(screen.getByTestId('tour-caption-command-timer-wallclock-try'))
     await Promise.resolve()
   })
 }
@@ -457,8 +460,12 @@ describe('HomeTour', () => {
   it('exposes timer drop-offs with correct hrefs', async () => {
     await renderHomeTour()
 
-    // Native caption flow renders the write captions in sequence — several
-    // stages share the clock drop-off, so assert across all of them.
+    // The wallclock and next captions carry the clock drop-off; assert on
+    // the wallclock stage (one caption renders at a time).
+    await act(async () => {
+      setTestTourProgress(0.25)
+      await Promise.resolve()
+    })
     const clockLinks = await screen.findAllByRole('link', { name: /Read the behaviors explainer/i })
     expect(clockLinks.length).toBeGreaterThan(0)
     for (const link of clockLinks) {
@@ -468,56 +475,18 @@ describe('HomeTour', () => {
 
 
 
-  it('publishes a stop-the-timer outline button on the metrics row only while a run is live', async () => {
-    const published: NavItemL3[][] = []
-    render(
-      <MemoryRouter>
-        <NuqsAdapter>
-          <NavContext.Provider
-            value={{
-              tree: [],
-              navState: initialNavState,
-              dispatch: () => {},
-              l3Items: [],
-              setL3Items: (items) => {
-                published.push(items)
-              },
-              secondarySpec: undefined,
-              setSecondarySpec: () => {},
-              scrollToSection: () => {},
-              registerScrollFn: () => {},
-              setStreamControls: () => {},
-              openCreateJournal: () => {},
-              registerCreateJournal: () => {},
-              setContextNav: () => {},
-            }}
-          >
-            <HomeTour wodFiles={wodFiles} theme="light" quests={homeQuests} chapters={chapters} />
-          </NavContext.Provider>
-        </NuqsAdapter>
-      </MemoryRouter>,
-    )
-    await act(async () => {
-      await Promise.resolve()
-    })
-    const lastOutline = () => published[published.length - 1] ?? []
-    expect(lastOutline().find((i) => i.id === 'own')?.secondaryAction).toBeUndefined()
-
-    await startRunAtTimerStage()
-    await act(async () => {
-      await Promise.resolve()
-    })
-    const own = lastOutline().find((i) => i.id === 'own')
-    expect(own?.secondaryAction?.id).toBe('run-stop')
-    expect(own?.secondaryRunIcon).toBe('stop')
-  })
   it('renders a run button in the timer header and center view that flashes and starts', async () => {
     await renderHomeTour()
     // Wait for editor in hero to initialize and parse blocks
     await within(screen.getByTestId('tour-hero')).findByRole('button', { name: 'Run' })
 
+    // The timer pane mounts once a timer stage is actively visited.
+    await act(async () => {
+      setTestTourProgress(0.25)
+      await Promise.resolve()
+    })
     const runSection = screen.getByTestId('tour-section-run')
-    const centerBtn = within(runSection).getByTestId('tour-timer-center-run')
+    const centerBtn = await within(runSection).findByTestId('tour-timer-center-run')
     const headerBtn = within(runSection).getByTestId('tour-timer-header-run')
     expect(centerBtn).toBeTruthy()
     expect(headerBtn).toBeTruthy()
@@ -660,23 +629,6 @@ describe('HomeTour', () => {
     expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }))
   })
 
-  it('shows the one shared document in both the hero and write displays', async () => {
-    await renderHomeTour()
-    // The hero view hosts a live editor at first paint; the write section's
-    // sticky pane is a second display of the SAME doc state — no reset at
-    // the boundary between them.
-    const heroEditor = within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor') as HTMLTextAreaElement
-    const writeSection = screen.getByTestId('tour-section-write')
-    const writeEditor = within(writeSection).getByTestId('mock-note-editor') as HTMLTextAreaElement
-    expect(writeEditor.value).toBe(heroEditor.value)
-
-    await act(async () => {
-      fireEvent.change(heroEditor, { target: { value: 'EDIT IN HERO' } })
-      await Promise.resolve()
-    })
-    expect(writeEditor.value).toBe('EDIT IN HERO')
-  })
-
   it('restarts the run from the timer header Reset button (#885)', async () => {
     await renderHomeTour()
     await startRunAtTimerStage()
@@ -692,7 +644,7 @@ describe('HomeTour', () => {
     expect(runControl.finalizes[0].completed).toBe(false)
     expect(runControl.resets).toBe(1)
     await act(async () => {
-      fireEvent.click(within(screen.getByTestId('tour-section-run')).getByRole('button', { name: 'Run this example' }))
+      fireEvent.click(within(screen.getByTestId('tour-section-run')).getByTestId('tour-caption-command-timer-wallclock-try'))
       await Promise.resolve()
     })
     expect(runControl.run?.noteId).toBe('note-2')
@@ -758,76 +710,21 @@ describe('HomeTour', () => {
     expect(runControl.finalizes).toHaveLength(1)
   })
 
-  it('stops a live hero run on metrics arrival and shows the recorded $session segments', async () => {
-    // Stub IntersectionObserver so the test can toggle the run section's
-    // viewport signal — leaving it is what "arriving at Own-the-Metrics"
-    // means on the real page.
-    type MockEntry = { el: Element; fire: (v: boolean) => void }
-    const observers: MockEntry[] = []
-    class MockIO {
-      cb: IntersectionObserverCallback
-      constructor(cb: IntersectionObserverCallback) {
-        this.cb = cb
-      }
-      observe(el: Element) {
-        const entry = {
-          el,
-          fire: (v: boolean) =>
-            this.cb([{ isIntersecting: v } as unknown as IntersectionObserverEntry], this as unknown as IntersectionObserver),
-        }
-        observers.push(entry)
-        entry.fire(false)
-      }
-      unobserve() {}
-      disconnect() {}
-    }
-    const globalScope = globalThis as unknown as Record<string, unknown>
-    globalScope.IntersectionObserver = MockIO
-
-    try {
-      await renderHomeTour()
-      const hero = () => screen.getByTestId('tour-hero')
-      await act(async () => {
-        fireEvent.click(within(hero()).getByRole('button', { name: 'Run' }))
-        await Promise.resolve()
-      })
-      expect(screen.getByTestId('mock-timer-panel')).toBeTruthy()
-
-      // Scroll past the run section into Own-the-Metrics — the live runtime
-      // is stopped and its partial recorded.
-      await act(async () => {
-        for (const o of observers) {
-          if (o.el instanceof HTMLElement && o.el.closest('[data-testid="tour-section-run"]')) o.fire(false)
-          if (o.el instanceof HTMLElement && o.el.closest('[data-testid="tour-section-own"]')) o.fire(true)
-        }
-        setTestTourProgress(0.90)
-        await Promise.resolve()
-      })
-      await waitFor(() => expect(runControl.finalizes).toHaveLength(1))
-      // The hero settles on the in-place result view…
-      expect(within(hero()).getByTestId('tour-session-result')).toBeTruthy()
-      // …and the metrics section pane answers with the recorded segments
-      // instead of the WQL table.
-      const own = screen.getByTestId('tour-section-own')
-      expect(within(own).getByTestId('tour-session-result')).toBeTruthy()
-    } finally {
-      delete globalScope.IntersectionObserver
-    }
-  })
-
-  it('scopes the WQL table to the current note only when This run is selected', async () => {
+  it('stops a live run at the output stage and shows the recorded $session segments', async () => {
     await renderHomeTour()
     await startRunAtTimerStage()
-    expect(runControl.run?.noteId).toBe('note-1')
-    const own = within(screen.getByTestId('tour-section-own'))
-    expect(own.getByTestId('tour-session-source-label').textContent).toBe('Example data')
-    expect(queryCalls).toEqual([])
+    await screen.findByTestId('mock-timer-panel')
+
+    // Dwelling on the result stage halts the live execution and records the
+    // partial exactly once; the pane answers with the recorded segments.
     await act(async () => {
-      fireEvent.click(own.getByRole('button', { name: 'This run' }))
+      setTestTourProgress(0.70)
       await Promise.resolve()
     })
-    await waitFor(() => expect(queryCalls.some((q) => q.includes('note:note-1'))).toBe(true))
-    expect(own.getByTestId('tour-session-source-label').textContent).toBe('This run')
+    await waitFor(() => expect(runControl.finalizes).toHaveLength(1))
+    expect(runControl.finalizes[0].completed).toBe(false)
+    const runSection = screen.getByTestId('tour-section-run')
+    expect(within(runSection).getByTestId('tour-session-result')).toBeTruthy()
   })
 
   it('scopes explore queries AST-safely — empty and preset filters parse with the real parser', async () => {
@@ -846,36 +743,6 @@ describe('HomeTour', () => {
 
     // Window suffix survives.
     expect(scopeQueryToNote('avg:tis{} last 6w', noteId)).toBe(`avg:tis{note:${noteId}} last 6w`)
-  })
-
-  it('chapter runway loads the scrolled-to example in both directions and links out to guides', async () => {
-    await renderHomeTour()
-    const picker = screen.getByTestId('tour-chapter-picker')
-    const pickerEditors = within(picker).getAllByTestId('mock-note-editor') as HTMLTextAreaElement[]
-    expect(pickerEditors).toHaveLength(1)
-
-    await act(async () => {
-      setTestTourProgress(0.6)
-      await Promise.resolve()
-    })
-    await waitFor(() => {
-      expect(pickerEditors[0].value).toBe(PROTOCOLS_EXAMPLE)
-    })
-
-    // Scrolling back up restores the prior chapter's example.
-    await act(async () => {
-      setTestTourProgress(0.0)
-      await Promise.resolve()
-    })
-    await waitFor(() => {
-      expect(pickerEditors[0].value).toBe(BASICS_EXAMPLE)
-    })
-
-    // The guide action stays live for every chapter caption.
-    const guideLink = within(picker).getByTestId('chapter-picker-guide-protocols')
-    expect(guideLink.getAttribute('href')).toBe('/guide/protocols')
-    fireEvent.click(guideLink)
-    expect(recorded.map((e) => e.name)).toContain(HOME_EVENTS.chapterGuideClicked)
   })
 
   it('keeps the edited document and an in-place hero run alive across a desktop→phone viewport change', async () => {

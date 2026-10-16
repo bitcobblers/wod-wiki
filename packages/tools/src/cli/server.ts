@@ -16,6 +16,8 @@
  * requests before closing the database.
  */
 
+import http from 'node:http';
+import { Readable } from 'node:stream';
 import { openCliDb, nodeFs, nodePath } from './db';
 import type { CliDatabaseConfig } from './config';
 import type { CliDb } from './db';
@@ -36,17 +38,67 @@ export interface CliServerOptions {
   env: Record<string, string | undefined>;
 }
 
-interface BunServerLike { stop(): Promise<void> }
-interface BunGlobalLike { serve(options: { port: number; hostname: string; fetch: (request: Request) => Promise<Response> }): BunServerLike }
+interface HttpServerLike {
+  stop(): Promise<void>;
+}
 
-function bun(): BunGlobalLike {
-  // Bun-specific global, absent from the ambient TS lib shapes on purpose
-  // (engine stays Node-compilable); the access chain is proven at runtime.
-  const b = (globalThis as { Bun?: BunGlobalLike }).Bun;
-  if (!b) {
-    throw new Error('wod server/playground requires the Bun runtime (https://bun.sh)');
+function withResolvers<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function startHttpServer(
+  handler: (request: Request) => Promise<Response>,
+  host: string,
+  port: number,
+): Promise<HttpServerLike> {
+  const b = (globalThis as { Bun?: { serve(opts: { port: number; hostname: string; fetch: (req: Request) => Promise<Response> }): { stop(): Promise<void> } } }).Bun;
+  if (b?.serve) {
+    const s = b.serve({ port, hostname: host, fetch: handler });
+    return Promise.resolve({ stop: () => s.stop() });
   }
-  return b;
+
+  // ponytail: node:http adapter streams Web Request/Response in pure Node (v18+) without express/fastify dependencies
+  const { promise, resolve, reject } = withResolvers<HttpServerLike>();
+  const server = http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url || '/', `http://${req.headers.host || `${host}:${port}`}`);
+      const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+      const webReq = new Request(url, {
+        method: req.method,
+        headers: req.headers as Record<string, string>,
+        body: hasBody ? (Readable.toWeb(req) as unknown as BodyInit) : null,
+        ...(hasBody ? { duplex: 'half' } : {}),
+      } as RequestInit);
+      const webRes = await handler(webReq);
+      res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
+      if (webRes.body) {
+        Readable.fromWeb(webRes.body as any).pipe(res);
+      } else {
+        res.end();
+      }
+    } catch {
+      res.statusCode = 500;
+      res.end('internal server error');
+    }
+  });
+
+  server.once('error', reject);
+  server.listen(port, host, () => {
+    resolve({
+      stop: () => {
+        const close = withResolvers<void>();
+        server.close(() => close.resolve());
+        return close.promise;
+      },
+    });
+  });
+  return promise;
 }
 
 /**
@@ -134,7 +186,6 @@ export async function runCliServer(
   options: CliServerOptions,
   writeOut: WriteOut,
 ): Promise<void> {
-  const runtime = bun(); // Fail before any side effect when not under Bun.
   const { host, port } = resolveBind(mode, options); // Validate bind before opening anything.
 
   // Server probes the database BEFORE binding a socket: a missing/uninitialized
@@ -155,13 +206,13 @@ export async function runCliServer(
     dbLabel = db.path;
   }
 
-  let server: BunServerLike;
+  let server: HttpServerLike;
   try {
     const dist = resolveDist(mode, options);
     // Bundled server handler
     const handler = createHandler(db?.db ?? null, { playgroundDist: dist });
     // Playground: no database exists to close — createHandler(null) answers
-    server = runtime.serve({ port, hostname: host, fetch: handler });
+    server = await startHttpServer(handler, host, port);
     if (mode === 'server') {
       writeOut(`wod server: http://${host}:${port} — ${dbLabel} · dist ${dist}`);
     } else {

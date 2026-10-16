@@ -38,10 +38,11 @@ The URL and token stay in this browser's localStorage. Same-origin scripts can r
 
 ### Self-host with the `wod` CLI
 
-Install [Bun](https://bun.sh/) v1.4 or newer, then install the CLI globally. The package includes the API and prebuilt website, so no checkout, frontend build, or development dependencies are needed. The executable requires Bun even when installed through another package manager.
+Install the CLI globally with Bun or npm (Node 18+). The package includes the API and prebuilt website, so no checkout, frontend build, or development dependencies are needed.
 
 ```bash
 bun add --global @bitcobblers/wod-wiki-tools
+# or: npm install --global @bitcobblers/wod-wiki-tools
 wod init --db ./data/wodwiki.db    # create the SQLite file + schema
 wod server --db ./data/wodwiki.db  # app + API at http://127.0.0.1:3000
 ```

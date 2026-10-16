@@ -11,6 +11,7 @@ import type {
 } from '@bitcobblers/wod-wiki-storage';
 import { rowsEqual as sameRow } from '@bitcobblers/wod-wiki-storage';
 import type { ExecutionLog } from '@bitcobblers/wod-wiki-engine';
+import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
 import type { EventRecord, ICodeStatement } from '@bitcobblers/wod-wiki-core';
 import {
   blockContentId,
@@ -88,18 +89,25 @@ async function saveSource(
     let sourceRevision = existing?.rawContent === options.source
       ? existing.sourceRevision
       : (existing?.sourceRevision ?? 0) + 1;
-    const blocks = reconcileNoteBlocks(options.source, {
-      sourceRevision,
-      blocks: options.blocks ?? (existing?.rawContent === options.source ? existing.blocks : undefined),
-      registeredWidgets,
-      createId: randomId,
-    });
-    validateNoteBlocks(options.source, blocks, sourceRevision, { registeredWidgets });
     const history = await tx.readonly('block_revisions').getAllFromIndex('by-note', noteId);
     const latest = new Map<string, BlockRevision>();
     for (const row of history) {
       if ((latest.get(row.blockId)?.version ?? 0) < row.version) latest.set(row.blockId, row);
     }
+    // ponytail: deterministic block UUIDs by noteId + ordinal; add explicit block IDs in markdown frontmatter when user-authored block identity is supported.
+    let ordinal = 0;
+    const blocks = reconcileNoteBlocks(options.source, {
+      sourceRevision,
+      blocks: options.blocks ?? (existing?.rawContent === options.source ? existing.blocks : undefined),
+      registeredWidgets,
+      createId: () => {
+        while (true) {
+          const candidate = uuid5(CLI_UUID_NAMESPACE, `${noteId}:block:${ordinal++}`);
+          if (!latest.has(candidate)) return candidate;
+        }
+      },
+    });
+    validateNoteBlocks(options.source, blocks, sourceRevision, { registeredWidgets });
     const revisions: BlockRevision[] = [];
     for (const block of Object.values(blocks)) {
       const saved = latest.get(block.id);
@@ -118,6 +126,11 @@ async function saveSource(
       sourceRevision++;
       for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
     }
+    const fm = readFrontmatterMeta(options.source);
+    const catalog =
+      (typeof fm['catalog'] === 'string' && fm['catalog'].trim()) ||
+      (typeof fm['collection'] === 'string' && fm['collection'].trim()) ||
+      existing?.catalog;
     const note: Note = {
       ...existing,
       id: noteId,
@@ -128,6 +141,7 @@ async function saveSource(
       rawContent: options.source,
       sourceRevision,
       blocks,
+      ...(catalog ? { catalog } : {}),
     };
     const priorRows = await tx.readonly('block_index').getAllFromIndex('by-note', noteId);
     const priorEfforts = await tx.readonly('block_efforts').getAllFromIndex('by-note', noteId);
@@ -146,6 +160,7 @@ async function saveSource(
         dataType: block.kind, sourceRevision, from: block.from, to: block.to, position,
         rawContent, noteTitle: note.title, createdAt: prior?.createdAt ?? now,
         blockContentId: fingerprint,
+        ...(catalog ? { catalog } : {}),
         ...(note.sourceId ? { sourceId: note.sourceId } : {}),
       });
       if (block.kind === 'wod') {

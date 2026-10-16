@@ -8,17 +8,6 @@ const isBun = typeof process.versions.bun !== 'undefined';
 const selfDir = path.dirname(fileURLToPath(import.meta.url));
 const distBin = path.resolve(selfDir, '../packages/tools/dist/bin/wod.mjs');
 
-if (!isBun) {
-  // If invoked via Node but Bun is installed, prefer Bun (supports server/playground and raw TS).
-  const checkBun = spawnSync('bun', ['--version'], { stdio: 'ignore' });
-  if (checkBun.status === 0) {
-    const res = spawnSync('bun', ['--no-env-file', fileURLToPath(import.meta.url), ...process.argv.slice(2)], {
-      stdio: 'inherit',
-    });
-    process.exit(res.status ?? 0);
-  }
-}
-
 // 1. If precompiled bundle exists, load it (works under both Bun and Node).
 if (fs.existsSync(distBin)) {
   await import(distBin);

@@ -12,12 +12,6 @@
 
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  Combobox,
-  ComboboxDescription,
-  ComboboxLabel,
-  ComboboxOption,
-} from '@/components/atoms/primitives/combobox'
 import { TOUR_ACCENTS } from './tourConstants'
 import { telemetry, HOME_EVENTS, type HomeEventName } from '@/services/telemetry'
 
@@ -37,49 +31,6 @@ export interface TourCaptionCommand {
   label: string
 }
 
-/** Choose-your-own-adventure workout option rendered in the caption combo box. */
-export interface TourCaptionChoice {
-  label: string
-  detail: string
-  wod: string
-}
-
-/** Workout presets for the editor-blank slide — reps + distance + load, no forced timers. */
-export const WORKOUT_PRESETS: TourCaptionChoice[] = [
-  {
-    label: '21-15-9 Rep Scaling',
-    detail: 'Air Squats · Pushups',
-    wod: '```time\n21-15-9\n  Air Squats\n  Pushups\n  // Rep scheme scaling\n  // Step through reps\n```',
-  },
-  {
-    label: 'Required Rest',
-    detail: '3 Rounds · 10 Burpees · *:30 Rest',
-    wod: '```time\n(3 Rounds)\n  10 Burpees\n  *:30 Rest\n  // Forced rest timer\n  // Locks time split\n```',
-  },
-  {
-    label: 'Timed Distance',
-    detail: '5:00 Run 400m · *:45 Rest',
-    wod: '```time\n5:00 Run 400m\n*:45 Rest\n// Fixed time window\n// Distance & rest timer\n// Track meter pace\n```',
-  },
-  {
-    label: 'Load & Resistance',
-    detail: '5 Sets · 5 Back Squat 185lb · *1:00 Rest',
-    wod: '```time\n(5 Sets)\n  5 Back Squat 185lb\n  *1:00 Rest\n  // Barbell resistance\n  // Rest between sets\n```',
-  },
-]
-
-/**
- * Adventure script scaffolding (#884): identical header/footer for every
- * preset and for welcome-1.md, so the fenced block always occupies document
- * lines 5–11 and the card-2 highlight is fixed. Every preset fence spans 7
- * lines (open + 5 content + close) — keep them normalized when editing.
- */
-export const ADVENTURE_FENCE_LINES = { open: 5, close: 11 } as const
-
-export function buildAdventureScript(wod: string): string {
-  return `# 👋 Edit Me\n\nChange the reps, distance, or load below — this is live.\n\n${wod}\n\n> Press **Run** ↑ to start the Clock.\n`
-}
-
 export interface TourCaption {
   /** Stage id for walkthrough captions; chapter captions use chapter ids. */
   id: string
@@ -93,81 +44,34 @@ export interface TourCaption {
   actions?: TourCaptionAction[]
   /** Buttons that drive the stage pane via the host's onCommand handler. */
   commands?: TourCaptionCommand[]
-  /** Workout choices rendered as a combo box; picking one resets the tour session. */
-  choices?: TourCaptionChoice[]
-  /** Prompt shown above the choices combo box. */
-  choicePrompt?: string
   /** Optional node under the foot line (e.g. chapter quest progress). */
   extra?: ReactNode
 }
 
 export const TOUR_CAPTIONS: TourCaption[] = [
   {
-    id: 'editor-blank',
-    num: '01a',
+    id: 'timer-intro',
+    num: '02a',
     title: (
       <>
-        Start with a Blank Page.{' '}
-        <em className="italic text-foreground/80">Type-ahead & freeform Markdown.</em>
+        Click Run to Start the Timer.{' '}
+        <em className="italic text-foreground/80">The workout reads like plain text.</em>
       </>
     ),
-    body: 'Write freeform Markdown and fenced workout blocks. Typeahead suggests fence names, frontmatter properties, and tags. Workout lines are parsed live; movement names are not autocompleted.',
-    foot: 'Markdown · property and tag suggestions · live workout parsing',
+    body: 'This workout is different but easy to read: 225lb and 24kg are weight, 400m is distance, 21-15-9 is repetitions and rounds, and easy / hard mark effort. Press the Run button to start the timer.',
+    foot: 'weight & distance · repetitions & rounds · effort',
     accent: TOUR_ACCENTS.editor,
-    choices: WORKOUT_PRESETS,
-    choicePrompt: 'Take one for a spin ↓',
     actions: [
       {
-        label: 'Start Lesson 1',
-        href: '/guide/start#first-workout',
+        label: 'Read the syntax guide',
+        href: '/guide/start',
         event: HOME_EVENTS.lessonStarted,
-      },
-    ],
-  },
-  {
-    id: 'editor-metrics',
-    num: '01a',
-    title: (
-      <>
-        Every Line Collects Metrics.{' '}
-        <em className="italic text-foreground/80">Fenced ```time syntax.</em>
-      </>
-    ),
-    body: 'Open a fenced block with triple backticks — ```time. Each line defines the metrics collected: rep scaling (21-15-9), distance (400m Run), load resistance (24kg, 225lb), and rest (*:30 Rest).',
-    foot: '```time syntax · 21-15-9 rep scaling · 400m distance · 24kg/225lb load',
-    accent: TOUR_ACCENTS.editor,
-    actions: [
-      {
-        label: 'Start Lesson 1',
-        href: '/guide/metrics#capture',
-        event: HOME_EVENTS.lessonStarted,
-      },
-    ],
-  },
-  {
-    id: 'editor-run',
-    num: '01b',
-    title: (
-      <>
-        Press Run to Execute.{' '}
-        <em className="italic text-foreground/80">Launch the step-through clock.</em>
-      </>
-    ),
-    body: 'Click Run in the editor top bar to execute the block — the step-through Clock launches and every line starts generating collected metrics.',
-    foot: 'Run button · step-through Clock · untimed rounds',
-    accent: TOUR_ACCENTS.editor,
-    commands: [{ key: 'try', label: 'Try it now ↓' }],
-    actions: [
-      {
-        label: 'Read the behaviors explainer',
-        href: '/guide/clock#run-next',
-        event: HOME_EVENTS.behaviorsOpened,
       },
     ],
   },
   {
     id: 'timer-wallclock',
-    num: '02a',
+    num: '02b',
     title: (
       <>
         What Happens When It Runs.{' '}
@@ -188,7 +92,7 @@ export const TOUR_CAPTIONS: TourCaption[] = [
   },
   {
     id: 'timer-next',
-    num: '02b',
+    num: '02c',
     title: (
       <>
         Next Advances the Workout.{' '}
@@ -208,7 +112,7 @@ export const TOUR_CAPTIONS: TourCaption[] = [
   },
   {
     id: 'timer-cast',
-    num: '02c',
+    num: '02d',
     title: (
       <>
         Cast to the Big Screen.{' '}
@@ -227,142 +131,29 @@ export const TOUR_CAPTIONS: TourCaption[] = [
     ],
   },
   {
-    id: 'metrics-e',
-    num: '03a',
+    id: 'timer-output',
+    num: '02e',
     title: (
       <>
-        Every line tracks an effort.{' '}
-        <em className="italic text-foreground/80">The registry speaks movement.</em>
+        Stop and See What You Logged.{' '}
+        <em className="italic text-foreground/80">The run becomes a note.</em>
       </>
     ),
-    body: 'Back Squat, Pullups, a 500m Row — each tracked thing is an effort, drawn from the movement registry with its tags and discipline. Efforts are the nouns your training is written in.',
-    foot: 'effort · movement registry · discipline tags',
+    body: 'Stopping saves the run as a playground note — every split, rep, and effort you completed shows up right here, and stays queryable in your journal.',
+    foot: 'saved playground · splits · recorded efforts',
     accent: TOUR_ACCENTS.timer,
-    commands: [
-      { key: 'q-reps', label: 'Reps by effort' },
-      { key: 'q-tonnage', label: 'Tonnage by week' },
-    ],
-    actions: [
-      {
-        label: 'Browse the registry',
-        href: '/efforts',
-        event: HOME_EVENTS.effortsOpened,
-      },
-    ],
   },
   {
-    id: 'metrics-d',
-    num: '03b',
+    id: 'timer-dashboard',
+    num: '02f',
     title: (
       <>
-        Every effort collects measures.{' '}
-        <em className="italic text-foreground/80">Reps, load, distance, rest.</em>
+        Your Data Becomes a Dashboard.{' '}
+        <em className="italic text-foreground/80">Every widget one query away.</em>
       </>
     ),
-    body: 'The same lines carry micro data points: 5 reps at 225lb, a 400m distance, timed rest. Each measure is typed by the runtime — no forms, no manual entry.',
-    foot: 'reps · load · distance · time · custom metrics',
-    accent: TOUR_ACCENTS.editor,
-  },
-  {
-    id: 'metrics-c',
-    num: '03c',
-    title: (
-      <>
-        Efforts × measures compound into facts.{' '}
-        <em className="italic text-foreground/80">Analytics becomes arithmetic.</em>
-      </>
-    ),
-    body: 'Effort × load rolls up to tonnage; effort × distance to pace; every Next click locks a split. Because everything is structured from the start, WQL queries and dashboards are just rollups of what you already logged.',
-    foot: 'tonnage · pace · splits · queryable facts',
-    accent: TOUR_ACCENTS.analytics,
-  },
-  {
-    id: 'wql-idea',
-    num: '04a',
-    title: (
-      <>
-        Query what you just did.{' '}
-        <em className="italic text-foreground/80">Every result is one query away.</em>
-      </>
-    ),
-    body: 'WQL turns your journal into queryable facts. Pick an aggregator and a metric, filter by tag, group by a dimension, roll up over time. The labelled example dataset powers these dashboards without adding workouts to your journal.',
-    foot: 'aggregator · metric · filter · dimension · rollup',
-    accent: TOUR_ACCENTS.analytics,
-    actions: [
-      {
-        label: 'Open the WQL guide',
-        href: '/guide/wql',
-        event: HOME_EVENTS.behaviorsOpened,
-      },
-    ],
-  },
-  {
-    id: 'wql-table',
-    num: '04b',
-    title: (
-      <>
-        Read it as a list.{' '}
-        <em className="italic text-foreground/80">One query, one ranked table.</em>
-      </>
-    ),
-    body: 'Sum total reps grouped by effort to get a ranked table. Start with Example data, or select This run to query only the workout you recorded. Switch the query and the table updates.',
-    foot: 'note-scoped WQL · parsed-query chips',
-    accent: TOUR_ACCENTS.analytics,
-    commands: [
-      { key: 'q-reps', label: 'Reps by effort' },
-      { key: 'q-tonnage', label: 'Tonnage by week' },
-      { key: 'q-tis', label: 'Avg intensity' },
-    ],
-  },
-  {
-    id: 'wql-graphs',
-    num: '04c',
-    title: (
-      <>
-        See it as trends.{' '}
-        <em className="italic text-foreground/80">A graph is a rollup away.</em>
-      </>
-    ),
-    body: 'Roll the same facts up by week and they become a timeseries — is tonnage rising, is training polarized? A graph is not a feature you enable; it is a rollup away.',
-    foot: 'by {week} · timeseries · stacked intensity',
-    accent: TOUR_ACCENTS.analytics,
-    actions: [
-      {
-        label: 'Open the WQL guide',
-        href: '/guide/wql',
-        event: HOME_EVENTS.behaviorsOpened,
-      },
-    ],
-  },
-  {
-    id: 'wql-dashboard',
-    num: '04d',
-    title: (
-      <>
-        Compose a dashboard.{' '}
-        <em className="italic text-foreground/80">N queries on one screen.</em>
-      </>
-    ),
-    body: 'A dashboard is N queries on one screen. These are the app’s seeded boards, using the same DashboardView, range selector, and widget Inspect as /dashboard. Example data stays separate from your journal; each metric keeps its own unit.',
-    foot: 'seeded boards · range · inspect',
-    accent: TOUR_ACCENTS.analytics,
-    commands: [
-      { key: 'board-training-block-review', label: 'Training Block Review' },
-      { key: 'board-road-to-560-total', label: 'Road to 560 Total' },
-      { key: 'board-polarized-base-marathon', label: 'Polarized Base Marathon' },
-    ],
-  },
-  {
-    id: 'wql-live',
-    num: '04e',
-    title: (
-      <>
-        It’s your data.{' '}
-        <em className="italic text-foreground/80">Query anything, your way.</em>
-      </>
-    ),
-    body: 'Every widget here runs the same WQL against the example dataset — log work of your own and the identical queries answer with your data. Open the Dashboards tab to query anything, your way.',
-    foot: 'WQL queries · example dataset · your data',
+    body: 'The same recorded facts feed any WQL dashboard — totals, trends, and boards like this one update as you log more work.',
+    foot: 'seeded boards · WQL · query anything',
     accent: TOUR_ACCENTS.analytics,
     actions: [
       {
@@ -377,8 +168,6 @@ export const TOUR_CAPTIONS: TourCaption[] = [
 export interface TourCaptionsProps {
   /** Index into the captions list (matches stage index within the section). */
   activeIndex: number
-  /** Called when a workout choice is picked from the combo box (choose-your-own-adventure). */
-  onChoice?: (wod: string) => void
   /** Called when a caption command button is pressed (stage-pane driver). */
   onCommand?: (captionId: string, key: string) => void
   /** Caption subset for a runway section; defaults to the full walkthrough list. */
@@ -386,7 +175,7 @@ export interface TourCaptionsProps {
 }
 
 /** Desktop cross-fading caption column — sized by its parent's 40% zone. */
-export function TourCaptions({ activeIndex, onChoice, onCommand, captions = TOUR_CAPTIONS }: TourCaptionsProps) {
+export function TourCaptions({ activeIndex, onCommand, captions = TOUR_CAPTIONS }: TourCaptionsProps) {
   return (
     <div className="relative h-full w-full" data-testid="tour-captions">
       {captions.map((cap, i) => (
@@ -404,14 +193,14 @@ export function TourCaptions({ activeIndex, onChoice, onCommand, captions = TOUR
           aria-hidden={i !== activeIndex}
           inert={i !== activeIndex}
         >
-          <CaptionBody cap={cap} onChoice={onChoice} onCommand={onCommand} />
+          <CaptionBody cap={cap} onCommand={onCommand} />
         </div>
       ))}
     </div>
   )
 }
 
-export function CaptionBody({ cap, onChoice, onCommand }: { cap: TourCaption; onChoice?: (wod: string) => void; onCommand?: (captionId: string, key: string) => void }) {
+export function CaptionBody({ cap, onCommand }: { cap: TourCaption; onCommand?: (captionId: string, key: string) => void }) {
   return (
     <>
       {/* Section number kept subtly inline — no eyebrow prelabel. */}
@@ -438,46 +227,6 @@ export function CaptionBody({ cap, onChoice, onCommand }: { cap: TourCaption; on
         </div>
       )}
       {cap.extra && <div className="mt-3">{cap.extra}</div>}
-      {cap.choices && cap.choices.length > 0 && (
-        <div className="mt-4 xl:mt-6" data-testid="tour-workout-choices">
-          {cap.choicePrompt && (
-            <div
-              className="mb-2 font-mono text-[11px] uppercase tracking-[0.18em]"
-              style={{ color: cap.accent }}
-              data-testid="tour-workout-choices-prompt"
-            >
-              {cap.choicePrompt}
-            </div>
-          )}
-          <Combobox<TourCaptionChoice | null>
-            options={cap.choices}
-            value={null}
-            by={(a, b) => a?.label === b?.label}
-            immediate
-            virtual={false}
-            onChange={(choice) => {
-              if (choice) onChoice?.(choice.wod)
-            }}
-            displayValue={(choice) => choice?.label}
-            filter={(choice, query) => {
-              const q = query.toLowerCase()
-              return (
-                (choice?.label.toLowerCase().includes(q) ?? false) ||
-                (choice?.detail.toLowerCase().includes(q) ?? false)
-              )
-            }}
-            placeholder="Load a workout into the demo…"
-            aria-label="Load a workout into the demo"
-          >
-            {(choice) => (
-              <ComboboxOption value={choice}>
-                <ComboboxLabel>{choice.label}</ComboboxLabel>
-                <ComboboxDescription>{choice.detail}</ComboboxDescription>
-              </ComboboxOption>
-            )}
-          </Combobox>
-        </div>
-      )}
       {cap.commands && cap.commands.length > 0 && onCommand && (
         <div className="mt-4 xl:mt-6 flex flex-wrap items-center gap-2" data-testid={`tour-caption-commands-${cap.id}`}>
           {cap.commands.map((command) => (

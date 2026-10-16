@@ -8,19 +8,16 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "bun": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
     "./sql": {
-      "bun": "./src/sql/index.ts",
       "types": "./dist/sql/index.d.ts",
       "import": "./dist/sql/index.mjs",
       "require": "./dist/sql/index.cjs"
     },
     "./sql/node": {
-      "bun": "./src/sql/node.ts",
       "types": "./dist/sql/node.d.ts",
       "import": "./dist/sql/node.mjs",
       "require": "./dist/sql/node.cjs"

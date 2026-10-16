@@ -1,37 +1,28 @@
 import type { ReactNode } from 'react'
 import { TourHeroHeading } from './TourHero'
-import { TourLearnSection } from './TourLearnSection'
-import { TourChapterPicker } from './TourChapterPicker'
-import { HomeAnalyticsSection } from './HomeAnalyticsSection'
 import { TourTimerScreen } from './screens/TourTimerScreen'
 import { TourEditorScreen } from './screens/TourEditorScreen'
-import { TourSessionAnalytics, DEFAULT_TABLE_QUERY_KEY, DEFAULT_BOARD_SLUG } from './screens/TourSessionAnalytics'
 import { TourSessionResult } from './screens/TourSessionResult'
 import type { TourSectionTimerWiring, TourSectionSessionWiring } from './TourSectionRunway'
 import { TaglineHeader } from './TaglineHeader'
-import { TourJumpSection } from './TourJumpSection'
 import { CaptionBody, TOUR_CAPTIONS } from './TourCaptions'
 import { TOUR_ACCENTS } from './tourConstants'
 import type { ScriptBlock } from '@/components/Editor/types'
-import type { Chapter, Quest } from '../canvas/parseCanvasMarkdown'
 
 export interface TourFlatStackProps {
   theme: string
-  wodFiles?: Record<string, string>
-  quests: Quest[]
-  chapters: Chapter[]
-  questLabels?: Record<string, string>
-  onHomeQuestClick?: (questId: string) => void
+  /** The hero's shared welcome document. */
   doc: string
   onDocChange: (next: string) => void
   onBlocksChange: (blocks: ScriptBlock[]) => void
   onRun: () => void
   onHeroRun?: () => void
-  onChapterRun?: (chapterId: string, block: ScriptBlock | null, doc: string) => void
+  /** The run-section intro example document (home-example.md). */
+  exampleDoc: string
+  onExampleDocChange: (next: string) => void
+  onExampleBlocksChange: (blocks: ScriptBlock[]) => void
   heroContent?: ReactNode
-  /** Choose-your-own-adventure workout choice from the editor-blank caption card. */
-  onChoice?: (wod: string) => void
-  /** Caption command buttons (Try it / query presets / board picks). */
+  /** Caption command buttons (Try it). */
   onCommand?: (captionId: string, key: string) => void
   /** Shared-script attribution + reset, shown on the hero preview. */
   sharedBy?: string
@@ -39,15 +30,19 @@ export interface TourFlatStackProps {
   /** The inline run pane — same wiring as the sticky runways (no fullscreen). */
   timer: TourSectionTimerWiring
   session?: TourSectionSessionWiring
-  /** Rendered between Explore and Learn the Language (the offerings block). */
+  /** Rendered after Explore (the offerings block). */
   offeringsSlot?: ReactNode
 }
 
+/**
+ * TourFlatStack — the reduced-motion home page: flat cards instead of the
+ * sticky scrub runways. Same section order as the animated HomeTour: hero,
+ * Run it as a Timer, Explore your analytics, then the offerings slot
+ * (feeds + data ownership render around it in HomeTour).
+ */
 export function TourFlatStack(props: TourFlatStackProps) {
-  const editorBlankCaption = TOUR_CAPTIONS.find((c) => c.id === 'editor-blank')
-  const editorMetricsCaption = TOUR_CAPTIONS.find((c) => c.id === 'editor-metrics')
+  const introCaption = TOUR_CAPTIONS.find((c) => c.id === 'timer-intro')
   const timerCaption = TOUR_CAPTIONS.find((c) => c.id === 'timer-wallclock')
-  const metricsCaption = TOUR_CAPTIONS.find((c) => c.id === 'metrics-e')
 
   return (
     <div data-testid="tour-flat-stack" className="flex flex-col gap-6">
@@ -63,58 +58,37 @@ export function TourFlatStack(props: TourFlatStackProps) {
         </div>
       </section>
 
-      <TourJumpSection />
-
-      {/* Section 01: Write it in Markdown — hosts the page's ONE editor */}
-      <section id="tour-section-write" data-testid="tour-section-write" className="flex flex-col gap-4">
-        <TaglineHeader
-          index="01"
-          before="Write it in "
-          accentText="Markdown"
-          after=""
-          accent={TOUR_ACCENTS.editor}
-          blurb="Freeform Markdown notes, fenced ```time blocks, property and tag suggestions. Everything starts as plain text you can edit."
-        />
-        <div
-          data-testid="tour-stack-editor"
-          className="mx-6 h-[calc((100dvh-65px)*0.6)] overflow-hidden rounded-2xl border border-border shadow-sm lg:h-[calc((100dvh-104px)*0.6)]"
-        >
-          <TourEditorScreen
-            doc={props.doc}
-            onDocChange={props.onDocChange}
-            onBlocksChange={props.onBlocksChange}
-            onRun={props.onRun}
-            theme={props.theme}
-          />
-        </div>
-        {editorBlankCaption && (
-          <article
-            data-testid="tour-editor-card"
-            className="mx-6 rounded-2xl border border-border bg-card p-6"
-          >
-            <CaptionBody cap={editorBlankCaption} onChoice={props.onChoice} onCommand={props.onCommand} />
-          </article>
-        )}
-        {editorMetricsCaption && (
-          <article
-            data-testid="tour-editor-metrics-card"
-            className="mx-6 rounded-2xl border border-border bg-card p-6"
-          >
-            <CaptionBody cap={editorMetricsCaption} />
-          </article>
-        )}
-      </section>
-
-      {/* Section 02: Run it as a Timer */}
+      {/* Section 01: Run it as a Timer */}
       <section id="tour-section-run" data-testid="tour-section-run" className="flex flex-col gap-4">
         <TaglineHeader
-          index="02"
+          index="01"
           before="Run it as a "
           accentText="Timer"
           after=""
           accent={TOUR_ACCENTS.timer}
-          blurb="The script becomes the clock. Step through rounds, cast to the big screen, and pace the room together."
+          blurb="The workout reads like plain text — press Run and the script becomes the clock. Step through rounds, cast to the big screen, then see what you logged."
         />
+        {introCaption && (
+          <article
+            data-testid="tour-run-intro-card"
+            className="mx-6 rounded-2xl border border-border bg-card p-6"
+          >
+            <CaptionBody cap={introCaption} />
+          </article>
+        )}
+        {/* The intro example — home-example.md in its own editor. */}
+        <div
+          data-testid="tour-stack-example-editor"
+          className="mx-6 h-[calc((100dvh-65px)*0.6)] overflow-hidden rounded-2xl border border-border shadow-sm lg:h-[calc((100dvh-104px)*0.6)]"
+        >
+          <TourEditorScreen
+            doc={props.exampleDoc}
+            onDocChange={props.onExampleDocChange}
+            onBlocksChange={props.onExampleBlocksChange}
+            onRun={props.onRun}
+            theme={props.theme}
+          />
+        </div>
         {timerCaption && (
           <article
             data-testid="tour-timer-card"
@@ -143,64 +117,18 @@ export function TourFlatStack(props: TourFlatStackProps) {
             externalStop={props.timer.externalStop}
           />
         </div>
-      </section>
-
-      {/* Section 03: Own the Metrics */}
-      <section id="tour-section-own" data-testid="tour-section-own" className="flex flex-col gap-4">
-        <TaglineHeader
-          index="03"
-          before="Own the "
-          accentText="Metrics"
-          after=""
-          accent={TOUR_ACCENTS.analytics}
-          blurb="Every movement produces facts. Metrics bind to efforts, accumulating structured workout data on every pass."
-        />
-        {metricsCaption && (
-          <article
-            data-testid="tour-metrics-card"
-            className="mx-6 rounded-2xl border border-border bg-card p-6"
+        {props.session?.result && (
+          <div
+            data-testid="tour-stack-result"
+            className="mx-6 overflow-hidden rounded-2xl border border-border"
           >
-            <CaptionBody cap={metricsCaption} />
-          </article>
+            <TourSessionResult result={props.session.result} />
+          </div>
         )}
-        <div className="mx-6 h-[calc((100dvh-65px)*0.6)] overflow-hidden rounded-2xl border border-border lg:h-[calc((100dvh-104px)*0.6)]">
-          {props.session?.result ? <TourSessionResult result={props.session.result} /> : (
-            <TourSessionAnalytics
-              activeStageId="wql-table"
-              noteId={props.session?.noteId ?? null}
-              queryKey={props.session?.queryKey ?? DEFAULT_TABLE_QUERY_KEY}
-              boardSlug={props.session?.boardSlug ?? DEFAULT_BOARD_SLUG}
-            />
-          )}
-        </div>
       </section>
 
-      {/* Section 04: Explore your analytics */}
-      <section id="tour-section-explore" data-testid="tour-section-explore" className="flex flex-col gap-4">
-        <TaglineHeader
-          index="04"
-          before=""
-          accentText="Explore"
-          after=" your analytics"
-          accent={TOUR_ACCENTS.rounds}
-          blurb="Query what you just did in WQL. Roll up totals, graph volume over time, and build custom dashboards."
-        />
-        <HomeAnalyticsSection />
-      </section>
-
-      {/* Offerings (keep-scrolling teaser included) — see HomeTour */}
+      {/* Offerings (feeds render just above, in HomeTour) — see HomeTour */}
       {props.offeringsSlot}
-
-      {/* Syntax chapter picker */}
-      <TourChapterPicker wodFiles={props.wodFiles ?? {}} theme={props.theme} chapters={props.chapters} allQuests={props.quests} onRun={props.onChapterRun} />
-
-      {/* High-level progress */}
-      <TourLearnSection
-        quests={props.quests}
-        chapters={props.chapters}
-        questLabels={props.questLabels}
-        onHomeQuestClick={props.onHomeQuestClick}
-      />
     </div>
   )
 }

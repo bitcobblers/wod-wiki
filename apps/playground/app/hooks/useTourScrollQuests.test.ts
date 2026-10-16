@@ -12,10 +12,7 @@ const PAGE_ROUTE = '/';
 
 const tourQuests = [
   { id: 'qs-arrive', label: 'Welcome to WOD Wiki' },
-  { id: 'qs-tour-editor', label: 'Watch a workout write itself' },
   { id: 'qs-tour-timer', label: 'See the timer run it' },
-  { id: 'qs-tour-analytics', label: 'Review the session' },
-  { id: 'qs-tour-library', label: 'Tour the library' },
 ];
 
 function readLedger(): Record<string, Record<string, boolean>> {
@@ -30,47 +27,38 @@ afterEach(() => {
 });
 
 describe('useTourScrollQuests', () => {
-  it('marks the stage quest complete when the stage scrolls into view', () => {
+  it('marks the timer quest complete when a timer stage scrolls into view', () => {
     const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
 
-    act(() => result.current('timer'));
+    act(() => result.current('timer-wallclock'));
 
     expect(readLedger()[PAGE_ROUTE]?.['qs-tour-timer']).toBe(true);
-    expect(readLedger()[PAGE_ROUTE]?.['qs-tour-editor']).toBeUndefined();
   });
 
-  it('fires each content stage exactly once per stage', () => {
+  it('maps both running stages to the timer quest and fires once per stage', () => {
     const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
 
     act(() => {
-      result.current('editor');
-      result.current('analytics');
-      result.current('library');
+      result.current('timer-wallclock');
+      result.current('timer-wallclock');
+      result.current('timer-next');
+      result.current('timer-cast');
     });
 
     const page = readLedger()[PAGE_ROUTE] ?? {};
-    expect(page['qs-tour-editor']).toBe(true);
-    expect(page['qs-tour-analytics']).toBe(true);
-    expect(page['qs-tour-library']).toBe(true);
-    expect(page['qs-tour-timer']).toBeUndefined();
+    expect(page['qs-tour-timer']).toBe(true);
+    expect(Object.keys(page)).toEqual(['qs-tour-timer']);
   });
 
-  it('maps the editor runway stages to the editor quest', () => {
-    // The runway resolves discrete stage ids (editor-metrics / editor-run);
-    // all of them count as "the editor stage scrolled into view".
-    for (const stageId of ['editor-metrics', 'editor-run']) {
-      window.localStorage.clear();
-      const { result, unmount } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
-      act(() => result.current(stageId));
-      expect(readLedger()[PAGE_ROUTE]?.['qs-tour-editor']).toBe(true);
-      unmount();
-    }
-  });
-
-  it('ignores the overview stage (no quest attached)', () => {
+  it('ignores stages without a quest (intro / output / dashboard / unknown)', () => {
     const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
 
-    act(() => result.current('overview'));
+    act(() => {
+      result.current('timer-intro');
+      result.current('timer-output');
+      result.current('timer-dashboard');
+      result.current('overview');
+    });
 
     expect(readLedger()[PAGE_ROUTE]).toBeUndefined();
   });
@@ -80,7 +68,7 @@ describe('useTourScrollQuests', () => {
       useTourScrollQuests(PAGE_ROUTE, [{ id: 'qs-arrive', label: 'Welcome' }]),
     );
 
-    act(() => result.current('timer'));
+    act(() => result.current('timer-wallclock'));
 
     expect(readLedger()[PAGE_ROUTE]).toBeUndefined();
   });
@@ -89,8 +77,10 @@ describe('useTourScrollQuests', () => {
     const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
 
     act(() => {
-      result.current('timer');
-      result.current('timer');
+      result.current('timer-wallclock');
+    });
+    act(() => {
+      result.current('timer-wallclock');
     });
 
     expect(readLedger()[PAGE_ROUTE]?.['qs-tour-timer']).toBe(true);
@@ -104,34 +94,11 @@ describe('useTourScrollQuests', () => {
         label: 'See the timer run it',
         validation: { type: 'run-started' },
       },
-      { id: 'qs-tour-analytics', label: 'Review the session' },
     ];
     const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, quests));
 
-    act(() => result.current('timer'));
+    act(() => result.current('timer-wallclock'));
 
-    const page = readLedger()[PAGE_ROUTE] ?? {};
-    expect(page['qs-tour-timer']).toBeUndefined();
-    expect(page['qs-arrive']).toBeUndefined();
-    expect(page['qs-tour-analytics']).toBeUndefined();
-  });
-
-  it('still marks passive scroll quests complete', () => {
-    const quests = [
-      { id: 'qs-arrive', label: 'Welcome to WOD Wiki' },
-      {
-        id: 'qs-tour-timer',
-        label: 'See the timer run it',
-        validation: { type: 'run-started' },
-      },
-      { id: 'qs-tour-analytics', label: 'Review the session' },
-    ];
-    const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, quests));
-
-    act(() => result.current('analytics'));
-
-    const page = readLedger()[PAGE_ROUTE] ?? {};
-    expect(page['qs-tour-analytics']).toBe(true);
-    expect(page['qs-tour-timer']).toBeUndefined();
+    expect(readLedger()[PAGE_ROUTE]).toBeUndefined();
   });
 });

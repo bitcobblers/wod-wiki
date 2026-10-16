@@ -6,7 +6,6 @@ import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
 import { render, screen, cleanup, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { telemetry, HOME_EVENTS } from '@/services/telemetry'
-import type { Quest, Chapter } from '../canvas/parseCanvasMarkdown'
 import type { TourFlatStackProps } from './TourFlatStack'
 import type { ScriptBlock } from '@/components/Editor/types'
 
@@ -39,13 +38,13 @@ import { TourFlatStack } from './TourFlatStack'
 
 const baseProps = {
   theme: 'light',
-  quests: [] as Quest[],
-  chapters: [] as Chapter[],
-  questLabels: {},
   doc: 'AMRAP 10\n  10 Pull-ups\n',
   onDocChange: () => {},
   onBlocksChange: () => {},
   onRun: () => {},
+  exampleDoc: 'AMRAP 5\n  5 Pull-ups\n',
+  onExampleDocChange: () => {},
+  onExampleBlocksChange: () => {},
   timer: {
     sessionKey: 0,
     block: null,

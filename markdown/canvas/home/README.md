@@ -5,62 +5,69 @@ route: /
 type: home
 ---
 ```scroll
-runway: 1300vh
-screen: editor
+runway: 720vh
+screen: timer
 typewriter: true
 stages:
-  - id: editor-metrics
-    range: [0.12, 0.24]
+  - id: timer-intro
+    range: [0.10, 0.20]
     screen: editor
     accent: hsl(var(--primary))
-    label: Every Line Collects Metrics
-    source: wods/examples/home/welcome-1.md
-    caption: "Every Line Collects Metrics. Reps, distance & load. Each line defines the metric types the runtime will collect: rep counts (15 Swings), distance (400m Run), load resistance (24kg, 225lb), and timed rest (*:30 Rest)."
-    ring:
-      key: editor.wodBlock
-      tag: Line Metrics
-  - id: editor-run
-    range: [0.24, 0.36]
-    screen: editor
-    accent: hsl(var(--primary))
-    label: Press Run to Start
-    source: wods/examples/home/welcome-1.md
-    caption: "Press Run to start the Clock. Scrolling through the tour never starts a workout. Use Next to advance and Stop to save your results."
+    label: Click Run to Start the Timer
+    source: wods/examples/home/home-example.md
+    caption: "Click Run to start the Timer. The workout looks different but reads like plain text: 225lb and 400m are weight and distance, 21-15-9 is repetitions and rounds, easy and hard are effort. Click the Run button to start the timer."
     ring:
       key: editor.runButton
       tag: Run Button
   - id: timer-wallclock
-    range: [0.36, 0.47]
+    range: [0.20, 0.32]
     screen: timer
     accent: hsl(var(--primary))
     label: What Happens When It Runs
-    source: wods/examples/home/welcome-1.md
+    source: wods/examples/home/home-example.md
     caption: "What Happens When It Runs. The script becomes the clock. The Clock runs your exact script — stepping through reps, distance, and load lines at your own pace without forced countdown caps."
     ring:
       key: timer.floor
       tag: Clock
   - id: timer-next
-    range: [0.47, 0.57]
+    range: [0.32, 0.42]
     screen: timer
     accent: hsl(var(--primary))
     label: Advance Rounds with Next
-    source: wods/examples/home/welcome-1.md
-    caption: "Next Advances the Workout. Every click locks a time. Click Next to advance to the next movement or round. Each click records elapsed time as a split. Stop or completion saves the results; the Metrics section shows them when you reach it."
+    source: wods/examples/home/home-example.md
+    caption: "Next Advances the Workout. Every click locks a time. Click Next to advance to the next movement or round. Each click records elapsed time as a split."
     ring:
       key: timer.nextButton
       tag: Next Button
   - id: timer-cast
-    range: [0.57, 0.65]
+    range: [0.42, 0.50]
     screen: timer
     accent: hsl(var(--primary))
     label: Cast to the Big Screen
-    source: wods/examples/home/welcome-1.md
+    source: wods/examples/home/home-example.md
     caption: "Cast to the Big Screen. Real-time mirror for the gym floor. Stream the Clock to Chromecast or a shared screen — live rep counters and timers update in real time."
     ring:
       key: timer.castButton
       tag: Cast
+  - id: timer-output
+    range: [0.50, 0.58]
+    screen: result
+    accent: hsl(var(--primary))
+    label: Stop and See What You Logged
+    source: wods/examples/home/home-example.md
+    caption: "Stop and See What You Logged. Stopping saves the run as a playground note — every split, rep, and effort you completed is right here."
+  - id: timer-dashboard
+    range: [0.58, 0.66]
+    screen: analytics
+    accent: hsl(var(--primary))
+    label: Your Data Becomes a Dashboard
+    source: wods/examples/home/home-example.md
+    caption: "Your Data Becomes a Dashboard. The same recorded facts feed any WQL dashboard — totals, trends, and boards update as you log more."
+    ring:
+      key: analytics.dashboard
+      tag: Dashboard
   - id: wql-idea
-    range: [0.65, 0.72]
+    range: [0.66, 0.73]
     screen: analytics
     accent: hsl(var(--primary))
     label: Query what you just did
@@ -69,7 +76,7 @@ stages:
       key: analytics.vocab
       tag: "WQL elements"
   - id: wql-table
-    range: [0.72, 0.79]
+    range: [0.73, 0.80]
     screen: analytics
     accent: hsl(var(--primary))
     label: Read it as a list
@@ -78,7 +85,7 @@ stages:
       key: analytics.table
       tag: Table list
   - id: wql-graphs
-    range: [0.79, 0.86]
+    range: [0.80, 0.87]
     screen: analytics
     accent: hsl(var(--primary))
     label: See it as trends
@@ -87,7 +94,7 @@ stages:
       key: analytics.graphs
       tag: Graphs
   - id: wql-dashboard
-    range: [0.86, 0.93]
+    range: [0.87, 0.93]
     screen: analytics
     accent: hsl(var(--primary))
     label: Compose a dashboard

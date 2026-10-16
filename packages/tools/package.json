@@ -12,13 +12,11 @@
   },
   "exports": {
     ".": {
-      "bun": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
     "./server": {
-      "bun": "./src/server/app.ts",
       "types": "./dist/server/app.d.ts",
       "import": "./dist/server/app.mjs",
       "require": "./dist/server/app.cjs"
