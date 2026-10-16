@@ -239,6 +239,26 @@ describe('wod CLI database behavior', () => {
     }
   });
 
+  it('seed imports a version-0 source (fresh catalog, pre-commit) and retains the frontmatter date', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wod-cli-seed-v0-'));
+    try {
+      mkdirSync(join(root, 'markdown/collections/test'), { recursive: true });
+      writeFileSync(join(root, 'markdown/collections/test/dated.md'), '---\ntitle: Dated\ndate: 2026-10-16\n---\n\n```time\n(21-15-9)\n  Thrusters @95lb\n  Pull-ups\n```\n', 'utf-8');
+      const built = generateSeed({ corpusRoot: root, version: 0, outDir: join(root, 'dist') });
+      expect(await cliMain(['seed', '--db', TEMP_DB_FILE, '--source', built.outDir], { stdout: () => {} })).toBe(0);
+      const imported = await openCliDb(TEMP_DB_FILE);
+      try {
+        const note = (await imported.storage.readonly('notes').getAll()).find((n) => n.sourcePath === 'markdown/collections/test/dated.md');
+        expect(note?.date).toBe(Date.parse('2026-10-16T12:00:00Z'));
+        expect(note?.createdAt).toBe(0);
+      } finally {
+        await imported.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('reset deletes the database file; resetting a missing file is a no-op', async () => {
     writeFileSync(TEMP_SCRIPT_FILE, FENCED_WORKOUT, 'utf-8');
     await cliMain(['parse', TEMP_SCRIPT_FILE, '--db', TEMP_DB_FILE], { stdout: () => {} });

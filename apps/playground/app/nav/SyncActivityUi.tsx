@@ -23,6 +23,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { ToastAction } from '@/components/atoms/primitives/toast'
 import { ROUTE_PATTERNS } from '../lib/routes'
+import { getCatalogUpdates, subscribeCatalogUpdates } from '@/services/seed/seedSync'
 
 function activityLabel(direction: 'upload' | 'download', count: number, label: string | null): string {
   const noun = direction === 'upload' ? 'Uploading' : 'Downloading'
@@ -71,6 +72,7 @@ export function SyncActivityIndicators() {
 // many times the observer remounts (StrictMode, route changes).
 let lastSeenResultId = 0
 let lastSeenError: string | null = null
+let lastSeenCatalogUpdateId = 0
 
 function notifyResult(result: NonNullable<SyncActivitySnapshot['result']>, navigate: (to: string) => void): void {
   const parts: string[] = []
@@ -91,6 +93,21 @@ function notifyResult(result: NonNullable<SyncActivitySnapshot['result']>, navig
 
 export function SyncActivityNotifier() {
   const navigate = useNavigate()
+  useEffect(() => {
+    const check = () => {
+      const snapshot = getCatalogUpdates()
+      if (!snapshot || snapshot.id <= lastSeenCatalogUpdateId) return
+      lastSeenCatalogUpdateId = snapshot.id
+      if (!snapshot.updates.length) return
+      toast({
+        title: 'Catalog updates',
+        description: snapshot.updates.map(update => `${update.label}: ${update.state === 'updated' ? 'updated' : update.state === 'error' ? 'sync failed' : 'update available'}`).join('; '),
+        action: <ToastAction altText="Manage catalog updates" onClick={() => navigate(`${ROUTE_PATTERNS.catalogs}?manage=1`)}>Review updates</ToastAction>,
+      })
+    }
+    check()
+    return subscribeCatalogUpdates(check)
+  }, [navigate])
   useEffect(() => {
     const check = (activity: SyncActivitySnapshot) => {
       if (!activity.error) lastSeenError = null;

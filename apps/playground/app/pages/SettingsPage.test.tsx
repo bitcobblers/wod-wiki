@@ -49,6 +49,11 @@ mock.module('@/services/seed/seedSync', () => ({
         id: 'core',
         label: 'Core (playground)',
         autoImport: true,
+        count: 0,
+        bytes: 0,
+        subscribed: true,
+        autoSync: true,
+        checkedAt: null,
         stored: { version: 1, schema: 1, builtAt: '2026-01-01', importedAt: 1000 },
         remote: { version: 1, schema: 1, builtAt: '2026-01-01' },
         remoteError: null,
@@ -209,16 +214,6 @@ describe('SettingsPage', () => {
       expect(screen.queryByText('Content Sources')).toBeNull()
     })
 
-    it('renders the Sync tab with sources and the add-source form', async () => {
-      renderSettings('/settings/sync')
-
-      expect(screen.getByText('Content Sources')).toBeDefined()
-      const sourceCard = await screen.findByTestId('seed-source-core')
-      expect(sourceCard).toBeDefined()
-      expect(screen.getByTestId('seed-sync-core')).toBeDefined()
-      expect(screen.getByTestId('seed-resync-button')).toBeDefined()
-      expect(screen.getByTestId('seed-add-source-form')).toBeDefined()
-    })
   })
 
 })

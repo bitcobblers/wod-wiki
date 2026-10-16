@@ -13,13 +13,14 @@ import { InMemorySeedStorage } from './SeedImportStorage';
 import { CountingSeedSource, InMemorySeedSource } from './InMemorySeedSource';
 import type { ISeedSource, SeedChunkPayload } from './ISeedSource';
 import { seedFixture as fixture } from './seedFixture';
-import { runBootSeedSync, runSeedSync, syncSeedSource, type SeedSourceSpec } from './seedSync';
+import { runBootSeedSync, runSeedSync, syncSeedSource, getCatalogUpdates, type SeedSourceSpec } from './seedSync';
 import { getSeedReadiness, resetSeedReadinessForTest, startSeedBootstrap } from './seedReadiness';
 import { seedNoteId } from './SeedImporter';
 import {
   isSeedSubscribed,
   migrateSeedSubscriptions,
   resetSeedSubscriptionsForTest,
+  setSeedAutoSync,
   setSeedSubscribed,
 } from './seedSubscriptions';
 import {
@@ -27,17 +28,19 @@ import {
   getSyncActivity,
   reportSyncError,
   reportSyncResult,
+  resetSyncActivityForTest,
   subscribeSyncActivity,
 } from '@/services/syncActivity';
 
 function spec(source: SeedSourceSpec['source'], id: string, embeddedVersion = 0, autoImport?: boolean): SeedSourceSpec {
-  return { source, id, label: id, embeddedVersion, ...(autoImport === undefined ? {} : { autoImport }) };
+  return { source, id, label: id, url: `https://seed.test/${id}/`, embeddedVersion, ...(autoImport === undefined ? {} : { autoImport }) };
 }
 const row = (path: string, content: string) => compileSeedRow(path, content);
 
 beforeEach(() => {
   localStorage.clear();
   resetSeedSubscriptionsForTest();
+  resetSyncActivityForTest();
   resetSeedReadinessForTest();
 });
 
@@ -62,6 +65,7 @@ describe('syncActivity store', () => {
   });
 
   it('keeps stable snapshots with incrementing result ids and safe errors', () => {
+    resetSyncActivityForTest(); // sibling suites share the module singleton
     const snapBefore = getSyncActivity();
     reportSyncResult({ source: 'Core', added: 3, updated: 1 });
     reportSyncResult({ source: 'Community', added: 0, updated: 2 });
@@ -138,7 +142,7 @@ describe('seed subscriptions', () => {
 });
 
 describe('boot seed policy', () => {
-  it('return visit probes the embedded-core manifest and refreshes only subscribed feeds', async () => {
+  it('return visit checks every subscribed catalog; only auto-sync-on sources import', async () => {
     const storage = new InMemorySeedStorage();
     await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
     const coreCounting = new CountingSeedSource(fixture([row('markdown/canvas/a.md', '# A')], 1, 'canvas'));
@@ -152,14 +156,25 @@ describe('boot seed policy', () => {
     expect(coreCounting.fetchChunkCalls).toEqual([]);
     expect(communityCounting.fetchManifestCalls).toBe(0);
 
-    // Subscribed: the background refresh covers it too — a subscribed
-    // library without a checkpoint imports now (decision probe + importer
-    // fetch), then refreshes by probe alone.
+    // Subscribed with auto-sync OFF (the default): check-only — the manifest
+    // is consulted, no chunk fetches, no checkpoint, and the detected update
+    // lands in the grouped snapshot as pending instead of importing.
     setSeedSubscribed('community', true);
+    expect(await runBootSeedSync({ sources, storage, isEnabled: () => true })).toBe('update-pending');
+    expect(communityCounting.fetchManifestCalls).toBe(1);
+    expect(communityCounting.fetchChunkCalls).toEqual([]);
+    expect(await storage.getSeedMeta(seedMetaKey('community'))).toBeUndefined();
+    expect(getCatalogUpdates()?.updates).toEqual([{ sourceId: 'community', label: 'community', state: 'pending' }]);
+
+    // Auto-sync ON: the same background check applies the update (a first
+    // import is not an "update" — it does not join the grouped snapshot),
+    // then refreshes by probe alone.
+    setSeedAutoSync('community', true);
     expect(await runBootSeedSync({ sources, storage, isEnabled: () => true })).toBe('imported');
-    expect(communityCounting.fetchManifestCalls).toBe(2);
+    expect((await storage.getSeedMeta(seedMetaKey('community')))?.seedVersion).toBe(1);
+    expect(getCatalogUpdates()).toBeNull();
     expect(await runBootSeedSync({ sources, storage, isEnabled: () => true })).toBe('current');
-    expect(communityCounting.fetchManifestCalls).toBe(3);
+    expect(communityCounting.fetchManifestCalls).toBe(4);
   });
 
   it('fresh visit imports core only, before any subscription exists', async () => {
@@ -198,10 +213,14 @@ describe('boot orchestrator (startSeedBootstrap)', () => {
     const done = startSeedBootstrap({ sources, storage, isEnabled: () => true });
     await done;
     // Ungated without ever passing through 'preparing', even though the
-    // subscribed background feed failed — background outcomes reach sync
-    // activity, never the readiness gate.
+    // subscribed background feed failed. Background runs stay silent in
+    // sync activity (no toast flood) — the grouped snapshot carries the
+    // failure instead.
     expect(getSeedReadiness()).toBe('ready');
-    expect(getSyncActivity().error).toContain('offline');
+    expect(getSyncActivity().error).toBeNull();
+    expect(getCatalogUpdates()?.updates).toEqual([
+      { sourceId: 'community-crossfit-programming', label: 'community-crossfit-programming', state: 'error' },
+    ]);
     // ...and the returning probe still consulted the core manifest.
     expect(coreCounting.fetchManifestCalls).toBe(1);
   });

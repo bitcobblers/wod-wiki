@@ -25,7 +25,8 @@ import { fileToDisplayName } from './filename';
 import { parseEffortFile } from './effort-file';
 import { resolveGitVersion } from './git-version';
 import { writeBuildReport } from './report';
-import { parseFrontmatter } from './frontmatter';
+import { getScalar, parseFrontmatter } from './frontmatter';
+import { assertSeedManifest } from './validation';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -204,6 +205,31 @@ function getFileCreatedAt(file: string, repoRoot: string): number {
   }
 }
 
+/**
+ * Frontmatter `date: YYYY-MM-DD` → epoch ms at noon UTC (mirrors the seed
+ * importer's Note.date, so the block and note planes place a post on the
+ * same civil day). Absent/empty → undefined; anything else that is not a
+ * real calendar day throws — the build fails loudly instead of silently
+ * misdating or rolling the post to another day.
+ */
+export function frontmatterDateToCreatedAt(raw: string, path: string): number | undefined {
+  const value = getScalar(parseFrontmatter(raw).meta, 'date');
+  if (value === undefined || value === '') return undefined;
+  const text = String(value);
+  const parts = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const ts = parts ? Date.parse(`${text}T12:00:00Z`) : NaN;
+  // Some engines roll impossible days (2026-02-30 → March 2) instead of
+  // failing — round-trip the UTC components so the post can never silently
+  // move to another day.
+  const valid = !!parts && Number.isFinite(ts)
+    && new Date(ts).getUTCMonth() === Number(parts[2]) - 1
+    && new Date(ts).getUTCDate() === Number(parts[3]);
+  if (!valid) {
+    throw new Error(`[wod build] invalid frontmatter date '${text}' in '${path}' — expected a real calendar day (YYYY-MM-DD)`);
+  }
+  return ts;
+}
+
 /** Created-at timestamp for a feed entry's date key (`yyyy-mm-dd` from the path). */
 export function feedDateToCreatedAt(dateKey: string): number {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return 0;
@@ -238,7 +264,11 @@ export function buildBlockIndexRows(markdownDir: string, corpusRoot: string): Bl
     const catalog = parts[2];
     const routeId = chunkId === 'canvas' ? canvasRouteSlug(content) ?? undefined : chunkId.startsWith('collection.') ? (stem.toLowerCase() === 'readme' ? catalog : `${catalog}/${stem}`) : chunkId.startsWith('feed.') ? parts.slice(1).join('/').replace(/\.md$/, '') : undefined;
     const sourceId = seedNoteSourceId(path, content, chunkId);
-    const createdAt = chunkId.startsWith('feed.') ? feedDateToCreatedAt(parts.at(-2) ?? '') : getFileCreatedAt(path, corpusRoot);
+    // Authored frontmatter date wins regardless of filename/directory; undated
+    // feeds keep their historical path-date placement, everything else falls
+    // back to the corpus repo's git history.
+    const createdAt = frontmatterDateToCreatedAt(content, path)
+      ?? (chunkId.startsWith('feed.') ? feedDateToCreatedAt(parts.at(-2) ?? '') : getFileCreatedAt(path, corpusRoot));
     rows.push(...compileSeedRow(path, content, { routeId, sourceId, createdAt }).blockIndex);
   }
   return rows;
@@ -477,6 +507,13 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
   const gitVersion = options.version !== undefined
     ? { ...resolveGitVersion(corpusRoot), version: options.version }
     : resolveGitVersion(corpusRoot);
+  const packageFile = join(corpusRoot, 'package.json');
+  const packageMetadata: unknown = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')) : {};
+  const metadata = packageMetadata && typeof packageMetadata === 'object' ? packageMetadata : {};
+  const repository = 'repository' in metadata ? metadata.repository : undefined;
+  const repositoryUrl = typeof repository === 'string' ? repository : repository && typeof repository === 'object' && 'url' in repository && typeof repository.url === 'string' ? repository.url : undefined;
+  const webRepositoryUrl = repositoryUrl?.replace(/^git\+/, '').replace(/\.git$/, '');
+  const repositoryLink = webRepositoryUrl && URL.canParse(webRepositoryUrl) ? new URL(webRepositoryUrl) : undefined;
   if (options.scaffoldDiscoveredEfforts) {
     const discovered = discoverUncatalogedEfforts(markdownDir, corpusRoot);
     if (discovered.length > 0) {
@@ -551,6 +588,9 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
   passMs.write = Date.now() - tWrite;
 
   const manifest: SeedManifest = {
+    name: 'name' in metadata && typeof metadata.name === 'string' ? metadata.name : undefined,
+    description: 'description' in metadata && typeof metadata.description === 'string' ? metadata.description : undefined,
+    repositoryUrl: repositoryLink?.protocol === 'https:' && !repositoryLink.username && !repositoryLink.password ? repositoryLink.href : undefined,
     schema: SEED_SCHEMA,
     version: gitVersion.version,
     versionLabel: gitVersion.versionLabel,
@@ -559,6 +599,7 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     builtAt: new Date().toISOString(),
     chunks: manifestChunks,
   };
+  assertSeedManifest(manifest);
   writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 
   const reportPath = writeBuildReport(outDir, {

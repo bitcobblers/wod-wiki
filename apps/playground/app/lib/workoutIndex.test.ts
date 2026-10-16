@@ -23,6 +23,7 @@ describe('deriveDate', () => {
   it('returns undefined when date is missing or malformed', () => {
     expect(deriveDate(NO_DATE)).toBeUndefined()
     expect(deriveDate('---\ndate: December 1, 2009\n---\n')).toBeUndefined()
+    expect(deriveDate('---\ndate: 2009-02-30\n---\n')).toBeUndefined() // impossible calendar day, never NaN
   })
 })
 

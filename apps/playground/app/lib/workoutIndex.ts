@@ -39,11 +39,13 @@ function deriveSearchHidden(raw: string): boolean {
   return String(getScalar(parseFrontmatter(raw).meta, 'search') ?? '').toLowerCase() === 'hidden'
 }
 
-/** `YYYY-MM-DD` frontmatter → epoch ms at noon UTC (matches SeedImporter's Note.date). */
+/** `YYYY-MM-DD` frontmatter → epoch ms at noon UTC (matches SeedImporter's Note.date).
+ *  Impossible calendar days (e.g. 2026-02-30) yield undefined, never NaN. */
 export function deriveDate(raw: string): number | undefined {
   const value = getScalar(parseFrontmatter(raw).meta, 'date')
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
-  return new Date(`${value}T12:00:00Z`).getTime()
+  const date = new Date(`${value}T12:00:00Z`)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date.getTime() : undefined
 }
 
 /**

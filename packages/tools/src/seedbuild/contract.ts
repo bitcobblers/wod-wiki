@@ -23,6 +23,9 @@ export interface ManifestChunk {
   kind?: ChunkKind;
 }
 export interface SeedManifest {
+  name?: string;
+  description?: string;
+  repositoryUrl?: string;
   schema: number;
   version: number;
   versionLabel?: string;

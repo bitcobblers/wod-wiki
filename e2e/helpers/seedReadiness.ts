@@ -29,9 +29,9 @@ export async function waitForSeedReady(page: Page, timeout = 30_000): Promise<vo
 }
 
 /**
- * Import the community seed library through the app's real sync surface
- * (Settings → Sync → community Sync button). Community is autoImport:false by
- * design, so collection-surface tests that need its content must trigger it.
+ * Import the community seed library through the app's real Subscribe action.
+ * Community is not subscribed by default, so collection-surface tests that
+ * need its content must opt in.
  * Works in dev and bundled preview alike — no module-path imports. Local
  * builds may point VITE_COMMUNITY_SEED_URL at a local artifact; CI previews
  * use the published Pages host. Fails the test when the source does not
@@ -43,7 +43,7 @@ export async function syncCommunitySeed(page: Page, timeout = 180_000): Promise<
   await expect(card, 'community seed source must be registered').toBeVisible({ timeout: 15_000 });
   const localVersion = card.getByTestId('seed-local-version');
   if (!(await localVersion.textContent())?.includes('Not imported yet')) return;
-  await card.getByTestId('seed-sync-community').click();
+  await card.getByTestId('seed-subscribe-community').click();
   await expect(
     localVersion,
     'community import must commit rows',

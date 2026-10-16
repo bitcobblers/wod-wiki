@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { JournalPageShell } from '@/panels/page-shells'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { noteByIdPath } from '../lib/routes'
+import { formatDateKey } from '../services/dateUtils'
 import { useNav } from '../nav/NavContext'
 import type { NavItemL3 } from '../nav/navTypes'
 import type { HistoryEntry } from '@/types/history'
@@ -43,12 +44,21 @@ function groupByTag(entries: HistoryEntry[]): DayGroup[] {
 }
 
 /**
+ * The local civil day an entry occupies on this route — its authored date
+ * (seed frontmatter `date:`, noon-UTC epoch) with createdAt as the undated
+ * fallback, so placement never depends on import time for dated posts.
+ */
+export function entryDateKey(entry: Pick<HistoryEntry, 'targetDate'>): string {
+  return formatDateKey(new Date(entry.targetDate))
+}
+
+/**
  * /collections/:slug/:date — a date-scoped, journal-style view of one
  * collection: every collection note dated `:date`, listed and linked to its
  * single-note route, grouped by tag with an L3 group index.
  *
- * Seed corpus items inherit import-time dates until per-note authored dates
- * land (wayfinder P7), so a date may legitimately list nothing.
+ * Undated notes place at their import time, so a date may legitimately list
+ * nothing; seed frontmatter `date:` places dated posts on their own day.
  */
 export function CollectionDatePage({ slug, date }: CollectionDatePageProps) {
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
@@ -59,12 +69,9 @@ export function CollectionDatePage({ slug, date }: CollectionDatePageProps) {
       .getEntries()
       .then((all) => {
         if (cancelled) return
-        const dayStart = new Date(`${date}T00:00:00`).getTime()
-        const dayEnd = dayStart + 86_400_000
         const inCollection = all.filter((entry) => {
           if (entry.catalog !== slug) return false
-          const time = entry.createdAt
-          return Number.isFinite(time) && time >= dayStart && time < dayEnd
+          return entryDateKey(entry) === date
         })
         setEntries(inCollection.sort((a, b) => b.createdAt - a.createdAt))
       })

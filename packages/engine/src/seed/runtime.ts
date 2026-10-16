@@ -140,7 +140,21 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       const title = typeof fm['title'] === 'string' && fm['title'].trim() ? fm['title'].trim() : titleFromPath(row.path);
       const sourceId = write.chunkId ? seedNoteSourceId(row.path, row.content, write.chunkId) : undefined;
       if (!sourceId) throw new Error(`Unknown seed source family ${write.chunkId}`);
-      const date = typeof fm['date'] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fm['date']) ? Date.parse(`${fm['date']}T12:00:00Z`) : undefined;
+      // Strict civil-date validation at the trust boundary: engines differ on
+      // out-of-range ISO days (JS rolls 2026-02-30 into March 2), so the UTC
+      // components are round-tripped. A shaped-but-impossible date rejects the
+      // chunk instead of silently placing the post on another day; absent or
+      // non-ISO values stay undated (createdAt placement).
+      const dateMatch = typeof fm['date'] === 'string' ? fm['date'].match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+      let date: number | undefined;
+      if (dateMatch) {
+        const ts = Date.parse(`${fm['date']}T12:00:00Z`);
+        const real = Number.isFinite(ts)
+          && new Date(ts).getUTCMonth() === Number(dateMatch[2]) - 1
+          && new Date(ts).getUTCDate() === Number(dateMatch[3]);
+        if (!real) throw new Error(`invalid frontmatter date '${fm['date']}' in '${row.path}' — expected a real calendar day (YYYY-MM-DD)`);
+        date = ts;
+      }
       const note: Note = { ...existing, id, title, rawContent: row.content, sourceRevision, blocks: map, createdAt: write.manifest.version, ...(date === undefined ? {} : { date }), type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note', sourceId, catalog: catalogForChunkId(write.chunkId ?? ''), seedOrigin: 'seed', seedVersion: write.manifest.version, seedChunkId: write.chunkId ?? undefined, sourcePath: row.path };
       if (date === undefined) delete note.date;
       if (!equal(note, existing)) changedNotes.push(note);

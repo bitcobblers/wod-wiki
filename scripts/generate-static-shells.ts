@@ -101,7 +101,9 @@ function* readChunkRows(chunkGlob: string): Generator<SeedRowRef> {
 
 /** Collect { route, title, desc } for every finite public content route. */
 function collectRoutes(): { route: string; title: string; desc: string }[] {
-  const out: { route: string; title: string; desc: string }[] = []
+  const out: { route: string; title: string; desc: string }[] = [
+    { route: '/subscribe', title: 'Subscribe to a catalog', desc: 'Review a published workout catalog before importing or subscribing.' },
+  ]
   const defaultDesc = 'Query and explore your training data on Wod.Wiki.'
 
   // Canvas/guide pages: frontmatter `route:` + `template: canvas` (the whole

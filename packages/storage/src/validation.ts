@@ -33,7 +33,7 @@ export function validateStorageRow(store: StoreName, value: unknown): void {
       || 'segments' in row || 'segmentIds' in row
       || (row.date !== undefined && (typeof row.date !== 'number' || !Number.isFinite(row.date)))
       || (row.seedOrigin !== undefined && row.seedOrigin !== 'seed' && row.seedOrigin !== 'user')
-      || (row.seedVersion !== undefined && !positive('seedVersion'))
+      || (row.seedVersion !== undefined && !(typeof row.seedVersion === 'number' && Number.isSafeInteger(row.seedVersion) && row.seedVersion >= 0))
       || (row.tags !== undefined && (!Array.isArray(row.tags) || !row.tags.every(tag => typeof tag === 'string')))
       || ['type', 'sourceId', 'sourcePath', 'catalog', 'seedChunkId'].some(field => row[field] !== undefined && typeof row[field] !== 'string')) {
       throw new StorageError(400, 'invalid whole Note', 'invalid_note_blocks');

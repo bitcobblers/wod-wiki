@@ -332,7 +332,7 @@
       <rect x="48" y="100" width="184" height="32" rx="4" fill="var(--paper)" stroke="var(--border)"/>
       <text x="58" y="121" fill="var(--accent)" font-family="var(--font-mono)" font-size="11">markdown/collections/</text>
       <rect x="48" y="142" width="184" height="32" rx="4" fill="var(--paper)" stroke="var(--border)"/>
-      <text x="58" y="163" fill="var(--accent)" font-family="var(--font-mono)" font-size="11">markdown/feeds/</text>
+      <text x="58" y="163" fill="var(--accent)" font-family="var(--font-mono)" font-size="11">item date: frontmatter</text>
       <rect x="48" y="184" width="184" height="32" rx="4" fill="var(--paper)" stroke="var(--border)"/>
       <text x="58" y="205" fill="var(--accent)" font-family="var(--font-mono)" font-size="11">markdown/dashboards/</text>
       <rect x="48" y="226" width="184" height="32" rx="4" fill="var(--paper)" stroke="var(--border)"/>
@@ -429,13 +429,11 @@
 │   │   │   ├── README.md          # Collection landing overview &amp; description
 │   │   │   ├── fran.md            # Individual workout file
 │   │   │   └── helen.md
-│   │   └── strength-complexes/
-│   │       ├── README.md
-│   │       └── bear-complex.md
-│   ├── feeds/                     # Chronological workout programming
+│   │   ├── strength-complexes/
+│   │   │   ├── README.md
+│   │   │   └── bear-complex.md
 │   │   └── daily-box-wod/
-│   │       └── 2026-10-16/
-│   │           └── morning-session.md
+│   │       └── morning-session.md # date: 2026-10-16 in frontmatter
 │   ├── dashboards/                # Custom prebuilt WQL dashboards
 │   │   └── box-performance.md
 │   └── efforts/                   # Custom effort/movement definitions
@@ -443,6 +441,15 @@
 │           └── thruster.md
 ├── package.json
 └── README.md</code></pre>
+  <p id="catalog-item-dates" data-whiteboard-anchor>The <code>date:</code> frontmatter field sets a collection item's date and chronological placement regardless of its filename or directory. Dated programming belongs in ordinary collections, with no separate feeds tree or date-named folder required. Exports preserve the dates set on each post rather than deriving dates from its path or replacing them with the export time. Builds and imports reject impossible ISO calendar days, such as <code>2026-02-30</code>, rather than moving the post to another day.</p>
+
+  <pre id="wb-pre-a6a1ca70bab64dd0aa981b5e7bdbf86d" data-whiteboard-anchor><code># markdown/collections/daily-box-wod/morning-session.md
+---
+title: Morning session
+date: 2026-10-16
+---
+# Morning session
+</code></pre>
 
   <h3 id="heading-wod-build-cli" data-whiteboard-anchor>The <code>wod build</code> Command</h3>
   <p id="wb-p-a1b4086c374c4e6aaa939e85e8f89e86" data-whiteboard-anchor>The compiler evaluates every file in the corpus against strict grammar and format rules, derives block indexes, links referenced effort definitions, and emits static artifacts:</p>
@@ -485,7 +492,7 @@ wod build . --output dist --scaffold</code></pre>
     <li id="wb-li-95002acfed1d4c1a8b273e7f27c5125e" data-whiteboard-anchor><strong>Lezer CST Parse Gate:</strong> Every Whiteboard script block is validated through <code>createParser()</code>. Syntax errors produce precise <code>file:line</code> diagnostics and halt the build.</li>
     <li id="wb-li-09a41f463bb2400a9e60aa51cadbc420" data-whiteboard-anchor><strong>Dashboard Constraint Gate:</strong> Files in <code>markdown/dashboards/</code> must contain valid frontmatter, a declared title, &ge; 3 valid widgets, and declared <code>$token</code> parameters.</li>
     <li id="wb-li-9e157684e2394a9ab6735fae983a3526" data-whiteboard-anchor><strong>Effort Slug Extraction:</strong> Workout lines are cross-referenced against the effort registry to ensure movement containment queries (e.g. <code>:session{effort:thruster}</code>) resolve.</li>
-    <li id="wb-li-200c0b3fc96d40539c4249011382ab13" data-whiteboard-anchor><strong>Git Version Derivation:</strong> Monotonic build numbers and commit hashes are computed via <code>git rev-list --count HEAD</code> and <code>git rev-parse --short HEAD</code>.</li>
+    <li id="wb-li-200c0b3fc96d40539c4249011382ab13" data-whiteboard-anchor><strong>Git Version Derivation:</strong> Monotonic build numbers and commit hashes are computed via <code>git rev-list --count HEAD</code> and <code>git rev-parse --short HEAD</code>. A new catalog without Git history builds at version <code>0</code>, which can be imported and published before its first commit.</li>
   </ul>
 
   <h3 id="heading-ci-cd-workflow" data-whiteboard-anchor>Automated Publishing GitHub Actions Workflow</h3>
@@ -616,32 +623,38 @@ jobs:
       <h4 id="heading-sync-import-engine" data-whiteboard-anchor>1. Sync &amp; Import Lifecycle (<code>seedSync.ts</code>)</h4>
       <ul>
         <li id="wb-li-b03f985dbccc49e7b3bd99ee7900b629" data-whiteboard-anchor><strong>Manifest Check:</strong> Fetches <code>manifest.json</code> from the origin URL. Verifies <code>schema === SEED_SCHEMA</code>.</li>
-        <li id="wb-li-32d7630b1dfd42b092eaf0e545cb4e10" data-whiteboard-anchor><strong>Version Gate:</strong> If remote <code>version &gt; stored.version</code> or <code>force === true</code>, imports chunks.</li>
-        <li id="wb-li-199422d5f7a84c2cab241feab70fde38" data-whiteboard-anchor><strong>Streaming Progress:</strong> Fires events across <code>checking</code> &rarr; <code>fetching</code> &rarr; <code>applying</code> &rarr; <code>committed</code> &rarr; <code>finalizing</code>.</li>
+        <li id="wb-li-32d7630b1dfd42b092eaf0e545cb4e10" data-whiteboard-anchor><strong>Version Gate:</strong> Checks subscribed sources against the published manifest. Manual Sync imports updates; background checks import only when Auto-sync is enabled, otherwise leaving the update pending.</li>
+        <li id="wb-li-199422d5f7a84c2cab241feab70fde38" data-whiteboard-anchor><strong>Progress and notifications:</strong> Manual imports report checking, fetching, applying, committed, and finalizing progress. Background checks publish one combined catalog notification after all sources settle.</li>
         <li id="wb-li-5271ce2135014f50b4a79e89e3c18b87" data-whiteboard-anchor><strong>Reactive Broadcast:</strong> Transmits on <code>BroadcastChannel('wodwiki-seed')</code> so open tabs immediately see new collections without a page refresh.</li>
       </ul>
     </div>
 
     <div class="card">
-      <h4 id="heading-deletion-lifecycle" data-whiteboard-anchor>2. Collection Deletion Lifecycle (<code>removePackageFromLibrary</code>)</h4>
+      <h4 id="heading-deletion-lifecycle" data-whiteboard-anchor>2. Source removal lifecycle (<code>unsubscribeSeedSource</code>)</h4>
       <ul>
-        <li id="wb-li-7e0a6290e8e646dfac8d95b2d2a540c4" data-whiteboard-anchor><strong>Target Filter:</strong> Queries <code>storageService.getAllNotes()</code> and identifies notes matching <code>note.seedOrigin === 'seed'</code> and the package's <code>chunkId</code> / catalog slug.</li>
-        <li id="wb-li-d94f5f536b82424a83b6e2e3be3e5bc8" data-whiteboard-anchor><strong>Cascade Delete:</strong> Invokes <code>storageService.deleteNote(id)</code> for each note, cleaning block revisions and block index rows.</li>
-        <li id="wb-li-472119eb47e94f05841d63bf98050ba2" data-whiteboard-anchor><strong>Checkpoint Purge:</strong> Removes the <code>seedMetaKey(packageId)</code> row in IndexedDB <code>meta</code> table.</li>
-        <li id="wb-li-b50e4bbed4df4cdcacc0bccb184bab65" data-whiteboard-anchor><strong>Unsubscribe:</strong> Clears the subscription flag in <code>localStorage['wodwiki.seedSubscriptions']</code>.</li>
+        <li id="wb-li-7e0a6290e8e646dfac8d95b2d2a540c4" data-whiteboard-anchor><strong>Target Filter:</strong> Uses exact note IDs from the source checkpoint and requires <code>seedOrigin === 'seed'</code>. Legacy checkpoints use exact chunk stamps, never catalog-substring matching.</li>
+        <li id="wb-li-d94f5f536b82424a83b6e2e3be3e5bc8" data-whiteboard-anchor><strong>Atomic removal:</strong> Removes owned notes, attachment and tag links, block indexes, block-effort links, page-note links, and the checkpoint in one storage transaction. A failed removal leaves the subscription unchanged.</li>
+        <li id="wb-li-472119eb47e94f05841d63bf98050ba2" data-whiteboard-anchor><strong>Checkpoint Purge:</strong> Deletes <code>seedMetaKey(sourceId)</code> in the same transaction as the source content.</li>
+        <li id="wb-li-b50e4bbed4df4cdcacc0bccb184bab65" data-whiteboard-anchor><strong>Unsubscribe:</strong> Clears subscription and Auto-sync preferences after successful removal while retaining the source row. Delete also removes the source registration.</li>
       </ul>
     </div>
   </div>
 
-  <p class="note" id="note-current-limitations" data-whiteboard-anchor><strong>Current Gap:</strong> The deletion function <code>removePackageFromLibrary()</code> is currently exposed in <code>TourJumpSection.tsx</code> and <code>OfferingTiers.tsx</code> on the home tour, but is <em>absent</em> from the <code>SyncSection.tsx</code> cards and the main <code>/catalogs</code> page. In <code>SyncSection.tsx</code>, clicking "Remove" only unregisters the custom HTTP source from <code>localStorage</code>; it leaves the previously imported notes in the vault.</p>
+  <p class="note" id="note-current-limitations" data-whiteboard-anchor><strong>Catalog removal:</strong> The <code>/catalogs</code> manager and <code>/settings/sync</code> share <code>unsubscribeSeedSource()</code> and <code>deleteSeedSource()</code>. Both remove only seed-owned notes recorded in that source's checkpoint. Unsubscribe retains the source row; Delete also removes its registration. Athlete-authored notes survive both actions.</p>
 </section>
 
 <section id="section-in-situ-settings">
   <h2 id="heading-in-situ-settings" data-whiteboard-anchor>4. In-Situ Catalog Settings on the <code>/catalogs</code> Screen</h2>
-  <p id="wb-p-0a338f6648374cc4b33e0c7ab5db86d2" data-whiteboard-anchor>Currently, <code>/catalogs</code> is rendered via <code>QueriableStreamView</code> with <code>CATALOGS_STREAM_PROFILE</code> (default WQL: <code>:catalog{} by {tag}</code>). It shows a clean stream of workout cards grouped by category or tag. However, there is a disconnect: <strong>athletes browsing catalogs have no way to manage, inspect, or add sources directly where they view them</strong>.</p>
+  <p id="wb-p-0a338f6648374cc4b33e0c7ab5db86d2" data-whiteboard-anchor><code>/catalogs</code> is rendered via <code>QueriableStreamView</code> with <code>CATALOGS_STREAM_PROFILE</code> (default WQL: <code>:catalog{} by {tag}</code>). Its Manage Catalogs action opens source management without leaving the workout stream.</p>
 
-  <h3 id="heading-proposed-in-situ-design" data-whiteboard-anchor>Proposed Design: Direct Catalog Management Drawer / Modal</h3>
-  <p id="wb-p-d410666604164fc6ad66c499a7420919" data-whiteboard-anchor>We propose adding a direct <strong>"Manage Catalogs"</strong> action in the <code>/catalogs</code> header toolbar that opens an in-situ slide-over sheet or modal. Athletes can view installed catalogs, check for remote updates, install new collections, or delete existing ones without context-switching to <code>/settings/sync</code>.</p>
+  <h3 id="heading-proposed-in-situ-design" data-whiteboard-anchor>Direct catalog management drawer</h3>
+  <p id="wb-p-d410666604164fc6ad66c499a7420919" data-whiteboard-anchor>The <strong>Manage Catalogs</strong> action in the <code>/catalogs</code> header toolbar opens the source manager. On mobile it is available in the actions dock. Athletes can inspect each source's identity and published links, compare installed and remote versions, sync manually or rely on per-source auto-sync, and unsubscribe or delete sources without switching to <code>/settings/sync</code>.</p>
+
+  <p id="wb-p-7317caa2a7694426a7f8a2cf2a307052" data-whiteboard-anchor>Update discovery happens at load, not on demand. On every app or page load, the app checks the manifest of every consumed subscribed catalog in the background, whether auto-sync is on or off, and never blocks rendering. Sources that report new versions are collected into a single notification naming each affected catalog; activating it navigates to <code>/catalogs</code> and opens catalog management. A source with auto-sync on applies the update during that check and reports the new version as installed. A source with auto-sync off only records a pending update until the athlete presses Sync. A completed sync clears its pending badge, so a stale update indicator cannot survive a successful sync. A failed check or sync changes nothing locally: installed content stays exactly as it is.</p>
+
+  <p id="wb-p-7ae680fbaf164613bd4b6be90186bdae" data-whiteboard-anchor>Each source row presents the publisher or origin, the published HTML URL, a Git repository link when the source publishes one (rows label missing repository metadata instead of guessing a URL), workout counts, installed and remote versions, last check and last sync times, and subscription status. An accessible Auto-sync switch sits with each row and persists separately from subscription status. With it on, the source updates itself in the load-time background pass. With it off, the source is check-only and updates when the athlete presses Sync. Turning it off never removes installed content, and unsubscribed entries never auto-import.</p>
+
+  <p id="wb-p-5edaae1fb4cc49c9bc7566bcc2135942" data-whiteboard-anchor>A small <code>&hellip;</code> disclosure on each row, built with native <code>details</code>/<code>summary</code> so the menu opens without JavaScript, holds the external published HTML and Git links when available, plus Unsubscribe and Delete. Unsubscribe removes imported catalog content and checkpoints and stops subscription and syncing, but keeps the source row and its configuration for a later Subscribe. Delete removes the imported content and the source entry itself. Neither action touches user-authored notes.</p>
 
   <div class="mockup" id="mockup-in-situ-catalog">
     <div class="mockup-header">
@@ -653,13 +666,20 @@ jobs:
       </div>
     </div>
 
+    <!-- Load-time aggregated update notification -->
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; background:var(--card); border:1px solid var(--accent); border-radius:8px; padding:0.5rem 0.75rem; margin-bottom:0.35rem; flex-wrap:wrap; overflow-wrap:anywhere;">
+      <span style="font-size:0.8rem;"><strong>2 catalogs have updates:</strong> CrossFit Girls Benchmarks (auto-synced), Mayhem Daily Programming (pending)</span>
+      <button class="mockup-btn" style="border-color:var(--accent); color:var(--accent); padding:0.2rem 0.5rem; white-space:nowrap;">Review updates</button>
+    </div>
+    <p style="font-size:0.72rem; color:var(--text-dim); margin:0 0 1rem;" id="wb-p-b8169de94f4b4c42be5fe22fdb2dd3da" data-whiteboard-anchor>One notification per load no matter how many sources changed. Activating it navigates to <code>/catalogs</code> and opens this management view.</p>
+
     <!-- Toolbar mockup -->
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid var(--border); margin-bottom:1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; padding:0.5rem 0; border-bottom:1px solid var(--border); margin-bottom:1rem;">
       <div style="display:flex; align-items:center; gap:0.75rem;">
         <span style="font-size:1.2rem; font-weight:700; color:var(--heading);">Catalogs</span>
         <span style="font-size:0.8rem; color:var(--text-dim); background:var(--card); padding:0.2rem 0.5rem; border-radius:4px;">12 Collections · 184 Workouts</span>
       </div>
-      <div style="display:flex; gap:0.5rem;">
+      <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
         <button class="mockup-btn" style="border-color:var(--accent); color:var(--accent);">⚙ Manage Catalogs</button>
         <button class="mockup-btn mockup-btn-primary">+ Add Catalog Source</button>
       </div>
@@ -675,55 +695,89 @@ jobs:
         <button class="mockup-btn" style="padding:0.2rem 0.5rem;">✕ Close</button>
       </div>
 
-      <!-- Item row 1: Installed & Up to date -->
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0; border-bottom:1px solid var(--border);">
+      <!-- Row 1: subscribed, auto-sync on, load-time check applied the update -->
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; padding:0.6rem 0; border-bottom:1px solid var(--border); flex-wrap:wrap; overflow-wrap:anywhere;">
         <div>
-          <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
             <strong>CrossFit Girls Benchmarks</strong>
-            <span class="badge badge-green">Installed</span>
-            <span style="font-size:0.75rem; color:var(--text-dim);">Common Library</span>
+            <span class="badge badge-green">Auto-synced v1421 &middot; up to date</span>
+            <span style="font-size:0.75rem; color:var(--text-dim);">Publisher: Common Library</span>
           </div>
           <div style="font-size:0.78rem; color:var(--text-dim); margin-top:0.2rem;">
-            24 benchmark workouts (Fran, Helen, Grace...) · Synced v1420 · 48 KB
+            24 benchmark workouts (Fran, Helen, Grace...) &middot; installed v1421, remote v1421 &middot; checked and synced today 06:00 &middot; subscribed
           </div>
         </div>
-        <div style="display:flex; gap:0.5rem;">
-          <button class="mockup-btn mockup-btn-destructive" style="font-size:0.75rem;">Delete from Vault</button>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem;">
+            <input type="checkbox" checked> Auto-sync
+          </label>
+          <span style="font-size:0.75rem; color:var(--text-dim); white-space:nowrap;">Up to date</span>
+          <details style="position:relative;">
+            <summary class="mockup-btn" style="font-size:0.75rem; cursor:pointer;" aria-label="More actions for CrossFit Girls Benchmarks">&hellip;</summary>
+            <div style="position:absolute; right:0; margin-top:0.3rem; background:var(--card); border:1px solid var(--border-bright); border-radius:6px; padding:0.5rem; display:flex; flex-direction:column; gap:0.4rem; min-width:12rem; max-width:80vw; overflow-wrap:anywhere; font-size:0.75rem; z-index:2;">
+              <span>Published HTML: bundled with Common Library (no standalone URL)</span>
+              <span>Git repository: not published</span>
+              <button class="mockup-btn mockup-btn-destructive" style="font-size:0.75rem;">Unsubscribe</button>
+              <button class="mockup-btn mockup-btn-destructive" style="font-size:0.75rem;">Delete source</button>
+            </div>
+          </details>
         </div>
       </div>
 
-      <!-- Item row 2: Update Available -->
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0; border-bottom:1px solid var(--border);">
+      <!-- Row 2: subscribed, auto-sync off, update found at load, waiting on manual Sync -->
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; padding:0.6rem 0; border-bottom:1px solid var(--border); flex-wrap:wrap; overflow-wrap:anywhere;">
         <div>
-          <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
             <strong>Mayhem Daily Programming</strong>
-            <span class="badge badge-amber">Update Available</span>
-            <span style="font-size:0.75rem; color:var(--text-dim);">Custom: github.io/mayhem-wods</span>
+            <span class="badge badge-amber">Update available &middot; pending</span>
+            <span style="font-size:0.75rem; color:var(--text-dim);">Origin: catalog.example.org/mayhem-wods/ (illustrative URLs)</span>
           </div>
           <div style="font-size:0.78rem; color:var(--text-dim); margin-top:0.2rem;">
-            60 daily sessions · Installed v102 &rarr; Remote v115 available
+            60 daily sessions &middot; installed v102, remote v115 &middot; checked today 06:00 &middot; last synced 3 days ago &middot; subscribed, manual
           </div>
         </div>
-        <div style="display:flex; gap:0.5rem;">
-          <button class="mockup-btn mockup-btn-primary" style="font-size:0.75rem;">Update Now</button>
-          <button class="mockup-btn mockup-btn-destructive" style="font-size:0.75rem;">Delete</button>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem;">
+            <input type="checkbox"> Auto-sync
+          </label>
+          <button class="mockup-btn mockup-btn-primary" style="font-size:0.75rem;">Sync</button>
+          <details style="position:relative;">
+            <summary class="mockup-btn" style="font-size:0.75rem; cursor:pointer;" aria-label="More actions for Mayhem Daily Programming">&hellip;</summary>
+            <div style="position:absolute; right:0; margin-top:0.3rem; background:var(--card); border:1px solid var(--border-bright); border-radius:6px; padding:0.5rem; display:flex; flex-direction:column; gap:0.4rem; min-width:12rem; max-width:80vw; overflow-wrap:anywhere; font-size:0.75rem; z-index:2;">
+              <a href="https://catalog.example.org/mayhem-wods/" target="_blank" rel="noopener noreferrer">Published HTML: catalog.example.org/mayhem-wods/</a>
+              <a href="https://git.example.org/example/mayhem-wods/" target="_blank" rel="noopener noreferrer">Git source directory</a>
+              <button class="mockup-btn mockup-btn-destructive" style="font-size:0.75rem;">Unsubscribe</button>
+              <button class="mockup-btn mockup-btn-destructive" style="font-size:0.75rem;">Delete source</button>
+            </div>
+          </details>
         </div>
       </div>
 
-      <!-- Item row 3: Available to Install -->
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0;">
+      <!-- Row 3: unsubscribed, source row and configuration retained -->
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; padding:0.6rem 0; flex-wrap:wrap; overflow-wrap:anywhere;">
         <div>
-          <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
             <strong>CrossFit Heroes</strong>
-            <span class="badge" style="background:var(--border); color:var(--text-dim);">Available</span>
-            <span style="font-size:0.75rem; color:var(--text-dim);">Common Library</span>
+            <span class="badge" style="background:var(--border); color:var(--text-dim);">Not subscribed</span>
+            <span style="font-size:0.75rem; color:var(--text-dim);">Publisher: Common Library</span>
           </div>
           <div style="font-size:0.78rem; color:var(--text-dim); margin-top:0.2rem;">
-            35 hero benchmark sessions honoring service members (Murph, DT...)
+            35 hero benchmark sessions at source (Murph, DT...) &middot; not installed (unsubscribe removed imported content) &middot; last checked 6 days ago &middot; configuration retained
           </div>
         </div>
-        <div style="display:flex; gap:0.5rem;">
-          <button class="mockup-btn mockup-btn-primary" style="font-size:0.75rem;">+ Add to Library</button>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; color:var(--text-dim);" title="Unsubscribed sources never auto-import">
+            <input type="checkbox" disabled> Auto-sync
+          </label>
+          <button class="mockup-btn mockup-btn-primary" style="font-size:0.75rem;">Subscribe</button>
+          <details style="position:relative;">
+            <summary class="mockup-btn" style="font-size:0.75rem; cursor:pointer;" aria-label="More actions for CrossFit Heroes">&hellip;</summary>
+            <div style="position:absolute; right:0; margin-top:0.3rem; background:var(--card); border:1px solid var(--border-bright); border-radius:6px; padding:0.5rem; display:flex; flex-direction:column; gap:0.4rem; min-width:12rem; max-width:80vw; overflow-wrap:anywhere; font-size:0.75rem; z-index:2;">
+              <span>Published HTML: bundled with Common Library (no standalone URL)</span>
+              <span>Git repository: not published</span>
+              <button class="mockup-btn mockup-btn-destructive" style="font-size:0.75rem;">Delete source</button>
+            </div>
+          </details>
         </div>
       </div>
     </div>
@@ -738,16 +792,16 @@ jobs:
     </thead>
     <tbody>
       <tr>
-        <td id="wb-td-0650b9dd56184a1c894919140cc1a398" data-whiteboard-anchor><strong>Direct Deletion</strong></td>
-        <td id="wb-td-445b6bbaf36f4f819044c3b145ad57d6" data-whiteboard-anchor>Invokes <code>removePackageFromLibrary(pkg.id)</code>. Instantly purges matching notes from IndexedDB and notifies <code>QueriableStreamView</code> without routing changes.</td>
+        <td id="wb-td-0650b9dd56184a1c894919140cc1a398" data-whiteboard-anchor><strong>Load-time update checks</strong></td>
+        <td id="wb-td-445b6bbaf36f4f819044c3b145ad57d6" data-whiteboard-anchor>On app or page load, checks the manifest of every consumed subscribed catalog in the background, auto-sync on or off, without blocking rendering. Aggregates all sources with new versions into one notification; its action routes to <code>/catalogs</code> and opens catalog management. A failed check or sync leaves installed content untouched.</td>
       </tr>
       <tr>
-        <td id="wb-td-724603597447403d9132a238c2bcd68f" data-whiteboard-anchor><strong>Status Visibility</strong></td>
-        <td id="wb-td-cd06cf8a77944cbe88b5966f1d03c4d7" data-whiteboard-anchor>Binds to <code>subscribeSeedSubscriptions</code> and <code>readSeedStatus()</code> to display real-time remote update badges on each catalog card.</td>
+        <td id="wb-td-724603597447403d9132a238c2bcd68f" data-whiteboard-anchor><strong>Row identity and status</strong></td>
+        <td id="wb-td-cd06cf8a77944cbe88b5966f1d03c4d7" data-whiteboard-anchor>Binds to <code>subscribeSeedSubscriptions</code> and <code>readSeedStatus()</code> to render publisher or origin, published HTML and Git links when the source publishes them, workout counts, installed versus remote version, last check and last sync, and subscription status. A committed sync clears the pending badge so manual sources never keep a stale update marker.</td>
       </tr>
       <tr>
-        <td id="wb-td-0f7e9c6641ed4571b49bcd03ceb6e23b" data-whiteboard-anchor><strong>One-Click Add</strong></td>
-        <td id="wb-td-d30f0df236ba4a398ff6c416f9d44f2a" data-whiteboard-anchor>Invokes <code>syncSeedSource(pkg.id, { onProgress })</code> directly from the row button. Shows a progress bar inline inside the drawer.</td>
+        <td id="wb-td-0f7e9c6641ed4571b49bcd03ceb6e23b" data-whiteboard-anchor><strong>Auto-sync and lifecycle actions</strong></td>
+        <td id="wb-td-d30f0df236ba4a398ff6c416f9d44f2a" data-whiteboard-anchor>Auto-sync is a per-source switch persisted separately from subscription: on, load-time <code>syncSeedSource(pkg.id, { onProgress })</code> applies updates in the background; off, the source is check-only until the athlete presses Sync; unsubscribed rows never auto-import and expose Subscribe instead. Unsubscribe purges imported content and checkpoints but keeps the source row for re-subscribing; Delete runs <code>removePackageFromLibrary(pkg.id)</code> and removes the source entry. Neither touches user-authored notes.</td>
       </tr>
     </tbody>
   </table>
@@ -755,17 +809,17 @@ jobs:
 
 <section id="section-subscription-links">
   <h2 id="heading-subscription-links" data-whiteboard-anchor>5. One-Click Subscription Links (Direct Deep-Link Intake)</h2>
-  <p id="wb-p-150be9824d834d3f9e6315805cace929" data-whiteboard-anchor>To enable frictionless decentralized sharing, gym owners, coaches, and community creators need the ability to share a single URL that prompts athletes to subscribe to their catalog. For example:</p>
+  <p id="wb-p-150be9824d834d3f9e6315805cace929" data-whiteboard-anchor>To enable frictionless decentralized sharing, gym owners, coaches, and community creators need the ability to share a single URL that prompts athletes to subscribe to their catalog. The link carries one parameter, <code>source</code>, the HTTPS base URL of the catalog. No display name travels in the link; the app reads it from the remote manifest after probing. For example:</p>
   
-  <pre id="wb-pre-8fdf260cfb7c4f0081009163404df576" data-whiteboard-anchor><code>https://wod.wiki/catalogs?subscribe=https%3A%2F%2Fcrossfit-invictus.github.io%2Fdaily-wods%2F&amp;label=Invictus+Athlete</code></pre>
+  <pre id="wb-pre-8fdf260cfb7c4f0081009163404df576" data-whiteboard-anchor><code>https://wod.wiki/subscribe?source=https%3A%2F%2Fcrossfit-invictus.github.io%2Fdaily-wods%2F</code></pre>
 
   <h3 id="heading-subscription-flow" data-whiteboard-anchor>Subscription Link Intake Lifecycle</h3>
   
   <div class="flow-step">
     <div class="flow-number">1</div>
     <div class="flow-content">
-      <strong>URL Parameter Interception (<code>/catalogs?subscribe=...</code>)</strong>
-      <p id="wb-p-0a90c0412ee541f8a91b60ec995e4a1a" data-whiteboard-anchor>When the application mounts or navigates to <code>/catalogs</code>, a router effect inspects the query string for <code>subscribe</code> (and optional <code>label</code>).</p>
+      <strong>Dedicated Intake Route (<code>/subscribe?source=...</code>)</strong>
+      <p id="wb-p-0a90c0412ee541f8a91b60ec995e4a1a" data-whiteboard-anchor>When the application mounts or navigates to <code>/subscribe</code>, the router renders the intake view and inspects the query string for <code>source</code>, the HTTPS base URL of the catalog to add. There is no <code>label</code> parameter; the display name comes from the remote manifest. Opening the link only reads and verifies; it writes nothing to local storage. A <code>/subscribe</code> request without <code>source</code> is invalid, never renders an intake offer, and falls back to <code>/catalogs</code>.</p>
     </div>
   </div>
 
@@ -773,11 +827,12 @@ jobs:
     <div class="flow-number">2</div>
     <div class="flow-content">
       <strong>Remote Manifest Probing &amp; Safety Verification</strong>
-      <p id="wb-p-66d29614f645422fbd27afea8f131af2" data-whiteboard-anchor>Before writing to disk or asking the user, the app performs a lightweight background <code>fetch(subscribeUrl + 'manifest.json')</code>.</p>
+      <p id="wb-p-66d29614f645422fbd27afea8f131af2" data-whiteboard-anchor>Before writing to disk or asking the user, the app performs a lightweight background <code>fetch(sourceUrl + 'manifest.json')</code>.</p>
       <ul>
-        <li id="wb-li-ca723c67e9d64ea1b226f7732dee6335" data-whiteboard-anchor>Verifies HTTPS protocol.</li>
+        <li id="wb-li-ca723c67e9d64ea1b226f7732dee6335" data-whiteboard-anchor>Verifies the <code>source</code> parameter is an HTTPS URL before any request is made.</li>
         <li id="wb-li-7f453d9dcd704aafa27c76d7aa2b72cb" data-whiteboard-anchor>Checks that <code>manifest.schema === 8</code> (compatible with current client parser).</li>
         <li id="wb-li-36d3389a441d4655ac0ed8c9e12445b4" data-whiteboard-anchor>Reads chunk count, total workouts, and build timestamp.</li>
+        <li id="wb-li-6d9c9405e0d34c5db919eada27e25f60" data-whiteboard-anchor>Reads the catalog display name shown in the confirmation dialog, since the link carries no label.</li>
       </ul>
     </div>
   </div>
@@ -786,7 +841,7 @@ jobs:
     <div class="flow-number">3</div>
     <div class="flow-content">
       <strong>Confirmation Dialog (The "Import Offer")</strong>
-      <p id="wb-p-fcdef8ab3a3e4092bcf59f61952acf30" data-whiteboard-anchor>The application displays an explicit intake modal presenting the catalog metadata and origin host with three distinct user choices.</p>
+      <p id="wb-p-fcdef8ab3a3e4092bcf59f61952acf30" data-whiteboard-anchor>The application displays an explicit intake modal presenting the catalog metadata and origin host. Adding the catalog is an explicit choice with three options: decline, import once, or import and subscribe. Importing once never subscribes. Subscribing never implies auto-update, because the per-catalog Auto-sync preference is a separate checkbox that defaults to off.</p>
     </div>
   </div>
 
@@ -812,7 +867,7 @@ jobs:
       </div>
 
       <p style="font-size:0.88rem; color:var(--text);" id="wb-p-72f065bd663f479487c1b7e2dad85fbe" data-whiteboard-anchor>
-        You were invited to add this catalog to your WOD Wiki library. All workouts and benchmarks will be saved to your local browser storage.
+        You were invited to add this catalog to your WOD Wiki library. All workouts and benchmarks will be saved to your local browser storage. Opening this link saved nothing yet; content is only written after you choose below.
       </p>
 
       <div style="background:var(--paper); border:1px solid var(--border); border-radius:6px; padding:0.75rem 1rem; margin:1rem 0; font-size:0.82rem; display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
@@ -822,19 +877,36 @@ jobs:
         <div><strong>Author:</strong> Invictus Coaching Team</div>
       </div>
 
+      <div style="border:1px solid var(--border); border-radius:6px; padding:0.75rem 1rem; margin:1rem 0; font-size:0.82rem;">
+        <label style="display:flex; align-items:flex-start; gap:0.6rem; cursor:pointer;">
+          <input type="checkbox" style="width:1rem; height:1rem; margin-top:0.15rem; accent-color:var(--accent);">
+          <span><strong>Auto-sync this catalog.</strong> Check for new published versions in the background and apply them automatically. Off by default; the preference is stored with this catalog and can be changed later under <code>/catalogs</code>.</span>
+        </label>
+        <p style="margin:0.5rem 0 0; font-size:0.78rem; color:var(--text-dim);" id="wb-p-335c83593a0e4f91ac2a850de335d523" data-whiteboard-anchor>Subscription and auto-sync are separate. A subscription without auto-sync keeps the catalog installed and lets you run Sync manually whenever an update badge appears.</p>
+      </div>
+
       <div style="display:flex; justify-content:flex-end; gap:0.6rem; margin-top:1.25rem;">
         <button class="mockup-btn">Decline &amp; Dismiss</button>
-        <button class="mockup-btn" style="border-color:var(--border-bright);">Import Once (No Auto-Sync)</button>
+        <button class="mockup-btn" style="border-color:var(--border-bright);">Import Once (No Subscription)</button>
         <button class="mockup-btn mockup-btn-primary">✓ Import &amp; Subscribe</button>
       </div>
+      <p style="margin:0.5rem 0 0; font-size:0.75rem; color:var(--text-dim); text-align:right;" id="wb-p-f2e8331ed88949bea41f9d91dacfd065" data-whiteboard-anchor>Import Once adds the content and nothing else. Import &amp; Subscribe records the subscription and honors the Auto-sync selection above.</p>
     </div>
   </div>
 
   <div class="flow-step">
     <div class="flow-number">4</div>
     <div class="flow-content">
-      <strong>Clean URL Sanitization</strong>
-      <p id="wb-p-efa19baf125942ed8de5b52f2ee78400" data-whiteboard-anchor>Upon user acceptance or dismissal, the app invokes <code>window.history.replaceState(null, '', location.pathname)</code>. This cleans the query parameters so reloads or browser back-forward actions do not prompt the user again.</p>
+      <strong>History Replacement</strong>
+      <p id="wb-p-efa19baf125942ed8de5b52f2ee78400" data-whiteboard-anchor>Upon user acceptance or dismissal, the app replaces the intake history entry with <code>/catalogs</code> via <code>window.history.replaceState(null, '', '/catalogs')</code>, the same replaceState convention the intake flow already uses. Reloads and back-forward navigation therefore land on <code>/catalogs</code> and never re-prompt, and no <code>/subscribe</code> entry without its required <code>source</code> query survives in history.</p>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="flow-number">5</div>
+    <div class="flow-content">
+      <strong>Ongoing Updates: Auto-Sync vs Manual</strong>
+      <p id="wb-p-e93effdc66264e17bb1954b6bb35a128" data-whiteboard-anchor>On every subsequent app or page load, the app checks subscribed catalogs against their remote manifests in the background. Catalogs with Auto-sync enabled receive new published versions automatically. Subscribed catalogs without Auto-sync keep their imported content untouched and surface a Sync action through <code>/catalogs</code> management when an update is detected. All detected updates, regardless of mode, contribute to one combined notification that links to <code>/catalogs</code>. Turning Auto-sync off changes only how updates arrive; it never deletes stored content.</p>
     </div>
   </div>
 </section>
@@ -862,8 +934,8 @@ jobs:
       "count": 24
     },
     {
-      "id": "feed.crossfit-programming",
-      "path": "chunks/feed.crossfit-programming.3f9a781b.json",
+      "id": "collection.daily-box-wod",
+      "path": "chunks/collection.daily-box-wod.3f9a781b.json",
       "sha256": "3f9a781b8921...",
       "bytes": 58240,
       "count": 52
@@ -937,6 +1009,7 @@ jobs:
 
 <section id="section-roadmap">
   <h2 id="heading-roadmap" data-whiteboard-anchor>7. Implementation Roadmap &amp; Technical Tasks</h2>
+  <p id="wb-p-ec1ca0edf071407c80fef26262ca1c62" data-whiteboard-anchor>Implemented: dedicated subscription intake, catalog management, per-source Auto-sync preferences, grouped load-time update checks, and <code>wod init-catalog</code>. Dated collection posts use their frontmatter date in compiled indexes and date routes, and retain it through import and export. The manager is shared with <code>/settings/sync</code> at <code>apps/playground/app/pages/CatalogsManagerDrawer.tsx</code>; update notifications open <code>/catalogs?manage=1</code>.</p>
   
   <table id="table-roadmap">
     <thead>
@@ -951,7 +1024,7 @@ jobs:
         <td id="wb-td-9304cd0604b248c0812a783f3556d8fc" data-whiteboard-anchor><strong>Phase 1</strong></td>
         <td id="wb-td-ed5b79f99a4d4c8bbb64364e97d7fbb6" data-whiteboard-anchor>
           <strong>URL Subscription Intake Handler:</strong><br/>
-          Listen for <code>?subscribe=&lt;url&gt;&amp;label=&lt;name&gt;</code> on <code>/catalogs</code>. Probe remote manifest, present the Intake Offer modal, allow one-click Import &amp; Subscribe, and sanitize URL with <code>replaceState</code>.
+          Handle <code>/subscribe?source=&lt;encoded-https-url&gt;</code> as a dedicated route. Validate the source and manifest, display its origin and metadata, and request explicit consent. Offer per-catalog Auto-sync toggles, off by default. Import Once creates no subscription; Import &amp; Subscribe persists selected preferences. Replace the intake history entry with <code>/catalogs</code> after acceptance or dismissal.
         </td>
         <td id="wb-td-8ae8ef47af4c4361aa8f9a24f0b3443f" data-whiteboard-anchor>
           <code>apps/playground/app/App.tsx</code><br/>
@@ -963,19 +1036,19 @@ jobs:
         <td id="wb-td-573767f29b3a4cdab8f9fc0f3bb7271b" data-whiteboard-anchor><strong>Phase 2</strong></td>
         <td id="wb-td-56584bb73cc641b499caf2554827edb8" data-whiteboard-anchor>
           <strong>In-Situ Catalogs Settings Sheet on <code>/catalogs</code>:</strong><br/>
-          Add "⚙ Manage Catalogs" toolbar action that slides open a drawer directly over <code>/catalogs</code>. Display installed collections with their size, update status, and "Delete from Vault" action.
+          Add a Manage Catalogs drawer on <code>/catalogs</code>. Each source shows its identity, origin, counts, installed/remote versions, last check/sync, subscription status, and Auto-sync toggle. Show Sync for pending updates and Subscribe for retained unsubscribed sources. Put published HTML/Git links, Unsubscribe, and Delete behind a small overflow menu.
         </td>
         <td id="wb-td-1bd6f38ab5ab45e28ad2afd92a066a50" data-whiteboard-anchor>
           <code>apps/playground/app/views/stream/QueriableStreamView.tsx</code><br/>
-          <code>apps/playground/app/views/stream/CatalogsManagerDrawer.tsx</code><br/>
+          <code>apps/playground/app/pages/CatalogsManagerDrawer.tsx</code><br/>
           <code>apps/playground/src/services/seed/seedSync.ts</code>
         </td>
       </tr>
       <tr>
         <td id="wb-td-473180e0d3d245f69793dfadacea736b" data-whiteboard-anchor><strong>Phase 3</strong></td>
         <td id="wb-td-809b835abef843a4964cabf04550848d" data-whiteboard-anchor>
-          <strong>Granular Package Removal:</strong><br/>
-          Wire <code>removePackageFromLibrary(id)</code> into the In-Situ Catalogs Settings drawer and <code>SyncSection.tsx</code> so users can selectively delete individual collections rather than nuking all sources.
+          <strong>Subscription and removal lifecycle:</strong><br/>
+          Unsubscribe stops checks/imports and removes imported catalog content/checkpoints but retains the source row for later Subscribe. Delete removes both imported content and the source entry. Apply both actions consistently in catalog management and <code>SyncSection.tsx</code>; neither action may delete athlete-authored notes.
         </td>
         <td id="wb-td-aa1b2aaad27941ea850b4ffd07d1fa96" data-whiteboard-anchor>
           <code>apps/playground/app/pages/SyncSection.tsx</code><br/>
@@ -992,6 +1065,14 @@ jobs:
           <code>packages/tools/src/cli/runner.ts</code><br/>
           <code>packages/tools/src/cli/scaffoldCatalog.ts</code>
         </td>
+      </tr>
+      <tr>
+        <td id="wb-td-da025e1346ed4b2093726c3608731ad4" data-whiteboard-anchor><strong>Phase 5</strong></td>
+        <td id="wb-td-94deda7f534a49e3b63371af4750cdd8" data-whiteboard-anchor>
+          <strong>Background checks and per-catalog auto-sync:</strong><br/>
+          At app/page load, check every consumed subscribed catalog without blocking rendering. Apply updates only where the persisted Auto-sync toggle is enabled; leave other updates for manual Sync. Aggregate all detected updates into one notification that opens catalog management on <code>/catalogs</code>, distinguishing applied updates from pending ones. An unsubscribed source never auto-imports; failures preserve local content.
+        </td>
+        <td id="wb-td-351a2605fc664c998a789f6e98d3d35e" data-whiteboard-anchor><code>apps/playground/app/App.tsx</code><br/><code>apps/playground/src/services/seed/seedSync.ts</code><br/><code>apps/playground/src/services/seed/seedSources.ts</code></td>
       </tr>
     </tbody>
   </table>

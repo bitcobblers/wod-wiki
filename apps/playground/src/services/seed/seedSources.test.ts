@@ -2,9 +2,12 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import {
   addCustomSeedSource,
+  builtInSeedSourceIds,
   COMMUNITY_FEEDS,
   customSeedSources,
   FeedSeedSource,
+  hiddenSeedSourceIds,
+  hideSeedSourceRow,
   removeCustomSeedSource,
 } from './seedSources';
 import { InMemorySeedSource } from './InMemorySeedSource';
@@ -38,6 +41,38 @@ describe('addCustomSeedSource', () => {
     const second = addCustomSeedSource('mirror one', 'https://b.example/seed/z/');
     expect(second.id).toBe('mirror-one-2');
   });
+
+  it('normalizes host and scheme case and rejects credentials and query strings', () => {
+    const added = addCustomSeedSource('A', 'HTTPS://Example.com/Seed');
+    expect(added.url).toBe('https://example.com/Seed/');
+    // Same URL, differently spelled — one source, not two.
+    expect(() => addCustomSeedSource('B', 'https://example.com/Seed/')).toThrow(/already registered/);
+    expect(() => addCustomSeedSource('C', 'https://user:pw@example.com/Seed/')).toThrow(/absolute http/);
+    expect(() => addCustomSeedSource('D', 'https://example.com/Seed/?x=1#y')).toThrow(/absolute http/);
+  });
+
+  it('records a validated https repositoryUrl and rejects unsafe links', () => {
+    const added = addCustomSeedSource('R', 'https://r.example/seed/', { repositoryUrl: 'https://github.com/x/y' });
+    expect(added.repositoryUrl).toBe('https://github.com/x/y');
+    expect(() => addCustomSeedSource('R2', 'https://r2.example/seed/', { repositoryUrl: 'http://github.com/x/y' })).toThrow(/https repository/);
+    expect(() => addCustomSeedSource('R3', 'https://r3.example/seed/', { repositoryUrl: 'javascript:alert(1)' })).toThrow(/https repository/);
+    expect(() => addCustomSeedSource('R4', 'https://r4.example/seed/', { repositoryUrl: 'https://u:pw@github.com/x/y' })).toThrow(/https repository/);
+  });
+
+  it('drops invalid persisted repositoryUrl links instead of exposing them', () => {
+    localStorage.setItem('wodwiki.seedSources', JSON.stringify([
+      { id: 'x', label: 'X', url: 'https://x.example/seed/', repositoryUrl: 'javascript:alert(1)' },
+      { id: 'y', label: 'Y', url: 'https://y.example/seed/', repositoryUrl: 'https://github.com/y/z' },
+    ]));
+    expect(customSeedSources()).toEqual([
+      { id: 'x', label: 'X', url: 'https://x.example/seed/' },
+      { id: 'y', label: 'Y', url: 'https://y.example/seed/', repositoryUrl: 'https://github.com/y/z' },
+    ]);
+  });
+
+  it('never registers a URL a built-in source already serves', () => {
+    expect(() => addCustomSeedSource('Community mirror', 'https://bitcobblers.github.io/wod-wiki-community')).toThrow(/already registered/);
+  });
 });
 
 describe('removeCustomSeedSource', () => {
@@ -46,6 +81,17 @@ describe('removeCustomSeedSource', () => {
     addCustomSeedSource('B', 'https://b.example/seed/');
     removeCustomSeedSource(a.id);
     expect(customSeedSources().map(s => s.id)).toEqual(['b']);
+  });
+});
+
+describe('built-in row hiding', () => {
+  it('hides built-in ids only, idempotently; core is never hideable', () => {
+    hideSeedSourceRow('community');
+    hideSeedSourceRow('community');
+    hideSeedSourceRow('core');
+    hideSeedSourceRow('never-registered');
+    expect(hiddenSeedSourceIds()).toEqual(['community']);
+    expect(builtInSeedSourceIds()).not.toContain('core');
   });
 });
 

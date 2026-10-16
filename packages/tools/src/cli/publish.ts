@@ -123,7 +123,9 @@ export async function publishCatalogSeed(
           : compileSeedRow(notePath, note.rawContent, {
               routeId: `${catalogName}/${stem}`,
               sourceId: `collection:${catalogName}/${stem}`,
-              createdAt: note.createdAt,
+              // Authored frontmatter date first — exports keep the post's own
+              // day, never the import/publish time.
+              createdAt: note.date ?? note.createdAt,
               noteTitle: note.title,
             }).blockIndex;
 

@@ -94,3 +94,14 @@ export function subscribeSyncActivity(listener: () => void): () => void {
     listeners.delete(listener);
   };
 }
+
+/** Test-only: clear results/errors and task stack (tests share the singleton). */
+export function resetSyncActivityForTest(): void {
+  uploading = 0;
+  downloading = 0;
+  activeTasks.length = 0;
+  lastResult = null;
+  lastError = null;
+  nextResultId = 1;
+  rebuildSnapshot();
+}

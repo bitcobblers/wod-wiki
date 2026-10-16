@@ -50,17 +50,6 @@ export function invalidateCorpusBlocks(): void {
     staticTagIndexPromise = null;
 }
 
-/**
- * Created-at timestamp for a feed entry's date key (`yyyy-mm-dd` from the
- * file path). Returns 0 (undated) for malformed keys — undated rows are
- * excluded from dated time windows but present in unbounded queries.
- */
-export function feedDateToCreatedAt(dateKey: string): number {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return 0;
-    const ts = Date.parse(`${dateKey}T00:00:00Z`);
-    return Number.isNaN(ts) ? 0 : ts;
-}
-
 /** Static tag vocabulary comes from whole Notes, never prose index rows. */
 export function staticTagIndexFromNotes(notes: readonly Pick<Note, 'id' | 'rawContent'>[]): Map<string, Set<string>> {
     const index = new Map<string, Set<string>>();

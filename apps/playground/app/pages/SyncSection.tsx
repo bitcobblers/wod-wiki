@@ -1,25 +1,33 @@
 /**
- * SyncSection — /settings/sync. Content sync sources for the active data
- * location: the bundled core seed (auto-imports at boot), the bundled
- * community library, and user-registered custom libraries. Per-source
- * status + Sync, Sync All, and source registration. Where data LIVES is
- * /settings/storage; this page is where content COMES FROM.
+ * SyncSection — /settings/sync, and (via CatalogsManagerDrawer) the /catalogs
+ * manager. Content sync sources for the active data location: the bundled
+ * core seed (auto-imports at boot), the bundled community library, and
+ * user-registered custom libraries. Per-source identity, Auto-sync,
+ * Subscribe/Unsubscribe/Delete, Sync All, and source registration. Where data
+ * LIVES is /settings/storage; this page is where content COMES FROM.
  */
 
-import { useCallback, useEffect, useState } from 'react'
-import { CloudDownload, RefreshCw, CheckCircle2, AlertCircle, Plus, Trash2, Link2 } from 'lucide-react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { CloudDownload, RefreshCw, CheckCircle2, AlertCircle, Plus, Link2 } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import { Input } from '@/components/atoms/primitives/input'
-import { readSeedStatus, runSeedSync, syncSeedSource, type SeedSourceStatus, type SeedStatus, type SeedSyncOutcome, type SeedSyncProgress } from '@/services/seed/seedSync'
+import { deleteSeedSource, readSeedStatus, runSeedSync, subscribeCatalogUpdates, syncSeedSource, unsubscribeSeedSource, type SeedSourceStatus, type SeedStatus, type SeedSyncOutcome, type SeedSyncProgress } from '@/services/seed/seedSync'
 import type { SeedImportProgress } from '@/services/seed/SeedImporter'
-import { addCustomSeedSource, customSeedSources, removeCustomSeedSource, type CustomSeedSource } from '@/services/seed/seedSources'
-import { isSeedSubscribed, setSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
+import { addCustomSeedSource, type CustomSeedSource } from '@/services/seed/seedSources'
+import { isSeedAutoSync, setSeedAutoSync, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
 import { ProgressBar } from '../components/atoms/ProgressBar'
 import { toast } from '@/hooks/use-toast'
 import { formatDateTimeMediumShort } from '@/lib/dateFormat'
 
 const formatSeedVersion = (version: number): string =>
   formatDateTimeMediumShort(new Date(version))
+
+const formatBytes = (bytes: number): string => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB'] as const
+  const exp = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${(bytes / 1024 ** exp).toFixed(exp === 0 ? 0 : 1)} ${units[exp]}`
+}
 
 /** One toast per sync outcome, labeled with the source that produced it. */
 function announceOutcome(outcome: string, label: string): void {
@@ -44,6 +52,7 @@ const OUTCOME_LABEL: Record<SeedSyncOutcome, string> = {
   imported: 'Synced',
   current: 'Up to date',
   'server-stale': 'Published version is older than the stored version',
+  'update-pending': 'Update available',
   busy: 'Another tab is syncing',
   disabled: 'Seed import is disabled',
   error: 'Sync failed',
@@ -60,87 +69,152 @@ function progressLabel(event: SeedSyncProgress): string {
   }
 }
 
-/** Status + actions for one registered seed source. */
-function SourceCard({ source, custom, running, disabled, onSync, onRemove }: {
+/** Status + actions for one registered seed source — the same card serves
+ *  /settings/sync and the /catalogs manager drawer. Identity (origin, counts,
+ *  size, versions, last check/sync, subscription) comes from readSeedStatus;
+ *  lifecycle actions ride the shared seed service contract. */
+function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscribe, onDelete, onAutoSync }: {
   source: SeedSourceStatus
-  custom?: CustomSeedSource
   /** This source's sync is the one in flight — spin its button. */
   running: boolean
   /** Any sync is in flight — lock every competing action. */
   disabled: boolean
   onSync: (id: string) => void
-  onRemove: (id: string) => void
+  onSubscribe: (id: string) => void
+  onUnsubscribe: (id: string) => void
+  onDelete: (id: string) => void
+  onAutoSync: (id: string, enabled: boolean) => void
 }) {
-  // Launch-sync subscription flag — mirrors the home Community feeds cards
-  // (same seedSubscriptions service, no duplicated business logic).
-  const [subscribed, setSubscribed] = useState(() => isSeedSubscribed(source.id))
-  useEffect(() => subscribeSeedSubscriptions(() => {
-    setSubscribed(isSeedSubscribed(source.id))
-  }), [source.id])
+  // Read the preference synchronously so React cannot restore a stale checked prop.
+  const autoSync = useSyncExternalStore(subscribeSeedSubscriptions, () => isSeedAutoSync(source.id))
+  const core = source.autoImport
+  // Primary Sync ONLY while a subscribed source has a detected update; a
+  // current source shows status text instead of a redundant button.
+  const pending = source.subscribed && !source.upToDate && source.remote !== null
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3" data-testid={`seed-source-${source.id}`}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
           <span className="text-sm font-medium text-foreground truncate">{source.label}</span>
-          {source.autoImport ? (
-            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 shrink-0">
-              Auto
-            </span>
-          ) : (
+          <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${source.subscribed ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground'}`}>
+            {source.subscribed ? 'Subscribed' : 'Not subscribed'}
+          </span>
+          {core && (
             <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-              Manual
+              Core
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {!source.autoImport && (
-            <button
-              type="button"
-              onClick={() => setSeedSubscribed(source.id, !subscribed)}
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          {!source.subscribed ? (
+            <Button
+              size="sm"
+              onClick={() => onSubscribe(source.id)}
               disabled={disabled}
               data-testid={`seed-subscribe-${source.id}`}
-              className="text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
-              title={subscribed
-                ? 'Subscribed — syncs at launch. Click to unsubscribe; your imported content stays.'
-                : 'Subscribe to sync this source at launch.'}
+              className="gap-2"
             >
-              {subscribed ? 'Subscribed ✓' : 'Subscribe'}
-            </button>
-          )}
-          {custom && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onRemove(source.id)}
-              disabled={disabled}
-              data-testid={`seed-remove-${source.id}`}
-              className="gap-1.5 text-muted-foreground hover:text-destructive"
-              title="Remove this source from the sync list. Imported notes stay in your library."
-            >
-              <Trash2 className="size-3.5" />
-              <span className="text-xs">Remove</span>
+              <CloudDownload className="size-3.5" />
+              <span>Subscribe</span>
             </Button>
+          ) : pending ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSync(source.id)}
+              disabled={disabled}
+              data-testid={`seed-sync-${source.id}`}
+              className="gap-2"
+            >
+              <RefreshCw className={`size-3.5 ${running ? 'animate-spin' : ''}`} />
+              <span>{running ? 'Syncing…' : 'Sync'}</span>
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5" data-testid={`seed-current-${source.id}`}>
+              <CheckCircle2 className="size-3.5 text-emerald-500" />
+              {source.remote === null ? 'Remote unreachable' : 'Up to date'}
+            </span>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onSync(source.id)}
-            disabled={disabled}
-            data-testid={`seed-sync-${source.id}`}
-            className="gap-2"
+          <label
+            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            title={source.subscribed
+              ? 'Apply new published versions automatically during the load-time check. Turning it off never removes content.'
+              : 'Unsubscribed sources never auto-import.'}
           >
-            <RefreshCw className={`size-3.5 ${running ? 'animate-spin' : ''}`} />
-            <span>{running ? 'Syncing…' : 'Sync'}</span>
-          </Button>
+            <input
+              type="checkbox"
+              className="size-3.5 accent-primary"
+              checked={autoSync}
+              disabled={disabled || !source.subscribed}
+              onChange={(event) => onAutoSync(source.id, event.target.checked)}
+              aria-label={`Auto-sync ${source.label}`}
+              data-testid={`seed-autosync-${source.id}`}
+            />
+            <span>Auto-sync</span>
+          </label>
+          {/* Native details/summary overflow — opens without JavaScript, the
+              summary is keyboard reachable, links carry noopener. */}
+          <details className="relative shrink-0" data-testid={`seed-more-${source.id}`}>
+            <summary
+              aria-label={`More actions for ${source.label}`}
+              className="flex cursor-pointer list-none items-center justify-center rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden"
+            >
+              …
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 flex w-64 max-w-[80vw] flex-col items-stretch gap-1.5 rounded-lg border border-border bg-card p-2 text-xs shadow-lg">
+              {source.url ? (
+                <a href={source.url} target="_blank" rel="noopener noreferrer" className="break-all font-mono text-primary hover:underline">
+                  Published HTML: {source.url}
+                </a>
+              ) : (
+                <span className="text-muted-foreground">Published HTML: bundled with this app (no standalone URL)</span>
+              )}
+              {source.repositoryUrl ? (
+                <a href={source.repositoryUrl} target="_blank" rel="noopener noreferrer" className="break-all text-primary hover:underline">
+                  Git source directory
+                </a>
+              ) : (
+                <span className="text-muted-foreground">Git repository: not published</span>
+              )}
+              {!core && (
+                <button
+                  type="button"
+                  onClick={() => onUnsubscribe(source.id)}
+                  disabled={disabled || !source.subscribed}
+                  data-testid={`seed-unsubscribe-${source.id}`}
+                  className="min-h-8 rounded-md px-2 text-left text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                >
+                  Unsubscribe
+                </button>
+              )}
+              {!core && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(source.id)}
+                  disabled={disabled}
+                  data-testid={`seed-delete-${source.id}`}
+                  className="min-h-8 rounded-md px-2 text-left text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                >
+                  Delete source
+                </button>
+              )}
+            </div>
+          </details>
         </div>
       </div>
 
-      {custom && (
-        <div className="text-xs text-muted-foreground font-mono break-all">{custom.url}</div>
+      {source.url && (
+        <div className="text-xs text-muted-foreground font-mono break-all" data-testid={`seed-origin-${source.id}`}>{source.url}</div>
       )}
 
       <div className="grid gap-1 text-sm" data-testid="seed-status-card">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-xs text-muted-foreground">Library</span>
+          <span className="font-medium text-foreground text-xs tabular-nums" data-testid="seed-source-size">
+            {source.count.toLocaleString()} catalog {source.count === 1 ? 'item' : 'items'} · {formatBytes(source.bytes)}
+          </span>
+        </div>
         <div className="flex items-center justify-between gap-4">
           <span className="text-xs text-muted-foreground">Local database</span>
           <span className="font-medium text-foreground text-xs" data-testid="seed-local-version">
@@ -165,19 +239,33 @@ function SourceCard({ source, custom, running, disabled, onSync, onRemove }: {
           </span>
         </div>
         <div className="flex items-center justify-between gap-4">
+          <span className="text-xs text-muted-foreground">Last check</span>
+          <span className="font-medium text-foreground text-xs" data-testid="seed-last-check">
+            {source.checkedAt ? formatSeedVersion(source.checkedAt) : '—'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-xs text-muted-foreground">Last sync</span>
+          <span className="font-medium text-foreground text-xs" data-testid="seed-last-sync">
+            {source.stored ? formatSeedVersion(source.stored.importedAt) : 'Never'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
           <span className="text-xs text-muted-foreground">Status</span>
           <span className="font-medium text-xs flex items-center gap-1.5" data-testid="seed-sync-status">
-            {source.upToDate ? (
+            {!source.subscribed ? (
+              'Not subscribed'
+            ) : source.upToDate ? (
               <>
                 <CheckCircle2 className="size-3.5 text-emerald-500" />
                 Up to date
               </>
             ) : source.remote == null ? (
               'Unknown (remote unreachable)'
-            ) : source.autoImport ? (
-              'Update available — re-imports automatically on next launch'
+            ) : autoSync ? (
+              'Update available — applied automatically on next load'
             ) : (
-              'Update available'
+              'Update available — sync to apply'
             )}
           </span>
         </div>
@@ -193,7 +281,6 @@ function SourceCard({ source, custom, running, disabled, onSync, onRemove }: {
  */
 export function SyncSection() {
   const [status, setStatus] = useState<SeedStatus | null>(null)
-  const [custom, setCustom] = useState<CustomSeedSource[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<null | 'all' | string>(null)
@@ -203,7 +290,6 @@ export function SyncSection() {
   const [addError, setAddError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    setCustom(customSeedSources())
     setLoadError(null)
     try {
       setStatus(await readSeedStatus())
@@ -217,6 +303,12 @@ export function SyncSection() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // Re-read status when subscriptions change elsewhere (home cards) and when
+  // the load-time background check publishes its catalog-updates snapshot —
+  // pending badges reflect the latest check without a manual reload.
+  useEffect(() => subscribeSeedSubscriptions(() => { void refresh() }), [refresh])
+  useEffect(() => subscribeCatalogUpdates(() => { void refresh() }), [refresh])
 
   const handleSync = useCallback(async (id: null | string) => {
     setBusyId(id ?? 'all')
@@ -262,11 +354,47 @@ export function SyncSection() {
     await handleSync(added.id)
   }, [newLabel, newUrl, handleSync])
 
-  const handleRemove = useCallback(async (id: string) => {
-    removeCustomSeedSource(id)
-    toast({ title: 'Source removed', description: 'Imported notes stay in your library; only the source was unregistered.' })
-    await refresh()
+  // Auto-sync persists independently of subscription (shared seed contract).
+  // setSeedAutoSync returns false when the choice could NOT be persisted —
+  // say so instead of implying a durable preference.
+  const handleAutoSync = useCallback((id: string, enabled: boolean) => {
+    if (!setSeedAutoSync(id, enabled)) {
+      toast({ title: "Couldn't save Auto-sync", description: 'Browser storage is unavailable — the choice lasts this session only.', variant: 'destructive' })
+    }
+    void refresh()
   }, [refresh])
+
+  // Unsubscribe removes the source's imported content + checkpoints and stops
+  // syncing, but keeps the source entry so it can be subscribed again.
+  // Failures stay visible; confirmation follows the existing window.confirm
+  // convention (OfferingTiers).
+  const handleUnsubscribe = useCallback(async (id: string) => {
+    const label = status?.sources.find(s => s.id === id)?.label ?? id
+    if (!window.confirm(`Unsubscribe from "${label}"? Imported content for this catalog is removed from your library; the source stays listed so you can subscribe again. Your own notes are never touched.`)) return
+    try {
+      const { deleted } = await unsubscribeSeedSource(id)
+      toast({ title: `${label} unsubscribed`, description: `${deleted.toLocaleString()} imported ${deleted === 1 ? 'item' : 'items'} removed. The source stays listed for a later Subscribe.` })
+    } catch (err) {
+      toast({ title: `${label} unsubscribe failed`, description: err instanceof Error ? err.message : String(err), variant: 'destructive' })
+      return
+    }
+    await refresh()
+  }, [status, refresh])
+
+  // Delete removes imported content AND the source entry itself. Neither
+  // lifecycle action ever touches user-authored notes.
+  const handleDelete = useCallback(async (id: string) => {
+    const label = status?.sources.find(s => s.id === id)?.label ?? id
+    if (!window.confirm(`Delete "${label}"? Imported content is removed and the source is unregistered. Your own notes are never touched.`)) return
+    try {
+      const { deleted } = await deleteSeedSource(id)
+      toast({ title: `${label} deleted`, description: `${deleted.toLocaleString()} imported ${deleted === 1 ? 'item' : 'items'} removed and the source unregistered.` })
+    } catch (err) {
+      toast({ title: `${label} delete failed`, description: err instanceof Error ? err.message : String(err), variant: 'destructive' })
+      return
+    }
+    await refresh()
+  }, [status, refresh])
 
   const current = progress.at(-1)?.event
 
@@ -280,8 +408,9 @@ export function SyncSection() {
           </h2>
           <p className="text-sm text-muted-foreground">
             Catalogs, feeds, guides, dashboards, and efforts import into your active data location from
-            seed sources. The core seed (home page, template) imports automatically on launch; community
-            and custom libraries sync when you ask — one at a time or all at once.
+            seed sources. Subscribed sources are checked against their published manifest on every load:
+            Auto-sync applies updates by itself, otherwise you press Sync when an update is pending. The
+            core seed imports automatically at launch and is always subscribed.
           </p>
         </div>
 
@@ -340,11 +469,13 @@ export function SyncSection() {
             <SourceCard
               key={source.id}
               source={source}
-              custom={custom.find(c => c.id === source.id)}
               running={busyId === source.id || busyId === 'all'}
               disabled={busyId !== null}
               onSync={(id) => { void handleSync(id) }}
-              onRemove={(id) => { void handleRemove(id) }}
+              onSubscribe={(id) => { void handleSync(id) }}
+              onUnsubscribe={(id) => { void handleUnsubscribe(id) }}
+              onDelete={(id) => { void handleDelete(id) }}
+              onAutoSync={handleAutoSync}
             />
           ))}
           {isLoading && status === null && (
@@ -381,7 +512,8 @@ export function SyncSection() {
           <p className="text-sm text-muted-foreground">
             Register any URL serving a Wod Wiki seed (a directory with <code>manifest.json</code> and{' '}
             <code>chunks/</code>) — a community library mirror or one you compiled yourself. The host must
-            allow cross-origin reads (CORS). Added sources sync immediately.
+            allow cross-origin reads (CORS). Added sources sync immediately and start subscribed; manage
+            Auto-sync, Unsubscribe, and Delete on each source card above.
           </p>
         </div>
 

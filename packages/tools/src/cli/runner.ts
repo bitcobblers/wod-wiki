@@ -75,7 +75,7 @@ export function cliNoteSource(source: string, label: string, sport?: string): st
 }
 
 export interface CliParsedArgs {
-  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'export' | 'import' | 'publish' | 'build' | 'seed' | 'reset' | 'init' | 'server' | 'serve' | 'playground' | 'help' | 'version';
+  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'export' | 'import' | 'publish' | 'build' | 'seed' | 'reset' | 'init' | 'server' | 'serve' | 'playground' | 'init-catalog' | 'help' | 'version';
   target?: string;
   /** Second positional: the id (download) or file (import) after the kind. */
   target2?: string;
@@ -289,7 +289,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       if (Number.isSafeInteger(v) && v >= 0) result.seedVersion = v;
       i++;
     } else if (!result.subcommand) {
-      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'export' || arg === 'import' || arg === 'publish' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'help' || arg === 'version') {
+      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'export' || arg === 'import' || arg === 'publish' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'init-catalog' || arg === 'help' || arg === 'version') {
         result.subcommand = arg;
       } else {
         result.target = arg;
@@ -365,6 +365,10 @@ USAGE:
   wod import <note|playground|session|effort|equipment> <file> [options]
   wod publish [catalog] [options]
   wod build [dir] [options]
+  wod init-catalog <name>
+                      Scaffold a new catalog repository (package.json, example
+                      collection, GitHub Actions Pages workflow). Refuses an
+                      existing destination.
   wod seed [options]
   wod reset [options]
   wod init            Initialize the configured database (idempotent)
@@ -599,6 +603,24 @@ export async function cliMain(
 
   // 2. Dispatch subcommands
   try {
+    if (parsed.subcommand === 'init-catalog') {
+      if (!parsed.target) {
+        writeErr('[wod init-catalog] Error: Missing catalog name (a single new directory name)');
+        return 1;
+      }
+      // Browser-boundary: dynamic import keeps node:fs usage out of the browser graph.
+      const { scaffoldCatalog } = await import('./scaffoldCatalog');
+      try {
+        const result = scaffoldCatalog(parsed.target);
+        writeOut(`[wod init-catalog] Created ${result.dir} (${result.files.length} files)`);
+        writeOut(`Next: cd ${parsed.target} && bun install && bunx wod build . --output dist`);
+        return 0;
+      } catch (error) {
+        writeErr(`[wod init-catalog] ${(error as Error).message}`);
+        return 1;
+      }
+    }
+
     if (parsed.subcommand === 'parse') {
       if (!parsed.target) {
         writeErr('[wod parse] Error: Missing input file or "-" for stdin');

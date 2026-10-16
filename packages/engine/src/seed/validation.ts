@@ -7,7 +7,8 @@ function nonnegative(value: unknown): value is number { return typeof value === 
 export function assertSeedManifest(value: unknown): SeedManifest {
   if (!object(value) || value.schema !== SEED_SCHEMA) throw new Error('Incompatible seed schema; rebuild seed artifacts');
   if (!nonnegative(value.version) || typeof value.builtAt !== 'string' || !Number.isFinite(Date.parse(value.builtAt)) || !Array.isArray(value.chunks)) throw new Error('seed manifest failed shape validation');
-  for (const key of ['versionLabel', 'commit']) if (value[key] !== undefined && typeof value[key] !== 'string') throw new Error('invalid seed manifest metadata');
+  for (const key of ['versionLabel', 'commit', 'name', 'description']) if (value[key] !== undefined && typeof value[key] !== 'string') throw new Error('invalid seed manifest metadata');
+  if (value.repositoryUrl !== undefined && (typeof value.repositoryUrl !== 'string' || !/^https:\/\//.test(value.repositoryUrl) || new URL(value.repositoryUrl).username || new URL(value.repositoryUrl).password)) throw new Error('invalid seed repository URL');
   if (value.dirty !== undefined && typeof value.dirty !== 'boolean') throw new Error('invalid seed manifest metadata');
   const ids = new Set<string>(), paths = new Set<string>();
   for (const chunk of value.chunks) {

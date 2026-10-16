@@ -20,12 +20,12 @@ import { HttpSeedSource } from './HttpSeedSource';
 import { IndexedDBSeedImportStorage, type SeedImportStorage } from './SeedImportStorage';
 import { assertManifest, type ISeedSource } from './ISeedSource';
 import { decideSeedImport, EMBEDDED_SEED_VERSIONS, storedSeedIsCurrent } from './seedVersion';
-import { customSeedSources, CORE_SEED_URL, COMMUNITY_SEED_URL, FeedSeedSource, listSyncPackages } from './seedSources';
-import { isSeedSubscribed, setSeedSubscribed } from './seedSubscriptions';
+import { customSeedSources, CORE_SEED_URL, COMMUNITY_SEED_URL, COMMUNITY_REPOSITORY_URL, FeedSeedSource, listSyncPackages, hideSeedSourceRow, hiddenSeedSourceIds, removeCustomSeedSource, safeRepositoryUrl } from './seedSources';
+import { isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } from './seedSubscriptions';
 import { beginSyncActivity, reportSyncResult, reportSyncError } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
-import { storage, storageBackend, storageService } from '@/services/storage';
+import { storageService } from '@/services/storage';
 
 export { SEED_BROADCAST_CHANNEL } from '@/types/seed';
 export const SEED_IMPORT_FLAG = 'wodwiki.seedImport.enabled';
@@ -42,7 +42,12 @@ export function isSeedImportEnabled(): boolean {
   }
 }
 
-export type SeedSyncOutcome = 'disabled' | 'current' | 'busy' | 'imported' | 'server-stale' | 'error';
+/**
+ * 'update-pending': a background load check found a newer published
+ * manifest for a source whose auto-sync is off — nothing was imported;
+ * the update waits for a manual Sync (grouped catalog-updates snapshot).
+ */
+export type SeedSyncOutcome = 'disabled' | 'current' | 'busy' | 'imported' | 'server-stale' | 'error' | 'update-pending';
 
 /**
  * Live per-source sync progress for the Settings sync surface. One
@@ -69,6 +74,10 @@ export interface SeedSourceSpec {
   id: string;
   label: string;
   source: ISeedSource;
+  /** The seed directory this source syncs from (status/link rendering). */
+  url: string;
+  /** Published Git repository link, when the source publishes one. */
+  repositoryUrl?: string;
   /** `__SEED_VERSIONS__[id]` — this bundle's own build of the source's manifest. */
   embeddedVersion: number;
   /** Boot auto-import gate (default true). Non-auto sources (community/catalog
@@ -86,11 +95,13 @@ export interface SeedSourceSpec {
  * libraries register here the same way.
  */
 export function defaultSeedSources(): SeedSourceSpec[] {
+  const hidden = new Set(hiddenSeedSourceIds());
   return [
     {
       id: 'core',
       label: 'Core (playground)',
       source: new HttpSeedSource(CORE_SEED_URL),
+      url: CORE_SEED_URL,
       embeddedVersion: EMBEDDED_SEED_VERSIONS['core'] ?? 0,
     },
     {
@@ -101,16 +112,23 @@ export function defaultSeedSources(): SeedSourceSpec[] {
       // remote manifest — GitHub Pages sends no build-stamp compatibility.
       // VITE_COMMUNITY_SEED_URL overrides the host for local/staging e2e.
       source: new HttpSeedSource(COMMUNITY_SEED_URL),
+      url: COMMUNITY_SEED_URL,
+      repositoryUrl: COMMUNITY_REPOSITORY_URL,
       embeddedVersion: 0,
       autoImport: false,
     },
     // Built-in package sources (Common category packages): each is a
     // filtered view of the community corpus syncing only its own
     // chunk — a package sync never downloads the whole library.
-    ...listSyncPackages().map((pkg): SeedSourceSpec => ({
+    // Built-ins only: listSyncPackages mirrors custom sources as package
+    // views too, and those get their own specs below — emitting both would
+    // duplicate every custom-source row.
+    ...listSyncPackages().filter((pkg) => pkg.category !== 'custom').map((pkg): SeedSourceSpec => ({
       id: pkg.id,
       label: pkg.label,
       source: new FeedSeedSource(new HttpSeedSource(COMMUNITY_SEED_URL), pkg.chunkId),
+      url: COMMUNITY_SEED_URL,
+      repositoryUrl: pkg.repositoryUrl,
       embeddedVersion: 0,
       autoImport: false,
     })),
@@ -121,10 +139,12 @@ export function defaultSeedSources(): SeedSourceSpec[] {
       id: c.id,
       label: c.label,
       source: new HttpSeedSource(c.url),
+      url: c.url,
+      repositoryUrl: c.repositoryUrl,
       embeddedVersion: EMBEDDED_SEED_VERSIONS[c.id] ?? 0,
       autoImport: false,
     })),
-  ];
+  ].filter((spec) => !hidden.has(spec.id));
 }
 
 export interface SeedSyncDeps {
@@ -147,6 +167,28 @@ export interface SeedSyncDeps {
    * when the bundled embedded version matches the stored checkpoint.
    */
   probeManifests?: boolean;
+  /**
+   * 'manual' (default): every listed source imports per the version
+   * decision. 'background': a load-time check — only sources whose
+   * persisted auto-sync preference is on apply updates; the rest are
+   * check-only and their detected updates land in the grouped
+   * catalog-updates snapshot instead of importing.
+   */
+  mode?: 'manual' | 'background';
+  /**
+   * Report per-source results/errors to sync activity (default true).
+   * Background load checks suppress it — one grouped notification is
+   * published instead of a per-source toast flood.
+   */
+  reportActivity?: boolean;
+  /**
+   * Import Once intake: `false` imports the content without subscribing —
+   * a new source gets an explicit unsubscribed record so the checkpoint
+   * migration cannot silently subscribe it later; an existing live
+   * subscription is preserved. Absent/true keeps the established
+   * manual-sync-subscribes behavior.
+   */
+  subscribe?: boolean;
   /** Live progress stream (Settings → Sync): checking → chunk phases → finished per source. */
   onProgress?: (progress: SeedSyncProgress) => void;
   /**
@@ -191,9 +233,84 @@ function freshClaimIsOther(meta: SeedMetaRecord | undefined, owner: string, now:
   return !!claim && claim.owner !== owner && now - claim.at < SEED_CLAIM_TTL_MS;
 }
 
+// ── Grouped catalog updates (one snapshot per background load check) ───────
+
+export type CatalogUpdateState = 'pending' | 'updated' | 'error';
+
+export interface CatalogSourceUpdate {
+  sourceId: string;
+  label: string;
+  state: CatalogUpdateState;
+}
+
+export interface CatalogUpdatesSnapshot {
+  id: number;
+  updates: CatalogSourceUpdate[];
+}
+
+let catalogUpdates: CatalogUpdatesSnapshot | null = null;
+let catalogUpdateSeq = 0;
+const catalogUpdateListeners = new Set<() => void>();
+
+/** Latest grouped snapshot of detected catalog updates, or null when the
+ *  last background check (or manual sync) left nothing outstanding. */
+export function getCatalogUpdates(): CatalogUpdatesSnapshot | null {
+  return catalogUpdates;
+}
+
+export function subscribeCatalogUpdates(listener: () => void): () => void {
+  catalogUpdateListeners.add(listener);
+  return () => {
+    catalogUpdateListeners.delete(listener);
+  };
+}
+
+function publishCatalogUpdates(updates: CatalogSourceUpdate[]): void {
+  catalogUpdates = updates.length ? { id: ++catalogUpdateSeq, updates } : null;
+  for (const listener of catalogUpdateListeners) listener();
+}
+
+/** Drop one source from the snapshot (manual sync applied it) and
+ *  republish — an empty list clears the grouped notification. */
+function clearCatalogSourceUpdate(sourceId: string): void {
+  if (!catalogUpdates?.updates.some((u) => u.sourceId === sourceId)) return;
+  publishCatalogUpdates(catalogUpdates.updates.filter((u) => u.sourceId !== sourceId));
+}
+
+// ── Last manifest-check timestamps ─────────────────────────────────────────
+
+const SEED_CHECKS_KEY = 'wodwiki.seedChecks';
+
+function readSeedChecks(): Record<string, number> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(SEED_CHECKS_KEY) ?? 'null');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter((e): e is [string, number] => typeof e[1] === 'number'),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function markSeedChecked(id: string, at: number): void {
+  try {
+    localStorage.setItem(SEED_CHECKS_KEY, JSON.stringify({ ...readSeedChecks(), [id]: at }));
+  } catch {
+    // Status timestamps are best-effort; a failed write keeps the old value.
+  }
+}
+
+function seedCheckedAt(id: string): number | null {
+  return readSeedChecks()[id] ?? null;
+}
+
 export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
   const outcomes: SeedSyncOutcome[] = [];
   const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  // Background load checks collect per-source update states; the run ends
+  // with ONE grouped snapshot — never per-source notifications.
+  const updates = deps.mode === 'background' ? new Map<string, CatalogSourceUpdate>() : undefined;
 
   if (!(deps.isEnabled ?? isSeedImportEnabled)()) return 'disabled';
 
@@ -202,13 +319,15 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
   const sources = deps.sources ?? defaultSeedSources();
   for (const [index, spec] of sources.entries()) {
     // A failing source emits its own finished('error'); the run continues.
-    const outcome = await runSourceSync(spec, deps, storage, owner, index + 1, sources.length);
+    const outcome = await runSourceSync(spec, deps, storage, owner, index + 1, sources.length, updates);
     console.debug(`[seedSync] ${spec.id} outcome: ${outcome}`);
     outcomes.push(outcome);
   }
+  if (updates) publishCatalogUpdates([...updates.values()]);
   // Worst-first aggregation: readiness and toasts only need one verdict.
   if (outcomes.includes('error')) return 'error';
   if (outcomes.includes('imported')) return 'imported';
+  if (outcomes.includes('update-pending')) return 'update-pending';
   if (outcomes.includes('server-stale')) return 'server-stale';
   if (outcomes.includes('busy')) return 'busy';
   return 'current';
@@ -216,17 +335,18 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
 
 /**
  * Boot-time seed policy (app bootstrap), layered on runSeedSync:
- *  - API builds keep the prior behavior: every registered source syncs;
  *  - fresh browser (no core checkpoint): the core seed only — home ungates
  *    on the committed canvas chunk while the rest of the library imports;
  *    subscribed community libraries join from the next visit (a fresh
  *    browser has no imported checkpoints to subscribe);
- *  - returning browser: core + subscribed sources refresh in the
- *    background, nonblocking, consulting remote manifests even when the
- *    bundled core's embedded version matches the stored checkpoint.
+ *  - returning browser (web or API storage — both honor the subscription
+ *    and auto-sync choices): every consumed subscribed catalog is checked
+ *    in the background, nonblocking, consulting remote manifests even when
+ *    the bundled core's embedded version matches the stored checkpoint.
+ *    Sources with auto-sync on apply updates; the rest are check-only and
+ *    surface one grouped update snapshot instead of importing.
  */
 export async function runBootSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
-  if (storageBackend === 'api') return runSeedSync(deps);
   const all = deps.sources ?? defaultSeedSources();
   const storage = deps.storage ?? new IndexedDBSeedImportStorage();
   let coreCheckpoint: SeedMetaRecord | undefined;
@@ -242,7 +362,13 @@ export async function runBootSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSync
     return runSeedSync({ ...deps, sources: all.filter((s) => s.autoImport !== false) });
   }
   const sources = all.filter((s) => s.id === 'core' || isSeedSubscribed(s.id));
-  return runSeedSync({ ...deps, sources, probeManifests: true });
+  return runSeedSync({
+    ...deps,
+    sources,
+    probeManifests: true,
+    mode: 'background',
+    reportActivity: false,
+  });
 }
 
 async function runSourceSync(
@@ -252,20 +378,25 @@ async function runSourceSync(
   owner: string,
   sourceIndex: number,
   totalSources: number,
+  updates?: Map<string, CatalogSourceUpdate>,
 ): Promise<SeedSyncOutcome> {
   const now = deps.now ?? Date.now;
   const broadcast = deps.broadcast ?? defaultBroadcast;
   const metaKey = seedMetaKey(spec.id);
   const onProgress = deps.onProgress;
+  // Background load checks stay silent: no activity entry, no per-source
+  // completion report — their outcome is the grouped snapshot alone.
+  const report = deps.reportActivity !== false;
   // `finished` closes every attempted source — after claim release and
   // first-paint hydration: a run is never complete before its commits.
   const finish = (outcome: SeedSyncOutcome, error: string | null = null): void =>
     onProgress?.({ phase: 'finished', outcome, error, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
 
   onProgress?.({ phase: 'checking', sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
-  const endActivity = beginSyncActivity('download', spec.label);
+  const endActivity = report ? beginSyncActivity('download', spec.label) : () => {};
   try {
     const stored = await storage.getSeedMeta(metaKey);
+    const hadCheckpoint = (stored?.seedVersion ?? 0) > 0;
 
     // Skip-fetch fast path: this bundle's own seed is already stored
     // (return-visit background refresh passes probeManifests to bypass).
@@ -279,12 +410,25 @@ async function runSourceSync(
     }
 
     const manifest = assertManifest(await spec.source.fetchManifest());
+    markSeedChecked(spec.id, now());
     const decision = deps.force ? 'import' : decideSeedImport(stored?.seedVersion, manifest.version);
     if (decision === 'server-stale') {
       finish('server-stale');
       return 'server-stale';
     }
     if (stored && stored.schema !== SEED_SCHEMA) throw new Error('Incompatible seed checkpoint; recreate storage');
+    // Background check-only: auto-sync off → never fetch chunks or write
+    // import checkpoints. A detected update lands in the grouped snapshot
+    // and waits for a manual Sync; installed content stays untouched.
+    if (deps.mode === 'background' && !isSeedAutoSync(spec.id)) {
+      if (decision === 'import') {
+        updates?.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'pending' });
+        finish('update-pending');
+        return 'update-pending';
+      }
+      finish('current');
+      return 'current';
+    }
     if (!deps.force && decision === 'current' && stored?.schema === SEED_SCHEMA && stored.builtAt === manifest.builtAt) {
       finish('current');
       return 'current';
@@ -320,7 +464,10 @@ async function runSourceSync(
         invalidateSeedContent();
         const registry = getAppEffortRegistry();
         if (registry.isInitialized()) await hydrateAppEffortRegistry(registry);
-        reportSyncResult({ source: spec.label, added: result.addedNotes, updated: result.updatedNotes });
+        if (report) reportSyncResult({ source: spec.label, added: result.addedNotes, updated: result.updatedNotes });
+        // An applied update of an already-installed catalog is part of the
+        // grouped snapshot ('updated'); a first import is not an update.
+        if (updates && hadCheckpoint) updates.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'updated' });
       }
     } finally {
       const after = await storage.getSeedMeta(metaKey);
@@ -333,7 +480,8 @@ async function runSourceSync(
   } catch (err) {
     console.warn(`[seedSync] ${spec.id} seed sync failed`, err);
     const message = safeSyncErrorMessage(err);
-    reportSyncError(message);
+    if (deps.mode === 'background') updates?.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'error' });
+    if (report) reportSyncError(message);
     finish('error', message);
     return 'error';
   } finally {
@@ -352,6 +500,10 @@ export interface SeedVersionInfo {
 export interface SeedSourceStatus {
   id: string;
   label: string;
+  /** The seed directory this source syncs from. */
+  url: string;
+  /** Published Git repository link — absent when the source publishes none. */
+  repositoryUrl?: string;
   /** False for community/catalog sources — they never import at boot. */
   autoImport: boolean;
   /** The import checkpoint in Storage — null before the first import. */
@@ -361,6 +513,15 @@ export interface SeedSourceStatus {
   remoteError: string | null;
   /** Stored checkpoint matches the published manifest. */
   upToDate: boolean;
+  /** Total rows across the published manifest's chunks (0 when unreachable). */
+  count: number;
+  /** Total published chunk bytes (0 when unreachable). */
+  bytes: number;
+  /** Epoch ms of the last successful manifest check — null before one. */
+  checkedAt: number | null;
+  subscribed: boolean;
+  /** Persisted per-source auto-sync choice (core defaults on, others off). */
+  autoSync: boolean;
 }
 
 export interface SeedStatus {
@@ -368,10 +529,16 @@ export interface SeedStatus {
 }
 
 /**
- * Sync one source by id (Settings → Sync per-source button). Picks the spec
- * from the registered sources; unknown ids (e.g. a removed custom source)
- * report 'error'. No `force` default: a plain sync imports when the stored
- * checkpoint is missing or behind the manifest.
+ * Sync one source by id (Settings → Sync per-source button, catalog
+ * management, or /subscribe intake). Picks the spec from the registered
+ * sources; unknown ids (e.g. a removed custom source) report 'error'. No
+ * `force` default: a plain sync imports when the stored checkpoint is
+ * missing or behind the manifest — manual syncs are never auto-sync-gated.
+ *
+ * `deps.subscribe === false` is the Import Once boundary: content imports,
+ * the subscription stays untouched when one already exists, and a new
+ * source gets an explicit unsubscribed record so the checkpoint-migration
+ * on the next load cannot silently subscribe it.
  */
 export async function syncSeedSource(id: string, deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
   const spec = (deps.sources ?? defaultSeedSources()).find(s => s.id === id);
@@ -380,75 +547,87 @@ export async function syncSeedSource(id: string, deps: SeedSyncDeps = {}): Promi
     return 'error';
   }
   const outcome = await runSeedSync({ ...deps, sources: [spec] });
-  // A manual sync that restored a healthy checkpoint subscribes the library
-  // for background refresh — both a fresh import and an already-current
-  // library the user explicitly chose. 'busy'/'error'/'server-stale' never
-  // change a persisted choice. (Core is a no-op: always subscribed.)
-  if (outcome === 'imported' || outcome === 'current') setSeedSubscribed(id, true);
+  if (outcome === 'imported' || outcome === 'current') {
+    if (deps.subscribe === false) {
+      // Import Once: pin the explicit choice, but never downgrade a live
+      // subscription (the flag only ever guards NEW registrations).
+      if (!isSeedSubscribed(id)) setSeedSubscribed(id, false);
+    } else {
+      // A manual sync that restored a healthy checkpoint subscribes the
+      // library for background refresh — both a fresh import and an
+      // already-current library the user explicitly chose. 'busy'/'error'/
+      // 'server-stale' never change a persisted choice. (Core: no-op.)
+      setSeedSubscribed(id, true);
+    }
+    // A successful manual sync applied (or confirmed) the remote version —
+    // the pending-update marker is stale and the grouped snapshot clears.
+    clearCatalogSourceUpdate(id);
+  }
   return outcome;
 }
+
+// ── Unsubscribe / delete (exact checkpoint ownership) ──────────────────────
+
 /**
- * Remove a package and its imported notes from the active library.
- * Deletes all seed-origin notes matching the package's chunk/catalog,
- * clears its seed checkpoint, unsets its subscription, and invalidates caches.
+ * Remove one source's imported content and checkpoint, and stop its
+ * subscription and auto-sync — keeping the source row and its config for a
+ * later Subscribe. Ownership is exact (`SeedMetaRecord.chunks` memberships),
+ * so a package/custom-source removal can never touch another source's
+ * rows, and user-authored notes always survive. Core is protected. Storage
+ * failures propagate: a swallowed deletion would leave a stale checkpoint
+ * that re-imports the removed content on the next sync.
  */
-export async function removePackageFromLibrary(packageId: string): Promise<{ deleted: number }> {
-  const pkg = listSyncPackages().find((p) => p.id === packageId);
-  const chunkId = pkg?.chunkId ?? packageId;
-  const chunkSlug = chunkId.replace(/^(?:feed|collection)\./, '');
-  const category = pkg?.category;
-
-  const allNotes = await storageService.getAllNotes();
-  const toDelete = allNotes.filter((note) => {
-    if (note.seedOrigin !== 'seed') return false;
-    if (note.seedChunkId === chunkId) return true;
-    if (category && note.catalog === category) return true;
-    if (note.catalog === chunkSlug) return true;
-    if (note.sourceId && (note.sourceId.includes(chunkSlug) || note.sourceId.startsWith(`feed:feeds/${chunkSlug}`))) return true;
-    return false;
-  });
-
-  for (const note of toDelete) {
-    await storageService.deleteNote(note.id);
-  }
-
-  try {
-    const metaKey = seedMetaKey(packageId);
-    await storage.readwrite('meta').delete(metaKey);
-  } catch {
-    // meta delete is best-effort
-  }
-
-  setSeedSubscribed(packageId, false);
+export async function unsubscribeSeedSource(id: string, deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<{ deleted: number }> {
+  if (id === 'core') return { deleted: 0 };
+  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  const meta = await storage.getSeedMeta(seedMetaKey(id));
+  const deleted = meta ? await storage.removeSourceContent(meta) : 0;
+  setSeedSubscribed(id, false);
+  setSeedAutoSync(id, false);
+  clearCatalogSourceUpdate(id);
   invalidateSeedContent();
-
-  try {
-    const channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);
-    channel.postMessage({ kind: 'seed-removed', source: packageId });
-    channel.close();
-  } catch {
-    // optional broadcast
-  }
-
-  return { deleted: toDelete.length };
+  defaultBroadcast({ kind: 'seed-removed', source: id });
+  return { deleted };
 }
 
 /**
- * Check whether a package is present in the library (subscribed or has notes).
+ * Unsubscribe AND remove the source entry: a custom source leaves the
+ * registry; a built-in catalog row is hidden (its config lives in code).
+ * Core is protected — deleting the app's own seed is a no-op.
+ */
+export async function deleteSeedSource(id: string, deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<{ deleted: number }> {
+  if (id === 'core') return { deleted: 0 };
+  const result = await unsubscribeSeedSource(id, deps);
+  if (customSeedSources().some((s) => s.id === id)) removeCustomSeedSource(id);
+  else hideSeedSourceRow(id);
+  return result;
+}
+
+/**
+ * Home-tour removal (TourJumpSection/OfferingTiers): exact-ownership
+ * unsubscribe for a package — same semantics as unsubscribeSeedSource.
+ */
+export async function removePackageFromLibrary(packageId: string): Promise<{ deleted: number }> {
+  return unsubscribeSeedSource(packageId);
+}
+
+/**
+ * Check whether a package is present in the library (subscribed or has
+ * imported rows), by exact checkpoint/chunk provenance only.
  */
 export async function isPackageInLibrary(packageId: string): Promise<boolean> {
   if (isSeedSubscribed(packageId)) return true;
   const pkg = listSyncPackages().find((p) => p.id === packageId);
   const chunkId = pkg?.chunkId ?? packageId;
-  const chunkSlug = chunkId.replace(/^(?:feed|collection)\./, '');
+  // A package sync writes its own checkpoint; before that, membership
+  // lives in the community library checkpoint the package syncs from.
+  const storage = new IndexedDBSeedImportStorage();
+  for (const key of [seedMetaKey(packageId), seedMetaKey('community')]) {
+    const meta = await storage.getSeedMeta(key);
+    if (meta?.chunks[chunkId]) return true;
+  }
   const allNotes = await storageService.getAllNotes();
-  return allNotes.some((note) =>
-    note.seedOrigin === 'seed' && (
-      note.seedChunkId === chunkId ||
-      note.catalog === chunkSlug ||
-      (note.sourceId && note.sourceId.includes(chunkSlug))
-    )
-  );
+  return allNotes.some((note) => note.seedOrigin === 'seed' && note.seedChunkId === chunkId);
 }
 
 export interface SeedCoverage {
@@ -480,9 +659,13 @@ export async function readSeedCoverage(deps: Pick<SeedSyncDeps, 'sources' | 'sto
   return { coreImported, libraryImported };
 }
 
-/** Per-source local + remote seed versions for the Settings status card. */
+/**
+ * Per-source local + remote seed versions for the Settings status card and
+ * catalog management. Validates each fetched manifest and records the check
+ * time; counts/bytes come from the validated manifest (0 when unreachable).
+ */
 export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatus> {
-  const storage = new IndexedDBSeedImportStorage();
+  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
   // Per-feed packages share the community library checkpoint: no per-package
   // meta record exists, so coverage comes from the package's chunk membership.
   const communityMeta = await storage.getSeedMeta(seedMetaKey('community'));
@@ -499,15 +682,26 @@ export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatu
       }
       let remote: SeedSourceStatus['remote'] = null;
       let remoteError: string | null = null;
+      let count = 0;
+      let bytes = 0;
+      let repositoryUrl = spec.repositoryUrl;
       try {
-        const manifest = await spec.source.fetchManifest();
+        const manifest = assertManifest(await spec.source.fetchManifest());
         remote = { version: manifest.version, schema: manifest.schema, builtAt: manifest.builtAt };
+        count = manifest.chunks.reduce((n, c) => n + c.count, 0);
+        bytes = manifest.chunks.reduce((n, c) => n + c.bytes, 0);
+        // A source may publish its repository link only in the manifest —
+        // the registry entry is not required to carry it.
+        repositoryUrl ??= safeRepositoryUrl(manifest.repositoryUrl ?? '') ?? undefined;
+        markSeedChecked(spec.id, (deps.now ?? Date.now)());
       } catch (err) {
         remoteError = err instanceof Error ? err.message : String(err);
       }
       return {
         id: spec.id,
         label: spec.label,
+        url: spec.url,
+        ...(repositoryUrl ? { repositoryUrl } : {}),
         autoImport: spec.autoImport !== false,
         stored: stored
           ? { version: stored.seedVersion, schema: stored.schema, builtAt: stored.builtAt, importedAt: stored.importedAt }
@@ -516,6 +710,11 @@ export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatu
         remoteError,
         upToDate:
           stored != null && remote != null && stored.schema === SEED_SCHEMA && stored.seedVersion === remote.version,
+        count,
+        bytes,
+        checkedAt: seedCheckedAt(spec.id),
+        subscribed: isSeedSubscribed(spec.id),
+        autoSync: isSeedAutoSync(spec.id),
       };
     }),
   );

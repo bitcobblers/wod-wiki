@@ -79,6 +79,20 @@ describe('partitionIntoChunks', () => {
 });
 
 describe('generateSeed', () => {
+  it('publishes catalog identity and a safe source link from package metadata', () => {
+    const tmp = makeTmpCorpus();
+    try {
+      writeFileSync(join(tmp, 'package.json'), JSON.stringify({ name: 'Coach programming', description: 'Daily sessions', repository: { url: 'git+https://github.com/example/programming.git' } }));
+      const { manifest } = generateSeed({ corpusRoot: tmp, outDir: join(tmp, 'out'), version: 1 });
+      expect(manifest.name).toBe('Coach programming');
+      expect(manifest.description).toBe('Daily sessions');
+      expect(manifest.repositoryUrl).toBe('https://github.com/example/programming');
+      writeFileSync(join(tmp, 'package.json'), JSON.stringify({ repository: 'git@github.com:example/programming.git' }));
+      expect(generateSeed({ corpusRoot: tmp, outDir: join(tmp, 'out'), version: 1 }).manifest.repositoryUrl).toBeUndefined();
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
   it('emits manifest + content-hashed chunks matching the corpus', () => {
     const tmp = makeTmpCorpus();
     try {
@@ -276,6 +290,62 @@ describe('buildBlockIndexRows — guides (canvas corpus)', () => {
       expect(guideRows[0].dataType).toBe('wod');
     } finally {
       rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('collection item dates (frontmatter date → block index)', () => {
+  function makeDatedCorpus(collectionFm: string, feedFm = ''): string {
+    const tmp = mkdtempSync(join(tmpdir(), 'seed-dates-'));
+    mkdirSync(join(tmp, 'markdown/collections/daily-box-wod'), { recursive: true });
+    mkdirSync(join(tmp, 'markdown/feeds/box/2026-01-12'), { recursive: true });
+    writeFileSync(
+      join(tmp, 'markdown/collections/daily-box-wod/morning-session.md'),
+      `${collectionFm}# Morning session\n\n\`\`\`time\n10 Push-ups\n\`\`\`\n`,
+    );
+    writeFileSync(join(tmp, 'markdown/feeds/box/2026-01-12/session.md'), `${feedFm}# Session\n\n\`\`\`time\n10 Push-ups\n\`\`\`\n`);
+    return tmp;
+  }
+
+  it('places a dated collection item on its frontmatter day regardless of filename/directory', () => {
+    const tmp = makeDatedCorpus('---\ntitle: Morning session\ndate: 2026-10-16\n---\n');
+    try {
+      const rows = buildBlockIndexRows(join(tmp, 'markdown'), tmp);
+      const dated = rows.filter((r) => r.sourcePath === 'markdown/collections/daily-box-wod/morning-session.md');
+      expect(dated.length).toBeGreaterThan(0);
+      // Noon UTC (mirrors SeedImporter's Note.date) — timezone-safe civil day.
+      for (const row of dated) expect(row.createdAt).toBe(Date.parse('2026-10-16T12:00:00Z'));
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('fails the build on an impossible calendar day instead of silently misdating', () => {
+    const tmp = makeDatedCorpus('---\ndate: 2026-02-30\n---\n');
+    try {
+      expect(() => buildBlockIndexRows(join(tmp, 'markdown'), tmp))
+        .toThrow(/invalid frontmatter date '2026-02-30'.*morning-session\.md/);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps historical feed path dating and lets an authored date override it', () => {
+    const undated = makeDatedCorpus('');
+    try {
+      const rows = buildBlockIndexRows(join(undated, 'markdown'), undated);
+      const feed = rows.find((r) => r.sourcePath === 'markdown/feeds/box/2026-01-12/session.md');
+      expect(feed!.createdAt).toBe(Date.parse('2026-01-12T00:00:00Z'));
+    } finally {
+      rmSync(undated, { recursive: true, force: true });
+    }
+    const dated = makeDatedCorpus('', '---\ndate: 2026-03-05\n---\n');
+    try {
+      const rows = buildBlockIndexRows(join(dated, 'markdown'), dated);
+      const feed = rows.find((r) => r.sourcePath === 'markdown/feeds/box/2026-01-12/session.md');
+      expect(feed!.createdAt).toBe(Date.parse('2026-03-05T12:00:00Z'));
+    } finally {
+      rmSync(dated, { recursive: true, force: true });
     }
   });
 });

@@ -4,44 +4,57 @@
  * { [sourceId]: boolean }); absence means "no explicit choice":
  * migrateSeedSubscriptions() subscribes previously imported libraries, a
  * persisted false always stays off, and core is always on (unsubscribe is
- * a no-op for it). Kept free of seedSync imports so the runtime graph
+ * a no-op for it). The per-source auto-sync preference lives beside it
+ * ('wodwiki.seedAutoSync') but is a separate choice: subscription never
+ * implies auto-update. Kept free of seedSync imports so the runtime graph
  * stays acyclic — callers pass the source list in.
  */
 import { IndexedDBSeedImportStorage, type SeedImportStorage } from './SeedImportStorage';
 import { seedMetaKey } from '@/types/seed';
 
 const STORAGE_KEY = 'wodwiki.seedSubscriptions';
+const AUTO_SYNC_KEY = 'wodwiki.seedAutoSync';
 
 let cache: Record<string, boolean> | null = null;
+let autoSyncCache: Record<string, boolean> | null = null;
 const listeners = new Set<() => void>();
 
-function readAll(): Record<string, boolean> {
-  if (cache) return cache;
+function readMap(key: string): Record<string, boolean> {
   let parsed: Record<string, boolean> = {};
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     const value: unknown = raw ? JSON.parse(raw) : {};
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      for (const [id, subscribed] of Object.entries(value)) {
-        if (typeof subscribed === 'boolean') parsed[id] = subscribed;
+      for (const [id, flag] of Object.entries(value)) {
+        if (typeof flag === 'boolean') parsed[id] = flag;
       }
     }
   } catch {
     parsed = {};
   }
-  cache = parsed;
   return parsed;
 }
 
-function writeAll(next: Record<string, boolean>): boolean {
-  cache = next;
+function readAll(): Record<string, boolean> {
+  if (cache) return cache;
+  cache = readMap(STORAGE_KEY);
+  return cache;
+}
+
+function writeMap(key: string, next: Record<string, boolean>): boolean {
   let persisted = true;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(key, JSON.stringify(next));
   } catch {
     // Storage unavailable (private mode): in-memory only for this session.
     persisted = false;
   }
+  return persisted;
+}
+
+function writeAll(next: Record<string, boolean>): boolean {
+  cache = next;
+  const persisted = writeMap(STORAGE_KEY, next);
   for (const listener of listeners) listener();
   return persisted;
 }
@@ -68,6 +81,32 @@ export function subscribeSeedSubscriptions(listener: () => void): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+function readAutoSyncAll(): Record<string, boolean> {
+  if (autoSyncCache) return autoSyncCache;
+  autoSyncCache = readMap(AUTO_SYNC_KEY);
+  return autoSyncCache;
+}
+
+/**
+ * Per-source auto-sync preference, persisted separately from subscription.
+ * Default: core on (it is the app's own first-paint seed), every other
+ * source off — subscribing never implies auto-updating.
+ */
+export function isSeedAutoSync(id: string): boolean {
+  const all = readAutoSyncAll();
+  return id in all ? all[id] === true : id === 'core';
+}
+
+/** Persist the auto-sync choice. Returns false when it could NOT be
+ *  persisted (browser storage unavailable) — session-only then. */
+export function setSeedAutoSync(id: string, enabled: boolean): boolean {
+  const all = { ...readAutoSyncAll(), [id]: enabled };
+  const persisted = writeMap(AUTO_SYNC_KEY, all);
+  autoSyncCache = all;
+  for (const listener of listeners) listener();
+  return persisted;
 }
 
 /**
@@ -97,7 +136,8 @@ export async function migrateSeedSubscriptions(
   return migrated;
 }
 
-/** Test-only: drop the cached subscription map (tests mutate localStorage). */
+/** Test-only: drop the cached maps (tests mutate localStorage). */
 export function resetSeedSubscriptionsForTest(): void {
   cache = null;
+  autoSyncCache = null;
 }

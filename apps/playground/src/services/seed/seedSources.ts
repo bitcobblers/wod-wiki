@@ -19,9 +19,54 @@ export interface CustomSeedSource {
   label: string;
   /** Absolute http(s) URL of the seed dir, trailing slash included. */
   url: string;
+  /** Optional published Git repository link (manifest `repositoryUrl`). */
+  repositoryUrl?: string;
 }
 
 const STORAGE_KEY = 'wodwiki.seedSources';
+const HIDDEN_KEY = 'wodwiki.seedSources.hidden';
+
+/**
+ * Strict seed-dir URL: absolute http(s), no query/hash, no embedded
+ * credentials, trailing slash. Returns null when the input is not a usable
+ * seed directory URL — every registry membership check and registration
+ * flows through this, so `host/seed` and `HTTPS://Host/seed/` are the same
+ * source and `https://user@host/` never registers.
+ */
+export function normalizeSeedSourceUrl(url: string): string | null {
+  const raw = url.trim();
+  if (!raw) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (
+    (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') ||
+    parsed.username || parsed.password || parsed.search || parsed.hash
+  ) {
+    return null;
+  }
+  if (!parsed.pathname.endsWith('/')) parsed.pathname += '/';
+  return parsed.toString();
+}
+
+/** Published external link: absolute HTTPS, no credentials/query/hash —
+ *  rendered as a user-facing href, so it is held to a stricter boundary
+ *  than the seed-dir URL itself. */
+export function safeRepositoryUrl(url: string): string | null {
+  const raw = url.trim();
+  if (!raw) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.search || parsed.hash) return null;
+  return parsed.toString();
+}
 
 /** Same-origin seed dir of the bundled core source (HttpSeedSource concatenates file names). */
 export const CORE_SEED_URL = `${import.meta.env.BASE_URL}seed/core/`;
@@ -35,13 +80,18 @@ function readAll(): CustomSeedSource[] {
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (s): s is CustomSeedSource =>
-        !!s && typeof s === 'object' &&
-        typeof (s as CustomSeedSource).id === 'string' &&
-        typeof (s as CustomSeedSource).label === 'string' &&
-        typeof (s as CustomSeedSource).url === 'string',
-    );
+    return parsed.flatMap((s): CustomSeedSource[] => {
+      if (!s || typeof s !== 'object' ||
+        typeof (s as CustomSeedSource).id !== 'string' ||
+        typeof (s as CustomSeedSource).label !== 'string' ||
+        typeof (s as CustomSeedSource).url !== 'string') return [];
+      const { repositoryUrl } = s as CustomSeedSource;
+      // Persisted metadata is untrusted input: an invalid external link
+      // (e.g. `javascript:`) is dropped, never handed to the UI as href.
+      const safeLink = typeof repositoryUrl === 'string' ? safeRepositoryUrl(repositoryUrl) : null;
+      const clean: CustomSeedSource = { id: (s as CustomSeedSource).id, label: (s as CustomSeedSource).label, url: (s as CustomSeedSource).url };
+      return [safeLink ? { ...clean, repositoryUrl: safeLink } : clean];
+    });
   } catch {
     return [];
   }
@@ -59,20 +109,35 @@ function slugify(text: string): string {
 }
 
 /**
- * Register a community library. The URL must be absolute http(s) and is
- * normalized to a trailing slash (HttpSeedSource concatenates file names).
- * The seed id namespaces the storage checkpoint — renaming later would
- * orphan the imported content, so the id is fixed at registration.
+ * Register a community library. The URL must be an absolute http(s) seed
+ * directory; it is strictly normalized (see normalizeSeedSourceUrl) and
+ * duplicates are rejected on the normalized form. `metadata.repositoryUrl`
+ * (the manifest's published Git link) must itself be an absolute http(s)
+ * URL. The seed id namespaces the storage checkpoint — renaming later
+ * would orphan the imported content, so the id is fixed at registration.
  */
-export function addCustomSeedSource(label: string, url: string): CustomSeedSource {
-  const cleanUrl = url.trim();
-  if (!/^https?:\/\//i.test(cleanUrl)) {
+export function addCustomSeedSource(label: string, url: string, metadata?: { repositoryUrl?: string }): CustomSeedSource {
+  const normalized = normalizeSeedSourceUrl(url);
+  if (!normalized) {
     throw new Error('Enter an absolute http(s) URL of a seed directory.');
   }
-  const normalized = cleanUrl.endsWith('/') ? cleanUrl : `${cleanUrl}/`;
   const list = readAll();
-  if (list.some(s => s.url === normalized)) {
+  if (list.some((s) => normalizeSeedSourceUrl(s.url) === normalized)) {
     throw new Error('This source is already registered.');
+  }
+  // A seed dir already served by a built-in source (bundled core or the
+  // community corpus) reuses that identity via defaultSeedSources() — it
+  // never registers a duplicate custom spec beside it.
+  if ([CORE_SEED_URL, COMMUNITY_SEED_URL].some((u) => normalizeSeedSourceUrl(u) === normalized)) {
+    throw new Error('This source is already registered.');
+  }
+  const rawRepositoryUrl = metadata?.repositoryUrl?.trim();
+  let repositoryUrl: string | undefined;
+  if (rawRepositoryUrl) {
+    repositoryUrl = safeRepositoryUrl(rawRepositoryUrl) ?? undefined;
+    if (!repositoryUrl) {
+      throw new Error('Enter an absolute https repository URL without credentials.');
+    }
   }
   const cleanLabel = label.trim() || (() => { try { return new URL(normalized).hostname; } catch { return 'Source'; } })();
   // Static string-keyed uniqueness table — the source ids already issued,
@@ -82,14 +147,44 @@ export function addCustomSeedSource(label: string, url: string): CustomSeedSourc
   for (const s of list) taken[s.id] = true;
   let id = slugify(cleanLabel);
   for (let n = 2; taken[id]; n++) id = `${slugify(cleanLabel)}-${n}`;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...list, { id, label: cleanLabel, url: normalized }]));
-  return { id, label: cleanLabel, url: normalized };
+  const entry: CustomSeedSource = { id, label: cleanLabel, url: normalized, ...(repositoryUrl ? { repositoryUrl } : {}) };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...list, entry]));
+  return entry;
 }
 
 /** Unregister a source. The storage checkpoint and imported notes stay —
  *  removing a source only removes it from sync runs and the status list. */
 export function removeCustomSeedSource(id: string): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(readAll().filter(s => s.id !== id)));
+}
+
+/** Built-in ids a Delete can hide from the sync/catalog surfaces (core is
+ *  protected and never hideable; custom sources leave via the registry). */
+export function builtInSeedSourceIds(): string[] {
+  return ['community', ...SYNC_PACKAGES.map((p) => p.id)];
+}
+
+function readHidden(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? 'null');
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Hide a built-in source row (Delete of a built-in catalog whose config
+ *  lives in code, not localStorage). Idempotent; custom ids are ignored. */
+export function hideSeedSourceRow(id: string): void {
+  const hidden = readHidden();
+  if (builtInSeedSourceIds().includes(id) && !hidden.includes(id)) {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden, id]));
+  }
+}
+
+/** Built-in source ids hidden by an explicit Delete. */
+export function hiddenSeedSourceIds(): string[] {
+  return readHidden();
 }
 
 /** The wod-wiki-community content repository — source of every community feed. */

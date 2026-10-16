@@ -29,6 +29,7 @@ export const ROUTE_PATTERNS = {
   feedDetail: '/feeds/:feedSlug',
   feedItem: '/feeds/:feedSlug/:feedDate/:feedItem',
   catalogs: '/catalogs',
+  subscribe: '/subscribe',
   collections: '/collections',
   collectionDetail: '/collections/:slug',
   collectionWorkout: '/collections/:collection/:workout',

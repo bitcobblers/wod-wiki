@@ -125,6 +125,29 @@ describe('sparse seed import', () => {
   });
 });
 
+describe('seed note dates (frontmatter date → Note.date)', () => {
+  const dated = '---\ntitle: Morning session\ndate: 2026-10-16\n---\n' + workout;
+
+  it('imports a collection item\'s authored date and keeps it across re-imports', async () => {
+    const { storage, id } = await imported(dated);
+    const noon = Date.parse('2026-10-16T12:00:00Z');
+    const note = await storage.storageInstance.readonly('notes').get(id);
+    expect(note!.date).toBe(noon);
+    // Existing date metadata survives a metadata-only re-import at a new version.
+    await new SeedImporter(storage, fixture([compileSeedRow(path, dated)], 2), 'core').applyAll();
+    const reimported = await storage.storageInstance.readonly('notes').get(id);
+    expect(reimported!.date).toBe(noon);
+    expect(reimported!.createdAt).toBe(2);
+  });
+
+  it('rejects an impossible calendar day instead of normalizing it onto another day', async () => {
+    const storage = new InMemorySeedStorage();
+    await expect(new SeedImporter(storage, fixture([compileSeedRow(path, '---\ndate: 2026-02-30\n---\n' + workout)]), 'core').applyAll())
+      .rejects.toThrow(/invalid frontmatter date '2026-02-30'/);
+    expect(await storage.storageInstance.readonly('notes').count()).toBe(0);
+  });
+});
+
 describe('incompatible seed artifacts', () => {
   it('rejects old schema, independent derived chunks, malformed pins and fingerprints', () => {
     expect(() => assertSeedManifest({ schema: 7, version: 1, builtAt: new Date(1).toISOString(), chunks: [] })).toThrow(/Incompatible/);

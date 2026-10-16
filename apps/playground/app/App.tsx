@@ -39,6 +39,7 @@ import QueryBlockComposerPrototypePage from './pages/QueryBlockComposerPrototype
 import { CalcAuthoringPanel } from '@/components/organisms/calc-authoring/CalcAuthoringPanel'
 import { LoadZipPage } from './pages/LoadZipPage'
 import { JournalZipLoadPage } from './pages/JournalZipLoadPage'
+import { SubscribePage } from './pages/SubscribePage'
 import { WallClockPage } from './pages/WallClockPage'
 import { PlaygroundRedirect } from './pages/PlaygroundRedirect'
 import { useZipProcessor } from './hooks/useZipProcessor'
@@ -197,6 +198,7 @@ export function App() {
                   <Route path={ROUTE_PATTERNS.feedDetail} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.feedItem} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.catalogs} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.subscribe} element={<SubscribePage />} />
                   {/* Bare /collections redirects to the renamed /feeds listing. */}
                   <Route path={ROUTE_PATTERNS.collections} element={<CollectionsRedirect />} />
                   {/* /collections item paths redirect into the /c prefix (note UUIDs → /notes/:noteId). */}

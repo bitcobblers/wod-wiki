@@ -7,7 +7,7 @@ import { seedFixture as fixture } from './seedFixture';
 import { runSeedSync, readSeedCoverage, syncSeedSource, SEED_IMPORT_FLAG, isSeedImportEnabled, type SeedSourceSpec, type SeedSyncProgress } from './seedSync';
 import type { ISeedSource } from './ISeedSource';
 
-function spec(source: ISeedSource, id = 'core', embeddedVersion = 0): SeedSourceSpec { return { source, id, label: id, embeddedVersion }; }
+function spec(source: ISeedSource, id = 'core', embeddedVersion = 0): SeedSourceSpec { return { source, id, label: id, url: `https://seed.test/${id}/`, embeddedVersion }; }
 const source = () => fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
 
 describe('seed sync orchestration', () => {
@@ -57,7 +57,7 @@ describe('seed sync orchestration', () => {
     const checkpoint = await storage.getSeedMeta(seedMetaKey('core'));
     expect(Object.keys(checkpoint!.chunks)).toEqual(['canvas']);
     expect(checkpoint!.claim).toBeNull();
-    expect(progress.filter((p) => p.phase === 'committed').map((p) => p.chunkId)).toEqual(['canvas']);
+    expect(progress.filter((p): p is SeedSyncProgress & { chunkId: string | null } => p.phase === 'committed').map((p) => p.chunkId)).toEqual(['canvas']);
     expect(await storage.storageInstance.readonly('notes').count()).toBe(1);
   });
   it('coverage needs no remote read and default flag can be disabled', async () => {

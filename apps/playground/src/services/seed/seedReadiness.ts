@@ -15,9 +15,9 @@
  * (fast path → 'current') or crashed (this tab imports instead).
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, type SeedSyncDeps, type SeedSyncOutcome } from './seedSync';
+import { defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, subscribeCatalogUpdates, type SeedSyncDeps, type SeedSyncOutcome } from './seedSync';
 import { IndexedDBSeedImportStorage } from './SeedImportStorage';
-import { migrateSeedSubscriptions } from './seedSubscriptions';
+import { isSeedSubscribed, migrateSeedSubscriptions } from './seedSubscriptions';
 import { SEED_BROADCAST_CHANNEL, seedMetaKey } from '@/types/seed';
 import { subscribeSyncActivity } from '@/services/syncActivity';
 
@@ -168,6 +168,13 @@ async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
     markSeedSyncStarted();
     const outcome = await runBootSeedSync({ ...deps, sources: all, onFirstPaint: () => markSeedSyncSettled('imported') });
     markSeedSyncSettled(outcome);
+    // Every page load owes subscribed catalogs their update check — also
+    // when the local core checkpoint was reset but subscriptions survived
+    // (the fresh sync just re-created it). Nonblocking; never re-gates.
+    if (all.some((s) => s.id !== 'core' && isSeedSubscribed(s.id))) {
+      await runBootSeedSync({ ...deps, sources: all })
+        .catch((err) => console.error('[seedSync] background boot sync failed', err));
+    }
     return;
   }
   markSeedSyncSettled('current');
@@ -181,10 +188,12 @@ async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
 /**
  * Reactive "no manual library imported yet" probe for the /catalogs and
  * /feeds surfaces. Reads local checkpoints on mount and re-probes when sync
- * activity reports results or a 'seed-imported'/'seed-removed' broadcast
- * lands (no network); null until the read settles — callers render nothing
- * while null. True also when the provider is unreadable: the notice's Sync
- * link leads to a page that surfaces the actual error.
+ * activity reports results, a 'seed-imported'/'seed-removed' broadcast
+ * lands, or the background load check publishes its grouped catalog-updates
+ * snapshot (no network — background runs stay silent in sync activity);
+ * null until the read settles — callers render nothing while null. True
+ * also when the provider is unreadable: the notice's Sync link leads to a
+ * page that surfaces the actual error.
  */
 export function useSeedLibraryMissing(): boolean | null {
   const [missing, setMissing] = useState<boolean | null>(null);
@@ -197,16 +206,20 @@ export function useSeedLibraryMissing(): boolean | null {
     };
     probe();
     const unsubSync = subscribeSyncActivity(() => probe());
+    const unsubUpdates = subscribeCatalogUpdates(() => probe());
     let channel: BroadcastChannel | null = null;
     if (typeof BroadcastChannel !== 'undefined') {
       try {
         channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);
         channel.onmessage = () => probe();
-      } catch {}
+      } catch {
+        // Local sync/update subscriptions still refresh without cross-tab messaging.
+      }
     }
     return () => {
       cancelled = true;
       unsubSync();
+      unsubUpdates();
       channel?.close();
     };
   }, []);

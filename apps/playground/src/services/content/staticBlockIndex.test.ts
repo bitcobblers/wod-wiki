@@ -11,7 +11,6 @@ const blockRows: BlockIndexRow[] = [];
 storageService.getAllBlockIndex = async () => blockRows;
 storageService.getAllTags = async () => [];
 import {
-  feedDateToCreatedAt,
   invalidateCorpusBlocks,
   staticTagIndexFromNotes,
 } from './staticBlockIndex';
@@ -37,22 +36,6 @@ function blockRow(partial: Partial<BlockIndexRow>): BlockIndexRow {
     ...partial,
   } as BlockIndexRow;
 }
-
-describe('feedDateToCreatedAt', () => {
-  it('parses a yyyy-mm-dd key to UTC midnight', () => {
-    expect(feedDateToCreatedAt('2026-01-12')).toBe(Date.parse('2026-01-12T00:00:00Z'));
-  });
-
-  it('returns 0 for malformed keys', () => {
-    expect(feedDateToCreatedAt('jan-12')).toBe(0);
-    expect(feedDateToCreatedAt('2026-1-2')).toBe(0);
-    expect(feedDateToCreatedAt('')).toBe(0);
-  });
-
-  it('returns 0 for impossible dates', () => {
-    expect(feedDateToCreatedAt('2026-13-01')).toBe(0);
-  });
-});
 
 describe('staticTagIndexFromNotes', () => {
   it('maps authored frontmatter tags including prose-only Notes', () => {
