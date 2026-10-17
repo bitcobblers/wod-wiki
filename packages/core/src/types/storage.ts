@@ -409,6 +409,18 @@ export interface BlockEffort {
   createdAt: number;
 }
 
+/** Containment link block → canonical equipment, mirroring BlockEffort. */
+export interface BlockEquipment {
+  id: string;
+  noteId: string;
+  blockId: string;
+  blockContentId?: string;
+  equipmentSlug: string;
+  isStatic?: boolean;
+  sourcePath?: string;
+  createdAt: number;
+}
+
 export interface Membership {
   id: string;
   displayName: string;

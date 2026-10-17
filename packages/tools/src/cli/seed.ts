@@ -18,6 +18,7 @@ export interface SeedSourceSummary {
   version: number;
   notes: number;
   efforts: number;
+  equipment: number;
   blocks: number;
   blockEfforts: number;
   deleted: number;
@@ -28,16 +29,19 @@ export async function importSeedDir(db: CliDb, dir: string, sourceId: string): P
   const source = sourceId || path.basename(dir);
   const manifest = assertSeedManifest(JSON.parse(fs.readFileSync(path.resolve(dir, 'manifest.json'), 'utf-8')));
   const key = seedMetaKey(source);
-  let expected = await db.storage.readonly('meta').get(key) as SeedMetaRecord | undefined;
-  if (expected && expected.schema !== SEED_SCHEMA) throw new Error('Incompatible seed checkpoint; recreate storage');
+  const stored = await db.storage.readonly('meta').get(key) as SeedMetaRecord | undefined;
+  // Schema cutover: a checkpoint from another SEED_SCHEMA owns nothing —
+  // reset and re-import (seed rows are reclaimed by exact note id; user
+  // rows untouched). Data is retained, never deleted.
+  let expected = stored?.schema === SEED_SCHEMA ? stored : undefined;
   let meta = expected ?? emptySeedMeta(key);
   if (manifest.version < meta.seedVersion) throw new Error('Seed manifest is older than stored checkpoint');
-  const summary: SeedSourceSummary = { sourceId: source, version: manifest.version, notes: 0, efforts: 0, blocks: 0, blockEfforts: 0, deleted: 0, skippedUserOwned: 0 };
+  const summary: SeedSourceSummary = { sourceId: source, version: manifest.version, notes: 0, efforts: 0, equipment: 0, blocks: 0, blockEfforts: 0, deleted: 0, skippedUserOwned: 0 };
   const metadataChanged = manifest.version !== meta.seedVersion || manifest.builtAt !== meta.builtAt;
   const plan = manifest.chunks.filter((c) => metadataChanged || meta.chunks[c.id]?.sha256 !== c.sha256);
   plan.sort((a, b) => Number(b.id === CANVAS_CHUNK_ID) - Number(a.id === CANVAS_CHUNK_ID));
   const accumulate = (result: SeedChunkResult) => {
-    summary.notes += result.totalNotes; summary.efforts += result.totalEfforts; summary.blocks += result.totalBlocks; summary.deleted += result.deleted; summary.skippedUserOwned += result.skippedUserOwned;
+    summary.notes += result.totalNotes; summary.efforts += result.totalEfforts; summary.equipment += result.totalEquipment; summary.blocks += result.totalBlocks; summary.deleted += result.deleted; summary.skippedUserOwned += result.skippedUserOwned;
   };
   for (const chunk of plan) {
     const rows = assertSeedRows(JSON.parse(fs.readFileSync(path.resolve(dir, chunk.path), 'utf-8')));

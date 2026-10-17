@@ -20,15 +20,12 @@ export function createAppEffortRegistry(): CompositeEffortRegistry {
   });
 }
 
-/** Load both tiers from IndexedDB: seed rows feed the read-only tier. */
+/** Load both tiers from IndexedDB: seed rows feed the read-only tier.
+ *  loadBundled REPLACES the bundled tier, so a source removal that empties
+ *  it is visible immediately (no stale cached bundled efforts). */
 export async function hydrateAppEffortRegistry(registry: CompositeEffortRegistry): Promise<void> {
   const all = await storageService.getAllEfforts();
-  const bundled = all.filter((effort) => effort.registrySource === 'bundled');
-  if (bundled.length > 0) {
-    await registry.loadBundled(bundled);
-  } else if (!registry.isInitialized()) {
-    await registry.loadBundled();
-  }
+  await registry.loadBundled(all.filter((effort) => effort.registrySource === 'bundled'));
 }
 
 let appEffortRegistry: CompositeEffortRegistry | null = null;

@@ -310,13 +310,13 @@ function mapFragmentToPrimitive(
     }
 
     case terms.MetricObject: {
-      let pairs: Array<{ key: string; value: string | number | boolean | null }> = [];
+      let pairs: Array<{ key: string; value: string | number | boolean | null | string[] }> = [];
       try {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           pairs = Object.entries(parsed).map(([key, value]) => ({
             key,
-            value: value as string | number | boolean | null,
+            value: value as string | number | boolean | null | string[],
           }));
         }
       } catch {

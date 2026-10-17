@@ -28,7 +28,7 @@ import {
   Range,
   StateField,
 } from "@codemirror/state";
-import { sectionField, type EditorSection } from "@bitcobblers/wod-wiki-ui/extensions";
+import { sectionField, referenceIndexReload, type EditorSection } from "@bitcobblers/wod-wiki-ui/extensions";
 import {
   ChoiceGroupMetric,
   createParser,
@@ -36,6 +36,7 @@ import {
   type ICodeStatement,
   type IMetric,
 } from "@bitcobblers/wod-wiki-engine";
+import { getSharedReferenceIndex, readNoteReferenceDefaults } from "@/app/editor/noteEditorServices";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -76,7 +77,15 @@ function parseStatements(
   const raw = state.doc.sliceString(section.contentFrom, section.contentTo);
   if (!raw.trim()) return null;
   try {
-    return createParser().read(raw, section.sport).statements as ICodeStatement[];
+    // Same shared resolver the frontmatter preview uses, plus the note's
+    // flat metrics.* defaults, so focused-line chips match the runtime.
+    const references = getSharedReferenceIndex();
+    if (!references) return createParser().read(raw, section.sport).statements as ICodeStatement[];
+    const parser = createParser({
+      references,
+      defaults: readNoteReferenceDefaults(state.doc.toString()),
+    });
+    return parser.read(raw, section.sport).statements as ICodeStatement[];
   } catch {
     return null;
   }
@@ -214,6 +223,7 @@ const cursorFocusInternal = StateField.define<InternalState>({
     return computeFocusState(state);
   },
   update(prev, tr) {
+    if (tr.effects.some((e) => e.is(referenceIndexReload))) return computeFocusState(tr.state);
     if (!tr.docChanged && tr.startState.selection.eq(tr.state.selection)) return prev;
     return computeFocusState(tr.state);
   },

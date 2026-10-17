@@ -46,11 +46,10 @@ import { shareBlock } from '../services/openInPlayground';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui';
-import { effortToDocument, documentToEffort } from '@/repositories/effort-markdown';
+import { effortToDocument, documentToEffort } from '@bitcobblers/wod-wiki-lang';
+import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { ResponsiveActions } from '../nav/ResponsiveActions';
 import { fileToDisplayName } from '@/repositories/groupings';
-import { storageService } from '@/services/storage';
-import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 
 import { pendingRuntimes } from '../runtimeStore';
 /* ── Resolved view (inline widget) ─────────────────────────────────────────── */
@@ -113,6 +112,7 @@ export function EffortDetailPage() {
     isLoading,
     effort,
     isEditable,
+    notFound,
     cloneForEdit,
     error,
   } = useEffortContent(slug);
@@ -167,7 +167,6 @@ export function EffortDetailPage() {
   }, [slug, selectedTargetSlug, registry, refresh, navigate]);
 
   const handleCreateSubmit = useCallback(async () => {
-    if (!isReady || !registry) return;
     const { effort: parsed, errors } = documentToEffort(createDocument);
     if (errors.length > 0) {
       toast({
@@ -177,7 +176,11 @@ export function EffortDetailPage() {
       });
       return;
     }
-    if (!parsed.slug.trim()) {
+
+    // The slug in the document IS the projection identity — validate it, never
+    // silently commit a normalized rewrite that diverges from the source.
+    const slugValue = parsed.slug.trim();
+    if (!slugValue) {
       toast({
         title: 'Missing slug',
         description: 'A unique slug is required.',
@@ -185,30 +188,35 @@ export function EffortDetailPage() {
       });
       return;
     }
-
-    parsed.slug = parsed.slug.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    parsed.label = parsed.label.trim() || fileToDisplayName(parsed.slug);
-    parsed.updatedAt = new Date().toISOString();
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slugValue)) {
+      toast({
+        title: 'Invalid slug',
+        description: `Slug must be lowercase and hyphenated — fix "slug: ${slugValue}" in the document.`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     try {
-      await registry.upsert(parsed);
-      const noteId = `effort/${parsed.slug}`;
-      const existing = await storageService.getNote(noteId);
-      const provider = new IndexedDBContentProvider();
-      if (existing) await provider.updateEntry(existing.id, { rawContent: createDocument,
-        expectedSourceRevision: existing.sourceRevision, title: parsed.label, slug: noteId });
-      else await provider.saveEntry({ id: noteId, title: parsed.label, slug: noteId,
-        rawContent: createDocument, tags: [], targetDate: Date.now(), type: 'note', sourceId: 'effort' });
+      // One atomic commit: source note + definition projection + links.
+      await commitReferenceNote({
+        kind: 'effort',
+        slug: slugValue,
+        rawContent: createDocument,
+        title: parsed.label.trim() || fileToDisplayName(slugValue),
+        expectedSourceRevision: 0,
+      });
       await refresh();
-      navigate(effortPath(parsed.slug), { replace: true });
+      navigate(effortPath(slugValue), { replace: true });
     } catch (err) {
+      // Draft stays intact and editable on failure.
       toast({
         title: 'Save failed',
         description: err instanceof Error ? err.message : 'Failed to save effort.',
         variant: 'destructive',
       });
     }
-  }, [createDocument, isReady, registry, refresh, navigate]);
+  }, [createDocument, refresh, navigate]);
 
   // Resolve effort for the inline "resolved" widget
   const resolver = useMemo(() => new EffortResolver(registry), [registry]);
@@ -271,12 +279,13 @@ export function EffortDetailPage() {
 
   // ── Contextual links: back to the catalog (history state intact) + journal
   // copies stamped with /e/<slug> + workouts whose scripts use this effort.
+  const ownerNoteId = effort?.ownerNoteId ?? `effort/${slug}`;
   const ownership = useMemo(
-    () => slug ? noteOwnership({ id: `effort/${slug}`, type: 'collection' }) : null,
-    [slug],
+    () => slug ? noteOwnership({ id: ownerNoteId, type: 'collection' }) : null,
+    [slug, ownerNoteId],
   );
   const contextData = useNoteContextLinks({
-    noteId: `effort/${slug}`,
+    noteId: ownerNoteId,
     stamps: ownership?.stamps ?? [],
     effortSlug: slug,
   });
@@ -296,15 +305,26 @@ export function EffortDetailPage() {
   }, [effort]);
 
   // ── Handle clone for edit ────────────────────────────────────────────────
-  const handleClone = useCallback(() => {
-    const cloned = cloneForEdit();
-    if (cloned) {
+  const handleClone = useCallback(async () => {
+    if (!effort) return;
+    try {
+      // cloneForEdit awaits the persisted copy commit — navigate only after.
+      const cloned = await cloneForEdit();
+      if (cloned) {
+        navigate(effortPath(cloned.slug));
+        toast({
+          title: 'Cloned',
+          description: `Created a custom copy of "${effort.label}". You can now edit it.`,
+        });
+      }
+    } catch (err) {
       toast({
-        title: 'Cloned',
-        description: `Created a custom copy of "${effort?.label ?? cloned.label}". You can now edit it.`,
+        title: 'Clone failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
       });
     }
-  }, [cloneForEdit, effort?.label]);
+  }, [cloneForEdit, effort, navigate]);
 
   // ── Loading / error states ───────────────────────────────────────────────
   if (!isReady) {
@@ -320,31 +340,40 @@ export function EffortDetailPage() {
     // this create-form route. The form mints a fresh id/slug on save, so the
     // only collision is the URL path itself (unavoidable for any hard-coded
     // create alias).
+    const createActions = (
+      <ResponsiveActions primary={(
+        <Button onClick={handleCreateSubmit} data-testid="effort-create-btn">
+          Create Effort
+        </Button>
+      )}>
+        <Button variant="outline" onClick={() => navigate(effortsPath())}>
+          Cancel
+        </Button>
+      </ResponsiveActions>
+    );
     return (
-      <div className="px-6 lg:px-10 py-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(effortsPath())} title="Back to catalog">
-            <ArrowLeftIcon className="size-4" />
-          </Button>
-          <h1 className="text-xl font-bold tracking-tight">Create Custom Effort</h1>
-        </div>
-        <p className="text-sm text-muted-foreground mb-4">
-          Edit the YAML frontmatter and body, then create.
-        </p>
-        <textarea
-          className="w-full h-96 p-4 font-mono text-sm border rounded-md bg-background"
-          value={createDocument}
-          onChange={(e) => setCreateDocument(e.target.value)}
-          aria-label="Effort document"
+      <div data-testid={TEST_IDS.EFFORT_DETAIL_ROOT} className="contents">
+        <JournalPageShell
+          title={slug && slug !== 'new' ? `New effort: ${slug}` : 'Create Custom Effort'}
+          actions={createActions}
+          editor={
+            <div className="relative" data-testid="effort-create-editor">
+              <NoteEditor
+                value={createDocument}
+                onChange={setCreateDocument}
+                theme={actualTheme}
+                readonly={false}
+                showLineNumbers={true}
+                enablePreview={true}
+                enableLinting={true}
+                enableOverlay={true}
+                mode="edit"
+                commands={commands}
+                onBlocksChange={setScriptBlocks}
+              />
+            </div>
+          }
         />
-        <div className="mt-4 flex gap-2">
-          <Button onClick={handleCreateSubmit}>
-            Create Effort
-          </Button>
-          <Button variant="outline" onClick={() => navigate(effortsPath())}>
-            Cancel
-          </Button>
-        </div>
       </div>
     );
   }
@@ -357,7 +386,23 @@ export function EffortDetailPage() {
     );
   }
 
-  if (error || !effort) {
+  if (error) {
+    // A storage/load failure must not masquerade as "not found" (which offers
+    // to create a colliding definition).
+    return (
+      <div data-testid="effort-load-error" className="flex flex-col items-center justify-center gap-6 py-16 px-4 text-center max-w-lg mx-auto">
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold tracking-tight">Effort could not be loaded</h2>
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+        <Button variant="outline" onClick={() => navigate(effortsPath())}>
+          Back to Catalog
+        </Button>
+      </div>
+    );
+  }
+
+  if (notFound || !effort) {
     return (
       <div data-testid={TEST_IDS.EFFORT_NOT_FOUND} className="flex flex-col items-center justify-center gap-6 py-16 px-4 text-center max-w-lg mx-auto">
         <div className="space-y-2">
@@ -461,7 +506,7 @@ export function EffortDetailPage() {
     </ResponsiveActions>
   );
 
-  const noteId = `effort/${effort.slug}`;
+  const noteId = ownerNoteId;
 
 
   return (

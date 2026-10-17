@@ -34,13 +34,14 @@ import {
   getNoteBundle,
   getSessionBundle,
   getEffortBySlug,
+  getEquipmentBySlug,
   listTagsByType,
 } from './db';
 import { loadCliEnvironment, resolveDatabaseConfig, type CliDatabaseConfig } from './config';
 // Type-only: erased at build time, keeps the Bun-only server module out of the
 // browser/Node import graph (runCliServer itself is lazily imported).
 import type { CliServerOptions } from './server';
-import { persistNote, startRun, persistRun, persistSessionBundle, persistEffort, persistTypedTags } from './persist';
+import { persistNote, startRun, persistRun, persistSessionBundle, persistEffort, persistEquipment, persistTypedTags } from './persist';
 import { defaultSeedDirs, importSeedDir } from './seed';
 import { publishCatalogSeed } from './publish';
 import {
@@ -48,12 +49,13 @@ import {
   csvToEquipmentLabels,
   csvToSessionRows,
   effortToMarkdown,
+  equipmentToMarkdown,
   equipmentToCsv,
   extractNoteIdentity,
   extractTypedTags,
-  markdownToEffort,
   sessionToCsv,
 } from '@bitcobblers/wod-wiki-engine';
+import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import {
   formatParseOutput,
   formatExecutionOutput,
@@ -836,7 +838,11 @@ export async function cliMain(
             writeErr(`[wod ${verb}] Effort not found in ${db.path}: ${id}`);
             return 1;
           }
-          const markdown = effortToMarkdown(effort as Parameters<typeof effortToMarkdown>[0]);
+          // Lossless first: the owning definition note keeps the authored
+          // document verbatim; reconstruct only when no owner note exists.
+          const ownerNoteId = typeof effort.ownerNoteId === 'string' ? effort.ownerNoteId : `effort/${effort.slug}`;
+          const owner = await db.storage.readonly('notes').get(ownerNoteId);
+          const markdown = owner?.rawContent ?? effortToMarkdown(effort as Parameters<typeof effortToMarkdown>[0]);
           const target = parsed.output && parsed.output !== '-' ? parsed.output : `${id}.md`;
           if (parsed.output === '-') {
             writeOut(markdown);
@@ -844,6 +850,23 @@ export async function cliMain(
             nodeFs().writeFileSync(target, markdown, 'utf-8');
           }
           writeOut(`[wod ${verb}] effort ${id} → ${target}`);
+        } else if (id) {
+          // equipment definition — markdown document, mirroring effort export.
+          const equipment = await getEquipmentBySlug(db.db, targetId);
+          if (!equipment) {
+            writeErr(`[wod ${verb}] Equipment not found in ${db.path}: ${id}`);
+            return 1;
+          }
+          const ownerNoteId = typeof equipment.ownerNoteId === 'string' ? equipment.ownerNoteId : `equipment/${equipment.slug}`;
+          const owner = await db.storage.readonly('notes').get(ownerNoteId);
+          const markdown = owner?.rawContent ?? equipmentToMarkdown(equipment as Parameters<typeof equipmentToMarkdown>[0]);
+          const target = parsed.output && parsed.output !== '-' ? parsed.output : `${id}.md`;
+          if (parsed.output === '-') {
+            writeOut(markdown);
+          } else {
+            nodeFs().writeFileSync(target, markdown, 'utf-8');
+          }
+          writeOut(`[wod ${verb}] equipment ${id} → ${target}`);
         } else {
           // equipment — id is unused; export the whole catalog.
           const labels = (await listTagsByType(db.db, 'equipment')).map((t) => t.label).sort();
@@ -898,7 +921,7 @@ export async function cliMain(
         return 0;
       }
       if (kind === 'effort') {
-        const effort = markdownToEffort(fs.readFileSync(file, 'utf-8'));
+        const effort = parseEffortFile(fs.readFileSync(file, 'utf-8'));
         if (!effort) {
           writeErr(`[wod import] Unparseable effort file (need frontmatter id/slug/label + numeric baseAttributes.met): ${file}`);
           return 1;
@@ -907,6 +930,21 @@ export async function cliMain(
         try {
           await persistEffort(db, { ...effort, registrySource: 'user' });
           writeOut(`[wod import] effort ${effort.slug} — ${effort.label} → ${db.path}`);
+        } finally {
+          await db.close();
+        }
+        return 0;
+      }
+      if (kind === 'equipment' && /\.md$/i.test(file)) {
+        const equipment = parseEquipmentFile(fs.readFileSync(file, 'utf-8'));
+        if (!equipment) {
+          writeErr(`[wod import] Unparseable equipment file (need frontmatter type: equipment + id/slug/label): ${file}`);
+          return 1;
+        }
+        const db = await openCliDb(cliDb());
+        try {
+          await persistEquipment(db, { ...equipment, registrySource: 'user' });
+          writeOut(`[wod import] equipment ${equipment.slug} — ${equipment.label} → ${db.path}`);
         } finally {
           await db.close();
         }

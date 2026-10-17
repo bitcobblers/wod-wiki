@@ -7,12 +7,11 @@ import {
   composeNoteMarkdown,
   csvToSessionRows,
   csvToEquipmentLabels,
-  effortToMarkdown,
   equipmentToCsv,
+  equipmentToMarkdown,
   extractNoteIdentity,
   extractTypedTags,
   injectIdentityFrontmatter,
-  markdownToEffort,
   sessionToCsv,
   SESSION_CSV_HEADER,
 } from '../src/exchange';
@@ -184,41 +183,19 @@ describe('exchange typed tags', () => {
     ]);
     expect(extractTypedTags('# no frontmatter\n')).toEqual([]);
   });
-});
 
-describe('exchange effort files', () => {
-  const effortMd = [
-    '---',
-    'id: 33333333-3333-4333-8333-333333333333',
-    'slug: thruster',
-    'label: Thruster',
-    'aliases:',
-    '  - squat clean and press',
-    'baseAttributes:',
-    '  met: 9.8',
-    '  discipline: weightlifting',
-    '  intensityTier: high',
-    '---',
-    '',
-    'A squat clean into an overhead press.',
-  ].join('\n');
-
-  it('round-trips an effort registry row through corpus-style markdown', () => {
-    const parsed = markdownToEffort(effortMd);
-    expect(parsed).not.toBeNull();
-    expect(parsed!.slug).toBe('thruster');
-    expect(parsed!.aliases).toEqual(['squat clean and press']);
-    expect(parsed!.baseAttributes).toEqual({ met: 9.8, discipline: 'weightlifting', intensityTier: 'high' });
-    expect(parsed!.body).toContain('squat clean into an overhead press');
-
-    const recomposed = markdownToEffort(effortToMarkdown(parsed!));
-    expect(recomposed).toEqual(parsed);
-  });
-
-  it('rejects effort files without the required frontmatter', () => {
-    expect(markdownToEffort('# no frontmatter\n')).toBeNull();
-    expect(markdownToEffort('---\nslug: x\nlabel: X\n---\n')).toBeNull(); // no id
-    expect(markdownToEffort('---\nid: i\nslug: x\nlabel: X\n---\nbody\n')).toBeNull(); // no met
+  it('serializes equipment registry rows back into corpus-style markdown', () => {
+    const markdown = equipmentToMarkdown({
+      id: '44444444-4444-4444-8444-444444444444',
+      slug: 'dumbbell',
+      label: 'Dumbbell',
+      aliases: ['dumbbells'],
+      body: 'Fixed-weight free weight.',
+    });
+    expect(markdown).toContain('type: equipment');
+    expect(markdown).toContain('slug: dumbbell');
+    expect(markdown).toContain('  - dumbbells');
+    expect(markdown.endsWith('Fixed-weight free weight.\n')).toBe(true);
   });
 });
 

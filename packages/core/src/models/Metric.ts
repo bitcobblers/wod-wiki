@@ -149,6 +149,14 @@ export enum MetricType {
 
   Rep = 'rep',
   Effort = 'effort',
+  /**
+   * **Equipment** (Core) — ordered deduplicated canonical equipment slugs for a
+   * statement (e.g. `["dumbbell"]` from `10 Dumbbell Snatch`). One metric per
+   * statement; `metadata.refs` carries structured ReferenceRef entries,
+   * `metadata.source` the authored label, `metadata.diagnostics` any
+   * unknown/ambiguous/malformed reference findings.
+   */
+  Equipment = 'equipment',
   Distance = 'distance',
   Rounds = 'rounds',
   CurrentRound = 'current-round',

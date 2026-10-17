@@ -136,6 +136,12 @@ export function CommandListView<TPayload>({
       onClose();
       return;
     }
+    if (e.key === 'Enter' && !e.defaultPrevented && state.visibleItems.length > 0) {
+      e.preventDefault();
+      const active = state.visibleItems.find(i => i.id === state.activeId) ?? state.visibleItems[0];
+      handleActivate(active);
+      return;
+    }
     if (e.key === 'ArrowDown' && !e.defaultPrevented && state.visibleItems.length > 0) {
       e.preventDefault();
       state.setActiveId(state.visibleItems[0].id);

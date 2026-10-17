@@ -19,9 +19,13 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { EditorView } from "@codemirror/view";
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import type { IMetric } from '@bitcobblers/wod-wiki-engine';
+import { getReferenceMetadata } from '@bitcobblers/wod-wiki-core';
 import { getCursorFocusState, type CursorFocusState } from '@/app/editor/cursorFocusExtension';
+import { frontmatterReferenceIndex } from '@bitcobblers/wod-wiki-ui/extensions';
 import { presentThemedGroup } from "@/components/metrics/presentation";
 import type { SegmentType } from "@/components/organisms/command-palette/segmentSources";
+import { usePaletteStore } from '@/components/organisms/command-palette/palette-store';
+import { referencePaletteSource, parseLineRefs, buildLineWithRefs } from '@/app/editor/noteEditorServices';
 import { cn } from "@/lib/utils";
 import type { ScriptCommand } from "@/components/Editor/overlays/ScriptCommand";
 
@@ -71,6 +75,14 @@ const METRIC_STYLES: Partial<Record<string, MetricStyle>> = {
     textClass: "text-metric-resistance",
     bgClass:   "bg-metric-resistance/10",
     borderClass: "border-metric-resistance/30",
+  },
+  // No palette token exists for equipment yet — neutral styling keeps it
+  // distinguishable via the icon/label without redesigning the palette.
+  [MetricType.Equipment]: {
+    label: "Equipment", icon: "🧰",
+    textClass: "text-foreground",
+    bgClass:   "bg-muted/40",
+    borderClass: "border-border/50",
   },
   [MetricType.Action]: {
     label: "Action", icon: "⚡",
@@ -131,6 +143,26 @@ const MetricChip: React.FC<{
 };
 
 // ── Panel position ────────────────────────────────────────────────────
+
+/** Canonical references attached by the shared resolver (parser metadata). */
+interface ReferenceRefShape {
+  kind: 'effort' | 'equipment';
+  slug: string;
+  label: string;
+}
+
+/** Resolver diagnostics for authored references (unknown/ambiguous/conflicting). */
+interface DiagnosticShape {
+  reason: string;
+  message: string;
+  token?: string;
+  candidates?: readonly string[];
+}
+
+function metricMetadata(metric: IMetric): { refs: ReferenceRefShape[]; diagnostics: DiagnosticShape[] } {
+  const reference = getReferenceMetadata(metric.metadata);
+  return { refs: reference?.refs ?? [], diagnostics: reference?.diagnostics ?? [] };
+}
 
 interface PanelPosition {
   top: number;
@@ -223,12 +255,132 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
   // Same presentation tokens the effort widget's badges use (tooltip content).
   const tokens = presentThemedGroup(visibleMetrics, 'runtime-badge');
 
+  // Canonical refs + resolver diagnostics straight off the parser-attached
+  // metadata — the panel never re-resolves labels from display text.
+  const lineMetrics = lineStatements.flatMap(s => s.metrics.toArray());
+  const seenRefKeys: string[] = [];
+  const refs: ReferenceRefShape[] = [];
+  const diagnostics: DiagnosticShape[] = [];
+  for (const metric of lineMetrics) {
+    const metadata = metricMetadata(metric);
+    for (const ref of metadata.refs) {
+      const refKey = `${ref.kind}:${ref.slug}`;
+      if (!seenRefKeys.includes(refKey)) {
+        seenRefKeys.push(refKey);
+        refs.push(ref);
+      }
+    }
+    diagnostics.push(...metadata.diagnostics);
+  }
+  const referenceProvider = view ? (view.state.facet(frontmatterReferenceIndex)?.() ?? null) : null;
+  const lineRefs = view ? parseLineRefs(view.state.doc.sliceString(focus.lineFrom, focus.lineTo)) : null;
+
+  /** Resolve which catalog a diagnostic repair should offer. */
+  const diagnosticKind = (diag: DiagnosticShape): 'effort' | 'equipment' => {
+    if (diag.reason === 'conflict' || diag.reason.endsWith('equipment')) return 'equipment';
+    if (diag.reason === 'invalid-explicit') {
+      if (diag.token && lineRefs?.equipment.includes(diag.token)) return 'equipment';
+    }
+    return 'effort';
+  };
+
+  /** Palette payloads are author-validated slugs; anything else is refused. */
+  const payloadSlug = (payload: unknown): string | null =>
+    typeof payload === 'string' && payload.trim() ? payload : null;
+
+  const changeRefSource = async (kind: 'effort' | 'equipment') => {
+    if (!view) return;
+    const lineText = view.state.doc.sliceString(focus.lineFrom, focus.lineTo);
+    const palette = usePaletteStore.getState();
+    if (kind === 'effort') {
+      const result = await palette.open({ placeholder: 'Change effort…', sources: [referencePaletteSource('effort')] });
+      if (result.dismissed) return;
+      const slug = payloadSlug(result.item.payload);
+      if (!slug) return;
+      view.dispatch({
+        changes: { from: focus.lineFrom, to: focus.lineTo, insert: buildLineWithRefs(lineText, { effort: slug }) },
+      });
+      return;
+    }
+    const equipment = [...(lineRefs?.equipment ?? [])];
+    for (;;) {
+      const result = await palette.open({
+        placeholder: equipment.length > 0 ? 'Add equipment (Esc to finish)…' : 'Set equipment…',
+        sources: [referencePaletteSource('equipment')],
+      });
+      if (result.dismissed) break;
+      const slug = payloadSlug(result.item.payload);
+      if (slug && !equipment.includes(slug)) equipment.push(slug);
+    }
+    if ((lineRefs?.jsonFrom ?? -1) >= 0 || equipment.length > 0) {
+      view.dispatch({
+        changes: { from: focus.lineFrom, to: focus.lineTo, insert: buildLineWithRefs(lineText, { equipment }) },
+      });
+    }
+  };
+
+  // Add metric on the focused line: explicit refs land as quoted JSON
+  // (effort string, equipment array) merged into the statement's JSON
+  // suffix, preserving existing refs and unrelated metric keys.
+  const addLineMetric = async () => {
+    if (!view) return;
+    const lineText = view.state.doc.sliceString(focus.lineFrom, focus.lineTo);
+    const palette = usePaletteStore.getState();
+    let effort: string | undefined;
+    const effortResult = await palette.open({ placeholder: 'Add effort (Esc to skip)…', sources: [referencePaletteSource('effort')] });
+    if (!effortResult.dismissed) effort = payloadSlug(effortResult.item.payload) ?? undefined;
+    const equipment: string[] = [];
+    for (;;) {
+      const result = await palette.open({ placeholder: 'Add equipment (Esc to finish)…', sources: [referencePaletteSource('equipment')] });
+      if (result.dismissed) break;
+      const slug = payloadSlug(result.item.payload);
+      if (slug && !equipment.includes(slug)) equipment.push(slug);
+    }
+    if (!effort && equipment.length === 0) return;
+    view.dispatch({
+      changes: { from: focus.lineFrom, to: focus.lineTo, insert: buildLineWithRefs(lineText, { effort, equipment }) },
+    });
+  };
+
+  const repairDiagnostic = async (diag: DiagnosticShape) => {
+    if (!view || !diag.token) return;
+    const kind = diagnosticKind(diag);
+    const palette = usePaletteStore.getState();
+    const result = await palette.open({
+      placeholder: `Replace “${diag.token}”…`,
+      sources: [referencePaletteSource(kind, diag.candidates)],
+    });
+    if (result.dismissed) return;
+    const slug = payloadSlug(result.item.payload);
+    if (!slug) return;
+    const lineText = view.state.doc.sliceString(focus.lineFrom, focus.lineTo);
+    const tokenIndex = lineText.indexOf(diag.token);
+    if (tokenIndex < 0) return;
+    view.dispatch({
+      changes: {
+        from: focus.lineFrom + tokenIndex,
+        to: focus.lineFrom + tokenIndex + diag.token.length,
+        insert: slug,
+      },
+    });
+  };
+
   const handleChipClick = (metric: IMetric) => {
     const segment = SEGMENT_FOR_METRIC[metric.type as string];
-    if (!segment) return;
+    if (!segment || !view) return;
+    // Explicit JSON refs are edited as refs; plain statement text still goes
+    // through the statement builder (which owns the phrase segments).
+    const kind: 'effort' | 'equipment' | null =
+      metric.type === MetricType.Effort ? 'effort'
+      : metric.type === MetricType.Equipment ? 'equipment'
+      : null;
+    if (kind && lineRefs?.jsonFrom !== undefined && lineRefs.jsonFrom >= 0) {
+      void changeRefSource(kind);
+      return;
+    }
     import("@/components/Editor/services/statementBuilderFlow").then(
       ({ runStatementBuilderFlow }) => {
-        runStatementBuilderFlow(focus, view!, segment);
+        runStatementBuilderFlow(focus, view, segment);
       }
     );
   };
@@ -272,6 +424,83 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                   : undefined}
               />
             ))}
+
+            {/* Canonical resolved references — click changes the source,
+                ↗ opens the effort/equipment page. */}
+            {refs.map((ref) => (
+              <span
+                key={`${ref.kind}:${ref.slug}`}
+                title={`${ref.kind === 'effort' ? 'Effort' : 'Equipment'} · click to change source`}
+                onClick={() => void changeRefSource(ref.kind)}
+                className="pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium cursor-pointer hover:opacity-80 bg-muted/40 text-foreground border-border/50"
+              >
+                <span>{ref.kind === 'effort' ? '🏋' : '🧰'}</span>
+                <span className="font-semibold">{ref.label}</span>
+                {referenceProvider && (
+                  <a
+                    href={referenceProvider.openHref(ref.kind, ref.slug)}
+                    title={`Open ${ref.label} page`}
+                    aria-label={`Open ${ref.label} page`}
+                    className="text-muted-foreground/70 hover:text-foreground"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    ↗
+                  </a>
+                )}
+              </span>
+            ))}
+
+            {/* Malformed reference JSON refuses structured rewrites; the
+                authored text stays and the user fixes it in place. */}
+            {lineRefs?.malformed && (
+              <span
+                data-testid="editor-ref-unknown"
+                title="Reference JSON on this line does not parse — fix it in the raw text."
+                className="pointer-events-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[11px] font-medium bg-destructive/10 text-destructive border-destructive/30"
+              >
+                <span>⚠</span>
+                <span>Malformed reference JSON</span>
+              </span>
+            )}
+
+            {/* Unknown/ambiguous/conflicting references stay visible with
+                select-existing and create-page actions — never silent. */}
+            {diagnostics.map((diag, i) => {
+              const diagKind = diagnosticKind(diag);
+              return (
+                <span
+                  key={`${diag.reason}-${i}`}
+                  data-testid="editor-ref-unknown"
+                  title={diag.message}
+                  className="pointer-events-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[11px] font-medium bg-destructive/10 text-destructive border-destructive/30"
+                >
+                  <span>⚠</span>
+                  <span>{diag.token ?? diag.reason}</span>
+                  <button
+                    type="button"
+                    className="underline cursor-pointer"
+                    onClick={() => void repairDiagnostic(diag)}
+                  >
+                    Select existing
+                  </button>
+                  {referenceProvider && (
+                    <a href={referenceProvider.createHref(diagKind)} className="underline hover:text-foreground">
+                      Create page
+                    </a>
+                  )}
+                </span>
+              );
+            })}
+
+            <button
+              type="button"
+              data-testid="editor-add-metric-line"
+              title="Add effort/equipment reference to this line"
+              onClick={() => void addLineMetric()}
+              className="pointer-events-auto inline-flex items-center px-1.5 py-0.5 rounded border border-dashed border-border/60 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary/50 cursor-pointer"
+            >
+              + Metric
+            </button>
           </div>
         </>
       ) : (

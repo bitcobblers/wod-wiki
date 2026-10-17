@@ -1,8 +1,9 @@
 import { mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core';
 import type { IStorage, IReadWriteStore } from '@bitcobblers/wod-wiki-storage';
+import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
+import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import { extractTypedTags, readFrontmatterMeta } from '../exchange';
-import { parseEffortFile } from './effort-file';
-import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, seedNoteSourceId, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
+import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, seedNoteSourceId, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
 import { assertSeedManifest, assertSeedRows } from './validation';
 
 const SEED_NAMESPACE = '1b671a64-40d5-491e-99b0-da01ff1f3341';
@@ -47,6 +48,7 @@ export interface SeedChunkWrite {
 export interface SeedChunkResult {
   totalNotes: number;
   totalEfforts: number;
+  totalEquipment: number;
   totalBlocks: number;
   skippedUserOwned: number;
   deleted: number;
@@ -54,6 +56,64 @@ export interface SeedChunkResult {
   addedNotes: number;
   /** Committed canonical notes whose content changed in this chunk. */
   updatedNotes: number;
+}
+
+/**
+ * Materialize one family's bundled definition projections from the chunk's
+ * markdown rows. Ownership is exact: a projection is stamped with its owner
+ * note id + source family + corpus path, only overwrites `bundled` rows, and
+ * a same-slug row owned by a DIFFERENT seed source is an explicit collision —
+ * never last-import-wins. Custom (`user`) copies always shadow and survive.
+ * Tombstones remove bundled projections of notes this chunk no longer
+ * declares; user rows are never deleted.
+ */
+async function applyDefinitionChunk<T extends IEffort | IEquipment>(
+  defStore: IReadWriteStore<T>,
+  parse: (raw: string) => T | null,
+  family: string,
+  rows: SeedRow[],
+  ids: string[],
+  owned: Set<string>,
+  existingById: Map<string, Note | undefined>,
+  allIds: string[],
+): Promise<number> {
+  const projections: T[] = [];
+  for (const [i, row] of rows.entries()) {
+    if (!owned.has(ids[i])) continue;
+    const parsed = parse(row.content);
+    if (!parsed) continue;
+    projections.push({ ...parsed, registrySource: 'bundled' as const, ownerNoteId: ids[i], sourceId: family, sourcePath: row.path });
+  }
+  const prior = await defStore.getMany(projections.map((p) => p.slug));
+  for (const [i, p] of projections.entries()) {
+    const before = prior[i];
+    if (before?.registrySource === 'bundled' && before.ownerNoteId && before.ownerNoteId !== p.ownerNoteId) {
+      throw new Error(`Seed definition collision: '${p.slug}' is already owned by another seed source (note ${before.ownerNoteId})`);
+    }
+  }
+  const changed = projections.filter((p, i) => (!prior[i] || prior[i]?.registrySource === 'bundled') && !equal(p, prior[i]));
+  if (changed.length) await defStore.putMany(changed);
+  const wantedSlugs = new Set(projections.map((p) => p.slug));
+  // Tombstones are exact-ownership: the store is keyed by SLUG, so map each
+  // removed note to its slug and delete only when the stored projection's
+  // ownerNoteId is exactly the note this chunk owned and no longer declares.
+  // Legacy rows without an owner stamp are never deleted here — re-import
+  // reclaims them by slug instead.
+  const removedBySlug = new Map<string, string>();
+  for (const id of allIds) {
+    if (!owned.has(id)) continue;
+    const note = existingById.get(id);
+    const slug = note ? parse(note.rawContent)?.slug : undefined;
+    if (slug && !wantedSlugs.has(slug)) removedBySlug.set(slug, id);
+  }
+  const removedSlugs = [...removedBySlug.keys()];
+  const old = await defStore.getMany(removedSlugs);
+  for (const [i, row] of old.entries()) {
+    if (row?.registrySource === 'bundled' && removedBySlug.get(removedSlugs[i]) === row.ownerNoteId) {
+      await defStore.delete(removedSlugs[i]);
+    }
+  }
+  return changed.length;
 }
 
 async function putChanged<T>(store: IReadWriteStore<T>, values: T[], keys: IDBValidKey[]): Promise<void> {
@@ -66,7 +126,7 @@ async function putChanged<T>(store: IReadWriteStore<T>, values: T[], keys: IDBVa
 export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): Promise<SeedChunkResult> {
   assertSeedManifest(write.manifest);
   assertSeedRows(write.rows);
-  const result: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
+  const result: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
   const ids = await Promise.all(write.rows.map((row) => seedNoteId(row.path)));
   const pagesBySlug = new Map<string, string>();
   const linkIds = new Map<string, string>();
@@ -81,7 +141,7 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       if (!tagIds.has(label)) tagIds.set(label, await seedNoteId(`tag:${label}`));
     }
   }
-  return storage.transaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'page', 'page_notes', 'tags', 'note_tags', 'efforts', 'meta'], 'readwrite', async (tx) => {
+  return storage.transaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'page', 'page_notes', 'tags', 'note_tags', 'efforts', 'equipment', 'meta'], 'readwrite', async (tx) => {
     const metaStore = tx.readwrite('meta');
     const actualMeta = await metaStore.get(write.meta.key);
     if (!equal(actualMeta, write.expectedMeta)) throw new Error('Seed checkpoint changed during import');
@@ -95,14 +155,41 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     const existingById = new Map(allIds.map((id, i) => [id, stored[i]]));
     const ownedIds = allIds.filter((id) => { const note = existingById.get(id); return !note || note.seedOrigin === 'seed' && (declared.has(id) || note.seedChunkId === write.chunkId); });
     const owned = new Set(ownedIds);
+    // Same corpus path via a DIFFERENT source: seedNoteId(path) is
+    // deterministic, so the second import would silently re-claim the first
+    // source's note. Chunk ids are RESERVED FAMILIES shared by every source
+    // (both ship an `efforts` chunk), so the owning checkpoint — never the
+    // chunk id — is the ownership authority: any OTHER `seed:<id>`
+    // checkpoint recording this note id is a collision. A miss means the
+    // note moved between families within THIS source, which stays allowed.
+    {
+      let checkpoints: Array<{ key: string; noteIds: Set<string> }> | undefined;
+      for (const [i, id] of ids.entries()) {
+        const existing = existingById.get(id);
+        if (!existing || existing.seedOrigin !== 'seed') continue;
+        if (checkpoints === undefined) {
+          checkpoints = [];
+          for (const row of await metaStore.getAll()) {
+            const meta = row as unknown as SeedMetaRecord | undefined;
+            if (!meta || typeof meta.key !== 'string' || !meta.key.startsWith('seed:') || meta.key === write.meta.key) continue;
+            const noteIds = new Set<string>();
+            for (const chunk of Object.values(meta.chunks ?? {})) for (const noteId of chunk.noteIds ?? []) noteIds.add(noteId);
+            checkpoints.push({ key: meta.key, noteIds });
+          }
+        }
+        const owner = checkpoints.find((checkpoint) => checkpoint.noteIds.has(id));
+        if (owner) throw new Error(`Seed note collision: '${write.rows[i].path}' is already owned by ${owner.key}`);
+      }
+    }
     const revisionStore = tx.readwrite('block_revisions');
     const historyIds = ids.filter((id, i) => owned.has(id) && existingById.get(id)?.rawContent !== write.rows[i].content);
     const histories = await revisionStore.getAllFromIndexMany('by-note', historyIds);
     const history = new Map(historyIds.map((id, i) => [id, histories[i]]));
-    const indexStore = tx.readwrite('block_index'), effortLinks = tx.readwrite('block_efforts');
+    const indexStore = tx.readwrite('block_index'), effortLinks = tx.readwrite('block_efforts'), equipmentLinks = tx.readwrite('block_equipment');
     const tagLinks = tx.readwrite('note_tags'), pageLinks = tx.readwrite('page_notes');
     const currentIndexes = await indexStore.getAllFromIndexMany('by-note', ownedIds);
     const currentEfforts = await effortLinks.getAllFromIndexMany('by-note', ownedIds);
+    const currentEquipment = await equipmentLinks.getAllFromIndexMany('by-note', ownedIds);
     const currentTags = await tagLinks.getAllFromIndexMany('by-note', ownedIds);
     const currentPages = await pageLinks.getAllFromIndexMany('by-note', ownedIds);
     const slot = new Map(ownedIds.map((id, i) => [id, i]));
@@ -111,7 +198,7 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     const matches = await tagsStore.getAllFromIndexMany('by-label', labels);
     const tagsByLabel = new Map(labels.map((label, i) => [label, matches[i][0]]));
     const changedTags: Tag[] = [], changedNotes: Note[] = [], revisions: BlockRevision[] = [], pages: Page[] = [], pageNotes: PageNote[] = [], noteTags: NoteTag[] = [];
-    const blocks: SeedRow['blockIndex'] = [], blockEfforts: SeedRow['blockEfforts'] = [];
+    const blocks: SeedRow['blockIndex'] = [], blockEfforts: SeedRow['blockEfforts'] = [], blockEquipment: SeedRow['blockEquipment'] = [];
     for (const [i, row] of write.rows.entries()) {
       const id = ids[i], existing = existingById.get(id);
       if (!owned.has(id)) { result.skippedUserOwned++; continue; }
@@ -176,6 +263,13 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
         const prior = currentEfforts[slot.get(id)!].find((b) => b.id === link.id);
         if (!prior || prior.isStatic === true) blockEfforts.push(prior ? { ...link, createdAt: prior.createdAt } : link);
       }
+      for (const compiled of row.blockEquipment) {
+        const blockId = remap.get(compiled.blockId);
+        if (!blockId || compiledById.get(compiled.blockId)?.dataType !== 'wod') throw new Error('Orphan seed equipment link');
+        const link = { ...compiled, id: `${id}:${blockId}:${compiled.equipmentSlug}`, noteId: id, blockId, sourcePath: row.path };
+        const prior = currentEquipment[slot.get(id)!].find((b) => b.id === link.id);
+        if (!prior || prior.isStatic === true) blockEquipment.push(prior ? { ...link, createdAt: prior.createdAt } : link);
+      }
       const n = slot.get(id)!;
       const wantedTags = new Set<string>();
       for (const item of extractTypedTags(row.content)) {
@@ -197,9 +291,10 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       result.totalNotes++;
       result.totalBlocks += Object.keys(map).length;
     }
-    const wantedBlocks = new Set(blocks.map((b) => b.id)), wantedEfforts = new Set(blockEfforts.map((b) => b.id));
+    const wantedBlocks = new Set(blocks.map((b) => b.id)), wantedEfforts = new Set(blockEfforts.map((b) => b.id)), wantedEquipment = new Set(blockEquipment.map((b) => b.id));
     for (const rows of currentIndexes) for (const row of rows) if (row.isStatic === true && !wantedBlocks.has(row.id)) await indexStore.delete(row.id);
     for (const rows of currentEfforts) for (const row of rows) if (row.isStatic === true && !wantedEfforts.has(row.id)) await effortLinks.delete(row.id);
+    for (const rows of currentEquipment) for (const row of rows) if (row.isStatic === true && !wantedEquipment.has(row.id)) await equipmentLinks.delete(row.id);
     for (const id of goneIds) {
       if (!owned.has(id) || !existingById.get(id)) continue;
       const n = slot.get(id)!;
@@ -208,22 +303,17 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       for (const link of currentPages[n]) await pageLinks.delete(link.id);
       result.deleted++;
     }
-    const effortStore = tx.readwrite('efforts');
     if (write.chunkId === EFFORTS_CHUNK_ID) {
-      const efforts = write.rows.filter((_row, i) => owned.has(ids[i])).map((r) => parseEffortFile(r.content)).filter((e) => e !== null).map((e) => ({ ...e, registrySource: 'bundled' as const }));
-      const prior = await effortStore.getMany(efforts.map((e) => e.slug));
-      const changed = efforts.filter((e, i) => (!prior[i] || prior[i]?.registrySource === 'bundled') && !equal(e, prior[i]));
-      if (changed.length) await effortStore.putMany(changed);
-      result.totalEfforts = changed.length;
-      const wantedSlugs = new Set(efforts.map((effort) => effort.slug));
-      const removed = allIds.map((id) => { const note = existingById.get(id); return owned.has(id) && note ? parseEffortFile(note.rawContent)?.slug : undefined; }).filter((slug): slug is string => !!slug && !wantedSlugs.has(slug));
-      const old = await effortStore.getMany(removed);
-      for (const [i, effort] of old.entries()) if (effort?.registrySource === 'bundled') await effortStore.delete(removed[i]);
+      result.totalEfforts = await applyDefinitionChunk(tx.readwrite('efforts'), parseEffortFile, 'efforts', write.rows, ids, owned, existingById, allIds);
+    }
+    if (write.chunkId === EQUIPMENT_CHUNK_ID) {
+      result.totalEquipment = await applyDefinitionChunk(tx.readwrite('equipment'), parseEquipmentFile, 'equipment', write.rows, ids, owned, existingById, allIds);
     }
     if (changedNotes.length) await noteStore.putMany(changedNotes);
     if (revisions.length) await revisionStore.putMany(revisions);
     await putChanged(indexStore, blocks, blocks.map((b) => b.id));
     await putChanged(effortLinks, blockEfforts, blockEfforts.map((b) => b.id));
+    await putChanged(equipmentLinks, blockEquipment, blockEquipment.map((b) => b.id));
     if (changedTags.length) await tagsStore.putMany([...new Map(changedTags.map((t) => [t.id, t])).values()]);
     if (noteTags.length) await tagLinks.putMany(noteTags);
     await putChanged(tx.readwrite('page'), pages, pages.map((p) => p.id));

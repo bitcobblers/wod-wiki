@@ -11,7 +11,12 @@ import type { StoreName } from './contract';
 // UNCHANGED — the sync tables are layered separately (_wodwiki_sync_*) — so
 // SQL databases at v29 pass the StoreDef equality guard and migrate forward
 // without touching rows (see sql/store.ts initializeStore).
-export const DB_VERSION = 30;
+//
+// V31 adds the `equipment` definition store and the `block_equipment`
+// containment-link store. Both are pure additions (no existing store's
+// keyPath, indexes or row shape changes), so initializeStore migrates v30
+// SQL databases by creating the two tables; every existing row survives.
+export const DB_VERSION = 31;
 
 /**
  * Typed field metadata — column type per extracted field path, shared with
@@ -60,6 +65,7 @@ export const COLUMN_TYPES: Record<StoreName, Record<string, StorageColumnType>> 
   field_values: {},
   field_catalog_meta: {},
   efforts: { 'baseAttributes.met': 'number' },
+  equipment: {},
   block_index: {
     blockVersion: 'number',
     sourceRevision: 'number',
@@ -70,6 +76,7 @@ export const COLUMN_TYPES: Record<StoreName, Record<string, StorageColumnType>> 
     isStatic: 'boolean',
   },
   block_efforts: { createdAt: 'number', isStatic: 'boolean' },
+  block_equipment: { createdAt: 'number', isStatic: 'boolean' },
   meta: {},
   memberships: { createdAt: 'number' },
 };
@@ -175,6 +182,11 @@ export const STORE_DEFS: StoreDef[] = [
     { name: 'by-source', keyPath: ['registrySource'] },
     { name: 'by-user', keyPath: ['userId'] },
   ] },
+  // 11b. equipment (V31) — canonical equipment definitions, keyed by slug
+  { name: 'equipment', keyPath: ['slug'], indexes: [
+    { name: 'by-source', keyPath: ['registrySource'] },
+    { name: 'by-user', keyPath: ['userId'] },
+  ] },
   // 12. block_index
   { name: 'block_index', keyPath: ['id'], indexes: [
     { name: 'by-note', keyPath: ['noteId'] },
@@ -187,6 +199,13 @@ export const STORE_DEFS: StoreDef[] = [
   { name: 'block_efforts', keyPath: ['id'], indexes: [
     { name: 'by-note', keyPath: ['noteId'] },
     { name: 'by-effort', keyPath: ['effortSlug'] },
+    { name: 'by-block', keyPath: ['blockContentId'] },
+    { name: 'by-user', keyPath: ['userId'] },
+  ] },
+  // 13b. block_equipment (V31) — containment links, mirroring block_efforts
+  { name: 'block_equipment', keyPath: ['id'], indexes: [
+    { name: 'by-note', keyPath: ['noteId'] },
+    { name: 'by-equipment', keyPath: ['equipmentSlug'] },
     { name: 'by-block', keyPath: ['blockContentId'] },
     { name: 'by-user', keyPath: ['userId'] },
   ] },

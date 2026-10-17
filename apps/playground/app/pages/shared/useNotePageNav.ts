@@ -26,8 +26,10 @@ export interface UseNotePageNavOptions {
   content: string
   /** Parsed time/log blocks (from `<NoteEditor onBlocksChange>`). */
   scriptBlocks: ScriptBlock[]
-  /** Callback invoked when the user runs a time/log link. */
-  onStartWorkout: (block: ScriptBlock) => void
+  /** Callback invoked when the user runs a time/log link. Omit on note
+   *  pages whose bodies are reference material (e.g. equipment) — time
+   *  links then stay display-only, like `log` links. */
+  onStartWorkout?: (block: ScriptBlock) => void
   /**
    * Optional results to badge each time/log link with `hasResult` / `resultCount`.
    * Only the JournalPage uses this today.
@@ -45,7 +47,7 @@ export interface UseNotePageNavOptions {
 export function wirePageIndexLinks(
   base: PageNavLink[],
   scriptBlocks: ScriptBlock[],
-  onStartWorkout: (block: ScriptBlock) => void,
+  onStartWorkout: ((block: ScriptBlock) => void) | undefined,
   results?: Session[],
   onEditNote?: () => void,
 ): PageNavLink[] {
@@ -64,6 +66,10 @@ export function wirePageIndexLinks(
 
     // Log links are display-only (#891/#894): badges yes, Run affordance no.
     if (link.type === 'log') return { ...link, ...badge }
+
+    // Pages without a run handler (reference-material bodies) keep time
+    // links display-only too.
+    if (!onStartWorkout) return { ...link, ...badge }
 
     return {
       ...link,

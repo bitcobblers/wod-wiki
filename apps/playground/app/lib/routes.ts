@@ -39,6 +39,10 @@ export const ROUTE_PATTERNS = {
   collectionTarget: '/c/:collection/:workout',
   /** /e/:slug — effort detail (single-letter item prefix). */
   effortSlug: '/e/:slug',
+  /** /equipment — the equipment list (note stream). */
+  equipment: '/equipment',
+  /** /equipment/:slug — equipment detail (create rides slug 'new' + ?mode=create). */
+  equipmentSlug: '/equipment/:slug',
   /** /sessions list, /results/:sessionId detail, /session/:date — the sessions family. */
   sessions: '/sessions',
   /** /results/:sessionId — one session's execution detail (canonical). */
@@ -178,6 +182,11 @@ export function playgroundsPath(): string {
 
 export function effortsPath(): string {
   return '/efforts';
+}
+
+/** /equipment/:slug */
+export function equipmentPath(slug: string): string {
+  return `/equipment/${encodeURIComponent(slug)}`;
 }
 
 /** /analytics/explorer with an optional pre-filled WQL query and range.
@@ -443,6 +452,11 @@ export function isCollectionWorkoutPath(pathname: string): boolean {
 /** Detect whether a location pathname belongs to the efforts family. */
 export function isEffortsPath(pathname: string): boolean {
   return pathname === '/efforts' || pathname.startsWith('/effort/') || pathname.startsWith('/e/');
+}
+
+/** Detect whether a location pathname belongs to the equipment family (list + detail). */
+export function isEquipmentPath(pathname: string): boolean {
+  return pathname === '/equipment' || pathname.startsWith('/equipment/');
 }
 
 /** Detect whether a location pathname belongs to the effort family. */

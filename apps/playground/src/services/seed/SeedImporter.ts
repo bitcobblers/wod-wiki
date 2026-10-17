@@ -18,18 +18,22 @@ export class SeedImporter {
   async applyAll(opts: { forceAll?: boolean; onFirstPaintApplied?: () => void; onProgress?: (progress: SeedImportProgress) => void } = {}): Promise<SeedImportResult> {
     const manifest = assertSeedManifest(await this.source.fetchManifest());
     const key = seedMetaKey(this.sourceId);
-    let expected = await this.storage.getSeedMeta(key);
-    if (expected && expected.schema !== SEED_SCHEMA) throw new Error('Incompatible seed checkpoint; recreate storage');
+    const stored = await this.storage.getSeedMeta(key);
+    // Schema cutover: a checkpoint from another SEED_SCHEMA cannot own
+    // anything — reset it and re-import from scratch. No data is deleted:
+    // notes/projections are reclaimed by exact note id on re-import, and
+    // user-owned rows are untouched.
+    let expected = stored?.schema === SEED_SCHEMA ? stored : undefined;
     let meta = expected ?? emptySeedMeta(key);
     if (manifest.version < meta.seedVersion) throw new Error('Seed manifest is older than the stored checkpoint');
     const metadataChanged = manifest.version !== meta.seedVersion || manifest.builtAt !== meta.builtAt;
     const plan = manifest.chunks.filter((c) => opts.forceAll || metadataChanged || meta.chunks[c.id]?.sha256 !== c.sha256);
     plan.sort((a, b) => Number(b.id === CANVAS_CHUNK_ID) - Number(a.id === CANVAS_CHUNK_ID));
     const vanished = Object.keys(meta.chunks).filter((id) => !manifest.chunks.some((c) => c.id === id));
-    const result: SeedImportResult = { status: 'current', appliedChunks: 0, totalNotes: 0, totalEfforts: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
+    const result: SeedImportResult = { status: 'current', appliedChunks: 0, totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
     if (!plan.length && !vanished.length && !metadataChanged) return result;
     result.status = 'imported';
-    const report = (phase: SeedImportProgress['phase'], chunkId: string | null) => opts.onProgress?.({ phase, chunkId, completedChunks: result.appliedChunks, totalChunks: plan.length, totalNotes: result.totalNotes, totalEfforts: result.totalEfforts, totalBlocks: result.totalBlocks, skippedUserOwned: result.skippedUserOwned, deleted: result.deleted, addedNotes: result.addedNotes, updatedNotes: result.updatedNotes });
+    const report = (phase: SeedImportProgress['phase'], chunkId: string | null) => opts.onProgress?.({ phase, chunkId, completedChunks: result.appliedChunks, totalChunks: plan.length, totalNotes: result.totalNotes, totalEfforts: result.totalEfforts, totalEquipment: result.totalEquipment, totalBlocks: result.totalBlocks, skippedUserOwned: result.skippedUserOwned, deleted: result.deleted, addedNotes: result.addedNotes, updatedNotes: result.updatedNotes });
     for (let i = 0; i < plan.length;) {
       // ponytail: four fetches bound cold-import memory; tune from actual import traces.
       const batch = plan.slice(i, i + (plan[i]?.id === CANVAS_CHUNK_ID ? 1 : 4));
@@ -44,7 +48,7 @@ export class SeedImporter {
         const next: SeedMetaRecord = { ...meta, chunks: { ...meta.chunks, [chunk.id]: { sha256: chunk.sha256, noteIds } }, importedAt: this.now() };
         report('applying', chunk.id);
         const committed = await this.storage.applyChunk({ chunkId: chunk.id, rows, manifest, expectedMeta: expected, meta: next });
-        result.totalNotes += committed.totalNotes; result.totalEfforts += committed.totalEfforts; result.totalBlocks += committed.totalBlocks; result.skippedUserOwned += committed.skippedUserOwned; result.deleted += committed.deleted; result.addedNotes += committed.addedNotes; result.updatedNotes += committed.updatedNotes;
+        result.totalNotes += committed.totalNotes; result.totalEfforts += committed.totalEfforts; result.totalEquipment += committed.totalEquipment; result.totalBlocks += committed.totalBlocks; result.skippedUserOwned += committed.skippedUserOwned; result.deleted += committed.deleted; result.addedNotes += committed.addedNotes; result.updatedNotes += committed.updatedNotes;
         result.appliedChunks++;
         meta = next; expected = next;
         report('committed', chunk.id);

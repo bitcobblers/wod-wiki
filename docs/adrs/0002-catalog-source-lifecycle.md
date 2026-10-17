@@ -159,7 +159,7 @@ actions:
   delete:
     does:    "unsubscribe + registry removal (custom) or hide row (built-in)"
 indexeddb:
-  one_transaction_over: [notes, attachments, note_tags, block_index, block_efforts, page_notes, meta]
+  one_transaction_over: [notes, attachments, note_tags, block_index, block_efforts, block_equipment, efforts, equipment, page_notes, meta]
   deletes_only: "note ids recorded in the checkpoint that still carry seedOrigin==='seed', plus their cascades and the seed:<id> meta row"
   never_touches: [user-authored notes, tags, page, block_revisions, sessions, events, sync stores, other sources' checkpoints]
 ```

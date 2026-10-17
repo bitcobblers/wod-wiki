@@ -25,13 +25,14 @@ export interface ReconcileNoteBlocksOptions extends SectionRecognitionOptions {
 
 function frontmatterSubtype(properties: Record<string, string>): FrontMatterSubtype {
   const type = properties.type?.toLowerCase();
-  if (type === 'youtube' || type === 'strava' || type === 'amazon' || type === 'file' || type === 'effort') return type;
+  if (type === 'youtube' || type === 'strava' || type === 'amazon' || type === 'file' || type === 'effort' || type === 'equipment') return type;
   const url = properties.url || properties.link || '';
   const host = url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').split(/[/?#:]/, 1)[0].toLowerCase();
   if (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) return 'youtube';
   if (host === 'strava.com' || host.endsWith('.strava.com')) return 'strava';
   if (host === 'amzn.to' || host === 'amazon.com' || host.endsWith('.amazon.com')) return 'amazon';
   if (['baseAttributes', 'discipline', 'effortType', 'targetRPE', 'equipment', 'aliases', 'derivation'].some(key => key in properties)) return 'effort';
+  if (['slug', 'label', 'registrySource', 'ownerNoteId', 'sourcePath'].some(key => key in properties)) return 'equipment';
   return 'default';
 }
 

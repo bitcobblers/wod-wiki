@@ -163,64 +163,14 @@ export function extractTypedTags(
 }
 
 // ---------------------------------------------------------------------------
-// Effort registry (markdown round-trip — the corpus effort file format)
+// Definition registry (markdown serialization — parsing lives in lang)
 // ---------------------------------------------------------------------------
 
-export interface EffortFileFields {
-  id: string;
-  slug: string;
-  label: string;
-  aliases: string[];
-  baseAttributes: Record<string, unknown>;
-  body?: string;
-}
-
 /**
- * Parse a corpus-style effort markdown file: frontmatter `id`/`slug`/`label`
- * (required), `aliases` list, one-level scalar `baseAttributes` with a
- * numeric `met`, plus an optional markdown body. Parity with the seed
- * importer's effort materialization.
+ * Compose an effort registry row back into corpus-style markdown. Export
+ * paths prefer the owning note's raw source (byte-identical); this
+ * reconstruction is the fallback for rows without an owner note.
  */
-export function markdownToEffort(raw: string): EffortFileFields | null {
-  const match = FRONTMATTER_BLOCK_RE.exec(raw);
-  if (!match) return null;
-  const meta = readFrontmatterMeta(raw);
-  const body = raw.slice(match[0].length).trim();
-  const id = scalarOf(meta['id']);
-  const slug = scalarOf(meta['slug']);
-  const label = scalarOf(meta['label']);
-  if (!id || !slug || !label) return null;
-  const baseAttributes: Record<string, unknown> = {};
-  // One nested level, scalar values (met/discipline/intensityTier/…).
-  const blockRe = /^\s{2,}([^:]+):\s*(.+)$/;
-  let inAttrs = false;
-  for (const line of match[1].split(/\r?\n/)) {
-    if (/^baseAttributes:/.test(line)) {
-      inAttrs = true;
-      continue;
-    }
-    if (inAttrs) {
-      const attr = blockRe.exec(line);
-      if (attr && /^ {2,}/.test(line)) {
-        const v = attr[2].trim();
-        baseAttributes[attr[1].trim()] = /^\d+(\.\d+)?$/.test(v) ? Number(v) : v;
-      } else if (/^\S/.test(line)) {
-        inAttrs = false;
-      }
-    }
-  }
-  if (typeof baseAttributes['met'] !== 'number') return null;
-  return {
-    id,
-    slug,
-    label,
-    aliases: asList(meta['aliases']),
-    baseAttributes,
-    ...(body ? { body } : {}),
-  };
-}
-
-/** Compose an effort registry row back into corpus-style markdown. */
 export function effortToMarkdown(effort: {
   id: string;
   slug: string;
@@ -243,8 +193,21 @@ export function effortToMarkdown(effort: {
   return `${lines.join('\n')}\n${(effort.body ?? '').trim()}`.trimEnd() + '\n';
 }
 
-function scalarOf(value: string | string[] | undefined): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+/** Compose an equipment registry row back into corpus-style markdown (effortToMarkdown's equipment twin). */
+export function equipmentToMarkdown(equipment: {
+  id: string;
+  slug: string;
+  label: string;
+  aliases?: string[];
+  body?: string;
+}): string {
+  const lines = ['---', 'type: equipment', `id: ${equipment.id}`, `slug: ${equipment.slug}`, `label: ${equipment.label}`];
+  if (equipment.aliases && equipment.aliases.length > 0) {
+    lines.push('aliases:');
+    for (const alias of equipment.aliases) lines.push(`  - ${alias}`);
+  }
+  lines.push('---', '');
+  return `${lines.join('\n')}\n${(equipment.body ?? '').trim()}`.trimEnd() + '\n';
 }
 
 // ---------------------------------------------------------------------------

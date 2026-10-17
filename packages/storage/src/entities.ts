@@ -2,6 +2,7 @@ export type {
   AnalyticsDataPoint,
   Attachment,
   BlockEffort,
+  BlockEquipment,
   BlockIndexRow,
   BlockRevision,
   EventGrain,

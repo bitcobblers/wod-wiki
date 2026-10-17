@@ -1,5 +1,5 @@
 import { nodeCrypto, nodeFs, nodePath, type CliDb } from './db';
-import type { BlockEffort, BlockIndexRow, Note } from '@bitcobblers/wod-wiki-storage';
+import type { BlockEffort, BlockEquipment, BlockIndexRow, Note } from '@bitcobblers/wod-wiki-storage';
 import { catalogOfItem } from '@bitcobblers/wod-wiki-wql';
 import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
 import { SEED_SCHEMA, type ManifestChunk, type SeedManifest, type SeedRow } from '../seedbuild/contract';
@@ -74,6 +74,7 @@ export async function publishCatalogSeed(
 
   const allIndexRows = await db.storage.readonly('block_index').getAll();
   const allEffortRows = await db.storage.readonly('block_efforts').getAll();
+  const allEquipmentRows = await db.storage.readonly('block_equipment').getAll();
 
   const indexByNote = new Map<string, BlockIndexRow[]>();
   for (const row of allIndexRows) {
@@ -87,6 +88,13 @@ export async function publishCatalogSeed(
     const list = effortsByNote.get(row.noteId) ?? [];
     list.push(row);
     effortsByNote.set(row.noteId, list);
+  }
+
+  const equipmentByNote = new Map<string, BlockEquipment[]>();
+  for (const row of allEquipmentRows) {
+    const list = equipmentByNote.get(row.noteId) ?? [];
+    list.push(row);
+    equipmentByNote.set(row.noteId, list);
   }
 
   const outDir = path.resolve(process.cwd(), options.outDir);
@@ -110,6 +118,7 @@ export async function publishCatalogSeed(
       const notePath = note.sourcePath ?? `markdown/collections/${catalogName}/${stem}.md`;
       const noteBlockIndex = indexByNote.get(note.id) ?? [];
       const noteBlockEfforts = effortsByNote.get(note.id) ?? [];
+      const noteBlockEquipment = equipmentByNote.get(note.id) ?? [];
 
       const blockIndex: BlockIndexRow[] =
         noteBlockIndex.length > 0
@@ -135,12 +144,19 @@ export async function publishCatalogSeed(
         sourcePath: e.sourcePath ?? notePath,
       }));
 
+      const blockEquipment: BlockEquipment[] = noteBlockEquipment.map((e) => ({
+        ...e,
+        isStatic: true,
+        sourcePath: e.sourcePath ?? notePath,
+      }));
+
       chunkRows.push({
         path: notePath,
         content: note.rawContent,
         blocks: note.blocks,
         blockIndex,
         blockEfforts,
+        blockEquipment,
       });
     }
     const chunkId = `collection.${catalogName}`;

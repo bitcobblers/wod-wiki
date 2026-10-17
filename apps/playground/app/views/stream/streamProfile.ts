@@ -145,6 +145,16 @@ export const EFFORTS_STREAM_PROFILE: StreamProfile = {
   legacy: EFFORTS_LEGACY_CONFIG,
 }
 
+export const EQUIPMENT_STREAM_PROFILE: StreamProfile = {
+  route: '/equipment',
+  title: 'Equipment',
+  defaultWql: ':note{source:equipment}',
+  level: 'note',
+  target: 'note',
+  scopeOptions: ['equipment'],
+  emptyMessage: 'No equipment matches your search.',
+}
+
 export const SESSIONS_STREAM_PROFILE: StreamProfile = {
   route: '/sessions',
   title: 'Sessions',
@@ -212,6 +222,7 @@ const PROFILES_BY_ROUTE: Record<string, StreamProfile> = {
   '/feeds': FEEDS_STREAM_PROFILE,
   '/feed': FEEDS_STREAM_PROFILE,
   '/efforts': EFFORTS_STREAM_PROFILE,
+  '/equipment': EQUIPMENT_STREAM_PROFILE,
   '/sessions': SESSIONS_STREAM_PROFILE,
   '/playgrounds': PLAYGROUNDS_STREAM_PROFILE,
 }

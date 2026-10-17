@@ -1,5 +1,6 @@
 import type {
   BlockEffort,
+  BlockEquipment,
   BlockIndexRow,
   BlockRevision,
   IStorageTransaction,
@@ -12,7 +13,7 @@ import type {
 import { rowsEqual as sameRow } from '@bitcobblers/wod-wiki-storage';
 import type { ExecutionLog } from '@bitcobblers/wod-wiki-engine';
 import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
-import type { EventRecord, ICodeStatement } from '@bitcobblers/wod-wiki-core';
+import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import {
   blockContentId,
   KNOWN_SECTION_WIDGETS,
@@ -20,29 +21,12 @@ import {
   reconcileNoteBlocks,
   validateNoteBlocks,
 } from '@bitcobblers/wod-wiki-core';
-import { parseScript } from '@bitcobblers/wod-wiki-lang';
+import { parseScript, extractStatementRefs, createReferenceIndex, type IEffort, type IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import { loadSql, randomId, stableNoteId, uuid5, CLI_UUID_NAMESPACE, type CliDb } from './db';
 
 const registeredWidgets = KNOWN_SECTION_WIDGETS;
-const saveStores = ['notes', 'block_revisions', 'block_index', 'block_efforts', 'tags', 'note_tags', 'sessions'] as const;
-
-export function extractEffortSlugs(statements: readonly ICodeStatement[]): string[] {
-  const slugs = new Set<string>();
-  for (const statement of statements) {
-    if (statement.exerciseId) {
-      slugs.add(statement.exerciseId);
-    } else {
-      const effortMetric = statement.metrics?.getMetric?.('effort');
-      const effort = effortMetric && 'effort' in effortMetric ? effortMetric.effort : undefined;
-      if (typeof effort === 'string') {
-        const slug = effort.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-        if (slug) slugs.add(slug);
-      }
-    }
-  }
-  return [...slugs];
-}
+const saveStores = ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'tags', 'note_tags', 'sessions'] as const;
 
 export interface PersistNoteOptions {
   source: string;
@@ -145,9 +129,17 @@ async function saveSource(
     };
     const priorRows = await tx.readonly('block_index').getAllFromIndex('by-note', noteId);
     const priorEfforts = await tx.readonly('block_efforts').getAllFromIndex('by-note', noteId);
+    const priorEquipment = await tx.readonly('block_equipment').getAllFromIndex('by-note', noteId);
+    // One shared resolver pass per save: canonical refs from the stored
+    // definition catalog, exactly like the app rebuild and the seed build.
+    const referenceIndex = createReferenceIndex({
+      efforts: (await tx.readonly('efforts').getAll()) as IEffort[],
+      equipment: (await tx.readonly('equipment').getAll()) as IEquipment[],
+    });
     const priorById = new Map(priorRows.map((row) => [row.id, row]));
     const nextRows: BlockIndexRow[] = [];
     const nextEfforts: BlockEffort[] = [];
+    const nextEquipment: BlockEquipment[] = [];
     for (const [position, block] of Object.values(blocks).sort((a, b) => a.from - b.from).entries()) {
       const id = `${noteId}:${block.id}`;
       const prior = priorById.get(id);
@@ -164,12 +156,21 @@ async function saveSource(
         ...(note.sourceId ? { sourceId: note.sourceId } : {}),
       });
       if (block.kind === 'wod') {
-        for (const effortSlug of extractEffortSlugs(parseScript(body, { sport: block.sport, dialect: block.dialect }).statements)) {
+        const refs = extractStatementRefs(parseScript(body, { sport: block.sport, dialect: block.dialect, references: referenceIndex }).statements);
+        for (const effortSlug of refs.efforts) {
           const effortId = `${noteId}:${block.id}:${effortSlug}`;
           const previous = priorEfforts.find((row) => row.id === effortId);
           nextEfforts.push({
             ...previous, id: effortId, noteId, blockId: block.id,
             blockContentId: fingerprint, effortSlug, createdAt: previous?.createdAt ?? now,
+          });
+        }
+        for (const equipmentSlug of refs.equipment) {
+          const equipmentId = `${noteId}:${block.id}:${equipmentSlug}`;
+          const previous = priorEquipment.find((row) => row.id === equipmentId);
+          nextEquipment.push({
+            ...previous, id: equipmentId, noteId, blockId: block.id,
+            blockContentId: fingerprint, equipmentSlug, createdAt: previous?.createdAt ?? now,
           });
         }
       }
@@ -178,6 +179,7 @@ async function saveSource(
     if (revisions.length) await tx.readwrite('block_revisions').putMany(revisions);
     await diffProjection(tx, 'block_index', priorRows, nextRows);
     await diffProjection(tx, 'block_efforts', priorEfforts, nextEfforts);
+    await diffProjection(tx, 'block_equipment', priorEquipment, nextEquipment);
     const tags = await saveTags(tx, noteId, options.tags, now);
     let session: Session | undefined;
     let revision: BlockRevision | undefined;
@@ -200,9 +202,9 @@ async function saveSource(
 
 async function diffProjection(
   tx: IStorageTransaction,
-  store: 'block_index' | 'block_efforts',
-  previous: Array<BlockIndexRow | BlockEffort>,
-  next: Array<BlockIndexRow | BlockEffort>,
+  store: 'block_index' | 'block_efforts' | 'block_equipment',
+  previous: Array<BlockIndexRow | BlockEffort | BlockEquipment>,
+  next: Array<BlockIndexRow | BlockEffort | BlockEquipment>,
 ): Promise<void> {
   const nextIds = new Set(next.map((row) => row.id));
   for (const row of previous) if (!nextIds.has(row.id)) await tx.readwrite(store).delete(row.id);
@@ -211,6 +213,7 @@ async function diffProjection(
     if (!sameRow(old.get(row.id), row)) {
       if (store === 'block_index' && 'blockVersion' in row) await tx.readwrite('block_index').put(row);
       if (store === 'block_efforts' && 'effortSlug' in row) await tx.readwrite('block_efforts').put(row);
+      if (store === 'block_equipment' && 'equipmentSlug' in row) await tx.readwrite('block_equipment').put(row);
     }
   }
 }
@@ -317,6 +320,13 @@ export async function persistEffort(db: CliDb, effort: Record<string, unknown>):
   const sql = await loadSql();
   await db.db.transaction(async (tx) => {
     await sql.putRow(tx, sql.storeDefinition('efforts'), effort);
+  });
+}
+
+export async function persistEquipment(db: CliDb, equipment: Record<string, unknown>): Promise<void> {
+  const sql = await loadSql();
+  await db.db.transaction(async (tx) => {
+    await sql.putRow(tx, sql.storeDefinition('equipment'), equipment);
   });
 }
 

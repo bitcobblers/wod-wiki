@@ -151,7 +151,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     const resolvedAttachments = mutation.attachments?.add
       ? await Promise.all(mutation.attachments.add.map(input => resolveAttachmentInput(input))) : [];
     await this.storage.withTransaction(
-      ['notes', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'block_revisions', 'sessions', 'events', 'attachments', 'block_index', 'block_efforts'],
+      ['notes', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'block_revisions', 'sessions', 'events', 'attachments', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'],
       async scoped => {
         const provider = new IndexedDBContentProvider(scoped);
         await provider.updateEntry(note.id, { ...mutation.metadata, rawContent: mutation.rawContent,
@@ -191,7 +191,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     await this.contentProvider.persistenceReady;
     if (session.noteId !== input.noteId) throw new NotePersistenceError('RESULT_NOTE_MISMATCH', 'Session belongs to another Note');
     return this.storage.withTransaction(
-      ['notes', 'block_revisions', 'block_index', 'block_efforts', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types'],
+      ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types'],
       async scoped => {
         const persistence = new IndexedDBNotePersistence(scoped, new IndexedDBContentProvider(scoped));
         await persistence.saveNote(input);

@@ -6,16 +6,17 @@ import type {
   BlockRevision,
   NoteBlock,
   BlockEffort,
+  BlockEquipment,
   Page,
   PageNote,
   Session,
   Tag,
   TagTypeRecord,
 } from '@/types/storage';
-import { parseScript } from '@bitcobblers/wod-wiki-lang';
-import type { IEffort } from '@bitcobblers/wod-wiki-lang';
-import { parseDocumentSections, validateNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
-import type { ICodeStatement } from '@bitcobblers/wod-wiki-core';
+import { parseScript, extractStatementRefs, createReferenceIndex, type ReferenceResolutionDefaults } from '@bitcobblers/wod-wiki-lang';
+import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
+import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
+import { parseDocumentSections, validateNoteBlocks, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import { rowsEqual } from '@bitcobblers/wod-wiki-storage';
 import type { DomainEntry, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
 import type { IStorage, IStorageTransaction, StoreName } from './IStorage';
@@ -64,6 +65,23 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/**
+ * Note-level reference defaults from flat `metrics.effort` / `metrics.equipment`
+ * frontmatter — the executable defaults the shared reference resolver applies
+ * when a statement line defines nothing.
+ */
+function noteReferenceDefaults(rawContent: string): ReferenceResolutionDefaults {
+  const meta = readFrontmatterMeta(rawContent);
+  const effort = typeof meta['metrics.effort'] === 'string' ? meta['metrics.effort'].trim() : '';
+  const equipmentRaw = meta['metrics.equipment'];
+  const equipmentValues = Array.isArray(equipmentRaw) ? equipmentRaw : typeof equipmentRaw === 'string' ? [equipmentRaw] : [];
+  const equipment = equipmentValues.map((value) => value.trim()).filter(Boolean);
+  return {
+    ...(effort ? { effort } : {}),
+    ...(equipment.length > 0 ? { equipment } : {}),
+  };
+}
+
 /** SQL domain parser MAX_VALUES (packages/storage/src/sql/domain.ts) — the
  *  entries-plan id selection chunks at the same bound to stay a valid wire
  *  clause on every chunk. */
@@ -78,22 +96,6 @@ export const DEFAULT_TAG_TYPES: Array<Omit<TagTypeRecord, 'createdAt'>> = [
   { id: 'type-type', name: 'type', label: 'Type', color: '#a855f7' },
   { id: 'type-discipline', name: 'discipline', label: 'Discipline', color: '#14b8a6' },
 ];
-
-export function extractEffortSlugs(statements: ICodeStatement[]): string[] {
-  const slugs = new Set<string>();
-  for (const statement of statements) {
-    if (statement.exerciseId) {
-      slugs.add(statement.exerciseId);
-    } else {
-      const effortMetric = statement.metrics?.getMetric?.('effort');
-      if (effortMetric?.effort) {
-        const slug = effortMetric.effort.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-        if (slug) slugs.add(slug);
-      }
-    }
-  }
-  return Array.from(slugs);
-}
 
 export class StorageService implements NotePersistenceStorage {
   /**
@@ -261,7 +263,7 @@ export class StorageService implements NotePersistenceStorage {
 
   async deleteNote(id: string): Promise<void> {
     await this.storage.transaction(
-      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'page_notes'],
+      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes'],
       'readwrite',
       async (tx) => {
         await tx.readwrite('notes').delete(id);
@@ -285,6 +287,11 @@ export class StorageService implements NotePersistenceStorage {
         const blockEfforts = tx.readwrite('block_efforts');
         for (const row of await blockEfforts.getAllFromIndex('by-note', id)) {
           await blockEfforts.delete(row.id);
+        }
+
+        const blockEquipment = tx.readwrite('block_equipment');
+        for (const row of await blockEquipment.getAllFromIndex('by-note', id)) {
+          await blockEquipment.delete(row.id);
         }
 
         const pageNotes = tx.readwrite('page_notes');
@@ -449,7 +456,7 @@ export class StorageService implements NotePersistenceStorage {
   }
 
   /** Generic store-index read seam for WQL and analytics joins. */
-  async getAllFromIndex(storeName: 'block_efforts' | 'tags' | 'note_tags', index: string, key: IDBValidKey): Promise<unknown[]> {
+  async getAllFromIndex(storeName: 'block_efforts' | 'block_equipment' | 'tags' | 'note_tags', index: string, key: IDBValidKey): Promise<unknown[]> {
     return this.storage.readonly(storeName).getAllFromIndex(index, key);
   }
   /** Batch note→tag-label resolution (labels carry their tag type): one
@@ -577,7 +584,9 @@ export class StorageService implements NotePersistenceStorage {
   }
 
   async saveNoteSource(input: SaveNoteInput): Promise<Note> {
-    return this.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts'], async scoped => {
+    // efforts/equipment are read (never written) by the scoped block-index
+    // rebuild — they must be in the enclosing transaction scope.
+    return this.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'], async scoped => {
       const previous = await scoped.getNote(input.noteId);
       if ((previous?.sourceRevision ?? 0) !== input.expectedSourceRevision) {
         throw new NotePersistenceError('STALE_SOURCE', `Note ${input.noteId} changed since it was loaded`);
@@ -585,7 +594,12 @@ export class StorageService implements NotePersistenceStorage {
       if (!previous && !input.metadata?.title) {
         throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${input.noteId}`);
       }
-      const draftBlocks = Object.fromEntries(Object.entries(input.blocks).map(([id, block]) => [id,
+      const rawBlocks = input.blocks ?? reconcileNoteBlocks(input.rawContent, {
+        ...NOTE_BLOCK_OPTIONS,
+        sourceRevision: input.expectedSourceRevision || 1,
+        blocks: previous?.blocks,
+      });
+      const draftBlocks = Object.fromEntries(Object.entries(rawBlocks).map(([id, block]) => [id,
         { ...block, version: 1, sourceRevision: input.expectedSourceRevision || 1 }]));
       validateNoteBlocks(input.rawContent, draftBlocks, input.expectedSourceRevision || 1, NOTE_BLOCK_OPTIONS);
       const history = await scoped.storage.readonly('block_revisions').getAllFromIndexMany('by-block',
@@ -810,11 +824,18 @@ export class StorageService implements NotePersistenceStorage {
     const note = await this.getNote(noteId);
     if (!note) return;
     const sections = parseDocumentSections(note.rawContent, NOTE_BLOCK_OPTIONS);
-    await this.storage.transaction(['block_index', 'block_efforts', 'block_revisions'], 'readwrite', async tx => {
+    // One shared resolver pass per rebuild: the hydrated catalog + this
+    // note's metrics.* defaults feed the parse, so derived links carry the
+    // exact canonical refs the runtime and editor produce.
+    const referenceIndex = createReferenceIndex({ efforts: await this.getAllEfforts(), equipment: await this.getAllEquipment() });
+    const defaults = noteReferenceDefaults(note.rawContent);
+    await this.storage.transaction(['block_index', 'block_efforts', 'block_equipment', 'block_revisions'], 'readwrite', async tx => {
       const blockStore = tx.readwrite('block_index');
       const effortStore = tx.readwrite('block_efforts');
+      const equipmentStore = tx.readwrite('block_equipment');
       const oldBlocks = new Map((await blockStore.getAllFromIndex('by-note', noteId)).map(row => [row.id, row]));
       const oldEfforts = new Map((await effortStore.getAllFromIndex('by-note', noteId)).map(row => [row.id, row]));
+      const oldEquipment = new Map((await equipmentStore.getAllFromIndex('by-note', noteId)).map(row => [row.id, row]));
       let position = 0;
       for (const block of Object.values(note.blocks).sort((a, b) => a.from - b.from)) {
         const id = `${noteId}:${block.id}`;
@@ -830,13 +851,13 @@ export class StorageService implements NotePersistenceStorage {
           createdAt: revision.savedAt, isStatic: note.seedOrigin === 'seed' || undefined,
           sourceId: note.sourceId, sourcePath: note.sourcePath, routeId: old?.routeId };
         if (!old || !rowsEqual(old, row)) await blockStore.put(row);
-        const oldForBlock = [...oldEfforts.values()].filter(effort => effort.blockId === block.id);
-        if (old && old.blockVersion === block.version) {
-          for (const effort of oldForBlock) oldEfforts.delete(effort.id);
-          continue;
-        }
+        // Refs are ALWAYS re-derived for workout blocks: frontmatter
+        // metrics.* defaults and the definition catalog can change without
+        // any block version change, and stale containment would silently
+        // outlive them.
         if (block.kind !== 'wod' || !section?.scriptBlock) continue;
-        for (const effortSlug of extractEffortSlugs(parseScript(section.scriptBlock.content, { sport: block.sport }).statements)) {
+        const refs = extractStatementRefs(parseScript(section.scriptBlock.content, { sport: block.sport, references: referenceIndex, defaults }).statements);
+        for (const effortSlug of refs.efforts) {
           const effortId = `${noteId}:${block.id}:${effortSlug}`;
           const previous = oldEfforts.get(effortId);
           oldEfforts.delete(effortId);
@@ -845,9 +866,19 @@ export class StorageService implements NotePersistenceStorage {
             isStatic: row.isStatic, sourcePath: note.sourcePath };
           if (!previous || !rowsEqual(previous, effort)) await effortStore.put(effort);
         }
+        for (const equipmentSlug of refs.equipment) {
+          const equipmentId = `${noteId}:${block.id}:${equipmentSlug}`;
+          const previous = oldEquipment.get(equipmentId);
+          oldEquipment.delete(equipmentId);
+          const equipment: BlockEquipment = { id: equipmentId, noteId, blockId: block.id,
+            blockContentId: row.blockContentId, equipmentSlug, createdAt: previous?.createdAt ?? revision.savedAt,
+            isStatic: row.isStatic, sourcePath: note.sourcePath };
+          if (!previous || !rowsEqual(previous, equipment)) await equipmentStore.put(equipment);
+        }
       }
       for (const row of oldBlocks.values()) await blockStore.delete(row.id);
       for (const row of oldEfforts.values()) await effortStore.delete(row.id);
+      for (const row of oldEquipment.values()) await equipmentStore.delete(row.id);
     });
   }
 
@@ -863,27 +894,78 @@ export class StorageService implements NotePersistenceStorage {
     return this.storage.readonly('efforts').getAll();
   }
 
+  /**
+   * Persist one effort projection AND its `e/<alias>` alias pages in ONE
+   * transaction — a half-committed save (row without pages) is data loss for
+   * alias lookups. Transaction scope touches stores directly; public
+   * getPageBySlug/savePage stay unscoped and are never called nested.
+   */
   async saveEffort(effort: IEffort): Promise<string> {
-    await this.storage.readwrite('efforts').put(effort);
-
-    // Effort aliases are page references: create an `e/alias-slug` Page for each.
-    // Link the Page back to the effort's note via `page_notes` when possible.
-    for (const alias of effort.aliases) {
-      const slug = alias.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      if (!slug) continue;
-      const pageSlug = `e/${slug}`;
-      const existing = await this.getPageBySlug(pageSlug);
-      if (!existing) {
-        await this.savePage({
-          id: generateId(),
-          slug: pageSlug,
-          title: `${effort.label} (Alias)`,
-          createdAt: Date.now(),
-        });
+    await this.withTransaction(['efforts', 'page'], async (scoped) => {
+      await scoped.storage.readwrite('efforts').put(effort);
+      const pages = scoped.storage.readwrite('page');
+      for (const alias of effort.aliases) {
+        const slug = alias.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        if (!slug) continue;
+        const pageSlug = `e/${slug}`;
+        const existing = await scoped.storage.readonly('page').getAllFromIndex('by-slug', pageSlug);
+        if (existing.length === 0) {
+          await pages.put({ id: generateId(), slug: pageSlug, title: `${effort.label} (Alias)`, createdAt: Date.now() });
+        }
       }
-    }
-
+    });
     return effort.slug;
+  }
+
+  /** Remove one effort projection and the alias pages it created, atomically. */
+  async deleteEffort(slug: string): Promise<void> {
+    await this.withTransaction(['efforts', 'page'], async (scoped) => {
+      const effort = await scoped.storage.readonly('efforts').get(slug);
+      if (!effort) return;
+      await scoped.storage.readwrite('efforts').delete(slug);
+      const pages = scoped.storage.readwrite('page');
+      for (const alias of effort.aliases) {
+        const aliasSlug = alias.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        if (!aliasSlug) continue;
+        for (const page of await scoped.storage.readonly('page').getAllFromIndex('by-slug', `e/${aliasSlug}`)) {
+          if (page.title === `${effort.label} (Alias)`) await pages.delete(page.id);
+        }
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Equipment
+  // ---------------------------------------------------------------------------
+
+  async getEquipment(slug: string): Promise<IEquipment | undefined> {
+    return this.storage.readonly('equipment').get(slug);
+  }
+
+  async getAllEquipment(): Promise<IEquipment[]> {
+    return this.storage.readonly('equipment').getAll();
+  }
+
+  async saveEquipment(equipment: IEquipment): Promise<string> {
+    await this.storage.readwrite('equipment').put(equipment);
+    return equipment.slug;
+  }
+
+  async deleteEquipment(slug: string): Promise<void> {
+    await this.storage.readwrite('equipment').delete(slug);
+  }
+
+  /** Notes whose workout blocks reference the equipment (real titles for context lists). */
+  async getEquipmentUsage(slug: string): Promise<Array<{ noteId: string; title: string }>> {
+    const links = await this.storage.readonly('block_equipment').getAllFromIndex('by-equipment', slug);
+    const notes = this.storage.readonly('notes');
+    const out = new Map<string, string>();
+    for (const link of links) {
+      if (out.has(link.noteId)) continue;
+      const note = await notes.get(link.noteId);
+      if (note) out.set(link.noteId, note.title);
+    }
+    return Array.from(out, ([noteId, title]) => ({ noteId, title }));
   }
 
   // ---------------------------------------------------------------------------

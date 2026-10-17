@@ -1,4 +1,5 @@
 export * from './Metric';
+export * from './ReferenceMetadata';
 export * from './CodeMetadata';
 export * from './CodeStatement';
 export * from './MetricContainer';

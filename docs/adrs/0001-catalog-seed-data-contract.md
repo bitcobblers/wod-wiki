@@ -16,7 +16,7 @@ drift is a runtime failure, not a compile-time one.
 The contract is duplicated byte-for-byte in
 `packages/engine/src/seed/contract.ts` and
 `packages/tools/src/seedbuild/contract.ts` and pinned by
-`SEED_SCHEMA = 8`. Any schema change must bump the constant in both
+`SEED_SCHEMA = 9`. Any schema change must bump the constant in both
 copies and reject foreign manifests at `assertSeedManifest`.
 
 ## Decision
@@ -27,12 +27,12 @@ A seed publication is a directory containing exactly:
 - `chunks/<id>.<sha256-8>.json` — an array of `SeedRow`, one chunk per
   `ChunkGroup` (`chunkIdFor`). Collections and feeds get one chunk per
   catalog (`collection.<slug>` / `feed.<slug>`); the reserved chunk ids
-  are `canvas`, `dashboards`, `efforts`, `template`.
+  are `canvas`, `dashboards`, `efforts`, `equipment`, `template`.
 
-Identity is deterministic: `seedNoteId(path)` (SHA-1 of a fixed
-namespace UUID + path, formatted as a v5 UUID) maps a row path to a
-note id, so re-imports of unchanged content are idempotent and
-multi-source collisions are impossible by construction.
+Identity is deterministic: `seedNoteId(path)` maps a row path to a v5 UUID,
+so re-importing unchanged content preserves the owning note. Different
+sources can publish the same path or definition slug. Import must reject
+those ownership collisions without replacing the installed source.
 
 Dates are authorship, not import time. A frontmatter `date: YYYY-MM-DD`
 wins over everything (noon UTC), feed path dates are midnight UTC, and
@@ -45,12 +45,12 @@ never diffs.
 ```yaml
 model: SeedManifest
 source: packages/engine/src/seed/contract.ts
-schema: 8
+schema: 9
 fields:
   name:        { type: string?, from: package.json }
   description: { type: string?, from: package.json }
   repositoryUrl: { type: string?, rule: "https only, no userinfo; git+/​.git stripped" }
-  schema:      { type: number, const: 8 }
+  schema:      { type: number, const: 9 }
   version:     { type: number, note: "git commit count — doubles as Note.createdAt" }
   versionLabel: { type: string? }
   commit:      { type: string? }
@@ -63,7 +63,7 @@ lifecycle:
   consumed_by: [assertSeedManifest, HttpSeedSource.getMetaKey/manifest fetch, importSeedDir, runSourceSync]
   states:
     - published:  "written to dist/manifest.json after assertSeedManifest"
-    - validated:  "schema===8, version non-negative int, repositoryUrl https+no-userinfo, per-chunk id/path/sha256 uniqueness"
+    - validated:  "schema===9, version non-negative int, repositoryUrl https+no-userinfo, per-chunk id/path/sha256 uniqueness"
     - compared:   "decideSeedImport by version: none|0→import, <→import, ==→current, >→server-stale"
 ```
 
@@ -71,7 +71,7 @@ lifecycle:
 model: ManifestChunk
 source: packages/engine/src/seed/contract.ts
 fields:
-  id:     { type: string, rule: "non-empty, unique; reserved: canvas|dashboards|efforts|template|collection.*|feed.*" }
+  id:     { type: string, rule: "non-empty, unique; reserved: canvas|dashboards|efforts|equipment|template|collection.*|feed.*" }
   path:   { type: string, rule: "matches ^chunks/[a-zA-Z0-9._-]+\\.json$, unique" }
   sha256: { type: string, rule: "64-hex, unique; sha8 of it appears in the filename" }
   bytes:  { type: number, min: 0 }
@@ -94,10 +94,11 @@ fields:
   content:      { type: string, note: "full markdown source, verbatim" }
   blocks:       { type: "Record<string, NoteBlock>", rule: "block.id === key, version===1, sourceRevision===1" }
   blockIndex:   { type: BlockIndexRow[], rule: "exactly one projection per block, createdAt finite, isStatic===true" }
-  blockEfforts: { type: BlockEffort[], rule: "wod blocks only, alias-canonicalized effortSlug" }
-depends_on: [NoteBlock, BlockIndexRow, BlockEffort]
+  blockEfforts: { type: BlockEffort[], rule: "wod blocks only, canonical effortSlug from the shared reference resolver" }
+  blockEquipment: { type: BlockEquipment[], rule: "wod blocks only, ordered canonical equipment references projected as equipmentSlug links" }
+depends_on: [NoteBlock, BlockIndexRow, BlockEffort, BlockEquipment]
 lifecycle:
-  produced_by: compileSeedRow → buildBlockIndexRows → buildBlockEffortRows
+  produced_by: compileSeedRow → buildBlockIndexRows → shared reference resolution → containment rows
   gates: [dashboard gate (≥3 widgets, known types, WQL parses, $token declared), WOD syntax gate (Lezer error-node / parseScript scan)]
   validated_by: assertSeedRows
   consumed_by: applySeedChunk
@@ -121,7 +122,7 @@ fields:
   noteTitle:       { type: string }
   createdAt:       { type: number, note: "frontmatter date (noon UTC) > feed path date (midnight UTC) > git mtime; 0 fallback" }
   isStatic:        { type: boolean, const: true }
-  sourceId:        { type: string, rule: "guides:<route>|dashboards|efforts|playground|collection:<cat>[/<stem>]|feed:feeds/<under>" }
+  sourceId:        { type: string, rule: "guides:<route>|dashboards|efforts|equipment|playground|collection:<cat>[/<stem>]|feed:feeds/<under>" }
   sourcePath:      { type: string, rule: "=== row.path" }
   routeId:         { type: string? }
 depends_on: [Note]
@@ -166,7 +167,7 @@ model: SeedMetaRecord (per-source checkpoint)
 source: packages/engine/src/seed/contract.ts
 fields:
   key:         { type: string, rule: "seed:<sourceId> — namespaces all storage for one source" }
-  schema:      { type: number, const: 8 }
+  schema:      { type: number, const: 9 }
   seedVersion: { type: number, note: "manifest.version of the last applied import" }
   builtAt:     { type: string }
   importedAt:  { type: number, note: "Date.now() at write; drives Tag.createdAt and BlockRevision.savedAt" }
@@ -180,6 +181,16 @@ lifecycle:
     - committed:  "CAS write (JSON-compare) at each chunk; expectedMeta mismatch aborts with 'Seed checkpoint changed during import'"
     - removed:    "unsubscribe/delete deletes the row after content removal; failure propagates (no stale checkpoint survives)"
 ```
+
+Effort and equipment definitions retain their complete Markdown in the owning
+note. The `efforts` and `equipment` stores hold lookup projections with
+`ownerNoteId`, `sourceId`, and `sourcePath`. Definition parsing lives in
+`packages/lang/src/effort-registry/definition-markdown.ts`, shared by app,
+publisher, and importer. Equipment definitions require `type: equipment`;
+effort definitions may retain their existing untyped frontmatter.
+
+Schema 9 requires `blockEquipment` even when empty. Schema 8 publications
+must be rebuilt rather than imported as schema 9.
 
 ## Consequences
 

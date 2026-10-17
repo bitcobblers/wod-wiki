@@ -39,6 +39,7 @@ export class CompileAndPushBlockAction implements IRuntimeAction {
             if (runtime.analyticsContext?.effortResolver) {
                 applyEffortEnrichment(compiledBlock, {
                     resolver: runtime.analyticsContext.effortResolver,
+                    references: runtime.analyticsContext.references,
                 });
             }
 

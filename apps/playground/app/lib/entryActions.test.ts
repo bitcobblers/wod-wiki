@@ -171,6 +171,32 @@ describe('entryOpenHref', () => {
     }))).toBe('/e/clean-and-jerk')
   })
 
+  it('routes Equipment entries to the dedicated /equipment/<slug> route', () => {
+    // Seed-corpus equipment note: the corpus slug is the route slug.
+    expect(entryOpenHref(makeEntry({
+      id: 'dumbbell',
+      kind: 'equipment',
+      sourceCatalog: 'equipment',
+      sourceItem: 'dumbbell',
+    }))).toBe('/equipment/dumbbell')
+
+    // Custom (vault) equipment note keyed by composite id: strip the family
+    // prefix — /equipment/<slug> is still the open route.
+    expect(entryOpenHref(makeEntry({
+      id: 'equipment/kettlebell',
+      kind: 'equipment',
+      sourceCatalog: 'equipment',
+      sourceItem: 'equipment/kettlebell',
+    }))).toBe('/equipment/kettlebell')
+
+    // Unidentifiable slug falls back to the canonical note editor.
+    expect(entryOpenHref(makeEntry({
+      id: '0c9e6f2e-1111-4222-8333-444455556666',
+      kind: 'equipment',
+      sourceCatalog: 'equipment',
+    }))).toBe('/notes/0c9e6f2e-1111-4222-8333-444455556666')
+  })
+
   it('routes a Post to the feed-item deep-link (catalog/date/item)', () => {
     expect(entryOpenHref(makeEntry({
       id: 'feeds/crossfit-programming/2026-01-12/monday',

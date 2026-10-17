@@ -405,6 +405,13 @@ export async function getEffortBySlug(db: Database, slug: string): Promise<Recor
   return efforts.find((e) => e.slug === slug);
 }
 
+/** Fetch one equipment registry row by slug. */
+export async function getEquipmentBySlug(db: Database, slug: string): Promise<Record<string, unknown> | undefined> {
+  const sql = await loadSql();
+  const equipment = (await allRows(sql, db, 'equipment')) as Array<{ slug: string } & Record<string, unknown>>;
+  return equipment.find((e) => e.slug === slug);
+}
+
 /** Fetch tag rows of one type (e.g. 'equipment'). */
 export async function listTagsByType(db: Database, type: string): Promise<Array<{ id: string; label: string; type?: string }>> {
   const sql = await loadSql();

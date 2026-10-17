@@ -24,11 +24,13 @@ import {
   collectionPath,
   effortPath,
   effortsPath,
+  equipmentPath,
   feedDetailPath,
   journalDatePath,
   noteByIdPath,
   pagePath,
   playgroundsPath,
+  ROUTE_PATTERNS,
   workoutPath,
 } from '../../lib/routes'
 import { playgroundRouteName } from '../../lib/entryMapper'
@@ -66,7 +68,7 @@ const MAX_RELATED = 8
 
 // ── Source-aware ownership ───────────────────────────────────────────────────
 
-export type NoteZone = 'journal' | 'feeds' | 'playgrounds' | 'efforts' | null
+export type NoteZone = 'journal' | 'feeds' | 'playgrounds' | 'efforts' | 'equipment' | null
 
 export interface NoteOwnership {
   /** L1 zone id to light on the canonical /notes route (guarded against the tree). */
@@ -109,6 +111,13 @@ export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceI
         zone: 'efforts',
         up: { id: 'efforts', title: 'Efforts', to: effortsPath() },
         stamps: [effortPath(ref.id)],
+      }
+    }
+    if (ref.category === 'equipment') {
+      return {
+        zone: 'equipment',
+        up: { id: 'equipment', title: 'Equipment', to: ROUTE_PATTERNS.equipment },
+        stamps: [equipmentPath(ref.id)],
       }
     }
     if (ref.category === 'feeds') {

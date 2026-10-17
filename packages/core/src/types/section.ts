@@ -63,8 +63,11 @@ export function isWorkoutSectionType(type: SectionType): type is WorkoutSectionT
   return type === 'time' || type === 'log';
 }
 
-/** Typed front matter subtypes */
-export type FrontMatterSubtype = 'default' | 'youtube' | 'strava' | 'amazon' | 'file' | 'effort';
+/**
+ * Typed front matter subtypes. `effort`/`equipment` are registry definition
+ * notes (family `markdown/efforts|equipment/<slug>.md`).
+ */
+export type FrontMatterSubtype = 'default' | 'youtube' | 'strava' | 'amazon' | 'file' | 'effort' | 'equipment';
 
 /**
  * Represents a single WOD block within the markdown document

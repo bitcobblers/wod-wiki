@@ -37,7 +37,7 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
   }
   async removeSourceContent(meta: SeedMetaRecord): Promise<number> {
     return await this.storageInstance.transaction(
-      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'page_notes', 'meta'],
+      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'efforts', 'equipment', 'meta'],
       'readwrite',
       async (tx) => {
         const targetIds = new Set<string>();
@@ -57,10 +57,12 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
         }
         const notes = tx.readwrite('notes');
         let deleted = 0;
+        const removedPaths = new Set<string>();
         for (const id of targetIds) {
           const note = await notes.get(id);
           if (!note || note.seedOrigin !== 'seed') continue;
           if (note.seedChunkId && !meta.chunks[note.seedChunkId]) continue;
+          if (note.sourcePath) removedPaths.add(note.sourcePath);
           await notes.delete(id);
           const attachments = tx.readwrite('attachments');
           for (const attachment of await attachments.getAllFromIndex('by-note', id)) await attachments.delete(attachment.id);
@@ -70,9 +72,23 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
           for (const row of await blockIndex.getAllFromIndex('by-note', id)) await blockIndex.delete(row.id);
           const blockEfforts = tx.readwrite('block_efforts');
           for (const row of await blockEfforts.getAllFromIndex('by-note', id)) await blockEfforts.delete(row.id);
+          const blockEquipment = tx.readwrite('block_equipment');
+          for (const row of await blockEquipment.getAllFromIndex('by-note', id)) await blockEquipment.delete(row.id);
           const pageNotes = tx.readwrite('page_notes');
           for (const link of await pageNotes.getAllFromIndex('by-note', id)) await pageNotes.delete(link.id);
           deleted++;
+        }
+        // Bundled definition projections owned by this source die with it —
+        // matched by exact owner note id, with the corpus path as the
+        // legacy fallback. Custom (`user`) copies are never touched.
+        for (const [storeName, familyPathPrefix] of [['efforts', 'markdown/efforts/'], ['equipment', 'markdown/equipment/']] as const) {
+          const store = tx.readwrite(storeName);
+          for (const row of await store.getAll()) {
+            if (row.registrySource !== 'bundled') continue;
+            const owned = (row.ownerNoteId !== undefined && targetIds.has(row.ownerNoteId))
+              || (row.sourcePath !== undefined && row.sourcePath.startsWith(familyPathPrefix) && removedPaths.has(row.sourcePath));
+            if (owned) await store.delete(row.slug);
+          }
         }
         await tx.readwrite('meta').delete(meta.key);
         return deleted;

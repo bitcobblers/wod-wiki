@@ -1,5 +1,6 @@
 export * from './types';
 export * from './disciplines';
+export * from './definition-markdown';
 export * from './EffortResolver';
 export * from './InMemoryEffortRegistry';
 export * from './CompositeEffortRegistry';
@@ -7,3 +8,4 @@ export * from './fuzzyMatch';
 export * from './fixtures';
 export * from './data/bundled-efforts';
 export * from './aliasManagement';
+export * from './reference-resolution';

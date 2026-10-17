@@ -35,23 +35,31 @@ export class CompositeEffortRegistry implements IEffortRegistry {
    * Initialize the registry:
    * 1. Load bundled efforts into memory
    * 2. Load user efforts from storage adapter into memory
+   *
+   * An explicit `customBundled` REPLACES the bundled tier — passing an empty
+   * set clears it — so a seed source removal never leaves stale bundled
+   * efforts cached. The no-argument call keeps the constructor/default set.
+   * Both tiers rebuild only AFTER a successful adapter load: a failed load
+   * propagates (readiness must never report over stale data), and deleted
+   * custom rows disappear because the user map is cleared too.
    */
   async loadBundled(customBundled?: Iterable<IEffort>): Promise<void> {
-    const seed = customBundled ?? this.initialBundled ?? defaultBundledEfforts;
-    for (const effort of seed) {
-      this.bundledEfforts.set(effort.slug, effort);
+    const userEfforts = this.storage ? await this.storage.load() : [];
+    this.bundledEfforts.clear();
+    if (customBundled) {
+      for (const effort of customBundled) {
+        this.bundledEfforts.set(effort.slug, effort);
+      }
+    } else {
+      const seed = this.initialBundled ?? defaultBundledEfforts;
+      for (const effort of seed) {
+        this.bundledEfforts.set(effort.slug, effort);
+      }
     }
-
-    if (this.storage) {
-      try {
-        const userEfforts = await this.storage.load();
-        for (const effort of userEfforts) {
-          if (effort.registrySource === 'user') {
-            this.userEfforts.set(effort.slug, effort);
-          }
-        }
-      } catch (err) {
-        console.warn('[CompositeEffortRegistry] Failed to load user efforts from storage adapter:', err);
+    this.userEfforts.clear();
+    for (const effort of userEfforts) {
+      if (effort.registrySource === 'user') {
+        this.userEfforts.set(effort.slug, effort);
       }
     }
 

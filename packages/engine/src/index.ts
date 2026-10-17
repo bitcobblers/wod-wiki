@@ -358,12 +358,11 @@ export {
 export {
   readFrontmatterMeta,
   extractTypedTags,
-  markdownToEffort,
   effortToMarkdown,
+  equipmentToMarkdown,
   equipmentToCsv,
   csvToEquipmentLabels,
   type TypedTagItem,
-  type EffortFileFields,
 } from './exchange';
 
 // 9. Engine Version Info

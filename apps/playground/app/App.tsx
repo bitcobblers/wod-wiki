@@ -10,6 +10,7 @@ import { ThemeProvider } from '@/contexts/ThemeProvider'
 import { DebugModeProvider } from '@/contexts/DebugModeContext'
 import { AudioProvider } from '@/contexts/AudioContext'
 import { EffortRegistryProvider } from './contexts/EffortRegistryContext'
+import { EquipmentRegistryProvider } from './contexts/EquipmentRegistryContext'
 import { Toaster } from '@/components/atoms/primitives/toaster'
 import { NavProvider, useNav } from './nav/NavContext'
 import { buildAppNavTree } from './nav/appNavTree'
@@ -148,6 +149,7 @@ export function App() {
     <ThemeProvider defaultTheme="system" storageKey="wod-wiki-playground-theme">
       <DebugModeProvider>
         <EffortRegistryProvider>
+        <EquipmentRegistryProvider>
           <AudioProvider>
             <BrowserRouter>
               <NuqsAdapter>
@@ -238,6 +240,9 @@ export function App() {
                   <Route path={ROUTE_PATTERNS.efforts} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.effort} element={<EffortRedirect />} />
                   <Route path={ROUTE_PATTERNS.effortSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  {/* Equipment — list is the note stream; detail/create are note pages. */}
+                  <Route path={ROUTE_PATTERNS.equipment} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.equipmentSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Dashboards: /dashboards = list + WQL explorer, /dashboard/:slug = a
                       saved dashboard by id, /d/:slug = by page slug. Legacy
                       /dashboard and /analytics/* redirect here. */}
@@ -260,6 +265,7 @@ export function App() {
             </NuqsAdapter>
           </BrowserRouter>
         </AudioProvider>
+        </EquipmentRegistryProvider>
       </EffortRegistryProvider>
       </DebugModeProvider>
     </ThemeProvider>

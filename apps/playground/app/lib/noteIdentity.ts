@@ -7,7 +7,7 @@
  * playground-level.
  */
 import type { NoteRef } from '@/lib/noteIdentity';
-import { journalEntryPath, playgroundPath, workoutPath, effortPath, noteByIdPath } from './routes';
+import { journalEntryPath, playgroundPath, workoutPath, effortPath, equipmentPath, noteByIdPath } from './routes';
 
 /**
  * Canonical back-route for a note — the single home for the kind→path rule,
@@ -25,6 +25,7 @@ export function noteRefToPath(ref: NoteRef): string {
       return playgroundPath(ref.id);
     case 'workout':
       if (ref.category === 'effort') return effortPath(ref.id);
+      if (ref.category === 'equipment') return equipmentPath(ref.id);
       return ref.category ? workoutPath(ref.category, ref.id) : noteByIdPath(ref.raw);
   }
 }

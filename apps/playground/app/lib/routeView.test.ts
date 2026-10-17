@@ -236,6 +236,21 @@ describe('resolveRouteView — stream list routes', () => {
     expect(resolveRouteView('/effort/squat', NO_PARAMS, makeDeps()).page).toBe('effortDetail')
   })
 
+  it('classifies equipment routes — /equipment is the note stream, /equipment/:slug is the detail page', () => {
+    const listView = resolveRouteView('/equipment', NO_PARAMS, makeDeps())
+    expect(listView.page).toBe('library')
+    expect(listView.workout.name).toBe('Equipment')
+
+    const detailView = resolveRouteView('/equipment/dumbbell', NO_PARAMS, makeDeps())
+    expect(detailView.page).toBe('equipmentDetail')
+    expect(detailView.workout.name).toBe('dumbbell')
+    expect(detailView.workout.category).toBe('equipment')
+
+    // Effort routes keep their own family — no prefix bleed either way.
+    expect(resolveRouteView('/e/dumbbell', NO_PARAMS, makeDeps()).page).toBe('effortDetail')
+    expect(resolveRouteView('/equipment', NO_PARAMS, makeDeps()).page).not.toBe('effortDetail')
+  })
+
   it('classifies execution telemetry routes (/results list redirect source, /results/:resultId canonical detail)', () => {
     const resultsView = resolveRouteView('/results', NO_PARAMS, makeDeps())
     expect(resultsView.page).toBe('library')

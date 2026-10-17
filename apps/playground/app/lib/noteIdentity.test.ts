@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { parseNoteId } from '@/lib/noteIdentity';
 import { noteRefToPath } from './noteIdentity';
-import { journalEntryPath, playgroundPath, workoutPath, effortPath, noteByIdPath } from './routes';
+import { journalEntryPath, playgroundPath, workoutPath, effortPath, equipmentPath, noteByIdPath } from './routes';
 
 describe('noteRefToPath', () => {
   it('routes journal → /journal/:id', () => {
@@ -20,6 +20,10 @@ describe('noteRefToPath', () => {
     // Effort runs record noteId `effort/<slug>` (EffortDetailPage, useEffortContent).
     expect(noteRefToPath(parseNoteId('effort/grace'))).toBe(effortPath('grace'));
     expect(noteRefToPath(parseNoteId('effort/heavy grace'))).toBe(effortPath('heavy grace'));
+
+    // Equipment owner notes (id `equipment/<slug>`) route to the dedicated
+    // equipment page, not a collection editor.
+    expect(noteRefToPath(parseNoteId('equipment/dumbbell'))).toBe(equipmentPath('dumbbell'));
   });
 
   it('routes a bare id → /notes/:id (canonical fallback instead of /)', () => {

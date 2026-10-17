@@ -35,6 +35,7 @@ describe('appNavTree - Flattened listing zones', () => {
       'playgrounds',
       'dashboards',
       'efforts',
+      'equipment',
       'sessions',
       'settings',
       'buy-me-a-coffee',
@@ -122,6 +123,36 @@ describe('appNavTree - Efforts navigation', () => {
     expect(efforts.isActive!(mockLocation('/effort/push-up'))).toBe(true)
     expect(efforts.isActive!(mockLocation('/e/push-up'))).toBe(true)
     expect(efforts.isActive!(mockLocation('/journal'))).toBe(false)
+  })
+})
+
+describe('appNavTree - Equipment navigation', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('places Equipment directly after Efforts with the shared conditions panel', () => {
+    const tree = buildAppNavTree(() => {})
+    const ids = tree.filter(item => item.level === 1).map(item => item.id)
+    expect(ids.indexOf('equipment')).toBe(ids.indexOf('efforts') + 1)
+
+    const equipment = tree.find(item => item.id === 'equipment')
+    expect(equipment?.label).toBe('Equipment')
+    expect(equipment?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.equipment })
+    expect(equipment?.panel).toBeDefined()
+  })
+
+  it('activates equipment L1 for /equipment and /equipment/:slug routes only', () => {
+    const tree = buildAppNavTree(() => {})
+    const equipment = tree.find(item => item.id === 'equipment')!
+    const efforts = tree.find(item => item.id === 'efforts')!
+
+    expect(equipment.isActive!(mockLocation('/equipment'))).toBe(true)
+    expect(equipment.isActive!(mockLocation('/equipment/dumbbell'))).toBe(true)
+    expect(equipment.isActive!(mockLocation('/e/dumbbell'))).toBe(false)
+    expect(equipment.isActive!(mockLocation('/efforts'))).toBe(false)
+    // The two zones are disjoint: equipment routes never light Efforts.
+    expect(efforts.isActive!(mockLocation('/equipment/dumbbell'))).toBe(false)
   })
 })
 

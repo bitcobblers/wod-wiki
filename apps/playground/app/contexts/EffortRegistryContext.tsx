@@ -29,9 +29,10 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
 
   const init = useCallback(async () => {
     try {
-      if (!registry.isInitialized()) {
-        await hydrateAppEffortRegistry(registry);
-      }
+      // Always re-read: hydration REPLACES the bundled tier and reloads the
+      // user tier, so post-save refreshes and seed broadcasts see new and
+      // removed rows alike (a one-shot init would cache stale rows forever).
+      await hydrateAppEffortRegistry(registry);
       setIsReady(true);
       setError(null);
     } catch (err) {

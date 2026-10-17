@@ -108,8 +108,9 @@ export type WqlFindTarget = (typeof WQL_FIND_TARGETS)[number];
 /** Canonical source filter values: the allowed storage locations (the
  *  former `collections` spelling is retired — renamed to feeds; storage
  *  identities keep their `collection:` prefixes). Seed corpus locations
- *  joined the note plane: prebuilt dashboards and the effort library. */
-export const WQL_SOURCE_VALUES = ['journal', 'feeds', 'guides', 'playground', 'dashboards', 'efforts'] as const;
+ *  joined the note plane: prebuilt dashboards, the effort library and the
+ *  equipment library. */
+export const WQL_SOURCE_VALUES = ['journal', 'feeds', 'guides', 'playground', 'dashboards', 'efforts', 'equipment'] as const;
 export type WqlSourceValue = (typeof WQL_SOURCE_VALUES)[number];
 
 /** Colon source heads — the unprefixed `:<head>` names. Find targets map

@@ -112,14 +112,15 @@ export const TARGET_OPTIONS = WQL_FIND_TARGETS.map((t) => ({
 export const SOURCE_OPTIONS = WQL_SOURCE_VALUES.map((s) => ({
   value: s,
   label: s.charAt(0).toUpperCase() + s.slice(1),
-  description: {
+  description: ({
     journal: 'Daily journal notes',
     feeds: 'Curated feed notes',
     guides: 'Static guide pages',
     playground: 'Playground scratch pages',
     dashboards: 'Dashboard notes',
     efforts: 'Exercise library notes',
-  }[s],
+    equipment: 'Equipment library notes',
+  } as Record<string, string>)[s],
 }));
 
 /** Output-statement planes for `plane:` on `:session` (executor narrows

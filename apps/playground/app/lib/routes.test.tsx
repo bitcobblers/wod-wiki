@@ -50,6 +50,8 @@ import {
   isTrackerPath,
   isCollectionWorkoutPath,
   effortPath,
+  equipmentPath,
+  isEquipmentPath,
   analyticsExplorerPath,
 } from './routes'
 
@@ -454,5 +456,13 @@ describe('ROUTE_PATTERNS', () => {
     expect(ROUTE_PATTERNS.load).toBe('/load')
     expect(ROUTE_PATTERNS.loadJournal).toBe('/load/journal')
     expect(ROUTE_PATTERNS.loadJournalDate).toBe('/load/journal/:date')
+    // Equipment L1 family — list stream + detail/create note pages.
+    expect(ROUTE_PATTERNS.equipment).toBe('/equipment')
+    expect(ROUTE_PATTERNS.equipmentSlug).toBe('/equipment/:slug')
+    expect(equipmentPath('dumbbell')).toBe('/equipment/dumbbell')
+    expect(isEquipmentPath('/equipment')).toBe(true)
+    expect(isEquipmentPath('/equipment/dumbbell')).toBe(true)
+    expect(isEquipmentPath('/efforts')).toBe(false)
+    expect(isEquipmentPath('/e/dumbbell')).toBe(false)
   })
 })

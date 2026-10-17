@@ -24,6 +24,7 @@ export const USER_OWNED_STORES: readonly StoreName[] = [
   'notes', 'page', 'page_notes', 'tags', 'tag_types', 'note_tags',
   'sessions', 'attachments', 'events',
   'efforts', 'block_index', 'block_efforts',
+  'equipment', 'block_equipment',
 ];
 
 const STAMPABLE: Record<string, true> = Object.fromEntries(

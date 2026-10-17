@@ -371,7 +371,7 @@ export async function loadSampleData(): Promise<{ facts: number }> {
       workoutTimestamp: session.timestamp,
     };
 
-    factsWritten += await service.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'tags', 'note_tags', 'tag_types', 'sessions', 'events'], async scoped => {
+    factsWritten += await service.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'tags', 'note_tags', 'tag_types', 'sessions', 'events'], async scoped => {
       await scoped.saveNoteSource({ noteId: session.noteId, rawContent, blocks, expectedSourceRevision: 0, metadata: { title: session.title }, noteType: 'playground', createdAt: session.timestamp });
       await scoped.setNoteTags(session.noteId, [SAMPLE_TAG]);
       await scoped.saveSession(result);

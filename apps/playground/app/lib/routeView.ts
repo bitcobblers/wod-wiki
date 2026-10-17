@@ -59,6 +59,7 @@ export type PageKind =
   | 'feedDetail'
   | 'feedItem'
   | 'effortDetail'
+  | 'equipmentDetail'
   | 'analyticsExplorer'
   | 'dashboardExplorer'
   | 'dashboardView'
@@ -199,6 +200,9 @@ function deriveWorkout(
     const prefix = pathname.startsWith('/e/') ? '/e/' : '/effort/'
     return { name: decodeURIComponent(pathname.slice(prefix.length).split('/')[0] ?? 'Effort'), content: '', category: 'effort' }
   }
+  if (pathname.startsWith('/equipment/')) {
+    return { name: decodeURIComponent(pathname.slice('/equipment/'.length).split('/')[0] ?? 'Equipment'), content: '', category: 'equipment' }
+  }
   if (flags.feedItemMatch) {
     return { name: decodeURIComponent(flags.feedItemMatch[2]), content: '', category: 'feed' }
   }
@@ -273,6 +277,7 @@ function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanva
   if (flags.feedDetailMatch) return 'feedDetail'
   if (flags.feedItemMatch) return 'feedItem'
   if (pathname.startsWith('/effort/') || pathname.startsWith('/e/')) return 'effortDetail'
+  if (pathname.startsWith('/equipment/')) return 'equipmentDetail'
   if (pathname === '/analytics/explorer') return 'analyticsExplorer'
   if (pathname === '/dashboard' || pathname === '/dashboards') return 'dashboardExplorer'
   if (pathname.startsWith('/dashboard/') || pathname.startsWith('/d/')) return 'dashboardView'

@@ -38,6 +38,7 @@ import {
   Rss,
   Star,
   Tag,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react'
 import { isFindQuery, parseQuery, serialize, type AnyParsedQuery } from '@bitcobblers/wod-wiki-engine'
@@ -72,6 +73,7 @@ export const SHORTCUT_ICONS: Record<string, LucideIcon> = {
   star: Star,
   tag: Tag,
   activity: Activity,
+  wrench: Wrench,
 }
 
 export const ROUTE_SHORTCUTS_STORAGE_PREFIX = 'wodwiki.routeWqlShortcuts.v1'
@@ -96,6 +98,7 @@ const LANDING_LABELS: Record<string, string> = {
   '/feeds': 'All feeds',
   '/playgrounds': 'All playgrounds',
   '/efforts': 'All Efforts',
+  '/equipment': 'All Equipment',
   '/sessions': 'All Sessions',
 }
 
@@ -105,6 +108,7 @@ const LANDING_ICONS: Record<string, string> = {
   '/feeds': 'rss',
   '/playgrounds': 'flask-conical',
   '/efforts': 'dumbbell',
+  '/equipment': 'wrench',
   '/sessions': 'clipboard-list',
 }
 

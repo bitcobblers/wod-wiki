@@ -23,11 +23,11 @@
  */
 
 import { HomeIcon, CodeBracketIcon } from '@heroicons/react/20/solid'
-import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, Layers, ListFilter, Tag, Library, Plus, CalendarPlus, UserRound, Database, CloudDownload } from 'lucide-react'
+import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, Layers, ListFilter, Tag, Library, Plus, CalendarPlus, UserRound, Database, CloudDownload, Wrench } from 'lucide-react'
 import type { NavItem } from './navTypes'
 import type { Location } from 'react-router-dom'
-import { JOURNAL_STREAM_PROFILE, CATALOGS_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PLAYGROUNDS_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
-import { ROUTE_PATTERNS, isEffortsPath } from '../lib/routes'
+import { JOURNAL_STREAM_PROFILE, CATALOGS_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PLAYGROUNDS_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
+import { ROUTE_PATTERNS, isEffortsPath, isEquipmentPath } from '../lib/routes'
 
 import { DashboardsNavPanel } from './panels/DashboardsNavPanel'
 import { createConditionsNavPanel, type ConditionsPanelSpec } from './panels/ConditionsNavPanel'
@@ -284,6 +284,30 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
           testId: 'efforts-create-effort',
           onClick: ({ navigate }) => {
             navigate('/e/new?mode=create')
+          },
+        },
+      }),
+    },
+
+    {
+      id: 'equipment',
+      label: 'Equipment',
+      level: 1,
+      icon: Wrench,
+      action: { type: 'route', to: ROUTE_PATTERNS.equipment },
+      isActive: (loc: Location) => isEquipmentPath(loc.pathname),
+      applyFooter: true,
+      panel: createConditionsNavPanel({
+        landingLabel: 'All Equipment',
+        icon: Wrench,
+        route: ROUTE_PATTERNS.equipment,
+        profile: EQUIPMENT_STREAM_PROFILE,
+        familyActive: (loc: Location) => isEquipmentPath(loc.pathname),
+        createAction: {
+          label: 'New equipment',
+          testId: 'equipment-create-equipment',
+          onClick: ({ navigate }) => {
+            navigate('/equipment/new?mode=create')
           },
         },
       }),

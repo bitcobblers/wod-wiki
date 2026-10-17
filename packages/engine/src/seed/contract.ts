@@ -1,7 +1,7 @@
-import type { BlockEffort, BlockIndexRow, NoteBlock } from '@bitcobblers/wod-wiki-core';
+import type { BlockEffort, BlockEquipment, BlockIndexRow, NoteBlock } from '@bitcobblers/wod-wiki-core';
 import { KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 
-export const SEED_SCHEMA = 8;
+export const SEED_SCHEMA = 9;
 export const SEED_REGISTERED_WIDGETS = KNOWN_SECTION_WIDGETS;
 
 /** Source and all current derived rows commit as one chunk. */
@@ -11,6 +11,7 @@ export interface SeedRow {
   blocks: Record<string, NoteBlock>;
   blockIndex: BlockIndexRow[];
   blockEfforts: BlockEffort[];
+  blockEquipment: BlockEquipment[];
 }
 
 export type ChunkKind = 'notes';
@@ -45,6 +46,7 @@ export interface SeedMetaRecord {
 }
 export const SEED_BROADCAST_CHANNEL = 'wodwiki.seed';
 export const EFFORTS_CHUNK_ID = 'efforts';
+export const EQUIPMENT_CHUNK_ID = 'equipment';
 export const CANVAS_CHUNK_ID = 'canvas';
 export const DASHBOARDS_CHUNK_ID = 'dashboards';
 export const TEMPLATE_CHUNK_ID = 'template';
@@ -68,6 +70,7 @@ export function seedNoteSourceId(path: string, content: string, chunkId: string)
   if (chunkId === CANVAS_CHUNK_ID) return `guides:${canvasRouteSlug(content) ?? under}`;
   if (chunkId === DASHBOARDS_CHUNK_ID) return 'dashboards';
   if (chunkId === EFFORTS_CHUNK_ID) return 'efforts';
+  if (chunkId === EQUIPMENT_CHUNK_ID) return 'equipment';
   if (chunkId === TEMPLATE_CHUNK_ID) return 'playground';
   if (chunkId.startsWith('collection.')) {
     const catalog = catalogForChunkId(chunkId);

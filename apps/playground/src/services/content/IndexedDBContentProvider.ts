@@ -12,7 +12,7 @@ import { sessionToPayload } from '../persistence/sessionPayload';
 import { NotePersistenceError } from '../persistence/types';
 
 const BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
-const MUTATION_STORES = ['notes', 'block_revisions', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'sessions', 'events', 'block_index', 'block_efforts'] as const;
+const MUTATION_STORES = ['notes', 'block_revisions', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'sessions', 'events', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'] as const;
 
 function localDateKey(ts: number): string {
     const date = new Date(ts);

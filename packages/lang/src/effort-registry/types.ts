@@ -58,6 +58,14 @@ export interface IEffort {
   baseAttributes: EffortBaseAttributes;
   /** Where this record came from */
   registrySource: EffortRegistrySource;
+  /** Canonical equipment slugs this effort is typically performed with (ordered, deduped). */
+  equipment?: string[];
+  /** Owning note in the content store, when this record is a note projection. */
+  ownerNoteId?: string;
+  /** Seed/source collection this record was imported from. */
+  sourceId?: string;
+  /** Source file path within the originating collection. */
+  sourcePath?: string;
   /** Clone-based derivation metadata (user efforts only) */
   derivation?: EffortDerivation;
   /** ISO timestamp */
@@ -103,6 +111,68 @@ export interface IEffortRegistry {
 export interface EffortStorageAdapter {
   load(): Promise<IEffort[]>;
   save(effort: IEffort): Promise<void>;
+  delete(slug: string): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// Equipment registry (first-class definition entity, mirrors IEffort)
+// ---------------------------------------------------------------------------
+
+/**
+ * Canonical equipment entity (dumbbell, rower, kettlebell…).
+ *
+ * Same durable-identity rule as efforts: references point at the slug.
+ * No synthetic tier — unknown equipment stays authored source + diagnostics.
+ */
+export interface IEquipment {
+  /** UUID */
+  id: string;
+  /** Canonical identifier — unique, lowercase, hyphenated */
+  slug: string;
+  /** Primary human-readable name */
+  label: string;
+  /** Alternative names for exact matching */
+  aliases: string[];
+  /** Where this record came from */
+  registrySource: 'bundled' | 'user';
+  /** Free-form markdown description / notes */
+  body?: string;
+  /** Owning note in the content store, when this record is a note projection. */
+  ownerNoteId?: string;
+  /** Seed/source collection this record was imported from. */
+  sourceId?: string;
+  /** Source file path within the originating collection. */
+  sourcePath?: string;
+  /** ISO timestamp */
+  createdAt?: string;
+  /** ISO timestamp */
+  updatedAt?: string;
+}
+
+/** Read/write registry surface for equipment definitions (mirrors IEffortRegistry). */
+export interface IEquipmentRegistry {
+  // Read
+  resolve(slug: string): IEquipment | null;
+  resolveByAlias(label: string): IEquipment | null;
+  list(): readonly IEquipment[];
+  listByOrigin(origin: 'bundled' | 'user'): readonly IEquipment[];
+
+  // Write (user equipment only)
+  upsert(equipment: IEquipment): Promise<void>;
+  delete(slug: string): Promise<void>;
+
+  // Bundled seed (read-only)
+  loadBundled(): Promise<void>;
+  isInitialized(): boolean;
+}
+
+/**
+ * Pluggable asynchronous persistence adapter for user-defined equipment.
+ * Implemented by host environments (e.g. IndexedDB in browser, filesystem in CLI).
+ */
+export interface EquipmentStorageAdapter {
+  load(): Promise<IEquipment[]>;
+  save(equipment: IEquipment): Promise<void>;
   delete(slug: string): Promise<void>;
 }
 

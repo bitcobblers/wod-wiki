@@ -74,7 +74,7 @@ import { cursorFocusExtension, getCursorFocusState } from "@/app/editor/cursorFo
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { INotePersistence } from "@/services/persistence";
 import { queryService, onResultSaved } from "@/hooks/useCastSignaling";
-import { createFileDropHandler, createFrontmatterSuggestions, resolveNotePersistence, resolveWhiteboardCodeLanguage } from "@/app/editor/noteEditorServices";
+import { createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence, resolveWhiteboardCodeLanguage } from "@/app/editor/noteEditorServices";
 
 import { entryOpenHref } from '../../../../app/lib/entryActions';
 import { toEntry, blockToEntry } from '../../../../app/lib/entryMapper';
@@ -260,7 +260,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         storageService.getAllTagTypes().catch(() => []),
         storageService.getAllTags().catch(() => []),
       ]);
-      if (tagTypes.length === 0) return null;
 
       if (propMatch) {
         return {
@@ -278,6 +277,33 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
       if (!valueContext) return null;
       const { propertyKey, from: wordFrom } = valueContext;
+
+      // Durable reference values (note defaults + definition lists) complete
+      // from the same catalog the resolver uses; the slug is what's authored.
+      const REF_VALUE_KIND: Record<string, 'effort' | 'equipment'> = {
+        'metrics.effort': 'effort',
+        'metrics.equipment': 'equipment',
+        equipment: 'equipment',
+      };
+      const refKind = REF_VALUE_KIND[propertyKey.toLowerCase()];
+      if (refKind) {
+        const catalog = await loadReferenceCatalog();
+        const rows = refKind === 'effort' ? catalog.efforts : catalog.equipment;
+        return {
+          from: wordFrom,
+          options: rows.map((row) => ({
+            label: `${row.label} (${row.slug})`,
+            detail: refKind === 'effort' ? 'Effort' : 'Equipment',
+            type: 'constant',
+            apply: row.slug,
+          })),
+          validFor: (text, from, to, state) => {
+            const current = frontmatterValueContext(state, to);
+            return /^[\w-]*$/.test(text) && current?.propertyKey === propertyKey && current.from === from;
+          },
+        };
+      }
+
       const matchingType = tagTypes.find((t) => t.name.toLowerCase() === propertyKey.toLowerCase());
       if (!matchingType) return null;
 
@@ -596,6 +622,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         previewDecorations,
         embedPreviewDecorations,
         createFrontmatterSuggestions(),
+        createFrontmatterReferenceProvider(),
         markdownTablePreview,
         markdownSyntaxHiding(),
         linkPreview,

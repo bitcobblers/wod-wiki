@@ -1,7 +1,7 @@
 /** Compiles exact source, occurrence maps and sparse projections into atomic notes chunks. */
 import { parseScript, whiteboardParser } from '@bitcobblers/wod-wiki-lang';
 import { blockContentId, parseDocumentSections, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
-import type { BlockEffort, BlockIndexRow } from '@bitcobblers/wod-wiki-storage';
+import type { BlockEffort, BlockEquipment, BlockIndexRow } from '@bitcobblers/wod-wiki-storage';
 import {
   buildDashboardDocument,
   isDashboardWidgetType,
@@ -20,9 +20,8 @@ import {
   type SeedManifest,
   type SeedRow,
 } from './contract';
-import { extractEffortSlugs } from './effort-slugs';
 import { fileToDisplayName } from './filename';
-import { parseEffortFile } from './effort-file';
+import { createReferenceIndex, extractStatementRefs, parseEffortFile, parseEquipmentFile, slugifyRefLabel, type IEffort, type IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { resolveGitVersion } from './git-version';
 import { writeBuildReport } from './report';
 import { getScalar, parseFrontmatter } from './frontmatter';
@@ -107,6 +106,7 @@ export function chunkIdFor(relPath: string): string | null {
     case 'canvas':
     case 'dashboards':
     case 'efforts':
+    case 'equipment':
       return corpus;
     case 'collections':
       return parts.length === 3 ? `collection._root` : `collection.${slug}`;
@@ -130,7 +130,7 @@ export function partitionIntoChunks(paths: string[]): ChunkGroup[] {
     if (id === null) {
       throw new Error(
         `[generate-seed] Parity failure: '${p}' is not part of any known corpus ` +
-        `(canvas | dashboards | efforts | collections | feeds). ` +
+        `(canvas | dashboards | efforts | equipment | collections | feeds). ` +
         `Extend chunkIdFor() if this is a new corpus.`,
       );
     }
@@ -250,7 +250,7 @@ export function compileSeedRow(path: string, content: string, metadata: { routeI
     const section = sections.find((section) => section.from === block.from && section.to === block.to);
     return { id: `${noteId}:${block.id}`, noteId, blockId: block.id, blockVersion: 1, sourceRevision: 1, from: block.from, to: block.to, position, dataType: block.kind, ...(block.kind === 'wod' ? { blockContentId: blockContentId(section?.scriptBlock?.content ?? content.slice(block.from, block.to)) } : {}), rawContent: content.slice(block.from, block.to), noteTitle: metadata.noteTitle ?? fileToDisplayName(path.split('/').at(-1) ?? path), createdAt: metadata.createdAt ?? 0, isStatic: true, sourceId: metadata.sourceId, sourcePath: path, routeId: metadata.routeId };
   });
-  return { path, content, blocks, blockIndex, blockEfforts: [] };
+  return { path, content, blocks, blockIndex, blockEfforts: [], blockEquipment: [] };
 }
 
 export function buildBlockIndexRows(markdownDir: string, corpusRoot: string): BlockIndexRow[] {
@@ -346,51 +346,50 @@ function formatDiscoveredLabel(raw: string): string {
     .join(' ');
 }
 
-export function loadExistingEffortMap(markdownDir: string): {
-  slugs: Set<string>;
-  aliasToCanonical: Map<string, string>;
-} {
-  const slugs = new Set<string>();
-  const aliasToCanonical = new Map<string, string>();
+/**
+ * ONE corpus reference catalog — both definition families parsed once into
+ * real arrays, the direct feed for lang's `createReferenceIndex`. Effort and
+ * equipment containment rows, discovery and the runtime all resolve through
+ * that single index, so the static plane and runtime agree on canonical
+ * slugs with no per-family copies.
+ */
+export function loadCorpusReferenceCatalog(markdownDir: string): { efforts: IEffort[]; equipment: IEquipment[] } {
+  const efforts: IEffort[] = [];
+  const equipment: IEquipment[] = [];
   const effortsDir = join(markdownDir, 'efforts');
   for (const file of listMarkdownFiles(effortsDir)) {
-    const raw = readFileSync(join(effortsDir, file), 'utf8');
-    const parsed = parseEffortFile(raw);
-    if (!parsed) continue;
-
-    slugs.add(parsed.slug);
-    aliasToCanonical.set(parsed.slug, parsed.slug);
-    aliasToCanonical.set(parsed.label.toLowerCase(), parsed.slug);
-    aliasToCanonical.set(parsed.slug.replace(/-/g, ' '), parsed.slug);
-
-    for (const alias of parsed.aliases) {
-      aliasToCanonical.set(alias.toLowerCase(), parsed.slug);
-      aliasToCanonical.set(alias.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''), parsed.slug);
-    }
+    const parsed = parseEffortFile(readFileSync(join(effortsDir, file), 'utf8'));
+    if (parsed) efforts.push(parsed);
   }
-
-  return { slugs, aliasToCanonical };
+  const equipmentDir = join(markdownDir, 'equipment');
+  for (const file of listMarkdownFiles(equipmentDir)) {
+    const parsed = parseEquipmentFile(readFileSync(join(equipmentDir, file), 'utf8'));
+    if (parsed) equipment.push(parsed);
+  }
+  return { efforts, equipment };
 }
 
 export function discoverUncatalogedEfforts(markdownDir: string, corpusRoot: string): DiscoveredEffort[] {
-  const { slugs, aliasToCanonical } = loadExistingEffortMap(markdownDir);
+  const catalog = loadCorpusReferenceCatalog(markdownDir);
+  const index = createReferenceIndex(catalog);
   const blocks = buildBlockIndexRows(markdownDir, corpusRoot);
   const discovered = new Map<string, { label: string; rawLabels: Set<string> }>();
 
   for (const block of blocks) {
     if (block.dataType !== 'wod' || !block.rawContent) continue;
     const section = parseDocumentSections(block.rawContent, { registeredWidgets: SEED_REGISTERED_WIDGETS }).find((section) => section.scriptBlock);
-    const script = parseScript(section?.scriptBlock?.content ?? block.rawContent);
+    const script = parseScript(section?.scriptBlock?.content ?? block.rawContent, { references: index });
     for (const statement of script.statements) {
       const effortMetric = statement.metrics?.getMetric?.('effort');
       const effortLabel = (effortMetric && typeof effortMetric.value === 'string' ? effortMetric.value : undefined) ?? statement.exerciseId;
       if (!effortLabel) continue;
 
-      const slugified = effortLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const slugified = slugifyRefLabel(effortLabel);
       if (!slugified || NON_EFFORT_SLUGS[slugified]) continue;
 
-      const canonical = aliasToCanonical.get(slugified) ?? aliasToCanonical.get(effortLabel.toLowerCase());
-      if (canonical && slugs.has(canonical)) continue;
+      // Known efforts are exactly the catalog's canonical slugs — discovery
+      // only reports labels the shared index cannot resolve.
+      if (index.resolveEffort(slugified) || index.resolveEffort(effortLabel)) continue;
 
       const existing = discovered.get(slugified);
       if (existing) {
@@ -453,25 +452,26 @@ export function scaffoldDiscoveredEfforts(
 
 /**
  * Derive BlockEffort[] containment rows from the block-index row set.
- * Requires a second pass over the source markdown to parse the script AST,
- * which is safe because the corpus is static and the pass is compile-time.
+ * Requires a second pass over the source markdown to parse the script AST
+ * (with the corpus reference index configured, so statements carry canonical
+ * refs), which is safe because the corpus is static and compile-time.
+ *
+ * Only VALIDATED refs enter the durable index: a slug that survives is
+ * confirmed by the shared index (`resolveEffort`); uncataloged movements
+ * produce no durable link — that is discovery's reporting job.
  */
 export function buildBlockEffortRows(markdownDir: string, corpusRoot: string, blocks: BlockIndexRow[] = buildBlockIndexRows(markdownDir, corpusRoot)): BlockEffort[] {
   const efforts: BlockEffort[] = [];
-  const { aliasToCanonical } = loadExistingEffortMap(markdownDir);
+  const index = createReferenceIndex(loadCorpusReferenceCatalog(markdownDir));
   for (const block of blocks) {
     if (block.dataType !== 'wod' || !block.rawContent) continue;
     const section = parseDocumentSections(block.rawContent, { registeredWidgets: SEED_REGISTERED_WIDGETS }).find((section) => section.scriptBlock);
-    const script = parseScript(section?.scriptBlock?.content ?? block.rawContent);
-    const effortSlugs = extractEffortSlugs(script.statements);
+    const script = parseScript(section?.scriptBlock?.content ?? block.rawContent, { references: index });
     const linked = new Set<string>();
-    for (const rawSlug of effortSlugs) {
-      const norm = rawSlug.toLowerCase().trim();
-      const canonicalSlug =
-        aliasToCanonical.get(norm) ??
-        aliasToCanonical.get(norm.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')) ??
-        norm.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      if (!canonicalSlug || NON_EFFORT_SLUGS[canonicalSlug] || NON_EFFORT_SLUGS[norm]) {
+    for (const rawSlug of extractStatementRefs(script.statements).efforts) {
+      const canonical = index.resolveEffort(rawSlug);
+      const canonicalSlug = canonical?.slug;
+      if (!canonicalSlug || NON_EFFORT_SLUGS[canonicalSlug] || NON_EFFORT_SLUGS[rawSlug]) {
         continue;
       }
       if (linked.has(canonicalSlug)) continue;
@@ -489,6 +489,40 @@ export function buildBlockEffortRows(markdownDir: string, corpusRoot: string, bl
     }
   }
   return efforts;
+}
+
+/**
+ * Derive BlockEquipment[] containment rows — the equipment twin of
+ * {@link buildBlockEffortRows}. Parsed with the corpus reference index so
+ * statements carry canonical equipment refs; only slugs the shared index
+ * confirms (`resolveEquipment`) produce a durable link. Unknown equipment
+ * stays visible as authored source + parser diagnostics.
+ */
+export function buildBlockEquipmentRows(markdownDir: string, corpusRoot: string, blocks: BlockIndexRow[] = buildBlockIndexRows(markdownDir, corpusRoot)): BlockEquipment[] {
+  const links: BlockEquipment[] = [];
+  const index = createReferenceIndex(loadCorpusReferenceCatalog(markdownDir));
+  for (const block of blocks) {
+    if (block.dataType !== 'wod' || !block.rawContent) continue;
+    const section = parseDocumentSections(block.rawContent, { registeredWidgets: SEED_REGISTERED_WIDGETS }).find((s) => s.scriptBlock);
+    const script = parseScript(section?.scriptBlock?.content ?? block.rawContent, { references: index });
+    const linked = new Set<string>();
+    for (const rawSlug of extractStatementRefs(script.statements).equipment) {
+      const canonicalSlug = index.resolveEquipment(rawSlug)?.slug;
+      if (!canonicalSlug || linked.has(canonicalSlug)) continue;
+      linked.add(canonicalSlug);
+      links.push({
+        id: `${block.id}:${canonicalSlug}`,
+        noteId: block.noteId,
+        blockId: block.blockId,
+        blockContentId: block.blockContentId,
+        equipmentSlug: canonicalSlug,
+        isStatic: block.isStatic,
+        sourcePath: block.sourcePath,
+        createdAt: block.createdAt,
+      });
+    }
+  }
+  return links;
 }
 
 
@@ -551,9 +585,11 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
   const manifestChunks: ManifestChunk[] = [];
   const tBlockEfforts = Date.now();
   const effortRows = buildBlockEffortRows(markdownDir, corpusRoot, blockRows);
+  const equipmentRows = buildBlockEquipmentRows(markdownDir, corpusRoot, blockRows);
   passMs.blockEfforts = Date.now() - tBlockEfforts;
   const blocksByPath = new Map<string, BlockIndexRow[]>();
   const effortsByPath = new Map<string, BlockEffort[]>();
+  const equipmentByPath = new Map<string, BlockEquipment[]>();
   for (const row of blockRows) {
     const rows = blocksByPath.get(row.sourcePath!) ?? [];
     rows.push(row); blocksByPath.set(row.sourcePath!, rows);
@@ -561,6 +597,10 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
   for (const row of effortRows) {
     const rows = effortsByPath.get(row.sourcePath!) ?? [];
     rows.push(row); effortsByPath.set(row.sourcePath!, rows);
+  }
+  for (const row of equipmentRows) {
+    const rows = equipmentByPath.get(row.sourcePath!) ?? [];
+    rows.push(row); equipmentByPath.set(row.sourcePath!, rows);
   }
   let totalFiles = 0;
 
@@ -575,6 +615,7 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
       const compiled = compileSeedRow(p, content);
       compiled.blockIndex = blocksByPath.get(p) ?? compiled.blockIndex;
       compiled.blockEfforts = effortsByPath.get(p) ?? [];
+      compiled.blockEquipment = equipmentByPath.get(p) ?? [];
       return compiled;
     });
     const bytes = Buffer.from(JSON.stringify(rows), 'utf8');

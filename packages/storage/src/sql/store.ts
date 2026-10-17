@@ -31,6 +31,26 @@ import { validateStorageRow } from '../validation';
 export const SCHEMA_TABLE = '_wodwiki_schema';
 const SCHEMA_KEY = 'schema';
 
+/**
+ * Store tables introduced AFTER an already-shipped schema version, keyed by
+ * the version that added them. A stored database below DB_VERSION migrates
+ * forward by creating exactly these tables (additive — no existing row is
+ * read, rewritten or erased; ensureStoreTables below creates them); any
+ * other table-set difference still fails closed (foreign/recreated database).
+ */
+const ADDED_STORES_BY_VERSION: Readonly<Record<number, readonly string[]>> = {
+  31: ['equipment', 'block_equipment'],
+};
+
+/** Store tables this server may create on a database stamped `stored`. */
+function additiveStoresSince(stored: number): Set<string> {
+  const added = new Set<string>();
+  for (const [version, names] of Object.entries(ADDED_STORES_BY_VERSION)) {
+    if (Number(version) > stored) for (const name of names) added.add(name);
+  }
+  return added;
+}
+
 /** Stores whose rows carry a raw binary field the codec must preserve. */
 const BINARY_FIELD: Partial<Record<StoreName, string>> = { attachments: 'data' };
 
@@ -643,7 +663,7 @@ export async function initializeStore(db: Database): Promise<void> {
     // Layered sync protocol tables + libsql internals are not part of the
     // STORE_DEFS-derived schema and never participate in the comparison.
     const ignored = (name: string): boolean =>
-      name.startsWith('_wodwiki_') || name.startsWith('sqlite_');
+      name.startsWith('_wodwiki_') || name.startsWith('sqlite_') || name === 'domain_note' || name === 'query_block';
     const storeTables = new Set<string>(STORE_DEFS.map((d) => d.name));
     for (const def of STORE_DEFS) {
       const multi = def.indexes.find((i) => i.multiEntry);
@@ -670,15 +690,17 @@ export async function initializeStore(db: Database): Promise<void> {
       if (stored < DB_VERSION) {
         const missing = [...storeTables].filter((name) => !tableNames.has(name));
         const unexpected = [...tableNames].filter((name) => name !== SCHEMA_TABLE && !storeTables.has(name));
-        if (missing.length > 0 || unexpected.length > 0) {
+        const additive = additiveStoresSince(stored);
+        if (unexpected.length > 0 || missing.some((name) => !additive.has(name))) {
           throw new StorageError(
             500,
             `database schema v${stored} is incompatible with v${DB_VERSION} (missing tables: ${missing.join(', ') || 'none'}; unrecognized tables: ${unexpected.join(', ') || 'none'}); recreation required using an explicitly disposable database`,
             'schema_incompatible',
           );
         }
-        // StoreDef equality holds — the stored rows already match the current
-        // schema; only the guard version moves forward.
+        // Only recognized additive stores are missing — ensureStoreTables
+        // below creates them; the stored rows are never touched. Everything
+        // else equalities hold and only the guard version moves forward.
       }
     } else if ([...tableNames].some((name) => storeTables.has(name))) {
       throw new StorageError(

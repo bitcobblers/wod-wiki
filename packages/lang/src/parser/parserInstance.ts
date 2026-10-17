@@ -1,10 +1,10 @@
 import { MdTimerRuntime } from './md-timer';
-
-export function createParser(): MdTimerRuntime {
-  return new MdTimerRuntime();
-}
+import type { ParserConfig } from './md-timer';
 
 /**
- * @deprecated Use createParser() instead.
+ * Create a parser instance. Pass `{ references: createReferenceIndex(catalog), defaults }`
+ * to resolve canonical effort/equipment refs at parse time.
  */
-export const sharedParser = /* @__PURE__ */ createParser();
+export function createParser(config?: ParserConfig): MdTimerRuntime {
+  return new MdTimerRuntime(config);
+}

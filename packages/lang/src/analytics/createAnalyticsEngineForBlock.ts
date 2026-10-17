@@ -8,6 +8,7 @@ import { InMemoryEffortRegistry } from '../effort-registry/InMemoryEffortRegistr
 import { EffortResolver } from '../effort-registry/EffortResolver';
 import { bundledEfforts } from '../effort-registry/data/bundled-efforts';
 import type { IEffortResolver } from '../effort-registry/types';
+import type { ReferenceIndex } from '../effort-registry/reference-resolution';
 import type { CalculationDefinition } from './calc/types';
 
 export interface CreateAnalyticsEngineResult {
@@ -17,6 +18,8 @@ export interface CreateAnalyticsEngineResult {
 
 export interface CreateAnalyticsEngineOptions {
   effortResolver?: IEffortResolver;
+  /** Shared reference index — canonical effort/equipment resolution for enrichment. */
+  references?: ReferenceIndex;
   userProfile?: { vo2max?: number };
   /** User-authored composed calcs (#880), registered after the built-ins. */
   calcs?: CalculationDefinition[];
@@ -56,6 +59,7 @@ export function createAnalyticsEngineForBlock(
 
   const analyticsContext: AnalyticsContext = {
     effortResolver,
+    ...(options?.references ? { references: options.references } : {}),
   };
 
   const context: AnalyticsProfileContext = {

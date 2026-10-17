@@ -1,5 +1,7 @@
 import { IRuntimeBlock } from './IRuntimeBlock';
 import type { TestableBlockConfig } from './ITestableBlockConfig';
+import type { IEffortResolver } from '../../effort-registry/types';
+import type { ReferenceIndex } from '../../effort-registry/reference-resolution';
 
 /**
  * Factory function type for wrapping blocks in debug mode.
@@ -111,7 +113,8 @@ export interface RuntimeStackOptions extends IRuntimeOptions {
     logger?: RuntimeStackLogger;
     hooks?: RuntimeStackHooks;
     analyticsOptions?: {
-        effortResolver?: import('../../effort-registry/types').IEffortResolver;
+        effortResolver?: IEffortResolver;
+        references?: ReferenceIndex;
         userProfile?: { vo2max?: number };
     };
 }

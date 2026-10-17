@@ -86,6 +86,17 @@ export const TEST_IDS = {
   EFFORTS_NAV_RECENT_WORKOUTS: 'efforts-nav-recent-workouts',
   EFFORTS_NAV_RECENT_WORKOUT_ITEM: 'efforts-nav-recent-workout-item',
 
+  // ── Equipment detail ──────────────────────────────────────────────────────
+  EQUIPMENT_DETAIL_ROOT: 'equipment-detail-root',
+  EQUIPMENT_DETAIL_LABEL: 'equipment-detail-label',
+  EQUIPMENT_DETAIL_SOURCE: 'equipment-detail-source',
+  EQUIPMENT_DETAIL_CLONE_BTN: 'equipment-detail-clone-btn',
+  EQUIPMENT_DETAIL_NOTEBOOK_EDITOR: 'equipment-detail-notebook-editor',
+  EQUIPMENT_NOT_FOUND: 'equipment-not-found',
+  EQUIPMENT_NOT_FOUND_CREATE_BTN: 'equipment-not-found-create-btn',
+  EQUIPMENT_CREATE_BTN: 'equipment-create-btn',
+  EQUIPMENT_LOAD_ERROR: 'equipment-load-error',
+
   // ── Command palette ────────────────────────────────────────────────────────
   COMMAND_PALETTE_TRIGGER: 'command-palette-trigger',
   COMMAND_PALETTE_INPUT: 'command-palette-input',

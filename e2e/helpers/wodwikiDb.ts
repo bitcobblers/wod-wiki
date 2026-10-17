@@ -17,12 +17,14 @@ export interface ResultRow {
   createdAt?: number;
 }
 
-export function noteFixture(noteId: string, content: string, opts?: { type?: string; title?: string }) {
+export function noteFixture(noteId: string, content: string, opts?: { type?: string; title?: string; sourceId?: string; sourcePath?: string }) {
   const now = Date.now();
   const blocks = reconcileNoteBlocks(content, { sourceRevision: 1 });
   const note: Note = {
     id: noteId, title: opts?.title ?? noteId.split('/').pop() ?? noteId,
     type: opts?.type ?? 'note', createdAt: now, rawContent: content, sourceRevision: 1, blocks,
+    ...(opts?.sourceId ? { sourceId: opts.sourceId } : {}),
+    ...(opts?.sourcePath ? { sourcePath: opts.sourcePath } : {}),
   };
   const revisions: BlockRevision[] = Object.values(blocks).map((block) => ({
     noteId, blockId: block.id, version: block.version, kind: block.kind,
@@ -36,6 +38,8 @@ export function noteFixture(noteId: string, content: string, opts?: { type?: str
     dataType: block.kind, sourceRevision: 1, from: block.from, to: block.to,
     rawContent: content.slice(block.from, block.to), noteTitle: note.title, createdAt: now,
     ...(block.kind === 'wod' ? { blockContentId: sections.find((section) => section.from === block.from)?.contentId } : {}),
+    ...(opts?.sourceId ? { sourceId: opts.sourceId } : {}),
+    ...(opts?.sourcePath ? { sourcePath: opts.sourcePath } : {}),
   }));
   return { note, revisions, index };
 }
@@ -122,7 +126,7 @@ export async function seedCompletedSessions(
 /** Seed only an initialized current schema, never invent an older fixture DB. */
 export async function seedNote(
   page: Page, noteId: string, content: string,
-  opts?: { type?: string; title?: string; journalDate?: string },
+  opts?: { type?: string; title?: string; journalDate?: string; sourceId?: string; sourcePath?: string },
 ): Promise<void> {
   await waitForSeedReady(page);
   const fixture = noteFixture(noteId, content, opts);

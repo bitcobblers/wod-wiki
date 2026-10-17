@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
 import { seedBundledEfforts } from '../helpers/seedEfforts';
+import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
+import { waitForSeedReady } from '../helpers/seedReadiness';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -38,7 +40,7 @@ ${body}
 `;
 }
 
-test.describe('Effort detail — /effort/:slug', () => {
+test.describe('Effort detail', () => {
   test('renders bundled effort inside the aligned note shell', async ({ page }) => {
     const errors = attachErrorCapture(page);
     const efforts = new EffortsPage(page);
@@ -53,78 +55,39 @@ test.describe('Effort detail — /effort/:slug', () => {
 
     await expect(efforts.detailLabel()).toHaveText('Burpee');
     await expect(efforts.detailSource()).toContainText('Bundled');
-    // The Properties panel renders in edit mode: keys/values live in input
-    // VALUES (aria-labelled), not text nodes — text lookups find nothing.
     const properties = efforts.frontmatterProperties();
     await expect(properties).toBeVisible();
     await expect(properties.getByLabel('Value for slug')).toHaveValue('burpee');
     await expect(properties.getByLabel('Value for label')).toHaveValue('Burpee');
-    // Identity header surfaces the typed attribute: burpee met 10.0.
-    await expect(page.getByText('10 MET')).toBeVisible();
+    await expect(properties.getByLabel('MET value')).toHaveValue('10');
     await expect(efforts.notebookEditor()).toBeVisible();
     await expect(efforts.cloneButton()).toBeVisible();
 
     errors.expectClean();
   });
 
-  // Quarantined #719: the effort detail save/edit/cancel/delete controls are
-  // retired (EffortDetailPage renders no EFFORT_DETAIL_SAVE/EDIT/CANCEL/
-  // DELETE testids); rebuild-or-retire is an open product decision there.
-  test.fixme('clone, save, edit, and delete a custom effort', async ({ page }) => { // #719
+  test('copies a bundled effort and autosaves its inline properties without changing the original', async ({ page }) => {
     const errors = attachErrorCapture(page);
     const efforts = new EffortsPage(page);
-    const slug = `burpee-custom-${Date.now()}`;
-    const updatedSlug = `${slug}-v2`;
-
     await efforts.gotoDetail('burpee');
+    await seedBundledEfforts(page);
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.cloneButton().click();
-    await expect(efforts.notebookEditor()).toBeVisible();
-
-    await efforts.replaceEditorDocument(
-      customEffortDocument(slug, 'Burpee Custom Seed', 'Custom burpee notes for save flow.'),
-    );
-    await efforts.saveButton().click();
-
-    await expect(page).toHaveURL(new RegExp(`/effort/${slug}$`));
-    await expect(efforts.detailLabel()).toHaveText('Burpee Custom Seed');
+    await expect(page).toHaveURL(/\/e\/burpee-custom$/);
     await expect(efforts.detailSource()).toContainText('Custom');
-    await expect(efforts.editButton()).toBeVisible();
 
-    await efforts.editButton().click();
-    await expect(efforts.deleteButton()).toBeVisible();
-    await efforts.replaceEditorDocument(
-      customEffortDocument(updatedSlug, 'Burpee Custom Updated', 'Updated custom burpee notes.'),
-    );
-    await efforts.saveButton().click();
-
-    await expect(page).toHaveURL(new RegExp(`/effort/${updatedSlug}$`));
-    await expect(efforts.detailLabel()).toHaveText('Burpee Custom Updated');
-    await expect(page.getByText('Updated custom burpee notes.')).toBeVisible();
-
-    await efforts.editButton().click();
-    await efforts.deleteButton().click();
-
-    await expect(page).toHaveURL(/\/efforts$/);
-    await expect(efforts.effortRow(updatedSlug)).toHaveCount(0);
-
-    errors.expectClean();
-  });
-
-  // Quarantined #719: no edit-mode cancel control exists on the effort detail
-  // surface (same retired-controls decision as above).
-  test.fixme('cancel returns from edit mode without mutating the bundled effort', async ({ page }) => { // #719
-    const errors = attachErrorCapture(page);
-    const efforts = new EffortsPage(page);
+    const label = efforts.frontmatterProperties().getByLabel('Value for label');
+    await label.fill('Burpee training notes');
+    await label.press('Tab');
+    await expect.poll(() => getNoteContentByRouteId(page, 'effort/burpee-custom'))
+      .toContain('Burpee training notes');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(efforts.detailLabel()).toHaveText('Burpee training notes');
+    await expect(efforts.notebookEditor()).toContainText('full-body conditioning');
 
     await efforts.gotoDetail('burpee');
-    await efforts.cloneButton().click();
-    await expect(efforts.notebookEditor()).toBeVisible();
-    await efforts.cancelButton().click();
-
     await expect(efforts.detailLabel()).toHaveText('Burpee');
-    await expect(efforts.cloneButton()).toBeVisible();
-    await expect(efforts.notebookEditor()).toHaveCount(0);
-
+    await expect(efforts.detailSource()).toContainText('Bundled');
     errors.expectClean();
   });
 
@@ -136,6 +99,37 @@ test.describe('Effort detail — /effort/:slug', () => {
 
     await expect(efforts.detailNotFound()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Back to Catalog' })).toBeVisible();
+
+    errors.expectClean();
+  });
+
+  test('creates a custom effort through the note editor (create shares the edit layout)', async ({ page }) => {
+    const errors = attachErrorCapture(page);
+    const slug = `e2e-effort-${Date.now()}`;
+
+    await page.goto('/e/new?mode=create', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForSeedReady(page);
+
+    await expect(page.locator('.cm-note-editor')).toBeVisible({ timeout: 15_000 });
+    const editor = page.locator('.cm-note-editor .cm-content').first();
+    await editor.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(customEffortDocument(slug, 'E2E Created Effort', 'Created through the note editor.'));
+
+    await page.getByTestId('effort-create-btn').click();
+    await expect(page).toHaveURL(new RegExp(`/e/${slug}$`), { timeout: 15_000 });
+    const efforts = new EffortsPage(page);
+    await expect(efforts.detailLabel()).toHaveText('E2E Created Effort');
+    await expect(efforts.detailSource()).toContainText('Custom');
+
+    // The committed note is the durable source — a reload reads it back.
+    await expect
+      .poll(() => getNoteContentByRouteId(page, `effort/${slug}`), { timeout: 15_000 })
+      .toContain('Created through the note editor.');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await efforts.waitForDetailLoaded();
+    await expect(efforts.detailLabel()).toHaveText('E2E Created Effort');
+    await expect(efforts.notebookEditor()).toBeVisible();
 
     errors.expectClean();
   });

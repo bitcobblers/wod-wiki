@@ -7,6 +7,7 @@
 import type {
   Attachment,
   BlockEffort,
+  BlockEquipment,
   BlockIndexRow,
   EventRecord,
   Membership,
@@ -25,7 +26,7 @@ import type {
   FieldSourceRecord,
   FieldValueRecord,
 } from '@bitcobblers/wod-wiki-core';
-import type { IEffort } from '@bitcobblers/wod-wiki-lang';
+import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import type { DomainQuery, DomainQueryResult } from './domain';
 
 export interface StorageSchema {
@@ -44,8 +45,10 @@ export interface StorageSchema {
   field_values: FieldValueRecord;
   field_catalog_meta: CatalogBackfillState;
   efforts: IEffort;
+  equipment: IEquipment;
   block_index: BlockIndexRow;
   block_efforts: BlockEffort;
+  block_equipment: BlockEquipment;
   meta: unknown;
   memberships: Membership;
 }

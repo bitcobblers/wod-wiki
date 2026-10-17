@@ -23,14 +23,19 @@
  */
 
 import type { IRuntimeBlock } from '../contracts/IRuntimeBlock';
-import type { IEffortResolver } from '../../effort-registry/types';
+import type { IEffortResolver, ResolvedEffort } from '../../effort-registry/types';
+import type { ReferenceDiagnostic, ReferenceIndex, ReferenceMatchKind, ReferenceRef } from '../../effort-registry/reference-resolution';
+import { EquipmentMetric } from './metrics/EquipmentMetric';
 import { EFFORT_DATA_METRIC_TYPE } from '../../analytics/effortResolution';
 import type { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
+import { REFERENCE_METADATA_KEY } from '@bitcobblers/wod-wiki-core';
 import { IMemoryLocation, MemoryLocation } from '../memory/MemoryLocation';
 
 export interface EffortEnrichmentPassOptions {
   /** Effort resolver for label → definition lookup. */
   resolver: IEffortResolver;
+  /** Shared reference index — canonical effort/equipment resolution when configured. */
+  references?: ReferenceIndex;
   /** Whether to overwrite existing effort-data metrics (default: false). */
   overwrite?: boolean;
   /** Debug logging enabled (default: false). */
@@ -57,13 +62,14 @@ export interface EffortEnrichmentPassOptions {
 const logTrace = (message: string): void => console.log(message);
 
 export function applyEffortEnrichment(block: IRuntimeBlock, options: EffortEnrichmentPassOptions): void {
-  const { resolver, overwrite = false, debug = false } = options;
-  tryEnrichBlock(block, resolver, overwrite, debug);
+  const { resolver, references, overwrite = false, debug = false } = options;
+  tryEnrichBlock(block, resolver, references, overwrite, debug);
 }
 
 function tryEnrichBlock(
   block: IRuntimeBlock,
   resolver: IEffortResolver,
+  references: ReferenceIndex | undefined,
   overwrite: boolean,
   debug: boolean,
 ): void {
@@ -97,7 +103,38 @@ function tryEnrichBlock(
   // (those only read statement metrics, attached before compilation) — see
   // IRuntimeBlock.mergeHints's doc comment and
   // docs/architectural-cleanup-tier-3-extensibility.md §3.3 for the gap.
-  const resolved = resolver.resolveEffort(label);
+  //
+  // With a reference index configured, resolution is canonical-only: an
+  // unknown/ambiguous label keeps its authored source and carries a visible
+  // diagnostic instead of a synthetic fallback.
+  let resolved: ResolvedEffort | undefined;
+  let matchedKind: ReferenceMatchKind = 'none';
+  let equipmentRefs: ReferenceRef[] = [];
+  let diagnostics: ReferenceDiagnostic[] = [];
+  if (references) {
+    const resolution = references.resolve(label);
+    resolved = resolution.effort ?? undefined;
+    matchedKind = resolution.matched;
+    equipmentRefs = resolution.equipment;
+    diagnostics = resolution.diagnostics;
+  } else {
+    resolved = resolver.resolveEffort(label);
+  }
+
+  if (!resolved) {
+    if (diagnostics.length > 0) {
+      block.pushMemory(new MemoryLocation('metric:tracked', [{
+        type: MetricType.Hint,
+        value: 'reference.unresolved',
+        image: label,
+        origin: 'compiler',
+        metadata: { [REFERENCE_METADATA_KEY]: { matched: 'none', source: label, diagnostics } },
+      }]));
+    }
+    if (debug) logTrace(`[EffortEnrichment] Unresolved effort: ${label}`);
+    return;
+  }
+
   const effortHints = resolved.effort.hints;
   if (effortHints && Object.keys(effortHints).length > 0) {
       block.mergeHints(effortHints);
@@ -114,6 +151,9 @@ function tryEnrichBlock(
       value: resolved,
       origin: 'compiler',
       timestamp: new Date(),
+      ...(equipmentRefs.length > 0 || diagnostics.length > 0
+        ? { metadata: { [REFERENCE_METADATA_KEY]: { matched: matchedKind, source: label, refs: [{ kind: 'effort', slug: resolved.slug, label: resolved.label }, ...equipmentRefs], ...(diagnostics.length > 0 ? { diagnostics } : {}) } } }
+        : {}),
     };
 
     // Create or update a private metrics memory location
@@ -133,7 +173,38 @@ function tryEnrichBlock(
       const location = new MemoryLocation('metric:tracked', [effortDataMetric]);
       block.pushMemory(location);
     }
+
+    if (equipmentRefs.length > 0) {
+      pushPrivateMetrics(block, MetricType.Equipment, [
+        new EquipmentMetric(equipmentRefs.map(ref => ref.slug), {
+          refs: equipmentRefs,
+          source: label,
+          origin: 'compiler',
+        }),
+      ], MetricType.Equipment, overwrite);
+    }
   } catch (err) {
     console.error(`[EffortEnrichment] Failed to resolve effort "${label}":`, err);
+  }
+}
+
+/** Push metrics into a private memory location keyed by metric type, replacing an existing entry when overwriting. */
+function pushPrivateMetrics(
+  block: IRuntimeBlock,
+  markerType: MetricType | string,
+  metrics: IMetric[],
+  replaceType: MetricType | string,
+  overwrite: boolean,
+): void {
+  const privateMetrics = block.getMetricMemoryByVisibility('private');
+  const existingLoc = privateMetrics.find(loc =>
+    loc.metrics.toArray().some(m => m.type === markerType),
+  );
+
+  if (existingLoc && overwrite) {
+    const filtered = existingLoc.metrics.toArray().filter(m => m.type !== replaceType);
+    existingLoc.update([...filtered, ...metrics]);
+  } else if (!existingLoc) {
+    block.pushMemory(new MemoryLocation('metric:tracked', metrics));
   }
 }

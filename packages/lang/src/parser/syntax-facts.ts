@@ -16,7 +16,7 @@ interface BasePrimitive {
 
 export interface MetricObjectPrimitive extends BasePrimitive {
   kind: 'metric_object';
-  pairs: Array<{ key: string; value: string | number | boolean | null }>;
+  pairs: Array<{ key: string; value: string | number | boolean | null | string[] }>;
 }
 
 export interface LapPrimitive extends BasePrimitive {

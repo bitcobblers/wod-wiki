@@ -2,6 +2,7 @@ import type { Tree } from '@lezer/common';
 import type { ICodeStatement, IMetric } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer, MetricType } from '@bitcobblers/wod-wiki-core';
 import { classifyStatements } from './semantic-classifier';
+import type { ParseReferences } from './semantic-classifier';
 import { extractSyntaxFacts } from './syntax-parser';
 import { dialectStack } from '../dialects/DialectStack';
 
@@ -30,10 +31,14 @@ function resolveSourceInput(sourceOrTree: SourceInput, treeArg?: Tree): { source
  * Inline rounds normalization still runs here so every parser entrypoint —
  * with or without dialects — produces the same deterministic Statement tree.
  */
-export function extractStatementsRaw(sourceOrTree: SourceInput, treeArg?: Tree): ICodeStatement[] {
+export function extractStatementsRaw(
+  sourceOrTree: SourceInput,
+  treeArg?: Tree,
+  references?: ParseReferences,
+): ICodeStatement[] {
   const { source, tree } = resolveSourceInput(sourceOrTree, treeArg);
   const facts = extractSyntaxFacts(source, tree);
-  return normalizeInlineRounds(classifyStatements(facts));
+  return normalizeInlineRounds(classifyStatements(facts, references));
 }
 
 /**
@@ -49,7 +54,8 @@ export function extractStatementsRaw(sourceOrTree: SourceInput, treeArg?: Tree):
 export function extractStatements(
   sourceOrTree: SourceInput,
   sportOrTree?: string | Tree,
-  sportArg?: string
+  sportArg?: string,
+  references?: ParseReferences,
 ): ICodeStatement[] {
   let sport: string | undefined;
   let tree: Tree | undefined;
@@ -63,7 +69,7 @@ export function extractStatements(
 
   const resolved = resolveSourceInput(sourceOrTree, tree);
   const facts = extractSyntaxFacts(resolved.source, resolved.tree);
-  const statements = classifyStatements(facts);
+  const statements = classifyStatements(facts, references);
   dialectStack.processAll(statements, sport);
   return normalizeInlineRounds(statements);
 }

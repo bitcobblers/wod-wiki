@@ -21,7 +21,7 @@ export function assertSeedRows(value: unknown): SeedRow[] {
   if (!Array.isArray(value)) throw new Error('seed chunk is not an array');
   const paths = new Set<string>();
   for (const row of value) {
-    if (!object(row) || typeof row.path !== 'string' || !row.path || row.path.startsWith('/') || row.path.split('/').includes('..') || paths.has(row.path) || typeof row.content !== 'string' || !object(row.blocks) || !Array.isArray(row.blockIndex) || !Array.isArray(row.blockEfforts)) throw new Error('seed chunk row failed shape validation');
+    if (!object(row) || typeof row.path !== 'string' || !row.path || row.path.startsWith('/') || row.path.split('/').includes('..') || paths.has(row.path) || typeof row.content !== 'string' || !object(row.blocks) || !Array.isArray(row.blockIndex) || !Array.isArray(row.blockEfforts) || !Array.isArray(row.blockEquipment)) throw new Error('seed chunk row failed shape validation');
     paths.add(row.path);
     for (const [id, block] of Object.entries(row.blocks)) {
       if (!object(block) || block.id !== id || !id || block.version !== 1 || block.sourceRevision !== 1 || !nonnegative(block.from) || !positive(block.to) || block.from >= block.to || block.to > row.content.length || !['wod', 'query', 'widget', 'embed'].includes(String(block.kind)) || (block.kind === 'wod' ? !['time', 'log'].includes(String(block.dialect)) : block.dialect !== undefined) || (block.sport !== undefined && typeof block.sport !== 'string')) throw new Error('invalid seed block range or revision');
@@ -51,6 +51,15 @@ export function assertSeedRows(value: unknown): SeedRow[] {
       const projection = row.blockIndex.find((p: unknown) => object(p) && p.blockId === link.blockId);
       if (!object(projection) || link.noteId !== projection.noteId || link.blockContentId !== projection.blockContentId || !Number.isFinite(link.createdAt)) throw new Error('invalid seed effort metadata');
       links.add(String(link.id));
+    }
+    const equipmentLinks = new Set<string>();
+    for (const link of row.blockEquipment) {
+      if (!object(link) || typeof link.blockId !== 'string' || typeof link.noteId !== 'string' || typeof link.equipmentSlug !== 'string' || !link.equipmentSlug) throw new Error('invalid seed equipment identity');
+      const block = row.blocks[link.blockId];
+      if (link.id !== `${link.noteId}:${link.blockId}:${link.equipmentSlug}` || equipmentLinks.has(String(link.id)) || !object(block) || block.kind !== 'wod' || !indexed.has(link.blockId) || link.sourcePath !== row.path || link.isStatic !== true || typeof link.createdAt !== 'number') throw new Error('orphan or incompatible seed equipment link');
+      const projection = row.blockIndex.find((p: unknown) => object(p) && p.blockId === link.blockId);
+      if (!object(projection) || link.noteId !== projection.noteId || link.blockContentId !== projection.blockContentId || !Number.isFinite(link.createdAt)) throw new Error('invalid seed equipment metadata');
+      equipmentLinks.add(String(link.id));
     }
   }
   return value as SeedRow[];
