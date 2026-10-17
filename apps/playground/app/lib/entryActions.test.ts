@@ -194,6 +194,7 @@ describe('entryOpenHref', () => {
       id: '0c9e6f2e-1111-4222-8333-444455556666',
       kind: 'equipment',
       sourceCatalog: 'equipment',
+      sourceItem: '0c9e6f2e-1111-4222-8333-444455556666',
     }))).toBe('/notes/0c9e6f2e-1111-4222-8333-444455556666')
   })
 

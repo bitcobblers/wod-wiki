@@ -691,7 +691,7 @@ export async function initializeStore(db: Database): Promise<void> {
         const missing = [...storeTables].filter((name) => !tableNames.has(name));
         const unexpected = [...tableNames].filter((name) => name !== SCHEMA_TABLE && !storeTables.has(name));
         const additive = additiveStoresSince(stored);
-        if (unexpected.length > 0 || missing.some((name) => !additive.has(name))) {
+        if (stored < 30 || unexpected.length > 0 || missing.some((name) => !additive.has(name))) {
           throw new StorageError(
             500,
             `database schema v${stored} is incompatible with v${DB_VERSION} (missing tables: ${missing.join(', ') || 'none'}; unrecognized tables: ${unexpected.join(', ') || 'none'}); recreation required using an explicitly disposable database`,

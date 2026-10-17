@@ -847,7 +847,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
           if (!this.readOnly) {
             const rmBtn = document.createElement("button");
             rmBtn.type = "button";
-            rmBtn.setAttribute("aria-label", `Remove ${chip}`);
+            rmBtn.setAttribute("aria-label", isTags ? `Remove tag ${chip}` : `Remove ${chip}`);
             rmBtn.className =
               "inline-flex items-center justify-center text-muted-foreground/60 hover:text-foreground dark:hover:text-foreground cursor-pointer";
             rmBtn.appendChild(createCloseIcon("sm"));

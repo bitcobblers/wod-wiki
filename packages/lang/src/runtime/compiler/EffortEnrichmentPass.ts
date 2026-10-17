@@ -24,11 +24,17 @@
 
 import type { IRuntimeBlock } from '../contracts/IRuntimeBlock';
 import type { IEffortResolver, ResolvedEffort } from '../../effort-registry/types';
-import type { ReferenceDiagnostic, ReferenceIndex, ReferenceMatchKind, ReferenceRef } from '../../effort-registry/reference-resolution';
+import type { ReferenceIndex } from '../../effort-registry/reference-resolution';
 import { EquipmentMetric } from './metrics/EquipmentMetric';
 import { EFFORT_DATA_METRIC_TYPE } from '../../analytics/effortResolution';
-import type { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
-import { REFERENCE_METADATA_KEY } from '@bitcobblers/wod-wiki-core';
+import {
+  MetricType,
+  REFERENCE_METADATA_KEY,
+  type IMetric,
+  type ReferenceDiagnostic,
+  type ReferenceMatchKind,
+  type ReferenceRef,
+} from '@bitcobblers/wod-wiki-core';
 import { IMemoryLocation, MemoryLocation } from '../memory/MemoryLocation';
 
 export interface EffortEnrichmentPassOptions {

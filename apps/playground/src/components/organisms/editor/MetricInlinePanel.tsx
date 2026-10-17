@@ -272,8 +272,8 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     }
     diagnostics.push(...metadata.diagnostics);
   }
-  const referenceProvider = view ? (view.state.facet(frontmatterReferenceIndex)?.() ?? null) : null;
-  const lineRefs = view ? parseLineRefs(view.state.doc.sliceString(focus.lineFrom, focus.lineTo)) : null;
+  const referenceProvider = typeof view?.state?.facet === 'function' ? (view.state.facet(frontmatterReferenceIndex)?.() ?? null) : null;
+  const lineRefs = typeof view?.state?.doc?.sliceString === 'function' ? parseLineRefs(view.state.doc.sliceString(focus.lineFrom, focus.lineTo)) : null;
 
   /** Resolve which catalog a diagnostic repair should offer. */
   const diagnosticKind = (diag: DiagnosticShape): 'effort' | 'equipment' => {

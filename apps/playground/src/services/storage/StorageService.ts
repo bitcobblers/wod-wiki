@@ -16,7 +16,7 @@ import type {
 import { parseScript, extractStatementRefs, createReferenceIndex, type ReferenceResolutionDefaults } from '@bitcobblers/wod-wiki-lang';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
-import { parseDocumentSections, validateNoteBlocks, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+import { parseDocumentSections, validateNoteBlocks, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS, MetricType } from '@bitcobblers/wod-wiki-core';
 import { rowsEqual } from '@bitcobblers/wod-wiki-storage';
 import type { DomainEntry, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
 import type { IStorage, IStorageTransaction, StoreName } from './IStorage';
@@ -856,8 +856,20 @@ export class StorageService implements NotePersistenceStorage {
         // any block version change, and stale containment would silently
         // outlive them.
         if (block.kind !== 'wod' || !section?.scriptBlock) continue;
-        const refs = extractStatementRefs(parseScript(section.scriptBlock.content, { sport: block.sport, references: referenceIndex, defaults }).statements);
-        for (const effortSlug of refs.efforts) {
+        const statements = parseScript(section.scriptBlock.content, { sport: block.sport, references: referenceIndex, defaults }).statements;
+        const refs = extractStatementRefs(statements);
+        const effortSlugs = new Set(refs.efforts);
+        if (effortSlugs.size === 0) {
+          for (const s of statements) {
+            const m = s.metrics?.getMetric?.(MetricType.Effort);
+            const val = typeof m?.value === 'string' ? m.value : (m && 'effort' in m ? String((m as { effort?: unknown }).effort) : '');
+            const slug = val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            if (slug && !['rest', 'amrap', 'emom', 'tabata', 'for-time'].includes(slug)) {
+              effortSlugs.add(slug);
+            }
+          }
+        }
+        for (const effortSlug of effortSlugs) {
           const effortId = `${noteId}:${block.id}:${effortSlug}`;
           const previous = oldEfforts.get(effortId);
           oldEfforts.delete(effortId);

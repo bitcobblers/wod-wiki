@@ -850,34 +850,31 @@ export async function cliMain(
             nodeFs().writeFileSync(target, markdown, 'utf-8');
           }
           writeOut(`[wod ${verb}] effort ${id} → ${target}`);
-        } else if (id) {
-          // equipment definition — markdown document, mirroring effort export.
-          const equipment = await getEquipmentBySlug(db.db, targetId);
-          if (!equipment) {
-            writeErr(`[wod ${verb}] Equipment not found in ${db.path}: ${id}`);
-            return 1;
-          }
-          const ownerNoteId = typeof equipment.ownerNoteId === 'string' ? equipment.ownerNoteId : `equipment/${equipment.slug}`;
-          const owner = await db.storage.readonly('notes').get(ownerNoteId);
-          const markdown = owner?.rawContent ?? equipmentToMarkdown(equipment as Parameters<typeof equipmentToMarkdown>[0]);
-          const target = parsed.output && parsed.output !== '-' ? parsed.output : `${id}.md`;
-          if (parsed.output === '-') {
-            writeOut(markdown);
-          } else {
-            nodeFs().writeFileSync(target, markdown, 'utf-8');
-          }
-          writeOut(`[wod ${verb}] equipment ${id} → ${target}`);
         } else {
-          // equipment — id is unused; export the whole catalog.
-          const labels = (await listTagsByType(db.db, 'equipment')).map((t) => t.label).sort();
-          const csv = equipmentToCsv(labels);
-          const target = parsed.output && parsed.output !== '-' ? parsed.output : 'equipment.csv';
-          if (parsed.output === '-') {
-            writeOut(csv);
+          // equipment definition (when slug matches a stored definition) or whole-catalog CSV.
+          const equipment = id ? await getEquipmentBySlug(db.db, targetId) : undefined;
+          if (equipment) {
+            const ownerNoteId = typeof equipment.ownerNoteId === 'string' ? equipment.ownerNoteId : `equipment/${equipment.slug}`;
+            const owner = await db.storage.readonly('notes').get(ownerNoteId);
+            const markdown = owner?.rawContent ?? equipmentToMarkdown(equipment as Parameters<typeof equipmentToMarkdown>[0]);
+            const target = parsed.output && parsed.output !== '-' ? parsed.output : `${id}.md`;
+            if (parsed.output === '-') {
+              writeOut(markdown);
+            } else {
+              nodeFs().writeFileSync(target, markdown, 'utf-8');
+            }
+            writeOut(`[wod ${verb}] equipment ${id} → ${target}`);
           } else {
-            nodeFs().writeFileSync(target, csv, 'utf-8');
+            const labels = (await listTagsByType(db.db, 'equipment')).map((t) => t.label).sort();
+            const csv = equipmentToCsv(labels);
+            const target = parsed.output && parsed.output !== '-' ? parsed.output : 'equipment.csv';
+            if (parsed.output === '-') {
+              writeOut(csv);
+            } else {
+              nodeFs().writeFileSync(target, csv, 'utf-8');
+            }
+            writeOut(`[wod ${verb}] equipment → ${target} (${labels.length} labels)`);
           }
-          writeOut(`[wod ${verb}] equipment → ${target} (${labels.length} labels)`);
         }
       } finally {
         await db.close();

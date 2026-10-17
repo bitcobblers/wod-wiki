@@ -13,7 +13,7 @@ import type {
 import { rowsEqual as sameRow } from '@bitcobblers/wod-wiki-storage';
 import type { ExecutionLog } from '@bitcobblers/wod-wiki-engine';
 import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
-import type { EventRecord } from '@bitcobblers/wod-wiki-core';
+import { MetricType, type EventRecord } from '@bitcobblers/wod-wiki-core';
 import {
   blockContentId,
   KNOWN_SECTION_WIDGETS,
@@ -21,7 +21,7 @@ import {
   reconcileNoteBlocks,
   validateNoteBlocks,
 } from '@bitcobblers/wod-wiki-core';
-import { parseScript, extractStatementRefs, createReferenceIndex, type IEffort, type IEquipment } from '@bitcobblers/wod-wiki-lang';
+import { parseScript, extractStatementRefs, createReferenceIndex, bundledEfforts, type IEffort, type IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import { loadSql, randomId, stableNoteId, uuid5, CLI_UUID_NAMESPACE, type CliDb } from './db';
 
@@ -132,8 +132,12 @@ async function saveSource(
     const priorEquipment = await tx.readonly('block_equipment').getAllFromIndex('by-note', noteId);
     // One shared resolver pass per save: canonical refs from the stored
     // definition catalog, exactly like the app rebuild and the seed build.
+    const storedEfforts = (await tx.readonly('efforts').getAll()) as IEffort[];
+    const effortsBySlug = new Map<string, IEffort>();
+    for (const effort of bundledEfforts) effortsBySlug.set(effort.slug, effort);
+    for (const effort of storedEfforts) effortsBySlug.set(effort.slug, effort);
     const referenceIndex = createReferenceIndex({
-      efforts: (await tx.readonly('efforts').getAll()) as IEffort[],
+      efforts: [...effortsBySlug.values()],
       equipment: (await tx.readonly('equipment').getAll()) as IEquipment[],
     });
     const priorById = new Map(priorRows.map((row) => [row.id, row]));
@@ -156,8 +160,20 @@ async function saveSource(
         ...(note.sourceId ? { sourceId: note.sourceId } : {}),
       });
       if (block.kind === 'wod') {
-        const refs = extractStatementRefs(parseScript(body, { sport: block.sport, dialect: block.dialect, references: referenceIndex }).statements);
-        for (const effortSlug of refs.efforts) {
+        const statements = parseScript(body, { sport: block.sport, dialect: block.dialect, references: referenceIndex }).statements;
+        const refs = extractStatementRefs(statements);
+        const effortSlugs = new Set(refs.efforts);
+        if (effortSlugs.size === 0) {
+          for (const s of statements) {
+            const m = s.metrics?.getMetric?.(MetricType.Effort);
+            const val = typeof m?.value === 'string' ? m.value : (m && 'effort' in m ? String((m as { effort?: unknown }).effort) : '');
+            const slug = val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            if (slug && !['rest', 'amrap', 'emom', 'tabata', 'for-time'].includes(slug)) {
+              effortSlugs.add(slug);
+            }
+          }
+        }
+        for (const effortSlug of effortSlugs) {
           const effortId = `${noteId}:${block.id}:${effortSlug}`;
           const previous = priorEfforts.find((row) => row.id === effortId);
           nextEfforts.push({

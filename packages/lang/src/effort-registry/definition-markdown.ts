@@ -380,7 +380,7 @@ export function documentToEffort(doc: string, baseEffort?: IEffort): ParseResult
 
   // Nested canonical shape via the shared section reader.
   const baseAttrs = readNestedSection(innerLines, 'baseAttributes') ?? {};
-  const baseAttributes: EffortBaseAttributes = { met: 0 };
+  const baseAttributes: EffortBaseAttributes = {} as EffortBaseAttributes;
   const metRaw = baseAttrs.met;
   if (metRaw === undefined) {
     // Only the edit-mode baseEffort fallback may supply MET; absence stays

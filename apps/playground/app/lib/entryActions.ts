@@ -76,7 +76,8 @@ export function entryOpenHref(entry: Entry): string {
         // the canonical note editor for non-equipment contexts.
         const raw = entry.sourceItem ?? entry.id
         const slug = raw.startsWith('equipment/') ? raw.slice('equipment/'.length) : raw
-        return slug ? `/equipment/${encodePath(slug)}` : noteByIdPath(entry.id)
+        const isNoteId = /^(?:uuid-|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)/i.test(slug)
+        return slug && !isNoteId ? `/equipment/${encodePath(slug)}` : noteByIdPath(entry.id)
       }
       case 'post': {
         const date = entry.date ?? ''

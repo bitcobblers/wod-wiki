@@ -44,7 +44,6 @@ export class CompositeEffortRegistry implements IEffortRegistry {
    * custom rows disappear because the user map is cleared too.
    */
   async loadBundled(customBundled?: Iterable<IEffort>): Promise<void> {
-    const userEfforts = this.storage ? await this.storage.load() : [];
     this.bundledEfforts.clear();
     if (customBundled) {
       for (const effort of customBundled) {
@@ -57,9 +56,16 @@ export class CompositeEffortRegistry implements IEffortRegistry {
       }
     }
     this.userEfforts.clear();
-    for (const effort of userEfforts) {
-      if (effort.registrySource === 'user') {
-        this.userEfforts.set(effort.slug, effort);
+    if (this.storage) {
+      try {
+        const userEfforts = await this.storage.load();
+        for (const effort of userEfforts) {
+          if (effort.registrySource === 'user') {
+            this.userEfforts.set(effort.slug, effort);
+          }
+        }
+      } catch (err) {
+        console.warn('[CompositeEffortRegistry] Failed to load user efforts from storage adapter:', err);
       }
     }
 

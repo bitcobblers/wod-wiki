@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'bun:test';
-import { IDBFactory } from 'fake-indexeddb';
+import { IDBFactory, IDBRequest, IDBTransaction, IDBDatabase, IDBKeyRange } from 'fake-indexeddb';
+Object.assign(globalThis, { IDBRequest, IDBTransaction, IDBDatabase, IDBKeyRange });
 import type { IStorage } from '@bitcobblers/wod-wiki-storage';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import { InMemoryStorage } from '../storage/InMemoryStorage';
