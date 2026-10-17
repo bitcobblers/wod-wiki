@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WOD Wiki - Catalog Architecture Explainer</title>
+<style>
+  :root {
+    --paper:#ffffff; --ink:#1a1d21; --muted:#5b6470; --border:#d8dee6;
+    --accent:#1f6feb; --ok:#1a7f37; --warn:#9a6700; --err:#cf222e;
+    --surface:#f6f8fa; --code:#eff1f3;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+         font:15px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { border-bottom:1px solid var(--border); padding:1.5rem 2rem; }
+  header h1 { margin:0 0 .25rem; font-size:1.5rem; }
+  header p { margin:0; color:var(--muted); font-size:.9rem; }
+  main { max-width:60rem; margin:0 auto; padding:1.5rem 2rem 4rem; }
+  section { margin:2.5rem 0; }
+  h2 { font-size:1.2rem; border-bottom:1px solid var(--border); padding-bottom:.35rem; margin:0 0 1rem; }
+  h3 { font-size:1rem; margin:1.5rem 0 .5rem; }
+  p { margin:.6rem 0; }
+  code { background:var(--code); padding:.1em .35em; border-radius:4px; font-size:.86em;
+         font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+  pre { background:var(--surface); border:1px solid var(--border); border-radius:6px;
+        padding:.9rem 1rem; overflow:auto; font-size:.82rem; line-height:1.5;
+        font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+  pre code { background:none; padding:0; }
+  table { border-collapse:collapse; width:100%; font-size:.85rem; margin:.8rem 0; }
+  th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+  th { background:var(--surface); font-weight:600; }
+  td code { background:none; padding:0; }
+  .badge { display:inline-block; font-size:.68rem; font-weight:600; letter-spacing:.04em;
+           border:1px solid var(--border); border-radius:10px; padding:.05rem .5rem;
+           color:var(--muted); margin-right:.35rem; }
+  .callout { border:1px solid var(--border); border-left:4px solid var(--accent);
+             background:var(--surface); border-radius:6px; padding:.7rem 1rem; margin:1rem 0; font-size:.9rem; }
+  .callout.warn { border-left-color:var(--warn); }
+  .callout.ok { border-left-color:var(--ok); }
+  .flow { width:100%; height:auto; margin:1rem 0; }
+  .flow text { font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+  footer { border-top:1px solid var(--border); padding:1rem 2rem; color:var(--muted); font-size:.8rem; }
+  a { color:var(--accent); }
+</style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/catalog-architecture-explainer.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  :root { --wb-bar-height: 112px; }
+  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 16px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #cbd5e1; padding: 10px max(16px, calc((100% - 1032px) / 2)); }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 44px; padding: 8px 12px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button:disabled { opacity: .5; cursor: default; }
+  #wb-bar #wb-publish, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-help, #wb-status, #wb-storage-warning { margin: 4px 0 0; font-size: 12px; }
+  #wb-help { color: #475569; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; padding: 16px; border: 1px solid #b45309; border-radius: 8px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current h2 { margin: 0 0 8px; padding: 0; font-size: 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite">0 annotations</strong>
+    <button id="wb-add" type="button" aria-pressed="false">Add annotation</button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation">Previous</button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation">Next</button>
+    <button id="wb-publish" type="button" disabled>Publish</button>
+  </div>
+  <p id="wb-help">Highlight text to annotate, or click Add annotation then click any block. Drafts stay in this browser. Publish copies them for your agent.</p>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+<header>
+  <h1>Catalog Architecture Explainer</h1>
+  <p>How distributed workout catalogs are authored, published, subscribed, imported, updated, and removed &mdash; end to end, with the exact storage keys and invariants.</p>
+  <p><span class="badge">ADR-0001</span><span class="badge">ADR-0002</span> Canonical model definitions: <code>docs/adrs/0001-catalog-seed-data-contract.md</code> and <code>docs/adrs/0002-catalog-source-lifecycle.md</code>.</p>
+</header>
+<main data-whiteboard-document>
+
+<section id="sec-at-a-glance">
+  <h2 id="wb-h2-b50d0c081dbd4fe79dfca7a20fd283c0" data-whiteboard-anchor>1. The System at a Glance</h2>
+  <p id="wb-p-bad7d0ec4d06456d8e11e24f91014230" data-whiteboard-anchor>The catalog system has two sides that only ever touch through two static files: a <strong>manifest</strong> and a set of immutable <strong>chunks</strong>. There is no API, no server, no dynamic anything &mdash; a catalog is a directory of JSON served by any static host (GitHub Pages is the reference flow).</p>
+  <svg class="flow" viewBox="0 0 960 300" role="img" aria-label="Publisher to consumer pipeline">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path>
+      </marker>
+    </defs>
+    <text x="120" y="24" font-size="13" fill="var(--ink)">PUBLISHER (git repo + CI)</text>
+    <rect x="20" y="40" width="200" height="44" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="120" y="66" font-size="11" text-anchor="middle" fill="var(--ink)">markdown/ corpus (.md)</text>
+    <rect x="20" y="104" width="200" height="44" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="120" y="130" font-size="11" text-anchor="middle" fill="var(--ink)">wod build (seedbuild)</text>
+    <rect x="20" y="168" width="200" height="44" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="120" y="188" font-size="11" text-anchor="middle" fill="var(--ink)">manifest.json</text>
+    <text x="120" y="204" font-size="11" text-anchor="middle" fill="var(--ink)">chunks/&lt;id&gt;.&lt;sha8&gt;.json</text>
+    <line x1="120" y1="84" x2="120" y2="102" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="120" y1="148" x2="120" y2="166" stroke="var(--muted)" marker-end="url(#arr)"></line>
+
+    <text x="480" y="24" font-size="13" fill="var(--ink)">STATIC HOST</text>
+    <rect x="380" y="104" width="200" height="80" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="480" y="140" font-size="11" text-anchor="middle" fill="var(--ink)">published seed directory</text>
+    <text x="480" y="158" font-size="11" text-anchor="middle" fill="var(--muted)">GET manifest.json &#8594; GET changed chunks only</text>
+    <line x1="220" y1="190" x2="378" y2="150" stroke="var(--muted)" marker-end="url(#arr)"></line>
+
+    <text x="830" y="24" font-size="13" fill="var(--ink)">CONSUMER (playground app)</text>
+    <rect x="700" y="40" width="240" height="36" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="820" y="63" font-size="11" text-anchor="middle" fill="var(--ink)">source registry + subscription/auto-sync maps</text>
+    <rect x="700" y="92" width="240" height="36" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="820" y="115" font-size="11" text-anchor="middle" fill="var(--ink)">background manifest check (every load)</text>
+    <rect x="700" y="144" width="240" height="36" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="820" y="167" font-size="11" text-anchor="middle" fill="var(--ink)">claim &#8594; applySeedChunk &#8594; checkpoint seed:&lt;id&gt;</text>
+    <rect x="700" y="196" width="240" height="36" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="820" y="219" font-size="11" text-anchor="middle" fill="var(--ink)">IndexedDB (wodwiki-db) notes / block_index / &#8230;</text>
+    <rect x="700" y="248" width="240" height="36" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="820" y="271" font-size="11" text-anchor="middle" fill="var(--ink)">WQL QueryService &#8594; stream, collection, feed views</text>
+    <line x1="580" y1="144" x2="698" y2="110" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="820" y1="76" x2="820" y2="90" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="820" y1="128" x2="820" y2="142" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="820" y1="180" x2="820" y2="194" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="820" y1="232" x2="820" y2="246" stroke="var(--muted)" marker-end="url(#arr)"></line>
+  </svg>
+  <div class="callout">
+    <strong>The one rule that makes everything else cheap:</strong> the manifest alone tells a consumer whether anything changed. A version number (git commit count) and per-chunk sha256 hashes mean the common case &mdash; nothing new &mdash; costs one small HTTP fetch and zero writes.
+  </div>
+</section>
+
+<section id="sec-publisher">
+  <h2 id="wb-h2-e476b0cc8dde4f0688c0cc15855a7a45" data-whiteboard-anchor>2. Publisher Side: Markdown to Published Seed</h2>
+
+  <h3 id="pub-scaffold" data-whiteboard-anchor>2.1 Scaffolding a catalog repository</h3>
+  <p id="wb-p-950ee0a251184c2080c48ddad178e3c3" data-whiteboard-anchor><code>wod init-catalog &lt;name&gt;</code> (<code>packages/tools/src/cli/scaffoldCatalog.ts</code>) generates a publish-ready repository: a <code>markdown/collections/&lt;name&gt;/</code> corpus with README + one workout per file, a <code>package.json</code> (whose <code>name</code>, <code>description</code>, and <code>repository</code> fields become manifest metadata), and a GitHub Actions workflow that runs <code>bunx wod build . --output dist</code> and publishes <code>dist/</code> to Pages. The destination directory must not already exist &mdash; the command refuses to overwrite.</p>
+
+  <h3 id="pub-build" data-whiteboard-anchor>2.2 The <code>wod build</code> pipeline</h3>
+  <table>
+    <tr><th id="wb-th-c4cbf769583a4a56ab4ea3e45923767d" data-whiteboard-anchor>Stage</th><th id="wb-th-01a912e528314e3a8a2670aeb02985ec" data-whiteboard-anchor>What it does</th></tr>
+    <tr><td id="wb-td-6b4700a567e24939b3d229dfbd177fd5" data-whiteboard-anchor>Scan + partition</td><td id="wb-td-6482e1f90bbc4d4dba02a4b378b073cd" data-whiteboard-anchor>Every <code>markdown/**/*.md</code> file is assigned a chunk by <code>chunkIdFor(relPath)</code>: <code>collections/&lt;dir&gt;</code> &#8594; <code>collection.&lt;slug&gt;</code>, <code>feeds/&lt;dir&gt;</code> &#8594; <code>feed.&lt;slug&gt;</code>, plus reserved chunks <code>canvas</code>, <code>dashboards</code>, <code>efforts</code>, <code>template</code>. An unrecognized path is a hard parity failure, never a silent drop.</td></tr>
+    <tr><td id="wb-td-516a00cae4ab4e90acaf882914dc7d0e" data-whiteboard-anchor>Gates</td><td id="wb-td-638bd3a9704e4145b64d43606c8fe49a" data-whiteboard-anchor>Dashboard gate (&#8805;3 widgets, known widget types, WQL must parse, <code>$token</code> declared) then the WOD syntax gate (Lezer error-node scan of plain fences, <code>parseScript</code> on dialect fences). Any failure aborts the build.</td></tr>
+    <tr><td id="wb-td-e4594df2a0d5410e873a987dfe41b3c9" data-whiteboard-anchor>Compile passes</td><td id="wb-td-146e2ae427574a54a035f29afd21a9b5" data-whiteboard-anchor><code>buildBlockIndexRows</code> projects every fenced block into a <code>BlockIndexRow</code> (exactly one projection per block); <code>buildBlockEffortRows</code> links <code>wod</code> blocks to canonical effort slugs. Rows are grouped back per file into <code>SeedRow { path, content, blocks, blockIndex, blockEfforts }</code>.</td></tr>
+    <tr><td id="wb-td-400090de1c834dd1bd96ebc149be1dab" data-whiteboard-anchor>Write</td><td id="wb-td-5254b9c0ab42473eba4581ed240aa7a5" data-whiteboard-anchor>Per chunk: rows serialized to <code>chunks/&lt;id&gt;.&lt;sha256-8&gt;.json</code>; the manifest records the full sha256, byte size, and row count. An HTML build report is written alongside.</td></tr>
+  </table>
+
+  <h3 id="pub-manifest" data-whiteboard-anchor>2.3 Manifest anatomy</h3>
+  <pre id="wb-pre-cdae405e8d704fb3ade8f0c31f61a0e0" data-whiteboard-anchor><code>{
+  "name": "wod-wiki-community",
+  "description": "Markdown workouts compiled to static, version-stamped seed chunks",
+  "repositoryUrl": "https://github.com/bitcobblers/wod-wiki-community",
+  "schema": 8,
+  "version": 2841,
+  "versionLabel": "v0.36.2135-1-gea2c9808a-dirty",
+  "commit": "ea2c9808…",
+  "dirty": true,
+  "builtAt": "2026-10-16T18:10:02.356Z",
+  "chunks": [
+    { "id": "collection.crossfit-girls", "path": "chunks/collection.crossfit-girls.b8f29e2a.json",
+      "sha256": "…64 hex…", "bytes": 7531, "count": 21 }
+  ]
+}</code></pre>
+  <p id="wb-p-57f455cc2bbf41c6b828b7a94e61735c" data-whiteboard-anchor><code>version</code> is the git commit count, not a timestamp &mdash; it is monotonic, human-meaningful (<em>"you have 2841, published has 2850"</em>), and doubles as <code>Note.createdAt</code> at import so identical content never produces spurious diffs. <code>schema</code> is pinned to <code>SEED_SCHEMA = 8</code> in both copies of <code>contract.ts</code>; a consumer receiving any other value refuses with "rebuild seed artifacts".</p>
+
+  <h3 id="pub-dates" data-whiteboard-anchor>2.4 Date semantics (authorship over machinery)</h3>
+  <table>
+    <tr><th id="wb-th-07d0af33e9474535af8acc0569eac9e8" data-whiteboard-anchor>Field</th><th id="wb-th-7617a333bd1e4d388ff861fe7d7f4cc6" data-whiteboard-anchor>Wins from</th><th id="wb-th-fe808f5b97c84d6b97a9fb0040ab5eac" data-whiteboard-anchor>Rule</th></tr>
+    <tr><td id="wb-td-2ab65ae6ce7b4fe49be65151a6fdfd10" data-whiteboard-anchor><code>BlockIndexRow.createdAt</code> / <code>Note.date</code></td><td id="wb-td-628d05f650ba43a79594a4727df65bbb" data-whiteboard-anchor>frontmatter <code>date: YYYY-MM-DD</code></td><td id="wb-td-7ac75c4b14d540e8b95bf8379fb3986f" data-whiteboard-anchor>Converted to <strong>noon UTC</strong> on that day. A shaped-but-impossible calendar day (e.g. 2026-02-30) is validated by UTC round-trip and <strong>rejects the chunk</strong> at both compile and import. Missing frontmatter means an undated note &mdash; no date is ever derived from the containing directory or filename (except the feed rule below).</td></tr>
+    <tr><td id="wb-td-d3e8d7a0c28340adb7bb96efae2aa0c1" data-whiteboard-anchor>feed entry date</td><td id="wb-td-5cd1479f7b0447ac973f87d6647c3d68" data-whiteboard-anchor>path segment <code>yyyy-mm-dd</code></td><td id="wb-td-db87064ac69148a6ad178297c3df55c7" data-whiteboard-anchor>Midnight UTC, from the file's position under <code>feeds/&lt;name&gt;/</code>.</td></tr>
+    <tr><td id="wb-td-669d3e0448934cdd8110640c07f0d500" data-whiteboard-anchor>fallback</td><td id="wb-td-09d090b788714aabb4fb895c98fa2bb0" data-whiteboard-anchor>git last-commit time</td><td id="wb-td-9cf7bb423a364c6d9f6292c9284c5778" data-whiteboard-anchor><code>git log -1 --format=%ct</code>; 0 when unavailable.</td></tr>
+    <tr><td id="wb-td-1f896bc4b1dc421e9ac0bdcb0dfa3980" data-whiteboard-anchor><code>Note.createdAt</code>, <code>Page.createdAt</code></td><td id="wb-td-5a5db74d2db84c67a9f561ff16476de8" data-whiteboard-anchor>manifest <code>version</code></td><td id="wb-td-feeb349e92dc486da80762ef017cd6ec" data-whiteboard-anchor>Deliberately the commit count, not a wall-clock time.</td></tr>
+    <tr><td id="wb-td-00877bd322ff4e4e8cbab2fc34d6bf8f" data-whiteboard-anchor><code>Tag.createdAt</code>, <code>BlockRevision.savedAt</code></td><td id="wb-td-159034345a9648d7b7467e1c52fe8582" data-whiteboard-anchor>import time</td><td id="wb-td-81e18bfb7ab6431a8fb68ca39a249c04" data-whiteboard-anchor><code>meta.importedAt</code> at the moment the chunk lands.</td></tr>
+  </table>
+  <div class="callout ok">
+    Consequence: a workout authored for October 16 lands on October 16 in the journal date stack whether it lives in <code>feeds/daily-box-wod/2026-10-16/morning-session.md</code> or simply carries <code>date: 2026-10-16</code> frontmatter &mdash; and a publish/export round trip preserves that date exactly.
+  </div>
+</section>
+
+<section id="sec-import">
+  <h2 id="wb-h2-47329a955fd0414c8bd29dafae95624a" data-whiteboard-anchor>3. Import: Chunk Rows into IndexedDB</h2>
+  <p id="wb-p-4333dc19d3f14a1f980fa458da863c87" data-whiteboard-anchor>Both import drivers (CLI <code>importSeedDir</code> and the app's <code>runSourceSync</code>) converge on one engine primitive: <code>applySeedChunk(storage, write)</code> (<code>packages/engine/src/seed/runtime.ts</code>), a single readwrite transaction over <code>notes, block_revisions, block_index, block_efforts, page, page_notes, tags, note_tags, efforts, meta</code>.</p>
+  <h3 id="imp-invariants" data-whiteboard-anchor>3.1 Invariants enforced inside the transaction</h3>
+  <ul>
+    <li id="wb-li-1cb59d9308804aec978a036d7a5ad5b8" data-whiteboard-anchor><strong>Deterministic identity.</strong> <code>seedNoteId(path)</code> (SHA-1 of a fixed namespace UUID + path, formatted as a v5 UUID) maps a row path to a note id. Re-importing unchanged content is idempotent; two sources cannot collide.</li>
+    <li id="wb-li-4f7221f324c2437282b01082406356ef" data-whiteboard-anchor><strong>User data wins.</strong> A note is imported only if absent or stamped <code>seedOrigin === 'seed'</code> and owned by this chunk. User-owned notes are counted as <code>skippedUserOwned</code> and their static projections are never deleted.</li>
+    <li id="wb-li-e7fe8e95e1bb480b8a8e44b061c624a4" data-whiteboard-anchor><strong>Checkpoint compare-and-swap.</strong> <code>expectedMeta</code> must deep-equal the stored <code>seed:&lt;id&gt;</code> row in-transaction; a mismatch aborts with "Seed checkpoint changed during import". This is also the multi-tab claim mechanism (see 4.4).</li>
+    <li id="wb-li-175e409f79bb49cb98dce18af8be846a" data-whiteboard-anchor><strong>Tombstones.</strong> Notes recorded in the checkpoint but not re-declared by the new chunk (or absent from the manifest entirely) are deleted with their tag/page links &mdash; only when still seed-owned.</li>
+    <li id="wb-li-007c8df54af649ed8af43f4490f9c850" data-whiteboard-anchor><strong>Structural re-validation.</strong> <code>assertSeedRows</code> re-parses every block and recomputes every <code>blockContentId</code> fingerprint at import. A hand-edited chunk file is rejected, not silently corrupted.</li>
+    <li id="wb-li-356d960948064118a84bc3ace2a33445" data-whiteboard-anchor><strong>No rollback.</strong> A manifest whose <code>version</code> is below the checkpoint's <code>seedVersion</code> is refused before any write.</li>
+  </ul>
+</section>
+
+<section id="sec-consumer">
+  <h2 id="wb-h2-e1322a1d49ab4bafa0d53a3204474887" data-whiteboard-anchor>4. Consumer Side: Sources, Subscriptions, and the Boot Flow</h2>
+
+  <h3 id="con-registry" data-whiteboard-anchor>4.1 Three independent documents</h3>
+  <table>
+    <tr><th id="wb-th-4cef7485775d4de79de134ed26040016" data-whiteboard-anchor>Document</th><th id="wb-th-0c10fc21ef624376b3e29f002a5cfe90" data-whiteboard-anchor>Storage key</th><th id="wb-th-57301078eaca4804811e964a76c70698" data-whiteboard-anchor>Meaning</th></tr>
+    <tr><td id="wb-td-02193773929a470ba54c85eddf3870d2" data-whiteboard-anchor>Source registry</td><td id="wb-td-36cacb0cb95a47f9818278223469ced9" data-whiteboard-anchor><code>wodwiki.seedSources</code> (+ <code>.hidden</code>)</td><td id="wb-td-0f8f1e6268044df49cb07f37c3855e00" data-whiteboard-anchor>Custom sources the user added: <code>{ id, label, url, repositoryUrl? }</code>. URLs are normalized (absolute https, no credentials/query/hash, trailing slash); duplicates rejected against both the registry and built-in URLs. Built-ins hidden by Delete land in <code>.hidden</code>; core is never hideable.</td></tr>
+    <tr><td id="wb-td-ce6d537537044d82b2feb892d8e8fe1d" data-whiteboard-anchor>Subscription map</td><td id="wb-td-93ed242eedc54a25bd5c8404161debd7" data-whiteboard-anchor><code>wodwiki.seedSubscriptions</code></td><td id="wb-td-99d44967b8db4e2a9f8d323a1b2bbaef" data-whiteboard-anchor><code>{ [sourceId]: boolean }</code>. Absence = no explicit choice. Core is hardcoded always-subscribed. Subscribing never implies auto-updating.</td></tr>
+    <tr><td id="wb-td-d4016298cd854db1bb1447ca106fa3f6" data-whiteboard-anchor>Auto-sync map</td><td id="wb-td-15bfe73b52984d21876c9271ede39f0e" data-whiteboard-anchor><code>wodwiki.seedAutoSync</code></td><td id="wb-td-8f60cd6f8ea24650b7e537abdd05c9e2" data-whiteboard-anchor><code>{ [sourceId]: boolean }</code>, default core on / all others off. Drives check-only vs apply in the background pass.</td></tr>
+  </table>
+  <p id="wb-p-0789e43137634ab58163e155512af842" data-whiteboard-anchor>Defaults from <code>defaultSeedSources()</code>, in resolution order: <code>core</code> (build-embedded <code>${BASE_URL}seed/core/</code>, <code>autoImport</code> true, version stamped from <code>__SEED_VERSIONS__</code>) &#8594; <code>community</code> (https://bitcobblers.github.io/wod-wiki-community/, opt-in) &#8594; five per-catalog <code>FeedSeedSource</code> slices of the community manifest (CrossFit programming, Dan John 40-day, Girls, Heroes, dashboards) &#8594; custom sources (<code>embeddedVersion</code> 0, never boot-imported).</p>
+  <p id="wb-p-77a01796ac1f416e870f7594ef993cd1" data-whiteboard-anchor>Side documents: <code>wodwiki.seedChecks</code> (last successful manifest check per source, best-effort) and <code>wodwiki.seedImport.enabled</code> (feature flag; <code>'0'</code> opts out).</p>
+
+  <h3 id="con-boot" data-whiteboard-anchor>4.2 Boot: first visit vs returning visit</h3>
+  <table>
+    <tr><th id="wb-th-83677209532944f5a7934417fbd20ed0" data-whiteboard-anchor></th><th id="wb-th-94007a288df244b1ab8c69f6ca0a46ae" data-whiteboard-anchor>First visit (no core checkpoint)</th><th id="wb-th-1392e4d17a1f4b0ca73d50cef0ab70bb" data-whiteboard-anchor>Returning visit (checkpoint exists)</th></tr>
+    <tr><td id="wb-td-53fa87b6fd78446cb1c9f4d8bcbd9beb" data-whiteboard-anchor>Gate</td><td id="wb-td-0ed58e29c33b41fcb7854f8333bc7f55" data-whiteboard-anchor><code>markSeedSyncStarted()</code> &#8594; readiness <code>'preparing'</code>; stream shows a skeleton</td><td id="wb-td-d583ba01f1c24a5d906fb61f08182552" data-whiteboard-anchor><code>markSeedSyncSettled('current')</code> immediately &mdash; works fully offline</td></tr>
+    <tr><td id="wb-td-cf97f2fa0e5f461588755b5723c556c9" data-whiteboard-anchor>What runs</td><td id="wb-td-40f284b2a73a4498ace834ee63580586" data-whiteboard-anchor><code>runBootSeedSync</code> filtered to <code>autoImport !== false</code> (core only). The gate flips <code>'ready'</code> the instant the <strong>canvas chunk</strong> commits (<code>onFirstPaint</code>) while remaining chunks still import.</td><td id="wb-td-81ce0289127d492c968722cabf9ff690" data-whiteboard-anchor>One background run over <code>core</code> + subscribed sources with <code>probeManifests: true</code>; outcomes never touch the gate.</td></tr>
+    <tr><td id="wb-td-822db8aaf79a464aafa6c6b0effaf251" data-whiteboard-anchor>Then</td><td id="wb-td-d6170154b31641cf815c1dd409ae820d" data-whiteboard-anchor>If any non-core source is subscribed, a second nonblocking background run checks them.</td><td id="wb-td-bcc42da6e7ed4b4f973b760781b212af" data-whiteboard-anchor>Grouped update notification fires if anything is pending.</td></tr>
+  </table>
+  <p id="wb-p-98f1940021a642acb34716c88c1a82a3" data-whiteboard-anchor>Readiness states: <code>idle | preparing | ready | error</code> (<code>idle</code> reads as ready), mirrored onto <code>&lt;html data-seed-state&gt;</code> / <code>data-seed-outcome</code> for e2e. Multi-tab convergence rides a <code>BroadcastChannel('wodwiki.seed')</code> with <code>seed-imported</code> and <code>seed-removed</code> messages.</p>
+
+  <h3 id="con-check" data-whiteboard-anchor>4.3 Background check: check vs apply</h3>
+  <p id="wb-p-19ec54e6994a486291db385bd9abef7b" data-whiteboard-anchor>Every subscribed source's remote manifest is fetched and version-compared on page load (the skip-fetch fast path requires <code>schema === 8 &amp;&amp; seedVersion === embeddedVersion &gt; 0</code>; background checks bypass it with <code>probeManifests</code>). Then:</p>
+  <ul>
+    <li id="wb-li-05c8ecae7be44d1a9098fedb07ba039e" data-whiteboard-anchor><strong>Auto-sync ON</strong> &#8594; chunks with changed sha256 are fetched and applied; the checkpoint advances.</li>
+    <li id="wb-li-a9a6c74484144558bed46b99ab04a75d" data-whiteboard-anchor><strong>Auto-sync OFF</strong> &#8594; check-only: no chunk fetch, no checkpoint write. The detected update lands in the run's <code>CatalogUpdatesSnapshot</code> as <code>'pending'</code>.</li>
+  </ul>
+  <p id="wb-p-73050744c7394ca9aa18487580588f0f" data-whiteboard-anchor>Background mode publishes exactly <strong>one snapshot per run</strong>; the UI toasts it once with a "Review updates" action that deep-links to <code>/catalogs?manage=1</code>. Manual sync of a source clears its entry; an empty list clears the notification. Per-source manual activity uses a separate <code>syncActivity</code> channel, suppressed during background runs. Outcomes aggregate worst-first: <code>disabled &lt; current &lt; busy &lt; imported &lt; server-stale &lt; error &lt; update-pending</code>, with <code>update-pending</code> treated as ready by the gate's preparing branch.</p>
+
+  <h3 id="con-claim" data-whiteboard-anchor>4.4 The multi-tab claim</h3>
+  <p id="wb-p-f03770be9d654b1e9dcf0cc435aac4b1" data-whiteboard-anchor>An import stamps <code>claim { owner, at }</code> on the checkpoint row before fetching chunks. A fresh claim owned by another tab yields outcome <code>'busy'</code> (the readiness gate retries after the TTL and converges via the <code>seed-imported</code> broadcast). A claim older than <code>SEED_CLAIM_TTL_MS = 45&thinsp;000</code> ms is assumed abandoned (crashed tab) and is stolen. The <code>finally</code> block releases the claim only if still the owner.</p>
+
+  <h3 id="con-intake" data-whiteboard-anchor>4.5 <code>/subscribe?source=…</code> intake and consent</h3>
+  <ol>
+    <li id="wb-li-9b29820eb2f744a5993aa0295e3c3e64" data-whiteboard-anchor>No <code>?source</code> &#8594; redirect to <code>/catalogs</code>.</li>
+    <li id="wb-li-435b6a7af25b4c00af9f21316033902e" data-whiteboard-anchor>Page-level URL validation mirrors <code>normalizeSeedSourceUrl</code> (https only, no credentials/query/hash, trailing slash).</li>
+    <li id="wb-li-c121d4825f62477a9174d87e37288b82" data-whiteboard-anchor>The manifest is fetched and validated <strong>before anything is shown</strong>; a failure renders an error and writes nothing.</li>
+    <li id="wb-li-be7cff77ef234129b72c9ac708e51806" data-whiteboard-anchor>The consent screen discloses name, URL, description, published version, <code>builtAt</code>, schema, chunk/item counts, download size, and repository link &mdash; plus an explicit "opening this link has not added any content or source" notice &mdash; with an auto-sync checkbox.</li>
+    <li id="wb-li-25cd9edf5ac64f8faa4c22aa78b389c2" data-whiteboard-anchor><strong>Import Once</strong> / <strong>Import &amp; Subscribe</strong>: match an existing source by normalized URL or <code>addCustomSeedSource</code>, then <code>syncSeedSource(id, { subscribe: false })</code>; Subscribe additionally persists auto-sync + subscription (with an explicit storage-unavailable error if persistence fails). Success navigates to <code>/catalogs?manage=1</code>. <strong>Decline &amp; Dismiss</strong> writes nothing.</li>
+  </ol>
+  <p id="wb-p-a12bfabf13f74bcc88e4e3b6d6419b3f" data-whiteboard-anchor>Import-once records an explicit <code>false</code> for a new source so the boot migration (<code>migrateSeedSubscriptions</code>, which adopts previously imported but unchosen sources with <code>seedVersion &gt; 0</code>) cannot silently subscribe it later.</p>
+
+  <h3 id="con-manager" data-whiteboard-anchor>4.6 The manager drawer (<code>?manage=1</code>)</h3>
+  <p id="wb-p-c8ae3b3c49ff45bfb616c6b684ff2d87" data-whiteboard-anchor>A thin Dialog wrapping the same <code>SyncSection</code> used by <code>/settings/sync</code>, opened from the grouped update toast, the subscribe success screen, or the in-page toolbar button. Closing deletes <em>only</em> the <code>manage</code> query param (other params like <code>q</code> survive) and uses <code>history.replace</code> so a modal never stacks history. Each row shows identity + version info, a Sync button when an update is pending, Subscribe when unsubscribed, an auto-sync checkbox, and a "&#8230;" menu with the published-HTML link, git source link, Unsubscribe, and Delete.</p>
+
+  <h3 id="con-removal" data-whiteboard-anchor>4.7 Unsubscribe vs Delete, and what removal touches</h3>
+  <table>
+    <tr><th id="wb-th-1f065354e9c04ff0816a2d4f481ea12f" data-whiteboard-anchor>Action</th><th id="wb-th-7d903cc936b344c0807a822bc73e59d3" data-whiteboard-anchor>Does</th><th id="wb-th-3fc2eeac82a948008470cee51710460a" data-whiteboard-anchor>Keeps</th></tr>
+    <tr><td id="wb-td-356d75a9302344babcf444cde28b18f0" data-whiteboard-anchor>Unsubscribe</td><td id="wb-td-9a9f4f2fcc8a4edf8762cda26c9fef68" data-whiteboard-anchor>Deletes imported content + checkpoint; subscription &#8594; false; auto-sync &#8594; false; clears pending-update entry; broadcasts <code>seed-removed</code>. Core: no-op.</td><td id="wb-td-ee884771ac064c76a2bd7d2eaf1143b8" data-whiteboard-anchor>The source registry row &mdash; Subscribe works again later.</td></tr>
+    <tr><td id="wb-td-ba5049dee21946cc9a6e7f8585a4efa7" data-whiteboard-anchor>Delete</td><td id="wb-td-234d3e95e9514eb180d1f048aa79bee7" data-whiteboard-anchor>Unsubscribe <em>plus</em> registry removal: <code>removeCustomSeedSource</code> for custom sources, <code>hideSeedSourceRow</code> for built-ins.</td><td id="wb-td-fd72a8cc9bac450e8e622aef998a164c" data-whiteboard-anchor>Nothing of the source; user data untouched.</td></tr>
+  </table>
+  <p id="wb-p-6ae7354d04c44ff9b60f189eb2a7d88d" data-whiteboard-anchor>Deletion is <strong>one readwrite transaction</strong> over <code>notes, attachments, note_tags, block_index, block_efforts, page_notes, meta</code> keyed by the checkpoint's recorded <code>noteIds</code>, and only for notes still stamped <code>seedOrigin === 'seed'</code>. Never touched: user-authored notes, <code>tags</code>, <code>page</code>, <code>block_revisions</code>, <code>sessions</code>, <code>events</code>, sync stores, other sources' checkpoints, and the <code>wodwiki-telemetry</code> / <code>wodwiki-user-calcs</code> databases. Storage failure propagates &mdash; a deletion error is never swallowed, so a stale checkpoint can never trigger a zombie re-import.</p>
+</section>
+
+<section id="sec-models">
+  <h2 id="wb-h2-cc168cd30d5e48cabdea2f50aae11806" data-whiteboard-anchor>5. Domain Model Reference</h2>
+  <p id="wb-p-c5f10ef04ec04e8597762205ae1777e7" data-whiteboard-anchor>Full YAML definitions with <code>depends_on</code> and <code>lifecycle</code> live in the ADRs; this table is the navigation index.</p>
+  <table>
+    <tr><th id="wb-th-8b04dbfe125e4358a78ee041b4d003e2" data-whiteboard-anchor>Model</th><th id="wb-th-e5e4f3639b664bf5bbffa0b27747efbc" data-whiteboard-anchor>Where</th><th id="wb-th-02ef504bd3ed44b58fefdf5a111a7358" data-whiteboard-anchor>Depends on</th><th id="wb-th-2ff140e46df94f278622d8307ab7c973" data-whiteboard-anchor>Lifecycle in one line</th></tr>
+    <tr><td id="wb-td-35e193cb69e647eea8fab5c0f1a3d39a" data-whiteboard-anchor><code>SeedManifest</code></td><td id="wb-td-22b5b7ee75de4d1ca26a21e76c2ae6fe" data-whiteboard-anchor><code>packages/engine/src/seed/contract.ts</code></td><td id="wb-td-103ab0a6e0864d2393c4ba968feb65b6" data-whiteboard-anchor><code>ManifestChunk[]</code></td><td id="wb-td-fd59a4792b1f4a1c8a58aa1fec44d44d" data-whiteboard-anchor>built &#8594; validated (<code>assertSeedManifest</code>) &#8594; version-compared (<code>decideSeedImport</code>) &#8594; checkpointed</td></tr>
+    <tr><td id="wb-td-00233804e1d64cceaa81ff1d05668c6c" data-whiteboard-anchor><code>ManifestChunk</code></td><td id="wb-td-52ee66e929324868954a1d8913be6cb4" data-whiteboard-anchor><code>contract.ts</code></td><td id="wb-td-df2f1d1c647640c0bc85320ed8fcda8d" data-whiteboard-anchor><code>SeedRow[]</code></td><td id="wb-td-2855630288de4dbe84cd29ff5533e00e" data-whiteboard-anchor>planned (<code>chunkIdFor</code>) &#8594; written (sha-named file) &#8594; fetched on sha change &#8594; tombstoned when removed from manifest</td></tr>
+    <tr><td id="wb-td-0e1e7bbc7eea4d35813f0d79b305fcbc" data-whiteboard-anchor><code>SeedRow</code></td><td id="wb-td-0d26adb4d5614b62bcffc0f338c006ad" data-whiteboard-anchor><code>contract.ts</code></td><td id="wb-td-225e65088afd41e2bf4e2b6286f2298d" data-whiteboard-anchor><code>NoteBlock</code>, <code>BlockIndexRow</code>, <code>BlockEffort</code></td><td id="wb-td-dc8850226b0d4e14b162fdd97071e1b0" data-whiteboard-anchor>compiled &#8594; gated &#8594; validated (<code>assertSeedRows</code>) &#8594; applied (<code>applySeedChunk</code>)</td></tr>
+    <tr><td id="wb-td-d774d5f457164b78989e23775fe7de51" data-whiteboard-anchor><code>BlockIndexRow</code></td><td id="wb-td-291a5efadd774b699d1ac3fbc3ad25aa" data-whiteboard-anchor><code>packages/core/src/types/storage.ts</code></td><td id="wb-td-7a0992b17c1f4efe8751ca7ced622b5a" data-whiteboard-anchor><code>Note</code></td><td id="wb-td-b0c3e1410f0142c9852a8fb5fc63b95c" data-whiteboard-anchor>compiled &#8594; id-remapped at import &#8594; replaced only while prior isStatic &#8594; pruned when undeclared</td></tr>
+    <tr><td id="wb-td-04d0f7a10aff47f4aecdb27bffef0c3f" data-whiteboard-anchor><code>Note</code> (seed subset)</td><td id="wb-td-da30ec927f23432a9519306cd0267ebd" data-whiteboard-anchor><code>packages/core/src/types/storage.ts</code></td><td id="wb-td-53238f3162de4d46b6d455a3b7d97c5d" data-whiteboard-anchor><code>SeedRow</code>, <code>SeedManifest</code></td><td id="wb-td-4de30f5799044956b3ea30748ff8b8b3" data-whiteboard-anchor>imported (or <code>skippedUserOwned</code>) &#8594; superseded by re-import &#8594; tombstone-deleted; user-owned notes are read-only to seed</td></tr>
+    <tr><td id="wb-td-2892f9b95e5f411c92db61fc74085f62" data-whiteboard-anchor><code>SeedMetaRecord</code></td><td id="wb-td-6e13bf913377425998e1ac003f48fd6a" data-whiteboard-anchor><code>contract.ts</code></td><td id="wb-td-cae08b45cb7045d2bfd208bd5c543f82" data-whiteboard-anchor><code>SeedManifest</code>, <code>Note</code></td><td id="wb-td-2e04ea0c6a0b491bbd3ee2e7fc397fde" data-whiteboard-anchor>empty &#8594; claimed &#8594; committed (CAS) &#8594; removed on unsubscribe/delete</td></tr>
+    <tr><td id="wb-td-90c5b023b14d47f0934a8baf2957a4b7" data-whiteboard-anchor><code>CustomSeedSource</code></td><td id="wb-td-090716b3b1e54d7ab24f721908717640" data-whiteboard-anchor><code>apps/playground/src/services/seed/seedSources.ts</code></td><td id="wb-td-ed924b0b6edf49e4a9cf64773411d990" data-whiteboard-anchor>&#8212;</td><td id="wb-td-80df05210a6c4ccb93318797e621cab3" data-whiteboard-anchor>registered (validated) &#8594; hidden (built-in delete) / removed (custom delete)</td></tr>
+    <tr><td id="wb-td-814b81f06a284a8a8cb406d81e45504b" data-whiteboard-anchor><code>SeedSourceSpec</code></td><td id="wb-td-4f961d22c98c41119a43997999a8cae9" data-whiteboard-anchor><code>apps/playground/src/services/seed/seedSync.ts</code></td><td id="wb-td-b1b4d88911a24eb499ac53935c73f231" data-whiteboard-anchor><code>CustomSeedSource</code>, <code>SeedManifest</code></td><td id="wb-td-d53935a6af844b4884eba96fb65222d8" data-whiteboard-anchor>resolved by <code>defaultSeedSources()</code> &#8594; boot-checked &#8594; synced / pending / stale / error</td></tr>
+    <tr><td id="wb-td-d8194d5be4124db2be691f770c1fd7a7" data-whiteboard-anchor><code>SeedSubscriptionMap</code></td><td id="wb-td-16b896f7fea2481d92dc50fef6bbf845" data-whiteboard-anchor><code>seedSubscriptions.ts</code></td><td id="wb-td-39d510817241465f9ada44a7e92e5523" data-whiteboard-anchor><code>SeedSourceSpec</code></td><td id="wb-td-704722f6cc58418894404506c7c79487" data-whiteboard-anchor>chosen / declined (explicit false) / migrated at boot</td></tr>
+    <tr><td id="wb-td-9eeb172423d04d388089bde0e232d7b3" data-whiteboard-anchor><code>SeedAutoSyncMap</code></td><td id="wb-td-1d55fd4c20b34a85822a3e30c9c70934" data-whiteboard-anchor><code>seedSubscriptions.ts</code></td><td id="wb-td-d12d6960f359456bb23723ce8889a53f" data-whiteboard-anchor><code>SeedSubscriptionMap</code></td><td id="wb-td-4168b38cfe9441978a3f74b54b7e0704" data-whiteboard-anchor>off (updates stay pending) / on (background applies); cleared on unsubscribe</td></tr>
+    <tr><td id="wb-td-5a43669d33fd4e0180167a1d1b18f010" data-whiteboard-anchor><code>CatalogUpdatesSnapshot</code></td><td id="wb-td-b16a8b3d2c934172a7235ea4a4ea0168" data-whiteboard-anchor><code>seedSync.ts</code></td><td id="wb-td-1e46735c7096417db4d0a3e36b21e47a" data-whiteboard-anchor><code>SeedSourceSpec</code>, <code>SeedAutoSyncMap</code></td><td id="wb-td-bfb7a96a407e4eb1b04b8b06c503c271" data-whiteboard-anchor>one per background run &#8594; toasted once &#8594; entries cleared by manual sync</td></tr>
+    <tr><td id="wb-td-a791eeee595c45f69ccf86e9a3397b49" data-whiteboard-anchor><code>ImportClaim</code></td><td id="wb-td-b92582d00b894d528cd1293364b1e388" data-whiteboard-anchor><code>seedSync.ts</code></td><td id="wb-td-36987ad75c0347b6931e1e844ddfb46e" data-whiteboard-anchor><code>SeedMetaRecord</code></td><td id="wb-td-40be7fd02e8d4ca6a85d5cf0ea583326" data-whiteboard-anchor>claimed &#8594; stolen after 45 s &#8594; released in <code>finally</code></td></tr>
+    <tr><td id="wb-td-3ed9206b4b4d464c81c32ef6536dd8c1" data-whiteboard-anchor><code>SeedReadinessGate</code></td><td id="wb-td-dac831f2bfc8458b9e17e9f4bd9975fe" data-whiteboard-anchor><code>seedReadiness.ts</code></td><td id="wb-td-dd9dc227d4ef4d9c9eae0e965bb7f34c" data-whiteboard-anchor><code>SeedMetaRecord</code>, <code>ImportClaim</code></td><td id="wb-td-dec2beacec4f4863b8e06efd9e7cb560" data-whiteboard-anchor>preparing (first visit) &#8594; ready (canvas committed) / current (returning) / busy&#8594;retry</td></tr>
+  </table>
+  <div class="callout warn">
+    <strong>Duplicate contract warning.</strong> <code>packages/engine/src/seed/contract.ts</code> and <code>packages/tools/src/seedbuild/contract.ts</code> are byte-identical by design (the app imports the engine copy; the CLI compiles the tools copy). They must be edited together, and <code>SEED_SCHEMA</code> bumps must land in both.
+  </div>
+</section>
+
+<section id="sec-failures">
+  <h2 id="wb-h2-624dcc3c4a6e4b52888f645cce741564" data-whiteboard-anchor>6. Failure and Edge Semantics</h2>
+  <table>
+    <tr><th id="wb-th-e2f72b408ee7475f8eb97ceb85c27296" data-whiteboard-anchor>Condition</th><th id="wb-th-8f823679f8e448788eae6e5ddde49ee3" data-whiteboard-anchor>Behavior</th></tr>
+    <tr><td id="wb-td-022faec3b9d54ae9b7bf77aa85bcceee" data-whiteboard-anchor>Another tab is mid-import (<code>busy</code>)</td><td id="wb-td-bc3e3fff55e148cfaf4bb44f922e70da" data-whiteboard-anchor>Gate retries after the 45 s claim TTL; converges via the <code>seed-imported</code> broadcast. No double import.</td></tr>
+    <tr><td id="wb-td-67818b76ef75468eb0984de8e5cb8df8" data-whiteboard-anchor>Published <code>version</code> &lt; checkpoint <code>seedVersion</code></td><td id="wb-td-3c2e5419c3924aa0afee9320b1c6763b" data-whiteboard-anchor>Refused before any write &mdash; no rollback imports.</td></tr>
+    <tr><td id="wb-td-be3197aa8d99429c80b251783c9041a6" data-whiteboard-anchor>Manifest <code>schema</code> &#8800; 8</td><td id="wb-td-5e85ad83ac47494b9bed070a183082a2" data-whiteboard-anchor>Rejected: "rebuild seed artifacts".</td></tr>
+    <tr><td id="wb-td-c0f49c9a964f4856b0e796c8a1c993fe" data-whiteboard-anchor>Impossible frontmatter date (2026-02-30)</td><td id="wb-td-b01021614f4e46c4927089e5a68b2a8d" data-whiteboard-anchor>Chunk rejected at compile time and again at import (UTC round-trip check).</td></tr>
+    <tr><td id="wb-td-b0e022cad1694708986a7d78b04330a0" data-whiteboard-anchor>Chunk tampered with after publish</td><td id="wb-td-209b20c3cd8c49868a9369c6401122d9" data-whiteboard-anchor><code>assertSeedRows</code> re-parses blocks and recomputes <code>blockContentId</code> fingerprints; mismatch aborts the import.</td></tr>
+    <tr><td id="wb-td-334606df30634ee38a141b71067e6593" data-whiteboard-anchor>User edited a seeded note</td><td id="wb-td-3aee4906a4124560b39054540102d0ca" data-whiteboard-anchor>Note becomes user-owned (<code>skippedUserOwned</code>); future imports leave content and projections alone.</td></tr>
+    <tr><td id="wb-td-e716ba012b23410aa3f01dcc6c3f600c" data-whiteboard-anchor>Publisher removes a workout</td><td id="wb-td-a05f8ccaa4064b479607eb6f1321fb31" data-whiteboard-anchor>Tombstone: next import deletes the note and its links &mdash; only while still seed-owned.</td></tr>
+    <tr><td id="wb-td-c6ff3bbee81843188f0804c530bb7c5c" data-whiteboard-anchor>Source unreachable / manifest invalid</td><td id="wb-td-2f547274b5cf4f83bf1a05ec54bf8079" data-whiteboard-anchor>Per-source <code>'error'</code> outcome; worst-first aggregation surfaces it in the grouped notification; last good content stays put.</td></tr>
+    <tr><td id="wb-td-d54fcaa7337f435b83cedfba2e71c2ae" data-whiteboard-anchor>localStorage unavailable on Subscribe</td><td id="wb-td-73b652a891fe4f67b1fd3824d47c76a0" data-whiteboard-anchor>Import proceeds but the UI reports that subscription preference could not be persisted.</td></tr>
+    <tr><td id="wb-td-29655bde0b7c4fc69f914c0e890aba93" data-whiteboard-anchor>Storage failure during removal</td><td id="wb-td-118075cc971841708213e00be6c58c93" data-whiteboard-anchor>Error propagates; no partial "content gone, checkpoint alive" state can persist.</td></tr>
+  </table>
+</section>
+
+</main>
+<footer>
+  WOD Wiki catalog architecture explainer &middot; pairs with <code>docs/catalogs-and-distributed-seed-model.html</code> (design review) and <code>docs/adrs/</code> (canonical models).
+</footer>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2 id="wb-current-title"></h2>
+  <a id="wb-current-source">Source block</a>
+  <p id="wb-current-quote"></p>
+  <p id="wb-current-context"></p>
+  <p id="wb-current-note"></p>
+  <div class="wb-controls">
+    <button id="wb-edit" type="button">Edit</button>
+    <button id="wb-delete" type="button">Delete</button>
+    <button id="wb-hide" type="button">Hide</button>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Publish annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Publish before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Publish before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    byId('wb-count').textContent = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : ` · ${active + 1}/${count}`}`;
+    for (const id of ['wb-prev', 'wb-next', 'wb-publish']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+
+  byId('wb-publish').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    byId('wb-copy-status').textContent = 'Copying…';
+    byId('wb-export').showModal();
+    output.focus();
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy-status').textContent = 'Copied. Paste into your agent window. Drafts are kept.';
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  new ResizeObserver(() => document.documentElement.style.setProperty('--wb-bar-height', byId('wb-bar').offsetHeight + 'px')).observe(byId('wb-bar'));
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>
