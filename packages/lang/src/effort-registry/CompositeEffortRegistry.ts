@@ -1,4 +1,4 @@
-import type { IEffort, IEffortRegistry, EffortRegistrySource, EffortStorageAdapter } from './types';
+import { resolveEntityRank, type IEffort, type IEffortRegistry, type EffortRegistrySource, type EffortStorageAdapter } from './types';
 import { bundledEfforts as defaultBundledEfforts } from './data/bundled-efforts';
 import { normalizeForFuzzy } from './fuzzyMatch';
 
@@ -45,13 +45,10 @@ export class CompositeEffortRegistry implements IEffortRegistry {
    */
   async loadBundled(customBundled?: Iterable<IEffort>): Promise<void> {
     this.bundledEfforts.clear();
-    if (customBundled) {
-      for (const effort of customBundled) {
-        this.bundledEfforts.set(effort.slug, effort);
-      }
-    } else {
-      const seed = this.initialBundled ?? defaultBundledEfforts;
-      for (const effort of seed) {
+    const source = customBundled ?? this.initialBundled ?? defaultBundledEfforts;
+    for (const effort of source) {
+      const prior = this.bundledEfforts.get(effort.slug);
+      if (!prior || resolveEntityRank(effort) >= resolveEntityRank(prior)) {
         this.bundledEfforts.set(effort.slug, effort);
       }
     }
@@ -90,8 +87,10 @@ export class CompositeEffortRegistry implements IEffortRegistry {
         if (normalizeForFuzzy(alias) === normalized) return effort;
       }
     }
-    for (const effort of this.bundledEfforts.values()) {
-      if (this.userEfforts.has(effort.slug)) continue;
+    const bundled = Array.from(this.bundledEfforts.values())
+      .filter((effort) => !this.userEfforts.has(effort.slug))
+      .sort((a, b) => resolveEntityRank(b) - resolveEntityRank(a));
+    for (const effort of bundled) {
       if (normalizeForFuzzy(effort.label) === normalized) return effort;
       for (const alias of effort.aliases) {
         if (normalizeForFuzzy(alias) === normalized) return effort;

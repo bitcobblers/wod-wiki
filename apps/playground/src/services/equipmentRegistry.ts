@@ -1,5 +1,5 @@
 import type { EquipmentStorageAdapter, IEquipment, IEquipmentRegistry } from '@bitcobblers/wod-wiki-lang';
-import { normalizeForFuzzy } from '@bitcobblers/wod-wiki-lang';
+import { normalizeForFuzzy, resolveEntityRank } from '@bitcobblers/wod-wiki-lang';
 import { indexedDBEquipmentStorage } from './db/IndexedDBEquipmentStorage';
 import { storageService } from '@/services/storage';
 
@@ -33,7 +33,10 @@ export class CompositeEquipmentRegistry implements IEquipmentRegistry {
     this.bundledEquipment.clear();
     if (customBundled) {
       for (const equipment of customBundled) {
-        this.bundledEquipment.set(equipment.slug, equipment);
+        const prior = this.bundledEquipment.get(equipment.slug);
+        if (!prior || resolveEntityRank(equipment) >= resolveEntityRank(prior)) {
+          this.bundledEquipment.set(equipment.slug, equipment);
+        }
       }
     }
     this.userEquipment.clear();
@@ -61,8 +64,10 @@ export class CompositeEquipmentRegistry implements IEquipmentRegistry {
         if (normalizeForFuzzy(alias) === normalized) return equipment;
       }
     }
-    for (const equipment of this.bundledEquipment.values()) {
-      if (this.userEquipment.has(equipment.slug)) continue;
+    const bundled = [...this.bundledEquipment.values()]
+      .filter((equipment) => !this.userEquipment.has(equipment.slug))
+      .sort((a, b) => resolveEntityRank(b) - resolveEntityRank(a));
+    for (const equipment of bundled) {
       if (normalizeForFuzzy(equipment.label) === normalized) return equipment;
       for (const alias of equipment.aliases) {
         if (normalizeForFuzzy(alias) === normalized) return equipment;

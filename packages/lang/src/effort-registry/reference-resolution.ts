@@ -21,7 +21,7 @@ import type {
   ReferenceRef,
 } from '@bitcobblers/wod-wiki-core';
 import { getReferenceMetadata } from '@bitcobblers/wod-wiki-core';
-import type { IEffort, IEquipment, ResolvedEffort } from './types';
+import { dedupeEntitiesByPrecedence, resolveEntityRank, type IEffort, type IEquipment, type ResolvedEffort } from './types';
 import { normalizeForFuzzy } from './fuzzyMatch';
 
 /** Catalog collections the resolver resolves against (hydrated from storage/seed). */
@@ -74,10 +74,15 @@ interface ExactIndex<T> {
   lookup(key: string): { entity: T | null; ambiguous: T[] };
 }
 
-/** Build a slug/label/alias → entities map. Collisions across distinct slugs are ambiguity, not last-wins. */
-function buildExactIndex<T extends { slug: string; label: string; aliases: readonly string[] }>(
+/**
+ * Build a slug/label/alias → entities map.
+ * Higher-precedence tiers (core < community < imported < user) shadow lower tiers;
+ * collisions across distinct slugs within the same highest tier remain ambiguous.
+ */
+function buildExactIndex<T extends { slug: string; label: string; aliases: readonly string[]; registrySource?: string; sourceId?: string | null }>(
   entities: readonly T[],
 ): ExactIndex<T> {
+  const deduped = dedupeEntitiesByPrecedence(entities);
   const byKey = new Map<string, T[]>();
   const add = (key: string, entity: T) => {
     if (!key) return;
@@ -88,7 +93,7 @@ function buildExactIndex<T extends { slug: string; label: string; aliases: reado
       byKey.set(key, [entity]);
     }
   };
-  for (const entity of entities) {
+  for (const entity of deduped) {
     add(entity.slug.toLowerCase(), entity);
     add(normalizeForFuzzy(entity.label), entity);
     for (const alias of entity.aliases) add(normalizeForFuzzy(alias), entity);
@@ -99,7 +104,14 @@ function buildExactIndex<T extends { slug: string; label: string; aliases: reado
       const direct = byKey.get(key) ?? byKey.get(normalizeForFuzzy(key));
       if (!direct || direct.length === 0) return { entity: null, ambiguous: [] };
       if (direct.length === 1) return { entity: direct[0], ambiguous: [] };
-      return { entity: null, ambiguous: direct };
+      let maxRank = -1;
+      for (const candidate of direct) {
+        const rank = resolveEntityRank(candidate);
+        if (rank > maxRank) maxRank = rank;
+      }
+      const topTier = direct.filter((candidate) => resolveEntityRank(candidate) === maxRank);
+      if (topTier.length === 1) return { entity: topTier[0], ambiguous: [] };
+      return { entity: null, ambiguous: topTier };
     },
   };
 }
@@ -132,11 +144,12 @@ export function createReferenceIndex(
   catalog: ReferenceCatalog,
   materialize?: EffortMaterializer,
 ): ReferenceIndex {
+  const dedupedEquipment = dedupeEntitiesByPrecedence(catalog.equipment ?? []);
   const efforts = buildExactIndex(catalog.efforts ?? []);
-  const equipment = buildExactIndex(catalog.equipment ?? []);
+  const equipment = buildExactIndex(dedupedEquipment);
 
   // Longest-first prefix candidates; rebuilt only here, at hydration.
-  const prefixCandidates: PrefixCandidate[] = (catalog.equipment ?? [])
+  const prefixCandidates: PrefixCandidate[] = dedupedEquipment
     .flatMap(entity => [entity.label, ...entity.aliases]
       .filter(name => !!name && !!name.trim())
       .map(name => ({ lower: name.trim().toLowerCase(), entity })))

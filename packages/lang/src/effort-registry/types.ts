@@ -14,6 +14,59 @@ export type EffortRegistrySource = 'bundled' | 'user' | 'synthetic-unresolved';
  * resolver phantoms, never listed) — the WQL `origin:` filter vocabulary. */
 export const EFFORT_REGISTRY_ORIGINS = ['bundled', 'user'] as const;
 
+/**
+ * Precedence tiers for resolving collisions across seed catalogs and local edits.
+ * Order: core (0) < community (1) < imported (2) < user (3).
+ */
+export type CatalogPrecedenceTier = 'core' | 'community' | 'imported' | 'user';
+
+export const CATALOG_PRECEDENCE_RANK: Readonly<Record<CatalogPrecedenceTier, number>> = {
+  core: 0,
+  community: 1,
+  imported: 2,
+  user: 3,
+};
+
+/** Resolve the precedence tier for a seed source id or checkpoint key (`seed:<id>`). */
+export function resolveSourceTier(sourceIdOrMetaKey?: string | null, explicitTier?: CatalogPrecedenceTier): CatalogPrecedenceTier {
+  if (explicitTier) return explicitTier;
+  if (!sourceIdOrMetaKey) return 'core';
+  if (sourceIdOrMetaKey === 'user') return 'user';
+  const id = sourceIdOrMetaKey.startsWith('seed:') ? sourceIdOrMetaKey.slice(5) : sourceIdOrMetaKey;
+  if (id === 'core' || id === 'efforts' || id === 'equipment') return 'core';
+  if (id === 'community' || id.startsWith('community-') || id === 'common') return 'community';
+  return 'imported';
+}
+
+export function resolveSourceRank(sourceIdOrMetaKey?: string | null, explicitTier?: CatalogPrecedenceTier): number {
+  return CATALOG_PRECEDENCE_RANK[resolveSourceTier(sourceIdOrMetaKey, explicitTier)];
+}
+
+/** Resolve the precedence tier of an effort/equipment definition record. */
+export function resolveEntityTier(entity: { registrySource?: string; sourceId?: string | null }): CatalogPrecedenceTier {
+  if (entity.registrySource === 'user') return 'user';
+  return resolveSourceTier(entity.sourceId);
+}
+
+export function resolveEntityRank(entity: { registrySource?: string; sourceId?: string | null }): number {
+  return CATALOG_PRECEDENCE_RANK[resolveEntityTier(entity)];
+}
+
+/** Deduplicate definition entities by slug, retaining the highest-precedence record per slug. */
+export function dedupeEntitiesByPrecedence<T extends { slug: string; registrySource?: string; sourceId?: string | null }>(
+  entities: readonly T[],
+): T[] {
+  const bySlug = new Map<string, T>();
+  for (const entity of entities) {
+    const key = entity.slug.toLowerCase();
+    const prior = bySlug.get(key);
+    if (!prior || resolveEntityRank(entity) >= resolveEntityRank(prior)) {
+      bySlug.set(key, entity);
+    }
+  }
+  return Array.from(bySlug.values());
+}
+
 /** Intensity tiers, low → high — the WQL `intensity:` filter vocabulary. */
 export const INTENSITY_TIERS = ['low', 'moderate', 'high'] as const;
 

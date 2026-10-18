@@ -1,4 +1,5 @@
-import { applySeedChunk, type SeedChunkResult, type SeedChunkWrite } from '@bitcobblers/wod-wiki-engine';
+import { applySeedChunk, seedPrecedenceRank, type SeedChunkResult, type SeedChunkWrite } from '@bitcobblers/wod-wiki-engine';
+import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import type { SeedMetaRecord } from '@/types/seed';
 import type { IStorage } from '@/services/storage/IStorage';
 import { storage } from '@/services/storage';
@@ -55,10 +56,32 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
             }
           }
         }
+        const metaStore = tx.readwrite('meta');
+        const otherCheckpoints: Array<{ key: string; sourceId: string; rank: number; meta: SeedMetaRecord; noteIds: Set<string> }> = [];
+        for (const row of await metaStore.getAll()) {
+          const other = row as unknown as SeedMetaRecord | undefined;
+          if (!other || typeof other.key !== 'string' || !other.key.startsWith('seed:') || other.key === meta.key) continue;
+          const noteIds = new Set<string>();
+          for (const chunk of Object.values(other.chunks ?? {})) {
+            for (const id of chunk.noteIds ?? []) noteIds.add(id);
+          }
+          otherCheckpoints.push({
+            key: other.key,
+            sourceId: other.key.slice(5),
+            rank: seedPrecedenceRank(other.key, other.tier),
+            meta: other,
+            noteIds,
+          });
+        }
+        otherCheckpoints.sort((a, b) => b.rank - a.rank);
+        const isClaimedByOther = (noteId: string): boolean => otherCheckpoints.some((cp) => cp.noteIds.has(noteId));
+        const removedSourceId = meta.key.startsWith('seed:') ? meta.key.slice(5) : meta.key;
+
         const notes = tx.readwrite('notes');
         let deleted = 0;
         const removedPaths = new Set<string>();
         for (const id of targetIds) {
+          if (isClaimedByOther(id)) continue;
           const note = await notes.get(id);
           if (!note || note.seedOrigin !== 'seed') continue;
           if (note.seedChunkId && !meta.chunks[note.seedChunkId]) continue;
@@ -78,19 +101,46 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
           for (const link of await pageNotes.getAllFromIndex('by-note', id)) await pageNotes.delete(link.id);
           deleted++;
         }
-        // Bundled definition projections owned by this source die with it —
-        // matched by exact owner note id, with the corpus path as the
-        // legacy fallback. Custom (`user`) copies are never touched.
-        for (const [storeName, familyPathPrefix] of [['efforts', 'markdown/efforts/'], ['equipment', 'markdown/equipment/']] as const) {
+        // Bundled definition projections owned by this source fall back to the
+        // highest remaining seed tier when one declares the same slug, or die
+        // with this source otherwise. Custom (`user`) copies are never touched.
+        const defFamilies = [
+          { storeName: 'efforts' as const, familyPathPrefix: 'markdown/efforts/', parse: parseEffortFile },
+          { storeName: 'equipment' as const, familyPathPrefix: 'markdown/equipment/', parse: parseEquipmentFile },
+        ];
+        for (const { storeName, familyPathPrefix, parse } of defFamilies) {
           const store = tx.readwrite(storeName);
           for (const row of await store.getAll()) {
             if (row.registrySource !== 'bundled') continue;
-            const owned = (row.ownerNoteId !== undefined && targetIds.has(row.ownerNoteId))
+            const owned = row.sourceId === removedSourceId
+              || (row.ownerNoteId !== undefined && targetIds.has(row.ownerNoteId) && (!row.sourceId || row.sourceId === storeName))
               || (row.sourcePath !== undefined && row.sourcePath.startsWith(familyPathPrefix) && removedPaths.has(row.sourcePath));
-            if (owned) await store.delete(row.slug);
+            if (!owned) continue;
+            let restored = false;
+            for (const cp of otherCheckpoints) {
+              const candidateIds = cp.meta.chunks?.[storeName]?.noteIds ?? [];
+              for (const candidateId of candidateIds) {
+                const candidateNote = await notes.get(candidateId);
+                if (!candidateNote || candidateNote.seedOrigin !== 'seed') continue;
+                const parsed = parse(candidateNote.rawContent);
+                if (parsed && parsed.slug === row.slug) {
+                  await (store as unknown as { put(v: unknown): Promise<unknown> }).put({
+                    ...parsed,
+                    registrySource: 'bundled' as const,
+                    ownerNoteId: candidateNote.id,
+                    sourceId: cp.sourceId,
+                    sourcePath: candidateNote.sourcePath ?? '',
+                  });
+                  restored = true;
+                  break;
+                }
+              }
+              if (restored) break;
+            }
+            if (!restored) await store.delete(row.slug);
           }
         }
-        await tx.readwrite('meta').delete(meta.key);
+        await metaStore.delete(meta.key);
         return deleted;
       },
     );

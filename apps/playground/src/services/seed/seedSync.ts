@@ -25,6 +25,7 @@ import { isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } 
 import { beginSyncActivity, reportSyncResult, reportSyncError } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
+import { hydrateAppEquipmentRegistry, getAppEquipmentRegistry } from '@/services/equipmentRegistry';
 import { storageService } from '@/services/storage';
 
 export { SEED_BROADCAST_CHANNEL } from '@/types/seed';
@@ -464,6 +465,8 @@ async function runSourceSync(
         invalidateSeedContent();
         const registry = getAppEffortRegistry();
         if (registry.isInitialized()) await hydrateAppEffortRegistry(registry);
+        const equipmentRegistry = getAppEquipmentRegistry();
+        if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
         if (report) reportSyncResult({ source: spec.label, added: result.addedNotes, updated: result.updatedNotes });
         // An applied update of an already-installed catalog is part of the
         // grouped snapshot ('updated'); a first import is not an update.
@@ -586,6 +589,10 @@ export async function unsubscribeSeedSource(id: string, deps: Pick<SeedSyncDeps,
   setSeedAutoSync(id, false);
   clearCatalogSourceUpdate(id);
   invalidateSeedContent();
+  const effortRegistry = getAppEffortRegistry();
+  if (effortRegistry.isInitialized()) await hydrateAppEffortRegistry(effortRegistry);
+  const equipmentRegistry = getAppEquipmentRegistry();
+  if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
   defaultBroadcast({ kind: 'seed-removed', source: id });
   return { deleted };
 }

@@ -35,6 +35,25 @@ export interface SeedManifest {
   builtAt: string;
   chunks: ManifestChunk[];
 }
+export type SeedPrecedenceTier = 'core' | 'community' | 'imported' | 'user';
+export const SEED_PRECEDENCE_RANK: Readonly<Record<SeedPrecedenceTier, number>> = {
+  core: 0,
+  community: 1,
+  imported: 2,
+  user: 3,
+};
+export function seedSourceTier(sourceIdOrMetaKey?: string | null, explicitTier?: SeedPrecedenceTier): SeedPrecedenceTier {
+  if (explicitTier) return explicitTier;
+  if (!sourceIdOrMetaKey) return 'core';
+  if (sourceIdOrMetaKey === 'user') return 'user';
+  const id = sourceIdOrMetaKey.startsWith('seed:') ? sourceIdOrMetaKey.slice(5) : sourceIdOrMetaKey;
+  if (id === 'core' || id === 'efforts' || id === 'equipment') return 'core';
+  if (id === 'community' || id.startsWith('community-') || id === 'common') return 'community';
+  return 'imported';
+}
+export function seedPrecedenceRank(sourceIdOrMetaKey?: string | null, explicitTier?: SeedPrecedenceTier): number {
+  return SEED_PRECEDENCE_RANK[seedSourceTier(sourceIdOrMetaKey, explicitTier)];
+}
 export interface SeedMetaRecord {
   key: string;
   schema: number;
@@ -43,6 +62,7 @@ export interface SeedMetaRecord {
   importedAt: number;
   chunks: Record<string, { sha256: string; noteIds?: string[] }>;
   claim?: { owner: string; at: number } | null;
+  tier?: SeedPrecedenceTier;
 }
 export const SEED_BROADCAST_CHANNEL = 'wodwiki.seed';
 export const EFFORTS_CHUNK_ID = 'efforts';

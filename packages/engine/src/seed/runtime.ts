@@ -3,7 +3,7 @@ import type { IStorage, IReadWriteStore } from '@bitcobblers/wod-wiki-storage';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import { extractTypedTags, readFrontmatterMeta } from '../exchange';
-import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, seedNoteSourceId, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
+import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, seedNoteSourceId, seedPrecedenceRank, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
 import { assertSeedManifest, assertSeedRows } from './validation';
 
 const SEED_NAMESPACE = '1b671a64-40d5-491e-99b0-da01ff1f3341';
@@ -58,59 +58,109 @@ export interface SeedChunkResult {
   updatedNotes: number;
 }
 
+interface SeedCheckpointRef {
+  key: string;
+  sourceId: string;
+  rank: number;
+  meta: SeedMetaRecord;
+  noteIds: Set<string>;
+}
+
 /**
  * Materialize one family's bundled definition projections from the chunk's
- * markdown rows. Ownership is exact: a projection is stamped with its owner
- * note id + source family + corpus path, only overwrites `bundled` rows, and
- * a same-slug row owned by a DIFFERENT seed source is an explicit collision —
- * never last-import-wins. Custom (`user`) copies always shadow and survive.
- * Tombstones remove bundled projections of notes this chunk no longer
- * declares; user rows are never deleted.
+ * markdown rows. Collisions across seed sources resolve deterministically by
+ * tier precedence (`core` < `community` < `imported` < `user`): a higher or
+ * equal tier overrides lower tiers, while lower tiers are shadowed without
+ * throwing or destroying their checkpoint. Tombstones restore the highest
+ * remaining seed tier when one exists, or delete the projection otherwise.
  */
 async function applyDefinitionChunk<T extends IEffort | IEquipment>(
   defStore: IReadWriteStore<T>,
+  noteStore: IReadWriteStore<Note>,
   parse: (raw: string) => T | null,
   family: string,
+  seedSource: string,
+  incomingRank: number,
+  otherCheckpoints: SeedCheckpointRef[],
+  priorIds: string[],
   rows: SeedRow[],
   ids: string[],
   owned: Set<string>,
   existingById: Map<string, Note | undefined>,
   allIds: string[],
 ): Promise<number> {
+  const priorIdSet = new Set(priorIds);
+  const maxOtherRankForNote = (noteId: string): number => {
+    let max = -1;
+    for (const cp of otherCheckpoints) {
+      if (cp.noteIds.has(noteId) && cp.rank > max) max = cp.rank;
+    }
+    return max;
+  };
   const projections: T[] = [];
   for (const [i, row] of rows.entries()) {
     if (!owned.has(ids[i])) continue;
     const parsed = parse(row.content);
     if (!parsed) continue;
-    projections.push({ ...parsed, registrySource: 'bundled' as const, ownerNoteId: ids[i], sourceId: family, sourcePath: row.path });
+    projections.push({ ...parsed, registrySource: 'bundled' as const, ownerNoteId: ids[i], sourceId: seedSource, sourcePath: row.path });
   }
   const prior = await defStore.getMany(projections.map((p) => p.slug));
-  for (const [i, p] of projections.entries()) {
+  const changed = projections.filter((p, i) => {
     const before = prior[i];
-    if (before?.registrySource === 'bundled' && before.ownerNoteId && before.ownerNoteId !== p.ownerNoteId) {
-      throw new Error(`Seed definition collision: '${p.slug}' is already owned by another seed source (note ${before.ownerNoteId})`);
+    if (!before) return true;
+    if (before.registrySource !== 'bundled') return false;
+    let beforeRank: number;
+    if (before.ownerNoteId === p.ownerNoteId || (before.ownerNoteId && priorIdSet.has(before.ownerNoteId) && maxOtherRankForNote(before.ownerNoteId) < incomingRank)) {
+      beforeRank = incomingRank;
+    } else {
+      const cpRank = before.ownerNoteId ? maxOtherRankForNote(before.ownerNoteId) : -1;
+      beforeRank = cpRank >= 0 ? cpRank : seedPrecedenceRank(before.sourceId);
     }
-  }
-  const changed = projections.filter((p, i) => (!prior[i] || prior[i]?.registrySource === 'bundled') && !equal(p, prior[i]));
+    return incomingRank >= beforeRank && !equal(p, before);
+  });
   if (changed.length) await defStore.putMany(changed);
   const wantedSlugs = new Set(projections.map((p) => p.slug));
-  // Tombstones are exact-ownership: the store is keyed by SLUG, so map each
-  // removed note to its slug and delete only when the stored projection's
-  // ownerNoteId is exactly the note this chunk owned and no longer declares.
-  // Legacy rows without an owner stamp are never deleted here — re-import
-  // reclaims them by slug instead.
   const removedBySlug = new Map<string, string>();
   for (const id of allIds) {
-    if (!owned.has(id)) continue;
     const note = existingById.get(id);
-    const slug = note ? parse(note.rawContent)?.slug : undefined;
+    if (!note || note.seedOrigin !== 'seed') continue;
+    const slug = parse(note.rawContent)?.slug;
     if (slug && !wantedSlugs.has(slug)) removedBySlug.set(slug, id);
   }
   const removedSlugs = [...removedBySlug.keys()];
-  const old = await defStore.getMany(removedSlugs);
-  for (const [i, row] of old.entries()) {
-    if (row?.registrySource === 'bundled' && removedBySlug.get(removedSlugs[i]) === row.ownerNoteId) {
-      await defStore.delete(removedSlugs[i]);
+  if (removedSlugs.length) {
+    const old = await defStore.getMany(removedSlugs);
+    for (const [i, row] of old.entries()) {
+      const slug = removedSlugs[i];
+      if (!row || row.registrySource !== 'bundled') continue;
+      const removedNoteId = removedBySlug.get(slug);
+      const isOwnedByThisSource = row.ownerNoteId === removedNoteId && (!row.sourceId || row.sourceId === seedSource || row.sourceId === family);
+      if (!isOwnedByThisSource) continue;
+      let restored = false;
+      for (const cp of otherCheckpoints) {
+        const candidateIds = cp.meta.chunks?.[family]?.noteIds ?? [];
+        if (!candidateIds.length) continue;
+        const candidateNotes = await noteStore.getMany(candidateIds);
+        for (const candidateNote of candidateNotes) {
+          if (!candidateNote || candidateNote.seedOrigin !== 'seed') continue;
+          const parsed = parse(candidateNote.rawContent);
+          if (parsed && parsed.slug === slug) {
+            await defStore.put({
+              ...parsed,
+              registrySource: 'bundled' as const,
+              ownerNoteId: candidateNote.id,
+              sourceId: cp.sourceId,
+              sourcePath: candidateNote.sourcePath ?? '',
+            });
+            restored = true;
+            break;
+          }
+        }
+        if (restored) break;
+      }
+      if (!restored) {
+        await defStore.delete(slug);
+      }
     }
   }
   return changed.length;
@@ -153,34 +203,41 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     const allIds = [...new Set([...ids, ...goneIds])];
     const stored = await noteStore.getMany(allIds);
     const existingById = new Map(allIds.map((id, i) => [id, stored[i]]));
-    const ownedIds = allIds.filter((id) => { const note = existingById.get(id); return !note || note.seedOrigin === 'seed' && (declared.has(id) || note.seedChunkId === write.chunkId); });
-    const owned = new Set(ownedIds);
-    // Same corpus path via a DIFFERENT source: seedNoteId(path) is
-    // deterministic, so the second import would silently re-claim the first
-    // source's note. Chunk ids are RESERVED FAMILIES shared by every source
-    // (both ship an `efforts` chunk), so the owning checkpoint — never the
-    // chunk id — is the ownership authority: any OTHER `seed:<id>`
-    // checkpoint recording this note id is a collision. A miss means the
-    // note moved between families within THIS source, which stays allowed.
-    {
-      let checkpoints: Array<{ key: string; noteIds: Set<string> }> | undefined;
-      for (const [i, id] of ids.entries()) {
-        const existing = existingById.get(id);
-        if (!existing || existing.seedOrigin !== 'seed') continue;
-        if (checkpoints === undefined) {
-          checkpoints = [];
-          for (const row of await metaStore.getAll()) {
-            const meta = row as unknown as SeedMetaRecord | undefined;
-            if (!meta || typeof meta.key !== 'string' || !meta.key.startsWith('seed:') || meta.key === write.meta.key) continue;
-            const noteIds = new Set<string>();
-            for (const chunk of Object.values(meta.chunks ?? {})) for (const noteId of chunk.noteIds ?? []) noteIds.add(noteId);
-            checkpoints.push({ key: meta.key, noteIds });
-          }
-        }
-        const owner = checkpoints.find((checkpoint) => checkpoint.noteIds.has(id));
-        if (owner) throw new Error(`Seed note collision: '${write.rows[i].path}' is already owned by ${owner.key}`);
+    const seedSource = write.meta.key.startsWith('seed:') ? write.meta.key.slice(5) : write.meta.key;
+    const incomingRank = seedPrecedenceRank(write.meta.key, write.meta.tier);
+    const otherCheckpoints: SeedCheckpointRef[] = [];
+    for (const row of await metaStore.getAll()) {
+      const meta = row as unknown as SeedMetaRecord | undefined;
+      if (!meta || typeof meta.key !== 'string' || !meta.key.startsWith('seed:') || meta.key === write.meta.key) continue;
+      const noteIds = new Set<string>();
+      for (const chunk of Object.values(meta.chunks ?? {})) {
+        for (const noteId of chunk.noteIds ?? []) noteIds.add(noteId);
       }
+      otherCheckpoints.push({
+        key: meta.key,
+        sourceId: meta.key.slice(5),
+        rank: seedPrecedenceRank(meta.key, meta.tier),
+        meta,
+        noteIds,
+      });
     }
+    otherCheckpoints.sort((a, b) => b.rank - a.rank);
+    const maxOtherRankForNote = (noteId: string): number => {
+      let max = -1;
+      for (const cp of otherCheckpoints) {
+        if (cp.noteIds.has(noteId) && cp.rank > max) max = cp.rank;
+      }
+      return max;
+    };
+    const ownedIds = allIds.filter((id) => {
+      const note = existingById.get(id);
+      if (!note) return declared.has(id);
+      if (note.seedOrigin !== 'seed') return false;
+      const otherRank = maxOtherRankForNote(id);
+      if (declared.has(id)) return incomingRank >= otherRank;
+      return otherRank < 0 && note.seedChunkId === write.chunkId;
+    });
+    const owned = new Set(ownedIds);
     const revisionStore = tx.readwrite('block_revisions');
     const historyIds = ids.filter((id, i) => owned.has(id) && existingById.get(id)?.rawContent !== write.rows[i].content);
     const histories = await revisionStore.getAllFromIndexMany('by-note', historyIds);
@@ -201,7 +258,10 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     const blocks: SeedRow['blockIndex'] = [], blockEfforts: SeedRow['blockEfforts'] = [], blockEquipment: SeedRow['blockEquipment'] = [];
     for (const [i, row] of write.rows.entries()) {
       const id = ids[i], existing = existingById.get(id);
-      if (!owned.has(id)) { result.skippedUserOwned++; continue; }
+      if (!owned.has(id)) {
+        if (existing && existing.seedOrigin !== 'seed') result.skippedUserOwned++;
+        continue;
+      }
       // Count only rows this transaction actually commits: new canonical
       // notes vs changed content. User-owned skips, deletions, and pure
       // metadata rewrites (unchanged rawContent) are never counted.
@@ -304,10 +364,10 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       result.deleted++;
     }
     if (write.chunkId === EFFORTS_CHUNK_ID) {
-      result.totalEfforts = await applyDefinitionChunk(tx.readwrite('efforts'), parseEffortFile, 'efforts', write.rows, ids, owned, existingById, allIds);
+      result.totalEfforts = await applyDefinitionChunk(tx.readwrite('efforts'), noteStore, parseEffortFile, 'efforts', seedSource, incomingRank, otherCheckpoints, priorIds, write.rows, ids, owned, existingById, allIds);
     }
     if (write.chunkId === EQUIPMENT_CHUNK_ID) {
-      result.totalEquipment = await applyDefinitionChunk(tx.readwrite('equipment'), parseEquipmentFile, 'equipment', write.rows, ids, owned, existingById, allIds);
+      result.totalEquipment = await applyDefinitionChunk(tx.readwrite('equipment'), noteStore, parseEquipmentFile, 'equipment', seedSource, incomingRank, otherCheckpoints, priorIds, write.rows, ids, owned, existingById, allIds);
     }
     if (changedNotes.length) await noteStore.putMany(changedNotes);
     if (revisions.length) await revisionStore.putMany(revisions);

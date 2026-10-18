@@ -121,6 +121,36 @@ describe('reference resolver (exact index)', () => {
     expect(resolved.effortRef?.slug).toBe('clean');
     expect(resolved.equipment.map(ref => ref.slug)).toEqual(['barbell']);
   });
+  it('resolves slug and alias collisions deterministically across tiers (core < community < imported < user)', () => {
+    const tieredIndex = createReferenceIndex({
+      efforts: [
+        {
+          id: 'core-snatch', slug: 'snatch', label: 'Snatch', aliases: ['dumbbell snatch'],
+          baseAttributes: { met: 6 }, registrySource: 'bundled', sourceId: 'core',
+        },
+        {
+          id: 'comm-db-snatch', slug: 'dumbbell-snatch', label: 'Dumbbell Snatch', aliases: ['db snatch'],
+          baseAttributes: { met: 8 }, registrySource: 'bundled', sourceId: 'community',
+        },
+        {
+          id: 'imp-db-snatch', slug: 'imported-db-snatch', label: 'Imported DB Snatch', aliases: ['db snatch'],
+          baseAttributes: { met: 9 }, registrySource: 'bundled', sourceId: 'custom-pack',
+        },
+        {
+          id: 'user-snatch', slug: 'snatch-custom', label: 'My Snatch', aliases: ['db snatch'],
+          baseAttributes: { met: 10 }, registrySource: 'user',
+        },
+      ],
+      equipment: [],
+    });
+
+    // Community label 'Dumbbell Snatch' overrides core alias 'dumbbell snatch' (community > core).
+    expect(tieredIndex.resolveEffort('Dumbbell Snatch')?.slug).toBe('dumbbell-snatch');
+    expect(tieredIndex.resolve('Dumbbell Snatch').effortRef?.slug).toBe('dumbbell-snatch');
+
+    // User alias 'db snatch' overrides imported and community aliases (user > imported > community).
+    expect(tieredIndex.resolveEffort('db snatch')?.slug).toBe('snatch-custom');
+  });
 });
 
 describe('parser reference metrics', () => {

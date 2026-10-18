@@ -349,6 +349,9 @@ export const COMMUNITY_FEEDS: CommunityFeedDef[] = [
 
 /** Ids owned by the built-in feeds — addCustomSeedSource must never issue them. */
 const RESERVED_SEED_SOURCE_IDS: Record<string, true> = Object.fromEntries([
+  ['core', true] as const,
+  ['community', true] as const,
+  ['common', true] as const,
   ...COMMUNITY_FEEDS.map((feed) => [feed.id, true] as const),
   ...SYNC_PACKAGES.map((pkg) => [pkg.id, true] as const),
 ]);

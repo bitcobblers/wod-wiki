@@ -159,6 +159,38 @@ describe('exact-ownership removal', () => {
     expect(await storage.getSeedMeta(seedMetaKey('alpha'))).toBeTruthy();
     expect(isSeedSubscribed('alpha')).toBe(true);
   });
+  it('resolves collisions by precedence (core < community < imported < user) and falls back cleanly on unsubscribe', async () => {
+    const storage = new InMemorySeedStorage();
+    const eqDoc = (label: string) =>
+      `---\ntype: equipment\nid: equipment-dumbbell\nslug: dumbbell\nlabel: ${label}\naliases: []\nregistrySource: bundled\n---\n# ${label}\n`;
+    const sources: SeedSourceSpec[] = [
+      spec(fixture([row('markdown/equipment/dumbbell.md', eqDoc('Core Dumbbell'))], 1, 'equipment'), 'core'),
+      spec(fixture([row('markdown/equipment/dumbbell.md', eqDoc('Community Dumbbell'))], 1, 'equipment'), 'community'),
+      spec(fixture([row('markdown/equipment/custom/dumbbell.md', eqDoc('Imported Dumbbell'))], 1, 'equipment'), 'custom-pack'),
+    ];
+
+    await syncSeedSource('core', { sources, storage, isEnabled: () => true });
+    expect((await storage.storageInstance.readonly('equipment').get('dumbbell'))?.label).toBe('Core Dumbbell');
+
+    await syncSeedSource('community', { sources, storage, isEnabled: () => true });
+    expect((await storage.storageInstance.readonly('equipment').get('dumbbell'))?.label).toBe('Community Dumbbell');
+
+    await syncSeedSource('custom-pack', { sources, storage, isEnabled: () => true });
+    expect((await storage.storageInstance.readonly('equipment').get('dumbbell'))?.label).toBe('Imported Dumbbell');
+
+    // Re-syncing lower tiers (core, community) does not overwrite imported tier.
+    await syncSeedSource('core', { sources, storage, isEnabled: () => true, force: true });
+    await syncSeedSource('community', { sources, storage, isEnabled: () => true, force: true });
+    expect((await storage.storageInstance.readonly('equipment').get('dumbbell'))?.label).toBe('Imported Dumbbell');
+
+    // Unsubscribing imported tier restores the community tier projection.
+    await unsubscribeSeedSource('custom-pack', { storage });
+    expect((await storage.storageInstance.readonly('equipment').get('dumbbell'))?.label).toBe('Community Dumbbell');
+
+    // Unsubscribing community tier preserves the shared note claimed by core.
+    await unsubscribeSeedSource('community', { storage });
+    expect(await storage.storageInstance.readonly('equipment').get('dumbbell')).toBeTruthy();
+  });
 });
 
 describe('delete source', () => {

@@ -30,10 +30,10 @@ A seed publication is a directory containing exactly:
   are `canvas`, `dashboards`, `efforts`, `equipment`, `template`.
 
 Identity is deterministic: `seedNoteId(path)` maps a row path to a v5 UUID,
-so re-importing unchanged content preserves the owning note. Different
-sources can publish the same path or definition slug. Import must reject
-those ownership collisions without replacing the installed source.
-
+so re-importing unchanged content preserves the owning note. When multiple
+sources publish the same path or definition slug, collisions resolve
+deterministically by tier precedence (`core` < `community` < `imported` <
+`user`) without aborting the import or destroying lower-tier checkpoints.
 Dates are authorship, not import time. A frontmatter `date: YYYY-MM-DD`
 wins over everything (noon UTC), feed path dates are midnight UTC, and
 git last-commit time is the fallback. `Note.createdAt` deliberately
