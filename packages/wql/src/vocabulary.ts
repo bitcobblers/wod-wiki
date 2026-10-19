@@ -174,7 +174,7 @@ export const WQL_RESULT_PLANES = KNOWN_OUTPUT_TYPES;
 export type WqlResultPlane = (typeof WQL_RESULT_PLANES)[number];
 
 /** Content-specific filter keys (beyond the analytics tag keys). */
-export const WQL_CONTENT_FILTER_KEYS = ['type', 'text', 'has', 'source', 'catalog', ...WQL_TAG_KEYS] as const;
+export const WQL_CONTENT_FILTER_KEYS = ['type', 'text', 'has', 'source', 'catalog', 'notebook', ...WQL_TAG_KEYS] as const;
 export type WqlContentFilterKey = (typeof WQL_CONTENT_FILTER_KEYS)[number];
 
 /**

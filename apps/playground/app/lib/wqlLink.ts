@@ -9,7 +9,7 @@
  * percent-encoded by the author (`:feed{catalog:a}%20by%20{date}`); callers
  * decodeURIComponent before passing the query here.
  */
-import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine'
+import { parseQuery, isFindQuery, notebookSlugFromId } from '@bitcobblers/wod-wiki-engine'
 
 function singleValue(filters: { key: string; negate: boolean; values: { value: string }[] }[], key: string): string | null {
   const filter = filters.find(f => f.key === key && !f.negate)
@@ -33,12 +33,17 @@ export function wqlStreamHref(rawQuery: string): string | null {
     case 'block': {
       // Scoped note heads parse to target 'note' plus injected filters
       // (`:feed{…}` → source:feeds, `:journal{…}` → source:journal).
-      const catalog = singleValue(parsed.filters, 'catalog')
-      if (catalog) return `/c/${encodeURIComponent(catalog)}${q}`
+      const notebookOrCatalog = singleValue(parsed.filters, 'notebook') ?? singleValue(parsed.filters, 'catalog')
+      if (notebookOrCatalog) {
+        const slug = notebookSlugFromId(notebookOrCatalog)
+        if (slug === 'journal') return `/journal${q}`
+        if (slug === 'playground') return `/playgrounds${q}`
+        return `/c/${encodeURIComponent(slug)}${q}`
+      }
       const source = singleValue(parsed.filters, 'source')
       if (source === 'journal') return `/journal${q}`
       if (source === 'playground') return `/playgrounds${q}`
-      if (source === 'feeds' || source === 'guides') return `/feeds${q}`
+      if (source === 'feeds' || source === 'notebooks' || source === 'notebook' || source === 'guides') return `/feeds${q}`
       if (singleValue(parsed.filters, 'type') === 'dashboard') return `/dashboards${q}`
       return `/journal${q}`
     }

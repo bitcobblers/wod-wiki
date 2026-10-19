@@ -217,7 +217,7 @@ describe('entryCollectionFeedHref', () => {
       sourceCatalog: 'crossfit-girls',
       sourceItem: '',
     })
-    expect(entryCollectionFeedHref(entry)).toBe('/feeds?q=%3Acatalog%7Bcatalog%3Acrossfit-girls%7D')
+    expect(entryCollectionFeedHref(entry)).toBe('/feeds?q=%3Anotebook%7Bnotebook%3Acrossfit-girls%7D')
   })
 
   it('returns null for regular workouts', () => {
@@ -296,7 +296,7 @@ describe('toEntry → entryOpenHref seam (slug routing regressions)', () => {
   it('routes a UUID landing to the collection root and links its feed filter', () => {
     const entry = toEntry(note({ sourceId: 'page:collection:crossfit-girls', type: 'feed' }))
     expect(entryOpenHref(entry)).toBe('/c/crossfit-girls')
-    expect(entryCollectionFeedHref(entry)).toBe('/feeds?q=%3Acatalog%7Bcatalog%3Acrossfit-girls%7D')
+    expect(entryCollectionFeedHref(entry)).toBe('/feeds?q=%3Anotebook%7Bnotebook%3Acrossfit-girls%7D')
   })
 
   it('routes a feed item by route segments, never the UUID id', () => {

@@ -296,7 +296,7 @@ function headApply(o: Completion, colonTyped: boolean): Completion {
 const LEGACY_HEAD_OPTIONS: Completion[] = WQL_AGGREGATORS.map((label) => ({ label, type: 'keyword' as const }));
 
 /** Sortable/selectable columns the executors actually read (QueryService). */
-const NOTE_COLUMNS: readonly string[] = ['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog'];
+const NOTE_COLUMNS: readonly string[] = ['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog', 'notebookId'];
 const BLOCK_COLUMNS: readonly string[] = ['noteTitle', 'dataType', 'position', 'createdAt', 'noteId', 'sourceId'];
 const EFFORT_COLUMNS: readonly string[] = ['slug', 'label', 'registrySource'];
 const SESSION_COLUMNS: readonly string[] = ['duration', 'startTime', 'origin'];

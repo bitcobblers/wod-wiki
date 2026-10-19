@@ -29,7 +29,7 @@ import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
 import { notebookService, storageService } from '@/hooks/useBrowserServices'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
-import { parseQuery, isFindQuery, isPipelineQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
+import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 import type { WqlExecutor } from '@bitcobblers/wod-wiki-ui'
 import { toggleGroupDimension } from '../../nav/panels/conditionsFacets'
@@ -302,8 +302,8 @@ export function QueriableStreamView({
       if (slug && !slug.includes('/')) return slug
     }
     if (!parsed.error && isFindQuery(parsed)) {
-      const cat = parsed.filters.find(f => f.key === 'catalog' && !f.negate)?.values[0]?.value
-      if (cat) return cat
+      const cat = parsed.filters.find(f => (f.key === 'notebook' || f.key === 'catalog') && !f.negate)?.values[0]?.value
+      if (cat) return notebookSlugFromId(cat)
     }
     return undefined
   }, [profile, parsed])

@@ -10,8 +10,9 @@ describe('wqlStreamHref', () => {
     expect(wqlStreamHref(':session{}')).toBe(`/sessions?q=${encodeURIComponent(':session{}')}`)
   })
 
-  it('routes a single catalog filter to the /c/:slug landing', () => {
+  it('routes a single catalog or notebook filter to the /c/:slug landing', () => {
     expect(wqlStreamHref(':feed{catalog:crossfit-girls}')).toBe(`/c/crossfit-girls?q=${encodeURIComponent(':feed{catalog:crossfit-girls}')}`)
+    expect(wqlStreamHref(':note{notebook:crossfit-girls}')).toBe(`/c/crossfit-girls?q=${encodeURIComponent(':note{notebook:crossfit-girls}')}`)
   })
 
   it('routes unscoped feed queries to /feeds', () => {

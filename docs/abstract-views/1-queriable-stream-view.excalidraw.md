@@ -93,9 +93,9 @@ The table below specifies how each concrete route implements the abstract `Queri
 |---|---|---|---|---|---|---|
 | **Journal Stream** | `/journal` | `JOURNAL_STREAM_PROFILE` | `find:note{source:journal} last 4w` | `notes`, `page` (IndexedDB) | View Settings; tap opens `/journal/:date` | Chronological date-grouped feed with `JournalDateScroll` |
 | **Library Catalog** | `/library` | `LIBRARY_STREAM_PROFILE` | `find:note last 2w` | `notes`, `blockIndex` | View Settings; Undated shelf; Multi-select compare | Compact rows with hover action stack (Open/Add/Run) |
-| **Collections Catalog** | `/collections` | `COLLECTIONS_STREAM_PROFILE` | `find:note{source:collections} by {tag}` | `markdown/collections/` + seed notes | Category filters; Undated shelf; tap opens `/collections/:slug` | Category-grouped card grid with difficulty badges |
+| **Notebooks Listing** | `/catalogs` | `CATALOGS_STREAM_PROFILE` | `:notebook{} by {tag}` | `markdown/collections/` + seed notes | Sync notice when no library imported; tap opens `/c/:slug` | Tag-grouped card grid |
 | **Efforts Registry** | `/efforts` | `EFFORTS_STREAM_PROFILE` | `find:effort` | `efforts` store + `useEffortRegistry` | **Primary "+ New Effort"** button (Dock FAB on mobile) | Property table showing MET, discipline, aliases |
-| **Feeds Stream** | `/feeds`, `/feed` | `FEEDS_STREAM_PROFILE` | `find:note{source:feeds} last 2w` | Syndicated RSS/JSON note feed cache | "Add to Journal" per feed card | Feed cards with syndicate origin attribution |
+| **Notes Stream** | `/feeds` | `FEEDS_STREAM_PROFILE` | `:notebook{}` | seed library notes (`collection:` storage identities) | Sync notice when no library imported; "Add to Journal" per card | Note cards |
 | **Execution History** | `/results` | `RESULTS_STREAM_PROFILE` | `rows:all{} last 4w` | `sessions` & `events` stores | Time window selector, metric toggles; tap opens session | Log table with duration, rounds, reps, pace |
 | **Segment Results** | `/results/segments` | `SEGMENTS_STREAM_PROFILE` | `rows:segment{} last 8w` | `events` output collector | Segment type facet filter; drill-down to statement | Segment split rows with interval timing |
 

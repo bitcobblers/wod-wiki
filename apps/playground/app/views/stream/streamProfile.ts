@@ -89,7 +89,7 @@ export function createContentLegacyConfig(defaultSource?: string): StreamProfile
       let head = ':note'
       const otherFilters = [textClause, tagsClause].filter(Boolean)
       if (sourceFilter === 'source:journal') head = ':journal'
-      else if (sourceFilter === 'source:feeds') head = ':catalog'
+      else if (sourceFilter === 'source:feeds') head = ':notebook'
       else if (sourceFilter === 'source:playground') head = ':playground'
       else if (sourceFilter) otherFilters.unshift(sourceFilter)
       const braces = otherFilters.length ? `{${otherFilters.join(',')}}` : ''
@@ -111,7 +111,7 @@ export const JOURNAL_STREAM_PROFILE: StreamProfile = {
 export const CATALOGS_STREAM_PROFILE: StreamProfile = {
   route: '/catalogs',
   title: 'Notebooks',
-  defaultWql: ':catalog{} by {tag}',
+  defaultWql: ':notebook{} by {tag}',
   level: 'session',
   target: 'note',
   scopeOptions: ['feeds'],
@@ -124,7 +124,7 @@ export const CATALOGS_STREAM_PROFILE: StreamProfile = {
 export const FEEDS_STREAM_PROFILE: StreamProfile = {
   route: '/feeds',
   title: 'Notes',
-  defaultWql: ':feed{}',
+  defaultWql: ':notebook{}',
   level: 'note',
   target: 'note',
   scopeOptions: ['feeds'],
@@ -204,7 +204,7 @@ export function createCollectionCatalogProfile(catalogSlug: string): StreamProfi
   return {
     route: `/c/${catalogSlug}`,
     title: toDisplayName(catalogSlug),
-    defaultWql: `:feed{catalog:${catalogSlug}} by {date}`,
+    defaultWql: `:note{notebook:${catalogSlug}} by {date}`,
     level: 'session',
     target: 'note',
     scopeOptions: ['feeds'],

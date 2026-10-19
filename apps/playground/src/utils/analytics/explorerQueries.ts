@@ -67,11 +67,11 @@ export const EXAMPLE_QUERIES: ExampleQuery[] = [
   },
   {
     query: ':note{source:feeds}',
-    label: 'Feed workouts',
+    label: 'Notebook workouts',
     question: 'What workouts are in the library?',
   },
   {
-    query: ':block{text:fran,source:all}',
+    query: ':block{text:fran}',
     label: 'Find Fran everywhere',
     question: 'Which blocks mention Fran?',
   },

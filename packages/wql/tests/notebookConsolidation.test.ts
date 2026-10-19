@@ -111,5 +111,14 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
 
     const notebookHeadRes = await service.runFind(parseQuery(':notebook{notebook:crossfit-girls}') as Parameters<typeof service.runFind>[0]);
     expect(notebookHeadRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
+
+    // The notebooks listing head and the authored plural storage scope both
+    // route to the catalog executor — one row per notebook, never the
+    // generic note plane (which would surface fran-id).
+    const notebooksListingRes = await service.runFind(parseQuery(':notebook{} by {tag}') as Parameters<typeof service.runFind>[0]);
+    expect(notebooksListingRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
+
+    const pluralScopeRes = await service.runFind(parseQuery(':note{type:feed,source:notebooks}') as Parameters<typeof service.runFind>[0]);
+    expect(pluralScopeRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
   });
 });

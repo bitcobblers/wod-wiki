@@ -110,7 +110,7 @@ export function entryIsPlayground(entry: Entry): boolean {
 /** Feed deep link for collection definition entries. */
 export function entryCollectionFeedHref(entry: Entry): string | null {
   if (entry.kind === 'session' && !entry.sourceItem) {
-    return `/feeds?q=${encodeURIComponent(`:catalog{catalog:${entry.sourceCatalog}}`)}`
+    return `/feeds?q=${encodeURIComponent(`:notebook{notebook:${entry.sourceCatalog}}`)}`
   }
   return null
 }

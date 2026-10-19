@@ -1286,8 +1286,9 @@ export class QueryService {
     }
     const isCatalogHead = parsed.target === 'note'
       && parsed.filters.some(f => f.key === 'type' && !f.negate && f.values.some(v => v.value === 'feed'))
-      && (parsed.filters.some(f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feed' || v.value === 'feeds'))
-          || parsed.sourceScope?.includes('feeds'));
+      && (parsed.filters.some(f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feed' || v.value === 'feeds' || v.value === 'notebook' || v.value === 'notebooks'))
+          || parsed.sourceScope?.includes('feeds')
+          || parsed.sourceScope?.includes('notebooks'));
     if (isCatalogHead) {
       return this.runFindCatalog(parsed, options, await this.noteStore.getAllNotes());
     }
@@ -2372,7 +2373,7 @@ export class QueryService {
     }
 
     const criteriaFilters = parsed.filters.filter(f =>
-      !(f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feeds' || v.value === 'feed')) &&
+      !(f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feeds' || v.value === 'feed' || v.value === 'notebooks' || v.value === 'notebook')) &&
       !(f.key === 'type' && !f.negate && f.values.some(v => v.value === 'feed'))
     );
 

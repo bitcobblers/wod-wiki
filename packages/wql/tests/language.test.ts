@@ -188,7 +188,7 @@ describe('wqlCompletionSource', () => {
   });
 
   it('completes per-target pipe columns, directions, units and limit', () => {
-    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog']);
+    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog', 'notebookId']);
     expect(complete(':note | order by title ')).toEqual(['asc', 'desc']);
     expect(complete(':segment | select ')).toContain('date');
     expect(complete(':segment | select distance ')).toEqual(['kg', 'lb']);
@@ -287,7 +287,7 @@ describe('wqlCompletionSource — colon heads', () => {
   });
 
   it('carries target awareness into pipes after a colon head', () => {
-    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog']);
+    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog', 'notebookId']);
     expect(complete(':segment | select ')).toContain('date');
   });
 });
