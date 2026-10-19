@@ -17,6 +17,12 @@
  *
  * Preserved contracts:
  *  - Arrival (#882): /load?z= shared script replaces welcome-1.md in the hero.
+ *  - Hero pane (min-h flex, 2:3 heading/pane at first paint) grows to its
+ *    content — a recorded session renders fully instead of clipping into an
+ *    inner scrollbar — and every editor↔result transition parks the pane
+ *    top right under the sticky header. Dismiss ("Edit again", offered at
+ *    both pane ends) slides there first and only then swaps back to the
+ *    editor, so the expanded layout never reflows under a moving viewport.
  *  - quick-start quests (qs-arrive / qs-edit / qs-run) plus scroll quests
  *    fired as each tour stage scrolls into view
  *  - ChallengeHeaderBadge on '/' (mounted by App.tsx) — home quests only
@@ -39,6 +45,7 @@ import { useTourScrollQuests } from '../hooks/useTourScrollQuests'
 import { usePlaygroundRun } from '../hooks/usePlaygroundRun'
 import { useNav } from '../nav/NavContext'
 import type { NavItemL3 } from '../nav/navTypes'
+import { cn } from '@/lib/utils'
 import { RingTargetsProvider } from './TourRing'
 import { TOUR_ACCENTS, SCREEN_TITLES, type TourStageId } from './tourConstants'
 import { TourHeroHeading } from './TourHero'
@@ -651,6 +658,11 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourPr
   useEffect(() => {
     if (hasResetRef.current) return
     if (!stageInTimer || !autoStartStage || fullscreenOpen || startingRef.current || pendingActionRef.current) return
+    // An identity owned by the hero (in-place run / recorded results) means
+    // the visitor is reading up there — with the pane grown, the run
+    // section's trigger zone is in view during normal reading, and starting
+    // the demo here would yank the viewport to the timer stage.
+    if (run && runLocation === 'hero') return
     if (run && runLocation === 'tour') return
     if (run && !finalizedRef.current) return
     setDemoRunning(true)
@@ -793,9 +805,78 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourPr
     onStart: handleRun,
     onReset: handleTimerReset,
   }
+  // Hero dismiss (Edit again): slide the viewport back to the parked
+  // position FIRST — the expanded result layout stays frozen during the
+  // animation, so nothing reflows or re-runs breakpoint work under a
+  // moving viewport — and swap back to the editor once the slide
+  // settles. Falls back to an immediate swap when there is no hero pane
+  // (reduced-motion flat stack) or a slide is already in flight.
+  const heroSlideRef = useRef(false)
+  const handleHeroDismiss = useCallback(() => {
+    if (heroSlideRef.current) { clearSession(); return }
+    const sentinel = heroRef.current
+    const gate = document.querySelector('[data-gate-id="hero-pane"]')
+    if (!sentinel || !gate) { clearSession(); return }
+    const headerBottom = sentinel.getBoundingClientRect().top + window.scrollY
+    const paneTop = gate.getBoundingClientRect().top + window.scrollY
+    const target = Math.max(0, paneTop - headerBottom)
+    heroSlideRef.current = true
+    window.scrollTo({ top: target, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+    const started = performance.now()
+    const settle = () => {
+      // Swap when the slide lands; the cap bounds the wait if the visitor
+      // interrupts the glide with their own scrolling.
+      if (Math.abs(window.scrollY - target) <= 2 || performance.now() - started > 1200) {
+        heroSlideRef.current = false
+        clearSession()
+        return
+      }
+      requestAnimationFrame(settle)
+    }
+    requestAnimationFrame(settle)
+  }, [clearSession, prefersReducedMotion])
+
   // Hero viewport state machine: editor in view while idle/running,
   // session results in view upon completion. Timer runs in fullscreen.
   const heroState: 'editor' | 'result' = heroRunActive && session ? 'result' : 'editor'
+
+  // Result reveal + edit-again return: the pane's height follows its
+  // content (a recorded session expands it), so every transition parks
+  // the pane top right under the sticky header — past the "Write it.
+  // Time it." heading when the result loads, and back to the editor at
+  // the top when it is dismissed. The return direction slides BEFORE the
+  // swap (handleHeroDismiss), so on arrival here the viewport is already
+  // at the parked position — just correct any CodeMirror-settle drift
+  // instantly. The sentinel's document top IS the header's bottom edge
+  // (it is the first element in flow under it).
+  const prevHeroStateRef = useRef<'editor' | 'result'>('editor')
+  useEffect(() => {
+    const prev = prevHeroStateRef.current
+    prevHeroStateRef.current = heroState
+    if (heroState === prev) return
+    const measureParked = () => {
+      const sentinel = heroRef.current
+      const gate = document.querySelector('[data-gate-id="hero-pane"]')
+      if (!sentinel || !gate) return null
+      const headerBottom = sentinel.getBoundingClientRect().top + window.scrollY
+      const paneTop = gate.getBoundingClientRect().top + window.scrollY
+      return Math.max(0, paneTop - headerBottom)
+    }
+    if (heroState === 'result') {
+      const target = measureParked()
+      if (target == null) return
+      window.scrollTo({ top: target, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+    }
+    // The editor remount settles CodeMirror heights for ~300ms and its
+    // anchor compensation can scroll the window after us — re-assert the
+    // parked position once it settles (drift-guarded so live scrolling
+    // always wins).
+    const timers = [150, 450].map((ms) => setTimeout(() => {
+      const target = measureParked()
+      if (target != null && Math.abs(window.scrollY - target) > 2) window.scrollTo({ top: target, behavior: 'auto' })
+    }, ms))
+    return () => timers.forEach(clearTimeout)
+  }, [heroState, prefersReducedMotion])
 
   const fullscreenBlock = run?.block ?? activeBlock
   const fullscreen = fullscreenOpen && fullscreenBlock && (
@@ -837,7 +918,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourPr
           exampleDoc={exampleDoc}
           onExampleDocChange={handleExampleDocChange}
           onExampleBlocksChange={handleExampleBlocksChange}
-          heroContent={heroState === 'result' && session ? <TourSessionResult result={session} onDismiss={clearSession} dismissLabel="Edit again" /> : undefined}
+          heroContent={heroState === 'result' && session ? <TourSessionResult result={session} onDismiss={handleHeroDismiss} dismissLabel="Edit again" /> : undefined}
           onCommand={handleCaptionCommand}
           sharedBy={sharedBy}
           onResetShared={handleClearShared}
@@ -867,9 +948,12 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourPr
         ref={heroSectionRef}
         id="tour-hero"
         data-testid="tour-hero"
-        className="relative grid h-[calc(100dvh-65px)] grid-rows-[2fr_3fr] justify-items-center gap-4 px-5 py-4 text-center lg:h-[calc(100dvh-104px)] lg:px-10 xl:gap-8 xl:py-8 2xl:gap-10 2xl:py-10 2xl:px-16"
+        className="relative flex min-h-[calc(100dvh-65px)] flex-col items-center gap-4 px-5 py-4 text-center lg:min-h-[calc(100dvh-104px)] lg:px-10 xl:gap-8 xl:py-8 2xl:gap-10 2xl:py-10 2xl:px-16"
       >
-        <div className="flex min-h-0 w-full items-center justify-center overflow-y-auto">
+        {/* grow 2/3 mirrors the old 2fr_3fr grid rows at first paint; with
+            content taller than the share (a recorded session), the pane
+            grows instead of clipping into an inner scrollbar. */}
+        <div className="flex w-full shrink grow-[2] basis-0 items-center justify-center">
           <TourHeroHeading />
         </div>
         {/* The hero viewport hosts the workflow states in place — editor →
@@ -881,7 +965,13 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourPr
         <ScrollGate
           gateId="hero-pane"
           segmentId="hero"
-          className="h-full min-h-0 w-full max-w-[720px] xl:max-w-[820px] 2xl:max-w-[920px]"
+          className={cn(
+            'w-full max-w-[720px] grow-[3] basis-0 xl:max-w-[820px] 2xl:max-w-[920px]',
+            // Result state: let the gate's inner pane size to its content so
+            // the recorded session expands the window (editor state keeps the
+            // default min-h-0 clip — the gate freeze owns tall editor docs).
+            heroState === 'result' && '[&>div:first-child]:min-h-fit',
+          )}
         >
           <MacOSChrome
             title={
@@ -904,7 +994,9 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourPr
                 </button>
               )
             }
-            className="h-full"
+            className={heroState === 'result'
+              ? 'h-full min-h-fit [&>div:last-child]:min-h-fit'
+              : 'h-full'}
           >
             {heroState === 'editor' && (
               <TourEditorScreen
@@ -918,7 +1010,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourPr
             {heroState === 'result' && session && (
               <TourSessionResult
                 result={session}
-                onDismiss={clearSession}
+                onDismiss={handleHeroDismiss}
                 dismissLabel="Edit again"
               />
             )}

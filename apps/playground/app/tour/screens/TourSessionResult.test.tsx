@@ -52,10 +52,21 @@ describe('TourSessionResult', () => {
     expect(table.querySelectorAll('tbody tr')).toHaveLength(2)
   })
 
-  it('calls onDismiss when dismiss button is clicked', () => {
+  it('renders no dismiss action without onDismiss', () => {
+    render(<TourSessionResult result={sampleSession} />)
+    expect(screen.queryByTestId('tour-session-result-dismiss')).toBeNull()
+    expect(screen.queryByTestId('tour-session-result-dismiss-top')).toBeNull()
+  })
+
+  it('offers the dismiss action at the top and bottom of the pane', () => {
     const onDismiss = mock(() => {})
     render(<TourSessionResult result={sampleSession} onDismiss={onDismiss} dismissLabel="Done" />)
-    fireEvent.click(screen.getByTestId('tour-session-result-dismiss'))
+    // The pane grows to the table's full height, so the footer action can sit
+    // below the fold — both placements carry the same action.
+    const buttons = screen.getAllByRole('button', { name: 'Done' })
+    expect(buttons).toHaveLength(2)
+    expect(screen.getByTestId('tour-session-result-dismiss-top')).toBeDefined()
+    fireEvent.click(screen.getByTestId('tour-session-result-dismiss-top'))
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 })
