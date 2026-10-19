@@ -124,7 +124,7 @@ export function PlaygroundLandingPage() {
   }, [theme])
 
 
-  // Same global Search Palette as Cmd+K in App (WQL mode, issue #834).
+  // Same global Search Palette as Cmd+/ in App (WQL mode, issue #834).
   const canvasRouteList = useCanvasRoutes()
   const openSearch = useCallback(async () => {
     const result = await usePaletteStore.getState().open({

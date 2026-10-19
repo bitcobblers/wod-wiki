@@ -58,7 +58,7 @@ export function usePlaygroundContent({ category, name, mdContent, seedOnMount = 
     onSaved({ rawContent: saved.rawContent, blocks: saved.blocks ?? {}, sourceRevision: saved.sourceRevision ?? 1 });
   }, [onSaved, loadError]);
 
-  const saves = useEditorSave({ onSave: handleSave, lineIdleMs: 500,
+  const saves = useEditorSave({ onSave: handleSave,
     getSnapshotKey: snapshot => JSON.stringify([snapshot.noteId, snapshot.rawContent, Object.values(snapshot.noteBlocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])]) });
 
   useEffect(() => {

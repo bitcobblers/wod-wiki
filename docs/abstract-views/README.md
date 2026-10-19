@@ -46,7 +46,7 @@ Pages declare commands once; placement shifts based on viewport:
    - **Desktop**: Header `queryBar` slot (full token pills + inline composer).
    - **Mobile**: **Thumb Footer** (`MobileQueryFooter`) — a full-width bottom button row; tapping opens the modal WQL palette dialog.
 6. **Search**:
-   - **Desktop**: L1 rail icon button or header input (`Ctrl/Cmd+K`).
+   - **Desktop**: L1 rail icon button or header input (`Ctrl/Cmd+/`).
    - **Mobile**: Dedicated **Search FAB** at the base of the thumb dock stack.
 7. **Content Clearance**:
    - Mobile views mandate `max-lg:pb-48` to ensure content can be scrolled clear of the floating dock and thumb footer.

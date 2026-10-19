@@ -65,7 +65,7 @@ const CONFIGURABLE_SURFACES: ConfigurableSurface[] = [
   { id: SESSIONS_STREAM_PROFILE.route, label: 'Sessions', profile: SESSIONS_STREAM_PROFILE, shortcuts: true },
   { id: PLAYGROUNDS_STREAM_PROFILE.route, label: 'Playgrounds', profile: PLAYGROUNDS_STREAM_PROFILE, shortcuts: true },
   { id: '/dashboards', label: 'Dashboards', systemDefaultWql: ':dashboard{}' },
-  { id: PALETTE_ROUTE_ID, label: '⌘K Command Palette' },
+  { id: PALETTE_ROUTE_ID, label: '⌘/ Command Palette' },
 ]
 
 /** Editor draft; `defaultWql: ''` and custom-off lists mean "system default". */

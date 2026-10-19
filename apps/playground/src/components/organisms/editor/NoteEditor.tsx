@@ -107,6 +107,8 @@ export interface NoteEditorProps {
   onIdentityChange?: (snapshot: EditorIdentitySnapshot) => void;
   onSaved?: (snapshot: EditorIdentitySnapshot) => void;
   beforeRun?: () => Promise<number | void>;
+  /** Called when the user presses Ctrl/Cmd+S — the host flushes the pending save. */
+  onSaveRequest?: () => void | Promise<void>;
   /** Document content */
   value: string;
   /** Called on every document change */
@@ -206,6 +208,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   onIdentityChange,
   onSaved,
   beforeRun,
+  onSaveRequest,
   value,
   onChange,
   onDocUpdate,
@@ -330,14 +333,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     };
   }, []);
 
-  // Mod-P opens the palette. Sources are empty here — the parent (Workbench)
-  // should call palette.open() via its own onSearch prop for context-aware sources.
-  const openNavigationPalette = useCallback(() => {
-    usePaletteStore.getState().open({
-      placeholder: 'Search…',
-      sources: [],
-    });
-  }, []);
   const isDark = theme === "dark" || theme === "vs-dark";
   const notePersistence = resolveNotePersistence(defaultNotePersistenceRef, providedNotePersistence);
 
@@ -576,9 +571,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         ...lintKeymap,
         indentWithTab,
         {
-          key: "Mod-p",
+          key: "Mod-s",
           run: () => {
-            openNavigationPalette();
+            // Always handled: prevents the browser's native Save-Page dialog.
+            void onSaveRequest?.();
             return true;
           },
         },
@@ -732,7 +728,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       onBlocksChange,
       onIdentityChange,
       readonly,
-      openNavigationPalette,
+      onSaveRequest,
       showLineNums,
       initialLineWrapping,
       enablePreview,

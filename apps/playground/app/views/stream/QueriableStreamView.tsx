@@ -195,7 +195,7 @@ export interface QueriableStreamViewProps {
   onAddToToday?: (entry: Entry) => void
   /** Register a getter for the LIVE composer draft (invalid text included —
    *  invalid drafts never reach the URL). Returns the unregister cleanup;
-   *  the global ⌘K palette consumes the getter while this view is mounted. */
+   *  the global ⌘/ palette consumes the getter while this view is mounted. */
   registerStreamDraft?: (getDraft: () => string | null) => () => void
 }
 
@@ -224,7 +224,7 @@ export function QueriableStreamView({
     legacy: profile.legacy,
   })
 
-  // Publish the live draft to the host's ⌘K seam while mounted; the getter
+  // Publish the live draft to the host's ⌘/ seam while mounted; the getter
   // re-registers per draft change and unregisters on unmount/route change.
   useEffect(() => registerStreamDraft?.(() => query), [registerStreamDraft, query])
 

@@ -187,7 +187,6 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   }, [noteId, acceptSaved]);
   const { onChange: saveOnChange, onBlur, flush } = useEditorSave<EditorIdentitySnapshot>({
     onSave: async snapshot => { await save(snapshot); },
-    lineIdleMs: 500,
     getSnapshotKey: snapshot => JSON.stringify([snapshot.rawContent, Object.values(snapshot.blocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])]),
     onError: error => setSaveError({ noteId, message: `Save failed. ${error instanceof Error ? error.message : String(error)} Your draft is kept. Retry saving.` }),
   });
@@ -297,6 +296,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                     onIdentityChange={identityChanged}
                     onSaved={acceptSaved}
                     beforeRun={async () => { await flush(); return committedRevisionRef.current; }}
+                    onSaveRequest={() => { void flush(); }}
                     readonly={isReadOnly}
                     theme={theme}
                     showLineNumbers={false}

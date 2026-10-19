@@ -31,7 +31,7 @@
 - **Left Rails (Icon Rail + Context Sidebar):** Journal stream link highlighted in context tree.
 - **Sticky Header:**
   - Full-width `StreamQueryBar` embedded in header slot.
-  - Three visual zones: Data-type selector pill (`notes`), query token chips (`last 2w`), and search trigger (`⌘K`).
+  - Three visual zones: Data-type selector pill (`notes`), query token chips (`last 2w`), and search trigger (`⌘/`).
   - Layout toggle switch (Feed / Cards / Rows) and Add Entry button.
 - **Main Stream Column:**
   - Date-grouped stream items with infinite scroll sentinels.

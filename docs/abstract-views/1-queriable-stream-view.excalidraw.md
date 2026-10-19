@@ -58,7 +58,7 @@ On viewports smaller than 1024px (Tailwind `lg`, `MOBILE_BREAKPOINT_PX = 1023`),
    - Floats directly above the thumb footer (offset by `--thumb-dock-lift`).
    - Corner aligned to left or right based on user preference (*Settings → Appearance → Actions Button Position*, `fabAlignment.ts`).
    - **Vertical Action Stack** (lowest to highest):
-     - **Search FAB**: Dedicated bottom trigger opening global search (`Ctrl/Cmd+K`).
+     - **Search FAB**: Dedicated bottom trigger opening global search (`Ctrl/Cmd+/`).
      - **View Settings FAB**: Secondary trigger opening layout preferences modal.
      - **Primary Action FAB**: Highest button in the stack (e.g., "+ New" on efforts stream).
      - **More Options ⋮ FAB**: Tapping opens a bottom slide-over sheet displaying secondary actions in ≥44px touch-friendly rows.

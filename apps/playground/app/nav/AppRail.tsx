@@ -94,7 +94,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
       <button
         type="button"
         onClick={onSearch}
-        title="Search (⌘K)"
+        title="Search (⌘/)"
         aria-label="Search"
         className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
       >

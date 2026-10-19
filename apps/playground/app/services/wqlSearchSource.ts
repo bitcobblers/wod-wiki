@@ -148,7 +148,7 @@ interface RoutePayload {
 
 /**
  * The single result dispatch for the global Search Palette — shared by the
- * Cmd+K opener (App) and the landing page so both navigate identically.
+ * Cmd+/ opener (App) and the landing page so both navigate identically.
  */
 export function navigatePaletteResult(item: PaletteItem, navigate: (to: string) => void): void {
   if (item.type === 'route') {

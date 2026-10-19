@@ -207,7 +207,6 @@ export function useEquipmentContent(slug: string | undefined): UseEquipmentConte
 
   const { onChange, onLineChange, onBlur, flush } = useEditorSave({
     onSave: handleSave,
-    lineIdleMs: 1200,
   });
 
   const setDocument = useCallback((value: string) => {
