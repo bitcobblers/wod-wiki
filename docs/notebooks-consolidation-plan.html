@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notebooks Consolidation Plan — Unifying Journal, Playground, Collections &amp; Catalogs</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #f8fafc;
+    --surface-2: #f1f5f9;
+    --ink: #0f172a;
+    --muted: #475569;
+    --border: #cbd5e1;
+    --accent: #1d4ed8;
+    --accent-soft: #eff6ff;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fef2f2;
+    --ok: #15803d;
+    --ok-soft: #f0fdf4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0 auto;
+    max-width: 1080px;
+    padding: 2rem 1.5rem 6rem;
+    line-height: 1.55;
+    color: var(--ink);
+    background: var(--bg);
+  }
+  header.doc {
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+  }
+  header.doc .eyebrow {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin-bottom: 0.35rem;
+  }
+  header.doc .title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  header.doc .subtitle {
+    color: var(--muted);
+    font-size: 0.98rem;
+    margin-top: 0.4rem;
+  }
+  header.doc .meta {
+    color: var(--muted);
+    font-size: 0.82rem;
+    margin-top: 0.65rem;
+  }
+  h1 {
+    font-size: 1.35rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.35rem;
+    margin: 2.5rem 0 0.85rem;
+    color: var(--ink);
+  }
+  h2 {
+    font-size: 1.08rem;
+    margin: 1.5rem 0 0.5rem;
+    color: var(--ink);
+  }
+  p {
+    margin: 0.5rem 0 0.85rem;
+  }
+  ul, ol {
+    margin: 0.4rem 0 1rem;
+    padding-left: 1.35rem;
+  }
+  li {
+    margin: 0.25rem 0;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.88rem;
+    margin: 0.75rem 0 1.25rem;
+    background: var(--bg);
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.65rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--surface);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.82rem;
+  }
+  code {
+    background: var(--surface-2);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    color: var(--ink);
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+    line-height: 1.45;
+    margin: 0.6rem 0 1rem;
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+    margin: 0.75rem 0 1.25rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+  }
+  .card h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.98rem;
+  }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 0.85rem 0 1.25rem;
+  }
+  .callout.warn {
+    border-left-color: var(--warn);
+    background: var(--warn-soft);
+  }
+  .callout.danger {
+    border-left-color: var(--danger);
+    background: var(--danger-soft);
+  }
+  .callout.ok {
+    border-left-color: var(--ok);
+    background: var(--ok-soft);
+  }
+  .badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+  }
+  .badge.readonly { background: var(--warn-soft); border-color: #fcd34d; color: var(--warn); }
+  .badge.default { background: var(--accent-soft); border-color: #93c5fd; color: var(--accent); }
+  .badge.user { background: var(--ok-soft); border-color: #86efac; color: var(--ok); }
+  .diagram-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 0.85rem 0 1.25rem;
+    overflow-x: auto;
+  }
+  .wireframe {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    padding: 1rem;
+    margin: 0.85rem 0 1.25rem;
+  }
+  .wf-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.65rem;
+    margin-bottom: 0.85rem;
+  }
+  .wf-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 0.75rem;
+  }
+  .wf-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    background: var(--surface);
+  }
+</style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/notebooks-consolidation-plan.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  :root { --wb-bar-height: 112px; }
+  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 16px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #cbd5e1; padding: 10px max(16px, calc((100% - 1032px) / 2)); }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 44px; padding: 8px 12px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button:disabled { opacity: .5; cursor: default; }
+  #wb-bar #wb-publish, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-help, #wb-status, #wb-storage-warning { margin: 4px 0 0; font-size: 12px; }
+  #wb-help { color: #475569; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; padding: 16px; border: 1px solid #b45309; border-radius: 8px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current h2 { margin: 0 0 8px; padding: 0; font-size: 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite">0 annotations</strong>
+    <button id="wb-add" type="button" aria-pressed="false">Add annotation</button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation">Previous</button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation">Next</button>
+    <button id="wb-publish" type="button" disabled>Publish</button>
+  </div>
+  <p id="wb-help">Highlight text to annotate, or click Add annotation then click any block. Drafts stay in this browser. Publish copies them for your agent.</p>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+<header class="doc">
+  <div class="eyebrow">Architecture Consolidation Proposal</div>
+  <div class="title">Everything Is a Note; Every Container Is a Notebook</div>
+  <div class="subtitle">Consolidating Journal, Playground, Guides, Collections, Feeds, and Catalogs into a single <code>Note</code> + <code>Notebook</code> (<code>notebook/{slug}</code>) model with predefined defaults (<code>notebook/journal</code>, <code>notebook/playground</code>, <code>notebook/guides</code>), user-created notebooks, and seed-delivered notebooks linked to their source URL.</div>
+  <div class="meta">Grounded in: <code>packages/core/src/types/storage.ts</code> · <code>packages/engine/src/seed/contract.ts</code> · <code>packages/wql/src/QueryService.ts</code> · <code>apps/playground/app/lib/entryMapper.ts</code> · <code>apps/playground/src/services/NotebookService.ts</code> · <code>apps/playground/app/nav/appNavTree.ts</code></div>
+</header>
+
+<main data-whiteboard-document="">
+
+<h1 id="wb-h1-e48be55f29ad44c29573c5bd6bf2a7ea" data-whiteboard-anchor>1. Executive Summary &amp; Core Invariants</h1>
+<p id="wb-p-abeb4a43c0be4877a9bb21e8eefc4d1b" data-whiteboard-anchor>Today the codebase models the exact same domain relationship—<strong>a markdown workout note living inside a named container</strong>—four different ways depending on where it came from: Journal entries, Playground scratchpads, Seed Collections/Feeds, and localStorage Notebooks. This plan collapses those parallel abstractions into two orthogonal primitives:</p>
+
+<div class="grid-2">
+  <div class="card">
+    <h3 id="wb-h3-75f2ca76115f48fb867b1538e278831f" data-whiteboard-anchor>Primitive 1: <code>Note</code> (The Content)</h3>
+    <p id="wb-p-e1b0b0ff29cc4c9088fdce1eb37c78a9" data-whiteboard-anchor>Every workout, dated training log, scratchpad script, and benchmark workout is a <code>Note</code>. Journal entries, Playground pages, and Collection/Feed items stop being separate <code>NoteKind</code> / <code>EntryKind</code> types and become ordinary <code>Note</code> rows scoped to a <code>notebookId</code>.</p>
+  </div>
+  <div class="card">
+    <h3 id="wb-h3-cd2c3857c34c49ab88e4b6325dc25369" data-whiteboard-anchor>Primitive 2: <code>Notebook</code> (The Container)</h3>
+    <p id="wb-p-d659eb957c9e4fe8ad6145542879a451" data-whiteboard-anchor>Catalogs, Collections, Feeds, Guides, Journal, and Playground all become <strong>Notebooks</strong> with canonical <code>notebook/{slug}</code> identifiers (including <code>notebook/journal</code>, <code>notebook/playground</code>, and <code>notebook/guides</code>). Users can create additional notebooks on <code>/notebooks</code>, and seed sources deliver notebooks tied to the source URL entry.</p>
+  </div>
+</div>
+
+<div class="callout ok">
+  <p id="wb-p-0b9c392ddc1943f9bdc194043dd8fdbd" data-whiteboard-anchor><strong>Four Governing Rules of the Consolidated Model:</strong></p>
+  <ol>
+    <li id="wb-li-1b9544575b41422891e546a9c09ed4c4" data-whiteboard-anchor><strong>Predefined Default Notebooks (<code>notebook/{slug}</code>):</strong> Every notebook uses a canonical <code>notebook/{slug}</code> identifier. <code>notebook/journal</code>, <code>notebook/playground</code>, and <code>notebook/guides</code> are the built-in default notebooks.</li>
+    <li id="wb-li-a803018cce5440beb5052dab57cb8198" data-whiteboard-anchor><strong>User-Created Notebooks:</strong> On the <code>/notebooks</code> page (replacing <code>/catalogs</code>), users can create, rename, describe, and delete additional custom notebooks (e.g., <code>notebook/2027-open-prep</code>).</li>
+    <li id="wb-li-17ff0071150343ed983c54706361d0fa" data-whiteboard-anchor><strong>Application-Level Editability &amp; Source URL Linkage:</strong> Read-only status is never a separate stored flag—the application layer decides editability based on origin/type: <strong>only user-created notes (<code>seedOrigin !== 'seed'</code>) are editable</strong>. Seed-delivered notebooks (e.g., <code>notebook/crossfit-girls</code>, <code>notebook/guides</code>) are tied to the seed source entry and URL where the content was pulled from, and allow cloning workouts into user-writable notebooks.</li>
+    <li id="wb-li-e67d50faf91d4c98b5880a7732fdaa9f" data-whiteboard-anchor><strong>Precedence Preservation:</strong> When multiple seed sources deliver the same <code>notebook/{slug}</code> or note path, the established precedence hierarchy (<code>core &lt; community &lt; imported &lt; user</code>) resolves collisions deterministically.</li>
+  </ol>
+</div>
+
+<h1 id="wb-h1-927ff3aabd424366a9cfa59071f6e716" data-whiteboard-anchor>2. Current Pain Points (Codebase Audit)</h1>
+<p id="wb-p-57de6183f94649f7b19bc6f496ef0615" data-whiteboard-anchor>Because Journal, Playground, Collections, Feeds, Catalogs, and Notebooks grew up in separate slices, every layer of the stack currently pays a heavy tax to translate between them.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th id="wb-th-f6188f347b584dd69d25fa7633455553" data-whiteboard-anchor>Pain Point</th>
+      <th id="wb-th-75d3600c3c604832bf535a50be1c13f4" data-whiteboard-anchor>Where It Hurts Today</th>
+      <th id="wb-th-e945207f70084f65ae576025f56b86b0" data-whiteboard-anchor>Observed Symptom / Maintenance Cost</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td id="wb-td-73823d319267484789f959d467209db5" data-whiteboard-anchor><strong>P1. Six-way identity split for container membership</strong></td>
+      <td id="wb-td-08bc43a9aa244ae38da1248b8e806e27" data-whiteboard-anchor><code>packages/core/src/types/storage.ts:29-48</code><br><code>packages/engine/src/seed/contract.ts:57-81</code><br><code>apps/playground/src/types/notebook.ts:9-31</code></td>
+      <td id="wb-td-e2fdbf262d314c6198338cf178a2dc8b" data-whiteboard-anchor>Container membership is encoded simultaneously in <code>Note.type</code> (<code>'journal' | 'playground' | 'feed'</code>), <code>Note.sourceId</code> (<code>'playground'</code>, <code>'collection:cat/item'</code>, <code>'feed:feeds/cat/...'</code>, or UUID clone lineage), <code>Note.catalog</code>, <code>Note.id</code> prefix (<code>playground/</code>, <code>page:collection:</code>), and <code>Note.tags</code> (<code>notebook:&lt;uuid&gt;</code>).</td>
+    </tr>
+    <tr>
+      <td id="wb-td-c06fd88eb9154557bd6837420310f136" data-whiteboard-anchor><strong>P2. Overloaded <code>sourceId</code> (Container vs. Clone Lineage)</strong></td>
+      <td id="wb-td-4c88fa58cf0244d4bc2da2595b0f5fe5" data-whiteboard-anchor><code>apps/playground/app/lib/entryMapper.ts:64-68</code><br><code>apps/playground/app/pages/NoteByIdPage.tsx:96-105, 264-282</code><br><code>packages/wql/src/QueryService.ts:130-141</code></td>
+      <td id="wb-td-a4a08e549e2f423397bef0cd8dbc799c" data-whiteboard-anchor><code>Note.sourceId</code> means "which container I belong to" for Playground and Seed notes (<code>'playground'</code>, <code>'collection:...'</code>), but means "which note I was cloned from" (`UUID`) for Journal notes! As a result, cloning a note into Playground or a custom notebook cannot record clone lineage without breaking container classification.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-7cf1e418fd4c4e50811c9f581e03633a" data-whiteboard-anchor><strong>P3. 7-branch heuristic waterfall in <code>entryMapper.ts</code></strong></td>
+      <td id="wb-td-e4ae8060321c4c29bc6d7819199ea946" data-whiteboard-anchor><code>apps/playground/app/lib/entryMapper.ts:120-382</code></td>
+      <td id="wb-td-7ad0258bbdae4c21af2668ff2e0c239a" data-whiteboard-anchor><code>toEntryBase(note)</code> runs 7 sequential regex/prefix predicates (<code>isPlaygroundNote</code>, <code>isCollection</code>, <code>isFeed</code>, <code>isDashboardNote</code>, <code>isEffortNote</code>, <code>isEquipmentNote</code>, <code>guides:</code>, fallback to <code>journal</code>) and maps Collection notes to <code>Entry.kind = 'session'</code> (which collides with executed workout <code>Session</code> records!) and Feed notes to <code>Entry.kind = 'post'</code>.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-e6e652c3422d4826b7300f41e61d7492" data-whiteboard-anchor><strong>P4. Negative-exclusion fence in WQL <code>sourceMatches</code> &amp; SQL projection</strong></td>
+      <td id="wb-td-56a83e63633c4be999b76cee134d70f0" data-whiteboard-anchor><code>packages/wql/src/QueryService.ts:121-165</code><br><code>packages/storage/src/sql/domain.ts:50-128</code></td>
+      <td id="wb-td-6d23715ccaac4c5aa50ea9341395bbf2" data-whiteboard-anchor>To answer "is this a journal note?", <code>sourceMatches(item, 'journal')</code> executes a 12-condition negative exclusion check (rejecting <code>type === 'playground'</code>, <code>id.startsWith('playground/')</code>, <code>seedOrigin === 'seed'</code>, <code>seedChunkId</code>, <code>catalog</code>, <code>sourcePath.startsWith('markdown/')</code>, etc.). SQL storage even materializes a dedicated <code>"journal" DOUBLE PRECISION NOT NULL</code> column on both <code>domain_note</code> and <code>query_block</code> just for this predicate.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-3ea55fa6caea4e27a36ab0b0330a0c04" data-whiteboard-anchor><strong>P5. Split WQL filter keys (<code>source:</code> vs. <code>catalog:</code>) and heads</strong></td>
+      <td id="wb-td-78baf2ab373b439abda6f6d6ae9a9134" data-whiteboard-anchor><code>packages/wql/src/vocabulary.ts:113-135</code><br><code>apps/playground/app/lib/routeWqlConfig.ts:75-80, 129-149</code></td>
+      <td id="wb-td-20e800c502dd4e43b81558df0220956f" data-whiteboard-anchor>Querying Journal or Playground uses <code>source:journal</code> / <code>source:playground</code> (or heads <code>:journal</code> / <code>:playground</code>), whereas querying a seed catalog uses <code>source:feeds</code> + <code>catalog:&lt;slug&gt;</code> (or heads <code>:feed</code> / <code>:catalog</code>). Moving from <code>collections</code> to <code>feeds</code> already required regex query-rewriting shims in <code>routeWqlConfig.ts</code>.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-dc1a27c932da40d2991052bb8940ba38" data-whiteboard-anchor><strong>P6. Orphaned <code>NotebookService</code> in <code>localStorage</code></strong></td>
+      <td id="wb-td-25cc0ab579fe43828a96bab24ca9d6f4" data-whiteboard-anchor><code>apps/playground/src/services/NotebookService.ts:1-171</code><br><code>apps/playground/src/types/notebook.ts:1-31</code></td>
+      <td id="wb-td-ef0b58c070f6438aba4ab588349ac720" data-whiteboard-anchor>A full CRUD <code>NotebookService</code> already exists in <code>src/services/NotebookService.ts</code> (persisting to <code>wodwiki:notebooks</code> and tagging notes with <code>notebook:&lt;id&gt;</code>), but it is completely disconnected from <code>/catalogs</code>, WQL <code>catalog:</code> filters, seed imports, and the L1/L2 navigation tree.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-95b0ddff57d7446f9761b68ca67277de" data-whiteboard-anchor><strong>P7. Fragmented UI surfaces &amp; dead-end <code>/catalogs</code> page</strong></td>
+      <td id="wb-td-83a2fdd500b64774af4f94e0cdf607f1" data-whiteboard-anchor><code>apps/playground/app/nav/appNavTree.ts:159-224</code><br><code>apps/playground/app/views/stream/streamProfile.ts:101-178</code><br><code>apps/playground/app/services/createPlaygroundPage.ts</code></td>
+      <td id="wb-td-04de7b373a8641e19b0dd7ed5f4618c1" data-whiteboard-anchor>The L1 sidebar splits notes across 4 top-level zones (<em>Journal</em>, <em>Catalogs</em>, <em>Feeds</em>, <em>Playgrounds</em>). On a fresh browser (before importing community seeds), <code>/catalogs</code> and <code>/feeds</code> render an empty dead-end banner with no ability to create a notebook, and moving a note between Playground and Journal mutates <code>type</code>, <code>sourceId</code>, and <code>slug</code> in place.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h1 id="wb-h1-419c455a1eb64e0a96f8c4f685882717" data-whiteboard-anchor>3. Target Architecture: Before vs. After</h1>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 960 360" width="100%" height="auto" role="img" aria-label="Before and After Architecture Comparison">
+  <rect x="10" y="10" width="450" height="340" rx="8" fill="#fef2f2" stroke="#fca5a5" />
+  <text x="30" y="38" font-size="15" font-weight="700" fill="#991b1b">BEFORE: Fragmented Types, Sources &amp; Catalogs</text>
+
+  <rect x="30" y="56" width="195" height="58" rx="6" fill="#ffffff" stroke="#cbd5e1" />
+  <text x="42" y="78" font-size="13" font-weight="700" fill="#0f172a">Journal Note</text>
+  <text x="42" y="98" font-size="11" fill="#475569">type: 'journal' | sourceId: UUID?</text>
+
+  <rect x="245" y="56" width="195" height="58" rx="6" fill="#ffffff" stroke="#cbd5e1" />
+  <text x="257" y="78" font-size="13" font-weight="700" fill="#0f172a">Playground Note</text>
+  <text x="257" y="98" font-size="11" fill="#475569">type: 'playground' | sourceId: 'playground'</text>
+
+  <rect x="30" y="128" width="195" height="58" rx="6" fill="#ffffff" stroke="#cbd5e1" />
+  <text x="42" y="150" font-size="13" font-weight="700" fill="#0f172a">Collection Item</text>
+  <text x="42" y="170" font-size="11" fill="#475569">kind: 'session' | sourceId: 'collection:…'</text>
+
+  <rect x="245" y="128" width="195" height="58" rx="6" fill="#ffffff" stroke="#cbd5e1" />
+  <text x="257" y="150" font-size="13" font-weight="700" fill="#0f172a">Feed Post</text>
+  <text x="257" y="170" font-size="11" fill="#475569">kind: 'post' | sourceId: 'feed:feeds/…'</text>
+
+  <rect x="30" y="200" width="410" height="54" rx="6" fill="#ffffff" stroke="#cbd5e1" />
+  <text x="42" y="222" font-size="13" font-weight="700" fill="#0f172a">Orphaned NotebookService (localStorage)</text>
+  <text x="42" y="240" font-size="11" fill="#475569">wodwiki:notebooks + tag 'notebook:&lt;uuid&gt;' (unconnected to WQL or /catalogs)</text>
+
+  <rect x="30" y="268" width="410" height="64" rx="6" fill="#fff1f2" stroke="#fda4af" />
+  <text x="42" y="290" font-size="12" font-weight="700" fill="#9f1239">Resulting Glue:</text>
+  <text x="42" y="308" font-size="11" fill="#881337">• 7-branch entryMapper.ts • 12-rule sourceMatches('journal') fence</text>
+  <text x="42" y="323" font-size="11" fill="#881337">• 4 separate L1 nav zones (/journal, /catalogs, /feeds, /playgrounds)</text>
+
+  <rect x="500" y="10" width="450" height="340" rx="8" fill="#f0fdf4" stroke="#86efac" />
+  <text x="520" y="38" font-size="15" font-weight="700" fill="#166534">AFTER: Unified Note + Notebook Model</text>
+
+  <rect x="520" y="56" width="410" height="82" rx="6" fill="#ffffff" stroke="#cbd5e1" />
+  <text x="534" y="78" font-size="13" font-weight="700" fill="#0f172a">Notebook (Canonical notebook/{slug})</text>
+  <text x="534" y="97" font-size="11" fill="#475569">• Defaults: 'notebook/journal', 'notebook/playground', 'notebook/guides'</text>
+  <text x="534" y="113" font-size="11" fill="#475569">• User-Created: 'notebook/&lt;slug&gt;' created on /notebooks</text>
+  <text x="534" y="129" font-size="11" fill="#475569">• Seed-Delivered: 'notebook/&lt;slug&gt;' tied to source entry URL</text>
+
+  <rect x="520" y="152" width="410" height="74" rx="6" fill="#ffffff" stroke="#cbd5e1" />
+  <text x="534" y="174" font-size="13" font-weight="700" fill="#0f172a">Note (Single Content Entity — App Decides Editability)</text>
+  <text x="534" y="193" font-size="11" fill="#475569">• notebookId: 'notebook/journal' | 'notebook/playground' | 'notebook/&lt;slug&gt;'</text>
+  <text x="534" y="209" font-size="11" fill="#475569">• Only user-created notes (seedOrigin !== 'seed') are editable</text>
+  <rect x="520" y="240" width="410" height="92" rx="6" fill="#dcfce7" stroke="#86efac" />
+  <text x="534" y="262" font-size="12" font-weight="700" fill="#166534">Simplified Seams:</text>
+  <text x="534" y="280" font-size="11" fill="#14532d">• One EntryKind for notes ('note'); 'session' means executed Session only</text>
+  <text x="534" y="296" font-size="11" fill="#14532d">• One WQL filter: :note{notebook:&lt;id&gt;} &amp; :notebook target</text>
+  <text x="534" y="312" font-size="11" fill="#14532d">• Clone from read-only seed notebook → any writable notebook in 1 step</text>
+</svg>
+</div>
+
+<h2 id="wb-h2-bfc6076c59de4f93b377d93ac5557f96" data-whiteboard-anchor>3.1 Unified Domain Models</h2>
+<pre id="wb-pre-b399ec56ccbb431eabdfe036a0d7adf2" data-whiteboard-anchor><code>export type DefaultNotebookSlug = 'journal' | 'playground' | 'guides';
+export type NotebookId = `notebook/${string}`;
+
+export interface Notebook {
+  /** Canonical notebook identifier — always 'notebook/{slug}', including 'notebook/journal', 'notebook/playground', 'notebook/guides' */
+  id: NotebookId;
+  /** Bare slug segment ('journal' | 'playground' | 'guides' | user slug | seed slug) */
+  slug: string;
+  title: string;
+  description?: string;
+  icon?: string;
+  /**
+   * Provenance tier:
+   * - 'default': predefined 'notebook/journal', 'notebook/playground', 'notebook/guides'
+   * - 'user':    created by the user on /notebooks
+   * - 'seed':    delivered by a seed manifest chunk
+   *
+   * Note: read-only is NOT stored on Notebook; the application layer derives
+   * editability from origin/type (only user-created notes are editable).
+   */
+  origin: 'default' | 'user' | 'seed';
+  /** Registered seed source entry id ('core' | 'community' | CustomSeedSource.id) */
+  sourceEntryId?: string;
+  /** Canonical seed directory URL where the source is pulled from (SeedSourceSpec.url / CustomSeedSource.url) */
+  sourceUrl?: string;
+  /** Optional published repository URL from the seed source entry */
+  repositoryUrl?: string;
+  /** Seed chunk id (e.g. 'collection.crossfit-girls' or 'feed.dan-john-40-day') when delivered by a seed */
+  seedChunkId?: string;
+  /** Optional README / landing markdown note id for rich notebook headers */
+  landingNoteId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Note {
+  id: string;
+  /** Canonical notebook id ('notebook/journal', 'notebook/playground', 'notebook/guides', 'notebook/crossfit-girls', etc.) */
+  notebookId: NotebookId;
+  title: string;
+  rawContent: string;
+  sourceRevision: number;
+  blocks: Record&lt;string, NoteBlock&gt;;
+  /** Optional calendar date (noon UTC ms) — used by journal and dated programs */
+  date?: number;
+  createdAt: number;
+  /** System note discriminator only when non-standard: 'note' | 'dashboard' | 'effort' | 'equipment' | 'guide' */
+  type?: 'note' | 'dashboard' | 'effort' | 'equipment' | 'guide';
+  /** Explicit clone lineage: the source Note.id this note was cloned from */
+  clonedFromNoteId?: string;
+  /** Ownership marker: application layer allows editing ONLY when seedOrigin !== 'seed' (user-created) */
+  seedOrigin?: 'seed' | 'user';
+  seedVersion?: number;
+  seedChunkId?: string;
+  sourcePath?: string;
+}
+
+/** Application-level editability policy: only user-created notes are editable. */
+export function isNoteEditable(note: Pick&lt;Note, 'seedOrigin'&gt;): boolean {
+  return note.seedOrigin !== 'seed';
+}</code></pre>
+
+<h2 id="wb-h2-13290289e06041a899060a3428e8977b" data-whiteboard-anchor>3.2 Seed Delivery &amp; Source URL Linkage</h2>
+<ul>
+  <li id="wb-li-f7482291b4a0405e97db98cdad8c092b" data-whiteboard-anchor><strong>One Seed $\to$ Many Notebooks (Linked to Source URL):</strong> Each seed chunk (<code>canvas</code> $\to$ <code>notebook/guides</code>, <code>collection.&lt;slug&gt;</code> / <code>feed.&lt;slug&gt;</code> $\to$ <code>notebook/&lt;slug&gt;</code>) resolves its <code>Notebook</code> record with <code>sourceEntryId</code> and <code>sourceUrl</code> bound directly to the registered <code>SeedSourceSpec</code> / <code>CustomSeedSource</code> entry where the seed is pulled from.</li>
+  <li id="wb-li-b13b1dbbf0ca4499b284adf791b784f2" data-whiteboard-anchor><strong>README Landing Note:</strong> A notebook's <code>README.md</code> (if present in the chunk) is linked via <code>Notebook.landingNoteId</code>, rendering the notebook's overview prose above its note stream.</li>
+  <li id="wb-li-0a5b457aca254cac95828d3359081021" data-whiteboard-anchor><strong>Application-Decided Editability &amp; Clone-on-Write:</strong> Because only user-created notes (<code>seedOrigin !== 'seed'</code>) are editable, seed notes in <code>notebook/guides</code> or <code>notebook/crossfit-girls</code> render read-only in the editor and provide a <strong>Clone to Notebook</strong> action targeting <code>notebook/journal</code>, <code>notebook/playground</code>, or any user-created <code>notebook/&lt;slug&gt;</code>.</li>
+</ul>
+
+<h1 id="wb-h1-bc7c9a81a80246469330c768168fc02f" data-whiteboard-anchor>4. Code Simplifications &amp; Deletions Unlocked</h1>
+<p id="wb-p-9f1ae7deff274e0593df453b2d79f67a" data-whiteboard-anchor>Consolidating around `Note` + `Notebook` is primarily a <strong>deletion and unification refactor</strong>. The table below lists the exact modules that shrink or disappear.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th id="wb-th-4ba643b404c24c3da295fa3a3214f3fe" data-whiteboard-anchor>Subsystem / File</th>
+      <th id="wb-th-d83ce048c6fe428395ec6276ef118340" data-whiteboard-anchor>What Gets Deleted or Collapsed</th>
+      <th id="wb-th-4a4ba4a4fa79429f8883c6d19bf5de86" data-whiteboard-anchor>Replacement Seam</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td id="wb-td-cacb5ef35ae84b54bcbb9bf8e5f4ac88" data-whiteboard-anchor><code>apps/playground/app/lib/entryMapper.ts</code></td>
+      <td id="wb-td-b44c41e4ec414158851bc094746c599c" data-whiteboard-anchor>Delete <code>isPlaygroundNote</code>, <code>isCollection</code>, <code>isFeed</code>, <code>collectionRoute</code>, <code>playgroundRouteName</code>, and the `EntryKind = 'session' | 'post'` note branches (~160 lines).</td>
+      <td id="wb-td-dbb50564805a4f97bee3847ff075efcd" data-whiteboard-anchor>Single `kind: 'note'` branch reading `note.notebookId` directly. `'session'` is reserved strictly for executed workout <code>Session</code> rows.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-a684bd4ead6348e68991635cb2db2e07" data-whiteboard-anchor><code>packages/wql/src/QueryService.ts</code></td>
+      <td id="wb-td-15026620fe1b4cc1bc4adfcf448e1059" data-whiteboard-anchor>Delete the 45-line `sourceMatches()` negative-exclusion fence (`lines 121-165`) and the heuristic `catalogOfItem()` regex parser (`lines 92-101`).</td>
+      <td id="wb-td-d2a55189f92040e9a2d38dcf684b8595" data-whiteboard-anchor>Direct equality check on `item.notebookId` (`notebook:&lt;slug&gt;`). Legacy `:journal`, `:playground`, and `catalog:&lt;slug&gt;` alias directly to `notebook:journal`, `notebook:playground`, and `notebook:&lt;slug&gt;`.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-831f06f3dcb74f7fbbb0bba98188137b" data-whiteboard-anchor><code>packages/storage/src/sql/domain.ts</code></td>
+      <td id="wb-td-5325d49b7d764f8a8160fb72e938db92" data-whiteboard-anchor>Drop the computed `"journal"` boolean column from `domain_note` and `query_block` (`lines 50-128`) and unify `"catalog"` + `"source_id"` into `"notebook_id"`.</td>
+      <td id="wb-td-967e17abf04647a08ade75e6c4fcf0b2" data-whiteboard-anchor>Indexed `"notebook_id" TEXT` column on `domain_note` and `query_block`.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-4794cedae66d4b03af52f62d1474b7c5" data-whiteboard-anchor><code>apps/playground/src/services/NotebookService.ts</code> &amp; <code>src/types/notebook.ts</code></td>
+      <td id="wb-td-1b8735782fba42d490997c8d31820ecd" data-whiteboard-anchor>Retire the disconnected `localStorage` (`wodwiki:notebooks`) store and the `notebook:&lt;uuid&gt;` tag-array hack.</td>
+      <td id="wb-td-9165b3a3db764f58b66caa8da05eee3c" data-whiteboard-anchor>First-class `notebooks` store (or `NotebookRepository` over storage) returning `[JOURNAL_NOTEBOOK, PLAYGROUND_NOTEBOOK, ...userNotebooks, ...seedNotebooks]`.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-31888ad593af48419275d3282316b6f7" data-whiteboard-anchor><code>apps/playground/app/services/createPlaygroundPage.ts</code> &amp; <code>journalNotes.ts</code></td>
+      <td id="wb-td-7c498ec974304fbcbd1a497eae2368c2" data-whiteboard-anchor>Delete the separate playground creation/move service and the `playground/` ID prefixing logic (`lines 1-300` in tests).</td>
+      <td id="wb-td-637c34026c224b4dad9d06c60e52e3ec" data-whiteboard-anchor>One `notesRepository.create({ notebookId, title, rawContent, date })` and `notesRepository.move(noteId, { notebookId, date })`.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-94b31de158b244e5bf15d1c7b5797e16" data-whiteboard-anchor><code>apps/playground/app/components/organisms/journal/NotePlacementDialog.tsx</code></td>
+      <td id="wb-td-622897b2e7354c6e8a1a0265ff40faa4" data-whiteboard-anchor>Remove the special-case mode switches that mutate `Note.type` (`'journal'` $\leftrightarrow$ `'playground'`) and strip `sourceId` when moving/cloning notes.</td>
+      <td id="wb-td-538ef68d7f71488aa3947d0cee48e325" data-whiteboard-anchor>A unified <strong>Notebook &amp; Date Picker</strong>: pick any writable notebook (`journal`, `playground`, or custom user notebook) and optional date.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-532343989f904c0dbf164abad32894b8" data-whiteboard-anchor><code>apps/playground/app/lib/listCatalogs.ts</code></td>
+      <td id="wb-td-0acfd88b15444060af644c03882e26a3" data-whiteboard-anchor>Delete the `block_index` path-prefix scanner that guesses catalog names by splitting `noteId` strings on `'/'`.</td>
+      <td id="wb-td-d27db48d987647e796abca7f4ac5e787" data-whiteboard-anchor>Query the `notebooks` repository directly (includes empty user notebooks and all seed notebooks).</td>
+    </tr>
+  </tbody>
+</table>
+
+<h1 id="wb-h1-d32644d65d9d4f7dbde5ee1c2c752946" data-whiteboard-anchor>5. UI &amp; Navigation Consolidation Plan</h1>
+
+<h2 id="wb-h2-f775a58ea9784e0c85040f079755675f" data-whiteboard-anchor>5.1 Navigation Tree (`apps/playground/app/nav/appNavTree.ts`)</h2>
+<p id="wb-p-dbda76cc64d243ae883124901cb01cec" data-whiteboard-anchor>Today the L1 sidebar has four separate note-container items: <strong>Journal</strong>, <strong>Catalogs</strong>, <strong>Feeds</strong>, and <strong>Playgrounds</strong>. Under the consolidated model:</p>
+<ul>
+  <li id="wb-li-92f12fd724914133b6ec1cdcd623e5b2" data-whiteboard-anchor><strong>Journal</strong> (<code>/journal</code>, alias for <code>/notebooks/journal</code>) and <strong>Playground</strong> (<code>/playground</code>, alias for <code>/notebooks/playground</code>) remain quick-access predefined defaults in L1 (or pinned at the top of the Notebooks L2 panel).</li>
+  <li id="wb-li-f3d053515acc4c1fb55b5c6d89df6973" data-whiteboard-anchor><strong>Catalogs</strong> (<code>/catalogs</code>) and <strong>Feeds</strong> (<code>/feeds</code>) merge into a single <strong>Notebooks</strong> (<code>/notebooks</code>) L1 zone (with `/catalogs`, `/feeds`, `/c/:slug`, and `/collections/:slug` redirecting or aliasing cleanly).</li>
+  <li id="wb-li-3d1631caa306433d9f68eafc5c9bf6ab" data-whiteboard-anchor>The <strong>Notebooks L2 Panel</strong> lists:
+    <ol>
+      <li id="wb-li-30cf47551e9748baa74146e747e4e4e1" data-whiteboard-anchor>Primary action: <strong>+ New Notebook</strong> (opens the Create Notebook dialog) and <strong>+ New Note</strong> (creates a note in the active writable notebook).</li>
+      <li id="wb-li-8bd36dea61b748d388dad6fd2b130fb0" data-whiteboard-anchor><strong>Default Notebooks:</strong> <em>Journal</em>, <em>Playground</em>.</li>
+      <li id="wb-li-0babd94addb145ebb59933c0c9a1c6b6" data-whiteboard-anchor><strong>My Notebooks:</strong> user-created writable notebooks.</li>
+      <li id="wb-li-7b6d3d0feda64ab7b8eacd317af107e9" data-whiteboard-anchor><strong>Seed Notebooks (Read-only):</strong> imported community and custom package notebooks, badged with a lock/seed indicator.</li>
+    </ol>
+  </li>
+</ul>
+
+<h2 id="wb-h2-050c6641bbc64d36b54456e8087ce3f8" data-whiteboard-anchor>5.2 The `/notebooks` Page (Replacing `/catalogs`)</h2>
+<p id="wb-p-1c340d51cefc4319a117bc0ede31ad04" data-whiteboard-anchor>Unlike `/catalogs` today—which shows an empty-library warning banner until a remote seed is synced—the `/notebooks` page is immediately useful on first boot because <strong>Journal</strong> and <strong>Playground</strong> are always present, and users can create new notebooks offline at any time.</p>
+
+<div class="wireframe">
+  <div class="wf-header">
+    <div>
+      <strong style="font-size: 1.05rem;">Notebooks</strong>
+      <span style="color: var(--muted); font-size: 0.85rem; margin-left: 0.5rem;">2 defaults · 1 custom · 2 seed libraries</span>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <span class="badge" style="padding: 0.35rem 0.65rem;">Sync Seed Libraries</span>
+      <span class="badge default" style="padding: 0.35rem 0.75rem; background: var(--accent); color: #fff; border-color: var(--accent);">+ New Notebook</span>
+    </div>
+  </div>
+  <div class="wf-cards">
+    <div class="wf-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+        <strong>📅 Journal</strong>
+        <span class="badge default">Default · Writable</span>
+      </div>
+      <div style="font-size: 0.82rem; color: var(--muted);">Dated training log and scheduled workouts.</div>
+      <div style="font-size: 0.78rem; color: var(--muted); margin-top: 0.5rem;">42 notes · Open / New Note</div>
+    </div>
+    <div class="wf-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+        <strong>🧪 Playground</strong>
+        <span class="badge default">Default · Writable</span>
+      </div>
+      <div style="font-size: 0.82rem; color: var(--muted);">Scratchpad workouts and timer experiments.</div>
+      <div style="font-size: 0.78rem; color: var(--muted); margin-top: 0.5rem;">5 notes · Open / New Note</div>
+    </div>
+    <div class="wf-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+        <strong>📓 2027 Open Prep</strong>
+        <span class="badge user">User · Writable</span>
+      </div>
+      <div style="font-size: 0.82rem; color: var(--muted);">Custom 8-week engine and gymnastics peaking block.</div>
+      <div style="font-size: 0.78rem; color: var(--muted); margin-top: 0.5rem;">12 notes · Edit / Delete</div>
+    </div>
+    <div class="wf-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+        <strong>🔒 CrossFit Girls</strong>
+        <span class="badge readonly">Seed · Read-Only</span>
+      </div>
+      <div style="font-size: 0.82rem; color: var(--muted);">Classic benchmark workouts (Fran, Helen, Grace, Diane).</div>
+      <div style="font-size: 0.78rem; color: var(--muted); margin-top: 0.5rem;">19 notes · Browse &amp; Clone</div>
+    </div>
+  </div>
+</div>
+
+<h2 id="wb-h2-696ba111d1634cf59d4165b0b390c9dd" data-whiteboard-anchor>5.3 Route &amp; Action Matrix</h2>
+<table>
+  <thead>
+    <tr>
+      <th id="wb-th-7a1faac856cc4fa4bbf877061909c6ad" data-whiteboard-anchor>Surface</th>
+      <th id="wb-th-09da6989b70f4feb8469cafb933f3a58" data-whiteboard-anchor>Current Route(s)</th>
+      <th id="wb-th-b6471b10a4804204a9f69d4e255892b8" data-whiteboard-anchor>Consolidated Route(s)</th>
+      <th id="wb-th-43efff00ff8f41c99dc65d70a799b127" data-whiteboard-anchor>Edit / Clone Behavior</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td id="wb-td-83839e5dc1d74353a206bbf1282e46f9" data-whiteboard-anchor><strong>Notebooks Directory</strong></td>
+      <td id="wb-td-228a0831f3e54e38a30da3691c096667" data-whiteboard-anchor><code>/catalogs</code>, <code>/feeds</code>, <code>/collections</code></td>
+      <td id="wb-td-d81aa9e9e5224b21a040c77dfb33925c" data-whiteboard-anchor><code>/notebooks</code> (legacy paths redirect)</td>
+      <td id="wb-td-871be4a0267340eebf22db11228ff882" data-whiteboard-anchor>Lists Default (<code>journal</code>, <code>playground</code>), User, and Seed notebooks. Primary <strong>+ New Notebook</strong> button creates a user notebook.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-791fde77a5f34c33b52c457735ac4705" data-whiteboard-anchor><strong>Notebook Stream / Landing</strong></td>
+      <td id="wb-td-eb9f878d296741df9092ace39248a6b6" data-whiteboard-anchor><code>/journal</code>, <code>/playgrounds</code>, <code>/c/:slug</code>, <code>/feeds/:slug</code></td>
+      <td id="wb-td-f59e5a38bdfb407ba96d05ae983289fa" data-whiteboard-anchor><code>/notebooks/:notebookId</code> (with <code>/journal</code> and <code>/playground</code> kept as top-level shortcuts)</td>
+      <td id="wb-td-044fd6ffc1be4d69b6cd015faff00a0a" data-whiteboard-anchor>If <code>!notebook.readOnly</code>: shows <strong>+ New Note</strong> and inline edit actions.<br>If <code>notebook.readOnly</code> (seed): renders optional README landing + workout stream with <strong>Run</strong> and <strong>Clone to Notebook ▾</strong> on every row.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-db5b1d3307534eaeb77acb9ad6340646" data-whiteboard-anchor><strong>Single Note Editor / Viewer</strong></td>
+      <td id="wb-td-b0f37aa2b39e472fa1dd9fa363b3332c" data-whiteboard-anchor><code>/notes/:noteId</code>, <code>/playground/:id</code>, <code>/c/:col/:workout</code>, <code>/feeds/:slug/:date/:item</code></td>
+      <td id="wb-td-528e0dd258f848e9bebdf78f9ddf3918" data-whiteboard-anchor><code>/notes/:noteId</code> (or <code>/notebooks/:notebookId/:itemSlug</code> for named seed notes)</td>
+      <td id="wb-td-5c82e41768244a448eb6821337c4b941" data-whiteboard-anchor>If parent notebook is writable: full live editor.<br>If parent notebook is a read-only seed notebook: editor is read-only; toolbar displays <strong>Clone to…</strong> (Journal today, Playground, or any custom user notebook) and <strong>Run</strong>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h1 id="wb-h1-16e8de2af5b9454f8c217787da9c813f" data-whiteboard-anchor>6. Documentation &amp; Migration Impact</h1>
+
+<h2 id="wb-h2-998555d972fa408289b75acb939bc0a6" data-whiteboard-anchor>6.1 Documentation Files to Update</h2>
+<table>
+  <thead>
+    <tr>
+      <th id="wb-th-86ae5378067d4f6ab4e3af80710274dd" data-whiteboard-anchor>Document Path</th>
+      <th id="wb-th-00d627ae73c84f48ae654c604f29564b" data-whiteboard-anchor>Required Update</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td id="wb-td-6d3ae28aff624a62aa760df0f4dd138b" data-whiteboard-anchor><code>docs/domain-model/Note.md</code> &amp; <code>docs/domain-model/collection.md</code></td>
+      <td id="wb-td-49a68ecd4d0047b7a9c79db5c84a3d91" data-whiteboard-anchor>Replace `collection.md` with `Notebook.md`; document `Note.notebookId` and `Note.clonedFromNoteId`, and retire the overloaded `Note.sourceId` / `Note.catalog` split.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-62f8f8f95afb451095e6863ea4abf4cd" data-whiteboard-anchor><code>docs/adrs/0001-catalog-seed-data-contract.md</code> &amp; <code>0002-catalog-source-lifecycle.md</code></td>
+      <td id="wb-td-10972bab8ede45f2a73a2152627fabf9" data-whiteboard-anchor>Document that seed manifests deliver one or more read-only `Notebook` records (one per `collection.*` / `feed.*` / `notebook.*` chunk) and that cloning into a writable notebook stamps `seedOrigin: 'user'` and `clonedFromNoteId`.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-30cad1cb85e74c88846f3c9e326663c6" data-whiteboard-anchor><code>docs/language/wql-reference.md</code> &amp; <code>markdown/canvas/guide/wql.md</code></td>
+      <td id="wb-td-f5d09e58b363469ba7e0c23a929af15f" data-whiteboard-anchor>Update WQL examples and guide chapters from `:feed{catalog:crossfit-girls}` and `source:feeds` to `:note{notebook:crossfit-girls}`, `:note{notebook:journal}`, `:note{notebook:playground}`, and `:notebook`.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-859db117fd4d4245ba6e1b5788a59ee2" data-whiteboard-anchor><code>docs/screens/collections-library.md</code>, <code>collection-landing.md</code>, <code>playgrounds-stream.md</code>, <code>journal-stream.md</code></td>
+      <td id="wb-td-e1943878b07743c9a12169954ef96c97" data-whiteboard-anchor>Consolidate screen specifications into `notebooks-directory.md` and `notebook-stream.md`, documenting the predefined `journal` and `playground` defaults, user notebook creation, and read-only seed notebook cloning.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-314847ee93354cd58dda01b6b8be7d02" data-whiteboard-anchor><code>docs/page-types-crosswalk.html</code></td>
+      <td id="wb-td-bbb875babbeb4b7ba0a085cc82138b7a" data-whiteboard-anchor>Collapse the separate <em>Catalogs</em>, <em>Feeds &amp; Collections</em>, <em>Journal</em>, and <em>Playgrounds</em> tables into the unified <em>Notebooks</em> &amp; <em>Notebook Stream</em> crosswalk.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="wb-h2-739f327142874ae1adbabc075293a547" data-whiteboard-anchor>6.2 Phased Implementation Sequence (Minimal-Risk Cutover)</h2>
+<ol>
+  <li id="wb-li-0dca491b90764f00b7f3c3c717a49661" data-whiteboard-anchor><strong>Phase 1 — Storage &amp; Seed Contract (`packages/core`, `packages/storage`, `packages/engine`):</strong>
+    Introduce the `Notebook` entity and `Note.notebookId` + `Note.clonedFromNoteId`. Backfill existing notes on read/migration: journal notes $\to$ `notebookId: 'journal'`, playground notes $\to$ `notebookId: 'playground'`, seed collection/feed notes $\to$ `notebookId: catalog`, and `notebook:&lt;id&gt;` tagged notes $\to$ `notebookId: &lt;id&gt;`. Materialize read-only seed `Notebook` rows in `applySeedChunk`.</li>
+  <li id="wb-li-9550abee525d40c188e89b62d2c76a80" data-whiteboard-anchor><strong>Phase 2 — WQL &amp; Entry Mapper Unification (`packages/wql`, `apps/playground/app/lib/entryMapper.ts`):</strong>
+    Add `notebook:` filter and `:notebook` head in WQL (keeping `:journal`, `:playground`, `:feed`, and `catalog:` as transparent parser aliases so existing saved dashboard queries continue working). Collapse `toEntryBase` in `entryMapper.ts` to use `note.notebookId` and `kind: 'note'`.</li>
+  <li id="wb-li-4783a34eadbb48bfb1d450ecba6a1179" data-whiteboard-anchor><strong>Phase 3 — `/notebooks` UI, Default Notebooks &amp; Clone Flow (`apps/playground/app/`):</strong>
+    Upgrade `/catalogs` $\to$ `/notebooks` showing predefined `Journal` and `Playground` notebooks alongside user-created notebooks (`+ New Notebook`) and read-only seed notebooks (`Clone to Notebook ▾`). Unify `NotePlacementDialog` so any note can be cloned or moved into any writable notebook.</li>
+  <li id="wb-li-d314b35708ca45e08ab52093be2b9564" data-whiteboard-anchor><strong>Phase 4 — Documentation &amp; Guide Corpus Sync (`docs/`, `markdown/canvas/guide/`):</strong>
+    Update WQL guide chapters, ADRs, domain model docs, and rebuild the `core` seed bundle (`bun run test:seed`).</li>
+</ol>
+
+</main>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2 id="wb-current-title"></h2>
+  <a id="wb-current-source">Source block</a>
+  <p id="wb-current-quote"></p>
+  <p id="wb-current-context"></p>
+  <p id="wb-current-note"></p>
+  <div class="wb-controls">
+    <button id="wb-edit" type="button">Edit</button>
+    <button id="wb-delete" type="button">Delete</button>
+    <button id="wb-hide" type="button">Hide</button>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Publish annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Publish before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Publish before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    byId('wb-count').textContent = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : ` · ${active + 1}/${count}`}`;
+    for (const id of ['wb-prev', 'wb-next', 'wb-publish']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+
+  byId('wb-publish').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    byId('wb-copy-status').textContent = 'Copying…';
+    byId('wb-export').showModal();
+    output.focus();
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy-status').textContent = 'Copied. Paste into your agent window. Drafts are kept.';
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  new ResizeObserver(() => document.documentElement.style.setProperty('--wb-bar-height', byId('wb-bar').offsetHeight + 'px')).observe(byId('wb-bar'));
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>

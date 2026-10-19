@@ -16,6 +16,7 @@ import { storageService } from '@/services/storage'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { refreshPageSources } from '@/services/queryService'
 import { journalDatePath, noteByIdPath, pagePath, runPath } from '../lib/routes'
+import { isNoteEditable } from '@bitcobblers/wod-wiki-core'
 import { NotePlacementDialog, type NotePlacementMode } from '../components/organisms/journal/NotePlacementDialog'
 import type { HistoryEntry } from '@/types/history'
 import type { Session } from '@/types/storage'
@@ -54,7 +55,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const committedRevisionRef = useRef(0);
   const draftRef = useRef<EditorIdentitySnapshot | null>(null);
   const flushRef = useRef<() => Promise<void>>(async () => {});
-  const isReadOnly = location.pathname.startsWith('/p/')
+  const isReadOnly = location.pathname.startsWith('/p/') || (entry !== null && !isNoteEditable(entry))
   const [saveError, setSaveError] = useState<{ noteId: string; message: string } | null>(null)
   const [placement, setPlacement] = useState<NotePlacementMode | null>(null)
   const [sourceEntry, setSourceEntry] = useState<HistoryEntry | null>(null)

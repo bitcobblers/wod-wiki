@@ -1,18 +1,59 @@
 /**
  * Notebook Types
  *
- * A notebook is a named, tag-based collection of workout entries.
+ * Every notebook carries a canonical `notebook/{slug}` identifier
+ * (including the predefined default notebooks `notebook/journal`,
+ * `notebook/playground`, and `notebook/guides`).
  */
 
+/** Predefined default notebook slugs always present in the application. */
+export const DEFAULT_NOTEBOOK_SLUGS = ['journal', 'playground', 'guides'] as const;
+export type DefaultNotebookSlug = (typeof DEFAULT_NOTEBOOK_SLUGS)[number];
+export type NotebookId = `notebook/${string}`;
+export type NotebookOrigin = 'default' | 'user' | 'seed';
+
+/** Extract the bare slug from a `notebook/{slug}` or `notebook:{slug}` or bare identifier. */
+export function notebookSlugFromId(slugOrId: string): string {
+  const trimmed = slugOrId.trim();
+  if (trimmed.startsWith('notebook/')) return trimmed.slice('notebook/'.length);
+  if (trimmed.startsWith('notebook:')) return trimmed.slice('notebook:'.length);
+  return trimmed;
+}
+
+/** Normalize any notebook slug or id to the canonical `notebook/{slug}` form. */
+export function toNotebookId(slugOrId: string): NotebookId {
+  return `notebook/${notebookSlugFromId(slugOrId)}`;
+}
+
+/** Application-level editability rule: only user-created notes (`seedOrigin !== 'seed'`) are editable. */
+export function isNoteEditable(note: { seedOrigin?: string | null }): boolean {
+  return note.seedOrigin !== 'seed';
+}
+
 export interface Notebook {
-  id: string;
+  /** Canonical `notebook/{slug}` identifier. */
+  id: NotebookId | string;
+  /** Bare slug segment (e.g. 'journal', 'playground', 'guides', 'crossfit-girls'). */
+  slug: string;
+  /** Canonical `notebook/{slug}` identifier. */
+  notebookId: NotebookId;
   name: string;
   description: string;
   icon: string;
+  origin: NotebookOrigin;
+  /** Registered seed source entry id where the source is pulled from. */
+  sourceEntryId?: string;
+  /** Seed package id when delivered by a named package slice. */
+  packageId?: string;
+  /** Seed directory URL where the source is pulled from. */
+  sourceUrl?: string;
+  /** Published Git repository URL when declared by the source entry. */
+  repositoryUrl?: string;
+  /** Seed manifest chunk id when delivered by a seed. */
+  seedChunkId?: string;
   createdAt: number;
   lastEditedAt: number;
 }
-
 export const NOTEBOOK_TAG_PREFIX = 'notebook:';
 
 export const toNotebookTag = (notebookId: string): string =>

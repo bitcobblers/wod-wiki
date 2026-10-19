@@ -54,6 +54,8 @@ export interface HistoryEntry {
   catalog?: string;                    // Bundled-source catalog id (collection directory) for seed corpus notes
   slug?: string;                        // V8 — route slug (e.g. 'journal/2026-07-13'); UUID-keyed notes carry their original route id here
   pageId?: string;                      // Dual-ID projection: generic page render target (/p/:slug)
+  notebookId?: string;
+  seedOrigin?: 'seed' | 'user';
 }
 
 /**

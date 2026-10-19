@@ -510,9 +510,13 @@ export function parseQuery(raw: string): AnyParsedQuery {
  *   - Legacy trailing `in <scope>` rewrites into `{source:<scope>}`
  * Returns the normalized query string and any deprecation advisories.
  */
+function normalizeNotebookFilterText(raw: string): string {
+  return raw.replace(/\bnotebook:notebook\/([a-zA-Z0-9_-]+)/g, 'notebook:"notebook/$1"');
+}
+
 export function normalizeWql(raw: string): { query: string; advisories: string[] } {
   const advisories: string[] = [];
-  let text = raw.trim();
+  let text = normalizeNotebookFilterText(raw.trim());
 
   const { primary, where } = splitAtWhere(text);
   const isFind = primary.startsWith('find:');
@@ -838,7 +842,8 @@ function cannotParseFind(text: string): string {
 }
 
 function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuery {
-  const { text: rawNoPipes, pipes } = extractPipes(raw);
+  const normalizedRaw = normalizeNotebookFilterText(raw);
+  const { text: rawNoPipes, pipes } = extractPipes(normalizedRaw);
   const suffixes = parseWqlSuffixes(rawNoPipes);
   const { where: whereText, window: windowSuffix, legacyScope, groupBy, displayUnit, primaryText: text } = suffixes;
   const win = toQueryWindow(windowSuffix);

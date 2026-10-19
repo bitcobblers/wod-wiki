@@ -598,3 +598,59 @@ describe('rowsQueryResultToEntries', () => {
     expect(entries[0]!.id).toBe('res-1:0')
   })
 })
+
+describe('toEntry — notebook/{slug} identity and application-level editability', () => {
+  it('populates canonical notebookId (notebook/{slug}) and editable (only user-created notes are editable)', () => {
+    const journal = toEntry({
+      id: '01950000-0000-7000-8000-000000000001',
+      title: 'Today Log',
+      rawContent: '# Log',
+      sourceRevision: 1,
+      blocks: {},
+      createdAt: 1000,
+      seedOrigin: 'user',
+    })
+    expect(journal.notebookId).toBe('notebook/journal')
+    expect(journal.editable).toBe(true)
+
+    const playground = toEntry({
+      id: 'pg-1',
+      title: 'Scratch',
+      rawContent: '# Scratch',
+      sourceRevision: 1,
+      blocks: {},
+      createdAt: 1000,
+      sourceId: 'playground',
+      type: 'playground',
+    })
+    expect(playground.notebookId).toBe('notebook/playground')
+    expect(playground.editable).toBe(true)
+
+    const guide = toEntry({
+      id: 'g-1',
+      title: 'Start Guide',
+      rawContent: '# Start',
+      sourceRevision: 1,
+      blocks: {},
+      createdAt: 1000,
+      sourceId: 'guides:guide/start',
+      seedOrigin: 'seed',
+    })
+    expect(guide.notebookId).toBe('notebook/guides')
+    expect(guide.editable).toBe(false)
+
+    const seedWorkout = toEntry({
+      id: 'fran-1',
+      title: 'Fran',
+      rawContent: '# Fran',
+      sourceRevision: 1,
+      blocks: {},
+      createdAt: 1000,
+      sourceId: 'collection:crossfit-girls/fran',
+      catalog: 'crossfit-girls',
+      seedOrigin: 'seed',
+    })
+    expect(seedWorkout.notebookId).toBe('notebook/crossfit-girls')
+    expect(seedWorkout.editable).toBe(false)
+  })
+})

@@ -230,6 +230,13 @@ export {
 export {
   // QueryService
   QueryService,
+  DEFAULT_NOTEBOOK_SLUGS,
+  toNotebookId,
+  notebookSlugFromId,
+  notebookOfItem,
+  isNoteEditable,
+  type DefaultNotebookSlug,
+  type NotebookId,
   type EventStore,
   type NoteQueryStore,
   type BlockQueryStore,

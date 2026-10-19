@@ -37,7 +37,8 @@ function entryFromDomainRow(row: DomainEntry): HistoryEntry {
         targetDate: row.note.date ?? row.note.createdAt,
         rawContent: row.note.rawContent, blocks: row.note.blocks, sourceRevision: row.note.sourceRevision,
         tags: row.tags.map(tag => tag.label), type: row.note.type ?? 'note',
-        sourceId: row.note.sourceId, catalog: row.note.catalog, schemaVersion: 1,
+        sourceId: row.note.sourceId, catalog: row.note.catalog, notebookId: row.note.notebookId,
+        seedOrigin: row.note.seedOrigin, schemaVersion: 1,
     };
 }
 

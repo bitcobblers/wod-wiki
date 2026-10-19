@@ -30,8 +30,8 @@ const AGGREGATE_TYPES: ReadonlySet<string> = new Set([
   'time', 'groupby', 'rollup', 'unit', 'where', 'agg', 'metric',
 ]);
 const TARGET_TYPES: Readonly<Record<string, ReadonlySet<string>>> = {
-  note: new Set(['text', 'catalog', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where']),
-  block: new Set(['text', 'catalog', 'tag', 'effort', 'type', 'source', 'note', 'time', 'groupby', 'where']),
+  note: new Set(['text', 'catalog', 'notebook', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where']),
+  block: new Set(['text', 'catalog', 'notebook', 'tag', 'effort', 'type', 'source', 'note', 'time', 'groupby', 'where']),
   effort: new Set([...WQL_EFFORT_FILTER_KEYS, 'groupby']),
   session: new Set(['result', 'block', 'note', 'plane', 'time', 'groupby']),
   segment: new Set([...TABLE_KEYS, 'time', 'groupby', 'unit']),

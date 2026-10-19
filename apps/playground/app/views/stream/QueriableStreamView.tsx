@@ -26,6 +26,8 @@ import { onResultSaved } from '@/services/resultRecorder'
 import { useSeedLibraryMissing, useSeedReadiness } from '@/services/seed/seedReadiness'
 import { syncSeedSource, type SeedSyncProgress } from '@/services/seed/seedSync'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
+import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
+import { notebookService, storageService } from '@/hooks/useBrowserServices'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
@@ -265,6 +267,20 @@ export function QueriableStreamView({
   }, [navigate, location.pathname, location.search])
   const catalogsManager = isCatalogsRoute ? (
     <CatalogsManagerDrawer open={manageOpen} onOpenChange={setManageOpen} />
+  ) : null
+  const [createNotebookOpen, setCreateNotebookOpen] = useState(false)
+  const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
+    const created = await notebookService.create(name, description, icon)
+    await storageService.saveNote(notebookService.createNotebookLandingNote(created))
+    setSavedTick(t => t + 1)
+    return created
+  }, [])
+  const createNotebookDialog = isCatalogsRoute ? (
+    <CreateNotebookDialog
+      open={createNotebookOpen}
+      onOpenChange={setCreateNotebookOpen}
+      onCreate={handleCreateNotebook}
+    />
   ) : null
 
   const parsed = useMemo(() => parseQuery(query), [query])
@@ -735,6 +751,7 @@ export function QueriableStreamView({
         aria-busy="true"
       >
         {catalogsManager}
+        {createNotebookDialog}
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
           <div className="w-full max-w-2xl space-y-3" aria-hidden="true">
             <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
@@ -750,6 +767,7 @@ export function QueriableStreamView({
   return (
     <div className="bg-card flex flex-col flex-1" data-testid="queriable-stream-view">
       {catalogsManager}
+      {createNotebookDialog}
       {/* Desktop: single-line header — the query bar fills the row left
           empty by the removed title. The header itself is the sticky zone
           (lg:sticky top-0) and MUST be a direct child of this full-height
@@ -773,6 +791,16 @@ export function QueriableStreamView({
                 >
                   <Plus className="size-3.5" />
                   <span>New</span>
+                </Button>
+              ) : isCatalogsRoute ? (
+                <Button
+                  size="sm"
+                  onClick={() => setCreateNotebookOpen(true)}
+                  className="h-9 px-2.5 text-xs gap-1.5"
+                  data-testid="notebooks-create-button"
+                >
+                  <Plus className="size-3.5" />
+                  <span>New Notebook</span>
                 </Button>
               ) : undefined
             }

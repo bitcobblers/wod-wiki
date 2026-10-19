@@ -1,18 +1,41 @@
 /**
  * Notebook Types
  *
- * A notebook is a named, tag-based collection of workout entries.
- * Entries belong to a notebook via their `tags` array using the
- * `notebook:{id}` convention.
+ * Every notebook carries a canonical `notebook/{slug}` identifier
+ * (including the predefined default notebooks `notebook/journal`,
+ * `notebook/playground`, and `notebook/guides`).
+ *
+ * Read-only / editability is decided at the application level via
+ * `isNoteEditable` (only user-created notes `seedOrigin !== 'seed'` are editable).
  */
+import {
+    DEFAULT_NOTEBOOK_SLUGS,
+    isNoteEditable,
+    notebookSlugFromId,
+    toNotebookId,
+    type DefaultNotebookSlug,
+    type Notebook,
+    type NotebookId,
+    type NotebookOrigin,
+} from '@bitcobblers/wod-wiki-core';
 
-export interface Notebook {
-    id: string;
-    name: string;
-    description: string;
-    icon: string;           // emoji character
-    createdAt: number;      // Unix ms
-    lastEditedAt: number;   // Unix ms
+export {
+    DEFAULT_NOTEBOOK_SLUGS,
+    isNoteEditable,
+    notebookSlugFromId,
+    toNotebookId,
+    type DefaultNotebookSlug,
+    type Notebook,
+    type NotebookId,
+    type NotebookOrigin,
+};
+
+/** Slugify a human notebook name into a lowercase hyphenated slug. */
+export function slugifyNotebookName(name: string): string {
+    return name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'notebook';
 }
 
 /** The tag prefix used to associate entries with notebooks */

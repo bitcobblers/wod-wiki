@@ -39,6 +39,8 @@ export interface Note {
   type?: NoteKind;
   sourceId?: string;
   catalog?: string;
+  /** Canonical notebook identifier ('notebook/{slug}', e.g. 'notebook/journal', 'notebook/playground', 'notebook/guides'). */
+  notebookId?: string;
   tags?: string[];
   seedOrigin?: 'seed' | 'user';
   seedVersion?: number;
@@ -117,6 +119,7 @@ export interface BlockIndexRow {
   sourceId?: string;
   sourcePath?: string;
   routeId?: string;
+  notebookId?: string;
 }
 
 // ---------------------------------------------------------------------------

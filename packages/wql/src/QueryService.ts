@@ -100,6 +100,60 @@ export function catalogOfItem(item: { id?: string; noteId?: string; sourceId?: s
   return clean.split('/')[0];
 }
 
+import {
+  DEFAULT_NOTEBOOK_SLUGS,
+  isNoteEditable,
+  notebookSlugFromId,
+  toNotebookId,
+  type DefaultNotebookSlug,
+  type NotebookId,
+} from '@bitcobblers/wod-wiki-core';
+
+export {
+  DEFAULT_NOTEBOOK_SLUGS,
+  isNoteEditable,
+  notebookSlugFromId,
+  toNotebookId,
+  type DefaultNotebookSlug,
+  type NotebookId,
+};
+
+/**
+ * Resolve the canonical `notebook/{slug}` container for any Note or BlockIndexRow.
+ * Unifies explicit `notebookId`, default notebooks (`notebook/journal`, `notebook/playground`,
+ * `notebook/guides`), `notebook:{slug}` tags, and seed catalogs (`notebook/{catalog}`).
+ */
+export function notebookOfItem(item: {
+  id?: string;
+  noteId?: string;
+  sourceId?: string;
+  type?: string;
+  seedOrigin?: string;
+  seedChunkId?: string;
+  sourcePath?: string;
+  catalog?: string;
+  notebookId?: string;
+  tags?: readonly string[];
+}): NotebookId | undefined {
+  if (item.notebookId && item.notebookId.trim()) {
+    return toNotebookId(item.notebookId);
+  }
+  if (item.tags) {
+    for (const tag of item.tags) {
+      if (tag.startsWith('notebook:') || tag.startsWith('notebook/')) {
+        const slug = notebookSlugFromId(tag);
+        if (slug) return toNotebookId(slug);
+      }
+    }
+  }
+  if (sourceMatches(item, 'playground')) return 'notebook/playground';
+  if (sourceMatches(item, 'guides')) return 'notebook/guides';
+  const cat = catalogOfItem(item);
+  if (cat) return toNotebookId(cat);
+  if (sourceMatches(item, 'journal')) return 'notebook/journal';
+  return undefined;
+}
+
 /** Match a single row against one source filter value. The `journal` kind matches
  *  rows with no sourceId, the literal 'journal', or UUID / journal/date lineage
  *  pointing to the original note. Lineage also passes corpus exclusions below.
@@ -121,7 +175,7 @@ export function catalogOfItem(item: { id?: string; noteId?: string; sourceId?: s
 export function sourceMatches(
   item: {
     id?: string; noteId?: string; sourceId?: string; type?: string;
-    seedOrigin?: string; seedChunkId?: string; sourcePath?: string; catalog?: string;
+    seedOrigin?: string; seedChunkId?: string; sourcePath?: string; catalog?: string; notebookId?: string;
   },
   kind: string,
 ): boolean {
@@ -172,6 +226,21 @@ function applySourceFilter<T extends { sourceId?: string; type?: string }>(items
     items = items.filter(item => {
       const match = wants.some(w => sourceMatches(item, w));
       return filter.negate ? !match : match;
+    });
+  }
+  return items;
+}
+
+/** Apply the `notebook:` filter key to a list of Note or BlockIndexRow items. */
+function applyNotebookFilter<T extends Parameters<typeof notebookOfItem>[0]>(items: T[], filters: TagFilter[]): T[] {
+  for (const filter of filters) {
+    if (filter.key !== 'notebook') continue;
+    const wanted = new Set(filter.values.map(v => toNotebookId(v.value)));
+    items = items.filter(item => {
+      const nb = notebookOfItem(item);
+      if (!nb) return filter.negate;
+      const hit = wanted.has(nb);
+      return filter.negate ? !hit : hit;
     });
   }
   return items;
@@ -1314,6 +1383,7 @@ export class QueryService {
         });
       }
     }
+    notes = applyNotebookFilter(notes, parsed.filters);
 
     // Note filter — exact note id
     for (const filter of parsed.filters) {
@@ -1496,6 +1566,7 @@ export class QueryService {
         });
       }
     }
+    blocks = applyNotebookFilter(blocks, parsed.filters);
 
     // Tags filter — matches if the parent note has the tag
     for (const filter of parsed.filters) {

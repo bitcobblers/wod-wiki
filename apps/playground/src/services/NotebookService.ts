@@ -10,14 +10,32 @@
  */
 
 import { v7 as uuidv7 } from 'uuid';
-import type { Notebook } from '../types/notebook';
+import type { Note } from '@bitcobblers/wod-wiki-core';
+import { slugifyNotebookName, toNotebookId, type Notebook } from '../types/notebook';
 import { LocalStore } from './storage/LocalStore';
 import { remotePrefsMode, metaPrefBackend, metaSetPref } from './storage/metaStore';
+import {
+    CORE_SEED_URL,
+    COMMUNITY_SEED_URL,
+    listPackageSources,
+    listSyncPackages,
+} from './seed/seedSources';
+import { isSeedSubscribed } from './seed/seedSubscriptions';
 
 const NOTEBOOKS_KEY = 'notebooks';
 const ACTIVE_KEY = 'active-notebook';
 
 const DEFAULT_ICONS = ['📓', '🏋️', '🔥', '💪', '⭐', '🎯', '🏃', '🧘', '🥊', '🚴'];
+
+function normalizeStoredNotebook(raw: Notebook): Notebook {
+    const slug = raw.slug || slugifyNotebookName(raw.name || raw.id);
+    return {
+        ...raw,
+        slug,
+        notebookId: raw.notebookId || toNotebookId(slug),
+        origin: raw.origin || 'user',
+    };
+}
 
 export class NotebookService {
     constructor(private store: LocalStore = new LocalStore('wodwiki:', remotePrefsMode ? metaPrefBackend : undefined)) {}
@@ -35,11 +53,119 @@ export class NotebookService {
     }
 
     getAll(): Notebook[] {
-        return this.store.get<Notebook[]>(NOTEBOOKS_KEY) ?? [];
+        const stored = this.store.get<Notebook[]>(NOTEBOOKS_KEY) ?? [];
+        return stored.map(normalizeStoredNotebook);
+    }
+
+    /**
+     * Predefined default notebooks (`notebook/journal`, `notebook/playground`, `notebook/guides`).
+     * `guides` is linked to the `core` seed source URL.
+     */
+    getDefaultNotebooks(): Notebook[] {
+        return [
+            {
+                id: 'notebook/journal',
+                slug: 'journal',
+                notebookId: 'notebook/journal',
+                name: 'Journal',
+                description: 'Dated training log and scheduled workouts.',
+                icon: '📅',
+                origin: 'default',
+                createdAt: 0,
+                lastEditedAt: 0,
+            },
+            {
+                id: 'notebook/playground',
+                slug: 'playground',
+                notebookId: 'notebook/playground',
+                name: 'Playground',
+                description: 'Scratchpad workouts and timer experiments.',
+                icon: '🧪',
+                origin: 'default',
+                createdAt: 0,
+                lastEditedAt: 0,
+            },
+            {
+                id: 'notebook/guides',
+                slug: 'guides',
+                notebookId: 'notebook/guides',
+                name: 'Guides',
+                description: 'Built-in Whiteboard Language and WQL guides.',
+                icon: '📖',
+                origin: 'default',
+                sourceEntryId: 'core',
+                sourceUrl: CORE_SEED_URL,
+                seedChunkId: 'canvas',
+                createdAt: 0,
+                lastEditedAt: 0,
+            },
+        ];
+    }
+
+    /**
+     * Seed-delivered notebooks, each bound to the registered source entry and URL
+     * where the seed is pulled from (`PackageSource.id` + `PackageSource.url`).
+     */
+    getSeedNotebooks(options?: { onlySubscribed?: boolean }): Notebook[] {
+        const sourcesById = new Map(listPackageSources().map((s) => [s.id, s]));
+        const out: Notebook[] = [];
+        for (const pkg of listSyncPackages()) {
+            if (pkg.category === 'dashboards') continue;
+            if (options?.onlySubscribed && !isSeedSubscribed(pkg.id) && !isSeedSubscribed('community')) {
+                continue;
+            }
+            const slug = pkg.chunkId.replace(/^(?:collection|feed)\./, '');
+            const source = sourcesById.get(pkg.sourceId);
+            const sourceUrl = source?.url ?? COMMUNITY_SEED_URL;
+            const repositoryUrl = pkg.repositoryUrl ?? source?.repositoryUrl;
+            out.push({
+                id: toNotebookId(slug),
+                slug,
+                notebookId: toNotebookId(slug),
+                name: pkg.label,
+                description: pkg.description,
+                icon: pkg.category === 'feeds' ? '📡' : '📚',
+                origin: 'seed',
+                sourceEntryId: pkg.sourceId,
+                packageId: pkg.id,
+                sourceUrl,
+                ...(repositoryUrl ? { repositoryUrl } : {}),
+                seedChunkId: pkg.chunkId,
+                createdAt: 0,
+                lastEditedAt: 0,
+            });
+        }
+        return out;
+    }
+
+    /** Build a canonical storage Note for a user-created notebook landing page. */
+    createNotebookLandingNote(notebook: Notebook): Note {
+        return {
+            id: uuidv7(),
+            title: notebook.name,
+            rawContent: notebook.description ? `# ${notebook.name}\n\n${notebook.description}\n` : `# ${notebook.name}\n`,
+            sourceRevision: 1,
+            blocks: {},
+            createdAt: notebook.createdAt,
+            type: 'feed',
+            sourceId: `page:collection:${notebook.slug}`,
+            catalog: notebook.slug,
+            notebookId: notebook.notebookId,
+            seedOrigin: 'user',
+        };
+    }
+
+    /** All notebooks across defaults, user-created, and seed-delivered sources. */
+    getAllCatalogNotebooks(): Notebook[] {
+        const byNotebookId = new Map<string, Notebook>();
+        for (const nb of [...this.getDefaultNotebooks(), ...this.getSeedNotebooks(), ...this.getAll()]) {
+            byNotebookId.set(nb.notebookId, nb);
+        }
+        return [...byNotebookId.values()];
     }
 
     getById(id: string): Notebook | null {
-        return this.getAll().find(n => n.id === id) ?? null;
+        return this.getAll().find(n => n.id === id || n.notebookId === id || n.slug === id) ?? null;
     }
 
     /** Persists the list before callers mutate shared state — a failed
@@ -50,15 +176,31 @@ export class NotebookService {
 
     private async createNow(name: string, description: string, icon: string): Promise<Notebook> {
         const now = Date.now();
+        const existing = this.getAll();
+        const baseSlug = slugifyNotebookName(name);
+        const taken = new Set([
+            'journal',
+            'playground',
+            'guides',
+            ...existing.map((n) => n.slug),
+        ]);
+        let slug = baseSlug;
+        for (let i = 2; taken.has(slug); i++) {
+            slug = `${baseSlug}-${i}`;
+        }
+        const canonicalId = toNotebookId(slug);
         const notebook: Notebook = {
-            id: uuidv7(),
+            id: canonicalId,
+            slug,
+            notebookId: canonicalId,
             name,
             description,
             icon,
+            origin: 'user',
             createdAt: now,
             lastEditedAt: now,
         };
-        await this.saveAll([...this.getAll(), notebook]);
+        await this.saveAll([...existing, notebook]);
         return notebook;
     }
 

@@ -10,8 +10,7 @@
  */
 import type { BlockIndexRow, Note } from '@/types/storage'
 import type { IEffort, RowsRun, RowsQueryResult } from '@bitcobblers/wod-wiki-wql'
-import { catalogOfItem } from '@bitcobblers/wod-wiki-wql'
-import type { EventRecord, StoredOutputStatement } from '@bitcobblers/wod-wiki-core'
+import { catalogOfItem, isNoteEditable, notebookOfItem } from '@bitcobblers/wod-wiki-wql'
 import { formatDateKey } from '../services/dateUtils'
 import { parseNoteId } from '@/lib/noteIdentity'
 
@@ -100,6 +99,10 @@ export interface Entry {
   /** Executor-exact catalog (QueryService.catalogOfItem) — the directory id
    *  the `catalog:` filter matches; not the presentation sourceCatalog. */
   catalog?: string
+  /** Canonical `notebook/{slug}` identifier ('notebook/journal', 'notebook/playground', 'notebook/guides', etc.). */
+  notebookId?: string
+  /** Application-level editability flag: true only for user-created notes (`seedOrigin !== 'seed'`). */
+  editable?: boolean
   /** Original Note.id — Entry.id is the route-clean id (collection entries
    *  drop the `page:collection:` prefix), while `note:` filters match the
    *  stored note id. */
@@ -207,6 +210,8 @@ export function toEntry(note: Note): Entry {
     ...toEntryBase(note),
     noteType: note.type,
     catalog: catalogOfItem(note),
+    notebookId: notebookOfItem(note),
+    editable: isNoteEditable(note),
     noteId: note.id,
   }
 }

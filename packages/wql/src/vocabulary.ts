@@ -45,7 +45,7 @@ export type WqlTagKey = (typeof WQL_TAG_KEYS)[number];
 /** Content-plane keys — meaningful only on find:/rows:. On an aggregate
  *  they are a category error (a fact row has no note text or source);
  *  every other non-structural key is a candidate custom dimension. */
-export const WQL_CONTENT_ONLY_KEYS = ['type', 'text', 'has', 'source', 'catalog'] as const;
+export const WQL_CONTENT_ONLY_KEYS = ['type', 'text', 'has', 'source', 'catalog', 'notebook'] as const;
 
 /** Filter keys the effort registry can resolve (runFindEffort) — anything
  *  else on find:effort is ignored and reported as an advisory. */

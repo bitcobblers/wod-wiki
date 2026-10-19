@@ -70,4 +70,31 @@ describe('NotebookService', () => {
     expect(activeId).toBe(nb1.id);
     expect(service.getAll()).toHaveLength(1);
   });
+
+  it('assigns canonical notebook/{slug} identifiers and exposes predefined defaults (journal, playground, guides)', async () => {
+    const defaults = service.getDefaultNotebooks();
+    expect(defaults.map((n) => n.notebookId)).toEqual([
+      'notebook/journal',
+      'notebook/playground',
+      'notebook/guides',
+    ]);
+    expect(defaults.find((n) => n.slug === 'guides')?.sourceEntryId).toBe('core');
+    expect(defaults.find((n) => n.slug === 'guides')?.sourceUrl).toContain('seed/core/');
+
+    const created = await service.create('2027 Open Prep', '8-week block', '🔥');
+    expect(created.slug).toBe('2027-open-prep');
+    expect(created.id).toBe('notebook/2027-open-prep');
+    expect(created.notebookId).toBe('notebook/2027-open-prep');
+    expect(created.origin).toBe('user');
+  });
+
+  it('binds seed-delivered notebooks to the registered source entry and URL where the seed is pulled from', () => {
+    const seedNotebooks = service.getSeedNotebooks();
+    const girls = seedNotebooks.find((n) => n.notebookId === 'notebook/crossfit-girls');
+    expect(girls).toBeDefined();
+    expect(girls?.origin).toBe('seed');
+    expect(girls?.sourceEntryId).toBe('common');
+    expect(girls?.packageId).toBe('community-crossfit-girls');
+    expect(girls?.sourceUrl).toContain('wod-wiki-community');
+  });
 });
