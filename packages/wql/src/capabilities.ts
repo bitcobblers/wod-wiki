@@ -14,7 +14,7 @@ import {
  * results and the view groups them, ordered and multi-dim. The find tables
  * (segment/event) group inside the executor over selected columns instead.
  */
-export const CONTENT_GROUPING_DIMENSIONS = ['date', 'day', 'week', 'month', 'year', 'discipline', 'origin', 'source', 'kind', 'type', 'tag'] as const;
+export const CONTENT_GROUPING_DIMENSIONS = ['date', 'day', 'week', 'month', 'year', 'discipline', 'origin', 'source', 'notebook', 'kind', 'type', 'tag'] as const;
 
 /** Clause types that never name a data field. `metric` is NOT structural:
  *  as a filter key it selects fact rows by their metric (metric:reps); the

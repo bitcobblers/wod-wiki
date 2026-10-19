@@ -26,7 +26,7 @@
 <meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
 <style id="wb-styles">
   :root { --wb-bar-height: 112px; }
-  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); }
+  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); color-scheme: light; }
   [data-whiteboard-anchor] { scroll-margin-top: 16px; }
   .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
   .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
@@ -90,7 +90,7 @@
 <p class="purpose" id="wb-p-a7d6e7353d0f497abbab7ea582fde89b" data-whiteboard-anchor>Every page type renders inside the same three chrome channels; per-type tables below only record what differs.</p>
 <table>
   <tr><th id="wb-th-16c73318cc4d450da91e682d78ad7b11" data-whiteboard-anchor>Sticky header</th><td id="wb-td-21904ab1841c482f86ca9306d823617d" data-whiteboard-anchor>Top app bar (65px mobile / 104px desktop): L1 nav toggle, page title/crumb, <strong>Search</strong> (Ctrl+/), <strong>New</strong> split button (jumps to today / pick a date), cast. Trailing <strong>⋯ Page options</strong> (hidden ≥1520px): mirrors the L3 rail — stream controls, secondary sections, On&nbsp;this&nbsp;page, <strong>Download Markdown</strong> (only when the route resolves a document).</td></tr>
-  <tr><th id="wb-th-623e50cb4bcc4c18bb6024263901718f" data-whiteboard-anchor>L2 nav</th><td id="wb-td-ec54fea8f185436c91c0713a149d172e" data-whiteboard-anchor>Left sidebar. L1 rail = Home, Journal, Catalogs, Feeds, Playgrounds, Dashboard, Efforts, Sessions, Settings + external Buy&nbsp;Me&nbsp;a&nbsp;Coffee. Stream zones mount the shared <em>ConditionsNavPanel</em>: create action, landing row, saved WQL shortcuts (save/clear), grouping presets (“Arrange by…”, “All time”), and the <strong>FacetProperties</strong> accordion — the only surface that renders where-clause filters.</td></tr>
+  <tr><th id="wb-th-623e50cb4bcc4c18bb6024263901718f" data-whiteboard-anchor>L2 nav</th><td id="wb-td-ec54fea8f185436c91c0713a149d172e" data-whiteboard-anchor>Left sidebar. L1 rail = Home, Journal, Notebooks, Notes, Playgrounds, Dashboard, Efforts, Equipment, Sessions, Settings + external Buy&nbsp;Me&nbsp;a&nbsp;Coffee. Stream zones mount the shared <em>ConditionsNavPanel</em>: create action, landing row, saved WQL shortcuts (save/clear), grouping presets (“Arrange by…”, “All time”), and the <strong>FacetProperties</strong> accordion — the only surface that renders where-clause filters.</td></tr>
   <tr><th id="wb-th-e1c825faed4d4cbea026e3f10bb0991e" data-whiteboard-anchor>L3 nav</th><td id="wb-td-3c055a113931415aacc5f54cc5e665b6" data-whiteboard-anchor>Right rail ≥1520px; same content in ⋯ menu (984–1519px) and right drawer (&lt;1024px). Exactly one writer per page kind publishes <code>l3Items</code>; empty writers skip. Scroll items jump to section ids; <code>time</code> fences get a Run secondary action.</td></tr>
 </table>
 
@@ -115,24 +115,24 @@
   <tr><th id="wb-th-9903bd8dab9243c8b0a1f6d3f9c913c4" data-whiteboard-anchor>Key buttons</th><td id="wb-td-0c1a380b71dd49dea616918c0e83ff4b" data-whiteboard-anchor>Run (per time block), Edit pencil, Clone (copy to another date/page, links back), Note relationships, Download Markdown, stream controls (date window + Group By) in the L3 rail.</td></tr>
 </table>
 
-<h1 id="wb-h1-f32a79144a45474d9d92459ddb569374" data-whiteboard-anchor>Catalogs</h1>
-<p class="purpose" id="wb-p-0dffb642db34480b8952324a6520e9bd" data-whiteboard-anchor>Seed-library catalog listing (e.g. CrossFit Girls, kettlebell programs). Dead-ends without an imported library — surfaces the core-only sync notice.</p>
+<h1 id="wb-h1-f32a79144a45474d9d92459ddb569374" data-whiteboard-anchor>Notebooks</h1>
+<p class="purpose" id="wb-p-0dffb642db34480b8952324a6520e9bd" data-whiteboard-anchor>Notebook directory listing (`notebook/{slug}`): predefined defaults (<code>notebook/journal</code>, <code>notebook/playground</code>, <code>notebook/guides</code>), user-created notebooks, and seed-delivered notebooks tied to their source URL.</p>
 <table>
   <tr><th id="wb-th-f5a83aad549d4d4790a94540f6cbf733" data-whiteboard-anchor>Routes</th><td id="wb-td-c4ee0056a94c4d1cbc8f61a65804fb34" data-whiteboard-anchor><code>/catalogs</code></td></tr>
-  <tr><th id="wb-th-535e066247514aa384e307766c78894b" data-whiteboard-anchor>L2 nav</th><td id="wb-td-d59c87bba6fb4492ab4ac58aeeee8e8e" data-whiteboard-anchor>Catalogs zone: landing <em>All catalogs</em>; same ConditionsNavPanel chrome, no extra children, no create action.</td></tr>
-  <tr><th id="wb-th-6de50722e9624707b60018ca5f930076" data-whiteboard-anchor>L3 nav</th><td id="wb-td-0b1be01922ac43a999ec360e91151126" data-whiteboard-anchor>Stream date groups.</td></tr>
-  <tr><th id="wb-th-32a9741378ef479cbe512c15148a8d6f" data-whiteboard-anchor>Default WQL</th><td class="wql" id="wb-td-3c681940c769475f95d55c3627062eba" data-whiteboard-anchor>:catalog{} by {tag} — target <code>note</code>, scope favorites [feeds]; seedNotice on</td></tr>
-  <tr><th id="wb-th-227eea8a728243e3a1cde443c4615eee" data-whiteboard-anchor>Key buttons</th><td id="wb-td-3dec57fbda8a4127b5ec41c060d8e4b3" data-whiteboard-anchor>Sync notice CTA (import seed library); landing row routes to <code>/catalogs</code>.</td></tr>
+  <tr><th id="wb-th-535e066247514aa384e307766c78894b" data-whiteboard-anchor>L2 nav</th><td id="wb-td-d59c87bba6fb4492ab4ac58aeeee8e8e" data-whiteboard-anchor>Notebooks zone: landing <em>All notebooks</em>; same ConditionsNavPanel chrome.</td></tr>
+  <tr><th id="wb-th-6de50722e9624707b60018ca5f930076" data-whiteboard-anchor>L3 nav</th><td id="wb-td-0b1be01922ac43a999ec360e91151126" data-whiteboard-anchor>Stream date/tag groups.</td></tr>
+  <tr><th id="wb-th-32a9741378ef479cbe512c15148a8d6f" data-whiteboard-anchor>Default WQL</th><td class="wql" id="wb-td-3c681940c769475f95d55c3627062eba" data-whiteboard-anchor>:notebook{} by {tag} (alias :catalog{} by {tag}) — target <code>note</code>, scope favorites [feeds]; seedNotice on</td></tr>
+  <tr><th id="wb-th-227eea8a728243e3a1cde443c4615eee" data-whiteboard-anchor>Key buttons</th><td id="wb-td-3dec57fbda8a4127b5ec41c060d8e4b3" data-whiteboard-anchor><strong>New Notebook</strong> (opens <code>CreateNotebookDialog</code>), <strong>Manage Notebooks</strong> (opens <code>CatalogsManagerDrawer</code>), Sync notice CTA.</td></tr>
 </table>
 
-<h1 id="wb-h1-f43cb58b527a42499ef1efc60fbce335" data-whiteboard-anchor>Feeds &amp; Collections</h1>
-<p class="purpose" id="wb-p-2d8d706520b946d884bcd6df15edec8e" data-whiteboard-anchor>Sourced-content streams and curated collection pages (README + live WQL queries). Feed item pages are single-note editors; collection workouts open in the named editor.</p>
+<h1 id="wb-h1-f43cb58b527a42499ef1efc60fbce335" data-whiteboard-anchor>Notes &amp; Notebook Landing</h1>
+<p class="purpose" id="wb-p-2d8d706520b946d884bcd6df15edec8e" data-whiteboard-anchor>Notebook workout streams and curated notebook landing pages (README + live WQL queries). Only user-created notes (<code>seedOrigin !== 'seed'</code>) are editable; seed-delivered notes open read-only and can be cloned into any user-writable notebook.</p>
 <table>
   <tr><th id="wb-th-6937723ceb0843c797c087c3bc973bec" data-whiteboard-anchor>Routes</th><td id="wb-td-035ef32ff6b04380a3ffa0727181f73a" data-whiteboard-anchor><code>/feeds</code>, <code>/c/:slug</code>, <code>/c/:slug/:date</code>, <code>/feeds/:feedSlug</code>, <code>/feeds/:feedSlug/:date/:item</code>, <code>/collections/:slug(/:workout)</code> (legacy aliases redirect)</td></tr>
-  <tr><th id="wb-th-904f91507a1442f29d41553cdb38f58b" data-whiteboard-anchor>L2 nav</th><td id="wb-td-5cc4e9b18751451e8179d8e3e9316d78" data-whiteboard-anchor>Feeds zone: create <strong>New note</strong> (source mode), landing <em>All feeds</em>. Predefined extra link: <strong>Catalog crosswalk</strong> → <code>/catalogs</code>.</td></tr>
-  <tr><th id="wb-th-69e7c847a05f4d6489ef96ecb399e24f" data-whiteboard-anchor>L3 nav</th><td id="wb-td-7447d18f0a714b9f822ae26861988541" data-whiteboard-anchor><code>/c/:slug</code>: sections + <em>Explore</em> + one link per collection workout (opens editor). Feed item: note index (headings + time/log blocks). Feed detail: <span class="gap">none today (gap)</span>.</td></tr>
-  <tr><th id="wb-th-06938a88a7c3476885dac3352816cf9d" data-whiteboard-anchor>Default WQL</th><td class="wql" id="wb-td-676d237bac374ad499b389b48d964756" data-whiteboard-anchor>/feeds → :feed{} last 2w — target <code>note</code>, scope favorites [feeds]; seedNotice on. /c/:slug → :feed{catalog:&lt;slug&gt;} by {date} — cards layout, session level.</td></tr>
-  <tr><th id="wb-th-f505bdcd7102490994724e8a369e1060" data-whiteboard-anchor>Key buttons</th><td id="wb-td-90d488365e2c4e85abeaa14a7f0bc464" data-whiteboard-anchor>New note, Clone to journal, Launch on clock, Execute query, member-note navigation (deep-links to <code>/journal/:date/</code>).</td></tr>
+  <tr><th id="wb-th-904f91507a1442f29d41553cdb38f58b" data-whiteboard-anchor>L2 nav</th><td id="wb-td-5cc4e9b18751451e8179d8e3e9316d78" data-whiteboard-anchor>Notes zone: create <strong>New note</strong> (source mode), landing <em>All notes</em>. Predefined extra link: <strong>Notebook crosswalk</strong> → <code>/catalogs</code>.</td></tr>
+  <tr><th id="wb-th-69e7c847a05f4d6489ef96ecb399e24f" data-whiteboard-anchor>L3 nav</th><td id="wb-td-7447d18f0a714b9f822ae26861988541" data-whiteboard-anchor><code>/c/:slug</code>: sections + <em>Explore</em> + one link per notebook workout (opens editor). Note item: note index (headings + time/log blocks).</td></tr>
+  <tr><th id="wb-th-06938a88a7c3476885dac3352816cf9d" data-whiteboard-anchor>Default WQL</th><td class="wql" id="wb-td-676d237bac374ad499b389b48d964756" data-whiteboard-anchor>/feeds → :feed{} — target <code>note</code>, scope favorites [feeds]; seedNotice on. /c/:slug → :note{notebook:&lt;slug&gt;} by {date} — cards layout, session level.</td></tr>
+  <tr><th id="wb-th-f505bdcd7102490994724e8a369e1060" data-whiteboard-anchor>Key buttons</th><td id="wb-td-90d488365e2c4e85abeaa14a7f0bc464" data-whiteboard-anchor>New note, Clone to notebook/journal, Launch on clock, Execute query, member-note navigation.</td></tr>
 </table>
 
 <h1 id="wb-h1-0fa0a868c2e44b9196e43830a39923b8" data-whiteboard-anchor>Playgrounds</h1>

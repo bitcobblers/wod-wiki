@@ -1,8 +1,8 @@
-# Screen: Collection Landing
+# Screen: Notebook Landing
 
 - **Route:** `/c/:slug` (legacy `/collections/:slug`)
 - **Host Component:** `apps/playground/app/canvas/MarkdownCanvasPage.tsx` / `CollectionDetailPage`
-- **Domain Models:** `Collection`, `Page`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`)
+- **Domain Models:** `Notebook` (`notebook/{slug}`), `Page`, `Note` (`rawContent` + occurrence map; saved states in `BlockRevision`)
 
 ---
 

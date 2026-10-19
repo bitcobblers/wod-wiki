@@ -815,7 +815,7 @@ export function QueriableStreamView({
                 className="h-9 gap-1.5 px-2.5 text-xs"
               >
                 <Settings2 className="size-3.5" />
-                <span>Manage Catalogs</span>
+                <span>Manage Notebooks</span>
               </Button>
             )}
             {actions}

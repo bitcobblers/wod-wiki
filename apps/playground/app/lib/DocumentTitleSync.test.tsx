@@ -41,17 +41,17 @@ describe('DocumentTitleSync', () => {
 
   it('sets the base title for /feeds deep detail routes', () => {
     renderAt('/feeds/daily-wod')
-    expect(document.title).toBe('Wod.Wiki - Feeds')
+    expect(document.title).toBe('Wod.Wiki - Notes')
   })
 
   it('sets the base title for /collections deep detail routes', () => {
     renderAt('/collections/cardio')
-    expect(document.title).toBe('Wod.Wiki - Feeds')
+    expect(document.title).toBe('Wod.Wiki - Notes')
   })
 
   it('derives rebranded stream titles from the profile registry', () => {
     renderAt('/c/dan-john')
-    expect(document.title).toBe('Wod.Wiki - Feeds')
+    expect(document.title).toBe('Wod.Wiki - Notes')
 
     renderAt('/sessions')
     expect(document.title).toBe('Wod.Wiki - Sessions')
@@ -96,7 +96,7 @@ describe('DocumentTitleSync', () => {
 
   it('updates title on navigation and leaves exempt routes unchanged', () => {
     const { unmount: u1 } = renderAt('/catalogs')
-    expect(document.title).toBe('Wod.Wiki - Catalogs')
+    expect(document.title).toBe('Wod.Wiki - Notebooks')
     u1()
 
     const { unmount: u2 } = renderAt('/journal/2026-01-01')

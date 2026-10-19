@@ -105,5 +105,11 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
 
     const customRes = await service.runFind(parseQuery(':note{notebook:open-prep}') as Parameters<typeof service.runFind>[0]);
     expect(customRes.notes.map((n) => n.id)).toEqual(['user-nb-1']);
+
+    const notesHeadRes = await service.runFind(parseQuery(':notes{notebook:open-prep}') as Parameters<typeof service.runFind>[0]);
+    expect(notesHeadRes.notes.map((n) => n.id)).toEqual(['user-nb-1']);
+
+    const notebookHeadRes = await service.runFind(parseQuery(':notebook{notebook:crossfit-girls}') as Parameters<typeof service.runFind>[0]);
+    expect(notebookHeadRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
   });
 });

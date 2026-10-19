@@ -422,6 +422,10 @@ export function facetOptions(target: string, key: string, ctx: FacetContext): Fa
       case 'block:catalog':
         if (entry.catalog) bump(entry.catalog)
         break
+      case 'note:notebook':
+      case 'block:notebook':
+        if (entry.notebookId || entry.catalog) bump(entry.notebookId ?? entry.catalog!)
+        break
       case 'note:type':
         if (entry.noteType) bump(entry.noteType)
         break

@@ -98,9 +98,10 @@ Inside the braces:
 | `{text:fran}` | substring (content plane) |
 | `{intensity:high}` | intensity tier — one of `low`, `moderate`, `high` |
 | `{tags:benchmark}` | note tags |
+| `{notebook:crossfit-girls}` | notebook (`notebook/{slug}` or bare slug) |
 | `{coach:greg}` | your custom property |
 
-### Sources {#sources}
+### Notebooks &amp; sources {#sources}
 
 ```button
 label:  Try it: source:journal
@@ -109,13 +110,15 @@ pipeline:
   - set-source: wql-presets/source-journal.md
 ```
 
-The `source:` filter names where content lives — plural values:
+Every note belongs to a canonical `notebook/{slug}` container — including the built-in defaults `notebook/journal`, `notebook/playground`, and `notebook/guides`, user-created notebooks, and seed-delivered notebooks (such as `notebook/crossfit-girls`).
 
-`journal` (your notes) · `feeds` (catalog sessions) · `guides` · `playground` (plus `dashboards`, `efforts`)
+Filter by notebook with `notebook:<slug>` (or `notebook:notebook/<slug>`), or by storage scope with `source:`:
 
-Omitting `source:` searches **all** of them — there is no `source:all` (the parser refuses it). Pin one catalog with an id: `catalog:crossfit-girls`. The old `source:collections` spelling is retired — the parser errors; write `feeds` (storage keeps `collection:`-prefixed sourceIds).
+`journal` (your journal notes) · `feeds` / `notebooks` (notebook notes) · `guides` · `playground` (plus `dashboards`, `efforts`, `equipment`)
 
-Journal scope includes user-created clones whose `sourceId` points to the original note UUID or legacy `journal/YYYY-MM-DD` ID. That backlink does not turn a clone into imported content. Seeded guides, catalog notes, dashboards, efforts, and equipment remain excluded.
+Omitting `source:` and `notebook:` searches **all** notes — there is no `source:all` (the parser refuses it). Pin one notebook with `notebook:crossfit-girls` (or legacy `catalog:crossfit-girls`).
+
+Journal scope includes user-created clones whose `sourceId` points to the original note UUID or legacy `journal/YYYY-MM-DD` ID. Only user-created notes (`seedOrigin !== 'seed'`) are editable; seed-delivered notebook notes are read-only and can be cloned into your writable notebooks.
 
 ### Windows {#windows}
 
@@ -155,7 +158,7 @@ pipeline:
 :block{text:fran,source:feeds}
 ```
 
-Targets: `:note` (whole notes), `:block` (addressable fenced blocks), `:effort` (registry entries, filterable by `effort`, `discipline`, `intensity`, `origin`, `text`), plus the advanced `:session`, `:segment`, `:event` for recorded results and raw rows. Content-only keys (`type`, `text`, `has`, `source`, `catalog`) are category errors on aggregates.
+Targets: `:note` / `:notes` (whole notes), `:notebook` / `:notebooks` (notebooks), `:block` (addressable fenced blocks), `:effort` (registry entries, filterable by `effort`, `discipline`, `intensity`, `origin`, `text`), plus the advanced `:session`, `:segment`, `:event` for recorded results and raw rows. Content-only keys (`type`, `text`, `has`, `source`, `catalog`, `notebook`) are category errors on aggregates.
 
 The search palette's FIND mode matches note titles and bodies within its selected scope and time window. Type plain text or a quoted phrase such as `"workout in the park"`; clearing the text restores the scope. WQL mode retains diagnostics for malformed queries. Freeform CONTAINS rows have no count badge; the results total reports matches.
 

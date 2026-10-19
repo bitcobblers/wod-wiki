@@ -118,8 +118,8 @@ export type WqlSourceValue = (typeof WQL_SOURCE_VALUES)[number];
  *  source-scoped note heads (they parse to target 'note' plus an injected
  *  `source:` filter). */
 export const WQL_SOURCE_HEADS = [
-  'note', 'block', 'effort', 'session', 'segment', 'event',
-  'journal', 'feed', 'feeds', 'catalog', 'catalogs', 'playground',
+  'note', 'notes', 'block', 'effort', 'session', 'segment', 'event',
+  'journal', 'notebook', 'notebooks', 'feed', 'feeds', 'catalog', 'catalogs', 'playground',
   'dashboard',
 ] as const;
 export type WqlSourceHead = (typeof WQL_SOURCE_HEADS)[number];
@@ -127,6 +127,8 @@ export type WqlSourceHead = (typeof WQL_SOURCE_HEADS)[number];
 /** Storage scope a source-scoped note head binds (undefined = plain target). */
 export const WQL_SOURCE_HEAD_SCOPES: Readonly<Record<string, WqlSourceValue>> = {
   journal: 'journal',
+  notebook: 'feeds',
+  notebooks: 'feeds',
   feed: 'feeds',
   feeds: 'feeds',
   catalog: 'feeds',

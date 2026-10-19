@@ -29,8 +29,8 @@ describe('streamProfile', () => {
 
   it('carries a display title per stream surface — deriveWorkout reads these', () => {
     expect(JOURNAL_STREAM_PROFILE.title).toBe('Journal')
-    expect(FEEDS_STREAM_PROFILE.title).toBe('Feeds')
-    expect(CATALOGS_STREAM_PROFILE.title).toBe('Catalogs')
+    expect(FEEDS_STREAM_PROFILE.title).toBe('Notes')
+    expect(CATALOGS_STREAM_PROFILE.title).toBe('Notebooks')
     expect(EFFORTS_STREAM_PROFILE.title).toBe('Efforts')
     expect(SESSIONS_STREAM_PROFILE.title).toBe('Sessions')
     expect(PLAYGROUNDS_STREAM_PROFILE.title).toBe('Playgrounds')

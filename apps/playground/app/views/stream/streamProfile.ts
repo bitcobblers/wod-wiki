@@ -110,7 +110,7 @@ export const JOURNAL_STREAM_PROFILE: StreamProfile = {
 
 export const CATALOGS_STREAM_PROFILE: StreamProfile = {
   route: '/catalogs',
-  title: 'Catalogs',
+  title: 'Notebooks',
   defaultWql: ':catalog{} by {tag}',
   level: 'session',
   target: 'note',
@@ -123,12 +123,12 @@ export const CATALOGS_STREAM_PROFILE: StreamProfile = {
 
 export const FEEDS_STREAM_PROFILE: StreamProfile = {
   route: '/feeds',
-  title: 'Feeds',
+  title: 'Notes',
   defaultWql: ':feed{}',
   level: 'note',
   target: 'note',
   scopeOptions: ['feeds'],
-  emptyMessage: 'No feed entries match your search.',
+  emptyMessage: 'No note entries match your search.',
   // Corpus comes from seed libraries — surface the core-only notice.
   seedNotice: true,
   legacy: createContentLegacyConfig('feeds'),

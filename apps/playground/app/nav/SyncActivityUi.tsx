@@ -84,8 +84,8 @@ function notifyResult(result: NonNullable<SyncActivitySnapshot['result']>, navig
       ? `${parts.join(', ')} — feeds can be refreshed anytime.`
       : 'Nothing new — feeds can be refreshed anytime.',
     action: (
-      <ToastAction altText="Open the catalog" onClick={() => navigate('/catalogs')}>
-        Open catalog
+      <ToastAction altText="Open notebooks" onClick={() => navigate('/catalogs')}>
+        Open notebooks
       </ToastAction>
     ),
   })
@@ -100,9 +100,9 @@ export function SyncActivityNotifier() {
       lastSeenCatalogUpdateId = snapshot.id
       if (!snapshot.updates.length) return
       toast({
-        title: 'Catalog updates',
+        title: 'Notebook updates',
         description: snapshot.updates.map(update => `${update.label}: ${update.state === 'updated' ? 'updated' : update.state === 'error' ? 'sync failed' : 'update available'}`).join('; '),
-        action: <ToastAction altText="Manage catalog updates" onClick={() => navigate(`${ROUTE_PATTERNS.catalogs}?manage=1`)}>Review updates</ToastAction>,
+        action: <ToastAction altText="Manage notebook updates" onClick={() => navigate(`${ROUTE_PATTERNS.catalogs}?manage=1`)}>Review updates</ToastAction>,
       })
     }
     check()

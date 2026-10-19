@@ -44,7 +44,7 @@ describe('Direct route mounting classification (routeView)', () => {
   it('classifies /feeds directly to library with Feeds title', () => {
     const v = resolveRouteView('/feeds', NO_PARAMS, makeDeps())
     expect(v.page).toBe('library')
-    expect(v.workout.name).toBe('Feeds')
+    expect(v.workout.name).toBe('Notes')
     expect(v.shell).toEqual({ wrap: 'bare' })
   })
 

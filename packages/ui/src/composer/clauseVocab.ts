@@ -25,6 +25,7 @@ import { WQL_INTENSITY_TIERS } from '@bitcobblers/wod-wiki-wql';
 export const MULTI_VALUE_TYPES: Record<string, true> = {
   tag: true,
   catalog: true,
+  notebook: true,
   effort: true,
   domain: true,
   format: true,

@@ -328,7 +328,7 @@ function groupByDimension(
     }))
   }
 
-  if (dim === 'source') {
+  if (dim === 'source' || dim === 'notebook') {
     const map = new Map<string, Entry[]>()
     for (const e of entries) {
       const source = e.sourceCatalog || 'Other'
