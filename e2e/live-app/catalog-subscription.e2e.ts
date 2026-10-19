@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const source = 'https://catalog.example.org/training/';
 const manifest = {
-  schema: 8,
+  schema: 9,
   version: 42,
   builtAt: '2026-10-16T00:00:00.000Z',
   name: 'Training catalog',
