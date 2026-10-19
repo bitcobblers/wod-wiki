@@ -50,7 +50,8 @@ describe('useEditorSave', () => {
     expect(committed).toEqual([]);
     act(() => result.current.onChange('draft v2'));
     act(() => result.current.onLineChange(2, 0));
-    await act(async () => { await result.current.flush(); });
+    // No explicit flush — the line change itself must trigger the save.
+    await act(async () => { await Promise.resolve(); });
     expect(committed).toEqual(['draft v2']);
     unmount();
   });

@@ -71,7 +71,7 @@ export function FeedItemPage({
   // The feed item's canonical content is the mdContent fallback.
   // seedOnMount: false — viewing a feed item is read-only against the local
   // index; seeding created undated ghost notes in the library (#856).
-  const { content, noteBlocks, sourceRevision, onIdentityChange, onSaved, onChange, onLineChange, onBlur } = usePlaygroundContent({
+  const { content, noteBlocks, sourceRevision, onIdentityChange, onSaved, onChange, onLineChange, onBlur, flush } = usePlaygroundContent({
     category: playgroundCategory,
     name: feedItem,
     mdContent: item?.content ?? `# ${feedItem}\n\n*Feed item not found.*\n`,
@@ -205,6 +205,7 @@ export function FeedItemPage({
               sourceRevision={sourceRevision}
               onIdentityChange={snapshot => onIdentityChange({ rawContent: snapshot.rawContent, noteBlocks: snapshot.blocks, sourceRevision: snapshot.sourceRevision })}
               onSaved={onSaved}
+              onSaveRequest={flush}
               commands={commands}
               enableInlineRuntime={false}
               onViewCreated={onViewCreated}

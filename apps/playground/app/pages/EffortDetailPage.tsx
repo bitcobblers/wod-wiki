@@ -115,6 +115,9 @@ export function EffortDetailPage() {
     notFound,
     cloneForEdit,
     error,
+    onLineChange,
+    onBlur,
+    flush,
   } = useEffortContent(slug);
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([]);
@@ -527,6 +530,9 @@ export function EffortDetailPage() {
               noteId={noteId}
               value={document}
               onChange={setDocument}
+              onCursorPositionChange={onLineChange}
+              onBlur={onBlur}
+              onSaveRequest={flush}
               theme={actualTheme}
               readonly={false}
               showLineNumbers={true}

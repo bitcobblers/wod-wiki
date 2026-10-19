@@ -387,6 +387,7 @@ export function PlaygroundNotePage({
               onIdentityChange={snapshot => onIdentityChange({ rawContent: snapshot.rawContent, noteBlocks: snapshot.blocks, sourceRevision: snapshot.sourceRevision })}
               onSaved={onSaved}
               beforeRun={async () => { await flush(); return committedSourceRevision(); }}
+              onSaveRequest={flush}
               commands={commands}
               enableInlineRuntime={false}
               onViewCreated={handleInternalViewCreated}

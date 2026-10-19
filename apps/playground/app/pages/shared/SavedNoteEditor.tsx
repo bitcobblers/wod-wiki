@@ -53,7 +53,8 @@ function SavedNoteEditorInstance({ entry, onChange, registerRun, ...props }: Sav
   return <>
     <NoteEditor {...props} noteId={entry.id} value={restoredSource ?? entry.rawContent} noteBlocks={committed.blocks} sourceRevision={committed.sourceRevision}
       onIdentityChange={identityChanged} onSaved={accept} beforeRun={async () => { await saves.flush(); return revisionRef.current; }}
-      onSaveRequest={() => { void saves.flush(); }} onChange={value => { setRestoredSource(null); onChange(value); }} onBlur={saves.onBlur} />
+      onSaveRequest={saves.flush} onChange={value => { setRestoredSource(null); onChange(value); }} onBlur={saves.onBlur}
+      onCursorPositionChange={saves.onLineChange} />
     {saves.error ? <p role="alert">Save failed. {saves.error instanceof Error ? saves.error.message : String(saves.error)} Your draft is kept.</p> : null}
     <BlockHistory noteId={entry.id} blocks={committed.blocks} sourceRevision={committed.sourceRevision} onRevert={async revision => {
       await saves.flush();

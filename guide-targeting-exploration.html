@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Guide Stage Targeting: Beyond the Editor</title>
+<style>
+  :root {
+    --fg: #1a1a2e;
+    --muted: #5a5a72;
+    --border: #d8d8e4;
+    --surface: #f6f6fa;
+    --accent: #2b4acb;
+    --success: #1a7f4b;
+    --warning: #9a6b00;
+    --error: #b3261e;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--fg);
+    background: #ffffff;
+    line-height: 1.65;
+    margin: 0;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 28px 96px; }
+  h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin: 0 0 8px; }
+  h2 { font-size: 1.35rem; margin: 48px 0 12px; padding-top: 20px; border-top: 1px solid var(--border); }
+  h3 { font-size: 1.08rem; margin: 28px 0 8px; }
+  p { margin: 10px 0; }
+  ul, ol { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.84rem;
+    line-height: 1.55;
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 0.9rem; }
+  th, td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--surface); font-weight: 600; }
+  .meta { color: var(--muted); font-size: 0.88rem; margin-bottom: 32px; }
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 16px 0;
+  }
+  .callout.warn { border-left-color: var(--warning); }
+  .callout.ok { border-left-color: var(--success); }
+  .tag { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 4px; padding: 2px 7px; margin-right: 6px; }
+  .tag.today { background: #e3ecff; color: var(--accent); }
+  .tag.gap { background: #fdeaea; color: var(--error); }
+  .tag.idea { background: #e6f4ec; color: var(--success); }
+  .mermaid-src { display: none; }
+  figure.demo { border: 1px dashed var(--border); border-radius: 8px; padding: 14px; margin: 14px 0; background: #fbfbfd; }
+  figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+</style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/guide-targeting-exploration.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  :root { --wb-bar-height: 112px; }
+  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 16px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #cbd5e1; padding: 10px max(16px, calc((100% - 1032px) / 2)); }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 44px; padding: 8px 12px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button:disabled { opacity: .5; cursor: default; }
+  #wb-bar #wb-publish, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-help, #wb-status, #wb-storage-warning { margin: 4px 0 0; font-size: 12px; }
+  #wb-help { color: #475569; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; padding: 16px; border: 1px solid #b45309; border-radius: 8px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current h2 { margin: 0 0 8px; padding: 0; font-size: 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite">0 annotations</strong>
+    <button id="wb-add" type="button" aria-pressed="false">Add annotation</button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation">Previous</button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation">Next</button>
+    <button id="wb-publish" type="button" disabled>Publish</button>
+  </div>
+  <p id="wb-help">Highlight text to annotate, or click Add annotation then click any block. Drafts stay in this browser. Publish copies them for your agent.</p>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+<div class="wrap" data-whiteboard-document>
+
+<h1 id="wb-h1-421ed54f09c642f7afca629d4575ca14" data-whiteboard-anchor>Guide Stage Targeting: Beyond the Editor</h1>
+<p class="meta" id="wb-p-d56c1b9e29f74f8c9840f69c749f7bfe" data-whiteboard-anchor>Whiteboard &middot; wod-wiki &middot; 2026-10-19 &middot; Question: can a guide stage target an image or other rendered markdown/HTML (a specific component) instead of only the timer results or the editor?</p>
+
+<div class="callout">
+<strong>Short answer.</strong> Today a guide stage&rsquo;s <em>highlight ring</em> can only frame the editor panel, a line range inside it, or one of 15 hardcoded tour surfaces. But the <em>caption column</em> already renders arbitrary markdown (images, tables, query widgets), and a generic <code>data-effect-target</code> attribute already lets stages animate any markdown-rendered element. So: arbitrary content renders and can be stage-driven today; what&rsquo;s missing is the ring pointing at it, a non-editor stage pane, and dynamic conditional steps. Proposals below.
+</div>
+
+<h2 id="wb-h2-e2df034274c74863aba3952cae210ff6" data-whiteboard-anchor>1. How the mechanism works today</h2>
+
+<p id="wb-p-4165c54c3dc34980b67f495ee43f76bc" data-whiteboard-anchor>Guide pages are canvas markdown files (<code>markdown/canvas/guide/*.md</code>, eight routed chapters). A page-level <code>```scroll</code> fenced block declares a scroll runway; each stage in it is the markdown-DSL equivalent of the home tour&rsquo;s <code>TourStage</code>.</p>
+
+<svg viewBox="0 0 880 200" width="880" role="img" aria-label="Pipeline: markdown scroll fence to parser to stage objects to runway section, branching to editor pane with ring and to markdown caption">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path>
+    </marker>
+  </defs>
+  <g font-family="inherit" font-size="13" fill="var(--fg)">
+    <rect x="0" y="60" width="150" height="80" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="75" y="95" text-anchor="middle">markdown page</text>
+    <text x="75" y="113" text-anchor="middle" fill="var(--muted)" font-family="monospace" font-size="12">```scroll fence</text>
+
+    <rect x="185" y="60" width="170" height="80" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="270" y="90" text-anchor="middle">parseCanvasMarkdown.ts</text>
+    <text x="270" y="108" text-anchor="middle" fill="var(--muted)" font-family="monospace" font-size="12">parseScrollStages()</text>
+
+    <rect x="390" y="60" width="160" height="80" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="470" y="95" text-anchor="middle">ScrollSpec /</text>
+    <text x="470" y="113" text-anchor="middle">ScrollStage objects</text>
+
+    <rect x="585" y="8" width="140" height="64" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="655" y="34" text-anchor="middle">ScrollRunwaySection</text>
+    <text x="655" y="52" text-anchor="middle" fill="var(--muted)" font-size="12">scroll driver + typewriter</text>
+
+    <rect x="750" y="8" width="126" height="64" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="813" y="34" text-anchor="middle">EditorWindow pane</text>
+    <text x="813" y="52" text-anchor="middle" fill="var(--muted)" font-size="12">ScrollRing on it</text>
+
+    <rect x="585" y="128" width="140" height="64" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="655" y="154" text-anchor="middle">ScrollCaption</text>
+    <text x="655" y="172" text-anchor="middle" fill="var(--muted)" font-size="12">CanvasProse markdown</text>
+
+    <rect x="750" y="128" width="126" height="64" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+    <text x="813" y="154" text-anchor="middle">images, tables,</text>
+    <text x="813" y="172" text-anchor="middle" fill="var(--muted)" font-size="12">query widgets</text>
+
+    <line x1="150" y1="100" x2="183" y2="100" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="355" y1="100" x2="388" y2="100" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="550" y1="80" x2="600" y2="45" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="725" y1="40" x2="748" y2="40" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="550" y1="120" x2="600" y2="155" stroke="var(--muted)" marker-end="url(#arr)"></line>
+    <line x1="725" y1="160" x2="748" y2="160" stroke="var(--muted)" marker-end="url(#arr)"></line>
+  </g>
+</svg>
+
+<p id="wb-p-2a6ad4e5b59144bda22490f397510e8d" data-whiteboard-anchor>A stage is a flat YAML-ish item. Real example, from <code>markdown/canvas/home/README.md</code>:</p>
+
+<pre id="wb-pre-9ad4a2ff835a496b9ecf8c317135c638" data-whiteboard-anchor><code>```scroll
+runway: 720vh
+screen: editor
+stages:
+  - id: timer-intro
+    range: [0, 0.166]
+    screen: timer
+    caption: "Click Run to start the Timer. ..."
+    ring:
+      key: editor.runButton
+      tag: Run Button
+  - id: wql-idea
+    range: [0.5, 0.666]
+    caption: "Query what you just did. ..."
+    ring:
+      tag: "WQL elements"
+```</code></pre>
+
+<p id="wb-p-985b807b3fb7460cb1b3b05d8cffa5cc" data-whiteboard-anchor>What each stage field controls, and what it can point at:</p>
+
+<table>
+  <tr><th id="wb-th-1a86c9b4c50847b7950bc67175863c54" data-whiteboard-anchor>Stage field</th><th id="wb-th-b5c10416a0af462b9bfa8e4104337c01" data-whiteboard-anchor>Parsed into</th><th id="wb-th-ec55534f25a34d349e6cde34549541a7" data-whiteboard-anchor>What it can target today</th></tr>
+  <tr>
+    <td id="wb-td-b134bc0e00154b5192d1adad82033d8d" data-whiteboard-anchor><code>source:</code></td>
+    <td id="wb-td-2e7460eac4784b89982117597a8932a0" data-whiteboard-anchor><code>ScrollStage.source</code> &rarr; editor document swap</td>
+    <td id="wb-td-e7f3a174144e419396eb939239b2f68d" data-whiteboard-anchor>Only the editor pane (<code>resolveSource</code> on <code>wods/examples/**</code>).</td>
+  </tr>
+  <tr>
+    <td id="wb-td-8264f30e57c14fd8b160e6feb21b5430" data-whiteboard-anchor><code>caption:</code></td>
+    <td id="wb-td-fb263b799b024c9c907eeb93ec9df9e0" data-whiteboard-anchor><code>ScrollStage.caption</code> &rarr; <code>ScrollCaption</code> &rarr; <code>CanvasProse</code></td>
+    <td id="wb-td-a98e20d777a1432bb89b6a1d43b8170a" data-whiteboard-anchor><strong>Anything markdown renders</strong>: prose, tables, images (<code>&lt;figure&gt;</code>), <code>```query</code> widgets, code fences. Full component surface already.</td>
+  </tr>
+  <tr>
+    <td id="wb-td-0d61706021754751940db3fa3b0da4c1" data-whiteboard-anchor><code>ring:</code></td>
+    <td id="wb-td-9a902b5f122a42258bd01bc94140f64c" data-whiteboard-anchor><code>{ key?, tag?, lines? } | true</code></td>
+    <td id="wb-td-791013fe595d438494e0a49b08215956" data-whiteboard-anchor>Scroll runways: the <strong>editor window only</strong>, or a 1-based inclusive <code>lines:</code> range (<code>ScrollRing.tsx</code> hardcodes &ldquo;container&rsquo;s first child = EditorWindow&rdquo;). <code>key</code>/<code>tag</code> are parsed but unused here. Home tour: one of 15 hardcoded <code>RingTargetKey</code> strings registered via React context (<code>TourRing.tsx</code>).</td>
+  </tr>
+  <tr>
+    <td id="wb-td-ec90a66907b34fedbe9934e9f7928529" data-whiteboard-anchor><code>screen:</code></td>
+    <td id="wb-td-97c1d83e01184398a26ad542e2d2f7aa" data-whiteboard-anchor><code>'editor' | 'timer' | 'analytics' | 'result'</code></td>
+    <td id="wb-td-1db1abe86b1c4d4f827667dd286af4c3" data-whiteboard-anchor>The <code>ScrollSpec</code> comment says &ldquo;Only &lsquo;editor&rsquo; supported in v1&rdquo;. The tour screens are the four app surfaces &mdash; no image/doc/web pane.</td>
+  </tr>
+  <tr>
+    <td id="wb-td-05cc1f8f7c114b3ea465fbf267a568ac" data-whiteboard-anchor><code>effects:</code></td>
+    <td id="wb-td-a492ae2f3ec84cf4bcde570ad0f31c62" data-whiteboard-anchor><code>ScrollEffect[]</code></td>
+    <td id="wb-td-9b71d75a4c9b47da954704eff4519237" data-whiteboard-anchor><strong>Any descendant of the runway root</strong> carrying <code>data-effect-target="&lt;id&gt;"</code>, queried with <code>querySelectorAll</code> and driven through opacity/translateY windows. The generic-targeting pattern already exists &mdash; for parallax only.</td>
+  </tr>
+  <tr>
+    <td id="wb-td-07bfb8a15dbe4dec93d8760676e5b0c8" data-whiteboard-anchor><code>toast:</code> / <code>quest:</code></td>
+    <td id="wb-td-00be99ea56804db1af85465af5e7fe66" data-whiteboard-anchor>transient message / quest fire</td>
+    <td id="wb-td-e68fbd0b91794ca180d30a104a079ffa" data-whiteboard-anchor>Chrome only; no targeting.</td>
+  </tr>
+</table>
+
+<p id="wb-p-9367785122654655acaca826ef32feea" data-whiteboard-anchor>So the targeting model has two halves:</p>
+<ul>
+  <li id="wb-li-203e0736d24f40abb8aecdc126677021" data-whiteboard-anchor><span class="tag today">Today</span><strong>The pane</strong> is always the app surface (editor/timer/analytics/result). Its sub-elements are addressable two ways: doc <code>lines</code> for the editor, or the tour&rsquo;s closed <code>RingTargetKey</code> registry (screens register wrapper elements under those keys through <code>RingTargetsContext</code>).</li>
+  <li id="wb-li-91757411654f4071a39783e8653fd0df" data-whiteboard-anchor><span class="tag today">Today</span><strong>The caption</strong> is free markdown. <code>data-effect-target</code> proves stages can already reach into arbitrary rendered markdown DOM &mdash; the lookup is a plain selector scoped to the runway root, no registry.</li>
+</ul>
+
+<h2 id="wb-h2-3effa10d9c8d4b24b89242594896d0fa" data-whiteboard-anchor>2. What this means for the question</h2>
+
+<div class="callout ok">
+<strong>Already possible without code changes:</strong> a guide step whose &ldquo;target&rdquo; is an image, table, or embedded component <em>in the caption column</em>, brought to life per-stage with <code>effects:</code> parallax (fade/slide as the stage activates). The content is markdown; the addressing is a data attribute; reproduction is copy-paste.
+</div>
+
+<div class="callout warn">
+<strong>Not possible today:</strong> the focus <em>ring</em> hugging that image/component (the &ldquo;look here&rdquo; affordance), a stage whose main pane <em>is</em> an image or rendered markdown doc instead of the editor, or steps that appear conditionally (e.g. &ldquo;only if you use notebook sync&rdquo;).
+</div>
+
+<h2 id="wb-h2-336d03bc29ce4dddbefb1eff08fb44ac" data-whiteboard-anchor>3. Proposal &mdash; markdown-reproducible definitions</h2>
+
+<p id="wb-p-67e1c9ad48074c3f9563153999d5952b" data-whiteboard-anchor>Five incremental ideas. A and B are small diffs on existing seams; C&ndash;E follow the same DSL shape.</p>
+
+<h3 id="wb-h3-abbdaf978f06475a80bc12414e97f920" data-whiteboard-anchor><span class="tag idea">Idea A</span> Generic ring target via data attribute</h3>
+<p id="wb-p-5cc41d66a6154194843236c2bbd426b2" data-whiteboard-anchor>Extend the ring contract exactly like <code>data-effect-target</code> already does for effects: a stage names a target id; any markdown-rendered element carrying <code>data-guide-target="&lt;id&gt;"</code> inside the caption (or pane) gets the ring. Resolution order: <code>lines</code> &gt; <code>target</code> &gt; whole editor (today&rsquo;s default).</p>
+
+<pre id="wb-pre-266a6e444f7f4ee8bc2612c5a0b281d2" data-whiteboard-anchor><code>### A guide page can be pure prose + components, no editor at all:
+
+```scroll
+runway: 400vh
+screen: doc
+stages:
+  - id: open-settings
+    range: [0, 0.34]
+    caption: "Open Settings &rarr; Sync and copy your seed URL."
+    ring:
+      target: settings-sync     &lt;- new: matches data-guide-target below
+  - id: paste-seed
+    range: [0.34, 0.67]
+    caption: "Paste the seed URL into your notebook's sync field."
+    ring:
+      target: seed-url
+  - id: verify
+    range: [0.67, 1.0]
+    caption: "Save; the badge turns green when the first sync lands."
+```
+
+&lt;!-- anywhere in the page's ordinary markdown --&gt;
+&lt;figure data-guide-target="settings-sync"&gt;
+  &lt;img src="assets/guide/settings-sync.png" alt="Settings sync tab" /&gt;
+&lt;/figure&gt;
+
+&lt;p data-guide-target="seed-url"&gt;&lt;code&gt;https://wod.example/seed/a1b2…&lt;/code&gt;&lt;/p&gt;
+</code></pre>
+
+<p id="wb-p-a8adecdd32bf478fbfa542c95908215c" data-whiteboard-anchor>Code touch: <code>ScrollRing.tsx</code> gains one resolution branch (query <code>[data-guide-target]</code> within the runway root, fall back to the EditorWindow measurement), plus one parsed key in <code>parseScrollStages</code>. The tour&rsquo;s closed <code>RingTargetKey</code> registry stays untouched.</p>
+
+<h3 id="wb-h3-f3709710d66d4de8b8535cc2e43cd745" data-whiteboard-anchor><span class="tag idea">Idea B</span> <code>screen: doc</code> &mdash; a markdown pane instead of the editor</h3>
+<p id="wb-p-1cd07c8cb07a4515b21e7d9251dceec0" data-whiteboard-anchor>The stage pane renders <code>CanvasProse</code> over inline markdown or a referenced <code>.md</code> file, reusing the exact renderer captions already use. The ring then targets inside the pane via Idea A.</p>
+
+<pre id="wb-pre-125153cc59b443c7bd616862bd2eae3d" data-whiteboard-anchor><code>```scroll
+runway: 300vh
+screen: doc
+stages:
+  - id: backup-intro
+    range: [0, 0.5]
+    body: |                       &lt;- inline markdown (or: source: markdown/guide/sync.md)
+      ## Sync backups
+
+      1. Enable **Sync** in settings.
+      2. Copy the seed URL shown below.
+      3. Paste it into your notebook's frontmatter.
+    ring:
+      target: seed-url
+  - id: backup-check
+    range: [0.5, 1.0]
+    body: |
+      After ~30s the **Last sync** row updates. If it shows
+      `pending` for minutes, see [Troubleshooting](#troubleshooting).
+```</code></pre>
+
+<p id="wb-p-fe872bf2ea984bbaa7a9fa752d31cb4c" data-whiteboard-anchor>Code touch: one pane branch in <code>ScrollRunwaySection</code> (<code>screen === 'doc'</code> &rarr; render <code>CanvasProse</code> from <code>body</code>/<code>source</code> instead of <code>EditorWindow</code>), the ring&rsquo;s &ldquo;container first child&rdquo; measurement already works for any element.</p>
+
+<h3 id="wb-h3-f97fe4ba56824e54a78c9e0dc1955794" data-whiteboard-anchor><span class="tag idea">Idea C</span> <code>screen: image</code> &mdash; screenshot walkthrough of external pages</h3>
+<p id="wb-p-ddcd53bf601b49b38c28d28a3c422555" data-whiteboard-anchor>For &ldquo;set up your local server / sync backups&rdquo; guides the subject is an <em>external</em> page that can&rsquo;t be embedded. A full-bleed screenshot is the pane; the ring addresses a percentage region of it, so the walkthrough survives re-screenshotting.</p>
+
+<pre id="wb-pre-099c42127eaf4c8aa536f192e74b9c1b" data-whiteboard-anchor><code>```scroll
+runway: 360vh
+screen: image
+stages:
+  - id: server-repo
+    range: [0, 0.33]
+    src: assets/guide/server-repo.png
+    caption: "Clone the sync server repo and run `bun install`."
+    ring:
+      region: [4, 62, 92, 26]    &lt;- [x%, y%, w%, h%] of the image
+  - id: server-env
+    range: [0.33, 0.66]
+    src: assets/guide/server-repo.png
+    caption: "Copy `.env.example` to `.env` and set `SEED_SECRET`."
+    ring:
+      region: [4, 30, 60, 14]
+  - id: server-run
+    range: [0.66, 1.0]
+    src: assets/guide/server-running.png
+    caption: "`bun run start` — the health check answers on :8787."
+```</code></pre>
+
+<p id="wb-p-c77c0ad2a2e640adbd91122f8a5fc53d" data-whiteboard-anchor>Code touch: an <code>ImagePane</code> (img + overlay ring positioned by percent), one <code>region:</code> key in ring parsing. Same reproduction story as A/B.</p>
+
+<h3 id="wb-h3-b9557de3a5cb413da88150db52ec2b15" data-whiteboard-anchor><span class="tag idea">Idea D</span> <code>screen: web</code> &mdash; live external page in the pane</h3>
+<p id="wb-p-cff388bdfdec46a481f513f8ff6c81ed" data-whiteboard-anchor>When the external tool allows embedding (your own local server, an internal notebook), load it live instead of a screenshot. Sandboxed, same ring model.</p>
+
+<pre id="wb-pre-16653e6e1859442a958f6d6f87edf123" data-whiteboard-anchor><code>```scroll
+runway: 300vh
+screen: web
+stages:
+  - id: open-admin
+    range: [0, 0.5]
+    url: http://localhost:8787/admin
+    caption: "The admin panel lists every seed this server serves."
+  - id: rotate-seed
+    range: [0.5, 1.0]
+    url: http://localhost:8787/admin
+    caption: "Rotate the seed to invalidate a leaked URL; clients re-sync on next save."
+```</code></pre>
+
+<div class="callout warn">
+Constraint worth stating in the DSL: most third-party sites send <code>X-Frame-Options</code>/CSP <code>frame-ancestors</code> and will refuse to embed. So <code>screen: web</code> realistically covers <em>your own</em> local server and co-operative tools; everything else falls back to Idea C screenshots. The parser should warn (not fail) when a stage mixes <code>url:</code> with an external origin.
+</div>
+
+<h3 id="wb-h3-1e7d2589a9ff4a22ad0d549bb13c9348" data-whiteboard-anchor><span class="tag idea">Idea E</span> Dynamic steps &mdash; conditional and repeated stages</h3>
+<p id="wb-p-7e71a519c8a94f85a817e9504de58e88" data-whiteboard-anchor>For &ldquo;syncing with external notebooks/seeds&rdquo; the path branches per user. Two small additions keep it data-driven instead of hand-authored:</p>
+<ul>
+  <li id="wb-li-c5a70faf7e824ee08062d2967d1cb093" data-whiteboard-anchor><code>when:</code> on a stage &mdash; the stage is skipped (its range re-normalized) unless a quest/state flag holds. Flags come from the existing quest ledger (<code>localStorage</code>) or app state, so &ldquo;you use Obsidian sync&rdquo; can gate a stage.</li>
+  <li id="wb-li-de05e2767c094478a94e9105e2c9ae53" data-whiteboard-anchor><code>foreach:</code> on a stage &mdash; the stage repeats over a query result (e.g. one stage per external notebook seed the user has configured), each repeat reusing one ring target measured per row.</li>
+</ul>
+
+<pre id="wb-pre-bb0cc9795e494c41911246d0fbeafe0b" data-whiteboard-anchor><code>```scroll
+runway: auto                  &lt;- derived from expanded stage count
+screen: doc
+stages:
+  - id: has-sync?
+    when: quest:sync-enabled   &lt;- skipped entirely for offline-only users
+    range: [0, 0.25]
+    body: |
+      You have sync on. This guide walks one seed at a time.
+  - id: seed-walk
+    foreach: query:"list seeds"  &lt;- one expanded stage per seed row
+    body: |
+      ## Seed {{seed.name}}
+
+      URL: `{{seed.url}}` — last sync {{seed.lastSync}}.
+    ring:
+      target: seed-url
+```</code></pre>
+
+<p id="wb-p-b4a94eae94ee444489e6d13dfd98b7fc" data-whiteboard-anchor>This is the only idea that needs a real data source (a WQL query against app state), so it should land last &mdash; A&ndash;D are self-contained authoring features.</p>
+
+<h2 id="wb-h2-f7be1932322d47869ceb9c2e7d105730" data-whiteboard-anchor>4. Suggested phasing</h2>
+
+<table>
+  <tr><th id="wb-th-9183e09b55a241e09e849c2bfee71148" data-whiteboard-anchor>Phase</th><th id="wb-th-4e2eb79cc66341b8949179df15a80f60" data-whiteboard-anchor>Scope</th><th id="wb-th-4ed9eb518de54cb0bfc6711e0e473573" data-whiteboard-anchor>Why first / why later</th></tr>
+  <tr><td id="wb-td-240d53a0d5eb4be0bc63094b603d7908" data-whiteboard-anchor>1</td><td id="wb-td-a2b20e2bf7b2411b82c75bfc6b1ebfde" data-whiteboard-anchor>Idea A (ring by <code>data-guide-target</code>) + Idea B (<code>screen: doc</code>)</td><td id="wb-td-891f32acb91e4fd3947c8a1dab7b8654" data-whiteboard-anchor>Smallest diff on existing seams (<code>ScrollRing</code> + one pane branch); immediately unblocks prose/component walkthrough guides written entirely in markdown.</td></tr>
+  <tr><td id="wb-td-dd064681982c4339a1c717bb13c0259c" data-whiteboard-anchor>2</td><td id="wb-td-7ed1adb18a64403d90cb027102d40bdf" data-whiteboard-anchor>Idea C (<code>screen: image</code> + <code>region:</code>)</td><td id="wb-td-0e31e8db7e30434582a629920e9e776a" data-whiteboard-anchor>Covers external pages that refuse embedding; only needs an image pane + percent ring.</td></tr>
+  <tr><td id="wb-td-c06006ab49354ae382f6f2e939908efd" data-whiteboard-anchor>3</td><td id="wb-td-aef0206e0aa04be8b6c5ccffa591738c" data-whiteboard-anchor>Idea D (<code>screen: web</code>, sandboxed)</td><td id="wb-td-cd2e381ee15d4314a245def47fc11451" data-whiteboard-anchor>Nice for your own local server; strictly optional once C exists.</td></tr>
+  <tr><td id="wb-td-f304a4024c274d789f48ab892ecdc286" data-whiteboard-anchor>4</td><td id="wb-td-a0edf209839a441984b8d18caa5c0fbe" data-whiteboard-anchor>Idea E (<code>when:</code> / <code>foreach:</code>)</td><td id="wb-td-9e17e912718441619aa551204f9aa002" data-whiteboard-anchor>Requires a stage-expansion pass over the runway ranges plus a query data source &mdash; a runtime feature, not just rendering.</td></tr>
+</table>
+
+<h2 id="wb-h2-6f0c2ae3ed8643948ba7950ada1dce4c" data-whiteboard-anchor>5. Open questions</h2>
+<ul>
+  <li id="wb-li-d18d970f17324d0ebea1c49b4d0d5e61" data-whiteboard-anchor>Should <code>data-guide-target</code> also resolve inside the <em>tour&rsquo;s</em> registered-screen panes, unifying the two targeting models (closed <code>RingTargetKey</code> registry vs. open selector)? Unifying means the tour registry becomes just pre-registered keys.</li>
+  <li id="wb-li-e1e288137a21495c8382220d5ed703ad" data-whiteboard-anchor>For <code>foreach:</code>, what is the expansion order contract when combined with fixed <code>range:</code> stages &mdash; do authored ranges describe pre-expansion or post-expansion progress?</li>
+  <li id="wb-li-8bde0b4644434df2afdb1547c61b364a" data-whiteboard-anchor>Are guide assets (<code>assets/guide/*.png</code>) versioned in the same <code>markdown/canvas</code> corpus, or a parallel asset root? Today <code>resolveSource</code> only reads <code>.md</code> sources.</li>
+</ul>
+
+</div>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2 id="wb-current-title"></h2>
+  <a id="wb-current-source">Source block</a>
+  <p id="wb-current-quote"></p>
+  <p id="wb-current-context"></p>
+  <p id="wb-current-note"></p>
+  <div class="wb-controls">
+    <button id="wb-edit" type="button">Edit</button>
+    <button id="wb-delete" type="button">Delete</button>
+    <button id="wb-hide" type="button">Hide</button>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Publish annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Publish before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Publish before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    byId('wb-count').textContent = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : ` · ${active + 1}/${count}`}`;
+    for (const id of ['wb-prev', 'wb-next', 'wb-publish']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+
+  byId('wb-publish').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    byId('wb-copy-status').textContent = 'Copying…';
+    byId('wb-export').showModal();
+    output.focus();
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy-status').textContent = 'Copied. Paste into your agent window. Drafts are kept.';
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  new ResizeObserver(() => document.documentElement.style.setProperty('--wb-bar-height', byId('wb-bar').offsetHeight + 'px')).observe(byId('wb-bar'));
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>

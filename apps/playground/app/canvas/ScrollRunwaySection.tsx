@@ -177,9 +177,10 @@ export function ScrollRunwaySection({
   const activeAccent = slice.stage.accent ?? 'hsl(var(--foreground))'
 
   // Presentation is the shared extracted shell (the home first-four pattern):
-  // sticky 65px/lg104px dvh window, status + pip stage bar, context-measured
-  // 60/40 split versus stack — the same chrome mobile-normal-motion uses via
-  // RunwayAdapter. Host-owned here: scroll driver, typewriter, playground
+  // sticky 65px/lg104px dvh window, context-measured 60/40 split versus
+  // stack — the same chrome mobile-normal-motion uses via RunwayAdapter. The
+  // stage indicator renders in the pane's mac window header (shell context).
+  // Host-owned here: scroll driver, typewriter, playground
   // mode, ring, toast, Run.
   return (
     <div ref={rootRef} className={className} data-testid="scroll-runway-section">

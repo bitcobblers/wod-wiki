@@ -73,6 +73,11 @@ export function ResponsiveViewport({
       // for metric-token jumps; the shift modifier keeps both meanings alive.
       if (!isCtrlOrCmd || !e.shiftKey) return;
 
+      // Native text fields keep Mod+Shift+Arrow for word/line selection; the
+      // CodeMirror editor (contenteditable) intentionally still switches views.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [role="textbox"]')) return;
+
       if (e.key === 'ArrowLeft' && viewIndex > 0) {
         e.preventDefault();
         onViewChange(views[viewIndex - 1].id as ViewMode);

@@ -1,9 +1,11 @@
 /**
  * RunwayShell.tsx — the shared sticky-parallax runway chrome (single
  * consistent layout for tour + guide runways): outer track (host height) →
- * sticky window under the app nav (65px mobile / 104px lg+, dvh) → status +
- * pip stage bar → context-measured 60/40 demo/caption row (split vs stacked
- * by measured context, never viewport breakpoints).
+ * sticky window under the app nav (65px mobile / 104px lg+, dvh) →
+ * context-measured 60/40 demo/caption row (split vs stacked by measured
+ * context, never viewport breakpoints). The stage indicator (host status
+ * slot + pips) rides RunwayIndicatorContext into the pane's mac window
+ * header instead of costing its own row.
  *
  * Presentational only: the host owns the scroll driver (useScrollRunway),
  * screens/rings/runtime and caption content; per-frame work stays in
@@ -14,6 +16,7 @@ import type { ScrollStage } from './parseCanvasMarkdown'
 import { useContextSize } from './contextSize'
 import { STICKY_NAV_HEIGHT } from './canvasUtils'
 import { ScrollGate } from '../scroll/ScrollTrackProvider'
+import { RunwayIndicatorContext } from './runwayIndicator'
 
 export interface RunwayShellProps {
   /** Outer track ref — attach the host's useScrollRunway driver here. */
@@ -28,7 +31,7 @@ export interface RunwayShellProps {
   pane: ReactNode
   /** Caption rail — the other 40%; scrolls internally when one outgrows it. */
   captions: ReactNode
-  /** Status slot in the stage bar (reserves its height in normal flow). */
+  /** Status slot rendered inside the pane's mac window header (via context). */
   status?: ReactNode
   /**
    * ScrollTrack segment this shell's track belongs to. When set, the
@@ -56,6 +59,34 @@ export function RunwayShell({
   const [contextRow, setContextRow] = useState<HTMLDivElement | null>(null)
   const split = useContextSize(STICKY_NAV_HEIGHT, contextRow).mode === 'split'
 
+  // Stage indicator lives in the pane's mac window header (MacOSChrome reads
+  // this context) — it no longer reserves a row of the sticky window.
+  const indicator = {
+    status,
+    pips: (
+      <div className="flex items-center gap-1.5" aria-hidden="true">
+        {stages.map((seg, i) => {
+          const live = activeIndex === i
+          const done = activeIndex > i
+          return (
+            <span
+              key={seg.id}
+              className="h-1 rounded-full transition-all duration-300"
+              style={{
+                width: live ? 30 : 10,
+                background: live
+                  ? (seg.accent ?? 'hsl(var(--primary))')
+                  : done
+                    ? 'hsl(var(--foreground))'
+                    : 'hsl(var(--foreground) / 0.15)',
+              }}
+            />
+          )
+        })}
+      </div>
+    ),
+  }
+
   return (
     <section
       ref={trackRef}
@@ -63,36 +94,12 @@ export function RunwayShell({
       className={className ? `relative ${className}` : 'relative'}
       style={{ height }}
     >
+      <RunwayIndicatorContext.Provider value={indicator}>
       <div className="sticky top-[65px] flex h-[calc(100dvh-65px)] flex-col overflow-hidden lg:top-[104px] lg:h-[calc(100dvh-104px)]">
-        {/* status slot reserves its height in normal flow; pips are decorative */}
-        <div className="mx-auto flex min-h-[46px] w-full max-w-[1500px] 2xl:max-w-[1720px] items-center justify-between gap-4 px-6 pt-3 pb-2 lg:px-12 xl:px-16 xl:pt-4 xl:pb-3">
-          <div className="flex min-w-0 flex-1">{status}</div>
-          <div className="flex items-center gap-1.5" aria-hidden="true">
-            {stages.map((seg, i) => {
-              const live = activeIndex === i
-              const done = activeIndex > i
-              return (
-                <span
-                  key={seg.id}
-                  className="h-1 rounded-full transition-all duration-300"
-                  style={{
-                    width: live ? 30 : 10,
-                    background: live
-                      ? (seg.accent ?? 'hsl(var(--primary))')
-                      : done
-                        ? 'hsl(var(--foreground))'
-                        : 'hsl(var(--foreground) / 0.15)',
-                  }}
-                />
-              )
-            })}
-          </div>
-        </div>
-
         {/* measured context row: pane 3/5, caption rail 2/5 */}
         <div
           ref={setContextRow}
-          className={`mx-auto flex min-h-0 w-full max-w-[1500px] 2xl:max-w-[1720px] flex-1 px-5 pb-5 lg:px-10 xl:px-16 xl:pb-8 2xl:pb-10 ${
+          className={`mx-auto flex min-h-0 w-full max-w-[1500px] 2xl:max-w-[1720px] flex-1 px-5 pt-2 pb-5 lg:px-10 lg:pt-3 xl:px-16 xl:pb-8 2xl:pb-10 ${
             split ? 'flex-row items-stretch gap-[clamp(20px,2.5vw,56px)] xl:gap-12 2xl:gap-16' : 'flex-col gap-6 xl:gap-8'
           }`}
         >
@@ -112,6 +119,7 @@ export function RunwayShell({
           </div>
         </div>
       </div>
+      </RunwayIndicatorContext.Provider>
     </section>
   )
 }

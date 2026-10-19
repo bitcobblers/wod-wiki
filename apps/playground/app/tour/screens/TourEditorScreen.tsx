@@ -1,13 +1,10 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Play, Copy, Check, Share2, ExternalLink } from 'lucide-react'
+import { Play, Copy, Check, ExternalLink } from 'lucide-react'
 import type { EditorView } from '@codemirror/view'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
 import type { ScriptBlock } from '@/components/Editor/types'
 import type { ScriptCommand } from '@/components/Editor/overlays/ScriptCommand'
 import { shareBlock, openBlockInPlaygroundNewTab } from '../../services/openInPlayground'
-import { encodeZip } from '../../services/encodeZip'
-import { toast } from '@/hooks/use-toast'
-import { getProfileDisplayName } from '@/services/profile'
 import { useRingRef } from '../TourRing'
 import { TEST_IDS } from '@/testing/contracts/TestIdContract'
 export interface TourEditorScreenProps {
@@ -16,8 +13,6 @@ export interface TourEditorScreenProps {
   onBlocksChange: (blocks: ScriptBlock[]) => void
   /** Starts the fullscreen playground bound to this editor's first block. */
   onRun: () => void
-  /** Copies a /?z= share link for the current doc. */
-  onShare?: () => void
   theme: string
   /**
    * Opt in to ring-target registration (#884): the measured fenced-block
@@ -39,7 +34,6 @@ export const TourEditorScreen: React.FC<TourEditorScreenProps> = ({
   onDocChange,
   onBlocksChange,
   onRun,
-  onShare,
   theme,
   withRingTargets = false,
 }) => {
@@ -179,22 +173,6 @@ export const TourEditorScreen: React.FC<TourEditorScreenProps> = ({
     onRun()
   }, [onRun])
 
-  const handleShareClick = useCallback(() => {
-    if (onShare) {
-      onShare()
-      return
-    }
-    encodeZip(doc).then((encoded) => {
-      const by = `shared by ${getProfileDisplayName()}`
-      const url = `${window.location.origin}/?z=${encoded}&by=${encodeURIComponent(by)}`
-      navigator.clipboard.writeText(url).then(() => {
-        toast({ title: 'Link copied', description: 'Share link copied to clipboard.' })
-      }).catch(() => {
-        toast({ title: 'Could not copy', description: url, variant: 'destructive' })
-      })
-    })
-  }, [doc, onShare])
-
   const commands = useMemo<ScriptCommand[]>(() => [
     {
       id: 'run',
@@ -268,18 +246,6 @@ export const TourEditorScreen: React.FC<TourEditorScreenProps> = ({
             }}
           />
         )}
-        {/* Bottom-left on mobile: the thumb-dock search FAB owns the
-            bottom-right corner and overlapped this cluster (audit F10). */}
-        <div className="absolute bottom-2.5 left-3 z-20 lg:left-auto lg:right-3">
-          <button
-            type="button"
-            title="Copy share link"
-            onClick={handleShareClick}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-background/80 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:border-primary/40 hover:text-foreground"
-          >
-            <Share2 size={13} />
-          </button>
-        </div>
       </div>
     </div>
   )
