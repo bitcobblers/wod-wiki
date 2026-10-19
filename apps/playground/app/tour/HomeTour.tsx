@@ -820,6 +820,9 @@ function HomeTourInner({ wodFiles, theme, quests, chapters, scroll }: HomeTourPr
     const headerBottom = sentinel.getBoundingClientRect().top + window.scrollY
     const paneTop = gate.getBoundingClientRect().top + window.scrollY
     const target = Math.max(0, paneTop - headerBottom)
+    // No animation frames (jsdom, exotic embeds) — nothing can slide, so
+    // reset synchronously.
+    if (typeof requestAnimationFrame !== 'function') { clearSession(); return }
     heroSlideRef.current = true
     window.scrollTo({ top: target, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
     const started = performance.now()
