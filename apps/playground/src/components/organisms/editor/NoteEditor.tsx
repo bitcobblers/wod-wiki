@@ -109,6 +109,12 @@ export interface NoteEditorProps {
   beforeRun?: () => Promise<number | void>;
   /** Called when the user presses Ctrl/Cmd+S — the host flushes the pending save. */
   onSaveRequest?: () => void | Promise<void>;
+  /**
+   * Called when the document changed WITHOUT a typing user-event — widget
+   * commits (frontmatter rows), query-block inserts, undo/redo. Typing stays
+   * coalesced (line change / blur / Ctrl+S); these commits save immediately.
+   */
+  onCommitChange?: () => void | Promise<void>;
   /** Document content */
   value: string;
   /** Called on every document change */
@@ -209,6 +215,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   onSaved,
   beforeRun,
   onSaveRequest,
+  onCommitChange,
   value,
   onChange,
   onDocUpdate,
@@ -692,6 +699,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           onChange(identity.rawContent);
           onDocUpdate?.(update);
           notifyBlockChanges(update.state, onBlocksChange, lastBlocksJsonRef);
+          // Typing-like transactions stay coalesced; everything else (widget
+          // commits, query-block inserts, undo) is a deliberate commit — save now.
+          const typed = update.transactions.some(t =>
+            t.isUserEvent("input") || t.isUserEvent("delete") || t.isUserEvent("paste") || t.isUserEvent("drop"));
+          if (!typed) void onCommitChange?.();
         }
         if (update.selectionSet || update.docChanged) {
           setCursorVersion((version) => version + 1);
@@ -729,6 +741,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       onIdentityChange,
       readonly,
       onSaveRequest,
+      onCommitChange,
       showLineNums,
       initialLineWrapping,
       enablePreview,

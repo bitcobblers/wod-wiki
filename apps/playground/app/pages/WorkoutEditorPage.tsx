@@ -228,6 +228,7 @@ export function WorkoutEditorPage({
               onSaved={onSaved}
               beforeRun={async () => { await flush(); return committedSourceRevision(); }}
               onSaveRequest={flush}
+              onCommitChange={flush}
               readonly={true}
               enableInlineRuntime={usePopup}
               commands={commands}

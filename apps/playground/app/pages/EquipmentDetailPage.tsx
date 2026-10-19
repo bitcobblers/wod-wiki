@@ -292,6 +292,7 @@ export function EquipmentDetailPage() {
               onCursorPositionChange={onLineChange}
               onBlur={onBlur}
               onSaveRequest={flush}
+              onCommitChange={flush}
               theme={actualTheme}
               readonly={false}
               showLineNumbers={true}

@@ -297,6 +297,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                     onSaved={acceptSaved}
                     beforeRun={async () => { await flush(); return committedRevisionRef.current; }}
                     onSaveRequest={flush}
+                    onCommitChange={flush}
                     onCursorPositionChange={onLineChange}
                     readonly={isReadOnly}
                     theme={theme}

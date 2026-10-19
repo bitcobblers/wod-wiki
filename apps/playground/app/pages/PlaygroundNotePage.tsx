@@ -388,6 +388,7 @@ export function PlaygroundNotePage({
               onSaved={onSaved}
               beforeRun={async () => { await flush(); return committedSourceRevision(); }}
               onSaveRequest={flush}
+              onCommitChange={flush}
               commands={commands}
               enableInlineRuntime={false}
               onViewCreated={handleInternalViewCreated}

@@ -206,6 +206,7 @@ export function FeedItemPage({
               onIdentityChange={snapshot => onIdentityChange({ rawContent: snapshot.rawContent, noteBlocks: snapshot.blocks, sourceRevision: snapshot.sourceRevision })}
               onSaved={onSaved}
               onSaveRequest={flush}
+              onCommitChange={flush}
               commands={commands}
               enableInlineRuntime={false}
               onViewCreated={onViewCreated}
