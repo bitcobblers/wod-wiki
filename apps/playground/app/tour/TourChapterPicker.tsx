@@ -29,10 +29,38 @@ import { chapterIcon } from '../components/ChallengeBadges'
 import { MacOSChrome } from '../components/atoms/MacOSChrome'
 import { TourEditorScreen } from './screens/TourEditorScreen'
 import { TourSectionRunway } from './TourSectionRunway'
-import type { TourCaption } from './TourCaptions'
 import { CHAPTER_GUIDE_ROUTES, CHAPTER_GUIDE_DEFAULT_ROUTE } from './tourConstants'
 import { TaglineHeader } from './TaglineHeader'
 import { cn } from '@/lib/utils'
+import type { ReactNode } from 'react'
+import type { HomeEventName } from '@/services/telemetry'
+
+/** Moved from the retired TourCaptions stage captions — the chapter picker
+ *  renders captions in the same shape. */
+export interface TourCaptionAction {
+  label: string
+  href: string
+  event: HomeEventName
+  /** Telemetry payload (e.g. { chapter } attribution). */
+  data?: Record<string, unknown>
+  /** Stable test hook (e.g. chapter-picker-guide-<chapterId>). */
+  testId?: string
+}
+
+export interface TourCaption {
+  /** Stage id for walkthrough captions; chapter captions use chapter ids. */
+  id: string
+  num: string
+  title: ReactNode
+  body: string
+  /** Readable explanatory list under the body (chapter captions). */
+  bullets?: string[]
+  foot: string
+  accent: string
+  actions?: TourCaptionAction[]
+  /** Optional node under the foot line (e.g. chapter quest progress). */
+  extra?: ReactNode
+}
 
 /** Chapter id → its home-page example asset (the canonical syntax examples). */
 const CHAPTER_EXAMPLE_SOURCES: Record<string, string> = {

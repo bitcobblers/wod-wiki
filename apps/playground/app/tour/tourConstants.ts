@@ -7,14 +7,6 @@
 
 export type TourScreen = 'editor' | 'timer' | 'analytics' | 'metrics' | 'result'
 
-export type TourStageId =
-  | 'timer-intro'
-  | 'timer-wallclock'
-  | 'timer-next'
-  | 'timer-cast'
-  | 'timer-output'
-  | 'timer-dashboard'
-
 /**
  * Registry keys for elements the highlight ring can target. Screens
  * register wrapper elements under these keys via RingTargetsContext.

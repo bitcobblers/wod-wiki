@@ -16,6 +16,7 @@
 import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { NuqsAdapter } from 'nuqs/adapters/react-router'
 import type { Quest, Chapter } from '../canvas/parseCanvasMarkdown'
 import type { ScriptBlock } from '@/components/Editor/types'
 
@@ -95,29 +96,6 @@ mock.module('../services/journalWorkout', () => ({
 
 mock.module('../services/journalNotes', () => ({
   journalNotes: { create: async () => ({ id: 'note-new' }) },
-}))
-
-// Scroll driver held at the first editor stage; subscribers never fire so the
-// typewriter scrub does not clobber the doc under test.
-mock.module('../canvas/useScrollRunway', () => ({
-  useScrollRunway: () => ({
-    slice: {
-      index: 0,
-      stage: {
-        id: 'editor-blank',
-        screen: 'editor',
-        accent: 'hsl(var(--metric-resistance))',
-        label: 'Blank Page & Typeahead',
-      },
-      t: 0,
-      ring: { key: 'editor.window', tag: 'Live Editor' },
-    },
-    progress: 0,
-    runwayReached: false,
-    subscribe: () => () => {},
-    resync: () => {},
-  }),
-  scrollRunwayTo: () => {},
 }))
 
 import { HomeTour } from './HomeTour'
@@ -208,12 +186,14 @@ describe('HomeTour arrival & hero-reset contract', () => {
   async function renderHomeTour(initialEntry = '/') {
     const result = render(
       <MemoryRouter initialEntries={[initialEntry]}>
-        <HomeTour
-          wodFiles={wodFiles}
-          theme="light"
-          quests={homeQuests}
-          chapters={chapters}
-        />
+        <NuqsAdapter>
+          <HomeTour
+            wodFiles={wodFiles}
+            theme="light"
+            quests={homeQuests}
+            chapters={chapters}
+          />
+        </NuqsAdapter>
       </MemoryRouter>,
     )
     await act(async () => {
