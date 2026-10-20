@@ -16,10 +16,9 @@
 import { useCallback, useRef } from 'react';
 import { usePageQuests, type Quest } from './usePageQuests';
 
-/** Tour stage id → quest id. `overview` deliberately has no quest. */
+/** Tour stage/section id → quest id. */
 export const TOUR_STAGE_QUEST_IDS: Record<string, string> = {
-  'timer-wallclock': 'qs-tour-timer',
-  'timer-next': 'qs-tour-timer',
+  'session-insights': 'qs-tour-analytics',
 };
 
 /**

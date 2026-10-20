@@ -1,18 +1,19 @@
 /**
  * HomeTour.test.tsx — route-level component test for the home page.
  *
- * Asserts the two tagged runway sections (run / explore), the jump section
- * exits, per-stage drop-off hrefs, and the telemetry funnel events, arrival
- * auto-start, record-once finalization, the output-stage stop, the
- * slide-back reset, and note-scoped results.
+ * Asserts the new flow: hero Run → fullscreen run → recorded results back
+ * in the hero; the insights section showing the run-to-view CTA before any
+ * run and the Rest/Test Ratio + Reaction Time cards after one; the sample
+ * boards section; the jump section exits; and the note lifecycle contracts
+ * (fresh identity per Run, record-once finalize, failed-start toast).
  */
 
 import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
 import { render, screen, cleanup, fireEvent, act, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
-import type { Quest, Chapter, ScrollStage } from '../canvas/parseCanvasMarkdown'
-import type { ScriptBlock, Sessions } from '@/components/Editor/types'
+import type { Quest, Chapter } from '../canvas/parseCanvasMarkdown'
+import type { ScriptBlock, Sessions, StoredOutputStatement } from '@/components/Editor/types'
 import { telemetry } from '@/services/telemetry'
 
 // ── Heavy / browser-only dependencies ───────────────────────────────────────
@@ -143,7 +144,6 @@ type RunControl = {
   run: { noteId: string; resultId: string; block: ScriptBlock } | null
   starts: number
   finalizes: Array<{ results: Sessions; completed: boolean }>
-  resets: number
   ends: number
   failStarts: boolean
   recorded: boolean
@@ -152,7 +152,6 @@ const runControl: RunControl = {
   run: null,
   starts: 0,
   finalizes: [],
-  resets: 0,
   ends: 0,
   failStarts: false,
   recorded: false,
@@ -180,28 +179,12 @@ mock.module('../hooks/usePlaygroundRun', () => ({
       runControl.recorded = true
       runControl.finalizes.push({ results, completed })
     }),
-    reset: mock(async () => {
-      runControl.resets += 1
-      runControl.run = null
-    }),
     end: mock(async () => {
       runControl.ends += 1
       runControl.run = null
     }),
   }),
 }))
-
-// The run source remains note-scoped when the journal query fails.
-const queryCalls: string[] = []
-mock.module('@/services/queryService', () => ({
-  queryService: {
-    runQuery: mock(async (q: string) => {
-      queryCalls.push(q)
-      throw new Error('no store in tests')
-    }),
-  },
-}))
-
 
 mock.module('@/services/content/seedContent', () => ({
   useSeedContent: () => null,
@@ -216,78 +199,6 @@ mock.module('@/hooks/use-toast', () => ({
   toast: toastMock,
 }))
 
-mock.module('../services/journalWorkout', () => ({
-  createJournalNoteFromWorkout: async () => ({ id: 'note-clone' }),
-}))
-
-mock.module('../services/journalNotes', () => ({
-  journalNotes: { create: async () => ({ id: 'note-new' }) },
-}))
-
-// ── useScrollRunway mock — section-aware, driven by one global progress ──────
-
-mock.module('../canvas/useScrollRunway', () => {
-  const React = require('react')
-  const store = {
-    progress: 0.5,
-    listeners: new Set<() => void>(),
-  }
-
-  function sliceFor(stages: ScrollStage[], progress: number) {
-    const len = Math.max(1, stages.length)
-    const index = Math.min(len - 1, Math.floor(progress * len))
-    const stage = stages[index]!
-    return {
-      index,
-      stage: {
-        id: stage.id,
-        screen: String(stage.screen),
-        accent: stage.accent,
-        label: stage.label,
-        ring: stage.ring,
-      },
-      t: 0.5,
-    }
-  }
-
-  function emit() {
-    store.listeners.forEach((cb) => cb())
-  }
-
-  function setTestTourProgress(progress: number) {
-    store.progress = progress
-    emit()
-  }
-
-  const control = globalThis as unknown as {
-    setTestTourProgress?: (p: number) => void
-    scrollRunwayToCalls?: number
-  }
-  control.setTestTourProgress = setTestTourProgress
-
-  return {
-    useScrollRunway: (_ref: unknown, _frozen: boolean, stages: ScrollStage[]) => {
-      const [, force] = React.useReducer((n: number) => n + 1, 0)
-      React.useEffect(() => {
-        store.listeners.add(force)
-        return () => {
-          store.listeners.delete(force)
-        }
-      }, [])
-      return {
-        slice: sliceFor(stages, store.progress),
-        progress: store.progress,
-        runwayReached: true,
-        subscribe: () => () => {},
-        resync: () => {},
-      }
-    },
-    scrollRunwayTo: () => {
-      control.scrollRunwayToCalls = (control.scrollRunwayToCalls ?? 0) + 1
-    },
-  }
-})
-
 import { HomeTour } from './HomeTour'
 
 // jsdom lacks ResizeObserver; Headless UI's combobox machine touches it when
@@ -299,41 +210,18 @@ globalWithResizeObserver.ResizeObserver ??= class {
   disconnect() {}
 }
 
-const setTestTourProgress = (progress: number) => {
-  const control = globalThis as unknown as { setTestTourProgress?: (p: number) => void }
-  control.setTestTourProgress?.(progress)
-}
-
-type ScrollSpy = { scrollRunwayToCalls?: number }
-const scrollSpyControl = () => globalThis as unknown as ScrollSpy
-const resetScrollSpy = () => {
-  scrollSpyControl().scrollRunwayToCalls = 0
-}
-const scrollRunwayToCallCount = () => scrollSpyControl().scrollRunwayToCalls ?? 0
-
 type TimerPanelControl = {
   mockTimerPanelMounts?: number
   fireTimerComplete?: (results: Sessions) => void
 }
 const timerPanelControl = () => globalThis as unknown as TimerPanelControl
-const completedResults = (): Sessions =>
-  ({
-    startTime: 0,
-    endTime: 60_000,
-    duration: 60_000,
-    completed: true,
-    logs: [{ outputType: 'segment', timeSpan: { started: 0 }, metrics: [] }],
-  }) as unknown as Sessions
+
 // ── Test data ───────────────────────────────────────────────────────────────
 
 const BARE_WELCOME = '```time\n0:03 Count Down\n10 Pushups\n```'
-const BASICS_EXAMPLE = '```time\nPushups\n```'
-const PROTOCOLS_EXAMPLE = '```time\n5:00 Run\n*:30 Rest\n10 Burpees\n```'
 
 const wodFiles: Record<string, string> = {
   '../../markdown/canvas/home/welcome-1.md': BARE_WELCOME,
-  '../../markdown/canvas/syntax/single-movement.md': BASICS_EXAMPLE,
-  '../../markdown/canvas/syntax/timers-rest.md': PROTOCOLS_EXAMPLE,
 }
 
 const homeQuests: Quest[] = [
@@ -350,28 +238,34 @@ const chapters: Chapter[] = [
     questIds: ['qs-arrive', 'qs-tour-timer', 'qs-tour-analytics'],
     sectionIds: [],
   },
-  {
-    id: 'basics',
-    title: 'Basics',
-    badge: 'trophy',
-    questIds: ['basics-movement'],
-    sectionIds: [],
-  },
-  {
-    id: 'protocols',
-    title: 'Protocols',
-    badge: 'timer',
-    questIds: ['protocols-timer'],
-    sectionIds: [],
-  },
 ]
 
-/** Timer-backed delay (Promise.withResolvers form). */
-const delay = (ms: number) => {
-  const { promise, resolve } = Promise.withResolvers<void>()
-  setTimeout(resolve, ms)
-  return promise
+/** A block-level segment with only the fields the insights derivation reads. */
+function segment(overrides: Partial<StoredOutputStatement>): StoredOutputStatement {
+  return {
+    outputType: 'segment',
+    stackLevel: 1,
+    line: 1,
+    completionReason: 'user-advance',
+    timeSpan: { started: 0, ended: 1000 },
+    metrics: [{ type: 'rep', value: 10, origin: 'parser' }],
+    ...overrides,
+  } as StoredOutputStatement
 }
+
+/** The home example's shape: 3s countdown, 1.8s to Next, 42s of work, Next. */
+const completedResults = (): Sessions =>
+  ({
+    startTime: 1000,
+    endTime: 47800,
+    duration: 46800,
+    completed: true,
+    logs: [
+      segment({ line: 1, completionReason: 'timer-expired', timeSpan: { started: 1000, ended: 4000 }, metrics: [{ type: 'duration', value: 3000, origin: 'parser' }, { type: 'effort', value: 'Count Down', origin: 'parser' }] }),
+      segment({ line: 2, timeSpan: { started: 4000, ended: 5800 }, metrics: [{ type: 'rep', value: 10, origin: 'parser' }, { type: 'effort', value: 'Pushups', origin: 'parser' }] }),
+      segment({ line: 3, timeSpan: { started: 5800, ended: 47800 }, metrics: [{ type: 'rep', value: 10, origin: 'parser' }, { type: 'effort', value: 'Situps', origin: 'parser' }] }),
+    ],
+  }) as unknown as Sessions
 
 async function renderHomeTour() {
   const result = render(
@@ -392,10 +286,10 @@ async function renderHomeTour() {
   return result
 }
 
-async function startRunAtTimerStage() {
-  // Arrival starts the demo; an extra Try click would start a second run.
+async function heroRun() {
+  const runButton = await within(screen.getByTestId('tour-hero')).findByRole('button', { name: 'Run' })
   await act(async () => {
-    setTestTourProgress(0.25)
+    fireEvent.click(runButton)
     await Promise.resolve()
   })
 }
@@ -407,14 +301,10 @@ describe('HomeTour', () => {
   let unsubscribe: () => void = () => {}
 
   beforeEach(() => {
-    setTestTourProgress(0.05)
-    resetScrollSpy()
     recorded = []
-    queryCalls.length = 0
     runControl.run = null
     runControl.starts = 0
     runControl.finalizes = []
-    runControl.resets = 0
     runControl.ends = 0
     runControl.failStarts = false
     runControl.recorded = false
@@ -452,106 +342,35 @@ describe('HomeTour', () => {
     expect(within(jump).queryByTestId('jump-playgrounds')).toBeNull()
   })
 
-  it('exposes timer drop-offs with correct hrefs', async () => {
+  it('shows the run-to-view CTA before any run and the boards section beside it', async () => {
     await renderHomeTour()
-
-    // The wallclock and next captions carry the clock drop-off; assert on
-    // the wallclock stage (one caption renders at a time).
-    await act(async () => {
-      setTestTourProgress(0.25)
-      await Promise.resolve()
-    })
-    const clockLinks = await screen.findAllByRole('link', { name: /Read the behaviors explainer/i })
-    expect(clockLinks.length).toBeGreaterThan(0)
-    for (const link of clockLinks) {
-      expect(link.getAttribute('href')).toBe('/guide/clock#run-next')
-    }
+    const insights = screen.getByTestId('tour-section-insights')
+    expect(within(insights).getByTestId('tour-insights-empty')).toBeTruthy()
+    expect(within(insights).getByTestId('tour-insights-run').textContent).toContain('Run to view the results')
+    // The two sample boards render over example data — no run required.
+    const boards = screen.getByTestId('tour-section-boards')
+    await within(boards).findAllByTestId('tour-session-dashboard')
+    expect(within(boards).getAllByTestId('tour-session-dashboard')).toHaveLength(2)
   })
 
-
-
-  it('renders a run button in the timer header and center view that flashes and starts', async () => {
+  it('the CTA button starts the fullscreen run', async () => {
     await renderHomeTour()
-    // Wait for editor in hero to initialize and parse blocks
-    await within(screen.getByTestId('tour-hero')).findByRole('button', { name: 'Run' })
-
-    // The timer pane mounts once a timer stage is actively visited.
     await act(async () => {
-      setTestTourProgress(0.25)
+      fireEvent.click(within(screen.getByTestId('tour-section-insights')).getByTestId('tour-insights-run'))
       await Promise.resolve()
     })
-    const runSection = screen.getByTestId('tour-section-run')
-    const centerBtn = await within(runSection).findByTestId('tour-timer-center-run')
-    const headerBtn = within(runSection).getByTestId('tour-timer-header-run')
-    expect(centerBtn).toBeTruthy()
-    expect(headerBtn).toBeTruthy()
-    expect(centerBtn.textContent).toContain('Run')
-
-    await act(async () => {
-      fireEvent.click(centerBtn)
-      const { promise, resolve } = Promise.withResolvers<void>()
-      setTimeout(resolve, 550)
-      await promise
-    })
-    await waitFor(() => expect(runControl.starts).toBe(1))
-  })
-
-  it('does not start a hidden run when the visitor blows past the timer stages', async () => {
-    type MockEntry = { el: Element; fire: (v: boolean) => void }
-    const observers: MockEntry[] = []
-    class MockIO {
-      cb: IntersectionObserverCallback
-      constructor(cb: IntersectionObserverCallback) {
-        this.cb = cb
-      }
-      observe(el: Element) {
-        const entry = {
-          el,
-          fire: (v: boolean) =>
-            this.cb([{ isIntersecting: v } as unknown as IntersectionObserverEntry], this as unknown as IntersectionObserver),
-        }
-        observers.push(entry)
-        entry.fire(false)
-      }
-      unobserve() {}
-      disconnect() {}
-    }
-    const globalScope = globalThis as unknown as Record<string, unknown>
-    globalScope.IntersectionObserver = MockIO
-
-    try {
-      await renderHomeTour()
-      await act(async () => {
-        setTestTourProgress(0.10)
-        await Promise.resolve()
-      })
-      await act(async () => {
-        for (const o of observers) {
-          if (o.el instanceof HTMLElement && o.el.closest('[data-testid="tour-section-run"]')) o.fire(false)
-        }
-        await Promise.resolve()
-      })
-      await act(async () => {
-        await delay(500)
-      })
-      expect(runControl.starts).toBe(0)
-    } finally {
-      delete (globalThis as unknown as Record<string, unknown>).IntersectionObserver
-    }
+    expect(runControl.starts).toBe(1)
+    expect(runControl.run?.noteId).toBe('note-1')
+    expect(screen.getByTestId('mock-timer-panel')).toBeTruthy()
   })
 
   it('hero Run persists a fresh note and runs in place — no scrolling', async () => {
     await renderHomeTour()
-    const runButton = await within(screen.getByTestId('tour-hero')).findByRole('button', { name: 'Run' })
-    await act(async () => {
-      fireEvent.click(runButton)
-      await Promise.resolve()
-    })
+    await heroRun()
 
-    // Fresh identity minted in place — save-first contract, no glide.
+    // Fresh identity minted in place — save-first contract.
     expect(runControl.starts).toBe(1)
     expect(runControl.run?.noteId).toBe('note-1')
-    expect(scrollRunwayToCallCount()).toBe(0)
     // The timer opens fullscreen; the editor stays in the hero viewport.
     expect(screen.getByTestId('mock-timer-panel')).toBeTruthy()
     expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')).toBeTruthy()
@@ -561,11 +380,7 @@ describe('HomeTour', () => {
   it('every explicit Run after a recorded run mints a NEW note', async () => {
     await renderHomeTour()
     const hero = () => screen.getByTestId('tour-hero')
-    const runButton = await within(hero()).findByRole('button', { name: 'Run' })
-    await act(async () => {
-      fireEvent.click(runButton)
-      await Promise.resolve()
-    })
+    await heroRun()
     expect(runControl.starts).toBe(1)
 
     // The first run completes and is recorded — the hero settles on the
@@ -592,9 +407,83 @@ describe('HomeTour', () => {
     expect(runControl.run?.noteId).toBe('note-2')
   })
 
+  it('feeds the insights section after a recorded run — ratio, reaction, timeline', async () => {
+    await renderHomeTour()
+    await heroRun()
+    await act(async () => {
+      timerPanelControl().fireTimerComplete?.(completedResults())
+      await Promise.resolve()
+    })
+
+    const insights = screen.getByTestId('tour-section-insights')
+    expect(within(insights).getByTestId('tour-insights-timeline')).toBeTruthy()
+    // 3s countdown vs 43.8s to Next → 1 : 14.6
+    expect(within(insights).getByTestId('tour-insights-ratio')!.textContent).toContain('1 : 14.6')
+    // avg (1.8s + 42s) / 2 over 2 clicks.
+    expect(within(insights).getByTestId('tour-insights-reaction')!.textContent).toContain('21.9s')
+    expect(within(insights).getByTestId('tour-insights-reaction')!.textContent).toContain('2 clicks')
+  })
+
+  it('keeps the insights data when the hero resets back to the arrival document', async () => {
+    type MockEntry = { el: Element; fire: (v: boolean) => void }
+    const observers: MockEntry[] = []
+    class MockIO {
+      cb: IntersectionObserverCallback
+      constructor(cb: IntersectionObserverCallback) {
+        this.cb = cb
+      }
+      observe(el: Element) {
+        const entry = {
+          el,
+          fire: (v: boolean) =>
+            this.cb([{ isIntersecting: v } as unknown as IntersectionObserverEntry], this as unknown as IntersectionObserver),
+        }
+        observers.push(entry)
+        entry.fire(false)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    const scope = globalThis as unknown as { IntersectionObserver?: unknown }
+    scope.IntersectionObserver = MockIO
+    try {
+      await renderHomeTour()
+      await heroRun()
+      await act(async () => {
+        timerPanelControl().fireTimerComplete?.(completedResults())
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('tour-section-insights').textContent).toContain('1 : 14.6')
+
+      // Dismiss the hero result ("Edit again") — the recorded session
+      // survives the identity clear. Then leave the hero and come back:
+      // the editor resets to arrival content, and the insights keep their
+      // data.
+      await act(async () => {
+        fireEvent.click(within(screen.getByTestId('tour-hero')).getByTestId('tour-session-result-dismiss'))
+      })
+      await waitFor(() => expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')).toBeTruthy())
+      const heroSentinel = observers.find(
+        (o) => o.el.parentElement?.getAttribute('data-testid') === 'home-tour' && o.el.getAttribute('aria-hidden') === 'true',
+      )
+      expect(heroSentinel).toBeTruthy()
+      await act(async () => {
+        heroSentinel!.fire(true)
+        heroSentinel!.fire(false)
+        heroSentinel!.fire(true)
+        await Promise.resolve()
+      })
+      await waitFor(() => expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')).toBeTruthy())
+      expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')!.textContent).toBe(BARE_WELCOME)
+      expect(screen.getByTestId('tour-section-insights').textContent).toContain('1 : 14.6')
+    } finally {
+      delete scope.IntersectionObserver
+    }
+  })
+
   it('records completion against the run identity exactly once', async () => {
     await renderHomeTour()
-    await startRunAtTimerStage()
+    await heroRun()
     expect(runControl.starts).toBe(1)
 
     await act(async () => {
@@ -612,133 +501,12 @@ describe('HomeTour', () => {
   it('aborts the run with a toast when the note cannot be persisted', async () => {
     runControl.failStarts = true
     await renderHomeTour()
-    const runButton = await within(screen.getByTestId('tour-hero')).findByRole('button', { name: 'Run' })
-    await act(async () => {
-      fireEvent.click(runButton)
-      await Promise.resolve()
-    })
+    await heroRun()
 
-    // No identity, no scroll onto the stage, and the failure is visible.
+    // No identity and the failure is visible.
     expect(runControl.starts).toBe(0)
     expect(runControl.run).toBeNull()
-    expect(scrollRunwayToCallCount()).toBe(0)
     expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }))
-  })
-
-  it('restarts the run from the timer header Reset button (#885)', async () => {
-    await renderHomeTour()
-    await startRunAtTimerStage()
-    await screen.findByTestId('mock-timer-panel')
-
-    const resetButton = await screen.findByRole('button', { name: /Reset timer/i })
-    await act(async () => {
-      fireEvent.click(resetButton)
-      await Promise.resolve()
-    })
-
-    expect(runControl.finalizes).toHaveLength(1)
-    expect(runControl.finalizes[0].completed).toBe(false)
-    expect(runControl.resets).toBe(1)
-    await act(async () => {
-      fireEvent.click(within(screen.getByTestId('tour-section-run')).getByTestId('tour-caption-command-timer-wallclock-try'))
-      await Promise.resolve()
-    })
-    expect(runControl.run?.noteId).toBe('note-2')
-    expect(runControl.finalizes).toHaveLength(1)
-  })
-
-
-  it('starts the tour once on timer arrival without a Run click', async () => {
-    const observers: Array<{ el: Element; fire: (visible: boolean) => void }> = []
-    class MockIO {
-      constructor(private callback: IntersectionObserverCallback) {}
-      observe(el: Element) {
-        observers.push({ el, fire: (visible) => this.callback([{ target: el, isIntersecting: visible } as IntersectionObserverEntry], this as unknown as IntersectionObserver) })
-      }
-      disconnect() {}
-      unobserve() {}
-    }
-    const scope = globalThis as unknown as { IntersectionObserver?: unknown }
-    scope.IntersectionObserver = MockIO
-    try {
-      await renderHomeTour()
-      expect(runControl.starts).toBe(0)
-      await act(async () => {
-        for (const observer of observers) {
-          if (observer.el instanceof HTMLElement && observer.el.closest('[data-testid="tour-section-run"]')) observer.fire(true)
-        }
-        setTestTourProgress(0.5)
-        await Promise.resolve()
-      })
-      await waitFor(() => expect(runControl.starts).toBe(1))
-      await act(async () => {
-        for (const observer of observers) {
-          if (observer.el instanceof HTMLElement && observer.el.closest('[data-testid="tour-section-run"]')) observer.fire(false)
-        }
-        await Promise.resolve()
-      })
-      await waitFor(() => expect(runControl.finalizes).toHaveLength(1))
-      expect(runControl.finalizes[0].completed).toBe(false)
-      await act(async () => {
-        for (const observer of observers) {
-          if (observer.el instanceof HTMLElement && observer.el.closest('[data-testid="tour-section-run"]')) observer.fire(true)
-        }
-        await Promise.resolve()
-      })
-      expect(runControl.starts).toBe(1)
-    } finally {
-      delete scope.IntersectionObserver
-    }
-  })
-
-  it('records completion in place — the visitor is never pulled elsewhere', async () => {
-    await renderHomeTour()
-    await startRunAtTimerStage()
-    await screen.findByTestId('mock-timer-panel')
-
-    resetScrollSpy()
-    await act(async () => {
-      timerPanelControl().fireTimerComplete?.(completedResults())
-      await Promise.resolve()
-    })
-    // No slide to the metrics section; the result settles where the run ran.
-    expect(scrollRunwayToCallCount()).toBe(0)
-    expect(runControl.finalizes).toHaveLength(1)
-  })
-
-  it('stops a live run at the output stage and shows the recorded $session segments', async () => {
-    await renderHomeTour()
-    await startRunAtTimerStage()
-    await screen.findByTestId('mock-timer-panel')
-
-    // Dwelling on the result stage halts the live execution and records the
-    // partial exactly once; the pane answers with the recorded segments.
-    await act(async () => {
-      setTestTourProgress(0.70)
-      await Promise.resolve()
-    })
-    await waitFor(() => expect(runControl.finalizes).toHaveLength(1))
-    expect(runControl.finalizes[0].completed).toBe(false)
-    const runSection = screen.getByTestId('tour-section-run')
-    expect(within(runSection).getByTestId('tour-session-result')).toBeTruthy()
-  })
-
-  it('scopes explore queries AST-safely — empty and preset filters parse with the real parser', async () => {
-    const { parseQuery } = require('@bitcobblers/wod-wiki-engine')
-    const { scopeQueryToNote } = require('./screens/TourSessionAnalytics')
-    const noteId = '01a108c8-ad19-7004-81c1-e737f63f2350'
-
-    // Empty filter braces: no trailing comma.
-    const empty = scopeQueryToNote('sum:totalReps{} by {effort}', noteId)
-    expect(empty).toBe(`sum:totalReps{note:${noteId}} by {effort}`)
-    expect(parseQuery(empty).filters.map((f: { key: string }) => f.key)).toEqual(['note'])
-
-    // Existing filters merge before the original keys, comma-separated.
-    const preset = scopeQueryToNote('sum:totalVolume{discipline:strength} by {week}', noteId)
-    expect(parseQuery(preset).filters.map((f: { key: string }) => f.key)).toEqual(['note', 'discipline'])
-
-    // Window suffix survives.
-    expect(scopeQueryToNote('avg:tis{} last 6w', noteId)).toBe(`avg:tis{note:${noteId}} last 6w`)
   })
 
   it('keeps the edited document and an in-place hero run alive across a desktop→phone viewport change', async () => {

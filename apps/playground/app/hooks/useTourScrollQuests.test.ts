@@ -1,6 +1,7 @@
 /**
  * useTourScrollQuests.test.ts — Unit tests for the home tour scroll-quest
- * hook: each tour stage fires its qs-tour-* quest when scrolled into view.
+ * hook: the session-insights section fires its qs-tour-* quest when scrolled
+ * into view; run-started quests are never scroll-completed.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -12,7 +13,7 @@ const PAGE_ROUTE = '/';
 
 const tourQuests = [
   { id: 'qs-arrive', label: 'Welcome to WOD Wiki' },
-  { id: 'qs-tour-timer', label: 'See the timer run it' },
+  { id: 'qs-tour-analytics', label: 'Review the session' },
 ];
 
 function readLedger(): Record<string, Record<string, boolean>> {
@@ -27,63 +28,47 @@ afterEach(() => {
 });
 
 describe('useTourScrollQuests', () => {
-  it('marks the timer quest complete when a timer stage scrolls into view', () => {
+  it('marks the analytics quest complete when the insights section scrolls into view', () => {
     const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
 
-    act(() => result.current('timer-wallclock'));
+    act(() => result.current('session-insights'));
 
-    expect(readLedger()[PAGE_ROUTE]?.['qs-tour-timer']).toBe(true);
+    expect(readLedger()[PAGE_ROUTE]?.['qs-tour-analytics']).toBe(true);
   });
 
-  it('maps both running stages to the timer quest and fires once per stage', () => {
+  it('is idempotent — revisiting the section keeps the quest complete', () => {
     const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
 
     act(() => {
-      result.current('timer-wallclock');
-      result.current('timer-wallclock');
-      result.current('timer-next');
-      result.current('timer-cast');
+      result.current('session-insights');
+    });
+    act(() => {
+      result.current('session-insights');
     });
 
-    const page = readLedger()[PAGE_ROUTE] ?? {};
-    expect(page['qs-tour-timer']).toBe(true);
-    expect(Object.keys(page)).toEqual(['qs-tour-timer']);
+    expect(readLedger()[PAGE_ROUTE]?.['qs-tour-analytics']).toBe(true);
   });
 
-  it('ignores stages without a quest (intro / output / dashboard / unknown)', () => {
+  it('ignores sections without a quest (hero / boards / unknown)', () => {
     const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
 
     act(() => {
-      result.current('timer-intro');
-      result.current('timer-output');
-      result.current('timer-dashboard');
+      result.current('tour-hero');
+      result.current('tour-section-boards');
       result.current('overview');
     });
 
     expect(readLedger()[PAGE_ROUTE]).toBeUndefined();
   });
 
-  it('is a no-op when the page does not declare the stage quest', () => {
+  it('is a no-op when the page does not declare the section quest', () => {
     const { result } = renderHook(() =>
       useTourScrollQuests(PAGE_ROUTE, [{ id: 'qs-arrive', label: 'Welcome' }]),
     );
 
-    act(() => result.current('timer-wallclock'));
+    act(() => result.current('session-insights'));
 
     expect(readLedger()[PAGE_ROUTE]).toBeUndefined();
-  });
-
-  it('is idempotent — revisiting a stage keeps the quest complete', () => {
-    const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, tourQuests));
-
-    act(() => {
-      result.current('timer-wallclock');
-    });
-    act(() => {
-      result.current('timer-wallclock');
-    });
-
-    expect(readLedger()[PAGE_ROUTE]?.['qs-tour-timer']).toBe(true);
   });
 
   it('does not mark interaction-gated quests on scroll', () => {
@@ -97,7 +82,7 @@ describe('useTourScrollQuests', () => {
     ];
     const { result } = renderHook(() => useTourScrollQuests(PAGE_ROUTE, quests));
 
-    act(() => result.current('timer-wallclock'));
+    act(() => result.current('session-insights'));
 
     expect(readLedger()[PAGE_ROUTE]).toBeUndefined();
   });

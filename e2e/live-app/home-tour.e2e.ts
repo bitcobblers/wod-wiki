@@ -39,7 +39,7 @@ for (const viewport of [
   test.describe(`Homepage timer ${viewport.width}x${viewport.height}`, () => {
     test.use({ viewport, hasTouch: true })
 
-    test('inline controls remain reachable and can pause, advance, and stop the run', async ({ page }) => {
+    test('the run-to-view CTA launches the fullscreen run with reachable controls', async ({ page }) => {
       const errors: string[] = []
       page.on('pageerror', error => errors.push(error.message))
       await page.goto('/', { waitUntil: 'domcontentloaded' })
@@ -47,30 +47,42 @@ for (const viewport of [
       await expect(page.getByTestId('sync-activity-indicators')).toHaveCount(0)
       for (const close of await page.locator('[toast-close]').all()) await close.click()
       await expect(page.locator('[data-gate-id="hero-pane"] .cm-content')).toBeVisible()
-      await page.evaluate(() => {
-        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-        const runway = document.querySelector<HTMLElement>('#tour-section-run [data-testid="tour-runway"]')
-        if (!runway) throw new Error('Missing timer runway')
-        window.scrollTo({
-          top: scrollY + runway.getBoundingClientRect().top + 0.24 * (runway.offsetHeight - innerHeight),
-          behavior: 'instant',
-        })
-      })
-      const pane = page.locator('[data-gate-id="run-pane"]')
-      const next = pane.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK)
-      const stop = pane.getByTestId(TEST_IDS.TIMER_STOP_SESSION)
-      const pause = pane.getByTestId(TEST_IDS.TIMER_PLAY_PAUSE)
+
+      // No run yet: the insights section offers the CTA instead of analytics.
+      await page.getByTestId('tour-section-insights').scrollIntoViewIfNeeded()
+      const cta = page.getByTestId('tour-insights-run')
+      await expectTouchable(cta)
+
+      // The CTA triggers the fullscreen run — the same big-screen clock the
+      // hero Run opens.
+      await tapControl(cta)
+      const timer = page.locator('.fixed.inset-0').filter({ has: page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE) })
+      await expect(timer).toBeVisible()
+      const clock = timer.locator('button.tv-focusable').filter({ has: page.locator('.font-mono.tracking-tighter') })
+      await expect(clock).toContainText(/00:0[2-9]/, { timeout: 10_000 })
+
+      const next = timer.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK)
+      const stop = timer.getByTestId(TEST_IDS.TIMER_STOP_SESSION)
+      const pause = timer.getByTestId(TEST_IDS.TIMER_PLAY_PAUSE)
       await expectTouchable(next)
       await expectTouchable(stop)
       await expectTouchable(pause)
-      await expect(pane).toHaveAttribute('data-scroll-gate', 'yield')
       await tapControl(pause)
       await expect(pause).toHaveAttribute('title', 'Continue')
       await tapControl(pause)
       await expect(pause).toHaveAttribute('title', 'Pause')
+      // Next mid-countdown locks the elapsed time and advances past the
+      // last line; Stop then halts the run — the recorded partial closes
+      // the fullscreen and lights the insights where the visitor is
+      // already looking.
       await tapControl(next)
       await tapControl(stop)
-      await expect(pane.getByRole('button', { name: 'Run timer', exact: true })).toBeEnabled()
+      await expect(timer).toBeHidden({ timeout: 15_000 })
+      await expect(page.getByTestId('tour-insights-timeline')).toBeVisible()
+      await expect(page.getByTestId('tour-insights-ratio')).toBeVisible()
+      await expect(page.getByTestId('tour-insights-reaction')).toBeVisible()
+      // The hero editor was untouched by the CTA run.
+      await expect(page.locator('[data-gate-id="hero-pane"] .cm-content')).toBeVisible()
       expect(errors).toEqual([])
     })
   })
@@ -86,10 +98,11 @@ test('hero run expands the result pane under the sticky header and returns to an
   const clock = timer.locator('button.tv-focusable').filter({ has: page.locator('.font-mono.tracking-tighter') })
   await expect(clock).toContainText(/00:0[2-9]/, { timeout: 10_000 })
   // The 0:03 countdown block completes at ~3s and emits the statements the
-  // partial is built from — stopping before any block completes records an
-  // empty 0:00 session (welcome-1's session keeps running for 30s).
+  // run is built from; two Next clicks then run the workout to its end —
+  // the completion closes the fullscreen and reveals the run in the hero.
   await timer.getByText(/results captured/).waitFor({ timeout: 15_000 })
-  await timer.getByRole('button', { name: 'Stop', exact: true }).click()
+  await timer.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).click()
+  await timer.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).click()
   await expect(timer).toBeHidden({ timeout: 15_000 })
   const gate = page.locator('[data-gate-id="hero-pane"]')
   const result = gate.getByTestId('tour-session-result')
@@ -109,13 +122,9 @@ test('hero run expands the result pane under the sticky header and returns to an
   }, { message: 'expanded pane parked right under the sticky header' }).toBe(true)
   const recorded = (await getSessions(page)).filter(session => !previousSessions.has(session.id))
   expect(recorded).toHaveLength(1)
-  // A real partial: the stopped execution's elapsed time is recorded
-  // against a run that never reached natural completion.
   expect(recorded[0].duration).toBeGreaterThan(0)
-  expect(recorded[0].completed).toBe(false)
-  // Expanding with events grows the pane over the run section — reading
-  // down and scrolling to the page bottom must not trip the tour demo's
-  // stage scroll (the viewport stays where the visitor put it).
+  // Reading down and scrolling to the page bottom must not move the
+  // viewport (the hero result stays where the visitor put it).
   await result.getByTestId('output-filter-preset-all').click()
   await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }))
   await page.evaluate(() => new Promise(r => setTimeout(r, 400)))
@@ -129,40 +138,38 @@ test('hero run expands the result pane under the sticky header and returns to an
     return !!box && box.y >= 0 && box.y <= 140
   }, { message: 'editor pane parked back under the sticky header' }).toBe(true)
   await expect(page.locator('[data-gate-id="hero-pane"] .cm-content')).toBeVisible()
+  // The recorded run also lit up the insights section below.
+  await page.getByTestId('tour-section-insights').scrollIntoViewIfNeeded()
+  await expect(page.getByTestId('tour-insights-ratio')).toBeVisible({ timeout: 15_000 })
 })
 
-test('dashboard range changes its totals and analytics stop after leaving the section', async ({ page }) => {
-  test.setTimeout(180_000)
+test('sample boards render over example data and the range selector drives them', async ({ page }) => {
+  test.setTimeout(120_000)
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitForSeedReady(page)
+  // The seeded boards ship with the community corpus — the core bundle
+  // carries only the canvas/efforts/equipment markdown.
   await syncCommunitySeed(page)
   await page.goto('/', { waitUntil: 'domcontentloaded' })
-  await expect(page.locator('[data-gate-id="hero-pane"] .cm-content')).toBeVisible()
-  const dashboard = page.locator('#tour-section-run').getByTestId('tour-session-dashboard')
-  await expect(dashboard).toHaveCount(0)
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-    const runway = document.querySelector<HTMLElement>('#tour-section-run [data-testid="tour-runway"]')
-    if (!runway) throw new Error('Missing timer runway')
-    window.scrollTo({
-      top: scrollY + runway.getBoundingClientRect().top + 0.99 * (runway.offsetHeight - innerHeight),
-      behavior: 'instant',
-    })
-  })
-  const volume = dashboard.locator('[id^="widget-"]').filter({
-    has: page.getByRole('heading', { name: 'Total volume', exact: true }),
-  }).locator('.tabular-nums')
-  await expect(volume).toContainText(/[1-9]/)
-  const fullRangeVolume = await volume.innerText()
-  await dashboard.getByRole('button', { name: '8w', exact: true }).click()
+  await page.getByTestId('tour-section-boards').scrollIntoViewIfNeeded()
+
+  // Two boards, each labelled as example data, no run required.
+  const boards = page.getByTestId('tour-section-boards')
+  const panes = boards.getByTestId('tour-session-dashboard')
+  await expect(panes).toHaveCount(2)
+  await expect(boards.getByTestId('tour-session-dashboard-source')).toHaveCount(2)
+  for (const pane of await panes.all()) {
+    await expect(pane.locator('[data-testid="dashboard-view"]')).toBeVisible({ timeout: 30_000 })
+  }
+
+  // The range selector is URL-state shared by the boards — drive it from
+  // the first pane; both reflect the same weeks param.
+  const firstBoard = panes.first()
+  await firstBoard.getByRole('button', { name: '8w', exact: true }).click()
   await expect(page).toHaveURL(/weeks=8/)
-  await expect(volume).not.toHaveText(fullRangeVolume)
-  await dashboard.getByRole('button', { name: '16w', exact: true }).click()
-  await expect(volume).toHaveText(fullRangeVolume)
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
-  })
-  await expect(dashboard).toHaveCount(0)
+  await expect(panes).toHaveCount(2)
+  // 16w is the default — selecting it clears the param; 4w writes again.
+  await firstBoard.getByRole('button', { name: '4w', exact: true }).click()
+  await expect(page).toHaveURL(/weeks=4/)
 })
