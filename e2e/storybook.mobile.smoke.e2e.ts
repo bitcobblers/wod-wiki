@@ -28,6 +28,9 @@ const STORIES = [
   // rows cards (inventory 008 measured 815px cards / 472px overflow here),
   // and GalleryCardView roots carry min-w-0 against grid blowout.
   'gallery-wql-example-gallery--rows-find-section',
+  // Timer surfaces — Minimal tier is the 375px-first surface; the phone
+  // frame wrapper clamps to the viewport so it holds zero overflow.
+  'gallery-timer-surfaces--minimal-rest',
 ];
 
 for (const storyId of STORIES) {

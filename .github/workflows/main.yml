@@ -73,6 +73,16 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
+  # Static analysis — independent leg, runs in parallel with the whole DAG.
+  # Self-disables when QODANA_TOKEN is unset (repo currently has no such secret).
+  qodana:
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    uses: ./.github/workflows/_code_quality.yml
+    secrets: inherit
+
   build-test-packages:
     needs: [version]
     uses: ./.github/workflows/_packages.yml

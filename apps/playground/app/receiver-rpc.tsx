@@ -24,9 +24,8 @@ import type { WorkbenchDisplayState } from '@/services/cast/rpc/ChromecastProxyR
 import type { CastReceiverContextLike } from '@/types/cast/sdk';
 import { createReceiverSession, type ReceiverSessionHandle } from '@/services/cast/rpc/ReceiverSessionManager';
 import type { IRpcTransport } from '@/services/cast/rpc/IRpcTransport';
-import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine';
+import { ScriptRuntimeProvider, type IRuntimeEventProvider } from '@bitcobblers/wod-wiki-engine';
 import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
-import { ReceiverStackPanel } from '@/panels/track-panel-chromecast';
 import { ReceiverTimerPanel } from '@/panels/wallclock-panel-chromecast';
 import { ReceiverPreviewPanel } from '@/panels/preview-panel-chromecast';
 import { ReceiverReviewPanel } from '@/panels/review-panel-chromecast';
@@ -580,34 +579,28 @@ const ReceiverApp: React.FC<{
         );
     }
 
-    // Active / Idle mode: normal stack + timer layout
+    // Active mode: General (Tier 2) timer surface, full-bleed — no stack
+    // panel; history/audit is Detail-tier chrome and stays off the TV.
     return (
         <ScriptRuntimeProvider runtime={proxyRuntime}>
             <PanelSizeProvider>
-                <div className="h-screen w-screen bg-background text-foreground flex overflow-hidden">
+                <div className="h-screen w-screen bg-background text-foreground overflow-hidden">
                     {/* D-Pad flash overlay */}
                     {dpadFlash && (
                         <div className="fixed inset-0 bg-primary/10 pointer-events-none z-50 animate-in fade-in duration-150" />
                     )}
 
-                    {/* Left Column: Stack & Lookahead */}
-                    <div className="flex-1 min-w-0 bg-secondary/10 border-r border-border">
-                        <ReceiverStackPanel />
-                    </div>
-
-                    {/* Right Column: Timer & Controls */}
-                    <div className="w-1/2 flex flex-col bg-background transition-all duration-300">
-                        <ReceiverTimerPanel
-                            eventProvider={{
-                                dispatch: (event: { name: string }) => sendEvent(event.name),
-                                onEvent: () => () => { },
-                                dispose: () => { },
-                            } as any}
-                            getFocusProps={getFocusProps}
-                        />
-                        <div className="absolute bottom-2 right-2 opacity-10 text-[8px] font-mono tracking-tighter uppercase">
-                            {connectionStatus}
-                        </div>
+                    <ReceiverTimerPanel
+                        eventProvider={{
+                            dispatch: (event: { name: string }) => sendEvent(event.name),
+                            onEvent: () => () => { },
+                            dispose: () => { },
+                        } satisfies IRuntimeEventProvider}
+                        getFocusProps={getFocusProps}
+                        workoutTitle={workbenchState.previewData?.title}
+                    />
+                    <div className="absolute bottom-2 right-2 opacity-10 text-[8px] font-mono tracking-tighter uppercase">
+                        {connectionStatus}
                     </div>
                 </div>
             </PanelSizeProvider>

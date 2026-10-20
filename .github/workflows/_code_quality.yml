@@ -12,10 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.sha }} # to check out the actual pull request commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }} # PR commit on MRs, pushed commit on main
           fetch-depth: 0 # a full history is required for pull request analysis
+      # Self-disables when QODANA_TOKEN is unset (empty contexts are 'null'
+      # strings in step-level env; the `!= 'n/a'` guard keeps legacy setups).
       - name: "Qodana Scan"
         uses: JetBrains/qodana-action@v2026.2.2
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN || '' }}
-        if: ${{ env.QODANA_TOKEN != '' && env.QODANA_TOKEN != 'n/a' }}
+        if: ${{ env.QODANA_TOKEN != '' && env.QODANA_TOKEN != 'null' && env.QODANA_TOKEN != 'n/a' }}
