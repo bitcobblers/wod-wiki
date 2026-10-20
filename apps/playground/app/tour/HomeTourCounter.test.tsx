@@ -12,7 +12,7 @@ import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
 import { render, screen, within, cleanup, act, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
-import type { Quest, Chapter } from '../canvas/parseCanvasMarkdown'
+import type { Quest } from '../canvas/parseCanvasMarkdown'
 import type { ScriptBlock } from '@/components/Editor/types'
 
 const STORAGE_KEY = 'wodwiki.quests.v1'
@@ -145,8 +145,6 @@ const homeQuests: Quest[] = [
   { id: 'qs-tour-analytics', label: 'Review the session', desc: 'Analytics' },
 ]
 
-const chapters: Chapter[] = []
-
 function readHomeProgress(): Record<string, boolean> {
   const ledger = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}')
   return ledger['/'] ?? {}
@@ -160,7 +158,6 @@ function renderHomeTour() {
           wodFiles={wodFiles}
           theme="light"
           quests={homeQuests}
-          chapters={chapters}
         />
       </NuqsAdapter>
     </MemoryRouter>,
@@ -205,9 +202,9 @@ describe('HomeTour stage counter derivation', () => {
 
     expect(readHomeProgress()['qs-tour-timer']).toBeUndefined()
 
-    // Run from the hero editor — the run-started validation completes
+    // Run from the live-preview editor — the run-started validation completes
     // qs-tour-timer; scrolling alone never fakes a run.
-    const runButton = await within(screen.getByTestId('tour-hero')).findByRole('button', { name: 'Run' })
+    const runButton = await within(screen.getByTestId('tour-section-editor')).findByRole('button', { name: 'Run' })
     await act(async () => {
       fireEvent.click(runButton)
       await Promise.resolve()

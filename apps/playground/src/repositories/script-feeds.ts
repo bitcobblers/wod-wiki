@@ -36,6 +36,10 @@ export interface ScriptFeed {
   readme?: string;
   /** Category slugs parsed from the README front matter `category` field */
   categories: string[];
+  /** Short package description (front matter `description:` or README first paragraph) */
+  description?: string;
+  /** Cover image URL (front matter `image:`), when the package provides one */
+  image?: string;
   /** All feed items sorted by feedDate descending (most recent first) */
   items: ScriptFeedItem[];
 }
@@ -50,6 +54,8 @@ export function buildScriptFeeds(files: SeedContentFiles): ScriptFeed[] {
       name: grouping.name,
       readme: grouping.readme,
       categories: grouping.categories,
+      description: grouping.description,
+      image: grouping.image,
       items: grouping.items
         .map(({ id, name, content, path, date }) => ({
           id,

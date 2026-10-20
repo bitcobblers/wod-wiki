@@ -1,10 +1,11 @@
 /**
  * HomeTour.test.tsx — route-level component test for the home page.
  *
- * Asserts the new flow: hero Run → fullscreen run → recorded results back
- * in the hero; the insights section showing the run-to-view CTA before any
- * run and the Rest/Test Ratio + Reaction Time cards after one; the sample
- * boards section; the jump section exits; and the note lifecycle contracts
+ * Asserts the new flow: editor Run → fullscreen run → recorded results land
+ * in "Your Session, Analyzed" (the result table) and the session analytics
+ * (Rest/Test Ratio + Reaction Time) render in the analytics scope of the
+ * merged parallax section; the run-to-view CTA before any run; the boards
+ * carousel tabs; the jump section exits; and the note lifecycle contracts
  * (fresh identity per Run, record-once finalize, failed-start toast).
  */
 
@@ -12,7 +13,7 @@ import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
 import { render, screen, cleanup, fireEvent, act, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
-import type { Quest, Chapter } from '../canvas/parseCanvasMarkdown'
+import type { Quest } from '../canvas/parseCanvasMarkdown'
 import type { ScriptBlock, Sessions, StoredOutputStatement } from '@/components/Editor/types'
 import { telemetry } from '@/services/telemetry'
 
@@ -230,16 +231,6 @@ const homeQuests: Quest[] = [
   { id: 'qs-tour-analytics', label: 'Review the session' },
 ]
 
-const chapters: Chapter[] = [
-  {
-    id: 'home-tour',
-    title: 'Take the Tour',
-    badge: 'play',
-    questIds: ['qs-arrive', 'qs-tour-timer', 'qs-tour-analytics'],
-    sectionIds: [],
-  },
-]
-
 /** A block-level segment with only the fields the insights derivation reads. */
 function segment(overrides: Partial<StoredOutputStatement>): StoredOutputStatement {
   return {
@@ -275,7 +266,6 @@ async function renderHomeTour() {
           wodFiles={wodFiles}
           theme="light"
           quests={homeQuests}
-          chapters={chapters}
         />
       </NuqsAdapter>
     </MemoryRouter>,
@@ -286,8 +276,8 @@ async function renderHomeTour() {
   return result
 }
 
-async function heroRun() {
-  const runButton = await within(screen.getByTestId('tour-hero')).findByRole('button', { name: 'Run' })
+async function editorRun() {
+  const runButton = await within(screen.getByTestId('tour-section-editor')).findByRole('button', { name: 'Run' })
   await act(async () => {
     fireEvent.click(runButton)
     await Promise.resolve()
@@ -330,6 +320,13 @@ describe('HomeTour', () => {
     window.localStorage.clear()
   })
 
+  // The parallax section mounts its scopes twice (desktop sticky pane +
+  // mobile steps); scope queries to the sticky pane or the active scope
+  // to stay unique.
+  const stickyPane = () => within(screen.getByTestId('tour-sticky-pane'))
+  const activeScope = () =>
+    within(screen.getByTestId('tour-section-insights').querySelector('[data-scope-active="true"]') as HTMLElement)
+
   it('renders the jump section with library and journal exits, no playground exit', async () => {
     await renderHomeTour()
     const jump = await screen.findByTestId('tour-jump-section')
@@ -342,21 +339,26 @@ describe('HomeTour', () => {
     expect(within(jump).queryByTestId('jump-playgrounds')).toBeNull()
   })
 
-  it('shows the run-to-view CTA before any run and the boards section beside it', async () => {
+  it('shows the run-to-view CTA before any run and the boards carousel beside it', async () => {
     await renderHomeTour()
-    const insights = screen.getByTestId('tour-section-insights')
-    expect(within(insights).getByTestId('tour-insights-empty')).toBeTruthy()
-    expect(within(insights).getByTestId('tour-insights-run').textContent).toContain('Run to view the results')
-    // The two sample boards render over example data — no run required.
-    const boards = screen.getByTestId('tour-section-boards')
-    await within(boards).findAllByTestId('tour-session-dashboard')
-    expect(within(boards).getAllByTestId('tour-session-dashboard')).toHaveLength(2)
+    const active = activeScope()
+    expect(active.getByTestId('tour-insights-empty')).toBeTruthy()
+    expect(active.getByTestId('tour-insights-run').textContent).toContain('Run to view the results')
+    // The boards scope renders the seeded dashboards behind their tabs.
+    const sticky = stickyPane()
+    expect(sticky.getByTestId('dashboard-slide-tab-road-to-560-total')).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(sticky.getByTestId('dashboard-slide-tab-polarized-base-marathon'))
+      await Promise.resolve()
+    })
+    await sticky.findAllByTestId('tour-session-dashboard')
+    expect(sticky.getAllByTestId('tour-session-dashboard')).toHaveLength(1)
   })
 
   it('the CTA button starts the fullscreen run', async () => {
     await renderHomeTour()
     await act(async () => {
-      fireEvent.click(within(screen.getByTestId('tour-section-insights')).getByTestId('tour-insights-run'))
+      fireEvent.click(activeScope().getByTestId('tour-insights-run'))
       await Promise.resolve()
     })
     expect(runControl.starts).toBe(1)
@@ -364,67 +366,68 @@ describe('HomeTour', () => {
     expect(screen.getByTestId('mock-timer-panel')).toBeTruthy()
   })
 
-  it('hero Run persists a fresh note and runs in place — no scrolling', async () => {
+  it('editor Run persists a fresh note and runs fullscreen — the editor stays an editor', async () => {
     await renderHomeTour()
-    await heroRun()
+    await editorRun()
 
     // Fresh identity minted in place — save-first contract.
     expect(runControl.starts).toBe(1)
     expect(runControl.run?.noteId).toBe('note-1')
-    // The timer opens fullscreen; the editor stays in the hero viewport.
+    // The timer opens fullscreen; the editor viewport keeps the editor.
     expect(screen.getByTestId('mock-timer-panel')).toBeTruthy()
-    expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')).toBeTruthy()
+    expect(within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor')).toBeTruthy()
     expect(screen.getAllByTestId('mock-timer-panel')).toHaveLength(1)
   })
 
   it('every explicit Run after a recorded run mints a NEW note', async () => {
     await renderHomeTour()
-    const hero = () => screen.getByTestId('tour-hero')
-    await heroRun()
+    const editor = () => screen.getByTestId('tour-section-editor')
+    await editorRun()
     expect(runControl.starts).toBe(1)
 
-    // The first run completes and is recorded — the hero settles on the
-    // in-place result view…
+    // The first run completes and is recorded — the insights section
+    // settles on the result table…
     await act(async () => {
       timerPanelControl().fireTimerComplete?.(completedResults())
       await Promise.resolve()
     })
     expect(runControl.finalizes).toHaveLength(1)
-    expect(within(hero()).getByTestId('tour-session-result')).toBeTruthy()
+    expect(stickyPane().getByTestId('tour-session-result')).toBeTruthy()
+    // …while the editor viewport keeps the editor.
+    expect(within(editor()).getByTestId('mock-note-editor')).toBeTruthy()
 
-    // …and after dismissing back to the editor, the next Run mints a fresh
-    // identity (second note), not a reuse. The dismiss slides back before
-    // swapping, so the editor returns asynchronously.
+    // …and the next Run from the editor mints a fresh identity (second
+    // note), not a reuse.
     await act(async () => {
-      fireEvent.click(within(hero()).getByTestId('tour-session-result-dismiss'))
-    })
-    await waitFor(() => expect(within(hero()).getByRole('button', { name: 'Run' })).toBeTruthy())
-    await act(async () => {
-      fireEvent.click(within(hero()).getByRole('button', { name: 'Run' }))
+      fireEvent.click(within(editor()).getByRole('button', { name: 'Run' }))
       await Promise.resolve()
     })
     expect(runControl.starts).toBe(2)
     expect(runControl.run?.noteId).toBe('note-2')
   })
 
-  it('feeds the insights section after a recorded run — ratio, reaction, timeline', async () => {
+  it('feeds the analytics scope after a recorded run — ratio, reaction, timeline', async () => {
     await renderHomeTour()
-    await heroRun()
+    await editorRun()
     await act(async () => {
       timerPanelControl().fireTimerComplete?.(completedResults())
       await Promise.resolve()
     })
 
-    const insights = screen.getByTestId('tour-section-insights')
-    expect(within(insights).getByTestId('tour-insights-timeline')).toBeTruthy()
+    // The sticky pane holds the result table…
+    const sticky = stickyPane()
+    expect(sticky.getByTestId('tour-session-result')).toBeTruthy()
+
+    // …and the session analytics render in the analytics scope.
+    expect(sticky.getByTestId('tour-insights-timeline')).toBeTruthy()
     // 3s countdown vs 43.8s to Next → 1 : 14.6
-    expect(within(insights).getByTestId('tour-insights-ratio')!.textContent).toContain('1 : 14.6')
+    expect(sticky.getByTestId('tour-insights-ratio')!.textContent).toContain('1 : 14.6')
     // avg (1.8s + 42s) / 2 over 2 clicks.
-    expect(within(insights).getByTestId('tour-insights-reaction')!.textContent).toContain('21.9s')
-    expect(within(insights).getByTestId('tour-insights-reaction')!.textContent).toContain('2 clicks')
+    expect(sticky.getByTestId('tour-insights-reaction')!.textContent).toContain('21.9s')
+    expect(sticky.getByTestId('tour-insights-reaction')!.textContent).toContain('2 clicks')
   })
 
-  it('keeps the insights data when the hero resets back to the arrival document', async () => {
+  it('keeps the insights data when the editor resets back to the arrival document', async () => {
     type MockEntry = { el: Element; fire: (v: boolean) => void }
     const observers: MockEntry[] = []
     class MockIO {
@@ -445,45 +448,41 @@ describe('HomeTour', () => {
       disconnect() {}
     }
     const scope = globalThis as unknown as { IntersectionObserver?: unknown }
+    const previousIO = scope.IntersectionObserver
     scope.IntersectionObserver = MockIO
     try {
       await renderHomeTour()
-      await heroRun()
+      await editorRun()
       await act(async () => {
         timerPanelControl().fireTimerComplete?.(completedResults())
         await Promise.resolve()
       })
-      expect(screen.getByTestId('tour-section-insights').textContent).toContain('1 : 14.6')
+      expect(screen.getByTestId('tour-section-insights').textContent).toContain('Session recorded')
 
-      // Dismiss the hero result ("Edit again") — the recorded session
-      // survives the identity clear. Then leave the hero and come back:
-      // the editor resets to arrival content, and the insights keep their
-      // data.
-      await act(async () => {
-        fireEvent.click(within(screen.getByTestId('tour-hero')).getByTestId('tour-session-result-dismiss'))
-      })
-      await waitFor(() => expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')).toBeTruthy())
-      const heroSentinel = observers.find(
-        (o) => o.el.parentElement?.getAttribute('data-testid') === 'home-tour' && o.el.getAttribute('aria-hidden') === 'true',
+      // Leave the editor section and come back: the editor resets to the
+      // arrival content, and the recorded session survives in the
+      // insights section.
+      const editorObserver = observers.find(
+        (o) => o.el.getAttribute('data-testid') === 'tour-section-editor',
       )
-      expect(heroSentinel).toBeTruthy()
+      expect(editorObserver).toBeTruthy()
       await act(async () => {
-        heroSentinel!.fire(true)
-        heroSentinel!.fire(false)
-        heroSentinel!.fire(true)
+        editorObserver!.fire(true)
+        editorObserver!.fire(false)
+        editorObserver!.fire(true)
         await Promise.resolve()
       })
-      await waitFor(() => expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')).toBeTruthy())
-      expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')!.textContent).toBe(BARE_WELCOME)
-      expect(screen.getByTestId('tour-section-insights').textContent).toContain('1 : 14.6')
+      await waitFor(() => expect(within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor')).toBeTruthy())
+      expect(within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor')!.textContent).toBe(BARE_WELCOME)
+      expect(screen.getByTestId('tour-section-insights').textContent).toContain('Session recorded')
     } finally {
-      delete scope.IntersectionObserver
+      scope.IntersectionObserver = previousIO
     }
   })
 
   it('records completion against the run identity exactly once', async () => {
     await renderHomeTour()
-    await heroRun()
+    await editorRun()
     expect(runControl.starts).toBe(1)
 
     await act(async () => {
@@ -501,7 +500,7 @@ describe('HomeTour', () => {
   it('aborts the run with a toast when the note cannot be persisted', async () => {
     runControl.failStarts = true
     await renderHomeTour()
-    await heroRun()
+    await editorRun()
 
     // No identity and the failure is visible.
     expect(runControl.starts).toBe(0)
@@ -509,7 +508,7 @@ describe('HomeTour', () => {
     expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }))
   })
 
-  it('keeps the edited document and an in-place hero run alive across a desktop→phone viewport change', async () => {
+  it('keeps the edited document and a fullscreen run alive across a desktop→phone viewport change', async () => {
     // Width drives CSS only: crossing the device breakpoint must not remount
     // the tree (it used to swap the hero for the mobile runway, opening the
     // fullscreen dialog and dropping the live run).
@@ -534,11 +533,12 @@ describe('HomeTour', () => {
     })
     await renderHomeTour()
 
-    // Edit the shared document, then Run in place — the pane lives in the hero.
-    const heroEditor = within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor') as HTMLTextAreaElement
+    // Edit the shared document, then Run — the pane lives in the editor section.
+    const editor = () => screen.getByTestId('tour-section-editor')
+    const heroEditor = within(editor()).getByTestId('mock-note-editor') as HTMLTextAreaElement
     await act(async () => {
       fireEvent.change(heroEditor, { target: { value: 'EDIT ACROSS WIDTHS' } })
-      fireEvent.click(within(screen.getByTestId('tour-hero')).getByRole('button', { name: 'Run' }))
+      fireEvent.click(within(editor()).getByRole('button', { name: 'Run' }))
       await Promise.resolve()
     })
     const paneBefore = screen.getByTestId('mock-timer-panel')
@@ -559,19 +559,14 @@ describe('HomeTour', () => {
     expect(screen.getByTestId('mock-timer-panel')).toBe(paneBefore)
     expect(screen.getAllByTestId('mock-timer-panel')).toHaveLength(1)
 
-    // Stop → result remains usable in place, and the edit survives the trip
-    // back to the editor.
+    // Completion lands the result in the insights section, and the edit
+    // survives in the editor viewport.
     await act(async () => {
       timerPanelControl().fireTimerComplete?.(completedResults())
       await Promise.resolve()
     })
-    expect(within(screen.getByTestId('tour-hero')).getByTestId('tour-session-result')).toBeTruthy()
-    // The dismiss slides back before swapping; the editor returns async.
-    await act(async () => {
-      fireEvent.click(within(screen.getByTestId('tour-hero')).getByTestId('tour-session-result-dismiss'))
-    })
-    await waitFor(() => expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')).toBeTruthy())
-    expect((within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor') as HTMLTextAreaElement).value).toBe('EDIT ACROSS WIDTHS')
+    expect(stickyPane().getByTestId('tour-session-result')).toBeTruthy()
+    expect((within(editor()).getByTestId('mock-note-editor') as HTMLTextAreaElement).value).toBe('EDIT ACROSS WIDTHS')
   })
 
 })

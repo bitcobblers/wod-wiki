@@ -1,10 +1,11 @@
 /**
  * HomeView — the homepage: a scroll-driven product walkthrough.
  *
- * The redesigned home page renders the interactive hero (with live editor),
- * the sticky Timer/Analytics runways, the Library & Community Feeds strip,
- * and the data-ownership sections. See playground/src/tour/HomeTour.tsx
- * for the section-level implementation.
+ * The redesigned home page renders the heading hero, the "Why Wod Wiki?"
+ * video placeholder, the live editor preview, the session-analytics
+ * sections, the Library & Community Feeds strip, and the data-ownership
+ * sections. See playground/src/tour/HomeTour.tsx for the section-level
+ * implementation.
  *
  * Preserved from the markdown-driven home (markdown/canvas/home/README.md):
  *  - quick-start quests (qs-arrive / qs-edit / qs-run) plus scroll quests
@@ -39,7 +40,6 @@ export function HomeView({ wodFiles, theme }: HomeViewProps) {
       wodFiles={wodFiles}
       theme={theme}
       quests={page.quests ?? []}
-      chapters={page.chapters ?? []}
     />
   )
 }
