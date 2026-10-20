@@ -17,7 +17,7 @@ import { parseScript, extractStatementRefs, createReferenceIndex, type Reference
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
 import { parseDocumentSections, validateNoteBlocks, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS, MetricType } from '@bitcobblers/wod-wiki-core';
-import { rowsEqual } from '@bitcobblers/wod-wiki-storage';
+import { rowsEqual, userDeletedSeedKey } from '@bitcobblers/wod-wiki-storage';
 import type { DomainEntry, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
 import type { IStorage, IStorageTransaction, StoreName } from './IStorage';
 import { NotePersistenceError, type NotePersistenceStorage, type SaveNoteInput } from '../persistence/types';
@@ -263,9 +263,10 @@ export class StorageService implements NotePersistenceStorage {
 
   async deleteNote(id: string): Promise<void> {
     await this.storage.transaction(
-      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes'],
+      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'meta'],
       'readwrite',
       async (tx) => {
+        const note = await tx.readonly('notes').get(id);
         await tx.readwrite('notes').delete(id);
 
 
@@ -299,7 +300,18 @@ export class StorageService implements NotePersistenceStorage {
           await pageNotes.delete(link.id);
         }
 
-      }
+        // Durable seed-deletion suppression, atomic with the delete and its
+        // journal: seed re-import (applySeedChunk) honors the tombstone so a
+        // deleted seed note never re-appears on import, and every
+        // user-scope snapshot carries it to fresh devices. Editing a seed
+        // note flips seedOrigin to 'user' while retaining seedChunkId/
+        // sourcePath provenance, so the tombstone fires on that provenance
+        // evidence, not just the ownership flag.
+        if (note && (note.seedOrigin === 'seed'
+          || note.seedChunkId !== undefined || note.sourcePath !== undefined)) {
+          await tx.readwrite('meta').put({ key: userDeletedSeedKey(id), value: Date.now() });
+        }
+      },
     );
   }
 

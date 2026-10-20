@@ -1,5 +1,6 @@
 import { mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core';
 import type { IStorage, IReadWriteStore } from '@bitcobblers/wod-wiki-storage';
+import { userDeletedSeedNoteId } from '@bitcobblers/wod-wiki-storage';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import { extractTypedTags, readFrontmatterMeta } from '../exchange';
@@ -193,6 +194,15 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
   }
   return storage.transaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'page', 'page_notes', 'tags', 'note_tags', 'efforts', 'equipment', 'meta'], 'readwrite', async (tx) => {
     const metaStore = tx.readwrite('meta');
+    // Durable user deletion intent (StorageService.deleteNote tombstones):
+    // seed rows the user deleted through the app are never re-created by
+    // re-import; the tombstones ship in every user-scope snapshot so fresh
+    // devices suppress too.
+    const userDeleted = new Set<string>();
+    for (const row of await metaStore.getAll()) {
+      const suppressed = userDeletedSeedNoteId((row as { key?: unknown } | null)?.key);
+      if (suppressed !== undefined) userDeleted.add(suppressed);
+    }
     const actualMeta = await metaStore.get(write.meta.key);
     if (!equal(actualMeta, write.expectedMeta)) throw new Error('Seed checkpoint changed during import');
     if (write.meta.schema !== SEED_SCHEMA || write.manifest.schema !== SEED_SCHEMA) throw new Error('Incompatible seed schema; recreate artifacts');
@@ -230,6 +240,11 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       return max;
     };
     const ownedIds = allIds.filter((id) => {
+      // Durable user deletion intent (StorageService.deleteNote tombstone):
+      // a seed note the user deleted through the app is never re-created by
+      // re-import — the tombstone ships in every user-scope snapshot, so
+      // fresh devices suppress it too.
+      if (userDeleted.has(id)) return false;
       const note = existingById.get(id);
       if (!note) return declared.has(id);
       if (note.seedOrigin !== 'seed') return false;

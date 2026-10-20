@@ -11,8 +11,8 @@
  * API mode is selected by the deployment build, not this form.
  */
 
-import { useState } from 'react'
-import { RefreshCw, CheckCircle2, AlertCircle, CloudOff, Database, Server, Check, Lock, Search } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { RefreshCw, CheckCircle2, AlertCircle, CloudOff, Database, Server, Check, Lock, Search, Download, ArchiveRestore } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import {
   readDataSettings,
@@ -20,8 +20,17 @@ import {
   testTursoConnection,
   switchToIndexedDb,
   storageBackend,
+  readUnsentEdits,
   type DataSettingsRead,
 } from '@/services/storage'
+import {
+  exportSafeData,
+  parsePairingFile,
+  probeRestoreTarget,
+  restoreFromTarget,
+  type PairingFile,
+  type TargetStatus,
+} from '@/services/storage/restoreService'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
@@ -34,9 +43,46 @@ export interface TursoConnectFormProps {
   onConnected?: () => void
 }
 
+/** Shared pairing-file import: parses the CLI provisioning file and hands the
+ *  credentials to the owning form. Used for ordinary pairing AND restore. */
+function PairingImport({ idPrefix, onPair }: { idPrefix: string; onPair: (pairing: PairingFile) => void }) {
+  const [error, setError] = useState<string | null>(null)
+  const read = async (files: FileList | null) => {
+    if (!files?.length) return
+    const parse = parsePairingFile(await files[0].text())
+    if (parse.ok) {
+      setError(null)
+      onPair(parse.pairing)
+    } else {
+      setError(parse.error)
+    }
+  }
+  return (
+    <div className="space-y-1">
+      <label htmlFor={`${idPrefix}-pairing`} className="block text-xs font-medium text-muted-foreground">
+        Pair from provisioning file (from <code className="font-mono">wod db</code>)
+      </label>
+      <input
+        id={`${idPrefix}-pairing`}
+        type="file"
+        accept="application/json,.json"
+        onChange={(e) => void read(e.target.files)}
+        data-testid={`${idPrefix}-pairing-input`}
+        className="block w-full text-xs text-muted-foreground file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs file:font-medium"
+      />
+      {error && (
+        <p role="alert" className="text-xs text-destructive" data-testid={`${idPrefix}-pairing-error`}>
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function TursoConnectForm({ saved, onConnected }: TursoConnectFormProps) {
   const [url, setUrl] = useState(saved?.url ?? '')
   const [token, setToken] = useState('')
+  const [pairingLabel, setPairingLabel] = useState<string | null>(null)
   const [busy, setBusy] = useState<null | 'connect' | 'test'>(null)
   const [error, setError] = useState<string | null>(null)
   const [testMessage, setTestMessage] = useState<string | null>(null)
@@ -98,6 +144,26 @@ export function TursoConnectForm({ saved, onConnected }: TursoConnectFormProps) 
 
   return (
     <div className="space-y-3" data-testid="turso-connect-form">
+      <PairingImport
+        idPrefix="turso"
+        onPair={(pairing) => {
+          setUrl(pairing.url)
+          setToken(pairing.authToken)
+          setError(null)
+          setTestMessage(null)
+          setPairingLabel(
+            [pairing.database, pairing.schemaVersion !== undefined ? `file schema v${pairing.schemaVersion}` : undefined]
+              .filter(Boolean)
+              .join(' · ') || null,
+          )
+        }}
+      />
+      {pairingLabel && (
+        <p className="text-xs text-muted-foreground" data-testid="turso-pairing-label">
+          Provisioned database: <span className="font-mono">{pairingLabel}</span> — verify with Test Connection, then
+          Enable Sync. The live database is checked again before anything is saved.
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label htmlFor="turso-url" className="block text-xs font-medium text-muted-foreground mb-1">
@@ -171,6 +237,240 @@ export function TursoConnectForm({ saved, onConnected }: TursoConnectFormProps) 
 }
 
 
+
+/** Canonical probe result → one status line. The live database — never the
+ *  pairing file's snapshot — is the truth shown here. */
+function TargetStatusLine({ status }: { status: TargetStatus }) {
+  const meta = {
+    current: { label: 'Compatible', className: 'text-emerald-600' },
+    older: { label: 'Older schema', className: 'text-amber-600' },
+    newer: { label: 'Newer schema', className: 'text-destructive' },
+    empty: { label: 'Empty database', className: 'text-amber-600' },
+    unknown: { label: 'Foreign database', className: 'text-destructive' },
+    unreachable: { label: 'Unreachable', className: 'text-destructive' },
+  }[status.state]
+  const detail =
+    status.state === 'current'
+      ? `Canonical schema v${status.schemaVersion}, up to date at rev ${status.rev}.`
+      : status.reason
+  return (
+    <p className="flex items-start gap-1.5 text-xs leading-relaxed" data-testid={`restore-status-${status.state}`}>
+      {status.state === 'current' ? (
+        <CheckCircle2 className="size-3.5 mt-0.5 shrink-0 text-emerald-600" />
+      ) : (
+        <AlertCircle className={cn('size-3.5 mt-0.5 shrink-0', meta.className)} />
+      )}
+      <span className={meta.className}>
+        <span className="font-semibold">{meta.label}.</span>{' '}
+        <span className="text-muted-foreground">{detail}</span>
+      </span>
+    </p>
+  )
+}
+
+/** Explicit isolated restore: pair a DIFFERENT, already-provisioned target,
+ *  export unsent edits, then replay it into a unique local database. The old
+ *  database, its unsent edits and the saved settings all survive any failure. */
+function RestoreSection() {
+  const [url, setUrl] = useState('')
+  const [token, setToken] = useState('')
+  const [status, setStatus] = useState<TargetStatus | null>(null)
+  const [phase, setPhase] = useState<string | null>(null)
+  const [exportNote, setExportNote] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<null | 'probe' | 'export' | 'restore'>(null)
+  const [pendingCount, setPendingCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    let live = true
+    readUnsentEdits().then((groups) => { if (live) setPendingCount(groups.length) }).catch(() => undefined)
+    return () => { live = false }
+  }, [])
+
+  const hasCandidate = url.trim() !== '' && token.trim() !== ''
+
+  const check = async () => {
+    setBusy('probe')
+    setError(null)
+    setStatus(null)
+    try {
+      setStatus(await probeRestoreTarget({ url: url.trim(), authToken: token }))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const exportEdits = async () => {
+    setBusy('export')
+    setError(null)
+    try {
+      const filename = await exportSafeData()
+      setExportNote(`Exported ${filename} — unsent edits, a full local snapshot, and content-source settings. No tokens included.`)
+      const groups = await readUnsentEdits()
+      setPendingCount(groups.length)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const runRestore = async () => {
+    setBusy('restore')
+    setConfirming(false)
+    setError(null)
+    try {
+      await restoreFromTarget({ url: url.trim(), authToken: token }, setPhase)
+      toast({
+        title: 'Restore complete',
+        description: 'The restored database is now your data. Reloading…',
+      })
+      setTimeout(() => window.location.reload(), 600)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setPhase(null)
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 sm:p-5 space-y-4" data-testid="restore-section">
+      <div className="flex items-start gap-3">
+        <div className="p-2 rounded-lg bg-muted text-foreground shrink-0">
+          <ArchiveRestore className="size-5" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Restore from a backup database</h3>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Point this at a different, already-provisioned database (for example one retained by{' '}
+            <code className="font-mono">wod db backup</code>) to replace this browser's data with its contents.
+            The remote database is never modified, and your current data is kept in a separate local database
+            that stays on disk.
+          </p>
+        </div>
+      </div>
+
+      <PairingImport
+        idPrefix="restore"
+        onPair={(pairing) => {
+          setUrl(pairing.url)
+          setToken(pairing.authToken)
+          setStatus(null)
+          setError(null)
+          setExportNote(null)
+        }}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label htmlFor="restore-url" className="block text-xs font-medium text-muted-foreground mb-1">
+            Backup database URL
+          </label>
+          <input
+            id="restore-url"
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="libsql://your-restore-target.turso.io"
+            className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs outline-none focus:border-primary font-mono"
+            value={url}
+            onChange={(e) => { setUrl(e.target.value); setStatus(null) }}
+            disabled={busy !== null}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label htmlFor="restore-token" className="block text-xs font-medium text-muted-foreground mb-1">
+            Auth token
+          </label>
+          <input
+            id="restore-token"
+            type="password"
+            autoComplete="off"
+            placeholder="Database-scoped token for the backup database"
+            className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs outline-none focus:border-primary font-mono"
+            value={token}
+            onChange={(e) => { setToken(e.target.value); setStatus(null) }}
+            disabled={busy !== null}
+          />
+        </div>
+      </div>
+
+      {error && (
+        <p role="alert" className="flex items-start gap-1.5 text-xs text-destructive" data-testid="restore-error">
+          <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </p>
+      )}
+      {status && <TargetStatusLine status={status} />}
+      {phase && (
+        <p aria-live="polite" className="text-xs text-muted-foreground" data-testid="restore-phase">
+          {phase}
+        </p>
+      )}
+      {exportNote && (
+        <p className="text-xs text-muted-foreground" data-testid="restore-export-note">
+          {exportNote}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void check()}
+          disabled={!hasCandidate || busy !== null}
+          data-testid="restore-check-button"
+          className="gap-2"
+        >
+          {busy === 'probe' ? <RefreshCw className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
+          <span>{busy === 'probe' ? 'Checking…' : 'Check database'}</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void exportEdits()}
+          disabled={busy !== null}
+          data-testid="restore-export-button"
+          className="gap-2"
+        >
+          {busy === 'export' ? <RefreshCw className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+          <span>
+            {pendingCount === null || pendingCount === 0
+              ? 'Export data (safe file)'
+              : `Export data — ${pendingCount} unsent ${pendingCount === 1 ? 'edit' : 'edits'}`}
+          </span>
+        </Button>
+        {!confirming ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => { setConfirming(true); setError(null) }}
+            disabled={!hasCandidate || busy !== null}
+            data-testid="restore-button"
+            className="gap-2"
+          >
+            <ArchiveRestore className="size-3.5" />
+            <span>Restore this database…</span>
+          </Button>
+        ) : (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground max-w-72">
+              Your current data is exported and kept locally. The restored copy opens with sync disabled so the archive stays unchanged.
+            </span>
+            <Button variant="destructive" size="sm" autoFocus onClick={() => void runRestore()} disabled={busy !== null} data-testid="restore-confirm-button">
+              {busy === 'restore' ? <RefreshCw className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+              <span>{busy === 'restore' ? 'Restoring…' : 'Confirm restore'}</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={busy !== null} data-testid="restore-cancel-button">
+              Cancel
+            </Button>
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export function DataSection() {
   const [settings] = useState<DataSettingsRead>(readDataSettings)
@@ -301,6 +601,8 @@ export function DataSection() {
                 />
               </div>
             </div>
+
+            <RestoreSection />
 
             <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground" data-testid="storage-option-self-hosted">
               <Server className="mb-2 size-5" aria-hidden="true" />

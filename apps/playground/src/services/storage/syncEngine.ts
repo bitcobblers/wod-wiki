@@ -21,27 +21,13 @@
  *    edits are overlaid inside the apply transaction, so the user's latest
  *    edit/delete/clear/wipe remains the visible state even when the remote
  *    row for the same key arrives mid-pull.
- *  - Schema policy: the target is probed WITHOUT emitting UI updates. An
- *    empty target is initialized + snapshotted; an OLDER target (old op-log
- *    schema or legacy direct-Turso layout) is migrated forward by
- *    converting the actual payloads (segments/results-era rows rebuild into
- *    note-owned blocks through the same versioned chain the browser runs
- *    locally) — never just rewriting the version marker. The legacy source
- *    rows stay on the remote until the converted snapshot transaction
- *    commits. A NEWER target is never downgraded — sync halts with a
- *    presentable error and the local app keeps working. An UNKNOWN target
- *    (foreign tables, no schema guard) is refused, not adopted.
- *  - Snapshot/bootstrap group ids are namespaced by a persisted per-client
- *    bootstrap id (`bs:<id>:<n>`) — fixed per-store ids used to collide
- *    across browsers and after target resets, and the idempotent insert
- *    then silently dropped data. Cursors/watermarks are per-target: a
- *    target switch replays the new target and re-bootstraps this browser's
- *    existing local rows (even with an empty outbox), so nothing stays
- *    un-backed-up.
- *  - Multi-tab/multi-engine cycles are single-flighted with a Web Locks
- *    lease (IDB-labs fallback where locks are unavailable); stop() removes
- *    every listener, waits for the in-flight chain, then closes the remote
- *    connection.
+ *  - Schema changes require an explicit CLI copy into a fresh target. Older,
+ *    newer and unknown targets never mutate through ordinary browser sync.
+ *  - Bootstrap retries reuse frozen, durable chunks for exactly one target.
+ *    Pull cursors advance only after replay, never to a probed revision.
+ *  - Web Locks serialize cycles across tabs when available; the promise
+ *    chain serializes this engine otherwise. stop() removes listeners,
+ *    waits for the chain, and closes the connection.
  *
  * ponytail: op-log replay pulls — a fresh browser replays the whole log
  * (O(history)) instead of reading per-store current-state tables. Upgrade
@@ -50,47 +36,35 @@
  */
 
 import { createClient } from '@libsql/client/web';
-import { openDB } from 'idb';
 import {
   libsqlDatabase,
   probeSyncTarget,
   initSyncTarget,
   applySyncBatch,
   fetchSyncOps,
-  readRawSyncOps,
-  replaceSyncLog,
-  readLegacyRows,
   type Database,
   type SyncEntry,
   type SyncMutation,
 } from '@bitcobblers/wod-wiki-storage/sql';
-import { DB_VERSION, STORE_DEFS, keyFromValue } from '@bitcobblers/wod-wiki-storage';
-import type { KeyDTO } from '@bitcobblers/wod-wiki-storage';
+import { DB_VERSION } from '@bitcobblers/wod-wiki-storage';
+import { IndexedDBStorage, subscribeOutboxWrites } from '@bitcobblers/wod-wiki-storage/idb';
 import { beginSyncActivity, reportSyncResult, reportSyncError } from '../syncActivity';
-import { markStorageChecking, markStorageIdle, markStorageUpdating, failStorageUpdate } from './storageUpdate';
-import { IndexedDBStorage, subscribeOutboxWrites } from './IndexedDBStorage';
+import { failStorageUpdate } from './storageUpdate';
 import { invalidateSeedContent } from '../content/seedContent';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '../effortRegistry';
 
 const BATCH_MAX_OPS = 200;
 const BATCH_MAX_BYTES = 1_000_000;
 const FETCH_PAGE = 500;
-const SNAPSHOT_GROUP = 500;
 const UPLOAD_PAGE = 50;
 const PULL_POLL_MS = 60_000;
 const RETRY_MS = 30_000;
 const UPLOAD_DEBOUNCE_MS = 750;
-const SCRATCH_DB = 'wodwiki-migrate-scratch';
 const LOCK_NAME = 'wodwiki-sync';
 
 /** Stores whose rows carry a raw binary field (base64 in the op log). */
 const BINARY_SYNC_FIELDS: Record<string, string> = { attachments: 'data' };
 
-/** Legacy direct-Turso tables that predate the current STORE_DEFS spec. */
-const LEGACY_EXTRA_TABLES: { name: string; keyPath: string | string[] }[] = [
-  { name: 'segments', keyPath: ['id', 'version'] },
-  { name: 'results', keyPath: 'id' },
-];
 
 function presentable(err: unknown, secret?: string): string {
   let message = err instanceof Error ? err.message : String(err);
@@ -98,21 +72,6 @@ function presentable(err: unknown, secret?: string): string {
   return message || 'Sync failed';
 }
 
-/** Stable per-target namespace for cursor/watermark sync_state keys. */
-function fnv1a(text: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0');
-}
-
-/** Narrow a raw (unvalidated) op key to what IndexedDB accepts. */
-function isIdbKey(value: unknown): value is IDBValidKey {
-  return typeof value === 'string' || typeof value === 'number' || value instanceof Date
-    || (Array.isArray(value) && value.length > 0 && value.every(isIdbKey));
-}
 
 /** Approximate encoded op-log size of one outbox entry: JSON envelope plus
  *  base64-inflated binary cells (ArrayBuffer serializes as {} in JSON, so a
@@ -134,27 +93,11 @@ function entryBytes(entry: { ops: SyncMutation[] }): number {
   return bytes;
 }
 
-type ScratchOp =
-  | { kind: 'put'; table: string; row: unknown }
-  | { kind: 'delete'; table: string; key: IDBValidKey }
-  | { kind: 'clear'; table: string };
 
 /** Timer handles — browser number vs Node Timeout depending on the runtime. */
 type TimerHandle = ReturnType<typeof setInterval>;
 type TimeoutHandle = ReturnType<typeof setTimeout>;
 
-function deleteIdbDatabase(name: string): Promise<void> {
-  const idb = globalThis.indexedDB;
-  if (!idb) return Promise.resolve();
-  const { promise, resolve, reject } = Promise.withResolvers<void>();
-  const request = idb.deleteDatabase(name);
-  request.onsuccess = () => { resolve(); };
-  request.onerror = () => { reject(request.error ?? new Error(`failed to delete ${name}`)); };
-  // A still-open connection blocks deletion; the scratch rows are
-  // disposable either way, so don't hang the cycle on it.
-  request.onblocked = () => { resolve(); };
-  return promise;
-}
 
 export class TursoSyncEngine {
   private db: Database | undefined;
@@ -189,6 +132,40 @@ export class TursoSyncEngine {
     return run;
   }
 
+  restoreNow(): Promise<void> {
+    const run = this.chain.then(async () => {
+      if (this.stopped) throw new Error('Restore engine is stopped');
+      const rows = await this.local.snapshotAllRows();
+      if (rows.some(group => group.rows.length > 0) || (await this.local.readOutbox(0, 1)).length > 0) {
+        throw new Error('Restore requires an empty isolated local database');
+      }
+      const db = await this.remote();
+      const source = await probeSyncTarget(db);
+      if (source === 'empty' || source.kind !== 'current' || source.schemaVersion !== DB_VERSION) {
+        throw new Error(`Restore requires a provisioned v${DB_VERSION} backup. Migrate older backups with the CLI first.`);
+      }
+      let cursor = 0;
+      while (cursor < source.rev) {
+        const ops = await fetchSyncOps(db, cursor, FETCH_PAGE);
+        if (ops.length === 0) break;
+        if (ops[ops.length - 1].rev > source.rev) {
+          throw new Error('Backup changed during restore. Freeze its writers and retry with a fresh local database.');
+        }
+        cursor = ops[ops.length - 1].rev;
+        await this.local.applySyncMutations(ops.map(op => op.mutation), cursor, this.cursorKey());
+      }
+      await this.local.validateSyncState();
+      const after = await probeSyncTarget(db);
+      if (after === 'empty' || after.kind !== 'current' || after.schemaVersion !== source.schemaVersion || after.rev !== source.rev || cursor !== source.rev) {
+        throw new Error('Backup changed during restore. Freeze its writers and retry with a fresh local database.');
+      }
+      await this.local.setSyncState(this.bootstrappedKey(), { done: true });
+      this.reconciled = true;
+    });
+    this.chain = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
   /** Start listeners and kick the first cycle. Returns stop(): removes every
    *  listener, waits for the in-flight chain, then closes the remote. */
   start(): () => void {
@@ -205,7 +182,7 @@ export class TursoSyncEngine {
     return () => { void this.stop(); };
   }
 
-  private async stop(): Promise<void> {
+  async stop(): Promise<void> {
     this.stopped = true;
     for (const timer of this.timers) clearInterval(timer);
     this.timers = [];
@@ -257,14 +234,8 @@ export class TursoSyncEngine {
 
   private async cycleInner(manual: boolean, scope: 'full' | 'upload'): Promise<void> {
     void manual;
-    // Pull runs BEFORE upload, and the legs are failure-independent:
-    //  - a pulled remote row plus the unsent-edit overlay is exactly how a
-    //    pending local edit survives an offline upload leg;
-    //  - the post-pull bootstrap can see (and skip) rows still pending in
-    //    the outbox, so nothing ships twice;
-    //  - journal groups then append AFTER the bootstrap rows, so the user's
-    //    committed writes stay the last writer for their keys.
-    // The first failure is reported after all legs ran.
+    // Pull overlays pending edits; journal groups append after bootstrap.
+    // A failed pull must not prevent already-bootstrapped offline uploads.
     const failures: unknown[] = [];
     if (scope === 'full') {
       try { await this.ensureReconciled(); } catch (error) { failures.push(error); }
@@ -281,10 +252,10 @@ export class TursoSyncEngine {
     return this.db;
   }
 
-  private targetHash(): string { return fnv1a(this.settings.url); }
-  private cursorKey(): string { return `cursor:${this.targetHash()}`; }
-  private watermarkKey(): string { return `watermark:${this.targetHash()}`; }
-  private bootstrappedKey(): string { return `bootstrapped:${this.targetHash()}`; }
+  private cursorKey(): string { return `cursor:${this.settings.url}`; }
+  private watermarkKey(): string { return `watermark:${this.settings.url}`; }
+  private bootstrappedKey(): string { return `bootstrapped:${this.settings.url}`; }
+  private bootstrapRunKey(): string { return `bootstrap-run:${this.settings.url}`; }
 
   /** Probe + one-time target reconciliation. Ordinary probes are silent —
    *  storageUpdate only hears about ACTUAL migrations (or hard refusals). */
@@ -292,7 +263,7 @@ export class TursoSyncEngine {
     if (this.reconciled) return;
     const db = await this.remote();
     const target = await probeSyncTarget(db);
-    if (target.kind === 'unknown') {
+    if (target !== 'empty' && target.kind === 'unknown') {
       const message = 'Backup database contains unrelated tables and no WOD Wiki schema; refusing to adopt it. Point the backup setting at a fresh database.';
       this.halted = true;
       failStorageUpdate(message);
@@ -307,199 +278,24 @@ export class TursoSyncEngine {
       throw new Error(message);
     }
     if (target === 'empty') {
-      const end = beginSyncActivity('upload', 'Creating initial backup');
-      try {
-        await initSyncTarget(db, DB_VERSION);
-        await this.bootstrapSnapshot();
-        await this.local.setSyncState(this.bootstrappedKey(), { done: true });
-        // Skip replaying our own snapshot back into this browser.
-        const after = await probeSyncTarget(db);
-        if (after.kind === 'current') await this.local.setSyncState(this.cursorKey(), { rev: after.rev });
-      } finally {
-        end();
-      }
-    } else if (remoteVersion < DB_VERSION) {
-      // Older backup: convert the actual payloads forward (op-log replay or
-      // legacy direct-Turso import) — the version marker moves only in the
-      // same transaction as the converted snapshot.
-      markStorageChecking('Checking backup database schema…');
-      const end = beginSyncActivity('upload', `Updating backup database schema to v${DB_VERSION}`);
-      try {
-        markStorageUpdating(`Updating backup database schema v${remoteVersion} → v${DB_VERSION}…`, remoteVersion, DB_VERSION);
-        await this.migrateRemoteToCurrent(db, remoteVersion, target.kind === 'legacy');
-        markStorageIdle(DB_VERSION);
-      } finally {
-        end();
-      }
+      await initSyncTarget(db, DB_VERSION);
+    } else if (target.kind === 'legacy' || remoteVersion < DB_VERSION) {
+      const message = `Backup schema v${remoteVersion} requires an explicit CLI migration into a fresh v${DB_VERSION} target. The old database was left untouched.`;
+      this.halted = true;
+      failStorageUpdate(message);
+      throw new Error(message);
     }
     this.reconciled = true;
   }
 
-  /**
-   * Convert an older remote (op-log at schemaVersion < DB_VERSION, or a
-   * legacy direct-Turso layout) to the current payload schema:
-   *  1. Lift the remote data as ordered scratch ops (op-log replay in rev
-   *     order, or legacy per-store rows incl. segments/results).
-   *  2. Replay them into a scratch IndexedDB created AT the remote schema
-   *     version, then open it through IndexedDBStorage — the same versioned
-   *     migration chain the browser runs locally rebuilds segments-era rows
-   *     into note-owned blocks, block revisions, sessions and events.
-   *  3. Append the converted rows as snapshot groups — leading wipe, schema
-   *     marker bumped in the SAME transaction as the final group. The old
-   *     op rows / legacy tables stay on the remote as the recoverable source.
-   */
-  private async migrateRemoteToCurrent(db: Database, fromVersion: number, legacy: boolean): Promise<void> {
-    if (fromVersion < 20) {
-      throw new Error(
-        `Backup database schema v${fromVersion} predates the supported migration chain (v20+); the backup was left untouched. `
-        + 'Restore it with an intermediate app version, or point this app at a fresh backup database.',
-      );
-    }
-    const raw: ScratchOp[] = [];
-    if (legacy) {
-      const tables = [...STORE_DEFS.filter(def => !def.system).map(def => def.name), ...LEGACY_EXTRA_TABLES.map(t => t.name)];
-      for (const table of tables) {
-        for (const row of await readLegacyRows(db, table)) {
-          raw.push({ kind: 'put', table, row });
-        }
-      }
-    } else {
-      // Raw (unvalidated) replay: era logs reference store names the current
-      // schema rejects (segments/results), which is exactly what the scratch
-      // conversion below exists to transform.
-      for (const op of await readRawSyncOps(db)) {
-        if (op.op === 'put' && op.value !== undefined && typeof op.value === 'object' && !Array.isArray(op.value)) {
-          raw.push({ kind: 'put', table: op.store, row: op.value });
-        } else if (op.op === 'delete' && isIdbKey(op.key)) {
-          raw.push({ kind: 'delete', table: op.store, key: op.key });
-        } else if (op.op === 'clear') {
-          raw.push({ kind: 'clear', table: op.store });
-        } else if (op.op === 'wipe') {
-          for (const def of STORE_DEFS.filter(d => !d.system)) raw.push({ kind: 'clear', table: def.name });
-        }
-      }
-    }
-    await this.buildScratch(fromVersion, raw);
-    try {
-      const converted = new IndexedDBStorage({ dbName: SCRATCH_DB });
-      await converted.open();
-      const byStore = await converted.snapshotRows();
-      await converted.close();
-      const ops: SyncMutation[] = [{ op: 'wipe' }];
-      for (const { store, rows } of byStore) {
-        const def = STORE_DEFS.find(d => d.name === store);
-        if (!def) continue;
-        for (const row of rows) {
-          try {
-            ops.push({ op: 'put', store, key: keyFromValue(def, row), value: row });
-          } catch {
-            // Converted row without its keyPath fields — never written back.
-          }
-        }
-      }
-      const entries: SyncEntry[] = [];
-      for (let i = 0; i < ops.length; i += SNAPSHOT_GROUP) {
-        entries.push({ id: `migrate:${crypto.randomUUID()}`, at: Date.now(), ops: ops.slice(i, i + SNAPSHOT_GROUP) });
-      }
-      // The active log becomes the converted snapshot (rev 1..n); the
-      // previous ops are archived, not destroyed — the old source stays
-      // recoverable on the remote after the marker moves. Legacy targets
-      // have no sync tables yet: create them at the FROM version first (a
-      // no-op for op-log targets), then replace.
-      if (legacy) await initSyncTarget(db, fromVersion);
-      await replaceSyncLog(db, entries, DB_VERSION);
-    } finally {
-      await deleteIdbDatabase(SCRATCH_DB).catch(() => undefined);
-    }
-  }
 
-  /** Replay raw remote-era rows into a scratch IndexedDB created at the
-   *  REMOTE schema version (generic keyPath-only stores + legacy tables). */
-  private async buildScratch(version: number, ops: ScratchOp[]): Promise<void> {
-    const tables = [
-      ...STORE_DEFS.map(def => ({ name: def.name, keyPath: def.keyPath.length === 1 ? def.keyPath[0] : def.keyPath })),
-      ...LEGACY_EXTRA_TABLES,
-    ];
-    const db = await openDB(SCRATCH_DB, version, {
-      upgrade(db) {
-        for (const table of tables) {
-          if (!db.objectStoreNames.contains(table.name)) db.createObjectStore(table.name, { keyPath: table.keyPath });
-        }
-      },
-    });
-    try {
-      const present = [...new Set(ops.map(op => op.table))].filter(name => db.objectStoreNames.contains(name));
-      if (present.length === 0) return;
-      const tx = db.transaction(present, 'readwrite');
-      for (const op of ops) {
-        if (!db.objectStoreNames.contains(op.table)) continue;
-        if (op.kind === 'put') await tx.objectStore(op.table).put(op.row);
-        else if (op.kind === 'delete') await tx.objectStore(op.table).delete(op.key);
-        else await tx.objectStore(op.table).clear();
-      }
-      await tx.done;
-    } finally {
-      db.close();
-    }
-  }
-
-  /** Per-client bootstrap id, persisted across sessions: namespacing every
-   *  snapshot group id prevents cross-browser/target-reset collisions that
-   *  the idempotent insert used to swallow silently. */
-  private async bootstrapId(): Promise<string> {
-    const existing = await this.local.getSyncState<{ id: string }>('bootstrapId');
-    if (existing?.id) return existing.id;
-    const id = crypto.randomUUID();
-    await this.local.setSyncState('bootstrapId', { id });
-    return id;
-  }
-
-  /** Upload the full local snapshot as idempotent, byte-bounded op-groups
-   *  from ONE atomic readonly read (groups `bs:<bootstrapId>:<n>`). Rows
-   *  already pending in the outbox are skipped — they ship (in commit order,
-   *  with their tombstones) through the journal, never twice. */
+  /** Freeze once before network I/O; retain the exact retry payload until commit. */
   private async bootstrapSnapshot(): Promise<void> {
     const db = await this.remote();
-    const id = await this.bootstrapId();
-    const pending = await this.local.readOutbox(0, Number.MAX_SAFE_INTEGER);
-    const pendingKeys = new Set<string>();
-    const clearedStores = new Set<string>();
-    for (const group of pending) {
-      for (const op of group.ops) {
-        if (op.op === 'put' || op.op === 'delete') pendingKeys.add(`${op.store}:${JSON.stringify(op.key)}`);
-        else if (op.op === 'clear' || op.op === 'wipe') clearedStores.add(op.op === 'wipe' ? '*' : op.store);
-      }
-    }
-    const byStore = await this.local.snapshotRows();
-    let seq = 0;
-    let ops: SyncMutation[] = [];
-    let bytes = 0;
-    const flush = async (): Promise<void> => {
-      if (ops.length === 0) return;
-      await applySyncBatch(db, [{ id: `bs:${id}:${seq}`, at: Date.now(), ops }], { expectSchema: DB_VERSION });
-      seq += 1;
-      ops = [];
-      bytes = 0;
-    };
-    for (const { store, rows } of byStore) {
-      const def = STORE_DEFS.find(d => d.name === store);
-      if (!def) continue;
-      for (const row of rows) {
-        let key: KeyDTO;
-        try {
-          key = keyFromValue(def, row);
-        } catch {
-          continue; // row without keyPath fields — snapshot nothing
-        }
-        if (pendingKeys.has(`${store}:${JSON.stringify(key)}`) || clearedStores.has(store) || clearedStores.has('*')) continue;
-        const op: SyncMutation = { op: 'put', store, key, value: row };
-        const size = JSON.stringify(row)?.length ?? 0;
-        if (ops.length > 0 && (ops.length >= SNAPSHOT_GROUP || bytes + size > BATCH_MAX_BYTES)) await flush();
-        ops.push(op);
-        bytes += size;
-      }
-    }
-    await flush();
+    const entries = await this.local.captureSyncBootstrap(this.bootstrapRunKey());
+    for (const entry of entries) await applySyncBatch(db, [entry], { expectSchema: DB_VERSION });
+    await this.local.setSyncState(this.bootstrappedKey(), { done: true });
+    await (await this.local.open()).delete('sync_state', this.bootstrapRunKey());
   }
 
   /** Ship pending outbox groups in byte/ops-bounded pages; the per-target
@@ -507,6 +303,7 @@ export class TursoSyncEngine {
    *  writes landing during the ack stay queued. */
   private async uploadOnce(): Promise<void> {
     if (!this.reconciled || this.stopped || this.halted) return;
+    if (!(await this.local.getSyncState(this.bootstrappedKey()))) return;
     const watermarkKey = this.watermarkKey();
     const first = await this.local.readOutbox((await this.local.getSyncState<{ seq: number }>(watermarkKey))?.seq ?? 0, 1);
     if (first.length === 0) return;
@@ -550,12 +347,7 @@ export class TursoSyncEngine {
     }
   }
 
-  /** Replay remote ops past the per-target cursor in commit order
-   *  (whole revision groups per window); on first contact, bootstrap this
-   *  browser's existing local rows afterwards. Counts come from the committed
-   *  apply boundary (canonical notes/efforts only — no metadata/journal
-   *  rows, no echo of this browser's own uploads: identical rows are not
-   *  re-counted). */
+  /** Replay whole groups before bootstrap, then replay any interleaved writes. */
   private async pullOnce(): Promise<void> {
     if (!this.reconciled || this.stopped || this.halted) return;
     const cursorKey = this.cursorKey();
@@ -568,25 +360,18 @@ export class TursoSyncEngine {
       let updated = 0;
       for (;;) {
         const ops = await fetchSyncOps(db, cursor, FETCH_PAGE);
-        if (ops.length === 0) break;
+        if (ops.length === 0) {
+          if (!(await this.local.getSyncState(this.bootstrappedKey()))) {
+            await this.bootstrapSnapshot();
+            continue;
+          }
+          break;
+        }
         const lastRev = ops[ops.length - 1].rev;
         const counts = await this.local.applySyncMutations(ops.map(op => op.mutation), lastRev, cursorKey);
         added += counts.added;
         updated += counts.updated;
         cursor = lastRev;
-        if (ops.length < FETCH_PAGE) break;
-      }
-      if (!(await this.local.getSyncState(this.bootstrappedKey()))) {
-        // Fresh contact with this target: back up this browser's preexisting
-        // local rows too — even when the outbox is empty — then mark the
-        // target bootstrapped (the snapshot echo replays as no-ops).
-        const upEnd = beginSyncActivity('upload', 'Backing up local data');
-        try {
-          await this.bootstrapSnapshot();
-          await this.local.setSyncState(this.bootstrappedKey(), { done: true });
-        } finally {
-          upEnd();
-        }
       }
       if (added + updated > 0) {
         reportSyncResult({ source: 'turso backup', added, updated });

@@ -14,10 +14,10 @@ WOD Wiki has two hosting levels. Both run the same playground application; the d
 
 | Hosting level | Data storage | How to run it |
 |---|---|---|
-| Playground | IndexedDB by default, or direct browser-to-Turso. No WOD Wiki API server required. | [Bun playground](#run-the-playground-with-bun) or `wod playground` |
+| Playground | IndexedDB, with optional background Turso backup/sync. No WOD Wiki API server required. | [Bun playground](#run-the-playground-with-bun) or `wod playground` |
 | Server | SQL behind the Bun API. Browsers connecting to the same server use the same backend data. | [Bun server](#run-the-server-with-bun), [`wod server`](#self-host-with-the-wod-cli), or [container](#run-the-server-in-a-container) |
 
-Choose Playground for browser-local use or your own Turso database. Choose Server to use SQLite, Turso, or PostgreSQL through the WOD Wiki API. Settings > Storage can migrate IndexedDB to an empty Turso database; changing hosting levels does not migrate data to the server.
+Choose Playground for browser-local use with optional Turso backup. Choose Server to use SQLite, Turso, or PostgreSQL through the WOD Wiki API. The server's SQL domain tables and the browser's sync log are separate formats; changing hosting levels does not migrate data.
 
 ### Run the playground with Bun
 
@@ -30,9 +30,31 @@ bun run playground
 
 Open the Vite URL printed in the terminal, normally [http://localhost:5173](http://localhost:5173). This command builds the packages, lints the playground, and starts the development server with hot reload. It is the development workflow; `wod playground` serves a production build of the same browser-local app without dev tooling ([self-host with the `wod` CLI](#self-host-with-the-wod-cli)). With no data settings, the app uses IndexedDB and imports only the core playground seed. Community catalogs and custom libraries are optional through Settings > Sync.
 
-In **Settings > Storage**, enter your Turso `libsql://` URL and database-scoped auth token. **Test Connection** verifies access without saving credentials. **Connect** uses the remote data as-is; **Migrate & Connect** copies the browser's stores, revision history, attachment bytes, profile, notebooks, query preferences, and user calculations into an empty database. Migration commits atomically, keeps the local copy, and saves the connection only after success. Close other WOD Wiki tabs and avoid edits during migration.
+In **Settings > Storage**, enter a Turso URL and database-scoped token, or import a pairing file from `wod db create`. **Test Connection** checks access without saving credentials. **Enable Sync** keeps IndexedDB as the data plane and backs up user data in the background. Seed catalogs use Settings > Sync instead. User edits, deletion suppression, attachments, and immutable revisions pinned by notes or sessions remain in the user backup. The v32 cutover converts the pending journal to this policy; old remote schemas require explicit CLI migration.
 
-The URL and token stay in this browser's localStorage. Same-origin scripts can read the token; use one scoped to this database. Saved connection failures show recovery controls, never a silent IndexedDB fallback. Switching to **This Browser** restores the last local copy without pulling remote-only changes. Self-hosted connection settings and paid wod.wiki custody are marked coming soon; the existing server deployment remains available.
+During the v32 upgrade, pending deletion intent precedes a user-data snapshot in one atomic journal group. Legacy wipes become user-scoped clears, preserving peer seed catalogs and immutable history; replay also carries note-projection deletions. An explicit current-version wipe still clears all non-system data.
+
+The URL and token stay in this browser's localStorage. Same-origin scripts can read the token; use one scoped to this database. Disabling sync preserves local data and both remote and local copies. Failed connections never silently select another data plane.
+
+**Restore from a backup database** reads a different current-schema database into a clean, isolated IndexedDB database, exports current data and pending edits without connection credentials, and switches only after replay validation. The previous local database remains on disk. Restored data opens with sync disabled so a read-only archive is not adopted as a live writer. Older backups must be converted with `wod db migrate` first. To resume backup, provision a fresh target and enable sync there.
+
+### Manage Turso backup databases
+
+Set `TURSO_API_TOKEN` and `TURSO_ORGANIZATION` in the CLI environment. Never put management credentials in browser settings. Live names default to `wod-wiki-v32`; the remote schema marker, not the name or localStorage, decides compatibility.
+
+```bash
+wod db create --group <existing-group> -o live-pairing.json
+# Stop every writer before acknowledging --writers-retired.
+wod db backup <source> --writers-retired -o archive-pairing.json
+wod db restore <archive> --writers-retired -o restored-pairing.json
+wod db migrate <older-source> --writers-retired -o migrated-pairing.json
+wod db pair <current-target> -o pairing.json
+wod db delete <database> --yes <database>
+```
+
+Backup and restore use Turso's native whole-database copy and compare canonical row and binary digests before issuing credentials. Backups receive read-only credentials; current-schema restore copies receive writable credentials. Older copies remain read-only until migrated. Migration uses the shared IndexedDB upgrade chain, retains the source, and publishes the target schema only after replay, history-pin and source-immutability checks. Interrupted targets remain unpairable. `--writers-retired` is an operator acknowledgement, not a distributed lock.
+
+Pairing files are created exclusively with mode `0600`; `--force` replaces one atomically. `--write-env` is opt-in and refuses conflicting database settings. It configures CLI/server database access, not browser sync, and does not convert the sync log into SQL domain tables. A failed copy verification or credential-file write leaves the source and created copy intact for recovery. No live Turso management operation is exercised by the local checks.
 
 **Settings > Sync** reports the current source and chunk, committed chunks, imported notes, efforts and block rows, preserved user-owned rows, and removed seed rows. Single-source sync, **Sync All Sources**, and **Add & Sync** share this progress display. Completed work and errors remain visible until the next sync. Failed chunks never advance the bar; Sync All continues with the remaining sources.
 

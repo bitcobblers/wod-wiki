@@ -29,8 +29,11 @@
  */
 import { createClient } from '@libsql/client/web';
 import { libsqlDatabase } from '@bitcobblers/wod-wiki-storage/sql';
+import { IDB_DB_NAME } from '@bitcobblers/wod-wiki-storage/idb';
 
-export type DataSettings = { kind: 'turso'; url: string; authToken: string } | { kind: 'indexed-db' };
+export type DataSettings =
+  | { kind: 'turso'; url: string; authToken: string; localDbName?: string }
+  | { kind: 'indexed-db'; localDbName?: string };
 
 /**
  * Runtime data provider. 'invalid' is runtime-only: a saved config failed
@@ -40,17 +43,50 @@ export type DataSettings = { kind: 'turso'; url: string; authToken: string } | {
 export type StorageProvider = 'api' | 'indexed-db' | 'turso' | 'invalid';
 
 export type DataSettingsRead =
-  | { state: 'indexed-db' }
-  | { state: 'turso'; url: string; authToken: string }
+  | { state: 'indexed-db'; localDbName?: string }
+  | { state: 'turso'; url: string; authToken: string; localDbName?: string }
   | { state: 'invalid'; raw: string; error: string };
 
 export const DATA_SETTINGS_KEY = 'wodwiki.dataSettings.v1';
+
+/** The IndexedDB database the app opens. An isolated restore selects a unique
+ *  local database and EVERY settings transition afterwards (disable sync,
+ *  re-pair, switch targets) keeps that selection — the user's visible data
+ *  lives there — until the next explicit restore chooses a new one. */
+export function getActiveLocalDbName(): string {
+  const settings = readDataSettings();
+  return settings.state !== 'invalid' && settings.localDbName ? settings.localDbName : IDB_DB_NAME;
+}
+
+/** Target identity compare: same host(+port) and path means the same database
+ *  even when the scheme spelling differs (libsql:// vs https:// vs wss:// are
+ *  transports for one Turso database). URL.origin is useless here — it is the
+ *  string "null" for non-special schemes like libsql:. */
+export function sameTursoTarget(a: string, b: string): boolean {
+  const norm = (url: string): string => {
+    const trimmed = url.trim();
+    try {
+      const parsed = new URL(trimmed);
+      const host = parsed.hostname === '[::1]' ? '::1' : parsed.hostname;
+      return `${host}${parsed.port ? `:${parsed.port}` : ''}${parsed.pathname.replace(/\/+$/, '')}`;
+    } catch {
+      return trimmed;
+    }
+  };
+  return norm(a) === norm(b);
+}
+
+/** A restore-selected database name: namespaced, unique per attempt, and
+ *  distinguishable from the original `wodwiki-db` profile. */
+export function isValidLocalDbName(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(value);
+}
 
 /** Secure transports; plain http/ws only for loopback smoke/dev servers. */
 const REMOTE_PROTOCOLS: Record<string, true> = { 'libsql:': true, 'https:': true, 'wss:': true };
 
 /** User-presentable validation error, or undefined when acceptable. */
-function validateTursoTarget(url: string, authToken: string): string | undefined {
+export function validateTursoTarget(url: string, authToken: string): string | undefined {
   let parsed: URL;
   try {
     parsed = new URL(url.trim());
@@ -72,7 +108,7 @@ function validateTursoTarget(url: string, authToken: string): string | undefined
 }
 
 /** Re-thrown error with every secret occurrence masked. */
-function presentable(err: unknown, ...secrets: string[]): Error {
+export function presentable(err: unknown, ...secrets: string[]): Error {
   let message = err instanceof Error ? err.message : String(err);
   for (const secret of secrets) {
     if (secret) message = message.split(secret).join('••••••');
@@ -103,7 +139,14 @@ export function readDataSettings(): DataSettingsRead {
   }
   if (!('kind' in parsed)) return { state: 'invalid', raw, error: 'Saved data settings have no kind.' };
   const kind: unknown = parsed.kind;
-  if (kind === 'indexed-db') return { state: 'indexed-db' };
+  // Optional on both kinds: the local-database selection outlives disable and
+  // re-pair so the visible profile never silently reverts to an older DB.
+  const localDbName = 'localDbName' in parsed ? parsed.localDbName : undefined;
+  if (localDbName !== undefined && !isValidLocalDbName(localDbName)) {
+    return { state: 'invalid', raw, error: 'Saved data settings have an invalid localDbName.' };
+  }
+  const localDb = localDbName === undefined ? {} : { localDbName };
+  if (kind === 'indexed-db') return { state: 'indexed-db', ...localDb };
   if (kind !== 'turso') {
     return { state: 'invalid', raw, error: `Saved data settings have an unknown kind "${String(kind)}".` };
   }
@@ -117,7 +160,7 @@ export function readDataSettings(): DataSettingsRead {
   }
   const invalid = validateTursoTarget(url, authToken);
   if (invalid) return { state: 'invalid', raw, error: invalid };
-  return { state: 'turso', url, authToken };
+  return { state: 'turso', url, authToken, ...localDb };
 }
 
 /** Prove connectivity + INSERT permission WITHOUT the SqlStorage schema
@@ -162,7 +205,15 @@ export async function connectTurso(settings: { url: string; authToken: string })
     } catch (err) {
       throw presentable(err, settings.authToken);
     }
-    localStorage.setItem(DATA_SETTINGS_KEY, JSON.stringify({ kind: 'turso', url: settings.url.trim(), authToken: settings.authToken }));
+    // The local-database selection survives re-pairing: after an isolated
+    // restore, pairing the same (or even a different) target keeps the
+    // visible restored profile until the next explicit restore reselects.
+    const current = readDataSettings();
+    const localDb = current.state !== 'invalid' && current.localDbName ? { localDbName: current.localDbName } : {};
+    localStorage.setItem(
+      DATA_SETTINGS_KEY,
+      JSON.stringify({ kind: 'turso', url: settings.url.trim(), authToken: settings.authToken, ...localDb } satisfies DataSettings),
+    );
   };
   connectInFlight = run();
   try {
@@ -183,9 +234,22 @@ export async function testTursoConnection(settings: { url: string; authToken: st
   }
 }
 
-/** Disable backup sync without deleting the local or remote data. */
+/** Select the validated local restore without enabling writes to its archive. */
+export function saveRestoredSettings(localDbName: string): void {
+  if (!isValidLocalDbName(localDbName)) throw new Error('A valid local database name is required.');
+  localStorage.setItem(
+    DATA_SETTINGS_KEY,
+    JSON.stringify({ kind: 'indexed-db', localDbName } satisfies DataSettings),
+  );
+}
+
+/** Disable backup sync without deleting the local or remote data. The
+ *  selected local database rides along: after a restore, disabling sync must
+ *  NOT revert the visible app to the stale original database. */
 export function switchToIndexedDb(): void {
-  localStorage.setItem(DATA_SETTINGS_KEY, JSON.stringify({ kind: 'indexed-db' } satisfies DataSettings));
+  const current = readDataSettings();
+  const localDb = current.state !== 'invalid' && current.localDbName ? { localDbName: current.localDbName } : {};
+  localStorage.setItem(DATA_SETTINGS_KEY, JSON.stringify({ kind: 'indexed-db', ...localDb } satisfies DataSettings));
 }
 
 // Cross-tab guard: a settings write in another tab must not leave this tab

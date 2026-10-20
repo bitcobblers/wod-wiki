@@ -26,15 +26,15 @@
  *
  * Never-downgrade rule: the state row's `schema` is the managing client's
  * DB_VERSION at init time. Uploads verify `schema` INSIDE the write
- * transaction (a stale probe must not append current payloads to an old or
- * newer remote); an older remote log is migrated forward by the caller
- * (transform payloads, never just rewrite the marker), a newer remote is
- * never rewritten — the client refuses and keeps working locally.
+ * transaction. Older schemas require explicit conversion into a fresh
+ * target with the source retained; newer schemas are never rewritten.
  */
 
 import { STORE_DEFS } from '../schema';
 import type { StoreName } from '../contract';
 import type { KeyDTO, Scalar } from '../wire';
+import { keyFromValue } from '../wire';
+import { rowsEqual } from '../validation';
 import { decodeRowJson, encodeRowJson } from './codec';
 import { StorageError } from './errors';
 import { SCHEMA_TABLE } from './store';
@@ -42,9 +42,6 @@ import type { Database, SqlConnection, SqlStatement } from './connection';
 
 export const SYNC_OPS_TABLE = '_wodwiki_sync_ops';
 export const SYNC_STATE_TABLE = '_wodwiki_sync_state';
-/** Pre-migration op log copies live here — the recoverable old source,
- *  retained after a schema migration replaces the active log. */
-export const SYNC_ARCHIVE_TABLE = '_wodwiki_sync_ops_archive';
 
 /** One committed local transaction group, as journaled in IndexedDB. */
 export type SyncMutation =
@@ -127,6 +124,12 @@ function validateMutation(raw: unknown): SyncMutation {
     assertKey(mutation.key, 'sync put key');
     if (mutation.value === null || typeof mutation.value !== 'object' || Array.isArray(mutation.value)) {
       throw new StorageError(400, 'sync put value must be an object row', 'bad_sync_mutation');
+    }
+    const def = STORE_DEFS.find(def => def.name === store)!;
+    const valueKey = keyFromValue(def, mutation.value);
+    assertKey(valueKey, 'sync row key');
+    if (!rowsEqual(mutation.key, valueKey)) {
+      throw new StorageError(400, 'sync put key differs from row key', 'bad_sync_key');
     }
     return { op: 'put', store, key: mutation.key, value: mutation.value };
   }
@@ -262,9 +265,6 @@ export interface ApplySyncBatchOptions {
   /** Schema the caller verified at probe time — rechecked INSIDE the write
    *  transaction so a schema change between probe and append aborts. */
   expectSchema?: number;
-  /** Bump the state schema version in the SAME transaction (remote-schema
-   *  migrations append converted payloads + move the marker atomically). */
-  toSchemaVersion?: number;
 }
 
 /**
@@ -318,10 +318,9 @@ export async function applySyncBatch(
         });
       });
     }
-    const nextSchema = opts.toSchemaVersion ?? state.schema;
     statements.push({
       sql: `UPDATE "${SYNC_STATE_TABLE}" SET "value" = ? WHERE "key" = ?`,
-      params: [JSON.stringify({ schema: nextSchema, rev } satisfies SyncStateRow), STATE_KEY],
+      params: [JSON.stringify({ schema: state.schema, rev } satisfies SyncStateRow), STATE_KEY],
     });
     await runStatements(tx, statements);
     return committed;
@@ -369,56 +368,15 @@ export async function fetchSyncOps(db: Database, afterRev: number, limit: number
   });
 }
 
-/**
- * Schema-migration replacement for the active op log, in ONE transaction:
- * every previous op is copied into the archive table (the recoverable old
- * source — nothing is destroyed), the active log is cleared, and the
- * converted snapshot groups become the entire replayable history at
- * rev 1..n with the schema marker moved forward atomically. Fresh browsers
- * replay converted payloads only, so pulls never touch legacy row shapes.
- */
-export async function replaceSyncLog(db: Database, entries: SyncEntry[], toSchemaVersion: number): Promise<void> {
-  if (entries.length === 0) throw new StorageError(400, 'replacement log must contain the converted snapshot', 'bad_sync_entry');
-  for (const entry of entries) validateEntry(entry);
-  await db.transaction(async (tx) => {
-    await readSyncState(tx); // target must be initialized (throws otherwise)
-    await tx.exec(
-      `CREATE TABLE IF NOT EXISTS "${SYNC_ARCHIVE_TABLE}" (` +
-        `"op_id" TEXT PRIMARY KEY, "rev" INTEGER NOT NULL, "idx" INTEGER NOT NULL, "at" INTEGER NOT NULL, "data" TEXT NOT NULL)`,
-    );
-    await tx.exec(`INSERT INTO "${SYNC_ARCHIVE_TABLE}" ("op_id", "rev", "idx", "at", "data") SELECT "op_id", "rev", "idx", "at", "data" FROM "${SYNC_OPS_TABLE}"`);
-    await tx.exec(`DELETE FROM "${SYNC_OPS_TABLE}"`);
-    const statements: SqlStatement[] = [];
-    let rev = 0;
-    for (const entry of entries) {
-      rev += 1;
-      entry.ops.forEach((mutation, idx) => {
-        statements.push({
-          sql:
-            `INSERT INTO "${SYNC_OPS_TABLE}" ("op_id", "rev", "idx", "at", "data") VALUES (?, ?, ?, ?, ?) ` +
-            `ON CONFLICT ("op_id") DO NOTHING`,
-          params: [`${entry.id}:${idx}`, rev, idx, entry.at, encodeMutation(mutation)],
-        });
-      });
-    }
-    statements.push({
-      sql: `UPDATE "${SYNC_STATE_TABLE}" SET "value" = ? WHERE "key" = ?`,
-      params: [JSON.stringify({ schema: toSchemaVersion, rev } satisfies SyncStateRow), STATE_KEY],
-    });
-    await runStatements(tx, statements);
-  });
-}
-
 /** Migration-only raw replay: parsed op payloads WITHOUT store/key validation
  *  (old logs reference era store names like `segments`). Only
- *  migrateRemoteToCurrent consumes this — pulls use fetchSyncOps, which
- *  validates every row against the current schema. Binary cells revive. */
-export interface RawSyncOp {
-  op: string;
-  store: string;
-  key: unknown;
-  value?: unknown;
-}
+ *  convertSyncSource consumes this; ordinary pulls validate every row
+ *  against the current schema. Binary cells revive. */
+export type RawSyncOp =
+  | { op: 'wipe' }
+  | { op: 'clear'; store: string }
+  | { op: 'delete'; store: string; key: unknown }
+  | { op: 'put'; store: string; key: unknown; value: unknown };
 
 export async function readRawSyncOps(db: Database): Promise<RawSyncOp[]> {
   const rows = await db.query(`SELECT "rev", "idx", "data" FROM "${SYNC_OPS_TABLE}" ORDER BY "rev", "idx"`);
@@ -438,16 +396,20 @@ export async function readRawSyncOps(db: Database): Promise<RawSyncOp[]> {
       throw new StorageError(400, 'sync op data must be an object', 'bad_sync_row');
     }
     const mutation = parsed as Record<string, unknown>;
-    if (typeof mutation.op !== 'string' || typeof mutation.store !== 'string') {
-      throw new StorageError(400, 'sync op must carry string op/store', 'bad_sync_row');
+    if (mutation.op === 'wipe') return { op: 'wipe' };
+    if (typeof mutation.store !== 'string') {
+      throw new StorageError(400, 'sync op must carry a string store', 'bad_sync_row');
+    }
+    if (mutation.op === 'clear') return { op: 'clear', store: mutation.store };
+    if (mutation.op === 'delete') return { op: 'delete', store: mutation.store, key: mutation.key };
+    if (mutation.op !== 'put' || mutation.value === null || typeof mutation.value !== 'object' || Array.isArray(mutation.value)) {
+      throw new StorageError(400, 'sync op has an unknown operation or invalid row', 'bad_sync_row');
     }
     return {
-      op: mutation.op,
+      op: 'put',
       store: mutation.store,
       key: mutation.key,
-      value: mutation.value === undefined || mutation.value === null
-        ? undefined
-        : decodeRowJson(JSON.stringify(mutation.value), BINARY_FIELD[mutation.store]),
+      value: decodeRowJson(JSON.stringify(mutation.value), BINARY_FIELD[mutation.store]),
     };
   });
 }

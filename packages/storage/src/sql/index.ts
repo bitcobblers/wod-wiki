@@ -57,13 +57,11 @@ export {
 export {
   SYNC_OPS_TABLE,
   SYNC_STATE_TABLE,
-  SYNC_ARCHIVE_TABLE,
   probeSyncTarget,
   initSyncTarget,
   applySyncBatch,
   fetchSyncOps,
   type ApplySyncBatchOptions,
-  replaceSyncLog,
   readRawSyncOps,
   type RawSyncOp,
   readLegacyRows,
@@ -72,3 +70,11 @@ export {
   type StoredSyncOp,
   type SyncTargetKind,
 } from './sync';
+export {
+  databaseFingerprint,
+  assertDatabaseCopyMatches,
+  finalizeMigrationTarget,
+  assertPolicySnapshot,
+  assertLogPinClosure,
+  type DatabaseFingerprint,
+} from './backup';

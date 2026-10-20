@@ -34,7 +34,8 @@
     "@bitcobblers/wod-wiki-lang": "^0.11.0",
     "@bitcobblers/wod-wiki-storage": "^0.11.0",
     "@bitcobblers/wod-wiki-wql": "^0.11.0",
-    "@libsql/client": "^0.18.0"
+    "@libsql/client": "^0.18.0",
+    "fake-indexeddb": "^6.2.5"
   },
   "scripts": {
     "prepack": "node -e \"const fs=require('fs');const missing=['dist/bin/wod.mjs','dist/server/app.mjs','dist/server/app.cjs','dist/server/app.d.ts','dist/web/server/index.html','dist/web/playground/index.html'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('prepack: refusing to publish broken package, missing build outputs:\\n  '+missing.join('\\n  ')+'\\nBuild first: bun run build:cli (repo root)');process.exit(1)}\"",

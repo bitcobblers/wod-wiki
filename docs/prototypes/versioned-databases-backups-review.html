@@ -168,10 +168,15 @@
 <main data-whiteboard-document="">
 
 <h1 id="wb-h1-6a4f8b69f3be443a962063b4b662b6a8" data-whiteboard-anchor>Design Review — Versioned Databases &amp; Backups</h1>
-<p class="meta" id="wb-p-eb26d33ac04b44cfbed17b7bfcf4ebc5" data-whiteboard-anchor>Source snapshot: <code>workspace&nbsp;(1)</code>, commit <code>b9b40a7</code>. Section 1 describes existing code; sections 2-6 specify proposed changes, not implemented features. The live Turso OpenAPI contract was read for this revision. No authenticated provisioning or restore operation was executed.</p>
+<p class="meta" id="wb-p-eb26d33ac04b44cfbed17b7bfcf4ebc5" data-whiteboard-anchor>Review baseline: <code>workspace&nbsp;(1)</code>, commit <code>b9b40a7</code>. Section 1 records that baseline; sections 2-6 retain the reviewed requirements. Implementation status is recorded below and in the repository README. The Turso OpenAPI contract was read for this review; no authenticated provisioning or restore operation was executed.</p>
 
 <div class="callout">
 <p id="wb-p-6b53608440f944f3aae124ac74a564c9" data-whiteboard-anchor><strong>Purpose.</strong> A context/design document proposes: (1) versioned Turso databases named <code>wod-wiki-{version}</code>, with the version stored in localStorage (playground) and <code>.env</code> (CLI/self-hosted); (2) scope reduction so sync carries only user data, filtering <code>seedOrigin === 'seed'</code> rows and seed-only stores at journal/snapshot time; (3) db-to-db migration reusing <code>applySyncBatch</code> idempotency, a <code>publishCatalogSeed</code> round-trip, and the extracted <code>migrateRemoteToCurrent</code> scratch chain; (4) backing up older versions; (5) an implementation file map with open questions. This review assesses each proposal against the code as it exists today, lists the changes required to make the design sound, and catalogs pitfalls in the existing design that the plan will inherit or must defuse.</p>
+</div>
+<div class="callout ok">
+<p id="wb-p-8fff77fe64014ba482959636c59d6f5e" data-whiteboard-anchor>Implementation update: storage compatibility v32 separates user backup from seed delivery. CLI <code>wod db create | backup | restore | migrate | pair | delete</code> manages fresh targets and retained copies. Native copies are row- and binary-verified; backups receive read-only credentials. Migration uses the shipped shared IndexedDB converter and keeps incomplete targets unpairable until validation succeeds.</p>
+<p id="wb-p-b706f94b3a3143c580057557414ca63e" data-whiteboard-anchor>The browser no longer migrates old targets in place. Restore replays a different current-schema target into isolated local storage, retains the previous database, exports current data and pending edits, and opens offline. Provision a fresh target before re-enabling sync. Bootstrap retries use a persisted frozen snapshot and run identity; first contact replays concurrent writes instead of skipping to a post-upload cursor.</p>
+<p id="wb-p-eb0f59e465a14911b52f38041e7dc56a" data-whiteboard-anchor>Operator boundary: stop all writers and revoke or rotate old write credentials before cutover. <code>--writers-retired</code> acknowledges this prerequisite; it cannot enforce it across devices. Live Turso eligibility, native-copy timing and credential revocation still require an authenticated operational exercise. The legacy findings below remain historical context, not claims about the updated code.</p>
 </div>
 
 <h2 id="wb-h2-08bb70c87d304302b1885e71434bbb86" data-whiteboard-anchor>1. How things work today (verified)</h2>
@@ -345,13 +350,13 @@
   <tbody>
     <tr>
       <td id="wb-td-1e0e16cb6a1c4b45afe1311e54be23f9" data-whiteboard-anchor>Q1</td>
-      <td id="wb-td-d01a7bfe23a14708ac6005d2467e8c8a" data-whiteboard-anchor>What is a user-deleted seed note under user-only sync?</td>
-      <td id="wb-td-216751eb02614ea48bb0f9b71e12e957" data-whiteboard-anchor>Current deletes are journaled. A proposed filter must preserve user deletion intent through durable tombstones and import suppression before dropping seed deletes (§3.4).</td>
+      <td id="wb-td-d01a7bfe23a14708ac6005d2467e8c8a" data-whiteboard-anchor>Decided: seed deletion is durable user intent, including deletion after a user edit.</td>
+      <td id="wb-td-216751eb02614ea48bb0f9b71e12e957" data-whiteboard-anchor>Write a synced suppression tombstone atomically with deletion and honor it during seed import. Retained seed provenance identifies edited seed notes. The v32 cutover carries pending deletion intent before its terminal user snapshot; legacy wipes become user-scoped clears, preserving peer seed catalogs and immutable history.</td>
     </tr>
     <tr>
       <td id="wb-td-1436416a5c124953bd5bbdbfd3b3e0e4" data-whiteboard-anchor>Q2</td>
-      <td id="wb-td-d3b7c07599de444daee41c165e225d00" data-whiteboard-anchor>Which settings must a fresh-profile restore recover?</td>
-      <td id="wb-td-c1e755076e644d10817002eecab9c1d7" data-whiteboard-anchor>Keep non-seed IndexedDB meta initially. Source subscriptions and auto-sync choices in localStorage need a separate safe export; tokens must stay out of it (§3.4).</td>
+      <td id="wb-td-d3b7c07599de444daee41c165e225d00" data-whiteboard-anchor>Decided: retain non-seed IndexedDB meta and export local content-source settings separately.</td>
+      <td id="wb-td-c1e755076e644d10817002eecab9c1d7" data-whiteboard-anchor>The safe export carries local rows, pending edits, source subscriptions and auto-sync choices without connection credentials. Remote restore uses a separate current-schema target and isolated local database, retains the old database, and opens with sync disabled.</td>
     </tr>
     <tr>
       <td id="wb-td-b345ef1d7d644e80aab39a0e954524e9" data-whiteboard-anchor>Q3</td>

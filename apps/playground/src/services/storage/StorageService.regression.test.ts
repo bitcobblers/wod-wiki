@@ -5,7 +5,9 @@ import { IDBFactory } from 'fake-indexeddb';
 
 import { IndexedDBStorage, InMemoryStorage, StorageService } from './index';
 import type { IStorage } from './IStorage';
-import { DOMAIN_PROJECTION_VERSION, DB_VERSION, type DomainEntry } from '@bitcobblers/wod-wiki-storage';
+import { DOMAIN_PROJECTION_VERSION, DB_VERSION, type DomainEntry, userDeletedSeedKey } from '@bitcobblers/wod-wiki-storage';
+import { applySeedChunk, seedNoteId } from '../../../../../packages/engine/src/seed/runtime';
+import { emptySeedMeta, SEED_SCHEMA } from '../../../../../packages/engine/src/seed/contract';
 import type { BlockIndexRow, EventRecord, Note, Session } from '@/types/storage';
 
 const T0 = 1_700_000_000_000;
@@ -162,6 +164,36 @@ describe('StorageService live Note deletion', () => {
     expect(await service.getBlockIndexByNote('doomed')).toEqual([]);
     expect(await service.getAllFromIndex('block_efforts', 'by-note', 'doomed')).toEqual([]);
     expect(await service.getAllFromIndex('block_efforts', 'by-note', 'survivor')).toHaveLength(1);
+  });
+
+  it('deleting an edited seed note writes a tombstone so re-import cannot resurrect it', async () => {
+    const storage = new InMemoryStorage();
+    const service = new StorageService(storage);
+    const seedPath = 'markdown/collections/edited.md';
+    const seedId = await seedNoteId(seedPath);
+    const seedWrite = {
+      chunkId: 'collection.edited',
+      rows: [{ path: seedPath, content: '# Edited seed', blocks: {}, blockIndex: [], blockEfforts: [], blockEquipment: [] }],
+      manifest: { schema: SEED_SCHEMA, version: 1, builtAt: new Date(0).toISOString(), chunks: [] },
+      expectedMeta: undefined,
+      meta: { ...emptySeedMeta('seed:edited-deletion'), chunks: { 'collection.edited': { sha256: 'a'.repeat(64), noteIds: [seedId] } } },
+    };
+    await applySeedChunk(storage, seedWrite);
+    // Editing flips ownership to 'user' but retains seedChunkId/sourcePath.
+    const edited = await service.getNote(seedId);
+    expect(edited?.seedChunkId).toBe('collection.edited');
+    expect(edited?.sourcePath).toBe(seedPath);
+    await service.saveNote({ ...edited!, seedOrigin: 'user', title: 'My edited seed' });
+
+    await service.deleteNote(seedId);
+    expect(await storage.readonly('meta').get(userDeletedSeedKey(seedId))).toBeDefined();
+    await applySeedChunk(storage, { ...seedWrite, expectedMeta: seedWrite.meta });
+    expect(await service.getNote(seedId)).toBeUndefined();
+
+    // Ordinary user-created deletion stays tombstone-free.
+    await service.saveNote(makeNote({ id: 'mine' }));
+    await service.deleteNote('mine');
+    expect(await storage.readonly('meta').get(userDeletedSeedKey('mine'))).toBeUndefined();
   });
 });
 
