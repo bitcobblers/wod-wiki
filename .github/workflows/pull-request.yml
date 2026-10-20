@@ -76,6 +76,10 @@ jobs:
   # Self-disables when QODANA_TOKEN is unset (repo currently has no such secret).
   qodana:
     if: github.event.action != 'closed'
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     uses: ./.github/workflows/_code_quality.yml
     secrets: inherit
 
