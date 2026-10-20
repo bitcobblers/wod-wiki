@@ -2,12 +2,10 @@
 type: equipment
 id: equipment-bundled-dumbbell
 slug: dumbbell
-label: Dumbbell
+label: "Dumbbell"
 aliases:
-  - dumbbells
   - db
+  - dumbbells
 registrySource: bundled
 ---
-
-Fixed-weight free weight, usually used in pairs (or single-arm). Load is
-authored per statement, e.g. `10 Dumbbell Snatch @15kg`.
+A short handheld bar with a fixed or adjustable weight on each end, used unilaterally or in pairs. Dumbbells allow independent arm and leg loading, longer ranges of motion, and simple weight scaling by picking a heavier pair.
