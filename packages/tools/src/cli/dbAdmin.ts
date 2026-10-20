@@ -156,7 +156,7 @@ export class TursoManagement {
         signal: AbortSignal.timeout(20_000),
       });
     } catch (error) {
-      throw new Error(`[wod db] ${op}: ${maskSecrets(error instanceof Error ? error.message : String(error), this.token)}`);
+      throw new Error(`[wod db] ${op}: ${maskSecrets(error instanceof Error ? error.message : String(error), this.token)}`, { cause: error });
     }
     if (!response.ok) {
       let detail = '';
@@ -290,7 +290,7 @@ function writeSecretFile(fs: WriteFsShim, path: string, content: string): void {
     throw error;
   }
 }
-
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001f\u007f\u0080-\u009f]/;
 
 /** External-data gate: API-supplied URL/token/name must be free of control

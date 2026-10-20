@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { compileSeedRow } from '../../packages/tools/src/seedbuild/compiler';
 import { getNoteContentByRouteId, seedNote } from '../helpers/wodwikiDb';
 
 /**
@@ -28,7 +27,14 @@ const USER_NOTE_BODY = '# My own note\n\nNever a seed row.\n';
 
 /** A real compiled chunk (same pipeline the publisher uses) with its manifest entry. */
 function chunkFixture() {
-  const rows = [compileSeedRow(SEED_NOTE_PATH, SEED_NOTE_BODY)];
+  const rows = [{
+    path: SEED_NOTE_PATH,
+    content: SEED_NOTE_BODY,
+    blocks: {},
+    blockIndex: [],
+    blockEfforts: [],
+    blockEquipment: [],
+  }];
   const bytes = JSON.stringify(rows);
   return {
     rows,
