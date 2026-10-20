@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { IndexedDBStorage } from './IndexedDBStorage';
+import { IndexedDBStorage } from '@bitcobblers/wod-wiki-storage/idb';
 import { InMemoryStorage } from './InMemoryStorage';
 import type { Note } from '@bitcobblers/wod-wiki-storage';
 

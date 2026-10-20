@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { openDB } from 'idb';
 import { DB_VERSION, STORE_DEFS, type BlockRevision, type Note, type Session } from '@bitcobblers/wod-wiki-storage';
-import { IndexedDBStorage } from './IndexedDBStorage';
+import { IndexedDBStorage } from '@bitcobblers/wod-wiki-storage/idb';
 import { InMemoryStorage } from './InMemoryStorage';
 
 beforeEach(() => { globalThis.indexedDB = new IDBFactory(); });

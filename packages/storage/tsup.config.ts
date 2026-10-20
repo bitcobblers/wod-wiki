@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/sql/index.ts', 'src/sql/node.ts'],
+  entry: ['src/index.ts', 'src/sql/index.ts', 'src/sql/node.ts', 'src/idb/index.ts'],
   format: ['esm', 'cjs'],
   dts: true,
   sourcemap: true,
@@ -14,6 +14,7 @@ export default defineConfig({
     '@libsql/client',
     '@libsql/client/web',
     'bun',
+    'idb',
   ],
   outExtension({ format }) {
     return {

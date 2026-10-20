@@ -16,7 +16,17 @@ import type { StoreName } from './contract';
 // containment-link store. Both are pure additions (no existing store's
 // keyPath, indexes or row shape changes), so initializeStore migrates v30
 // SQL databases by creating the two tables; every existing row survives.
-export const DB_VERSION = 31;
+//
+// V32 is the user-scope sync cutover: no store/index/row shape changes —
+// the version bump marks the PAYLOAD semantics change (shared user policy,
+// policy-compliant snapshots/bootstraps). On upgrade the IndexedDB adapter
+// atomically converts any legacy full-data outbox: pending deletes and
+// user-scoped clears precede one terminal user snapshot. Legacy wipes
+// preserve peer seed rows and history. Seed-derived puts are omitted;
+// deletion intent still reaches independently converted targets. Old
+// full-data targets are NOT migrated in place by
+// ordinary sync — the CLI converts them into fresh wod-wiki-v32 targets.
+export const DB_VERSION = 32;
 
 /**
  * Typed field metadata — column type per extracted field path, shared with

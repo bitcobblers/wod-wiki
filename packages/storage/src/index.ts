@@ -14,3 +14,4 @@ export * from './wire';
 export * from './api';
 export * from './domain';
 export * from './validation';
+export * from './policy';

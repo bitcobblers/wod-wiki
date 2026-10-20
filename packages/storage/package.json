@@ -17,6 +17,11 @@
       "import": "./dist/sql/index.mjs",
       "require": "./dist/sql/index.cjs"
     },
+    "./idb": {
+      "types": "./dist/idb/index.d.ts",
+      "import": "./dist/idb/index.mjs",
+      "require": "./dist/idb/index.cjs"
+    },
     "./sql/node": {
       "types": "./dist/sql/node.d.ts",
       "import": "./dist/sql/node.mjs",
@@ -36,11 +41,13 @@
   },
   "dependencies": {
     "@bitcobblers/wod-wiki-wql": "^0.11.0",
-    "@libsql/client": "^0.18.0"
+    "@libsql/client": "^0.18.0",
+    "idb": "^8.0.3"
   },
   "devDependencies": {
     "@bitcobblers/wod-wiki-core": "^0.11.0",
-    "@bitcobblers/wod-wiki-lang": "^0.11.0"
+    "@bitcobblers/wod-wiki-lang": "^0.11.0",
+    "fake-indexeddb": "^6.2.5"
   },
   "peerDependencies": {
     "@bitcobblers/wod-wiki-core": "^0.11.0",

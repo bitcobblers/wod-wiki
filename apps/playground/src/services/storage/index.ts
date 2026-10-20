@@ -6,11 +6,12 @@ import type {
   StoreName,
   StoreType,
 } from './IStorage';
-import { IndexedDBStorage, IDB_DB_NAME } from './IndexedDBStorage';
+import { IndexedDBStorage } from '@bitcobblers/wod-wiki-storage/idb';
 import { InMemoryStorage } from './InMemoryStorage';
 import { StorageService } from './StorageService';
 import { ApiStorage, DB_VERSION } from '@bitcobblers/wod-wiki-storage';
 import type { DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
+import type { SyncMutation } from '@bitcobblers/wod-wiki-storage/sql';
 import { createProfileService } from '../profile';
 import { reportSyncError } from '../syncActivity';
 import { TursoSyncEngine } from './syncEngine';
@@ -20,9 +21,11 @@ import { LocalStore, InMemoryBackend, browserLocalStorageBackend, type StorageBa
 import {
   DATA_SETTINGS_KEY,
   connectTurso,
+  getActiveLocalDbName,
   readDataSettings,
-  testTursoConnection,
+  saveRestoredSettings,
   switchToIndexedDb,
+  testTursoConnection,
   type DataSettings,
   type DataSettingsRead,
   type StorageProvider,
@@ -41,7 +44,7 @@ export type {
 };
 export { IndexedDBStorage, InMemoryStorage, StorageService };
 export { LocalStore, InMemoryBackend, browserLocalStorageBackend };
-export { DATA_SETTINGS_KEY, readDataSettings, connectTurso, testTursoConnection, switchToIndexedDb };
+export { DATA_SETTINGS_KEY, readDataSettings, connectTurso, testTursoConnection, switchToIndexedDb, saveRestoredSettings, getActiveLocalDbName };
 export { getStorageUpdate, subscribeStorageUpdate } from './storageUpdate';
 
 // Data-plane selection: the VITE_STORAGE=api build override wins; EVERY
@@ -66,7 +69,11 @@ function createDefaultStorage(): IStorage {
     return new ApiStorage(import.meta.env.VITE_API_URL ?? '/api', undefined,
       { getUserId: () => profileService.currentSync()?.id });
   }
+  // dbName: an isolated restore selects a unique local database; ordinary
+  // boots (and post-restore restarts) open whichever database the saved
+  // settings selected — the original profile until then.
   return new IndexedDBStorage({
+    dbName: getActiveLocalDbName(),
     getUserId: () => profileService.currentSync()?.id,
     onUpgradeStart: (fromVersion) => beginStorageUpgrade(fromVersion, DB_VERSION),
   });
@@ -120,8 +127,9 @@ export function whenStorageReady(): Promise<void> {
       // the upgrade runs, a newer one fails fast with an actionable error.
       const idb = globalThis.indexedDB;
       if (idb && typeof idb.databases === 'function') {
+        const activeName = getActiveLocalDbName();
         const entry = (await idb.databases().catch(() => [] as IDBDatabaseInfo[]))
-          .find(db => db.name === IDB_DB_NAME);
+          .find(db => db.name === activeName);
         if (entry && typeof entry.version === 'number') {
           if (entry.version > DB_VERSION) {
             const message = `local database schema v${entry.version} is newer than this app supports (v${DB_VERSION}); refusing to downgrade`;
@@ -152,6 +160,9 @@ export function whenStorageReady(): Promise<void> {
 // and calling it stops the session (a later start re-creates it).
 let syncSession: { stop: () => void } | undefined;
 let syncCleanup: (() => void) | undefined;
+/** Live engine reference so a restore/export can await the full stop
+ *  (in-flight chain drained, remote closed) before reading the outbox. */
+let syncEngine: TursoSyncEngine | undefined;
 
 export function startBackgroundStorageSync(): () => void {
   if (!syncSession) {
@@ -166,8 +177,15 @@ export function startBackgroundStorageSync(): () => void {
         syncSession = { stop: () => { syncSession = undefined; } };
       } else if (settings.state === 'turso') {
         const engine = new TursoSyncEngine(currentStorage, settings);
+        syncEngine = engine;
         const stop = engine.start();
-        syncSession = { stop: () => { stop(); syncSession = undefined; } };
+        syncSession = {
+          stop: () => {
+            stop();
+            if (syncEngine === engine) syncEngine = undefined;
+            syncSession = undefined;
+          },
+        };
       } else {
         syncSession = { stop: () => { syncSession = undefined; } };
       }
@@ -175,6 +193,35 @@ export function startBackgroundStorageSync(): () => void {
     syncCleanup = () => { syncSession?.stop(); syncCleanup = undefined; };
   }
   return syncCleanup;
+}
+
+/** Awaitably stop a running background session (drains the engine chain and
+ *  closes the remote). Resolves `true` only when a session was actually
+ *  running, so a failed restore can restart exactly what it stopped. */
+export async function stopBackgroundStorageSync(): Promise<boolean> {
+  if (!syncSession) return false;
+  const engine = syncEngine;
+  syncSession.stop();
+  if (engine) await engine.stop();
+  return engine !== undefined;
+}
+
+/** All unsent (unacked) local edit groups in commit order — the
+ *  credential-free payload behind the safe-file export. Callers that race an
+ *  active uploader must `await stopBackgroundStorageSync()` first so an
+ *  in-flight ack cannot remove entries mid-read. Empty on API/in-memory
+ *  backends. */
+export async function readUnsentEdits(): Promise<{ seq: number; id: string; at: number; ops: SyncMutation[] }[]> {
+  if (!(currentStorage instanceof IndexedDBStorage)) return [];
+  return currentStorage.readOutbox(0, Number.MAX_SAFE_INTEGER);
+}
+
+/** Every retained row of every store, lossless — the rollback payload of the
+ *  safe-file export (credentials never live in IndexedDB). Empty on
+ *  API/in-memory backends. */
+export async function readAllLocalRows(): Promise<{ store: string; rows: unknown[] }[]> {
+  if (!(currentStorage instanceof IndexedDBStorage)) return [];
+  return currentStorage.snapshotAllRows();
 }
 
 export function setStorageForTesting(newStorage: IStorage): void {

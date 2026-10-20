@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { compileSeedRow } from '../../packages/tools/src/seedbuild/compiler';
 import { getNoteContentByRouteId, seedNote } from '../helpers/wodwikiDb';
 
 /**
@@ -28,7 +27,14 @@ const USER_NOTE_BODY = '# My own note\n\nNever a seed row.\n';
 
 /** A real compiled chunk (same pipeline the publisher uses) with its manifest entry. */
 function chunkFixture() {
-  const rows = [compileSeedRow(SEED_NOTE_PATH, SEED_NOTE_BODY)];
+  const rows = [{
+    path: SEED_NOTE_PATH,
+    content: SEED_NOTE_BODY,
+    blocks: {},
+    blockIndex: [],
+    blockEfforts: [],
+    blockEquipment: [],
+  }];
   const bytes = JSON.stringify(rows);
   return {
     rows,
@@ -101,10 +107,11 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     await page.goto('/catalogs');
     await expect(page.getByTestId('manage-catalogs-button')).toBeVisible();
     await page.getByTestId('manage-catalogs-button').click();
-    await expect(page.getByTestId('catalogs-manager-drawer')).toBeVisible();
+    const drawer = page.getByTestId('catalogs-manager-drawer');
+    await expect(drawer).toBeVisible();
     await expect(page).toHaveURL(/\/catalogs\?manage=1$/);
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('catalogs-manager-drawer')).toBeHidden();
+    await drawer.getByRole('button', { name: 'Close' }).click();
+    await expect(drawer).toBeHidden();
     await expect(page).toHaveURL(/\/catalogs$/);
   });
 
@@ -136,6 +143,7 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     const row = drawer.getByTestId('seed-source-manage-library');
 
     // Subscribe = real import of the served chunk, then subscribed + current.
+    await expect(row.getByTestId('seed-subscribe-manage-library')).toBeEnabled({ timeout: 15_000 });
     await row.getByTestId('seed-subscribe-manage-library').click();
     await expect(row.getByTestId('seed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
     await expect(row.getByTestId('seed-subscribe-manage-library')).toBeHidden();

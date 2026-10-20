@@ -35,7 +35,7 @@ import {
 import { toStoredOutputStatement } from '@bitcobblers/wod-wiki-lang';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
 import { getActiveWorkbenchSessionStore } from '@/stores/workbenchSessionStore';
-import { getAppEffortRegistry } from '@/services/effortRegistry';
+import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
 import { storageService } from '@/services/storage';
 
 /** Unified event store over IndexedDB — the `events` object store (V16). */
@@ -86,7 +86,7 @@ export class RegistryEffortStore implements EffortQueryStore {
   async getAllEfforts(): Promise<IEffort[]> {
     const registry = getAppEffortRegistry();
     if (!registry.isInitialized()) {
-      await registry.loadBundled();
+      await hydrateAppEffortRegistry(registry);
     }
     return [...registry.list()] as unknown as IEffort[]; // lang's IEffort.baseAttributes lacks the index signature wql's IEffort declares (engine-internal inconsistency, 0.6.36)
   }

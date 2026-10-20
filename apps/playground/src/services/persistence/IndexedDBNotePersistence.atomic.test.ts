@@ -5,7 +5,7 @@ Object.assign(globalThis, { IDBRequest, IDBTransaction, IDBDatabase, IDBKeyRange
 import type { IStorage } from '@bitcobblers/wod-wiki-storage';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import { InMemoryStorage } from '../storage/InMemoryStorage';
-import { IndexedDBStorage } from '../storage/IndexedDBStorage';
+import { IndexedDBStorage } from '@bitcobblers/wod-wiki-storage/idb';
 import { StorageService } from '../storage/StorageService';
 import { IndexedDBContentProvider } from '../content/IndexedDBContentProvider';
 import { IndexedDBNotePersistence } from './IndexedDBNotePersistence';

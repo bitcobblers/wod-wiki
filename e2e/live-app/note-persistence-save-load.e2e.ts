@@ -427,7 +427,7 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     await page.goto(`/sessions?q=${encodeURIComponent(':session{}')}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     const layoutFeed = page.getByTestId('l3-layout-feed');
     if (!(await layoutFeed.isVisible())) {
-      await page.getByLabel('Page options').click();
+      await page.getByRole('button', { name: 'Page options', exact: true }).click();
     }
     await layoutFeed.click();
     await expectExactSessions();

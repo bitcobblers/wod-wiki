@@ -7,18 +7,11 @@
 //    Turso backup targets (no Hrana server exists in this repo),
 //  - the real TursoSyncEngine, real sync-activity + storage-update stores.
 //
-// Scenarios: v24→v30 upgrade safety; v29 missing-sync-store upgrade;
-// offline save + retry retention; durable outbox (aborted transaction never
-// journals); newer writes surviving a failed ack; idempotent op IDs;
-// two-browser propagation (binary attachments, ownership stamps,
-// delete/clear/wipe tombstones); >500-op group pull completeness; dirty-row
-// overlay during a failed-upload pull; immutable block-revision conflict
-// copies + stale-note refusal; local-old/remote-current restore preserving
-// unsent edits; both-old remote op-log migration (segments→blocks) and
-// legacy direct-Turso conversion; newer-remote + unknown-target refusals
-// with a usable local app; pre-v20 refusal without data destruction;
-// per-target cursors and empty-outbox bootstrap on target switch; debounced
-// post-commit uploads with full listener cleanup on stop.
+// Scenarios: legacy local upgrade safety; offline save/retry and atomic
+// outbox durability; multi-browser replay and binary fidelity; user-scope
+// deletion; whole revision groups; pending-edit overlay and immutable
+// history conflicts; retained old remote refusal and explicit conversion;
+// newer/unknown target refusal; per-target bootstrap; listener disposal.
 
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -35,14 +28,13 @@ import {
   initSyncTarget,
   applySyncBatch,
   probeSyncTarget,
-  SYNC_ARCHIVE_TABLE,
   type Database,
 } from '@bitcobblers/wod-wiki-storage/sql';
 import {
   DB_VERSION, STORE_DEFS,
   type Note, type BlockRevision,
 } from '@bitcobblers/wod-wiki-storage';
-import { IndexedDBStorage } from './IndexedDBStorage';
+import { IndexedDBStorage, convertSyncSource } from '@bitcobblers/wod-wiki-storage/idb';
 import { TursoSyncEngine } from './syncEngine';
 import { getSyncActivity, subscribeSyncActivity, type SyncActivitySnapshot } from '../syncActivity';
 import { getStorageUpdate, subscribeStorageUpdate, type StorageUpdateSnapshot } from './storageUpdate';
@@ -341,7 +333,7 @@ assert.equal((await storageB.readonly('block_revisions').get(['note-1', 'seg-a',
 assert.equal((await storageB.readonly('notes').get('note-2'))?.userId, 'user-A', 'ownership stamps visible across browsers');
 const restoredBytes = new Uint8Array(((await storageB.readonly('attachments').get('att-1'))!.data) as ArrayBuffer);
 assert.deepEqual([...restoredBytes], [...bytes], 'binary attachment round-tripped through the backup');
-assert.deepEqual((await storageB.readonly('meta').get('seed:core'))?.value, { schema: 7, version: 41 });
+assert.equal(await storageB.readonly('meta').get('seed:core'), undefined, 'seed import checkpoint is browser-local, not restored from user backup');
 const resultReports = activity.slice(resultsBefore).map(s => s.result).filter(r => r !== null);
 assert.ok(resultReports.some(r => (r!.added + r!.updated) >= 2), 'committed canonical note count reported (no metadata/claim rows)');
 assert.ok(resultReports.every(r => r!.source === 'turso backup'), 'results attributed to the backup source');
@@ -516,9 +508,8 @@ assert.equal(await remoteOpCount(urlF, 'unsent local edit'), 1, 'unsent local ed
 console.log('local-old + remote-current restore: OK');
 
 // ---------------------------------------------------------------------------
-// Part 9 — BOTH old: remote op-log at schema v24 migrates (segments-era
-// payloads actually converted, old ops archived not destroyed); a legacy
-// direct-Turso database converts the same way.
+// Part 9 — ordinary sync refuses old targets. Explicit conversion reuses
+// the IndexedDB chain, preserves history and never mutates its source.
 // ---------------------------------------------------------------------------
 const urlG = urlFor('backup-g.db');
 {
@@ -549,18 +540,30 @@ assert.ok(updates.some(u => u.phase === 'updating' && u.fromVersion === 24 && u.
 const engineG = new TursoSyncEngine(storageG, { url: urlG, authToken: 'check-token' }, connectFor(urlG));
 await engineG.syncNow();
 const probed = await probeSyncTarget(connectFor(urlG)());
-assert.equal(probed.kind === 'current' && probed.schemaVersion, DB_VERSION, 'remote op-log schema migrated forward');
-assert.ok((await remoteTableCount(urlG, SYNC_ARCHIVE_TABLE)) >= 3, 'old ops archived, not destroyed');
-const converted = (await storageG.readonly('notes').get('note-1'))!;
-assert.equal(converted.rawContent, '```time\n21 Thrusters @ 95\n```\n', 'remote segments-era payload converted to current note-owned blocks');
-assert.equal(converted.blocks['seg-a']?.kind, 'wod');
-assert.ok(await storageG.readonly('block_revisions').get(['note-1', 'seg-a', 1]), 'remote history converted to block revisions');
+assert.equal(probed !== 'empty' && probed.kind === 'current' && probed.schemaVersion, 24, 'ordinary sync leaves older remote schema unchanged');
+assert.match(getSyncActivity().error ?? '', /explicit CLI migration/, 'older remote requires explicit fresh-target conversion');
+assert.equal(await remoteTableCount(urlG, '_wodwiki_sync_ops_archive'), 0, 'ordinary sync never replaces the old log');
+const convertedUrl = urlFor('backup-g-converted.db');
+{
+  const source = connectFor(urlG)();
+  const target = connectFor(convertedUrl)();
+  try {
+    const ops = await convertSyncSource(source, 24, false);
+    await initSyncTarget(target, DB_VERSION);
+    await applySyncBatch(target, [{ id: 'converted-v24', at: 1, ops }], { expectSchema: DB_VERSION });
+    const unchanged = await probeSyncTarget(source);
+    assert.equal(unchanged !== 'empty' && unchanged.kind === 'current' && unchanged.rev, 1, 'conversion is read-only on source');
+  } finally {
+    await source.close();
+    await target.close();
+  }
+}
 
-// Fresh browser against the migrated backup restores the converted payload.
+// Fresh browser restores the converted payload from its separate target.
 const factoryH = new IDBFactory();
 globalThis.indexedDB = factoryH;
 const storageH = new IndexedDBStorage();
-const engineH = new TursoSyncEngine(storageH, { url: urlG, authToken: 'check-token' }, connectFor(urlG));
+const engineH = new TursoSyncEngine(storageH, { url: convertedUrl, authToken: 'check-token' }, connectFor(convertedUrl));
 await engineH.syncNow();
 assert.equal((await storageH.readonly('notes').get('note-1'))?.rawContent, '```time\n21 Thrusters @ 95\n```\n', 'fresh browser replays converted log only');
 
@@ -581,14 +584,23 @@ globalThis.indexedDB = factoryL;
 const storageL = new IndexedDBStorage();
 const engineL = new TursoSyncEngine(storageL, { url: urlL, authToken: 'check-token' }, connectFor(urlL));
 await engineL.syncNow();
-const legacyConverted = (await storageL.readonly('notes').get('note-1'))!;
-assert.equal(legacyConverted.rawContent, '```time\n21 Thrusters @ 95\n```\n', 'legacy direct-Turso rows actually converted (segments → blocks)');
-assert.equal(legacyConverted.blocks['seg-a']?.dialect, 'time');
-assert.ok(await storageL.readonly('block_revisions').get(['note-1', 'seg-a', 2]), 'legacy history lifted into block revisions');
-const legacyProbed = await probeSyncTarget(connectFor(urlL)());
-assert.equal(legacyProbed.kind === 'current' && legacyProbed.schemaVersion, DB_VERSION, 'legacy target now current');
-assert.ok((await remoteOpCount(urlL, 'note-1')) > 0, 'legacy notes table retained on the remote as the recoverable source');
-console.log('both-old remote migration (op-log + legacy direct-Turso): OK');
+assert.match(getSyncActivity().error ?? '', /explicit CLI migration/, 'legacy remote requires explicit conversion');
+assert.equal(await storageL.readonly('notes').get('note-1'), undefined, 'ordinary sync never imports legacy data in place');
+{
+  const source = connectFor(urlL)();
+  try {
+    const ops = await convertSyncSource(source, 24, true);
+    await storageL.applySyncMutations(ops, null);
+    await storageL.validateSyncState();
+    const legacyConverted = (await storageL.readonly('notes').get('note-1'))!;
+    assert.equal(legacyConverted.rawContent, '```time\n21 Thrusters @ 95\n```\n', 'legacy conversion uses the shipped browser chain');
+    assert.equal(legacyConverted.blocks['seg-a']?.dialect, 'time');
+    assert.ok(await storageL.readonly('block_revisions').get(['note-1', 'seg-a', 2]), 'legacy pinned history preserved');
+    const unchanged = await probeSyncTarget(source);
+    assert.equal(unchanged !== 'empty' && unchanged.kind, 'legacy', 'legacy source remains unchanged');
+  } finally { await source.close(); }
+}
+console.log('older remote refusal + isolated conversion: OK');
 
 // ---------------------------------------------------------------------------
 // Part 10 — newer remote: refusal, local app stays usable, no retry spam.

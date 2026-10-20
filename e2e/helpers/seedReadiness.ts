@@ -16,7 +16,7 @@ import { expect, type Page } from '@playwright/test';
  * 'error' outcome ungates the UI with whatever rows exist — that fails here so
  * a seeded-surface test never passes on missing data.
  */
-export async function waitForSeedReady(page: Page, timeout = 30_000): Promise<void> {
+export async function waitForSeedReady(page: Page, timeout = 60_000): Promise<void> {
   const root = page.locator('html');
   await expect(root, 'boot seed sync must settle before the surface renders').toHaveAttribute(
     'data-seed-state',

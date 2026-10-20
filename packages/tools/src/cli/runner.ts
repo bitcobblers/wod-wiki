@@ -38,6 +38,7 @@ import {
   listTagsByType,
 } from './db';
 import { loadCliEnvironment, resolveDatabaseConfig, type CliDatabaseConfig } from './config';
+import { runDbCommand, type DbAdminDeps } from './dbAdmin';
 // Type-only: erased at build time, keeps the Bun-only server module out of the
 // browser/Node import graph (runCliServer itself is lazily imported).
 import type { CliServerOptions } from './server';
@@ -77,7 +78,7 @@ export function cliNoteSource(source: string, label: string, sport?: string): st
 }
 
 export interface CliParsedArgs {
-  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'export' | 'import' | 'publish' | 'build' | 'seed' | 'reset' | 'init' | 'server' | 'serve' | 'playground' | 'init-catalog' | 'help' | 'version';
+  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'export' | 'import' | 'publish' | 'build' | 'seed' | 'reset' | 'init' | 'db' | 'server' | 'serve' | 'playground' | 'init-catalog' | 'help' | 'version';
   target?: string;
   /** Second positional: the id (download) or file (import) after the kind. */
   target2?: string;
@@ -97,6 +98,15 @@ export interface CliParsedArgs {
   db?: string;
   /** Backend driver override (--db-driver): sqlite | postgres | turso. */
   dbDriver?: string;
+  /** `wod db`: action (create|backup|restore|migrate|delete|pair) is the
+   *  first positional (parsed.target) and the database name the second. */
+  group?: string;
+  dbName?: string;
+  yes?: string;
+  writersRetired?: boolean;
+  allowEmpty?: boolean;
+  writeEnv?: boolean;
+  force?: boolean;
   /** PostgreSQL connection URL (--database-url) or component flags below. */
   databaseUrl?: string;
   postgresHost?: string;
@@ -135,6 +145,9 @@ type CliValueFlagArgs = Pick<
   CliParsedArgs,
   | 'db'
   | 'dbDriver'
+  | 'group'
+  | 'dbName'
+  | 'yes'
   | 'databaseUrl'
   | 'postgresHost'
   | 'postgresPort'
@@ -153,6 +166,9 @@ type CliValueFlagArgs = Pick<
 const VALUE_FLAGS: ReadonlyArray<readonly [flag: string, key: keyof CliValueFlagArgs]> = [
   ['--db', 'db'],
   ['--db-driver', 'dbDriver'],
+  ['--group', 'group'],
+  ['--name', 'dbName'],
+  ['--yes', 'yes'],
   ['--database-url', 'databaseUrl'],
   ['--postgres-host', 'postgresHost'],
   ['--postgres-port', 'postgresPort'],
@@ -265,6 +281,18 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     } else if (arg === '--scaffold') {
       result.scaffold = true;
       i++;
+    } else if (arg === '--writers-retired') {
+      result.writersRetired = true;
+      i++;
+    } else if (arg === '--allow-empty') {
+      result.allowEmpty = true;
+      i++;
+    } else if (arg === '--write-env') {
+      result.writeEnv = true;
+      i++;
+    } else if (arg === '--force') {
+      result.force = true;
+      i++;
     } else if (arg === '--template') {
       result.template = args[++i];
       i++;
@@ -291,7 +319,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       if (Number.isSafeInteger(v) && v >= 0) result.seedVersion = v;
       i++;
     } else if (!result.subcommand) {
-      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'export' || arg === 'import' || arg === 'publish' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'init-catalog' || arg === 'help' || arg === 'version') {
+      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'export' || arg === 'import' || arg === 'publish' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'db' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'init-catalog' || arg === 'help' || arg === 'version') {
         result.subcommand = arg;
       } else {
         result.target = arg;
@@ -374,6 +402,47 @@ USAGE:
   wod seed [options]
   wod reset [options]
   wod init            Initialize the configured database (idempotent)
+  wod db <action> [name] [options]
+                      Turso database lifecycle (management credentials from
+                      the environment only: TURSO_API_TOKEN + TURSO_ORGANIZATION;
+                      never flags, never printed):
+  wod db create [--name <db>] --group <g> -o <pairing-file>
+                      Provision a fresh empty target (default name
+                      wod-wiki-v<schema>) and write its pairing file.
+  wod db backup <source> [--name <copy>] --writers-retired -o <file>
+  wod db restore <source> [--name <copy>] --writers-retired -o <file>
+                      Native whole-database copy (Control API seed); verified
+                      row- and binary-identical before any token is minted.
+                      Backups receive read-only archive credentials. Restore
+                      copies are writable only at the current schema;
+                      older-schema copies stay read-only until migrated.
+  wod db migrate <source> [--name <target>] --writers-retired -o <file>
+                      Logical conversion to a fresh current-schema target via
+                      the shared IndexedDB adapter. The target stays
+                      unpairable (constructing marker) until replay, pin and
+                      source-immutability checks pass; the source is retained.
+  wod db delete <name> --yes <name>
+                      Delete a database — --yes must repeat the exact name.
+  wod db pair <name> [--allow-empty] -o <file> [--write-env]
+                      Mint a database-scoped token and write the pairing file
+                      for the browser Data settings (0600, exclusive create;
+                      --force replaces atomically). Refuses foreign, legacy,
+                      newer and unvalidated targets. --write-env opt-in
+                      appends DB_DRIVER/TURSO_* to the .env atomically and
+                      refuses to replace existing database settings.
+
+DB OPTIONS (for 'wod db'):
+  --name <db>         Explicit target/copy database name
+  --group <g>         Turso group for 'create' (must exist); fallback target
+                      group when the API does not report one
+  --writers-retired   Acknowledge all writers on the source were stopped
+                      before backup/restore/migrate read it
+  --allow-empty       'pair' a deliberately empty bootstrap target
+  --write-env         Opt-in .env output (atomic, refuses replacement)
+  --force             Replace an existing pairing file (stays 0600)
+  -o, --output <file> Pairing file path — REQUIRED for credential-issuing
+                      actions; credentials are never printed to stdout
+
   wod server [options]
                       Serve the app (HTTP API + packaged frontend; alias: serve)
   wod playground [options]
@@ -502,6 +571,7 @@ ENVIRONMENT (flags > process env > .env):
   POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER,
   POSTGRES_PASSWORD, POSTGRES_DATABASE, POSTGRES_SSL
   TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, LIBSQL_AUTH_TOKEN
+  TURSO_API_TOKEN, TURSO_ORGANIZATION  wod db management credentials (env only)
   HOST, PORT, PLAYGROUND_DIST       server / playground defaults
 
 EXIT CODES:
@@ -531,6 +601,9 @@ export async function cliMain(
     stdout?: (text: string) => void;
     stderr?: (text: string) => void;
     readStdinFn?: () => Promise<string>;
+    /** Test seam for `wod db`: injectable fetch/URL mapping for the Turso
+     * management client (production resolves the real network). */
+    dbDeps?: DbAdminDeps;
   } = {},
 ): Promise<number> {
   const writeOut = io.stdout ?? ((t: string) => process.stdout.write(t + '\n'));
@@ -1087,6 +1160,32 @@ export async function cliMain(
         await db.close();
       }
       return 0;
+    }
+
+    if (parsed.subcommand === 'db') {
+      // Turso lifecycle: management credentials come from the environment
+      // tier only; the action is the first positional, the database name the
+      // second. Errors print credential-free and exit 1.
+      try {
+        await runDbCommand({
+          action: parsed.target,
+          name: parsed.target2,
+          dbName: parsed.dbName,
+          group: parsed.group,
+          yes: parsed.yes,
+          output: parsed.output,
+          writeEnv: parsed.writeEnv === true,
+          writersRetired: parsed.writersRetired === true,
+          allowEmpty: parsed.allowEmpty === true,
+          force: parsed.force === true,
+          envFile: parsed.envFile,
+          env: cliEnv(),
+        }, { stdout: writeOut, stderr: writeErr }, io.dbDeps);
+        return 0;
+      } catch (error) {
+        writeErr(error instanceof Error ? error.message : String(error));
+        return 1;
+      }
     }
 
     if (parsed.subcommand === 'server' || parsed.subcommand === 'serve' || parsed.subcommand === 'playground') {
