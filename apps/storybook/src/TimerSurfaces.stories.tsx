@@ -89,3 +89,37 @@ export const GeneralTvWork: StoryObj = {
     </div>
   ),
 };
+
+/** Short-host compression: label + clock left, caption + triad right (ADR 0003). */
+export const GeneralStrip: StoryObj = {
+  render: () => (
+    <div className="mx-auto h-[120px] w-[min(720px,100%)] overflow-hidden rounded-xl border border-border bg-background">
+      <GeneralTimerSurface model={restModel} mode="strip" {...handlers} />
+    </div>
+  ),
+};
+
+/** Fixture for the live-metric prompt slot (MetricTrackerCard in the app). */
+const promptRow = (
+  <div className="flex gap-2 px-4 py-1.5 text-xs text-muted-foreground" data-testid="prompts-fixture">
+    <span className="rounded-full bg-muted px-2.5 py-1 font-mono">Load 2,340 kg</span>
+    <span className="rounded-full bg-muted px-2.5 py-1 font-mono">Reps 42</span>
+    <span className="rounded-full bg-muted px-2.5 py-1 font-mono">RPE 8</span>
+  </div>
+);
+
+export const MinimalPrompts: StoryObj = {
+  render: () => (
+    <div className="mx-auto h-[780px] w-[min(390px,100%)] overflow-hidden rounded-[2rem] border border-border bg-background">
+      <MinimalTimerSurface model={restModel} promptRow={promptRow} {...handlers} />
+    </div>
+  ),
+};
+
+export const GeneralPrompts: StoryObj = {
+  render: () => (
+    <div className="aspect-video w-full overflow-hidden bg-background">
+      <GeneralTimerSurface model={restModel} workoutTitle="Helen" promptRow={promptRow} {...handlers} />
+    </div>
+  ),
+};

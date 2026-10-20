@@ -21,6 +21,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { EditorView } from "@codemirror/view";
 import { TimerDisplay } from "@/panels/wallclock-panel";
+import { TimerSurface } from "@/components/organisms/workout/TimerSurface";
 import { VisualStatePanel } from "@/panels/visual-state-panel";
 import { PanelSizeProvider, usePanelSize } from "@/panels/panel-system/PanelSizeContext";
 import { ScriptRuntimeProvider, useRuntimeExecution, type UseRuntimeExecutionReturn, NextEvent, ScriptRuntime } from "@/hooks/useRuntimeTimer";
@@ -105,11 +106,49 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   handleStop,
   handleNext,
 }) => {
-  const { isCompact: isMobile } = usePanelSize();
+  const { isCompact: isMobile, isFull } = usePanelSize();
+
+  // ── Minimal / General tiers (ADR 0003): the surface owns the body and the
+  // VisualStatePanel (Detail-tier chrome) does not render. The results footer
+  // stays identical so the first output never shifts the surface. ──
+  if (!isFull) {
+    return (
+      <div className="flex h-full flex-col overflow-hidden bg-background">
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <TimerSurface
+            elapsedMs={execution.elapsedTime}
+            hasActiveBlock={true}
+            onStart={handleStart}
+            onPause={execution.pause}
+            onStop={handleStop}
+            onNext={handleNext}
+            isRunning={execution.status === "running"}
+            isPaused={execution.status === "paused"}
+          />
+        </div>
+
+        {/* ── Results footer ── reserved fixed-height strip: renders identically
+            whether or not results exist, so the first output landing never
+            shifts the clock or controls above it. */}
+        <div className={`flex h-[26px] flex-shrink-0 items-center gap-2 px-2.5 text-[10px] text-muted-foreground ${outputCount > 0 ? "border-t border-border bg-muted/20" : ""}`}>
+          {outputCount > 0 && (
+            <span className="whitespace-nowrap">
+              {`${outputCount} ${outputCount !== 1 ? 'results' : 'result'} captured`}
+            </span>
+          )}
+          {outputCount > 0 && createdAt && (
+            <span className="ml-auto font-medium text-primary">
+              ✓ {createdAt.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      {/* ── Body: stacked on mobile, side-by-side on desktop. Both columns
+      {/* ── Detail tier (full): side-by-side audit + timer. Both columns
           get a proportional share (3:2 favoring the clock) with min-h-0 so
           neither can squeeze the other out of a bounded host: the visual
           state scrolls internally and the clock keeps controls reachable. ── */}

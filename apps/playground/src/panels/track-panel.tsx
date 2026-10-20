@@ -10,8 +10,7 @@ import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
 import { cn } from '@/lib/utils';
 import { WorkoutPreviewPanel } from '@/components/organisms/workbench/WorkoutPreviewPanel';
 import { TrackViewShell } from '@/components/organisms/workout/TrackViewShell';
-import { MinimalTimerSurface } from '@/components/organisms/workout/MinimalTimerSurface';
-import { useTimerSurfaceModel } from '@/components/organisms/workout/useTimerSurfaceModel';
+import { TimerSurface } from '@/components/organisms/workout/TimerSurface';
 import type { SectionType } from '@/components/Editor/types/section';
 import type { ScriptBlock } from '@/components/Editor/types';
 import { useUserOverrides } from '@/components/organisms/review/useUserOverrides';
@@ -68,32 +67,6 @@ export const SessionHistory: React.FC<Pick<TrackPanelProps, 'runtime' | 'activeS
   );
 };
 
-/**
- * MinimalTimerScreen — Tier 1 (Minimal) mobile fullscreen timer, wired to the
- * runtime. Must live inside ScriptRuntimeProvider. Per the timer-surfaces
- * design (Kimi_Agent_WOD Timer UI Prototypes/app/index.html), the clock owns
- * the screen on mobile and the visual/audit panel (Detail-tier chrome) does
- * not render on this surface.
- */
-const MinimalTimerScreen: React.FC<{
-  onStart: () => void;
-  onPause: () => void;
-  onStop: () => void;
-  onNext: () => void;
-  isPaused: boolean;
-}> = ({ onStart, onPause, onStop, onNext, isPaused }) => {
-  const model = useTimerSurfaceModel({ onStart, onPause, onStop, onNext, isPaused });
-  return (
-    <MinimalTimerSurface
-      model={model}
-      onStart={onStart}
-      onPause={onPause}
-      onStop={onStop}
-      onNext={onNext}
-    />
-  );
-};
-
 export const TimerScreen: React.FC<TrackPanelProps> = ({
   runtime,
   execution,
@@ -112,7 +85,7 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
   setBlocks,
   previewFilter = ['time'],
 }) => {
-  const { isCompact } = usePanelSize();
+  const { isCompact, isFull } = usePanelSize();
   const { sectionId } = useParams<{ sectionId?: string }>();
   const isNotFound = sectionId === 'notfound';
   const [wizardDismissed, setWizardDismissed] = React.useState(false);
@@ -139,7 +112,7 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
     }
   }, [execution.status, collectionItems.length]);
 
-  // Timer/Clock component
+  // Timer/Clock component (Detail tier, full containers only — ADR 0003)
   const timerDisplay = (
     <TimerDisplay
       elapsedMs={execution.elapsedTime}
@@ -149,7 +122,6 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
       onStop={onStop}
       onNext={onNext}
       isRunning={execution.status === 'running'}
-      compact={isCompact}
       onBlockHover={onBlockHover}
       onBlockClick={onBlockClick}
       enableDisplayStack={!!runtime}
@@ -181,13 +153,23 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
 
   const screenContent = runtime ? (
     <ScriptRuntimeProvider runtime={runtime}>
-      {isCompact ? (
-        <MinimalTimerScreen
+      {isCompact || !isFull ? (
+        // Minimal (compact) / General (wide) — ADR 0003. The surface owns the
+        // screen; the VisualStatePanel is Detail-tier chrome and stays with the
+        // full layout only.
+        <TimerSurface
+          elapsedMs={execution.elapsedTime}
+          hasActiveBlock={!!selectedBlock}
           onStart={onStart}
           onPause={onPause}
           onStop={onStop}
           onNext={onNext}
+          isRunning={execution.status === 'running'}
           isPaused={execution.status === 'paused'}
+          enableGestures
+          onBlockHover={onBlockHover}
+          onBlockClick={onBlockClick}
+          enableDisplayStack={!!runtime}
         />
       ) : (
       <TrackViewShell

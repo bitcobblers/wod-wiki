@@ -87,4 +87,40 @@ describe('GeneralTimerSurface', () => {
     expect(screen.getByRole('status')).toBeDefined();
     expect(screen.getByText("Timer can't be skipped!")).toBeDefined();
   });
+
+  it('strip mode shows label + clock and drops the top bar and chips', () => {
+    render(
+      <GeneralTimerSurface
+        model={{ ...baseModel }}
+        onStart={() => {}}
+        onPause={() => {}}
+        onStop={() => {}}
+        onNext={() => {}}
+        workoutTitle="Helen"
+        mode="strip"
+      />,
+    );
+
+    expect(screen.getByTestId(TEST_IDS.TIMER_SURFACE_GENERAL_STRIP)).toBeDefined();
+    expect(screen.getByText('Rest')).toBeDefined();
+    expect(screen.getByText('00:38')).toBeDefined();
+    // Top bar and chips are strip casualties.
+    expect(screen.queryByText('Helen')).toBeNull();
+    expect(screen.queryByText(/Session 12:47/)).toBeNull();
+    expect(screen.queryByLabelText('Cap 10:00')).toBeNull();
+  });
+
+  it('renders the prompt row only when the host provides one', () => {
+    render(
+      <GeneralTimerSurface
+        model={{ ...baseModel }}
+        onStart={() => {}}
+        onPause={() => {}}
+        onStop={() => {}}
+        onNext={() => {}}
+        promptRow={<div data-testid="prompts" />}
+      />,
+    );
+    expect(screen.getByTestId('prompts')).toBeDefined();
+  });
 });

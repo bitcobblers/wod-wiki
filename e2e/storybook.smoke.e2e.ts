@@ -53,3 +53,14 @@ test('Timer Surfaces stories render the Minimal and General tiers', async ({ pag
   await expect(page.getByText('Helen')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('timer-up-next-caption')).toBeVisible();
 });
+
+test('Timer Surfaces strip and prompt-row variants render', async ({ page }) => {
+  // Short-host compression: label + clock left, triad right, no top bar.
+  await page.goto(storyUrl('gallery-timer-surfaces--general-strip'), { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('timer-surface-general-strip')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Helen')).toBeHidden();
+
+  // Live-metric prompt slot renders above the hero.
+  await page.goto(storyUrl('gallery-timer-surfaces--general-prompts'), { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('prompts-fixture')).toBeVisible({ timeout: 15_000 });
+});

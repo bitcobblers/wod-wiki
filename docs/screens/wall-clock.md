@@ -18,7 +18,18 @@
 
 ---
 
-## 2. Desktop View Layout (≥1024px)
+## 2. Timer tiers (ADR 0003)
+
+The timer surface follows the **container**, not the device: `compact` (<500px) →
+Minimal, `wide` (≥500px) → General, `full` (≥900px) → Detail (audit rail +
+`VisualStatePanel`). Picked by `TimerSurface`
+(`apps/playground/src/components/organisms/workout/TimerSurface.tsx`); the cast
+receiver always shows General. Live metric bubbles render on Minimal and General;
+in-run metric input stays Detail-only.
+
+---
+
+## 3. Desktop View Layout (≥1024px)
 
 - **Fullscreen HUD (Bypasses App Shell):** The tracker consumes the entire viewport without sidebars, navbars, or rails.
 - **Display Zones:**
@@ -29,7 +40,7 @@
 
 ---
 
-## 3. Mobile View Layout (<1024px)
+## 4. Mobile View Layout (<1024px)
 
 - **Landscape & Portrait Optimization:** Automatically reflows based on device orientation.
 - **Touch Targets:** The entire lower half of the screen serves as an oversized tap target to advance rounds without precise aiming.
@@ -37,7 +48,7 @@
 
 ---
 
-## 4. Composable Behaviors
+## 5. Composable Behaviors
 
 - **Isolated Execution State:**
   - `WallClockPage` isolates runtime execution from document authoring.
