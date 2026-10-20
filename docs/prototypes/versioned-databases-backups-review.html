@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design Review — Versioned Databases &amp; Backups (Turso sync)</title>
+<style>
+  :root {
+    --ink: #1a1d21;
+    --muted: #5b6470;
+    --border: #d9dee5;
+    --surface: #f6f8fa;
+    --accent: #0b5fff;
+    --warn: #8a5a00;
+    --warn-bg: #fff7e0;
+    --bad: #a12222;
+    --bad-bg: #fdeeee;
+    --ok: #1c6b3c;
+    --ok-bg: #ecf8f0;
+  }
+  html { background: #ffffff; color: var(--ink); }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    font-size: 15px;
+  }
+  main[data-whiteboard-document] {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 48px 32px 96px;
+  }
+  h1 { font-size: 28px; line-height: 1.25; margin: 0 0 8px; }
+  h2 {
+    font-size: 20px;
+    margin: 40px 0 12px;
+    padding-top: 20px;
+    border-top: 2px solid var(--border);
+  }
+  h3 { font-size: 16px; margin: 24px 0 8px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 4px;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--surface); }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 16px 0;
+  }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+  .callout.bad { border-left-color: var(--bad); background: var(--bad-bg); }
+  .callout.ok { border-left-color: var(--ok); background: var(--ok-bg); }
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    color: var(--muted);
+  }
+  .tag.ok { color: var(--ok); border-color: var(--ok); }
+  .tag.warn { color: var(--warn); border-color: var(--warn); }
+  .tag.bad { color: var(--bad); border-color: var(--bad); }
+  .file { white-space: nowrap; }
+  strong { font-weight: 650; }
+  @media (max-width: 600px) {
+    main[data-whiteboard-document] { padding: 24px 16px 64px; overflow-wrap: anywhere; }
+    table { table-layout: fixed; }
+    th, td { padding: 6px; }
+    .file { white-space: normal; }
+  }
+</style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Downloads/workspace (1)/docs/prototypes/versioned-databases-backups-review.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  :root { --wb-bar-height: 112px; }
+  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 16px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #cbd5e1; padding: 10px max(16px, calc((100% - 1032px) / 2)); }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 44px; padding: 8px 12px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button:disabled { opacity: .5; cursor: default; }
+  #wb-bar #wb-publish, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-help, #wb-status, #wb-storage-warning { margin: 4px 0 0; font-size: 12px; }
+  #wb-help { color: #475569; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; padding: 16px; border: 1px solid #b45309; border-radius: 8px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current h2 { margin: 0 0 8px; padding: 0; font-size: 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite">0 annotations</strong>
+    <button id="wb-add" type="button" aria-pressed="false">Add annotation</button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation">Previous</button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation">Next</button>
+    <button id="wb-publish" type="button" disabled>Publish</button>
+  </div>
+  <p id="wb-help">Highlight text to annotate, or click Add annotation then click any block. Drafts stay in this browser. Publish copies them for your agent.</p>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+<main data-whiteboard-document="">
+
+<h1 id="wb-h1-6a4f8b69f3be443a962063b4b662b6a8" data-whiteboard-anchor>Design Review — Versioned Databases &amp; Backups</h1>
+<p class="meta" id="wb-p-eb26d33ac04b44cfbed17b7bfcf4ebc5" data-whiteboard-anchor>Source snapshot: <code>workspace&nbsp;(1)</code>, commit <code>b9b40a7</code>. Section 1 describes existing code; sections 2-6 specify proposed changes, not implemented features. The live Turso OpenAPI contract was read for this revision. No authenticated provisioning or restore operation was executed.</p>
+
+<div class="callout">
+<p id="wb-p-6b53608440f944f3aae124ac74a564c9" data-whiteboard-anchor><strong>Purpose.</strong> A context/design document proposes: (1) versioned Turso databases named <code>wod-wiki-{version}</code>, with the version stored in localStorage (playground) and <code>.env</code> (CLI/self-hosted); (2) scope reduction so sync carries only user data, filtering <code>seedOrigin === 'seed'</code> rows and seed-only stores at journal/snapshot time; (3) db-to-db migration reusing <code>applySyncBatch</code> idempotency, a <code>publishCatalogSeed</code> round-trip, and the extracted <code>migrateRemoteToCurrent</code> scratch chain; (4) backing up older versions; (5) an implementation file map with open questions. This review assesses each proposal against the code as it exists today, lists the changes required to make the design sound, and catalogs pitfalls in the existing design that the plan will inherit or must defuse.</p>
+</div>
+
+<h2 id="wb-h2-08bb70c87d304302b1885e71434bbb86" data-whiteboard-anchor>1. How things work today (verified)</h2>
+
+<h3 id="wb-h3-faf56e26473440cba8da6c5412a14280" data-whiteboard-anchor>1.1 Data plane and sync protocol</h3>
+<ul>
+  <li id="wb-li-b29460cfbc3549babf3293bcd4db6ad3" data-whiteboard-anchor>The browser data plane is IndexedDB via <span class="file">IndexedDBStorage.ts</span> over <code>STORE_DEFS</code>; the schema version is <code>DB_VERSION = 31</code> (<span class="file">packages/storage/src/schema.ts:19</span>). The system-flagged <code>memberships</code> store survives wipe and is excluded from snapshots and remote applies. Browser-local <code>sync_outbox</code>/<code>sync_state</code> stores sit outside <code>STORE_DEFS</code> and never enter those payloads.</li>
+  <li id="wb-li-cc08eadeab6f4ed6ba57caeff5eb9c14" data-whiteboard-anchor>Backup/sync is an op log in three Turso tables: <code>_wodwiki_sync_ops</code>, <code>_wodwiki_sync_state</code>, <code>_wodwiki_sync_ops_archive</code> (<span class="file">packages/storage/src/sql/sync.ts:43-47</span>). A mutation is one of <code>put | delete | clear | wipe</code> against an IndexedDB store/key (<span class="file">sync.ts:50-54</span>).</li>
+  <li id="wb-li-cf781c16362543c197b6352f45a23f98" data-whiteboard-anchor><code>applySyncBatch</code> (<span class="file">sync.ts:277</span>) is idempotent by client-generated group id: presence of <code>{entry.id}:0</code> skips the whole group, and inserts use <code>ON CONFLICT ("op_id") DO NOTHING</code>. <code>rev</code> is a <em>target-local</em> monotone counter assigned at insert time; <code>at</code> (client ms timestamp) is stored but never consulted for ordering.</li>
+  <li id="wb-li-90795a0a031144d18d113a7b21c227f1" data-whiteboard-anchor><code>fetchSyncOps</code> (<span class="file">sync.ts:338</span>) replays ops with <code>rev &gt; afterRev</code> in <code>(rev, idx)</code> order, in whole revision groups. On the client, <code>IndexedDBStorage.applySyncMutations</code> (<span class="file">IndexedDBStorage.ts:413</span>) applies ordered mutations with note/revision guards, then replays pending outbox groups on top. This overlay protects only unshipped writes; acknowledged groups are removed and cannot protect later local edits from restored old payloads.</li>
+  <li id="wb-li-93ac4518df984096b253ada101ea48a2" data-whiteboard-anchor><code>replaceSyncLog</code> (<span class="file">packages/storage/src/sql/sync.ts:380-409</span>) archives the active log, clears it, and writes converted snapshot groups at rev 1..n with the schema marker in one transaction. This mutates the existing database. The archive preserves old op payloads, not a separately frozen database or the old schema marker; it is not a whole-database backup.</li>
+  <li id="wb-li-6caf1e131eee42138c76a3522a7a2256" data-whiteboard-anchor><code>TursoSyncEngine</code> uses profile-local Web Locks, not a cross-device migration lock. Target state keys use <code>fnv1a(url)</code>: <code>cursor:</code>, <code>watermark:</code>, and <code>bootstrapped:</code> (<span class="file">syncEngine.ts:284-287</span>). Bootstrap groups use a persisted browser UUID and a sequence restarted for each snapshot, <code>bs:{bootstrapId}:{seq}</code> (<span class="file">syncEngine.ts:446-503</span>). Different browser UUIDs do not normally collide; reusing one UUID for changed snapshots against retained or copied history is the risk. Migration groups use <code>migrate:{uuid}</code> (<span class="file">syncEngine.ts:400-403</span>).</li>
+  <li id="wb-li-bf63128cb3684935a8f6d23eaa140d4f" data-whiteboard-anchor><code>probeSyncTarget</code> classifies targets as <code>empty | unknown | legacy | current</code>. Unknown and newer-schema targets halt. Older targets are currently migrated <em>in place</em> by <code>migrateRemoteToCurrent</code>, using scratch IndexedDB at the remote schema version and then <code>replaceSyncLog</code> (<span class="file">syncEngine.ts:291-413</span>). Schema versions below v20 are refused (<span class="file">syncEngine.ts:351-356</span>). The scratch name is fixed; extraction must isolate each run and clean up abandoned scratch state.</li>
+</ul>
+
+<h3 id="wb-h3-3f9e46f3e7524b759da96aa9bf6d4bb7" data-whiteboard-anchor>1.2 Config plumbing</h3>
+<ul>
+  <li id="wb-li-102aac3dfaf740c6a5a46705b25018d8" data-whiteboard-anchor>Browser settings use localStorage key <code>wodwiki.dataSettings.v1</code> with <code>{ kind: 'turso', url, authToken }</code> or <code>{ kind: 'indexed-db' }</code> (<span class="file">dataSettings.ts:47,155-188</span>). Validation allows secure libsql/HTTPS/WSS and loopback HTTP/WS, rejects embedded credentials/query/fragment, and proves INSERT permission with a rolled-back write. It does <em>not</em> verify the token's scope, tenant identity, or that the database is safe to adopt. Tokens are stored in plaintext browser storage. There is no default remote URL.</li>
+  <li id="wb-li-a21659f8b9ec4a8493b4429a7e54486e" data-whiteboard-anchor>CLI/dev server: <code>resolveDatabaseConfig</code> (<span class="file">packages/tools/src/cli/config.ts:319-374</span>) resolves flags &gt; process env &gt; <code>.env</code>. Relevant vars: <code>DB_DRIVER</code>, <code>DATABASE_URL</code>, <code>TURSO_DATABASE_URL</code>, <code>TURSO_AUTH_TOKEN</code>, <code>LIBSQL_AUTH_TOKEN</code>, <code>WOD_WIKI_DB</code>, <code>SQLITE_PATH</code>. Conflicting selectors fail closed; provisioning must preserve that precedence.</li>
+  <li id="wb-li-599347426c404364ba2a25a2189ac84a" data-whiteboard-anchor><strong>No Turso Control API usage exists anywhere in the tree</strong> — no database create/delete, no token minting. Provisioning is entirely manual today.</li>
+</ul>
+
+<h3 id="wb-h3-4efb61e56379450fbfacb35ec7bd9d71" data-whiteboard-anchor>1.3 Seed pipeline and membership</h3>
+<ul>
+  <li id="wb-li-468dce16004c42bf846b055e5c83a825" data-whiteboard-anchor><code>publishCatalogSeed</code> reads SQL domain notes and their block index/effort/equipment rows, then writes seed manifests/chunks (<span class="file">packages/tools/src/cli/publish.ts:27-160</span>). It is a catalog publication path, not a complete backup format. The seed contract is <code>SEED_SCHEMA = 9</code> (<span class="file">packages/tools/src/seedbuild/contract.ts:4</span>).</li>
+  <li id="wb-li-b554493c41374e03972ab90d660e6960" data-whiteboard-anchor>Seed import stamps <em>notes</em> with <code>seedOrigin</code>, <code>seedVersion</code>, <code>seedChunkId</code>, and <code>sourceId</code> (<span class="file">packages/engine/src/seed/runtime.ts:305</span>). Related rows do not share one origin flag: block projections use <code>isStatic</code>, definitions use <code>registrySource</code>, and revisions/links can lack either. Import writes checkpoints under <code>meta/seed:{sourceId}</code> and skips existing user-owned notes (<span class="file">runtime.ts:232-263,283-380</span>).</li>
+  <li id="wb-li-9dc251e57b6f4dfdb8b19810231988b8" data-whiteboard-anchor>Membership: a single local membership <code>default</code> owns every user-created record; adapters stamp <code>userId</code> on write via <code>stampUserOwned</code>, which passes seed rows through untouched (<span class="file">packages/storage/src/membership.ts</span>). <code>USER_OWNED_STORES</code> lists 14 stores; <code>field_*</code> stores, <code>meta</code>, and <code>memberships</code> are excluded from ownership.</li>
+  <li id="wb-li-f2f3404cc0e04ba9b86ba42b05c03111" data-whiteboard-anchor>The <code>meta</code> store is <em>not</em> seed-only: besides <code>seed:{sourceId}</code> checkpoints it carries remote-mode prefs (<code>wodwiki.routeWql.v1</code>, notebooks, telemetry) (<span class="file">metaStore.ts:17-23</span>).</li>
+</ul>
+
+<h3 id="wb-h3-72fb1e16e87b4733946103ae025315c5" data-whiteboard-anchor>1.4 Two channels, one database (the fact the plan must reckon with)</h3>
+<ul>
+  <li id="wb-li-9118e9149c7647199688891aa1990946" data-whiteboard-anchor>The only consumer of the op-log protocol (<code>applySyncBatch</code>, <code>fetchSyncOps</code>, <code>replaceSyncLog</code>, <code>readRawSyncOps</code>) is the playground sync engine. Verified by tree-wide search: no CLI or server code touches <code>_wodwiki_sync_*</code>.</li>
+  <li id="wb-li-bb114a2936234505b52ce53b5238c4b2" data-whiteboard-anchor>The CLI and self-hosted server write STORE_DEFS-derived domain tables and SQL projections, maintained by <code>refreshDomain</code> (<span class="file">packages/storage/src/sql/domain.ts:246</span>). Those tables are distinct from the browser backup op log; a shared hostname does not make the two write paths interoperable.</li>
+  <li id="wb-li-e1b8b24453164e81a91f1ca0dca06643" data-whiteboard-anchor>Consequence: a browser-only backup database contains <em>only</em> <code>_wodwiki_sync_*</code> tables — no domain tables. A CLI-initialized database contains domain tables and a <code>_wodwiki_schema</code> guard, which the sync engine probes as <code>legacy</code> and imports through the scratch chain. The two channels never write each other's tables; nothing reconciles them.</li>
+</ul>
+
+<h2 id="wb-h2-1160228697bf40a289c752334f99729f" data-whiteboard-anchor>2. Verdict summary</h2>
+
+<table>
+  <thead>
+    <tr><th id="wb-th-7f00ee7bc2de44bb9529b00d18786cca" data-whiteboard-anchor>Design area</th><th id="wb-th-9d9ba049799e49eaba3d6003bc453595" data-whiteboard-anchor>Assessment</th><th id="wb-th-51b1be953dbc4fbfa07567982a8a7f35" data-whiteboard-anchor>Blocking issues</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td id="wb-td-9066aabe97c3471e8c6aee09febcd1ce" data-whiteboard-anchor>A. Versioned DBs <code>wod-wiki-{version}</code></td>
+      <td id="wb-td-056975f8ed144b9eb3eb15eba3492c9d" data-whiteboard-anchor><span class="tag warn">Needs change</span> Key live databases by storage compatibility, currently <code>DB_VERSION</code>, not app or seed release.</td>
+      <td id="wb-td-a0280790f10f4155ad8f7a3e03eab33b" data-whiteboard-anchor>Seed format does not independently change a user-only op-log contract. Filtering needs an explicit compatible protocol transition.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-0f18e704c213403e882414fb629fd0ce" data-whiteboard-anchor>B. Write/create paths, web vs CLI provisioning</td>
+      <td id="wb-td-d978a72448bd4503b6522d8061a5af6b" data-whiteboard-anchor><span class="tag warn">Needs change</span> Provision from trusted CLI/server code; keep management credentials outside the browser.</td>
+      <td id="wb-td-a9fcc2f883454a01a4e222446d94da46" data-whiteboard-anchor>CORS is unverified, not the security rationale. Credentials and atomic config writes need defined handling.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-a68d4d109f9a440aa25f1215cb835eaf" data-whiteboard-anchor>C. Backing up older versions</td>
+      <td id="wb-td-7ae5866aa29a4771abe1ef6a19ad60f2" data-whiteboard-anchor><span class="tag warn">Needs change</span> Retain the source unchanged and restore under a fresh identity (§3.3, §4 P2).</td>
+      <td id="wb-td-5d272dfa8d754293a1f71744fa87c05b" data-whiteboard-anchor>Cursor reset alone can leave stale local rows or re-upload post-snapshot edits.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-fa9a7062a93d4f4b9f604cbdaac17bfa" data-whiteboard-anchor>D. Sync only user data (seed filter)</td>
+      <td id="wb-td-a81f37bf2427432382d42a6e3b5edc20" data-whiteboard-anchor><span class="tag bad">Blocked as specified</span> Classify per-store provenance and preserve dependencies; one <code>seedOrigin</code> predicate is insufficient (§3.4).</td>
+      <td id="wb-td-e881b53c72454dc5a9530663554cc883" data-whiteboard-anchor>Seed-derived unmarked rows, session history pins, mixed field metadata, ownership transitions, and destructive operations.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-ae5a114fdaf44a00bbf3480898bd3826" data-whiteboard-anchor>E. DB-to-DB migration via applySyncBatch + publishCatalogSeed + scratch chain</td>
+      <td id="wb-td-9d610bb50d32467a9188ba0940541898" data-whiteboard-anchor><span class="tag warn">Needs change</span> Use a consistent, lossless log/state copy into a fresh target. Seed publication is optional catalog export, never backup transport (§3.5).</td>
+      <td id="wb-td-f80f72f0d4f147fca3519a1b90023c3b" data-whiteboard-anchor>Concurrent writers, incomplete copies, changed identities, omitted user records, and unsafe source mutation.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-2c7f7daecd0049d195fdcac8ba07266a" data-whiteboard-anchor>F. Version in localStorage / .env</td>
+      <td id="wb-td-0f27ab24eb3f417bb9ce3edbc1d33580" data-whiteboard-anchor><span class="tag warn">Needs change</span> Keep the remote <code>_wodwiki_sync_state.schema</code> row canonical; local copies are selectors, not truth (§3.6).</td>
+      <td id="wb-td-2b3fa4a839a94530862b82de50670812" data-whiteboard-anchor>Two writable version sources invite drift and dual-write ambiguity.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="wb-h2-ae2fc262608246e68f1ca124df38cb2e" data-whiteboard-anchor>3. Detailed review and required changes</h2>
+
+<h3 id="wb-h3-e369629622654ea3bcb1827567397ee0" data-whiteboard-anchor>3.1 Versioned databases and the fork key</h3>
+<p id="wb-p-2ef1d30b113c4adfbdb218d22b7f5ab6" data-whiteboard-anchor><strong>Finding.</strong> App release, storage compatibility, and seed artifact format are separate versions. The existing sync protocol enforces <code>DB_VERSION = 31</code>; <code>SEED_SCHEMA = 9</code> validates manifests. Neither a new app release nor a seed-only format change proves that stored user records require migration. V30 also shows that <code>DB_VERSION</code> can change for browser-local infrastructure without changing domain rows (<span class="file">schema.ts:9-19</span>).</p>
+<p id="wb-p-e0fe7be4cb8f4547993e120bdf726085" data-whiteboard-anchor><strong>Required changes.</strong></p>
+<ul>
+  <li id="wb-li-30ef9af8f66649ce84256ebe92ca81e1" data-whiteboard-anchor>Use the existing storage compatibility key, currently <code>DB_VERSION</code>, for live target naming, for example <code>wod-wiki-v31</code>. Do not add a speculative <code>seedEpoch</code> to the fork key. If a seed change alters user-record identities or references, migrate those records explicitly under the storage compatibility contract.</li>
+  <li id="wb-li-471d7adfde4245c8812b87d9155ef7ef" data-whiteboard-anchor>App releases reuse the compatible live database. Optional release archives are copies with unique snapshot identifiers, not new live targets. A restored or forked database needs its own identity even when its schema matches; schema version is not a history generation.</li>
+  <li id="wb-li-1a78bf4f150f4063b129a65f20a1e0ca" data-whiteboard-anchor>The existing migration floor is v20 (<span class="file">syncEngine.ts:351-356</span>). Below that, preserve the archive and require a verified intermediate converter. Do not promise restore support merely because an old database or old app build still exists.</li>
+</ul>
+
+<h3 id="wb-h3-e043e487d575498180935acc8a406b12" data-whiteboard-anchor>3.2 Write/create paths and provisioning</h3>
+<p id="wb-p-a52500a953f4483584fe65a957d7e851" data-whiteboard-anchor><strong>Finding.</strong> No provisioning implementation exists. The browser accepts a pasted token and proves write permission, not token scope (<span class="file">dataSettings.ts:123-165</span>). Management credentials must stay in trusted CLI/server code regardless of CORS. The live specification establishes API shapes, not account eligibility or tested backup guarantees.</p>
+<p id="wb-p-b36d8682b8f643279e8b64245310a3b1" data-whiteboard-anchor><strong>Control API correction.</strong> The <a href="https://turso.tech/openapi.json">current Turso OpenAPI specification</a> defines database create/delete, database-scoped token generation, and usage reads under <code>/v1/organizations/{organizationSlug}/databases</code>. Create accepts <code>seed.type = database</code> with an existing database name and optional recovery timestamp. The documented recovery window is 24 hours, or 30 days on the scaler plan. In contrast, <code>POST /v3/organizations/{organizationId}/databases/{databaseId}/restore</code> recovers a database deleted within five days, at its deletion state. It requires a paid plan, admin/owner access, and organization recovery enabled. Do not describe that endpoint as arbitrary snapshot restore. Database tokens default to full access and no expiry; choose authorization and expiry explicitly. Verify actual plan limits, recovery eligibility, and token retirement behavior before shipping.</p>
+<p id="wb-p-dcb6452b9b4545ea94a582516aa260a5" data-whiteboard-anchor><strong>Required changes.</strong></p>
+<ul>
+  <li id="wb-li-dda12213a5a74cf89757dcab247efdd0" data-whiteboard-anchor>Provision through the CLI. Any future <code>wod db create</code> command is proposed, not available today. Mint only database-scoped client credentials; never print them by default or put them in URLs, logs, or shell arguments. Require explicit pairing/export. Make <code>.env</code> writes opt-in, atomic, owner-readable only, preserving unrelated settings and refusing silent credential replacement. A failed config write must not switch targets or automatically delete the created database.</li>
+  <li id="wb-li-b9c720b5e29d4d999a0591739a95efbe" data-whiteboard-anchor>Use the hostname/URL returned by provisioning; do not synthesize it from a database name or organization slug. Apply the browser's transport and credential-placement rules, then probe identity/schema separately. A name prefix and a successful INSERT are not ownership proof.</li>
+  <li id="wb-li-084b2bee5e6a4c6bac32ffa7994ac3a6" data-whiteboard-anchor>Keep browser backup targets separate from live CLI/server domain databases. An explicitly requested one-way export may materialize into an isolated domain database. It does not enable shared live writes; bidirectional reconciliation is outside this design.</li>
+</ul>
+
+<h3 id="wb-h3-cf399d1d1fad429f877b8f70bfd0a25b" data-whiteboard-anchor>3.3 Backing up older versions</h3>
+<p id="wb-p-9e7ba416f14a4b079bb88fd455b1a5cb" data-whiteboard-anchor><strong>Finding.</strong> Versioned names do not preserve old versions if the browser still runs its automatic in-place migration. <code>ensureReconciled</code> currently converts an older target and replaces its active log (<span class="file">syncEngine.ts:321-330,404-410</span>). Whole-database retention requires a deliberate copy-before-cutover path and preventing old clients from continuing writes to the archived source.</p>
+<p id="wb-p-b6adcbc4f9f0437a82aeca9628a8e9cd" data-whiteboard-anchor><strong>Required changes.</strong></p>
+<ul>
+  <li id="wb-li-e76f72b90848498ea08c9055cac481b4" data-whiteboard-anchor>Freeze source writers before the final copy, retain the source and its schema marker unchanged, convert into a new target, validate restoration, then switch settings. Revoke or rotate old write credentials across devices; a localStorage reload guard reaches only sibling tabs, not other browsers. Do not remove archive preservation from the existing in-place migrator until this replacement path is implemented and verified.</li>
+  <li id="wb-li-f160f5cfaffc4f6e9cfbdddc7bcbb0bf" data-whiteboard-anchor>For same-schema whole-database retention, prefer Turso's native database-copy/create-from-recovery-point operation over a custom row copier, subject to a real restore check. A finite recovery window is not long-term retention; keep independently named copies for the required archive lifetime. Use logical op-log conversion only for schema or scope changes. Read-only archives and restricted credentials prevent ordinary sync clients from mutating retained copies.</li>
+  <li id="wb-li-22d226cdd3d44732a4e9cc5de05b2f6f" data-whiteboard-anchor>Restore to a fresh database URL and a clean isolated local profile/database by default. Stop sync first and export unsent edits. A cursor reset alone is <em>not</em> point-in-time recovery: acknowledged outbox entries are deleted, stale local-only rows can survive replay, and bootstrap can upload them again (<span class="file">syncEngine.ts:537-543,559-586</span>). Keep that export separate; applying it later is an explicit merge, not restoration of the snapshot.</li>
+  <li id="wb-li-5ce9182f8f4f480fa36659ae6cb7c92b" data-whiteboard-anchor>Do not support in-place snapshot restore through the ordinary sync loop. If added later, it requires a new history generation visible to <em>every</em> client, stopping old writers, rebuilding local state, and deliberately resetting target cursor/watermark/bootstrap state. A lower remote rev can warn about rewind but cannot detect every divergent history. Preserve unknown/newer-target refusal; do not weaken it to a name-prefix check.</li>
+</ul>
+
+<h3 id="wb-h3-42b6a64cd1054441a757c859ed9a3fa7" data-whiteboard-anchor>3.4 Scope reduction — sync only user data</h3>
+<p id="wb-p-efdb642c1ef74d64b94e72ce1448a884" data-whiteboard-anchor><strong>Finding.</strong> User-only sync needs a store-specific ownership policy plus dependency retention, not one row predicate. Seed notes are marked, but <code>applySeedChunk</code> also writes unmarked immutable revisions, tags, pages and links, static projections, and bundled definitions (<span class="file">runtime.ts:257-380</span>). Payload reduction has not been measured. Preserve current full-data sync until the policy below can restore user state without missing references.</p>
+<ul>
+  <li id="wb-li-f13181c466704662836eae48c2d7da0e" data-whiteboard-anchor>Classify each store using its actual provenance: note <code>seedOrigin</code>, projection <code>isStatic</code> plus owner note, definition <code>registrySource</code>, and link ownership. Never infer user authorship from <code>userId</code> or the absence of <code>seedOrigin</code>. Keep uncertain rows until their derivation and reconstruction are proven.</li>
+  <li id="wb-li-bbf75c4548544f30a53288c55f07db2d" data-whiteboard-anchor><code>meta</code> mixes seed checkpoints with preferences and other state. Exclude import checkpoints/claims under <code>seed:</code>, not the whole store; keep existing non-seed meta behavior unless explicitly changed. Source registration, subscriptions, and auto-sync choices also live in separate localStorage keys (<span class="file">docs/adrs/0002-catalog-source-lifecycle.md:38-98</span>). They are not backed up by filtering IndexedDB; exclude credentials and define a separate safe settings export if restoration needs those choices.</li>
+  <li id="wb-li-628f19a236a140c3a863b4fd92efb240" data-whiteboard-anchor><code>field_catalog</code>, <code>field_sources</code>, <code>field_values</code>, and <code>field_catalog_meta</code> are <em>not seed-only</em>. Field contributions come from user note frontmatter and workout event metrics (<span class="file">services/catalog/fieldCatalog.ts:136-194</span>). Keep them initially. Exclude derived field data only after a deterministic rebuild from all retained user sources is implemented and verified before field queries run.</li>
+</ul>
+<p id="wb-p-becb0c07a8c14978bf2a5e370f355cd3" data-whiteboard-anchor><strong>Required changes.</strong></p>
+<ul>
+  <li id="wb-li-33ec1b82f9fc4613898800b9021de4bc" data-whiteboard-anchor>Retain user notes, sessions, events, attachments, custom definitions, links and their required immutable revisions. Sessions pin <code>[noteId, blockId, blockVersion]</code>; current seed chunks may not reproduce an old revision (<span class="file">packages/storage/src/validation.ts:88-104</span>). Keep revision history conservatively until dependency closure is proven. Before excluding a seed parent, preserve the content/identity needed by retained user references. Re-import latest seed is not a substitute for saved workout history.</li>
+  <li id="wb-li-bc167ee143144c5b96804fababb48336" data-whiteboard-anchor>At journal time classify both previous and new ownership <em>inside the write transaction</em>. User→user and seed→user emit complete user puts with dependencies; user→seed emits a tombstone for the former user record, not a silent dropped put. Deletes inspect pre-delete ownership, including expanded key ranges. Ordinary <code>deleteNote</code> has no durable seed-deletion suppression (<span class="file">StorageService.ts:264-303</span>); import claims are concurrency locks, not deletion intent. Preserve current delete behavior until durable user tombstones and seed-import suppression are implemented together.</li>
+  <li id="wb-li-701a8821584e46c1882c20a74007347a" data-whiteboard-anchor>Do not rewrite <code>wipe</code> into raw <code>clear</code> operations on mixed stores: replay still clears seed rows, and <code>clear(block_revisions)</code> is deliberately ignored on pull. Define user-scope clear/wipe as explicit eligible-key tombstones with dependency-aware history rules, or as a new versioned protocol operation. Keep explicit all-data wipe distinct. Local deletion and its journal must commit atomically; no filter rollout until both writer and reader semantics agree.</li>
+  <li id="wb-li-0e6930f14f3140a1b22e92ce850097b4" data-whiteboard-anchor>One shared ownership policy must govern outbox creation (<span class="file">IndexedDBStorage.ts:107-171,299-337</span>), atomic bootstrap snapshots (<span class="file">syncEngine.ts:461-503</span>), and migration snapshots (<span class="file">syncEngine.ts:351-410</span>). The policy may need prior rows and referenced records; it cannot be just <code>include(row)</code>. Preserve ordering and include referenced history before consumers need it.</li>
+  <li id="wb-li-e3024571971243e5bda39ed2f38aee77" data-whiteboard-anchor>Use a fresh target and an explicit compatibility transition when filtered semantics ship. Old outbox groups and old remote logs still carry full-data clears/wipes; old clients can keep writing them. Build a policy-compliant snapshot and convert pending writes, then retire old writers. Do not claim that upload-only filtering makes mixed-version replay harmless.</li>
+  <li id="wb-li-55d08279aa4d4e55b24c827d8275dd73" data-whiteboard-anchor>Acceptance at the existing <span class="file">sync.check.ts</span> seam must prove fresh-profile restoration with edited seed notes, user references to old seed revisions, bundled versus custom definitions, user field discovery, seed-note deletion/re-import, ownership transitions, key-range deletes, clear/wipe, failed-upload retry, and obsolete-client refusal. These are required implementation checks, not tests already added by this document revision.</li>
+</ul>
+
+<h3 id="wb-h3-f1704f78a9e64759bf95885d01aa6cfa" data-whiteboard-anchor>3.5 DB-to-DB migration</h3>
+<p id="wb-p-7151ae8aba754472ba453b4d4b17c4e5" data-whiteboard-anchor><strong>Finding.</strong> Three reuse claims, three different answers:</p>
+<ul>
+  <li id="wb-li-6f8df5ba4b0b4d8f8779989dedbbaf15" data-whiteboard-anchor><code>applySyncBatch</code> can copy same-schema groups in source revision order into a fresh, exclusively reserved target. Preserve group identity and payload for retries of that exact copy. It assigns target-local revisions; it does not perform conflict-aware multi-database merge. A distinct conversion needs distinct stable operation identities.</li>
+  <li id="wb-li-52c40e015e9e40af99d8dd012551e13f" data-whiteboard-anchor><code>publishCatalogSeed</code> is <strong>not a backup round-trip</strong>, even after materializing domain tables. It exports only catalog notes and block projections, omitting sessions, events, attachments, general metadata, and full revision history (<span class="file">publish.ts:35-77,112-160</span>). Import derives note IDs from paths, sets seed ownership, and can assign new versions (<span class="file">runtime.ts:259-305</span>). A browser-only backup has no domain notes for it to read. Keep seed publication as an optional one-way catalog export, not a migration dependency.</li>
+  <li id="wb-li-8b84aea7af8d4c63b1b9fe7ab54175d5" data-whiteboard-anchor>Extract the existing scratch conversion only when implementing cross-version copy. It relies on <code>idb</code> and the browser upgrade chain; <code>fake-indexeddb</code> in <span class="file">sync.check.ts</span> proves a test adapter, not production CLI parity. A CLI runtime needs an explicit shipped adapter, per-run scratch identity and cleanup, plus binary and legacy-version restoration checks. Do not rewrite the migration chain in SQL merely to avoid selecting that adapter.</li>
+</ul>
+<p id="wb-p-4731d09bd7f84cb0bd54d2765b147ebf" data-whiteboard-anchor><strong>Required changes.</strong></p>
+<ul>
+  <li id="wb-li-432743e918fa421ca3b9a34f4a7c249a" data-whiteboard-anchor>Migration procedure: freeze all source writers, record schema and terminal revision, reserve a fresh target exclusively, then read one consistent source snapshot. Reject or restart if the source changed. Validate every operation and conversion; missing stores/keys, unknown operations, or missing pinned revisions must fail the copy, never silently drop rows. Verify full restoration and binary payloads before publishing the target URL. Keep incomplete targets out of browser settings and retain the source on every failure.</li>
+  <li id="wb-li-eb6a347a27eb4a62a957536610a50482" data-whiteboard-anchor>Bootstrap retry identity must refer to <em>one immutable snapshot</em>, not just a browser. Persist a run ID and frozen snapshot/chunk manifest for retries, or abandon that run and start a new one against a fresh target. Random IDs per retry also break idempotency by appending obsolete chunks again. Different browser UUIDs already avoid normal cross-browser collisions; same-browser rebootstrap against copied/retained IDs is the actual risk.</li>
+  <li id="wb-li-e7ff6d263c374fb280de502d5b1c8d74" data-whiteboard-anchor><code>replaceSyncLog</code> remains an in-place conversion primitive, not the default for versioned retention. Atomic replacement alone does not protect its earlier read/convert phase: the current function checks initialization but not expected source schema/revision (<span class="file">sync.ts:380-409</span>). Any retained in-place path needs source schema/revision compare-and-swap and replay-generation handling across clients. Fresh-target copy avoids mutating the retained archive.</li>
+</ul>
+
+<h3 id="wb-h3-bd471ef3eb7a4528b35eacb8a8d18021" data-whiteboard-anchor>3.6 Where the version lives</h3>
+<p id="wb-p-8485523d3f3d4655b84ffae904dd9ff1" data-whiteboard-anchor><strong>Finding.</strong> Today the version that matters — the sync payload schema — lives in the remote database's <code>_wodwiki_sync_state</code> row (written by <code>initSyncTarget</code>, enforced by <code>expectSchema</code> inside the write transaction, <span class="file">sync.ts:215</span>, <span class="file">sync.ts:287-293</span>). The proposal adds version to localStorage (playground) and <code>.env</code> (CLI) as a second, writable source of truth.</p>
+<p id="wb-p-510ca3cca6ca4eecaa85aca4b63eae3f" data-whiteboard-anchor><strong>Required changes.</strong></p>
+<ul>
+  <li id="wb-li-bb49cc12e0214452b94bb006e99a7268" data-whiteboard-anchor>The remote state row is canonical for payload schema. localStorage and <code>.env</code> select a complete target URL; do not add a second editable schema value. A name is descriptive, not proof of schema or database identity. A restored history must not inherit another history's cursors merely because schema and URL match.</li>
+  <li id="wb-li-d9e680e95620421db91f4e4560468d65" data-whiteboard-anchor>Settings writes trigger sibling-tab reload (<span class="file">dataSettings.ts:191-201</span>). Do not auto-rewrite a live target on app update. Switch only after the new target passes copy/restore validation and unsent edits have an explicit disposition. Other devices still require writer retirement or deliberate re-pairing.</li>
+  <li id="wb-li-098557b665e74e69a8b8b29bd72cfdbc" data-whiteboard-anchor>Reuse existing <code>DB_VERSION</code> compatibility checks and CLI resolution. Do not add a parallel name-to-URL resolver or hardcoded seed epoch. Provisioning supplies the actual URL; preserve flags &gt; process env &gt; <code>.env</code> and reject conflicting selectors (<span class="file">config.ts:311-374</span>).</li>
+</ul>
+
+<h2 id="wb-h2-7223a923465d4f1abf8a755459a16aff" data-whiteboard-anchor>4. Pitfalls of the existing design (catalog)</h2>
+
+<ol>
+  <li id="wb-li-e45897baca14459d8eeb94df4fa4d2f4" data-whiteboard-anchor><strong>P1. Dual-channel divergence.</strong> Browser op logs and CLI/server domain tables have no ongoing reconciliation. Keep live targets separate. An isolated one-way materializer can support catalog export, but does not make <code>publishCatalogSeed</code> a lossless backup or shared-writer protocol (§3.2, §3.5).</li>
+  <li id="wb-li-213592a8a3864ac0b87c7be6f6ac0b2f" data-whiteboard-anchor><strong>P2. Restore can resurrect newer local state.</strong> URL-hashed cursors survive a same-URL restore; resetting them neither erases stale local rows nor restores already acknowledged outbox history. Pending overlays and automatic bootstrap can reintroduce post-snapshot edits. Use a fresh remote identity and isolated clean local restore with uploads held until validation; handle unsent edits separately (§3.3).</li>
+  <li id="wb-li-006a7c205e174d119b998e8e335990cf" data-whiteboard-anchor><strong>P3. Bootstrap IDs can identify different payloads.</strong> Different browser UUIDs normally prevent collisions. The risk is restarting <code>seq</code> for a changed snapshot with the same persisted browser UUID while the target retains or copies the earlier IDs. Idempotent insert silently skips those changed groups. Bind retry IDs to immutable snapshot content (§3.5).</li>
+  <li id="wb-li-17efcf1e04b74d7d9ab367425998d9fb" data-whiteboard-anchor><strong>P4. Archive growth and missing generation metadata.</strong> Each replacement archives the active log with no retention policy; old schema markers are not versioned alongside archived ops (<span class="file">sync.ts:380-407</span>). Preserve current archives until an independently verified whole-database retention path replaces them. Record schema, source identity, snapshot time, and restore procedure with retained backups.</li>
+  <li id="wb-li-25d3f4fe5647488cb91d422f9ebaae8e" data-whiteboard-anchor><strong>P5. Destructive replay crosses ownership.</strong> Current <code>wipe</code> clears every non-system store and ordinary <code>clear</code> clears mixed-origin stores (<span class="file">IndexedDBStorage.ts:448-460</span>). Raw per-store clears do not fix this, and revision clear is ignored outside explicit wipe. Seed re-import cannot be assumed to reconstruct historical user pins. Define new scope semantics before enabling filtering (§3.4).</li>
+  <li id="wb-li-ea338b6ead9841bf89f7fb743e4d7bf0" data-whiteboard-anchor><strong>P6. Migration floor at v20.</strong> Older schemas are refused (<span class="file">syncEngine.ts:351-356</span>). Retention does not imply current restore support. Keep archives intact and publish only tested conversion paths.</li>
+  <li id="wb-li-8664a9bd5a304996939aedbb93283d5c" data-whiteboard-anchor><strong>P7. Read/convert/write is not an atomic migration.</strong> Conversion reads the full history outside the replacement transaction. Another device can append before replacement and be omitted from the converted snapshot; the local Web Lock cannot prevent it. Freeze writers or enforce source schema/revision compare-and-swap. Full-history replay also has unmeasured client memory/time cost (<span class="file">syncEngine.ts:351-410</span>).</li>
+  <li id="wb-li-0d4e7f0f312b4e888a210c127681f583" data-whiteboard-anchor><strong>P8. Classification is not identity verification.</strong> A recognized state table takes precedence, and otherwise <code>_wodwiki_*</code> names are ignored in the foreign-table check (<span class="file">sync.ts:188-210</span>). Keep refusals, but do not claim the probe proves ownership or completeness. Provision into an exclusively reserved target and verify required tables/state; a prefix alone is never authorization.</li>
+  <li id="wb-li-3ec22c9822a74d73824e7d4fe94a6d8e" data-whiteboard-anchor><strong>P9. Attachment sizing is not a hard 1 MB ceiling.</strong> Upload batching estimates binary size but admits an oversized first atomic group; bootstrap estimates <code>JSON.stringify(row).length</code>, which can undercount binary data (<span class="file">syncEngine.ts:120-131,495-499,527-535</span>). Preserve groups and binary fidelity. Validate encoded payload limits against the selected transport; do not promise that large attachments are already chunked.</li>
+  <li id="wb-li-7a3086ffdb14432d83b41588c3004251" data-whiteboard-anchor><strong>P10. Membership is not authorship or authorization.</strong> The current <code>default</code> membership is local identity, not remote access isolation. Seed-derived rows without origin flags can receive user stamps. Do not use <code>USER_OWNED_STORES</code> or <code>userId</code> as a complete seed filter; multi-user remote sharing requires a separate authorization design.</li>
+  <li id="wb-li-260c2ec28dfd487bb347a1d1c64ad07b" data-whiteboard-anchor><strong>P11. Concurrent first-contact bootstrap can skip another device's rows.</strong> The empty-target path uploads its snapshot, then saves the target's <em>post-bootstrap</em> revision as its pull cursor (<span class="file">syncEngine.ts:309-317</span>). Another device can append during that interval; those unseen groups fall behind the saved cursor. This source-audited race is separate from UUID reuse and was not reproduced in this document-only revision. Required fix: replay from the pre-bootstrap boundary, or zero for a newly initialized target, rather than skipping every group through the later probe. Add a deterministic two-device interleaving scenario at the existing sync-check seam.</li>
+</ol>
+
+<h2 id="wb-h2-3006a80eafbb41f9baee05c9900e059f" data-whiteboard-anchor>5. Decisions and remaining questions</h2>
+
+<table>
+  <thead>
+    <tr><th id="wb-th-16d76f145d534ef4876fad0dcfe6abbf" data-whiteboard-anchor>#</th><th id="wb-th-c21dc9e50d754ef5ae1b8e6ba0aad1f8" data-whiteboard-anchor>Question</th><th id="wb-th-8dee05c4280a4fff8dd7cb0350ff5d10" data-whiteboard-anchor>Why it matters</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td id="wb-td-1e0e16cb6a1c4b45afe1311e54be23f9" data-whiteboard-anchor>Q1</td>
+      <td id="wb-td-d01a7bfe23a14708ac6005d2467e8c8a" data-whiteboard-anchor>What is a user-deleted seed note under user-only sync?</td>
+      <td id="wb-td-216751eb02614ea48bb0f9b71e12e957" data-whiteboard-anchor>Current deletes are journaled. A proposed filter must preserve user deletion intent through durable tombstones and import suppression before dropping seed deletes (§3.4).</td>
+    </tr>
+    <tr>
+      <td id="wb-td-1436416a5c124953bd5bbdbfd3b3e0e4" data-whiteboard-anchor>Q2</td>
+      <td id="wb-td-d3b7c07599de444daee41c165e225d00" data-whiteboard-anchor>Which settings must a fresh-profile restore recover?</td>
+      <td id="wb-td-c1e755076e644d10817002eecab9c1d7" data-whiteboard-anchor>Keep non-seed IndexedDB meta initially. Source subscriptions and auto-sync choices in localStorage need a separate safe export; tokens must stay out of it (§3.4).</td>
+    </tr>
+    <tr>
+      <td id="wb-td-b345ef1d7d644e80aab39a0e954524e9" data-whiteboard-anchor>Q3</td>
+      <td id="wb-td-97a1711bdb124824b63a32e44ad6687a" data-whiteboard-anchor>Default decided: fresh remote identity and isolated clean local restore.</td>
+      <td id="wb-td-e217318315894f598c4d585076afa01b" data-whiteboard-anchor>Cursor resets alone are unsafe. In-place recovery is excluded until all clients can detect a new history generation and retire old state (§3.3).</td>
+    </tr>
+    <tr>
+      <td id="wb-td-aeffcfbaa61d4d7c988d7e9c293fc085" data-whiteboard-anchor>Q4</td>
+      <td id="wb-td-ba1db67d5f154a49bbae7ee5560b1bda" data-whiteboard-anchor>Default decided: separate live browser-backup and CLI/server targets.</td>
+      <td id="wb-td-4532a00de9914e98991494ac44c68766" data-whiteboard-anchor>No continuous op-log/domain-table reconciliation exists. Optional one-way catalog export does not permit shared live writers (§3.2).</td>
+    </tr>
+    <tr>
+      <td id="wb-td-7e7dd95f5610490aabd1dbbeff3abee0" data-whiteboard-anchor>Q5</td>
+      <td id="wb-td-a82f0169ce8a4bee8e6699622f6216df" data-whiteboard-anchor>Default decided: live names describe storage compatibility, currently <code>DB_VERSION</code>.</td>
+      <td id="wb-td-c6c8b1603e06439684fa239e6ee6ea87" data-whiteboard-anchor>Do not fork for app or seed releases alone. Archive/restore identities remain distinct from schema versions (§3.1).</td>
+    </tr>
+    <tr>
+      <td id="wb-td-beab60c3de974e488f72c7df9b40c23c" data-whiteboard-anchor>Q6</td>
+      <td id="wb-td-651e9e9d400b4945b0060f4fc5bfa025" data-whiteboard-anchor>Which documented recovery operations and limits apply to the deployed account?</td>
+      <td id="wb-td-8a74528d331c446c88ae09cc8826223c" data-whiteboard-anchor>The live spec distinguishes v1 create-from-database/recovery-point from v3 deleted-database recovery. Verify plan eligibility, credential retirement, and an actual restore; CORS does not change the security boundary (§3.2).</td>
+    </tr>
+    <tr>
+      <td id="wb-td-3ae5210e7c024f73998f3c4bab45fb5c" data-whiteboard-anchor>Q7</td>
+      <td id="wb-td-75015a01ce524a67b5f8a9bf6aad9e02" data-whiteboard-anchor>Retention: how many versioned DBs, and who deletes old ones?</td>
+      <td id="wb-td-dcd4364ef79d444a99d59ae42484e45f" data-whiteboard-anchor>Set a retention owner, quota budget, and tested restore window. Never auto-delete the last verified recovery copy; destructive commands need explicit target confirmation.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="wb-h2-f67438ff4c48462aa07b03a938d56edf" data-whiteboard-anchor>6. Suggested revised file map</h2>
+
+<table>
+  <thead>
+    <tr><th id="wb-th-390a187c632d42b6809de2d69ad06480" data-whiteboard-anchor>Change</th><th id="wb-th-8bcdbc09e507454b917b29de1f07127d" data-whiteboard-anchor>Primary files</th><th id="wb-th-9c8a72276181402c83e8549462e83447" data-whiteboard-anchor>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td id="wb-td-f32c8260e43f48b59c9ac9d6cb59c944" data-whiteboard-anchor>Reuse storage compatibility and URL selection</td>
+      <td id="wb-td-e3af81a20ec7459991293cdab1918cf4" data-whiteboard-anchor><span class="file">packages/storage/src/schema.ts</span>, <span class="file">dataSettings.ts</span>, <span class="file">packages/tools/src/cli/config.ts</span></td>
+      <td id="wb-td-0b2a448826f74472b722c503e278c580" data-whiteboard-anchor>Reuse <code>DB_VERSION</code> and existing config precedence. Do not add a seed epoch or name-to-URL resolver. Remote state remains canonical for schema.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-741ac2a9b49e4daebfb96c16eb55e7bd" data-whiteboard-anchor>Ownership policy, dependencies, and deletion intent</td>
+      <td id="wb-td-10daed93e1474364a7e69780b004c89c" data-whiteboard-anchor><span class="file">IndexedDBStorage.ts</span>, <span class="file">syncEngine.ts</span>, <span class="file">StorageService.ts</span>, <span class="file">packages/engine/src/seed/runtime.ts</span>, shared policy colocated with storage</td>
+      <td id="wb-td-a93a224986404c6c8ee99f2d91851745" data-whiteboard-anchor>Classify provenance per store and before/after ownership. Keep mixed field data and required revisions. Implement tombstone/import suppression and user-scope destructive operations together.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-2c1a8bde120340c0a16ed695249a7d0f" data-whiteboard-anchor>Optional catalog export, outside backup migration</td>
+      <td id="wb-td-d6074a8be75a4cdbb883e880d952dac5" data-whiteboard-anchor><span class="file">packages/tools/src/cli/publish.ts</span>, <span class="file">packages/storage/src/sql/domain.ts</span></td>
+      <td id="wb-td-4520666d6ab54fa08b2a61e94055ab03" data-whiteboard-anchor>No materializer is required for lossless op-log copy. Add an isolated one-way materializer only if catalog export is requested; <code>publishCatalogSeed</code> remains lossy for user backup.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-9a4effe7d2654a08a8277b38c2dd0946" data-whiteboard-anchor>Fresh-target copy and cross-version conversion</td>
+      <td id="wb-td-6ed2aa9b7bdc43e6aee11882c2757450" data-whiteboard-anchor><span class="file">packages/storage/src/sql/sync.ts</span>, extracted scratch conversion from <span class="file">syncEngine.ts</span>, <span class="file">sync.check.ts</span></td>
+      <td id="wb-td-b9cd075ee2934013864237d43204f69e" data-whiteboard-anchor>Freeze source, reserve target, preserve immutable retry groups, fail on dropped data, verify restoration. Choose and ship the CLI IndexedDB adapter; a test dependency alone is insufficient.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-626011f5794a49e6ae6b4aad62be29a0" data-whiteboard-anchor>Proposed CLI provisioning, backup, and restore commands</td>
+      <td id="wb-td-a521fa25e54e439884c5486e2534c000" data-whiteboard-anchor><span class="file">packages/tools/src/cli/db.ts</span>, command dispatch in <span class="file">runner.ts</span>, a command module if needed</td>
+      <td id="wb-td-746a4ab10a71469ab47405a8ef2c6ede" data-whiteboard-anchor>Use the documented native copy operation for whole-database retention after verifying account support. Keep management credentials CLI-side, pairing explicit, and config writes atomic. Restore to a fresh target and clean local database, not a cursor-only reset.</td>
+    </tr>
+    <tr>
+      <td id="wb-td-00dc33df53ea410b959480d50ed5ae77" data-whiteboard-anchor>Required restore, filtering, and migration acceptance checks</td>
+      <td id="wb-td-b988a45d7538484bb55ca6fdbf2f1045" data-whiteboard-anchor><span class="file">apps/playground/src/services/storage/sync.check.ts</span>, <span class="file">packages/storage/tests/sql-check.ts</span>, existing CLI check seams</td>
+      <td id="wb-td-e70138b9760040a2b8595ac22bdebe1f" data-whiteboard-anchor>Prove pinned-history and binary fidelity, user deletion/ownership transitions, stale-local restore isolation, immutable bootstrap retries, concurrent first-contact replay, interrupted copy, concurrent-writer refusal, and old-client cutover.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+<p id="wb-p-79e0bd014c7e4d359b7877b9ea567e98" data-whiteboard-anchor><strong>Implementation order.</strong> First ship verified whole-database retention and fresh-target restore without narrowing payloads. Then implement fresh-target conversion and retire old writers at cutover. Enable user-only sync only after per-store provenance, historical dependencies, deletion intent, and destructive replay semantics pass fresh-profile restoration checks. Keep catalog export separate. This revision changes the design document only; it does not implement database commands or change sync behavior.</p>
+</div>
+
+</main>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2 id="wb-current-title"></h2>
+  <a id="wb-current-source">Source block</a>
+  <p id="wb-current-quote"></p>
+  <p id="wb-current-context"></p>
+  <p id="wb-current-note"></p>
+  <div class="wb-controls">
+    <button id="wb-edit" type="button">Edit</button>
+    <button id="wb-delete" type="button">Delete</button>
+    <button id="wb-hide" type="button">Hide</button>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Publish annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Publish before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Publish before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    byId('wb-count').textContent = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : ` · ${active + 1}/${count}`}`;
+    for (const id of ['wb-prev', 'wb-next', 'wb-publish']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+
+  byId('wb-publish').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    byId('wb-copy-status').textContent = 'Copying…';
+    byId('wb-export').showModal();
+    output.focus();
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy-status').textContent = 'Copied. Paste into your agent window. Drafts are kept.';
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  new ResizeObserver(() => document.documentElement.style.setProperty('--wb-bar-height', byId('wb-bar').offsetHeight + 'px')).observe(byId('wb-bar'));
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>
