@@ -31,7 +31,7 @@ Three surfaces use the same language: the **Library** (zero-syntax tri-state bro
 | Plane | Shape | Searches | Example |
 |---|---|---|---|
 | **Metrics** | `agg:metric{filters} by {dim}` | the fact store | `sum:totalVolume{} by {week}` |
-| **Content** | `:target{filters,source:scope}` | notes, blocks, efforts | `:note{effort:fran,source:journal} last 8w` |
+| **Content** | `:target{filters,notebook:slug}` | notes, notebooks, blocks, efforts | `:note{effort:fran,notebook:journal} last 8w` |
 
 ## Aggregate queries {#aggregate}
 
@@ -98,24 +98,27 @@ Inside the braces:
 | `{text:fran}` | substring (content plane) |
 | `{intensity:high}` | intensity tier — one of `low`, `moderate`, `high` |
 | `{tags:benchmark}` | note tags |
+| `{notebook:crossfit-girls}` | notebook (`notebook/{slug}` or bare slug) |
 | `{coach:greg}` | your custom property |
 
-### Sources {#sources}
+### Notebooks &amp; sources {#sources}
 
 ```button
-label:  Try it: source:journal
+label:  Try it: notebook:journal
 target: sandbox
 pipeline:
   - set-source: wql-presets/source-journal.md
 ```
 
-The `source:` filter names where content lives — plural values:
+Every note belongs to a canonical `notebook/{slug}` container — including the built-in defaults `notebook/journal`, `notebook/playground`, and `notebook/guides`, user-created notebooks, and seed-delivered notebooks (such as `notebook/crossfit-girls`).
 
-`journal` (your notes) · `feeds` (catalog sessions) · `guides` · `playground` (plus `dashboards`, `efforts`)
+Filter by notebook with `notebook:<slug>` (or `notebook:notebook/<slug>`), or by storage scope with `source:`:
 
-Omitting `source:` searches **all** of them — there is no `source:all` (the parser refuses it). Pin one catalog with an id: `catalog:crossfit-girls`. The old `source:collections` spelling is retired — the parser errors; write `feeds` (storage keeps `collection:`-prefixed sourceIds).
+`journal` (your journal notes) · `feeds` / `notebooks` (notebook notes) · `guides` · `playground` (plus `dashboards`, `efforts`, `equipment`)
 
-Journal scope includes user-created clones whose `sourceId` points to the original note UUID or legacy `journal/YYYY-MM-DD` ID. That backlink does not turn a clone into imported content. Seeded guides, catalog notes, dashboards, efforts, and equipment remain excluded.
+Omitting `source:` and `notebook:` searches **all** notes — there is no `source:all` (the parser refuses it). Pin one notebook with `notebook:crossfit-girls` (or legacy `catalog:crossfit-girls`).
+
+Journal scope includes user-created clones whose `sourceId` points to the original note UUID or legacy `journal/YYYY-MM-DD` ID. Only user-created notes (`seedOrigin !== 'seed'`) are editable; seed-delivered notebook notes are read-only and can be cloned into your writable notebooks.
 
 ### Windows {#windows}
 
@@ -137,7 +140,7 @@ pipeline:
 Content queries can require a numeric threshold computed over each result's linked workouts:
 
 ```query
-:note{tags:pr,source:journal} last 8w where sum:totalVolume{} > 5000
+:note{tags:pr,notebook:journal} last 8w where sum:totalVolume{} > 5000
 ```
 
 Keep only journal notes tagged `pr` whose total volume exceeds 5,000 kg. Joins are supported on `:note` and `:block`; other targets report an advisory and ignore the clause. Joins lean on the **Block Content Id** — a content hash of each workout block, stable across reorders and preserved when you clone a catalog benchmark into your journal, so history aggregates across every note where that workout lives.
@@ -152,10 +155,10 @@ pipeline:
 ```
 
 ```query
-:block{text:fran,source:feeds}
+:block{text:fran,source:notebooks}
 ```
 
-Targets: `:note` (whole notes), `:block` (addressable fenced blocks), `:effort` (registry entries, filterable by `effort`, `discipline`, `intensity`, `origin`, `text`), plus the advanced `:session`, `:segment`, `:event` for recorded results and raw rows. Content-only keys (`type`, `text`, `has`, `source`, `catalog`) are category errors on aggregates.
+Targets: `:note` / `:notes` (whole notes), `:notebook` / `:notebooks` (notebooks), `:block` (addressable fenced blocks), `:effort` (registry entries, filterable by `effort`, `discipline`, `intensity`, `origin`, `text`), plus the advanced `:session`, `:segment`, `:event` for recorded results and raw rows. Content-only keys (`type`, `text`, `has`, `source`, `catalog`, `notebook`) are category errors on aggregates.
 
 The search palette's FIND mode matches note titles and bodies within its selected scope and time window. Type plain text or a quoted phrase such as `"workout in the park"`; clearing the text restores the scope. WQL mode retains diagnostics for malformed queries. Freeform CONTAINS rows have no count badge; the results total reports matches.
 
@@ -171,7 +174,7 @@ pipeline:
 Content queries can end with pipes — `| select … | order by … | limit … [offset …]`:
 
 ```query
-:note{tags:pr,source:journal} last 8w | limit 5
+:note{tags:pr,notebook:journal} last 8w | limit 5
 ```
 
 `order by <column> [asc|desc]` sorts by a field of the result rows; `select` picks columns (with `in kg`/`in lb` units). Pipes ride on content queries — aggregates don't take them — and some targets ignore a pipe and say so via advisory (`:session` always orders by completion time; `| select` only reshapes `:segment` and `:event`).

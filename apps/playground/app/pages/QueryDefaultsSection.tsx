@@ -59,13 +59,13 @@ interface ConfigurableSurface {
 
 const CONFIGURABLE_SURFACES: ConfigurableSurface[] = [
   { id: JOURNAL_STREAM_PROFILE.route, label: 'Journal', profile: JOURNAL_STREAM_PROFILE, shortcuts: true },
-  { id: FEEDS_STREAM_PROFILE.route, label: 'Feeds', profile: FEEDS_STREAM_PROFILE, shortcuts: true },
-  { id: CATALOGS_STREAM_PROFILE.route, label: 'Catalogs', profile: CATALOGS_STREAM_PROFILE },
+  { id: FEEDS_STREAM_PROFILE.route, label: 'Notes', profile: FEEDS_STREAM_PROFILE, shortcuts: true },
+  { id: CATALOGS_STREAM_PROFILE.route, label: 'Notebooks', profile: CATALOGS_STREAM_PROFILE },
   { id: EFFORTS_STREAM_PROFILE.route, label: 'Efforts', profile: EFFORTS_STREAM_PROFILE, shortcuts: true },
   { id: SESSIONS_STREAM_PROFILE.route, label: 'Sessions', profile: SESSIONS_STREAM_PROFILE, shortcuts: true },
   { id: PLAYGROUNDS_STREAM_PROFILE.route, label: 'Playgrounds', profile: PLAYGROUNDS_STREAM_PROFILE, shortcuts: true },
   { id: '/dashboards', label: 'Dashboards', systemDefaultWql: ':dashboard{}' },
-  { id: PALETTE_ROUTE_ID, label: '⌘K Command Palette' },
+  { id: PALETTE_ROUTE_ID, label: '⌘/ Command Palette' },
 ]
 
 /** Editor draft; `defaultWql: ''` and custom-off lists mean "system default". */

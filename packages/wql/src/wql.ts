@@ -577,8 +577,12 @@ function validateSourceFilter(filters: TagFilter[]): string | undefined {
       if (
         (WQL_SOURCE_VALUES as readonly string[]).includes(val) ||
         val === 'feed' ||
+        val === 'notebook' ||
+        val === 'notebooks' ||
         val.startsWith('collection:') ||
-        val.startsWith('feed:')
+        val.startsWith('feed:') ||
+        val.startsWith('notebook:') ||
+        val.startsWith('notebook/')
       ) {
         continue;
       }
@@ -916,7 +920,7 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
     // (they intersect any explicit source:/type: — plain AND).
     result.target = 'note';
   } else {
-    result.target = headName;
+    result.target = headName === 'notes' ? 'note' : headName;
     if (result.target === 'page') {
       result.error = 'find:page is retired — page-ness is handled by type: (e.g. :note{source:guides} or type:feed).';
       return result;
@@ -945,7 +949,7 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
       negate: false,
       values: [{ value: scope, wildcard: false }],
     });
-    if (headName === 'catalog' || headName === 'catalogs') {
+    if (headName === 'catalog' || headName === 'catalogs' || headName === 'notebook' || headName === 'notebooks') {
       result.filters.push({
         key: 'type',
         negate: false,

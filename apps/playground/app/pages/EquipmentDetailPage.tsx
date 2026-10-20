@@ -50,6 +50,9 @@ export function EquipmentDetailPage() {
     notFound,
     cloneForEdit,
     error,
+    onLineChange,
+    onBlur,
+    flush,
   } = useEquipmentContent(slug);
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([]);
@@ -286,6 +289,10 @@ export function EquipmentDetailPage() {
               noteId={ownerNoteId}
               value={document}
               onChange={setDocument}
+              onCursorPositionChange={onLineChange}
+              onBlur={onBlur}
+              onSaveRequest={flush}
+              onCommitChange={flush}
               theme={actualTheme}
               readonly={false}
               showLineNumbers={true}

@@ -44,9 +44,10 @@ The stored [[Page]] is a grouping/address record, not automatically a note row. 
 | `createdAt` | number | Unix ms when note was created |
 | `tags?` | string[] | Optional denormalized tag array projection; canonical persistence in `note_tags` |
 | `type?` | NoteKind | 'journal' \| 'template' \| 'playground' \| 'collection' \| 'dashboard' \| 'page' |
-| `sourceId?` | string | Note this one was created from (template/collection source) |
-| `catalog?` | string | Catalog directory id for static notes |
-| `seedOrigin?` | 'seed' \| 'user' | Seed-import ownership marker; absent ≡ user-owned |
+| `sourceId?` | string | Note this one was created from (template/notebook source) |
+| `notebookId?` | `notebook/${string}` | Canonical `notebook/{slug}` container (`notebook/journal`, `notebook/playground`, `notebook/guides`, `notebook/<slug>`) |
+| `catalog?` | string | Legacy notebook directory slug for static notes |
+| `seedOrigin?` | 'seed' \| 'user' | Ownership marker; application layer allows editing only when `seedOrigin !== 'seed'` (user-created) |
 | `seedVersion?` | number | manifest.version of last seed write |
 | `seedChunkId?` | string | Seed chunk provenance |
 | `sourcePath?` | string | Original seed file path |

@@ -94,8 +94,8 @@ export function defaultLandingShortcut(label: string, icon: string): WqlShortcut
 
 const LANDING_LABELS: Record<string, string> = {
   '/journal': 'All entries',
-  '/catalogs': 'All catalogs',
-  '/feeds': 'All feeds',
+  '/catalogs': 'All notebooks',
+  '/feeds': 'All notes',
   '/playgrounds': 'All playgrounds',
   '/efforts': 'All Efforts',
   '/equipment': 'All Equipment',

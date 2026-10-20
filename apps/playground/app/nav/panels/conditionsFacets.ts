@@ -326,7 +326,7 @@ export function setSourceScopeValue(query: string, scope: string | null): string
     })
     return serialize({ ...parsed, sourceScope: undefined, filters })
   }
-  const scopeHead = scope === 'journal' ? ':journal' : scope === 'feeds' ? ':catalog' : scope === 'playground' ? ':playground' : `:note{source:${scope}}`
+  const scopeHead = scope === 'journal' ? ':journal' : scope === 'feeds' ? ':notebook' : scope === 'playground' ? ':playground' : `:note{source:${scope}}`
   const authored = parseQuery(scopeHead.startsWith(':note') ? scopeHead : `${scopeHead}{}`)
   if (authored.error || !isFindQuery(authored) || !authored.filters.length) return query
   const firstPositive = normalized.findIndex(f => f.key === 'source' && !f.negate)
@@ -421,6 +421,10 @@ export function facetOptions(target: string, key: string, ctx: FacetContext): Fa
       case 'note:catalog':
       case 'block:catalog':
         if (entry.catalog) bump(entry.catalog)
+        break
+      case 'note:notebook':
+      case 'block:notebook':
+        if (entry.notebookId || entry.catalog) bump(entry.notebookId ?? entry.catalog!)
         break
       case 'note:type':
         if (entry.noteType) bump(entry.noteType)

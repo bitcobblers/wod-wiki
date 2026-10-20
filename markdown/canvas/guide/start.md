@@ -149,13 +149,12 @@ Everything you create lives in one place, addressed one way:
 | **Block** | one addressable fenced unit in a note; the run target | Block Content Id = content hash, stable across reorders/clones |
 | **Effort** | named workout registry entry (e.g. *fran*) | aggregates `by {effort}` |
 | **Session** | one recorded run | `{noteId, resultId, block}` triple |
-| **Journal** | your saved notes | `source:journal`; promotion target |
-| **Playground** | experiment surface (home, learning runs) | `source:playground` |
-| **Catalog** | catalog of benchmark sessions | `source:feeds`; clone into journal |
-| **Feed** | dated posts | — |
+| **Journal** | your dated training notebook (`notebook/journal`) | `notebook:journal` (or `source:journal`); promotion target |
+| **Playground** | experiment notebook (`notebook/playground`) | `notebook:playground` (or `source:playground`) |
+| **Notebook** | user-created or seed-delivered notebook (`notebook/{slug}`) | `notebook:<slug>` (`source:notebooks`); seed notebooks clone into writable notebooks |
 | **Dashboard** | a note with `dashboard: true`; its query blocks render as widgets | [Dashboards](/guide/dashboards) |
 
-**`source:` scope** — plural values: `journal`, `feeds`, `guides`, `playground` (plus `dashboards`, `efforts`). Omitting `source:` searches all of them; pin one catalog with `catalog:<id>`. Learning runs record with origin `'playground'` until promoted to the journal — a query pinned to `source:journal` excludes playground experiments by design ([WQL sources](/guide/wql?h=sources)).
+**`notebook:` & `source:` scope** — every note belongs to a `notebook/{slug}` container (`notebook/journal`, `notebook/playground`, `notebook/guides`, or a custom/seed notebook like `notebook/crossfit-girls`). Filter by `notebook:<slug>` or `source:` (`journal`, `notebooks`, `guides`, `playground`, `dashboards`, `efforts`, `equipment`). Omitting both searches all of them ([WQL sources](/guide/wql?h=sources)).
 
 **Session vs template vs sample vs revert.** A **session** is immutable recorded facts from one run. A **template** is read-only source content — the examples on these pages; running one copies it into your own snapshot, it never mutates. A **sample dataset** is the badged fallback you see before you have facts of your own. **Revert** discards view state only — it never deletes saved sessions.
 

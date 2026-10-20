@@ -17,8 +17,8 @@ import { getNoteContentByRouteId, seedNote } from '../helpers/wodwikiDb';
  */
 
 const SOURCE_URL = 'https://manage.example.org/library/';
-const SOURCE = { id: 'manage-library', label: 'Manage Library', url: SOURCE_URL };
 const REPO_URL = 'https://github.com/example/manage-library';
+const SOURCE = { id: 'manage-library', label: 'Manage Library', url: SOURCE_URL, repositoryUrl: REPO_URL };
 const CHUNK_ID = 'collection.demo';
 const CHUNK_PATH = `chunks/${CHUNK_ID}.json`;
 const SEED_NOTE_PATH = 'markdown/collections/demo-catalog/session-1.md';
@@ -52,7 +52,7 @@ async function seedSource(page: Page, version: { current: number }): Promise<voi
   await page.route(`${SOURCE_URL}manifest.json`, route =>
     route.fulfill({
       json: {
-        schema: 8,
+        schema: 9,
         version: version.current,
         builtAt: '2026-10-15T00:00:00.000Z',
         name: SOURCE.label,
@@ -67,7 +67,7 @@ async function seedSource(page: Page, version: { current: number }): Promise<voi
 test.describe('Catalog manager — /catalogs?manage=1', () => {
   test('deep link opens the manager with identity and published links; closing keeps other params', async ({ page }) => {
     await seedSource(page, { current: 42 });
-    await page.goto('/catalogs?manage=1&q=:catalog');
+    await page.goto('/catalogs?manage=1&q=:notebook');
 
     const drawer = page.getByTestId('catalogs-manager-drawer');
     await expect(drawer).toBeVisible();
@@ -93,7 +93,7 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     // percent-encode the q value's colon).
     await page.keyboard.press('Escape');
     await expect(drawer).toBeHidden();
-    await expect(page).toHaveURL(/\/catalogs\?q=(:|%3A)catalog$/i);
+    await expect(page).toHaveURL(/\/catalogs\?q=(:|%3A)notebook$/i);
   });
 
   test('desktop toolbar opens the manager in place', async ({ page }) => {

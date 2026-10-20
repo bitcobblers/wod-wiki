@@ -578,11 +578,12 @@ describe('HomeTour', () => {
     expect(within(hero()).getByTestId('tour-session-result')).toBeTruthy()
 
     // …and after dismissing back to the editor, the next Run mints a fresh
-    // identity (second note), not a reuse.
+    // identity (second note), not a reuse. The dismiss slides back before
+    // swapping, so the editor returns asynchronously.
     await act(async () => {
       fireEvent.click(within(hero()).getByTestId('tour-session-result-dismiss'))
-      await Promise.resolve()
     })
+    await waitFor(() => expect(within(hero()).getByRole('button', { name: 'Run' })).toBeTruthy())
     await act(async () => {
       fireEvent.click(within(hero()).getByRole('button', { name: 'Run' }))
       await Promise.resolve()
@@ -797,10 +798,11 @@ describe('HomeTour', () => {
       await Promise.resolve()
     })
     expect(within(screen.getByTestId('tour-hero')).getByTestId('tour-session-result')).toBeTruthy()
+    // The dismiss slides back before swapping; the editor returns async.
     await act(async () => {
       fireEvent.click(within(screen.getByTestId('tour-hero')).getByTestId('tour-session-result-dismiss'))
-      await Promise.resolve()
     })
+    await waitFor(() => expect(within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor')).toBeTruthy())
     expect((within(screen.getByTestId('tour-hero')).getByTestId('mock-note-editor') as HTMLTextAreaElement).value).toBe('EDIT ACROSS WIDTHS')
   })
 

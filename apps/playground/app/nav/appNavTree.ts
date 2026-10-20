@@ -150,7 +150,7 @@ function listingZone(spec: ListingZoneSpec): NavItem {
 
 const catalogCrosswalkChild: NavItem = {
   id: 'collections-catalog-crosswalk',
-  label: 'Catalog crosswalk',
+  label: 'Notebook crosswalk',
   level: 2,
   icon: Library,
   action: { type: 'route', to: ROUTE_PATTERNS.catalogs },
@@ -178,8 +178,8 @@ const listingZones: ListingZoneSpec[] = [
   },
   {
     id: 'catalogs',
-    label: 'Catalogs',
-    landingLabel: 'All catalogs',
+    label: 'Notebooks',
+    landingLabel: 'All notebooks',
     icon: Library,
     route: ROUTE_PATTERNS.catalogs,
     profile: CATALOGS_STREAM_PROFILE,
@@ -187,8 +187,8 @@ const listingZones: ListingZoneSpec[] = [
   },
   {
     id: 'feeds',
-    label: 'Feeds',
-    landingLabel: 'All feeds',
+    label: 'Notes',
+    landingLabel: 'All notes',
     icon: Rss,
     route: ROUTE_PATTERNS.feeds,
     profile: FEEDS_STREAM_PROFILE,

@@ -1008,7 +1008,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
       expect(screen.getByTestId('stream-empty-state')).toBeDefined()
     })
 
-    // The header toolbar's ⌘K control shares the Edit query name — the
+    // The header toolbar's ⌘/ control shares the Edit query name — the
     // remedy is the one inside the empty state.
     fireEvent.click(within(screen.getByTestId('stream-empty-state')).getByRole('button', { name: 'Edit query' }))
     const state = usePaletteStore.getState()

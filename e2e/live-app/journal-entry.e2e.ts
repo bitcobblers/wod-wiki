@@ -86,7 +86,8 @@ test.describe('Journal Entry — /journal/:date', () => {
 
     await journal.typeInEditor(uniqueText);
 
-    // Poll IDB until the debounced save lands (replaces the fixed 700ms wait).
+    // Coalesced autosave: a line change flushes the draft (no idle timer).
+    await page.keyboard.press('Enter');
     await journal.awaitNotePersisted(`journal/${DATE_SAVE_NORMAL}`, uniqueText);
 
     // Navigate away
@@ -143,7 +144,8 @@ test.describe('Journal Entry — /journal/:date', () => {
 
     await journal.typeInEditor(uniqueText);
 
-    // Poll IDB until the debounced save lands (replaces the fixed 700ms wait).
+    // Coalesced autosave: a line change flushes the draft (no idle timer).
+    await page.keyboard.press('Enter');
     await journal.awaitNotePersisted(`journal/${DATE_RELOAD}`, uniqueText);
 
     // Hard reload

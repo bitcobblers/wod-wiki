@@ -94,8 +94,8 @@ describe('appNavTree - Flattened listing zones', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getAllByText('All feeds').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Catalog crosswalk').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('All notes').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Notebook crosswalk').length).toBeGreaterThan(0)
   })
 })
 
@@ -340,7 +340,7 @@ describe('appNavTree - L2 notable buttons and Catalogs', () => {
     const tree = buildAppNavTree(() => {})
     const catalogs = tree.find(i => i.id === 'catalogs')!
     expect(catalogs).toBeDefined()
-    expect(catalogs.label).toBe('Catalogs')
+    expect(catalogs.label).toBe('Notebooks')
     expect(catalogs.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.catalogs })
   })
 
@@ -369,7 +369,7 @@ describe('appNavTree - L2 notable buttons and Catalogs', () => {
     )
     expect(screen.getByTestId('collections-create-note')).toBeDefined()
     expect(screen.getByText('New note')).toBeDefined()
-    expect(screen.getByText('Catalog crosswalk')).toBeDefined()
+    expect(screen.getByText('Notebook crosswalk')).toBeDefined()
     cleanup()
 
     render(

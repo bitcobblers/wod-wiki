@@ -93,7 +93,7 @@ describe('resolveRouteView — named routes', () => {
   it('classifies the named routes to their labels', () => {
     const cases = [
       ['/', 'Home'],
-      ['/feeds', 'Feeds'],
+      ['/feeds', 'Notes'],
     ] as const
     for (const [path, name] of cases) {
       const view = resolveRouteView(path, NO_PARAMS, makeDeps())

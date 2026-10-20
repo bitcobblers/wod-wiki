@@ -29,7 +29,7 @@ import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
 import { notebookService, storageService } from '@/hooks/useBrowserServices'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
-import { parseQuery, isFindQuery, isPipelineQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
+import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 import type { WqlExecutor } from '@bitcobblers/wod-wiki-ui'
 import { toggleGroupDimension } from '../../nav/panels/conditionsFacets'
@@ -195,7 +195,7 @@ export interface QueriableStreamViewProps {
   onAddToToday?: (entry: Entry) => void
   /** Register a getter for the LIVE composer draft (invalid text included —
    *  invalid drafts never reach the URL). Returns the unregister cleanup;
-   *  the global ⌘K palette consumes the getter while this view is mounted. */
+   *  the global ⌘/ palette consumes the getter while this view is mounted. */
   registerStreamDraft?: (getDraft: () => string | null) => () => void
 }
 
@@ -224,7 +224,7 @@ export function QueriableStreamView({
     legacy: profile.legacy,
   })
 
-  // Publish the live draft to the host's ⌘K seam while mounted; the getter
+  // Publish the live draft to the host's ⌘/ seam while mounted; the getter
   // re-registers per draft change and unregisters on unmount/route change.
   useEffect(() => registerStreamDraft?.(() => query), [registerStreamDraft, query])
 
@@ -302,8 +302,8 @@ export function QueriableStreamView({
       if (slug && !slug.includes('/')) return slug
     }
     if (!parsed.error && isFindQuery(parsed)) {
-      const cat = parsed.filters.find(f => f.key === 'catalog' && !f.negate)?.values[0]?.value
-      if (cat) return cat
+      const cat = parsed.filters.find(f => (f.key === 'notebook' || f.key === 'catalog') && !f.negate)?.values[0]?.value
+      if (cat) return notebookSlugFromId(cat)
     }
     return undefined
   }, [profile, parsed])
@@ -815,7 +815,7 @@ export function QueriableStreamView({
                 className="h-9 gap-1.5 px-2.5 text-xs"
               >
                 <Settings2 className="size-3.5" />
-                <span>Manage Catalogs</span>
+                <span>Manage Notebooks</span>
               </Button>
             )}
             {actions}

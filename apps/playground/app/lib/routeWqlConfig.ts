@@ -35,7 +35,7 @@ export interface RouteWqlConfig {
   invalidGroupByOptions?: string[]
 }
 
-/** The ⌘K palette is a global surface, not a route; it gets a synthetic route id. */
+/** The ⌘/ palette is a global surface, not a route; it gets a synthetic route id. */
 export const PALETTE_ROUTE_ID = '/palette'
 
 export const ROUTE_WQL_STORAGE_PREFIX = 'wodwiki.routeWql.v1'

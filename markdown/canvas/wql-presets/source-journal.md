@@ -1,5 +1,5 @@
 # Query sandbox
 
 ```query
-:note{tags:pr,source:journal} last 8w
+:note{tags:pr,notebook:journal} last 8w
 ```

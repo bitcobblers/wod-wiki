@@ -147,7 +147,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     setL3Items(mapIndexToL3(currentNavLinks))
     return () => setL3Items([])
   }, [view.shell.withIndex, currentNavLinks, setL3Items])
-  // Open the palette for global search (Ctrl/Cmd+K — WQL mode, issue #834).
+  // Open the palette for global search (Ctrl/Cmd+/ — WQL mode, issue #834).
   // The mounted stream composer registers a getter for its LIVE draft — the
   // exact text, invalid included (invalid drafts never reach the URL, so a
   // URL/default seed would be lossy). No stream mounted → route default.
@@ -182,10 +182,10 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     searchHandlerRef.current = openSearchPalette
   }, [openSearchPalette, searchHandlerRef])
 
-  // Keyboard shortcut: Ctrl/Cmd+K (also Ctrl/Cmd+/ and Ctrl/Cmd+P) opens global search
+  // Keyboard shortcut: Ctrl/Cmd+/ opens global search (the one search chord).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if ((e.key === 'k' || e.key === '/' || e.key === 'p') && (e.metaKey || e.ctrlKey)) {
+      if (e.key === '/' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         e.stopPropagation()
         openSearchPalette()
@@ -337,7 +337,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     if (view.shell.wrap === 'bare') return inner
     const subheader =
       view.shell.subheader === 'filter-collection-workouts'
-        ? <TextFilterStrip placeholder="Filter catalog workouts… Press / to start filtering" />
+        ? <TextFilterStrip placeholder="Filter notebook notes… Press / to start filtering" />
         : undefined
     return (
       <CanvasPage

@@ -64,6 +64,18 @@ export function TourSessionResult({ result, onDismiss, dismissLabel }: TourSessi
             <span className="tabular-nums">Reps {result.repsCompleted}</span>
           )}
         </div>
+        {onDismiss && (
+          // The pane grows to the table's full height, so the footer action
+          // can sit below the fold — repeat it at the top of the pane.
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-md border border-border px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-accent"
+            data-testid="tour-session-result-dismiss-top"
+          >
+            {dismissLabel}
+          </button>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto py-3">

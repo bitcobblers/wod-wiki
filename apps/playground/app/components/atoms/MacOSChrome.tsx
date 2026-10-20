@@ -1,9 +1,13 @@
 import { type ReactNode } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useRunwayIndicator } from '../../canvas/runwayIndicator'
 
 /** MacOS-style chrome wrapper for sticky panels */
 export function MacOSChrome({ title, subtitle, children, onReset, headerActions, className }: { title: string; subtitle?: string; children: ReactNode; onReset?: () => void; headerActions?: ReactNode; className?: string }) {
+  // Inside a RunwayShell the stage indicator (status + pips) replaces the
+  // static title so it costs no extra row of the sticky window.
+  const indicator = useRunwayIndicator()
   return (
     <div className={cn('flex flex-col w-full h-full rounded-2xl lg:rounded-3xl border border-border shadow-2xl bg-background', className)}>
       <div className="flex items-center justify-between px-4 py-2.5 bg-muted/20 border-b border-border/60 shrink-0 rounded-t-2xl lg:rounded-t-3xl">
@@ -21,15 +25,22 @@ export function MacOSChrome({ title, subtitle, children, onReset, headerActions,
           <div className="size-2.5 rounded-full bg-amber-500/30" />
           <div className="size-2.5 rounded-full bg-emerald-500/30" />
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-            {title}
-            {subtitle && (
-              <span className="ml-1.5 font-medium normal-case tracking-normal text-muted-foreground/50">
-                · {subtitle}
-              </span>
-            )}
-          </span>
+        <div className="flex min-w-0 items-center gap-3">
+          {indicator ? (
+            <>
+              <div className="flex min-w-0 flex-1 justify-end">{indicator.status}</div>
+              {indicator.pips}
+            </>
+          ) : (
+            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+              {title}
+              {subtitle && (
+                <span className="ml-1.5 font-medium normal-case tracking-normal text-muted-foreground/50">
+                  · {subtitle}
+                </span>
+              )}
+            </span>
+          )}
           {headerActions}
           {onReset && (
             <button

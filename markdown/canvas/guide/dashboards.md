@@ -105,7 +105,7 @@ Copy-paste queries (paste into a ```query block, or straight into the Explorer):
 | Top volume movements | `sum:totalVolume{} by {effort}` |
 | TIS trend | `avg:tis{} by {week}` |
 | Acute:chronic load | `avg:calc.acwr{}` |
-| Find benchmark notes | `:note{effort:fran,source:feeds}` |
+| Find benchmark notes | `:note{effort:fran,source:notebooks}` |
 | This week's swings volume | `sum:totalVolume{effort:kettlebell-swings} last 6w` |
 
 The shared kettlebell note feeds the last row — [run it](/guide/start?h=try-it), and it appears among the sample rows.

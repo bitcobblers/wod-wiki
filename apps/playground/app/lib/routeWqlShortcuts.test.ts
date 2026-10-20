@@ -75,10 +75,10 @@ describe('routeWqlShortcuts — built-in library-group links', () => {
       { id: ALL_SHORTCUT_ID, label: 'All entries', icon: 'calendar', wql: '' },
     ])
     expect(builtinShortcuts('/feeds')).toEqual([
-      { id: ALL_SHORTCUT_ID, label: 'All feeds', icon: 'rss', wql: '' },
+      { id: ALL_SHORTCUT_ID, label: 'All notes', icon: 'rss', wql: '' },
     ])
     expect(builtinShortcuts('/catalogs')).toEqual([
-      { id: ALL_SHORTCUT_ID, label: 'All catalogs', icon: 'library', wql: '' },
+      { id: ALL_SHORTCUT_ID, label: 'All notebooks', icon: 'library', wql: '' },
     ])
   })
 

@@ -69,8 +69,10 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     // Type unique content into the editor
     await journal.typeInEditor(uniqueContent);
 
-    // Signal-based: poll IDB until the debounced write lands (replaces the
-    // fixed 700ms debounce sleep).
+    // Coalesced autosave: drafts flush on line change (no idle timer). Moving
+    // to a new line triggers the save; the signal-based poll waits for the
+    // IndexedDB write to land.
+    await page.keyboard.press('Enter');
     await journal.awaitNotePersisted(`journal/${DATE_CONTENT_ROUNDTRIP}`, uniqueContent);
 
     // Navigate away via SPA navigation
@@ -94,6 +96,29 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     expect(persistenceErrors, 'No persistence errors should occur').toHaveLength(0);
 
     await page.screenshot({ path: testInfo.outputPath('persistence-01-content-roundtrip.png') });
+  });
+
+  // ── 1b. Ctrl+S flush (coalesced autosave) ─────────────────────────────────
+
+  test('Ctrl+S persists the pending draft without blurring the editor', async ({ page }, testInfo) => {
+    const uniqueContent = `E2E-CTRLS-${Date.now()}`;
+    await seedJournalNote(page, DATE_CONTENT_ROUNDTRIP, '# E2E Seed\n');
+    await journal.goto(DATE_CONTENT_ROUNDTRIP);
+
+    // Type on ONE line only: with coalesced autosave (no idle timer, no line
+    // change, no blur) nothing may persist until the explicit save chord.
+    await journal.typeInEditor(uniqueContent);
+
+    // The explicit save gesture: editor keymap flushes the pending draft and
+    // blocks the browser's native Save-Page dialog.
+    await page.keyboard.press('Control+s');
+
+    await journal.awaitNotePersisted(`journal/${DATE_CONTENT_ROUNDTRIP}`, uniqueContent);
+
+    const stored = await journal.storedContent(DATE_CONTENT_ROUNDTRIP);
+    expect(stored, 'Ctrl+S should persist the in-flight draft to IndexedDB').toContain(uniqueContent);
+
+    await page.screenshot({ path: testInfo.outputPath('persistence-01b-ctrl-s.png') });
   });
 
   // ── 2. Workout start via play button ──────────────────────────────────────

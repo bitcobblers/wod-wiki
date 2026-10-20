@@ -44,7 +44,7 @@ describe('Direct route mounting classification (routeView)', () => {
   it('classifies /feeds directly to library with Feeds title', () => {
     const v = resolveRouteView('/feeds', NO_PARAMS, makeDeps())
     expect(v.page).toBe('library')
-    expect(v.workout.name).toBe('Feeds')
+    expect(v.workout.name).toBe('Notes')
     expect(v.shell).toEqual({ wrap: 'bare' })
   })
 
@@ -71,10 +71,10 @@ describe('Route-aware stream profile resolution', () => {
     // Bare /collections is a redirect route now — no stream profile of its
     // own; the renamed listing resolves under /feeds.
     expect(resolveStreamProfile('/catalogs')).toBe(CATALOGS_STREAM_PROFILE)
-    expect(resolveStreamProfile('/catalogs').defaultWql).toBe(':catalog{} by {tag}')
+    expect(resolveStreamProfile('/catalogs').defaultWql).toBe(':notebook{} by {tag}')
 
     expect(resolveStreamProfile('/feeds')).toBe(FEEDS_STREAM_PROFILE)
-    expect(resolveStreamProfile('/feeds').defaultWql).toBe(':feed{}')
+    expect(resolveStreamProfile('/feeds').defaultWql).toBe(':notebook{}')
 
     expect(resolveStreamProfile('/efforts')).toBe(EFFORTS_STREAM_PROFILE)
     expect(resolveStreamProfile('/efforts').defaultWql).toBe(':effort')
@@ -91,10 +91,10 @@ describe('Legacy parameter migration across unified stream routes', () => {
 
   it('migrates legacy bookmarks on /feeds into canonical WQL queries', () => {
     // The renamed collections listing keeps the catalog-flavored legacy
-    // mapping (scope feeds → `:catalog` head).
+    // mapping (scope feeds → `:notebook` head).
     const legacy = FEEDS_STREAM_PROFILE.legacy!
-    expect(legacy.toQuery(new URLSearchParams('text=fran'))).toBe(':catalog{text:fran} last 2w')
-    expect(legacy.toQuery(new URLSearchParams('timePreset=all'))).toBe(':catalog')
+    expect(legacy.toQuery(new URLSearchParams('text=fran'))).toBe(':notebook{text:fran} last 2w')
+    expect(legacy.toQuery(new URLSearchParams('timePreset=all'))).toBe(':notebook')
   })
 
   it('migrates legacy unscoped bookmarks on /feeds without source narrowing', () => {
@@ -112,7 +112,7 @@ describe('Legacy parameter migration across unified stream routes', () => {
   it('migrates legacy tri-state parameters on /feeds', () => {
     const legacy = FEEDS_STREAM_PROFILE.legacy!
     expect(legacy.toQuery(new URLSearchParams('note=on&session=hide&post=hide'))).toBe(':journal last 2w')
-    expect(legacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':catalog last 2w')
+    expect(legacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':notebook last 2w')
     // post=on mapped to the now-excised feeds scope: unscoped, same window.
     const postOnly = parseQuery(legacy.toQuery(new URLSearchParams('note=hide&session=hide&post=on')) ?? '')
     expect(isFindQuery(postOnly)).toBe(true)

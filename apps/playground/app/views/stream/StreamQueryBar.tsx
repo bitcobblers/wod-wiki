@@ -7,7 +7,7 @@
  * (`scopeOptions`) prioritize choices without ever defining validity. There
  * is no header-local parser, draft text or separate scope dropdown. The full
  * query dialog stays reachable through the View menu and the global
- * ⌘K palette; Apply writes the composed WQL back through `onQueryChange`
+ * ⌘/ palette; Apply writes the composed WQL back through `onQueryChange`
  * (URL `?q=` follows).
  *
  * `compact` (mobile) renders the summary row that portals into the app

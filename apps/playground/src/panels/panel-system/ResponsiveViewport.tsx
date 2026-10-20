@@ -9,7 +9,7 @@
  * - Instant view switching (Plan → Track → Review)
  * - Composable panel system with PanelGrid
  * - Screen-mode-aware layouts (desktop, tablet, mobile)
- * - Keyboard navigation (Ctrl+Arrow keys)
+ * - Keyboard navigation (Ctrl/Cmd+Shift+Arrow keys)
  */
 
 import { useEffect, useCallback, useMemo } from 'react';
@@ -48,7 +48,7 @@ export interface ResponsiveViewportProps {
  * - Views are absolutely positioned and stacked on top of each other
  * - Only the active view is visible (via visibility + z-index)
  * - Inactive views stay mounted to preserve internal state (scroll, timers)
- * - Keyboard navigation support (Ctrl+Arrow)
+ * - Keyboard navigation support (Ctrl/Cmd+Shift+Arrow)
  */
 export function ResponsiveViewport({
   views,
@@ -69,7 +69,14 @@ export function ResponsiveViewport({
     (e: KeyboardEvent) => {
       const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
-      if (!isCtrlOrCmd) return;
+      // Mod+Shift+Arrow (not plain Mod+Arrow) — the editor owns Mod+ArrowLeft/Right
+      // for metric-token jumps; the shift modifier keeps both meanings alive.
+      if (!isCtrlOrCmd || !e.shiftKey) return;
+
+      // Native text fields keep Mod+Shift+Arrow for word/line selection; the
+      // CodeMirror editor (contenteditable) intentionally still switches views.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [role="textbox"]')) return;
 
       if (e.key === 'ArrowLeft' && viewIndex > 0) {
         e.preventDefault();

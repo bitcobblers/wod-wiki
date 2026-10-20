@@ -12,11 +12,11 @@ WQL queries discover notes, sessions, and emitted workout statements, then reduc
 
 | Head | Selected records |
 |---|---|
-| `:journal{}` | Journal notes |
-| `:feeds{}` | Collection notes |
-| `:playground{}` | Playground notes |
-| `:note{}` | Whole Notes, including prose-only Notes |
-| `:block{}` | Actionable workouts, queries, registered widgets, and interactive embeds |
+| `:journal{}` | Journal notebook notes (`notebook/journal`) |
+| `:notebook{}` / `:notebooks{}` | Notebooks (seed-delivered and user-created) |
+| `:feeds{}` | Notebook workout notes |
+| `:playground{}` | Playground notebook notes (`notebook/playground`) |
+| `:note{}` / `:notes{}` | Whole Notes across all notebooks |
 | `:effort{}` | Movement registry entries |
 | `:session{}` | Workout statements grouped by session |
 | `:segment{}` | Domain segment statements, `outputType === 'segment'` |
@@ -24,7 +24,7 @@ WQL queries discover notes, sessions, and emitted workout statements, then reduc
 
 `:segment` and `:event` read the same `EventRecord` store. Debug queries include system, compiler, load, completion, and other emitted statement types, including statements without numeric metrics. Finalized summary records are not emitted debug statements.
 
-The scoped note heads restrict the storage source. `:note{source:guides}` explicitly selects guides. `source:` accepts `journal`, `feeds`, `guides`, `playground`, `dashboards`, and `efforts`, plus explicit storage identities such as `collection:crossfit-girls` and `feed:<id>` — one feed (`source:feed:crossfit-programming`) or one quoted feed item (`source:"feed:crossfit-programming/2026-01-12"`). `:feeds` selects collection-prefixed storage sources; dated `feed:` rows remain outside that scope.
+The scoped note heads restrict the storage source or notebook. `:note{notebook:guides}` (or `:note{source:guides}`) selects guides (`notebook/guides`); `:note{notebook:crossfit-girls}` selects notes in `notebook/crossfit-girls`. `source:` accepts `journal`, `notebooks` (`feeds`), `guides`, `playground`, `dashboards`, `efforts`, and `equipment`, plus explicit storage identities such as `notebook/<slug>`, `collection:crossfit-girls`, and `feed:<id>`.
 
 ```wql
 :note{tags:benchmark}
@@ -112,7 +112,7 @@ Filters are comma-separated `key:value` clauses inside braces. Values within one
 :note{text:"snatch | clean"}
 ```
 
-Common keys include `effort`, `discipline`, `intensity`, `origin`, `tags`, `source`, `text`, `type`, `catalog`, `result`, `block`, and `note`. Typed note tags include `domain`, `format`, `equipment`, `quality`, and `intent`. `plane:` narrows session outputs. Registered custom dimensions are queryable on numeric facts and segment/event tables.
+Common keys include `effort`, `discipline`, `intensity`, `origin`, `tags`, `source`, `text`, `type`, `notebook` (alias `catalog`), `result`, `block`, and `note`. Typed note tags include `domain`, `format`, `equipment`, `quality`, and `intent`. `plane:` narrows session outputs. Registered custom dimensions are queryable on numeric facts and segment/event tables.
 
 Filter support depends on the target. Unsupported filters and presentation clauses produce advisories. For example, note queries do not implement movement-registry discipline filters; use `:effort{discipline:strength}` or a note tag instead.
 

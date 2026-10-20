@@ -103,8 +103,9 @@ export const wodAutoWrap: Extension = EditorView.domEventHandlers({
 });
 
 export const wodEditorKeymap = keymap.of([
+  // Mod-Shift-W is browser "close window" — Mod-Alt-W is the free wrap chord.
   {
-    key: "Mod-Shift-w",
+    key: "Mod-Alt-w",
     run: wrapInTimeFence,
   },
 ]);

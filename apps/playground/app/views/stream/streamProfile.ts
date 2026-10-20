@@ -89,7 +89,7 @@ export function createContentLegacyConfig(defaultSource?: string): StreamProfile
       let head = ':note'
       const otherFilters = [textClause, tagsClause].filter(Boolean)
       if (sourceFilter === 'source:journal') head = ':journal'
-      else if (sourceFilter === 'source:feeds') head = ':catalog'
+      else if (sourceFilter === 'source:feeds') head = ':notebook'
       else if (sourceFilter === 'source:playground') head = ':playground'
       else if (sourceFilter) otherFilters.unshift(sourceFilter)
       const braces = otherFilters.length ? `{${otherFilters.join(',')}}` : ''
@@ -110,8 +110,8 @@ export const JOURNAL_STREAM_PROFILE: StreamProfile = {
 
 export const CATALOGS_STREAM_PROFILE: StreamProfile = {
   route: '/catalogs',
-  title: 'Catalogs',
-  defaultWql: ':catalog{} by {tag}',
+  title: 'Notebooks',
+  defaultWql: ':notebook{} by {tag}',
   level: 'session',
   target: 'note',
   scopeOptions: ['feeds'],
@@ -123,12 +123,12 @@ export const CATALOGS_STREAM_PROFILE: StreamProfile = {
 
 export const FEEDS_STREAM_PROFILE: StreamProfile = {
   route: '/feeds',
-  title: 'Feeds',
-  defaultWql: ':feed{}',
+  title: 'Notes',
+  defaultWql: ':notebook{}',
   level: 'note',
   target: 'note',
   scopeOptions: ['feeds'],
-  emptyMessage: 'No feed entries match your search.',
+  emptyMessage: 'No note entries match your search.',
   // Corpus comes from seed libraries — surface the core-only notice.
   seedNotice: true,
   legacy: createContentLegacyConfig('feeds'),
@@ -204,7 +204,7 @@ export function createCollectionCatalogProfile(catalogSlug: string): StreamProfi
   return {
     route: `/c/${catalogSlug}`,
     title: toDisplayName(catalogSlug),
-    defaultWql: `:feed{catalog:${catalogSlug}} by {date}`,
+    defaultWql: `:note{notebook:${catalogSlug}} by {date}`,
     level: 'session',
     target: 'note',
     scopeOptions: ['feeds'],

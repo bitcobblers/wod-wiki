@@ -296,7 +296,7 @@ function headApply(o: Completion, colonTyped: boolean): Completion {
 const LEGACY_HEAD_OPTIONS: Completion[] = WQL_AGGREGATORS.map((label) => ({ label, type: 'keyword' as const }));
 
 /** Sortable/selectable columns the executors actually read (QueryService). */
-const NOTE_COLUMNS: readonly string[] = ['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog'];
+const NOTE_COLUMNS: readonly string[] = ['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog', 'notebookId'];
 const BLOCK_COLUMNS: readonly string[] = ['noteTitle', 'dataType', 'position', 'createdAt', 'noteId', 'sourceId'];
 const EFFORT_COLUMNS: readonly string[] = ['slug', 'label', 'registrySource'];
 const SESSION_COLUMNS: readonly string[] = ['duration', 'startTime', 'origin'];
@@ -327,16 +327,19 @@ function resolveColonHead(name: string): Head {
   const n = name.toLowerCase();
   if ((WQL_FUNCTION_HEADS as readonly string[]).includes(n)) return { family: 'aggregate' };
   if ((WQL_CHART_HEADS as readonly string[]).includes(n)) return { family: 'find' };
-  // Partial head word resolves through the unique prefix (`:no{` → note).
-  let source = n;
-  if (!(WQL_SOURCE_HEADS as readonly string[]).includes(source)) {
-    const partial = source ? WQL_SOURCE_HEADS.filter((t) => t.startsWith(source)) : [];
-    if (partial.length === 1) source = partial[0]!;
+  const headTarget = (head: string): string => {
+    if (head === 'notes') return 'note';
+    const scoped = (WQL_SOURCE_HEAD_SCOPES as Readonly<Record<string, string>>)[head]
+      || (WQL_TYPE_HEADS as Readonly<Record<string, string>>)[head];
+    return scoped ? 'note' : head;
+  };
+  if ((WQL_SOURCE_HEADS as readonly string[]).includes(n)) {
+    return { family: 'find', target: headTarget(n) };
   }
-  if ((WQL_SOURCE_HEADS as readonly string[]).includes(source)) {
-    const scoped = (WQL_SOURCE_HEAD_SCOPES as Readonly<Record<string, string>>)[source]
-      || (WQL_TYPE_HEADS as Readonly<Record<string, string>>)[source];
-    return { family: 'find', target: scoped ? 'note' : source };
+  const partial = n ? WQL_SOURCE_HEADS.filter((t) => t.startsWith(n)) : [];
+  const targets = [...new Set(partial.map(headTarget))];
+  if (targets.length === 1) {
+    return { family: 'find', target: targets[0]! };
   }
   return { family: 'find' }; // partial or unknown — union key suggestions
 }

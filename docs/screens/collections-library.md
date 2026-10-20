@@ -1,8 +1,8 @@
-# Screen: Collections Stream & Library
+# Screen: Notebooks &amp; Notes Stream
 
-- **Route:** `/collections`, `/library`
-- **Host Component:** `apps/playground/app/views/stream/QueriableStreamView.tsx` (`COLLECTIONS_STREAM_PROFILE`, `LIBRARY_STREAM_PROFILE`)
-- **Domain Models:** `Collection`, `Note`, `Tag`, `BlockIndexRow`
+- **Route:** `/catalogs`, `/feeds`
+- **Host Component:** `apps/playground/app/views/stream/QueriableStreamView.tsx` (`CATALOGS_STREAM_PROFILE`, `FEEDS_STREAM_PROFILE`)
+- **Domain Models:** `Notebook` (`notebook/{slug}`), `Note`, `Tag`, `BlockIndexRow`
 
 ---
 

@@ -141,7 +141,7 @@ export function OfferingTiers() {
               >
                 <CardLink onClick={() => void createJournal()}>Create your journal</CardLink>
                 <CardLink to={ROUTE_PATTERNS.playgroundRoot}>Start Writing in a Playground</CardLink>
-                <CardLink to="/feeds">Explore the feeds</CardLink>
+                <CardLink to="/feeds">Explore the notebooks</CardLink>
                 <ul className="mt-1 space-y-1.5">
                   <Bullet>Offline and fast. Notes and results stay in this browser.</Bullet>
                   <Bullet>Tied to this browser — export or back it up before switching browsers or clearing site data.</Bullet>

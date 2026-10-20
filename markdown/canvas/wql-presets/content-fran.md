@@ -1,5 +1,5 @@
 # Query sandbox
 
 ```query
-:block{text:fran,source:feeds}
+:block{text:fran,source:notebooks}
 ```

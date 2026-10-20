@@ -193,7 +193,7 @@ export function sourceMatches(
       && !item.catalog
       && !(!!item.sourcePath && item.sourcePath.startsWith('markdown/'));
   }
-  if (kind === 'feed' || kind === 'feeds') {
+  if (kind === 'feed' || kind === 'feeds' || kind === 'notebook' || kind === 'notebooks') {
     return !!sourceId && (sourceId.startsWith('collection:') || sourceId.startsWith('page:collection:'));
   }
   if (kind === 'page' || kind === 'pages') {
@@ -214,6 +214,9 @@ export function sourceMatches(
     if (!rest || !sourceId?.startsWith('feed:')) return false;
     const idRest = sourceId.slice('feed:'.length).replace(/^feeds\//, '');
     return idRest === rest || idRest.startsWith(`${rest}/`);
+  }
+  if (kind.startsWith('notebook:') || kind.startsWith('notebook/')) {
+    return notebookOfItem(item) === toNotebookId(kind);
   }
   return sourceId === kind;
 }
@@ -1283,8 +1286,9 @@ export class QueryService {
     }
     const isCatalogHead = parsed.target === 'note'
       && parsed.filters.some(f => f.key === 'type' && !f.negate && f.values.some(v => v.value === 'feed'))
-      && (parsed.filters.some(f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feed' || v.value === 'feeds'))
-          || parsed.sourceScope?.includes('feeds'));
+      && (parsed.filters.some(f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feed' || v.value === 'feeds' || v.value === 'notebook' || v.value === 'notebooks'))
+          || parsed.sourceScope?.includes('feeds')
+          || parsed.sourceScope?.includes('notebooks'));
     if (isCatalogHead) {
       return this.runFindCatalog(parsed, options, await this.noteStore.getAllNotes());
     }
@@ -2369,17 +2373,17 @@ export class QueryService {
     }
 
     const criteriaFilters = parsed.filters.filter(f =>
-      !(f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feeds' || v.value === 'feed')) &&
+      !(f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feeds' || v.value === 'feed' || v.value === 'notebooks' || v.value === 'notebook')) &&
       !(f.key === 'type' && !f.negate && f.values.some(v => v.value === 'feed'))
     );
 
     let matchingCatalogs = [...catalogNotes];
 
     for (const filter of criteriaFilters) {
-      if (filter.key === 'catalog') {
-        const wanted = new Set(filter.values.map(v => v.value));
+      if (filter.key === 'catalog' || filter.key === 'notebook') {
+        const wanted = new Set(filter.values.map(v => notebookSlugFromId(v.value)));
         matchingCatalogs = matchingCatalogs.filter(c => {
-          const catId = catalogOfItem(c) ?? c.id;
+          const catId = notebookSlugFromId(catalogOfItem(c) ?? c.id);
           const hit = wanted.has(catId);
           return filter.negate ? !hit : hit;
         });

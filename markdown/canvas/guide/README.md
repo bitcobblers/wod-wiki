@@ -44,7 +44,7 @@ You edit it, run it, watch what the clock records (Metrics), query the records (
 | 1 | "wrap your workout in a `wod` block"; dialects page implies ```` ```wod ````/```` ```plan ````/```` ```climb ```` fences | runtime affords `time` (run) and `log` (record) fences only; dialect fixtures themselves use ```` ```time ````/```` ```log:climbing ```` | teach `time`/`log`/`log:climbing`; `wod`/`plan`/`climb` kept as *intent* vocabulary, flagged **needs validation** ([sessions.md#intent](/guide/sessions?h=intent)) |
 | 2 | home caption + prototypes: "```` ```wql ```` for queries"; cookbook shows ```wql copy blocks | real in-note fence is ```` ```query ````; no ```wql handling exists | use ```query everywhere; cookbook's ```wql snippet blocks flagged **needs validation** |
 | 3 | analytics/README + anatomy document `source:all` | parser hard-errors: "source:all is retired — omit the source: filter" | omitting `source:` **is** the all-sources default; never write `source:all` |
-| 4 | filters.md teaches singular `source:collection`/`source:feed` | `WQL_SOURCE_VALUES` = plural `journal, feeds, guides, playground, dashboards, efforts`; `source:collections` retired (parser errors) | teach plural; pin one catalog with `catalog:<id>`; `source:collection:<id>` remains a storage-identity literal |
+| 4 | filters.md teaches singular `source:collection`/`source:feed` | every note belongs to `notebook/{slug}`; `notebook:<id>` pins a notebook and `WQL_SOURCE_VALUES` provides storage scopes | teach `notebook:<id>` and `notebook/{slug}`; `source:collection:<id>` remains a legacy storage-identity literal |
 | 5 | structure.md caption: name groups `(Warmup)`; named-groups/mixed-sections fixtures use `// Warmup` | classifier emits a labeled group node for `(Warmup)` (`RoundsMetric(label)`); `//` is a text comment — different mechanisms, both legal | both documented with the difference ([structure.md#named-sections](/guide/structure?h=named-sections)) |
 | 6 | `:?` placement: timers-3 prefixes (`:? Max Effort`), capture/cheatsheet append (`5:00 Run :?`) | `:?` is a standalone collectible-duration token; both positions parse | append taught as the convention; prefix noted as equally legal ([metrics.md#capture](/guide/metrics?h=capture)) |
 | 7 | behaviors/timers.md: movement without duration counts up; timers-5.md: "no timer — stopwatch mode" | `DurationMetric.direction`: value 0/undefined/collectible → **up** | same behavior, two descriptions: a bare movement runs a count-up stopwatch ([clock.md](/guide/clock)) |
@@ -174,13 +174,12 @@ Guarantees on every form factor:
 | **Block** | one addressable fenced unit in a note; the run target | Block Content Id = content hash, stable across reorders/clones |
 | **Effort** | named workout registry entry (e.g. *fran*) | content-plane query target; aggregates `by {effort}` |
 | **Session** | one recorded run | `{noteId, resultId, block}` triple; results join `Session.noteId` |
-| **Journal** | your saved notes | `source:journal`; promotion target |
-| **Playground** | experiment surface (home/canvas, learning runs) | `source:playground`; run snapshots archive here until promoted |
-| **Catalog** | catalog of benchmark sessions | `source:feeds`; clone into journal |
-| **Feed** | dated posts | — |
+| **Journal** | default dated training notebook (`notebook/journal`) | `notebook:journal` (`source:journal`); promotion target |
+| **Playground** | default experiment notebook (`notebook/playground`) | `notebook:playground` (`source:playground`); run snapshots archive here until promoted |
+| **Notebook** | user-created or seed-delivered notebook (`notebook/{slug}`) | `notebook:<id>` (`source:notebooks`); seed notebooks are read-only and clone into writable notebooks |
 | **Dashboard** | a note with `dashboard: true`; its query blocks render as widgets | vault (editable) vs prebuilt (read-only, clone) |
 
-**`source:` scope.** Plural values — `journal, feeds, guides, playground` (plus `dashboards`, `efforts`); omitting `source:` searches all; pin one catalog with `catalog:<id>`. Learning runs record with origin `'playground'` until promotion re-homes the note to the journal — a query pinned to `source:journal` excludes playground experiments by design.
+**`notebook:` & `source:` scope.** Filter by `notebook:<id>` (`journal`, `playground`, `guides`, `crossfit-girls`, etc.) or plural `source:` values; omitting both searches all notes. Learning runs record in `notebook/playground` until promotion re-homes the note to `notebook/journal`.
 
 **Session vs template vs sample dataset vs revert.**
 

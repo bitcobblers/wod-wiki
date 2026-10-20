@@ -198,7 +198,6 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
 
   const { onChange, onLineChange, onBlur, flush } = useEditorSave({
     onSave: handleSave,
-    lineIdleMs: 1200,
   });
 
   // Wrap setDocument to also trigger save mechanics

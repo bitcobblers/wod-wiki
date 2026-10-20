@@ -107,6 +107,14 @@ export interface NoteEditorProps {
   onIdentityChange?: (snapshot: EditorIdentitySnapshot) => void;
   onSaved?: (snapshot: EditorIdentitySnapshot) => void;
   beforeRun?: () => Promise<number | void>;
+  /** Called when the user presses Ctrl/Cmd+S — the host flushes the pending save. */
+  onSaveRequest?: () => void | Promise<void>;
+  /**
+   * Called when the document changed WITHOUT a typing user-event — widget
+   * commits (frontmatter rows), query-block inserts, undo/redo. Typing stays
+   * coalesced (line change / blur / Ctrl+S); these commits save immediately.
+   */
+  onCommitChange?: () => void | Promise<void>;
   /** Document content */
   value: string;
   /** Called on every document change */
@@ -206,6 +214,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   onIdentityChange,
   onSaved,
   beforeRun,
+  onSaveRequest,
+  onCommitChange,
   value,
   onChange,
   onDocUpdate,
@@ -330,14 +340,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     };
   }, []);
 
-  // Mod-P opens the palette. Sources are empty here — the parent (Workbench)
-  // should call palette.open() via its own onSearch prop for context-aware sources.
-  const openNavigationPalette = useCallback(() => {
-    usePaletteStore.getState().open({
-      placeholder: 'Search…',
-      sources: [],
-    });
-  }, []);
   const isDark = theme === "dark" || theme === "vs-dark";
   const notePersistence = resolveNotePersistence(defaultNotePersistenceRef, providedNotePersistence);
 
@@ -576,9 +578,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         ...lintKeymap,
         indentWithTab,
         {
-          key: "Mod-p",
+          key: "Mod-s",
           run: () => {
-            openNavigationPalette();
+            // Always handled: prevents the browser's native Save-Page dialog.
+            void onSaveRequest?.();
             return true;
           },
         },
@@ -696,6 +699,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           onChange(identity.rawContent);
           onDocUpdate?.(update);
           notifyBlockChanges(update.state, onBlocksChange, lastBlocksJsonRef);
+          // Typing-like transactions stay coalesced; everything else (widget
+          // commits, query-block inserts, undo) is a deliberate commit — save now.
+          const typed = update.transactions.some(t =>
+            t.isUserEvent("input") || t.isUserEvent("delete") || t.isUserEvent("paste") || t.isUserEvent("drop"));
+          if (!typed) void onCommitChange?.();
         }
         if (update.selectionSet || update.docChanged) {
           setCursorVersion((version) => version + 1);
@@ -732,7 +740,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       onBlocksChange,
       onIdentityChange,
       readonly,
-      openNavigationPalette,
+      onSaveRequest,
+      onCommitChange,
       showLineNums,
       initialLineWrapping,
       enablePreview,

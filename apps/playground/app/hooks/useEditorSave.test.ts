@@ -40,4 +40,19 @@ describe('useEditorSave', () => {
     expect(committed).toEqual([{ rawContent: 'first', blockId: 'one' }, { rawContent: 'second', blockId: 'two' }]);
     unmount();
   });
+
+  it('coalesces: onChange alone never saves; a line change flushes the pending draft', async () => {
+    const committed: string[] = [];
+    const { result, unmount } = renderHook(() => useEditorSave<string>({ onSave: async value => { committed.push(value); } }));
+    act(() => result.current.onChange('draft'));
+    expect(committed).toEqual([]);
+    act(() => result.current.onLineChange(1, 0));
+    expect(committed).toEqual([]);
+    act(() => result.current.onChange('draft v2'));
+    act(() => result.current.onLineChange(2, 0));
+    // No explicit flush — the line change itself must trigger the save.
+    await act(async () => { await Promise.resolve(); });
+    expect(committed).toEqual(['draft v2']);
+    unmount();
+  });
 });

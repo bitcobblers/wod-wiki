@@ -4,10 +4,10 @@ store: none (derived)
 source: markdown/collections/
 ---
 
-# Collection
+# Notebook (formerly Collection / Catalog)
 
 > [!info] Review status
-> Current State describes the legacy `ScriptCollection` corpus adapter. Future State proposes a distinct query-composed **collection page**, not a Catalog rename or adopted Page-store migration. See [[todo#Datatype review guide]].
+> Current State documents how seed-delivered and user-created **Notebooks** (`notebook/{slug}`) unify the former `Collection`, `Catalog`, and `Feed` containers alongside the predefined defaults (`notebook/journal`, `notebook/playground`, `notebook/guides`).
 
 ## Current State (Implemented in Code)
 

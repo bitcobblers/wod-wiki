@@ -407,7 +407,7 @@ export function SyncSection() {
             Content Sources
           </h2>
           <p className="text-sm text-muted-foreground">
-            Catalogs, feeds, guides, dashboards, and efforts import into your active data location from
+            Notebooks, notes, guides, dashboards, and efforts import into your active data location from
             seed sources. Subscribed sources are checked against their published manifest on every load:
             Auto-sync applies updates by itself, otherwise you press Sync when an update is pending. The
             core seed imports automatically at launch and is always subscribed.

@@ -189,7 +189,7 @@ export const JournalStream: StoryObj = {
                 notes
               </span>
               <span className="text-xs font-mono text-foreground flex-1">{profile.defaultWql}</span>
-              <span className="text-[10px] text-muted-foreground font-mono">⌘K</span>
+              <span className="text-[10px] text-muted-foreground font-mono">⌘/</span>
             </div>
           </header>
 

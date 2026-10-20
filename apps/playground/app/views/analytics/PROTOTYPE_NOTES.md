@@ -114,7 +114,7 @@ We created an interactive prototype ([`PROTOTYPE_analytics_query_builder.html`](
 - Sidebar selections (Metric keys, Tag keys) populate visual pills or raw query field seamlessly.
 
 ### Surface 2: Wayfinder Integration (Issue #725 - Command Palette & Search)
-- Wayfinder (`Cmd+K`) registers an Analytics Search extension:
+- Wayfinder (`Cmd+/`) registers an Analytics Search extension:
   - Detects inputs starting with `sum:`, `avg:`, `count:`, `last:`, `metric:`, or `query:`.
   - Renders inline compact visual pill composer inside the Wayfinder modal.
   - Presets appear as instant searchable actions (*"Is strength volume rising?"*).
@@ -158,7 +158,7 @@ We created an interactive prototype ([`PROTOTYPE_analytics_query_builder.html`](
    - Create `src/components/molecules/analytics/WqlHumanTranslationBanner.tsx`.
 4. **Integrate into Analytics Explorer (`/analytics/explorer`)**:
    - Replace static field in `AnalyticsExplorerPage.tsx` with `<WqlQueryComposer mode="dual" />`.
-5. **Integrate into Wayfinder (`Cmd+K` - Issue #725)**:
+5. **Integrate into Wayfinder (`Cmd+/` - Issue #725)**:
    - Add WQL query provider and preset launcher actions into Wayfinder command palette.
 6. **Integrate into ` ```dashboard ` Block Inspector**:
    - Mount "Edit Widget Query" inspector modal using `<WqlQueryComposer mode="dual" />` inside markdown editor and `AnalyticsDashboardPage.tsx`.
