@@ -2,18 +2,18 @@
  * HomeTourCounter.test.tsx — focused integration test for the header stage
  * counter derivation on the home page.
  *
- * The home header chip shows completed / total home quests (5). At fresh load
- * while the hero is still visible, only the arrival quest should be counted;
- * the first tour stage must not be marked complete until the runway actually
- * scrolls into view.
+ * The home header chip shows completed / total home quests. At fresh load
+ * only the arrival quest is counted. The timer quest completes when a run
+ * actually starts (run-started validation), and the analytics quest when
+ * the session-insights section scrolls into view.
  */
 
 import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
-import { render, cleanup, act } from '@testing-library/react'
-import * as React from 'react'
+import { render, screen, within, cleanup, act, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
 import type { Quest, Chapter } from '../canvas/parseCanvasMarkdown'
+import type { ScriptBlock } from '@/components/Editor/types'
 
 const STORAGE_KEY = 'wodwiki.quests.v1'
 
@@ -21,20 +21,41 @@ mock.module('@/components/organisms/editor/NoteEditor', () => ({
   NoteEditor: ({
     value,
     onChange,
+    onBlocksChange,
+    onStartWorkout,
   }: {
     value: string
     onChange?: (value: string) => void
-  }) => (
-    <textarea
-      data-testid="note-editor"
-      value={value}
-      onChange={(e) => onChange?.(e.target.value)}
-    />
-  ),
+    onBlocksChange?: (blocks: ScriptBlock[]) => void
+    onStartWorkout?: (block: ScriptBlock) => void
+  }) => {
+    const React = require('react')
+    React.useEffect(() => {
+      onBlocksChange?.([{ id: 'block-1', type: 'Timer' } as unknown as ScriptBlock])
+    }, [])
+    return (
+      <div>
+        <textarea
+          data-testid="note-editor"
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
+        />
+        {onStartWorkout && (
+          <button onClick={() => onStartWorkout?.({ id: 'block-1' } as unknown as ScriptBlock)}>Run</button>
+        )}
+      </div>
+    )
+  },
 }))
 
 mock.module('@/components/organisms/editor/RuntimeTimerPanel', () => ({
   RuntimeTimerPanel: () => <div data-testid="mock-timer-panel" />,
+}))
+
+// FullscreenTimer's chrome needs the app's AudioProvider; the counter test
+// only verifies the run-started quest marking, not the overlay itself.
+mock.module('@/components/atoms/AudioToggle', () => ({
+  AudioToggle: () => null,
 }))
 
 mock.module('@/components/organisms/review/AnalyticsScorecard', () => ({
@@ -51,10 +72,6 @@ mock.module('@/components/organisms/cast/CastButtonRpc', () => ({
 
 mock.module('../hooks/useCompletionChallenge', () => ({
   useCompletionChallenge: () => {},
-}))
-
-mock.module('../hooks/useRunStartedChallenge', () => ({
-  useRunStartedChallenge: () => {},
 }))
 
 mock.module('@/services/resultRecorder', () => ({
@@ -100,57 +117,19 @@ mock.module('@/services/telemetry', () => ({
   useTelemetry: () => () => undefined,
 }))
 
-type TestSlice = {
-  index: number
-  stage: { id: string; screen: string; accent: string; label: string }
-  t: number
-  ring: { key: string; tag?: string } | null
-}
+// useRunStartedChallenge and useTourScrollQuests stay REAL — they are the
+// units whose quest-marking this suite verifies.
 
-function makeSlice(): TestSlice {
-  return {
-    index: 0,
-    stage: {
-      id: 'timer-wallclock',
-      screen: 'timer',
-      accent: 'hsl(var(--metric-effort))',
-      label: 'What Happens When It Runs',
-    },
-    t: 0,
-    ring: { key: 'timer.floor', tag: 'Clock' },
-  }
-}
-
-const store: { slice: TestSlice; runwayReached: boolean; listeners: Set<() => void> } = {
-  slice: makeSlice(),
-  runwayReached: false,
-  listeners: new Set(),
-}
-
-function setTestRunwayReached(reached: boolean) {
-  store.runwayReached = reached
-  store.listeners.forEach((cb) => cb())
-}
-
-mock.module('../canvas/useScrollRunway', () => {
-  return {
-    useScrollRunway: () => {
-      const [, force] = React.useReducer((n: number) => n + 1, 0)
-      React.useEffect(() => {
-        store.listeners.add(force)
-        return () => store.listeners.delete(force)
-      }, [])
-      return {
-        slice: store.slice,
-        progress: 0,
-        runwayReached: store.runwayReached,
-        subscribe: () => () => {},
-        resync: () => {},
-      }
-    },
-    scrollRunwayTo: () => {},
-  }
-})
+mock.module('../hooks/usePlaygroundRun', () => ({
+  usePlaygroundRun: () => ({
+    run: { noteId: 'note-1', resultId: 'res-1', block: { id: 'block-1' } as unknown as ScriptBlock },
+    pendingResults: null,
+    recorded: false,
+    start: async () => ({ noteId: 'note-1' }),
+    finalize: async () => {},
+    end: async () => {},
+  }),
+}))
 
 import { HomeTour } from './HomeTour'
 
@@ -162,7 +141,7 @@ const homeQuests: Quest[] = [
   { id: 'qs-arrive', label: 'Welcome to WOD Wiki', desc: 'Arrived' },
   { id: 'qs-edit', label: 'Change the workout', desc: 'Edit' },
   { id: 'qs-run', label: 'Run it to the finish', desc: 'Run' },
-  { id: 'qs-tour-timer', label: 'See the timer run it', desc: 'Timer' },
+  { id: 'qs-tour-timer', label: 'See the timer run it', desc: 'Timer', validation: { type: 'run-started' } },
   { id: 'qs-tour-analytics', label: 'Review the session', desc: 'Analytics' },
 ]
 
@@ -190,8 +169,6 @@ function renderHomeTour() {
 
 beforeEach(() => {
   window.localStorage.clear()
-  store.slice = makeSlice()
-  store.runwayReached = false
 
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -214,8 +191,7 @@ afterEach(() => {
 })
 
 describe('HomeTour stage counter derivation', () => {
-  it('counts only the arrival quest while the hero is still visible', () => {
-    store.runwayReached = false
+  it('counts only the arrival quest while nothing was run or scrolled', () => {
     renderHomeTour()
 
     const progress = readHomeProgress()
@@ -224,18 +200,61 @@ describe('HomeTour stage counter derivation', () => {
     expect(progress['qs-tour-analytics']).toBeUndefined()
   })
 
-  it('advances the counter when the runway enters view and marks the timer stage', () => {
-    store.runwayReached = false
+  it('marks the timer quest when a run actually starts', async () => {
     renderHomeTour()
 
     expect(readHomeProgress()['qs-tour-timer']).toBeUndefined()
 
-    act(() => {
-      setTestRunwayReached(true)
+    // Run from the hero editor — the run-started validation completes
+    // qs-tour-timer; scrolling alone never fakes a run.
+    const runButton = await within(screen.getByTestId('tour-hero')).findByRole('button', { name: 'Run' })
+    await act(async () => {
+      fireEvent.click(runButton)
+      await Promise.resolve()
     })
 
     const progress = readHomeProgress()
     expect(progress['qs-arrive']).toBe(true)
     expect(progress['qs-tour-timer']).toBe(true)
+    expect(progress['qs-tour-analytics']).toBeUndefined()
+  })
+
+  it('marks the analytics quest when the insights section enters the viewport', async () => {
+    type MockEntry = { el: Element; fire: (v: boolean) => void }
+    const observers: MockEntry[] = []
+    class MockIO {
+      cb: IntersectionObserverCallback
+      constructor(cb: IntersectionObserverCallback) {
+        this.cb = cb
+      }
+      observe(el: Element) {
+        const entry = {
+          el,
+          fire: (v: boolean) =>
+            this.cb([{ isIntersecting: v } as unknown as IntersectionObserverEntry], this as unknown as IntersectionObserver),
+        }
+        observers.push(entry)
+        entry.fire(false)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    const scope = globalThis as unknown as { IntersectionObserver?: unknown }
+    scope.IntersectionObserver = MockIO
+    try {
+      renderHomeTour()
+      expect(readHomeProgress()['qs-tour-analytics']).toBeUndefined()
+
+      const insights = observers.find((o) => o.el.id === 'tour-section-insights')
+      expect(insights).toBeTruthy()
+      await act(async () => {
+        insights!.fire(true)
+        await Promise.resolve()
+      })
+
+      expect(readHomeProgress()['qs-tour-analytics']).toBe(true)
+    } finally {
+      delete scope.IntersectionObserver
+    }
   })
 })

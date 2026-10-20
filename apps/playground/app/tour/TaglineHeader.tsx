@@ -1,7 +1,7 @@
 /**
  * TaglineHeader.tsx — static half-viewport header introducing a tagged
- * runway section (index + accented title + blurb). Leaf module: shared by
- * HomeTour, TourFlatStack and the chapter runway without importing the
+ * section (index + accented title + blurb). Leaf module: shared by the
+ * home data sections and the chapter runway without importing the
  * HomeTour barrel (no circular imports).
  */
 export function TaglineHeader({
