@@ -48,7 +48,10 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: ['**/live-app/**/*.e2e.ts'],
 
-  timeout: 45 * 1000,
+  // Must exceed the seed-claim TTL (45s in seedSync.ts): a page reload can
+  // orphan a claim mid-import, and the busy retry converges only after the
+  // TTL — a 45s test timeout would cancel the test before that retry fires.
+  timeout: 90 * 1000,
   fullyParallel: false, // scroll tests are sensitive to ordering; run serially
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
