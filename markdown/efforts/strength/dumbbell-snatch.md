@@ -13,4 +13,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - dumbbell
+registrySource: bundled
 ---

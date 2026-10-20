@@ -14,4 +14,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - air-bike
+registrySource: bundled
 ---

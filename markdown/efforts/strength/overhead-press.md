@@ -13,4 +13,5 @@ baseAttributes:
   intensityTier: moderate
 equipment:
   - barbell
+registrySource: bundled
 ---

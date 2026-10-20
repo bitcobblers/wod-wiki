@@ -9,4 +9,5 @@ baseAttributes:
   met: 10.0
   discipline: swimming
   intensityTier: high
+registrySource: bundled
 ---

@@ -18,6 +18,7 @@ baseAttributes:
   intensityTier: high
 equipment:
   - kettlebell
+registrySource: bundled
 ---
 Kettlebell swings train hip extension and cyclical power production.
 

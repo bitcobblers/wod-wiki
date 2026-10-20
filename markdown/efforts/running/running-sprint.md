@@ -12,4 +12,5 @@ baseAttributes:
   met: 14.5
   discipline: running
   intensityTier: high
+registrySource: bundled
 ---

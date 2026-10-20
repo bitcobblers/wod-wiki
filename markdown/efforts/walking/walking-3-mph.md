@@ -11,4 +11,5 @@ baseAttributes:
   met: 2.8
   discipline: walking
   intensityTier: low
+registrySource: bundled
 ---

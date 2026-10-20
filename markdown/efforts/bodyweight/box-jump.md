@@ -15,4 +15,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - plyo-box
+registrySource: bundled
 ---

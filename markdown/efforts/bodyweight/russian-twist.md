@@ -9,4 +9,5 @@ baseAttributes:
   met: 3.5
   discipline: bodyweight
   intensityTier: low
+registrySource: bundled
 ---

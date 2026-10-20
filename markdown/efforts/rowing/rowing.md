@@ -17,4 +17,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - rower
+registrySource: bundled
 ---

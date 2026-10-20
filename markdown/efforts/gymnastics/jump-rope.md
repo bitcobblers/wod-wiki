@@ -14,4 +14,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - jump-rope
+registrySource: bundled
 ---

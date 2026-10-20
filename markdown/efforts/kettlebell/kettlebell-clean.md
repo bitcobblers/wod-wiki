@@ -15,4 +15,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - kettlebell
+registrySource: bundled
 ---

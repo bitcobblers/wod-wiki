@@ -16,4 +16,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - gymnastic-rings
+registrySource: bundled
 ---

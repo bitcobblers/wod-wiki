@@ -12,4 +12,5 @@ baseAttributes:
   intensityTier: moderate
 equipment:
   - medicine-ball
+registrySource: bundled
 ---

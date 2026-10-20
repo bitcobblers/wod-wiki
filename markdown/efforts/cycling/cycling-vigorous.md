@@ -12,4 +12,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - bike-erg
+registrySource: bundled
 ---

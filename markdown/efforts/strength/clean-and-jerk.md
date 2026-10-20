@@ -13,4 +13,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - barbell
+registrySource: bundled
 ---

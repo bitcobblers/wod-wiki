@@ -15,4 +15,5 @@ baseAttributes:
   intensityTier: moderate
 equipment:
   - kettlebell
+registrySource: bundled
 ---

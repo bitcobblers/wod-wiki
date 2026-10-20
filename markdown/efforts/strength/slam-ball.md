@@ -12,4 +12,5 @@ baseAttributes:
   intensityTier: high
 equipment:
   - slam-ball
+registrySource: bundled
 ---

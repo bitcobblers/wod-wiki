@@ -10,4 +10,5 @@ baseAttributes:
   met: 5.0
   discipline: strength
   intensityTier: moderate
+registrySource: bundled
 ---

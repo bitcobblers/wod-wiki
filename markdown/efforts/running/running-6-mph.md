@@ -15,4 +15,5 @@ baseAttributes:
   met: 9.8
   discipline: running
   intensityTier: moderate
+registrySource: bundled
 ---

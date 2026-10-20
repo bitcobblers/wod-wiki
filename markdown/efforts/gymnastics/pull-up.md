@@ -20,4 +20,5 @@ baseAttributes:
   intensityTier: moderate
 equipment:
   - pull-up-bar
+registrySource: bundled
 ---

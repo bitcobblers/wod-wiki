@@ -15,4 +15,5 @@ baseAttributes:
   intensityTier: moderate
 equipment:
   - parallettes
+registrySource: bundled
 ---

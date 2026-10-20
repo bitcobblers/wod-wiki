@@ -14,4 +14,5 @@ baseAttributes:
 equipment:
   - barbell
   - bench
+registrySource: bundled
 ---

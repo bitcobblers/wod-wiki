@@ -11,4 +11,5 @@ baseAttributes:
   met: 2.3
   discipline: recovery
   intensityTier: low
+registrySource: bundled
 ---

@@ -14,4 +14,5 @@ baseAttributes:
   met: 6.0
   discipline: gymnastics
   intensityTier: high
+registrySource: bundled
 ---

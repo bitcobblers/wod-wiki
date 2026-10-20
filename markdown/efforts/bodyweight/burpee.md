@@ -10,6 +10,7 @@ baseAttributes:
   met: 10.0
   discipline: bodyweight
   intensityTier: high
+registrySource: bundled
 ---
 Burpees are a full-body conditioning effort that combine a squat, plank, and jump.
 

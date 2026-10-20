@@ -21,4 +21,5 @@ baseAttributes:
   met: 4.0
   discipline: bodyweight
   intensityTier: moderate
+registrySource: bundled
 ---
