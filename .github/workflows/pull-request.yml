@@ -72,6 +72,13 @@ jobs:
           echo "Preview version: $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+  # Static analysis — independent leg, runs in parallel with the whole DAG.
+  # Self-disables when QODANA_TOKEN is unset (repo currently has no such secret).
+  qodana:
+    if: github.event.action != 'closed'
+    uses: ./.github/workflows/_code_quality.yml
+    secrets: inherit
+
   verify:
     if: github.event.action != 'closed'
     needs: [slug]
