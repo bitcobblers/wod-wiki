@@ -95,7 +95,7 @@ export function markSeedSyncSettled(outcome: SeedSyncOutcome): void {
       }
       busyRetryTimer = setTimeout(() => {
         void runBootSeedSync().then(markSeedSyncSettled);
-      }, SEED_CLAIM_TTL_MS);
+      }, 1_000);
       break;
     }
     case 'error':

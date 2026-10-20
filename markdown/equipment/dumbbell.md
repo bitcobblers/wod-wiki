@@ -8,4 +8,4 @@ aliases:
   - dumbbells
 registrySource: bundled
 ---
-A short handheld bar with a fixed or adjustable weight on each end, used unilaterally or in pairs. Dumbbells allow independent arm and leg loading, longer ranges of motion, and simple weight scaling by picking a heavier pair.
+A handheld free weight. Keep setup guidance, photos, links, and handling notes in the Markdown body.
