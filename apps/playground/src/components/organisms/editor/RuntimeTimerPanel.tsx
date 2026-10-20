@@ -41,8 +41,6 @@ import { buildSessions, countSegmentOutputs, createRuntimeForBlock, prepareRunti
 import { sourceIdsToContentLines } from "@/components/organisms/editor/gutterHighlights";
 import { useCollectionMetrics, resolveChoiceSelection } from "@/hooks/useCollectionMetrics";
 import { CollectionWizard } from "@/components/organisms/review/CollectionWizard";
-// PROTOTYPE — throwaway import; delete with proto-timer/
-import { ProtoTimerMobile, getProtoTimerVariant } from "./proto-timer/ProtoTimerMobile";
 
 import type { ChoiceCollectionItem } from "@/hooks/useCollectionMetrics";
 
@@ -108,21 +106,6 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   handleNext,
 }) => {
   const { isCompact: isMobile } = usePanelSize();
-
-  // PROTOTYPE hook-in — throwaway. When ?proto-timer=A|B|C is in the URL,
-  // replace the whole body with the mobile-layout prototype variants.
-  // See proto-timer/ProtoTimerMobile.tsx. Delete after a variant wins.
-  if (getProtoTimerVariant()) {
-    return (
-      <ProtoTimerMobile
-        isPaused={execution.status === 'paused'}
-        onStart={handleStart}
-        onPause={execution.pause}
-        onStop={handleStop}
-        onNext={handleNext}
-      />
-    );
-  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">

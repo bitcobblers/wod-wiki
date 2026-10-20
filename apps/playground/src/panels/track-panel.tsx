@@ -10,6 +10,8 @@ import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
 import { cn } from '@/lib/utils';
 import { WorkoutPreviewPanel } from '@/components/organisms/workbench/WorkoutPreviewPanel';
 import { TrackViewShell } from '@/components/organisms/workout/TrackViewShell';
+import { MinimalTimerSurface } from '@/components/organisms/workout/MinimalTimerSurface';
+import { useTimerSurfaceModel } from '@/components/organisms/workout/useTimerSurfaceModel';
 import type { SectionType } from '@/components/Editor/types/section';
 import type { ScriptBlock } from '@/components/Editor/types';
 import { useUserOverrides } from '@/components/organisms/review/useUserOverrides';
@@ -62,6 +64,32 @@ export const SessionHistory: React.FC<Pick<TrackPanelProps, 'runtime' | 'activeS
       autoScroll={execution.status === 'running'}
       workoutStartTime={execution.startTime}
       className="h-full"
+    />
+  );
+};
+
+/**
+ * MinimalTimerScreen — Tier 1 (Minimal) mobile fullscreen timer, wired to the
+ * runtime. Must live inside ScriptRuntimeProvider. Per the timer-surfaces
+ * design (Kimi_Agent_WOD Timer UI Prototypes/app/index.html), the clock owns
+ * the screen on mobile and the visual/audit panel (Detail-tier chrome) does
+ * not render on this surface.
+ */
+const MinimalTimerScreen: React.FC<{
+  onStart: () => void;
+  onPause: () => void;
+  onStop: () => void;
+  onNext: () => void;
+  isPaused: boolean;
+}> = ({ onStart, onPause, onStop, onNext, isPaused }) => {
+  const model = useTimerSurfaceModel({ onStart, onPause, onStop, onNext, isPaused });
+  return (
+    <MinimalTimerSurface
+      model={model}
+      onStart={onStart}
+      onPause={onPause}
+      onStop={onStop}
+      onNext={onNext}
     />
   );
 };
@@ -153,6 +181,15 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
 
   const screenContent = runtime ? (
     <ScriptRuntimeProvider runtime={runtime}>
+      {isCompact ? (
+        <MinimalTimerScreen
+          onStart={onStart}
+          onPause={onPause}
+          onStop={onStop}
+          onNext={onNext}
+          isPaused={execution.status === 'paused'}
+        />
+      ) : (
       <TrackViewShell
         isCompact={isCompact}
         leftPanelId="tutorial-track-visual"
@@ -166,6 +203,7 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
           </div>
         )}
       />
+      )}
     </ScriptRuntimeProvider>
   ) : (
     // No runtime — show layout for selection or error

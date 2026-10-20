@@ -43,3 +43,13 @@ test('WQL Composer story renders clauses', async ({ page }) => {
   await page.goto(storyUrl('gallery-wql-composer--default'), { waitUntil: 'networkidle' });
   await expect(page.locator('[data-testid="wql-composer"], .wql-composer').first()).toBeVisible({ timeout: 15_000 });
 });
+
+test('Timer Surfaces stories render the Minimal and General tiers', async ({ page }) => {
+  await page.goto(storyUrl('gallery-timer-surfaces--minimal-rest'), { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('timer-status-strip')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('timer')).toBeVisible();
+
+  await page.goto(storyUrl('gallery-timer-surfaces--general-tv'), { waitUntil: 'networkidle' });
+  await expect(page.getByText('Helen')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('timer-up-next-caption')).toBeVisible();
+});

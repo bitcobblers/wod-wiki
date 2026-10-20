@@ -73,7 +73,7 @@ export function getPrimaryTimerFontSizePx(panelWidth: number, compact: boolean, 
  * and applies a transform scale — transforms don't affect flow, so the
  * band's geometry (and everything anchored around it) stays constant.
  */
-const FitArea: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const FitArea: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const outerRef = useRef<HTMLDivElement>(null);
     const innerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
