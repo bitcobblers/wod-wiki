@@ -13,6 +13,7 @@ import React from 'react';
 import { TimerControls, TimerHero, useTimerSwipeGestures } from './TimerCore';
 import { TimerStatusStrip } from './TimerStatusStrip';
 import type { TimerSurfaceModel } from './useTimerSurfaceModel';
+import { TEST_IDS } from '@/testing/contracts/TestIdContract';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 
 export interface TimerSurfaceProps {
@@ -25,6 +26,8 @@ export interface TimerSurfaceProps {
   getFocusProps?: (id: string) => FocusProps;
   /** Whether swipe gestures are enabled (track view only) */
   enableGestures?: boolean;
+  /** Optional live-metric prompt row rendered under the status strip */
+  promptRow?: React.ReactNode;
 }
 
 export const MinimalTimerSurface: React.FC<TimerSurfaceProps> = ({
@@ -35,6 +38,7 @@ export const MinimalTimerSurface: React.FC<TimerSurfaceProps> = ({
   onNext,
   getFocusProps,
   enableGestures = true,
+  promptRow,
 }) => {
   const swipe = useTimerSwipeGestures(onNext, onStop, enableGestures, model.isNextDisabled);
 
@@ -44,12 +48,15 @@ export const MinimalTimerSurface: React.FC<TimerSurfaceProps> = ({
       onTouchStart={swipe.onTouchStart}
       onTouchMove={swipe.onTouchMove}
       onTouchEnd={swipe.onTouchEnd}
+      data-testid={TEST_IDS.TIMER_SURFACE_MINIMAL}
     >
       <TimerStatusStrip
         sessionElapsedMs={model.sessionElapsedMs}
         roundCurrent={model.roundCurrent}
         roundTotal={model.roundTotal}
       />
+
+      {promptRow && <div className="shrink-0">{promptRow}</div>}
 
       <div className="flex min-h-0 flex-1 flex-col px-5 pb-3 text-center">
         <TimerHero

@@ -36,6 +36,13 @@ export const TEST_IDS = {
   TIMER_PLAY_PAUSE: 'timer-play-pause',
   /** Up-next caption welded to the Next button (Minimal/General surfaces) */
   TIMER_UP_NEXT_CAPTION: 'timer-up-next-caption',
+  /** TimerSurface tier roots — which tier the picker chose */
+  TIMER_SURFACE_MINIMAL: 'timer-surface-minimal',
+  TIMER_SURFACE_GENERAL: 'timer-surface-general',
+  /** Strip compression of the General surface (short hosts) */
+  TIMER_SURFACE_GENERAL_STRIP: 'timer-surface-general-strip',
+  /** Live metric prompt row (session-total bubbles) on Minimal/General */
+  TIMER_METRIC_PROMPTS: 'timer-metric-prompts',
   FOCUSED_DIALOG_CLOSE: 'focused-dialog-close',
 
   // ── Review panel ───────────────────────────────────────────────────────────

@@ -31,6 +31,7 @@ const STORIES = [
   // Timer surfaces — Minimal tier is the 375px-first surface; the phone
   // frame wrapper clamps to the viewport so it holds zero overflow.
   'gallery-timer-surfaces--minimal-rest',
+  'gallery-timer-surfaces--minimal-prompts',
 ];
 
 for (const storyId of STORIES) {
