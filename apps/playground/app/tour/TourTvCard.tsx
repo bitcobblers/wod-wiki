@@ -1,10 +1,11 @@
 /**
  * TourTvCard.tsx — the mini-TV that parallaxes up during the timer stage's
  * cast beat. The screen shows the REAL Chromecast receiver composition
- * (ReceiverStackPanel + ReceiverTimerPanel, as mounted by receiver-rpc.tsx),
- * fed by the tour's live runtime and rendered at a fixed 960×540 "TV
- * resolution" scaled down with CSS — so it is exactly what would show up on
- * the cast, not a mock. The bezel/stand stays dark in both themes.
+ * (ReceiverTimerPanel's General surface, as mounted by receiver-rpc.tsx's
+ * active mode), fed by the tour's live runtime and rendered at a fixed
+ * 960×540 "TV resolution" scaled down with CSS — so it is exactly what
+ * would show up on the cast, not a mock. The bezel/stand stays dark in
+ * both themes.
  *
  * Visibility/parallax are driven imperatively by the parent via `innerRef`
  * (transform/opacity only).
@@ -13,9 +14,7 @@
 import { forwardRef } from 'react'
 import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine'
 import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext'
-import { ReceiverStackPanel } from '@/panels/track-panel-chromecast'
 import { ReceiverTimerPanel } from '@/panels/wallclock-panel-chromecast'
-import { TimerDisplay, type TimerDisplayProps } from '@/panels/wallclock-panel'
 import type { IRuntimeEventProvider } from '@bitcobblers/wod-wiki-engine'
 import type { IScriptRuntime } from '@bitcobblers/wod-wiki-engine'
 
@@ -32,14 +31,9 @@ const SCREEN_SCALE = SCREEN_WIDTH / RECEIVER_WIDTH
 
 /**
  * The TV is a display mirror: its controls are unreachable
- * (pointer-events-none) and its TimerDisplay must NOT answer the global
- * Enter/VolumeUp → Next key handler, or the session would double-advance
- * (the real panel already handles those keys).
+ * (pointer-events-none) and the General surface has no global key handlers,
+ * so the session cannot double-advance from stray Enter/VolumeUp presses.
  */
-const DisplayOnlyTimer: React.FC<TimerDisplayProps> = (props) => (
-  <TimerDisplay {...props} disableNext />
-)
-
 const noopEventProvider: IRuntimeEventProvider = {
   dispatch: () => {},
   onEvent: () => () => {},
@@ -85,16 +79,8 @@ export const TourTvCard = forwardRef<HTMLDivElement, TourTvCardProps>(
                 <ScriptRuntimeProvider runtime={runtime}>
                   <PanelSizeProvider>
                     {/* Same layout as ReceiverApp's active mode */}
-                    <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
-                      <div className="min-w-0 flex-1 border-r border-border bg-secondary/10">
-                        <ReceiverStackPanel />
-                      </div>
-                      <div className="flex w-1/2 flex-col bg-background">
-                        <ReceiverTimerPanel
-                          eventProvider={noopEventProvider}
-                          TimerDisplayComponent={DisplayOnlyTimer}
-                        />
-                      </div>
+                    <div className="h-full w-full overflow-hidden bg-background text-foreground">
+                      <ReceiverTimerPanel eventProvider={noopEventProvider} />
                     </div>
                   </PanelSizeProvider>
                 </ScriptRuntimeProvider>
