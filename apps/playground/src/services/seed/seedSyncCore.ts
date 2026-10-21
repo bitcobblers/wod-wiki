@@ -14,7 +14,7 @@ import { assertManifest, type ISeedSource } from './ISeedSource';
 import { SeedImporter, type SeedImportProgress } from './SeedImporter';
 import type { SeedImportStorage } from './SeedImportStorage';
 import { decideSeedImport, storedSeedIsCurrent } from './seedVersion';
-import { SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord } from '@/types/seed';
+import { SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord, type SeedPrecedenceTier } from '@/types/seed';
 
 /** Worst-case sync outcomes, aggregated by the driver (worst-first). */
 export type SeedSyncOutcome = 'disabled' | 'current' | 'busy' | 'imported' | 'server-stale' | 'error' | 'update-pending';
@@ -38,6 +38,8 @@ export interface SourceSyncCoreInput {
   embeddedVersion: number;
   /** Persisted auto-sync choice — computed by the driver (localStorage is main-thread-only). */
   autoSyncOn: boolean;
+  /** Precedence tier stamped on the checkpoint (and on the rows it writes). */
+  tier?: SeedPrecedenceTier;
 }
 
 export interface SourceSyncCoreDeps {
@@ -141,7 +143,11 @@ export async function runSourceSyncCore(
     }
 
     // Claim before the (potentially long) chunk imports.
-    const claimed: SeedMetaRecord = { ...(stored ?? emptySeedMeta(metaKey)), claim: { owner, at: now() } };
+    const claimed: SeedMetaRecord = {
+      ...(stored ?? emptySeedMeta(metaKey)),
+      ...(input.tier ? { tier: input.tier } : {}),
+      claim: { owner, at: now() },
+    };
     await storage.putSeedMeta(claimed, stored ?? null);
     try {
       // addedNotes/updatedNotes are counted inside applySeedChunk's

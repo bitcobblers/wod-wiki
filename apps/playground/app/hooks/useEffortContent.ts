@@ -53,6 +53,8 @@ export interface UseEffortContentResult {
   notFound: boolean;
   /** Save hooks result for manual flush */
   flush: () => Promise<void>;
+  onLineChange: (line: number, column: number) => void;
+  onBlur: () => void;
   /** Persist the current document (create or update); resolves with the owning note. */
   save: (value?: string) => Promise<{ id: string; sourceRevision: number }>;
   /** Remove this user-owned effort (projection + note + links). */
@@ -70,7 +72,7 @@ export interface UseEffortContentResult {
  * the registry (both tiers from IndexedDB).
  */
 export function useEffortContent(slug: string | undefined): UseEffortContentResult {
-  const { registry, isReady, refresh } = useEffortRegistry();
+  const { registry, isReady, revision, refresh } = useEffortRegistry();
   const [document, setDocumentState] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,8 +81,9 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
   const [isAliasMatch, setIsAliasMatch] = useState(false);
   const isEditable = effort?.registrySource === 'user';
   const committedNote = useRef<{ id: string; revision: number } | null>(null);
+  const loadedSlug = useRef<string | undefined>(undefined);
 
-  // Load effort on mount / slug change
+  // Re-resolve refreshed registries without replacing an active editor draft.
   useEffect(() => {
     if (!isReady) {
       setIsLoading(false);
@@ -88,6 +91,7 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
     }
     if (!slug) {
       // Create mode: blank editable document.
+      loadedSlug.current = undefined;
       setEffort(null);
       setNotFound(false);
       setIsAliasMatch(false);
@@ -97,12 +101,18 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
       return;
     }
 
+    const slugChanged = loadedSlug.current !== slug;
+    loadedSlug.current = slug;
     let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    setNotFound(false);
-    setEffort(null);
-    setDocumentState('');
+
+    if (slugChanged) {
+      committedNote.current = null;
+      setIsLoading(true);
+      setError(null);
+      setNotFound(false);
+      setEffort(null);
+      setDocumentState('');
+    }
 
     async function load() {
       try {
@@ -110,20 +120,31 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
         const direct = registry.resolve(slug!);
         const resolved = direct ?? registry.resolveByAlias(slug!);
         if (!resolved) {
-          // Unknown slug is a not-found (create) state, never a load error.
-          if (!cancelled) {
+          // A refresh must not reset an unresolved route's create draft.
+          if (slugChanged && !cancelled) {
             setNotFound(true);
             setIsLoading(false);
           }
           return;
         }
         const noteId = resolved.ownerNoteId ?? `effort/${resolved.slug}`;
+        // Keep live editor text when only the projection changes.
+        if (!slugChanged && committedNote.current?.id === noteId) {
+          if (!cancelled) {
+            setEffort(resolved);
+            setIsAliasMatch(!direct);
+          }
+          return;
+        }
+        // Preserve a clone being edited under its original route.
+        if (!slugChanged && committedNote.current) return;
         const note = await storageService.getNote(noteId);
         if (cancelled) return;
         setEffort(resolved);
         setIsAliasMatch(!direct);
         committedNote.current = { id: noteId, revision: note?.sourceRevision ?? 0 };
         setDocumentState(note?.rawContent ?? effortToDocument(resolved));
+        setNotFound(false);
         setIsLoading(false);
       } catch (err) {
         if (!cancelled) {
@@ -135,7 +156,7 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
 
     load();
     return () => { cancelled = true; };
-  }, [slug, isReady, registry]);
+  }, [slug, isReady, revision, registry]);
 
   // Atomic save: one commit (note source + projection + derived links);
   // failure keeps the draft intact. Normalization patches the raw source so
@@ -278,6 +299,8 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
     isEditable,
     notFound,
     flush,
+    onLineChange,
+    onBlur,
     save,
     remove,
     cloneForEdit,

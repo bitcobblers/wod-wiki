@@ -12,7 +12,9 @@ import {
   SEED_BROADCAST_CHANNEL,
   SEED_SCHEMA,
   seedMetaKey,
+  type SeedManifest,
   type SeedMetaRecord,
+  type SeedPrecedenceTier,
 } from '@/types/seed';
 import type { SeedImportProgress } from './SeedImporter';
 import { HttpSeedSource } from './HttpSeedSource';
@@ -20,13 +22,13 @@ import type { SeedImportStorage } from './SeedImportStorage';
 import { mainThreadSeedImportStorage } from './seedStorageDefault';
 import { assertManifest, type ISeedSource } from './ISeedSource';
 import { EMBEDDED_SEED_VERSIONS } from './seedVersion';
-import { customSeedSources, CORE_SEED_URL, COMMUNITY_SEED_URL, COMMUNITY_REPOSITORY_URL, FeedSeedSource, listSyncPackages, hideSeedSourceRow, hiddenSeedSourceIds, removeCustomSeedSource, safeRepositoryUrl } from './seedSources';
+import { customSeedSources, CORE_SEED_URL, SEED_SOURCES, notebooksOfSeed, hideSeedSourceRow, hiddenSeedSourceIds, removeCustomSeedSource, safeRepositoryUrl } from './seedSources';
 import { isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } from './seedSubscriptions';
 import { beginSyncActivity, reportSyncResult, reportSyncError } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
 import { hydrateAppEquipmentRegistry, getAppEquipmentRegistry } from '@/services/equipmentRegistry';
-import { profileService, storageBackend, storageService } from '@/services/storage';
+import { profileService, storageBackend } from '@/services/storage';
 import { getActiveLocalDbName } from '@/services/storage/dataSettings';
 import {
   runSourceSyncCore,
@@ -68,9 +70,9 @@ export type SeedSyncProgress = {
   | { phase: 'finished'; outcome: SeedSyncOutcome; error: string | null }
 );
 
-/** One registered seed library: transport, identity, and build-stamped version. */
+/** One registered seed: transport, identity, and build-stamped version. */
 export interface SeedSourceSpec {
-  /** Seed-source identity — namespaces the checkpoint (`seed:<id>`) and broadcasts. */
+  /** Seed identity — namespaces the checkpoint (`seed:<id>`) and broadcasts. */
   id: string;
   label: string;
   source: ISeedSource;
@@ -80,19 +82,23 @@ export interface SeedSourceSpec {
   repositoryUrl?: string;
   /** `__SEED_VERSIONS__[id]` — this bundle's own build of the source's manifest. */
   embeddedVersion: number;
-  /** Boot auto-import gate (default true). Non-auto sources (community/catalog
-   *  libraries) never import on launch — default installs get playground
-   *  content only; Re-sync Now still re-applies them. */
+  /** Boot auto-import gate (default true). Non-auto seeds (user libraries,
+  *  theme repos) never import on launch — default installs get playground
+  *  content only; Subscribe imports them. */
   autoImport?: boolean;
+  /** Checkpoint precedence tier — built-in corpus rows rank under user libraries. */
+  tier?: SeedPrecedenceTier;
+  /** One-line seed description (status cards). */
+  description?: string;
 }
 
 /**
- * The default seed sources, in import order. The core seed carries the
- * playground's own canvas pages + template (this repo's markdown/, first
- * paint, bundled at build time by scripts/sync-seed.ts). The community seed
- * is published by the wod-wiki-community content repo to its own GitHub
- * Pages and syncs over HTTP — it is NOT bundled with the app. Third-party
- * libraries register here the same way.
+ * The default seed sources, in import order. The bundled core seed carries
+ * the playground's own canvas pages + template (this repo's markdown/, first
+ * paint, built at build time by scripts/sync-seed.ts). Every other seed is
+ * one split content repo publishing to its own GitHub Pages and syncing as
+ * an independent source — subscribing imports every notebook it publishes.
+ * User-registered libraries (a seed dir on any host) register the same way.
  */
 export function defaultSeedSources(): SeedSourceSpec[] {
   const hidden = new Set(hiddenSeedSourceIds());
@@ -104,33 +110,18 @@ export function defaultSeedSources(): SeedSourceSpec[] {
       url: CORE_SEED_URL,
       embeddedVersion: EMBEDDED_SEED_VERSIONS['core'] ?? 0,
     },
-    {
-      id: 'community',
-      label: 'Community',
-      // Published by wod-wiki-community's main pipeline to its repo Pages;
-      // embeddedVersion stays 0 (never bundled) so every sync consults the
-      // remote manifest — GitHub Pages sends no build-stamp compatibility.
-      // VITE_COMMUNITY_SEED_URL overrides the host for local/staging e2e.
-      source: new HttpSeedSource(COMMUNITY_SEED_URL),
-      url: COMMUNITY_SEED_URL,
-      repositoryUrl: COMMUNITY_REPOSITORY_URL,
+    ...SEED_SOURCES.map((seed): SeedSourceSpec => ({
+      id: seed.id,
+      label: seed.label,
+      source: new HttpSeedSource(seed.url),
+      url: seed.url,
+      ...(seed.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),
+      // Never bundled: embeddedVersion 0 keeps every sync off the skip-fetch
+      // fast path — GitHub Pages sends no build-stamp compatibility.
       embeddedVersion: 0,
-      autoImport: false,
-    },
-    // Built-in package sources: each is a filtered view of its notebook's
-    // own repo (pkg.seedUrl) syncing only its own chunk — a package sync
-    // never downloads a whole library, and repos sync independently.
-    // Built-ins only: listSyncPackages mirrors custom sources as package
-    // views too, and those get their own specs below — emitting both would
-    // duplicate every custom-source row.
-    ...listSyncPackages().filter((pkg) => pkg.category !== 'custom').map((pkg): SeedSourceSpec => ({
-      id: pkg.id,
-      label: pkg.label,
-      source: new FeedSeedSource(new HttpSeedSource(pkg.seedUrl), pkg.chunkId),
-      url: pkg.seedUrl,
-      repositoryUrl: pkg.repositoryUrl,
-      embeddedVersion: 0,
-      autoImport: pkg.autoImport ?? false,
+      autoImport: seed.autoImport ?? false,
+      tier: seed.tier,
+      ...(seed.description ? { description: seed.description } : {}),
     })),
     // User-registered libraries (/settings/sync). Never auto-import; their
     // manifests are not build-stamped, so embeddedVersion 0 keeps them
@@ -352,7 +343,7 @@ async function runSeedSyncViaWorker(
         id: s.id,
         label: s.label,
         url: s.url,
-        ...(s.source instanceof FeedSeedSource ? { chunkId: s.source.chunkId } : {}),
+        ...(s.tier ? { tier: s.tier } : {}),
         embeddedVersion: s.embeddedVersion,
         autoSyncOn: isSeedAutoSync(s.id),
       })),
@@ -533,6 +524,7 @@ async function runSourceSync(
         source: spec.source,
         embeddedVersion: spec.embeddedVersion,
         autoSyncOn: isSeedAutoSync(spec.id),
+        ...(spec.tier ? { tier: spec.tier } : {}),
       },
       { storage, owner, now, force: deps.force, probeManifests: deps.probeManifests, background: deps.mode === 'background' },
       {
@@ -567,6 +559,20 @@ export interface SeedVersionInfo {
   builtAt: string;
 }
 
+/** One notebook inside a seed's published manifest — the rows a Subscribe
+ *  brings for it, and whether this device already holds them. */
+export interface SeedNotebookStatus {
+  /** Registry notebook id (the chunk id for a seed we have no registry entry for). */
+  id: string;
+  label: string;
+  chunkId: string;
+  /** Published rows / bytes (0 when the manifest is unreachable). */
+  count: number;
+  bytes: number;
+  /** The stored checkpoint covers this chunk. */
+  imported: boolean;
+}
+
 export interface SeedSourceStatus {
   id: string;
   label: string;
@@ -574,8 +580,12 @@ export interface SeedSourceStatus {
   url: string;
   /** Published Git repository link — absent when the source publishes none. */
   repositoryUrl?: string;
-  /** False for community/catalog sources — they never import at boot. */
+  /** One-line registry description of what the seed delivers. */
+  description?: string;
+  /** False for theme/custom seeds — they never import at boot. */
   autoImport: boolean;
+  /** Every notebook this seed publishes, in manifest order. */
+  notebooks: SeedNotebookStatus[];
   /** The import checkpoint in Storage — null before the first import. */
   stored: (SeedVersionInfo & { importedAt: number }) | null;
   /** The published manifest — null when unreachable (offline). */
@@ -677,33 +687,6 @@ export async function deleteSeedSource(id: string, deps: Pick<SeedSyncDeps, 'sto
   return result;
 }
 
-/**
- * Home-tour removal (TourJumpSection/OfferingTiers): exact-ownership
- * unsubscribe for a package — same semantics as unsubscribeSeedSource.
- */
-export async function removePackageFromLibrary(packageId: string): Promise<{ deleted: number }> {
-  return unsubscribeSeedSource(packageId);
-}
-
-/**
- * Check whether a package is present in the library (subscribed or has
- * imported rows), by exact checkpoint/chunk provenance only.
- */
-export async function isPackageInLibrary(packageId: string): Promise<boolean> {
-  if (isSeedSubscribed(packageId)) return true;
-  const pkg = listSyncPackages().find((p) => p.id === packageId);
-  const chunkId = pkg?.chunkId ?? packageId;
-  // A package sync writes its own checkpoint; before that, membership
-  // lives in the community library checkpoint the package syncs from.
-  const storage = mainThreadSeedImportStorage();
-  for (const key of [seedMetaKey(packageId), seedMetaKey('community')]) {
-    const meta = await storage.getSeedMeta(key);
-    if (meta?.chunks[chunkId]) return true;
-  }
-  const allNotes = await storageService.getAllNotes();
-  return allNotes.some((note) => note.seedOrigin === 'seed' && note.seedChunkId === chunkId);
-}
-
 export interface SeedCoverage {
   /** At least one boot-auto source (the bundled core) has a checkpoint. */
   coreImported: boolean;
@@ -740,43 +723,32 @@ export async function readSeedCoverage(deps: Pick<SeedSyncDeps, 'sources' | 'sto
  */
 export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatus> {
   const storage = deps.storage ?? mainThreadSeedImportStorage();
-  // Per-feed packages share the community library checkpoint: no per-package
-  // meta record exists, so coverage comes from the package's chunk membership.
-  const communityMeta = await storage.getSeedMeta(seedMetaKey('community'));
-  const syncPackages = listSyncPackages();
   const sources = await Promise.all(
     (deps.sources ?? defaultSeedSources()).map(async (spec) => {
-      const metaKey = seedMetaKey(spec.id);
-      let stored = await storage.getSeedMeta(metaKey);
-      if (!stored && communityMeta) {
-        const pkg = syncPackages.find(p => p.id === spec.id);
-        if (pkg && communityMeta.chunks[pkg.chunkId]) {
-          stored = communityMeta;
-        }
-      }
+      const stored = await storage.getSeedMeta(seedMetaKey(spec.id));
       let remote: SeedSourceStatus['remote'] = null;
       let remoteError: string | null = null;
-      let count = 0;
-      let bytes = 0;
+      let manifest: SeedManifest | null = null;
       let repositoryUrl = spec.repositoryUrl;
       try {
-        const manifest = assertManifest(await spec.source.fetchManifest());
+        manifest = assertManifest(await spec.source.fetchManifest());
         remote = { version: manifest.version, schema: manifest.schema, builtAt: manifest.builtAt };
-        count = manifest.chunks.reduce((n, c) => n + c.count, 0);
-        bytes = manifest.chunks.reduce((n, c) => n + c.bytes, 0);
-        // A source may publish its repository link only in the manifest —
+        // A seed may publish its repository link only in the manifest —
         // the registry entry is not required to carry it.
         repositoryUrl ??= safeRepositoryUrl(manifest.repositoryUrl ?? '') ?? undefined;
         markSeedChecked(spec.id, (deps.now ?? Date.now)());
       } catch (err) {
         remoteError = err instanceof Error ? err.message : String(err);
       }
+      const notebooks = seedNotebookStatuses(spec.id, manifest, stored);
       return {
         id: spec.id,
         label: spec.label,
         url: spec.url,
         ...(repositoryUrl ? { repositoryUrl } : {}),
+        ...(spec.description ? { description: spec.description } : {}),
         autoImport: spec.autoImport !== false,
+        notebooks,
         stored: stored
           ? { version: stored.seedVersion, schema: stored.schema, builtAt: stored.builtAt, importedAt: stored.importedAt }
           : null,
@@ -784,8 +756,8 @@ export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatu
         remoteError,
         upToDate:
           stored != null && remote != null && stored.schema === SEED_SCHEMA && stored.seedVersion === remote.version,
-        count,
-        bytes,
+        count: notebooks.reduce((n, notebook) => n + notebook.count, 0),
+        bytes: notebooks.reduce((n, notebook) => n + notebook.bytes, 0),
         checkedAt: seedCheckedAt(spec.id),
         subscribed: isSeedSubscribed(spec.id),
         autoSync: isSeedAutoSync(spec.id),
@@ -793,4 +765,84 @@ export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatu
     }),
   );
   return { sources };
+}
+
+/** A seed's notebooks from its published manifest (registry labels where we
+ *  know the chunk), falling back to the registry when it is unreachable. */
+function seedNotebookStatuses(
+  seedId: string,
+  manifest: SeedManifest | null,
+  stored: SeedMetaRecord | undefined,
+): SeedNotebookStatus[] {
+  const byChunkId: Record<string, { id: string; label: string }> = {};
+  for (const notebook of notebooksOfSeed(seedId)) byChunkId[notebook.chunkId] = notebook;
+  const published = (manifest?.chunks ?? []).map((chunk): SeedNotebookStatus => ({
+    id: byChunkId[chunk.id]?.id ?? chunk.id,
+    label: byChunkId[chunk.id]?.label ?? chunk.id,
+    chunkId: chunk.id,
+    count: chunk.count,
+    bytes: chunk.bytes,
+    imported: Boolean(stored?.chunks[chunk.id]),
+  }));
+  if (published.length > 0) return published;
+  return notebooksOfSeed(seedId).map((notebook): SeedNotebookStatus => ({
+    id: notebook.id,
+    label: notebook.label,
+    chunkId: notebook.chunkId,
+    count: 0,
+    bytes: 0,
+    imported: Boolean(stored?.chunks[notebook.chunkId]),
+  }));
+}
+
+/**
+ * One-time checkpoint adoption (pre-seed-unit builds): those builds synced
+ * one notebook at a time, so the rows and their exact ownership live in
+ * per-notebook checkpoints (`seed:community-<slug>`). Each seed's notebook
+ * records fold into the seed's own checkpoint — union of chunks and note ids,
+ * highest published version — so a returning reader keeps the imported
+ * content, the ownership that lets Unsubscribe remove exactly it, and the
+ * "already imported" state, without re-downloading a chunk. Blanks the folded
+ * records so ownership never lives in two places; runs before the
+ * subscription migration, which probes the seed checkpoint.
+ */
+export async function adoptLegacySeedCheckpoints(deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<number> {
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
+  let adopted = 0;
+  for (const seed of SEED_SOURCES) {
+    const metaKey = seedMetaKey(seed.id);
+    try {
+      const existing = await storage.getSeedMeta(metaKey);
+      if (existing && existing.seedVersion > 0) continue;
+      const legacy: SeedMetaRecord[] = [];
+      for (const notebook of notebooksOfSeed(seed.id)) {
+        if (notebook.id === seed.id) continue;
+        const meta = await storage.getSeedMeta(seedMetaKey(notebook.id));
+        if (meta && meta.seedVersion > 0) legacy.push(meta);
+      }
+      if (legacy.length === 0) continue;
+      const newest = legacy.reduce((a, b) => (b.seedVersion > a.seedVersion ? b : a));
+      // The tier belongs to the seed, not to one folded notebook — take it
+      // from whichever record carries it.
+      const tier = legacy.find((meta) => meta.tier)?.tier;
+      const merged: SeedMetaRecord = {
+        key: metaKey,
+        schema: newest.schema,
+        seedVersion: newest.seedVersion,
+        builtAt: newest.builtAt,
+        importedAt: Math.max(...legacy.map((meta) => meta.importedAt)),
+        chunks: Object.assign({}, ...legacy.map((meta) => meta.chunks)),
+        ...(tier ? { tier } : {}),
+        claim: null,
+      };
+      await storage.putSeedMeta(merged, existing ?? null);
+      for (const meta of legacy) {
+        await storage.putSeedMeta({ ...meta, seedVersion: 0, chunks: {}, claim: null }, meta);
+      }
+      adopted += 1;
+    } catch (err) {
+      console.warn(`[seedSync] legacy checkpoint adoption failed for ${seed.id}`, err);
+    }
+  }
+  return adopted;
 }

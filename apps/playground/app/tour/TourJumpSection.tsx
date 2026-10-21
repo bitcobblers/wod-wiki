@@ -1,17 +1,21 @@
 /**
  * TourJumpSection.tsx — "Library & Community Feeds": direct exits + the
- * community notebook gallery.
+ * seed gallery.
  *
- * Browse-first, registry-driven cards: every sync package renders with its
- * cover (declared `image:` or a deterministic monogram), curated one-line
- * description, category chips, and live stats once its chunk is imported —
- * review before install, one-click Import, deep-link once installed. One
- * primary action per card; re-sync and removal live in Settings → Sync.
+ * The unit is the SEED: one published Markdown repository (its own Pages
+ * build, its own manifest and version). A seed publishes one or more
+ * NOTEBOOKS (chunks) and one Subscribe imports all of them — so each group
+ * renders its seed's header (what it delivers, where it publishes) over its
+ * notebook cards. Cards carry the identity (declared `image:` or a
+ * deterministic monogram), curated one-line description, category chips and
+ * live stats once imported; installed notebooks deep-link to their detail
+ * surface.
  *
  * Controls: text search (label + description), kind facets (Feeds /
- * Collections), and three sort orders (Updated / Name / Size) — they scale
- * without clutter as the registry grows. The Library exit stays disabled
- * until at least one feed has been synchronized.
+ * Collections), and three sort orders (Updated / Name / Size) — they filter
+ * notebooks, and a seed with nothing left drops out. The Library exit stays
+ * disabled until at least one seed has been synced; re-sync and removal live
+ * in Settings → Sync.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -27,18 +31,18 @@ import { telemetry, HOME_EVENTS } from '@/services/telemetry'
 import { journalNotes } from '../services/journalNotes'
 import { noteByIdPath } from '../lib/routes'
 import { getTodayDateKey } from '../services/dateUtils'
-import { listSyncPackages } from '@/services/seed/seedSources'
+import { listNotebooks, listSeedSources } from '@/services/seed/seedSources'
 import { setSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
 import { syncSeedSource, readSeedCoverage } from '@/services/seed/seedSync'
 import { useSeedContent } from '@/services/content/seedContent'
 import { cn } from '@/lib/utils'
 import { TaglineHeader } from './TaglineHeader'
-import { NotebookCard } from '../views/notebook-gallery/NotebookCard'
+import { SeedCard } from '../views/notebook-gallery/SeedCard'
 import { MarqueeRow } from '../views/notebook-gallery/MarqueeRow'
 import {
-  buildNotebookCatalog,
-  filterNotebooks,
-  sortNotebooks,
+  buildSeedCatalog,
+  filterSeeds,
+  sortSeeds,
 } from '../views/notebook-gallery/notebookGalleryModel'
 import type { NotebookKind, NotebookSort } from '../views/notebook-gallery/notebookGalleryModel'
 import { useMediaQuery } from '../hooks/useMediaQuery'
@@ -87,12 +91,12 @@ function BoxFace(props: {
   )
 }
 
-function feedProgressLabel(event: { phase: string; chunkId?: string }): string {
+function seedProgressLabel(event: { phase: string; chunkId?: string }): string {
   switch (event.phase) {
-    case 'checking': return 'Checking source…'
-    case 'fetching': return `Downloading ${event.chunkId ?? 'package'}…`
-    case 'applying': return `Importing ${event.chunkId ?? 'package'}…`
-    case 'committed': return `Committed ${event.chunkId ?? 'package'}`
+    case 'checking': return 'Checking the seed…'
+    case 'fetching': return `Downloading ${event.chunkId ?? 'notebook'}…`
+    case 'applying': return `Importing ${event.chunkId ?? 'notebook'}…`
+    case 'committed': return `Committed ${event.chunkId ?? 'notebook'}`
     case 'finalizing': return 'Finalizing checkpoints…'
     case 'finished': return 'Done'
     default: return 'Working…'
@@ -104,17 +108,16 @@ export function TourJumpSection() {
   const [search, setSearch] = useState('')
   const [kind, setKind] = useState<NotebookKind | undefined>()
   const [sort, setSort] = useState<NotebookSort>('updated')
-  const [anyBusy, setAnyBusy] = useState(false)
-  const [importingId, setImportingId] = useState<string | null>(null)
+  const [importingSeedId, setImportingSeedId] = useState<string | null>(null)
   const [statuses, setStatuses] = useState<Record<string, { text: string; tone: 'muted' | 'error' }>>({})
 
+  const anyBusy = importingSeedId !== null
   const files = useSeedContent()
   const isDesktop = useMediaQuery('(min-width: 1024px)')
-  // ponytail: packages derive from Common categories and custom seed sources; upgrade to dynamic remote manifest discovery when endpoints publish index catalogs.
-  const packages = useMemo(() => listSyncPackages(), [])
-  const catalog = useMemo(() => buildNotebookCatalog(packages, files), [packages, files])
+  // ponytail: seeds and their notebooks come from the registry; upgrade to dynamic remote manifest discovery when an index catalog is published.
+  const catalog = useMemo(() => buildSeedCatalog(listNotebooks(), files, listSeedSources()), [files])
   const visible = useMemo(
-    () => sortNotebooks(filterNotebooks(catalog, { text: search, kind }), sort),
+    () => sortSeeds(filterSeeds(catalog, { text: search, kind }), sort),
     [catalog, search, kind, sort],
   )
   // Two rows sliding opposite ways on desktop: split the catalog in half.
@@ -142,24 +145,24 @@ export function TourJumpSection() {
     return () => { cancelled = true; unsubscribe() }
   }, [anyBusy])
 
-  const handleImport = useCallback(async (packageId: string) => {
-    if (anyBusy) return
-    setAnyBusy(true)
-    setImportingId(packageId)
+  /** Import = subscribe the SEED: every notebook it publishes, one checkpoint. */
+  const handleImport = useCallback(async (seedId: string) => {
+    if (importingSeedId) return
+    setImportingSeedId(seedId)
     const setStatus = (status: { text: string; tone: 'muted' | 'error' }) =>
-      setStatuses(prev => ({ ...prev, [packageId]: status }))
-    setStatus({ text: 'Checking source…', tone: 'muted' })
+      setStatuses(prev => ({ ...prev, [seedId]: status }))
+    setStatus({ text: 'Checking the seed…', tone: 'muted' })
     try {
-      const outcome = await syncSeedSource(packageId, {
-        onProgress: (e) => setStatus({ text: feedProgressLabel(e), tone: 'muted' }),
+      const outcome = await syncSeedSource(seedId, {
+        onProgress: (e) => setStatus({ text: seedProgressLabel(e), tone: 'muted' }),
       })
       if (outcome === 'imported' || outcome === 'current') {
-        const persisted = setSeedSubscribed(packageId, true)
+        const persisted = setSeedSubscribed(seedId, true)
         setStatus({
           text: !persisted
             ? 'Subscribed for this session only — browser storage is unavailable.'
             : outcome === 'imported'
-              ? 'Imported — workouts are available offline.'
+              ? 'Imported — this seed is available offline.'
               : 'Already up to date.',
           tone: 'muted',
         })
@@ -176,10 +179,9 @@ export function TourJumpSection() {
     } catch (err) {
       setStatus({ text: err instanceof Error ? err.message : String(err), tone: 'error' })
     } finally {
-      setImportingId(null)
-      setAnyBusy(false)
+      setImportingSeedId(null)
     }
-  }, [anyBusy])
+  }, [importingSeedId])
 
   const handleNewNote = useCallback(async () => {
     const today = getTodayDateKey()
@@ -207,7 +209,7 @@ export function TourJumpSection() {
         accentText="Community Feeds"
         after=""
         accent=""
-        blurb="Subscribe to Markdown repositories and sync while you keep scrolling. Publishers run npx wod build to compile manifests and chunks, then deploy them through GitHub Pages. Browse the registry below — every notebook imports in one click."
+        blurb="Subscribe to a seed — one Markdown repository compiled with npx wod build into a versioned manifest, served from its own GitHub Pages. One Subscribe imports every notebook the seed publishes; browse the seeds below, notebooks and all."
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
@@ -219,8 +221,8 @@ export function TourJumpSection() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search notebooks…"
-              aria-label="Search notebooks"
+              placeholder="Search seeds…"
+              aria-label="Search seeds"
               data-testid="package-search-input"
               className="h-9 w-full rounded-full border border-border bg-background pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none transition-colors focus:border-primary/50"
             />
@@ -259,7 +261,7 @@ export function TourJumpSection() {
             })}
           </div>
 
-          <div className="ml-auto flex items-center gap-0.5" role="group" aria-label="Sort notebooks">
+          <div className="ml-auto flex items-center gap-0.5" role="group" aria-label="Sort seeds">
             {SORT_OPTIONS.map(option => {
               const active = sort === option.value
               return (
@@ -320,65 +322,71 @@ export function TourJumpSection() {
               />
             </button>
           </div>
+        </div>
+      </div>
 
-          {visible.length > 0 ? (
-            isDesktop ? (
-              <>
-                {/* Two rows sliding in opposite directions. */}
-                <MarqueeRow direction="left" testId="jump-row-a" className="mt-4">
-                  {rowA.map(notebook => (
-                    <NotebookCard
-                      key={notebook.packageId}
-                      notebook={notebook}
-                      testId={`demo-feed-${notebook.packageId}`}
-                      className="w-[290px] sm:w-[320px] shrink-0"
-                      onImport={handleImport}
-                      importing={importingId === notebook.packageId}
-                      busy={anyBusy}
-                      status={statuses[notebook.packageId]}
-                    />
-                  ))}
-                </MarqueeRow>
-                {rowB.length > 0 && (
-                  <MarqueeRow direction="right" testId="jump-row-b" className="mt-4">
-                    {rowB.map(notebook => (
-                      <NotebookCard
-                        key={notebook.packageId}
-                        notebook={notebook}
-                        testId={`demo-feed-${notebook.packageId}`}
-                        className="w-[290px] sm:w-[320px] shrink-0"
-                        onImport={handleImport}
-                        importing={importingId === notebook.packageId}
-                        busy={anyBusy}
-                        status={statuses[notebook.packageId]}
-                      />
-                    ))}
-                  </MarqueeRow>
-                )}
-              </>
-            ) : (
-              /* One row, sliding out and back — the mobile alternating-sides effect. */
-              <MarqueeRow direction="alternate" testId="jump-row-mobile" className="mt-4">
-                {visible.map(notebook => (
-                  <NotebookCard
-                    key={notebook.packageId}
-                    notebook={notebook}
-                    testId={`demo-feed-${notebook.packageId}`}
-                    className="w-[290px] shrink-0"
+      {/* Card rows run edge to edge: the marquee is the section's own band,
+          outside the readable column that holds the controls and exits. */}
+      <div data-testid="jump-rows" className="mt-6">
+        {visible.length > 0 ? (
+          isDesktop ? (
+            <>
+              {/* Two rows sliding in opposite ways — one card per seed. */}
+              <MarqueeRow direction="left" testId="jump-row-a">
+                {rowA.map(seed => (
+                  <SeedCard
+                    key={seed.seedId ?? seed.slug}
+                    seed={seed}
+                    testId={`seed-card-${seed.seedId ?? seed.slug}`}
+                    className="w-[290px] sm:w-[320px] shrink-0"
                     onImport={handleImport}
-                    importing={importingId === notebook.packageId}
+                    importing={!!seed.seedId && importingSeedId === seed.seedId}
                     busy={anyBusy}
-                    status={statuses[notebook.packageId]}
+                    status={seed.seedId ? statuses[seed.seedId] : undefined}
                   />
                 ))}
               </MarqueeRow>
-            )
+              {rowB.length > 0 && (
+                <MarqueeRow direction="right" testId="jump-row-b" className="mt-4">
+                  {rowB.map(seed => (
+                    <SeedCard
+                      key={seed.seedId ?? seed.slug}
+                      seed={seed}
+                      testId={`seed-card-${seed.seedId ?? seed.slug}`}
+                      className="w-[290px] sm:w-[320px] shrink-0"
+                      onImport={handleImport}
+                      importing={!!seed.seedId && importingSeedId === seed.seedId}
+                      busy={anyBusy}
+                      status={seed.seedId ? statuses[seed.seedId] : undefined}
+                    />
+                  ))}
+                </MarqueeRow>
+              )}
+            </>
           ) : (
+            /* One row, sliding out and back — the mobile alternating-sides effect. */
+            <MarqueeRow direction="alternate" testId="jump-row-mobile">
+              {visible.map(seed => (
+                <SeedCard
+                  key={seed.seedId ?? seed.slug}
+                  seed={seed}
+                  testId={`seed-card-${seed.seedId ?? seed.slug}`}
+                  className="w-[290px] shrink-0"
+                  onImport={handleImport}
+                  importing={!!seed.seedId && importingSeedId === seed.seedId}
+                  busy={anyBusy}
+                  status={seed.seedId ? statuses[seed.seedId] : undefined}
+                />
+              ))}
+            </MarqueeRow>
+          )
+        ) : (
+          <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
             <div
               data-testid="jump-empty"
-              className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border p-10 text-center"
+              className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border p-10 text-center"
             >
-              <p className="text-sm font-bold text-muted-foreground">No notebooks match your search.</p>
+              <p className="text-sm font-bold text-muted-foreground">No seeds match your search.</p>
               <p className="mt-1 text-xs text-muted-foreground/70">Try a different term or clear the filters.</p>
               {hasFilters && (
                 <button
@@ -391,9 +399,11 @@ export function TourJumpSection() {
                 </button>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
 
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
         <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60 xl:text-[11px]">
           — or keep scrolling ↓
         </p>

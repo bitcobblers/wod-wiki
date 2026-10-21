@@ -2,10 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { cleanup, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { TourJumpSection } from './TourJumpSection'
-import { SYNC_PACKAGES } from '@/services/seed/seedSources'
+import { NOTEBOOKS, SEED_SOURCES } from '@/services/seed/seedSources'
 import { parseNotebookChunkId } from '../views/notebook-gallery/notebookGalleryModel'
 
-const NOTEBOOK_PACKAGES = SYNC_PACKAGES.filter(pkg => parseNotebookChunkId(pkg.chunkId) !== null)
+/** Notebooks a card can carry — effort/equipment/dashboard registries are not. */
+const CARDS = NOTEBOOKS.filter(notebook => parseNotebookChunkId(notebook.chunkId) !== null)
+/** Seeds that publish at least one card notebook (seed-core publishes only registries). */
+const SEEDS = SEED_SOURCES.filter(seed => CARDS.some(notebook => notebook.seedId === seed.id))
+/** Default card order: nothing imported → labels alphabetically. */
+const seedCardIds = (seeds = SEEDS) =>
+  [...seeds].sort((a, b) => a.label.localeCompare(b.label)).map(seed => `seed-card-${seed.id}`)
+
 // jsdom has neither ResizeObserver nor layout; the marquee falls back to
 // one set per half (two copies) and tests scope queries to the first copy.
 class ResizeObserverStub {
@@ -37,6 +44,8 @@ function mockMedia(matches: boolean) {
 let subscribed = new Set<string>()
 let outcomes: Record<string, 'imported' | 'current' | 'server-stale' | 'error' | 'busy'> = {}
 const pending = new Set<string>()
+const synced: string[] = []
+const subscriptionListeners = new Set<() => void>()
 
 mock.module('@/services/seed/seedSubscriptions', () => ({
   isSeedSubscribed: (id: string) => subscribed.has(id),
@@ -51,11 +60,12 @@ mock.module('@/services/seed/seedSubscriptions', () => ({
     return () => subscriptionListeners.delete(cb)
   },
 }))
-const subscriptionListeners = new Set<() => void>()
 
 mock.module('@/services/seed/seedSync', () => ({
   syncSeedSource: (id: string) => {
-    if (pending.has(id)) return new Promise(() => { /* hangs until released */ })
+    synced.push(id)
+    // Held open so the in-flight state is observable; never settles.
+    if (pending.has(id)) return Promise.withResolvers<'imported'>().promise
     const outcome = outcomes[id] ?? 'imported'
     if (outcome === 'imported' || outcome === 'current') {
       subscribed.add(id)
@@ -83,12 +93,9 @@ function copyEl(rowTestId: string): HTMLElement {
   expect(copy).toBeTruthy()
   return copy as HTMLElement
 }
-function firstCopy(rowTestId: string) {
-  return within(copyEl(rowTestId))
-}
-/** Ids of the notebook cards (articles) inside a copy — not their inner controls. */
+/** Card test ids inside a copy (the cards themselves, not their chips). */
 function cardIds(el: HTMLElement) {
-  return Array.from(el.querySelectorAll('[data-kind]')).map(node => node.getAttribute('data-testid'))
+  return Array.from(el.querySelectorAll('article[data-testid^="seed-card-"]')).map(node => node.getAttribute('data-testid'))
 }
 
 describe('TourJumpSection', () => {
@@ -96,7 +103,8 @@ describe('TourJumpSection', () => {
     subscribed = new Set()
     outcomes = {}
     pending.clear()
-    mockMedia(false) // default: mobile layout (single alternating row)
+    synced.length = 0
+    mockMedia(true) // default: desktop, two rows
   })
   afterEach(() => {
     cleanup()
@@ -104,8 +112,7 @@ describe('TourJumpSection', () => {
 
   it('renders the library exit first, the journal exit next, and no playground exit', () => {
     renderSection()
-    const section = screen.getByTestId('tour-jump-section')
-    expect(section).toBeTruthy()
+    expect(screen.getByTestId('tour-jump-section')).toBeTruthy()
 
     const exits = screen.getByTestId('jump-grid').children[0]
     expect(exits.children[0].getAttribute('data-testid')).toBe('jump-library')
@@ -113,7 +120,40 @@ describe('TourJumpSection', () => {
     expect(screen.queryByTestId('jump-playgrounds')).toBeNull()
   })
 
-  it('disables the library card with a 0 feeds synchronized note until a feed is synced', async () => {
+  it('renders one card per seed across two rows, split in half', () => {
+    renderSection()
+    expect(screen.queryByTestId('jump-row-mobile')).toBeNull()
+    const expected = seedCardIds()
+    const half = Math.ceil(expected.length / 2)
+    expect(cardIds(copyEl('jump-row-a'))).toEqual(expected.slice(0, half))
+    expect(cardIds(copyEl('jump-row-b'))).toEqual(expected.slice(half))
+    // The core registry publishes efforts/equipment/dashboards — synced at
+    // boot, and never a card of its own.
+    expect(screen.queryByTestId('seed-card-seed-core')).toBeNull()
+  })
+
+  it('cards are seeds: each lists the notebooks that one import brings', () => {
+    renderSection()
+    const card = screen.getByTestId('seed-card-seed-crossfit')
+    expect(within(card).getByTestId('seed-card-seed-crossfit-notebooks').textContent)
+      .toContain('CrossFit Games')
+    for (const notebook of CARDS.filter(n => n.seedId === 'seed-crossfit')) {
+      expect(within(card).getByTestId(`seed-card-seed-crossfit-notebook-${notebook.id}`)).toBeTruthy()
+    }
+    // One import action per card — never per notebook.
+    expect(within(card).getByTestId('seed-card-seed-crossfit-import')).toBeTruthy()
+    expect(card.querySelectorAll('[data-testid$="-import"]').length).toBe(1)
+  })
+
+  it('summarises a seed with more notebooks than chips', () => {
+    renderSection()
+    const swimming = SEEDS.find(seed => seed.id === 'seed-swimming')!
+    // Six swimming notebooks ship; the card lists six chips (under the cap).
+    expect(CARDS.filter(n => n.seedId === swimming.id).length).toBe(7)
+    expect(screen.getByTestId('seed-card-seed-swimming')).toBeTruthy()
+  })
+
+  it('disables the library card until a seed is imported', async () => {
     renderSection()
 
     await waitFor(() => {
@@ -121,148 +161,116 @@ describe('TourJumpSection', () => {
     })
     expect(screen.getByText('0 feeds synchronized')).toBeTruthy()
 
-    // Import a package in → the card becomes a live /catalogs link again.
-    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import'))
+    // Import any seed → the card becomes a live /catalogs link again.
+    fireEvent.click(screen.getByTestId(`seed-card-${SEEDS[0].id}-import`))
     await waitFor(() => {
       expect(screen.getByTestId('jump-library').getAttribute('href')).toBe('/catalogs')
     })
   })
 
-  it('renders a notebook card for every built-in notebook package (dashboards excluded)', () => {
-    renderSection()
-    const row = firstCopy('jump-row-mobile')
-    for (const pkg of NOTEBOOK_PACKAGES) {
-      const card = row.getByTestId(`demo-feed-${pkg.id}`)
-      expect(card.getAttribute('data-installed')).toBe('false')
-    }
-    expect(row.queryByTestId('demo-feed-community-dashboards')).toBeNull()
-  })
-
-  it('filters notebooks via search box (label + description) with an empty state', () => {
+  it('filters seeds via search box (label, description, and their notebooks)', () => {
     renderSection()
     const searchInput = screen.getByTestId('package-search-input')
 
-    // Filter by name
+    // A notebook label matches through its seed card.
     fireEvent.change(searchInput, { target: { value: 'Dan John' } })
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day')).toBeTruthy()
-    expect(screen.queryByTestId('demo-feed-community-crossfit-programming')).toBeNull()
+    expect(screen.getByTestId('seed-card-seed-kettlebell')).toBeTruthy()
+    expect(screen.queryByTestId('seed-card-seed-crossfit')).toBeNull()
 
-    // Filter by description
+    // A notebook description matches too (Murph lives in CrossFit Heroes).
     fireEvent.change(searchInput, { target: { value: 'murph' } })
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-heroes')).toBeTruthy()
-    expect(screen.queryByTestId('demo-feed-community-crossfit-programming')).toBeNull()
+    expect(screen.getByTestId('seed-card-seed-crossfit')).toBeTruthy()
+    expect(screen.queryByTestId('seed-card-seed-swimming')).toBeNull()
 
-    // Clear search restores the full catalog
-    fireEvent.change(searchInput, { target: { value: '' } })
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming')).toBeTruthy()
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day')).toBeTruthy()
+    // Seed copy matches directly.
+    fireEvent.change(searchInput, { target: { value: 'parkour archive' } })
+    expect(screen.getByTestId('seed-card-seed-zombie-fit')).toBeTruthy()
 
     // No matches → empty state with a clear-filters escape hatch
     fireEvent.change(searchInput, { target: { value: 'nonexistent-query-xyz' } })
-    expect(screen.getByText(/No notebooks match/i)).toBeTruthy()
+    expect(screen.getByText(/No seeds match/i)).toBeTruthy()
     fireEvent.click(screen.getByTestId('jump-clear-filters'))
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming')).toBeTruthy()
+    expect(screen.getByTestId('seed-card-seed-crossfit')).toBeTruthy()
   })
 
-  it('filters by kind chips and restores on second click', () => {
+  it('kind facets keep the seeds that publish a notebook of that kind', () => {
     renderSection()
 
     fireEvent.click(screen.getByTestId('package-kind-feed'))
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming')).toBeTruthy()
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day')).toBeTruthy()
-    expect(screen.queryByTestId('demo-feed-community-crossfit-girls')).toBeNull()
+    // Swimming publishes only collections → dropped; kettlebell keeps its feed.
+    expect(screen.queryByTestId('seed-card-seed-swimming')).toBeNull()
+    expect(screen.getByTestId('seed-card-seed-kettlebell')).toBeTruthy()
 
     fireEvent.click(screen.getByTestId('package-kind-collection'))
-    expect(screen.queryByTestId('demo-feed-community-crossfit-programming')).toBeNull()
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-girls')).toBeTruthy()
+    expect(screen.getByTestId('seed-card-seed-swimming')).toBeTruthy()
+    // r/WorkoutRoutines publishes only a feed → dropped by the collection facet.
+    expect(screen.queryByTestId('seed-card-r-workoutroutines')).toBeNull()
 
-    // Toggle the collection chip off → both kinds visible again
+    // Toggle the collection chip off → every seed back
     fireEvent.click(screen.getByTestId('package-kind-collection'))
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming')).toBeTruthy()
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-girls')).toBeTruthy()
+    expect(screen.getByTestId('seed-card-r-workoutroutines')).toBeTruthy()
   })
 
-  it('sorts the row by name', () => {
+  it('name sort reorders the cards inside both rows', () => {
     renderSection()
 
     fireEvent.click(screen.getByTestId('package-sort-name'))
-    // The full registry renders; derive the expected order from the same
-    // label sort the gallery model applies (no installed dates in tests).
-    const expected = [...NOTEBOOK_PACKAGES]
-      .sort((a, b) => a.label.localeCompare(b.label))
-      .map(pkg => `demo-feed-${pkg.id}`)
-    expect(cardIds(copyEl('jump-row-mobile'))).toEqual(expected)
+    const expected = seedCardIds()
+    const half = Math.ceil(expected.length / 2)
+    expect(cardIds(copyEl('jump-row-a'))).toEqual(expected.slice(0, half))
+    expect(cardIds(copyEl('jump-row-b'))).toEqual(expected.slice(half))
   })
 
-  it('imports a package: syncs, subscribes, and reports the outcome on the card', async () => {
-    outcomes['community-crossfit-programming'] = 'imported'
+  it('imports a SEED: syncs it, subscribes it, and reports the outcome on the card', async () => {
+    outcomes['seed-crossfit'] = 'imported'
     renderSection()
 
-    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import'))
+    fireEvent.click(screen.getByTestId('seed-card-seed-crossfit-import'))
     await waitFor(() => {
-      expect(subscribed.has('community-crossfit-programming')).toBe(true)
+      expect(synced).toEqual(['seed-crossfit'])
+      expect(subscribed.has('seed-crossfit')).toBe(true)
     })
     await waitFor(() => {
-      expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-status').textContent)
-        .toContain('Imported')
+      expect(screen.getByTestId('seed-card-seed-crossfit-status').textContent).toContain('Imported')
     })
   })
 
   it('never subscribes on server-stale, busy, or error outcomes — the card reports the error', async () => {
-    outcomes['community-crossfit-programming'] = 'server-stale'
-    outcomes['community-dan-john-40-day'] = 'error'
+    outcomes['seed-crossfit'] = 'server-stale'
+    outcomes['seed-kettlebell'] = 'error'
     renderSection()
 
-    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import'))
+    fireEvent.click(screen.getByTestId('seed-card-seed-crossfit-import'))
     await waitFor(() => {
-      expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-status').getAttribute('role')).toBe('alert')
+      expect(screen.getByTestId('seed-card-seed-crossfit-status').getAttribute('role')).toBe('alert')
     })
-    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day-import'))
+    fireEvent.click(screen.getByTestId('seed-card-seed-kettlebell-import'))
     await waitFor(() => {
-      expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day-status').getAttribute('role')).toBe('alert')
+      expect(screen.getByTestId('seed-card-seed-kettlebell-status').getAttribute('role')).toBe('alert')
     })
     expect(subscribed.size).toBe(0)
     // Both cards still offer import — no forced state.
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import')).toBeTruthy()
-    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day-import')).toBeTruthy()
+    expect(screen.getByTestId('seed-card-seed-crossfit-import')).toBeTruthy()
+    expect(screen.getByTestId('seed-card-seed-kettlebell-import')).toBeTruthy()
   })
 
-  it('guards concurrent imports: one import in flight disables the other cards', async () => {
-    pending.add('community-crossfit-programming')
+  it('guards concurrent imports: one seed in flight disables the other cards', async () => {
+    pending.add('seed-crossfit')
     renderSection()
 
-    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import'))
+    fireEvent.click(screen.getByTestId('seed-card-seed-crossfit-import'))
     await waitFor(() => {
-      expect(firstCopy('jump-row-mobile').getByText('Importing')).toBeTruthy()
+      expect(screen.getByText('Importing')).toBeTruthy()
     })
-    const other = firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day-import') as HTMLButtonElement
+    const other = screen.getByTestId('seed-card-seed-kettlebell-import') as HTMLButtonElement
     expect(other.disabled).toBe(true)
   })
 
-  describe('desktop rows', () => {
-    beforeEach(() => {
-      mockMedia(true) // ≥1024px → two rows sliding opposite ways
-    })
-
-    it('splits the catalog across two rows and slides them opposite ways', () => {
-      renderSection()
-      expect(screen.queryByTestId('jump-row-mobile')).toBeNull()
-
-      // Default sort (uninstalled → registry alphabetical by label), split
-      // in half — derived from the registry, not a pinned card list.
-      const sorted = [...NOTEBOOK_PACKAGES]
-        .sort((a, b) => a.label.localeCompare(b.label))
-        .map(pkg => `demo-feed-${pkg.id}`)
-      const half = Math.ceil(sorted.length / 2)
-      expect(cardIds(copyEl('jump-row-a'))).toEqual(sorted.slice(0, half))
-      expect(cardIds(copyEl('jump-row-b'))).toEqual(sorted.slice(half))
-    })
-
-    it('name sort reorders within the rows: the alphabetically first label leads row A', () => {
-      renderSection()
-      fireEvent.click(screen.getByTestId('package-sort-name'))
-      const first = [...NOTEBOOK_PACKAGES].sort((a, b) => a.label.localeCompare(b.label))[0]
-      expect(cardIds(copyEl('jump-row-a'))[0]).toBe(`demo-feed-${first.id}`)
-    })
+  it('mobile renders the same cards in one alternating row', () => {
+    mockMedia(false)
+    renderSection()
+    expect(screen.queryByTestId('jump-row-a')).toBeNull()
+    expect(screen.queryByTestId('jump-row-b')).toBeNull()
+    expect(cardIds(copyEl('jump-row-mobile'))).toEqual(seedCardIds())
   })
 })

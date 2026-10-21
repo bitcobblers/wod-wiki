@@ -204,10 +204,10 @@ describe('boot orchestrator (startSeedBootstrap)', () => {
       fetchManifest: () => Promise.reject(new Error('offline')),
       fetchChunk: () => Promise.resolve([]),
     });
-    setSeedSubscribed('community-crossfit-programming', true);
+    setSeedSubscribed('seed-crossfit', true);
     const sources = [
       spec(coreCounting, 'core', 1),
-      spec(failingFeed, 'community-crossfit-programming', 0, false),
+      spec(failingFeed, 'seed-crossfit', 0, false),
     ];
 
     const done = startSeedBootstrap({ sources, storage, isEnabled: () => true });
@@ -219,7 +219,7 @@ describe('boot orchestrator (startSeedBootstrap)', () => {
     expect(getSeedReadiness()).toBe('ready');
     expect(getSyncActivity().error).toBeNull();
     expect(getCatalogUpdates()?.updates).toEqual([
-      { sourceId: 'community-crossfit-programming', label: 'community-crossfit-programming', state: 'error' },
+      { sourceId: 'seed-crossfit', label: 'seed-crossfit', state: 'error' },
     ]);
     // ...and the returning probe still consulted the core manifest.
     expect(coreCounting.fetchManifestCalls).toBe(1);

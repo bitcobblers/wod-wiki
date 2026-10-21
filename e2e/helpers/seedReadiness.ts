@@ -29,23 +29,24 @@ export async function waitForSeedReady(page: Page, timeout = 60_000): Promise<vo
 }
 
 /**
- * Import the community seed library through the app's real Subscribe action.
- * Community is not subscribed by default, so collection-surface tests that
- * need its content must opt in.
- * Works in dev and bundled preview alike — no module-path imports. Local
- * builds may point VITE_COMMUNITY_SEED_URL at a local artifact; CI previews
- * use the published Pages host. Fails the test when the source does not
- * reach an imported/current state instead of silently proceeding.
+ * Subscribe a built-in seed through the app's real Subscribe action. A seed
+ * is subscribed as a whole — one Subscribe imports every notebook the seed
+ * publishes (one checkpoint, one version) — so collection-surface tests that
+ * need a seed's content opt in once by seed id; its notebooks are never
+ * synced apart.
+ * Works in dev and bundled preview alike — no module-path imports. Fails the
+ * test when the source does not reach an imported/current state instead of
+ * silently proceeding.
  */
-export async function syncCommunitySeed(page: Page, timeout = 180_000): Promise<void> {
+export async function syncSeed(page: Page, seedId: string, timeout = 180_000): Promise<void> {
   await page.goto('/settings/sync', { waitUntil: 'domcontentloaded' });
-  const card = page.getByTestId('seed-source-community');
-  await expect(card, 'community seed source must be registered').toBeVisible({ timeout: 15_000 });
+  const card = page.getByTestId(`seed-source-${seedId}`);
+  await expect(card, `${seedId} seed source must be registered`).toBeVisible({ timeout: 15_000 });
   const localVersion = card.getByTestId('seed-local-version');
   if (!(await localVersion.textContent())?.includes('Not imported yet')) return;
-  await card.getByTestId('seed-subscribe-community').click();
+  await card.getByTestId(`seed-subscribe-${seedId}`).click();
   await expect(
     localVersion,
-    'community import must commit rows',
+    `${seedId} import must commit rows`,
   ).not.toContainText('Not imported yet', { timeout });
 }

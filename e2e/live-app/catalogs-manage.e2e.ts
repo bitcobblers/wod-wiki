@@ -193,11 +193,11 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     expect(JSON.parse(sources ?? '[]')).toEqual([]);
   });
 
-  test('subscribing one package leaves adjacent manifest packages unimported', async ({ page }) => {
+  test('one Subscribe imports every notebook the seed publishes', async ({ page }) => {
     const source = 'https://bitcobblers.github.io/wod-wiki-seed-crossfit/';
     const chunks = ['crossfit-games', 'crossfit-girls'].map(name => {
       const path = `markdown/collections/${name}/isolation.md`;
-      const content = `# ${name} isolation\n\nIsolated package body.`;
+      const content = `# ${name} isolation\n\nNotebook body.`;
       const body = JSON.stringify([compileSeedRow(path, content)]);
       return { path, content, body, entry: {
         id: `collection.${name}`, path: `chunks/collection.${name}.json`,
@@ -216,10 +216,12 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     });
     await page.goto('/settings/sync');
     await waitForSeedReady(page);
-    const row = page.getByTestId('seed-source-community-crossfit-games');
-    await row.getByTestId('seed-subscribe-community-crossfit-games').click();
+    // The seed is the subscription unit: one Subscribe imports BOTH manifest
+    // chunks — its notebooks are never synced apart.
+    const row = page.getByTestId('seed-source-seed-crossfit');
+    await row.getByTestId('seed-subscribe-seed-crossfit').click();
     await expect(row.getByTestId('seed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
     expect(await getNoteContentByRouteId(page, await seedNoteId(chunks[0].path))).toBe(chunks[0].content);
-    expect(await getNoteContentByRouteId(page, await seedNoteId(chunks[1].path))).toBeNull();
+    expect(await getNoteContentByRouteId(page, await seedNoteId(chunks[1].path))).toBe(chunks[1].content);
   });
 });

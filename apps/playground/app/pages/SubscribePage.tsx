@@ -32,19 +32,19 @@ export function SubscribePage() {
       try {
         const url = new URL(source)
         if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
-          throw new Error('Enter an HTTPS catalog directory URL without credentials, query parameters, or a fragment.')
+          throw new Error('Enter an HTTPS seed directory URL without credentials, query parameters, or a fragment.')
         }
         if (!url.pathname.endsWith('/')) url.pathname += '/'
         const manifest = await new HttpSeedSource(url.href).fetchManifest()
         if (active) setIntake({ kind: 'ready', url: url.href, manifest })
       } catch (cause) {
-        if (active) setIntake({ kind: 'error', message: cause instanceof Error ? cause.message : 'Unable to read catalog manifest.' })
+        if (active) setIntake({ kind: 'error', message: cause instanceof Error ? cause.message : 'Unable to read the seed manifest.' })
       }
     })()
     return () => { active = false }
   }, [location.search, navigate])
 
-  const importCatalog = async (subscribe: boolean) => {
+  const importSeed = async (subscribe: boolean) => {
     if (intake.kind !== 'ready' || busy) return
     setBusy(true)
     setError(null)
@@ -52,7 +52,7 @@ export function SubscribePage() {
       const source = defaultSeedSources().find(item => normalizeSeedSourceUrl(new URL(item.url, window.location.href).href) === intake.url)
         ?? addCustomSeedSource(intake.manifest.name?.trim() || new URL(intake.url).hostname, intake.url, { repositoryUrl: intake.manifest.repositoryUrl })
       const outcome = await syncSeedSource(source.id, { subscribe: false })
-      if (outcome !== 'imported' && outcome !== 'current') throw new Error(`Catalog import did not complete (${outcome}). Your existing content was kept.`)
+      if (outcome !== 'imported' && outcome !== 'current') throw new Error(`Seed import did not complete (${outcome}). Your existing content was kept.`)
       if (subscribe) {
         const preferenceSaved = setSeedAutoSync(source.id, autoSync)
         const subscriptionSaved = setSeedSubscribed(source.id, true)
@@ -60,7 +60,7 @@ export function SubscribePage() {
       }
       navigate(`${ROUTE_PATTERNS.catalogs}?manage=1`, { replace: true })
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Catalog import failed. Your existing content was kept.')
+      setError(cause instanceof Error ? cause.message : 'Seed import failed. Your existing content was kept.')
     } finally {
       setBusy(false)
     }
@@ -68,7 +68,7 @@ export function SubscribePage() {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center gap-5 p-6" data-testid="catalog-subscription-intake">
-      {intake.kind === 'loading' && <p role="status">Checking catalog manifest…</p>}
+      {intake.kind === 'loading' && <p role="status">Checking the seed manifest…</p>}
       {intake.kind === 'error' && <p role="alert" className="break-words text-destructive">{intake.message}</p>}
       {intake.kind === 'ready' && <>
         <h1 className="text-xl font-semibold">Subscribe to {intake.manifest.name?.trim() || new URL(intake.url).hostname}?</h1>
@@ -85,12 +85,12 @@ export function SubscribePage() {
         </dl>
         {intake.manifest.repositoryUrl && <a href={intake.manifest.repositoryUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline">Git source directory</a>}
         <label className="flex items-start gap-3 rounded-lg border border-border p-4">
-          <input type="checkbox" checked={autoSync} onChange={event => setAutoSync(event.target.checked)} disabled={busy} aria-label="Auto-sync this catalog" className="mt-1 size-4 shrink-0" />
-          <span><span className="font-medium">Auto-sync this catalog</span><span className="mt-1 block text-sm text-muted-foreground">When subscribed, apply new versions in the background on page load. Off keeps updates manual. Import Once ignores this preference and creates no subscription.</span></span>
+          <input type="checkbox" checked={autoSync} onChange={event => setAutoSync(event.target.checked)} disabled={busy} aria-label="Auto-sync this seed" className="mt-1 size-4 shrink-0" />
+          <span><span className="font-medium">Auto-sync this seed</span><span className="mt-1 block text-sm text-muted-foreground">When subscribed, apply new versions in the background on page load. Off keeps updates manual. Import Once ignores this preference and creates no subscription.</span></span>
         </label>
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" disabled={busy} onClick={() => void importCatalog(false)}>Import Once</Button>
-          <Button disabled={busy} onClick={() => void importCatalog(true)}>{busy ? 'Importing…' : 'Import & Subscribe'}</Button>
+          <Button variant="outline" disabled={busy} onClick={() => void importSeed(false)}>Import Once</Button>
+          <Button disabled={busy} onClick={() => void importSeed(true)}>{busy ? 'Importing…' : 'Import & Subscribe'}</Button>
         </div>
       </>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

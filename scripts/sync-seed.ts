@@ -4,10 +4,10 @@
  *
  * The playground bundles ONE source: `core` — this repo's markdown/ corpus
  * (the playground's own canvas pages) plus the playground template, versioned
- * by THIS repo's git history. The community corpus is NOT built here; it
- * publishes to its own repo's GitHub Pages (wod-wiki-community) and the app
- * syncs it over HTTP at runtime (see seedSources.ts). Third-party seed
- * libraries register the same way.
+ * by THIS repo's git history. Every other seed is NOT built here: each content
+ * repo publishes its own seed dir to its GitHub Pages (the split corpus in
+ * seedSources.ts SEED_SOURCES) and the app syncs it over HTTP at runtime.
+ * Third-party seed libraries register the same way.
  *
  * The corpus compiles through the engine's seed compiler (the `wod build`
  * engine, imported from source below), so every seed library — bundled or

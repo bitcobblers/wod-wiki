@@ -203,10 +203,16 @@ describe('delete source', () => {
     expect(customSeedSources()).toEqual([]);
     expect(await storage.getSeedMeta(seedMetaKey(added.id))).toBeUndefined();
 
-    const girls = 'community-crossfit-girls';
-    await deleteSeedSource(girls, { storage });
-    expect(hiddenSeedSourceIds()).toContain(girls);
-    expect(defaultSeedSources().some((s) => s.id === girls)).toBe(false);
+    // A built-in SEED row is hidden (its config lives in code, not storage).
+    await deleteSeedSource('seed-crossfit', { storage });
+    expect(hiddenSeedSourceIds()).toEqual(['seed-crossfit']);
+    expect(defaultSeedSources().some((s) => s.id === 'seed-crossfit')).toBe(false);
+    // Pre-seed-unit notebook ids fold onto the seed that publishes them.
+    await deleteSeedSource('community-crossfit-girls', { storage });
+    expect(hiddenSeedSourceIds()).toEqual(['seed-crossfit']);
+    // ...but an id no built-in seed owns is ignored.
+    await deleteSeedSource('nobody-home', { storage });
+    expect(hiddenSeedSourceIds()).toEqual(['seed-crossfit']);
 
     expect(await deleteSeedSource('core', { storage })).toEqual({ deleted: 0 });
     expect(defaultSeedSources().some((s) => s.id === 'core')).toBe(true);

@@ -16,7 +16,7 @@
 
 import { test, expect } from '@playwright/test';
 import { deleteNoteByRouteId, getNoteContentByRouteId, seedJournalNote, seedCompletedSessions, clearResults, getResults } from '../helpers/wodwikiDb';
-import { waitForSeedReady, syncCommunitySeed } from '../helpers/seedReadiness';
+import { waitForSeedReady, syncSeed } from '../helpers/seedReadiness';
 
 // ── The collection workout used for dogfooding ─────────────────────────────
 // Any collection with a playable WOD block will do. Crossfit Girls / Fran is
@@ -33,7 +33,7 @@ function todayKey(): string {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 test.describe('Collection → New Journal Note → Result Persistence', () => {
-  // First community import into a fresh profile exceeds the default 45s.
+  // First seed import into a fresh profile exceeds the default 45s.
   test.setTimeout(180_000);
   const errors: string[] = [];
 
@@ -48,10 +48,10 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
     // broken environment as green.
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 });
     await waitForSeedReady(page);
-    // /c/… and /workout/… read the community corpus (autoImport:false); sync
-    // it through the real Settings surface once per context instead of
-    // depending on leftover browser state.
-    await syncCommunitySeed(page);
+    // /c/… and /workout/… read the seed corpus (autoImport:false); sync the
+    // CrossFit seed through the real Settings surface once per context
+    // instead of depending on leftover browser state.
+    await syncSeed(page, 'seed-crossfit');
   });
 
   test.afterEach(async ({ page }, testInfo) => {

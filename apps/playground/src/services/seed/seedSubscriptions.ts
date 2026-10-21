@@ -1,16 +1,19 @@
 /**
- * seedSubscriptions — community-feed subscription state (local-first
- * contract). Persisted in localStorage ('wodwiki.seedSubscriptions',
- * { [sourceId]: boolean }); absence means "no explicit choice":
- * migrateSeedSubscriptions() subscribes previously imported libraries, a
+ * seedSubscriptions — per-SEED subscription state (local-first contract).
+ * Persisted in localStorage ('wodwiki.seedSubscriptions',
+ * { [seedId]: boolean }); absence means "no explicit choice":
+ * migrateSeedSubscriptions() subscribes previously imported seeds, a
  * persisted false always stays off, and core is always on (unsubscribe is
- * a no-op for it). The per-source auto-sync preference lives beside it
- * ('wodwiki.seedAutoSync') but is a separate choice: subscription never
- * implies auto-update. Kept free of seedSync imports so the runtime graph
- * stays acyclic — callers pass the source list in.
+ * a no-op for it). Pre-seed-unit records were written per notebook — they
+ * fold onto the seed that publishes the notebook on read and on migration.
+ * The per-seed auto-sync preference lives beside it ('wodwiki.seedAutoSync')
+ * but is a separate choice: subscription never implies auto-update. Kept
+ * free of seedSync imports so the runtime graph stays acyclic — callers pass
+ * the source list in.
  */
 import type { SeedImportStorage } from './SeedImportStorage';
 import { mainThreadSeedImportStorage } from './seedStorageDefault';
+import { NOTEBOOKS } from './seedSources';
 import { seedMetaKey } from '@/types/seed';
 
 const STORAGE_KEY = 'wodwiki.seedSubscriptions';
@@ -60,19 +63,31 @@ function writeAll(next: Record<string, boolean>): boolean {
   return persisted;
 }
 
-/** Core is always subscribed; an absent record means not (yet) subscribed. */
+/**
+ * Core is always subscribed; an absent record means not (yet) subscribed.
+ * A pre-seed-unit record — one entry per notebook — still counts: those
+ * entries fold onto the seed that publishes the notebook, which is what a
+ * subscription means now (an explicit seed record always wins).
+ */
 export function isSeedSubscribed(id: string): boolean {
   if (id === 'core') return true;
-  return readAll()[id] === true;
+  const all = readAll();
+  if (id in all) return all[id] === true;
+  return NOTEBOOKS.some((notebook) => notebook.seedId === id && all[notebook.id] === true);
 }
 
 /** Persist an explicit subscription choice (core ignores unsubscribe).
- *  Returns false when the choice could NOT be persisted (browser storage
- *  unavailable) — it then lasts this session only, and callers must say
- *  so instead of implying a durable subscription. */
+ *  Writes the seed record and drops the folded notebook records it
+ *  supersedes, so one source never holds two verdicts. Returns false when
+ *  the choice could NOT be persisted (browser storage unavailable) — it
+ *  then lasts this session only, and callers must say so instead of
+ *  implying a durable subscription. */
 export function setSeedSubscribed(id: string, subscribed: boolean): boolean {
   if (id === 'core') return true;
-  const all = { ...readAll() };
+  const all: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(readAll())) {
+    if (!NOTEBOOKS.some((notebook) => notebook.seedId === id && notebook.id === key)) all[key] = value;
+  }
   all[id] = subscribed;
   return writeAll(all);
 }
@@ -121,6 +136,16 @@ export async function migrateSeedSubscriptions(
 ): Promise<string[]> {
   const all = { ...readAll() };
   const migrated: string[] = [];
+  // Pre-seed-unit builds subscribed per notebook and never wrote a seed
+  // record; the notebook verdicts they left behind become the seed's.
+  for (const notebook of NOTEBOOKS) {
+    if (!(notebook.id in all)) continue;
+    if (!(notebook.seedId in all)) {
+      all[notebook.seedId] = all[notebook.id];
+      if (all[notebook.id]) migrated.push(notebook.seedId);
+    }
+    delete all[notebook.id];
+  }
   for (const { id } of sources) {
     if (id === 'core' || id in all) continue;
     try {

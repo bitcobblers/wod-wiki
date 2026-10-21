@@ -66,11 +66,11 @@ describe('HomeCommunityFeeds', () => {
     )
     const feeds = screen.getByTestId('home-community-feeds')
     expect(feeds.children).toHaveLength(2)
-    expect(screen.getByTestId('home-feed-community-crossfit-programming').textContent).toContain('Demo')
-    expect(screen.getByTestId('home-feed-community-dan-john-40-day').textContent).toContain('Demo')
+    expect(screen.getByTestId('home-feed-seed-crossfit').textContent).toContain('Demo')
+    expect(screen.getByTestId('home-feed-seed-kettlebell').textContent).toContain('Demo')
     // Each demo feed links to the repo that publishes it (split corpus).
-    const crossfitRepo = screen.getByTestId('home-feed-community-crossfit-programming').textContent as string
-    const kettlebellRepo = screen.getByTestId('home-feed-community-dan-john-40-day').textContent as string
+    const crossfitRepo = screen.getByTestId('home-feed-seed-crossfit').textContent as string
+    const kettlebellRepo = screen.getByTestId('home-feed-seed-kettlebell').textContent as string
     expect(crossfitRepo).toContain('https://github.com/bitcobblers/wod-wiki-seed-crossfit')
     expect(kettlebellRepo).toContain('https://github.com/bitcobblers/wod-wiki-seed-kettlebell')
     const repos = screen.getAllByText('https://github.com/bitcobblers/wod-wiki-seed-crossfit') as HTMLAnchorElement[]
@@ -84,12 +84,12 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    fireEvent.click(screen.getByTestId('home-feed-sync-community-dan-john-40-day'))
+    fireEvent.click(screen.getByTestId('home-feed-sync-seed-kettlebell'))
     await waitFor(() => {
-      expect(screen.getByTestId('home-feed-status-community-dan-john-40-day').textContent).toContain('Synced')
+      expect(screen.getByTestId('home-feed-status-seed-kettlebell').textContent).toContain('Synced')
     })
-    expect(isSeedSubscribed('community-dan-john-40-day')).toBe(true)
-    expect(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day').textContent).toBe('Unsubscribe')
+    expect(isSeedSubscribed('seed-kettlebell')).toBe(true)
+    expect(screen.getByTestId('home-feed-subscribe-seed-kettlebell').textContent).toBe('Unsubscribe')
   })
 
   it('does not subscribe when the sync fails', async () => {
@@ -99,12 +99,12 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    fireEvent.click(screen.getByTestId('home-feed-sync-community-dan-john-40-day'))
+    fireEvent.click(screen.getByTestId('home-feed-sync-seed-kettlebell'))
     await waitFor(() => {
-      expect(screen.getByTestId('home-feed-status-community-dan-john-40-day').textContent).toContain('Sync failed')
+      expect(screen.getByTestId('home-feed-status-seed-kettlebell').textContent).toContain('Sync failed')
     })
-    expect(isSeedSubscribed('community-dan-john-40-day')).toBe(false)
-    expect(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day').textContent).toBe('Subscribe')
+    expect(isSeedSubscribed('seed-kettlebell')).toBe(false)
+    expect(screen.getByTestId('home-feed-subscribe-seed-kettlebell').textContent).toBe('Subscribe')
   })
 
   it('unsubscribe is explicit and persistent — nothing re-subscribes automatically', async () => {
@@ -113,12 +113,12 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    fireEvent.click(screen.getByTestId('home-feed-sync-community-dan-john-40-day'))
-    await waitFor(() => expect(isSeedSubscribed('community-dan-john-40-day')).toBe(true))
+    fireEvent.click(screen.getByTestId('home-feed-sync-seed-kettlebell'))
+    await waitFor(() => expect(isSeedSubscribed('seed-kettlebell')).toBe(true))
 
-    fireEvent.click(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day'))
-    expect(isSeedSubscribed('community-dan-john-40-day')).toBe(false)
-    expect(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day').textContent).toBe('Subscribe')
+    fireEvent.click(screen.getByTestId('home-feed-subscribe-seed-kettlebell'))
+    expect(isSeedSubscribed('seed-kettlebell')).toBe(false)
+    expect(screen.getByTestId('home-feed-subscribe-seed-kettlebell').textContent).toBe('Subscribe')
 
     // Re-render (fresh mount) — the flag stays off with no sync involved.
     cleanup()
@@ -127,8 +127,8 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    expect(isSeedSubscribed('community-dan-john-40-day')).toBe(false)
-    expect(screen.getByTestId('home-feed-subscribe-community-dan-john-40-day').textContent).toBe('Subscribe')
+    expect(isSeedSubscribed('seed-kettlebell')).toBe(false)
+    expect(screen.getByTestId('home-feed-subscribe-seed-kettlebell').textContent).toBe('Subscribe')
   })
 
   it('core is always subscribed and cannot be unsubscribed', () => {
