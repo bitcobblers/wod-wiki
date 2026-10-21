@@ -1,12 +1,13 @@
 /**
  * HomeTour.test.tsx — route-level component test for the home page.
  *
- * Asserts the new flow: editor Run → fullscreen run → recorded results land
- * in "Your Session, Analyzed" (the result table) and the session analytics
- * (Rest/Test Ratio + Reaction Time) render in the analytics scope of the
- * merged parallax section; the run-to-view CTA before any run; the boards
- * carousel tabs; the jump section exits; and the note lifecycle contracts
- * (fresh identity per Run, record-once finalize, failed-start toast).
+ * Asserts the new flow: editor Run → fullscreen run (its review panel owns
+ * the raw results) → closing it glides to the dashboards section, whose
+ * Session Insights scope (Rest/Test Ratio + Reaction Time) renders the
+ * recorded run; the run-to-view CTA before any run; the boards carousel
+ * tabs; the pane-header back-to-editor reset; the jump section exits; and
+ * the note lifecycle contracts (fresh identity per Run, record-once
+ * finalize, failed-start toast).
  */
 
 import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
@@ -386,13 +387,13 @@ describe('HomeTour', () => {
     expect(runControl.starts).toBe(1)
 
     // The first run completes and is recorded — the insights section
-    // settles on the result table…
+    // settles on the Session Insights pane…
     await act(async () => {
       timerPanelControl().fireTimerComplete?.(completedResults())
       await Promise.resolve()
     })
     expect(runControl.finalizes).toHaveLength(1)
-    expect(stickyPane().getByTestId('tour-session-result')).toBeTruthy()
+    expect(stickyPane().getByTestId('tour-insights')).toBeTruthy()
     // …while the editor viewport keeps the editor.
     expect(within(editor()).getByTestId('mock-note-editor')).toBeTruthy()
 
@@ -414,11 +415,11 @@ describe('HomeTour', () => {
       await Promise.resolve()
     })
 
-    // The sticky pane holds the result table…
+    // The sticky pane holds the session analytics.
     const sticky = stickyPane()
-    expect(sticky.getByTestId('tour-session-result')).toBeTruthy()
+    expect(sticky.getByTestId('tour-insights')).toBeTruthy()
 
-    // …and the session analytics render in the analytics scope.
+    // The session analytics render in the analytics scope.
     expect(sticky.getByTestId('tour-insights-timeline')).toBeTruthy()
     // 3s countdown vs 43.8s to Next → 1 : 14.6
     expect(sticky.getByTestId('tour-insights-ratio')!.textContent).toContain('1 : 14.6')
@@ -457,7 +458,7 @@ describe('HomeTour', () => {
         timerPanelControl().fireTimerComplete?.(completedResults())
         await Promise.resolve()
       })
-      expect(screen.getByTestId('tour-section-insights').textContent).toContain('Session recorded')
+      expect(screen.getByTestId('tour-section-insights').querySelector('[data-testid="tour-insights-timeline"]')).toBeTruthy()
 
       // Leave the editor section and come back: the editor resets to the
       // arrival content, and the recorded session survives in the
@@ -474,9 +475,47 @@ describe('HomeTour', () => {
       })
       await waitFor(() => expect(within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor')).toBeTruthy())
       expect(within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor')!.textContent).toBe(BARE_WELCOME)
-      expect(screen.getByTestId('tour-section-insights').textContent).toContain('Session recorded')
+      expect(screen.getByTestId('tour-section-insights').querySelector('[data-testid="tour-insights-timeline"]')).toBeTruthy()
     } finally {
       scope.IntersectionObserver = previousIO
+    }
+  })
+
+  it('the pane-header button slides back to the editor and resets the runtime', async () => {
+    const scrollMock = mock(() => {})
+    const windowWithScroll = window as unknown as { scrollTo: unknown }
+    const previousScrollTo = windowWithScroll.scrollTo
+    windowWithScroll.scrollTo = scrollMock
+    try {
+      await renderHomeTour()
+      await editorRun()
+      await act(async () => {
+        timerPanelControl().fireTimerComplete?.(completedResults())
+        await Promise.resolve()
+      })
+
+      // Dirty the editor so the reset has something to discard.
+      await act(async () => {
+        fireEvent.change(
+          within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor') as HTMLTextAreaElement,
+          { target: { value: 'DIRTY DOCUMENT' } },
+        )
+        await Promise.resolve()
+      })
+
+      await act(async () => {
+        fireEvent.click(activeScope().getByTestId('tour-pane-back-to-editor'))
+        await Promise.resolve()
+      })
+
+      // Runtime reset: the editor is back to the arrival document…
+      await waitFor(() =>
+        expect((within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor') as HTMLTextAreaElement).value).toBe(BARE_WELCOME),
+      )
+      // …and the page glides up to the editor viewport.
+      expect(scrollMock).toHaveBeenCalled()
+    } finally {
+      windowWithScroll.scrollTo = previousScrollTo
     }
   })
 
@@ -559,13 +598,13 @@ describe('HomeTour', () => {
     expect(screen.getByTestId('mock-timer-panel')).toBe(paneBefore)
     expect(screen.getAllByTestId('mock-timer-panel')).toHaveLength(1)
 
-    // Completion lands the result in the insights section, and the edit
+    // Completion lands the session in the insights section, and the edit
     // survives in the editor viewport.
     await act(async () => {
       timerPanelControl().fireTimerComplete?.(completedResults())
       await Promise.resolve()
     })
-    expect(stickyPane().getByTestId('tour-session-result')).toBeTruthy()
+    expect(stickyPane().getByTestId('tour-insights')).toBeTruthy()
     expect((within(editor()).getByTestId('mock-note-editor') as HTMLTextAreaElement).value).toBe('EDIT ACROSS WIDTHS')
   })
 

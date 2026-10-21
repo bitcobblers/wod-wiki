@@ -5,10 +5,10 @@
  * offerings, and the footer.
  *
  * The FIRST interaction is the editor section below the video: Run opens
- * the fullscreen timer, and the recorded run lands in the next section —
- * "Your Session, Analyzed" — whose viewport shows the results table and is
- * scrolled into view on completion. The Rest/Test Ratio session analytics
- * live in slide 1 of the dashboards carousel below it.
+ * the fullscreen timer, whose review panel shows the recorded results.
+ * Closing it glides the visitor to the dashboards section — "Session
+ * Insights" turns the run into data, and the boards carousel below
+ * aggregates runs into dashboards.
  *
  * Preserved contracts:
  *  - arrival contract (#882): the initial load content is the shared script
@@ -119,9 +119,8 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
 
   // ── Session results ──
   // `recordedSession` is the last run with committed results — it feeds the
-  // "Your Session, Analyzed" result table and the dashboards' session slide,
-  // and it SURVIVES the editor's reset-to-arrival so the data stays after
-  // the editor above resets.
+  // Session Insights pane, and it SURVIVES the editor's reset-to-arrival so
+  // the data stays after the editor above resets.
   const [recordedSession, setRecordedSession] = useState<Sessions | null>(null)
   const [fullscreenOpen, setFullscreenOpen] = useState(false)
   const fullscreenOpenRef = useRef(fullscreenOpen)
@@ -264,6 +263,18 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
     requestStop({ kind: 'apply-doc', doc: welcomeScript })
   }, [welcomeScript, requestStop])
 
+  // Dashboards pane header: slide back up to the editor viewport and reset
+  // the runtime (the same stop path as the re-entry contract), ready for
+  // another run.
+  const handleBackToEditor = useCallback(() => {
+    resetEditorToArrival()
+    const el = document.getElementById('tour-section-editor')
+    const sentinel = heroRef.current
+    if (!el || !sentinel || typeof window.scrollTo !== 'function') return
+    const headerBottom = sentinel.getBoundingClientRect().top + window.scrollY
+    window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - headerBottom), behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+  }, [prefersReducedMotion, resetEditorToArrival])
+
   // ── Quest + challenge hooks ──
   useQuickStartAutoComplete({
     pageRoute: '/',
@@ -347,15 +358,15 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   )
 
   // Explicit editor Run: start in place — the editor viewport stays an
-  // editor; results land in "Your Session, Analyzed" on completion.
+  // editor; closing the fullscreen review glides to the dashboards section.
   const handleRun = useCallback(() => {
     beginRun('Run', docRef.current, blocksRef.current[0], true)
   }, [beginRun])
 
-  // Completion glide: park the "Your Session, Analyzed" header right under
-  // the sticky header so the finished run's table is what the visitor sees.
-  // The sentinel's document top IS the header's bottom edge (it is the
-  // first element in flow under it).
+  // Completion glide: park the dashboards section header right under the
+  // sticky header so the run's Session Insights are what the visitor sees
+  // after closing the fullscreen review panel. The sentinel's document top
+  // IS the header's bottom edge (it is the first element in flow under it).
   const scrollInsightsIntoView = useCallback(() => {
     const el = document.getElementById('tour-section-insights')
     const sentinel = heroRef.current
@@ -444,7 +455,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
       { id: 'editor', label: 'Live Preview', level: 3, action: { type: 'scroll', sectionId: 'tour-section-editor' } },
       {
         id: 'insights',
-        label: 'Your Session, Analyzed',
+        label: 'Session Insights',
         level: 3,
         action: { type: 'scroll', sectionId: 'tour-section-insights' },
         secondaryAction: { id: 'run-start', label: 'Run the workout', action: { type: 'call', handler: handleRun } },
@@ -530,7 +541,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
         <section id="tour-section-editor" data-testid="tour-section-editor" className="flex flex-col items-center px-5 py-8 text-center lg:px-10">
           {editorPane}
         </section>
-        <InsightsDashboardsSection session={recordedSession} onRun={handleRun} />
+        <InsightsDashboardsSection session={recordedSession} onRun={handleRun} onBackToEditor={handleBackToEditor} />
         <TourJumpSection />
         {offeringsBlock}
         <GuideIndexFooter />
@@ -559,8 +570,8 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
       </section>
 
       {/* The live preview: welcome-1.md loaded in the editor. Run opens the
-          fullscreen timer; the recorded statements land in the "Your
-          Session, Analyzed" section below. The editor chrome is a scroll
+          fullscreen timer; closing its review panel glides to the
+          dashboards section below. The editor chrome is a scroll
           gate: while traveling, gestures scroll the track; editing inside
           captures the gate. */}
       <section
@@ -572,7 +583,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
         {editorPane}
       </section>
 
-      <InsightsDashboardsSection session={recordedSession} onRun={handleRun} />
+      <InsightsDashboardsSection session={recordedSession} onRun={handleRun} onBackToEditor={handleBackToEditor} />
 
       {/* Library & Community Feeds — collections/packages land above the
           data-ownership sections. */}
