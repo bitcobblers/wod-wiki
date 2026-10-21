@@ -322,13 +322,33 @@ export function TourJumpSection() {
               />
             </button>
           </div>
+        </div>
+      </div>
 
-          {visible.length > 0 ? (
-            isDesktop ? (
-              <>
-                {/* Two rows sliding in opposite ways — one card per seed. */}
-                <MarqueeRow direction="left" testId="jump-row-a" className="mt-4">
-                  {rowA.map(seed => (
+      {/* Card rows run edge to edge: the marquee is the section's own band,
+          outside the readable column that holds the controls and exits. */}
+      <div data-testid="jump-rows" className="mt-6">
+        {visible.length > 0 ? (
+          isDesktop ? (
+            <>
+              {/* Two rows sliding in opposite ways — one card per seed. */}
+              <MarqueeRow direction="left" testId="jump-row-a">
+                {rowA.map(seed => (
+                  <SeedCard
+                    key={seed.seedId ?? seed.slug}
+                    seed={seed}
+                    testId={`seed-card-${seed.seedId ?? seed.slug}`}
+                    className="w-[290px] sm:w-[320px] shrink-0"
+                    onImport={handleImport}
+                    importing={!!seed.seedId && importingSeedId === seed.seedId}
+                    busy={anyBusy}
+                    status={seed.seedId ? statuses[seed.seedId] : undefined}
+                  />
+                ))}
+              </MarqueeRow>
+              {rowB.length > 0 && (
+                <MarqueeRow direction="right" testId="jump-row-b" className="mt-4">
+                  {rowB.map(seed => (
                     <SeedCard
                       key={seed.seedId ?? seed.slug}
                       seed={seed}
@@ -341,44 +361,30 @@ export function TourJumpSection() {
                     />
                   ))}
                 </MarqueeRow>
-                {rowB.length > 0 && (
-                  <MarqueeRow direction="right" testId="jump-row-b" className="mt-4">
-                    {rowB.map(seed => (
-                      <SeedCard
-                        key={seed.seedId ?? seed.slug}
-                        seed={seed}
-                        testId={`seed-card-${seed.seedId ?? seed.slug}`}
-                        className="w-[290px] sm:w-[320px] shrink-0"
-                        onImport={handleImport}
-                        importing={!!seed.seedId && importingSeedId === seed.seedId}
-                        busy={anyBusy}
-                        status={seed.seedId ? statuses[seed.seedId] : undefined}
-                      />
-                    ))}
-                  </MarqueeRow>
-                )}
-              </>
-            ) : (
-              /* One row, sliding out and back — the mobile alternating-sides effect. */
-              <MarqueeRow direction="alternate" testId="jump-row-mobile" className="mt-4">
-                {visible.map(seed => (
-                  <SeedCard
-                    key={seed.seedId ?? seed.slug}
-                    seed={seed}
-                    testId={`seed-card-${seed.seedId ?? seed.slug}`}
-                    className="w-[290px] shrink-0"
-                    onImport={handleImport}
-                    importing={!!seed.seedId && importingSeedId === seed.seedId}
-                    busy={anyBusy}
-                    status={seed.seedId ? statuses[seed.seedId] : undefined}
-                  />
-                ))}
-              </MarqueeRow>
-            )
+              )}
+            </>
           ) : (
+            /* One row, sliding out and back — the mobile alternating-sides effect. */
+            <MarqueeRow direction="alternate" testId="jump-row-mobile">
+              {visible.map(seed => (
+                <SeedCard
+                  key={seed.seedId ?? seed.slug}
+                  seed={seed}
+                  testId={`seed-card-${seed.seedId ?? seed.slug}`}
+                  className="w-[290px] shrink-0"
+                  onImport={handleImport}
+                  importing={!!seed.seedId && importingSeedId === seed.seedId}
+                  busy={anyBusy}
+                  status={seed.seedId ? statuses[seed.seedId] : undefined}
+                />
+              ))}
+            </MarqueeRow>
+          )
+        ) : (
+          <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
             <div
               data-testid="jump-empty"
-              className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border p-10 text-center"
+              className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border p-10 text-center"
             >
               <p className="text-sm font-bold text-muted-foreground">No seeds match your search.</p>
               <p className="mt-1 text-xs text-muted-foreground/70">Try a different term or clear the filters.</p>
@@ -393,9 +399,11 @@ export function TourJumpSection() {
                 </button>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
 
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
         <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60 xl:text-[11px]">
           — or keep scrolling ↓
         </p>
