@@ -245,7 +245,7 @@ export function SidebarLayout({
             At xl (1280px), content halts growth at 984px (1280px viewport - 56px rail - 240px sidebar),
             allowing right-side space to grow until the 240px secondary rail mounts at 2xl (1520px). */}
         <div className="flex flex-1 flex-col min-w-0 xl:max-w-[984px] 2xl:max-w-none">
-          <header data-page-sticky-boundary="true" className="lg:hidden sticky top-0 z-20 flex items-center px-2 sm:px-4 bg-card border-b border-border/50">
+          <header data-page-sticky-boundary="true" className="lg:hidden sticky top-0 z-20 flex items-center px-2 sm:px-4 bg-card">
             <div className="py-2.5 shrink-0">
               <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation">
                 <OpenMenuIcon />

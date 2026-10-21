@@ -4,6 +4,7 @@ template: canvas
 route: /guide/structure
 type: guide
 title: "Structure & Rounds"
+description: "Rounds, sets, ladders, and rep schemes — indentation is the nesting mechanism, one thing per line."
 ---
 
 ```chapter

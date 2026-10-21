@@ -1,11 +1,12 @@
 /**
- * HomeTour.tsx — the home page: a heading hero with the "Why Wod Wiki?"
- * video pitch and a keep-scrolling handoff, the live editor preview, then
- * the data sections, the Library & Community Feeds jump section, the
- * offerings, and the footer.
+ * HomeTour.tsx — the home page: a heading hero that stages the "Why Wod
+ * Wiki?" video pitch and the live editor preview — watching (or scrolling
+ * past) the pitch collapses it into a Watch again tab and hands the hero
+ * viewport to the editor — then the data sections, the Library & Community
+ * Feeds jump section, the offerings, and the footer.
  *
- * The FIRST interaction is the editor section below the video: Run opens
- * the fullscreen timer, whose review panel shows the recorded results.
+ * The FIRST interaction is the editor in the hero: Run opens the
+ * fullscreen timer, whose review panel shows the recorded results.
  * Closing it glides the visitor to the dashboards section — "Session
  * Insights" turns the run into data, and the boards carousel below
  * aggregates runs into dashboards.
@@ -22,6 +23,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Play } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { clearHomeShared, loadHomeShared, type HomeSharedScript } from '../services/homeSharedScript'
 import { resolveSource } from '../canvas/canvasUtils'
 import { GuideIndexFooter } from '../canvas/GuideIndexFooter'
@@ -230,9 +233,51 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   // state. The first entry (arrival) is not a re-entry, and a run owning
   // the fullscreen timer blocks the reset. ──
   const heroRef = useRef<HTMLDivElement | null>(null)
-  const editorSectionRef = useRef<HTMLElement | null>(null)
+  const editorSectionRef = useRef<HTMLDivElement | null>(null)
   const heroSectionRef = useRef<HTMLElement | null>(null)
   useTrackAnchor('hero', heroSectionRef)
+
+  // ── Hero stage: the pitch video owns the hero until it is watched (the
+  // lightbox closes) or skipped (the editor viewport scrolls into view);
+  // then it collapses into the Watch again tab above the editor. ──
+  const [whyShrunk, setWhyShrunk] = useState(false)
+  const whyShrunkRef = useRef(whyShrunk)
+  whyShrunkRef.current = whyShrunk
+
+  // Park the editor section right under the sticky header (same math as
+  // scrollInsightsIntoView).
+  const scrollEditorIntoView = useCallback(() => {
+    const el = document.getElementById('tour-section-editor')
+    const sentinel = heroRef.current
+    if (!el || !sentinel || typeof window.scrollTo !== 'function') return
+    const headerBottom = sentinel.getBoundingClientRect().top + window.scrollY
+    window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - headerBottom), behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+  }, [prefersReducedMotion])
+
+  // Watched: collapse, then hand the hero viewport to the editor once the
+  // collapse transition (~300ms) has settled the layout beneath it.
+  const handleWhyWatched = useCallback(() => {
+    setWhyShrunk(true)
+    window.setTimeout(scrollEditorIntoView, 350)
+  }, [scrollEditorIntoView])
+
+  // Watch again: re-expand the pitch and return to the top of the page.
+  const handleWatchAgain = useCallback(() => {
+    setWhyShrunk(false)
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+  }, [prefersReducedMotion])
+
+  // Skip-the-video: once the pitch scrolls out of view, collapse it — the
+  // editor becomes the hero content without demanding a watch.
+  useEffect(() => {
+    const el = document.getElementById('tour-why-video-wrap')
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting && !whyShrunkRef.current) setWhyShrunk(true)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const editorLeftRef = useRef(false)
   const resetEditorToArrival = useCallback(() => {
     requestStop({ kind: 'apply-doc', doc: initialContent })
@@ -367,13 +412,23 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   // sticky header so the run's Session Insights are what the visitor sees
   // after closing the fullscreen review panel. The sentinel's document top
   // IS the header's bottom edge (it is the first element in flow under it).
+  // The glide leaves the hero, so an open pitch collapses first — letting
+  // the skip-shrink fire mid-glide would shift the target under us.
   const scrollInsightsIntoView = useCallback(() => {
-    const el = document.getElementById('tour-section-insights')
-    const sentinel = heroRef.current
-    if (!el || !sentinel || typeof window.scrollTo !== 'function') return
-    const headerBottom = sentinel.getBoundingClientRect().top + window.scrollY
-    const target = Math.max(0, el.getBoundingClientRect().top + window.scrollY - headerBottom)
-    window.scrollTo({ top: target, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+    const glide = () => {
+      const el = document.getElementById('tour-section-insights')
+      const sentinel = heroRef.current
+      if (!el || !sentinel || typeof window.scrollTo !== 'function') return
+      const headerBottom = sentinel.getBoundingClientRect().top + window.scrollY
+      const target = Math.max(0, el.getBoundingClientRect().top + window.scrollY - headerBottom)
+      window.scrollTo({ top: target, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+    }
+    if (whyShrunkRef.current) {
+      glide()
+      return
+    }
+    setWhyShrunk(true)
+    window.setTimeout(glide, 350)
   }, [prefersReducedMotion])
 
   // Stop click / natural completion: the fullscreen panel reports partial or
@@ -464,6 +519,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
       { id: 'community-feeds', label: 'Library & Community Feeds', level: 3, action: { type: 'scroll', sectionId: 'tour-section-community-feeds' } },
       { id: 'offerings', label: 'You Own the Data', level: 3, action: { type: 'scroll', sectionId: 'tour-section-offerings' } },
       { id: 'hosted', label: 'Wod-Wiki Hosted', level: 3, action: { type: 'scroll', sectionId: 'tour-section-hosted' } },
+      { id: 'university', label: 'Wod Wiki University', level: 3, action: { type: 'scroll', sectionId: 'tour-section-university' } },
     ]
     setL3Items(outline)
     return () => setL3Items([])
@@ -530,29 +586,66 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
     </ScrollGate>
   )
 
+  // The pitch video hands the hero to the editor once watched or skipped —
+  // the same stage contract in both form factors.
+  const whyVideoBlock = (
+    <div
+      id="tour-why-video-wrap"
+      aria-hidden={whyShrunk}
+      className={cn(
+        'grid w-full transition-all duration-300 motion-reduce:transition-none',
+        whyShrunk ? 'grid-rows-[0fr] opacity-0 invisible' : 'grid-rows-[1fr] opacity-100',
+      )}
+    >
+      <div className="min-h-0 overflow-hidden">
+        <TourWhyVideo onWatched={handleWhyWatched} />
+      </div>
+    </div>
+  )
+
+  const editorBlock = (
+    <div
+      ref={editorSectionRef}
+      id="tour-section-editor"
+      data-testid="tour-section-editor"
+      className="flex w-full flex-col items-center px-5 py-8 text-center lg:px-10 xl:py-10 2xl:px-16"
+    >
+      {whyShrunk && (
+        <button
+          type="button"
+          onClick={handleWatchAgain}
+          data-testid="tour-why-watch-again"
+          className="inline-flex items-center gap-1.5 rounded-t-lg border border-b-0 border-border bg-muted/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <Play className="size-3" />
+          Watch again
+        </button>
+      )}
+      {editorPane}
+    </div>
+  )
+
   // Reduced-motion: the same sections, flat hero — no sticky choreography.
   if (prefersReducedMotion) {
     return (
       <div data-testid="home-tour">
-        <section id="tour-hero" data-testid="tour-hero" className="flex min-h-[calc(100dvh-65px)] flex-col items-center justify-center gap-5 px-6 py-6 text-center lg:min-h-[calc(100dvh-104px)]">
+        <section id="tour-hero" data-testid="tour-hero" className="flex flex-col items-center gap-5 px-6 py-6 text-center">
           <TourHeroHeading />
-          <TourWhyVideo />
-        </section>
-        <section id="tour-section-editor" data-testid="tour-section-editor" className="flex flex-col items-center px-5 py-8 text-center lg:px-10">
-          {editorPane}
+          {whyVideoBlock}
+          {editorBlock}
         </section>
         <InsightsDashboardsSection session={recordedSession} onRun={handleRun} onBackToEditor={handleBackToEditor} />
         <TourJumpSection />
         {offeringsBlock}
-        <GuideIndexFooter />
+        <GuideIndexFooter variant="university" />
         <TourFooter />
         {fullscreen}
       </div>
     )
   }
 
-  // ── Normal flow: heading hero → the video pitch → the live editor
-  // preview → the two data sections → feeds → offerings → footer. ──
+  // ── Normal flow: heading hero (pitch video, then the live editor
+  // preview) → the two data sections → feeds → offerings → footer. ──
   return (
     <div data-testid="home-tour">
       {/* Arrival sentinel (#882): a 1px mark at the very top of the page —
@@ -566,21 +659,14 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
         className="relative flex min-h-[calc(100dvh-65px)] flex-col items-center justify-center gap-5 px-5 py-6 text-center lg:min-h-[calc(100dvh-104px)] lg:px-10 xl:gap-7 xl:py-8 2xl:px-16"
       >
         <TourHeroHeading />
-        <TourWhyVideo />
-      </section>
-
-      {/* The live preview: welcome-1.md loaded in the editor. Run opens the
-          fullscreen timer; closing its review panel glides to the
-          dashboards section below. The editor chrome is a scroll
-          gate: while traveling, gestures scroll the track; editing inside
-          captures the gate. */}
-      <section
-        ref={editorSectionRef}
-        id="tour-section-editor"
-        data-testid="tour-section-editor"
-        className="flex min-h-[calc(100dvh-65px)] scroll-mt-[65px] flex-col items-center justify-center px-5 py-8 text-center lg:min-h-[calc(100dvh-104px)] lg:scroll-mt-[104px] lg:px-10 xl:py-10 2xl:px-16"
-      >
-        {editorPane}
+        {whyVideoBlock}
+        {/* The live preview: welcome-1.md loaded in the editor. Watching or
+            skipping the pitch collapses it into the Watch again tab and the
+            editor becomes the hero viewport. Run opens the fullscreen timer;
+            closing its review panel glides to the dashboards section below.
+            The editor chrome is a scroll gate: while traveling, gestures
+            scroll the track; editing inside captures the gate. */}
+        {editorBlock}
       </section>
 
       <InsightsDashboardsSection session={recordedSession} onRun={handleRun} onBackToEditor={handleBackToEditor} />
@@ -591,7 +677,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
 
       {offeringsBlock}
 
-      <GuideIndexFooter />
+      <GuideIndexFooter variant="university" />
       <TourFooter />
       {fullscreen}
     </div>

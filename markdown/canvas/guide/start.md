@@ -4,6 +4,7 @@ template: canvas
 route: /guide/start
 type: guide
 title: "First Workout"
+description: "Write your first one-line workout, press Run, and watch the clock — then add reps, load, and captures."
 ---
 
 ```chapter

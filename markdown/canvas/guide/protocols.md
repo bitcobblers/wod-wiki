@@ -4,6 +4,7 @@ template: canvas
 route: /guide/protocols
 type: guide
 title: "Timers & Protocols"
+description: "Countdowns, countups, AMRAP, EMOM, Tabata, and required rest — every timer modifier in the engine."
 ---
 
 ```chapter

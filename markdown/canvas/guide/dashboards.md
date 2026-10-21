@@ -4,6 +4,7 @@ template: canvas
 route: /guide/dashboards
 type: guide
 title: "Dashboards & Cookbook"
+description: "Dashboards are notes with query widgets — frontmatter tokens, widget fences, and the composer."
 ---
 
 # Dashboards & Cookbook {sticky dark full-bleed}

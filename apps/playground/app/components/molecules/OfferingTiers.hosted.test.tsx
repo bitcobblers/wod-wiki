@@ -31,14 +31,14 @@ beforeEach(() => {
 })
 
 describe('OfferingTiers hosted interest flow', () => {
-  it('shows no survey card on first load — the slot stays empty until interest', () => {
+  it('shows no survey on first load — the footer stays unmounted until interest', () => {
     renderHosted()
     expect(screen.queryByTestId('hosted-survey-button')).toBeNull()
-    expect(screen.queryByText('Thank you!')).toBeNull()
+    expect(screen.queryByTestId('hosted-survey-footer')).toBeNull()
     expect(screen.queryByText('Fill out interest survey')).toBeNull()
   })
 
-  it('records hosted_interest_clicked with the feature id and brings in the survey card', () => {
+  it('records hosted_interest_clicked with the feature id and reveals the survey footer', () => {
     renderHosted()
     fireEvent.click(screen.getByTestId('hosted-interest-managed-hosting'))
     fireEvent.click(screen.getByTestId('hosted-interest-coaches-portal'))
@@ -48,7 +48,7 @@ describe('OfferingTiers hosted interest flow', () => {
       { name: 'home:hosted_interest_clicked', payload: { feature: 'coaches-portal' } },
     ])
 
-    // Interest in either offering mounts the thank-you card with a button
+    // Interest in either offering mounts the thank-you footer with a button
     // (not a link) as the survey CTA.
     const button = screen.getByTestId('hosted-survey-button')
     expect(button.tagName).toBe('BUTTON')

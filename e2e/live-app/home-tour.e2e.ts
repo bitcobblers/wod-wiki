@@ -62,6 +62,25 @@ for (const viewport of [
       await expect(page.getByTestId('tour-scroll-hint')).toBeVisible()
       await expect(page.locator('[data-gate-id="editor-pane"] .cm-content')).toBeVisible()
 
+      // Watching the pitch (open + close the lightbox) collapses it into
+      // the Watch again tab and hands the hero viewport to the editor.
+      await page.getByTestId('tour-why-video').click()
+      await expect(page.getByTestId('youtube-lightbox')).toBeVisible()
+      await page.getByTestId('youtube-lightbox-close').click()
+      await expect(page.getByTestId('tour-why-watch-again')).toBeVisible()
+      await expect(page.getByTestId('tour-why-video')).toBeHidden()
+      await expect(page.locator('[data-gate-id="editor-pane"] .cm-content')).toBeVisible()
+
+      // Watch again re-expands the pitch over the editor.
+      await page.getByTestId('tour-why-watch-again').click()
+      await expect(page.getByTestId('tour-why-video')).toBeVisible()
+      await expect(page.getByTestId('tour-why-watch-again')).toBeHidden()
+
+      // Scrolling past the pitch without watching collapses it too.
+      await page.getByTestId('tour-section-editor').evaluate(el => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
+      await expect(page.getByTestId('tour-why-watch-again')).toBeVisible()
+      await expect(page.getByTestId('tour-why-video')).toBeHidden()
+
       // No run yet: the Session Insights pane offers the CTA instead of
       // results. The section is one long parallax scroll — bring the
       // analytics step itself into view, then take the CTA from wherever
@@ -293,36 +312,39 @@ for (const viewport of [
     test.use({ viewport })
 
     test('marking a feature interested unlocks the survey and reports the funnel event', async ({ page }) => {
-      // No seed wait: the hosted section is static content, independent of
+      // No seed wait: the offerings section is static content, independent of
       // seed sync (which errors in sandboxes without registry access).
       await page.goto('/', { waitUntil: 'domcontentloaded' })
-      const hosted = page.getByTestId('tour-section-hosted')
-      await hosted.scrollIntoViewIfNeeded()
+      const offerings = page.getByTestId('tour-section-offerings')
+      await offerings.scrollIntoViewIfNeeded()
 
-      // The survey card does not exist on first load — the third slot stays
-      // empty until interest is shown.
-      await expect(hosted.getByTestId('hosted-survey-button')).toHaveCount(0)
-      await expect(hosted.getByText('Thank you!')).toHaveCount(0)
+      // The survey footer does not exist on first load — it mounts only once
+      // interest is shown.
+      await expect(offerings.getByTestId('hosted-survey-button')).toHaveCount(0)
+      await expect(offerings.getByTestId('hosted-survey-footer')).toHaveCount(0)
 
-      await hosted.getByTestId('hosted-interest-managed-hosting').click()
+      await offerings.getByTestId('hosted-interest-managed-hosting').click()
 
       // The interest click must reach the gtag dataLayer (consent defaults on).
       await expect.poll(() =>
         page.evaluate(() => {
-          const layer = (window as unknown as { dataLayer?: unknown[] }).dataLayer ?? []
+          // GTM's dataLayer lives on window but is absent from DOM lib types.
+          const w = window as unknown as { dataLayer?: unknown[] }
+          const layer = w.dataLayer ?? []
           return layer.some((entry) => {
-            const args = Array.from(entry as ArrayLike<unknown>)
-            return args[0] === 'event'
-              && args[1] === 'home:hosted_interest_clicked'
-              && (args[2] as { feature?: string } | undefined)?.feature === 'managed-hosting'
+            if (!Array.isArray(entry) || entry[0] !== 'event' || entry[1] !== 'home:hosted_interest_clicked') return false
+            const payload = entry[2]
+            return typeof payload === 'object' && payload !== null && 'feature' in payload && payload.feature === 'managed-hosting'
           })
         }),
       ).toBe(true)
 
-      // Interest mounts the thank-you card with a prominent button CTA.
-      const button = hosted.getByTestId('hosted-survey-button')
+      // Interest mounts the thank-you footer under the three cards with a
+      // prominent button CTA.
+      const button = offerings.getByTestId('hosted-survey-button')
       await expect(button).toBeVisible()
-      await expect(hosted.getByText('Thanks for showing interest — please fill out the survey and give us feedback.')).toBeVisible()
+      await expect(offerings.getByTestId('hosted-survey-footer')).toBeVisible()
+      await expect(offerings.getByText('Thanks for showing interest — please fill out the survey and give us feedback.')).toBeVisible()
 
       // The button opens the survey in a new tab.
       const popupPromise = page.waitForEvent('popup')
@@ -331,13 +353,13 @@ for (const viewport of [
       await popup.close()
 
       // The latch marks the feature interested exactly once.
-      await expect(hosted.getByTestId('hosted-interest-managed-hosting')).toBeDisabled()
+      await expect(offerings.getByTestId('hosted-interest-managed-hosting')).toBeDisabled()
     })
   })
 }
 
 test('dashboard carousel slides across the two seeded boards', async ({ page }) => {
-  test.setTimeout(120_000)
+  test.setTimeout(180_000)
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitForSeedReady(page)
@@ -345,6 +367,14 @@ test('dashboard carousel slides across the two seeded boards', async ({ page }) 
   // carries only the canvas/efforts/equipment markdown.
   await syncSeed(page, 'seed-crossfit')
   await page.goto('/', { waitUntil: 'domcontentloaded' })
+  // The app's own startup import rewrites the canvas routes when it lands
+  // (the page view remounts); let the sync settle before driving the
+  // carousel or the scroll state is yanked back mid-test.
+  await expect.poll(async () => {
+    for (const close of await page.locator('[toast-close]').all()) await close.click()
+    await page.waitForTimeout(500)
+    return page.locator('[toast-close]').count()
+  }, { timeout: 120_000, message: 'startup sync must settle before the carousel interactions' }).toBe(0)
   // Scrolling the "One Run Becomes Many" step into view gives the sticky
   // viewport its boards scope.
   const boardsStep = page.getByTestId('tour-section-boards')
@@ -371,4 +401,43 @@ test('dashboard carousel slides across the two seeded boards', async ({ page }) 
   await boards.getByTestId('dashboard-slide-prev').click()
   await expect(boards.getByTestId('dashboard-slide-tab-road-to-560-total')).toHaveAttribute('aria-selected', 'true')
   await expect(boards.getByTestId('tour-session-dashboard')).toBeVisible()
+})
+
+test('wod wiki university lists guide cards in the on-this-page outline', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.setViewportSize({ width: 1600, height: 1000 })
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await waitForSeedReady(page)
+
+  // The right-rail "On this page" outline carries the section and glides to it.
+  const tocEntry = page.getByRole('button', { name: 'Wod Wiki University' })
+  await expect(tocEntry).toBeVisible()
+  await tocEntry.click()
+  const section = page.getByTestId('tour-section-university')
+  await expect.poll(async () => (await section.boundingBox())?.y ?? Infinity,
+    { timeout: 15_000, message: 'outline click must scroll the university section into view' }).toBeLessThan(200)
+
+  // One card per guide chapter: title, one-line description, watch thumbnail.
+  const cards = section.locator('ul > li')
+  await expect(cards).toHaveCount(8)
+  const first = cards.first()
+  await expect(first.getByRole('link', { name: 'First Workout' })).toBeVisible()
+  await expect(first.getByText(/one-line workout/)).toBeVisible()
+  await expect(first.getByRole('img', { name: '' })).toBeVisible()
+
+  // The thumbnail (not a text link) opens the walkthrough lightbox.
+  await first.getByTestId('guide-watch').click()
+  await expect(page.getByTestId('youtube-lightbox')).toBeVisible()
+  await page.getByTestId('youtube-lightbox-close').click()
+  await expect(page.getByTestId('youtube-lightbox')).toBeHidden()
+
+  // Video and text alternate sides per row (desktop layout).
+  const thumbLeftOfText = async (idx: number) => {
+    const card = cards.nth(idx)
+    const thumb = (await card.getByTestId('guide-watch').boundingBox())!.x
+    const text = (await card.getByRole('link').first().boundingBox())!.x
+    return thumb < text
+  }
+  expect(await thumbLeftOfText(0)).toBe(true)
+  expect(await thumbLeftOfText(1)).toBe(false)
 })

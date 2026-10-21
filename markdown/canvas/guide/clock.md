@@ -4,6 +4,7 @@ template: canvas
 route: /guide/clock
 type: guide
 title: "Run, Track & Capture (the Clock)"
+description: "Run the clock, advance with Next, pause, skip optional rest, and capture times mid-workout."
 ---
 
 ```chapter

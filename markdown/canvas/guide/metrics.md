@@ -4,6 +4,7 @@ template: canvas
 route: /guide/metrics
 type: guide
 title: "Metrics: Planned, Recorded, Calculated"
+description: "Planned, recorded, and calculated metrics, custom inline values, and capture prompts for what you don't know yet."
 ---
 
 ```chapter

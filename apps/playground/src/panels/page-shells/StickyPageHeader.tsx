@@ -5,7 +5,7 @@
  * stateful subheader (e.g. the library's WqlComposer) mounts exactly once:
  *   - Desktop (lg+): the zone sticks to the viewport top (the app has no
  *     desktop navbar) — accent + title + optional subtitle + accessory,
- *     right-aligned actions, subheader below, then a rule.
+ *     right-aligned actions, subheader below.
  *   - Mobile: the zone is hidden entirely (max-lg:hidden) — the SidebarLayout
  *     navbar is the single mobile header. Page identity (title/slug/date)
  *     reaches the navbar via the App breadcrumb (route-derived workout name);
@@ -67,7 +67,7 @@ export function StickyPageHeader({
       id={id}
       data-page-sticky-boundary="true"
       className={cn(
-        'max-lg:hidden lg:sticky lg:top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50 transition-colors',
+        'max-lg:hidden lg:sticky lg:top-0 z-30 bg-background/80 backdrop-blur-md transition-colors',
         className,
       )}
     >
@@ -103,8 +103,7 @@ export function StickyPageHeader({
       </div>
 
       {subheader && (
-        // Tint alone separates the band from the title row — the zone's own
-        // border-b is the single rule of the sticky chrome.
+        // Tint alone separates the band from the title row.
         <div className="bg-background/40">
           {subheader}
         </div>

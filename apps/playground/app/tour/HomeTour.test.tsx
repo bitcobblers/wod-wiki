@@ -61,11 +61,13 @@ mock.module('@/components/organisms/editor/RuntimeTimerPanel', () => ({
     autoStart?: boolean
     onComplete?: (blockId: string, results: Sessions) => void
     onRunStarted?: () => void
+    onClose?: () => void
     externalStop?: boolean
   }) => {
     const control = globalThis as unknown as {
       mockTimerPanelMounts?: number
       fireTimerComplete?: (results: Sessions) => void
+      fireTimerClose?: () => void
     }
     const React = require('react')
     React.useEffect(() => {
@@ -88,6 +90,7 @@ mock.module('@/components/organisms/editor/RuntimeTimerPanel', () => ({
     }, [props.externalStop])
     control.fireTimerComplete = (results: Sessions) =>
       props.onComplete?.('block-1', results)
+    control.fireTimerClose = () => props.onClose?.()
     return (
       <div
         data-testid="mock-timer-panel"
@@ -215,6 +218,7 @@ globalWithResizeObserver.ResizeObserver ??= class {
 type TimerPanelControl = {
   mockTimerPanelMounts?: number
   fireTimerComplete?: (results: Sessions) => void
+  fireTimerClose?: () => void
 }
 const timerPanelControl = () => globalThis as unknown as TimerPanelControl
 
@@ -476,6 +480,110 @@ describe('HomeTour', () => {
       await waitFor(() => expect(within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor')).toBeTruthy())
       expect(within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor')!.textContent).toBe(BARE_WELCOME)
       expect(screen.getByTestId('tour-section-insights').querySelector('[data-testid="tour-insights-timeline"]')).toBeTruthy()
+    } finally {
+      scope.IntersectionObserver = previousIO
+    }
+  })
+
+  it('closing a run with the pitch open collapses it before gliding to the dashboards', async () => {
+    const scrollCalls: Array<{ top: number }> = []
+    const windowWithScroll = window as unknown as { scrollTo: (o: { top: number }) => void }
+    const previousScrollTo = windowWithScroll.scrollTo
+    windowWithScroll.scrollTo = (options) => {
+      scrollCalls.push({ top: options.top })
+    }
+    try {
+      await renderHomeTour()
+      await editorRun()
+      await act(async () => {
+        timerPanelControl().fireTimerComplete?.(completedResults())
+        await Promise.resolve()
+      })
+      // The recorded review panel stays open; closing it is what hands the
+      // hero back — the pitch collapses with the close (the skip-shrink
+      // must not fire mid-glide), then the glide parks the dashboards.
+      await act(async () => {
+        timerPanelControl().fireTimerClose?.()
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('tour-why-video').closest('#tour-why-video-wrap')?.className).toContain('invisible')
+      expect(screen.getByTestId('tour-why-watch-again')).toBeTruthy()
+      await act(async () => {
+        const settled = Promise.withResolvers<void>()
+        setTimeout(settled.resolve, 400)
+        await settled.promise
+      })
+      expect(scrollCalls.length).toBeGreaterThan(0)
+    } finally {
+      windowWithScroll.scrollTo = previousScrollTo
+    }
+  })
+
+  it('collapses the pitch video after watching and hands the hero to the editor', async () => {
+    await renderHomeTour()
+    // Video open, no tab yet.
+    expect(screen.getByTestId('tour-why-video')).toBeTruthy()
+    expect(screen.queryByTestId('tour-why-watch-again')).toBeNull()
+
+    // Watch: open the lightbox, close it — watched.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tour-why-video'))
+      await Promise.resolve()
+    })
+    fireEvent.click(screen.getByTestId('youtube-lightbox-close'))
+
+    // The pitch collapses (visibility-hidden wrapper) and the Watch again
+    // tab takes its place above the editor viewport.
+    expect(screen.getByTestId('tour-why-video').closest('#tour-why-video-wrap')?.className).toContain('invisible')
+    expect(screen.getByTestId('tour-why-watch-again')).toBeTruthy()
+    expect(within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor')).toBeTruthy()
+
+    // Watch again re-expands the pitch over the editor.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tour-why-watch-again'))
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('tour-why-video').closest('#tour-why-video-wrap')?.className).not.toContain('invisible')
+    expect(screen.queryByTestId('tour-why-watch-again')).toBeNull()
+  })
+
+  it('skips the pitch when it scrolls out of view, collapsing it into the tab', async () => {
+    type MockEntry = { el: Element; fire: (v: boolean) => void }
+    const observers: MockEntry[] = []
+    class MockIO {
+      cb: IntersectionObserverCallback
+      constructor(cb: IntersectionObserverCallback) {
+        this.cb = cb
+      }
+      observe(el: Element) {
+        const entry = {
+          el,
+          fire: (v: boolean) =>
+            this.cb([{ isIntersecting: v, target: el } as unknown as IntersectionObserverEntry], this as unknown as IntersectionObserver),
+        }
+        observers.push(entry)
+        entry.fire(true)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    const scope = globalThis as unknown as { IntersectionObserver?: unknown }
+    const previousIO = scope.IntersectionObserver
+    scope.IntersectionObserver = MockIO
+    try {
+      await renderHomeTour()
+      expect(screen.getByTestId('tour-why-video').closest('#tour-why-video-wrap')?.className).not.toContain('invisible')
+
+      // Scroll the pitch out of the viewport — skip it.
+      const videoWrap = observers.find((o) => o.el.id === 'tour-why-video-wrap')
+      expect(videoWrap).toBeTruthy()
+      await act(async () => {
+        videoWrap!.fire(false)
+        await Promise.resolve()
+      })
+
+      expect(screen.getByTestId('tour-why-video').closest('#tour-why-video-wrap')?.className).toContain('invisible')
+      expect(screen.getByTestId('tour-why-watch-again')).toBeTruthy()
     } finally {
       scope.IntersectionObserver = previousIO
     }

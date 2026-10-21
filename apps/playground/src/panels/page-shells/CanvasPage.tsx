@@ -8,10 +8,9 @@
  * ## Title-bar mode  (provide `title`)
  * ```
  * ┌──────────────────────────────────────────┐
- * │  [title]               [actions]  (z-30) │ ← lg:sticky, hidden on mobile
- * │  [subheader?]                            │
- * │  <hr>                                    │
- * ├──────────────────────────────────────────┤
+ *  │  [title]               [actions]  (z-30) │ ← lg:sticky, hidden on mobile
+ *  │  [subheader?]                            │
+ *  ├──────────────────────────────────────────┤
  * │  [subheader?] (mobile sticky, z-10)      │ ← block lg:hidden
  * ├──────────────────────────────────────────┤
  * │  children                                │

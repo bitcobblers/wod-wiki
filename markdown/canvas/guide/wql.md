@@ -4,6 +4,7 @@ template: canvas
 route: /guide/wql
 type: guide
 title: "Query Your Training (WQL)"
+description: "The workout query language — aggregates, filters, rollups, and pipes to shape your training data."
 ---
 
 # Query Your Training (WQL) {sticky dark full-bleed}
