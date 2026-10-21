@@ -39,8 +39,6 @@ export const TEST_IDS = {
   /** TimerSurface tier roots — which tier the picker chose */
   TIMER_SURFACE_MINIMAL: 'timer-surface-minimal',
   TIMER_SURFACE_GENERAL: 'timer-surface-general',
-  /** Strip compression of the General surface (short hosts) */
-  TIMER_SURFACE_GENERAL_STRIP: 'timer-surface-general-strip',
   /** Live metric prompt row (session-total bubbles) on Minimal/General */
   TIMER_METRIC_PROMPTS: 'timer-metric-prompts',
   FOCUSED_DIALOG_CLOSE: 'focused-dialog-close',

@@ -90,15 +90,6 @@ export const GeneralTvWork: StoryObj = {
   ),
 };
 
-/** Short-host compression: label + clock left, caption + triad right (ADR 0003). */
-export const GeneralStrip: StoryObj = {
-  render: () => (
-    <div className="mx-auto h-[120px] w-[min(720px,100%)] overflow-hidden rounded-xl border border-border bg-background">
-      <GeneralTimerSurface model={restModel} mode="strip" {...handlers} />
-    </div>
-  ),
-};
-
 /** Fixture for the live-metric prompt slot (MetricTrackerCard in the app). */
 const promptRow = (
   <div className="flex gap-2 px-4 py-1.5 text-xs text-muted-foreground" data-testid="prompts-fixture">
