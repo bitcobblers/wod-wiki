@@ -24,12 +24,15 @@ import type { WorkbenchDisplayState } from '@/services/cast/rpc/ChromecastProxyR
 import type { CastReceiverContextLike } from '@/types/cast/sdk';
 import { createReceiverSession, type ReceiverSessionHandle } from '@/services/cast/rpc/ReceiverSessionManager';
 import type { IRpcTransport } from '@/services/cast/rpc/IRpcTransport';
-import { ScriptRuntimeProvider, type IRuntimeEventProvider } from '@bitcobblers/wod-wiki-engine';
+import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine';
 import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
 import { ReceiverTimerPanel } from '@/panels/wallclock-panel-chromecast';
 import { ReceiverPreviewPanel } from '@/panels/preview-panel-chromecast';
 import { ReceiverReviewPanel } from '@/panels/review-panel-chromecast';
 import { useSpatialNavigation } from '@/hooks/useSpatialNavigation';
+import { ClockCommandBoard, ClockControlModeToggle, ClockKeyCheckDialog } from '@/clock/ClockCommandBoard';
+import { applyEntryKey, getClockDraft, parseClockDraftValue, writeClockDraft } from '@/clock/clockCommands';
+import type { ClockCommand, ClockKeyAction, ClockSnapshot } from '@/clock/clockCommands';
 import { audioService } from '@/services/AudioService';
 import {
     armReceiverBootFallback,
@@ -54,11 +57,16 @@ const ReceiverApp: React.FC<{
     const [proxyRuntime, setProxyRuntime] = useState<ChromecastProxyRuntime | null>(null);
     const [connectionStatus, setConnectionStatus] = useState('waiting-for-cast');
     const [workbenchState, setWorkbenchState] = useState<WorkbenchDisplayState>({ mode: 'idle' });
+    const [clockSnapshot, setClockSnapshot] = useState<ClockSnapshot | null>(null);
     const [dpadFlash, setDpadFlash] = useState(false);
+    const [keyCheckOpen, setKeyCheckOpen] = useState(false);
     const runtimeRef = useRef<ChromecastProxyRuntime | null>(null);
     const transportRef = useRef<IRpcTransport | null>(null);
     const activeSessionHandleRef = useRef<ReceiverSessionHandle | null>(null);
     const bootFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Latest snapshot for stable callbacks (sendCommand never stale).
+    const clockSnapshotRef = useRef<ClockSnapshot | null>(null);
+    clockSnapshotRef.current = clockSnapshot;
     // Boot-fallback timer for the Chromecast CAF path. Distinct from
     // bootFadeTimerRef (loader fade): this one fires if the CAF READY event
     // never arrives (see armReceiverBootFallback, receiverBootLoader.ts).
@@ -82,6 +90,28 @@ const ReceiverApp: React.FC<{
             data,
         });
     }, []);
+
+    // Authoritative clock command channel. Carries {runId, command} so the
+    // sender can validate the active run before dispatching through the same
+    // gates as local controls. Commands are dropped (never queued, never
+    // replayed) while disconnected or without an active snapshot — a dead
+    // control must not fire on reconnect.
+    const sendCommand = useCallback((command: ClockCommand) => {
+        const runtime = runtimeRef.current;
+        const snapshot = clockSnapshotRef.current;
+        if (!runtime || !snapshot) return;
+        runtime.handle({
+            name: 'clock-command',
+            timestamp: new Date(),
+            data: { runId: snapshot.runId, command },
+        });
+    }, []);
+
+    // Preview selection carries the stable block id (index kept for legacy
+    // senders) so the browser resolves the exact block, not an array slot.
+    const sendSelectBlock = useCallback((blockId: string, index: number) => {
+        sendEvent('select-block', { blockId, index });
+    }, [sendEvent]);
 
     // D-Pad flash helper
     const flash = useCallback(() => {
@@ -120,6 +150,40 @@ const ReceiverApp: React.FC<{
         setWorkbenchState({ mode: 'idle' });
     }, [sendEvent]);
 
+    // Review dismissal: when the sender publishes a snapshot the post-run
+    // review controller is authoritative — it consumes `dismiss` and the next
+    // workbench/snapshot update redraws the receiver. Only snapshotless
+    // (legacy) senders fall back to the local reset.
+    const dismissReview = useCallback(() => {
+        if (clockSnapshotRef.current) {
+            sendCommand({ kind: 'dismiss' });
+            return;
+        }
+        dismissToWaiting();
+    }, [sendCommand, dismissToWaiting]);
+
+    // Shared command board dispatch for receiver-mounted boards (preview /
+    // review modes); sent is the strongest claim the receiver can make.
+    const dispatchBoardCommand = useCallback((command: ClockCommand) => {
+        sendCommand(command);
+        return true;
+    }, [sendCommand]);
+
+    // The command board with snapshot-driven controls (entry card, reps,
+    // Ready/stop-confirm) — rendered under any mirrored mode so pre-run and
+    // post-run value entry work on the TV, not only in active mode.
+    const renderClockBoard = () => (
+        clockSnapshot ? (
+            <div className="absolute inset-x-0 bottom-0 flex w-full shrink-0 justify-center px-10 pb-6">
+                <ClockCommandBoard
+                    snapshot={clockSnapshot}
+                    dispatch={dispatchBoardCommand}
+                    getFocusProps={getFocusProps}
+                />
+            </div>
+        ) : null
+    );
+
     // D-Pad navigation activation
     const { getFocusProps, setFocusedId } = useSpatialNavigation({
         enabled: !!proxyRuntime,
@@ -128,6 +192,78 @@ const ReceiverApp: React.FC<{
             : workbenchState.mode === 'review'
                 ? 'btn-dismiss'
                 : 'btn-next',
+        // Value entry open: every digit — Num Lock on or off — is data.
+        entryOpen: clockSnapshot?.entry != null,
+        onClockAction: useCallback((action: Extract<ClockKeyAction, { kind: 'playback' | 'cancel' | 'values' | 'reps-adjust' | 'primary' | 'digit' | 'back' }>) => {
+            flash();
+            switch (action.kind) {
+                case 'playback':
+                    sendCommand({ kind: 'playback' });
+                    return;
+                case 'cancel':
+                    // Cancel means, in order: close the entry draft, back out
+                    // of a requested stop, request stop while live, dismiss
+                    // review. Legacy senders fall back to the stop event.
+                    if (clockSnapshotRef.current?.entry) {
+                        sendCommand({ kind: 'entry-cancel' });
+                    } else if (clockSnapshotRef.current?.stopRequested) {
+                        sendCommand({ kind: 'stop-cancel' });
+                    } else if (clockSnapshotRef.current) {
+                        sendCommand({ kind: 'stop-request' });
+                    } else if (workbenchStateRef.current.mode === 'active') {
+                        sendEvent('stop');
+                    }
+                    return;
+                case 'values':
+                    sendCommand({ kind: 'values-open' });
+                    return;
+                case 'reps-adjust': {
+                    // Grouped movements require explicit selection — no
+                    // implicit first-row target.
+                    const selected = clockSnapshotRef.current?.selectedOccurrenceId;
+                    if (selected) {
+                        sendCommand({ kind: 'reps-adjust', occurrenceId: selected, delta: action.delta });
+                    }
+                    return;
+                }
+                case 'digit':
+                    // Remote digits edit the shared draft buffer; the entry
+                    // card renders it (controlled) and Save/primary commit it.
+                    if (clockSnapshotRef.current?.entry) writeClockDraft(applyEntryKey(clockSnapshotRef.current.entry.domain, getClockDraft(), action.digit));
+                    return;
+                case 'back':
+                    if (clockSnapshotRef.current?.entry) writeClockDraft(applyEntryKey(clockSnapshotRef.current.entry.domain, getClockDraft(), 'back'));
+                    return;
+                case 'primary': {
+                    const snapshot = clockSnapshotRef.current;
+                    if (!snapshot) return;
+                    if (snapshot.entry) {
+                        // Commit the shared draft once (keys with their target
+                        // inside the entry card are handled by the card).
+                        const parsed = parseClockDraftValue(getClockDraft(), snapshot.entry.domain);
+                        if (parsed.ok) {
+                            sendCommand({ kind: 'entry-save', fieldId: snapshot.entry.fieldId, value: parsed.value });
+                        }
+                        return;
+                    }
+                    if (snapshot.stopRequested) {
+                        sendCommand({ kind: 'stop-confirm' });
+                        return;
+                    }
+                    if (snapshot.phase === 'ready' || snapshot.phase === 'collection') {
+                        sendCommand({ kind: 'ready-start' });
+                        return;
+                    }
+                    if (snapshot.phase === 'review') {
+                        sendCommand({ kind: 'dismiss' });
+                        return;
+                    }
+                    // Live: primary is Next irrespective of focus.
+                    sendCommand({ kind: 'next' });
+                    return;
+                }
+            }
+        }, [flash, sendCommand, sendEvent]),
         onFocusChanged: useCallback((_elementId: string | null, _element: HTMLElement | null) => {
             audioService.playSound('click', 0.3);
         }, []),
@@ -136,39 +272,39 @@ const ReceiverApp: React.FC<{
             // Local audible feedback for remote button press
             audioService.playSound('select', 0.5);
 
-            // Preview screen items → start the workout
+            // Preview screen items → start the workout (stable block id).
             if (elementId.startsWith('preview-block-')) {
-                sendEvent('select-block', { index: Number(elementId.slice('preview-block-'.length)) });
+                const index = Number(elementId.slice('preview-block-'.length));
+                const block = workbenchStateRef.current.previewData?.blocks[index];
+                if (block) {
+                    sendSelectBlock(block.id, index);
+                }
                 return;
             }
-            // Track panel controls
+            // Track panel controls: the surface buttons dispatch commands
+            // through their own onClick (single virtual click — the native
+            // click for this keydown is suppressed by the navigator).
             switch (elementId) {
-                case 'timer-main':
-                    // Toggle play/pause
-                    element.click();
-                    break;
-                case 'btn-pause':
-                    element.click();
-                    break;
-                case 'btn-stop':
-                    sendEvent('stop');
-                    break;
-                case 'btn-next':
-                    sendEvent('next');
-                    break;
                 case 'btn-dismiss':
-                    dismissToWaiting();
+                    dismissReview();
                     break;
                 default:
-                    // Fallback: click the element
                     element.click();
                     break;
             }
-        }, [sendEvent, flash, dismissToWaiting]),
+        }, [flash, dismissReview, sendSelectBlock]),
     });
 
     // Programmatically focus the correct element when the workbench mode changes
     useEffect(() => {
+        if (clockSnapshot?.entry) {
+            setFocusedId('entry-digit-1');
+            return;
+        }
+        if (clockSnapshot?.phase === 'ready') {
+            setFocusedId('board-ready-start');
+            return;
+        }
         if (workbenchState.mode === 'preview') {
             // Only focus first block when blocks exist; otherwise leave focus
             // unset so spatial nav can fall back to the first registered element.
@@ -176,11 +312,13 @@ const ReceiverApp: React.FC<{
                 setFocusedId('preview-block-0');
             }
         } else if (workbenchState.mode === 'active') {
-            setFocusedId('btn-next');
+            // Value entry owns focus while a field is open — land on the
+            // D-pad-reachable digit grid (the text input is not registered).
+            setFocusedId(clockSnapshot?.entry ? 'entry-digit-1' : 'btn-next');
         } else if (workbenchState.mode === 'review') {
             setFocusedId('btn-dismiss');
         }
-    }, [workbenchState.mode, workbenchState.previewData, setFocusedId]);
+    }, [workbenchState.mode, workbenchState.previewData, clockSnapshot?.entry, clockSnapshot?.phase, setFocusedId]);
     // Track receiver mode changes (browsing, timer, showing results) and durations in GA4
     useEffect(() => {
         const currentMode = workbenchState.mode;
@@ -323,10 +461,17 @@ const ReceiverApp: React.FC<{
         const unsubWorkbench = handle.onWorkbenchUpdate((state) => {
             setWorkbenchState(state);
         });
+        // Authoritative clock state: immediate replay of the latest snapshot
+        // on subscribe, then every push. Null snapshot ⇒ controls disabled.
+        const unsubClock = handle.onClockSnapshot((snapshot) => {
+            setClockSnapshot(snapshot);
+        });
         const unsubDisconnect = handle.onDisconnected(() => {
             console.log(options.disconnectedLog);
             setConnectionStatus('disconnected');
             setProxyRuntime(null);
+            // Transport gone: no snapshot, no commands, nothing to replay.
+            setClockSnapshot(null);
             if (activeSessionHandleRef.current === handle) {
                 activeSessionHandleRef.current = null;
             }
@@ -337,6 +482,7 @@ const ReceiverApp: React.FC<{
 
         return () => {
             unsubWorkbench();
+            unsubClock();
             unsubDisconnect();
             if (options.ownsLifetime) {
                 handle.dispose();
@@ -513,22 +659,9 @@ const ReceiverApp: React.FC<{
         };
     }, [setupTransport, wireSession, clearSessionRefs]);
 
-    // Escape/Backspace handler (stop event — not part of spatial navigation)
-    useEffect(() => {
-        const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' || e.key === 'Backspace') {
-                // Only trigger stop in active mode; preview/review have their own
-                // spatial-navigation dismiss paths (btn-dismiss, block-select).
-                if (workbenchStateRef.current.mode !== 'active') return;
-                e.preventDefault();
-                sendEvent('stop');
-                flash();
-            }
-        };
-        // Capture phase so we intercept before Cast SDK consumes the event
-        document.addEventListener('keydown', handleEscape, true);
-        return () => document.removeEventListener('keydown', handleEscape, true);
-    }, [sendEvent, flash]);
+    // Escape/Backspace cancel semantics ride the shared spatial-navigation
+    // key policy (hook `cancel` action → entry-cancel / stop-cancel /
+    // stop-request; Backspace during entry stays with the draft editor).
 
     // Waiting screen: not yet connected, or connected with no runtime active.
     // The sender flips this back to preview/active/review on the next update.
@@ -536,6 +669,19 @@ const ReceiverApp: React.FC<{
         return (
             <div className="h-screen w-screen bg-black flex flex-col items-center justify-center text-white/60 font-mono uppercase tracking-[0.5em]">
                 <div className="animate-pulse">Wod.Wiki // {connectionStatus}</div>
+                {/* Remote mapping aids: Navigation/Keypad key mode plus a
+                    live key-check table for verifying a given remote. */}
+                <div className="mt-8 flex items-center gap-4 tracking-normal normal-case">
+                    <ClockControlModeToggle className="text-xs font-mono text-white/50" />
+                    <button
+                        type="button"
+                        onClick={() => setKeyCheckOpen(true)}
+                        className="text-xs font-mono text-white/50 underline underline-offset-4 hover:text-white/80"
+                    >
+                        Key check
+                    </button>
+                </div>
+                <ClockKeyCheckDialog open={keyCheckOpen} onClose={() => setKeyCheckOpen(false)} />
             </div>
         );
     }
@@ -550,8 +696,10 @@ const ReceiverApp: React.FC<{
                 <ReceiverPreviewPanel
                     previewData={workbenchState.previewData}
                     getFocusProps={getFocusProps}
-                    onBlockSelect={(_blockId, index) => sendEvent('select-block', { index })}
+                    onBlockSelect={(blockId, index) => sendSelectBlock(blockId, index)}
                 />
+                {/* Pre-run collection / Ready controls ride the shared board. */}
+                {renderClockBoard()}
                 <div className="absolute bottom-2 right-2 opacity-10 text-[8px] font-mono tracking-tighter uppercase">
                     {connectionStatus}
                 </div>
@@ -569,9 +717,11 @@ const ReceiverApp: React.FC<{
                 <ReceiverReviewPanel
                     reviewData={workbenchState.reviewData}
                     analyticsSummary={workbenchState.analyticsSummary}
-                    onDismiss={dismissToWaiting}
+                    onDismiss={dismissReview}
                     getFocusProps={getFocusProps}
                 />
+                {/* Post-run corrections ride the shared board. */}
+                {renderClockBoard()}
                 <div className="absolute bottom-2 right-2 opacity-10 text-[8px] font-mono tracking-tighter uppercase">
                     {connectionStatus}
                 </div>
@@ -591,11 +741,8 @@ const ReceiverApp: React.FC<{
                     )}
 
                     <ReceiverTimerPanel
-                        eventProvider={{
-                            dispatch: (event: { name: string }) => sendEvent(event.name),
-                            onEvent: () => () => { },
-                            dispose: () => { },
-                        } satisfies IRuntimeEventProvider}
+                        snapshot={clockSnapshot}
+                        sendCommand={sendCommand}
                         getFocusProps={getFocusProps}
                         workoutTitle={workbenchState.previewData?.title}
                     />

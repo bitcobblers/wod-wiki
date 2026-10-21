@@ -277,7 +277,7 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
       disabled={isNextDisabled}
       aria-disabled={isNextDisabled ? 'true' : undefined}
       {...(getFocusProps ? getFocusProps('btn-next') : {})}
-      className={`tv-focusable flex items-center justify-center gap-2 bg-primary font-bold uppercase tracking-[0.12em] text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none ${isTv ? 'h-[7cqw] rounded-[1.4cqw] px-[4cqw] text-[2.2cqw]' : 'h-[54px] flex-1 rounded-2xl text-[15px]'}`}
+      className={`tv-focusable flex shrink-0 items-center justify-center gap-2 bg-primary font-bold uppercase tracking-[0.12em] text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none ${isTv ? 'h-[7cqw] rounded-[1.4cqw] px-[4cqw] text-[2.2cqw]' : 'h-[54px] w-full rounded-2xl text-[15px]'}`}
       title="Next Block"
       data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
     >

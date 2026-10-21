@@ -3,6 +3,7 @@ import { IBehaviorContext } from '../contracts/IBehaviorContext';
 import { IRuntimeAction } from '../contracts/IRuntimeAction';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
+import type { IMetric } from '@bitcobblers/wod-wiki-core';
 import { RoundState, TimerState } from '../memory/MemoryTypes';
 import {  } from '@bitcobblers/wod-wiki-core';
 import { TimeSpan } from '../models/TimeSpan';
@@ -289,6 +290,14 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
     private writeResultMemory(ctx: IBehaviorContext, resultFragments: MetricContainer): void {
         const existing = ctx.block.getMemoryByTag('metric:result');
         if (existing.length > 0) {
+            // User-origin actuals (e.g. clock-committed rep counts) were merged
+            // into result memory before pop — computed results replace runtime
+            // state only and must not clobber them (ownership resolution keeps
+            // the user-entry winner downstream).
+            const preserved = collectUserOriginMetrics(existing);
+            if (preserved.length > 0) {
+                resultFragments = resultFragments.clone().add(...preserved);
+            }
             ctx.updateMemory('metric:result', resultFragments.toArray());
             return;
         }
@@ -298,13 +307,28 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
 
     private writeResultGroups(ctx: IBehaviorContext, resultGroups: MetricContainer[]): void {
         const existing = ctx.block.getMemoryByTag('metric:result');
-        if (existing.length > 0) {
-            // Not supporting partial updates of groups yet
+        if (existing.length === 0) {
+            for (const group of resultGroups) {
+                ctx.pushMemory('metric:result', group.toArray());
+            }
             return;
         }
 
-        for (const group of resultGroups) {
-            ctx.pushMemory('metric:result', group.toArray());
+        // Pre-committed user-origin actuals live in per-group result
+        // locations (one per display group — see actuals.ts). Merge them into
+        // the matching computed group by index; both derive from the same
+        // display-group structure.
+        const count = Math.max(existing.length, resultGroups.length);
+        for (let i = 0; i < count; i++) {
+            const base = resultGroups[i] ? resultGroups[i].clone() : existing[i].metrics.clone();
+            // base already carries the user metrics when it IS the existing container
+            const userMetrics = resultGroups[i] && i < existing.length ? collectUserOriginMetrics([existing[i]]) : [];
+            const merged = base.add(...userMetrics);
+            if (i < existing.length) {
+                existing[i].update(merged);
+            } else {
+                ctx.pushMemory('metric:result', merged.toArray());
+            }
         }
     }
 
@@ -317,4 +341,15 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
             ? `Round ${round.current} of ${round.total}`
             : `Round ${round.current}`;
     }
+}
+
+/** User-origin metrics across result locations — the actuals that survive pop. */
+function collectUserOriginMetrics(locations: { metrics: MetricContainer }[]): IMetric[] {
+    const userMetrics: IMetric[] = [];
+    for (const loc of locations) {
+        for (const m of loc.metrics) {
+            if (m.origin === 'user') userMetrics.push(m);
+        }
+    }
+    return userMetrics;
 }

@@ -1,16 +1,35 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorView } from "@codemirror/view";
 import { RuntimeTimerPanel } from "@/components/organisms/editor/RuntimeTimerPanel";
 import type { ScriptBlock, Sessions } from "@/components/Editor/types";
+import { toStoredOutputStatement } from '@/components/Editor/types';
 import { ReviewGrid } from "@/components/organisms/review/ReviewGrid";
 import { useDebugMode } from "@/contexts/DebugModeContext";
 import { getAnalyticsFromLogs } from "@/hooks/useWorkbenchServices";
 import type { IScriptRuntime } from "@/hooks/useRuntimeTimer";
-import type { Segment } from '@bitcobblers/wod-wiki-engine';
+import { type Segment, MetricType, OutputStatement } from '@bitcobblers/wod-wiki-engine';
+import { eventsToStoredLogs } from '@bitcobblers/wod-wiki-wql';
+import { storageService } from '@/services/storage';
 import { FocusedDialog } from "@/components/molecules/FocusedDialog";
 import { CastButtonRpc } from "@/components/organisms/cast/CastButtonRpc";
 import { AudioToggle } from "@/components/atoms/AudioToggle";
 import { telemetry } from "@/services/telemetry";
+import {
+  type CollectionItem,
+  useCollectionMetrics,
+  entryFieldId,
+} from "@/hooks/useCollectionMetrics";
+import { CollectionWizard } from "@/components/organisms/review/CollectionWizard";
+import { captureMetricCorrection } from "@/services/analytics/captureMetricCorrection";
+import {
+  type ClockCommand,
+  type ClockSnapshot,
+  useClockController,
+} from "@/clock/clockCommands";
+
+/** Stable empty override map — post-run queue items drop via local sets instead. */
+const NO_OVERRIDES = new Map();
+
 export interface FullscreenTimerProps {
   block: ScriptBlock;
   prepareRun?: () => Promise<ScriptBlock>;
@@ -22,6 +41,12 @@ export interface FullscreenTimerProps {
    * a same-report Retry. Void-returning hosts keep their own save surface.
    */
   onCompleteWorkout?: (blockId: string, results: Sessions) => void | Promise<unknown>;
+  /**
+   * Pinned run session id (captureRun). Unlocks the durable post-run
+   * actuals queue — corrections persist per occurrence via the
+   * metric-correction API; without it no queue is shown.
+   */
+  resultId?: string;
   /** Whether the timer should start automatically on mount. */
   autoStart?: boolean;
   /** Called when the inner runtime is created — host can send gate-popping events (e.g. Next to clear WaitingToStart). */
@@ -42,6 +67,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   view,
   onClose,
   onCompleteWorkout,
+  resultId,
   autoStart,
   onRuntimeReady,
   onRunStarted,
@@ -131,6 +157,8 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   const finalizedRef = useRef(false);
   const exitRequestedRef = useRef(false);
   const [haltRequested, setHaltRequested] = useState(false);
+  // Live Stop/Exit requests confirmation — it never halts silently.
+  const [confirmStop, setConfirmStop] = useState(false);
   // Save in flight or failed holds the overlay; retry is the only way past.
   const savingRef = useRef(false);
   const failedRef = useRef(false);
@@ -138,6 +166,72 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedConfirmed, setSavedConfirmed] = useState(false);
+
+  // ── Post-run missing-actual queue (durable corrections) ──────────────────
+  const { collectionItems: postRunCandidates } = useCollectionMetrics(
+    completedSegments ?? [],
+    NO_OVERRIDES,
+    null,
+  );
+  // Locally resolved/skipped queue items (dynamic membership).
+  const [capturedFields, setCapturedFields] = useState<Set<string>>(new Set());
+  const [skippedFields, setSkippedFields] = useState<Set<string>>(new Set());
+  const [queueDismissed, setQueueDismissed] = useState(false);
+  const queueItems = useMemo(
+    () => postRunCandidates.filter((item) => {
+      const id = entryFieldId(item);
+      return !capturedFields.has(id) && !skippedFields.has(id);
+    }),
+    [postRunCandidates, capturedFields, skippedFields],
+  );
+  const queueVisible = completedSegments !== null && !!resultId && queueItems.length > 0 && !queueDismissed;
+
+  const handleCapture = useCallback(async (item: CollectionItem, value: unknown) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('Invalid value');
+    if (item.kind !== 'value') throw new Error('Unsupported entry');
+    if (!resultId) throw new Error('The saved run is unavailable.');
+    const outcome = await captureMetricCorrection({
+      resultId,
+      occurrence: {
+        blockKey: item.blockKey,
+        ...(item.sourceStatementId !== undefined ? { sourceStatementId: item.sourceStatementId } : {}),
+        ...(item.stackLevel !== undefined ? { stackLevel: item.stackLevel } : {}),
+      },
+      metric: { type: item.metricType as MetricType, value, image: String(value) },
+    });
+    if (outcome === 'not-found') {
+      throw new Error('This result entry could not be found — retry or skip.');
+    }
+    const events = await storageService.getEventsByResult(resultId);
+    const logs = eventsToStoredLogs(events).map(output => toStoredOutputStatement(new OutputStatement(output)));
+    const { segments } = getAnalyticsFromLogs(logs);
+    setCompletedSegments(segments);
+    setCapturedFields((prev) => new Set(prev).add(entryFieldId(item)));
+  }, [resultId]);
+
+  const handleSkipQueueItem = useCallback((item: CollectionItem) => {
+    // Actual unknown stays unknown — skip only drops the prompt.
+    setSkippedFields((prev) => new Set(prev).add(entryFieldId(item)));
+  }, []);
+
+  // Review-phase clock controller (priority 20, after the queue wizard):
+  // remote/keyboard dismiss of the review, nothing else.
+  const reviewSnapshot = useMemo<ClockSnapshot | null>(() => {
+    if (completedSegments === null || queueVisible) return null;
+    return {
+      runId: resultId ? `result:${resultId}` : 'review',
+      phase: 'review',
+      status: 'idle',
+      canNext: false,
+      canStop: false,
+      stopRequested: false,
+      reps: [],
+      selectedOccurrenceId: null,
+      entry: null,
+      error: null,
+      saving: false,
+    };
+  }, [completedSegments, queueVisible, resultId]);
 
   const commitReport = async () => {
     const report = lastReportRef.current;
@@ -161,7 +255,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     setSaveState('idle');
     setSavedConfirmed(true);
     const { results } = report;
-    if (results.completed && results.logs && results.logs.length > 0) {
+    if (results.logs && results.logs.length > 0) {
       try {
         const { segments } = getAnalyticsFromLogs(results.logs, results.startTime);
         setCompletedSegments(segments);
@@ -193,10 +287,34 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
       onClose();
       return;
     }
-    // Live run: halt first; close once the partial report has been committed.
+    // Live run: confirm first (Stop is never silent); confirming keeps the
+    // partial-results flow — halt, report, then close.
+    if (!haltRequested && !externalStop) {
+      setConfirmStop(true);
+      return;
+    }
     exitRequestedRef.current = true;
     setHaltRequested(true);
   };
+
+  const confirmLiveStop = () => {
+    setConfirmStop(false);
+    exitRequestedRef.current = true;
+    setHaltRequested(true);
+  };
+
+  // Review-phase controller registration (after handleClose exists — the ref
+  // pattern keeps the handler current without stale-closure dismisses).
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+  const handleReviewCommand = useCallback((command: ClockCommand): boolean => {
+    if (command.kind === 'dismiss') {
+      handleCloseRef.current();
+      return true;
+    }
+    return false;
+  }, []);
+  useClockController(reviewSnapshot, handleReviewCommand, 20, { keyboard: true });
 
   // Natural completion transitions to the results view only after the host's
   // save settles.
@@ -278,14 +396,28 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
       <div className="flex h-full min-h-0 flex-col">
         {saveBanner}
         <div className="min-h-0 flex-1">
-          <ReviewGrid
-            runtime={null}
-            segments={completedSegments}
-            selectedSegmentIds={selectedSegmentIds}
-            onSelectSegment={handleSelectSegment}
-            groups={[]}
-            gridViewPreset={isDebugMode ? 'debug' : 'default'}
-          />
+          {queueVisible ? (
+            /* Post-run missing-actual queue: raw run is already saved; these
+               corrections persist durably per occurrence (or stay unknown). */
+            <CollectionWizard
+              mode="post-run"
+              items={queueItems}
+              onSave={handleCapture}
+              onSkip={handleSkipQueueItem}
+              onClose={() => setQueueDismissed(true)}
+              runId={resultId ? `result:${resultId}` : undefined}
+              className="mx-auto max-w-md"
+            />
+          ) : (
+            <ReviewGrid
+              runtime={null}
+              segments={completedSegments}
+              selectedSegmentIds={selectedSegmentIds}
+              onSelectSegment={handleSelectSegment}
+              groups={[]}
+              gridViewPreset={isDebugMode ? 'debug' : 'default'}
+            />
+          )}
         </div>
       </div>
     </FocusedDialog>
@@ -329,6 +461,38 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
             externalStop={externalStop || haltRequested}
           />
         </div>
+        {confirmStop && (
+          <FocusedDialog
+            title="Stop workout?"
+            onClose={() => setConfirmStop(false)}
+            closeLabel="Keep going"
+            actions={undefined}
+          >
+            <div className="space-y-4 p-6">
+              <p className="text-sm text-muted-foreground">
+                The run stops now and your partial results are kept.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  data-testid="stop-cancel"
+                  onClick={() => setConfirmStop(false)}
+                  className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                >
+                  Keep going
+                </button>
+                <button
+                  type="button"
+                  data-testid="stop-confirm"
+                  onClick={confirmLiveStop}
+                  className="rounded-lg bg-destructive px-4 py-2 text-sm font-bold text-destructive-foreground transition-colors hover:brightness-110"
+                >
+                  Stop — keep partial results
+                </button>
+              </div>
+            </div>
+          </FocusedDialog>
+        )}
       </div>
     </FocusedDialog>
   );

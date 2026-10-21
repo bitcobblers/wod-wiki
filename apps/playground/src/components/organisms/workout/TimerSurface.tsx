@@ -50,6 +50,7 @@ export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
     onStop: props.onStop,
     onNext: props.onNext,
     isPaused: !!props.isPaused,
+    canNext: props.canNext,
   });
 
   if (isFull) {
@@ -63,6 +64,7 @@ export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
         onNext={props.onNext}
         isRunning={props.isRunning}
         isPaused={props.isPaused}
+        canNext={props.canNext}
         onBlockHover={props.onBlockHover}
         onBlockClick={props.onBlockClick}
         enableDisplayStack={props.enableDisplayStack}

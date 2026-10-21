@@ -4,11 +4,13 @@
 
 import {
   MetricType,
+  createMetricOwnershipLedger,
   fieldRefKey,
   normalizeFieldPath,
   valueKindOf,
   type AnalyticsDataPoint,
   type FieldRef,
+  type IMetric,
   type ResultOrigin,
   type StoredOutputStatement,
   type EventRecord,
@@ -324,7 +326,14 @@ export function toSummaryEventRows(
  * `${record.id}:${factOrdinal}`.
  */
 export function projectEventToFacts(record: EventRecord): AnalyticsDataPoint[] {
-  const metrics = record.metrics as readonly {
+  // User corrections ride the same row as the planned/runtime values they
+  // override (user actuals are preserved, not swapped). Project only the
+  // ownership-visible winners — the canonical 5-tier ledger (user-entry >
+  // runtime > user-plan > dialect > parser) — so raw fact queries count the
+  // authoritative value once instead of double-counting planned+actual.
+  // Row metrics are the stored union (IMetric[] | legacy loose rows); the
+  // ledger consumes the IMetric shape.
+  const metrics = createMetricOwnershipLedger(record.metrics as unknown as readonly IMetric[]).visible() as readonly {
     type?: string; value?: unknown; unit?: string; image?: string;
     metadata?: Record<string, unknown>;
   }[];

@@ -134,6 +134,7 @@ export const pauseIconButton = (page: Page): Locator =>
  * overlay mounted. Does NOT wait for runtime initialization — see #699.
  */
 export async function navigateToRunPage(page: Page, id: string, wodScript: string): Promise<void> {
+  if (page.url() === 'about:blank') await page.goto('/', { waitUntil: 'domcontentloaded' });
   await seedNote(page, `playground/${id}`, `# ${id}\n\n${wodScript}`, {
     type: 'playground',
     title: id,
@@ -159,19 +160,25 @@ export async function navigateToRunPage(page: Page, id: string, wodScript: strin
 }
 
 /**
- * navigateToRunPage + reach a RUNNING session: wait for Ready-to-Start,
- * advance past the SessionRoot gate, wait for the pause icon.
+ * navigateToRunPage + reach a RUNNING session. The session may sit at the
+ * SessionRoot gate ("Ready to Start") or auto-advance depending on the
+ * pre-run collection flow — handle both without assuming the heading.
  */
 export async function startWorkoutFromPlayground(page: Page, id: string, wodScript: string): Promise<void> {
   await navigateToRunPage(page, id, wodScript);
-  await expect(page.getByRole('heading', { name: 'Ready to Start' })).toBeVisible({ timeout: 8_000 });
-
-  // The run route passes autoStart, which starts the *session* clock but
-  // leaves the workout at the SessionRoot gate ("Ready to Start", elapsed
-  // counting up). Next advances into the first real block — the countdown
-  // timer mounts and runs from there.
-  await page.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).first().click();
-  await expect(pauseIconButton(page)).toBeVisible({ timeout: 8_000 });
+  const readyHeading = page.getByRole('heading', { name: 'Ready to Start' });
+  const paused = pauseIconButton(page);
+  await Promise.race([
+    readyHeading.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {}),
+    paused.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {}),
+  ]);
+  // The run route starts the *session* clock but may leave the workout at the
+  // SessionRoot gate ("Ready to Start", elapsed counting up). Next advances
+  // into the first real block — the countdown timer mounts and runs there.
+  if (await readyHeading.isVisible().catch(() => false)) {
+    await page.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).first().click();
+  }
+  await expect(paused).toBeVisible({ timeout: 8_000 });
 }
 
 /** Click Next until the app lands on the completion route (/sessions/:id,

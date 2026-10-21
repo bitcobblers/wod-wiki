@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { normalizeClockKey, type ClockKeyAction, type ClockKeyMode } from '@/clock/clockCommands';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,13 @@ export interface SpatialNavigationOptions {
     onSelect?: (elementId: string, element: HTMLElement) => void;
     /** Called whenever focus moves to a different element (including programmatic changes). */
     onFocusChanged?: (elementId: string | null, element: HTMLElement | null) => void;
+    /**
+     * Clock command keys surfaced from the shared normalizer: playback,
+     * cancel, values, reps-adjust, context primary, and (while value entry is
+     * open) digit/back draft edits. The receiver maps these to clock-command
+     * dispatches; unhandled kinds are simply not consumed.
+     */
+    onClockAction?: (action: Extract<ClockKeyAction, { kind: 'playback' | 'cancel' | 'values' | 'reps-adjust' | 'primary' | 'digit' | 'back' }>) => void;
     /** When false, the hook is inert and does not intercept key events. */
     enabled?: boolean;
     /** Optional initial element to focus. */
@@ -40,6 +48,18 @@ export interface SpatialNavigationOptions {
      * the built-in `[data-nav-focused]` attribute. Defaults to `'tv-focus'`.
      */
     focusClassName?: string;
+    /**
+     * True while a value-entry surface is open (clock `snapshot.entry`):
+     * every digit key — including Numpad 8/2/4/6 with Num Lock off — is
+     * data, never navigation. Arrow keys still move focus.
+     */
+    entryOpen?: boolean;
+    /**
+     * Shared Navigation/Keypad key mode (`getClockKeyMode()` by default):
+     * `'navigation'` reads main Enter as Select; `'keypad'` reads it as the
+     * context primary for remotes with indistinguishable Enter keys.
+     */
+    controlMode?: ClockKeyMode;
 }
 
 export interface FocusProps {
@@ -47,6 +67,8 @@ export interface FocusProps {
     'data-nav-focused': boolean;
     tabIndex: number;
     ref: (el: HTMLElement | null) => void;
+    /** Keeps the registry in sync with real DOM focus (click, Tab). */
+    onFocus: () => void;
 }
 
 // ── Geometry helpers ─────────────────────────────────────────────────────────
@@ -73,6 +95,7 @@ function getRect(el: HTMLElement): Rect {
 }
 
 type Direction = 'up' | 'down' | 'left' | 'right';
+
 
 /**
  * For a given direction, filter candidate rects that lie in that direction
@@ -134,14 +157,28 @@ export function useSpatialNavigation(options: SpatialNavigationOptions = {}) {
     const {
         onSelect,
         onFocusChanged,
+        onClockAction,
         enabled = true,
         initialFocusId,
         focusClassName = 'tv-focus',
+        entryOpen = false,
+        controlMode,
     } = options;
 
     const [focusedId, setFocusedId] = useState<string | null>(initialFocusId ?? null);
     const elementsRef = useRef<Map<string, HTMLElement>>(new Map());
     const focusedIdRef = useRef<string | null>(focusedId);
+
+    // Live refs for the keydown listener: callbacks/options change every
+    // render, the listener must not re-subscribe (and drop mid-press).
+    const onSelectRef = useRef(onSelect);
+    onSelectRef.current = onSelect;
+    const onClockActionRef = useRef(onClockAction);
+    onClockActionRef.current = onClockAction;
+    const entryOpenRef = useRef(entryOpen);
+    entryOpenRef.current = entryOpen;
+    const controlModeRef = useRef(controlMode);
+    controlModeRef.current = controlMode;
 
     // Keep ref in sync and notify listener
     useEffect(() => {
@@ -175,16 +212,20 @@ export function useSpatialNavigation(options: SpatialNavigationOptions = {}) {
         }
     }, [focusClassName]);
 
-    // ── Apply / remove focus class ──────────────────────────────────────────
+    // ── Apply / remove focus class + real DOM focus ──────────────────────────
 
     useEffect(() => {
         if (!enabled) return;
 
-        // Remove class from all, add to focused
+        // Remove class from all, add to focused. The focused element also
+        // receives real DOM focus so `document.activeElement`, native
+        // :focus-visible styles, and screen readers agree with the spatial
+        // selection (one selection, one truth).
         for (const [id, el] of elementsRef.current.entries()) {
             if (id === focusedId) {
                 el.classList.add(focusClassName);
                 el.setAttribute('data-nav-focused', 'true');
+                el.focus({ preventScroll: true });
                 // Scroll focused element into view for TV/10-foot UIs.
                 // 'nearest' avoids unnecessary scrolling when the element is
                 // already fully visible; 'auto' keeps D-Pad navigation snappy.
@@ -201,80 +242,121 @@ export function useSpatialNavigation(options: SpatialNavigationOptions = {}) {
     useEffect(() => {
         if (!enabled) return;
 
-        const handleKeyDown = (e: KeyboardEvent) => {
-            const directionMap: Record<string, Direction> = {
-                ArrowUp: 'up',
-                ArrowDown: 'down',
-                ArrowLeft: 'left',
-                ArrowRight: 'right',
-            };
+        const moveFocus = (direction: Direction, entryOpen: boolean): void => {
+            const currentId = focusedIdRef.current;
+            const elements = elementsRef.current;
 
-            const direction = directionMap[e.key];
+            // While the value-entry card is open, D-pad stays inside the card.
+            const entryCard = entryOpen
+                ? document.querySelector<HTMLElement>('[data-clock-entry]')
+                : null;
 
-            // ── Arrow key → move focus ──────────────────────────────────
-            if (direction) {
-                e.preventDefault();
-
-                const currentId = focusedIdRef.current;
-                const elements = elementsRef.current;
-
-                // If nothing is focused yet, focus the first registered element
-                if (!currentId || !elements.has(currentId)) {
-                    const firstId = elements.keys().next().value;
-                    if (firstId) setFocusedId(firstId as string);
-                    return;
-                }
-
-                const originEl = elements.get(currentId);
-                if (!originEl) return;
-
-                const originRect = getRect(originEl);
-
-                const candidates: { id: string; rect: Rect }[] = [];
-                for (const [id, el] of elements.entries()) {
-                    if (id === currentId) continue;
-                    // Only consider visible elements
-                    if (el.offsetParent === null) continue;
-                    candidates.push({ id, rect: getRect(el) });
-                }
-
-                const nextId = findNearest(originRect, candidates, direction);
-                if (nextId) {
-                    setFocusedId(nextId);
-                }
+            // If nothing is focused yet, focus the first registered element
+            if (!currentId || !elements.has(currentId)) {
+                const fallback = entryCard
+                    ? [...elements.entries()].find(([, el]) => entryCard.contains(el))?.[0]
+                    : undefined;
+                const firstId = fallback ?? elements.keys().next().value;
+                if (firstId) setFocusedId(firstId as string);
                 return;
             }
 
-            // ── Enter / Select → activate ───────────────────────────────
-            const isSelect =
-                e.key === 'Enter' ||
-                e.key === 'Select' ||
-                e.key === 'Center' ||
-                e.key === 'Ok' ||
-                e.key === 'Accept' ||
-                e.key === ' ' ||
-                e.keyCode === 13 ||
-                e.keyCode === 23 ||   // DPAD_CENTER
-                e.keyCode === 32;
+            const originEl = elements.get(currentId);
+            if (!originEl) return;
 
-            const isPlayPause =
-                e.key === 'MediaPlayPause' ||
-                e.key === 'MediaPlay' ||
-                e.key === 'MediaPause' ||
-                e.keyCode === 179 ||  // MediaPlayPause
-                e.keyCode === 126 ||  // MEDIA_PLAY (Android)
-                e.keyCode === 127;    // MEDIA_PAUSE (Android)
-
-            if (isSelect || isPlayPause) {
-                e.preventDefault();
-                const currentId = focusedIdRef.current;
-                if (currentId) {
-                    const el = elementsRef.current.get(currentId);
-                    if (el && onSelect) {
-                        onSelect(currentId, el);
-                    }
-                }
+            // Origin drifted outside the open card: pull focus back in.
+            if (entryCard && !entryCard.contains(originEl)) {
+                const inside = [...elements.entries()].find(([, el]) => entryCard.contains(el) && el.offsetParent !== null);
+                if (inside) setFocusedId(inside[0]);
                 return;
+            }
+
+            const originRect = getRect(originEl);
+
+            const candidates: { id: string; rect: Rect }[] = [];
+            for (const [id, el] of elements.entries()) {
+                if (id === currentId) continue;
+                // Only consider visible elements
+                if (el.offsetParent === null) continue;
+                // Entry open: candidates are scoped to the entry card.
+                if (entryCard && !entryCard.contains(el)) continue;
+                candidates.push({ id, rect: getRect(el) });
+            }
+
+            const nextId = findNearest(originRect, candidates, direction);
+            if (nextId) {
+                setFocusedId(nextId);
+            }
+        };
+
+        const activateFocused = (): void => {
+            const currentId = focusedIdRef.current;
+            if (!currentId) return;
+            const el = elementsRef.current.get(currentId);
+            if (el && onSelectRef.current) {
+                onSelectRef.current(currentId, el);
+            }
+        };
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ctrl/Alt/Meta shortcuts and IME composition are never D-Pad input.
+            if (e.ctrlKey || e.altKey || e.metaKey || e.isComposing) return;
+            // A clock modal (key-check dialog) owns the keys while open — the
+            // navigator must not move focus or click controls behind it.
+            if (document.body.dataset.clockModal) return;
+
+            // Inside the entry card the card's own keyboard handling owns the
+            // keys (digits, back, cancel, keypad Enter, focus trap) — the
+            // navigator must not double-edit the draft or double-commit.
+            const entryCard = entryOpenRef.current
+                ? document.querySelector<HTMLElement>('[data-clock-entry]')
+                : null;
+            const target = e.target as Node | null;
+
+            const action = normalizeClockKey(e, {
+                entryOpen: entryOpenRef.current,
+                mode: controlModeRef.current,
+            });
+            if (entryCard && target && (target === entryCard || entryCard.contains(target)) && action.kind !== 'direction' && !(action.kind === 'select' && e.key !== 'Enter')) return;
+
+            switch (action.kind) {
+                case 'direction':
+                    // Held-key repeat is desirable for movement.
+                    e.preventDefault();
+                    moveFocus(action.direction, entryOpenRef.current);
+                    return;
+
+                case 'digit':
+                case 'back':
+                    // Draft edits only while entry is open; digits/back may repeat.
+                    if (!entryOpenRef.current) return;
+                    e.preventDefault();
+                    onClockActionRef.current?.(action);
+                    return;
+
+                case 'playback':
+                case 'cancel':
+                case 'values':
+                case 'reps-adjust':
+                case 'primary':
+                    // Mutation keys ignore held-key repeats.
+                    e.preventDefault();
+                    if (e.repeat) return;
+                    onClockActionRef.current?.(action);
+                    return;
+
+                case 'select':
+                    // One activation per press: preventDefault suppresses the
+                    // native click this keydown would produce on the (real)
+                    // focused element, then we issue exactly one virtual one.
+                    e.preventDefault();
+                    if (e.repeat) return;
+                    activateFocused();
+                    return;
+
+                case 'none':
+                    // Data keys are never consumed by navigation.
+                    return;
             }
         };
 
@@ -282,7 +364,7 @@ export function useSpatialNavigation(options: SpatialNavigationOptions = {}) {
         // the Cast Receiver SDK's own handlers can consume them.
         document.addEventListener('keydown', handleKeyDown, true);
         return () => document.removeEventListener('keydown', handleKeyDown, true);
-    }, [enabled, onSelect]);
+    }, [enabled]);
 
     // ── Public API ──────────────────────────────────────────────────────────
 
@@ -317,6 +399,9 @@ export function useSpatialNavigation(options: SpatialNavigationOptions = {}) {
             'data-nav-focused': focusedId === id,
             tabIndex: 0,
             ref: (el: HTMLElement | null) => registerElement(id, el),
+            // Clicks and Tab move real DOM focus first; keep the spatial
+            // selection in lockstep so there is exactly one selection.
+            onFocus: () => setFocusedId(id),
         }),
         [focusedId, registerElement],
     );

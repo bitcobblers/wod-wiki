@@ -43,6 +43,25 @@ export const TEST_IDS = {
   TIMER_METRIC_PROMPTS: 'timer-metric-prompts',
   FOCUSED_DIALOG_CLOSE: 'focused-dialog-close',
 
+  // ── Clock command board (shared browser/receiver) ─────────────────────────
+  CLOCK_COMMAND_BOARD: 'clock-command-board',
+  CLOCK_REP_COUNTER: 'clock-rep-counter',
+  CLOCK_REP_VALUE: 'clock-rep-value',
+  CLOCK_REP_MINUS: 'clock-rep-minus',
+  CLOCK_REP_PLUS: 'clock-rep-plus',
+  CLOCK_REP_SELECT: 'clock-rep-select',
+  CLOCK_VALUES_BUTTON: 'clock-values-button',
+  CLOCK_DRAFT_CHIP: 'clock-draft-chip',
+  CLOCK_LEGEND: 'clock-legend',
+  CLOCK_KEY_MODE_TOGGLE: 'clock-key-mode-toggle',
+  CLOCK_KEY_CHECK_BUTTON: 'clock-key-check-button',
+  CLOCK_KEY_CHECK_DIALOG: 'clock-key-check-dialog',
+  CLOCK_STOP_CONFIRM: 'clock-stop-confirm',
+  CLOCK_STOP_CONFIRM_ACCEPT: 'clock-stop-confirm-accept',
+  CLOCK_STOP_CONFIRM_CANCEL: 'clock-stop-confirm-cancel',
+  CLOCK_ENTRY_OVERLAY: 'clock-entry-overlay',
+  CLOCK_ERROR: 'clock-error',
+
   // ── Review panel ───────────────────────────────────────────────────────────
   REVIEW_PANEL: 'review-panel',
   REVIEW_RESULTS_TABLE: 'review-results-table',

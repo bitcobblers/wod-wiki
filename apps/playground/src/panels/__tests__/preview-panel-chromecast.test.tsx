@@ -42,6 +42,7 @@ describe('ReceiverPreviewPanel', () => {
       'data-nav-focused': false,
       tabIndex: 0,
       ref: () => {},
+      onFocus: () => {},
     }));
 
     render(

@@ -16,9 +16,8 @@ export {
   onCastTransportChange,
 } from '@/services/cast/castTransportRegistry';
 
-// ── RPC session manager, event router, and runtime subscription ───────────
+// ── RPC session manager and runtime subscription ────────────────────────────
 export { CastSessionManager, sharedCastSessionManager } from '@/services/cast/rpc/CastSessionManager';
-export { routeRuntimeEvent } from '@/services/cast/rpc/eventRouter';
 export { ChromecastRuntimeSubscription } from '@/services/cast/rpc/ChromecastRuntimeSubscription';
 
 // ── Types ─────────────────────────────────────────────────────────────────

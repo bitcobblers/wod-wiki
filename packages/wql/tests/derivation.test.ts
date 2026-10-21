@@ -257,3 +257,55 @@ describe('projectEventToFacts — event rows → flat fact currency (ticket 003 
     });
   });
 });
+
+describe('projectEventToFacts — ownership precedence (user actuals)', () => {
+  it('projects one rep fact — the user correction — not planned+actual double count', () => {
+    // A corrected segment row keeps the planned (parser) rep raw alongside the
+    // user-origin actual; raw fact queries must count the authoritative value once.
+    const row: EventRecord = {
+      id: 'r1:0',
+      resultId: 'r1',
+      noteId: 'n1',
+      timestamp: TS,
+      grain: 'event',
+      outputType: 'segment',
+      sourceBlockKey: 'blk-1',
+      stackLevel: 2,
+      metrics: [
+        { type: 'rep', value: 21, image: '21', origin: 'parser' }, // planned target
+        { type: 'rep', value: 17, image: '17', origin: 'user' }, // user actual
+        { type: 'effort', value: 'Deadlift', image: 'Deadlift', origin: 'parser' },
+        { type: 'elapsed', value: 30_000, origin: 'runtime' },
+      ],
+    };
+    const facts = projectEventToFacts(row);
+
+    const repFacts = facts.filter((f) => f.metricKey === 'reps');
+    expect(repFacts).toHaveLength(1);
+    expect(repFacts[0]).toMatchObject({ value: 17, grain: 'event' });
+    // non-rep metrics unaffected
+    expect(facts.some((f) => f.metricKey === 'elapsed' && f.value === 30_000)).toBe(true);
+    // effort is a string value — projects no numeric fact of its own
+    expect(facts.filter((f) => f.metricKey === 'effort')).toHaveLength(0);
+  });
+
+  it('collapses same-type layered values to the highest layer (runtime over parser)', () => {
+    const row: EventRecord = {
+      id: 'r1:1',
+      resultId: 'r1',
+      noteId: 'n1',
+      timestamp: TS,
+      grain: 'event',
+      outputType: 'segment',
+      sourceBlockKey: 'blk-1',
+      metrics: [
+        { type: 'rep', value: 10, image: '10', origin: 'parser' },
+        { type: 'rep', value: 8, image: '8', origin: 'runtime' }, // counted value
+      ],
+    };
+    const facts = projectEventToFacts(row);
+    const repFacts = facts.filter((f) => f.metricKey === 'reps');
+    expect(repFacts).toHaveLength(1);
+    expect(repFacts[0].value).toBe(8);
+  });
+});

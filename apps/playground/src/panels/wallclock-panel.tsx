@@ -10,7 +10,7 @@
  * - This allows parent blocks (For Time, AMRAP) to pin their timer as the main display
  */
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useScriptRuntime } from '@bitcobblers/wod-wiki-engine';
 import {
   usePrimaryTimer,
@@ -58,6 +58,9 @@ export interface TimerDisplayProps {
 
   /** Disable next/skip controls */
   disableNext?: boolean;
+
+  /** Authoritative Next availability from the clock snapshot (beyond paused). */
+  canNext?: boolean;
 
   /** Enable compact mode for mobile */
   compact?: boolean;
@@ -387,7 +390,7 @@ const StackIntegratedTimer: React.FC<TimerDisplayProps> = (props) => {
         // active, even between blocks where no timer span is open.
         isRunning={isAnyTimerRunning || executionStatus === 'running'}
         isPaused={executionStatus === 'paused'}
-        disableNext={executionStatus === 'paused'}
+        disableNext={executionStatus === 'paused' || props.canNext === false}
 
         primaryTimer={displayTimerEntry}
         subLabel={subLabel}
@@ -406,44 +409,14 @@ const StackIntegratedTimer: React.FC<TimerDisplayProps> = (props) => {
 
 /**
  * TimerDisplay - Enhanced timer display component
+ *
+ * ponytail: the old per-display hardware keydown listener (any-Enter Next)
+ * was retired here — the shared clock command keyboard in `@/clock/clockCommands`
+ * now owns foreground input via the live authority; upgrade path is none, the
+ * shared owner covers all tiers and gates.
  */
 export const TimerDisplay: React.FC<TimerDisplayProps> = (props) => {
   const viewMode = useWorkbenchSession(s => s.viewMode);
-  const { onNext, disableNext, isPaused } = props;
-
-  // Global keydown listener for hardware 'Next' button support (Volume Up / Enter)
-  useEffect(() => {
-    // Only fire hardware keys if we are in the track view
-    if (viewMode !== 'track') return;
-
-    const handleHardwareKey = (e: KeyboardEvent) => {
-      // AudioVolumeUp is often sent by hardware volume buttons on mobile
-      // Enter (13) is also common for "Select" or "Next" actions
-      const isNextKey = 
-        e.key === 'AudioVolumeUp' || 
-        e.key === 'Enter' || 
-        e.keyCode === 13;
-
-      if (isNextKey) {
-        // Don't trigger if user is typing in an input or textarea
-        const activeEl = document.activeElement;
-        const isTyping = activeEl && (
-          activeEl.tagName === 'INPUT' || 
-          activeEl.tagName === 'TEXTAREA' || 
-          (activeEl as HTMLElement).isContentEditable
-        );
-        
-        if (!isTyping && !disableNext && !isPaused) {
-          // Prevent default browser behavior (like scrolling on space/enter)
-          e.preventDefault();
-          onNext();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleHardwareKey);
-    return () => window.removeEventListener('keydown', handleHardwareKey);
-  }, [onNext, disableNext, isPaused, viewMode]);
 
   // If display stack is enabled (runtime available), render with runtime hooks
   if (props.enableDisplayStack) {
