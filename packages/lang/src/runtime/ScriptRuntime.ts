@@ -23,6 +23,7 @@ import { IAnalyticsEngine } from '../analytics/contracts/IAnalyticsEngine';
 import type { AnalyticsContext } from '../analytics/AnalyticsContext';
 import type { INowProvider } from './INowProvider';
 import { wallClockNow } from './INowProvider';
+import { RuntimeLogger } from './RuntimeLogger';
 
 export type RuntimeState = 'idle' | 'running' | 'compiling' | 'completed';
 
@@ -130,6 +131,9 @@ export class ScriptRuntime implements IScriptRuntime {
 
         // Emit 'load' output with initial state
         this._output.emitLoad();
+
+        // Paper-format BOOT line when debug logging is on (prototype tier 04).
+        RuntimeLogger.logBoot(`statements ${this.script.statements.length}`);
     }
 
     /**
@@ -254,6 +258,8 @@ export class ScriptRuntime implements IScriptRuntime {
      */
     public addOutput(output: IOutputStatement): void {
         this._output.add(output);
+        // Paper-format OUT line when debug logging is on (prototype tier 04).
+        RuntimeLogger.logOutput(output);
     }
 
     public setAnalyticsEngine(engine: IAnalyticsEngine): void {
