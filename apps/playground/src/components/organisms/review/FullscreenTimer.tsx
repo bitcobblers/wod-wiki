@@ -13,7 +13,7 @@ import { storageService } from '@/services/storage';
 import { FocusedDialog } from "@/components/molecules/FocusedDialog";
 import { CastButtonRpc } from "@/components/organisms/cast/CastButtonRpc";
 import { AudioToggle } from "@/components/atoms/AudioToggle";
-import { telemetry } from "@/services/telemetry";
+import { telemetry, engagementMs } from "@/services/telemetry";
 import {
   type CollectionItem,
   useCollectionMetrics,
@@ -95,6 +95,8 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   // Track runtime dialog load, review screen, and duration in GA4 & telemetry
   const mountTimeRef = useRef(Date.now());
   const prevTitleRef = useRef(typeof document !== 'undefined' ? document.title : 'Wod.Wiki');
+  // Suppress duplicate pageviews: label loads and re-renders must not re-fire.
+  const lastPagePathRef = useRef<string | null>(null);
 
   useEffect(() => {
     const workoutLabel = block.label || block.id;
@@ -107,22 +109,28 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
 
     document.title = pageTitle;
 
-    window.gtag?.('event', 'page_view', {
-      page_title: pageTitle,
-      page_path: pagePath,
-      page_location: typeof window !== 'undefined' ? `${window.location.origin}${pagePath}` : pagePath,
-    });
+    // page_location stays the real URL; the synthetic path is page_path only.
+    if (lastPagePathRef.current !== pagePath) {
+      lastPagePathRef.current = pagePath;
+      window.gtag?.('event', 'page_view', {
+        page_title: pageTitle,
+        page_path: pagePath,
+        page_location: typeof window !== 'undefined' ? window.location.href : pagePath,
+        engagement_time_msec: engagementMs(),
+      });
+    }
 
+    const consented = telemetry.consent;
     if (!isReview) {
       telemetry.record('runtime:dialog_loaded', {
         workout_label: workoutLabel,
         block_type: block.blockType,
       });
-      window.gtag?.('event', 'runtime_dialog_loaded', {
+      if (consented) window.gtag?.('event', 'runtime_dialog_loaded', {
         workout_label: workoutLabel,
         block_type: block.blockType,
       });
-    } else {
+    } else if (consented) {
       window.gtag?.('event', 'runtime_dialog_review', {
         workout_label: workoutLabel,
         block_type: block.blockType,

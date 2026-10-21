@@ -310,6 +310,62 @@ export function isRpcClockSnapshot(message: RpcMessage): message is RpcClockSnap
 }
 
 /**
+ * One library card (browser → receiver). Mirrors the home gallery's seed
+ * cards: picking one asks the browser to route to `href`, where the
+ * existing block-selection / timer flow takes over.
+ */
+export interface RpcLibraryEntry {
+    /** Stable seed id (e.g. `crossfit-programming`). */
+    notebookId: string;
+    title: string;
+    /** Sender-relative route opened when the receiver selects this entry. */
+    href: string;
+    /** Rows present locally — shown as a count on the TV listing. */
+    itemCount: number;
+}
+
+/**
+ * Library catalog (browser → receiver).
+ *
+ * Pushed by the sender on session connect and whenever the local corpus
+ * changes. The receiver renders it whenever the workbench has nothing
+ * workout-shaped to display (idle, or a preview with no blocks).
+ */
+export interface RpcLibraryState {
+    type: 'rpc-library-state';
+    entries: RpcLibraryEntry[];
+}
+
+/** Structural guard for `RpcLibraryState` messages arriving from the sender. */
+export function isRpcLibraryState(message: RpcMessage): message is RpcLibraryState {
+    if (typeof message !== 'object' || message === null) return false;
+    const msg = message as RpcMessage & Record<string, unknown>;
+    if (msg.type !== 'rpc-library-state' || !Array.isArray(msg.entries)) return false;
+    return msg.entries.every((entry) => {
+        if (typeof entry !== 'object' || entry === null) return false;
+        const e = entry as RpcLibraryEntry;
+        return isNonEmptyString(e.notebookId)
+            && isNonEmptyString(e.title)
+            && isNonEmptyString(e.href)
+            && typeof e.itemCount === 'number';
+    });
+}
+
+/**
+ * Validate an `open-notebook` rpc-event payload at the cast boundary.
+ * Only sender-relative routes are accepted — an absolute URL, scheme, or
+ * protocol-relative href would let a cast device navigate the browser
+ * off-app. Returns `null` when malformed (callers must drop it).
+ */
+export function parseOpenNotebookPayload(data: unknown): { href: string } | null {
+    if (typeof data !== 'object' || data === null) return null;
+    const href = (data as Record<string, unknown>).href;
+    if (!isNonEmptyString(href)) return null;
+    if (!href.startsWith('/') || href.startsWith('//')) return null;
+    return { href };
+}
+
+/**
  * Union of all RPC message types sent over the DataChannel.
  */
 export type RpcMessage =
@@ -323,4 +379,5 @@ export type RpcMessage =
     | RpcClockSyncResult
     | RpcAnalyticsSummary
     | RpcAudio
-    | RpcClockSnapshot;
+    | RpcClockSnapshot
+    | RpcLibraryState;

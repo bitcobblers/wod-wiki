@@ -43,6 +43,7 @@ import type { Sessions } from '@/types/history';
 import { workbenchEventBus } from '@/hooks/useBrowserServices';
 import { getWorkbenchDocumentTitle } from '@/app/workbench/workbenchEntryLoader';
 import { WorkbenchCastBridge } from '@/components/organisms/cast/WorkbenchCastBridge';
+import { LibraryCastBridge } from '@/components/organisms/cast/LibraryCastBridge';
 import { useScreenMode } from '@/panels/panel-system/useScreenMode';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import type { ProjectionResult } from '@bitcobblers/wod-wiki-engine';
@@ -484,6 +485,7 @@ export const Workbench: React.FC<WorkbenchProps> = (props) => {
       >
         <RuntimeLifecycleProvider factory={runtimeFactory}>
           <WorkbenchCastBridge />
+          <LibraryCastBridge />
           <WorkbenchContent {...props} initialContent={initialContent} initialActiveEntryId={initialActiveEntryId} initialViewMode={initialViewMode} provider={resolved.provider} notePersistence={resolved.notePersistence} />
         </RuntimeLifecycleProvider>
       </WorkbenchSessionProvider>

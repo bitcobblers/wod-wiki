@@ -42,8 +42,10 @@ export function DocumentTitleSync() {
       trackPageView(document.title, location.pathname + location.search)
     }, 0)
 
+    // Depend on pathname only: search-param changes (?tab=, ?q=) must not
+    // emit extra pageviews for the same page.
     return () => clearTimeout(timer)
-  }, [location.pathname, location.search])
+  }, [location.pathname])
 
   return null
 }

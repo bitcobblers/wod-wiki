@@ -21,7 +21,7 @@ export class FakeRpcTransport implements IRpcTransport {
     /**
      * In-memory test transport — no real network, no clock skew. Tests that
      * want to exercise clock-sync wiring set this on the specific instance;
-     * the default mirrors the local-tab transport, where sync would be a
+     * the default mirrors a shared-clock transport, where sync would be a
      * no-op handshake.
      */
     get needsClockSync(): boolean {

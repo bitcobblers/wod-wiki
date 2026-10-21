@@ -193,7 +193,7 @@ The pre-main integration of #1082, #1083 and #1084 passed 1,993 package tests, 2
 
 The PR verification comment waits for package, playground, Storybook and both deployed E2E jobs. A failed package or E2E job now prevents the comment from reporting verification passed.
 
-Production-bundle Cast acceptance explicitly sets `localStorage['wodwiki.castBackend'] = 'local'` before sender startup. This opt-in exercises the real popup receiver and RPC transport without a physical TV; the default production backend remains Chromecast. All four local receiver scenarios passed against the production build, including paused Next rejection and numeric rep entry.
+Cast sender/receiver RPC is exercised against the real hosted receiver app; every build — dev, storybook, preview, production — casts with the same `CAST_APP_ID`, and the Cast Web SDK accepts `localhost` as a sender origin. Headless CI cannot reach a physical receiver, so on-device Cast/keypad delivery stays a manual acceptance item.
 
 Integration acceptance follows Stop confirmation through the saved review before dismissing the clock. Catalog fixtures use the real seed compiler and intercept worker requests at the browser-context level. A production worker smoke imported only the selected CrossFit Games chunk, not the adjacent Girls package. CLI skills discovery also passed through a `node_modules/.bin` symlink.
 

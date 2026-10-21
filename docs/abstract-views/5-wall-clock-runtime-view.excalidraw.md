@@ -15,7 +15,7 @@ Key architectural responsibilities include:
 - **Real-Time Engine Coordination**: Driving state transitions through the compiled language engine (`IScriptRuntime`, `MemoryEvents`, `StackEvents`), managing active intervals, rest countdowns, and sound triggers (`RecordingAudioSink`, `AudioPolicy`).
 - **Oversized Tactile Ergonomics**: Providing high-contrast, oversized typography legible from 10+ feet away and large touch targets operable with sweat, movement, or workout gloves.
 - **Dual-Plane Execution Recording**: Streaming finished session metrics to the `sessions` store while persisting statement-by-statement execution telemetry to the `events` store via `playgroundRecorder.record()`.
-- **Remote Display Mirroring**: Broadcasting real-time state to large displays (TVs / Chromecast) via `ChromecastProxyRuntime` and `BroadcastChannelRpcTransport`.
+- **Remote Display Mirroring**: Broadcasting real-time state to large displays (TVs / Chromecast) via `ChromecastProxyRuntime` and `WebRtcRpcTransport`.
 
 ---
 

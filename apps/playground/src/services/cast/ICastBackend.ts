@@ -1,10 +1,9 @@
 /**
  * ICastBackend — the port that hides whether casting is going through a real
- * Chromecast device, a local-tab dual-pane mirror, or some future adapter.
+ * Chromecast device, or some future adapter.
  *
  * Callers (the cast button) depend only on this interface. They never import
- * a concrete adapter. The factory in `getCastBackend.ts` picks an adapter
- * based on the build-time `VITE_CAST_BACKEND` env.
+ * a concrete adapter. `getCastBackend()` returns the singleton adapter.
  *
  * Lifecycle
  * ---------

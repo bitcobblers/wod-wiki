@@ -15,22 +15,18 @@
  *      so the React tree can reset to the waiting screen.
  *
  * Two callers converge here:
- *   - `LocalReceiverApp` (local-tab dual-pane mirror): acquires a
- *     `BroadcastChannelRpcTransport` via `acquireLocalReceiverSession`,
- *     then hands it to `createReceiverSession`.
  *   - `ReceiverApp` (chromecast path): receives a WebRTC offer over
  *     CAF, creates a `WebRtcRpcTransport`, hands it to
  *     `createReceiverSession`.
  *
  * `dispose()` tears down the runtime, audio listener, workbench
  * stream, and disconnect subscriptions. The transport itself is
- * left to its owner (the React tree, the CAF signaling, or the
- * local-tab adapter).
+ * left to its owner (the React tree or the CAF signaling).
  */
 
 import { audioService } from '@/services/AudioService';
 import { ChromecastProxyRuntime, type WorkbenchDisplayState } from './ChromecastProxyRuntime';
-import { isRpcClockSnapshot } from './RpcMessages';
+import { isRpcClockSnapshot, isRpcLibraryState } from './RpcMessages';
 import type { ClockSnapshot } from '@/clock/clockCommands';
 import type { IRpcTransport, RpcUnsubscribe } from './IRpcTransport';
 
@@ -62,6 +58,12 @@ export interface ReceiverSessionHandle {
     onClockSnapshot(handler: (snapshot: ClockSnapshot | null) => void): () => void;
     /** Latest known clock snapshot, or `null` when none has arrived. */
     getClockSnapshot(): ClockSnapshot | null;
+    /**
+     * Subscribe to the sender's library catalog (`rpc-library-state`). The
+     * handler fires immediately with the latest known catalog (possibly
+     * `null`), then on every push. `null` = nothing pushed yet.
+     */
+    onLibraryUpdate(handler: (library: RpcLibraryState | null) => void): () => void;
     dispose(): void;
 }
 
@@ -70,8 +72,8 @@ export interface ReceiverSessionHandle {
  */
 export interface ReceiverSessionOptions {
     /**
-     * Enable the audio service on connect. Defaults to `true` — both
-     * backends (chromecast and local-tab) want sound by default. Tests
+     * Enable the audio service on connect. Defaults to `true` — the
+     * chromecast backend wants sound by default. Tests
      * that don't want audio side-effects set this to `false`.
      */
     audio?: boolean;
@@ -113,8 +115,7 @@ const defaultDeps: ReceiverSessionDeps = {
  *
  * The transport is NOT disposed by `dispose()`. The transport's
  * lifetime is managed by the caller (the chromecast signaling path
- * reuses the transport across offers; the local-tab adapter owns
- * the underlying port).
+ * reuses the transport across offers).
  */
 export function createReceiverSession(
     transport: IRpcTransport,
@@ -166,6 +167,17 @@ export function createReceiverSession(
         for (const listener of clockSnapshotListeners) listener(msg.snapshot);
     });
 
+    // Library catalog stream (browser → receiver): same shape as the clock
+    // stream — keep the latest push, replay it on subscribe so a UI mounting
+    // mid-session renders the listing immediately.
+    const libraryListeners = new Set<(library: RpcLibraryState | null) => void>();
+    let latestLibrary: RpcLibraryState | null = null;
+    const libraryUnsub = transport.onMessage((msg) => {
+        if (!isRpcLibraryState(msg)) return;
+        latestLibrary = msg;
+        for (const listener of libraryListeners) listener(msg);
+    });
+
     let disposed = false;
     return {
         runtime,
@@ -191,11 +203,20 @@ export function createReceiverSession(
         getClockSnapshot() {
             return latestClockSnapshot;
         },
+        onLibraryUpdate(handler) {
+            if (disposed) return () => {};
+            libraryListeners.add(handler);
+            // Replay the latest catalog so mid-session mounts render the
+            // listing instead of flashing the waiting screen.
+            handler(latestLibrary);
+            return () => libraryListeners.delete(handler);
+        },
         dispose() {
             if (disposed) return;
             disposed = true;
             audioUnsub();
             clockUnsub();
+            libraryUnsub();
             transportDisconnectedUnsub();
             disconnectHandlers.clear();
             workbenchListeners.clear();
