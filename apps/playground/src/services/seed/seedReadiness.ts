@@ -15,7 +15,7 @@
  * (fast path → 'current') or crashed (this tab imports instead).
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, subscribeCatalogUpdates, type SeedSyncDeps, type SeedSyncOutcome } from './seedSync';
+import { adoptLegacySeedCheckpoints, defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, subscribeCatalogUpdates, type SeedSyncDeps, type SeedSyncOutcome } from './seedSync';
 import { mainThreadSeedImportStorage } from './seedStorageDefault';
 import { isSeedSubscribed, migrateSeedSubscriptions } from './seedSubscriptions';
 import { SEED_BROADCAST_CHANNEL, seedMetaKey } from '@/types/seed';
@@ -154,7 +154,12 @@ export function startSeedBootstrap(deps: SeedSyncDeps = {}): Promise<void> {
 
 async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
   const all = deps.sources ?? defaultSeedSources();
-  // Prior imported libraries become subscriptions (explicit on/off wins).
+  // Pre-seed-unit per-notebook checkpoints fold into their seed's checkpoint
+  // first: the subscription migration below probes seed checkpoints, and the
+  // folded records are what make an already-imported seed read as imported.
+  await adoptLegacySeedCheckpoints(deps)
+    .catch((err) => console.error('[seedSync] checkpoint adoption failed', err));
+  // Prior imported seeds become subscriptions (explicit on/off wins).
   await migrateSeedSubscriptions(all, deps.storage)
     .catch((err) => console.error('[seedSync] subscription migration failed', err));
   const storage = deps.storage ?? mainThreadSeedImportStorage();

@@ -68,6 +68,10 @@ export interface UseEquipmentContentResult {
   notFound: boolean;
   /** Save hooks result for manual flush */
   flush: () => Promise<void>;
+  /** Editor cursor moved across lines — flushes the staged draft (useEditorSave has no idle timer). */
+  onLineChange: (line: number, column: number) => void;
+  /** Editor lost focus — flushes the staged draft (useEditorSave has no idle timer). */
+  onBlur: () => void;
   /** Persist the current document (create or update); resolves with the owning note. */
   save: (value?: string) => Promise<{ id: string; sourceRevision: number }>;
   /** Remove this user-owned equipment (projection + note + links). */
@@ -284,6 +288,8 @@ export function useEquipmentContent(slug: string | undefined): UseEquipmentConte
     isEditable,
     notFound,
     flush,
+    onLineChange,
+    onBlur,
     save,
     remove,
     cloneForEdit,
@@ -305,7 +311,7 @@ export interface EquipmentLinksResult {
  */
 export function useEquipmentLinks(slug: string | undefined): EquipmentLinksResult {
   const { isReady, registry } = useEquipmentRegistry();
-  const { isReady: effortsReady, registry: effortRegistry } = useEffortRegistry();
+  const { isReady: effortsReady, revision: effortRevision, registry: effortRegistry } = useEffortRegistry();
   const [links, setLinks] = useState<EquipmentLinksResult>({ efforts: [], usedBy: [] });
 
   useEffect(() => {
@@ -321,7 +327,7 @@ export function useEquipmentLinks(slug: string | undefined): EquipmentLinksResul
     }
     load();
     return () => { cancelled = true; };
-  }, [slug, isReady, effortsReady, registry, effortRegistry]);
+  }, [slug, isReady, effortsReady, effortRevision, registry, effortRegistry]);
 
   return links;
 }

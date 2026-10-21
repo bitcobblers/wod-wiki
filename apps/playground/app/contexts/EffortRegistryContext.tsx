@@ -16,15 +16,16 @@ interface EffortRegistryContextValue {
   registry: IEffortRegistry;
   isReady: boolean;
   error: Error | null;
+  /** Successful hydration count; the registry itself is a stable singleton. */
+  revision: number;
   refresh: () => Promise<void>;
 }
 
 const EffortRegistryContext = createContext<EffortRegistryContextValue | null>(null);
 
-
 export function EffortRegistryProvider({ children }: { children: React.ReactNode }) {
-  const [{ isReady, error }, setStatus] = useState<Pick<EffortRegistryContextValue, 'isReady' | 'error'>>({
-    isReady: false, error: null,
+  const [{ isReady, error, revision }, setStatus] = useState<Pick<EffortRegistryContextValue, 'isReady' | 'error' | 'revision'>>({
+    isReady: false, error: null, revision: 0,
   });
   const registry = getAppEffortRegistry();
 
@@ -34,9 +35,9 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
       // user tier, so post-save refreshes and seed broadcasts see new and
       // removed rows alike (a one-shot init would cache stale rows forever).
       await hydrateAppEffortRegistry(registry);
-      setStatus({ isReady: true, error: null });
+      setStatus(s => ({ isReady: true, error: null, revision: s.revision + 1 }));
     } catch (err) {
-      setStatus({ isReady: false, error: err instanceof Error ? err : new Error(String(err)) });
+      setStatus(s => ({ ...s, isReady: false, error: err instanceof Error ? err : new Error(String(err)) }));
     }
   }, [registry]);
 
@@ -57,7 +58,7 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
   }, [refresh]);
 
   return (
-    <EffortRegistryContext.Provider value={{ registry, isReady, error, refresh }}>
+    <EffortRegistryContext.Provider value={{ registry, isReady, error, revision, refresh }}>
       {children}
     </EffortRegistryContext.Provider>
   );

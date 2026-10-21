@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test'
-import { syncCommunitySeed, waitForSeedReady } from '../helpers/seedReadiness'
+import { syncSeed, waitForSeedReady } from '../helpers/seedReadiness'
 import { TEST_IDS } from '../contracts/TestIdContract'
 import { getSessions } from '../utils/sessionsDb'
 
@@ -163,54 +163,62 @@ test('editor run records results into Your Session, Analyzed and glides it into 
 test.describe('library & community feeds gallery', () => {
   test.use({ viewport: { width: 1440, height: 1000 } })
 
-  test('registry cards browse, filter, and sort before any import', async ({ page }) => {
+  test('seed cards browse, filter, and sort before any import', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await waitForSeedReady(page)
 
     const section = page.getByTestId('tour-jump-section')
     await section.scrollIntoViewIfNeeded()
-    // Every registry notebook renders a review card (covers, descriptions,
-    // one Import action); the two workspace exits sit above the rows.
+    // One card per SEED — the thing a reader subscribes to — over the two
+    // workspace exits. The marquee loops by duplicating each row's cards, so
+    // queries are scoped to the first copy.
     await expect(section.getByTestId('jump-library')).toBeVisible()
     await expect(section.getByTestId('jump-new-note')).toBeVisible()
-    // Desktop: two rows sliding in opposite directions. The marquee loops by
-    // duplicating each row's cards — scope queries to the first copy.
     await expect(section.getByTestId('jump-row-a')).toBeVisible()
     await expect(section.getByTestId('jump-row-b')).toBeVisible()
-    const firstCopies = section.locator('[data-marquee-copy="0"]')
-    for (const pkg of [
-      'demo-feed-community-crossfit-programming',
-      'demo-feed-community-dan-john-40-day',
-      'demo-feed-community-crossfit-girls',
-      'demo-feed-community-crossfit-heroes',
+    await expect(section.getByTestId('jump-row-mobile')).toHaveCount(0)
+    const firstCopy = section.getByTestId('jump-row-a').locator('[data-marquee-copy="0"]')
+    // Cards are duplicated by the marquee loop — one copy of each row is the
+    // complete card set (the two rows hold disjoint halves).
+    const copies = section.locator('[data-marquee-copy="0"]')
+
+    // Alphabetical before any import: CrossFit leads row A.
+    const crossfit = firstCopy.getByTestId('seed-card-seed-crossfit')
+    await expect(crossfit).toBeVisible()
+    await expect(crossfit.getByTestId('seed-card-seed-crossfit-import')).toBeVisible()
+    // The card says what one Subscribe brings: its notebooks.
+    for (const notebook of [
+      'community-crossfit-programming',
+      'community-crossfit-girls',
+      'community-crossfit-heroes',
     ]) {
-      const card = firstCopies.getByTestId(pkg)
-      await expect(card).toBeVisible()
-      await expect(card.getByTestId(`${pkg}-import`)).toBeVisible()
+      await expect(crossfit.getByTestId(`seed-card-seed-crossfit-notebook-${notebook}`)).toBeVisible()
     }
-    // The dashboards package is not a notebook — no card for it.
-    await expect(firstCopies.getByTestId('demo-feed-community-dashboards')).toHaveCount(0)
+    // Registries and dashboards are not notebooks — never a card.
+    await expect(copies.getByTestId('seed-card-seed-core')).toHaveCount(0)
 
-    // Search narrows the rows; clearing restores them.
-    await section.getByTestId('package-search-input').fill('dan john')
-    await expect(firstCopies.getByTestId('demo-feed-community-dan-john-40-day')).toBeVisible()
-    await expect(firstCopies.getByTestId('demo-feed-community-crossfit-programming')).toHaveCount(0)
+    // Search matches the seed AND the notebooks it publishes.
+    await section.getByTestId('package-search-input').fill('heroes')
+    await expect(copies.getByTestId('seed-card-seed-crossfit')).toBeVisible()
+    await expect(copies.getByTestId('seed-card-seed-swimming')).toHaveCount(0)
+    await section.getByTestId('package-search-input').fill('kettlebell zebras')
+    await expect(copies.getByTestId('seed-card-seed-crossfit')).toHaveCount(0)
     await section.getByTestId('package-search-input').fill('')
-    await expect(firstCopies.getByTestId('demo-feed-community-crossfit-programming')).toBeVisible()
+    await expect(copies.getByTestId('seed-card-seed-crossfit')).toBeVisible()
 
-    // Kind facets split feeds from collections.
+    // Kind facets keep the seeds publishing a notebook of that kind.
     await section.getByTestId('package-kind-collection').click()
-    await expect(firstCopies.getByTestId('demo-feed-community-crossfit-girls')).toBeVisible()
-    await expect(firstCopies.getByTestId('demo-feed-community-dan-john-40-day')).toHaveCount(0)
+    await expect(copies.getByTestId('seed-card-seed-crossfit')).toBeVisible()
+    await expect(copies.getByTestId('seed-card-r-workoutroutines')).toHaveCount(0)
+    await section.getByTestId('package-kind-collection').click()
 
-    // Sort by name: the label-sorted registry leads with CrossFit Games
-    // ("Games" < "Girls"), not the historical four-card order.
+    // Sort by name keeps CrossFit leading.
     await section.getByTestId('package-sort-name').click()
-    const firstNotebook = firstCopies.locator('[data-kind]').first()
-    await expect(firstNotebook).toHaveAttribute('data-testid', 'demo-feed-community-crossfit-games')
+    await expect(section.getByTestId('jump-row-a').locator('[data-marquee-copy="0"] article[data-testid^="seed-card-"]').first())
+      .toHaveAttribute('data-testid', 'seed-card-seed-crossfit')
   })
 
-  test('mobile collapses to one alternating row', async ({ page }) => {
+  test('mobile slides the same cards in one alternating row', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 })
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await waitForSeedReady(page)
@@ -220,9 +228,9 @@ test.describe('library & community feeds gallery', () => {
     await expect(section.getByTestId('jump-row-mobile')).toBeVisible()
     await expect(section.getByTestId('jump-row-a')).toHaveCount(0)
     await expect(section.getByTestId('jump-row-b')).toHaveCount(0)
-    const row = section.getByTestId('jump-row-mobile')
-    await expect(row.locator('[data-marquee-copy="0"]').getByTestId('demo-feed-community-crossfit-programming')).toBeVisible()
-    await expect(row.locator('[data-marquee-copy="0"]').getByTestId('demo-feed-community-crossfit-heroes')).toBeVisible()
+    const firstCopy = section.getByTestId('jump-row-mobile').locator('[data-marquee-copy="0"]')
+    await expect(firstCopy.getByTestId('seed-card-seed-crossfit')).toBeVisible()
+    await expect(firstCopy.getByTestId('seed-card-seed-crossfit-notebook-community-crossfit-games')).toBeVisible()
   })
 })
 
@@ -282,9 +290,9 @@ test('dashboard carousel slides across the two seeded boards', async ({ page }) 
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitForSeedReady(page)
-  // The seeded boards ship with the community corpus — the core bundle
+  // The seeded boards ship with the syncable seed corpus — the bundled core
   // carries only the canvas/efforts/equipment markdown.
-  await syncCommunitySeed(page)
+  await syncSeed(page, 'seed-crossfit')
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   // Scrolling the "One Run Becomes Many" step into view gives the sticky
   // viewport its boards scope.

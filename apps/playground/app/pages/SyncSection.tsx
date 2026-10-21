@@ -87,6 +87,7 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
 }) {
   // Read the preference synchronously so React cannot restore a stale checked prop.
   const autoSync = useSyncExternalStore(subscribeSeedSubscriptions, () => isSeedAutoSync(source.id))
+  const notebooks = source.notebooks.filter(notebook => notebook.id !== source.id)
   const core = source.autoImport
   // Primary Sync ONLY while a subscribed source has a detected update; a
   // current source shows status text instead of a redundant button.
@@ -208,6 +209,41 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
         <div className="text-xs text-muted-foreground font-mono break-all" data-testid={`seed-origin-${source.id}`}>{source.url}</div>
       )}
 
+      {source.description && (
+        <p className="text-xs text-muted-foreground" data-testid={`seed-description-${source.id}`}>{source.description}</p>
+      )}
+
+      {/* What one Subscribe brings: every notebook the seed publishes (they
+          are never synced on their own). A custom seed's contents are unknown
+          until its manifest is read — its id-keyed placeholder row would only
+          repeat the row title, so it is dropped. */}
+      {notebooks.length > 0 && (
+        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2" data-testid={`seed-notebooks-${source.id}`}>
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">
+            {notebooks.length === 1 ? '1 notebook' : `${notebooks.length} notebooks`} · imported with this seed
+          </p>
+          <ul className="mt-1.5 flex flex-col gap-1">
+            {notebooks.map(notebook => (
+              <li
+                key={notebook.chunkId}
+                data-testid={`seed-notebook-${source.id}-${notebook.chunkId}`}
+                className="flex items-center justify-between gap-4 text-xs"
+              >
+                <span className={notebook.imported ? 'flex min-w-0 items-center gap-1.5 text-foreground' : 'flex min-w-0 items-center gap-1.5 text-muted-foreground'}>
+                  {notebook.imported
+                    ? <CheckCircle2 className="size-3 shrink-0 text-emerald-500" aria-hidden />
+                    : <CloudDownload className="size-3 shrink-0 opacity-60" aria-hidden />}
+                  <span className="truncate">{notebook.label}</span>
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {notebook.count.toLocaleString()} {notebook.count === 1 ? 'item' : 'items'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="grid gap-1 text-sm" data-testid="seed-status-card">
         <div className="flex items-center justify-between gap-4">
           <span className="text-xs text-muted-foreground">Library</span>
@@ -275,9 +311,11 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
 }
 
 /**
- * SyncSection — the content sync registry. Boot auto-imports the core seed
- * only; every library (community + custom) syncs from here, one at a time
- * or all at once.
+ * SyncSection — the content sync registry, one card per SEED. A seed is the
+ * subscription unit: subscribing imports every notebook it publishes, in one
+ * checkpoint at one published version. Boot auto-imports the core seed only;
+ * every other seed (theme repo or custom library) syncs from here, one at a
+ * time or all at once.
  */
 export function SyncSection() {
   const [status, setStatus] = useState<SeedStatus | null>(null)
@@ -407,10 +445,11 @@ export function SyncSection() {
             Content Sources
           </h2>
           <p className="text-sm text-muted-foreground">
-            Notebooks, notes, guides, dashboards, and efforts import into your active data location from
-            seed sources. Subscribed sources are checked against their published manifest on every load:
-            Auto-sync applies updates by itself, otherwise you press Sync when an update is pending. The
-            core seed imports automatically at launch and is always subscribed.
+            A seed is one published Markdown repository — its notebooks, notes, guides, dashboards, and
+            efforts import into your active data location together. Subscribed seeds are checked against
+            their published manifest on every load: Auto-sync applies updates by itself, otherwise you
+            press Sync when an update is pending. The core seed imports automatically at launch and is
+            always subscribed.
           </p>
         </div>
 

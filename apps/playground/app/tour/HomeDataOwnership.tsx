@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Cloud, Database, RefreshCw, Rss, Server } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Cloud, CloudDownload, Database, RefreshCw, Server } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import { cn } from '@/lib/utils'
 import { readDataSettings, storageBackend } from '@/services/storage'
@@ -181,7 +181,7 @@ function FeedCard({ feed }: { feed: DemoSeedSource }) {
     <div className="flex flex-col rounded-xl border border-border bg-card p-4" data-testid={`home-feed-${feed.id}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Rss className="size-4 shrink-0 text-primary" aria-hidden="true" />
+          <CloudDownload className="size-4 shrink-0 text-primary" aria-hidden="true" />
           <span className="truncate text-sm font-medium text-foreground">{feed.label}</span>
         </div>
         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -250,11 +250,11 @@ export function HomeCommunityFeeds() {
             Community feeds
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Feeds are markdown repositories compiled into a versioned seed with{' '}
+            A seed is a markdown repository compiled into a versioned manifest with{' '}
             <code className="font-mono text-xs">wod build</code> (this repo publishes its own with{' '}
             <code className="font-mono text-xs">bun run generate:seed</code>) and hosted anywhere —
-            the community library publishes to its GitHub Pages. Subscribe and the app syncs the feed
-            at launch; the two feeds below are demos you can try right now.
+            each seed repo publishes to its own GitHub Pages. Subscribe to a seed and the app syncs
+            every notebook it publishes at launch; the two seeds below are demos you can try right now.
           </p>
         </div>
         <div className="flex items-center gap-4 text-sm font-medium">

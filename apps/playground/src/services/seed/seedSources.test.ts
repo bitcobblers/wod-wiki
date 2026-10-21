@@ -3,15 +3,18 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import {
   addCustomSeedSource,
   builtInSeedSourceIds,
-  COMMUNITY_FEEDS,
   customSeedSources,
-  FeedSeedSource,
   hiddenSeedSourceIds,
   hideSeedSourceRow,
+  listNotebooks,
+  listSeedSources,
+  NOTEBOOKS,
+  notebookById,
+  notebooksOfSeed,
   removeCustomSeedSource,
+  SEED_SOURCES,
+  seedIdForLegacyId,
 } from './seedSources';
-import { InMemorySeedSource } from './InMemorySeedSource';
-import { SEED_SCHEMA } from '@/types/seed';
 
 beforeEach(() => {
   localStorage.clear();
@@ -71,7 +74,9 @@ describe('addCustomSeedSource', () => {
   });
 
   it('never registers a URL a built-in source already serves', () => {
-    expect(() => addCustomSeedSource('Community mirror', 'https://bitcobblers.github.io/wod-wiki-community')).toThrow(/already registered/);
+    // A split seed repo's Pages dir is that seed — not a second source.
+    expect(() => addCustomSeedSource('CrossFit mirror', 'https://bitcobblers.github.io/wod-wiki-seed-crossfit')).toThrow(/already registered/);
+    expect(() => addCustomSeedSource('Core mirror', 'https://seed.example/seed/')).not.toThrow();
   });
 });
 
@@ -85,41 +90,55 @@ describe('removeCustomSeedSource', () => {
 });
 
 describe('built-in row hiding', () => {
-  it('hides built-in ids only, idempotently; core is never hideable', () => {
-    hideSeedSourceRow('community');
-    hideSeedSourceRow('community');
+  it('hides built-in seed ids only, idempotently; core is never hideable', () => {
+    hideSeedSourceRow('seed-hyrox');
+    hideSeedSourceRow('seed-hyrox');
+    // A pre-seed-unit notebook id folds onto the seed that publishes it —
+    // notebooks are no longer independent sync units, so nothing narrower
+    // can be hidden.
+    hideSeedSourceRow('community-crossfit-girls');
     hideSeedSourceRow('core');
     hideSeedSourceRow('never-registered');
-    expect(hiddenSeedSourceIds()).toEqual(['community']);
+    expect(hiddenSeedSourceIds()).toEqual(['seed-hyrox', 'seed-crossfit']);
+    expect(builtInSeedSourceIds()).toContain('seed-hyrox');
     expect(builtInSeedSourceIds()).not.toContain('core');
   });
 });
 
-describe('community demo feeds', () => {
-
-  it('FeedSeedSource filters the manifest to one feed chunk', async () => {
-    const manifest = {
-      schema: SEED_SCHEMA, version: 14, builtAt: new Date(14).toISOString(),
-      chunks: [
-        { id: 'feed.crossfit-programming', path: 'chunks/feed.crossfit-programming.json', sha256: 'a'.repeat(64), bytes: 1, count: 8 },
-        { id: 'feed.dan-john-40-day', path: 'chunks/feed.dan-john-40-day.json', sha256: 'b'.repeat(64), bytes: 1, count: 6 },
-        { id: 'collection.other', path: 'chunks/collection.other.json', sha256: 'c'.repeat(64), bytes: 1, count: 2 },
-      ],
-    };
-    const inner = new InMemorySeedSource(manifest, {});
-    const filtered = new FeedSeedSource(inner, 'feed.crossfit-programming');
-    const seen = await filtered.fetchManifest();
-    expect(seen.chunks.map((c) => c.id)).toEqual(['feed.crossfit-programming']);
-    expect(seen.version).toBe(14); // identity/version metadata untouched
+describe('seeds and their notebooks', () => {
+  it('keys every built-in notebook to the seed that publishes it', () => {
+    const seedIds = new Set(SEED_SOURCES.map((s) => s.id));
+    expect(NOTEBOOKS.length).toBeGreaterThan(0);
+    for (const notebook of NOTEBOOKS) {
+      expect(seedIds.has(notebook.seedId)).toBe(true);
+      expect(notebooksOfSeed(notebook.seedId)).toContainEqual(notebook);
+    }
+    // The split corpus: 15 seeds, one checkpoint and one Subscribe each.
+    expect(SEED_SOURCES).toHaveLength(15);
+    expect(listSeedSources().map((s) => s.id)).toEqual([...seedIds]);
   });
 
-  it('built-in feed ids are reserved from custom registration', () => {
-    // A slug colliding with a built-in feed gets a suffix instead of
-    // hijacking the feed's checkpoint namespace.
-    const feed = COMMUNITY_FEEDS[0];
-    const slug = feed.id.replace(/^community-/, ''); // → 'crossfit-programming'
+  it('a custom seed is its own source and its own (whole-manifest) notebook', () => {
+    const added = addCustomSeedSource('My Garage', 'https://garage.example/seed/');
+    expect(listSeedSources().at(-1)).toMatchObject({ id: added.id, url: added.url, tier: 'imported' });
+    expect(listNotebooks().at(-1)).toMatchObject({ id: added.id, seedId: added.id, chunkId: added.id });
+    expect(notebooksOfSeed(added.id)).toHaveLength(1);
+  });
+
+  it('folds pre-seed-unit notebook ids onto their seed, and leaves seed ids alone', () => {
+    expect(seedIdForLegacyId('community-crossfit-girls')).toBe('seed-crossfit');
+    expect(seedIdForLegacyId('seed-crossfit')).toBe('seed-crossfit');
+    expect(seedIdForLegacyId('some-custom-source')).toBe('some-custom-source');
+    expect(notebookById('community-yoga')?.seedId).toBe('example-yoga');
+  });
+
+  it('built-in notebook and seed ids are reserved from custom registration', () => {
+    // A slug colliding with a built-in notebook gets a suffix instead of
+    // hijacking its checkpoint namespace.
+    const notebook = NOTEBOOKS[0];
+    const slug = notebook.id.replace(/^community-/, ''); // → 'efforts'
     const added = addCustomSeedSource(`community ${slug.replace(/-/g, ' ')}`, 'https://custom.example/seed/');
-    expect(added.id).not.toBe(feed.id);
-    expect(customSeedSources().some((s) => s.id === feed.id)).toBe(false);
+    expect(added.id).not.toBe(notebook.id);
+    expect(customSeedSources().some((s) => s.id === notebook.id)).toBe(false);
   });
 });

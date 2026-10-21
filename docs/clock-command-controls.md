@@ -201,6 +201,8 @@ Final local checks passed 1,994 package tests, 2,931 playground tests and 124 St
 
 Background registry refresh keeps the hydrated registry ready instead of unmounting the editor behind a loading state. This prevents a seed-import broadcast from discarding a new effort's uncommitted label. The catalog create acceptance sends a broadcast during label editing; the original production bundle failed with an empty label.
 
+Post-integration acceptance exposed stale effort details after seed hydration and missing blur/line-change save callbacks on effort and equipment pages. Hydration revisions now re-resolve effort details and equipment links without replacing active editor drafts. Both content hooks return the save callbacks already consumed by their pages. The equipment helper blurs after editing so persistence checks exercise the intended save policy. Targeted catalog checks passed 23 scenarios with two existing skips; all five receiver and numeric-collection checks passed when the local preview included the dedicated receiver build.
+
 ## Evidence
 
 - [Timer tier decision](adrs/0003-timer-surface-tiers.md), especially input scope in §4.

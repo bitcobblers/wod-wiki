@@ -17,7 +17,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { seedNote, WOD_DB } from '../helpers/wodwikiDb';
-import { waitForSeedReady, syncCommunitySeed } from '../helpers/seedReadiness';
+import { waitForSeedReady, syncSeed } from '../helpers/seedReadiness';
 import { getSessions } from '../utils/sessionsDb';
 import { pauseIconButton } from '../pages/WallClockPage';
 import { TEST_IDS } from '../contracts/TestIdContract';
@@ -134,7 +134,7 @@ test.describe('Collection clock values — targets, Ready/Start, durable actuals
     });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await waitForSeedReady(page);
-    await syncCommunitySeed(page);
+    await syncSeed(page, 'seed-zombie-fit');
     await seedNote(page, NOTE_ID, CONTENT, { title: 'E2E Clock Values' });
     await deleteNoteAndResults(page, await findNoteIdByTitle(page, 'e2e-clock-values'));
 

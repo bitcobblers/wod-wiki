@@ -2,19 +2,34 @@
 
 **Status:** Accepted
 **Date:** 2026-10-16
+**Amended:** 2026-10-20 — the unit of sync and subscription is now the
+seed; the monolith `community` source and its per-notebook packages are
+retired.
 
 ## Context
 
 The playground app consumes seed catalogs from three kinds of sources:
-the build-embedded `core` seed, the published `community` seed (and its
-sliced per-catalog packages), and user-added custom sources. Each source
-needs a lifecycle that is safe with user data: importing must never
+the build-embedded `core` seed, the built-in split content seeds (each an
+independently published seed directory), and user-added custom seed
+libraries. Every source is a **seed**: one published seed directory with
+one manifest. A seed publishes **notebooks** — one manifest chunk each —
+which the library surfaces list individually but which are never synced
+or subscribed on their own. Each source needs a lifecycle that is safe
+with user data: importing must never
 clobber user-authored notes, and removal must never touch anything the
 source does not own. Multi-tab imports need mutual exclusion without a
 lock server, and update checks must be cheap enough to run on every page
 load without gating first paint.
 
 ## Decision
+
+**The seed is the unit**: one seed directory = one manifest = one
+checkpoint `seed:<seedId>` = one Subscribe, and Subscribe imports every
+notebook the seed publishes. A notebook is one chunk inside that import
+and a listing row in the library surfaces — never a separate sync or
+subscription. The retired model (a monolith `community` source sliced
+into one package source per notebook) survives only as its migration
+path (see *Legacy checkpoint adoption* below).
 
 **Separation of concerns**: the *source registry* (what exists), the
 *subscription map* (what the user opted into), and the *auto-sync map*
@@ -60,35 +75,54 @@ source: apps/playground/src/services/seed/seedSync.ts
 fields:
   id:              { type: string, rule: "namespaces checkpoint seed:<id>, broadcast payloads, storage keys" }
   label:           { type: string }
-  source:          { type: ISeedSource, variants: [HttpSeedSource, FeedSeedSource] }
+  source:          { type: ISeedSource, variants: [HttpSeedSource] }
   url:             { type: string }
   repositoryUrl:   { type: string? }
+  tier:            { type: SeedPrecedenceTier, default: user, note: "built-in seeds stamp 'community', custom libraries 'imported'; stamped onto the checkpoint and its rows" }
   embeddedVersion: { type: number, note: "__SEED_VERSIONS__[id] build stamp; 0 when not embedded" }
-  autoImport:      { type: boolean, default: true, note: "false = never imported at boot (community, packages, custom)" }
+  autoImport:      { type: boolean, default: true, note: "false = never imported at boot (split seeds, custom libraries)" }
 depends_on: [CustomSeedSource, SeedManifest]
 lifecycle:
-  resolved_by: defaultSeedSources() in order: core (Http, autoImport) → community (Http, opt-in; legacy corpus, still published) → SYNC_PACKAGES (one package per published notebook, each a FeedSeedSource slice of its own repo's seed dir — the split corpus in seedSources.ts SEED_REPOS) → custom sources
+  resolved_by: defaultSeedSources() in order: core (Http, autoImport, build-stamped) → SEED_SOURCES in seedSources.ts, the 15 built-in split seeds (Http, embeddedVersion 0, tier 'community'; only the seed-core registry autoImports) → custom sources (Http, embeddedVersion 0, no tier)
   consumed_by: [startSeedBootstrap, runBootSeedSync, runSeedSync, SubscribePage intake]
+notes: >
+  NOTEBOOKS in seedSources.ts is the per-chunk registry (ids unchanged from
+  the package era, e.g. community-crossfit-games; each carries seedId +
+  chunkId). Library surfaces read it through listNotebooks() /
+  notebooksOfSeed(seedId); seedIdForLegacyId() folds a pre-seed-unit
+  notebook id onto the seed that publishes it.
+```
+
+```yaml
+model: LegacyCheckpointAdoption (pre-seed-unit migration)
+source: apps/playground/src/services/seed/seedSync.ts (adoptLegacySeedCheckpoints)
+depends_on: [SeedMetaRecord, NOTEBOOKS]
+lifecycle:
+  at_boot: "runs before migrateSeedSubscriptions(); for each built-in seed, every per-notebook checkpoint (seed:community-<slug>, seedVersion > 0) folds into the seed's seed:<seedId> checkpoint"
+  fold:    "chunks = union of the folded records' chunk maps; seedVersion = highest folded version; tier from whichever record carries it; claim cleared"
+  idempotent: "folded records are blanked (seedVersion 0, empty chunks, no claim), so a re-run finds nothing"
+  failure: "a seed whose fold throws is skipped with a warning; its legacy checkpoints stay readable until the next boot"
 ```
 
 ```yaml
 model: SeedWorkerRun
 source: apps/playground/src/services/seed/seedSync.worker.ts
 summary: "Production sync runs off the main thread: the driver (runSeedSyncViaWorker in seedSync.ts) posts specs to seedSync.worker.ts, which executes the seedSyncCore per-source loop (fetch, parse, validate, IndexedDB writes) and streams progress/results back. Main thread keeps activity reporting, content-cache invalidation, registry hydration, and the grouped catalog-update snapshot. Direct path remains for tests, injected storages, and VITE_STORAGE=api."
-invariant: "Forward each FeedSeedSource's chunkId across the worker boundary; a package imports only its selected chunk, never adjacent packages from the same manifest."
+invariant: "Specs travel whole: the worker imports every chunk the seed's manifest publishes in one run. Notebook ids ride along only to label progress and per-notebook status rows — they never narrow the import."
 ```
 
 ```yaml
 model: SeedSubscriptionMap
 source: apps/playground/src/services/seed/seedSubscriptions.ts
 persisted: localStorage "wodwiki.seedSubscriptions"
-shape: "{ [sourceId]: boolean } — absence means no explicit choice"
+shape: "{ [seedId]: boolean } — absence means no explicit choice"
 depends_on: [SeedSourceSpec]
 lifecycle:
   states:
     - chosen:   "setSeedSubscribed(id,true) → included in the background boot check"
     - declined: "import-once writes explicit false for a new source so migrateSeedSubscriptions cannot adopt it later"
-    - migrated: "boot migration adopts previously imported but unchosen sources (seedVersion>0, absent from map)"
+    - migrated: "boot migration adopts previously imported but unchosen seeds (seedVersion>0, absent from map)"
+    - folded:   "pre-seed-unit per-notebook entries fold onto the seed that publishes the notebook — on read (isSeedSubscribed) and in migrateSeedSubscriptions; an explicit seed record always wins"
   invariant: "core is always subscribed; no persistence needed"
 ```
 
@@ -173,6 +207,11 @@ indexeddb:
 
 ## Consequences
 
+- Precedence survives the unit change: built-in seeds stamp
+  `tier: 'community'` on their checkpoint (`SeedSourceSpec.tier` →
+  `SourceSyncCoreInput.tier` → `SeedMetaRecord.tier`), so corpus rows
+  still rank below user libraries (`imported`/`user`) and above the
+  bundled `core` — exactly as the notebook-keyed ids did.
 - First paint is never gated on network: the readiness gate only waits
   for the embedded `core` canvas chunk; everything else is background.
 - Every removal is a single transaction keyed by recorded ownership, so

@@ -16,9 +16,8 @@ import { LocalStore } from './storage/LocalStore';
 import { remotePrefsMode, metaPrefBackend, metaSetPref } from './storage/metaStore';
 import {
     CORE_SEED_URL,
-    COMMUNITY_SEED_URL,
-    listPackageSources,
-    listSyncPackages,
+    listNotebooks,
+    listSeedSources,
 } from './seed/seedSources';
 import { isSeedSubscribed } from './seed/seedSubscriptions';
 
@@ -103,34 +102,31 @@ export class NotebookService {
     }
 
     /**
-     * Seed-delivered notebooks, each bound to the registered source entry and URL
-     * where the seed is pulled from (`PackageSource.id` + `PackageSource.url`).
+     * Seed-delivered notebooks, each bound to the SEED it is published by:
+     * the seed is what a reader subscribes to and syncs (`SeedSource.id` +
+     * `url`), so `onlySubscribed` follows the seed's subscription.
      */
     getSeedNotebooks(options?: { onlySubscribed?: boolean }): Notebook[] {
-        const sourcesById = new Map(listPackageSources().map((s) => [s.id, s]));
+        const seedsById = new Map(listSeedSources().map((s) => [s.id, s]));
         const out: Notebook[] = [];
-        for (const pkg of listSyncPackages()) {
-            if (pkg.category === 'dashboards') continue;
-            if (options?.onlySubscribed && !isSeedSubscribed(pkg.id) && !isSeedSubscribed('community')) {
-                continue;
-            }
-            const slug = pkg.chunkId.replace(/^(?:collection|feed)\./, '');
-            const source = sourcesById.get(pkg.sourceId);
-            const sourceUrl = source?.url ?? COMMUNITY_SEED_URL;
-            const repositoryUrl = pkg.repositoryUrl ?? source?.repositoryUrl;
+        for (const notebook of listNotebooks()) {
+            if (notebook.category === 'dashboards') continue;
+            if (options?.onlySubscribed && !isSeedSubscribed(notebook.seedId)) continue;
+            const slug = notebook.chunkId.replace(/^(?:collection|feed)\./, '');
+            const seed = seedsById.get(notebook.seedId);
             out.push({
                 id: toNotebookId(slug),
                 slug,
                 notebookId: toNotebookId(slug),
-                name: pkg.label,
-                description: pkg.description,
-                icon: pkg.category === 'feeds' ? '📡' : '📚',
+                name: notebook.label,
+                description: notebook.description,
+                icon: notebook.category === 'feeds' ? '📡' : '📚',
                 origin: 'seed',
-                sourceEntryId: pkg.sourceId,
-                packageId: pkg.id,
-                sourceUrl,
-                ...(repositoryUrl ? { repositoryUrl } : {}),
-                seedChunkId: pkg.chunkId,
+                sourceEntryId: notebook.seedId,
+                packageId: notebook.id,
+                sourceUrl: seed?.url,
+                ...(seed?.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),
+                seedChunkId: notebook.chunkId,
                 createdAt: 0,
                 lastEditedAt: 0,
             });

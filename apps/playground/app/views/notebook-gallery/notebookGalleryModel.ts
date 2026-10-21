@@ -3,8 +3,8 @@
  * and, later, a dedicated gallery surface).
  *
  * Joins two planes of truth:
- *  - the package registry (`listSyncPackages` — built-in + custom package
- *    sources, each with a curated description), and
+ *  - the notebook registry (`listNotebooks` — the chunks the registered seeds
+ *    publish, each with a curated description), and
  *  - the locally synced seed corpus (`buildGroupings` over the seed file map
  *    — real item counts, date ranges, README-derived descriptions/covers).
  *
@@ -15,15 +15,17 @@
  */
 
 import { buildGroupings, type Grouping } from '@/repositories/groupings';
-import type { SyncPackage } from '@/services/seed/seedSources';
+import { seedSourceById, type NotebookDef, type SeedSource } from '@/services/seed/seedSources';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type NotebookKind = 'feed' | 'collection';
 
 export interface NotebookSummary {
-  /** Registry package id (e.g. `community-crossfit-programming`). */
+  /** Registry notebook id (e.g. `community-crossfit-programming`). */
   packageId: string;
+  /** Owning seed id — the import/subscription unit; absent for local-only content. */
+  seedId?: string;
   /** Corpus directory slug (e.g. `crossfit-programming`). */
   slug: string;
   kind: NotebookKind;
@@ -103,12 +105,13 @@ function summarizeGrouping(kind: NotebookKind, grouping: Grouping): NotebookSumm
 }
 
 /**
- * Merge the registry with the local corpus. Registry packages are present
+ * Merge the registry with the local corpus. Registry notebooks are present
  * even when their chunk has not been imported (installed=false → the card
- * renders a review state with an import action). Local groupings with no
- * registry entry (custom sources synced whole) appear as Local notebooks.
+ * renders a review state; the seed header carries the import action). Local
+ * groupings with no registry entry (custom sources synced whole) appear as
+ * Local notebooks.
  */
-export function buildNotebookCatalog(packages: readonly SyncPackage[], files: Record<string, string> | null): NotebookSummary[] {
+export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: Record<string, string> | null): NotebookSummary[] {
   const local: NotebookSummary[] = [];
   const bySlugKind = new Map<string, Grouping>();
   if (files) {
@@ -120,26 +123,28 @@ export function buildNotebookCatalog(packages: readonly SyncPackage[], files: Re
     }
   }
 
-  const registry = packages
-    .map((pkg): NotebookSummary | null => {
-      const parsed = parseNotebookChunkId(pkg.chunkId);
+  const registry = notebooks
+    .map((notebook): NotebookSummary | null => {
+      const parsed = parseNotebookChunkId(notebook.chunkId);
       if (!parsed) return null;
       const grouping = bySlugKind.get(`${parsed.kind}:${parsed.slug}`);
+      const seed = seedSourceById(notebook.seedId);
       const dates = (grouping?.items ?? [])
         .map(item => item.date)
         .filter((date): date is string => !!date)
         .sort();
       return {
-        packageId: pkg.id,
+        packageId: notebook.id,
+        seedId: notebook.seedId,
         slug: parsed.slug,
         kind: parsed.kind,
-        label: pkg.label,
+        label: notebook.label,
         // Registry copy wins for the review blurb; README paragraph as fallback.
-        description: pkg.description || grouping?.description,
+        description: notebook.description || grouping?.description,
         image: grouping?.image,
         categories: grouping?.categories ?? [],
-        sourceLabel: pkg.sourceLabel,
-        ...(pkg.repositoryUrl ? { repositoryUrl: pkg.repositoryUrl } : {}),
+        sourceLabel: seed?.label ?? notebook.seedId,
+        ...(seed?.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),
         href:
           parsed.kind === 'feed'
             ? `/feeds/${encodeURIComponent(parsed.slug)}`
@@ -156,6 +161,151 @@ export function buildNotebookCatalog(packages: readonly SyncPackage[], files: Re
 
   const registryKeys = new Set(registry.map(summary => `${summary.kind}:${summary.slug}`));
   return [...registry, ...local.filter(summary => !registryKeys.has(`${summary.kind}:${summary.slug}`))];
+}
+
+// ── Seed grouping ──────────────────────────────────────────────────────────
+
+/** One seed with the notebooks it publishes — the library section's unit:
+ *  the seed imports and subscribes as a whole, its notebooks are what a
+ *  Subscribe brings. */
+export interface NotebookGroup {
+  /** Absent for locally discovered content no registered seed claims. */
+  seed?: SeedSource;
+  label: string;
+  description?: string;
+  url?: string;
+  repositoryUrl?: string;
+  notebooks: NotebookSummary[];
+}
+
+/** Group a catalog by the seed that publishes each notebook, registry order
+ *  first; locally discovered notebooks (no registry entry) come last. Seeds
+ *  with nothing left after filtering drop out. */
+export function groupNotebooksBySeed(
+  catalog: readonly NotebookSummary[],
+  seeds: readonly SeedSource[],
+): NotebookGroup[] {
+  const bySeed: Record<string, NotebookSummary[]> = {};
+  const local: NotebookSummary[] = [];
+  for (const notebook of catalog) {
+    if (notebook.seedId) (bySeed[notebook.seedId] ??= []).push(notebook);
+    else local.push(notebook);
+  }
+  const groups: NotebookGroup[] = [];
+  for (const seed of seeds) {
+    const notebooks = bySeed[seed.id];
+    if (!notebooks?.length) continue;
+    groups.push({
+      seed,
+      label: seed.label,
+      ...(seed.description ? { description: seed.description } : {}),
+      url: seed.url,
+      ...(seed.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),
+      notebooks,
+    });
+  }
+  if (local.length > 0) groups.push({ label: 'Local', notebooks: local });
+  return groups;
+}
+
+// ── Seed cards ─────────────────────────────────────────────────────────────
+
+/** One card in the library section: a SEED — the thing you subscribe to and
+ *  the thing one Subscribe imports. Its notebooks are what it brings, listed
+ *  on the card. */
+export interface SeedSummary {
+  /** Absent for locally discovered content no registered seed claims. */
+  seedId?: string;
+  /** Stable cover identity (the seed id). */
+  slug: string;
+  label: string;
+  description?: string;
+  /** Published seed directory. */
+  url?: string;
+  repositoryUrl?: string;
+  /** The notebooks this seed publishes, in registry order. */
+  notebooks: NotebookSummary[];
+  /** Rows present locally across its notebooks (0 before an import). */
+  itemCount: number;
+  /** Every published notebook is present locally. */
+  installed: boolean;
+  /** Newest item date across its notebooks (feeds only). */
+  latestDate?: string;
+  /** Where an installed seed leads — the library listing. */
+  href: string;
+}
+
+export interface SeedFilter {
+  /** Case-insensitive substring over the seed AND its notebooks. */
+  text?: string;
+  /** Restrict to seeds publishing a notebook of this kind; undefined = all. */
+  kind?: NotebookKind;
+}
+
+/** Cards for the library section: one per seed, built from the notebook
+ *  catalog (a seed with nothing to show drops out). */
+export function buildSeedCatalog(
+  notebooks: readonly NotebookDef[],
+  files: Record<string, string> | null,
+  seeds: readonly SeedSource[],
+): SeedSummary[] {
+  return groupNotebooksBySeed(buildNotebookCatalog(notebooks, files), seeds).map((group): SeedSummary => {
+    const dates = group.notebooks
+      .map((notebook) => notebook.latestDate)
+      .filter((date): date is string => !!date)
+      .sort();
+    return {
+      seedId: group.seed?.id,
+      slug: group.seed?.id ?? 'local',
+      label: group.label,
+      ...(group.description ? { description: group.description } : {}),
+      ...(group.url ? { url: group.url } : {}),
+      ...(group.repositoryUrl ? { repositoryUrl: group.repositoryUrl } : {}),
+      notebooks: group.notebooks,
+      itemCount: group.notebooks.reduce((sum, notebook) => sum + notebook.itemCount, 0),
+      installed: group.notebooks.every((notebook) => notebook.installed),
+      ...(dates.length > 0 ? { latestDate: dates[dates.length - 1] } : {}),
+      href: '/catalogs',
+    };
+  });
+}
+
+/** Text matches the seed or any of its notebooks; the kind facet keeps seeds
+ *  that publish a notebook of that kind. */
+export function filterSeeds(catalog: readonly SeedSummary[], filter: SeedFilter): SeedSummary[] {
+  const text = filter.text?.trim().toLowerCase();
+  return catalog.filter((seed) => {
+    if (filter.kind && !seed.notebooks.some((notebook) => notebook.kind === filter.kind)) return false;
+    if (!text) return true;
+    return (
+      seed.label.toLowerCase().includes(text) ||
+      (seed.description?.toLowerCase().includes(text) ?? false) ||
+      seed.notebooks.some(
+        (notebook) =>
+          notebook.label.toLowerCase().includes(text) ||
+          (notebook.description?.toLowerCase().includes(text) ?? false),
+      )
+    );
+  });
+}
+
+export function sortSeeds(catalog: readonly SeedSummary[], sort: NotebookSort): SeedSummary[] {
+  const copy = [...catalog];
+  switch (sort) {
+    case 'name':
+      return copy.sort((a, b) => a.label.localeCompare(b.label));
+    case 'size':
+      return copy.sort((a, b) => b.itemCount - a.itemCount || a.label.localeCompare(b.label));
+    case 'updated':
+    default:
+      // Imported seeds first (by newest item), then by name.
+      return copy.sort((a, b) => {
+        if (a.latestDate && b.latestDate) return b.latestDate.localeCompare(a.latestDate);
+        if (a.latestDate) return -1;
+        if (b.latestDate) return 1;
+        return a.label.localeCompare(b.label);
+      });
+  }
 }
 
 // ── Filter + sort ──────────────────────────────────────────────────────────

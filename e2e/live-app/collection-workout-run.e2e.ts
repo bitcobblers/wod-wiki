@@ -23,7 +23,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { seedNote, WOD_DB } from '../helpers/wodwikiDb';
-import { waitForSeedReady, syncCommunitySeed } from '../helpers/seedReadiness';
+import { waitForSeedReady, syncSeed } from '../helpers/seedReadiness';
 import { getSessions } from '../utils/sessionsDb';
 import { installFastClock } from '../utils/fastClock';
 import { TEST_IDS } from '../contracts/TestIdContract';
@@ -111,7 +111,7 @@ async function clickPlayOnBlock(page: Page, blockText: string) {
 
 test.describe('Collection Workout — run and record', () => {
   // Fresh browser profiles re-run the seed corpus import (~25s in dev) before
-  // /c/:collection/:workout resolves its content, plus the first community
+  // /c/:collection/:workout resolves its content, plus the first seed
   // import, so the default 45s is too tight.
   test.setTimeout(180_000);
 
@@ -131,10 +131,10 @@ test.describe('Collection Workout — run and record', () => {
   async function gotoHomeAfterSeedImport(page: Page): Promise<void> {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await waitForSeedReady(page);
-    // The /c/ route's bundled markdown comes from the community corpus
+    // The /c/ route's bundled markdown comes from the ZombieFit seed
     // (autoImport:false) — sync it through the real Settings surface so the
     // page has content to swap against the seeded E2E override.
-    await syncCommunitySeed(page);
+    await syncSeed(page, 'seed-zombie-fit');
   }
 
   test('creates a journal record on start; stopping early saves and displays results', async ({ page }, testInfo) => {

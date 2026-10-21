@@ -12,7 +12,7 @@
 import { IndexedDBStorage } from '@bitcobblers/wod-wiki-storage/idb';
 import type { SeedImportProgress } from './SeedImporter';
 import { HttpSeedSource } from './HttpSeedSource';
-import { FeedSeedSource } from './seedSources';
+import type { SeedPrecedenceTier } from '@/types/seed';
 import { IndexedDBSeedImportStorage } from './SeedImportStorage';
 import { runSourceSyncCore, type SeedSyncOutcome, type SourceSyncCoreResult } from './seedSyncCore';
 
@@ -20,8 +20,8 @@ interface WorkerSourceSpec {
   id: string;
   label: string;
   url: string;
-  /** Present for package sources — a filtered one-chunk view of the seed dir. */
-  chunkId?: string;
+  /** Precedence tier stamped on the checkpoint (built-in corpus vs user library). */
+  tier?: SeedPrecedenceTier;
   embeddedVersion: number;
   autoSyncOn: boolean;
 }
@@ -61,14 +61,14 @@ ctx.onmessage = (event: MessageEvent<RunMessage>): void => {
     }));
     const outcomes: SeedSyncOutcome[] = [];
     for (const spec of msg.sources) {
-      const inner = new HttpSeedSource(spec.url);
       const result = await runSourceSyncCore(
         {
           id: spec.id,
           label: spec.label,
-          source: spec.chunkId ? new FeedSeedSource(inner, spec.chunkId) : inner,
+          source: new HttpSeedSource(spec.url),
           embeddedVersion: spec.embeddedVersion,
           autoSyncOn: spec.autoSyncOn,
+          ...(spec.tier ? { tier: spec.tier } : {}),
         },
         { storage, owner: msg.owner, now: Date.now, force: msg.force, probeManifests: msg.probeManifests, background: msg.background },
         {
