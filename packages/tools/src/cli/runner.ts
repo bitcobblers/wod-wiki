@@ -78,7 +78,7 @@ export function cliNoteSource(source: string, label: string, sport?: string): st
 }
 
 export interface CliParsedArgs {
-  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'export' | 'import' | 'publish' | 'build' | 'seed' | 'reset' | 'init' | 'db' | 'server' | 'serve' | 'playground' | 'init-catalog' | 'help' | 'version';
+  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'export' | 'import' | 'publish' | 'build' | 'seed' | 'reset' | 'init' | 'db' | 'server' | 'serve' | 'playground' | 'init-catalog' | 'skills' | 'help' | 'version';
   target?: string;
   /** Second positional: the id (download) or file (import) after the kind. */
   target2?: string;
@@ -319,7 +319,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       if (Number.isSafeInteger(v) && v >= 0) result.seedVersion = v;
       i++;
     } else if (!result.subcommand) {
-      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'export' || arg === 'import' || arg === 'publish' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'db' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'init-catalog' || arg === 'help' || arg === 'version') {
+      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'export' || arg === 'import' || arg === 'publish' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'db' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'init-catalog' || arg === 'skills' || arg === 'help' || arg === 'version') {
         result.subcommand = arg;
       } else {
         result.target = arg;
@@ -399,6 +399,13 @@ USAGE:
                       Scaffold a new catalog repository (package.json, example
                       collection, GitHub Actions Pages workflow). Refuses an
                       existing destination.
+  wod skills <list | install> [options]
+                      Agent skills bundled with this CLI — the Whiteboard
+                      Script extraction rules an agent needs to parse and write
+                      correct workouts. install copies them to
+                      <dir>/.agents/skills/ (no network); they are also
+                      publishable via npx skills add bitcobblers/wod-wiki.
+  wod skills install [--dir <path>] [--force]
   wod seed [options]
   wod reset [options]
   wod init            Initialize the configured database (idempotent)
@@ -689,9 +696,47 @@ export async function cliMain(
         const result = scaffoldCatalog(parsed.target);
         writeOut(`[wod init-catalog] Created ${result.dir} (${result.files.length} files)`);
         writeOut(`Next: cd ${parsed.target} && bun install && bunx wod build . --output dist`);
+        writeOut(`Agents: wod skills install --dir ${parsed.target}  (Whiteboard Script extraction rules → .agents/skills/)`);
         return 0;
       } catch (error) {
         writeErr(`[wod init-catalog] ${(error as Error).message}`);
+        return 1;
+      }
+    }
+
+    if (parsed.subcommand === 'skills') {
+      const action = parsed.target ?? 'list';
+      // Dynamic import: skills.ts touches node:fs, which must stay out of the
+      // browser bundle graph (same reason as ./scaffoldCatalog above).
+      const { bundledSkillsRoot, installSkills, listBundledSkills } = await import('./skills');
+      try {
+        if (action === 'list') {
+          const root = bundledSkillsRoot();
+          if (!root) {
+            writeErr('[wod skills] No bundled skills found next to this CLI');
+            return 1;
+          }
+          const skills = listBundledSkills(root);
+          for (const skill of skills) writeOut(`${skill.name} — ${skill.description}`);
+          writeOut(`[wod skills] ${skills.length} skill(s) from ${root}`);
+          return 0;
+        }
+        if (action === 'install') {
+          const result = installSkills({ dir: parsed.dir, force: parsed.force === true });
+          for (const name of result.installed) writeOut(`[wod skills] installed ${name} → ${nodePath().join(result.target, name)}`);
+          for (const name of result.skipped) writeOut(`[wod skills] ${name} already installed (use --force to replace)`);
+          writeOut(`[wod skills] ${result.installed.length} installed, ${result.skipped.length} kept — source ${result.root}`);
+          if (result.installed.length === 0 && result.skipped.length === 0) {
+            writeErr('[wod skills] No bundled skills found');
+            return 1;
+          }
+          writeOut('[wod skills] Agents read .agents/skills/; use `npx skills add bitcobblers/wod-wiki` for per-agent links.');
+          return 0;
+        }
+        writeErr(`[wod skills] Unknown action '${action}' (expected: list | install)`);
+        return 1;
+      } catch (error) {
+        writeErr(`[wod skills] ${(error as Error).message}`);
         return 1;
       }
     }

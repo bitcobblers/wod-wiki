@@ -363,6 +363,12 @@ e2e/
 - Documentation auto-published to GitHub Wiki when pushed to main branch
 - API documentation in the Obsidian vault (`deep-dives/runtime-session-implementation.md`) provides detailed runtime stack patterns
 
+### Agent Skills (`skills/`)
+- Parsing/tooling skills for agents live in `skills/<name>/SKILL.md` — one source of truth (`skills/README.md` has the layout and install paths)
+- `wod skills install [--dir <project>]` copies them into a project's `.agents/skills/`; `wod skills list` shows what the CLI ships; `npx skills add bitcobblers/wod-wiki` installs per-agent
+- The playground can only serve static files, so the in-app download copy under `apps/playground/public/ai-skills/` is generated: `bun run sync:skills` writes it, `bun run check:skills` fails on drift (CI runs it)
+- `scripts/build-cli-assets.ts` stages `skills/` into `packages/tools/dist/skills/`; the package's `prepack` refuses to publish without it
+
 ## Performance Considerations
 
 - All runtime stack operations must meet performance targets (see Lifecycle section)
