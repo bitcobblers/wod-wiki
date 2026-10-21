@@ -296,8 +296,12 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
             {/* Main Content Area */}
             <div className={`flex-1 min-h-0 flex flex-col items-center justify-center overflow-hidden ${dense ? 'px-4 py-1' : 'p-4'} ${tight ? 'min-w-0' : ''}`}>
 
-                {/* Timer & Controls Container */}
-                <div className="flex flex-col items-center justify-center h-full relative w-full">
+                {/* Timer & Controls Container — prototype .dt-now-body: label,
+                    clock and chips read as ONE vertically centered group, not
+                    as bands sprawling across the hero. Reserved label/chips
+                    band heights keep the layout-stability contract (FitArea
+                    scales content; segment swaps never move the clock). */}
+                <div className={`flex flex-col items-center justify-center relative w-full ${dense ? 'h-full' : 'min-h-0 gap-2.5'}`}>
                     {/* Skip-attempt flash message — appears above the timer */}
                     {skipFlash && (
                         <div
@@ -314,7 +318,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                         renders identically in every state; FitArea scales the
                         content to fit, so label/summary churn never shifts the
                         clock or controls. */}
-                    <div className={`flex w-full items-center justify-center overflow-hidden ${dense ? 'h-8 min-h-0 shrink mb-1' : 'h-24 mb-6 shrink-0'}`}>
+                    <div className={`flex w-full items-center justify-center overflow-hidden ${dense ? 'h-8 min-h-0 shrink mb-1' : 'h-[76px] shrink-0'}`}>
                         <FitArea>
                             {primaryTimer?.label && (
                                 <h2 className={`font-semibold text-foreground tracking-tight ${dense ? 'text-lg' : 'text-3xl lg:text-4xl'}`}>
@@ -338,16 +342,17 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                         </FitArea>
                     </div>
 
-                    {/* Very Large Timer Number (no circle) — the clock owns the
-                        remaining band (flex-1 min-h-0) and FitArea scales the
-                        digits to the measured width AND height of that band, so
+                    {/* Very Large Timer Number (no circle) — the clock sits in
+                        the centered group between the reserved bands; its size
+                        comes from getPrimaryTimerFontSizePx (height-capped) and
+                        FitArea scales the digits to the measured width, so
                         bounded embedded contexts shrink digits instead of
                         clipping them. */}
-                    <div className="relative flex min-h-12 w-full flex-1 items-center justify-center">
+                    <div className={`relative flex w-full items-center justify-center ${dense ? 'min-h-12 flex-1' : 'min-h-12'}`}>
                         <button
                             onClick={isPaused ? handleStart : isRunning ? handlePause : handleStart}
                             {...(getFocusProps ? getFocusProps('timer-main') : {})}
-                            className={`tv-focusable relative z-10 flex h-full max-h-full min-h-[48px] w-full items-center justify-center focus:outline-none focus-visible:outline-2 focus-visible:outline-ring group ${dense ? 'py-1' : 'py-8'}`}
+                            className={`tv-focusable relative z-10 flex w-full items-center justify-center focus:outline-none focus-visible:outline-2 focus-visible:outline-ring group ${dense ? 'min-h-[48px] py-1' : 'min-h-[48px]'}`}
                             title={primaryControlLabel}
                         >
                             <FitArea>
@@ -367,7 +372,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                     {/* Secondary Timers — smaller context clocks for parent
                         intervals. Reserved fixed-height band renders identically
                         when empty, so chips appearing never shifts the clock. */}
-                    <div className={`flex w-full items-center justify-center overflow-hidden ${dense ? 'mt-1 h-6 min-h-0 shrink' : 'mt-6 h-[60px] shrink-0'}`}>
+                    <div className={`flex w-full items-center justify-center overflow-hidden ${dense ? 'mt-1 h-6 min-h-0 shrink' : 'h-8 shrink-0'}`}>
                         <div className={`flex items-center justify-center gap-2 ${dense ? 'flex-wrap' : 'gap-4'}`}>
                             {secondaryTimerData.map((st, index) => (
                                 <div
@@ -445,20 +450,21 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                         <SkipForward className="w-5 h-5" />
                     </button>
                 ) : (
-                    /* Desktop: large circular button */
+                    /* Desktop: circular button with icon above a small NEXT
+                        label (prototype .dt-now-ctrl .btn-next). */
                     <div className="flex flex-col items-center gap-2">
                         <button
                             onClick={handleNext}
                             disabled={isNextDisabled}
                             aria-disabled={isNextDisabled ? 'true' : undefined}
                             {...(getFocusProps ? getFocusProps('btn-next') : {})}
-                            className={`tv-focusable flex items-center justify-center rounded-full transition-all shadow-xl ${dense ? 'w-12 h-12' : 'w-24 h-24'} ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-primary-foreground active:scale-90'}`}
+                            className={`tv-focusable flex flex-col items-center justify-center gap-1 rounded-full transition-all shadow-xl ${dense ? 'w-12 h-12' : 'w-20 h-20'} ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-primary-foreground active:scale-90'}`}
                             title="Next Block"
-                        data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
+                            data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
                         >
-                            <SkipForward className={`font-bold ${dense ? 'w-6 h-6' : 'w-10 h-10'}`} />
+                            <SkipForward className={`font-bold ${dense ? 'w-5 h-5' : 'w-6 h-6'}`} />
+                            {!dense && <span className="text-[10px] font-bold uppercase tracking-widest leading-none">Next</span>}
                         </button>
-                        {!dense && <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-on-primary-container">Next</span>}
                     </div>
                 )}
             </div>
