@@ -93,8 +93,9 @@ describe('NotebookService', () => {
     const girls = seedNotebooks.find((n) => n.notebookId === 'notebook/crossfit-girls');
     expect(girls).toBeDefined();
     expect(girls?.origin).toBe('seed');
-    expect(girls?.sourceEntryId).toBe('common');
+    // The split corpus binds each notebook to its own repo's seed source.
+    expect(girls?.sourceEntryId).toBe('seed-crossfit');
     expect(girls?.packageId).toBe('community-crossfit-girls');
-    expect(girls?.sourceUrl).toContain('wod-wiki-community');
+    expect(girls?.sourceUrl).toContain('wod-wiki-seed-crossfit');
   });
 });

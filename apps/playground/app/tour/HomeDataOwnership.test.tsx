@@ -68,9 +68,13 @@ describe('HomeCommunityFeeds', () => {
     expect(feeds.children).toHaveLength(2)
     expect(screen.getByTestId('home-feed-community-crossfit-programming').textContent).toContain('Demo')
     expect(screen.getByTestId('home-feed-community-dan-john-40-day').textContent).toContain('Demo')
-    const repos = screen.getAllByText('https://github.com/bitcobblers/wod-wiki-community') as HTMLAnchorElement[]
-    expect(repos.length).toBe(2)
-    expect(repos[0].getAttribute('href')).toBe('https://github.com/bitcobblers/wod-wiki-community')
+    // Each demo feed links to the repo that publishes it (split corpus).
+    const crossfitRepo = screen.getByTestId('home-feed-community-crossfit-programming').textContent as string
+    const kettlebellRepo = screen.getByTestId('home-feed-community-dan-john-40-day').textContent as string
+    expect(crossfitRepo).toContain('https://github.com/bitcobblers/wod-wiki-seed-crossfit')
+    expect(kettlebellRepo).toContain('https://github.com/bitcobblers/wod-wiki-seed-kettlebell')
+    const repos = screen.getAllByText('https://github.com/bitcobblers/wod-wiki-seed-crossfit') as HTMLAnchorElement[]
+    expect(repos[0].getAttribute('href')).toBe('https://github.com/bitcobblers/wod-wiki-seed-crossfit')
     expect(screen.getAllByText(/bun run generate:seed/).length).toBeGreaterThan(0)
   })
 

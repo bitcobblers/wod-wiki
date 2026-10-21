@@ -2,7 +2,6 @@ import { applySeedChunk, seedPrecedenceRank, type SeedChunkResult, type SeedChun
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import type { SeedMetaRecord } from '@/types/seed';
 import type { IStorage } from '@/services/storage/IStorage';
-import { storage } from '@/services/storage';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
 export type { SeedChunkWrite, SeedChunkResult } from '@bitcobblers/wod-wiki-engine';
 
@@ -21,7 +20,11 @@ export interface SeedImportStorage {
   removeSourceContent(meta: SeedMetaRecord): Promise<number>;
 }
 export class IndexedDBSeedImportStorage implements SeedImportStorage {
-  constructor(readonly storageInstance: IStorage = storage) {}
+  // The instance is required, never defaulted: '@/services/storage' touches
+  // localStorage at module load, so importing it here would make this module
+  // unusable inside the seed-sync Web Worker (seedSync.worker.ts injects its
+  // own IndexedDBStorage). Main-thread callers use mainThreadSeedImportStorage().
+  constructor(readonly storageInstance: IStorage) {}
   async getSeedMeta(key: string): Promise<SeedMetaRecord | undefined> {
     return await this.storageInstance.readonly('meta').get(key) as SeedMetaRecord | undefined;
   }

@@ -1,7 +1,7 @@
 /**
  * TimerSurface — tier picker tests.
  *
- * Rule (ADR 0003): compact → Minimal · wide → General (strip when isShort) ·
+ * Rule (ADR 0003): compact → Minimal · wide → General ·
  * full → Detail (TimerDisplay passthrough). Container size comes from
  * usePanelSize, so these tests mock the panel-size context and the model hook
  * (TimerSurface must render without a live runtime, same as the surface tests).
@@ -102,11 +102,10 @@ describe('TimerSurface', () => {
     renderSurface();
 
     expect(screen.getByTestId(TEST_IDS.TIMER_SURFACE_GENERAL)).toBeDefined();
-    expect(screen.queryByTestId(TEST_IDS.TIMER_SURFACE_GENERAL_STRIP)).toBeNull();
     expect(screen.queryByTestId('timer-display-detail')).toBeNull();
   });
 
-  it('short wide host compresses General into the strip variant', () => {
+  it('short wide host renders the same full General surface', () => {
     panelSize.mockImplementation((): PanelSizeInfo => ({
       ...FULL_SIZE,
       width: 700,
@@ -117,8 +116,9 @@ describe('TimerSurface', () => {
     }));
     renderSurface();
 
+    // No strip compression: one General view at any height.
     expect(screen.getByTestId(TEST_IDS.TIMER_SURFACE_GENERAL)).toBeDefined();
-    expect(screen.getByTestId(TEST_IDS.TIMER_SURFACE_GENERAL_STRIP)).toBeDefined();
+    expect(screen.getByTestId(TEST_IDS.TIMER_METRIC_PROMPTS)).toBeDefined();
   });
 
   it('compact container renders Minimal with the metric prompt row', () => {
@@ -139,12 +139,12 @@ describe('TimerSurface', () => {
     expect(screen.queryByTestId('timer-display-detail')).toBeNull();
   });
 
-  it('omits the metric prompt row on Detail and on the strip variant', () => {
+  it('omits the metric prompt row only on Detail', () => {
     // Detail (full) — default mock state.
     renderSurface();
     expect(screen.queryByTestId(TEST_IDS.TIMER_METRIC_PROMPTS)).toBeNull();
 
-    // General strip (wide + short).
+    // General carries the prompt row even on short hosts.
     panelSize.mockImplementation((): PanelSizeInfo => ({
       ...FULL_SIZE,
       width: 700,
@@ -154,7 +154,7 @@ describe('TimerSurface', () => {
       mode: 'wide',
     }));
     renderSurface();
-    expect(screen.queryByTestId(TEST_IDS.TIMER_METRIC_PROMPTS)).toBeNull();
+    expect(screen.getByTestId(TEST_IDS.TIMER_METRIC_PROMPTS)).toBeDefined();
   });
 
   it('derives the surface model from the host handlers', () => {

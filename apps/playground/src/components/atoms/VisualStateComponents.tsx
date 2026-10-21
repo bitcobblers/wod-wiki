@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { IOutputStatement } from '@bitcobblers/wod-wiki-engine';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import { cn } from '@/lib/utils';
@@ -7,6 +7,7 @@ import { useTimerElapsed, useRoundDisplay, useScriptRuntime, useNextPreview } fr
 import type { IScriptRuntime, IRuntimeBlock, MetricVisibility } from '@/hooks/useRuntimeTimer';
 import { formatTimeMMSS } from '../../lib/formatTime';
 import { MetricSourceRow } from '@/components/molecules/MetricSourceRow';
+import { presentThemedGroup } from '@/components/metrics/presentation';
 import { MetricContainer } from '@bitcobblers/wod-wiki-engine';
 import { VisibilityBadge } from './VisibilityBadge';
 import { useDebugMode } from '@/contexts/DebugModeContext';
@@ -136,6 +137,33 @@ const StackBlockItem: React.FC<{
         );
     };
 
+    // Counts-first labels: a round level reads "Round 2 / 3", every other
+    // level keeps its plain label (session root always block.label).
+    const isRoundLevel = !isLeaf && roundDisplay != null;
+
+    // Leaf metric chips — prototype .mt-chip: small mono chips tinted by the
+    // metric hue (themed presentation tokens carry the metric-* classes).
+    // Tokens repeating the leaf label (e.g. the effort naming the exercise)
+    // are dropped when the label is already shown as the card title.
+    const leafChips = useMemo(() => {
+        const tokens = displayRows.flatMap(row =>
+            presentThemedGroup([...row], 'runtime-badge').filter(t => t.visible)
+        );
+        const label = block.label?.trim();
+        return label ? tokens.filter(t => t.label.trim() !== label) : tokens;
+    }, [displayRows, block.label]);
+
+    // Debug inspect button — available on every block
+    const inspectButton = debug && (
+        <button
+            onClick={() => setDebugDialogOpen(true)}
+            className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            title="Inspect block"
+        >
+            <Table2 className="h-4 w-4" />
+        </button>
+    );
+
     return (
         <div
             className={cn(
@@ -146,27 +174,16 @@ const StackBlockItem: React.FC<{
             <div className={cn(
                 "rounded-md border text-sm transition-all",
                 isLeaf
-                    ? "bg-card shadow-sm border-primary/40 ring-1 ring-primary/10"
-                    : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted/50 hover:border-border/50"
+                    ? "bg-card shadow-sm border-primary/40 ring-1 ring-primary/15"
+                    : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted/50 hover:border-border/50"
             )}>
-                {/* Block header row */}
-                <div className="flex items-center justify-between gap-3 p-3">
-                    <div className="flex flex-col min-w-0 flex-1">
+                {isLeaf ? (
+                    /* Active leaf card — prototype .stk-leaf: bold label on top,
+                       metric chips + live timer chip in one wrapping row below. */
+                    <div className="p-3">
                         <div className="flex items-center gap-2 min-w-0">
-                            {/* Non-leaf: show label (Session root always shows block.label, not round display) */}
-                            {!isLeaf && (
-                                <span className="text-xs font-medium tracking-tight text-muted-foreground/70">
-                                    {(block.blockType !== 'SessionRoot' && roundDisplay) ? roundDisplay.label : block.label}
-                                </span>
-                            )}
-                            {/* Leaf: show display metrics inline, or fall back to label if no metrics */}
-                            {isLeaf && displayRows.length > 0 && (
-                                <div className="flex items-center flex-wrap gap-0.5 min-w-0 font-bold text-foreground text-base">
-                                    {renderFragmentSection(displayRows, 'display', false, isLeaf)}
-                                </div>
-                            )}
-                            {isLeaf && displayRows.length === 0 && block.label && (
-                                <span className="text-base font-bold tracking-tight text-foreground">
+                            {block.label && (
+                                <span className="text-[13.5px] font-bold tracking-tight text-foreground leading-tight">
                                     {block.label}
                                 </span>
                             )}
@@ -175,45 +192,80 @@ const StackBlockItem: React.FC<{
                                     {block.blockType}
                                 </span>
                             )}
+                            {inspectButton}
+                        </div>
+
+                        <div className="flex items-center flex-wrap gap-1.5 mt-1.5 min-w-0">
+                            {leafChips.map((token, idx) => token.renderKind === 'comment' ? (
+                                <span key={idx} className="text-[11.5px] italic text-muted-foreground select-text" title={token.tooltip}>
+                                    {token.label}
+                                </span>
+                            ) : (
+                                <span
+                                    key={idx}
+                                    className={cn(
+                                        "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11.5px] font-bold tabular-nums cursor-help transition-colors",
+                                        token.colorClasses
+                                    )}
+                                    title={token.tooltip}
+                                >
+                                    {token.icon && <span className="text-[11px] leading-none">{token.icon}</span>}
+                                    {token.label}
+                                </span>
+                            ))}
+
+                            {hasTime && (
+                                <div className={cn(
+                                    "ml-auto flex items-center gap-1.5 px-2 py-1 rounded-md font-mono text-[11.5px] font-bold tabular-nums shrink-0",
+                                    isRunning
+                                        ? "bg-primary/10 text-primary animate-pulse"
+                                        : "bg-muted text-muted-foreground"
+                                )}>
+                                    <Timer className="h-3 w-3" />
+                                    {formatTimeMMSS(elapsed)}
+                                </div>
+                            )}
                         </div>
 
                         {/* Block key — debug only */}
                         {debug && (
-                            <div className="text-[10px] font-mono text-muted-foreground/60 truncate max-w-[200px] mt-0.5">
+                            <div className="text-[10px] font-mono text-muted-foreground/60 truncate max-w-[200px] mt-1">
                                 {block.key.toString()}
                             </div>
                         )}
                     </div>
+                ) : (
+                    <>
+                        {/* Ledger row — prototype .stk-row: muted label, count/time
+                            right-aligned in mono so numbers read first. */}
+                        <div className="flex items-center justify-between gap-3 px-3 py-2">
+                            <span className="text-xs font-medium tracking-tight text-muted-foreground/80 truncate">
+                                {isRoundLevel ? 'Round' : block.label}
+                            </span>
 
-                    {hasTime && (
-                        <div className={cn(
-                            "flex items-center gap-1.5 px-2 py-1 rounded font-mono text-xs font-bold shrink-0",
-                            isRunning
-                                ? "bg-primary/10 text-primary animate-pulse"
-                                : "bg-muted text-muted-foreground"
-                        )}>
-                            <Timer className="h-3 w-3" />
-                            {formatTimeMMSS(elapsed)}
+                            {isRoundLevel && roundDisplay ? (
+                                <span className="font-mono text-[15px] font-bold tracking-tight text-foreground tabular-nums shrink-0 leading-none">
+                                    {roundDisplay.current}
+                                    {roundDisplay.total !== undefined && (
+                                        <span className="text-[11px] font-medium text-muted-foreground"> / {roundDisplay.total}</span>
+                                    )}
+                                </span>
+                            ) : hasTime ? (
+                                <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tabular-nums text-foreground shrink-0">
+                                    <Timer className="h-3 w-3" />
+                                    {formatTimeMMSS(elapsed)}
+                                </span>
+                            ) : null}
+                            {inspectButton}
                         </div>
-                    )}
 
-                    {/* Debug inspect button */}
-                    {debug && (
-                        <button
-                            onClick={() => setDebugDialogOpen(true)}
-                            className="h-9 w-9 rounded-md flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                            title="Inspect block"
-                        >
-                            <Table2 className="h-4 w-4" />
-                        </button>
-                    )}
-                </div>
-
-                {/* Fragment rows — non-leaf blocks only (leaf metrics are inline in the header) */}
-                {!isLeaf && displayRows.length > 0 && (
-                    <div className="flex flex-col gap-1 px-3 pb-2">
-                        {renderFragmentSection(displayRows, 'display', debug, isLeaf)}
-                    </div>
+                        {/* Fragment rows — non-leaf blocks only (leaf metrics are chips in the card) */}
+                        {displayRows.length > 0 && (
+                            <div className="flex flex-col gap-1 px-3 pb-2">
+                                {renderFragmentSection(displayRows, 'display', debug, isLeaf)}
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {/* Debug tiers — promote & private (always below header) */}
@@ -297,16 +349,12 @@ export const RuntimeStackView: React.FC<{
         };
 
         return (
-            <div className="flex items-center gap-3 text-xs text-muted-foreground py-2 pl-4 border-l-2 border-muted ml-3 my-1 bg-muted/5 rounded-r-md">
-                <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span className="font-medium">{levelOutputs.length} Completed</span>
-                </div>
-                <div className="w-px h-3 bg-border/50" />
-                <div className="flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span className="font-mono">{formatDuration(totalDuration)}</span>
-                </div>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground py-1 pl-2.5 border-l-2 border-border/85 ml-3 my-0.5">
+                <CheckCircle2 className="h-3 w-3 shrink-0" />
+                <span className="font-semibold text-foreground">{levelOutputs.length} completed</span>
+                <span className="w-px h-2.5 bg-border/70" />
+                <Clock className="h-3 w-3 shrink-0" />
+                <span className="font-mono font-semibold tabular-nums text-metric-time">{formatDuration(totalDuration)}</span>
             </div>
         );
     };
@@ -317,7 +365,7 @@ export const RuntimeStackView: React.FC<{
     const visibleBlocks = [...blocks].reverse();
 
     return (
-        <div className="flex flex-col gap-1 relative">
+        <div className="flex flex-col gap-0.5 relative">
             {visibleBlocks.map((block, index) => {
                 const isLeaf = index === visibleBlocks.length - 1; // Last item is the active leaf
 
@@ -358,20 +406,13 @@ export const LookaheadView: React.FC<{
     }
 
     return (
-        <div className="flex flex-col gap-2">
-            <div className={cn(
-                "rounded-md border text-sm transition-all",
-                "bg-card/50 border-border/60 hover:bg-card/80"
-            )}>
-                {/* Fragment rows — rendered like a workout block card */}
-                <div className="flex flex-col gap-0.5 p-3">
-                    <MetricSourceRow
-                        metrics={preview.metrics}
-                        size="compact"
-                        isLeaf={false}
-                    />
-                </div>
-            </div>
+        <div className="rounded-[10px] border border-dashed border-border/90 bg-muted/30 p-2.5 transition-all">
+            {/* Next child metrics — rendered like a workout block card */}
+            <MetricSourceRow
+                metrics={preview.metrics}
+                size="compact"
+                isLeaf={false}
+            />
         </div>
     );
 };

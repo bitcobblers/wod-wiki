@@ -209,78 +209,133 @@ export interface SyncPackage {
   sourceId: string;
   sourceLabel: string;
   repositoryUrl?: string;
+  /** The published seed dir this package syncs from (its own repo's Pages). */
+  seedUrl: string;
+  /** Boot auto-import gate override; absent → false (manual subscribe). */
+  autoImport?: boolean;
 }
 
-/** The default 'Common' package source (wod-wiki-community content repo). */
-export const COMMON_PACKAGE_SOURCE: PackageSource = {
-  id: 'common',
-  label: 'Common',
-  url: COMMUNITY_SEED_URL,
-  repositoryUrl: COMMUNITY_REPOSITORY_URL,
-  description: 'Shared workouts, benchmark collections, and dashboards from the common content repository.',
-};
-
 /**
- * Built-in packages belonging to the Common package source.
- * Each category directory forms one package with its own chunkId.
+ * The split corpus: one repo per theme, each publishing its own seed dir to
+ * GitHub Pages and syncing as an independent source (own manifest/version/
+ * checkpoint). Repos live under the bitcobblers org (transferred from the
+ * interim SergeiGolos account; Pages moved with them).
  */
-export const SYNC_PACKAGES: SyncPackage[] = [
-  {
-    id: 'community-crossfit-programming',
-    chunkId: 'feed.crossfit-programming',
-    label: 'CrossFit Programming',
-    category: 'feeds',
-    sourceId: 'common',
-    sourceLabel: 'Common',
-    description: 'Weekly CrossFit programming — daily strength, conditioning, and skill sessions on a rotation with a weekly benchmark.',
-    repositoryUrl: COMMUNITY_REPOSITORY_URL,
-  },
-  {
-    id: 'community-dan-john-40-day',
-    chunkId: 'feed.dan-john-40-day',
-    label: 'Dan John 40-Day Program',
-    category: 'feeds',
-    sourceId: 'common',
-    sourceLabel: 'Common',
-    description: "Dan John's 40-day barbell program — five lifts, five sets of five, five days a week for 40 sessions.",
-    repositoryUrl: COMMUNITY_REPOSITORY_URL,
-  },
-  {
-    id: 'community-crossfit-girls',
-    chunkId: 'collection.crossfit-girls',
-    label: 'CrossFit Girls',
-    category: 'collections',
-    sourceId: 'common',
-    sourceLabel: 'Common',
-    description: 'Classic benchmark workouts — Fran, Helen, Grace, Diane, and more, formatted for Wod Wiki.',
-    repositoryUrl: COMMUNITY_REPOSITORY_URL,
-  },
-  {
-    id: 'community-crossfit-heroes',
-    chunkId: 'collection.crossfit-heroes',
-    label: 'CrossFit Heroes',
-    category: 'collections',
-    sourceId: 'common',
-    sourceLabel: 'Common',
-    description: 'Hero benchmark workouts honoring service members — Murph, DT, Badger, and more.',
-    repositoryUrl: COMMUNITY_REPOSITORY_URL,
-  },
-  {
-    id: 'community-dashboards',
-    chunkId: 'dashboards',
-    label: 'Common Dashboards',
-    category: 'dashboards',
-    sourceId: 'common',
-    sourceLabel: 'Common',
-    description: 'Prebuilt WQL analytics dashboards tracking training volume, intensity distribution, and movement frequency.',
-    repositoryUrl: COMMUNITY_REPOSITORY_URL,
-  },
+export interface SeedRepoDef {
+  id: string;
+  label: string;
+  seedUrl: string;
+  repositoryUrl: string;
+  description: string;
+}
+
+const SEED_REPO_HOST = 'https://bitcobblers.github.io';
+function seedRepo(id: string, label: string, name: string, description: string): SeedRepoDef {
+  return {
+    id,
+    label,
+    seedUrl: `${SEED_REPO_HOST}/${name}/`,
+    repositoryUrl: `https://github.com/bitcobblers/${name}`,
+    description,
+  };
+}
+
+export const SEED_REPOS: SeedRepoDef[] = [
+  seedRepo('seed-core', 'Core Registry', 'wod-wiki-seed-core', 'Shared effort and equipment registries plus prebuilt WQL dashboards.'),
+  seedRepo('seed-crossfit', 'CrossFit', 'wod-wiki-seed-crossfit', 'CrossFit benchmark collections (Games, Girls, Heroes) and weekly programming.'),
+  seedRepo('seed-hyrox', 'HYROX', 'wod-wiki-seed-hyrox', 'HYROX race preparation and simulation workouts.'),
+  seedRepo('seed-kettlebell', 'Kettlebell Coaches', 'wod-wiki-seed-kettlebell', 'Kettlebell coach collections and the Dan John 40-Day Program feed.'),
+  seedRepo('seed-swimming', 'Swimming', 'wod-wiki-seed-swimming', 'Swimming programs from pre-highschool through college, masters, Olympic, and triathlete.'),
+  seedRepo('seed-track', 'Track & Field', 'wod-wiki-seed-track', 'High-school track programs — 400m (Raffensperger) and sprints (Arrowhead).'),
+  seedRepo('seed-zombie-fit', 'ZombieFit', 'wod-wiki-seed-zombie-fit', 'The ZombieFit parkour archive — daily WODs since 2009.'),
+  seedRepo('seed-golos-method', 'Golos Method', 'wod-wiki-seed-golos-method', 'Daily minimalist strength and conditioning.'),
+  seedRepo('yt-dan-john', 'Dan John', 'wod-wiki-youtube-dan-john', 'Dan John kettlebell workouts.'),
+  seedRepo('yt-mark-wildman', 'Mark Wildman', 'wod-wiki-youtube-mark-wildman', 'Mark Wildman athletic kettlebell and club training.'),
+  seedRepo('yt-strongfirst', 'StrongFirst', 'wod-wiki-youtube-strongfirst', 'StrongFirst hardstyle kettlebell workouts.'),
+  seedRepo('yt-the-stone-circle', 'The Stone Circle', 'wod-wiki-youtube-the-stone-circle', 'Sandbag power-endurance and density training.'),
+  seedRepo('example-movement', 'Movement Examples', 'wod-wiki-example-movement', 'Unconventional and parkour-style training examples.'),
+  seedRepo('example-yoga', 'Yoga Examples', 'wod-wiki-example-yoga', 'Yoga session examples.'),
+  seedRepo('r-workoutroutines', 'r/WorkoutRoutines', 'wod-wiki-r-workoutroutines', 'Community feed from the r/WorkoutRoutines subreddit.'),
 ];
 
-/** Returns all registered package sources (Common + custom). */
+function byId(id: string): SeedRepoDef {
+  const repo = SEED_REPOS.find((r) => r.id === id);
+  if (!repo) throw new Error(`unknown seed repo: ${id}`);
+  return repo;
+}
+
+function pkg(repoId: string, slug: string, chunkId: string, label: string, category: string, description: string, autoImport?: boolean): SyncPackage {
+  const src = byId(repoId);
+  return {
+    id: `community-${slug}`,
+    chunkId,
+    label,
+    category,
+    description,
+    sourceId: src.id,
+    sourceLabel: src.label,
+    repositoryUrl: src.repositoryUrl,
+    seedUrl: src.seedUrl,
+    ...(autoImport ? { autoImport } : {}),
+  };
+}
+
+/**
+ * Built-in packages, one per published notebook. Package ids are permanent:
+ * they key the sync checkpoint (`seed:<id>`) and any stored subscription, so
+ * a notebook moving between repos keeps its id and only its seedUrl changes.
+ * Chunk ids mirror the corpus layout (collection.<slug> / feed.<slug>) and
+ * never change either.
+ */
+export const SYNC_PACKAGES: SyncPackage[] = [
+  // Core registry (reference data — imports at boot like the bundled core,
+  // workouts resolve efforts/equipment against it).
+  pkg('seed-core', 'efforts', 'efforts', 'Effort Registry', 'efforts', 'The shared effort registry — movement definitions workouts resolve against.', true),
+  pkg('seed-core', 'equipment', 'equipment', 'Equipment Registry', 'equipment', 'The shared equipment registry resolved against workout programming.', true),
+  pkg('seed-core', 'dashboards', 'dashboards', 'Common Dashboards', 'dashboards', 'Prebuilt WQL analytics dashboards tracking training volume, intensity distribution, and movement frequency.'),
+  // CrossFit
+  pkg('seed-crossfit', 'crossfit-games', 'collection.crossfit-games', 'CrossFit Games', 'collections', 'CrossFit Games workouts — Open, Regionals, and Games programming, formatted for Wod Wiki.'),
+  pkg('seed-crossfit', 'crossfit-girls', 'collection.crossfit-girls', 'CrossFit Girls', 'collections', 'Classic benchmark workouts — Fran, Helen, Grace, Diane, and more, formatted for Wod Wiki.'),
+  pkg('seed-crossfit', 'crossfit-heroes', 'collection.crossfit-heroes', 'CrossFit Heroes', 'collections', 'Hero benchmark workouts honoring service members — Murph, DT, Badger, and more.'),
+  pkg('seed-crossfit', 'crossfit-programming', 'feed.crossfit-programming', 'CrossFit Programming', 'feeds', 'Weekly CrossFit programming — daily strength, conditioning, and skill sessions on a rotation with a weekly benchmark.'),
+  // HYROX
+  pkg('seed-hyrox', 'hyrox', 'collection.hyrox', 'HYROX', 'collections', 'HYROX race preparation — running, sled work, ergs, and functional stations in race format.'),
+  // Kettlebell coaches
+  pkg('seed-kettlebell', 'geoff-neupert', 'collection.geoff-neupert', 'Geoff Neupert', 'collections', 'Geoff Neupert kettlebell workouts — strength and conditioning from a Master SFG coach.'),
+  pkg('seed-kettlebell', 'girevoy-sport', 'collection.girevoy-sport', 'Girevoy Sport', 'collections', 'Competitive kettlebell sport — jerk, snatch, and long-cycle programming.'),
+  pkg('seed-kettlebell', 'joe-daniels', 'collection.joe-daniels', 'Joe Daniels (Swing This)', 'collections', 'Joe Daniels kettlebell workouts — kettlebell sport and hardstyle fusion.'),
+  pkg('seed-kettlebell', 'keith-weber', 'collection.keith-weber', 'Keith Weber', 'collections', 'Keith Weber kettlebell workouts — high-intensity kettlebell cardio.'),
+  pkg('seed-kettlebell', 'steve-cotter', 'collection.steve-cotter', 'Steve Cotter', 'collections', 'Steve Cotter kettlebell workouts — comprehensive kettlebell education.'),
+  pkg('seed-kettlebell', 'dan-john-40-day', 'feed.dan-john-40-day', 'Dan John 40-Day Program', 'feeds', "Dan John's 40-day barbell program — five lifts, five sets of five, five days a week for 40 sessions."),
+  // YouTube-sourced coach libraries
+  pkg('yt-dan-john', 'dan-john', 'collection.dan-john', 'Dan John Kettlebell', 'collections', 'Dan John kettlebell workouts — simple, effective programming with clear objectives.'),
+  pkg('yt-mark-wildman', 'mark-wildman', 'collection.mark-wildman', 'Mark Wildman', 'collections', 'Mark Wildman workouts — athletic kettlebell and club training.'),
+  pkg('yt-strongfirst', 'strongfirst', 'collection.strongfirst', 'StrongFirst', 'collections', 'StrongFirst workouts — hardstyle kettlebell strength and skill.'),
+  pkg('yt-the-stone-circle', 'the-stone-circle', 'collection.the-stone-circle', 'The Stone Circle', 'collections', 'Sandbag power endurance and density training — progressive EMOM protocols.'),
+  // Swimming
+  pkg('seed-swimming', 'swimming-college', 'collection.swimming-college', 'Swimming: College', 'collections', 'College swimming training sessions.'),
+  pkg('seed-swimming', 'swimming-highschool', 'collection.swimming-highschool', 'Swimming: High School', 'collections', 'High-school swimming training sessions.'),
+  pkg('seed-swimming', 'swimming-masters', 'collection.swimming-masters', 'Swimming: Masters', 'collections', 'Masters swimming training sessions.'),
+  pkg('seed-swimming', 'swimming-olympic', 'collection.swimming-olympic', 'Swimming: Olympic', 'collections', 'Olympic-caliber swimming training sessions.'),
+  pkg('seed-swimming', 'swimming-post-college', 'collection.swimming-post-college', 'Swimming: Post-College', 'collections', 'Post-college swimming training sessions.'),
+  pkg('seed-swimming', 'swimming-pre-highschool', 'collection.swimming-pre-highschool', 'Swimming: Pre-Highschool', 'collections', 'Pre-highschool swimming training sessions.'),
+  pkg('seed-swimming', 'swimming-triathlete', 'collection.swimming-triathlete', 'Swimming: Triathlete', 'collections', 'Triathlete swim training sessions.'),
+  // Track
+  pkg('seed-track', 'hs-track-400m', 'collection.hs-track-400m', 'HS Track 400m', 'collections', 'High-school 400m program after Raffensperger — speed, tempo, and strength phases.'),
+  pkg('seed-track', 'hs-track-sprints', 'collection.hs-track-sprints', 'HS Track Sprints', 'collections', 'High-school sprints program after Arrowhead — acceleration, maximum velocity, and speed endurance.'),
+  // Movement / lifestyle
+  pkg('seed-zombie-fit', 'zombiefit', 'collection.zombiefit', 'ZombieFit', 'collections', 'The ZombieFit archive — parkour-inspired fitness WODs, 2009–2013.'),
+  pkg('seed-golos-method', 'the-golos-method', 'collection.the-golos-method', 'The Golos Method', 'collections', 'Daily minimalist strength and conditioning — dense, repeatable sessions.'),
+  pkg('example-movement', 'unconventional', 'collection.unconventional', 'Unconventional', 'collections', 'Unconventional training — maces, clubs, sandbags, and parkour movement.'),
+  pkg('example-yoga', 'yoga', 'collection.yoga', 'Yoga', 'collections', 'Yoga sessions for mobility and recovery.'),
+  // Reddit feeds
+  pkg('r-workoutroutines', 'workoutroutines-reddit', 'feed.workoutroutines-reddit', 'r/WorkoutRoutines', 'feeds', 'Community workouts from the r/WorkoutRoutines subreddit.'),
+];
+
+/** Package sources = the split seed repos (+ user-registered customs). */
 export function listPackageSources(): PackageSource[] {
   return [
-    COMMON_PACKAGE_SOURCE,
+    ...SEED_REPOS.map((r) => ({ id: r.id, label: r.label, url: r.seedUrl, repositoryUrl: r.repositoryUrl, description: r.description })),
     ...customSeedSources().map((c) => ({
       id: c.id,
       label: c.label,
@@ -302,6 +357,7 @@ export function listSyncPackages(): SyncPackage[] {
       sourceId: src.id,
       sourceLabel: src.label,
       description: `Custom package synced from ${src.url}`,
+      seedUrl: src.url,
     });
   }
   return list;
@@ -326,11 +382,10 @@ export interface CommunityFeedDef {
 }
 
 /**
- * The two existing demo feeds — real components of the wod-wiki-community
- * corpus (verified manifest: `feed.crossfit-programming`, 8 notes;
- * `feed.dan-john-40-day`, 6 notes), not stand-ins for the bundled core.
- * Both sync from the same community Pages URL; FeedSeedSource filters the
- * manifest so each button downloads only its own chunk.
+ * The two demo feeds — real components of the split corpus (each published
+ * by its own repo: `feed.crossfit-programming` in wod-wiki-seed-crossfit,
+ * `feed.dan-john-40-day` in wod-wiki-seed-kettlebell). FeedSeedSource
+ * filters the manifest so each button downloads only its own chunk.
  */
 export const COMMUNITY_FEEDS: CommunityFeedDef[] = [
   {
@@ -384,11 +439,14 @@ export class FeedSeedSource implements ISeedSource {
 
 /** The home Community feeds cards — same shape the home component renders. */
 export function demoSeedSources(): DemoSeedSource[] {
-  return COMMUNITY_FEEDS.map((feed) => ({
-    id: feed.id,
-    label: feed.label,
-    url: COMMUNITY_SEED_URL,
-    description: feed.description,
-    repositoryUrl: COMMUNITY_REPOSITORY_URL,
-  }));
+  return COMMUNITY_FEEDS.map((feed) => {
+    const pkg = SYNC_PACKAGES.find((p) => p.id === feed.id);
+    return {
+      id: feed.id,
+      label: feed.label,
+      url: pkg?.seedUrl ?? COMMUNITY_SEED_URL,
+      description: feed.description,
+      repositoryUrl: pkg?.repositoryUrl ?? COMMUNITY_REPOSITORY_URL,
+    };
+  });
 }

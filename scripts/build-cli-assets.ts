@@ -23,6 +23,12 @@ function run(script: string): void {
   if (res.status !== 0) process.exit(res.status ?? 1)
 }
 
+// The playground serves skills from public/, so refresh those copies before it builds.
+{
+  const res = spawnSync(process.execPath, ['scripts/sync-skills.ts'], { cwd: ROOT, stdio: 'inherit' })
+  if (res.status !== 0) process.exit(res.status ?? 1)
+}
+
 function copyFiltered(src: string, dest: string): void {
   if (!existsSync(join(src, 'index.html'))) {
     console.error(`[build-cli-assets] missing build output: ${src}/index.html`)
@@ -48,4 +54,10 @@ rmSync(join(TOOLS_WEB, 'server'), { recursive: true, force: true })
 rmSync(join(TOOLS_WEB, 'playground'), { recursive: true, force: true })
 copyFiltered(join(PLAYGROUND, 'dist-api'), join(TOOLS_WEB, 'server'))
 copyFiltered(join(PLAYGROUND, 'dist'), join(TOOLS_WEB, 'playground'))
-process.stdout.write('[build-cli-assets] staged dist/web/server (API) and dist/web/playground (IndexedDB)\n')
+
+// Skills travel inside the package: `wod skills install` copies them into a
+// project, and `npx skills experimental_sync` finds dist/skills/<name>/SKILL.md.
+const TOOLS_SKILLS = join(ROOT, 'packages', 'tools', 'dist', 'skills')
+rmSync(TOOLS_SKILLS, { recursive: true, force: true })
+cpSync(join(ROOT, 'skills'), TOOLS_SKILLS, { recursive: true })
+process.stdout.write('[build-cli-assets] staged dist/web/server (API), dist/web/playground (IndexedDB), dist/skills\n')

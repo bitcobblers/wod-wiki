@@ -3,7 +3,7 @@
  *
  * Container size decides the tier — no new breakpoints:
  *   compact (<500px) → MinimalTimerSurface
- *   wide    (≥500px) → GeneralTimerSurface (strip compression when isShort)
+ *   wide    (≥500px) → GeneralTimerSurface (full hero at any height)
  *   full    (≥900px) → TimerDisplay (Detail: StackIntegratedTimer + TimerStackView)
  *
  * VisualStatePanel gating is host-layout logic and stays with the hosts: it
@@ -43,7 +43,7 @@ export interface TimerSurfaceProps extends TimerSurfaceHandlers {
 }
 
 export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
-  const { isCompact, isFull, isShort } = usePanelSize();
+  const { isCompact, isFull } = usePanelSize();
   const model = useTimerSurfaceModel({
     onStart: props.onStart,
     onPause: props.onPause,
@@ -71,10 +71,9 @@ export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
     );
   }
 
-  // Live metric bubbles ride Minimal and full-height General; the strip
-  // (short host) has no room for them. ponytail: live metric bubbles only —
-  // in-run metric INPUT stays Detail-only until an input design exists
-  // (ADR 0003 §4); upgrade path is a slot prop per surface.
+  // Live metric bubbles ride Minimal and General. ponytail: live metric
+  // bubbles only — in-run metric INPUT stays Detail-only until an input
+  // design exists (ADR 0003 §4); upgrade path is a slot prop per surface.
   const promptRow = (
     <div
       data-testid={TEST_IDS.TIMER_METRIC_PROMPTS}
@@ -108,8 +107,7 @@ export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
       onNext={props.onNext}
       getFocusProps={props.getFocusProps}
       workoutTitle={props.workoutTitle}
-      mode={isShort ? 'strip' : 'full'}
-      promptRow={isShort ? undefined : promptRow}
+      promptRow={promptRow}
     />
   );
 };
