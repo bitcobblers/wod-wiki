@@ -218,8 +218,8 @@ export interface SyncPackage {
 /**
  * The split corpus: one repo per theme, each publishing its own seed dir to
  * GitHub Pages and syncing as an independent source (own manifest/version/
- * checkpoint). Repos live under SergeiGolos until moved to bitcobblers —
- * the move is a host flip here, nothing else.
+ * checkpoint). Repos live under the bitcobblers org (transferred from the
+ * interim SergeiGolos account; Pages moved with them).
  */
 export interface SeedRepoDef {
   id: string;
@@ -229,13 +229,13 @@ export interface SeedRepoDef {
   description: string;
 }
 
-const SEED_REPO_HOST = 'https://sergeigolos.github.io';
+const SEED_REPO_HOST = 'https://bitcobblers.github.io';
 function seedRepo(id: string, label: string, name: string, description: string): SeedRepoDef {
   return {
     id,
     label,
     seedUrl: `${SEED_REPO_HOST}/${name}/`,
-    repositoryUrl: `https://github.com/SergeiGolos/${name}`,
+    repositoryUrl: `https://github.com/bitcobblers/${name}`,
     description,
   };
 }
