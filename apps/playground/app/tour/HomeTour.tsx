@@ -517,8 +517,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
       },
       { id: 'boards', label: 'One Run Becomes Many', level: 3, action: { type: 'scroll', sectionId: 'tour-section-boards' } },
       { id: 'community-feeds', label: 'Library & Community Feeds', level: 3, action: { type: 'scroll', sectionId: 'tour-section-community-feeds' } },
-      { id: 'offerings', label: 'You Own the Data', level: 3, action: { type: 'scroll', sectionId: 'tour-section-offerings' } },
-      { id: 'hosted', label: 'Wod-Wiki Hosted', level: 3, action: { type: 'scroll', sectionId: 'tour-section-hosted' } },
+      { id: 'offerings', label: 'Who owns the Data?', level: 3, action: { type: 'scroll', sectionId: 'tour-section-offerings' } },  
       { id: 'university', label: 'Wod Wiki University', level: 3, action: { type: 'scroll', sectionId: 'tour-section-university' } },
     ]
     setL3Items(outline)

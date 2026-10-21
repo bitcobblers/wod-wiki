@@ -204,7 +204,7 @@ export function TourJumpSection() {
       aria-label="Library and community feeds"
     >
       <TaglineHeader
-        index="00"
+        index="03"
         before="Library & "
         accentText="Community Feeds"
         after=""

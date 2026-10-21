@@ -77,7 +77,7 @@ export function GuideIndexFooter({ variant = 'index' }: { variant?: 'index' | 'u
         aria-label="Wod Wiki University"
       >
         <TaglineHeader
-          index="06"
+          index="05"
           before="Wod Wiki "
           accentText="University"
           after=""

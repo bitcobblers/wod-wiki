@@ -90,9 +90,9 @@ function FeatureRow(props: {
   onInterested: (id: string) => void
 }) {
   return (
-    <li className="flex flex-col gap-1">
-      <span className="flex gap-2.5 text-sm leading-6 text-muted-foreground">
-        <span aria-hidden className="mt-[11px] size-1 shrink-0 rounded-full bg-muted-foreground/50" />
+    <li className="flex flex-col gap-0.5">
+      <span className="flex gap-2.5 text-[13px] leading-5 text-muted-foreground">
+        <span aria-hidden className="mt-[9px] size-1 shrink-0 rounded-full bg-muted-foreground/50" />
         <span>{props.feature.label}</span>
       </span>
       <button
@@ -101,7 +101,7 @@ function FeatureRow(props: {
         onClick={() => props.onInterested(props.feature.id)}
         disabled={props.interested}
         aria-pressed={props.interested}
-        className={`ml-[15px] w-fit shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+        className={`ml-[13px] w-fit shrink-0 rounded-full border px-2 py-px text-[11px] font-medium transition-colors ${
           props.interested
             ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
             : 'border-border text-muted-foreground hover:border-primary/50 hover:text-primary'
@@ -192,8 +192,8 @@ function FeatureGroup({ label, features, interested, onInterested }: {
 }) {
   return (
     <>
-      <p className="mt-3 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground first:mt-0">{label}</p>
-      <ul className="space-y-2.5">
+      <p className="mt-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground first:mt-0">{label}</p>
+      <ul className="space-y-2">
         {features.map((feature) => (
           <FeatureRow key={feature.id} feature={feature} interested={interested.has(feature.id)} onInterested={onInterested} />
         ))}
@@ -252,7 +252,7 @@ export function OfferingTiers() {
   return (
     <section id="tour-section-offerings" data-testid="tour-section-offerings" aria-label="You own your data">
       <TaglineHeader
-        index="03"
+        index="04"
         before="Who owns the data? "
         accentText="You!!!"
         after=""
@@ -316,12 +316,14 @@ export function OfferingTiers() {
             badge={activeMode === 'api' ? <ActiveBadge /> : undefined}
             text="Build the app for API storage and run the Wod Wiki server yourself — local or cloud data access through a server you administer."
           >
-            <CardLink href={REPO_URL}>View source</CardLink>
             <ul className="mt-1 space-y-1.5">
               <Bullet>Centralized data for a team or gym — one SQLite, Turso, or Postgres backend.</Bullet>
               <Bullet>Publish your notebooks as a seed with <code className="font-mono text-xs">wod build</code> — every browser subscribes and syncs.</Bullet>
               <Bullet>You run the server — network required, and server admin is on you.</Bullet>
             </ul>
+            <div className="mt-auto border-t border-border pt-4">
+              <CardLink href={REPO_URL}>View source</CardLink>
+            </div>
           </OfferingCard>
 
           <OfferingCard
@@ -329,7 +331,7 @@ export function OfferingTiers() {
             us
             eyebrow="Us — we'd host it"
             title="Wod-Wiki hosted"
-            text="Still taking shape — mark the features you want, for yourself or your gym, and the survey unlocks below."
+            text="Mark the features you want — the survey unlocks below."
           >
             <FeatureGroup label="Individuals" features={INDIVIDUAL_FEATURES} interested={interested} onInterested={markInterested} />
             <FeatureGroup label="Coaching & gyms" features={TEAM_FEATURES} interested={interested} onInterested={markInterested} />
