@@ -441,8 +441,10 @@ function HomeTourInner({ wodFiles, theme, quests, chapters }: HomeTourProps) {
         .then(() => {
           unsavedRef.current = null
           setRecordedSession(results)
-          setFullscreenOpen(false)
-          return performPending()
+          if (externalStopRef.current || pendingActionRef.current) {
+            setFullscreenOpen(false)
+            return performPending()
+          }
         })
         .catch((err) => {
           finalizedRef.current = false
@@ -564,6 +566,7 @@ function HomeTourInner({ wodFiles, theme, quests, chapters }: HomeTourProps) {
     <FullscreenTimer
       key={timerSessionKey}
       block={fullscreenBlock}
+      resultId={run?.resultId}
       autoStart={autoStart}
       externalStop={externalStop}
       onRunStarted={handleRunStarted}

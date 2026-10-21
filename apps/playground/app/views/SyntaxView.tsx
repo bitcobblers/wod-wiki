@@ -60,7 +60,7 @@ export function SyntaxView() {
   // Chapter run plumbing.
   const telemetry = useTelemetry()
   const track = telemetry?.track
-  const { start, finalize, end } = usePlaygroundRun()
+  const { run, start, finalize, end } = usePlaygroundRun()
   const [activeBlock, setActiveBlock] = useState<ScriptBlock | null>(null)
   const [sessionKey, setSessionKey] = useState(0)
   const [autoStart, setAutoStart] = useState(false)
@@ -74,11 +74,11 @@ export function SyntaxView() {
     async (chapterId: string, block: ScriptBlock | null, doc: string) => {
       if (!block) return
       track?.(HOME_EVENTS.chapterExampleRun, { chapter: chapterId })
-      setActiveBlock(block)
-      setSessionKey((k) => k + 1)
-      setAutoStart(true)
       try {
-        await start(doc, block, { pageTitle: 'Syntax', sectionTitle: `Chapter ${chapterId}` })
+        const captured = await start(doc, block, { pageTitle: 'Syntax', sectionTitle: `Chapter ${chapterId}` })
+        setActiveBlock(captured.block)
+        setSessionKey((k) => k + 1)
+        setAutoStart(true)
       } catch (err) {
         console.error('[SyntaxView] failed to persist playground run note:', err)
         closeOverlay()
@@ -93,14 +93,14 @@ export function SyntaxView() {
       try {
         if ((results.logs ?? []).length === 0) {
           await end()
+          closeOverlay()
         } else {
           await finalize(results, results.completed)
         }
       } catch (err) {
         console.error('[SyntaxView] failed to save session:', err)
         toast({ title: 'Session not saved', variant: 'destructive' })
-      } finally {
-        closeOverlay()
+        throw err
       }
     },
     [closeOverlay, end, finalize],
@@ -127,10 +127,11 @@ export function SyntaxView() {
         <TourLearnSection quests={quests} chapters={chapters} questLabels={questLabels} />
         <GuideIndexFooter />
         <TourFooter />
-        {activeBlock && autoStart && (
+        {activeBlock && autoStart && run && (
           <FullscreenTimer
             key={sessionKey}
-            block={activeBlock}
+            block={run.block}
+            resultId={run.resultId}
             autoStart
             onClose={closeOverlay}
             onCompleteWorkout={handleComplete}

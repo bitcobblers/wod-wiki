@@ -40,10 +40,11 @@ import { buildCompletedRuntimeProjection } from "@/app/cast/workbenchProjection"
 import { useUserOverrides } from '@/components/organisms/review/useUserOverrides';
 import { buildSessions, countSegmentOutputs, createRuntimeForBlock, prepareRuntimeBlock } from "@/app/editor/runtimeTimerModel";
 import { sourceIdsToContentLines } from "@/components/organisms/editor/gutterHighlights";
-import { useCollectionMetrics, resolveChoiceSelection } from "@/hooks/useCollectionMetrics";
+import { useCollectionMetrics, resolveValueSelection } from "@/hooks/useCollectionMetrics";
 import { CollectionWizard } from "@/components/organisms/review/CollectionWizard";
+import { useLiveClockAuthority } from "@/clock/useLiveClockAuthority";
+import { ClockCommandBoard } from "@/clock/ClockCommandBoard";
 
-import type { ChoiceCollectionItem } from "@/hooks/useCollectionMetrics";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -96,6 +97,10 @@ interface RuntimeTimerBodyProps {
   handleStart: () => void;
   handleStop: () => void;
   handleNext: () => void;
+  /** Command board (reps counter, legend, entry, stop confirm) from the live authority. */
+  commandBoard?: React.ReactNode;
+  /** Authoritative Next availability from the clock snapshot. */
+  canNext?: boolean;
 }
 
 const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
@@ -105,6 +110,8 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   handleStart,
   handleStop,
   handleNext,
+  commandBoard,
+  canNext,
 }) => {
   const { isCompact: isMobile, isFull } = usePanelSize();
 
@@ -113,7 +120,7 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   // stays identical so the first output never shifts the surface. ──
   if (!isFull) {
     return (
-      <div className="flex h-full flex-col overflow-hidden bg-background">
+      <div className="flex h-full flex-col overflow-hidden bg-background" data-clock-panel>
         <div className="min-h-0 flex-1 overflow-hidden">
           <TimerSurface
             elapsedMs={execution.elapsedTime}
@@ -124,8 +131,11 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
             onNext={handleNext}
             isRunning={execution.status === "running"}
             isPaused={execution.status === "paused"}
+            canNext={canNext}
           />
         </div>
+
+        {commandBoard}
 
         {/* ── Results footer ── reserved fixed-height strip: renders identically
             whether or not results exist, so the first output landing never
@@ -147,7 +157,7 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
+    <div className="flex h-full flex-col overflow-hidden bg-background" data-clock-panel>
       {/* ── Detail tier (full): side-by-side audit + timer. Both columns
           get a proportional share (3:2 favoring the clock) with min-h-0 so
           neither can squeeze the other out of a bounded host: the visual
@@ -175,12 +185,16 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
               onStop={handleStop}
               onNext={handleNext}
               isRunning={execution.status === "running"}
+              isPaused={execution.status === "paused"}
+              canNext={canNext}
               compact={isMobile}
               enableDisplayStack={true}
             />
           </PanelSizeProvider>
         </div>
       </div>
+
+      {commandBoard}
 
       {/* ── Results footer ── reserved fixed-height strip: renders identically
           whether or not results exist, so the first output landing never
@@ -240,9 +254,11 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
 
   // Create runtime only after pre-run collection has been resolved. This keeps
   // ChoiceGroupMetric out of RuntimeFactory unless the entry point has no wizard,
-  // where the factory's safety net defaults it.
+  // where the factory's safety net defaults it. When collection WAS required,
+  // the runtime is created exactly once — at the wizard's explicit Start
+  // (wizardDone) — never when the item list drains to 0, and never twice.
   useEffect(() => {
-    if (!wizardDone && collectionItems.length > 0) return;
+    if (!wizardDone && (collectionItems.length > 0 || wizardEngagedRef.current)) return;
 
     const rt = createRuntimeForBlock(runtimeBlock);
     if (!rt) {
@@ -417,7 +433,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       lastWorkbenchModeRef.current = null;
       return;
     }
-    const mode: 'active' | 'idle' | null = ready && execution.status !== 'completed'
+    const mode: 'active' | 'idle' | null = ready
       ? 'active'
       : null;
     if (!mode || mode === lastWorkbenchModeRef.current || !castTransport?.connected) return;
@@ -460,7 +476,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   const stopAndReport = useCallback(() => {
     const completedBeforeHalt = runtime ? runtime.stack.count === 0 : false;
     execution.stop();
-    runtime?.handle({ name: 'workout:stop', timestamp: new Date(), data: {} });
+    runtime?.handle({ name: 'abort', timestamp: runtime.clock.currentDate, data: {} });
     handleComplete(completedBeforeHalt);
   }, [runtime, execution, handleComplete]);
 
@@ -479,7 +495,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   // Scan the parsed block before RuntimeFactory can default unresolved choices.
   // The wizard's Start button resolves all choices into the same statements,
   // then runtime creation proceeds from those collapsed statements.
-  const showChoiceWizard = !wizardDone && collectionItems.length > 0;
+  // Once engaged (items were non-empty), the wizard stays mounted through the
+  // last field so its Ready panel can host the explicit Start.
+  const wizardEngagedRef = useRef(false);
+  useEffect(() => {
+    if (collectionItems.length > 0) wizardEngagedRef.current = true;
+  }, [collectionItems.length]);
+  const showChoiceWizard = !wizardDone && (collectionItems.length > 0 || wizardEngagedRef.current);
 
   const handleWizardStart = () => {
     setWizardDone(true);
@@ -487,13 +509,31 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     if (!isExpanded) onToggleExpand?.();
   };
 
-  const resolveChoice = (item: ChoiceCollectionItem, selectedIndex: number) => {
-    resolveChoiceSelection(preRunScript, item, selectedIndex);
-  };
-
   const handleNext = useCallback(() => {
+    // Sender-side paused gate: paused Next is rejected before the runtime
+    // (the runtime remains the final authority for required timers).
+    if (execution.status === 'paused') return;
     runtime?.handle(new NextEvent(undefined, runtime!.nowProvider));
-  }, [runtime]);
+  }, [runtime, execution.status]);
+
+  // ── Live clock authority (priority 0) ── keyboard, touch and Cast commands
+  // funnel through one gated handler; disabled while the wizard owns the
+  // foreground (its own controller registers at priority 10).
+  const { snapshot: clockSnapshot, dispatch: dispatchClock } = useLiveClockAuthority({
+    runtime,
+    executionStatus: execution.status === 'error' ? 'idle' : execution.status,
+    enabled: ready && !showChoiceWizard && !nothingToRun && execution.status !== 'error',
+    actions: {
+      next: handleNext,
+      start: handleStart,
+      playback: () => {
+        if (execution.status === 'running') execution.pause();
+        else execution.start();
+      },
+      stop: handleStop,
+      dismiss: onClose,
+    },
+  });
 
   useEffect(() => {
     if (!runtime) return;
@@ -525,10 +565,11 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
         <CollectionWizard
           items={collectionItems}
           onSave={(item, val) => {
-            if (item.kind === 'choice') {
-              resolveChoice(item as ChoiceCollectionItem, val as number);
-            } else {
-              // value items: save to override store so the grid sees it
+            if (typeof val !== 'number') throw new TypeError('A numeric target is required');
+            // Statement resolution is the required pre-JIT write; the override
+            // store stays for display grids only.
+            if (!resolveValueSelection(preRunScript, item, val, 'target')) throw new Error('Enter a valid target before starting');
+            if (item.kind === 'value') {
               setOverride(item.blockKey, item.metricType, val);
             }
           }}
@@ -580,8 +621,10 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
           outputCount={outputCount}
           createdAt={createdAt}
           handleStart={handleStart}
-          handleStop={handleStop}
+          handleStop={() => { dispatchClock({ kind: 'stop-request' }); }}
           handleNext={handleNext}
+          commandBoard={clockSnapshot ? <ClockCommandBoard snapshot={clockSnapshot} dispatch={dispatchClock} /> : null}
+          canNext={clockSnapshot?.canNext}
         />
       </ScriptRuntimeProvider>
     </PanelSizeProvider>

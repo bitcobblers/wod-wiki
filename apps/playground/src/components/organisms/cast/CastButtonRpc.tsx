@@ -24,18 +24,18 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TvMinimal, Cast } from 'lucide-react';
 import { Button } from '@/components/atoms/primitives/button';
 import { useWorkbenchSessionStore } from '@/stores/workbenchSessionStore.shim';
-import { noopHandles } from '@/stores/workbenchSessionStore';
-import { NextEvent } from '@/hooks/useRuntimeTimer';
 import {
     sharedCastSessionManager,
     type CastSessionHandle,
     getCastBackend,
     setActiveCastTransport,
-    routeRuntimeEvent,
     type ICastBackend,
     type ICastBackendState,
     type IRpcTransport,
 } from '@/hooks/useCastSignaling';
+import { clockCommandForLegacyEvent } from '@/services/cast/rpc/eventRouter';
+import { parseClockCommandPayload } from '@/services/cast/rpc/RpcMessages';
+import { dispatchClockCommand, getClockSnapshot, subscribeClock } from '@/clock/clockCommands';
 import type { ICastSubscription } from '@/hooks/useRuntimeTimer';
 import { cn } from '@/lib/utils';
 import { CastTransportProvider } from '@/contexts/CastTransportContext';
@@ -65,6 +65,11 @@ export function describeCastError(err: unknown): string {
     }
     return String(err);
 }
+
+// Module-scope publication dedupe: several CastButtonRpc mounts share one
+// cast session, and each would otherwise push the same snapshot per change.
+let lastPushedFingerprint = '';
+let lastPushedTransport: IRpcTransport | null = null;
 
 export const CastButtonRpc: React.FC = () => {
     const backend: ICastBackend = getCastBackend();
@@ -111,42 +116,31 @@ export const CastButtonRpc: React.FC = () => {
             // context provider below only wraps this button. (#704)
             setActiveCastTransport(handle.transport);
 
-            // D-Pad events from the TV reach the local runtime through
-            // the handle's event provider. The router is shared with the
-            // cast-roundtrip test.
+            // Receiver events reach the browser through one gated path: the
+            // clock-command channel carries validated {runId, command}
+            // payloads straight to dispatchClockCommand; legacy D-Pad event
+            // names are translated to the same commands so an old receiver
+            // cannot bypass the paused/completed authority gates. There is
+            // deliberately no direct-handle fallback — a rejected command
+            // stays rejected (the receiver's UI already shows the gated
+            // availability from the snapshot).
             handle.eventProvider.onEvent((event) => {
-                const state = useWorkbenchSessionStore.getState();
-                routeRuntimeEvent(event, {
-                    onNext: () => {
-                        if (state.handles.handleNext) {
-                            state.handles.handleNext();
-                        }
-                        if (state.runtime && (!state.handles.handleNext || state.handles.handleNext === noopHandles.handleNext)) {
-                            state.runtime.handle(new NextEvent(undefined, state.runtime.nowProvider));
-                            if (state.execution.status !== 'running') {
-                                state.execution.start();
-                            }
-                        }
-                    },
-                    onStart: () => {
-                        if (state.handles.handleStart) state.handles.handleStart();
-                        if (state.execution && (!state.handles.handleStart || state.handles.handleStart === noopHandles.handleStart)) {
-                            state.execution.start();
-                        }
-                    },
-                    onPause: () => {
-                        if (state.handles.handlePause) state.handles.handlePause();
-                        if (state.execution && (!state.handles.handlePause || state.handles.handlePause === noopHandles.handlePause)) {
-                            state.execution.pause();
-                        }
-                    },
-                    onStop: () => {
-                        if (state.handles.handleStop) state.handles.handleStop();
-                        if (state.execution && (!state.handles.handleStop || state.handles.handleStop === noopHandles.handleStop)) {
-                            state.execution.stop();
-                        }
-                    },
-                });
+                if (event.name === 'clock-command') {
+                    const payload = parseClockCommandPayload(event.data);
+                    if (!payload) {
+                        console.warn('[CastButtonRpc] Dropped malformed clock-command payload');
+                        return;
+                    }
+                    if (!dispatchClockCommand(payload.runId, payload.command)) {
+                        console.warn('[CastButtonRpc] Clock command rejected by authority:', payload.command.kind);
+                    }
+                    return;
+                }
+                const snapshot = getClockSnapshot();
+                const command = clockCommandForLegacyEvent(event.name, snapshot);
+                if (command && snapshot && !dispatchClockCommand(snapshot.runId, command)) {
+                    console.warn('[CastButtonRpc] Legacy receiver event rejected by authority:', event.name);
+                }
             });
 
             // Push the current workbench mode immediately so the
@@ -234,6 +228,33 @@ export const CastButtonRpc: React.FC = () => {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only by design; adoptSession reads live refs
     }, [backend, sessionManager]);
+
+    // Push the sender's clock snapshot to the receiver, bound to the active
+    // session's transport lifetime: one immediate publication on connect (the
+    // run may already be live before the receiver attaches), then one push per
+    // authoritative snapshot change via subscribeClock. Several button mounts
+    // share one session, so the dedupe lives at module scope: a publication is
+    // sent once per (snapshot, transport) pair. No replay queue — a send that
+    // fails is dropped; the next snapshot or reconnect resyncs.
+    useEffect(() => {
+        const transport = sessionHandle?.transport;
+        if (!transport) return;
+        const push = () => {
+            const snap = getClockSnapshot();
+            const fingerprint = JSON.stringify(snap);
+            if (fingerprint === lastPushedFingerprint && transport === lastPushedTransport) return;
+            lastPushedFingerprint = fingerprint;
+            lastPushedTransport = transport;
+            try {
+                transport.send({ type: 'rpc-clock-snapshot', snapshot: snap });
+            } catch {
+                // Transport dropped between the connected check and send —
+                // the receiver resets on its own onDisconnected handler.
+            }
+        };
+        push();
+        return subscribeClock(push);
+    }, [sessionHandle]);
 
     // Best-effort: tell the receiver we're going away when the tab
     // closes. The transport-level disconnect handler on the receiver

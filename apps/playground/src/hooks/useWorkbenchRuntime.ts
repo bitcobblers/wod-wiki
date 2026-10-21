@@ -126,6 +126,10 @@ export const useWorkbenchRuntime = <T extends ScriptBlock | null = ScriptBlock |
     const handleNext = useCallback(() => {
         const { runtime, execution } = latestRef.current;
 
+        // Sender-side paused gate: paused Next is rejected at the handler, so
+        // every route (keyboard, touch, legacy Cast handles) hits the same
+        // gate. The runtime remains the final authority for required timers.
+        if (execution.status === 'paused') return;
         if (runtime && execution.status !== 'completed') {
             runtime.handle(new NextEvent(undefined, runtime.nowProvider));
             if (execution.status !== 'running') {

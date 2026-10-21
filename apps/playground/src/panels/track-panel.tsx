@@ -14,8 +14,10 @@ import { TimerSurface } from '@/components/organisms/workout/TimerSurface';
 import type { SectionType } from '@/components/Editor/types/section';
 import type { ScriptBlock } from '@/components/Editor/types';
 import { useUserOverrides } from '@/components/organisms/review/useUserOverrides';
-import { useCollectionMetrics, type ChoiceCollectionItem, type ValueCollectionItem, resolveChoiceSelection } from '@/hooks/useCollectionMetrics';
+import { useCollectionMetrics, resolveValueSelection } from '@/hooks/useCollectionMetrics';
 import { CollectionWizard } from '@/components/organisms/review/CollectionWizard';
+import { useLiveClockAuthority } from '@/clock/useLiveClockAuthority';
+import { ClockCommandBoard } from '@/clock/ClockCommandBoard';
 
 export interface TrackPanelProps {
   runtime: IScriptRuntime | null;
@@ -89,28 +91,47 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
   const { sectionId } = useParams<{ sectionId?: string }>();
   const isNotFound = sectionId === 'notfound';
   const [wizardDismissed, setWizardDismissed] = React.useState(false);
+  // Once items were non-empty, the wizard stays mounted through the last
+  // field so its Ready panel can host the explicit Start.
+  const wizardEngagedRef = React.useRef(false);
 
   const { overrides, setOverride } = useUserOverrides(true);
   const { collectionItems } = useCollectionMetrics([], overrides, runtime?.script);
-  const showWizard = execution.status === 'idle' && collectionItems.length > 0 && !wizardDismissed;
-
-  /**
-   * Resolve a ChoiceCollectionItem by collapsing the chosen alternative into the
-   * Statement's MetricContainer (origin 'user-plan'). Delegates to the single
-   * ChoiceResolution owner; runs before the workout blocks compile.
-   */
-  const resolveChoice = React.useCallback(
-    (item: ChoiceCollectionItem, selectedIndex: number) => {
-      resolveChoiceSelection(runtime?.script, item, selectedIndex);
-    },
-    [runtime]
-  );
 
   React.useEffect(() => {
-    if (execution.status !== 'idle' || collectionItems.length === 0) {
-      setWizardDismissed(false);
-    }
-  }, [execution.status, collectionItems.length]);
+    if (collectionItems.length > 0) wizardEngagedRef.current = true;
+  }, [collectionItems.length]);
+  // A different runtime means a different script — the engagement resets.
+  React.useEffect(() => {
+    wizardEngagedRef.current = false;
+    setWizardDismissed(false);
+  }, [runtime]);
+  React.useEffect(() => {
+    if (execution.status !== 'idle') setWizardDismissed(false);
+  }, [execution.status]);
+
+  const showWizard =
+    execution.status === 'idle' && !wizardDismissed &&
+    (collectionItems.length > 0 || wizardEngagedRef.current);
+
+  const clock = useLiveClockAuthority({
+    runtime,
+    executionStatus: execution.status,
+    enabled: !showWizard && runtime !== null && execution.status !== 'completed',
+    actions: {
+      next: onNext,
+      start: onStart,
+      playback: () => {
+        if (execution.status === 'running') onPause();
+        else onStart();
+      },
+      stop: onStop,
+    },
+  });
+
+  const clockBoard = clock.snapshot ? (
+    <ClockCommandBoard snapshot={clock.snapshot} dispatch={clock.dispatch} />
+  ) : null;
 
   // Timer/Clock component (Detail tier, full containers only — ADR 0003)
   const timerDisplay = (
@@ -122,6 +143,8 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
       onStop={onStop}
       onNext={onNext}
       isRunning={execution.status === 'running'}
+      isPaused={execution.status === 'paused'}
+      canNext={clock.snapshot?.canNext}
       onBlockHover={onBlockHover}
       onBlockClick={onBlockClick}
       enableDisplayStack={!!runtime}
@@ -133,17 +156,15 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
       <CollectionWizard
         items={collectionItems}
         onSave={(item, val) => {
-          if (item.kind === 'choice') {
-            resolveChoice(item as ChoiceCollectionItem, val as number);
-          } else {
-            setOverride((item as ValueCollectionItem).blockKey, (item as ValueCollectionItem).metricType, val);
-          }
-        }}
-        onSkip={(item) => {
+          // Statement resolution is the required pre-JIT write; the override
+          // store stays for display grids only. Pre-run targets are required:
+          // skip never clears a draft here.
+          if (!resolveValueSelection(runtime?.script, item, val, 'target')) throw new Error('Enter a valid target before starting');
           if (item.kind === 'value') {
-            setOverride((item as ValueCollectionItem).blockKey, (item as ValueCollectionItem).metricType, undefined);
+            setOverride(item.blockKey, item.metricType, val);
           }
         }}
+        onSkip={() => {}}
         onStart={onStart}
         onClose={() => setWizardDismissed(true)}
         mode="pre-run"
@@ -153,39 +174,45 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
 
   const screenContent = runtime ? (
     <ScriptRuntimeProvider runtime={runtime}>
-      {isCompact || !isFull ? (
-        // Minimal (compact) / General (wide) — ADR 0003. The surface owns the
-        // screen; the VisualStatePanel is Detail-tier chrome and stays with the
-        // full layout only.
-        <TimerSurface
-          elapsedMs={execution.elapsedTime}
-          hasActiveBlock={!!selectedBlock}
-          onStart={onStart}
-          onPause={onPause}
-          onStop={onStop}
-          onNext={onNext}
-          isRunning={execution.status === 'running'}
-          isPaused={execution.status === 'paused'}
-          enableGestures
-          onBlockHover={onBlockHover}
-          onBlockClick={onBlockClick}
-          enableDisplayStack={!!runtime}
-        />
-      ) : (
-      <TrackViewShell
-        isCompact={isCompact}
-        leftPanelId="tutorial-track-visual"
-        rightPanelId="tutorial-track-clock"
-        leftPanelAriaLabel="Visual panel"
-        rightPanelAriaLabel="Clock panel"
-        leftPanel={<VisualStatePanel />}
-        rightPanel={(
-          <div className="flex-1 flex flex-col justify-center">
-            {timerDisplay}
-          </div>
-        )}
-      />
-      )}
+      <div className="flex h-full min-h-0 flex-col" data-clock-panel>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {isCompact || !isFull ? (
+            // Minimal (compact) / General (wide) — ADR 0003. The surface owns the
+            // screen; the VisualStatePanel is Detail-tier chrome and stays with the
+            // full layout only.
+            <TimerSurface
+              elapsedMs={execution.elapsedTime}
+              hasActiveBlock={!!selectedBlock}
+              onStart={onStart}
+              onPause={onPause}
+              onStop={onStop}
+              onNext={onNext}
+              isRunning={execution.status === 'running'}
+              isPaused={execution.status === 'paused'}
+              canNext={clock.snapshot?.canNext}
+              enableGestures
+              onBlockHover={onBlockHover}
+              onBlockClick={onBlockClick}
+              enableDisplayStack={!!runtime}
+            />
+          ) : (
+          <TrackViewShell
+            isCompact={isCompact}
+            leftPanelId="tutorial-track-visual"
+            rightPanelId="tutorial-track-clock"
+            leftPanelAriaLabel="Visual panel"
+            rightPanelAriaLabel="Clock panel"
+            leftPanel={<VisualStatePanel />}
+            rightPanel={(
+              <div className="flex-1 flex flex-col justify-center">
+                {timerDisplay}
+              </div>
+            )}
+          />
+          )}
+        </div>
+        {clockBoard}
+      </div>
     </ScriptRuntimeProvider>
   ) : (
     // No runtime — show layout for selection or error

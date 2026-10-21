@@ -380,9 +380,8 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
             setActiveRuntimeId(null);
             setActiveNoteId(null);
           }}
-          onCompleteWorkout={(blockId, results) =>
-            handleCompleteWorkout(blockId, results, activeRuntimeId ?? undefined, undefined)
-          }
+          resultId={activeRuntimeId ?? undefined}
+          onCompleteWorkout={(blockId, results) => handleCompleteWorkout(blockId, results)}
           autoStart
         />
       )}

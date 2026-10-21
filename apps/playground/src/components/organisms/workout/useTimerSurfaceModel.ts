@@ -35,6 +35,9 @@ export interface TimerSurfaceHandlers {
   onNext: () => void;
   /** Whether the workout is paused with resumable state */
   isPaused: boolean;
+  /** Authoritative command availability (clock snapshot). false disables Next
+   * beyond the paused gate; undefined keeps the paused-only derivation. */
+  canNext?: boolean;
 }
 
 export interface TimerSurfaceModel {
@@ -212,7 +215,7 @@ export function useTimerSurfaceModel(handlers: TimerSurfaceHandlers): TimerSurfa
     ...model,
     isRunning: isAnyTimerRunning || executionStatus === 'running',
     isPaused: handlers.isPaused,
-    isNextDisabled: handlers.isPaused,
+    isNextDisabled: handlers.isPaused || handlers.canNext === false,
     skipFlash,
     skipFlashKey,
   };

@@ -58,8 +58,6 @@ for (const viewport of [
       await tapControl(cta)
       const timer = page.locator('.fixed.inset-0').filter({ has: page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE) })
       await expect(timer).toBeVisible()
-      const clock = timer.locator('button.tv-focusable').filter({ has: page.locator('.font-mono.tracking-tighter') })
-      await expect(clock).toContainText(/00:0[2-9]/, { timeout: 10_000 })
 
       const next = timer.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK)
       const stop = timer.getByTestId(TEST_IDS.TIMER_STOP_SESSION)
@@ -71,12 +69,11 @@ for (const viewport of [
       await expect(pause).toHaveAttribute('title', 'Continue')
       await tapControl(pause)
       await expect(pause).toHaveAttribute('title', 'Pause')
-      // Next mid-countdown locks the elapsed time and advances past the
-      // last line; Stop then halts the run — the recorded partial closes
-      // the fullscreen and lights the insights where the visitor is
-      // already looking.
-      await tapControl(next)
+      // Stop preserves the partial in review before the visitor dismisses it.
       await tapControl(stop)
+      await page.getByTestId(TEST_IDS.CLOCK_STOP_CONFIRM_ACCEPT).click()
+      await expect(page.getByRole('dialog', { name: 'Workout Complete' })).toBeVisible()
+      await page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first().click()
       await expect(timer).toBeHidden({ timeout: 15_000 })
       await expect(page.getByTestId('tour-insights-timeline')).toBeVisible()
       await expect(page.getByTestId('tour-insights-ratio')).toBeVisible()
@@ -95,14 +92,12 @@ test('hero run expands the result pane under the sticky header and returns to an
   const previousSessions = new Set((await getSessions(page)).map(session => session.id))
   await page.locator('[data-gate-id="hero-pane"]').getByRole('button', { name: 'Run', exact: true }).click()
   const timer = page.locator('.fixed.inset-0').filter({ has: page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE) })
-  const clock = timer.locator('button.tv-focusable').filter({ has: page.locator('.font-mono.tracking-tighter') })
-  await expect(clock).toContainText(/00:0[2-9]/, { timeout: 10_000 })
-  // The 0:03 countdown block completes at ~3s and emits the statements the
-  // run is built from; two Next clicks then run the workout to its end —
-  // the completion closes the fullscreen and reveals the run in the hero.
+  // Finish the workout, then dismiss its saved review to reveal the hero result.
   await timer.getByText(/results captured/).waitFor({ timeout: 15_000 })
   await timer.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).click()
   await timer.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).click()
+  await expect(page.getByRole('dialog', { name: 'Workout Complete' })).toBeVisible()
+  await page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first().click()
   await expect(timer).toBeHidden({ timeout: 15_000 })
   const gate = page.locator('[data-gate-id="hero-pane"]')
   const result = gate.getByTestId('tour-session-result')

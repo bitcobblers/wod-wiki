@@ -52,6 +52,10 @@ export function WallClockPage() {
   }, [runtimeId])
 
   const pending = pendingRef.current
+  // The run reached natural completion — its review/queue dismissal routes to
+  // the session detail (navigation is deferred until the overlay closes so
+  // the post-run queue can run).
+  const completedRef = useRef(false)
 
   const handleComplete = useCallback(
     (_blockId: string, results: Sessions | undefined): Promise<unknown> => {
@@ -59,6 +63,7 @@ export function WallClockPage() {
       if (!results || !runtimeId || !pending) {
         return Promise.reject(new Error('Run cannot be saved — its session data or runtime id is missing.'))
       }
+      completedRef.current = results.completed
       return playgroundRecorder.record({
         runBlock: pending.block,
         blockId: pending.block.id,
@@ -72,15 +77,22 @@ export function WallClockPage() {
           try {
             await injectSessionQueryIntoNote(pending.noteId, pending.block.id, runtimeId);
           } catch {}
-          navigate(sessionDetailPath(runtimeId), { replace: true })
+          // No eager navigation here: the overlay keeps control through the
+          // post-run actuals queue + review; handleClose routes on dismissal.
         }
       })
     },
-    [runtimeId, pending, navigate],
+    [runtimeId, pending],
   )
 
   const handleClose = useCallback(() => {
     if (!pending) { navigate('/'); return }
+    // A completed run's review/queue has been dismissed — the deferred
+    // destination is the session detail page.
+    if (completedRef.current) {
+      navigate(sessionDetailPath(runtimeId), { replace: true })
+      return
+    }
     if (pending.returnTo) {
       navigate(pending.returnTo, { replace: true })
       return
@@ -88,7 +100,7 @@ export function WallClockPage() {
     // Route back to the note via the typed NoteRef — the kind→path rule lives
     // in noteRefToPath, not an ad-hoc noteId.split('/') switch here.
     navigate(noteRefToPath(parseNoteId(pending.noteId)), { replace: true })
-  }, [pending, navigate])
+  }, [runtimeId, pending, navigate])
 
   if (!pending) {
     return (
@@ -104,6 +116,7 @@ export function WallClockPage() {
       prepareRun={prepareRun}
       onClose={handleClose}
       onCompleteWorkout={handleComplete}
+      resultId={runtimeId}
       autoStart
     />
   )
