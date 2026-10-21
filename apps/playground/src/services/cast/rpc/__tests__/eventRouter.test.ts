@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import { routeRuntimeEventByName, routeRuntimeEvent } from '../eventRouter';
+import { routeRuntimeEventByName, routeRuntimeEvent, clockCommandForLegacyEvent } from '../eventRouter';
+import type { ClockSnapshot } from '@/clock/clockCommands';
 import type { IEvent } from '@bitcobblers/wod-wiki-engine';
 
 const makeHandles = () => {
@@ -66,5 +67,36 @@ describe('routeRuntimeEvent (IEvent convenience)', () => {
         const { calls, handles } = makeHandles();
         routeRuntimeEvent(event('arbitrary'), handles);
         expect(calls).toEqual([]);
+    });
+});
+
+describe('clockCommandForLegacyEvent', () => {
+    const snapshot = (overrides: Partial<ClockSnapshot> = {}) => ({
+        runId: 'run-1', phase: 'live' as const, status: 'running' as const,
+        canNext: true, canStop: true, stopRequested: false,
+        reps: [], selectedOccurrenceId: null, entry: null, error: null, saving: false,
+        ...overrides,
+    });
+
+    it('maps legacy names to their gated clock commands', () => {
+        expect(clockCommandForLegacyEvent('next', snapshot())).toEqual({ kind: 'next' });
+        expect(clockCommandForLegacyEvent('pause', snapshot())).toEqual({ kind: 'playback' });
+        expect(clockCommandForLegacyEvent('stop', snapshot())).toEqual({ kind: 'stop-request' });
+        expect(clockCommandForLegacyEvent('dismiss', snapshot())).toEqual({ kind: 'dismiss' });
+    });
+
+    it('maps legacy start to ready-start before the run and playback once live', () => {
+        expect(clockCommandForLegacyEvent('start', snapshot({ phase: 'ready', status: 'idle' })))
+            .toEqual({ kind: 'ready-start' });
+        expect(clockCommandForLegacyEvent('start', snapshot({ phase: 'live', status: 'paused' })))
+            .toEqual({ kind: 'playback' });
+    });
+
+    it('returns null without an active snapshot (nothing to command)', () => {
+        expect(clockCommandForLegacyEvent('next', null)).toBeNull();
+    });
+
+    it('returns null for non-clock legacy names (select-block stays on its own channel)', () => {
+        expect(clockCommandForLegacyEvent('select-block', snapshot())).toBeNull();
     });
 });

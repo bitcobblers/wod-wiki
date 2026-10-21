@@ -56,6 +56,10 @@ async function openNote(page: Page, doc: string): Promise<string> {
   await seedNote(page, `playground/${NOTE_ID}`, doc, { type: 'playground', title: NOTE_ID });
   await page.goto(`/playground/${NOTE_ID}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
   await page.waitForSelector('.cm-content[contenteditable="true"]', { timeout: 15_000 });
+  // The notebook page opens with the caret inside the frontmatter, which
+  // reveals raw YAML and hides the properties preview; click into the body so
+  // the preview (and its diagnostics) render for the assertions below.
+  await page.locator('.cm-content').getByText('Refs').click();
   return page.evaluate(() => {
     const view = document.querySelector('.cm-editor')?.parentElement?.__codemirrorView as
       | { state: { doc: { toString(): string } } }

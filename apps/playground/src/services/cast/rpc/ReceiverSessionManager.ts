@@ -30,6 +30,8 @@
 
 import { audioService } from '@/services/AudioService';
 import { ChromecastProxyRuntime, type WorkbenchDisplayState } from './ChromecastProxyRuntime';
+import { isRpcClockSnapshot } from './RpcMessages';
+import type { ClockSnapshot } from '@/clock/clockCommands';
 import type { IRpcTransport, RpcUnsubscribe } from './IRpcTransport';
 
 /**
@@ -51,6 +53,15 @@ export interface ReceiverSessionHandle {
     readonly runtime: ChromecastProxyRuntime;
     onDisconnected(handler: () => void): () => void;
     onWorkbenchUpdate(handler: (state: WorkbenchDisplayState) => void): () => void;
+    /**
+     * Subscribe to the sender's clock-authority snapshot. The handler fires
+     * immediately with the latest known snapshot (possibly `null`), then on
+     * every `rpc-clock-snapshot` push. `null` = no active run: commands are
+     * disabled and none may be replayed.
+     */
+    onClockSnapshot(handler: (snapshot: ClockSnapshot | null) => void): () => void;
+    /** Latest known clock snapshot, or `null` when none has arrived. */
+    getClockSnapshot(): ClockSnapshot | null;
     dispose(): void;
 }
 
@@ -138,6 +149,23 @@ export function createReceiverSession(
         for (const handler of disconnectHandlers) handler();
     });
 
+// ============================================================================
+// Clock snapshot stream (browser → receiver)
+// ============================================================================
+// The sender pushes `rpc-clock-snapshot` messages whenever the authoritative
+// clock controller publishes state (and once on connect). The session keeps
+// the latest snapshot so late React subscribers see current state immediately,
+// and fans new snapshots out to every subscriber. `null` snapshots are real
+// data ("no active run") — they must disable receiver commands.
+
+    const clockSnapshotListeners = new Set<(snapshot: ClockSnapshot | null) => void>();
+    let latestClockSnapshot: ClockSnapshot | null = null;
+    const clockUnsub = transport.onMessage((msg) => {
+        if (!isRpcClockSnapshot(msg)) return;
+        latestClockSnapshot = msg.snapshot;
+        for (const listener of clockSnapshotListeners) listener(msg.snapshot);
+    });
+
     let disposed = false;
     return {
         runtime,
@@ -151,13 +179,27 @@ export function createReceiverSession(
             workbenchListeners.add(handler);
             return () => workbenchListeners.delete(handler);
         },
+        onClockSnapshot(handler) {
+            if (disposed) return () => {};
+            clockSnapshotListeners.add(handler);
+            // Immediate replay of the latest known snapshot so components
+            // mounting mid-run (mode switches, reconnects) render accurate
+            // state instead of a disabled flash.
+            handler(latestClockSnapshot);
+            return () => clockSnapshotListeners.delete(handler);
+        },
+        getClockSnapshot() {
+            return latestClockSnapshot;
+        },
         dispose() {
             if (disposed) return;
             disposed = true;
             audioUnsub();
+            clockUnsub();
             transportDisconnectedUnsub();
             disconnectHandlers.clear();
             workbenchListeners.clear();
+            clockSnapshotListeners.clear();
             runtime.dispose();
         },
     };

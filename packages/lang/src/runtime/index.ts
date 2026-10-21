@@ -4,6 +4,7 @@ export * from './RuntimeBlock';
 export * from './RuntimeClock';
 export * from './RuntimeController';
 export * from './RuntimeLogger';
+export * from './RuntimeLogFormat';
 export * from './RuntimeMemory';
 export * from './RuntimeObservers';
 export * from './RuntimeStack';

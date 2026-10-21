@@ -119,8 +119,13 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
 
       <SkipFlash model={model} />
 
-      {/* Label band — fixed geometry, FitArea scales content */}
-      <div className={`flex w-full items-center justify-center overflow-hidden ${isTv ? 'mb-[1.2cqw]' : 'mb-2.5'}`}>
+      {/* Centered group — prototype tiers 1/2 read label, clock and chips as
+          one unit in the middle of the hero, not as bands spanning it. The
+          label band reserves two sub-lines of height (FitArea shrinks longer
+          content) so segment swaps never move the clock. */}
+      <div className={`flex min-h-0 w-full flex-col items-center justify-center ${isTv ? 'gap-[1.2cqw]' : 'gap-2.5'}`}>
+      {/* Label band — reserved height, FitArea scales content */}
+      <div className={`flex w-full items-center justify-center overflow-hidden ${isTv ? 'h-[8.6cqw]' : 'h-[76px]'}`}>
         <FitArea>
           <h2 className={`font-semibold tracking-tight text-foreground ${isTv ? 'text-[3.4cqw]' : 'text-xl'}`}>
             {model.mainLabel}
@@ -137,11 +142,11 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
         </FitArea>
       </div>
 
-      {/* Hero clock — the clock owns the remaining band */}
+      {/* Hero clock — tap to pause/resume/start */}
       <button
         onClick={handleClockClick}
         {...(getFocusProps ? getFocusProps('timer-main') : {})}
-        className="tv-focusable group relative z-10 flex h-full max-h-full min-h-[48px] w-full items-center justify-center focus:outline-none"
+        className="tv-focusable group relative z-10 flex min-h-[48px] w-full items-center justify-center focus:outline-none"
         title={primaryControlLabel}
       >
         <FitArea>
@@ -157,7 +162,7 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
       </button>
 
       {/* Secondary chips band — fixed height even when empty */}
-      <div className={`flex w-full items-center justify-center overflow-hidden ${isTv ? 'mt-[1.2cqw] h-[4.4cqw]' : 'mt-1.5 h-8'}`}>
+      <div className={`flex w-full items-center justify-center overflow-hidden ${isTv ? 'h-[4.4cqw]' : 'h-8'}`}>
         {showChips && (
           <div className={`flex items-center justify-center ${isTv ? 'gap-[1cqw]' : 'gap-2'}`}>
             {model.secondaryTimers.map(st => (
@@ -184,6 +189,7 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
@@ -271,7 +277,7 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
       disabled={isNextDisabled}
       aria-disabled={isNextDisabled ? 'true' : undefined}
       {...(getFocusProps ? getFocusProps('btn-next') : {})}
-      className={`tv-focusable flex items-center justify-center gap-2 bg-primary font-bold uppercase tracking-[0.12em] text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none ${isTv ? 'h-[7cqw] rounded-[1.4cqw] px-[4cqw] text-[2.2cqw]' : 'h-[54px] flex-1 rounded-2xl text-[15px]'}`}
+      className={`tv-focusable flex shrink-0 items-center justify-center gap-2 bg-primary font-bold uppercase tracking-[0.12em] text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none ${isTv ? 'h-[7cqw] rounded-[1.4cqw] px-[4cqw] text-[2.2cqw]' : 'h-[54px] w-full rounded-2xl text-[15px]'}`}
       title="Next Block"
       data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
     >

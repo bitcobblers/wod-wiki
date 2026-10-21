@@ -11,9 +11,8 @@
  * - 10-foot controls: same Stop / Pause / Next triad, same up-next caption,
  *   scaled for D-pad distance. Swipe gestures do not apply on TV.
  *
- * `mode="strip"` is the short-host compression from the prototype: label and
- * clock on the left, caption plus triad on the right. Nothing reflows or
- * disappears except the chips, the top bar, and the prompt row.
+ * Short hosts render this same full hero layout — the prototype's strip
+ * compression was removed: one General view everywhere (ADR 0003).
  */
 
 import React from 'react';
@@ -26,8 +25,6 @@ import { TEST_IDS } from '@/testing/contracts/TestIdContract';
 export interface GeneralTimerSurfaceProps extends TimerSurfaceProps {
   /** Workout title shown in the top bar (hidden when unknown) */
   workoutTitle?: string;
-  /** `full` = hero column (default); `strip` = short-host horizontal compression */
-  mode?: 'full' | 'strip';
   /** Optional live-metric prompt row rendered under the top bar */
   promptRow?: React.ReactNode;
 }
@@ -39,40 +36,9 @@ export const GeneralTimerSurface: React.FC<GeneralTimerSurfaceProps> = ({
   onStop,
   onNext,
   workoutTitle,
-  mode = 'full',
   promptRow,
   getFocusProps,
 }) => {
-  if (mode === 'strip') {
-    return (
-      <div
-        className="@container flex h-full items-center gap-5 bg-background px-5 text-foreground"
-        data-testid={TEST_IDS.TIMER_SURFACE_GENERAL}
-      >
-        <div
-          className="flex min-w-0 items-baseline gap-3.5"
-          data-testid={TEST_IDS.TIMER_SURFACE_GENERAL_STRIP}
-        >
-          <h3 className="truncate text-[17px] font-semibold tracking-tight">{model.mainLabel}</h3>
-          <span className="shrink-0 font-mono text-[40px] leading-none tabular-nums">
-            {formatTimeMMSS(model.displayMs)}
-          </span>
-        </div>
-        <div className="ml-auto flex flex-col items-end gap-1.5">
-          <TimerControls
-            model={model}
-            onStart={onStart}
-            onPause={onPause}
-            onStop={onStop}
-            onNext={onNext}
-            size="mobile"
-            getFocusProps={getFocusProps}
-          />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className="@container flex h-full flex-col bg-background p-[3cqw_4cqw] text-foreground"

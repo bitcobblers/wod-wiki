@@ -1,5 +1,7 @@
 import { IMetric } from '@bitcobblers/wod-wiki-engine';
 import { MemoryTag } from '@bitcobblers/wod-wiki-engine';
+import type { ClockSnapshot, ClockCommand } from '@/clock/clockCommands';
+import { isClockCommand } from '@/clock/clockCommands';
 
 // ============================================================================
 // Serialized Block — lightweight representation of an IRuntimeBlock
@@ -254,6 +256,60 @@ export interface RpcAudio {
 }
 
 /**
+ * Serialized clock-authority snapshot (browser → receiver).
+ *
+ * Pushed by the sender whenever the registered clock controller publishes a
+ * new snapshot and once on connect. `snapshot: null` means "no active
+ * authoritative run" — the receiver must treat every command as disabled and
+ * never replay stale commands across disconnect.
+ */
+export interface RpcClockSnapshot {
+    type: 'rpc-clock-snapshot';
+    snapshot: ClockSnapshot | null;
+}
+
+// ── Clock command boundary validation ───────────────────────────────────────
+// Receiver commands arrive over the wire as `rpc-event` name='clock-command'
+// with data {runId, command}. The payload shape is validated here (the cast
+// boundary) before it may reach dispatchClockCommand, so a malformed or
+// hostile payload is dropped instead of reaching the authority. Command
+// structure itself is validated by the shared `isClockCommand`.
+
+function isNonEmptyString(value: unknown): value is string {
+    return typeof value === 'string' && value.length > 0 && value.length <= 512;
+}
+
+/**
+ * Validate a `clock-command` rpc-event payload at the cast boundary.
+ * Returns the typed `{runId, command}` pair, or `null` when the payload is
+ * malformed (callers must drop it — never guess a default).
+ */
+export function parseClockCommandPayload(data: unknown): { runId: string; command: ClockCommand } | null {
+    if (typeof data !== 'object' || data === null) return null;
+    const payload = data as Record<string, unknown>;
+    if (!isNonEmptyString(payload.runId)) return null;
+    if (!isClockCommand(payload.command)) return null;
+    return { runId: payload.runId, command: payload.command };
+}
+
+/** Structural guard for `RpcClockSnapshot` messages arriving from the sender. */
+export function isRpcClockSnapshot(message: RpcMessage): message is RpcClockSnapshot {
+    if (typeof message !== 'object' || message === null) return false;
+    const msg = message as RpcMessage & Record<string, unknown>;
+    if (msg.type !== 'rpc-clock-snapshot') return false;
+    // null (no active run) or a well-formed snapshot shell.
+    if (msg.snapshot === null) return true;
+    const s = msg.snapshot;
+    return typeof s === 'object' && s !== null
+        && isNonEmptyString(s.runId)
+        && typeof s.phase === 'string'
+        && typeof s.status === 'string'
+        && typeof s.canNext === 'boolean'
+        && typeof s.canStop === 'boolean'
+        && Array.isArray(s.reps);
+}
+
+/**
  * Union of all RPC message types sent over the DataChannel.
  */
 export type RpcMessage =
@@ -266,4 +322,5 @@ export type RpcMessage =
     | RpcClockSyncResponse
     | RpcClockSyncResult
     | RpcAnalyticsSummary
-    | RpcAudio;
+    | RpcAudio
+    | RpcClockSnapshot;

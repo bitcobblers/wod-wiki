@@ -7,16 +7,17 @@
  *   1. Countdown progresses and tracks wall clock
  *   2. Pause freezes the countdown (and resume restarts it)
  *   3. Next Block advances segments
- *   4. Stop Session never records a completed result
- *   5. Natural completion → review route + completed result row
+ *   4. Stop Session confirms, then records a partial (never completed) result
+ *   5. Natural completion → inline review + completed result row
  *   6. Completion result feeds the results inlay (produce/consume loop)
  *   7. /run/:runtimeId reload → designed defensive state (in-memory runtimes)
  *
  * Entry point is a seeded playground note → Play → /run/:runtimeId (the
  * journal-date flow is quarantined pending the empty-date behavior decision
  * in #698). Behavior contracts encoded here (from source, not fixtures):
- *   - Natural completion: WallClockPage records the result and navigates to
- *     /sessions/:runtimeId (replace; #946 retired /review).
+ *   - Stop (and natural completion) surface the review as an inline
+ *     "Workout Complete" dialog on /run — it stays mounted until explicitly
+ *     exited via the FocusedDialog close button.
  *   - Manual stop: results are still recorded, but with `completed: false`
  *     (the journal list renders these as "Partial" by design).
  *   - /run/:runtimeId reads an in-memory `pendingRuntimes` map; a reload
@@ -117,19 +118,30 @@ test.describe('Runtime Execution Loop — /playground → /run/:runtimeId', () =
     // Session-output signal: the countdown has started ticking (replaces the
     // fixed 1s "let the session produce some output" sleep).
     await expect.poll(() => timerSeconds(page), { timeout: 5_000 }).toBeLessThan(60);
+
+    // Stop is guarded: playback stays live until the confirm is accepted.
     await page.getByTestId(TEST_IDS.TIMER_STOP_SESSION).first().click();
+    const acceptStop = page.getByTestId(TEST_IDS.CLOCK_STOP_CONFIRM_ACCEPT);
+    await expect(acceptStop).toBeVisible({ timeout: 5_000 });
+    await acceptStop.click();
 
-    // No active timer UI remains.
-    await expect(pauseIconButton(page)).toBeHidden({ timeout: 5_000 });
+    // The partial is preserved into the inline review (same surface as
+    // natural completion). Exit it explicitly, then no timer UI remains.
+    await expect(page.getByRole('dialog', { name: 'Workout Complete' })).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first().click();
+    await expect(pauseIconButton(page)).toBeHidden({ timeout: 15_000 });
 
-    // Partials may be recorded by design — but never marked completed.
+    // Partials are recorded by design — but never marked completed.
+    await expect
+      .poll(async () => (await getSessions(page)).length, { timeout: 10_000 })
+      .toBeGreaterThan(0);
     const sessions = await getSessions(page);
     for (const s of sessions) {
       expect(s.completed).not.toBe(true);
     }
   });
 
-  test('natural completion navigates to review and records a completed result', async ({ page }) => {
+  test('natural completion shows inline review and records a completed result', async ({ page }) => {
     // Fast clock (20×): the 6s countdown completes in ~0.3s wall time. Not
     // applied file-wide — 'countdown progresses' verifies wall-clock tracking.
     await installFastClock(page);
@@ -142,8 +154,8 @@ test.describe('Runtime Execution Loop — /playground → /run/:runtimeId', () =
 
     // Blocks are advanced manually (Next) — the 6s countdown expires, then
     // keep advancing through the effort block until the session completes
-    // and WallClockPage records the result and navigates to
-    // /sessions/:runtimeId (replace; the /review route is retired in #946).
+    // and WallClockPage records the result and opens the inline
+    // "Workout Complete" review on /run (no route change; exit is explicit).
     await advanceUntilReview(page);
 
     const sessions = await getSessions(page);

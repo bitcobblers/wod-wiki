@@ -425,9 +425,14 @@ test.describe('Note Persistence — save / load / workout flow', () => {
       await expect(page.getByText('3 of 3')).toBeVisible();
     };
     await page.goto(`/sessions?q=${encodeURIComponent(':session{}')}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    const layoutFeed = page.getByTestId('l3-layout-feed');
+    // The Feed control exists twice once runs have stacked results: the 2xl+
+    // rail copy (attached but hidden below the rail breakpoint) and the
+    // "Page options" fallback copy — scope to the VISIBLE one so the guard
+    // and the click never hit a strict-mode multi-match.
+    const layoutFeed = page.getByTestId('l3-layout-feed').locator('visible=true').first();
     if (!(await layoutFeed.isVisible())) {
       await page.getByRole('button', { name: 'Page options', exact: true }).click();
+      await layoutFeed.waitFor({ state: 'visible', timeout: 5_000 });
     }
     await layoutFeed.click();
     await expectExactSessions();
@@ -445,6 +450,10 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     // execution never flipped to 'running' — Exit must halt+report, not discard.
     await page.locator(`[data-testid="${TEST_IDS.TIMER_NEXT_BLOCK}"]:visible`).first().click().catch(() => {});
     await expect(page.getByText(/results? captured/)).toBeVisible({ timeout: 8_000 });
+    await page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first().click();
+    await expect(page.getByText('Stop workout?')).toBeVisible();
+    await page.getByRole('button', { name: 'Stop — keep partial results', exact: true }).click();
+    await expect(page.getByText('Workout Complete')).toBeVisible();
     await page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first().click();
     await expectOverlayGone(page);
 
@@ -467,6 +476,8 @@ test.describe('Note Persistence — save / load / workout flow', () => {
 
     // Early Stop: the partial's write fails inside the atomic transaction.
     await page.getByRole('button', { name: 'Stop', exact: true }).first().click();
+    await expect(page.getByText('Stop workout?')).toBeVisible();
+    await page.getByRole('button', { name: 'Stop — keep partial results', exact: true }).click();
 
     // The overlay stays open: visible error + Retry, no fake success.
     await expect(page.getByRole('alert')).toContainText('Save failed', { timeout: 8_000 });
@@ -478,6 +489,8 @@ test.describe('Note Persistence — save / load / workout flow', () => {
 
     // Same-ID retry: exactly one session and its events, one query:table.
     await retry.click();
+    await expect(page.getByText('Workout Complete')).toBeVisible();
+    await page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first().click();
     await expectOverlayGone(page);
 
     const sessions = await getSessions(page, NOTE_ID);

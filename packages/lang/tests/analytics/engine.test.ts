@@ -220,6 +220,25 @@ describe('Phase 2: workout-scope running totals', () => {
     expect(volGrouped[0]).toMatchObject({ value: 900, metadata: { effortSlug: 'thruster', totalSets: 2 } });
   });
 
+  it('counts measured reps instead of adding them to the planned target', () => {
+    const e = engine();
+    const measured = segment([
+      { type: MetricType.Elapsed, value: 60_000, origin: 'runtime' },
+      { type: MetricType.Rep, value: 10, origin: 'parser' },
+      { type: MetricType.Rep, value: 7, origin: 'user' },
+    ]);
+    const zero = segment([
+      { type: MetricType.Elapsed, value: 60_000, origin: 'runtime' },
+      { type: MetricType.Rep, value: 10, origin: 'user-plan' },
+      { type: MetricType.Rep, value: 0, origin: 'user' },
+    ]);
+    e.process(measured);
+    e.process(zero);
+    expect(e.summarize([measured, zero]).find(
+      (p) => p.metadata?.canonicalKey === 'reps' && !p.metadata?.effortSlug,
+    )?.value).toBe(7);
+  });
+
   it('session.duration prefers root elapsed (no parent+child double count, §10.2)', () => {
     const e = engine();
     const root = segment([

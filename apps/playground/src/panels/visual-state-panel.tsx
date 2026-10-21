@@ -31,8 +31,8 @@ export const VisualStatePanel: React.FC = () => {
             <Card className="shrink-0 bg-muted/30 border-dashed">
                 <CardHeader className={cn(isCompact ? "p-2 pb-0" : "p-3 pb-0")}>
                     <CardTitle className={cn(
-                        "font-medium text-muted-foreground uppercase tracking-wider",
-                        isCompact ? "text-xs" : "text-sm"
+                        "font-mono font-semibold text-muted-foreground uppercase tracking-[0.14em]",
+                        isCompact ? "text-[10px]" : "text-[11px]"
                     )}>
                         Up Next
                     </CardTitle>

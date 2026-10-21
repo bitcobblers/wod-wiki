@@ -324,8 +324,7 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
       for (const segment of segments) {
         if (segment.outputType !== 'segment') continue;
         if (exclusion && matchesExclusion(effortOf(segment).slug, exclusion)) continue;
-        for (const metric of segment.metrics.rawMetrics) {
-          if (metric.type !== metricType) continue;
+        for (const metric of segment.getDisplayMetrics({ types: [metricType as MetricType] })) {
           const value = numericMetricValue(metric);
           if (value === undefined) continue;
           values.push(value);

@@ -9,30 +9,36 @@
  * chunk membership and vanished-chunk sweeps never cross sources.
  */
 import {
-  emptySeedMeta,
   SEED_BROADCAST_CHANNEL,
   SEED_SCHEMA,
   seedMetaKey,
   type SeedMetaRecord,
 } from '@/types/seed';
-import { SeedImporter, type SeedImportProgress } from './SeedImporter';
+import type { SeedImportProgress } from './SeedImporter';
 import { HttpSeedSource } from './HttpSeedSource';
-import { IndexedDBSeedImportStorage, type SeedImportStorage } from './SeedImportStorage';
+import type { SeedImportStorage } from './SeedImportStorage';
+import { mainThreadSeedImportStorage } from './seedStorageDefault';
 import { assertManifest, type ISeedSource } from './ISeedSource';
-import { decideSeedImport, EMBEDDED_SEED_VERSIONS, storedSeedIsCurrent } from './seedVersion';
+import { EMBEDDED_SEED_VERSIONS } from './seedVersion';
 import { customSeedSources, CORE_SEED_URL, COMMUNITY_SEED_URL, COMMUNITY_REPOSITORY_URL, FeedSeedSource, listSyncPackages, hideSeedSourceRow, hiddenSeedSourceIds, removeCustomSeedSource, safeRepositoryUrl } from './seedSources';
 import { isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } from './seedSubscriptions';
 import { beginSyncActivity, reportSyncResult, reportSyncError } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
 import { hydrateAppEquipmentRegistry, getAppEquipmentRegistry } from '@/services/equipmentRegistry';
-import { storageService } from '@/services/storage';
+import { profileService, storageBackend, storageService } from '@/services/storage';
+import { getActiveLocalDbName } from '@/services/storage/dataSettings';
+import {
+  runSourceSyncCore,
+  type SeedSyncOutcome,
+  type SourceSyncCoreResult,
+} from './seedSyncCore';
+import type { SeedWorkerToMain } from './seedSync.worker';
 
 export { SEED_BROADCAST_CHANNEL } from '@/types/seed';
+export { SEED_CLAIM_TTL_MS } from './seedSyncCore';
+export type { SeedSyncOutcome } from './seedSyncCore';
 export const SEED_IMPORT_FLAG = 'wodwiki.seedImport.enabled';
-
-/** A claim older than this is assumed abandoned (crashed tab). */
-export const SEED_CLAIM_TTL_MS = 45_000;
 
 /** Default-on; '0' is the explicit opt-out. */
 export function isSeedImportEnabled(): boolean {
@@ -42,13 +48,6 @@ export function isSeedImportEnabled(): boolean {
     return false;
   }
 }
-
-/**
- * 'update-pending': a background load check found a newer published
- * manifest for a source whose auto-sync is off — nothing was imported;
- * the update waits for a manual Sync (grouped catalog-updates snapshot).
- */
-export type SeedSyncOutcome = 'disabled' | 'current' | 'busy' | 'imported' | 'server-stale' | 'error' | 'update-pending';
 
 /**
  * Live per-source sync progress for the Settings sync surface. One
@@ -118,20 +117,20 @@ export function defaultSeedSources(): SeedSourceSpec[] {
       embeddedVersion: 0,
       autoImport: false,
     },
-    // Built-in package sources (Common category packages): each is a
-    // filtered view of the community corpus syncing only its own
-    // chunk — a package sync never downloads the whole library.
+    // Built-in package sources: each is a filtered view of its notebook's
+    // own repo (pkg.seedUrl) syncing only its own chunk — a package sync
+    // never downloads a whole library, and repos sync independently.
     // Built-ins only: listSyncPackages mirrors custom sources as package
     // views too, and those get their own specs below — emitting both would
     // duplicate every custom-source row.
     ...listSyncPackages().filter((pkg) => pkg.category !== 'custom').map((pkg): SeedSourceSpec => ({
       id: pkg.id,
       label: pkg.label,
-      source: new FeedSeedSource(new HttpSeedSource(COMMUNITY_SEED_URL), pkg.chunkId),
-      url: COMMUNITY_SEED_URL,
+      source: new FeedSeedSource(new HttpSeedSource(pkg.seedUrl), pkg.chunkId),
+      url: pkg.seedUrl,
       repositoryUrl: pkg.repositoryUrl,
       embeddedVersion: 0,
-      autoImport: false,
+      autoImport: pkg.autoImport ?? false,
     })),
     // User-registered libraries (/settings/sync). Never auto-import; their
     // manifests are not build-stamped, so embeddedVersion 0 keeps them
@@ -212,26 +211,153 @@ function defaultBroadcast(message: unknown): void {
   }
 }
 
-/** User-display-safe error text: credential fragments and hosts only, capped. */
-function safeSyncErrorMessage(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  const cleaned = raw
-    .replace(/(authToken["'=:\s]+)[^&\s,"']+/gi, '$1…')
-    .replace(/(Bearer\s+)[\w.-]+/gi, '$1…')
-    .replace(/https?:\/\/[^\s]+/gi, (url) => {
-      try {
-        const parsed = new URL(url);
-        return `${parsed.protocol}//${parsed.host}/…`;
-      } catch {
-        return '…';
-      }
-    });
-  return cleaned.slice(0, 300);
+/** Refresh this context's content caches and effort/equipment registries
+ *  after an import — BroadcastChannel does not echo to the importing
+ *  context, so every driver calls this directly. */
+async function hydrateImportedContent(): Promise<void> {
+  invalidateSeedContent();
+  const registry = getAppEffortRegistry();
+  if (registry.isInitialized()) await hydrateAppEffortRegistry(registry);
+  const equipmentRegistry = getAppEquipmentRegistry();
+  if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
 }
 
-function freshClaimIsOther(meta: SeedMetaRecord | undefined, owner: string, now: number): boolean {
-  const claim = meta?.claim;
-  return !!claim && claim.owner !== owner && now - claim.at < SEED_CLAIM_TTL_MS;
+/** Worst-first aggregation: readiness and toasts only need one verdict. */
+function aggregateOutcomes(outcomes: SeedSyncOutcome[]): SeedSyncOutcome {
+  if (outcomes.includes('error')) return 'error';
+  if (outcomes.includes('imported')) return 'imported';
+  if (outcomes.includes('update-pending')) return 'update-pending';
+  if (outcomes.includes('server-stale')) return 'server-stale';
+  if (outcomes.includes('busy')) return 'busy';
+  return 'current';
+}
+
+/** Shared side effects applied to one finished source result (both drivers). */
+function applySourceResult(
+  spec: SeedSourceSpec,
+  result: SourceSyncCoreResult,
+  deps: SeedSyncDeps,
+  updates: Map<string, CatalogSourceUpdate> | undefined,
+): void {
+  const now = deps.now ?? Date.now;
+  const broadcast = deps.broadcast ?? defaultBroadcast;
+  const report = deps.reportActivity !== false;
+  if (result.manifestChecked) markSeedChecked(spec.id, now());
+  if (result.outcome === 'error') {
+    const message = result.error ?? 'seed sync failed';
+    if (deps.mode === 'background') updates?.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'error' });
+    if (report) reportSyncError(message);
+    return;
+  }
+  if (result.outcome === 'imported' && result.applied) {
+    broadcast({ kind: 'seed-imported', source: spec.id, version: result.importedVersion });
+    void hydrateImportedContent();
+    if (report) reportSyncResult({ source: spec.label, added: result.added ?? 0, updated: result.updated ?? 0 });
+    // An applied update of an already-installed catalog is part of the
+    // grouped snapshot ('updated'); a first import is not an update.
+    if (updates && result.hadCheckpoint) updates.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'updated' });
+  }
+  if (updates && result.outcome === 'update-pending') {
+    updates.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'pending' });
+  }
+}
+
+/** The worker path runs ONLY against the app's real IndexedDB database —
+ *  injected storages (tests) and the API backend stay on the main thread. */
+function workerSupported(): boolean {
+  return typeof Worker !== 'undefined' && storageBackend !== 'api';
+}
+
+/**
+ * Run the whole sync inside seedSync.worker: manifest fetches, chunk JSON
+ * parsing, row validation, and IndexedDB writes happen off the main thread.
+ * The driver here translates messages back into the side effects the main
+ * thread owns (progress, activity, content caches, registries, catalog
+ * updates, check timestamps). Resolves null when the worker is unusable —
+ * the caller reruns the direct path (idempotent: nothing applied before a
+ * startup failure, and checkpoints/claims guard anything partial).
+ */
+async function runSeedSyncViaWorker(
+  sources: SeedSourceSpec[],
+  deps: SeedSyncDeps,
+  owner: string,
+): Promise<SeedSyncOutcome | null> {
+  return await new Promise<SeedSyncOutcome | null>((resolve) => {
+    let worker: Worker;
+    try {
+      worker = new Worker(new URL('./seedSync.worker.ts', import.meta.url), { type: 'module' });
+    } catch (err) {
+      console.warn('[seedSync] seed worker unavailable; running on main thread', err);
+      resolve(null);
+      return;
+    }
+    const updates = deps.mode === 'background' ? new Map<string, CatalogSourceUpdate>() : undefined;
+    const outcomes: SeedSyncOutcome[] = [];
+    const totalSources = sources.length;
+    let received = false;
+    const settle = (value: SeedSyncOutcome | null): void => {
+      worker.terminate();
+      resolve(value);
+    };
+    worker.onerror = (event) => {
+      console.warn('[seedSync] seed worker failed', event.message ?? 'unknown error');
+      settle(received ? aggregateOutcomes(outcomes) : null);
+    };
+    worker.onmessage = (event: MessageEvent<SeedWorkerToMain>) => {
+      received = true;
+      const msg = event.data;
+      if (msg.type === 'progress') {
+        const spec = sources.find((s) => s.id === msg.sourceId);
+        deps.onProgress?.({
+          ...msg.progress,
+          sourceId: msg.sourceId,
+          sourceLabel: spec?.label ?? msg.sourceId,
+          sourceIndex: sources.indexOf(spec!) + 1,
+          totalSources,
+        });
+        return;
+      }
+      if (msg.type === 'first-paint') {
+        void hydrateImportedContent();
+        deps.onFirstPaint?.();
+        return;
+      }
+      if (msg.type === 'source-result') {
+        const index = sources.findIndex((s) => s.id === msg.sourceId);
+        const spec = sources[index];
+        if (!spec) return;
+        outcomes.push(msg.result.outcome);
+        applySourceResult(spec, msg.result, deps, updates);
+        deps.onProgress?.({
+          phase: 'finished', outcome: msg.result.outcome, error: msg.result.error,
+          sourceId: spec.id, sourceLabel: spec.label, sourceIndex: index + 1, totalSources,
+        });
+        return;
+      }
+      // 'done'
+      if (updates) publishCatalogUpdates([...updates.values()]);
+      settle(aggregateOutcomes(msg.outcomes.length ? msg.outcomes : outcomes));
+    };
+    worker.postMessage({
+      type: 'run',
+      dbName: getActiveLocalDbName(),
+      // Identity is a plain value over the wire (functions cannot post);
+      // it already resolved once per page load on the main thread.
+      userId: profileService.currentSync()?.id ?? null,
+      owner,
+      force: deps.force,
+      probeManifests: deps.probeManifests,
+      background: deps.mode === 'background',
+      sources: sources.map((s) => ({
+        id: s.id,
+        label: s.label,
+        url: s.url,
+        ...(s.source instanceof FeedSeedSource ? { chunkId: s.source.chunkId } : {}),
+        embeddedVersion: s.embeddedVersion,
+        autoSyncOn: isSeedAutoSync(s.id),
+      })),
+    });
+  });
 }
 
 // ── Grouped catalog updates (one snapshot per background load check) ───────
@@ -308,7 +434,7 @@ function seedCheckedAt(id: string): number | null {
 
 export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
   const outcomes: SeedSyncOutcome[] = [];
-  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
   // Background load checks collect per-source update states; the run ends
   // with ONE grouped snapshot — never per-source notifications.
   const updates = deps.mode === 'background' ? new Map<string, CatalogSourceUpdate>() : undefined;
@@ -318,6 +444,16 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
 
   const owner = deps.owner ?? `seed-${(deps.now ?? Date.now)()}-${Math.random().toString(36).slice(2, 8)}`;
   const sources = deps.sources ?? defaultSeedSources();
+
+  // Production runs (boot load check, manual syncs) execute inside the seed
+  // worker so manifest fetches, chunk parsing, and imports never block the
+  // UI. A null result means the worker is unusable (or injected deps force
+  // the main thread, as in tests) — the direct path below reruns it.
+  if (!deps.storage && !deps.now && workerSupported()) {
+    const viaWorker = await runSeedSyncViaWorker(sources, deps, owner);
+    if (viaWorker) return viaWorker;
+  }
+
   for (const [index, spec] of sources.entries()) {
     // A failing source emits its own finished('error'); the run continues.
     const outcome = await runSourceSync(spec, deps, storage, owner, index + 1, sources.length, updates);
@@ -325,13 +461,7 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
     outcomes.push(outcome);
   }
   if (updates) publishCatalogUpdates([...updates.values()]);
-  // Worst-first aggregation: readiness and toasts only need one verdict.
-  if (outcomes.includes('error')) return 'error';
-  if (outcomes.includes('imported')) return 'imported';
-  if (outcomes.includes('update-pending')) return 'update-pending';
-  if (outcomes.includes('server-stale')) return 'server-stale';
-  if (outcomes.includes('busy')) return 'busy';
-  return 'current';
+  return aggregateOutcomes(outcomes);
 }
 
 /**
@@ -349,7 +479,7 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
  */
 export async function runBootSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
   const all = deps.sources ?? defaultSeedSources();
-  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
   let coreCheckpoint: SeedMetaRecord | undefined;
   try {
     coreCheckpoint = await storage.getSeedMeta(seedMetaKey('core'));
@@ -382,8 +512,6 @@ async function runSourceSync(
   updates?: Map<string, CatalogSourceUpdate>,
 ): Promise<SeedSyncOutcome> {
   const now = deps.now ?? Date.now;
-  const broadcast = deps.broadcast ?? defaultBroadcast;
-  const metaKey = seedMetaKey(spec.id);
   const onProgress = deps.onProgress;
   // Background load checks stay silent: no activity entry, no per-source
   // completion report — their outcome is the grouped snapshot alone.
@@ -396,97 +524,36 @@ async function runSourceSync(
   onProgress?.({ phase: 'checking', sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
   const endActivity = report ? beginSyncActivity('download', spec.label) : () => {};
   try {
-    const stored = await storage.getSeedMeta(metaKey);
-    const hadCheckpoint = (stored?.seedVersion ?? 0) > 0;
-
-    // Skip-fetch fast path: this bundle's own seed is already stored
-    // (return-visit background refresh passes probeManifests to bypass).
-    if (!deps.force && !deps.probeManifests && storedSeedIsCurrent(stored, spec.embeddedVersion)) {
-      finish('current');
-      return 'current';
-    }
-    if (freshClaimIsOther(stored, owner, now())) {
-      finish('busy');
-      return 'busy';
-    }
-
-    const manifest = assertManifest(await spec.source.fetchManifest());
-    markSeedChecked(spec.id, now());
-    const decision = deps.force ? 'import' : decideSeedImport(stored?.seedVersion, manifest.version);
-    if (decision === 'server-stale') {
-      finish('server-stale');
-      return 'server-stale';
-    }
-    if (stored && stored.schema !== SEED_SCHEMA) throw new Error('Incompatible seed checkpoint; recreate storage');
-    // Background check-only: auto-sync off → never fetch chunks or write
-    // import checkpoints. A detected update lands in the grouped snapshot
-    // and waits for a manual Sync; installed content stays untouched.
-    if (deps.mode === 'background' && !isSeedAutoSync(spec.id)) {
-      if (decision === 'import') {
-        updates?.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'pending' });
-        finish('update-pending');
-        return 'update-pending';
-      }
-      finish('current');
-      return 'current';
-    }
-    if (!deps.force && decision === 'current' && stored?.schema === SEED_SCHEMA && stored.builtAt === manifest.builtAt) {
-      finish('current');
-      return 'current';
-    }
-
-    // Claim before the (potentially long) chunk imports.
-    const claimed: SeedMetaRecord = { ...(stored ?? emptySeedMeta(metaKey)), claim: { owner, at: now() } };
-    await storage.putSeedMeta(claimed, stored ?? null);
-    try {
-      // addedNotes/updatedNotes are counted inside applySeedChunk's
-      // transaction — the commit boundary — so concurrent local edits can
-      // never skew them and no extra note reads happen outside the import.
-      const result = await new SeedImporter(storage, spec.source, spec.id, now).applyAll({
-        forceAll: deps.force === true,
-        // First paint: as soon as the canvas chunk (home page + canvas
-        // routes) is committed, refresh content consumers — the home page
-        // renders while the rest of the library is still importing. Sources
-        // without a canvas chunk never trigger it.
-        onFirstPaintApplied: () => {
-          invalidateSeedContent();
-          deps.onFirstPaint?.();
-        },
+    // Storage/network/decision core (seedSyncCore) — the same unit the seed
+    // worker executes; this direct path drives it on the main thread.
+    const result = await runSourceSyncCore(
+      {
+        id: spec.id,
+        label: spec.label,
+        source: spec.source,
+        embeddedVersion: spec.embeddedVersion,
+        autoSyncOn: isSeedAutoSync(spec.id),
+      },
+      { storage, owner, now, force: deps.force, probeManifests: deps.probeManifests, background: deps.mode === 'background' },
+      {
         // Tag importer chunk phases with this source's identity. No
         // subscriber → no per-event allocation.
         onProgress: onProgress
           ? (progress) => onProgress({ ...progress, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources })
           : undefined,
-      });
-      if (result.status === 'imported') {
-        broadcast({ kind: 'seed-imported', source: spec.id, version: manifest.version });
-        // BroadcastChannel does not echo to the importing context — refresh
-        // this tab's content caches and the effort registry directly.
-        invalidateSeedContent();
-        const registry = getAppEffortRegistry();
-        if (registry.isInitialized()) await hydrateAppEffortRegistry(registry);
-        const equipmentRegistry = getAppEquipmentRegistry();
-        if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
-        if (report) reportSyncResult({ source: spec.label, added: result.addedNotes, updated: result.updatedNotes });
-        // An applied update of an already-installed catalog is part of the
-        // grouped snapshot ('updated'); a first import is not an update.
-        if (updates && hadCheckpoint) updates.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'updated' });
-      }
-    } finally {
-      const after = await storage.getSeedMeta(metaKey);
-      if (after?.claim?.owner === owner) {
-        await storage.putSeedMeta({ ...after, claim: null }, after);
-      }
-    }
-    finish('imported');
-    return 'imported';
-  } catch (err) {
-    console.warn(`[seedSync] ${spec.id} seed sync failed`, err);
-    const message = safeSyncErrorMessage(err);
-    if (deps.mode === 'background') updates?.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'error' });
-    if (report) reportSyncError(message);
-    finish('error', message);
-    return 'error';
+        // First paint: as soon as the canvas chunk (home page + canvas
+        // routes) is committed, refresh content consumers — the home page
+        // renders while the rest of the library is still importing. Sources
+        // without a canvas chunk never trigger it.
+        onFirstPaint: () => {
+          invalidateSeedContent();
+          deps.onFirstPaint?.();
+        },
+      },
+    );
+    applySourceResult(spec, result, deps, updates);
+    finish(result.outcome, result.error);
+    return result.outcome;
   } finally {
     endActivity();
   }
@@ -582,7 +649,7 @@ export async function syncSeedSource(id: string, deps: SeedSyncDeps = {}): Promi
  */
 export async function unsubscribeSeedSource(id: string, deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<{ deleted: number }> {
   if (id === 'core') return { deleted: 0 };
-  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
   const meta = await storage.getSeedMeta(seedMetaKey(id));
   const deleted = meta ? await storage.removeSourceContent(meta) : 0;
   setSeedSubscribed(id, false);
@@ -628,7 +695,7 @@ export async function isPackageInLibrary(packageId: string): Promise<boolean> {
   const chunkId = pkg?.chunkId ?? packageId;
   // A package sync writes its own checkpoint; before that, membership
   // lives in the community library checkpoint the package syncs from.
-  const storage = new IndexedDBSeedImportStorage();
+  const storage = mainThreadSeedImportStorage();
   for (const key of [seedMetaKey(packageId), seedMetaKey('community')]) {
     const meta = await storage.getSeedMeta(key);
     if (meta?.chunks[chunkId]) return true;
@@ -650,7 +717,7 @@ export interface SeedCoverage {
  * the banner must render instantly and work offline.
  */
 export async function readSeedCoverage(deps: Pick<SeedSyncDeps, 'sources' | 'storage'> = {}): Promise<SeedCoverage> {
-  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
   let coreImported = false;
   let libraryImported = false;
   await Promise.all((deps.sources ?? defaultSeedSources()).map(async (spec) => {
@@ -672,7 +739,7 @@ export async function readSeedCoverage(deps: Pick<SeedSyncDeps, 'sources' | 'sto
  * time; counts/bytes come from the validated manifest (0 when unreachable).
  */
 export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatus> {
-  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
   // Per-feed packages share the community library checkpoint: no per-package
   // meta record exists, so coverage comes from the package's chunk membership.
   const communityMeta = await storage.getSeedMeta(seedMetaKey('community'));

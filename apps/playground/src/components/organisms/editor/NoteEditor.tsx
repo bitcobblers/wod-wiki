@@ -354,6 +354,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [viewInstance, setViewInstance] = useState<EditorView | null>(null);
   // Full-screen timer block: when set, the FullscreenTimer overlay is shown.
   const [fullscreenTimerBlock, setFullscreenTimerBlock] = useState<ScriptBlock | null>(null);
+  // Pinned run session id for the open overlay — unlocks durable post-run
+  // actual corrections (FullscreenTimer queue → captureMetricCorrection).
+  const [fullscreenResultId, setFullscreenResultId] = useState<string | null>(null);
 
 
   // Whether the fullscreen timer should auto-start on mount
@@ -389,6 +392,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       onSaved?.({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
       setAutoStartFullscreen(autoStart);
       setFullscreenTimerBlock(captured.block);
+      setFullscreenResultId(captured.session.id);
     } catch (error) {
       setRunError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -399,6 +403,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   // Close the full-screen timer.
   const handleTimerClose = useCallback(() => {
     setFullscreenTimerBlock(null);
+    setFullscreenResultId(null);
     setAutoStartFullscreen(false);
   }, []);
 
@@ -1011,6 +1016,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           view={viewInstance ?? viewRef.current}
           onClose={handleTimerClose}
           onCompleteWorkout={handleCompleteWorkout}
+          resultId={fullscreenResultId ?? undefined}
           autoStart={autoStartFullscreen}
         />
       )}

@@ -1,6 +1,6 @@
 # Clock command controls
 
-Status: proposed feature design. No application changes in this review.
+Status: implemented in the `clock-command-board` worktree. Physical Chromecast, Bluetooth keypad and mobile OS delivery still require hardware acceptance.
 
 ## Decision
 
@@ -8,7 +8,7 @@ Make the clock a command board on desktop, mobile browsers and the Cast receiver
 
 The browser remains the execution and persistence authority. A receiver command must obey the same rules as a browser click. Pairing a Bluetooth device is an operating-system task, not a Web Bluetooth feature.
 
-## What exists today
+## Review baseline before implementation
 
 | Screen | Current controls and navigation | Gap for this feature |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ The browser remains the execution and persistence authority. A receiver command 
 
 The timer tier decision remains unchanged: Minimal below 500px, General from 500px, Detail from 900px; receiver always General. Input capabilities must not depend on those sizes.
 
-### Observed in the current checkout
+### Observed before implementation
 
 Exercised the running app on port 5174 at 1440×1000 and 375×812, plus its local receiver popup:
 
@@ -46,14 +46,15 @@ The `?` collection and persistence findings below are source-reviewed, not an ex
 - Prefer `code === 'NumpadEnter'` or `location === 3` to identify the keypad. Use `key` for printable digits/operators and `code` for known physical keypad fallback.
 - Some devices expose remote Select and keypad Enter as identical generic Enter events. Do not guess device identity. Offer a per-device-page Controls setting, Navigation or Keypad, and a small key-check screen. Keypad mode interprets ambiguous Enter as the primary command. Navigation mode interprets it as focused selection. Explicit Select/Center events always remain selection. Simultaneous indistinguishable Enter sources cannot have different guaranteed meanings.
 
-### Proposed numberpad layout
+### Numberpad layout
 
 | Key | Live clock, no entry open | Value-entry card |
 | --- | --- | --- |
 | Enter | Next; disabled while paused; at Ready, explicitly starts the workout | Validate and commit this field, then show the next field; final field leads to Ready or review, not an implicit workout step |
 | `+` | Add one actual rep to the displayed rep target | No rep command; do not alter another field |
 | `-` | Remove one actual rep, minimum zero | No rep command; signed values only if the field's domain permits them |
-| `0`–`9` | Begin entry for the selected missing value; otherwise actual reps for the current movement | Append digits to the draft |
+| `8` / `2` / `4` / `6` | Move focus up / down / left / right with Num Lock on or off | Enter digits as data |
+| Other digits | Begin actual-rep entry for the selected movement | Append digits to the draft |
 | `.` or decimal separator | Begin decimal entry only when the selected field permits it | Decimal separator for decimal metrics; no effect on integer reps |
 | `*` | Open Values: unresolved fields and editable current actuals | No implicit save, skip or target change |
 | `/` | Start, pause or continue according to execution state | No playback command while editing |
@@ -62,9 +63,7 @@ The `?` collection and persistence findings below are source-reviewed, not an ex
 | Tab / Shift+Tab | Normal browser focus navigation | Move through controls without silently discarding an edited draft |
 | Num Lock | No command | No command |
 
-Keep digits available for data. Do not bind 1–9 to workout actions. In a choice-only prompt, visibly numbered options may use digits to select an option; Enter confirms it. A numeric metric prompt always treats digits as the metric value.
-
-> i also wnat to bund the number not just the direciton arrows on the timer screen, so that when the clock is runing the arrows on those numbe ror the number allow the same behavior preventing the user from needing to be in not num lock.
+Direction digits never mutate the workout. Open Values with `*` or its button before entering a number containing 8/2/4/6. Every digit is data inside value entry. Choice prompts may use numbered options; Enter confirms the selection.
 
 A short numberpad without Escape or Backspace can reach Cancel, Clear and Stop via the visible controls. Do not require function keys, long presses or modifier chords.
 
@@ -101,7 +100,7 @@ Keep the clock dominant. Place a stable count below the movement, for example `A
 - One active movement gets selected automatically. A grouped block with multiple movements shows a target selector before the first rep change. Never credit all movements at once.
 - Count can exceed a planned target and can operate without a known target. Target achievement does not auto-advance. Next remains the transition command.
 - Once counting begins, Next records the entered actual count, even if below target. Preserve existing uncounted completion behavior, but keep inferred/planned values distinguishable from measured user actuals.
-- Digits open an actual-value card rather than replacing the visible counter immediately. `1`, `5`, Enter sets 15; it does not add 1 then 5 or advance the workout.
+- Non-direction digits open an actual-value card rather than replacing the counter immediately. `1`, `5`, Enter sets 15 without advancing. Use Values first for direction digits.
 - Opening entry does not silently pause time. Show running/paused status. An automatic segment transition must not retarget a draft: commit to its pinned occurrence, or reject a stale/invalid target with the draft intact.
 
 For the TV, use a large entry card and on-screen numeric grid reachable by D-pad, plus Save, Clear and Cancel. This also lets the remote complete collection without a keyboard. Mobile uses the same field model with an accessible input and appropriate `inputmode`; do not autofocus a text input on the live clock and summon the phone's software keyboard.
@@ -167,6 +166,40 @@ For persisted corrections, follow the existing user-origin event and analytics-r
 4. **Hardware acceptance.** Run the complete workout flow on Chromecast with Google TV / Google TV Streamer using its remote, then a paired numberpad; repeat on desktop and physical Android/iOS browsers with Bluetooth keyboards. Record delivered `key`, `code`, `location` and repeat behavior in the key-check screen, including Num Lock on/off, keyboard sleep/reconnect and ambiguous Enter fallback.
 
 Browser automation covers desktop/mobile layout and the local receiver RPC path; it cannot establish Bluetooth HID delivery, TV OS interception, iOS Safari keyboard behavior or sender survival in the background. The Cast receiver remains dependent on the sender. Autonomous TV execution is outside this design.
+
+## Verification
+
+`bun run test` passes: 1,977 package tests, 2,912 playground tests and 125 Storybook tests. Both `bun run build:app` and `bun x vite build --config apps/playground/vite.receiver.config.ts` pass.
+
+Exercised desktop and 375×812 clocks plus the local receiver. `+ + -` records one actual rep; entry accepts direction digits as data; receiver changes update the sender; Stop confirmation preserves the run into saved review. Pre-run target entry leads to Ready before a separate Start. Post-run entry saved 9 reps on an occurrence and retained that correction after reload.
+
+The journal, editor, run route, home tour and syntax examples keep the captured result ID through review. Normal completion retains the fullscreen review until dismissal; host-requested tour restarts still finish their pending action. Saving a post-run correction reloads the review from persisted events instead of leaving the old target-only row onscreen.
+
+The receiver exposes an explicit, focused Start Workout action after collection. Its command board stays inside the viewport in preview and review modes.
+
+The shared Next button keeps its fixed touch height instead of shrinking inside the vertical caption column. Direct browser checks at 375×812 and 812×375 found all three controls reachable without scrolling, with Stop at 48px and Pause/Next at 54px high. Pausing changed the control to Continue and disabled Next.
+
+Focused regression checks passed 381 tests across 40 files. After integrating the current main branch, the command-board, Cast round-trip, collection and updated home-tour acceptance run passed all 19 scenarios with no retries, including 375×812, 812×375 and 1440×1000 home clocks. Receiver entry saved the actual as 9 reps, the review displayed it beside the planned 7, and the saved correction survived reload. `bun run build:storybook` and the receiver production build passed before this integration; General and Minimal stories were rendered and inspected.
+
+After integrating main, the playground unit run passed all 2,932 tests across 301 isolated files. The full playground TypeScript check still fails on existing diagnostics. The newly exposed collection-fixture metric type was corrected; no clean full-app typecheck is claimed.
+
+Run acceptance against a fresh dev server after seed generation finishes. Regenerating `public/seed` under an existing Vite server was observed to make manifest requests return HTML, failing the seed gate before clock assertions.
+
+Put Playwright output outside the repository with `--output=/tmp/wod-clock-acceptance`. In-repository screenshot and trace writes triggered repeated Vite CSS updates during acceptance; a captured blank-page failure reported duplicate `createRoot()` and `removeChild` errors during those updates.
+
+The main-branch home redesign retains its editor and result sections. Completion keeps the saved fullscreen review open; dismissing it glides to the insights section. Focus restoration uses `preventScroll` so returning focus to the editor cannot override that glide. The integrated path was exercised in the browser and the home acceptance suite.
+
+The pre-main integration of #1082, #1083 and #1084 passed 1,993 package tests, 2,931 playground tests and 124 Storybook interaction tests. Package lint and typechecking, playground/Storybook/receiver builds, relocated CLI hosting and all 18 Storybook acceptance scenarios passed. The production browser check confirmed mobile Pause disables Next and Stop retains the saved fullscreen review. Physical Cast/keypad delivery remains outside browser coverage.
+
+The PR verification comment waits for package, playground, Storybook and both deployed E2E jobs. A failed package or E2E job now prevents the comment from reporting verification passed.
+
+Production-bundle Cast acceptance explicitly sets `localStorage['wodwiki.castBackend'] = 'local'` before sender startup. This opt-in exercises the real popup receiver and RPC transport without a physical TV; the default production backend remains Chromecast. All four local receiver scenarios passed against the production build, including paused Next rejection and numeric rep entry.
+
+Integration acceptance follows Stop confirmation through the saved review before dismissing the clock. Catalog fixtures use the real seed compiler and intercept worker requests at the browser-context level. A production worker smoke imported only the selected CrossFit Games chunk, not the adjacent Girls package. CLI skills discovery also passed through a `node_modules/.bin` symlink.
+
+Final local checks passed 1,994 package tests, 2,931 playground tests and 124 Storybook tests, with existing package expected failures/skips unchanged. All 18 Storybook acceptance scenarios passed. Landscape home checks dismiss completed sync notifications before hit-testing controls; toast viewport padding is click-through while notification cards remain interactive. Equipment clone acceptance compares the original body with the copied body instead of pinning external catalog wording.
+
+Background registry refresh keeps the hydrated registry ready instead of unmounting the editor behind a loading state. This prevents a seed-import broadcast from discarding a new effort's uncommitted label. The catalog create acceptance sends a broadcast during label editing; the original production bundle failed with an empty label.
 
 ## Evidence
 

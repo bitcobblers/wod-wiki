@@ -88,24 +88,28 @@ test.describe('Efforts catalog — /efforts', () => {
     await efforts.gotoCatalog();
     await efforts.createCustomButton().click();
 
-    // Create mode renders a plain textarea + "Create Effort" action — no
-    // editor chrome or detail testids (EffortDetailPage isCreateMode branch).
+    // Create mode opens the notebook editor pre-filled with an effort
+    // document (stable id + user registrySource); the user fills the
+    // properties panel and commits with "Create Effort".
     await expect(page).toHaveURL(/\/e\/new\?mode=create$/);
-    const doc = page.locator('textarea[aria-label="Effort document"]');
-    await expect(doc).toBeVisible();
-    await doc.fill([
-      '---',
-      `slug: ${slug}`,
-      'label: E2E Create Flow',
-      'aliases:',
-      `  - ${slug}`,
-      'baseAttributes:',
-      '  met: 5.0',
-      'registrySource: user',
-      '---',
-      'Created by the catalog CTA flow test.',
-      '',
-    ].join('\n'));
+    const properties = page.locator('[data-testid="effort-create-editor"] .cm-frontmatter-preview');
+    await expect(properties).toBeVisible();
+    await properties.getByLabel('Value for slug').fill(slug);
+    await properties.getByLabel('Value for slug').press('Tab');
+    await properties.getByLabel('Value for label').fill('E2E Create Flow');
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      const observer = new BroadcastChannel('wodwiki.seed');
+      const sender = new BroadcastChannel('wodwiki.seed');
+      observer.onmessage = () => {
+        observer.close();
+        sender.close();
+        resolve();
+      };
+      sender.postMessage({ kind: 'seed-imported', source: 'core', version: 'e2e-refresh' });
+    }));
+    await expect(properties.getByLabel('Value for label')).toHaveValue('E2E Create Flow');
+    await properties.getByLabel('Value for label').press('Tab');
+    await expect(properties.getByLabel('Value for slug')).toHaveValue(slug);
     await page.getByRole('button', { name: 'Create Effort' }).click();
 
     await expect(page).toHaveURL(new RegExp(`/e/${slug}$`), { timeout: 15_000 });

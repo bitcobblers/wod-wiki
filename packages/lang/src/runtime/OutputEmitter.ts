@@ -1,4 +1,5 @@
 import { IOutputStatement, OutputStatement } from '@bitcobblers/wod-wiki-core';
+import { RuntimeLogger } from './RuntimeLogger';
 import { IAnalyticsEngine } from '../analytics/contracts/IAnalyticsEngine';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
@@ -116,6 +117,9 @@ export class OutputEmitter {
             : output;
 
         this._propagateSourceLine(processed);
+
+        // Log once after source text is populated, including direct emitter paths.
+        RuntimeLogger.logOutput(processed);
 
         this._outputStatements.push(processed);
 

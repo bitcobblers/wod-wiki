@@ -39,7 +39,7 @@ export class PopBlockAction implements IRuntimeAction {
         // their fragments via onUnmount.
         if (!current.isComplete && typeof current.markComplete === 'function') {
             current.markComplete('forced-pop');
-            RuntimeLogger.logPop(current, 'forced-pop (incomplete block popped without next)');
+            RuntimeLogger.logPop(current, 'forced-pop (incomplete block popped without next)', runtime.stack.blocks.length);
         }
 
         // Get unmount actions from the block
@@ -55,9 +55,10 @@ export class PopBlockAction implements IRuntimeAction {
         popped.dispose(runtime);
         popped.context?.release?.();
 
-        // Log the pop (skip if already logged as forced-pop above)
+        // Log the pop (skip if already logged as forced-pop above). The pop
+        // already happened — depth is post-pop length + 1.
         if (popped.completionReason !== 'forced-pop') {
-            RuntimeLogger.logPop(popped, popped.completionReason);
+            RuntimeLogger.logPop(popped, popped.completionReason, runtime.stack.blocks.length + 1);
         }
 
         // The 'segment' OutputStatement for this pop is emitted by the stack's

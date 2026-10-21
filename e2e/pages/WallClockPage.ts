@@ -134,6 +134,7 @@ export const pauseIconButton = (page: Page): Locator =>
  * overlay mounted. Does NOT wait for runtime initialization — see #699.
  */
 export async function navigateToRunPage(page: Page, id: string, wodScript: string): Promise<void> {
+  if (page.url() === 'about:blank') await page.goto('/', { waitUntil: 'domcontentloaded' });
   await seedNote(page, `playground/${id}`, `# ${id}\n\n${wodScript}`, {
     type: 'playground',
     title: id,
@@ -159,38 +160,50 @@ export async function navigateToRunPage(page: Page, id: string, wodScript: strin
 }
 
 /**
- * navigateToRunPage + reach a RUNNING session: wait for Ready-to-Start,
- * advance past the SessionRoot gate, wait for the pause icon.
+ * navigateToRunPage + reach a RUNNING session. The session may sit at the
+ * SessionRoot gate ("Ready to Start") or auto-advance depending on the
+ * pre-run collection flow — handle both without assuming the heading.
  */
 export async function startWorkoutFromPlayground(page: Page, id: string, wodScript: string): Promise<void> {
   await navigateToRunPage(page, id, wodScript);
-  await expect(page.getByRole('heading', { name: 'Ready to Start' })).toBeVisible({ timeout: 8_000 });
-
-  // The run route passes autoStart, which starts the *session* clock but
-  // leaves the workout at the SessionRoot gate ("Ready to Start", elapsed
-  // counting up). Next advances into the first real block — the countdown
-  // timer mounts and runs from there.
-  await page.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).first().click();
-  await expect(pauseIconButton(page)).toBeVisible({ timeout: 8_000 });
+  const readyHeading = page.getByRole('heading', { name: 'Ready to Start' });
+  const paused = pauseIconButton(page);
+  await Promise.race([
+    readyHeading.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {}),
+    paused.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {}),
+  ]);
+  // The run route starts the *session* clock but may leave the workout at the
+  // SessionRoot gate ("Ready to Start", elapsed counting up). Next advances
+  // into the first real block — the countdown timer mounts and runs there.
+  if (await readyHeading.isVisible().catch(() => false)) {
+    await page.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).first().click();
+  }
+  await expect(paused).toBeVisible({ timeout: 8_000 });
 }
 
-/** Click Next until the app lands on the completion route (/sessions/:id,
+/** Advance Next until the review surface appears: the inline "Workout
+ *  Complete" dialog on /run (the fullscreen review stays mounted on /run
+ *  until it is explicitly exited) or a completion route (/sessions/:id,
  *  retired /review, or /results — or fail after maxClicks). */
 export async function advanceUntilReview(page: Page, maxClicks = 8): Promise<void> {
+  const reviewDialog = page.getByRole('dialog', { name: 'Workout Complete' });
+  const atReview = async (): Promise<boolean> =>
+    /\/(dashboard|review|results|sessions?)/.test(page.url()) ||
+    (await reviewDialog.isVisible().catch(() => false));
+  // Race both completion signals; whichever lands first resolves the wait.
+  const waitReview = (timeout: number): Promise<void> =>
+    Promise.race([
+      page.waitForURL(/\/(dashboard|review|results|sessions?)/, { timeout }).catch(() => {}),
+      reviewDialog.waitFor({ state: 'visible', timeout }).catch(() => {}),
+    ]);
   for (let i = 0; i < maxClicks; i++) {
-    if (/\/(dashboard|review|results|sessions?)/.test(page.url())) return;
+    if (await atReview()) return;
     const next = page.locator(`[data-testid="${TEST_IDS.TIMER_NEXT_BLOCK}"]:visible`).first();
     if ((await next.count()) === 0) break;
     await next.click().catch(() => {});
-    await page.waitForURL(/\/(dashboard|review|results|sessions?)/, { timeout: 8_000 }).catch(() => {});
-    if (/\/(dashboard|review|results|sessions?)/.test(page.url())) return;
-    // Bounded wait for the advanced block's Next control to mount — replaces
-    // the fixed 1.5s settle between clicks.
-    await page
-      .locator(`[data-testid="${TEST_IDS.TIMER_NEXT_BLOCK}"]:visible`)
-      .first()
-      .waitFor({ state: 'visible', timeout: 5_000 })
-      .catch(() => {});
+    await waitReview(8_000);
   }
-  await page.waitForURL(/\/(dashboard|review|results|sessions?)/, { timeout: 5_000 });
+  if (!(await atReview())) {
+    throw new Error(`advanceUntilReview: review never appeared after ${maxClicks} Next clicks (url: ${page.url()})`);
+  }
 }

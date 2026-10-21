@@ -11,6 +11,12 @@
 import { describe, it, expect, afterEach, mock } from 'bun:test';
 import { cleanup, renderHook, act } from '@testing-library/react';
 import { useSpatialNavigation } from '../useSpatialNavigation';
+import type { ClockKeyAction } from '@/clock/clockCommands';
+
+// JSDOM does not implement scrollIntoView; the hook calls it on focus moves.
+if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => {};
+}
 
 // ── Geometry unit tests (extracted algorithm) ──────────────────────────
 
@@ -166,6 +172,137 @@ describe('useSpatialNavigation', () => {
         });
 
         expect(onFocusChanged.mock.calls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // ── Key policy (shared clock normalizer through the hook) ──────────
+
+    const pressKey = (init: { key: string; code?: string; keyCode?: number }, repeat = false): KeyboardEvent => {
+        const event = new KeyboardEvent('keydown', { key: init.key, code: init.code ?? '', bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'keyCode', { get: () => init.keyCode });
+        Object.defineProperty(event, 'repeat', { get: () => repeat });
+        document.dispatchEvent(event);
+        return event;
+    };
+
+    it('gives the spatially selected element real DOM focus', () => {
+        const { result } = renderHook(() => useSpatialNavigation({}));
+        const el = document.createElement('button');
+        document.body.appendChild(el);
+        act(() => {
+            result.current.getFocusProps('btn-a').ref(el);
+            result.current.setFocusedId('btn-a');
+        });
+
+        expect(document.activeElement).toBe(el);
+        el.remove();
+    });
+
+    it('consumes live numpad direction digits as navigation regardless of Num Lock', () => {
+        const onSelect = mock((_id: string, _el: HTMLElement) => {});
+        const { result } = renderHook(() => useSpatialNavigation({ onSelect }));
+        const el = document.createElement('button');
+        document.body.appendChild(el);
+        act(() => {
+            result.current.getFocusProps('btn-a').ref(el);
+            result.current.setFocusedId('btn-a');
+        });
+
+        // Num Lock ON: key='2', code='Numpad2'. Must be consumed (prevented)
+        // as a direction — never leaked to the page as data.
+        const numlockOn = pressKey({ key: '2', code: 'Numpad2' });
+        expect(numlockOn.defaultPrevented).toBe(true);
+        // Num Lock OFF: key='ArrowDown', code='Numpad2'. Same direction.
+        const numlockOff = pressKey({ key: 'ArrowDown', code: 'Numpad2' });
+        expect(numlockOff.defaultPrevented).toBe(true);
+        el.remove();
+    });
+
+    it('edits the shared draft from outside the card but defers keys inside it', () => {
+        const onClockAction = mock((_action: ClockKeyAction) => {});
+        const { result } = renderHook(() => useSpatialNavigation({
+            entryOpen: true,
+            onClockAction,
+        }));
+        const el = document.createElement('button');
+        document.body.appendChild(el);
+        act(() => {
+            result.current.getFocusProps('btn-a').ref(el);
+            result.current.setFocusedId('btn-a');
+        });
+
+        // Target outside the entry card: the navigator edits the shared draft.
+        const outside = pressKey({ key: 'ArrowDown', code: 'Numpad2' });
+        expect(outside.defaultPrevented).toBe(true);
+        expect(onClockAction.mock.calls.map((c) => c[0].kind)).toEqual(['digit']);
+
+        // Target inside the entry card: the card's own handlers own the key.
+        const card = document.createElement('div');
+        card.setAttribute('data-clock-entry', '');
+        const cardButton = document.createElement('button');
+        card.appendChild(cardButton);
+        document.body.appendChild(card);
+        const inside = new KeyboardEvent('keydown', { key: '2', code: 'Numpad2', bubbles: true, cancelable: true });
+        Object.defineProperty(inside, 'repeat', { get: () => false });
+        cardButton.dispatchEvent(inside);
+        expect(inside.defaultPrevented).toBe(false);
+        expect(onClockAction.mock.calls.length).toBe(1);
+        el.remove();
+        card.remove();
+    });
+
+    it('routes media Play/Pause to the clock action, never Select', () => {
+        const onSelect = mock((_id: string, _el: HTMLElement) => {});
+        const onClockAction = mock((_action: ClockKeyAction) => {});
+        const { result } = renderHook(() => useSpatialNavigation({ onSelect, onClockAction }));
+        const el = document.createElement('button');
+        document.body.appendChild(el);
+        act(() => {
+            result.current.getFocusProps('btn-a').ref(el);
+            result.current.setFocusedId('btn-a');
+        });
+
+        pressKey({ key: 'MediaPlayPause', keyCode: 179 });
+        expect(onClockAction.mock.calls.map((c) => c[0].kind)).toEqual(['playback']);
+        expect(onSelect).not.toHaveBeenCalled();
+        el.remove();
+    });
+
+    it('activates the focused control exactly once per Enter press', () => {
+        const onSelect = mock((_id: string, _el: HTMLElement) => {});
+        const { result } = renderHook(() => useSpatialNavigation({ onSelect }));
+        const el = document.createElement('button');
+        document.body.appendChild(el);
+        act(() => {
+            result.current.getFocusProps('btn-a').ref(el);
+            result.current.setFocusedId('btn-a');
+        });
+
+        const event = pressKey({ key: 'Enter' });
+        expect(onSelect.mock.calls.length).toBe(1);
+        expect(onSelect.mock.calls[0][0]).toBe('btn-a');
+        expect(event.defaultPrevented).toBe(true);
+        // Held-key repeat does not re-trigger the mutation.
+        pressKey({ key: 'Enter' }, true);
+        expect(onSelect.mock.calls.length).toBe(1);
+        el.remove();
+    });
+
+    it('routes keypad-mode Enter to primary without activating the focused control', () => {
+        const onSelect = mock((_id: string, _el: HTMLElement) => {});
+        const onClockAction = mock(() => {});
+        const { result } = renderHook(() => useSpatialNavigation({ onSelect, onClockAction, controlMode: 'keypad' }));
+        const el = document.createElement('button');
+        document.body.appendChild(el);
+        act(() => {
+            result.current.getFocusProps('btn-a').ref(el);
+            result.current.setFocusedId('btn-a');
+        });
+
+        const event = pressKey({ key: 'Enter' });
+        expect(onSelect.mock.calls.length).toBe(0);
+        expect(onClockAction).toHaveBeenCalledWith({ kind: 'primary', ambiguous: true });
+        expect(event.defaultPrevented).toBe(true);
+        el.remove();
     });
 });
 

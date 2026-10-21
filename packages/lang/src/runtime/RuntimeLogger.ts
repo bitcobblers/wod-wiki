@@ -1,14 +1,22 @@
 /**
  * RuntimeLogger - Centralized debug logging for the runtime engine.
- * 
+ *
  * Enable/disable via:
  * - `RuntimeLogger.enable()` / `RuntimeLogger.disable()`
  * - `window.__WOD_DEBUG__ = true` in browser console
- * 
+ * - the app settings debug toggle (playground DebugModeContext syncs both ways)
+ *
+ * Output is the paper format from the timer-surfaces prototype (tier 04,
+ * `Kimi_Agent_WOD Timer UI Prototypes/app/index.html`): one line per state
+ * change — `HH:MM:SS.mmm  EVNT  subject…24  payload` — with the event code
+ * tinted as a bonus layer. Color never carries information the columns
+ * don't; a plain copy-paste stays aligned. See `RuntimeLogFormat`.
+ *
  * Logs:
- * - Block push/pop with behaviors
- * - `next()` calls
- * - Events that produce actions
+ * - Boot (runtime construction)
+ * - Block push/pop
+ * - `next()` calls and events that produce actions
+ * - Output statements (segment / milestone)
  * - Memory updates
  */
 
@@ -16,6 +24,12 @@ import { IRuntimeBlock } from './contracts/IRuntimeBlock';
 import { IRuntimeBehavior } from './contracts/IRuntimeBehavior';
 import { IRuntimeAction } from './contracts/IRuntimeAction';
 import { IEvent } from './contracts/events/IEvent';
+import {
+    formatRuntimeTimestamp,
+    padRuntimeLogEvent,
+    padRuntimeLogSubject,
+    formatRuntimeLogRule,
+} from './RuntimeLogFormat';
 
 /** Well-known debug globals this module installs on the browser window. */
 interface DebugWindow {
@@ -33,6 +47,20 @@ export interface RuntimeLogEntry {
     data?: Record<string, unknown>;
 }
 
+/** Minimal shape of an output statement for logging — structural on purpose
+ *  so the logger stays dependency-light (no core import). Outputs carry
+ *  source `text` and metrics, not a display label; the subject is derived
+ *  the same way output naming does (explicit Label metric). */
+export interface LoggableOutput {
+    outputType: string;
+    text?: string;
+    metrics?: Iterable<{ type: string; image?: string; value?: unknown }>;
+}
+
+// Event-code hues, straight from the prototype's console palette:
+// push violet, pop muted, next ochre, out green, time slate, halt red.
+type EventCode = 'BOOT' | 'PUSH' | 'POP' | 'NEXT' | 'EVNT' | 'OUT' | 'MEM' | 'TIME' | 'HALT' | 'WARN' | 'ERR';
+
 class RuntimeLoggerImpl {
     // Console is this logger's designated output sink; all writes funnel
     // through this single reference so the no-console rule is waived once.
@@ -42,15 +70,18 @@ class RuntimeLoggerImpl {
     private _history: RuntimeLogEntry[] = [];
     private _maxHistory = 500;
 
-    // Style constants for console output
-    private readonly STYLES = {
-        push: 'color: #22c55e; font-weight: bold',      // green
-        pop: 'color: #ef4444; font-weight: bold',       // red
-        next: 'color: #3b82f6; font-weight: bold',      // blue
-        event: 'color: #a855f7; font-weight: bold',     // purple
-        memory: 'color: #f59e0b; font-weight: bold',    // amber
-        action: 'color: #6366f1; font-weight: normal',  // indigo
-        origin: 'color: #64748b; font-weight: normal', // slate
+    private readonly EVENT_STYLES: Record<EventCode, string> = {
+        BOOT: 'color: #3b82f6; font-weight: bold',  // primary
+        PUSH: 'color: #a855f7; font-weight: bold',  // rounds violet
+        POP: 'color: #64748b',                      // muted
+        NEXT: 'color: #b45309; font-weight: bold',  // action ochre
+        EVNT: 'color: #a855f7; font-weight: bold',  // violet
+        OUT: 'color: #16a34a; font-weight: bold',   // effort green
+        MEM: 'color: #f59e0b',                      // amber
+        TIME: 'color: #3b82f6; font-weight: bold',  // time slate
+        HALT: 'color: #ef4444; font-weight: bold',  // destructive
+        WARN: 'color: #f59e0b; font-weight: bold',
+        ERR: 'color: #ef4444; font-weight: bold',
     };
 
     constructor() {
@@ -68,12 +99,14 @@ class RuntimeLoggerImpl {
 
     enable(): void {
         this._enabled = true;
-        this._console.log('%c[RT] 🔧 Runtime logging ENABLED', 'color: #22c55e; font-weight: bold');
+        this.writeLine('BOOT', 'runtime:ready', 'logging enabled');
     }
 
     disable(): void {
+        // Last line before the gate closes — visible even though _enabled
+        // is about to be false, so the operator sees the transition.
+        this.writeLine('HALT', 'runtime:logger', 'logging disabled');
         this._enabled = false;
-        this._console.log('%c[RT] Runtime logging disabled', 'color: #64748b');
     }
 
     getHistory(): RuntimeLogEntry[] {
@@ -89,27 +122,29 @@ class RuntimeLoggerImpl {
     // ============================================================================
 
     /**
-     * Log when a block is pushed onto the stack
+     * Log runtime construction. Called once by ScriptRuntime's constructor;
+     * dropped when logging is disabled, so cheap to leave wired.
      */
-    logPush(block: IRuntimeBlock, parentKey?: string): void {
+    logBoot(detail?: string): void {
+        if (!this._enabled) return;
+        this.writeLine('BOOT', 'runtime:ready', detail);
+    }
+
+    /**
+     * Log when a block is pushed onto the stack. `depth` is the 1-based
+     * stack depth the block landed at (prototype's `dN` column).
+     */
+    logPush(block: IRuntimeBlock, parentKey?: string, depth?: number): void {
         if (!this._enabled) return;
 
         const behaviors = this.getBehaviorNames(block);
-        const memoryTypes = block.getAllMemory?.().map(loc => loc.tag) ?? [];
+        const payload = [
+            `d${depth ?? '?'}  ${block.blockType ?? 'block'}`,
+            behaviors.length > 0 ? `behaviors [${behaviors.join(', ')}]` : undefined,
+            parentKey ? `parent ${parentKey.slice(0, 8)}` : undefined,
+        ].filter(Boolean).join(' · ');
 
-        this._console.groupCollapsed(
-            `%c[RT] ▶ PUSH %c${block.label || block.blockType || 'Block'}%c [${block.key.toString().slice(0, 8)}]`,
-            this.STYLES.push,
-            'color: inherit; font-weight: bold',
-            'color: #64748b; font-weight: normal'
-        );
-        this._console.log('Key:', block.key.toString());
-        if (parentKey) this._console.log('Parent:', parentKey);
-        this._console.log('Source IDs:', block.sourceIds);
-        this._console.log('Behaviors:', behaviors);
-        if (memoryTypes.length > 0) this._console.log('Memory Types:', memoryTypes);
-        this._console.groupEnd();
-
+        this.writeLine('PUSH', block.label || block.blockType || 'Block', payload);
         this.addToHistory('info', 'push', `PUSH ${block.label}`, {
             key: block.key.toString(),
             parentKey,
@@ -119,18 +154,13 @@ class RuntimeLoggerImpl {
     }
 
     /**
-     * Log when a block is popped from the stack
+     * Log when a block is popped from the stack. `depth` is the 1-based
+     * depth the block occupied (prototype's `dN` column).
      */
-    logPop(block: IRuntimeBlock, reason?: string): void {
+    logPop(block: IRuntimeBlock, reason?: string, depth?: number): void {
         if (!this._enabled) return;
 
-        this._console.log(
-            `%c[RT] ◀ POP  %c${block.label || block.blockType || 'Block'}%c [${block.key.toString().slice(0, 8)}]${reason ? ` (${reason})` : ''}`,
-            this.STYLES.pop,
-            'color: inherit; font-weight: bold',
-            'color: #64748b; font-weight: normal'
-        );
-
+        this.writeLine('POP', block.label || block.blockType || 'Block', `d${depth ?? '?'}${reason ? '  ' + reason : ''}`);
         this.addToHistory('info', 'pop', `POP ${block.label}`, {
             key: block.key.toString(),
             reason,
@@ -143,23 +173,11 @@ class RuntimeLoggerImpl {
     logNext(block: IRuntimeBlock, actions: IRuntimeAction[]): void {
         if (!this._enabled) return;
 
+        // Only log if there are actions, per user request
+        if (actions.length === 0) return;
+
         const actionNames = actions.map(a => a.type || a.constructor?.name || 'Action');
-
-        if (actions.length === 0) {
-            // Only log if there are actions, per user request
-            return;
-        }
-
-        this._console.groupCollapsed(
-            `%c[RT] → NEXT %c${block.label || 'Block'}%c → ${actions.length} action(s)`,
-            this.STYLES.next,
-            'color: inherit; font-weight: bold',
-            'color: #64748b; font-weight: normal'
-        );
-        this._console.log('Block:', block.key.toString());
-        this._console.log('Actions:', actionNames);
-        this._console.groupEnd();
-
+        this.writeLine('NEXT', block.label || 'Block', `${actionNames.length} action(s): [${actionNames.join(', ')}]`);
         this.addToHistory('info', 'next', `NEXT ${block.label}`, {
             key: block.key.toString(),
             actions: actionNames,
@@ -176,22 +194,41 @@ class RuntimeLoggerImpl {
         if (actions.length === 0) return;
 
         const actionNames = actions.map(a => a.type || a.constructor?.name || 'Action');
-
-        this._console.groupCollapsed(
-            `%c[RT] ⚡ EVENT %c${event.name}%c → ${actions.length} action(s)`,
-            this.STYLES.event,
-            'color: inherit; font-weight: bold',
-            'color: #64748b; font-weight: normal'
-        );
-        this._console.log('Event Data:', event.data);
-        this._console.log('Actions:', actionNames);
-        this._console.groupEnd();
-
+        this.writeLine('EVNT', event.name, `${actionNames.length} action(s): [${actionNames.join(', ')}]`);
         this.addToHistory('info', 'event', `EVENT ${event.name}`, {
             eventName: event.name,
             eventData: event.data,
             actions: actionNames,
         });
+    }
+
+    /**
+     * Log an output statement (segment / milestone). Called by OutputEmitter
+     * on every published output. 'system' outputs (sound cues etc.) and
+     * label-less structural outputs (the boot 'load' statement) are skipped —
+     * volume stays proportional to what the athlete did.
+     */
+    logOutput(output: LoggableOutput): void {
+        if (!this._enabled) return;
+        if (output.outputType !== 'segment' && output.outputType !== 'milestone') return;
+        const subject = output.text || this.outputSubject(output.metrics);
+        if (!subject) return;
+
+        this.writeLine('OUT', subject, output.outputType);
+        this.addToHistory('info', 'output', `OUT ${subject}`, {
+            outputType: output.outputType,
+            label: subject,
+        });
+    }
+
+    /** No `label` field exists on outputs — fall back to the explicit Label
+     *  metric (image, then value), matching the UI's naming convention. */
+    private outputSubject(metrics?: LoggableOutput['metrics']): string | undefined {
+        if (!metrics) return undefined;
+        for (const m of metrics) {
+            if (m.type === 'label') return m.image || (m.value != null ? String(m.value) : '') || undefined;
+        }
+        return undefined;
     }
 
     /**
@@ -201,20 +238,11 @@ class RuntimeLoggerImpl {
         if (!this._enabled) return;
 
         // Create a simplified view of the value
-        let displayValue: unknown = value;
-        if (typeof value === 'object' && value !== null) {
-            // For objects, show a summary
-            displayValue = this.summarizeObject(value as unknown as Record<string, unknown>);
-        }
+        const displayValue = typeof value === 'object' && value !== null
+            ? this.summarizeObject(value as unknown as Record<string, unknown>)
+            : value;
 
-        this._console.log(
-            `%c[RT] 📝 MEMORY %c${memoryType}%c on [${blockKey.slice(0, 8)}]:`,
-            this.STYLES.memory,
-            'color: inherit; font-weight: bold',
-            'color: #64748b; font-weight: normal',
-            displayValue
-        );
-
+        this.writeLine('MEM', memoryType, `[${blockKey.slice(0, 8)}] ${safeJson(displayValue)}`);
         this.addToHistory('debug', 'memory', `MEMORY ${memoryType}`, {
             blockKey,
             memoryType,
@@ -223,19 +251,12 @@ class RuntimeLoggerImpl {
     }
 
     /**
-     * Log action execution (verbose, under a group)
+     * Log action execution
      */
     logAction(action: IRuntimeAction, depth: number): void {
         if (!this._enabled) return;
-
-        const indent = '  '.repeat(depth);
         const actionName = action.type || action.constructor?.name || 'Action';
-
-        this._console.log(
-            `%c[RT] ${indent}⚙ %c${actionName}`,
-            this.STYLES.action,
-            'color: inherit'
-        );
+        this.writeLine('EVNT', actionName, `d${depth}`);
     }
 
     /**
@@ -244,8 +265,7 @@ class RuntimeLoggerImpl {
      */
     logMessage(level: LogLevel, category: string, message: string, data?: Record<string, unknown>): void {
         if (!this._enabled) return;
-
-        this._console.log(`%c[RT] ${category} %c${message}`, this.styleFor(level), 'color: inherit');
+        this.writeLine(level === 'error' ? 'ERR' : level === 'warn' ? 'WARN' : 'EVNT', category, message);
         this.addToHistory(level, category, message, data);
     }
 
@@ -254,13 +274,33 @@ class RuntimeLoggerImpl {
      * must be visible even when debug logging is disabled.
      */
     logAlways(level: LogLevel, category: string, message: string, data?: Record<string, unknown>): void {
-        this._console.log(`%c[RT] ${category} %c${message}`, this.styleFor(level), 'color: inherit');
+        this.writeLine(level === 'error' ? 'ERR' : level === 'warn' ? 'WARN' : 'EVNT', category, message);
         this.addToHistory(level, category, message, data);
+    }
+
+    /** A round-boundary rule in the paper format (prototype tier 04). */
+    logRule(label?: string): void {
+        if (!this._enabled) return;
+        this._console.log(`%c${formatRuntimeLogRule(label)}`, 'color: #94a3b8');
     }
 
     // ============================================================================
     // Helpers
     // ============================================================================
+
+    /**
+     * The one console write path: a single paper line with the event code
+     * tinted. `addToHistory` stays separate — entries carry structured data,
+     * lines carry display text.
+     */
+    private writeLine(code: EventCode, subject: string, payload?: string): void {
+        const ts = formatRuntimeTimestamp(new Date());
+        this._console.log(
+            `${ts}  %c${padRuntimeLogEvent(code)}%c  ${padRuntimeLogSubject(subject)}${payload ? '  ' + payload : ''}`,
+            this.EVENT_STYLES[code],
+            'color: inherit',
+        );
+    }
 
     private getBehaviorNames(block: IRuntimeBlock): string[] {
         // Access behaviors via reflection if possible
@@ -284,15 +324,6 @@ class RuntimeLoggerImpl {
         return summary;
     }
 
-    private styleFor(level: LogLevel): string {
-        switch (level) {
-            case 'error': return 'color: #ef4444; font-weight: bold';
-            case 'warn': return 'color: #f59e0b; font-weight: bold';
-            case 'info': return 'color: #3b82f6; font-weight: bold';
-            default: return 'color: #64748b';
-        }
-    }
-
     private addToHistory(level: LogLevel, category: string, message: string, data?: Record<string, unknown>): void {
         this._history.push({
             timestamp: new Date(),
@@ -306,6 +337,14 @@ class RuntimeLoggerImpl {
         if (this._history.length > this._maxHistory) {
             this._history = this._history.slice(-this._maxHistory);
         }
+    }
+}
+
+function safeJson(value: unknown): string {
+    try {
+        return JSON.stringify(value) ?? '';
+    } catch {
+        return String(value);
     }
 }
 

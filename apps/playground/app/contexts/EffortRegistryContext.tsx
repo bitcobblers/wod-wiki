@@ -23,8 +23,9 @@ const EffortRegistryContext = createContext<EffortRegistryContextValue | null>(n
 
 
 export function EffortRegistryProvider({ children }: { children: React.ReactNode }) {
-  const [isReady, setIsReady] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [{ isReady, error }, setStatus] = useState<Pick<EffortRegistryContextValue, 'isReady' | 'error'>>({
+    isReady: false, error: null,
+  });
   const registry = getAppEffortRegistry();
 
   const init = useCallback(async () => {
@@ -33,16 +34,13 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
       // user tier, so post-save refreshes and seed broadcasts see new and
       // removed rows alike (a one-shot init would cache stale rows forever).
       await hydrateAppEffortRegistry(registry);
-      setIsReady(true);
-      setError(null);
+      setStatus({ isReady: true, error: null });
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
-      setIsReady(false);
+      setStatus({ isReady: false, error: err instanceof Error ? err : new Error(String(err)) });
     }
   }, [registry]);
 
   const refresh = useCallback(async () => {
-    setIsReady(false);
     await init();
   }, [init]);
 

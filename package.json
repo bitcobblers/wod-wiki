@@ -68,6 +68,8 @@
     "test:e2e": "bun run test:playground",
     "test:e2e:storybook": "bun x playwright test --config playwright.storybook.config.ts",
     "generate:seed": "bun scripts/sync-seed.ts",
+    "sync:skills": "bun scripts/sync-skills.ts",
+    "check:skills": "bun scripts/sync-skills.ts --check",
     "test:seed": "bun scripts/sync-seed.ts",
     "check:architecture-regressions": "node scripts/check-architecture-regressions.cjs",
     "check:unused-exports": "node scripts/check-unused-exports-regressions.cjs",

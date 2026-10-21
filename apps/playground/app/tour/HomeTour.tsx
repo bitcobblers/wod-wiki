@@ -389,9 +389,10 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
         .then(() => {
           unsavedRef.current = null
           setRecordedSession(results)
-          setFullscreenOpen(false)
-          scrollInsightsIntoView()
-          return performPending()
+          if (externalStopRef.current || pendingActionRef.current) {
+            setFullscreenOpen(false)
+            return performPending()
+          }
         })
         .catch((err) => {
           finalizedRef.current = false
@@ -415,7 +416,8 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
 
   const handleFullscreenClose = useCallback(() => {
     setFullscreenOpen(false)
-  }, [])
+    scrollInsightsIntoView()
+  }, [scrollInsightsIntoView])
 
   // The panel's runtime callback feeds the auto-start gate (a fresh pane
   // mount must pop the waiting-to-start block its first time).
@@ -461,6 +463,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
     <FullscreenTimer
       key={timerSessionKey}
       block={fullscreenBlock}
+      resultId={run?.resultId}
       autoStart={autoStart}
       externalStop={externalStop}
       onRunStarted={handleRunStarted}

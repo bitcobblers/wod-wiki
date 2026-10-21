@@ -77,13 +77,13 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
     await expect(equipment.detailLabel()).toHaveText('Dumbbell');
     await expect(equipment.detailSource()).toContainText('Bundled');
     await expect(equipment.notebookEditor()).toBeVisible();
-    await expect(equipment.notebookEditor().getByText('handheld free weight')).toBeVisible();
+    const sourceBody = await equipment.notebookEditor().locator('.cm-content > .cm-line').allTextContents();
 
     // Copy-to-edit: the clone keeps the authored source and becomes editable.
     await equipment.cloneButton().click();
     await expect(equipment.detailLabel()).toHaveText('Dumbbell (Custom)');
     await expect(equipment.detailSource()).toContainText('Custom');
-    await expect(equipment.notebookEditor().getByText('handheld free weight')).toBeVisible();
+    await expect(equipment.notebookEditor().locator('.cm-content > .cm-line')).toHaveText(sourceBody);
 
     // Editing the custom copy commits the CUSTOM identity (slug/id/label) —
     // never the bundled projection — with the source body preserved.
@@ -100,7 +100,6 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
     await page.goto('/equipment/dumbbell-custom', { waitUntil: 'domcontentloaded' });
     await equipment.waitForDetailLoaded();
     await expect(equipment.detailLabel()).toHaveText('Dumbbell (Custom)');
-    await expect(equipment.notebookEditor().getByText('handheld free weight')).toBeVisible();
     await expect(equipment.notebookEditor().getByText('Updated after clone.')).toBeVisible();
 
     // A reload reads the committed custom source back.

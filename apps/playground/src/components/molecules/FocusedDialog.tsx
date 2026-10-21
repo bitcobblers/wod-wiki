@@ -48,6 +48,39 @@ export const FocusedDialog: React.FC<FocusedDialogProps> = ({
     };
   }, []);
 
+  // Modal focus ownership: save prior focus, move into the dialog, contain
+  // Tab inside, restore on exit — the underlying editor must never stay
+  // active under a fullscreen clock.
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    containerRef.current?.focus({ preventScroll: true });
+    return () => previous?.focus({ preventScroll: true });
+  }, []);
+
+  const trapTab = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab' || !containerRef.current) return;
+    const focusables = Array.from(
+      containerRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => el.offsetParent !== null);
+    if (focusables.length === 0) {
+      e.preventDefault();
+      return;
+    }
+    const active = document.activeElement as HTMLElement | null;
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    if (e.shiftKey && (active === first || active === containerRef.current || !containerRef.current.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   const isMinimal = variant === 'minimal';
 
   const closeBtn = (
@@ -69,7 +102,15 @@ export const FocusedDialog: React.FC<FocusedDialogProps> = ({
   // Portal to document.body so we escape any CSS containing blocks
   // (CodeMirror sets `contain: size style` on .cm-editor which traps fixed positioning).
   return ReactDOM.createPortal(
-    <div className={`fixed inset-0 z-[100] flex flex-col bg-background text-foreground animate-in fade-in duration-200`}>
+    <div
+      ref={containerRef}
+      onKeyDown={trapTab}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title ?? 'Workout'}
+      className={`fixed inset-0 z-[100] flex flex-col bg-background text-foreground outline-none animate-in fade-in duration-200`}
+    >
       {floatingClose || (isMinimal && !title) ? (
         <div className="absolute top-4 right-4 z-[110] flex items-center gap-2">
           {actions}

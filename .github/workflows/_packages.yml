@@ -67,6 +67,9 @@ jobs:
         id: typecheck
         run: bun run typecheck:package
 
+      - name: Check generated skill copies
+        run: bun run check:skills
+
       - name: Unit tests (vitest workspace)
         id: test
         run: bun run test:package

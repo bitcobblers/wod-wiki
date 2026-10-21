@@ -25,7 +25,7 @@ bun run check:storybook-deps  # Verify Storybook packages stay dev-only
 bun run docs:check       # Validate documentation links (<1 second)
 ```
 
-`bun run build:cli` builds packages and bundles both hosting apps into the engine distribution. Use it before packaging or running `wod server`/`wod playground` from a checkout. Hosting never builds assets at startup. The shared HTTP handler lives in `packages/engine/src/server/app.ts`; `apps/api` consumes the engine's `/server` export. After building, `bun packages/engine/tests/cli-extension-check.ts` checks relocated hosting and database persistence outside the checkout.
+`bun run build:cli` builds packages and bundles both hosting apps into the engine distribution. Use it before packaging or running `wod server`/`wod playground` from a checkout. Hosting never builds assets at startup. The shared HTTP handler lives in `packages/engine/src/server/app.ts`; `apps/api` consumes the engine's `/server` export. After building, `bun packages/tools/tests/cli-extension-check.ts` checks relocated hosting and database persistence outside the checkout.
 
 ## Build/Lint/Test Commands
 
@@ -362,6 +362,12 @@ e2e/
 - Save new Markdown documentation to `/docs` directory
 - Documentation auto-published to GitHub Wiki when pushed to main branch
 - API documentation in the Obsidian vault (`deep-dives/runtime-session-implementation.md`) provides detailed runtime stack patterns
+
+### Agent Skills (`skills/`)
+- Parsing/tooling skills for agents live in `skills/<name>/SKILL.md` — one source of truth (`skills/README.md` has the layout and install paths)
+- `wod skills install [--dir <project>]` copies them into a project's `.agents/skills/`; `wod skills list` shows what the CLI ships; `npx skills add bitcobblers/wod-wiki` installs per-agent
+- The playground can only serve static files, so the in-app download copy under `apps/playground/public/ai-skills/` is generated: `bun run sync:skills` writes it, `bun run check:skills` fails on drift (CI runs it)
+- `scripts/build-cli-assets.ts` stages `skills/` into `packages/tools/dist/skills/`; the package's `prepack` refuses to publish without it
 
 ## Performance Considerations
 

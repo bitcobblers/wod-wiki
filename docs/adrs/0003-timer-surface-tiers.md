@@ -21,8 +21,14 @@ header chrome) — and one shared core (`TimerCore`) underneath all tiers.
    | `PanelSizeMode` | Container width | Tier | Surface |
    |---|---|---|---|
    | `compact` | < 500px | Minimal | `MinimalTimerSurface` |
-   | `wide` | ≥ 500px | General | `GeneralTimerSurface` (strip compression when `isShort`) |
+   | `wide` | ≥ 500px | General | `GeneralTimerSurface` (full hero at any height¹) |
    | `full` | ≥ 900px | Detail | `TimerDisplay` (StackIntegratedTimer + TimerStackView) |
+
+   ¹ *Amended 2026-10-20*: the `mode="strip"` short-host compression was removed.
+   One General view renders everywhere the tier renders — including the cast
+   receiver, which already overrode the ladder (decision 2). The strip's
+   single-row layout read as a "wide line" on TV-shaped hosts and duplicated
+   the surface for a rare host shape.
 
    `TimerSurface` (`apps/playground/src/components/organisms/workout/TimerSurface.tsx`)
    is the single picker; hosts mount it instead of choosing themselves.
@@ -34,8 +40,9 @@ header chrome) — and one shared core (`TimerCore`) underneath all tiers.
    card) renders only alongside Detail (`full`). Wide hosts show General alone.
 
 4. **Live metric prompts** (session-total bubbles via `MetricTrackerCard`) render on
-   Minimal and General; the General strip compression (short hosts) omits them for lack
-   of room. In-run *input* prompts stay Detail-only until an input design exists.
+   Minimal and General at every host height (the strip exception retired with the
+   amendment to decision 1). In-run *input* prompts stay Detail-only until an input
+   design exists.
 
 5. **Detail keeps its own richer derivation** (`StackIntegratedTimer`); the shared
    `useTimerSurfaceModel` deliberately re-derives the subset Minimal/General need.

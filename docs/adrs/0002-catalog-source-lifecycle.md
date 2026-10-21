@@ -67,8 +67,15 @@ fields:
   autoImport:      { type: boolean, default: true, note: "false = never imported at boot (community, packages, custom)" }
 depends_on: [CustomSeedSource, SeedManifest]
 lifecycle:
-  resolved_by: defaultSeedSources() in order: core (Http, autoImport) → community (Http, opt-in) → SYNC_PACKAGES (Feed slices of the community manifest) → custom sources
+  resolved_by: defaultSeedSources() in order: core (Http, autoImport) → community (Http, opt-in; legacy corpus, still published) → SYNC_PACKAGES (one package per published notebook, each a FeedSeedSource slice of its own repo's seed dir — the split corpus in seedSources.ts SEED_REPOS) → custom sources
   consumed_by: [startSeedBootstrap, runBootSeedSync, runSeedSync, SubscribePage intake]
+```
+
+```yaml
+model: SeedWorkerRun
+source: apps/playground/src/services/seed/seedSync.worker.ts
+summary: "Production sync runs off the main thread: the driver (runSeedSyncViaWorker in seedSync.ts) posts specs to seedSync.worker.ts, which executes the seedSyncCore per-source loop (fetch, parse, validate, IndexedDB writes) and streams progress/results back. Main thread keeps activity reporting, content-cache invalidation, registry hydration, and the grouped catalog-update snapshot. Direct path remains for tests, injected storages, and VITE_STORAGE=api."
+invariant: "Forward each FeedSeedSource's chunkId across the worker boundary; a package imports only its selected chunk, never adjacent packages from the same manifest."
 ```
 
 ```yaml

@@ -16,7 +16,7 @@
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, subscribeCatalogUpdates, type SeedSyncDeps, type SeedSyncOutcome } from './seedSync';
-import { IndexedDBSeedImportStorage } from './SeedImportStorage';
+import { mainThreadSeedImportStorage } from './seedStorageDefault';
 import { isSeedSubscribed, migrateSeedSubscriptions } from './seedSubscriptions';
 import { SEED_BROADCAST_CHANNEL, seedMetaKey } from '@/types/seed';
 import { subscribeSyncActivity } from '@/services/syncActivity';
@@ -157,7 +157,7 @@ async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
   // Prior imported libraries become subscriptions (explicit on/off wins).
   await migrateSeedSubscriptions(all, deps.storage)
     .catch((err) => console.error('[seedSync] subscription migration failed', err));
-  const storage = deps.storage ?? new IndexedDBSeedImportStorage();
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
   let coreMeta;
   try {
     coreMeta = await storage.getSeedMeta(seedMetaKey('core'));
