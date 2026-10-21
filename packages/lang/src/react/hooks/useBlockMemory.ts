@@ -156,9 +156,10 @@ export function useTimerDisplay(block: IRuntimeBlock | undefined): TimerDisplayV
     // Get the sender's clock time if available (Chromecast receiver), otherwise use local clock
     // We check for the global window property set by the receiver during Chromecast sessions
     const getNow = (): number => {
-        // Check if we're in a Chromecast receiver context
-        if (typeof (window as unknown as { __chromecast_senderClockTimeMs?: unknown }).__chromecast_senderClockTimeMs === 'function') {
-            return (window as unknown as { __chromecast_senderClockTimeMs: () => number }).__chromecast_senderClockTimeMs();
+        // `typeof window` (not bare `window`): safe under SSR/env teardown.
+        if (typeof window !== 'undefined') {
+            const receiverClock = (window as unknown as { __chromecast_senderClockTimeMs?: unknown }).__chromecast_senderClockTimeMs;
+            if (typeof receiverClock === 'function') return receiverClock();
         }
         return Date.now();
     };
@@ -180,10 +181,10 @@ export function useTimerDisplay(block: IRuntimeBlock | undefined): TimerDisplayV
         let running = true;
 
         const tick = () => {
-            if (running) {
-                setNow(getNow());
-                animationFrameId = requestAnimationFrame(tick);
-            }
+            // rAF may vanish under env teardown; stop the loop instead of throwing unhandled.
+            if (!running || typeof requestAnimationFrame !== 'function') return;
+            setNow(getNow());
+            animationFrameId = requestAnimationFrame(tick);
         };
 
         animationFrameId = requestAnimationFrame(tick);
