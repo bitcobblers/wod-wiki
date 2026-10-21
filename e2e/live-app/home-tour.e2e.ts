@@ -201,10 +201,11 @@ test.describe('library & community feeds gallery', () => {
     await expect(firstCopies.getByTestId('demo-feed-community-crossfit-girls')).toBeVisible()
     await expect(firstCopies.getByTestId('demo-feed-community-dan-john-40-day')).toHaveCount(0)
 
-    // Sort by name: the girls collection leads the notebook cards.
+    // Sort by name: the label-sorted registry leads with CrossFit Games
+    // ("Games" < "Girls"), not the historical four-card order.
     await section.getByTestId('package-sort-name').click()
     const firstNotebook = firstCopies.locator('[data-kind]').first()
-    await expect(firstNotebook).toHaveAttribute('data-testid', 'demo-feed-community-crossfit-girls')
+    await expect(firstNotebook).toHaveAttribute('data-testid', 'demo-feed-community-crossfit-games')
   })
 
   test('mobile collapses to one alternating row', async ({ page }) => {

@@ -9,7 +9,8 @@
  * implies auto-update. Kept free of seedSync imports so the runtime graph
  * stays acyclic — callers pass the source list in.
  */
-import { IndexedDBSeedImportStorage, type SeedImportStorage } from './SeedImportStorage';
+import type { SeedImportStorage } from './SeedImportStorage';
+import { mainThreadSeedImportStorage } from './seedStorageDefault';
 import { seedMetaKey } from '@/types/seed';
 
 const STORAGE_KEY = 'wodwiki.seedSubscriptions';
@@ -116,7 +117,7 @@ export function setSeedAutoSync(id: string, enabled: boolean): boolean {
  */
 export async function migrateSeedSubscriptions(
   sources: ReadonlyArray<{ id: string }>,
-  storage: SeedImportStorage = new IndexedDBSeedImportStorage(),
+  storage: SeedImportStorage = mainThreadSeedImportStorage(),
 ): Promise<string[]> {
   const all = { ...readAll() };
   const migrated: string[] = [];

@@ -186,12 +186,12 @@ describe('TourJumpSection', () => {
     renderSection()
 
     fireEvent.click(screen.getByTestId('package-sort-name'))
-    expect(cardIds(copyEl('jump-row-mobile'))).toEqual([
-      'demo-feed-community-crossfit-girls',
-      'demo-feed-community-crossfit-heroes',
-      'demo-feed-community-crossfit-programming',
-      'demo-feed-community-dan-john-40-day',
-    ])
+    // The full registry renders; derive the expected order from the same
+    // label sort the gallery model applies (no installed dates in tests).
+    const expected = [...NOTEBOOK_PACKAGES]
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map(pkg => `demo-feed-${pkg.id}`)
+    expect(cardIds(copyEl('jump-row-mobile'))).toEqual(expected)
   })
 
   it('imports a package: syncs, subscribes, and reports the outcome on the card', async () => {
@@ -248,21 +248,21 @@ describe('TourJumpSection', () => {
       renderSection()
       expect(screen.queryByTestId('jump-row-mobile')).toBeNull()
 
-      // Default sort (updated → registry alphabetical), split in half.
-      expect(cardIds(copyEl('jump-row-a'))).toEqual([
-        'demo-feed-community-crossfit-girls',
-        'demo-feed-community-crossfit-heroes',
-      ])
-      expect(cardIds(copyEl('jump-row-b'))).toEqual([
-        'demo-feed-community-crossfit-programming',
-        'demo-feed-community-dan-john-40-day',
-      ])
+      // Default sort (uninstalled → registry alphabetical by label), split
+      // in half — derived from the registry, not a pinned card list.
+      const sorted = [...NOTEBOOK_PACKAGES]
+        .sort((a, b) => a.label.localeCompare(b.label))
+        .map(pkg => `demo-feed-${pkg.id}`)
+      const half = Math.ceil(sorted.length / 2)
+      expect(cardIds(copyEl('jump-row-a'))).toEqual(sorted.slice(0, half))
+      expect(cardIds(copyEl('jump-row-b'))).toEqual(sorted.slice(half))
     })
 
-    it('name sort reorders within the rows: the girls collection leads row A', () => {
+    it('name sort reorders within the rows: the alphabetically first label leads row A', () => {
       renderSection()
       fireEvent.click(screen.getByTestId('package-sort-name'))
-      expect(cardIds(copyEl('jump-row-a'))[0]).toBe('demo-feed-community-crossfit-girls')
+      const first = [...NOTEBOOK_PACKAGES].sort((a, b) => a.label.localeCompare(b.label))[0]
+      expect(cardIds(copyEl('jump-row-a'))[0]).toBe(`demo-feed-${first.id}`)
     })
   })
 })

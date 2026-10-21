@@ -22,6 +22,7 @@ const PACKAGES: SyncPackage[] = [
     description: 'Weekly CrossFit programming.',
     sourceId: 'common',
     sourceLabel: 'Common',
+    seedUrl: 'https://sergeigolos.github.io/wod-wiki-seed-crossfit/',
   },
   {
     id: 'community-crossfit-girls',
@@ -31,6 +32,7 @@ const PACKAGES: SyncPackage[] = [
     description: 'Classic benchmark workouts.',
     sourceId: 'common',
     sourceLabel: 'Common',
+    seedUrl: 'https://sergeigolos.github.io/wod-wiki-seed-crossfit/',
   },
   {
     id: 'community-dashboards',
@@ -40,6 +42,7 @@ const PACKAGES: SyncPackage[] = [
     description: 'Prebuilt dashboards.',
     sourceId: 'common',
     sourceLabel: 'Common',
+    seedUrl: 'https://sergeigolos.github.io/wod-wiki-seed-crossfit/',
   },
 ];
 
