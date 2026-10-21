@@ -195,6 +195,12 @@ The PR verification comment waits for package, playground, Storybook and both de
 
 Production-bundle Cast acceptance explicitly sets `localStorage['wodwiki.castBackend'] = 'local'` before sender startup. This opt-in exercises the real popup receiver and RPC transport without a physical TV; the default production backend remains Chromecast. All four local receiver scenarios passed against the production build, including paused Next rejection and numeric rep entry.
 
+Integration acceptance follows Stop confirmation through the saved review before dismissing the clock. Catalog fixtures use the real seed compiler and intercept worker requests at the browser-context level. A production worker smoke imported only the selected CrossFit Games chunk, not the adjacent Girls package. CLI skills discovery also passed through a `node_modules/.bin` symlink.
+
+Final local checks passed 1,994 package tests, 2,931 playground tests and 124 Storybook tests, with existing package expected failures/skips unchanged. All 18 Storybook acceptance scenarios passed. Landscape home checks dismiss completed sync notifications before hit-testing controls; toast viewport padding is click-through while notification cards remain interactive. Equipment clone acceptance compares the original body with the copied body instead of pinning external catalog wording.
+
+Background registry refresh keeps the hydrated registry ready instead of unmounting the editor behind a loading state. This prevents a seed-import broadcast from discarding a new effort's uncommitted label. The catalog create acceptance sends a broadcast during label editing; the original production bundle failed with an empty label.
+
 ## Evidence
 
 - [Timer tier decision](adrs/0003-timer-surface-tiers.md), especially input scope in §4.

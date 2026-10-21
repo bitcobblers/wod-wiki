@@ -129,6 +129,9 @@ test.describe('Collection clock values — targets, Ready/Start, durable actuals
 
 
   test('single final target leads Ready; stop confirms; post-run actual persists durably', async ({ page }, testInfo) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('wodwiki.castBackend', 'local');
+    });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await waitForSeedReady(page);
     await syncCommunitySeed(page);

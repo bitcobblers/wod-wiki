@@ -14,7 +14,7 @@ import {
   seedMetaKey,
   type SeedMetaRecord,
 } from '@/types/seed';
-import { SeedImporter, type SeedImportProgress } from './SeedImporter';
+import type { SeedImportProgress } from './SeedImporter';
 import { HttpSeedSource } from './HttpSeedSource';
 import type { SeedImportStorage } from './SeedImportStorage';
 import { mainThreadSeedImportStorage } from './seedStorageDefault';
@@ -30,7 +30,6 @@ import { profileService, storageBackend, storageService } from '@/services/stora
 import { getActiveLocalDbName } from '@/services/storage/dataSettings';
 import {
   runSourceSyncCore,
-  SEED_CLAIM_TTL_MS,
   type SeedSyncOutcome,
   type SourceSyncCoreResult,
 } from './seedSyncCore';
@@ -353,7 +352,7 @@ async function runSeedSyncViaWorker(
         id: s.id,
         label: s.label,
         url: s.url,
-        ...(s instanceof FeedSeedSource ? { chunkId: s.chunkId } : {}),
+        ...(s.source instanceof FeedSeedSource ? { chunkId: s.source.chunkId } : {}),
         embeddedVersion: s.embeddedVersion,
         autoSyncOn: isSeedAutoSync(s.id),
       })),

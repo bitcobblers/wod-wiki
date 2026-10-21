@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { seedNoteId } from '@bitcobblers/wod-wiki-engine';
+import { compileSeedRow } from '../../packages/tools/src/seedbuild/compiler';
 import { getNoteContentByRouteId, seedNote } from '../helpers/wodwikiDb';
+import { waitForSeedReady } from '../helpers/seedReadiness';
 
 /**
  * Catalog manager (/catalogs?manage=1) — companion to catalog-subscription
@@ -27,14 +30,7 @@ const USER_NOTE_BODY = '# My own note\n\nNever a seed row.\n';
 
 /** A real compiled chunk (same pipeline the publisher uses) with its manifest entry. */
 function chunkFixture() {
-  const rows = [{
-    path: SEED_NOTE_PATH,
-    content: SEED_NOTE_BODY,
-    blocks: {},
-    blockIndex: [],
-    blockEfforts: [],
-    blockEquipment: [],
-  }];
+  const rows = [compileSeedRow(SEED_NOTE_PATH, SEED_NOTE_BODY)];
   const bytes = JSON.stringify(rows);
   return {
     rows,
@@ -49,13 +45,15 @@ function chunkFixture() {
 }
 
 /** Register the custom source before any app script runs and mock its host.
- *  `version.current` is mutable so a test can publish a newer version. */
+ *  `version.current` is mutable so a test can publish a newer version.
+ *  Routes at the CONTEXT level: the seed sync fetches manifest/chunks inside
+ *  its Web Worker, and page.route cannot intercept worker-issued fetches. */
 async function seedSource(page: Page, version: { current: number }): Promise<void> {
   const { rows, entry } = chunkFixture();
   await page.addInitScript((source) => {
     localStorage.setItem('wodwiki.seedSources', JSON.stringify([source]));
   }, SOURCE);
-  await page.route(`${SOURCE_URL}manifest.json`, route =>
+  await page.context().route(`${SOURCE_URL}manifest.json`, route =>
     route.fulfill({
       json: {
         schema: 9,
@@ -67,7 +65,7 @@ async function seedSource(page: Page, version: { current: number }): Promise<voi
         chunks: [entry],
       },
     }));
-  await page.route(`${SOURCE_URL}${CHUNK_PATH}`, route => route.fulfill({ json: rows }));
+  await page.context().route(`${SOURCE_URL}${CHUNK_PATH}`, route => route.fulfill({ json: rows }));
 }
 
 test.describe('Catalog manager — /catalogs?manage=1', () => {
@@ -193,5 +191,35 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     expect(await getNoteContentByRouteId(page, USER_NOTE_PATH)).not.toBeNull();
     const sources = await page.evaluate(() => localStorage.getItem('wodwiki.seedSources'));
     expect(JSON.parse(sources ?? '[]')).toEqual([]);
+  });
+
+  test('subscribing one package leaves adjacent manifest packages unimported', async ({ page }) => {
+    const source = 'https://bitcobblers.github.io/wod-wiki-seed-crossfit/';
+    const chunks = ['crossfit-games', 'crossfit-girls'].map(name => {
+      const path = `markdown/collections/${name}/isolation.md`;
+      const content = `# ${name} isolation\n\nIsolated package body.`;
+      const body = JSON.stringify([compileSeedRow(path, content)]);
+      return { path, content, body, entry: {
+        id: `collection.${name}`, path: `chunks/collection.${name}.json`,
+        sha256: createHash('sha256').update(body).digest('hex'),
+        bytes: Buffer.byteLength(body), count: 1,
+      } };
+    });
+    await page.context().route(`${source}**`, route => {
+      const url = route.request().url();
+      if (url.endsWith('manifest.json')) return route.fulfill({ json: {
+        schema: 9, version: 999999999, builtAt: '2026-10-20T00:00:00.000Z',
+        chunks: chunks.map(chunk => chunk.entry),
+      } });
+      const chunk = chunks.find(chunk => url.endsWith(chunk.entry.path));
+      return chunk ? route.fulfill({ contentType: 'application/json', body: chunk.body }) : route.abort();
+    });
+    await page.goto('/settings/sync');
+    await waitForSeedReady(page);
+    const row = page.getByTestId('seed-source-community-crossfit-games');
+    await row.getByTestId('seed-subscribe-community-crossfit-games').click();
+    await expect(row.getByTestId('seed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
+    expect(await getNoteContentByRouteId(page, await seedNoteId(chunks[0].path))).toBe(chunks[0].content);
+    expect(await getNoteContentByRouteId(page, await seedNoteId(chunks[1].path))).toBeNull();
   });
 });

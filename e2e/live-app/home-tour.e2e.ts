@@ -45,7 +45,15 @@ for (const viewport of [
       await page.goto('/', { waitUntil: 'domcontentloaded' })
       await waitForSeedReady(page)
       await expect(page.getByTestId('sync-activity-indicators')).toHaveCount(0)
-      for (const close of await page.locator('[toast-close]').all()) await close.click()
+      // Sync-complete notifications publish a beat after the indicators
+      // clear; dismiss the stack through its close buttons only once it
+      // has stopped landing, so no toast overlaps the checks below.
+      await expect.poll(async () => {
+        for (const close of await page.locator('[toast-close]').all()) await close.click()
+        if (await page.locator('[toast-close]').count() > 0) return -1
+        await page.waitForTimeout(500)
+        return page.locator('[toast-close]').count()
+      }, { timeout: 15_000, message: 'sync completion toasts must settle and be dismissed' }).toBe(0)
 
       // The page opens with the heading hero, the video pitch, and the
       // live-preview editor below it.

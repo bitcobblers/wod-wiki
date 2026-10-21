@@ -13,7 +13,7 @@
  * Lazily imported by cli/runner.ts (dynamic import), so static node:fs/node:path
  * imports stay out of browser bundles.
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 export interface BundledSkill {
@@ -61,7 +61,7 @@ export function listBundledSkills(root: string): BundledSkill[] {
  * `packages/tools/src/bin/wod.ts`).
  */
 export function bundledSkillsRoot(): string | undefined {
-  const scriptDir = dirname(resolve(process.argv[1] ?? process.cwd()));
+  const scriptDir = dirname(realpathSync(process.argv[1] ?? process.cwd()));
   const candidates = ['skills', '../skills', '../../skills', '../../../skills', '../../../../skills'].map((rel) =>
     resolve(scriptDir, rel),
   );

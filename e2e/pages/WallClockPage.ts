@@ -181,23 +181,29 @@ export async function startWorkoutFromPlayground(page: Page, id: string, wodScri
   await expect(paused).toBeVisible({ timeout: 8_000 });
 }
 
-/** Click Next until the app lands on the completion route (/sessions/:id,
+/** Advance Next until the review surface appears: the inline "Workout
+ *  Complete" dialog on /run (the fullscreen review stays mounted on /run
+ *  until it is explicitly exited) or a completion route (/sessions/:id,
  *  retired /review, or /results — or fail after maxClicks). */
 export async function advanceUntilReview(page: Page, maxClicks = 8): Promise<void> {
+  const reviewDialog = page.getByRole('dialog', { name: 'Workout Complete' });
+  const atReview = async (): Promise<boolean> =>
+    /\/(dashboard|review|results|sessions?)/.test(page.url()) ||
+    (await reviewDialog.isVisible().catch(() => false));
+  // Race both completion signals; whichever lands first resolves the wait.
+  const waitReview = (timeout: number): Promise<void> =>
+    Promise.race([
+      page.waitForURL(/\/(dashboard|review|results|sessions?)/, { timeout }).catch(() => {}),
+      reviewDialog.waitFor({ state: 'visible', timeout }).catch(() => {}),
+    ]);
   for (let i = 0; i < maxClicks; i++) {
-    if (/\/(dashboard|review|results|sessions?)/.test(page.url())) return;
+    if (await atReview()) return;
     const next = page.locator(`[data-testid="${TEST_IDS.TIMER_NEXT_BLOCK}"]:visible`).first();
     if ((await next.count()) === 0) break;
     await next.click().catch(() => {});
-    await page.waitForURL(/\/(dashboard|review|results|sessions?)/, { timeout: 8_000 }).catch(() => {});
-    if (/\/(dashboard|review|results|sessions?)/.test(page.url())) return;
-    // Bounded wait for the advanced block's Next control to mount — replaces
-    // the fixed 1.5s settle between clicks.
-    await page
-      .locator(`[data-testid="${TEST_IDS.TIMER_NEXT_BLOCK}"]:visible`)
-      .first()
-      .waitFor({ state: 'visible', timeout: 5_000 })
-      .catch(() => {});
+    await waitReview(8_000);
   }
-  await page.waitForURL(/\/(dashboard|review|results|sessions?)/, { timeout: 5_000 });
+  if (!(await atReview())) {
+    throw new Error(`advanceUntilReview: review never appeared after ${maxClicks} Next clicks (url: ${page.url()})`);
+  }
 }

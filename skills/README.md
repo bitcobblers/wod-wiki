@@ -22,6 +22,9 @@ workout implies, the collectible `?` placeholders, statement structure).
 `.agents/skills/` is the shared location agent CLIs read; `npx skills` adds
 per-agent links (`-a <agent>`) or copies (`--copy`).
 
+The CLI resolves executable symlinks before locating bundled skills, including
+installs invoked through `node_modules/.bin/wod` or a global bin directory.
+
 ## Editing
 
 `skills/<name>/SKILL.md` is the only source. The playground cannot serve files

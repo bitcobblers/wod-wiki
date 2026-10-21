@@ -75,6 +75,7 @@ lifecycle:
 model: SeedWorkerRun
 source: apps/playground/src/services/seed/seedSync.worker.ts
 summary: "Production sync runs off the main thread: the driver (runSeedSyncViaWorker in seedSync.ts) posts specs to seedSync.worker.ts, which executes the seedSyncCore per-source loop (fetch, parse, validate, IndexedDB writes) and streams progress/results back. Main thread keeps activity reporting, content-cache invalidation, registry hydration, and the grouped catalog-update snapshot. Direct path remains for tests, injected storages, and VITE_STORAGE=api."
+invariant: "Forward each FeedSeedSource's chunkId across the worker boundary; a package imports only its selected chunk, never adjacent packages from the same manifest."
 ```
 
 ```yaml

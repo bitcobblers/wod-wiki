@@ -120,13 +120,13 @@ test.describe('Effort Detail Page', () => {
 
     await expect(efforts.detailLabel()).toHaveText('Rowing');
     await expect(efforts.detailSource()).toHaveText('Bundled');
-    // Identity header surfaces the typed attributes user-visibly: rowing
-    // met 7.0, intensityTier high (same contract as the kettlebell-snatch
-    // test below).
-    await expect(page.getByText('7 MET')).toBeVisible();
+    // Identity surfaces the typed attributes user-visibly in the properties
+    // panel: rowing met 7.0, intensityTier high (same contract as the
+    // kettlebell-snatch test below).
+    const properties = efforts.frontmatterProperties();
+    await expect(properties.getByLabel('MET value')).toHaveValue('7.0');
     await expect(page.getByLabel('Intensity tier')).toHaveValue('high');
     // Properties panel is editable: the slug lives in an input value.
-    const properties = efforts.frontmatterProperties();
     await expect(properties.getByLabel('Value for slug')).toHaveValue('rowing');
     await expect(efforts.cloneButton()).toBeVisible();
     await expect(efforts.editButton()).not.toBeVisible();
@@ -142,30 +142,36 @@ test.describe('Effort Detail Page', () => {
     await efforts.waitForDetailLoaded();
 
     await expect(efforts.detailLabel()).toHaveText('Kettlebell Snatch');
-    await expect(efforts.notebookEditor()).toContainText('kettlebell-snatch');
+    // The frontmatter preview replaces the raw YAML, so the slug is
+    // user-visible as the properties input value, not editor text.
+    const properties = efforts.frontmatterProperties();
+    await expect(properties.getByLabel('Value for slug')).toHaveValue('kettlebell-snatch');
     // Frontmatter companion surfaces the effort attributes.
-    await expect(page.getByText('12 MET')).toBeVisible();
+    await expect.poll(async () => Number(await properties.getByLabel('MET value').inputValue())).toBe(12);
     await expect(page.getByLabel('Intensity tier')).toHaveValue('high');
   });
 
   test('shows effort with aliases', async ({ page }) => {
-    await page.goto('/effort/rowing', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    const efforts = new EffortsPage(page);
+    await efforts.gotoDetail('rowing');
 
-    // Aliases are not a tags property (ui-package isTagProperty covers only
-    // tag/tags/category), so they render as the joined value input — text
-    // lookups find nothing because the panel is all inputs. Seeded rowing
-    // aliases: row, rower, rowing machine, erg, ergometer, concept2 row, …
-    const aliases = page.getByLabel('Value for aliases');
-    await expect(aliases).toBeVisible();
-    await expect(aliases).toHaveValue(/row, rower/);
+    // Aliases render as resolved chips with per-alias remove actions and an
+    // add input — not a joined text value. Seeded rowing aliases: row, rower,
+    // rowing machine, erg, ergometer, concept2 row, "Long Row", "Row
+    // Calories"; every chip links to the canonical Rowing page.
+    const aliases = efforts.frontmatterProperties().getByLabel('Add to aliases').locator('..');
+    await expect(aliases.getByLabel('Add to aliases')).toBeVisible();
+    await expect(aliases.getByRole('button', { name: 'Remove row', exact: true })).toBeVisible();
+    await expect(aliases.getByRole('button', { name: 'Remove rower', exact: true })).toBeVisible();
+    await expect(aliases.getByRole('button', { name: 'Remove concept2 row', exact: true })).toBeVisible();
+    await expect(aliases.getByRole('link', { name: 'Open Rowing page' }).first()).toBeVisible();
   });
 });
 
 // ── Clone Effort ─────────────────────────────────────────────────────────────
 // (The retired create-custom effort fixme lived here; the supported flow is
 // covered by efforts-catalog.e2e.ts "opens create-custom flow from the
-// catalog CTA and creates the effort" against the current textarea form.)
+// catalog CTA and creates the effort" against the notebook editor form.)
 
 test.describe('Clone Effort', () => {
   const cloneSlug = `${TEST_EFFORT_PREFIX}-clone-${Date.now()}`;

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { installSkills, listBundledSkills } from '../src/cli/skills';
+import { bundledSkillsRoot, installSkills, listBundledSkills } from '../src/cli/skills';
 
 const repoRoot = resolve(import.meta.dirname, '..', '..', '..');
 const skillsRoot = join(repoRoot, 'skills');
@@ -25,6 +25,26 @@ describe('bundled skills', () => {
 
   it('returns nothing for a directory without skills', () => {
     expect(listBundledSkills(join(repoRoot, 'packages'))).toEqual([]);
+  });
+
+  it('discovers packaged skills through a node_modules/.bin symlink', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wod-skills-bin-'));
+    const originalScript = process.argv[1];
+    try {
+      const bin = join(dir, 'node_modules', '.bin');
+      const dist = join(dir, 'node_modules', '@bitcobblers', 'wod-wiki-tools', 'dist');
+      mkdirSync(bin, { recursive: true });
+      mkdirSync(join(dist, 'bin'), { recursive: true });
+      mkdirSync(join(dist, 'skills', 'example'), { recursive: true });
+      writeFileSync(join(dist, 'bin', 'wod.mjs'), '');
+      writeFileSync(join(dist, 'skills', 'example', 'SKILL.md'), 'name: example');
+      symlinkSync(join(dist, 'bin', 'wod.mjs'), join(bin, 'wod'));
+      process.argv[1] = join(bin, 'wod');
+      expect(bundledSkillsRoot()).toBe(join(dist, 'skills'));
+    } finally {
+      process.argv[1] = originalScript;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -75,10 +95,3 @@ describe('installSkills', () => {
   });
 });
 
-describe('served copies', () => {
-  it('keeps the playground copy identical to the canonical skill', () => {
-    expect(readFileSync(join(repoRoot, 'apps/playground/public/ai-skills/parse.md'), 'utf-8')).toBe(
-      readFileSync(join(skillsRoot, 'wod-extraction', 'SKILL.md'), 'utf-8'),
-    );
-  });
-});

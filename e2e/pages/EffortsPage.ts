@@ -164,8 +164,7 @@ export class EffortsPage {
 
   async searchFor(term: string) {
     if (!term) {
-      await this.page.goto('/efforts', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-      await this.waitForCatalogLoaded();
+      await this.applyQuery(':effort');
       return;
     }
     const literal = /\s/.test(term) ? `"${term}"` : term;

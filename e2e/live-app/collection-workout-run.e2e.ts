@@ -171,8 +171,12 @@ test.describe('Collection Workout — run and record', () => {
     // wall time is ~10s of runtime.
     await page.waitForTimeout(500);
 
-    // 2. Stop early → result persists against the created note.
-    await page.getByTestId(TEST_IDS.TIMER_STOP_SESSION).click();
+    // 2. Stop early — Stop is never silent: the run first asks for
+    // confirmation (matching collection-clock-values); confirming halts and
+    // keeps the partial result.
+    await page.getByTestId(TEST_IDS.TIMER_STOP_SESSION).first().click();
+    await expect(page.getByText('Stop workout?')).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId(TEST_IDS.CLOCK_STOP_CONFIRM_ACCEPT).click();
 
     await expect
       .poll(async () => (await getSessions(page, noteUuid!)).length, { timeout: 10_000 })
@@ -180,13 +184,12 @@ test.describe('Collection Workout — run and record', () => {
     const sessions = await getSessions(page, noteUuid!);
     expect(sessions[0]?.completed, 'manual stop records an incomplete result').toBe(false);
 
-    // Results are displayed on the note page: the inline result panel renders
-    // under the WOD block (a review overlay may also open when the run has
-    // logs — close it so the note page is visible).
-    const closeReview = page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first();
-    if (await closeReview.isVisible().catch(() => false)) {
-      await closeReview.click();
-    }
+    // The persistent fullscreen review opens once the raw save settles and
+    // covers the note page until dismissed — the inline result panel renders
+    // under the WOD block only after an explicit Exit.
+    await expect(page.getByText('Workout Complete')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first().click();
+    await expect(page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first()).toBeHidden({ timeout: 8_000 });
     await expect(
       page.locator('.cm-query-block-preview, [data-testid="rows-table"]').first(),
       'result renders inline on the WOD block after stopping',
@@ -221,11 +224,11 @@ test.describe('Collection Workout — run and record', () => {
     expect(noteUuid, 'Play must create a journal note for today').toBeTruthy();
 
     // Step through the Ready-to-Start gate; the 3s AMRAP then completes
-    // naturally → a results view opens (the timer's own completion view
-    // and/or the page's review overlay).
+    // naturally → the persistent fullscreen review opens, but only after the
+    // host's save settles: "Workout Complete" implies the session committed.
     await expect(page.getByTestId(TEST_IDS.TIMER_STOP_SESSION)).toBeVisible({ timeout: 15_000 });
     await page.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).first().click();
-    await expect(page.getByText(/Workout (Complete|Review)/).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Workout Complete')).toBeVisible({ timeout: 30_000 });
     await page.screenshot({ path: testInfo.outputPath('collection-run-complete.png') });
 
     await expect
