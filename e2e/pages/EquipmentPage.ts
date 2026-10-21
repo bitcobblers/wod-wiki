@@ -122,6 +122,9 @@ export class EquipmentPage {
       await this.page.keyboard.press(`${modifier}+a`);
       await this.page.keyboard.insertText(text);
     }
+    // Real save trigger — drafts persist on blur (useEditorSave has no idle
+    // timer); typing-only edits must blur, as a touch user tapping away would.
+    await this.editorContent().blur();
     await this.page.waitForTimeout(300);
   }
 

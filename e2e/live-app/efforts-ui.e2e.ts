@@ -120,11 +120,9 @@ test.describe('Effort Detail Page', () => {
 
     await expect(efforts.detailLabel()).toHaveText('Rowing');
     await expect(efforts.detailSource()).toHaveText('Bundled');
-    // Identity surfaces the typed attributes user-visibly in the properties
-    // panel: rowing met 7.0, intensityTier high (same contract as the
-    // kettlebell-snatch test below).
+    // Assert metric values, not the number input's decimal formatting.
     const properties = efforts.frontmatterProperties();
-    await expect(properties.getByLabel('MET value')).toHaveValue('7.0');
+    await expect.poll(async () => Number(await properties.getByLabel('MET value').inputValue())).toBe(7);
     await expect(page.getByLabel('Intensity tier')).toHaveValue('high');
     // Properties panel is editable: the slug lives in an input value.
     await expect(properties.getByLabel('Value for slug')).toHaveValue('rowing');
@@ -138,7 +136,17 @@ test.describe('Effort Detail Page', () => {
     await efforts.gotoDetail('kettlebell-snatch');
     await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
-    await page.reload({ waitUntil: 'domcontentloaded' });
+    // Seed arrival must resolve an already-open missing effort without reload.
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      const observer = new BroadcastChannel('wodwiki.seed');
+      const sender = new BroadcastChannel('wodwiki.seed');
+      observer.onmessage = () => {
+        observer.close();
+        sender.close();
+        resolve();
+      };
+      sender.postMessage({ kind: 'seed-imported', source: 'core', version: 'e2e-refresh' });
+    }));
     await efforts.waitForDetailLoaded();
 
     await expect(efforts.detailLabel()).toHaveText('Kettlebell Snatch');
