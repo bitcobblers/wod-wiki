@@ -85,7 +85,7 @@ describe('TelemetryService', () => {
     expect(seen).toEqual([false, true]);
   });
 
-  it('exposes the 17 home funnel event names', () => {
+  it('exposes the 19 home funnel event names', () => {
     expect(Object.values(HOME_EVENTS)).toEqual([
       'home:demo_opened',
       'home:demo_run',
@@ -104,6 +104,8 @@ describe('TelemetryService', () => {
       'home:chapter_hero_viewed',
       'home:chapter_example_run',
       'home:chapter_guide_clicked',
+      'home:hosted_interest_clicked',
+      'home:hosted_survey_opened',
     ]);
   });
 });

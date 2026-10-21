@@ -55,7 +55,7 @@ export const FocusedDialog: React.FC<FocusedDialogProps> = ({
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     containerRef.current?.focus({ preventScroll: true });
-    return () => previous?.focus();
+    return () => previous?.focus({ preventScroll: true });
   }, []);
 
   const trapTab = (e: React.KeyboardEvent) => {

@@ -2,34 +2,66 @@ import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { cleanup, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { TourJumpSection } from './TourJumpSection'
-import * as seedSync from '@/services/seed/seedSync'
-import * as seedSubscriptions from '@/services/seed/seedSubscriptions'
 import { SYNC_PACKAGES } from '@/services/seed/seedSources'
+import { parseNotebookChunkId } from '../views/notebook-gallery/notebookGalleryModel'
+
+const NOTEBOOK_PACKAGES = SYNC_PACKAGES.filter(pkg => parseNotebookChunkId(pkg.chunkId) !== null)
+// jsdom has neither ResizeObserver nor layout; the marquee falls back to
+// one set per half (two copies) and tests scope queries to the first copy.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+Object.defineProperty(globalThis, 'ResizeObserver', { writable: true, value: ResizeObserverStub })
+
+let mediaMatches = false
+
+function mockMedia(matches: boolean) {
+  mediaMatches = matches
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: mediaMatches,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+      onchange: null,
+    }),
+  })
+}
 
 let subscribed = new Set<string>()
 let outcomes: Record<string, 'imported' | 'current' | 'server-stale' | 'error' | 'busy'> = {}
+const pending = new Set<string>()
 
 mock.module('@/services/seed/seedSubscriptions', () => ({
   isSeedSubscribed: (id: string) => subscribed.has(id),
   setSeedSubscribed: (id: string, value: boolean) => {
     if (value) subscribed.add(id)
     else subscribed.delete(id)
+    for (const listener of subscriptionListeners) listener()
     return true
   },
-  subscribeSeedSubscriptions: (cb: () => void) => () => {},
+  subscribeSeedSubscriptions: (cb: () => void) => {
+    subscriptionListeners.add(cb)
+    return () => subscriptionListeners.delete(cb)
+  },
 }))
+const subscriptionListeners = new Set<() => void>()
 
 mock.module('@/services/seed/seedSync', () => ({
-  syncSeedSource: async (id: string) => {
+  syncSeedSource: (id: string) => {
+    if (pending.has(id)) return new Promise(() => { /* hangs until released */ })
     const outcome = outcomes[id] ?? 'imported'
     if (outcome === 'imported' || outcome === 'current') {
       subscribed.add(id)
+      for (const listener of subscriptionListeners) listener()
     }
-    return outcome
-  },
-  removePackageFromLibrary: async (id: string) => {
-    subscribed.delete(id)
-    return { deleted: 1 }
+    return Promise.resolve(outcome)
   },
   readSeedCoverage: async () => ({
     coreImported: true,
@@ -45,132 +77,192 @@ function renderSection() {
   )
 }
 
+/** The marquee loops by duplicating the card set — scope queries to copy 0. */
+function copyEl(rowTestId: string): HTMLElement {
+  const copy = screen.getByTestId(rowTestId).querySelector('[data-marquee-copy="0"]')
+  expect(copy).toBeTruthy()
+  return copy as HTMLElement
+}
+function firstCopy(rowTestId: string) {
+  return within(copyEl(rowTestId))
+}
+/** Ids of the notebook cards (articles) inside a copy — not their inner controls. */
+function cardIds(el: HTMLElement) {
+  return Array.from(el.querySelectorAll('[data-kind]')).map(node => node.getAttribute('data-testid'))
+}
+
 describe('TourJumpSection', () => {
   beforeEach(() => {
     subscribed = new Set()
     outcomes = {}
+    pending.clear()
+    mockMedia(false) // default: mobile layout (single alternating row)
   })
   afterEach(() => {
     cleanup()
   })
 
-  it('renders the library exit leftmost, the journal exit next, and no playground exit', () => {
+  it('renders the library exit first, the journal exit next, and no playground exit', () => {
     renderSection()
     const section = screen.getByTestId('tour-jump-section')
     expect(section).toBeTruthy()
 
-    const track = within(section).getByTestId('jump-carousel-track')
-    expect(track.children[0].getAttribute('data-testid')).toBe('jump-library')
-    expect(track.children[1].getAttribute('data-testid')).toBe('jump-new-note')
+    const exits = screen.getByTestId('jump-grid').children[0]
+    expect(exits.children[0].getAttribute('data-testid')).toBe('jump-library')
+    expect(exits.children[1].getAttribute('data-testid')).toBe('jump-new-note')
     expect(screen.queryByTestId('jump-playgrounds')).toBeNull()
   })
 
   it('disables the library card with a 0 feeds synchronized note until a feed is synced', async () => {
     renderSection()
 
-    // Empty library → card is disabled with the note.
     await waitFor(() => {
       expect(screen.getByTestId('jump-library').getAttribute('aria-disabled')).toBe('true')
     })
     expect(screen.getByText('0 feeds synchronized')).toBeTruthy()
 
-    // Sync a package in → the card becomes a live /catalogs link again.
-    fireEvent.click(screen.getByTestId('demo-feed-subscribe-community-crossfit-programming'))
+    // Import a package in → the card becomes a live /catalogs link again.
+    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import'))
     await waitFor(() => {
       expect(screen.getByTestId('jump-library').getAttribute('href')).toBe('/catalogs')
     })
   })
 
-  it('renders package cards for all built-in sync packages', () => {
+  it('renders a notebook card for every built-in notebook package (dashboards excluded)', () => {
     renderSection()
-    for (const pkg of SYNC_PACKAGES) {
-      expect(screen.getByTestId(`demo-feed-${pkg.id}`)).toBeTruthy()
+    const row = firstCopy('jump-row-mobile')
+    for (const pkg of NOTEBOOK_PACKAGES) {
+      const card = row.getByTestId(`demo-feed-${pkg.id}`)
+      expect(card.getAttribute('data-installed')).toBe('false')
     }
+    expect(row.queryByTestId('demo-feed-community-dashboards')).toBeNull()
   })
 
-  it('filters packages via search box', () => {
+  it('filters notebooks via search box (label + description) with an empty state', () => {
     renderSection()
     const searchInput = screen.getByTestId('package-search-input')
 
     // Filter by name
     fireEvent.change(searchInput, { target: { value: 'Dan John' } })
-    expect(screen.getByTestId('demo-feed-community-dan-john-40-day')).toBeTruthy()
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day')).toBeTruthy()
     expect(screen.queryByTestId('demo-feed-community-crossfit-programming')).toBeNull()
 
-    // Filter by category
-    fireEvent.change(searchInput, { target: { value: 'collections' } })
-    expect(screen.getByTestId('demo-feed-community-crossfit-girls')).toBeTruthy()
+    // Filter by description
+    fireEvent.change(searchInput, { target: { value: 'murph' } })
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-heroes')).toBeTruthy()
     expect(screen.queryByTestId('demo-feed-community-crossfit-programming')).toBeNull()
 
-    // Clear search
+    // Clear search restores the full catalog
     fireEvent.change(searchInput, { target: { value: '' } })
-    expect(screen.getByTestId('demo-feed-community-crossfit-programming')).toBeTruthy()
-    expect(screen.getByTestId('demo-feed-community-dan-john-40-day')).toBeTruthy()
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming')).toBeTruthy()
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day')).toBeTruthy()
 
-    // No matches
+    // No matches → empty state with a clear-filters escape hatch
     fireEvent.change(searchInput, { target: { value: 'nonexistent-query-xyz' } })
-    expect(screen.getByText(/No packages match/i)).toBeTruthy()
+    expect(screen.getByText(/No notebooks match/i)).toBeTruthy()
+    fireEvent.click(screen.getByTestId('jump-clear-filters'))
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming')).toBeTruthy()
   })
 
-  it('toggles package into library on switch click, and out of library on next click', async () => {
+  it('filters by kind chips and restores on second click', () => {
     renderSection()
-    const feedId = 'community-crossfit-programming'
-    const toggle = screen.getByTestId(`demo-feed-toggle-${feedId}`)
 
-    // Initially not in library
-    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(screen.getByTestId('package-kind-feed'))
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming')).toBeTruthy()
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day')).toBeTruthy()
+    expect(screen.queryByTestId('demo-feed-community-crossfit-girls')).toBeNull()
 
-    // Turn ON -> syncs and marks in library
-    fireEvent.click(toggle)
+    fireEvent.click(screen.getByTestId('package-kind-collection'))
+    expect(screen.queryByTestId('demo-feed-community-crossfit-programming')).toBeNull()
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-girls')).toBeTruthy()
+
+    // Toggle the collection chip off → both kinds visible again
+    fireEvent.click(screen.getByTestId('package-kind-collection'))
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming')).toBeTruthy()
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-girls')).toBeTruthy()
+  })
+
+  it('sorts the row by name', () => {
+    renderSection()
+
+    fireEvent.click(screen.getByTestId('package-sort-name'))
+    expect(cardIds(copyEl('jump-row-mobile'))).toEqual([
+      'demo-feed-community-crossfit-girls',
+      'demo-feed-community-crossfit-heroes',
+      'demo-feed-community-crossfit-programming',
+      'demo-feed-community-dan-john-40-day',
+    ])
+  })
+
+  it('imports a package: syncs, subscribes, and reports the outcome on the card', async () => {
+    outcomes['community-crossfit-programming'] = 'imported'
+    renderSection()
+
+    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import'))
     await waitFor(() => {
-      expect(subscribed.has(feedId)).toBe(true)
-      expect(toggle.getAttribute('aria-checked')).toBe('true')
+      expect(subscribed.has('community-crossfit-programming')).toBe(true)
     })
-
-    // Turn OFF -> removes from library
-    fireEvent.click(toggle)
     await waitFor(() => {
-      expect(subscribed.has(feedId)).toBe(false)
-      expect(toggle.getAttribute('aria-checked')).toBe('false')
+      expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-status').textContent)
+        .toContain('Imported')
     })
   })
 
-  it('supports explicit sync and delete buttons', async () => {
+  it('never subscribes on server-stale, busy, or error outcomes — the card reports the error', async () => {
+    outcomes['community-crossfit-programming'] = 'server-stale'
+    outcomes['community-dan-john-40-day'] = 'error'
     renderSection()
-    const feedId = 'community-dan-john-40-day'
 
-    // Subscribe via subscribe button
-    fireEvent.click(screen.getByTestId(`demo-feed-subscribe-${feedId}`))
+    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import'))
     await waitFor(() => {
-      expect(screen.getByTestId(`demo-feed-sync-${feedId}`)).toBeTruthy()
-      expect(screen.getByTestId(`demo-feed-unsubscribe-${feedId}`)).toBeTruthy()
+      expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-status').getAttribute('role')).toBe('alert')
     })
-    expect(subscribed.has(feedId)).toBe(true)
-
-    // Sync now while in library
-    fireEvent.click(screen.getByTestId(`demo-feed-sync-${feedId}`))
+    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day-import'))
     await waitFor(() => {
-      expect(subscribed.has(feedId)).toBe(true)
+      expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day-status').getAttribute('role')).toBe('alert')
     })
-
-    // Delete button removes package
-    fireEvent.click(screen.getByTestId(`demo-feed-unsubscribe-${feedId}`))
-    await waitFor(() => {
-      expect(screen.getByTestId(`demo-feed-subscribe-${feedId}`)).toBeTruthy()
-    })
-    expect(subscribed.has(feedId)).toBe(false)
+    expect(subscribed.size).toBe(0)
+    // Both cards still offer import — no forced state.
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import')).toBeTruthy()
+    expect(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day-import')).toBeTruthy()
   })
 
-  it('scrolls carousel when left and right buttons are clicked', () => {
+  it('guards concurrent imports: one import in flight disables the other cards', async () => {
+    pending.add('community-crossfit-programming')
     renderSection()
-    const track = screen.getByTestId('jump-carousel-track')
-    const scrollBySpy = mock(() => {})
-    track.scrollBy = scrollBySpy
 
-    fireEvent.click(screen.getByLabelText('Next cards'))
-    expect(scrollBySpy).toHaveBeenCalled()
+    fireEvent.click(firstCopy('jump-row-mobile').getByTestId('demo-feed-community-crossfit-programming-import'))
+    await waitFor(() => {
+      expect(firstCopy('jump-row-mobile').getByText('Importing')).toBeTruthy()
+    })
+    const other = firstCopy('jump-row-mobile').getByTestId('demo-feed-community-dan-john-40-day-import') as HTMLButtonElement
+    expect(other.disabled).toBe(true)
+  })
 
-    fireEvent.click(screen.getByLabelText('Previous cards'))
-    expect(scrollBySpy).toHaveBeenCalledTimes(2)
+  describe('desktop rows', () => {
+    beforeEach(() => {
+      mockMedia(true) // ≥1024px → two rows sliding opposite ways
+    })
+
+    it('splits the catalog across two rows and slides them opposite ways', () => {
+      renderSection()
+      expect(screen.queryByTestId('jump-row-mobile')).toBeNull()
+
+      // Default sort (updated → registry alphabetical), split in half.
+      expect(cardIds(copyEl('jump-row-a'))).toEqual([
+        'demo-feed-community-crossfit-girls',
+        'demo-feed-community-crossfit-heroes',
+      ])
+      expect(cardIds(copyEl('jump-row-b'))).toEqual([
+        'demo-feed-community-crossfit-programming',
+        'demo-feed-community-dan-john-40-day',
+      ])
+    })
+
+    it('name sort reorders within the rows: the girls collection leads row A', () => {
+      renderSection()
+      fireEvent.click(screen.getByTestId('package-sort-name'))
+      expect(cardIds(copyEl('jump-row-a'))[0]).toBe('demo-feed-community-crossfit-girls')
+    })
   })
 })

@@ -72,6 +72,43 @@
   animation: pulse-opacity 1.5s ease-in-out infinite;
 }
 
+/* Notebook gallery marquee rows (Library & Community Feeds section). */
+@keyframes wod-marquee-left {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes wod-marquee-right {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+
+.wod-marquee-track {
+  animation-duration: 45s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.wod-marquee-track--left {
+  animation-name: wod-marquee-left;
+}
+
+.wod-marquee-track--right {
+  animation-name: wod-marquee-right;
+}
+
+/* One-row variant slides out and back (mobile "alternating sides"). */
+.wod-marquee-track--alternate {
+  animation-direction: alternate;
+}
+
+/* Moving cards pause while the pointer or keyboard is inside the row. */
+.wod-marquee:hover .wod-marquee-track,
+.wod-marquee:focus-within .wod-marquee-track {
+  animation-play-state: paused;
+}
+
 .wod-block-start-icon {
 
   background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB4PSIyIiB5PSI0IiB3aWR0aD0iMTIiIGhlaWdodD0iOCIgcng9IjEiIGZpbGw9IiMzYjgyZjYiLz4KICA8cGF0aCBkPSJNNSA3TDcgOUwxMSA1IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo=') no-repeat center center;

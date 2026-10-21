@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Database, HardDrive, Server, User, Users } from 'lucide-react'
+import { ArrowRight, ClipboardList, Database, HardDrive, Server, User, Users } from 'lucide-react'
 import { resetUserData } from '../../services/resetUserData'
 import { ROUTE_PATTERNS, noteByIdPath } from '../../lib/routes'
 import { getTodayDateKey } from '../../services/dateUtils'
 import { journalNotes } from '../../services/journalNotes'
 import { telemetry, HOME_EVENTS } from '@/services/telemetry'
+import { Button } from '@/components/atoms/primitives/button'
 import { readDataSettings, storageBackend } from '@/services/storage'
 import { TaglineHeader } from '../../tour/TaglineHeader'
 import { TOUR_ACCENTS } from '../../tour/tourConstants'
@@ -14,6 +15,21 @@ import { TOUR_ACCENTS } from '../../tour/tourConstants'
 // when the API grows one.
 const REPO_URL = 'https://github.com/bitcobblers/wod-wiki'
 const FORM_URL = 'https://forms.gle/6YHpxwAJh6PAsyAQ6'
+
+/** Hosted-section quiz: the survey's feature question, inline. The ids are
+ *  the `feature` payload sent to analytics — stable, never rename. */
+const INDIVIDUAL_FEATURES = [
+  { id: 'managed-hosting', label: 'Managed hosting — we run the database; you just sign in.' },
+  { id: 'public-profile', label: 'Profile page with a public feed.' },
+  { id: 'device-sync', label: 'Sync across your apps and devices.' },
+]
+const TEAM_FEATURES = [
+  { id: 'coach-views', label: 'Member accounts with coach views of athlete data.' },
+  { id: 'coaches-portal', label: 'Coaches portal — programming dashboards and leaderboards.' },
+  { id: 'athlete-portal', label: 'Athlete portal — private journals that roll up to their coach.' },
+  { id: 'gym-hosting', label: 'Gym website hosting, competition timers, and whiteboard displays.' },
+  { id: 'branding', label: "Website branding — your gym's brand on pages and feeds." },
+]
 
 const quietLink = 'underline-offset-4 transition-colors hover:text-foreground hover:underline'
 function CardLink(props: { to?: string; href?: string; onClick?: () => void; children: React.ReactNode }) {
@@ -62,16 +78,74 @@ function ActiveBadge() {
   )
 }
 
+/** One quiz row: the feature text plus its Interested latch. Clicking records
+ *  `home:hosted_interest_clicked` (payload: feature id) and unlocks the survey. */
+function FeatureRow(props: {
+  feature: { id: string; label: string }
+  interested: boolean
+  onInterested: (id: string) => void
+}) {
+  return (
+    <li className="flex items-center justify-between gap-3">
+      <span className="flex gap-2.5 text-sm leading-6 text-muted-foreground">
+        <span aria-hidden className="mt-[11px] size-1 shrink-0 rounded-full bg-muted-foreground/50" />
+        <span>{props.feature.label}</span>
+      </span>
+      <button
+        type="button"
+        data-testid={`hosted-interest-${props.feature.id}`}
+        onClick={() => props.onInterested(props.feature.id)}
+        disabled={props.interested}
+        aria-pressed={props.interested}
+        className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+          props.interested
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
+            : 'border-border text-muted-foreground hover:border-primary/50 hover:text-primary'
+        }`}
+      >
+        {props.interested ? '✓ Interested' : 'Interested'}
+      </button>
+    </li>
+  )
+}
+
+/** Third card of the hosted grid — mounts only once a feature is marked
+ *  interested, then the thank-you CTA calls out to the survey in a new tab. */
+function SurveyCard(props: { className?: string }) {
+  return (
+    <OfferingCard
+      icon={ClipboardList}
+      title="Thank you!"
+      text="Thanks for showing interest — please fill out the survey and give us feedback."
+      className={props.className}
+    >
+      <Button
+        type="button"
+        data-testid="hosted-survey-button"
+        className="mt-auto w-full"
+        onClick={() => {
+          telemetry.record(HOME_EVENTS.hostedSurveyOpened)
+          window.open(FORM_URL, '_blank', 'noopener,noreferrer')
+        }}
+      >
+        Fill out interest survey
+        <ArrowRight className="size-4" aria-hidden />
+      </Button>
+    </OfferingCard>
+  )
+}
+
 function OfferingCard(props: {
   icon: typeof Database
   title: string
   text: string
   badge?: React.ReactNode
+  className?: string
   children: React.ReactNode
 }) {
   const Icon = props.icon
   return (
-    <article className="flex flex-col rounded-xl border border-border bg-background p-5">
+    <article className={`flex flex-col rounded-xl border border-border bg-background p-5 ${props.className ?? ''}`}>
       <div className="flex items-center justify-between">
         <span className="flex size-10 items-center justify-center rounded-lg bg-foreground text-background">
           <Icon className="size-5" aria-hidden />
@@ -88,6 +162,14 @@ function OfferingCard(props: {
 export function OfferingTiers() {
   const [clearing, setClearing] = useState(false)
   const navigate = useNavigate()
+  // Hosted-section quiz state — shared by both offering cards; one or more
+  // interested features reveal the survey. ponytail: per-mount only; persist
+  // to localStorage if repeat visitors complain about re-tapping.
+  const [interested, setInterested] = useState<ReadonlySet<string>>(new Set())
+  const markInterested = (id: string) => {
+    setInterested((prev) => (prev.has(id) ? prev : new Set(prev).add(id)))
+    telemetry.record(HOME_EVENTS.hostedInterestClicked, { feature: id })
+  }
 
   // Sync reads — localStorage-backed, read once per mount (settings switches
   // reload the page).
@@ -120,8 +202,8 @@ export function OfferingTiers() {
       <section id="tour-section-offerings" data-testid="tour-section-offerings" aria-label="You own your data">
         <TaglineHeader
           index="03"
-          before="You "
-          accentText="Own the Data"
+          before="Who owns the data? "
+          accentText="You!!!"
           after=""
           accent={TOUR_ACCENTS.library}
           blurb="Browser modes run from IndexedDB, with optional backup and sync to your own Turso database. API deployments use a server you choose."
@@ -197,27 +279,21 @@ export function OfferingTiers() {
           accentText="Hosted"
           after=""
           accent={TOUR_ACCENTS.library}
-          blurb="Rather hand the caretaking to us? Wod-Wiki hosted is still taking shape — fill out the survey and help shape the plans."
+          blurb="Rather hand the caretaking to us? Wod-Wiki hosted is still taking shape — mark the features you want below and the interest survey unlocks."
         />
 
         <div className="mx-auto w-full max-w-[1500px] 2xl:max-w-[1720px] px-6 pb-16 pt-10 lg:px-12 xl:px-16">
-          <div className="mx-auto grid max-w-5xl grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="mx-auto grid max-w-5xl grid-cols-1 gap-5 md:grid-cols-3">
             <OfferingCard
               icon={User}
               title="Individuals"
               text="For people who don't want dev-level configuration — we host the database for you and keep every device in sync."
             >
-              <ul className="space-y-1.5">
-                <Bullet>Managed hosting — we run the database; you just sign in.</Bullet>
-                <Bullet>Profile page with a public feed.</Bullet>
-                <Bullet>Sync across your apps and devices.</Bullet>
+              <ul className="space-y-2.5">
+                {INDIVIDUAL_FEATURES.map((feature) => (
+                  <FeatureRow key={feature.id} feature={feature} interested={interested.has(feature.id)} onInterested={markInterested} />
+                ))}
               </ul>
-              <div className="mt-auto pt-3">
-                <CardLink href={FORM_URL}>Fill out interest survey</CardLink>
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  Takes two minutes — tell us what you'd like in a hosted personal account.
-                </span>
-              </div>
             </OfferingCard>
 
             <OfferingCard
@@ -225,20 +301,16 @@ export function OfferingTiers() {
               title="Coaching & gyms"
               text="For gyms and coaches — member accounts, coach views, and your brand on the surface."
             >
-              <ul className="space-y-1.5">
-                <Bullet>Member accounts with coach views of athlete data.</Bullet>
-                <Bullet>Coaches portal — programming dashboards and leaderboards.</Bullet>
-                <Bullet>Athlete portal — private journals that roll up to their coach.</Bullet>
-                <Bullet>Gym website hosting, competition timers, and whiteboard displays.</Bullet>
-                <Bullet>Website branding — your gym's brand on pages and feeds.</Bullet>
+              <ul className="space-y-2.5">
+                {TEAM_FEATURES.map((feature) => (
+                  <FeatureRow key={feature.id} feature={feature} interested={interested.has(feature.id)} onInterested={markInterested} />
+                ))}
               </ul>
-              <div className="mt-auto pt-3">
-                <CardLink href={FORM_URL}>Fill out interest survey</CardLink>
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  Takes two minutes — help shape our coaching and gym features.
-                </span>
-              </div>
             </OfferingCard>
+
+            {interested.size > 0 && (
+              <SurveyCard className="animate-in fade-in slide-in-from-bottom-4 duration-500" />
+            )}
           </div>
         </div>
       </section>

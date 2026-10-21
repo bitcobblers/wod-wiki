@@ -10,16 +10,23 @@
  * sub-note listing (bordered card, uppercase band header, divide-y links).
  */
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { Play } from 'lucide-react'
 
 import { useCanvasRoutes } from './canvasRoutes'
 import { guideChildrenFrom } from '../nav/appNavTree'
+import { YouTubeLightbox } from '../tour/YouTubeLightbox'
 import { cn } from '@/lib/utils'
+
+// ponytail: every guide watches the rickroll stand-in until the real
+// per-guide YouTube cuts exist — add a chapter-id → video-id map here.
+const GUIDE_VIDEO_ID = 'dQw4w9WgXcQ'
 
 export function GuideIndexFooter() {
   const routes = useCanvasRoutes()
   const { pathname } = useLocation()
+  const [watching, setWatching] = useState<{ id: string; label: string } | null>(null)
   const chapters = useMemo(
     () =>
       guideChildrenFrom(routes).flatMap((c) =>
@@ -46,12 +53,12 @@ export function GuideIndexFooter() {
         </h2>
         <ul className="flex flex-col divide-y divide-border">
           {chapters.map((c, idx) => (
-            <li key={c.id}>
+            <li key={c.id} className="flex items-stretch">
               <Link
                 to={c.to}
                 aria-current={idx === currentIndex ? 'page' : undefined}
                 className={cn(
-                  'flex flex-col gap-0.5 px-4 py-3 hover:bg-muted/50',
+                  'flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3 hover:bg-muted/50',
                   idx === currentIndex && 'bg-muted/50',
                 )}
               >
@@ -65,10 +72,28 @@ export function GuideIndexFooter() {
                 </span>
                 <span className="text-xs text-muted-foreground">{c.to}</span>
               </Link>
+              <button
+                type="button"
+                onClick={() => setWatching({ id: c.id, label: c.label })}
+                title={`Watch: ${c.label}`}
+                aria-label={`Watch: ${c.label}`}
+                data-testid="guide-watch"
+                className="flex flex-none items-center gap-1.5 border-l border-border px-4 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+              >
+                <Play className="size-3.5" />
+                Watch
+              </button>
             </li>
           ))}
         </ul>
       </div>
+      {watching && (
+        <YouTubeLightbox
+          videoId={GUIDE_VIDEO_ID}
+          title={watching.label}
+          onClose={() => setWatching(null)}
+        />
+      )}
     </nav>
   )
 }

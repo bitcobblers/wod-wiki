@@ -91,6 +91,28 @@ const fmtSeconds = (ms: number) => `${(Math.round(ms / 100) / 10).toFixed(1)}s`
 
 // ── Pane ────────────────────────────────────────────────────────────────────
 
+/** The no-run-yet call to action — shared by the insights result pane and
+ *  the session slide of the dashboards carousel. */
+export function InsightsRunCta({ onRun }: { onRun: () => void }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center" data-testid="tour-insights-empty">
+      <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+        Run the workout and this window turns your run into data — rest vs. work,
+        how fast you answered the clock, round by round.
+      </p>
+      <button
+        type="button"
+        onClick={onRun}
+        data-testid="tour-insights-run"
+        className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-colors hover:bg-primary/90"
+      >
+        <Play className="size-4" />
+        Run to view the results
+      </button>
+    </div>
+  )
+}
+
 export interface TourSessionInsightsProps {
   result: Sessions | null
   /** CTA: start the fullscreen run. */
@@ -101,23 +123,7 @@ export function TourSessionInsights({ result, onRun }: TourSessionInsightsProps)
   const insights = useMemo(() => (result ? deriveSessionInsights(result) : null), [result])
 
   if (!result || !insights) {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center" data-testid="tour-insights-empty">
-        <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-          Run the workout and this window turns your run into data — rest vs. work,
-          how fast you answered the clock, round by round.
-        </p>
-        <button
-          type="button"
-          onClick={onRun}
-          data-testid="tour-insights-run"
-          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-colors hover:bg-primary/90"
-        >
-          <Play className="size-4" />
-          Run to view the results
-        </button>
-      </div>
-    )
+    return <InsightsRunCta onRun={onRun} />
   }
 
   const { segments, totalMs, clockMs, nextMs, reactions } = insights

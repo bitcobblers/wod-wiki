@@ -179,13 +179,15 @@ The receiver exposes an explicit, focused Start Workout action after collection.
 
 The shared Next button keeps its fixed touch height instead of shrinking inside the vertical caption column. Direct browser checks at 375×812 and 812×375 found all three controls reachable without scrolling, with Stop at 48px and Pause/Next at 54px high. Pausing changed the control to Continue and disabled Next.
 
-Focused regression checks passed 381 tests across 40 files. The final command-board, Cast round-trip, collection and home-tour acceptance run passed all 15 scenarios with no retries, including 375×812, 812×375 and 1440×1000 home clocks. Receiver entry saved the actual as 9 reps, the review displayed it beside the planned 7, and the saved correction survived reload. `bun run build:storybook` and the receiver production build passed; General and Minimal stories were rendered and inspected.
+Focused regression checks passed 381 tests across 40 files. After integrating the current main branch, the command-board, Cast round-trip, collection and updated home-tour acceptance run passed all 19 scenarios with no retries, including 375×812, 812×375 and 1440×1000 home clocks. Receiver entry saved the actual as 9 reps, the review displayed it beside the planned 7, and the saved correction survived reload. `bun run build:storybook` and the receiver production build passed before this integration; General and Minimal stories were rendered and inspected.
 
-The final playground unit run passed all 2,912 tests across 299 isolated files. The full playground TypeScript check still fails on existing diagnostics. The newly exposed collection-fixture metric type was corrected; no clean full-app typecheck is claimed.
+After integrating main, the playground unit run passed all 2,932 tests across 301 isolated files. The full playground TypeScript check still fails on existing diagnostics. The newly exposed collection-fixture metric type was corrected; no clean full-app typecheck is claimed.
 
 Run acceptance against a fresh dev server after seed generation finishes. Regenerating `public/seed` under an existing Vite server was observed to make manifest requests return HTML, failing the seed gate before clock assertions.
 
 Put Playwright output outside the repository with `--output=/tmp/wod-clock-acceptance`. In-repository screenshot and trace writes triggered repeated Vite CSS updates during acceptance; a captured blank-page failure reported duplicate `createRoot()` and `removeChild` errors during those updates.
+
+The main-branch home redesign retains its editor and result sections. Completion keeps the saved fullscreen review open; dismissing it glides to the insights section. Focus restoration uses `preventScroll` so returning focus to the editor cannot override that glide. The integrated path was exercised in the browser and the home acceptance suite.
 
 ## Evidence
 

@@ -1,14 +1,14 @@
 /**
- * HomeTour.arrival.test.tsx — ticket #882: arrival & hero-reset contract.
+ * HomeTour.arrival.test.tsx — ticket #882: arrival & editor-reset contract.
  *
  * Locked contract (wayfinder map #881, revised mid-walk):
  *  1. Arrival — `/load?z=<gzip>&by=<name>` persists the shared script to
- *     localStorage (see useZipProcessor.test.ts); on home the hero editor
- *     shows it instead of welcome-1.md.
+ *     localStorage (see useZipProcessor.test.ts); on home the live-preview
+ *     editor shows it instead of welcome-1.md.
  *  2. Attribution — while shared content is active the editor header reads
  *     `shared by: {by}` (fallback `anonymous`).
  *  3. Reset button — clears the stored script and restores welcome-1.md.
- *  4. Hero re-entry — always resets the editor to the initial load content
+ *  4. Editor re-entry — always resets the editor to the initial load content
  *     (shared script while active, else welcome-1.md); the initial viewport
  *     entry is arrival, not a re-entry.
  */
@@ -17,7 +17,7 @@ import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
-import type { Quest, Chapter } from '../canvas/parseCanvasMarkdown'
+import type { Quest } from '../canvas/parseCanvasMarkdown'
 import type { ScriptBlock } from '@/components/Editor/types'
 
 // ── Heavy / browser-only dependencies ───────────────────────────────────────
@@ -105,10 +105,10 @@ import { HomeTour } from './HomeTour'
 type IOCallback = (entries: Array<{ isIntersecting: boolean; target: Element }>) => void
 let ioCallbacks: Array<{ callback: IOCallback; target: Element }> = []
 
-async function simulateHeroVisibility(visible: boolean) {
+async function simulateEditorVisibility(visible: boolean) {
   await act(async () => {
     for (const { callback, target } of ioCallbacks) {
-      if (target.parentElement?.dataset.testid === 'home-tour' && target.getAttribute('aria-hidden') === 'true') {
+      if (target.getAttribute('data-testid') === 'tour-section-editor') {
         callback([{ isIntersecting: visible, target }])
       }
     }
@@ -128,9 +128,8 @@ const wodFiles: Record<string, string> = {
 }
 
 const homeQuests: Quest[] = []
-const chapters: Chapter[] = []
 
-function heroEditor(): HTMLTextAreaElement {
+function editorInput(): HTMLTextAreaElement {
   return screen.getAllByTestId('mock-note-editor')[0] as HTMLTextAreaElement
 }
 
@@ -191,7 +190,6 @@ describe('HomeTour arrival & hero-reset contract', () => {
             wodFiles={wodFiles}
             theme="light"
             quests={homeQuests}
-            chapters={chapters}
           />
         </NuqsAdapter>
       </MemoryRouter>,
@@ -204,14 +202,14 @@ describe('HomeTour arrival & hero-reset contract', () => {
 
   it('loads welcome-1.md into the hero editor when no shared script is stored', async () => {
     await renderHomeTour()
-    expect(heroEditor().value).toBe(WELCOME)
+    expect(editorInput().value).toBe(WELCOME)
     expect(screen.queryByText('Home / Notes / welcome-1.md')).toBeNull()
   })
 
   it('shows the stored shared script with a "shared by" attribution', async () => {
     seedShared({ content: SHARED, by: 'serge' })
     await renderHomeTour()
-    expect(heroEditor().value).toBe(SHARED)
+    expect(editorInput().value).toBe(SHARED)
     expect(screen.getAllByText(/shared by: serge/).length).toBeGreaterThan(0)
     expect(screen.queryByText('Home / Notes / welcome-1.md')).toBeNull()
   })
@@ -219,57 +217,57 @@ describe('HomeTour arrival & hero-reset contract', () => {
   it('falls back to "anonymous" when the shared script has no author', async () => {
     seedShared({ content: SHARED })
     await renderHomeTour()
-    expect(heroEditor().value).toBe(SHARED)
+    expect(editorInput().value).toBe(SHARED)
     expect(screen.getAllByText(/shared by: anonymous/).length).toBeGreaterThan(0)
   })
 
   it('restores welcome-1.md and clears the stored script when Reset is clicked', async () => {
     seedShared({ content: SHARED, by: 'serge' })
     await renderHomeTour()
-    expect(heroEditor().value).toBe(SHARED)
+    expect(editorInput().value).toBe(SHARED)
 
     const resetButton = screen.getAllByTitle('Reset')[0]
     fireEvent.click(resetButton)
 
-    expect(heroEditor().value).toBe(WELCOME)
+    expect(editorInput().value).toBe(WELCOME)
     expect(window.localStorage.getItem(SHARED_KEY)).toBeNull()
     expect(screen.queryByText(/shared by/)).toBeNull()
   })
 
-  it('resets the editor to the initial content when the hero re-enters the viewport', async () => {
+  it('resets the editor to the initial content when the editor section re-enters the viewport', async () => {
     await renderHomeTour()
 
-    fireEvent.change(heroEditor(), { target: { value: 'MY EDITS' } })
-    expect(heroEditor().value).toBe('MY EDITS')
+    fireEvent.change(editorInput(), { target: { value: 'MY EDITS' } })
+    expect(editorInput().value).toBe('MY EDITS')
 
     // Leaving the viewport alone does not reset.
-    await simulateHeroVisibility(false)
-    expect(heroEditor().value).toBe('MY EDITS')
+    await simulateEditorVisibility(false)
+    expect(editorInput().value).toBe('MY EDITS')
 
     // Re-entry resets, discarding the in-progress edits.
-    await simulateHeroVisibility(true)
-    expect(heroEditor().value).toBe(WELCOME)
+    await simulateEditorVisibility(true)
+    expect(editorInput().value).toBe(WELCOME)
   })
 
   it('does not reset on the initial viewport entry', async () => {
     await renderHomeTour()
 
-    fireEvent.change(heroEditor(), { target: { value: 'MY EDITS' } })
-    expect(heroEditor().value).toBe('MY EDITS')
+    fireEvent.change(editorInput(), { target: { value: 'MY EDITS' } })
+    expect(editorInput().value).toBe('MY EDITS')
 
     // The first observed entry is the arrival itself — not a re-entry.
-    await simulateHeroVisibility(true)
-    expect(heroEditor().value).toBe('MY EDITS')
+    await simulateEditorVisibility(true)
+    expect(editorInput().value).toBe('MY EDITS')
   })
 
-  it('resets to the shared script (not welcome-1.md) on hero re-entry while shared', async () => {
+  it('resets to the shared script (not welcome-1.md) on editor re-entry while shared', async () => {
     seedShared({ content: SHARED, by: 'serge' })
     await renderHomeTour()
-    expect(heroEditor().value).toBe(SHARED)
+    expect(editorInput().value).toBe(SHARED)
 
-    fireEvent.change(heroEditor(), { target: { value: 'MY EDITS' } })
-    await simulateHeroVisibility(false)
-    await simulateHeroVisibility(true)
-    expect(heroEditor().value).toBe(SHARED)
+    fireEvent.change(editorInput(), { target: { value: 'MY EDITS' } })
+    await simulateEditorVisibility(false)
+    await simulateEditorVisibility(true)
+    expect(editorInput().value).toBe(SHARED)
   })
 })
