@@ -56,11 +56,11 @@ export class PushBlockAction implements IRuntimeAction {
             // Mount the block with lifecycle options - returns actions to be executed
             const mountActions = this.block.mount(runtime, lifecycle);
 
-            // Log the push with behaviors
+            // Log the push with behaviors (depth = landed stack depth, 1-based)
             const parentKey = runtime.stack.blocks.length > 1
                 ? runtime.stack.blocks[1]?.key.toString()
                 : undefined;
-            RuntimeLogger.logPush(this.block, parentKey);
+            RuntimeLogger.logPush(this.block, parentKey, runtime.stack.blocks.length);
 
             return mountActions;
 
