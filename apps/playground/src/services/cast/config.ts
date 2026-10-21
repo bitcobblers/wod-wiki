@@ -52,6 +52,11 @@ export type CastBackendKind = 'chromecast' | 'local' | 'auto';
 
 const rawCastBackend = (import.meta.env.VITE_CAST_BACKEND ?? '').toString().trim().toLowerCase();
 
+// e2e-only opt-in: tests set this localStorage key to 'local' to force the
+// dual-tab LocalTabBackend mirror (never 'chromecast') over the build's
+// VITE_CAST_BACKEND selection.
+const CAST_BACKEND_LOCAL_OVERRIDE_KEY = 'wodwiki.castBackend';
+
 function resolveAuto(): Exclude<CastBackendKind, 'auto'> {
     // Vite exposes MODE: 'development' | 'production' | 'test'.
     // In production-like builds (release, storybook publish), use the real
@@ -61,11 +66,15 @@ function resolveAuto(): Exclude<CastBackendKind, 'auto'> {
     return 'local';
 }
 
-export const CAST_BACKEND: Exclude<CastBackendKind, 'auto'> = (
-    rawCastBackend === 'chromecast' || rawCastBackend === 'local'
-        ? rawCastBackend
-        : resolveAuto()
-) as Exclude<CastBackendKind, 'auto'>;
+export const CAST_BACKEND: Exclude<CastBackendKind, 'auto'> = ((): Exclude<CastBackendKind, 'auto'> => {
+    try {
+        if (window.localStorage.getItem(CAST_BACKEND_LOCAL_OVERRIDE_KEY) === 'local') return 'local';
+    } catch {
+        // Non-browser module load (bun/vitest) or private mode — ignore.
+    }
+    if (rawCastBackend === 'chromecast' || rawCastBackend === 'local') return rawCastBackend;
+    return resolveAuto();
+})();
 
 // Storybook production builds inject this via `config.define` in
 // `.storybook/main.mjs` so the receiver URL is baked at compile time.

@@ -258,8 +258,6 @@ export class ScriptRuntime implements IScriptRuntime {
      */
     public addOutput(output: IOutputStatement): void {
         this._output.add(output);
-        // Paper-format OUT line when debug logging is on (prototype tier 04).
-        RuntimeLogger.logOutput(output);
     }
 
     public setAnalyticsEngine(engine: IAnalyticsEngine): void {

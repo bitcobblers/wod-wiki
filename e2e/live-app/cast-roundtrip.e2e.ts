@@ -6,9 +6,11 @@
  * state machine with matching workout data?
  *
  * Harness decision (made at stage open): LocalTabBackend dual-tab FIRST.
- * Rationale — dev builds default VITE_CAST_BACKEND to `local`, so the real
- * Cast button opens a genuine receiver popup (`/receiver-rpc.html?local=<id>`)
- * and exercises the real postMessage handshake + RPC transport. Playwright
+ * Rationale — the sender forces the local mirror at runtime (see the
+ * `wodwiki.castBackend` override in cast/config.ts), so the real Cast button
+ * opens a genuine receiver popup (`/receiver-rpc.html?local=<id>`) and
+ * exercises the real postMessage handshake + RPC transport on every target.
+ * Playwright
  * captures the popup via context 'page' event; the popup shares the browser
  * context (same origin, window.opener intact) so the handshake is faithful.
  * Direct receiver-message injection is the documented fallback if the popup
@@ -55,20 +57,13 @@ test.describe('Cast Sender↔Receiver Round-Trip (LocalTabBackend)', () => {
     page.on('dialog', (d) => { void d.accept(); });
     await page.addInitScript(() => {
       window.localStorage.setItem('wodwiki.profileInitialized.v1', 'true');
+      // Force the LocalTabBackend mirror over the bundle's VITE_CAST_BACKEND
+      // (see config.ts) so production builds open the real receiver popup.
+      // Sender page only — the receiver boots from its `?local=` URL param.
+      window.localStorage.setItem('wodwiki.castBackend', 'local');
     });
-    // Preview/production bundles select the Chromecast backend ('auto' →
-    // MODE === 'production' in apps/playground/src/services/cast/config.ts;
-    // release workflows set VITE_CAST_BACKEND=chromecast explicitly), so no
-    // receiver popup exists and this LocalTabBackend round-trip cannot run
-    // there. Tracked in #1067 — do not enable against production bundles.
-    // A loopback E2E_APP_URL (root's isolated dev server) still runs the dev
-    // build with the real LocalTabBackend, so it is allowed; only preview is
-    // skipped.
-    if (process.env.E2E_TARGET === 'preview') {
-      test.skip(true, 'Cast round-trip needs the dev-mode LocalTabBackend; production selects ChromecastBackend (#1067)');
-    }
-    // Dev mode: a navigation failure fails the test — a silent skip here
-    // would hide a broken dev server.
+    // With the override, the real LocalTabBackend handshake works in every
+    // target — dev, preview, deployed remote (E2E_APP_URL) — so no skips.
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 30_000 });
   });
 

@@ -189,6 +189,12 @@ Put Playwright output outside the repository with `--output=/tmp/wod-clock-accep
 
 The main-branch home redesign retains its editor and result sections. Completion keeps the saved fullscreen review open; dismissing it glides to the insights section. Focus restoration uses `preventScroll` so returning focus to the editor cannot override that glide. The integrated path was exercised in the browser and the home acceptance suite.
 
+The pre-main integration of #1082, #1083 and #1084 passed 1,993 package tests, 2,931 playground tests and 124 Storybook interaction tests. Package lint and typechecking, playground/Storybook/receiver builds, relocated CLI hosting and all 18 Storybook acceptance scenarios passed. The production browser check confirmed mobile Pause disables Next and Stop retains the saved fullscreen review. Physical Cast/keypad delivery remains outside browser coverage.
+
+The PR verification comment waits for package, playground, Storybook and both deployed E2E jobs. A failed package or E2E job now prevents the comment from reporting verification passed.
+
+Production-bundle Cast acceptance explicitly sets `localStorage['wodwiki.castBackend'] = 'local'` before sender startup. This opt-in exercises the real popup receiver and RPC transport without a physical TV; the default production backend remains Chromecast. All four local receiver scenarios passed against the production build, including paused Next rejection and numeric rep entry.
+
 ## Evidence
 
 - [Timer tier decision](adrs/0003-timer-surface-tiers.md), especially input scope in §4.

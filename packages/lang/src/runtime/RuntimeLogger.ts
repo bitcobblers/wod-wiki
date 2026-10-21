@@ -48,10 +48,13 @@ export interface RuntimeLogEntry {
 }
 
 /** Minimal shape of an output statement for logging — structural on purpose
- *  so the logger stays dependency-light (no core import). */
+ *  so the logger stays dependency-light (no core import). Outputs carry
+ *  source `text` and metrics, not a display label; the subject is derived
+ *  the same way output naming does (explicit Label metric). */
 export interface LoggableOutput {
     outputType: string;
-    label?: string;
+    text?: string;
+    metrics?: Iterable<{ type: string; image?: string; value?: unknown }>;
 }
 
 // Event-code hues, straight from the prototype's console palette:
@@ -200,7 +203,7 @@ class RuntimeLoggerImpl {
     }
 
     /**
-     * Log an output statement (segment / milestone). Called by ScriptRuntime
+     * Log an output statement (segment / milestone). Called by OutputEmitter
      * on every published output. 'system' outputs (sound cues etc.) and
      * label-less structural outputs (the boot 'load' statement) are skipped —
      * volume stays proportional to what the athlete did.
@@ -208,13 +211,24 @@ class RuntimeLoggerImpl {
     logOutput(output: LoggableOutput): void {
         if (!this._enabled) return;
         if (output.outputType !== 'segment' && output.outputType !== 'milestone') return;
-        if (!output.label) return;
+        const subject = output.text || this.outputSubject(output.metrics);
+        if (!subject) return;
 
-        this.writeLine('OUT', output.label, output.outputType);
-        this.addToHistory('info', 'output', `OUT ${output.label ?? output.outputType}`, {
+        this.writeLine('OUT', subject, output.outputType);
+        this.addToHistory('info', 'output', `OUT ${subject}`, {
             outputType: output.outputType,
-            label: output.label,
+            label: subject,
         });
+    }
+
+    /** No `label` field exists on outputs — fall back to the explicit Label
+     *  metric (image, then value), matching the UI's naming convention. */
+    private outputSubject(metrics?: LoggableOutput['metrics']): string | undefined {
+        if (!metrics) return undefined;
+        for (const m of metrics) {
+            if (m.type === 'label') return m.image || (m.value != null ? String(m.value) : '') || undefined;
+        }
+        return undefined;
     }
 
     /**

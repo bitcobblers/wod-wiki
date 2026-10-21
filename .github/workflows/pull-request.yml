@@ -283,7 +283,7 @@ jobs:
   pr-summary:
     runs-on: ubuntu-22.04
     if: always() && github.event_name == 'pull_request' && github.event.action != 'closed'
-    needs: [build-test-packages, verify, storybook]
+    needs: [build-test-packages, verify, storybook, e2e, e2e-storybook]
     permissions:
       contents: read
       pull-requests: write
@@ -296,8 +296,10 @@ jobs:
           COVERAGE_STATUS: ${{ needs.verify.outputs.coverage-status }}
           BUILD_STATUS: ${{ needs.verify.outputs.build-status }}
           PKG_RESULT: ${{ needs.build-test-packages.result }}
-          PKG_TEST: ${{ needs.build-test-packages.outputs.test-status }}
           STORYBOOK_TEST: ${{ needs.storybook.outputs.test-status }}
+          STORYBOOK_RESULT: ${{ needs.storybook.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          STORYBOOK_E2E_RESULT: ${{ needs.e2e-storybook.result }}
           STORYBOOK_BUILD: ${{ needs.storybook.outputs.build-status }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -310,13 +312,15 @@ jobs:
             };
 
             const statuses = {
-              overall: process.env.VERIFY_RESULT,
+              overall: [process.env.VERIFY_RESULT, process.env.PKG_RESULT, process.env.STORYBOOK_RESULT, process.env.E2E_RESULT, process.env.STORYBOOK_E2E_RESULT].every(result => result === 'success') ? 'success' : 'failure',
               unit: process.env.UNIT_STATUS || 'skipped',
               coverage: process.env.COVERAGE_STATUS || 'skipped',
               build: process.env.BUILD_STATUS || 'skipped',
-              packages: process.env.PKG_TEST || process.env.PKG_RESULT || 'skipped',
+              packages: process.env.PKG_RESULT || 'skipped',
               storybookTest: process.env.STORYBOOK_TEST || 'skipped',
               storybookBuild: process.env.STORYBOOK_BUILD || 'skipped',
+              e2e: process.env.E2E_RESULT || 'skipped',
+              storybookE2e: process.env.STORYBOOK_E2E_RESULT || 'skipped',
             };
 
             const headline = statuses.overall === 'success'
@@ -324,7 +328,7 @@ jobs:
               : '## ⚠️ PR verification needs attention';
 
             const marker = '<!-- wod-wiki-pr-verification -->';
-            const body = `${marker}\n${headline}\n\n| Check | Status |\n| --- | --- |\n| Packages (lint/typecheck/test/build) | ${statusIcon(statuses.packages)} ${statuses.packages} |\n| Playground unit | ${statusIcon(statuses.unit)} ${statuses.unit} |\n| Playground coverage | ${statusIcon(statuses.coverage)} ${statuses.coverage} |\n| Playground build | ${statusIcon(statuses.build)} ${statuses.build} |\n| Storybook tests | ${statusIcon(statuses.storybookTest)} ${statuses.storybookTest} |\n| Storybook build | ${statusIcon(statuses.storybookBuild)} ${statuses.storybookBuild} |\n\n- Actions run: [View run](${runUrl})\n- Coverage artifact: [Artifacts](${runUrl}#artifacts)`;
+            const body = `${marker}\n${headline}\n\n| Check | Status |\n| --- | --- |\n| Packages (lint/typecheck/test/build) | ${statusIcon(statuses.packages)} ${statuses.packages} |\n| Playground unit | ${statusIcon(statuses.unit)} ${statuses.unit} |\n| Playground coverage | ${statusIcon(statuses.coverage)} ${statuses.coverage} |\n| Playground build | ${statusIcon(statuses.build)} ${statuses.build} |\n| Storybook tests | ${statusIcon(statuses.storybookTest)} ${statuses.storybookTest} |\n| Storybook build | ${statusIcon(statuses.storybookBuild)} ${statuses.storybookBuild} |\n| Playground E2E | ${statusIcon(statuses.e2e)} ${statuses.e2e} |\n| Storybook E2E | ${statusIcon(statuses.storybookE2e)} ${statuses.storybookE2e} |\n\n- Actions run: [View run](${runUrl})\n- Coverage artifact: [Artifacts](${runUrl}#artifacts)`;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
