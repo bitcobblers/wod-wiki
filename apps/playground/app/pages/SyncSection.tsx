@@ -48,7 +48,10 @@ type SourceProgress = {
   chunks: string[]
 }
 
-const OUTCOME_LABEL: Record<SeedSyncOutcome, string> = {
+/** Exported for the stream surfaces' inline sync notice — one vocabulary for
+ *  every sync outcome in the app (Settings rows and the catalogs/feeds
+ *  notice must never word the same outcome differently). */
+export const OUTCOME_LABEL: Record<SeedSyncOutcome, string> = {
   imported: 'Synced',
   current: 'Up to date',
   'server-stale': 'Published version is older than the stored version',

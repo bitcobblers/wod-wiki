@@ -97,6 +97,9 @@ export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: In
   // Scroll-spy: whichever step's copy sits in the middle band of the
   // viewport becomes the sticky pane's scope.
   useEffect(() => {
+    // Same guard as the tour's other observers: without the API the pane
+    // keeps its default scope instead of throwing on construction.
+    if (typeof IntersectionObserver === 'undefined') return
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {

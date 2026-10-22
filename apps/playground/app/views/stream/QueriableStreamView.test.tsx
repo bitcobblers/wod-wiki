@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'
 import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { Entry } from '../../lib/entryMapper'
 import { StreamQueryEngine } from '../../lib/entrySearch'
 import { writeViewSettings } from '../../lib/viewSettingsStorage'
@@ -11,6 +11,7 @@ import { pendingRuntimes } from '../../runtimeStore'
 import { InMemoryStorage, setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import {
+  CATALOGS_STREAM_PROFILE,
   EFFORTS_STREAM_PROFILE,
   FEEDS_STREAM_PROFILE,
   JOURNAL_STREAM_PROFILE,
@@ -20,12 +21,14 @@ import {
   createCollectionCatalogProfile,
 } from './streamProfile'
 import { journalNotes } from '../../services/journalNotes'
+import { resetSeedSubscriptionsForTest, setSeedSubscribed } from '@/services/seed/seedSubscriptions'
 import { NavContext, initialNavState, type StreamNavControls } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 
 // The notice's inline sync goes through syncSeedSource; the coverage probe
 // must report "no manual library" so seedNotice routes render the banner.
 let communitySyncOutcome: 'imported' | 'current' | 'error' | 'busy' = 'imported'
+let coverageMock: { coreImported: boolean; libraryImported: boolean } = { coreImported: true, libraryImported: false }
 const syncSeedSourceMock = mock(
   async (id: string, deps?: { force?: boolean; onProgress?: (event: Record<string, unknown>) => void }) => {
     deps?.onProgress?.({ sourceId: id, sourceLabel: 'Community', sourceIndex: 1, totalSources: 1, phase: 'checking' })
@@ -42,6 +45,32 @@ const syncSeedSourceMock = mock(
   },
 )
 
+// defaultSeedSources stays REAL. Static import cannot work: it would bind
+// the mock.module replacement below. Top-level dynamic import placed BEFORE
+// the mock.module call resolves the real module (same load-boundary
+// exception as the seedContent/entrySearch mocks): the notice's sync
+// worklist is the registry filtered by subscription, and tests drive
+// subscriptions through the real seedSubscriptions store.
+const realSeedSync = await import('@/services/seed/seedSync')
+
+// Radix overlays crash under this bun+jsdom setup (cross-realm Event
+// objects — see tests/unit-setup.ts), so the drawer and toaster are asserted
+// at their seams: the URL param drives the drawer, and toast() payloads are
+// what the app's Toaster would display.
+mock.module('../../pages/CatalogsManagerDrawer', () => ({
+  CatalogsManagerDrawer: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="catalogs-manager-drawer-open" /> : null,
+}))
+
+const realUseToast = await import('@/hooks/use-toast')
+let toastCalls: { title?: unknown; description?: unknown; variant?: unknown }[] = []
+mock.module('@/hooks/use-toast', () => ({
+  ...realUseToast,
+  toast: (props: { title?: unknown; description?: unknown; variant?: unknown }) => {
+    toastCalls.push(props)
+  },
+}))
+
 mock.module('@/services/seed/seedSync', () => ({
   SEED_BROADCAST_CHANNEL: 'wodwiki-seed',
   SEED_CLAIM_TTL_MS: 45_000,
@@ -49,12 +78,17 @@ mock.module('@/services/seed/seedSync', () => ({
   // bare microtask here would settle outside act and spam act warnings.
   readSeedCoverage: () => {
     const { promise, resolve } = Promise.withResolvers<{ coreImported: boolean; libraryImported: boolean }>()
-    setTimeout(() => resolve({ coreImported: true, libraryImported: false }), 0)
+    setTimeout(() => resolve(coverageMock), 0)
     return promise
   },
   runBootSeedSync: async () => 'current' as const,
   syncSeedSource: (...args: [string, { force?: boolean; onProgress?: (event: Record<string, unknown>) => void }?]) =>
     syncSeedSourceMock(...args),
+  defaultSeedSources: realSeedSync.defaultSeedSources,
+  // The subscribe offer opens the manager drawer, which mounts SyncSection —
+  // an empty registry is enough for it to render.
+  readSeedStatus: async () => ({ sources: [] }),
+  subscribeCatalogUpdates: () => () => {},
 }))
 
 // Collection READMEs read through useSeedContent; tests drive the readme by
@@ -83,9 +117,14 @@ mock.module('../../lib/entrySearch', () => ({
 
 beforeEach(() => {
   communitySyncOutcome = 'imported'
+  coverageMock = { coreImported: true, libraryImported: false }
   seedFilesMock = null
   tokenEntries = []
+  toastCalls = []
   window.localStorage.clear()
+  // The subscriptions module caches its map — drop it so each test starts
+  // from the (unsubscribed) cleared localStorage.
+  resetSeedSubscriptionsForTest()
 })
 
 afterEach(() => {
@@ -719,7 +758,75 @@ describe('QueriableStreamView component', () => {
     expect(screen.getByTestId('seed-library-notice-settings')).toBeDefined()
   })
 
-  it('syncs the community library inline and drops the notice on success', async () => {
+  it('with nothing subscribed, the notice routes the primary action to the source manager instead of syncing', async () => {
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/catalogs']}>
+        <LocationProbe />
+        <QueriableStreamView profile={CATALOGS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const primary = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    expect(primary.textContent).toContain('Browse libraries')
+    await act(async () => {
+      fireEvent.click(primary)
+    })
+
+    // The in-place manager drawer deep-link — never a sync call against a
+    // worklist that does not exist.
+    await waitFor(() => {
+      expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('manage=1')
+      expect(screen.getByTestId('catalogs-manager-drawer-open')).toBeDefined()
+    })
+    expect(syncSeedSourceMock).not.toHaveBeenCalled()
+  })
+
+  it('with nothing subscribed on /feeds, the subscribe offer routes to Sync settings', async () => {
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/feeds']}>
+        <LocationProbe />
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const primary = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    await act(async () => {
+      fireEvent.click(primary)
+    })
+
+    // No drawer outside /catalogs — the Sync settings route is the manager.
+    await waitFor(() => {
+      expect(screen.getByTestId('location-probe').getAttribute('data-path')).toBe('/settings/sync')
+    })
+    expect(syncSeedSourceMock).not.toHaveBeenCalled()
+  })
+
+  it('a subscribed source that is already current shows an up-to-date confirmation', async () => {
+    communitySyncOutcome = 'current'
+    setSeedSubscribed('seed-crossfit', true)
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/feeds']}>
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    expect(syncButton.textContent).toContain('Sync now')
+    await act(async () => {
+      fireEvent.click(syncButton)
+    })
+
+    expect(syncSeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.anything())
+    await waitFor(() => {
+      expect(toastCalls.some(t => t.title === 'Everything is up to date')).toBe(true)
+    })
+  })
+
+  it('syncs the subscribed libraries inline and drops the notice on success', async () => {
+    setSeedSubscribed('seed-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -732,14 +839,60 @@ describe('QueriableStreamView component', () => {
       fireEvent.click(syncButton)
     })
 
-    expect(syncSeedSourceMock).toHaveBeenCalledWith('community', expect.anything())
+    expect(syncSeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.anything())
     await waitFor(() => {
       expect(screen.queryByTestId('seed-library-notice')).toBeNull()
     })
   })
 
-  it('keeps the notice and shows the error when the inline sync fails', async () => {
+  it('syncs without force so the executor can report "current" for an up-to-date source', async () => {
+    // A forced sync always decides "import" (it skips the version-equality
+    // check), so the executor could never report "current" and the
+    // up-to-date case stayed silent — the dead-button bug.
+    communitySyncOutcome = 'current'
+    setSeedSubscribed('seed-crossfit', true)
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/feeds']}>
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    await act(async () => {
+      fireEvent.click(syncButton)
+    })
+
+    expect(syncSeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.not.objectContaining({ force: true }))
+  })
+
+  it('never syncs the auto-importing core registry as a library', async () => {
+    // seed-core auto-imports at boot and is autoImport:true — it is not a
+    // "library" by the coverage probe's own rule. Syncing it would satisfy
+    // the notice with the Core Registry while the community library the
+    // page needs is still missing.
+    setSeedSubscribed('seed-core', true)
+    setSeedSubscribed('seed-crossfit', true)
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/feeds']}>
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    await act(async () => {
+      fireEvent.click(syncButton)
+    })
+
+    const syncedIds = syncSeedSourceMock.mock.calls.map(([id]) => id)
+    expect(syncedIds).not.toContain('seed-core')
+    expect(syncedIds).toContain('seed-crossfit')
+  })
+
+  it('keeps the notice and shows a visible error when the inline sync fails', async () => {
     communitySyncOutcome = 'error'
+    setSeedSubscribed('seed-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -753,8 +906,78 @@ describe('QueriableStreamView component', () => {
     })
 
     const error = await waitFor(() => screen.getByTestId('seed-library-notice-error'))
-    expect(error.textContent).toContain('Community seed unreachable')
+    expect(error.textContent).toContain('Sync failed')
     expect(screen.getByTestId('seed-library-notice')).toBeDefined()
+  })
+
+  it('empty state on an unimported library route names the missing corpus, not the search', async () => {
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/feeds']}>
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const empty = await waitFor(() => screen.getByTestId('stream-empty-state'))
+    // The copy names the route's own corpus ("notes" here, "notebooks" on
+    // /catalogs) — a hardcoded "notebooks" would misname the Notes page.
+    // The library-coverage probe settles on a macrotask, so the empty state
+    // first paints with the pre-settle copy: wait for the settled one.
+    await waitFor(() => expect(empty.textContent).toContain('No notes are imported yet.'))
+    expect(empty.textContent).not.toContain('match your search')
+    // Exactly one remedy — the import/subscribe action. No search remedies:
+    // the parser-injected scope/type filters are not the user's, so there
+    // is nothing to clear.
+    const buttons = within(empty).queryAllByRole('button')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]!.textContent).toContain('Browse libraries')
+  })
+
+  it('empty state on /catalogs names notebooks as the missing corpus', async () => {
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={['/catalogs']}>
+        <QueriableStreamView profile={CATALOGS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const empty = await waitFor(() => screen.getByTestId('stream-empty-state'))
+    await waitFor(() => expect(empty.textContent).toContain('No notebooks are imported yet.'))
+    expect(empty.textContent).not.toContain('match your search')
+  })
+
+  it('head-injected filters never offer Clear filter; an authored text clause stays removable', async () => {
+    // Content imported: the corpus is present, so an empty result IS the
+    // query's doing. The authored query rides the URL's verbatim `q` param
+    // (useComposerQueryState's contract) — keystrokes in the composer stay
+    // an uncommitted draft.
+    coverageMock = { coreImported: true, libraryImported: true }
+    const engine = createMockEngine([])
+    render(
+      <MemoryRouter initialEntries={[`/feeds?q=${encodeURIComponent(':notebook{text:foo}')}`]}>
+        <LocationProbe />
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const empty = await waitFor(() => screen.getByTestId('stream-empty-state'))
+    // The corpus IS imported here (coverageMock above), so the emptiness is
+    // the query's doing — but the probe settles on a macrotask, so wait for
+    // the settled copy before reading it.
+    await waitFor(() => expect(empty.textContent).toContain('No note entries match your search.'))
+    const clear = within(empty).getByRole('button', { name: 'Clear filter' })
+    fireEvent.click(clear)
+
+    // The authored text clause is gone; the notebook head's scope and plane
+    // type survive as explicit filters (serializer emits plain `:note`). The
+    // URL `q` is the committed query's home — the composer input keeps its
+    // own draft.
+    await waitFor(() => {
+      expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain(encodeURIComponent(':note{source:feeds,type:feed}'))
+    })
+    await waitFor(() => {
+      expect(within(screen.getByTestId('stream-empty-state')).queryByRole('button', { name: 'Clear filter' })).toBeNull()
+    })
   })
 
   it('catalog readme [heading](:query)! embeds inject results and suppress the default stream', async () => {
@@ -839,6 +1062,12 @@ describe('QueriableStreamView component', () => {
     expect(screen.queryByTestId('seed-library-notice')).toBeNull()
   })
 })
+
+/** URL observer — routing assertions without coupling to drawer internals. */
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location-probe" data-path={location.pathname} data-search={location.search} />
+}
 
 /** Engine stub whose query override records the executed string and can push
  *  the run's stage counts — the view's only counts source (no extra scans). */

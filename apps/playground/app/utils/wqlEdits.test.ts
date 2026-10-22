@@ -11,7 +11,6 @@ import {
   setScopeFilter,
   setMetricQuery,
   withoutWindow,
-  withoutFilters,
 } from '../lib/wqlEdits';
 
 describe('scopeOfQuery', () => {
@@ -108,13 +107,8 @@ describe('setMetricQuery', () => {
   });
 });
 
-describe('withoutWindow / withoutFilters', () => {
+describe('withoutWindow', () => {
   it('drops the window', () => {
     expect(withoutWindow(':note{tags:pr} last 8w')).toBe(':note{tags:pr}');
-  });
-
-  it('drops non-source filters, keeping provenance', () => {
-    expect(withoutFilters(':note{source:journal,tags:pr,text:"fran"} last 8w')).toBe(
-      ':note{source:journal} last 8w',    );
   });
 });

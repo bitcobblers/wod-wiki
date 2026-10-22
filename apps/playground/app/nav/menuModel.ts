@@ -73,11 +73,13 @@ export function l3ToMenuEntries(items: NavItemL3[]): MenuLink[] {
   return items.map(item => {
     const action = item.action
     const run = item.secondaryAction?.action
+    // No `muted` here: a run affordance is not a reason to dim a row — the
+    // TOC must render one uniform inactive style so the active highlight is
+    // unambiguous. `muted` stays reserved for timestamp/mono rows (journal).
     const base: MenuLink = {
       kind: 'link',
       id: item.id,
       label: item.label,
-      muted: item.level === 3 && !!item.secondaryAction,
     }
     if (run && run.type === 'call') {
       base.onRun = run.handler

@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { NuqsAdapter } from 'nuqs/adapters/react-router';
 import { SecondaryNav } from '../SecondaryNav';
 import { NavContext, initialNavState } from '../NavContext';
-import type { NavItemL3 } from '../navTypes';
+import type { NavItemL3, NavState } from '../navTypes';
 import { deriveNav } from '../../lib/routeNav';
 import type { ParsedCanvasPage } from '../../canvas/parseCanvasMarkdown';
 
@@ -15,14 +15,14 @@ const HOME_OUTLINE: NavItemL3[] = [
     secondaryAction: { id: 'run-start', label: 'Start the run', action: { type: 'call', handler: () => {} } } },
 ];
 
-function renderHomeNav(l3Items: NavItemL3[], scrollToSection = mock(() => {}), pageAction?: ReactNode) {
+function renderHomeNav(l3Items: NavItemL3[], scrollToSection = mock(() => {}), pageAction?: ReactNode, navState: NavState = initialNavState) {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <NuqsAdapter>
         <NavContext.Provider
           value={{
             tree: [],
-            navState: initialNavState,
+            navState,
             dispatch: () => {},
             l3Items,
             setL3Items: () => {},
@@ -91,6 +91,22 @@ describe('SecondaryNav on home page', () => {
     screen.getByText('Welcome').click();
     expect(scrollToSection).toHaveBeenCalledWith('tour-hero');
   });
+
+  it('renders rows with and without a run affordance in the same inactive style', () => {
+    renderHomeNav(HOME_OUTLINE);
+
+    const plain = screen.getByText('Welcome').closest('button')!;
+    const withRun = screen.getByText('Run it as a Timer').closest('button')!;
+    for (const row of [plain, withRun]) {
+      expect(row.className).toContain('text-[13px]');
+      expect(row.className).toContain('text-muted-foreground');
+      // Dimming variants are reserved for timestamp rows (journal rail).
+      expect(row.className).not.toContain('text-muted-foreground/70');
+      expect(row.className).not.toContain('text-[11.5px]');
+      expect(row.className).not.toContain('bg-primary/10');
+    }
+  });
+
   it('renders a pageAction node after the page index', () => {
     renderHomeNav(HOME_OUTLINE, mock(() => {}), <button type="button">Download Markdown</button>);
     expect(screen.getByText('Download Markdown')).toBeTruthy();

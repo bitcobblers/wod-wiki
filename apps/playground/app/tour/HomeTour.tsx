@@ -39,6 +39,7 @@ import { useTourScrollQuests } from '../hooks/useTourScrollQuests'
 import { usePlaygroundRun } from '../hooks/usePlaygroundRun'
 import { useNav } from '../nav/NavContext'
 import type { NavItemL3 } from '../nav/navTypes'
+import { useSectionScrollSpy } from '../hooks/useSectionScrollSpy'
 import { RingTargetsProvider } from './TourRing'
 import { TourHeroHeading } from './TourHero'
 import { TourWhyVideo } from './TourWhyVideo'
@@ -493,25 +494,33 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   // insights row's secondary ▶ IS the idle→running transition — clicking it
   // mints a fresh run identity and opens the fullscreen timer. ──
   const { setL3Items } = useNav()
+  const outline = useMemo<NavItemL3[]>(() => [
+    { id: 'tour-hero', label: 'Welcome', level: 3, action: { type: 'scroll', sectionId: 'tour-hero' } },
+    { id: 'editor', label: 'Live Preview', level: 3, action: { type: 'scroll', sectionId: 'tour-section-editor' } },
+    {
+      id: 'insights',
+      label: 'Session Insights',
+      level: 3,
+      action: { type: 'scroll', sectionId: 'tour-section-insights' },
+      secondaryAction: { id: 'run-start', label: 'Run the workout', action: { type: 'call', handler: handleRun } },
+    },
+    { id: 'boards', label: 'One Run Becomes Many', level: 3, action: { type: 'scroll', sectionId: 'tour-section-boards' } },
+    { id: 'community-feeds', label: 'Library & Community Feeds', level: 3, action: { type: 'scroll', sectionId: 'tour-section-community-feeds' } },
+    { id: 'offerings', label: 'Who owns the Data?', level: 3, action: { type: 'scroll', sectionId: 'tour-section-offerings' } },
+    { id: 'university', label: 'Wod Wiki University', level: 3, action: { type: 'scroll', sectionId: 'tour-section-university' } },
+  ], [handleRun])
   useEffect(() => {
-    const outline: NavItemL3[] = [
-      { id: 'tour-hero', label: 'Welcome', level: 3, action: { type: 'scroll', sectionId: 'tour-hero' } },
-      { id: 'editor', label: 'Live Preview', level: 3, action: { type: 'scroll', sectionId: 'tour-section-editor' } },
-      {
-        id: 'insights',
-        label: 'Session Insights',
-        level: 3,
-        action: { type: 'scroll', sectionId: 'tour-section-insights' },
-        secondaryAction: { id: 'run-start', label: 'Run the workout', action: { type: 'call', handler: handleRun } },
-      },
-      { id: 'boards', label: 'One Run Becomes Many', level: 3, action: { type: 'scroll', sectionId: 'tour-section-boards' } },
-      { id: 'community-feeds', label: 'Library & Community Feeds', level: 3, action: { type: 'scroll', sectionId: 'tour-section-community-feeds' } },
-      { id: 'offerings', label: 'Who owns the Data?', level: 3, action: { type: 'scroll', sectionId: 'tour-section-offerings' } },  
-      { id: 'university', label: 'Wod Wiki University', level: 3, action: { type: 'scroll', sectionId: 'tour-section-university' } },
-    ]
     setL3Items(outline)
     return () => setL3Items([])
-  }, [setL3Items, handleRun])
+  }, [setL3Items, outline])
+  // deriveNav is empty on `/`, so usePageScrollSync has nothing to observe —
+  // the tour owns its outline AND its scroll-spy, keeping the rail's
+  // highlight on the section under the reading line while scrolling.
+  const spyIds = useMemo(
+    () => outline.map(item => (item.action.type === 'scroll' ? item.action.sectionId : item.id)),
+    [outline],
+  )
+  useSectionScrollSpy(spyIds)
 
   const fullscreenBlock = run?.block ?? activeBlock
   const fullscreen = fullscreenOpen && fullscreenBlock && (

@@ -547,6 +547,23 @@ describe('HomeTour', () => {
     expect(screen.queryByTestId('tour-why-watch-again')).toBeNull()
   })
 
+  it('the skip button dismisses the pitch the same way watching it does', async () => {
+    await renderHomeTour()
+    // The pitch is up, no tab yet.
+    expect(screen.getByTestId('tour-why-video')).toBeTruthy()
+    expect(screen.queryByTestId('tour-why-watch-again')).toBeNull()
+
+    // Skip: no lightbox, but the same collapse watching produces.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tour-why-video-skip'))
+      await Promise.resolve()
+    })
+    expect(screen.queryByTestId('youtube-lightbox')).toBeNull()
+    expect(screen.getByTestId('tour-why-video').closest('#tour-why-video-wrap')?.className).toContain('invisible')
+    expect(screen.getByTestId('tour-why-watch-again')).toBeTruthy()
+    expect(within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor')).toBeTruthy()
+  })
+
   it('the pane-header button slides back to the editor and resets the runtime', async () => {
     const scrollMock = mock(() => {})
     const windowWithScroll = window as unknown as { scrollTo: unknown }

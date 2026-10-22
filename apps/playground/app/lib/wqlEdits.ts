@@ -77,14 +77,6 @@ export function withoutWindow(query: string): string {
   return serialize({ ...parsed, window: undefined } as AnyParsedQuery);
 }
 
-/** Drop every non-provenance filter (the source: filter stays — it carries
- *  the plane, and clearing it would silently widen the search). */
-export function withoutFilters(query: string): string {
-  const parsed = parseQuery(query);
-  if (parsed.error) return query;
-  return serialize({ ...parsed, filters: parsed.filters.filter((f) => f.key === 'source') });
-}
-
 /** Point the query's grouping at one dimension (View ▸ Arrange-cards-by
  *  write-through: the WQL line, URL and grid follow the dialog). Replaces
  *  any existing `by {}`; unparseable input is returned unchanged — the

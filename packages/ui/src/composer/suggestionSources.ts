@@ -96,7 +96,7 @@ const builtinBindings: Record<string, SuggestionBinding> = {
     load: async () => [],
     cache: 'static',
     open: false,
-    emptyText: 'No notebooks in the static corpus',
+    emptyText: 'No catalogs in the static corpus',
   },
   notebook: {
     load: async () => [],

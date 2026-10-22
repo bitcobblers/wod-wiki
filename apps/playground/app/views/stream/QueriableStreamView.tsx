@@ -8,7 +8,7 @@
  * 4. Provides a discrete "View Settings" modal dialog (sliders button in action bar).
  * 5. Preserves all sticky boundaries, DOM batching, and search palette integrations.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import {
   CalendarIcon,
   ChevronDownIcon,
@@ -24,12 +24,14 @@ import { Button } from '@/components/atoms/primitives/button'
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
 import { useSeedLibraryMissing, useSeedReadiness } from '@/services/seed/seedReadiness'
-import { syncSeedSource, type SeedSyncProgress } from '@/services/seed/seedSync'
+import { defaultSeedSources, syncSeedSource, type SeedSyncProgress } from '@/services/seed/seedSync'
+import { isSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
+import { toast } from '@/hooks/use-toast'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
 import { notebookService, storageService } from '@/hooks/useBrowserServices'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
-import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
+import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 import type { WqlExecutor } from '@bitcobblers/wod-wiki-ui'
 import { toggleGroupDimension } from '../../nav/panels/conditionsFacets'
@@ -53,12 +55,13 @@ import { useNav } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
 import { CatalogsManagerDrawer } from '../../pages/CatalogsManagerDrawer'
+import { OUTCOME_LABEL } from '../../pages/SyncSection'
 import { effortPath, ROUTE_PATTERNS } from '../../lib/routes'
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings } from '../../lib/viewSettingsStorage'
 import { useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
 import { todayKey } from '../../lib/dateFormat'
-import { withoutFilters, withoutWindow, withGroupBy } from '../../lib/wqlEdits'
+import { withoutWindow, withGroupBy } from '../../lib/wqlEdits'
 import { LibraryRow } from '../library/LibraryRow'
 import { PropertyTable } from './PropertyTable'
 import { StreamFeed } from './StreamFeed'
@@ -114,13 +117,41 @@ const STREAM_EXECUTE_DEBOUNCE_MS = 150
 /** Inline notice sync label — same phase vocabulary as the Settings sync surface. */
 function seedSyncLabel(event: SeedSyncProgress): string {
   switch (event.phase) {
-    case 'checking': return 'Checking the community library…'
+    case 'checking': return `Checking ${event.sourceLabel}…`
     case 'fetching': return `Downloading ${event.chunkId ?? 'library'}…`
     case 'applying': return `Importing ${event.chunkId ?? 'library'}…`
     case 'committed': return `Committed ${event.chunkId ?? 'chunk'}`
     case 'finalizing': return 'Finalizing checkpoints…'
-    case 'finished': return event.error ?? 'Done'
+    case 'finished': return event.error ?? OUTCOME_LABEL[event.outcome]
   }
+}
+
+/** Stable identity of one parsed filter — key, polarity, and value set. */
+function filterSignature(f: ParsedFindQuery['filters'][number]): string {
+  return `${f.negate ? '!' : ''}${f.key}=${f.values.map(v => `${v.wildcard ? '*' : ''}${v.value}`).sort().join('|')}`
+}
+
+/** The filters a query's AUTHOR wrote. The parser injects the head's scope
+ *  and plane type into the same filter list as authored clauses (wql.ts head
+ *  injection) and keeps no provenance marker, so the route default is parsed
+ *  and its implied filters subtracted as a multiset — a head-injected
+ *  `type:feed`/`source:` can then never surface as a removable remedy, while
+ *  an authored `text:` clause stays one. */
+function userAuthoredFilters(
+  filters: ParsedFindQuery['filters'],
+  implied: ParsedFindQuery['filters'],
+): ParsedFindQuery['filters'] {
+  const budget: Record<string, number> = {}
+  for (const f of implied) {
+    const sig = filterSignature(f)
+    budget[sig] = (budget[sig] ?? 0) + 1
+  }
+  return filters.filter(f => {
+    const sig = filterSignature(f)
+    const left = budget[sig] ?? 0
+    budget[sig] = left - 1
+    return left <= 0
+  })
 }
 
 /** Compact query truth strip beneath the composer (desktop) / top of the
@@ -218,6 +249,25 @@ export function QueriableStreamView({
   const [seedSyncRunning, setSeedSyncRunning] = useState(false)
   const [seedSyncEvent, setSeedSyncEvent] = useState<SeedSyncProgress | null>(null)
   const [seedSyncError, setSeedSyncError] = useState<string | null>(null)
+  // Subscribed library sources — the notice's real sync worklist. "Library"
+  // means exactly what the coverage probe means by it: a source that does
+  // NOT auto-import (autoImport === false — readSeedCoverage's own rule).
+  // Filtering on `id !== 'core'` instead would sweep in seed-core, which
+  // auto-imports at boot and would satisfy the notice with the Core
+  // Registry while the community library the page needs is still missing.
+  // useSyncExternalStore needs a referentially stable snapshot, so the ids
+  // cross as one joined string; splitting is per-render and cheap.
+  // Subscribing in the manager drawer updates this live.
+  const subscribedIdsKey = useSyncExternalStore(subscribeSeedSubscriptions, () =>
+    defaultSeedSources()
+      .filter(s => s.autoImport === false && isSeedSubscribed(s.id))
+      .map(s => s.id)
+      .join('\n'),
+  )
+  const subscribedLibraryIds = useMemo(
+    () => (subscribedIdsKey ? subscribedIdsKey.split('\n') : []),
+    [subscribedIdsKey],
+  )
   // Synchronize composer state with URL
   const { query, setQuery, urlQueryError } = useComposerQueryState({
     defaultQuery: () => profile.defaultWql,
@@ -268,6 +318,12 @@ export function QueriableStreamView({
   const catalogsManager = isCatalogsRoute ? (
     <CatalogsManagerDrawer open={manageOpen} onOpenChange={setManageOpen} />
   ) : null
+  // The subscribe offer's target: /catalogs manages sources in place (the
+  // drawer); every other route defers to Sync settings — no drawer there.
+  const openLibraryManager = useCallback(() => {
+    if (isCatalogsRoute) setManageOpen(true)
+    else navigate(ROUTE_PATTERNS.settingsSync)
+  }, [isCatalogsRoute, setManageOpen, navigate])
   const [createNotebookOpen, setCreateNotebookOpen] = useState(false)
   const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
     const created = await notebookService.create(name, description, icon)
@@ -469,32 +525,67 @@ export function QueriableStreamView({
     })
   }, [])
 
-  // Inline sync of the bundled community library from the core-only notice —
-  // the same syncSeedSource path the Settings per-source Sync button uses.
+  // Inline sync of the user's SUBSCRIBED library sources from the core-only
+  // notice — the same syncSeedSource path the Settings per-source Sync
+  // button uses, with the same outcome vocabulary. With nothing subscribed
+  // the button cannot sync an empty worklist, so it becomes the subscribe
+  // offer instead of pretending.
   const runLibrarySync = useCallback(async () => {
+    const sources = defaultSeedSources().filter(
+      s => s.autoImport === false && subscribedLibraryIds.includes(s.id),
+    )
+    if (sources.length === 0) {
+      openLibraryManager()
+      return
+    }
     setSeedSyncRunning(true)
     setSeedSyncError(null)
     setSeedSyncEvent(null)
     try {
-      const outcome = await syncSeedSource('community', {
-        force: true,
-        onProgress: setSeedSyncEvent,
-      })
-      if (outcome === 'imported' || outcome === 'current') {
-        // Content landed in the active storage: drop the notice and re-run
-        // the mounted query so imported entries appear without a refresh.
-        setLibrarySynced(true)
-        setSavedTick((t) => t + 1)
-      } else if (outcome === 'busy') {
-        setSeedSyncError('Another tab is already syncing — wait for it to finish, then try again.')
-      } else if (outcome === 'disabled') {
-        setSeedSyncError('Seed import is disabled.')
+      let imported = 0
+      let current = 0
+      const problems: string[] = []
+      for (const spec of sources) {
+        // NOT force:true — a forced sync always decides "import" (it skips the
+        // version-equality check), so the executor could never report
+        // "current" and the up-to-date case stayed silent. A plain sync
+        // compares the published version against the stored checkpoint and
+        // reports "current" honestly when there is nothing to fetch.
+        const outcome = await syncSeedSource(spec.id, { onProgress: setSeedSyncEvent })
+        if (outcome === 'imported') {
+          imported += 1
+          // Content landed in the active storage: drop the notice and re-run
+          // the mounted query so imported entries appear without a refresh.
+          setLibrarySynced(true)
+          setSavedTick(t => t + 1)
+        } else if (outcome === 'current' || outcome === 'server-stale') {
+          // The stored checkpoint is healthy — the corpus is present even
+          // though nothing needed importing.
+          current += 1
+          setLibrarySynced(true)
+        } else {
+          // error/busy/disabled (and the force-sync-unreachable
+          // update-pending) must be visible — the notice's error line
+          // carries the per-source wording.
+          problems.push(`${spec.label}: ${OUTCOME_LABEL[outcome]}`)
+        }
       }
-      // 'error' surfaces through the finished progress event's message.
+      if (problems.length > 0) setSeedSyncError(problems.join(' — '))
+      if (imported > 0) {
+        toast({
+          title: imported === sources.length ? 'Libraries synced' : `${imported} of ${sources.length} libraries synced`,
+          description: 'Content was imported from the published seeds. Your own edits were kept.',
+        })
+      } else if (current > 0 && problems.length === 0) {
+        toast({
+          title: 'Everything is up to date',
+          description: 'All your subscribed libraries already match their published versions.',
+        })
+      }
     } finally {
       setSeedSyncRunning(false)
     }
-  }, [])
+  }, [subscribedLibraryIds, openLibraryManager])
   useEffect(() => {
     if (seedReadiness === 'preparing') return
     if (parsed.error) {
@@ -675,9 +766,25 @@ export function QueriableStreamView({
   const composedError = parsed.error && query !== profile.defaultWql ? parsed.error : null
   const queryError = urlQueryError ?? composedError
 
+  // The route default's own filters — exactly what its head injects (scope +
+  // plane type). Subtracted from a user query to find authorship.
+  const defaultImpliedFilters = useMemo(() => {
+    const baseline = parseQuery(profile.defaultWql)
+    return !baseline.error && isFindQuery(baseline) ? baseline.filters : []
+  }, [profile.defaultWql])
+
+  // Nothing imported on a seed-library route: the emptiness is the missing
+  // corpus, not the query — the empty state points at the import action and
+  // never offers search remedies (a "Clear filter" there would lie).
+  const libraryNotImported = profile.seedNotice === true && libraryMissing === true && !librarySynced
+
   // Empty state remedies
   const emptyStateRemedies = useMemo(() => {
     const remedies: { id: string; label: string; apply: () => void }[] = []
+    if (libraryNotImported) {
+      remedies.push({ id: 'browse-libraries', label: 'Browse libraries', apply: openLibraryManager })
+      return remedies
+    }
     // A no-op advisory (ignored clause) is the emptiness a user can't see —
     // offer the editor first; Clear filter / Remove window stay below.
     if (!parsed.error && parsed.advisories?.length) {
@@ -696,16 +803,23 @@ export function QueriableStreamView({
         apply: () => setQuery(withoutWindow(query)),
       })
     }
-    const activeFilters = parsed.error ? [] : parsed.filters.filter(f => f.key !== 'source')
-    if (activeFilters.length > 0) {
-      remedies.push({
-        id: 'clear-filters',
-        label: activeFilters.length === 1 ? 'Clear filter' : `Clear filters (${activeFilters.length})`,
-        apply: () => setQuery(withoutFilters(query)),
-      })
+    if (!parsed.error && isFindQuery(parsed)) {
+      const authored = userAuthoredFilters(parsed.filters, defaultImpliedFilters)
+      if (authored.length > 0) {
+        const authoredSigs = new Set(authored.map(filterSignature))
+        const kept = parsed.filters.filter(f => !authoredSigs.has(filterSignature(f)))
+        remedies.push({
+          id: 'clear-filters',
+          label: authored.length === 1 ? 'Clear filter' : `Clear filters (${authored.length})`,
+          // Re-emit through the serializer with only the head-implied
+          // filters kept — the scoped feed plane survives; authored clauses
+          // (and only those) are gone.
+          apply: () => setQuery(serialize({ ...parsed, filters: kept })),
+        })
+      }
     }
     return remedies
-  }, [parsed, query, setQuery, execute])
+  }, [parsed, query, setQuery, execute, defaultImpliedFilters, libraryNotImported, openLibraryManager])
 
   // Shared empty state for the grouped layouts (Cards / Feed) — same query,
   // same remedies, whichever mode is active.
@@ -715,9 +829,11 @@ export function QueriableStreamView({
       data-testid="stream-empty-state"
     >
       <p className="text-sm font-medium">
-        {profile.emptyMessage ?? (parsed.window
-          ? 'No entries found within the selected time window.'
-          : 'No entries match your search.')}
+        {libraryNotImported
+          ? `No ${profile.title.toLowerCase()} are imported yet.`
+          : profile.emptyMessage ?? (parsed.window
+            ? 'No entries found within the selected time window.'
+            : 'No entries match your search.')}
       </p>
       {emptyStateRemedies.length > 0 && (
         <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
@@ -874,9 +990,9 @@ export function QueriableStreamView({
                 Only the core seed is imported
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                The content for this page comes from community libraries, which are not imported yet.
-                Sync now to import the community library — or open Sync settings to add more sources
-                (mirrors, your own libraries).
+                {subscribedLibraryIds.length > 0
+                  ? 'The content for this page comes from your subscribed libraries, which have not been imported yet. Sync now to import them — or open Sync settings to add more sources (mirrors, your own libraries).'
+                  : 'The content for this page comes from library sources, and none are subscribed yet. Browse the library manager to subscribe — mirrors and your own libraries both work.'}
               </p>
               {seedSyncEvent && (
                 <div className="space-y-1.5 pt-1" data-testid="seed-library-notice-progress">
@@ -884,9 +1000,9 @@ export function QueriableStreamView({
                     {seedSyncLabel(seedSyncEvent)}
                   </p>
                   {seedSyncEvent.phase !== 'checking' && seedSyncEvent.phase !== 'finished'
-                    ? <ProgressBar value={seedSyncEvent.completedChunks} max={seedSyncEvent.totalChunks} label="Community library import progress" className="max-w-sm" />
+                    ? <ProgressBar value={seedSyncEvent.completedChunks} max={seedSyncEvent.totalChunks} label="Library import progress" className="max-w-sm" />
                     : seedSyncRunning
-                      ? <progress aria-label="Checking the community library" className="h-2 max-w-sm w-full" />
+                      ? <progress aria-label="Checking library sources" className="h-2 max-w-sm w-full" />
                       : null}
                 </div>
               )}
@@ -897,6 +1013,10 @@ export function QueriableStreamView({
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {/* Primary action follows the worklist: subscribed sources sync
+                  inline; none subscribed, it is the subscribe offer routed to
+                  the source manager (drawer on /catalogs, Sync settings
+                  elsewhere). Same test id — still the notice's primary. */}
               <Button
                 size="sm"
                 onClick={() => void runLibrarySync()}
@@ -905,7 +1025,7 @@ export function QueriableStreamView({
                 className="gap-2"
               >
                 <RefreshCw className={`size-3.5 ${seedSyncRunning ? 'animate-spin' : ''}`} />
-                <span>{seedSyncRunning ? 'Syncing…' : 'Sync now'}</span>
+                <span>{seedSyncRunning ? 'Syncing…' : subscribedLibraryIds.length > 0 ? 'Sync now' : 'Browse libraries'}</span>
               </Button>
               <Button
                 variant="outline"
