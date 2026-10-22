@@ -35,6 +35,12 @@ import {
   type IOutputStatement,
   createCompiler,
   RuntimeFactory,
+  metricPresentation,
+  createIRFile,
+  buildStatementTree,
+  type ExecutionLog,
+} from '@bitcobblers/wod-wiki-engine';
+import {
   ScriptRuntimeProvider,
   useRuntimeExecution,
   useScriptRuntime,
@@ -46,11 +52,7 @@ import {
   useActiveControls,
   useStackDisplayRows,
   useRoundDisplay,
-  metricPresentation,
-  createIRFile,
-  buildStatementTree,
-  type ExecutionLog,
-} from '@bitcobblers/wod-wiki-engine';
+} from '@bitcobblers/wod-wiki-engine/react';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { ScriptBlock } from '@bitcobblers/wod-wiki-core';
 import { TimerStackView } from '@/components/organisms/workout/TimerStackView';

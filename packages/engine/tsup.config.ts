@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/react.ts'],
   format: ['esm', 'cjs'],
   dts: true,
   sourcemap: true,
@@ -18,5 +18,7 @@ export default defineConfig({
     '@bitcobblers/wod-wiki-lang',
     '@bitcobblers/wod-wiki-wql',
     '@bitcobblers/wod-wiki-storage',
+    'react',
+    'react-dom',
   ],
 });

@@ -44,7 +44,7 @@
     "build:cli": "bun run build:packages && bun run build:cli:assets",
     "build:cli:assets": "bun scripts/build-cli-assets.ts",
     "build:app": "bun run --filter '@bitcobblers/wod-wiki-playground' build",
-    "build:storybook": "bun run --filter '@bitcobblers/wod-wiki-storybook' build",
+    "build:storybook": "bun run build:packages && bun run --filter '@bitcobblers/wod-wiki-storybook' build",
     "build:server": "bun run build:packages && bun run --filter '@bitcobblers/wod-wiki-playground' build:api",
     "clean": "bun run --filter '*' clean",
     "typecheck": "tsc --noEmit",

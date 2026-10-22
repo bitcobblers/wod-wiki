@@ -24,7 +24,7 @@ import type { WorkbenchDisplayState } from '@/services/cast/rpc/ChromecastProxyR
 import type { CastReceiverContextLike } from '@/types/cast/sdk';
 import { createReceiverSession, type ReceiverSessionHandle } from '@/services/cast/rpc/ReceiverSessionManager';
 import type { IRpcTransport } from '@/services/cast/rpc/IRpcTransport';
-import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine';
+import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine/react';
 import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
 import { ReceiverTimerPanel } from '@/panels/wallclock-panel-chromecast';
 import { ReceiverPreviewPanel } from '@/panels/preview-panel-chromecast';

@@ -24,6 +24,7 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
     '@bitcobblers/wod-wiki-lang': path.resolve(rootDir, 'packages/lang/src'),
     '@bitcobblers/wod-wiki-storage': path.resolve(rootDir, 'packages/storage/src'),
     '@bitcobblers/wod-wiki-wql': path.resolve(rootDir, 'packages/wql/src'),
+    '@bitcobblers/wod-wiki-engine/react': path.resolve(rootDir, 'packages/engine/src/react.ts'),
     '@bitcobblers/wod-wiki-engine': path.resolve(rootDir, 'packages/engine/src'),
     '@bitcobblers/wod-wiki-ui/styles.css': path.resolve(rootDir, 'packages/ui/src/styles.css'),
     '@bitcobblers/wod-wiki-ui/extensions': path.resolve(rootDir, 'packages/ui/src/extensions/index.ts'),

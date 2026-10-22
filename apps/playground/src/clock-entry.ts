@@ -21,4 +21,4 @@ export type { TimerHarnessProps, TimerHarnessResult } from './clock/components/T
 export { ClockAnchor } from './clock/anchors/ClockAnchor';
 
 // Timer hooks
-export { useTimerElapsed } from '@bitcobblers/wod-wiki-engine';
+export { useTimerElapsed } from '@bitcobblers/wod-wiki-engine/react';

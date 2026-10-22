@@ -8,6 +8,7 @@
     "dev": "bun ../../scripts/sync-seed.ts && storybook dev -p 6006",
     "storybook": "bun ../../scripts/sync-seed.ts && storybook dev -p 6006",
     "build": "bun ../../scripts/sync-seed.ts && storybook build",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

@@ -59,6 +59,18 @@ export interface FullscreenTimerProps {
    * closing — the host keeps control of when the overlay exits.
    */
   externalStop?: boolean;
+  /**
+   * Adopt an already-live runtime instead of creating one — a run parked
+   * when its previous surface unmounted, now re-bound.
+   */
+  adoptRuntime?: IScriptRuntime | null;
+  /**
+   * Park the runtime on unmount instead of disposing it (ownership moves to
+   * the host, which can re-bind it later).
+   */
+  parkOnUnmount?: boolean;
+  /** Receives the runtime when it is parked on unmount. */
+  onPark?: (runtime: IScriptRuntime) => void;
 }
 
 export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
@@ -72,6 +84,9 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   onRuntimeReady,
   onRunStarted,
   externalStop,
+  adoptRuntime,
+  parkOnUnmount,
+  onPark,
 }) => {
   const [preparedBlock, setPreparedBlock] = useState<ScriptBlock | null>(prepareRun ? null : block);
   const [startError, setStartError] = useState<string | null>(null);
@@ -467,6 +482,9 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
             onRuntimeReady={onRuntimeReady}
             onRunStarted={handleRunStarted}
             externalStop={externalStop || haltRequested}
+            adoptRuntime={adoptRuntime}
+            parkOnUnmount={parkOnUnmount}
+            onPark={onPark}
           />
         </div>
         {confirmStop && (

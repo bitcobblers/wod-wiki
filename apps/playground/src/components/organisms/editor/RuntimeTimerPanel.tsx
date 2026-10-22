@@ -85,6 +85,19 @@ export interface RuntimeTimerPanelProps {
    * once completed, further flips are no-ops.
    */
   externalStop?: boolean;
+  /**
+   * Adopt an already-live runtime instead of creating one — a run that was
+   * parked when its surface unmounted (the user navigated away mid-workout)
+   * and is now being re-bound. The runtime keeps running across the gap.
+   */
+  adoptRuntime?: IScriptRuntime | null;
+  /**
+   * Park the runtime on unmount instead of disposing it, handing it to
+   * `onPark`. The host becomes its owner until a surface re-binds it.
+   */
+  parkOnUnmount?: boolean;
+  /** Receives the runtime when it is parked on unmount. */
+  onPark?: (runtime: IScriptRuntime) => void;
 }
 
 
@@ -257,18 +270,12 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   // where the factory's safety net defaults it. When collection WAS required,
   // the runtime is created exactly once — at the wizard's explicit Start
   // (wizardDone) — never when the item list drains to 0, and never twice.
-  useEffect(() => {
-    if (!wizardDone && (collectionItems.length > 0 || wizardEngagedRef.current)) return;
-
-    const rt = createRuntimeForBlock(runtimeBlock);
-    if (!rt) {
-      // Block has no compilable statements — nothing to run
-      setNothingToRun(true);
-      return;
-    }
-    setRuntime(rt);
-    onRuntimeReady?.(rt);
-
+  //
+  // Two paths: a fresh run (created here) and an adopted run (a live runtime
+  // parked by a previous surface — see `adoptRuntime`). The adopted runtime
+  // is already past the pre-run collection, so it skips the wizard gate and
+  // its own effect never re-creates anything.
+  const attachRuntime = useCallback((rt: IScriptRuntime) => {
     // ── Gutter highlighting via stack subscription ──────────────────
     const unsubStack = rt.subscribeToStack(
       (snapshot: StackSnapshot) => {
@@ -307,18 +314,71 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       },
     );
 
-    setReady(true);
-
     return () => {
       unsubStack();
       unsubOutput();
       if (view) dispatchGutterHighlights(view, []); // clear gutter on unmount
+    };
+  }, [view, gutterBase, onRunStarted]);
+
+  // Unmount detector. React runs effect cleanups in declaration order, so
+  // this flag flips BEFORE the runtime effect's cleanup on unmount — a
+  // deps-driven re-run (not an unmount) leaves it false, so only a real
+  // unmount parks the runtime.
+  const unmountedRef = useRef(false);
+  useEffect(() => () => { unmountedRef.current = true; }, []);
+
+  useEffect(() => {
+    // Adopted runs are wired by their own effect below.
+    if (adoptRuntime) return;
+    if (!wizardDone && (collectionItems.length > 0 || wizardEngagedRef.current)) return;
+
+    const rt = createRuntimeForBlock(runtimeBlock);
+    if (!rt) {
+      // Block has no compilable statements — nothing to run
+      setNothingToRun(true);
+      return;
+    }
+    setRuntime(rt);
+    onRuntimeReady?.(rt);
+
+    const detach = attachRuntime(rt);
+    setReady(true);
+
+    return () => {
+      detach();
+      if (parkOnUnmount && unmountedRef.current) {
+        // Ownership transfers to the host — the clock keeps running.
+        onPark?.(rt);
+        return;
+      }
       rt.dispose();
     };
 
     // Block identity pinned at mount; pre-run collection is the only creation gate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wizardDone, collectionItems.length]);
+  }, [wizardDone, collectionItems.length, adoptRuntime]);
+
+  // Adoption path: take over a runtime that was parked when its previous
+  // surface unmounted. The run is already past its pre-run collection, so
+  // the wizard stays closed and nothing is re-created.
+  useEffect(() => {
+    if (!adoptRuntime) return;
+    const rt = adoptRuntime;
+    setWizardDone(true);
+    setRuntime(rt);
+    onRuntimeReady?.(rt);
+
+    const detach = attachRuntime(rt);
+    setReady(true);
+
+    return () => {
+      detach();
+      // The host takes the runtime back so it can re-bind it later.
+      onPark?.(rt);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adoptRuntime]);
 
   const execution = useRuntimeExecution(runtime as ScriptRuntime | null);
 

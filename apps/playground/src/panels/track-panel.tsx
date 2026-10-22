@@ -1,11 +1,11 @@
 import React from 'react';
 import { TimerIndexPanel } from '@/components/organisms/layout/TimerIndexPanel';
 import { TimerDisplay } from '@/panels/wallclock-panel';
-import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine';
+import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine/react';
 import { VisualStatePanel } from '@/panels/visual-state-panel';
 import { useParams } from 'react-router-dom';
 import { IScriptRuntime } from '@bitcobblers/wod-wiki-engine';
-import { UseRuntimeExecutionReturn } from '@bitcobblers/wod-wiki-engine';
+import { UseRuntimeExecutionReturn } from '@bitcobblers/wod-wiki-engine/react';
 import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
 import { cn } from '@/lib/utils';
 import { WorkoutPreviewPanel } from '@/components/organisms/workbench/WorkoutPreviewPanel';

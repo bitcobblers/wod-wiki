@@ -7,6 +7,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-engine';
 
+const mockContentProvider = vi.hoisted(() => {
+  const saveEntry = vi.fn();
+  return { saveEntry, IndexedDBContentProvider: class { saveEntry = saveEntry; } };
+});
+
 vi.mock('@/services/storage', () => ({
   storageService: { getNote: vi.fn() },
   whenStorageReady: vi.fn(async () => {}),
@@ -70,11 +75,6 @@ function fakeSavedEntry(rawContent: string) {
     schemaVersion: 1,
   };
 }
-
-const mockContentProvider = vi.hoisted(() => {
-  const saveEntry = vi.fn();
-  return { saveEntry, IndexedDBContentProvider: class { saveEntry = saveEntry; } };
-});
 
 const saveEntryMock = mockContentProvider.saveEntry;
 const getNoteMock = vi.mocked(storageService).getNote;

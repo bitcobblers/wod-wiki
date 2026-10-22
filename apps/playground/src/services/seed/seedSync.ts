@@ -292,8 +292,12 @@ async function runSeedSyncViaWorker(
       resolve(value);
     };
     worker.onerror = (event) => {
-      console.warn('[seedSync] seed worker failed', event.message ?? 'unknown error');
-      settle(received ? aggregateOutcomes(outcomes) : null);
+        console.warn('[seedSync] seed worker failed', event.message ?? 'unknown error', {
+            filename: (event as ErrorEvent).filename,
+            lineno: (event as ErrorEvent).lineno,
+            colno: (event as ErrorEvent).colno,
+        });
+        settle(received ? aggregateOutcomes(outcomes) : null);
     };
     worker.onmessage = (event: MessageEvent<SeedWorkerToMain>) => {
       received = true;

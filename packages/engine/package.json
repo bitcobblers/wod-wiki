@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.mjs",
+      "require": "./dist/react.cjs"
     }
   },
   "files": [
@@ -31,7 +36,7 @@
     "@lezer/lr": "^1.0.0"
   },
   "scripts": {
-    "prepack": "node -e \"const fs=require('fs');const missing=['dist/index.mjs','dist/index.cjs','dist/index.d.ts'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('prepack: refusing to publish broken package, missing build outputs:\\n  '+missing.join('\\n  '));process.exit(1)}\"",
+    "prepack": "node -e \"const fs=require('fs');const missing=['dist/index.mjs','dist/index.cjs','dist/index.d.ts','dist/react.mjs','dist/react.cjs','dist/react.d.ts'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('prepack: refusing to publish broken package, missing build outputs:\\n  '+missing.join('\\n  '));process.exit(1)}\"",
     "build": "tsup",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",

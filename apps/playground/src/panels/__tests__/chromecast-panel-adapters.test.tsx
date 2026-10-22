@@ -1,7 +1,7 @@
 import React from 'react';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine';
+import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine/react';
 import { TEST_IDS } from '@/testing/contracts/TestIdContract';
 import { RuntimeTestBuilder } from '@/testing/harness/RuntimeTestBuilder';
 import type { ReceiverTimerPanel } from '../wallclock-panel-chromecast';
