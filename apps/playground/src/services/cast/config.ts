@@ -28,3 +28,45 @@ export const isCustomCastAppId = (appId: string): boolean => {
 
 export const hasCustomCastAppId = isCustomCastAppId(CAST_APP_ID);
 
+// ── WebRTC ICE servers ──────────────────────────────────────────────────────
+
+export interface IceServerConfig {
+	urls: string;
+	username?: string;
+	credential?: string;
+}
+
+export interface CastTurnEnv {
+	VITE_CAST_STUN_URL?: string;
+	VITE_CAST_TURN_URL?: string;
+	VITE_CAST_TURN_USERNAME?: string;
+	VITE_CAST_TURN_CREDENTIAL?: string;
+}
+
+/**
+ * Assemble the RTCConfiguration.iceServers list.
+ *
+ * STUN alone only works when both peers share a routable network (same LAN,
+ * no AP/client isolation). When the sender can be on a different network —
+ * a phone on cellular or a guest VLAN — a TURN relay is the only way the
+ * DataChannel connects. TURN is opt-in via VITE_CAST_TURN_URL; credentials
+ * are required by coturn-style servers and harmless elsewhere.
+ */
+export function buildIceServers(env: CastTurnEnv): IceServerConfig[] {
+	const servers: IceServerConfig[] = [];
+	const stun = env.VITE_CAST_STUN_URL?.trim();
+	servers.push({ urls: stun || 'stun:stun.l.google.com:19302' });
+
+	const turn = env.VITE_CAST_TURN_URL?.trim();
+	if (turn) {
+		servers.push({
+			urls: turn,
+			username: env.VITE_CAST_TURN_USERNAME?.trim() || undefined,
+			credential: env.VITE_CAST_TURN_CREDENTIAL?.trim() || undefined,
+		});
+	}
+	return servers;
+}
+
+export const CAST_ICE_SERVERS = buildIceServers(import.meta.env);
+

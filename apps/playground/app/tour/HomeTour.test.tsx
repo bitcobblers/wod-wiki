@@ -500,8 +500,8 @@ describe('HomeTour', () => {
         await Promise.resolve()
       })
       // The recorded review panel stays open; closing it is what hands the
-      // hero back — the pitch collapses with the close (the skip-shrink
-      // must not fire mid-glide), then the glide parks the dashboards.
+      // hero back — the pitch collapses with the close (before the glide
+      // starts, so the target never shifts), then the glide parks the dashboards.
       await act(async () => {
         timerPanelControl().fireTimerClose?.()
         await Promise.resolve()
@@ -545,48 +545,6 @@ describe('HomeTour', () => {
     })
     expect(screen.getByTestId('tour-why-video').closest('#tour-why-video-wrap')?.className).not.toContain('invisible')
     expect(screen.queryByTestId('tour-why-watch-again')).toBeNull()
-  })
-
-  it('skips the pitch when it scrolls out of view, collapsing it into the tab', async () => {
-    type MockEntry = { el: Element; fire: (v: boolean) => void }
-    const observers: MockEntry[] = []
-    class MockIO {
-      cb: IntersectionObserverCallback
-      constructor(cb: IntersectionObserverCallback) {
-        this.cb = cb
-      }
-      observe(el: Element) {
-        const entry = {
-          el,
-          fire: (v: boolean) =>
-            this.cb([{ isIntersecting: v, target: el } as unknown as IntersectionObserverEntry], this as unknown as IntersectionObserver),
-        }
-        observers.push(entry)
-        entry.fire(true)
-      }
-      unobserve() {}
-      disconnect() {}
-    }
-    const scope = globalThis as unknown as { IntersectionObserver?: unknown }
-    const previousIO = scope.IntersectionObserver
-    scope.IntersectionObserver = MockIO
-    try {
-      await renderHomeTour()
-      expect(screen.getByTestId('tour-why-video').closest('#tour-why-video-wrap')?.className).not.toContain('invisible')
-
-      // Scroll the pitch out of the viewport — skip it.
-      const videoWrap = observers.find((o) => o.el.id === 'tour-why-video-wrap')
-      expect(videoWrap).toBeTruthy()
-      await act(async () => {
-        videoWrap!.fire(false)
-        await Promise.resolve()
-      })
-
-      expect(screen.getByTestId('tour-why-video').closest('#tour-why-video-wrap')?.className).toContain('invisible')
-      expect(screen.getByTestId('tour-why-watch-again')).toBeTruthy()
-    } finally {
-      scope.IntersectionObserver = previousIO
-    }
   })
 
   it('the pane-header button slides back to the editor and resets the runtime', async () => {

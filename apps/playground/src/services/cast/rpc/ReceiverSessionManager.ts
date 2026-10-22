@@ -77,6 +77,14 @@ export interface ReceiverSessionOptions {
      * that don't want audio side-effects set this to `false`.
      */
     audio?: boolean;
+    /**
+     * Dispose the transport when the session sees it disconnect. The
+     * chromecast receiver path sets this: its transport is built per-offer
+     * and never reused, so a dead transport left undisposed keeps its
+     * signaling listener registered and would claim (and answer) the next
+     * offer meant for a fresh transport.
+     */
+    disposeTransportOnDisconnect?: boolean;
 }
 
 /**
@@ -147,6 +155,12 @@ export function createReceiverSession(
 
     const disconnectHandlers = new Set<() => void>();
     const transportDisconnectedUnsub: RpcUnsubscribe = transport.onDisconnected(() => {
+        if (options.disposeTransportOnDisconnect) {
+            // The transport is dead — don't leave an orphaned peer
+            // connection (and its signaling listener) around to claim the
+            // next offer meant for a fresh transport.
+            transport.dispose();
+        }
         for (const handler of disconnectHandlers) handler();
     });
 

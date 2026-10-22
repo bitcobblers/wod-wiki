@@ -1,7 +1,7 @@
 /**
  * HomeTour.tsx — the home page: a heading hero that stages the "Why Wod
- * Wiki?" video pitch and the live editor preview — watching (or scrolling
- * past) the pitch collapses it into a Watch again tab and hands the hero
+ * Wiki?" video pitch and the live editor preview — watching the pitch
+ * collapses it into a Watch again tab and hands the hero
  * viewport to the editor — then the data sections, the Library & Community
  * Feeds jump section, the offerings, and the footer.
  *
@@ -238,8 +238,8 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   useTrackAnchor('hero', heroSectionRef)
 
   // ── Hero stage: the pitch video owns the hero until it is watched (the
-  // lightbox closes) or skipped (the editor viewport scrolls into view);
-  // then it collapses into the Watch again tab above the editor. ──
+  // lightbox closes); then it collapses into the Watch again tab above the
+  // editor. Scrolling past without watching never collapses it. ──
   const [whyShrunk, setWhyShrunk] = useState(false)
   const whyShrunkRef = useRef(whyShrunk)
   whyShrunkRef.current = whyShrunk
@@ -267,17 +267,6 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
     window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
   }, [prefersReducedMotion])
 
-  // Skip-the-video: once the pitch scrolls out of view, collapse it — the
-  // editor becomes the hero content without demanding a watch.
-  useEffect(() => {
-    const el = document.getElementById('tour-why-video-wrap')
-    if (!el || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting && !whyShrunkRef.current) setWhyShrunk(true)
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
   const editorLeftRef = useRef(false)
   const resetEditorToArrival = useCallback(() => {
     requestStop({ kind: 'apply-doc', doc: initialContent })
@@ -412,8 +401,8 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   // sticky header so the run's Session Insights are what the visitor sees
   // after closing the fullscreen review panel. The sentinel's document top
   // IS the header's bottom edge (it is the first element in flow under it).
-  // The glide leaves the hero, so an open pitch collapses first — letting
-  // the skip-shrink fire mid-glide would shift the target under us.
+  // The glide leaves the hero, so an unwatched pitch collapses first —
+  // gliding before the collapse settled would shift the target under us.
   const scrollInsightsIntoView = useCallback(() => {
     const glide = () => {
       const el = document.getElementById('tour-section-insights')
@@ -585,7 +574,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
     </ScrollGate>
   )
 
-  // The pitch video hands the hero to the editor once watched or skipped —
+  // The pitch video hands the hero to the editor once watched —
   // the same stage contract in both form factors.
   const whyVideoBlock = (
     <div
@@ -659,8 +648,8 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
       >
         <TourHeroHeading />
         {whyVideoBlock}
-        {/* The live preview: welcome-1.md loaded in the editor. Watching or
-            skipping the pitch collapses it into the Watch again tab and the
+        {/* The live preview: welcome-1.md loaded in the editor. Watching the
+            pitch collapses it into the Watch again tab and the
             editor becomes the hero viewport. Run opens the fullscreen timer;
             closing its review panel glides to the dashboards section below.
             The editor chrome is a scroll gate: while traveling, gestures

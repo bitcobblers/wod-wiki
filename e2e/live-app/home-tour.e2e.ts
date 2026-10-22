@@ -76,10 +76,11 @@ for (const viewport of [
       await expect(page.getByTestId('tour-why-video')).toBeVisible()
       await expect(page.getByTestId('tour-why-watch-again')).toBeHidden()
 
-      // Scrolling past the pitch without watching collapses it too.
+      // Scrolling past the pitch without watching must NOT collapse it —
+      // it stays expanded so the page never shifts under the scroll.
       await page.getByTestId('tour-section-editor').evaluate(el => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
-      await expect(page.getByTestId('tour-why-watch-again')).toBeVisible()
-      await expect(page.getByTestId('tour-why-video')).toBeHidden()
+      await expect(page.getByTestId('tour-why-watch-again')).toBeHidden()
+      await expect(page.getByTestId('tour-why-video')).toBeAttached()
 
       // No run yet: the Session Insights pane offers the CTA instead of
       // results. The section is one long parallax scroll — bring the

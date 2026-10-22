@@ -365,7 +365,18 @@ export const CAST_NAMESPACE = 'urn:x-cast:com.wodwiki';
 export type WebRTCSignalMessage =
   | WebRTCOfferMessage
   | WebRTCAnswerMessage
-  | WebRTCIceCandidateMessage;
+  | WebRTCIceCandidateMessage
+  | CastReadyMessage;
+
+/**
+ * Broadcast by the receiver once its CAF context is READY — i.e. the custom
+ * namespace is registered and it can answer offers. A sender still waiting
+ * for an answer treats this as the green light to retransmit its offer
+ * immediately rather than waiting for the next retry tick.
+ */
+export interface CastReadyMessage {
+  type: 'cast-ready';
+}
 
 export interface WebRTCOfferMessage {
   type: 'webrtc-offer';

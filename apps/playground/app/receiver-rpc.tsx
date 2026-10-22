@@ -17,6 +17,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CAST_NAMESPACE } from '@/types/cast/messages';
+import type { WebRTCSignalMessage } from '@/types/cast/messages';
 import { ReceiverCastSignaling } from '@/services/cast/CastSignaling';
 import { WebRtcRpcTransport, type ISignaling } from '@/services/cast/rpc/WebRtcRpcTransport';
 import { ChromecastProxyRuntime } from '@/services/cast/rpc/ChromecastProxyRuntime';
@@ -524,11 +525,15 @@ const ReceiverApp: React.FC = () => {
      * Initialize/Re-initialize the WebRTC transport and receiver session.
      * Called whenever a new signaling offer arrives.
      *
+     * `trigger` is the offer message that caused this setup. It was
+     * dispatched before the new transport subscribed to the signaling bus,
+     * so it is injected into the transport directly — see below.
+     *
      * The session manager handles audio routing and the workbench
      * subscription; the React tree only needs to observe the runtime
      * and react to disconnect events.
      */
-    const setupTransport = useCallback(() => {
+    const setupTransport = useCallback((trigger?: WebRTCSignalMessage) => {
         if (!signalingRef.current) return;
         console.log('[ReceiverApp] Setting up new transport session…');
 
@@ -549,8 +554,14 @@ const ReceiverApp: React.FC = () => {
             onSignal: (handler) => sharedSignaling.onSignal(handler),
             dispose: () => { /* no-op — signaling is owned by ReceiverApp */ },
         };
-        const transportInstance: IRpcTransport = new WebRtcRpcTransport('answerer', signalingFacade);
-        const handle = createReceiverSession(transportInstance);
+        const transportInstance = new WebRtcRpcTransport('answerer', signalingFacade);
+        // Feed the offer that triggered this setup into the new transport.
+        // The offer was dispatched BEFORE this transport subscribed to the
+        // signaling bus, so without this it would never be processed and the
+        // handshake would stall until connect() timed out (the mobile
+        // "stays on connecting" failure — desktop masked it by boot order).
+        if (trigger) transportInstance.receiveSignal(trigger);
+        const handle = createReceiverSession(transportInstance, { disposeTransportOnDisconnect: true });
 
         wireSession(handle, {
             ownsLifetime: true,
@@ -609,6 +620,10 @@ const ReceiverApp: React.FC = () => {
                 clearTimeout(bootTimeoutRef.current);
                 bootTimeoutRef.current = null;
             }
+            // Tell any connected sender the receiver app is up and can
+            // answer offers — a sender still holding an unanswered offer
+            // retransmits immediately instead of waiting for its retry tick.
+            signalingRef.current?.send({ type: 'cast-ready' });
         });
         bootTimeoutRef.current = armReceiverBootFallback(() => {
             console.warn('[ReceiverApp] CAF READY did not arrive before the boot timeout; showing degraded waiting shell');
@@ -627,7 +642,7 @@ const ReceiverApp: React.FC = () => {
         signaling.onSignal((signal) => {
             if (signal.type === 'webrtc-offer') {
                 console.log('[ReceiverApp] Received webrtc-offer — triggering transport setup');
-                setupTransport();
+                setupTransport(signal);
             }
         });
         return () => {
