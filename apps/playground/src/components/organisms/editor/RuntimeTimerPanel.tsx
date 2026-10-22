@@ -242,6 +242,9 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   onRunStarted,
   externalPause,
   externalStop,
+  adoptRuntime,
+  parkOnUnmount,
+  onPark,
 }) => {
   const [runtimeBlock] = useState(() => prepareRuntimeBlock(block));
   const [preRunScript] = useState(() => ({ statements: runtimeBlock.statements }));

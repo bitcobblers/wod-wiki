@@ -19,7 +19,7 @@ mock.module('@/contexts/AudioContext', () => ({
   }),
 }));
 
-mock.module('@bitcobblers/wod-wiki-engine', () => ({
+mock.module('@bitcobblers/wod-wiki-engine/react', () => ({
   useScriptRuntime: () => null,
 }));
 

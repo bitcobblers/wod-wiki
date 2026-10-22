@@ -22,6 +22,10 @@ Domain vocabulary that applies repo-wide lives in the root
   (returns the `ChromecastBackend` singleton; every build casts to the hosted receiver app).
   `LibraryCastBridge` pushes the notebook catalog to the receiver and routes
   the browser on `open-notebook` — cast-and-walk-away entry point.
+- **Running workout** — a run outlives the surface that started it: the runtime
+  is **parked** (not disposed) when the journal page unmounts, so the clock
+  keeps running while the user is on another route; the next visit re-binds the
+  same runtime (`app/runtimeStore.ts` → `parkedRuns`).
 - **Result recording** — consumes the library `src/services/resultRecorder.ts`
   (`playgroundRecorder`, wired to the `notePersistence` singleton): the single
   seam for persisting a `WorkoutResult`. Owns identity resolution (Note

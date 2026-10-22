@@ -13,7 +13,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { journalDatePath, noteByIdPath, runPath } from '../lib/routes';
 import { formatDateKey } from '../services/dateUtils';
 import { CreateJournalNoteDialog } from '../components/organisms/journal/CreateJournalNoteDialog';
-import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes } from '../runtimeStore';
+import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes, takeParkedRun } from '../runtimeStore';
 import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore';
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from '@/components/atoms/primitives/button'
@@ -57,6 +57,9 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   // Identity of the run this surface owns (fresh or re-bound) — what gets
   // parked when the surface unmounts mid-workout.
   const runDescriptorRef = useRef<{ runtimeId: string; block: ScriptBlock; noteId: string; captured?: CapturedRun } | null>(null);
+  // Set when the run is finished on purpose (closed or completed): the
+  // surface unmounts, but the run must NOT be parked for a later re-bind.
+  const discardRunRef = useRef(false);
   const pendingRunRef = useRef<PendingRuntime | null>(null);
   const capturedRunRef = useRef<CapturedRun | null>(null);
   const noteRunStarts = useRef(new Map<string, (block: ScriptBlock, resultId: string) => Promise<CapturedRun>>());
@@ -115,6 +118,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       pendingRunRef.current = pending;
       capturedRunRef.current = null;
       runDescriptorRef.current = { runtimeId: autoStartId, block: pending.block, noteId: pending.noteId, captured: pending.captured };
+      discardRunRef.current = false;
       setTimerBlock(pending.block);
       setActiveRuntimeId(autoStartId);
       setActiveNoteId(pending.noteId);
@@ -154,6 +158,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     const captured = capturedRunRef.current;
     if (!captured) return Promise.reject(new Error('The saved run pin is unavailable.'));
     // The run is over — it must not be re-bound on the next visit.
+    discardRunRef.current = true;
     clearParkedRun(captured.session.id);
     const resultId = captured.session.id;
     const view = editorViewsRef.current.get(captured.session.noteId);
@@ -414,6 +419,8 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
             setActiveRuntimeId(null);
             setActiveNoteId(null);
             setParkedRun(null);
+            // The run is over on purpose — the unmount below must not park it.
+            discardRunRef.current = true;
             const descriptor = runDescriptorRef.current;
             if (descriptor) clearParkedRun(descriptor.runtimeId);
             runDescriptorRef.current = null;
@@ -426,18 +433,30 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           onPark={(runtime) => {
             // The surface went away with the run still live — park it so
             // the next visit re-binds the SAME runtime (clock keeps running).
+            // The registry is the only state written here: React state would
+            // churn on every park (and re-trigger the adoption effect).
             const descriptor = runDescriptorRef.current;
-            if (!descriptor) return;
-            const next: ParkedRun = {
+            if (!descriptor || discardRunRef.current) {
+              // The run was closed or completed: it must not come back.
+              runtime.dispose();
+              return;
+            }
+            parkRun({
               runtimeId: descriptor.runtimeId,
               block: descriptor.block,
               noteId: descriptor.noteId,
               captured: descriptor.captured,
               runtime,
               journalDate,
-            };
-            parkRun(next);
-            setParkedRun(next);
+            });
+          }}
+          onRuntimeReady={(runtime) => {
+            // The panel owns a (possibly new) runtime for this run: drop any
+            // stale parked entry so a later visit re-binds the live one.
+            const descriptor = runDescriptorRef.current;
+            if (!descriptor) return;
+            const stale = takeParkedRun(descriptor.runtimeId);
+            if (stale && stale.runtime !== runtime) stale.runtime.dispose();
           }}
         />
       )}
