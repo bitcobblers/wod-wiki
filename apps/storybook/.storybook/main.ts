@@ -9,7 +9,7 @@ const config: StorybookConfig = {
   stories: [
     '../src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
   ],
-  staticDirs: ['../public'],
+  staticDirs: ['../public', { from: '../../playground/public/seed', to: '/seed' }],
   addons: [
     getAbsolutePath("@storybook/addon-docs"),
     getAbsolutePath("@storybook/addon-vitest"),

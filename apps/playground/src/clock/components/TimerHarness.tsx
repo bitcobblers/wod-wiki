@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine';
+import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine/react';
 import { formatTimestamp, formatDurationSmart } from '../../lib/formatTime';
 import { calculateDuration } from '../../lib/timeUtils';
 import { getRuntimeNowMs } from '@bitcobblers/wod-wiki-engine';

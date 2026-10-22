@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { createBackend, getCastBackend, __setCastBackendForTest, __resetCastBackendForTest } from '../getCastBackend';
+import { getCastBackend, __setCastBackendForTest, __resetCastBackendForTest } from '../getCastBackend';
 import { ChromecastBackend } from '../adapters/ChromecastBackend';
-import { LocalTabBackend } from '../adapters/LocalTabBackend';
 import type { ICastBackend } from '../ICastBackend';
 
 describe('getCastBackend', () => {
@@ -9,23 +8,12 @@ describe('getCastBackend', () => {
         __resetCastBackendForTest();
     });
 
-    describe('createBackend (pure selection)', () => {
-        it('returns a ChromecastBackend for "chromecast"', () => {
-            const backend = createBackend('chromecast');
-            expect(backend).toBeInstanceOf(ChromecastBackend);
-        });
-
-        it('returns a LocalTabBackend for "local"', () => {
-            const backend = createBackend('local');
-            expect(backend).toBeInstanceOf(LocalTabBackend);
-        });
-    });
-
     describe('getCastBackend (memoization)', () => {
-        it('returns the same instance on repeated calls', () => {
+        it('returns the same ChromecastBackend instance on repeated calls', () => {
             const a = getCastBackend();
             const b = getCastBackend();
             expect(a).toBe(b);
+            expect(a).toBeInstanceOf(ChromecastBackend);
         });
     });
 

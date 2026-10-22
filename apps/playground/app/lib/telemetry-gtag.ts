@@ -7,7 +7,7 @@
  * G-PROD-ID is the build-time placeholder the production build rewrites,
  * same as the removed inline script.
  */
-import { telemetry } from '@/services/telemetry';
+import { telemetry, engagementMs } from '@/services/telemetry';
 
 const GTAG_ID = 'G-PROD-ID';
 
@@ -46,6 +46,7 @@ export function trackPageView(title?: string, path?: string): void {
     page_title: title ?? document.title,
     page_location: window.location.href,
     page_path: path ?? (window.location.pathname + window.location.search),
+    engagement_time_msec: engagementMs(),
   });
 }
 
@@ -58,6 +59,10 @@ if (telemetry.consent) {
   injectGtag();
 } else {
   telemetry.subscribeConsent((granted) => {
-    if (granted) injectGtag();
+    if (!granted) return;
+    injectGtag();
+    // The landing route's trackPageView ran before gtag existed; replay it
+    // so the session's first pageview is not lost.
+    trackPageView();
   });
 }

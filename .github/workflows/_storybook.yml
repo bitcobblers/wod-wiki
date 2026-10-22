@@ -60,6 +60,8 @@ jobs:
         if: inputs.version != ''
         run: bun scripts/stamp-version.ts --version "${{ inputs.version }}"
 
+      - name: Build packages
+        run: bun run build:packages
       # addon-vitest browser mode occasionally flakes on a cold cache: the
       # vite dev server behind the chromium runner fails to serve its own
       # setup module ("Failed to fetch dynamically imported module"), failing

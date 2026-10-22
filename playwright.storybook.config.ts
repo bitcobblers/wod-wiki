@@ -22,7 +22,10 @@ if (!baseURL) {
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: '**/storybook.smoke.e2e.ts',
+  // The database-driven suite needs its own file: it drives a real IndexedDB
+  // (seeding, run persistence), so it must not share the smoke file's
+  // 30s budget.
+  testMatch: ['**/storybook.smoke.e2e.ts', '**/storybook.database.e2e.ts'],
 
   timeout: 30 * 1000,
   fullyParallel: false,
@@ -42,6 +45,16 @@ export default defineConfig({
   projects: [
     {
       name: 'storybook-chromium',
+      testMatch: '**/storybook.smoke.e2e.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // Database gate: the landing page seeds the core corpus over the
+      // network, so this suite needs a far bigger budget than the smoke
+      // file's 30s.
+      name: 'storybook-database',
+      testMatch: '**/storybook.database.e2e.ts',
+      timeout: 180 * 1000,
       use: { ...devices['Desktop Chrome'] },
     },
     {

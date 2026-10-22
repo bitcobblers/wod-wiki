@@ -47,8 +47,8 @@ export interface IRpcTransport {
      * Whether clock synchronization between sender and receiver is beneficial
      * for this transport.
      *
-     * - `false` for transports that share a clock (same-machine IPC, e.g.
-     *   `BroadcastChannelRpcTransport`): the offset is ~0ms and running a
+     * - `false` for transports that share a clock (same-machine IPC): the
+     *   offset is ~0ms and running a
      *   sync handshake would just add startup latency.
      * - `true` for transports that traverse a real network and may have
      *   measurable clock skew (e.g. `WebRtcRpcTransport` over Chromecast):

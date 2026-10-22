@@ -183,6 +183,7 @@ export function CommandListView<TPayload>({
               value={query}
               onChange={e => onQueryChange(e.target.value)}
               placeholder={placeholder}
+              data-testid="palette-search-input"
               className="flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
             />
             {mobileClose && (

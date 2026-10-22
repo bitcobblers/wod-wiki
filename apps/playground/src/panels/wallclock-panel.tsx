@@ -11,16 +11,18 @@
  */
 
 import React, { useMemo } from 'react';
-import { useScriptRuntime } from '@bitcobblers/wod-wiki-engine';
+import { useScriptRuntime } from '@bitcobblers/wod-wiki-engine/react';
+import {
+  getRuntimeNowMs,
+} from '@bitcobblers/wod-wiki-engine';
 import {
   usePrimaryTimer,
   useSecondaryTimers,
   useStackTimers,
   useActiveControls,
   useStackDisplayRows,
-  getRuntimeNowMs,
-} from '@bitcobblers/wod-wiki-engine';
-import { useRoundDisplay } from '@bitcobblers/wod-wiki-engine';
+} from '@bitcobblers/wod-wiki-engine/react';
+import { useRoundDisplay } from '@bitcobblers/wod-wiki-engine/react';
 import { calculateDuration } from '@/lib/timeUtils';
 
 import { TimerStackView } from '@/components/organisms/workout/TimerStackView';

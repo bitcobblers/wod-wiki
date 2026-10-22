@@ -13,7 +13,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { journalDatePath, noteByIdPath, runPath } from '../lib/routes';
 import { formatDateKey } from '../services/dateUtils';
 import { CreateJournalNoteDialog } from '../components/organisms/journal/CreateJournalNoteDialog';
-import { pendingRuntimes } from '../runtimeStore';
+import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes, takeParkedRun } from '../runtimeStore';
 import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore';
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from '@/components/atoms/primitives/button'
@@ -26,7 +26,7 @@ import type { NavItemL3 } from '../nav/navTypes';
 import { useNav } from '../nav/NavContext';
 import { SavedNoteEditor } from './shared/SavedNoteEditor';
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
-import type { PendingRuntime } from '../runtimeStore';
+import type { ParkedRun, PendingRuntime } from '../runtimeStore';
 import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
 
 import { JournalPageShell } from '@/panels/page-shells';
@@ -48,11 +48,27 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   const [timerBlock, setTimerBlock] = useState<ScriptBlock | null>(null);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  // A run that is still alive from a previous visit to this date: the user
+  // navigated away mid-workout and the runtime was parked (not disposed),
+  // so the clock kept running. Re-bound on return.
+  const [parkedRun, setParkedRun] = useState<ParkedRun | null>(null);
+  const parkedRunRef = useRef<ParkedRun | null>(null);
+  parkedRunRef.current = parkedRun;
+  // Identity of the run this surface owns (fresh or re-bound) — what gets
+  // parked when the surface unmounts mid-workout.
+  const runDescriptorRef = useRef<{ runtimeId: string; block: ScriptBlock; noteId: string; captured?: CapturedRun } | null>(null);
+  // Set when the run is finished on purpose (closed or completed): the
+  // surface unmounts, but the run must NOT be parked for a later re-bind.
+  const discardRunRef = useRef(false);
   const pendingRunRef = useRef<PendingRuntime | null>(null);
   const capturedRunRef = useRef<CapturedRun | null>(null);
   const noteRunStarts = useRef(new Map<string, (block: ScriptBlock, resultId: string) => Promise<CapturedRun>>());
   const [runError, setRunError] = useState<string | null>(null);
   const prepareRun = useCallback(async () => {
+    // A re-bound run is already live and already captured — nothing to
+    // prepare; the parked block is the run's block.
+    const parked = parkedRunRef.current;
+    if (parked) return parked.block;
     const pending = pendingRunRef.current;
     if (!pending || !activeRuntimeId) throw new Error('The pending workout is unavailable.');
     if (pending.captured) { capturedRunRef.current = pending.captured; return pending.captured.block; }
@@ -101,6 +117,8 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       pendingRuntimes.delete(autoStartId);
       pendingRunRef.current = pending;
       capturedRunRef.current = null;
+      runDescriptorRef.current = { runtimeId: autoStartId, block: pending.block, noteId: pending.noteId, captured: pending.captured };
+      discardRunRef.current = false;
       setTimerBlock(pending.block);
       setActiveRuntimeId(autoStartId);
       setActiveNoteId(pending.noteId);
@@ -112,6 +130,24 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     }, { replace: true });
   }, [searchKey, setSearchParams]);
 
+  // Re-bind a run that is still alive for this date. The URL no longer
+  // carries the run id (the autoStart param is stripped on first mount), so
+  // the parked registry is the lookup: it holds the live runtime the
+  // previous visit parked when the surface unmounted.
+  useEffect(() => {
+    if (isTimerOpen) return;
+    const parked = findParkedRunByDate(journalDate);
+    if (!parked) return;
+    setParkedRun(parked);
+    pendingRunRef.current = { block: parked.block, noteId: parked.noteId, captured: parked.captured };
+    capturedRunRef.current = parked.captured ?? null;
+    runDescriptorRef.current = { runtimeId: parked.runtimeId, block: parked.block, noteId: parked.noteId, captured: parked.captured };
+    setTimerBlock(parked.block);
+    setActiveRuntimeId(parked.runtimeId);
+    setActiveNoteId(parked.noteId);
+    setIsTimerOpen(true);
+  }, [journalDate, isTimerOpen]);
+
   const handleNoteContentChange = useCallback((noteId: string, newContent: string) => {
     setNotes((prev) => prev?.map((n) => (n.id === noteId ? { ...n, rawContent: newContent } : n)) ?? prev);
   }, []);
@@ -121,6 +157,9 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (editorResultId) return Promise.resolve();
     const captured = capturedRunRef.current;
     if (!captured) return Promise.reject(new Error('The saved run pin is unavailable.'));
+    // The run is over — it must not be re-bound on the next visit.
+    discardRunRef.current = true;
+    clearParkedRun(captured.session.id);
     const resultId = captured.session.id;
     const view = editorViewsRef.current.get(captured.session.noteId);
     if (view && !view.state.doc.toString().includes(sessionQueryWql(resultId))) {
@@ -379,10 +418,46 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
             setIsTimerOpen(false);
             setActiveRuntimeId(null);
             setActiveNoteId(null);
+            setParkedRun(null);
+            // The run is over on purpose — the unmount below must not park it.
+            discardRunRef.current = true;
+            const descriptor = runDescriptorRef.current;
+            if (descriptor) clearParkedRun(descriptor.runtimeId);
+            runDescriptorRef.current = null;
           }}
           resultId={activeRuntimeId ?? undefined}
           onCompleteWorkout={(blockId, results) => handleCompleteWorkout(blockId, results)}
           autoStart
+          adoptRuntime={parkedRun?.runtime ?? null}
+          parkOnUnmount
+          onPark={(runtime) => {
+            // The surface went away with the run still live — park it so
+            // the next visit re-binds the SAME runtime (clock keeps running).
+            // The registry is the only state written here: React state would
+            // churn on every park (and re-trigger the adoption effect).
+            const descriptor = runDescriptorRef.current;
+            if (!descriptor || discardRunRef.current) {
+              // The run was closed or completed: it must not come back.
+              runtime.dispose();
+              return;
+            }
+            parkRun({
+              runtimeId: descriptor.runtimeId,
+              block: descriptor.block,
+              noteId: descriptor.noteId,
+              captured: descriptor.captured,
+              runtime,
+              journalDate,
+            });
+          }}
+          onRuntimeReady={(runtime) => {
+            // The panel owns a (possibly new) runtime for this run: drop any
+            // stale parked entry so a later visit re-binds the live one.
+            const descriptor = runDescriptorRef.current;
+            if (!descriptor) return;
+            const stale = takeParkedRun(descriptor.runtimeId);
+            if (stale && stale.runtime !== runtime) stale.runtime.dispose();
+          }}
         />
       )}
     </WorkbenchSessionProvider>

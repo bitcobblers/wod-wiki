@@ -20,7 +20,7 @@
  * Before this module existed, those four concerns were wired up in five
  * different places: `CastButtonRpc`'s `connectSession` callback, the
  * re-adopt effect, the inline `useEffect` in `RuntimeTimerPanel`, the
- * receiver's `LocalReceiverApp` effect, and the receiver's
+ * sender's local-session effect, and the receiver's
  * `setupTransport` callback. Adding a new RPC message type or changing
  * the subscription shape meant five updates.
  *

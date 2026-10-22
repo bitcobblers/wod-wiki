@@ -16,15 +16,17 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  getRuntimeNowMs,
+  metricPresentation,
+} from '@bitcobblers/wod-wiki-engine';
+import {
   useScriptRuntime,
   usePrimaryTimer,
   useStackTimers,
   useStackDisplayRows,
   useRoundDisplay,
   useNextPreview,
-  getRuntimeNowMs,
-  metricPresentation,
-} from '@bitcobblers/wod-wiki-engine';
+} from '@bitcobblers/wod-wiki-engine/react';
 import { calculateDuration } from '@/lib/timeUtils';
 import { useWorkbenchSession } from '@/stores/workbenchSessionStore';
 

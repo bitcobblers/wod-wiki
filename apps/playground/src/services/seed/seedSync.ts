@@ -22,7 +22,7 @@ import type { SeedImportStorage } from './SeedImportStorage';
 import { mainThreadSeedImportStorage } from './seedStorageDefault';
 import { assertManifest, type ISeedSource } from './ISeedSource';
 import { EMBEDDED_SEED_VERSIONS } from './seedVersion';
-import { customSeedSources, CORE_SEED_URL, SEED_SOURCES, notebooksOfSeed, hideSeedSourceRow, hiddenSeedSourceIds, removeCustomSeedSource, safeRepositoryUrl } from './seedSources';
+import { customSeedSources, CORE_SEED_URL, SEED_SOURCES, notebooksOfSeed, hideSeedSourceRow, hiddenSeedSourceIds, removeCustomSeedSource, safeRepositoryUrl, toAbsoluteSeedUrl } from './seedSources';
 import { isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } from './seedSubscriptions';
 import { beginSyncActivity, reportSyncResult, reportSyncError } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
@@ -102,12 +102,13 @@ export interface SeedSourceSpec {
  */
 export function defaultSeedSources(): SeedSourceSpec[] {
   const hidden = new Set(hiddenSeedSourceIds());
+  const coreUrl = toAbsoluteSeedUrl(CORE_SEED_URL);
   return [
     {
       id: 'core',
       label: 'Core (playground)',
-      source: new HttpSeedSource(CORE_SEED_URL),
-      url: CORE_SEED_URL,
+      source: new HttpSeedSource(coreUrl),
+      url: coreUrl,
       embeddedVersion: EMBEDDED_SEED_VERSIONS['core'] ?? 0,
     },
     ...SEED_SOURCES.map((seed): SeedSourceSpec => ({
@@ -291,8 +292,8 @@ async function runSeedSyncViaWorker(
       resolve(value);
     };
     worker.onerror = (event) => {
-      console.warn('[seedSync] seed worker failed', event.message ?? 'unknown error');
-      settle(received ? aggregateOutcomes(outcomes) : null);
+        console.warn('[seedSync] seed worker failed', event.message ?? 'unknown error');
+        settle(received ? aggregateOutcomes(outcomes) : null);
     };
     worker.onmessage = (event: MessageEvent<SeedWorkerToMain>) => {
       received = true;
@@ -342,7 +343,7 @@ async function runSeedSyncViaWorker(
       sources: sources.map((s) => ({
         id: s.id,
         label: s.label,
-        url: s.url,
+        url: toAbsoluteSeedUrl(s.url),
         ...(s.tier ? { tier: s.tier } : {}),
         embeddedVersion: s.embeddedVersion,
         autoSyncOn: isSeedAutoSync(s.id),
@@ -714,6 +715,21 @@ export async function readSeedCoverage(deps: Pick<SeedSyncDeps, 'sources' | 'sto
     }
   }));
   return { coreImported, libraryImported };
+}
+
+/**
+ * Probe specifically for the bundled core source's checkpoint. Unlike
+ * readSeedCoverage (which flips coreImported for ANY non-disabled auto-import
+ * source), this accurately gates the initial boot population of the core corpus.
+ */
+export async function isCoreSeedImported(deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<boolean> {
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
+  try {
+    const meta = await storage.getSeedMeta(seedMetaKey('core'));
+    return (meta?.seedVersion ?? 0) > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**

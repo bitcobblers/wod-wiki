@@ -12,8 +12,16 @@ import { YouTubeLightbox } from './YouTubeLightbox'
 // "Why Wod Wiki?" cut when it ships (same component, no other change).
 const WHY_VIDEO_ID = 'dQw4w9WgXcQ'
 
-export function TourWhyVideo() {
+export function TourWhyVideo({ onWatched }: { onWatched?: () => void }) {
   const [playing, setPlaying] = useState(false)
+
+  // ponytail: "watched" = the lightbox was closed — the nocookie embed
+  // reports no end-of-video event without the YouTube iframe API; wire
+  // onWatched to that if exact completion ever matters.
+  const closeLightbox = () => {
+    setPlaying(false)
+    onWatched?.()
+  }
 
   return (
     <div className="flex w-full flex-col items-center gap-4 xl:gap-5">
@@ -48,7 +56,7 @@ export function TourWhyVideo() {
       </p>
 
       {playing && (
-        <YouTubeLightbox videoId={WHY_VIDEO_ID} title="Why Wod Wiki?" onClose={() => setPlaying(false)} />
+        <YouTubeLightbox videoId={WHY_VIDEO_ID} title="Why Wod Wiki?" onClose={closeLightbox} />
       )}
     </div>
   )

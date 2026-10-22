@@ -2,11 +2,10 @@
  * HomeInsightsSections.tsx — ONE parallax session covering both data views.
  * A sticky viewport flips scope as the copy scrolls past it:
  *
- *   01 Your Session, Analyzed → the recorded run's own result: the output
- *      statements table (the same data the note gets), or the run-to-view
- *      CTA while nothing is recorded yet.
- *      Session Insights       → the run turned into data: rest vs. work,
- *      how fast you answered the clock, round by round.
+ *   01 Session Insights       → the run turned into data: rest vs. work,
+ *      how fast you answered the clock, round by round — or the run-to-view
+ *      CTA while nothing is recorded yet. (The raw statement table lives in
+ *      the fullscreen run's review panel; the page does not repeat it.)
  *   02 One Run Becomes Many   → the seeded example dashboards — distinct
  *      ways of aggregating workout data behind flexible search criteria.
  *
@@ -15,28 +14,20 @@
  * Mobile: each step renders its copy followed by its pane, sequentially.
  */
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react'
 import { MacOSChrome } from '../components/atoms/MacOSChrome'
 import type { Sessions } from '@/components/Editor/types'
-import { SCREEN_TITLES } from './tourConstants'
-import { TourSessionInsights, InsightsRunCta } from './screens/TourSessionInsights'
-import { TourSessionResult } from './screens/TourSessionResult'
+import { TourSessionInsights } from './screens/TourSessionInsights'
 import { SampleDashboardPane } from './screens/SampleDashboardPane'
 import { cn } from '@/lib/utils'
 
-type Scope = 'result' | 'analytics' | 'boards'
-const SCOPES: readonly Scope[] = ['result', 'analytics', 'boards']
+type Scope = 'analytics' | 'boards'
+const SCOPES: readonly Scope[] = ['analytics', 'boards']
 
 const STEP_COPY: Record<Scope, { index?: string; heading: 'h2' | 'h3'; title: string; blurb: string }> = {
-  result: {
+  analytics: {
     index: '01',
     heading: 'h2',
-    title: 'Your Session, Analyzed',
-    blurb:
-      'The run you just did is already data — every statement it recorded lands here as a queryable table, the same format your note gets. Nothing to fill in; it comes straight from the run.',
-  },
-  analytics: {
-    heading: 'h3',
     title: 'Session Insights',
     blurb:
       'Run the workout and this window turns your run into data — rest vs. work, how fast you answered the clock, round by round.',
@@ -72,15 +63,33 @@ const DASHBOARD_SLIDES = [
   { id: 'polarized-base-marathon', label: 'Polarized Base', title: 'Polarized Base Marathon' },
 ] as const
 
+/** Slide back to the editor viewport — resets the runtime for another run. */
+function BackToEditorButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Back to the editor"
+      data-testid="tour-pane-back-to-editor"
+      className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <ArrowUp className="size-3" />
+      Editor
+    </button>
+  )
+}
+
 export interface InsightsDashboardsSectionProps {
-  /** The recorded run feeding the result/analytics scopes (null → CTAs). */
+  /** The recorded run feeding the analytics scope (null → run CTA). */
   session: Sessions | null
   /** CTA: launch the fullscreen run. */
   onRun: () => void
+  /** Pane-header action: slide back to the editor viewport, runtime reset. */
+  onBackToEditor: () => void
 }
 
-export function InsightsDashboardsSection({ session, onRun }: InsightsDashboardsSectionProps) {
-  const [scope, setScope] = useState<Scope>('result')
+export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: InsightsDashboardsSectionProps) {
+  const [scope, setScope] = useState<Scope>('analytics')
   const [slide, setSlide] = useState(0)
   const active = DASHBOARD_SLIDES[slide]
   const stepRefs = useRef(new Map<Scope, HTMLElement>())
@@ -93,7 +102,7 @@ export function InsightsDashboardsSection({ session, onRun }: InsightsDashboards
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
           const s = entry.target.getAttribute('data-scope')
-          if (s === 'result' || s === 'analytics' || s === 'boards') setScope(s)
+          if (s === 'analytics' || s === 'boards') setScope(s)
         }
       },
       { rootMargin: '-45% 0px -45% 0px' },
@@ -108,16 +117,9 @@ export function InsightsDashboardsSection({ session, onRun }: InsightsDashboards
   }
 
   const scopePane = (s: Scope) => {
-    if (s === 'result') {
-      return (
-        <MacOSChrome title={session ? SCREEN_TITLES.result : 'Session Insights'} className="h-[460px]">
-          {session ? <TourSessionResult result={session} /> : <InsightsRunCta onRun={onRun} />}
-        </MacOSChrome>
-      )
-    }
     if (s === 'analytics') {
       return (
-        <MacOSChrome title="Session Insights" className="h-[460px]">
+        <MacOSChrome title="Session Insights" className="h-[460px]" headerActions={<BackToEditorButton onClick={onBackToEditor} />}>
           <TourSessionInsights result={session} onRun={onRun} />
         </MacOSChrome>
       )
@@ -165,7 +167,7 @@ export function InsightsDashboardsSection({ session, onRun }: InsightsDashboards
             </button>
           </div>
         </div>
-        <MacOSChrome title={active.title} className="min-h-0 flex-1">
+        <MacOSChrome title={active.title} className="min-h-0 flex-1" headerActions={<BackToEditorButton onClick={onBackToEditor} />}>
           <div key={active.id} className="flex h-full w-full flex-col" role="tabpanel">
             <SampleDashboardPane boardSlug={active.id} />
           </div>
@@ -223,9 +225,8 @@ export function InsightsDashboardsSection({ session, onRun }: InsightsDashboards
         {/* Scrolling copy — desktop steps drive the sticky pane's scope. */}
         <div className="hidden flex-col lg:flex">
           <div id="tour-scroll-target-insights" className="scroll-mt-[72px] lg:scroll-mt-[104px]">
-            {desktopStep('result')}
+            {desktopStep('analytics')}
           </div>
-          {desktopStep('analytics')}
           {desktopStep('boards', {
             id: 'tour-section-boards',
             'data-testid': 'tour-section-boards',
@@ -233,7 +234,6 @@ export function InsightsDashboardsSection({ session, onRun }: InsightsDashboards
         </div>
         {/* Mobile: each step is copy followed by its own pane. */}
         <div className="flex flex-col gap-12 lg:hidden">
-          {mobileStep('result')}
           {mobileStep('analytics')}
           {mobileStep('boards')}
         </div>

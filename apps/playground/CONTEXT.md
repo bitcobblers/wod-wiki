@@ -19,7 +19,13 @@ Domain vocabulary that applies repo-wide lives in the root
   `IndexedDBStorage` adapter and composes `Persistence` services
   (`IndexedDBNotePersistence`, `playgroundRecorder`).
 - **Cast / sender** — `playground/src/cast/` and the `getCastBackend()` factory
-  (selected by `VITE_CAST_BACKEND`: `chromecast` / `local` / `auto`).
+  (returns the `ChromecastBackend` singleton; every build casts to the hosted receiver app).
+  `LibraryCastBridge` pushes the notebook catalog to the receiver and routes
+  the browser on `open-notebook` — cast-and-walk-away entry point.
+- **Running workout** — a run outlives the surface that started it: the runtime
+  is **parked** (not disposed) when the journal page unmounts, so the clock
+  keeps running while the user is on another route; the next visit re-binds the
+  same runtime (`app/runtimeStore.ts` → `parkedRuns`).
 - **Result recording** — consumes the library `src/services/resultRecorder.ts`
   (`playgroundRecorder`, wired to the `notePersistence` singleton): the single
   seam for persisting a `WorkoutResult`. Owns identity resolution (Note
@@ -31,7 +37,7 @@ Domain vocabulary that applies repo-wide lives in the root
 |---|---|---|
 | Note identity | `src/lib/noteIdentity.ts` (parse) + `playground/src/lib/noteIdentity.ts` (route) | `parseNoteId` / `NoteRef` live in the library (pure parse, shared with `src/`); `noteRefToPath` keeps the kind→route rule here (needs `./routes`). |
 | Result recorder | `src/services/resultRecorder.ts` (library) | `createResultRecorder(sink)` is testable with an in-memory sink; `playgroundRecorder` is the production instance. |
-| Cast backend | `playground/src/cast/getCastBackend.ts` | Reads `VITE_CAST_BACKEND`; returns `ChromecastBackend` or `LocalTabBackend`. |
+| Cast backend | `playground/src/cast/getCastBackend.ts` | Returns the `ChromecastBackend` singleton — every build casts to the hosted receiver app. |
 | Workbench session | `playground/src/state/workbenchSessionStore.ts` | The coherent editing-session state. Exercisable without React. |
 | Sticky page header | `src/panels/page-shells/StickyPageHeader.tsx` | The standard page header for every playground page: sticky title bar + actions + subheader slot, **desktop (lg+) only** — below lg the zone is `max-lg:hidden` and the SidebarLayout navbar is the single mobile header. Mobile identity reaches the navbar via the App breadcrumb (route-derived workout name); mobile-critical actions (note Edit toggle, stream query bar) portal into the navbar's MobileQuerySlot target. Stacked sticky children position via `measureStickyBoundary` / `useStickyBoundaryOffset` (`src/panels/page-shells/stickyBoundary.ts`) — never hardcode `top` values. |
 | Composer query state | `playground/src/hooks/useComposerQueryState.ts` | URL ↔ WqlComposer clause round-trip through `q` (back/forward restores the composer; salvage parser keeps invalid states editable). Stream profiles supply their landing defaults + legacy-param migration. |

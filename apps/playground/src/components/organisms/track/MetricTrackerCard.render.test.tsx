@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { cleanup, render, screen } from '@testing-library/react';
-import * as realEngine from '@bitcobblers/wod-wiki-engine';
+import * as realEngine from '@bitcobblers/wod-wiki-engine/react';
 
-mock.module('@bitcobblers/wod-wiki-engine', () => ({
+mock.module('@bitcobblers/wod-wiki-engine/react', () => ({
   ...realEngine,
   // Live Tier-2 snapshot: one entry per projection (Label + value pair).
   useLiveAnalytics: () => ([

@@ -24,40 +24,46 @@ import type { WorkbenchDisplayState } from '@/services/cast/rpc/ChromecastProxyR
 import type { CastReceiverContextLike } from '@/types/cast/sdk';
 import { createReceiverSession, type ReceiverSessionHandle } from '@/services/cast/rpc/ReceiverSessionManager';
 import type { IRpcTransport } from '@/services/cast/rpc/IRpcTransport';
-import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine';
+import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine/react';
 import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
 import { ReceiverTimerPanel } from '@/panels/wallclock-panel-chromecast';
 import { ReceiverPreviewPanel } from '@/panels/preview-panel-chromecast';
+import { ReceiverLibraryPanel } from '@/panels/library-panel-chromecast';
 import { ReceiverReviewPanel } from '@/panels/review-panel-chromecast';
 import { useSpatialNavigation } from '@/hooks/useSpatialNavigation';
 import { ClockCommandBoard, ClockControlModeToggle, ClockKeyCheckDialog } from '@/clock/ClockCommandBoard';
 import { applyEntryKey, getClockDraft, parseClockDraftValue, writeClockDraft } from '@/clock/clockCommands';
 import type { ClockCommand, ClockKeyAction, ClockSnapshot } from '@/clock/clockCommands';
 import { audioService } from '@/services/AudioService';
+import { telemetry, engagementMs } from '@/services/telemetry';
 import {
     armReceiverBootFallback,
     dismissReceiverBootLoader,
     RECEIVER_BOOT_DEGRADED_STATUS,
     RECEIVER_BOOT_READY_TIMEOUT_MS,
 } from './receiverBootLoader';
-import {
-    acquireLocalReceiverSession,
-    readLocalSessionIdFromUrl,
-} from '@/services/cast/adapters/LocalReceiverBackend';
 import '@/index.css';
 // ============================================================================
 // ReceiverApp — Main receiver component
 // ============================================================================
-const ReceiverApp: React.FC<{
-    transport?: IRpcTransport;
-    runtime?: ChromecastProxyRuntime;
-    /** Pre-built receiver session handle (local-tab path). */
-    externalHandle?: ReceiverSessionHandle;
-}> = ({ transport, runtime: externalRuntime, externalHandle }) => {
+const ReceiverApp: React.FC = () => {
     const [proxyRuntime, setProxyRuntime] = useState<ChromecastProxyRuntime | null>(null);
     const [connectionStatus, setConnectionStatus] = useState('waiting-for-cast');
     const [workbenchState, setWorkbenchState] = useState<WorkbenchDisplayState>({ mode: 'idle' });
+    // Library catalog pushed by the sender (`rpc-library-state`). Shown
+    // while nothing workout-shaped is on screen — the cast-and-walk-away
+    // entry point: pick a notebook on the TV, the browser routes there.
+    const [library, setLibrary] = useState<RpcLibraryState | null>(null);
     const [clockSnapshot, setClockSnapshot] = useState<ClockSnapshot | null>(null);
+    // A catalog is on screen only while nothing workout-shaped is: idle, or a
+    // preview with no blocks. Workout modes (preview-with-blocks/active/review)
+    // always win — the listing is the fallback surface, never a takeover.
+    const libraryVisible = library !== null
+        && library.entries.length > 0
+        && (!proxyRuntime
+            || workbenchState.mode === 'idle'
+            || (workbenchState.mode === 'preview'
+                && (!workbenchState.previewData || workbenchState.previewData.blocks.length === 0)));
     const [dpadFlash, setDpadFlash] = useState(false);
     const [keyCheckOpen, setKeyCheckOpen] = useState(false);
     const runtimeRef = useRef<ChromecastProxyRuntime | null>(null);
@@ -297,6 +303,10 @@ const ReceiverApp: React.FC<{
 
     // Programmatically focus the correct element when the workbench mode changes
     useEffect(() => {
+        if (libraryVisible) {
+            setFocusedId('library-0');
+            return;
+        }
         if (clockSnapshot?.entry) {
             setFocusedId('entry-digit-1');
             return;
@@ -318,7 +328,7 @@ const ReceiverApp: React.FC<{
         } else if (workbenchState.mode === 'review') {
             setFocusedId('btn-dismiss');
         }
-    }, [workbenchState.mode, workbenchState.previewData, clockSnapshot?.entry, clockSnapshot?.phase, setFocusedId]);
+    }, [libraryVisible, workbenchState.mode, workbenchState.previewData, clockSnapshot?.entry, clockSnapshot?.phase, setFocusedId]);
     // Track receiver mode changes (browsing, timer, showing results) and durations in GA4
     useEffect(() => {
         const currentMode = workbenchState.mode;
@@ -339,7 +349,7 @@ const ReceiverApp: React.FC<{
             idle: 'idle',
         };
 
-        if (prevMode && durationMs >= 1000) {
+        if (prevMode && durationMs >= 1000 && telemetry.consent) {
             window.gtag?.('event', 'receiver_mode_duration', {
                 receiver_mode: modeCategory[prevMode] ?? prevMode,
                 duration_seconds: Math.round(durationMs / 1000),
@@ -365,11 +375,15 @@ const ReceiverApp: React.FC<{
         const pagePath = pathMap[currentMode] || `/tv/${currentMode}`;
 
         document.title = pageTitle;
-        window.gtag?.('event', 'page_view', {
-            page_title: pageTitle,
-            page_path: pagePath,
-            page_location: `${window.location.origin}${pagePath}`,
-        });
+        if (telemetry.consent) {
+            // page_location stays the real receiver URL; /tv/* is page_path only.
+            window.gtag?.('event', 'page_view', {
+                page_title: pageTitle,
+                page_path: pagePath,
+                page_location: window.location.href,
+                engagement_time_msec: engagementMs(),
+            });
+        }
 
         lastModeRef.current = currentMode;
         lastTitleRef.current = currentTitle;
@@ -387,7 +401,7 @@ const ReceiverApp: React.FC<{
                 review: 'showing_results',
                 idle: 'idle',
             };
-            if (mode && durationMs >= 1000) {
+            if (mode && durationMs >= 1000 && telemetry.consent) {
                 window.gtag?.('event', 'receiver_mode_duration', {
                     receiver_mode: modeCategory[mode] ?? mode,
                     duration_seconds: Math.round(durationMs / 1000),
@@ -434,8 +448,8 @@ const ReceiverApp: React.FC<{
     // transport path (this receiver builds + disposes the handle) do the same
     // bookkeeping + subscriptions. The only thing that varies is **who owns
     // the handle's lifetime** — captured by `ownsLifetime`. Extracted per
-    // Finding 05 Step 2 so the bug a missing ref caused in path 3 (the CAF
-    // bootTimeoutRef crash) cannot recur here through drift.
+    // Finding 05 Step 2 so the bug a missing ref caused in the CAF
+    // bootTimeoutRef crash cannot recur here through drift.
     const wireSession = useCallback((
         handle: ReceiverSessionHandle,
         options: {
@@ -461,6 +475,10 @@ const ReceiverApp: React.FC<{
         const unsubWorkbench = handle.onWorkbenchUpdate((state) => {
             setWorkbenchState(state);
         });
+        // Library catalog: immediate replay of the latest push, then every
+        // update. Cleared on disconnect — a dead session must not keep a
+        // stale listing selectable.
+        const unsubLibrary = handle.onLibraryUpdate(setLibrary);
         // Authoritative clock state: immediate replay of the latest snapshot
         // on subscribe, then every push. Null snapshot ⇒ controls disabled.
         const unsubClock = handle.onClockSnapshot((snapshot) => {
@@ -472,6 +490,7 @@ const ReceiverApp: React.FC<{
             setProxyRuntime(null);
             // Transport gone: no snapshot, no commands, nothing to replay.
             setClockSnapshot(null);
+            setLibrary(null);
             if (activeSessionHandleRef.current === handle) {
                 activeSessionHandleRef.current = null;
             }
@@ -483,6 +502,7 @@ const ReceiverApp: React.FC<{
         return () => {
             unsubWorkbench();
             unsubClock();
+            unsubLibrary();
             unsubDisconnect();
             if (options.ownsLifetime) {
                 handle.dispose();
@@ -545,36 +565,8 @@ const ReceiverApp: React.FC<{
     }, [wireSession]);
 
     // ── Transport initialization ──────────────────────────────────────────
-    // Three paths (Finding 05):
-    //  1. Local-tab + parent-supplied handle: externalHandle. Skip CAF.
-    //  2. Local-tab + bare transport: build a session via createReceiverSession.
-    //  3. Chromecast: initialise CAF SDK, signaling, and wait for a sender.
-    // Paths 1 and 2 share `wireSession` (above); path 3 keeps its own block.
+    // Chromecast: initialise CAF SDK, signaling, and wait for a sender.
     useEffect(() => {
-        // ── Path 1: external handle provided by parent ──────────
-        // The session manager (LocalReceiverApp) owns the handle's lifetime.
-        // The React tree just observes it via wireSession.
-        if (externalHandle) {
-            console.log('[ReceiverApp] external handle provided — skipping CAF init');
-            return wireSession(externalHandle, {
-                ownsLifetime: false,
-                runtime: externalRuntime,
-                disconnectedLog: '[ReceiverApp] session disconnected',
-            });
-        }
-        // ── Path 2: legacy transport prop — build session in-place ──
-        // This receiver owns the handle's lifetime (creates + disposes it).
-        if (transport) {
-            console.log('[ReceiverApp] legacy transport prop — building session in-place');
-            const handle = createReceiverSession(transport);
-            return wireSession(handle, {
-                ownsLifetime: true,
-                runtime: externalRuntime,
-                transport,
-                disconnectedLog: '[ReceiverApp] local transport disconnected',
-            });
-        }
-        // ── Path 3: Chromecast — initialise CAF SDK ───────────────
         // Unchecked cast: the CAF receiver SDK injects `window.cast` at
         // runtime; its shape is owned by @/types/cast/sdk, not by TS DOM lib.
         const castGlobal = (window as unknown as {
@@ -662,6 +654,26 @@ const ReceiverApp: React.FC<{
     // Escape/Backspace cancel semantics ride the shared spatial-navigation
     // key policy (hook `cancel` action → entry-cancel / stop-cancel /
     // stop-request; Backspace during entry stays with the draft editor).
+
+    // Library listing branch — `libraryVisible` is computed near the state
+    // declarations so the focus effect can react to it.
+    if (libraryVisible) {
+        return (
+            <div className="h-screen w-screen bg-black text-white overflow-hidden">
+                {dpadFlash && (
+                    <div className="fixed inset-0 bg-primary/10 pointer-events-none z-50 animate-in fade-in duration-150" />
+                )}
+                <ReceiverLibraryPanel
+                    library={library}
+                    onOpenNotebook={(href) => sendEvent('open-notebook', { href })}
+                    getFocusProps={getFocusProps}
+                />
+                <div className="absolute bottom-2 right-2 opacity-10 text-[8px] font-mono tracking-tighter uppercase">
+                    {connectionStatus}
+                </div>
+            </div>
+        );
+    }
 
     // Waiting screen: not yet connected, or connected with no runtime active.
     // The sender flips this back to preview/active/review on the next update.
@@ -756,121 +768,7 @@ const ReceiverApp: React.FC<{
 };
 
 // ============================================================================
-// LocalReceiverApp — boot path for the local-tab dual-pane mirror.
-// ============================================================================
-
-type LocalBootState =
-    | { kind: 'handshaking' }
-    | { kind: 'connected'; handle: import('@/services/cast/rpc/ReceiverSessionManager').ReceiverSessionHandle }
-    | { kind: 'failed'; error: Error };
-
-const LocalReceiverApp: React.FC = () => {
-    const sessionId = readLocalSessionIdFromUrl();
-    const [state, setState] = useState<LocalBootState>({ kind: 'handshaking' });
-
-    useEffect(() => {
-        if (!sessionId) {
-            setState({
-                kind: 'failed',
-                error: new Error('Local receiver opened without a `?local=<id>` query param. Did the sender open this tab?'),
-            });
-            return;
-        }
-
-        console.log('[LocalReceiverApp] starting handshake', { sessionId, url: window.location.href });
-
-        let cancelled = false;
-        let handleRef: import('@/services/cast/rpc/ReceiverSessionManager').ReceiverSessionHandle | null = null;
-        let transportDispose: (() => void) | null = null;
-
-        acquireLocalReceiverSession({ sessionId })
-            .then((result) => {
-                if (cancelled) {
-                    result.dispose();
-                    return;
-                }
-                // Create the receiver session eagerly (before React re-renders)
-                // so the transport.onMessage handler is registered before the
-                // sender can start clock sync. Without this, the sender's
-                // first rpc-clock-sync-request arrives with no handler and is
-                // lost. The session manager handles audio routing and the
-                // workbench subscription that the React tree reads from.
-                const handle = createReceiverSession(result.transport);
-                handleRef = handle;
-                transportDispose = result.dispose;
-                const loader = document.getElementById('initial-loader');
-                if (loader) {
-                    loader.dataset.bootDismissed = 'true';
-                    loader.style.opacity = '0';
-                    setTimeout(() => { loader.style.display = 'none'; }, 500);
-                }
-                setState({ kind: 'connected', handle });
-            })
-            .catch((err: unknown) => {
-                if (cancelled) return;
-                const error = err instanceof Error ? err : new Error(String(err));
-                console.error('[LocalReceiverApp] handshake failed', error);
-                setState({ kind: 'failed', error });
-            });
-
-        return () => {
-            cancelled = true;
-            handleRef?.dispose();
-            transportDispose?.();
-        };
-    }, [sessionId]);
-
-    if (state.kind === 'failed') {
-        return (
-            <div
-                data-nav-root="true"
-                className="min-h-screen w-screen flex flex-col items-center justify-center bg-black text-white p-8"
-            >
-                <div className="max-w-2xl text-center space-y-4">
-                    <div className="text-2xl font-bold text-red-400">Local cast failed</div>
-                    <div className="text-sm text-zinc-300 break-words">{state.error.message}</div>
-                    <div className="text-xs text-zinc-500 pt-4">
-                        The sender did not transfer a connection. You can close this tab and try again.
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (state.kind === 'handshaking') {
-        return (
-            <div
-                data-nav-root="true"
-                className="min-h-screen w-screen flex flex-col items-center justify-center bg-black text-white"
-            >
-                <div className="text-2xl font-bold opacity-80">Waiting for sender</div>
-                <div className="text-sm opacity-60 mt-2">
-                    The sender opened this tab. The connection will appear when the handshake completes.
-                </div>
-            </div>
-        );
-    }
-
-    return <ReceiverApp
-        runtime={state.handle.runtime}
-        externalHandle={state.handle}
-    />;
-};
-
-// ============================================================================
-// Root — dispatches between the local boot path and the chromecast path.
-// ============================================================================
-
-const Root: React.FC = () => {
-    const localSessionId = readLocalSessionIdFromUrl();
-    if (localSessionId) {
-        return <LocalReceiverApp />;
-    }
-    return <ReceiverApp />;
-};
-
-// ============================================================================
-// ReceiverErrorBoundary — keeps the popup from blanking on a render error.
+// ReceiverErrorBoundary — keeps the receiver from blanking on a render error.
 // ============================================================================
 
 interface ReceiverErrorBoundaryState {
@@ -915,7 +813,7 @@ const container = document.getElementById('root');
 if (container) {
     createRoot(container).render(
         <ReceiverErrorBoundary>
-            <Root />
+            <ReceiverApp />
         </ReceiverErrorBoundary>,
     );
 }

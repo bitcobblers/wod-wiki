@@ -20,7 +20,7 @@ export function TaglineHeader({
   blurb: string
 }) {
   return (
-    <header className="flex items-center border-b border-border/60 px-6 py-14 lg:px-12 xl:py-20 2xl:py-24 xl:px-16">
+    <header className="flex items-center px-6 py-14 lg:px-12 xl:py-20 2xl:py-24 xl:px-16">
       <div className="mx-auto w-full max-w-[1500px] 2xl:max-w-[1720px]">
         <h2 className="flex items-baseline gap-4 xl:gap-6 text-[clamp(26px,3.6vw,52px)] font-extrabold leading-[1.1] tracking-[-0.03em]">
           <span className="font-mono text-xs font-normal tracking-normal text-muted-foreground">{index}</span>

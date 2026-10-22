@@ -11,16 +11,16 @@
  */
 
 // ── Runtime hooks ─────────────────────────────────────────────────────────
-export { useTimerElapsed } from '@bitcobblers/wod-wiki-engine';
-export { useRoundDisplay, useBlockMemory } from '@bitcobblers/wod-wiki-engine';
-export { useNextPreview } from '@bitcobblers/wod-wiki-engine';
-export { usePrimaryTimer, useStackTimers, useStackFragmentSources, useStackDisplayRows } from '@bitcobblers/wod-wiki-engine';
-export { useRuntimeExecution } from '@bitcobblers/wod-wiki-engine';
-export type { UseRuntimeExecutionReturn } from '@bitcobblers/wod-wiki-engine';
-export { useOutputStatements, useLiveAnalytics } from '@bitcobblers/wod-wiki-engine';
+export { useTimerElapsed } from '@bitcobblers/wod-wiki-engine/react';
+export { useRoundDisplay, useBlockMemory } from '@bitcobblers/wod-wiki-engine/react';
+export { useNextPreview } from '@bitcobblers/wod-wiki-engine/react';
+export { usePrimaryTimer, useStackTimers, useStackFragmentSources, useStackDisplayRows } from '@bitcobblers/wod-wiki-engine/react';
+export { useRuntimeExecution } from '@bitcobblers/wod-wiki-engine/react';
+export type { UseRuntimeExecutionReturn } from '@bitcobblers/wod-wiki-engine/react';
+export { useOutputStatements, useLiveAnalytics } from '@bitcobblers/wod-wiki-engine/react';
 
 // ── Runtime context ───────────────────────────────────────────────────────
-export { useScriptRuntime, ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine';
+export { useScriptRuntime, ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine/react';
 
 // ── Runtime contracts (types only) ───────────────────────────────────────
 export type { IScriptRuntime } from '@bitcobblers/wod-wiki-engine';

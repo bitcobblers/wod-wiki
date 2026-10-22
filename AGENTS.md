@@ -234,6 +234,11 @@ Sizing heuristics:
 - Suggestion engine and semantic token processing
 - `WodWiki.tsx` is the main editor component
 
+**Package Boundaries — headless vs React** (`packages/engine`, `packages/lang`)
+- `@bitcobblers/wod-wiki-lang` and `@bitcobblers/wod-wiki-engine` each expose a **headless root** (`.`) and a **React subpath** (`/react`). The root entry must stay free of DOM/React imports — the seed sync worker runs in a Worker, where a React import chain pulls browser-only code (React Refresh's runtime touches `window` at module scope) into worker scope and kills the worker on boot.
+- Headless consumers (workers, CLI, storage, parsers) import the root; React consumers import `@bitcobblers/wod-wiki-engine/react`. Keep it that way: the umbrella barrel is the one place a regression would be invisible until a worker dies.
+- `packages/lang/src/index.ts` is the headless entry point ("0 DOM / React dependencies") — do not re-export React modules from it.
+
 ### Key Directories Structure
 ```
 src/
@@ -383,3 +388,5 @@ e2e/
 - **TypeScript Errors**: 369 TypeScript errors exist in the codebase - only fix errors related to your changes
 - **No ESLint**: Code style enforced through TypeScript and manual review
 - **Build Times**: NEVER cancel builds - `bun run build-storybook` may take up to 60 minutes
+- **Stale dev servers hold the ports**: several long-lived `vite` processes keep :5173/:5174 from earlier sessions. A stale server answers with an outdated public-dir snapshot — the seed manifest 404s, the SPA shell is served instead, and the app reports "Seed sync settled with outcome error". Check `ss -ltnp | grep 5173` before debugging seed sync, and run the dev server on a free port.
+- **Seed corpus is served from disk in dev**: `apps/playground/vite.config.ts` serves `/seed/*` per request, because Vite caches its public-dir listing at startup and every corpus regeneration (`bun run build:app`, `scripts/sync-seed.ts`) would otherwise 404 until the server restarts.

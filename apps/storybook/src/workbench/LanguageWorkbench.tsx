@@ -35,6 +35,12 @@ import {
   type IOutputStatement,
   createCompiler,
   RuntimeFactory,
+  metricPresentation,
+  createIRFile,
+  buildStatementTree,
+  type ExecutionLog,
+} from '@bitcobblers/wod-wiki-engine';
+import {
   ScriptRuntimeProvider,
   useRuntimeExecution,
   useScriptRuntime,
@@ -46,11 +52,7 @@ import {
   useActiveControls,
   useStackDisplayRows,
   useRoundDisplay,
-  metricPresentation,
-  createIRFile,
-  buildStatementTree,
-  type ExecutionLog,
-} from '@bitcobblers/wod-wiki-engine';
+} from '@bitcobblers/wod-wiki-engine/react';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { ScriptBlock } from '@bitcobblers/wod-wiki-core';
 import { TimerStackView } from '@/components/organisms/workout/TimerStackView';
@@ -60,6 +62,7 @@ import { calculateDuration } from '@/lib/timeUtils';
 import type { ITimerDisplayEntry } from '@/clock/types/DisplayTypes';
 import { toEventRows, type EventStore } from '@bitcobblers/wod-wiki-wql';
 import { toStoredOutputStatement, type StoredOutputStatement } from '@bitcobblers/wod-wiki-engine';
+import { completeWorkbenchRun, prepareWorkbenchRun } from './runPersistence';
 import {
   editorPreset,
   sectionField,
@@ -1931,6 +1934,8 @@ export interface LanguageWorkbenchProps {
   showWqlLane?: boolean;
   /** Show or hide 2x2 debug grid (defaults to true) */
   showDebugGrid?: boolean;
+  /** Opt-in run persistence: finished runs are stored as Sessions in the active database under this note. */
+  runNote?: { id: string; title: string; persistRuns?: boolean };
   /** Optional custom test ID override */
   'data-testid'?: string;
 }
@@ -1943,11 +1948,15 @@ export function LanguageWorkbench({
   dashboards = DEFAULT_DASHBOARD_QUERIES,
   showWqlLane = true,
   showDebugGrid = true,
+  runNote,
   'data-testid': testId = 'language-workbench',
 }: LanguageWorkbenchProps = {}) {
   const [noteText, setNoteText] = useState(initialNote);
   const [noteSections, setNoteSections] = useState<EditorSection[]>(() => computeNoteSections(initialNote));
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
+  const [persistError, setPersistError] = useState<string | null>(null);
+  /** Where the last finished run stands: not stored, being written, or written. */
+  const [persistedRun, setPersistedRun] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
     setNoteText(initialNote);
@@ -2077,7 +2086,39 @@ export function LanguageWorkbench({
     return () => clearTimeout(t);
   }, [runtime]);
 
+  // Persist a finished run ("completed" or "stopped") as a Session in the
+  // active database. Opt-in via runNote; failures surface as a visible,
+  // non-fatal message — never an unhandled rejection.
+  const persistedRuntimeRef = useRef<IScriptRuntime | null>(null);
+  const finishRun = useCallback((completed: boolean) => {
+    const note = runNote;
+    if (!note?.persistRuns || !runtime) return;
+    if (persistedRuntimeRef.current === runtime) return;
+    persistedRuntimeRef.current = runtime;
+    const outputs = runtime.getOutputStatements();
+    const blockIndex = activeBlock?.index ?? 0;
+    const timing = {
+      startTime: execution.startTime ?? Date.now(),
+      endTime: Date.now(),
+      duration: execution.elapsedTime,
+    };
+    setPersistError(null);
+    setPersistedRun('saving');
+    void prepareWorkbenchRun({ noteId: note.id, title: note.title, rawContent: noteText }, blockIndex)
+      .then((prepared) => completeWorkbenchRun(prepared, outputs, completed, timing))
+      .then(() => setPersistedRun('saved'))
+      .catch((error: unknown) => {
+        setPersistedRun('error');
+        setPersistError(error instanceof Error ? error.message : String(error));
+      });
+  }, [runNote, runtime, noteText, activeBlock, execution.startTime, execution.elapsedTime]);
+
+  useEffect(() => {
+    if (execution.status === 'completed') finishRun(true);
+  }, [execution.status, finishRun]);
+
   const handleStopWorkout = () => {
+    finishRun(false);
     execution.stop();
     if (runtime && factoryRef.current) {
       factoryRef.current.disposeRuntime(runtime);
@@ -2239,6 +2280,22 @@ export function LanguageWorkbench({
           )}
 
           {parse.error && <p className="text-xs text-destructive font-mono">{parse.error}</p>}
+
+          {persistError && (
+            <p className="text-xs text-destructive font-mono" data-testid="workbench-persist-error" role="alert">
+              Run not saved: {persistError}
+            </p>
+          )}
+
+          {persistedRun !== 'idle' && !persistError && (
+            <p
+              className="text-xs text-muted-foreground font-mono"
+              data-testid="workbench-persist-status"
+              data-state={persistedRun}
+            >
+              {persistedRun === 'saving' ? 'Saving run to the active database…' : 'Run saved to the active database'}
+            </p>
+          )}
         </div>
 
         {/* Right (1/3 width): Compiled Statements */}

@@ -1,8 +1,8 @@
 /**
  * CastButton — sender-side cast control.
  *
- * The button does not know whether casting is going to a real Chromecast
- * device or to a local-tab dual-pane mirror. It asks `getCastBackend()` for
+ * The button does not know which Chromecast device it will target. It asks
+ * `getCastBackend()` for
  * the build's `ICastBackend`, calls `startSession()` from a user gesture,
  * and gets back a connected `IRpcTransport`. The transport is then handed
  * to a `CastSessionManager` (which owns subscription / event provider /
@@ -33,14 +33,14 @@ import {
     type ICastBackendState,
     type IRpcTransport,
 } from '@/hooks/useCastSignaling';
-import { clockCommandForLegacyEvent } from '@/services/cast/rpc/eventRouter';
-import { parseClockCommandPayload } from '@/services/cast/rpc/RpcMessages';
+import { clockCommandForLegacyEvent, parseClockCommandPayload } from '@/hooks/useCastSignaling';
 import { dispatchClockCommand, getClockSnapshot, subscribeClock } from '@/clock/clockCommands';
 import type { ICastSubscription } from '@/hooks/useRuntimeTimer';
 import { cn } from '@/lib/utils';
 import { CastTransportProvider } from '@/contexts/CastTransportContext';
 import { ProjectionSyncProvider } from '@/contexts/ProjectionSyncContext';
 import { workbenchModeResolver } from '@/app/cast/workbenchModeResolver';
+import { useCastWakeLock } from '@/hooks/useCastWakeLock';
 
 /**
  * CAF and the WebRTC transport reject with different shapes: Error instances,
@@ -75,6 +75,9 @@ export const CastButtonRpc: React.FC = () => {
     const backend: ICastBackend = getCastBackend();
     const [backendState, setBackendState] = useState<ICastBackendState>(backend.state);
     const [isCasting, setIsCasting] = useState(false);
+    // Casting must outlast display sleep: the browser keeps receiving
+    // receiver events (workout control from the couch) only while awake.
+    useCastWakeLock(isCasting);
     const [isDisconnecting, setIsDisconnecting] = useState(false);
     const [sessionSubscription, setSessionSubscription] = useState<ICastSubscription | null>(null);
     const [sessionHandle, setSessionHandle] = useState<CastSessionHandle | null>(null);

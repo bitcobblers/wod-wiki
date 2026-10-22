@@ -4,6 +4,7 @@ template: canvas
 route: /guide/sessions
 type: guide
 title: "Dialects & Complex Sessions"
+description: "Time vs log fences, sport dialects like climbing, and full nested sessions in one note."
 ---
 
 ```chapter

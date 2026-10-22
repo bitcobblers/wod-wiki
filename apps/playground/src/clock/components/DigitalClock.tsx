@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/atoms/primitives/card';
 import { Badge } from '@/components/atoms/primitives/badge';
 import { Clock, ArrowRight } from '@phosphor-icons/react';
-import { useTimerElapsed } from '@bitcobblers/wod-wiki-engine';
+import { useTimerElapsed } from '@bitcobblers/wod-wiki-engine/react';
 import { formatTimePrecise, formatTimeHHMMSS } from '../../lib/formatTime';
 import { cn } from '@/lib/utils';
 

@@ -200,31 +200,9 @@ export {
 } from '@bitcobblers/wod-wiki-lang';
 
 // 3. React Runtime & Hooks (#965)
-export {
-  useScriptRuntime,
-  useTimerElapsed,
-  useTimerDisplay,
-  useRoundDisplay,
-  useOutputStatements,
-  useLiveAnalytics,
-  useBlockMemory,
-  useRuntimeExecution,
-  type UseRuntimeExecutionReturn,
-  useMemorySubscription,
-  useNextPreview,
-  useStackSnapshot,
-  useSnapshotBlocks,
-  useStackTimers,
-  usePrimaryTimer,
-  useSecondaryTimers,
-  useActiveControls,
-  useStackFragmentSources,
-  useStackDisplayRows,
-  ScriptRuntimeProvider,
-  type ScriptRuntimeProviderProps,
-  BlockTimerDisplay,
-  type BlockTimerDisplayProps,
-} from '@bitcobblers/wod-wiki-lang/react';
+// Moved to the `@bitcobblers/wod-wiki-engine/react` subpath: the root entry
+// stays headless so it can be imported from non-DOM contexts (the seed sync
+// worker runs in a Worker, where a React import chain breaks the worker).
 
 // 4. WQL Grammar, QueryService & Dashboard Model (#966)
 export {

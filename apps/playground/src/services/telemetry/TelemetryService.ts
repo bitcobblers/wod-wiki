@@ -162,6 +162,17 @@ export class TelemetryService {
     });
   }
 }
+let lastPageViewAt: number | undefined;
+
+/** Milliseconds since the last page_view was recorded (time-on-page for the
+ *  previous page); resets the clock. Shared by all manual GA4 page_view emitters. */
+export function engagementMs(): number {
+  const now = Date.now();
+  const ms = lastPageViewAt === undefined ? 0 : now - lastPageViewAt;
+  lastPageViewAt = now;
+  return ms;
+}
+
 /** App-wide telemetry singleton. The forwarder is wired by the playground shell (lib/telemetry-gtag).
  *  Server mode persists each event as a `telemetry:*` meta row and reads
  *  them back through the same namespace; consent stays browser-local. */

@@ -24,6 +24,7 @@ import {
   getActiveLocalDbName,
   readDataSettings,
   saveRestoredSettings,
+  selectLocalDatabase,
   switchToIndexedDb,
   testTursoConnection,
   type DataSettings,
@@ -44,7 +45,8 @@ export type {
 };
 export { IndexedDBStorage, InMemoryStorage, StorageService };
 export { LocalStore, InMemoryBackend, browserLocalStorageBackend };
-export { DATA_SETTINGS_KEY, readDataSettings, connectTurso, testTursoConnection, switchToIndexedDb, saveRestoredSettings, getActiveLocalDbName };
+export { DATA_SETTINGS_KEY, readDataSettings, connectTurso, testTursoConnection, switchToIndexedDb, saveRestoredSettings, getActiveLocalDbName, selectLocalDatabase };
+export { listLocalDatabases, createLocalDatabase, deleteLocalDatabase, isValidLocalDatabaseName, type LocalDatabaseInfo } from '@bitcobblers/wod-wiki-storage/idb';
 export { getStorageUpdate, subscribeStorageUpdate } from './storageUpdate';
 
 // Data-plane selection: the VITE_STORAGE=api build override wins; EVERY
@@ -232,4 +234,37 @@ export function setStorageForTesting(newStorage: IStorage): void {
 export function resetStorageForTesting(): void {
   currentStorage = createDefaultStorage();
   readyPromise = undefined;
+}
+
+// Active-local-database switch. Listeners fire AFTER the new storage is
+// wired and its derived caches re-hydrated, so a subscriber reading data
+// sees the new database, not the old one.
+const activeLocalDbListeners = new Set<(localDbName: string) => void>();
+
+export function subscribeActiveLocalDatabase(listener: (localDbName: string) => void): () => void {
+  activeLocalDbListeners.add(listener);
+  return () => {
+    activeLocalDbListeners.delete(listener);
+  };
+}
+
+/** Re-point the live local data plane at another IndexedDB database without
+ *  a page reload: persist the selection, close the old connection, open the
+ *  new name, and notify subscribers.
+ *
+ *  The caches derived from the OLD database's rows (seed content, WQL page
+ *  sources, effort/equipment registries) are NOT dropped here: this module
+ *  deliberately does not import them, because each of them imports the
+ *  storage plane back and a static import would close a module cycle. The
+ *  caller rehydrates those caches through `rehydrateActiveDatabaseCaches`
+ *  (services/storage/activeDatabaseCaches.ts) after the switch.
+ *
+ *  No-op on the API backend — there is no local database to switch. */
+export async function switchActiveLocalDatabase(localDbName: string): Promise<void> {
+  if (storageBackend === 'api') return;
+  selectLocalDatabase(localDbName);
+  await currentStorage.close();
+  currentStorage = createDefaultStorage();
+  readyPromise = undefined;
+  for (const listener of activeLocalDbListeners) listener(localDbName);
 }

@@ -16,6 +16,9 @@ import type {
   IReadOnlyStore, IReadWriteStore, IStorage, IStorageTransaction, StoreName, StoreType,
 } from '../contract';
 import { DB_VERSION, STORE_DEFS } from '../schema';
+import {
+  DEFAULT_LOCAL_DATABASE_NAME, isValidLocalDatabaseName, type LocalDatabaseInfo,
+} from './catalog';
 import { USER_OWNED_STORES, stampUserOwned } from '../membership';
 import { keyFromValue, type KeyDTO } from '../wire';
 import type { Note, Session, BlockRevision } from '../entities';
@@ -30,7 +33,32 @@ import {
 } from '@bitcobblers/wod-wiki-core';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 
-export const IDB_DB_NAME = 'wodwiki-db';
+export const IDB_DB_NAME = DEFAULT_LOCAL_DATABASE_NAME;
+
+export {
+  DEFAULT_LOCAL_DATABASE_NAME, deleteLocalDatabase,
+  isValidLocalDatabaseName, listLocalDatabases, type LocalDatabaseInfo,
+} from './catalog';
+
+/** Create a named database at the current schema (DB_VERSION) by opening it
+ *  through the regular adapter, then close. Refuses the default database —
+ *  the catalog never touches the live app profile.
+ *
+ *  Lives beside the adapter (not in ./catalog) because it needs the
+ *  adapter's schema upgrade path, and the adapter's module re-exports the
+ *  catalog — importing the adapter back from the catalog would close a
+ *  module cycle. */
+export async function createLocalDatabase(name: string): Promise<LocalDatabaseInfo> {
+  if (!isValidLocalDatabaseName(name)) throw new Error(`Invalid local database name "${String(name)}".`);
+  if (name === DEFAULT_LOCAL_DATABASE_NAME) throw new Error('The default database cannot be created here.');
+  const storage = new IndexedDBStorage({ dbName: name });
+  try {
+    await storage.open();
+  } finally {
+    await storage.close().catch(() => undefined);
+  }
+  return { name, version: DB_VERSION };
+}
 
 // Browser-local sync stores — NOT part of the shared STORE_DEFS spec (the
 // SQL/API schema is unchanged). `sync_outbox` is the durable journal: one

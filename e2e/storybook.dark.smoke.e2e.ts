@@ -14,6 +14,11 @@ const STORIES = [
   'gallery-wql-composer--default',
   'gallery-wql-example-gallery--value-section',
   'workbench-benchmark-fran--standard-couplet',
+  // Database-driven stories — the landing page and the pages that read the
+  // active database.
+  'database--indexed-db-selection',
+  'data--wql-library-search',
+  'sessions--session-explorer',
 ];
 
 const DARK_BG_RAW = '222 16% 21%';

@@ -60,6 +60,31 @@ const receiverRedirectPlugin: Plugin = {
     },
 };
 
+// Dev plugin: serve the seed corpus straight from disk.
+//
+// Vite's public-dir handler caches its file listing at startup, so a corpus
+// regenerated while the server runs (every `bun run build:app`, every
+// `scripts/sync-seed.ts`) 404s until the server restarts — the app then sees
+// the SPA shell where the manifest should be and the seed sync dies with a
+// JSON parse error. Reading the file per request keeps dev honest.
+const seedFilesPlugin: Plugin = {
+    name: 'seed-files',
+    configureServer(server) {
+        const seedRoot = resolve(import.meta.dirname, 'public/seed');
+        server.middlewares.use((req, res, next) => {
+            const match = req.url?.match(/^\/seed\/([^?#]+)$/);
+            if (!match) return next();
+            const filePath = resolve(seedRoot, decodeURIComponent(match[1]));
+            // Stay inside the seed directory — no path traversal.
+            if (!filePath.startsWith(seedRoot + '/')) return next();
+            if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next();
+            res.setHeader('Content-Type', filePath.endsWith('.json') ? 'application/json' : 'text/html; charset=utf-8');
+            res.statusCode = 200;
+            res.end(fs.readFileSync(filePath));
+        });
+    },
+};
+
 /**
  * Read the seed manifest versions stamped by scripts/sync-seed.ts (which runs
  * before vite in both dev and build): one entry per seed source —
@@ -99,7 +124,7 @@ export default defineConfig({
         // runtime then always consults their manifest.
         __SEED_VERSIONS__: JSON.stringify(seedManifestVersions()),
     },
-    plugins: [react(), receiverRedirectPlugin],
+    plugins: [react(), receiverRedirectPlugin, seedFilesPlugin],
     resolve: {
         dedupe: ['react', 'react-dom', ...CODEMIRROR_SINGLETON_DEPS],
         alias: [

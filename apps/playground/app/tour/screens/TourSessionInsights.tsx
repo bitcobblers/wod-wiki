@@ -91,8 +91,8 @@ const fmtSeconds = (ms: number) => `${(Math.round(ms / 100) / 10).toFixed(1)}s`
 
 // ── Pane ────────────────────────────────────────────────────────────────────
 
-/** The no-run-yet call to action — shared by the insights result pane and
- *  the session slide of the dashboards carousel. */
+/** The no-run-yet call to action — the Session Insights pane before any
+ *  measurable run is recorded. */
 export function InsightsRunCta({ onRun }: { onRun: () => void }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center" data-testid="tour-insights-empty">
