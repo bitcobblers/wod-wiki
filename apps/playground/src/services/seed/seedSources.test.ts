@@ -14,6 +14,7 @@ import {
   removeCustomSeedSource,
   SEED_SOURCES,
   seedIdForLegacyId,
+  toAbsoluteSeedUrl,
 } from './seedSources';
 
 beforeEach(() => {
@@ -140,5 +141,22 @@ describe('seeds and their notebooks', () => {
     const added = addCustomSeedSource(`community ${slug.replace(/-/g, ' ')}`, 'https://custom.example/seed/');
     expect(added.id).not.toBe(notebook.id);
     expect(customSeedSources().some((s) => s.id === notebook.id)).toBe(false);
+  });
+});
+
+describe('toAbsoluteSeedUrl', () => {
+  it('leaves absolute http/https URLs unchanged', () => {
+    expect(toAbsoluteSeedUrl('https://example.com/seed/core/')).toBe('https://example.com/seed/core/');
+    expect(toAbsoluteSeedUrl('http://example.com/seed/core/')).toBe('http://example.com/seed/core/');
+  });
+
+  it('resolves relative URLs against the provided or document base', () => {
+    expect(toAbsoluteSeedUrl('./seed/core/', 'http://127.0.0.1:6006/iframe.html?id=foo')).toBe('http://127.0.0.1:6006/seed/core/');
+    expect(toAbsoluteSeedUrl('/seed/core/', 'http://127.0.0.1:6006/sub/page.html')).toBe('http://127.0.0.1:6006/seed/core/');
+  });
+
+  it('resolves relative URLs against document.baseURI when base is omitted', () => {
+    // unit-setup.ts provides happy-dom with document.baseURI = "http://localhost/"
+    expect(toAbsoluteSeedUrl('./seed/core/')).toBe('http://localhost/seed/core/');
   });
 });

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { LanguageWorkbench } from './workbench/LanguageWorkbench';
+import { PlaygroundLibraryPage } from './playground/PlaygroundLibraryPage';
 
 const meta: Meta<typeof LanguageWorkbench> = {
   title: 'Playground',
@@ -8,6 +9,11 @@ const meta: Meta<typeof LanguageWorkbench> = {
 };
 export default meta;
 type Story = StoryObj<typeof LanguageWorkbench>;
+
+/** Database-backed playground: search the active database, load a note, persist runs as sessions. */
+export const LibraryPage: Story = {
+  render: () => <PlaygroundLibraryPage />,
+};
 
 /**
  * Empty Playground Note — An empty workbench with a blank ```time fence to

@@ -1,5 +1,6 @@
 import type { Preview } from '@storybook/react-vite';
 import { useEffect } from 'react';
+import { DatabaseProvider } from '../src/database/DatabaseContext';
 import '../src/index.css';
 
 const preview: Preview = {
@@ -18,6 +19,13 @@ const preview: Preview = {
     },
   },
   decorators: [
+    // Every story shares the playground storage plane: the provider resolves
+    // the active local database and runs the boot seed sync once per session.
+    (Story) => (
+      <DatabaseProvider>
+        <Story />
+      </DatabaseProvider>
+    ),
     // Dark-Mode Standard host rule (wayfinder #994/#998): the `dark` class
     // lives on <html>, never on a wrapper — shared tokens resolve per
     // element (@theme inline), so this flips every story. Cleanup restores
@@ -40,8 +48,10 @@ const preview: Preview = {
     options: {
       storySort: {
         order: [
+          'Database',
+          ['IndexedDB Selection'],
           'Playground',
-          ['EmptyWorkbench', 'IntervalStarter', 'ForTimeStarter', 'EmomStarter', '*'],
+          ['LibraryPage', 'EmptyWorkbench', 'IntervalStarter', 'ForTimeStarter', 'EmomStarter', '*'],
           'Workbench',
           [
             'Benchmark — Fran',
@@ -55,6 +65,8 @@ const preview: Preview = {
           ],
           'Gallery',
           ['WQL Example Gallery', 'Timer Screen', 'WQL Composer', 'Record Type Icons', '*'],
+          'Data',
+          'Sessions',
         ],
       },
     },

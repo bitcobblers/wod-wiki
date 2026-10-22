@@ -9,7 +9,8 @@
 import { describe, expect, it } from 'bun:test';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { LibraryCastBridge, toLibraryEntries } from './LibraryCastBridge';
+import { LibraryCastBridge } from './LibraryCastBridge';
+import { toLibraryEntries } from '@/hooks/useLibraryCatalog';
 import { FakeRpcTransport } from '@/testing/transport/FakeRpcTransport';
 import { CastTransportProvider } from '@/contexts/CastTransportContext';
 import type { RpcMessage } from '@/services/cast/rpc/RpcMessages';

@@ -20,6 +20,8 @@ Domain vocabulary that applies repo-wide lives in the root
   (`IndexedDBNotePersistence`, `playgroundRecorder`).
 - **Cast / sender** — `playground/src/cast/` and the `getCastBackend()` factory
   (returns the `ChromecastBackend` singleton; every build casts to the hosted receiver app).
+  `LibraryCastBridge` pushes the notebook catalog to the receiver and routes
+  the browser on `open-notebook` — cast-and-walk-away entry point.
 - **Result recording** — consumes the library `src/services/resultRecorder.ts`
   (`playgroundRecorder`, wired to the `notePersistence` singleton): the single
   seam for persisting a `WorkoutResult`. Owns identity resolution (Note

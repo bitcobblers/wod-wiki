@@ -252,6 +252,25 @@ export function switchToIndexedDb(): void {
   localStorage.setItem(DATA_SETTINGS_KEY, JSON.stringify({ kind: 'indexed-db', ...localDb } satisfies DataSettings));
 }
 
+/** Select the active local database WITHOUT touching the backup target: a
+ *  saved Turso kind keeps its url + authToken, an indexed-db kind stays
+ *  indexed-db — only localDbName moves (the database switcher re-points the
+ *  visible local data plane while sync keeps flowing to its target). */
+export function selectLocalDatabase(localDbName: string): void {
+  if (!isValidLocalDbName(localDbName)) throw new Error('A valid local database name is required.');
+  const current = readDataSettings();
+  if (current.state === 'turso') {
+    localStorage.setItem(
+      DATA_SETTINGS_KEY,
+      JSON.stringify({ kind: 'turso', url: current.url, authToken: current.authToken, localDbName } satisfies DataSettings),
+    );
+  } else {
+    // indexed-db (and a broken saved config, which readDataSettings already
+    // neutralizes) — the local-only plane needs no target fields.
+    localStorage.setItem(DATA_SETTINGS_KEY, JSON.stringify({ kind: 'indexed-db', localDbName } satisfies DataSettings));
+  }
+}
+
 // Cross-tab guard: a settings write in another tab must not leave this tab
 // writing to the old provider. storage events fire only in tabs that did NOT
 // write, so the acting tab (which reloads itself) never double-reloads. A

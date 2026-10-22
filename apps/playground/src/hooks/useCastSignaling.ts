@@ -20,6 +20,10 @@ export {
 export { CastSessionManager, sharedCastSessionManager } from '@/services/cast/rpc/CastSessionManager';
 export { ChromecastRuntimeSubscription } from '@/services/cast/rpc/ChromecastRuntimeSubscription';
 
+// ── Cast boundary validators (payload gates components dispatch through) ───
+export { parseClockCommandPayload, parseOpenNotebookPayload } from '@/services/cast/rpc/RpcMessages';
+export { clockCommandForLegacyEvent } from '@/services/cast/rpc/eventRouter';
+
 // ── Types ─────────────────────────────────────────────────────────────────
 export type { CastSessionHandle } from '@/services/cast/rpc/CastSessionManager';
 export type { ICastBackend, ICastBackendState } from '@/services/cast/ICastBackend';

@@ -33,8 +33,7 @@ import {
     type ICastBackendState,
     type IRpcTransport,
 } from '@/hooks/useCastSignaling';
-import { clockCommandForLegacyEvent } from '@/services/cast/rpc/eventRouter';
-import { parseClockCommandPayload } from '@/services/cast/rpc/RpcMessages';
+import { clockCommandForLegacyEvent, parseClockCommandPayload } from '@/hooks/useCastSignaling';
 import { dispatchClockCommand, getClockSnapshot, subscribeClock } from '@/clock/clockCommands';
 import type { ICastSubscription } from '@/hooks/useRuntimeTimer';
 import { cn } from '@/lib/utils';

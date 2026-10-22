@@ -145,6 +145,8 @@ bun run check:server
 
 `check:server` exercises CRUD, transactions, domain queries, static serving, and database reopen against a temporary SQLite file. To check PostgreSQL or Turso, set `DB_DRIVER`, `DATABASE_URL`, any `LIBSQL_AUTH_TOKEN`, and `WOD_CHECK_ALLOW_REMOTE=1`. Use a disposable database: this check wipes its data.
 
+Storybook opens on a database selection page and drives a real browser IndexedDB: the core corpus is seeded into the active database, workout runs are stored as sessions, and the WQL search, dashboard generator, and session explorer read that same database. See [Storybook database stories](./docs/storybook-database-stories.md).
+
 See [monorepo scripts](#monorepo-scripts) for other commands, [architecture at a glance](#architecture-at-a-glance) for the package map, and the [architecture overview](./docs/architecture/overview.md) for the workout-processing pipeline.
 
 ---

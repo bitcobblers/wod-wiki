@@ -8,7 +8,9 @@
       "@bitcobblers/wod-wiki-lang": ["../../packages/lang/src"],
       "@bitcobblers/wod-wiki-wql": ["../../packages/wql/src"],
       "@bitcobblers/wod-wiki-engine": ["../../packages/engine/src"],
-      "@bitcobblers/wod-wiki-ui": ["../../packages/ui/src"]
+      "@bitcobblers/wod-wiki-ui": ["../../packages/ui/src"],
+      "@bitcobblers/wod-wiki-storage": ["../../packages/storage/src"],
+      "@bitcobblers/wod-wiki-storage/idb": ["../../packages/storage/src/idb"]
     }
   },
   "include": ["src/**/*"],

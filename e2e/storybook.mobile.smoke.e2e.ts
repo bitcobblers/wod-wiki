@@ -32,6 +32,13 @@ const STORIES = [
   // frame wrapper clamps to the viewport so it holds zero overflow.
   'gallery-timer-surfaces--minimal-rest',
   'gallery-timer-surfaces--minimal-prompts',
+  // Database-driven stories — the landing page and the pages that read the
+  // active database.
+  'database--indexed-db-selection',
+  'playground--library-page',
+  'data--wql-library-search',
+  'data--dashboard-generator',
+  'sessions--session-explorer',
 ];
 
 for (const storyId of STORIES) {

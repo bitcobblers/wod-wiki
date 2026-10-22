@@ -73,6 +73,24 @@ export function safeRepositoryUrl(url: string): string | null {
 /** Same-origin seed dir of the bundled core source (HttpSeedSource concatenates file names). */
 export const CORE_SEED_URL = `${import.meta.env.BASE_URL}seed/core/`;
 
+/**
+ * Same-origin seed dir URL resolved against the document base. The seed sync
+ * worker resolves relative URLs against the worker script URL (/assets/), not
+ * the page — a relative BASE_URL ('./' in static Storybook builds) would 404
+ * there. Resolving against the document keeps both on the same directory.
+ * Non-DOM environments (tests, SSR) keep the raw URL.
+ */
+export function toAbsoluteSeedUrl(url: string, base?: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  const resolvedBase = base ?? (typeof document !== 'undefined' ? document.baseURI : undefined);
+  if (!resolvedBase) return url;
+  try {
+    return new URL(url, resolvedBase).href;
+  } catch {
+    return url;
+  }
+}
+
 function readAll(): CustomSeedSource[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

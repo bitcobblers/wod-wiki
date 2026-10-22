@@ -15,45 +15,17 @@
  * offered — a couch cannot import a package.
  */
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCastTransport } from '@/contexts/CastTransportContext';
-import { useSeedContent } from '@/services/content/seedContent';
-import { listNotebooks, listSeedSources } from '@/services/seed/seedSources';
-import {
-    parseOpenNotebookPayload,
-    type RpcLibraryEntry,
-    type RpcLibraryState,
-    type RpcMessage,
-} from '@/services/cast/rpc/RpcMessages';
-import {
-    buildSeedCatalog,
-    filterSeeds,
-    sortSeeds,
-} from '../../../../app/views/notebook-gallery/notebookGalleryModel';
-import type { SeedContentFiles } from '@/services/content/seedContent';
-
-/**
- * Pure mapping from the home-gallery catalog to the cast library payload.
- * Exported for tests; the bridge keeps no library state of its own.
- */
-export function toLibraryEntries(files: SeedContentFiles | null): RpcLibraryEntry[] {
-    const catalog = buildSeedCatalog(listNotebooks(), files, listSeedSources());
-    return sortSeeds(filterSeeds(catalog, {}), 'updated')
-        .filter((seed) => seed.installed && seed.itemCount > 0)
-        .map((seed) => ({
-            notebookId: seed.slug,
-            title: seed.label,
-            href: seed.href,
-            itemCount: seed.itemCount,
-        }));
-}
+import { useLibraryCatalog } from '@/hooks/useLibraryCatalog';
+import { parseOpenNotebookPayload } from '@/hooks/useCastSignaling';
+import type { RpcLibraryState, RpcMessage } from '@/services/cast/rpc/RpcMessages';
 
 export const LibraryCastBridge: React.FC = () => {
     const castTransport = useCastTransport();
     const navigate = useNavigate();
-    const files = useSeedContent();
-    const entries = useMemo(() => toLibraryEntries(files), [files]);
+    const entries = useLibraryCatalog();
 
     // Fingerprint of the last pushed catalog — avoids redundant sends, and
     // resets on disconnect so a reconnect re-pushes the current catalog.
