@@ -74,6 +74,7 @@
     "check:architecture-regressions": "node scripts/check-architecture-regressions.cjs",
     "check:unused-exports": "node scripts/check-unused-exports-regressions.cjs",
     "check:architecture": "node scripts/check-architecture-regressions.cjs && node scripts/check-unused-exports-regressions.cjs",
+    "check:receiver-css": "node scripts/check-receiver-css-compat.cjs",
     "check:server": "bun run --cwd apps/api check",
     "analyze:deps": "bun x madge --extensions ts,tsx --ts-config tsconfig.json --exclude __tests__ --circular apps/playground/src",
     "wod": "bun --no-env-file ./bin/wod",

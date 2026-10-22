@@ -109,6 +109,13 @@ jobs:
         if: inputs.build-preview-artifact && steps.build.outcome == 'success'
         run: bun x vite build --config apps/playground/vite.receiver.config.ts --outDir dist
 
+      # The Cast Android TV engine is Chromium 92 and silently drops CSS it
+      # does not implement — a container-query unit once left the TV timer
+      # with no sizes at all. Guard the built stylesheet's feature floor.
+      - name: Check receiver CSS compatibility
+        if: inputs.build-preview-artifact && steps.build.outcome == 'success'
+        run: bun scripts/check-receiver-css-compat.cjs apps/playground/dist/assets/receiver-*.css
+
       # GA measurement ID substitution, restored from the pre-consolidation
       # _build-bun.yml step: the sources ship a G-PROD-ID placeholder
       # (app/lib/telemetry-gtag.ts bundled into assets/*.js, receiver-rpc.html)
