@@ -3,6 +3,7 @@ import { KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 
 export const SEED_SCHEMA = 9;
 export const SEED_REGISTERED_WIDGETS = KNOWN_SECTION_WIDGETS;
+export const SEED_NAMESPACE = '1b671a64-40d5-491e-99b0-da01ff1f3341';
 
 /** Source and all current derived rows commit as one chunk. */
 export interface SeedRow {
@@ -12,6 +13,31 @@ export interface SeedRow {
   blockIndex: BlockIndexRow[];
   blockEfforts: BlockEffort[];
   blockEquipment: BlockEquipment[];
+  commit?: string;
+  uuid?: string;
+  version?: number;
+}
+
+export interface SeedRecordRef {
+  uuid: string;
+  path: string;
+  recordPath: string;
+  commit: string;
+  version: number;
+  sha256: string;
+  title?: string;
+  date?: number;
+}
+
+export interface NotebookIndex {
+  notebookId: string;
+  label: string;
+  category?: string;
+  indexPath?: string;
+  sha256?: string;
+  commit?: string;
+  count: number;
+  records: SeedRecordRef[];
 }
 
 export type ChunkKind = 'notes';
@@ -22,6 +48,7 @@ export interface ManifestChunk {
   bytes: number;
   count: number;
   kind?: ChunkKind;
+  records?: SeedRecordRef[];
 }
 export interface SeedManifest {
   name?: string;
@@ -34,6 +61,7 @@ export interface SeedManifest {
   dirty?: boolean;
   builtAt: string;
   chunks: ManifestChunk[];
+  notebooks?: NotebookIndex[];
 }
 export type SeedPrecedenceTier = 'core' | 'community' | 'imported' | 'user';
 export const SEED_PRECEDENCE_RANK: Readonly<Record<SeedPrecedenceTier, number>> = {

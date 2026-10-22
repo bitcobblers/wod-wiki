@@ -24,6 +24,8 @@ interface WorkerSourceSpec {
   tier?: SeedPrecedenceTier;
   embeddedVersion: number;
   autoSyncOn: boolean;
+  notebookIds?: string[];
+  granularRecords?: boolean;
 }
 
 interface RunMessage {
@@ -69,6 +71,8 @@ ctx.onmessage = (event: MessageEvent<RunMessage>): void => {
           embeddedVersion: spec.embeddedVersion,
           autoSyncOn: spec.autoSyncOn,
           ...(spec.tier ? { tier: spec.tier } : {}),
+          notebookIds: spec.notebookIds,
+          granularRecords: spec.granularRecords ?? true,
         },
         { storage, owner: msg.owner, now: Date.now, force: msg.force, probeManifests: msg.probeManifests, background: msg.background },
         {

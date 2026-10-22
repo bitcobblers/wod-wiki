@@ -4,10 +4,9 @@ import { userDeletedSeedNoteId } from '@bitcobblers/wod-wiki-storage';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import { extractTypedTags, readFrontmatterMeta } from '../exchange';
-import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, seedNoteSourceId, seedPrecedenceRank, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
+import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_NAMESPACE, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, seedNoteSourceId, seedPrecedenceRank, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
 import { assertSeedManifest, assertSeedRows } from './validation';
 
-const SEED_NAMESPACE = '1b671a64-40d5-491e-99b0-da01ff1f3341';
 export async function seedNoteId(path: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(`${SEED_NAMESPACE}:${path}`));
   const bytes = new Uint8Array(digest.slice(0, 16));
@@ -317,7 +316,8 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
         if (!real) throw new Error(`invalid frontmatter date '${fm['date']}' in '${row.path}' — expected a real calendar day (YYYY-MM-DD)`);
         date = ts;
       }
-      const note: Note = { ...existing, id, title, rawContent: row.content, sourceRevision, blocks: map, createdAt: write.manifest.version, ...(date === undefined ? {} : { date }), type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note', sourceId, catalog: catalogForChunkId(write.chunkId ?? ''), seedOrigin: 'seed', seedVersion: write.manifest.version, seedChunkId: write.chunkId ?? undefined, sourcePath: row.path };
+      const seedCommit = row.commit ?? write.manifest.commit;
+      const note: Note = { ...existing, id, title, rawContent: row.content, sourceRevision, blocks: map, createdAt: write.manifest.version, ...(date === undefined ? {} : { date }), type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note', sourceId, catalog: catalogForChunkId(write.chunkId ?? ''), seedOrigin: 'seed', seedVersion: write.manifest.version, seedChunkId: write.chunkId ?? undefined, sourcePath: row.path, ...(seedCommit ? { seedCommit } : {}) };
       if (date === undefined) delete note.date;
       if (!equal(note, existing)) changedNotes.push(note);
       const byRange = new Map(Object.values(map).map((b) => [`${b.from}:${b.to}`, b]));

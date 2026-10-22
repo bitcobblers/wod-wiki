@@ -15,6 +15,14 @@ export function assertSeedManifest(value: unknown): SeedManifest {
     if (!object(chunk) || typeof chunk.id !== 'string' || !chunk.id || typeof chunk.path !== 'string' || !/^chunks\/[a-zA-Z0-9._-]+\.json$/.test(chunk.path) || typeof chunk.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(chunk.sha256) || !nonnegative(chunk.bytes) || !nonnegative(chunk.count) || (chunk.kind !== undefined && chunk.kind !== 'notes') || ids.has(chunk.id) || paths.has(chunk.path)) throw new Error('seed manifest failed shape validation');
     ids.add(chunk.id); paths.add(chunk.path);
   }
+  if (value.notebooks !== undefined) {
+    if (!Array.isArray(value.notebooks)) throw new Error('seed manifest failed shape validation');
+    for (const nb of value.notebooks) {
+      if (!object(nb) || typeof nb.notebookId !== 'string' || typeof nb.label !== 'string' || !nonnegative(nb.count) || !Array.isArray(nb.records)) {
+        throw new Error('seed manifest failed shape validation');
+      }
+    }
+  }
   return value as unknown as SeedManifest;
 }
 export function assertSeedRows(value: unknown): SeedRow[] {
@@ -63,4 +71,8 @@ export function assertSeedRows(value: unknown): SeedRow[] {
     }
   }
   return value as SeedRow[];
+}
+
+export function assertSeedRow(value: unknown): SeedRow {
+  return assertSeedRows([value])[0];
 }

@@ -154,6 +154,51 @@ describe('generateSeed', () => {
       rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  it('emits notebook indexes and individual compiled record JSONs alongside markdown', () => {
+    const tmp = makeTmpCorpus();
+    try {
+      const outDir = join(tmp, 'out');
+      const { manifest } = generateSeed({
+        markdownDir: join(tmp, 'markdown'),
+        outDir,
+        corpusRoot: tmp,
+        version: 1,
+      });
+
+      expect(manifest.notebooks).toBeDefined();
+      expect(manifest.notebooks!.length).toBeGreaterThan(0);
+
+      const cat1Nb = manifest.notebooks!.find((n) => n.notebookId === 'collection.cat1');
+      expect(cat1Nb).toBeDefined();
+      expect(cat1Nb!.count).toBe(1);
+      expect(cat1Nb!.records.length).toBe(1);
+
+      const recordRef = cat1Nb!.records[0];
+      expect(recordRef.path).toBe('markdown/collections/cat1/c.md');
+      expect(recordRef.recordPath).toBe('markdown/collections/cat1/c.json');
+      expect(recordRef.uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+      expect(recordRef.sha256).toMatch(/^[0-9a-f]{64}$/);
+
+      // Verify individual record JSON was written alongside the markdown in outDir
+      const recordJsonPath = join(outDir, recordRef.recordPath);
+      expect(existsSync(recordJsonPath)).toBe(true);
+      const parsedRecord = JSON.parse(readFileSync(recordJsonPath, 'utf8'));
+      expect(parsedRecord.path).toBe('markdown/collections/cat1/c.md');
+      expect(parsedRecord.content).toBe('# C');
+      expect(parsedRecord.uuid).toBe(recordRef.uuid);
+
+      // Verify individual notebook index was written in outDir
+      expect(cat1Nb!.indexPath).toBe('indexes/notebooks/collection.cat1.json');
+      const indexJsonPath = join(outDir, cat1Nb!.indexPath!);
+      expect(existsSync(indexJsonPath)).toBe(true);
+      const parsedIndex = JSON.parse(readFileSync(indexJsonPath, 'utf8'));
+      expect(parsedIndex.notebookId).toBe('collection.cat1');
+      expect(parsedIndex.records.length).toBe(1);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('sparse seed occurrences', () => {

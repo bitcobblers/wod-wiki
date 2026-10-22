@@ -11,13 +11,17 @@ import {
 } from '@bitcobblers/wod-wiki-wql';
 import {
   DASHBOARDS_CHUNK_ID,
+  SEED_NAMESPACE,
   SEED_SCHEMA,
   SEED_REGISTERED_WIDGETS,
   TEMPLATE_CHUNK_ID,
   canvasRouteSlug,
   seedNoteSourceId,
+  catalogForChunkId,
   type ManifestChunk,
+  type NotebookIndex,
   type SeedManifest,
+  type SeedRecordRef,
   type SeedRow,
 } from './contract';
 import { fileToDisplayName } from './filename';
@@ -28,8 +32,8 @@ import { getScalar, parseFrontmatter } from './frontmatter';
 import { assertSeedManifest } from './validation';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
-import { join, relative } from 'node:path';
+import { execFileSync, execSync } from 'node:child_process';
+import { dirname, join, relative } from 'node:path';
 
 // BlockEffort/BlockIndexRow row types come from @bitcobblers/wod-wiki-storage
 // (type-only import — chunk rows are plain JSON applied structurally by the
@@ -202,6 +206,32 @@ function getFileCreatedAt(file: string, repoRoot: string): number {
     return Number.isFinite(ts) && ts > 0 ? ts : 0;
   } catch {
     return 0;
+  }
+}
+
+export function seedNoteIdSync(path: string): string {
+  const hash = createHash('sha1').update(`${SEED_NAMESPACE}:${path}`).digest();
+  const bytes = new Uint8Array(hash.subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  return [...bytes].map((b, i) => ([4, 6, 8, 10].includes(i) ? `-${b.toString(16).padStart(2, '0')}` : b.toString(16).padStart(2, '0'))).join('');
+}
+
+export function getFileCommit(file: string, repoRoot: string): string {
+  try {
+    return execFileSync('git', ['log', '-1', '--format=%H', '--', file], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return '';
+  }
+}
+
+export function getFileVersion(file: string, repoRoot: string): number {
+  try {
+    const out = execFileSync('git', ['rev-list', '--count', 'HEAD', '--', file], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const count = Number(out);
+    return Number.isFinite(count) && count > 0 ? count : 1;
+  } catch {
+    return 1;
   }
 }
 
@@ -603,12 +633,14 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     rows.push(row); equipmentByPath.set(row.sourcePath!, rows);
   }
   let totalFiles = 0;
+  const manifestNotebooks: NotebookIndex[] = [];
 
   const tWrite = Date.now();
   for (const { id, files } of groups) {
     // The template chunk's row path is the host-pinned historical identity,
     // not a path inside this repo — read it from the template file itself.
     const templateSource = id === TEMPLATE_CHUNK_ID ? options.templateFile : undefined;
+    const records: SeedRecordRef[] = [];
     const rows: SeedRow[] = files.map((p) => {
       const raw = readFileSync(templateSource ?? join(corpusRoot, p), 'utf8');
       const content = id === TEMPLATE_CHUNK_ID ? raw.replace(/\$CURSOR/g, '') : raw;
@@ -616,6 +648,32 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
       compiled.blockIndex = blocksByPath.get(p) ?? compiled.blockIndex;
       compiled.blockEfforts = effortsByPath.get(p) ?? [];
       compiled.blockEquipment = equipmentByPath.get(p) ?? [];
+      const fileCommit = getFileCommit(p, corpusRoot) || gitVersion.commit || '';
+      const fileVer = getFileVersion(p, corpusRoot);
+      const uuid = seedNoteIdSync(p);
+      compiled.commit = fileCommit;
+      compiled.uuid = uuid;
+      compiled.version = fileVer;
+
+      // Write compiled record JSON alongside markdown
+      const recordRelPath = p.replace(/\.md$/, '.json');
+      const recordOutFile = join(outDir, recordRelPath);
+      mkdirSync(dirname(recordOutFile), { recursive: true });
+      const recordBytes = Buffer.from(JSON.stringify(compiled, null, 2), 'utf8');
+      writeFileSync(recordOutFile, recordBytes);
+
+      const title = compiled.blockIndex[0]?.noteTitle ?? fileToDisplayName(p.split('/').at(-1) ?? p);
+      records.push({
+        uuid,
+        path: p,
+        recordPath: recordRelPath,
+        commit: fileCommit,
+        version: fileVer,
+        sha256: sha256Hex(recordBytes),
+        title,
+        date: frontmatterDateToCreatedAt(content, p),
+      });
+
       return compiled;
     });
     const bytes = Buffer.from(JSON.stringify(rows), 'utf8');
@@ -624,6 +682,22 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     writeFileSync(join(outDir, file), bytes);
     manifestChunks.push({ id, path: file, sha256: sha, bytes: bytes.length, count: rows.length });
     totalFiles += rows.length;
+
+    // Emit notebook index
+    const notebookIndexPath = `indexes/notebooks/${id}.json`;
+    const notebookIndex: NotebookIndex = {
+      notebookId: id,
+      label: fileToDisplayName(id.split('.').at(-1) ?? id),
+      category: catalogForChunkId(id),
+      indexPath: notebookIndexPath,
+      commit: records.find((r) => r.commit)?.commit ?? gitVersion.commit,
+      count: rows.length,
+      records,
+    };
+    const indexOutFile = join(outDir, notebookIndexPath);
+    mkdirSync(dirname(indexOutFile), { recursive: true });
+    writeFileSync(indexOutFile, JSON.stringify(notebookIndex, null, 2) + '\n');
+    manifestNotebooks.push(notebookIndex);
   }
 
   passMs.write = Date.now() - tWrite;
@@ -639,6 +713,7 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     dirty: gitVersion.dirty,
     builtAt: new Date().toISOString(),
     chunks: manifestChunks,
+    notebooks: manifestNotebooks,
   };
   assertSeedManifest(manifest);
   writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');

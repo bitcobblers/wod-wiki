@@ -176,3 +176,121 @@ describe('seed effort ownership', () => {
     expect(await storage.storageInstance.readonly('efforts').get('squat')).toMatchObject({ label: 'Mine', registrySource: 'user' });
   });
 });
+
+describe('granular record sync and notebook filtering', () => {
+  it('filters import by requested notebookIds', async () => {
+    const storage = new InMemorySeedStorage();
+    const rowA = compileSeedRow('markdown/collections/nb1/a.md', '# A');
+    const rowB = compileSeedRow('markdown/collections/nb2/b.md', '# B');
+    const manifest: SeedManifest = {
+      schema: SEED_SCHEMA,
+      version: 1,
+      builtAt: new Date(1).toISOString(),
+      chunks: [
+        { id: 'collection.nb1', path: 'chunks/collection.nb1.json', sha256: 'a'.repeat(64), count: 1, bytes: 10 },
+        { id: 'collection.nb2', path: 'chunks/collection.nb2.json', sha256: 'b'.repeat(64), count: 1, bytes: 10 },
+      ],
+    };
+    const source = new InMemorySeedSource(manifest, {
+      'chunks/collection.nb1.json': [rowA],
+      'chunks/collection.nb2.json': [rowB],
+    });
+    const result = await new SeedImporter(storage, source, 'core').applyAll({ notebookIds: ['collection.nb1'] });
+    expect(result.appliedChunks).toBe(1);
+    const idA = await seedNoteId('markdown/collections/nb1/a.md');
+    const idB = await seedNoteId('markdown/collections/nb2/b.md');
+    expect(await storage.storageInstance.readonly('notes').get(idA)).toBeDefined();
+    expect(await storage.storageInstance.readonly('notes').get(idB)).toBeUndefined();
+  });
+
+  it('pulls individual record JSONs and stamps seedCommit on the stored Note', async () => {
+    const storage = new InMemorySeedStorage();
+    const row = compileSeedRow('markdown/collections/heroes/murph.md', '# Murph');
+    row.commit = 'commit-sha-murph-1';
+    row.uuid = await seedNoteId(row.path);
+    row.version = 1;
+    const manifest: SeedManifest = {
+      schema: SEED_SCHEMA,
+      version: 1,
+      commit: 'commit-sha-murph-1',
+      builtAt: new Date(1).toISOString(),
+      chunks: [
+        {
+          id: 'collection.heroes',
+          path: 'chunks/collection.heroes.json',
+          sha256: 'c'.repeat(64),
+          count: 1,
+          bytes: 10,
+          records: [
+            {
+              uuid: row.uuid,
+              path: row.path,
+              recordPath: 'markdown/collections/heroes/murph.json',
+              commit: 'commit-sha-murph-1',
+              version: 1,
+              sha256: 'd'.repeat(64),
+              title: 'Murph',
+            },
+          ],
+        },
+      ],
+    };
+    const source = new InMemorySeedSource(manifest, {
+      'markdown/collections/heroes/murph.json': row,
+    });
+    await new SeedImporter(storage, source, 'core').applyAll({ granularRecords: true });
+    const note = await storage.storageInstance.readonly('notes').get(row.uuid);
+    expect(note).toBeDefined();
+    expect(note!.title).toBe('Murph');
+    expect(note!.seedCommit).toBe('commit-sha-murph-1');
+  });
+
+  it('skips downloading records whose seedCommit already matches local storage', async () => {
+    const storage = new InMemorySeedStorage();
+    const row = compileSeedRow('markdown/collections/heroes/murph.md', '# Murph');
+    row.commit = 'commit-sha-murph-1';
+    row.uuid = await seedNoteId(row.path);
+    row.version = 1;
+    const manifest: SeedManifest = {
+      schema: SEED_SCHEMA,
+      version: 1,
+      commit: 'commit-sha-murph-1',
+      builtAt: new Date(1).toISOString(),
+      chunks: [
+        {
+          id: 'collection.heroes',
+          path: 'chunks/collection.heroes.json',
+          sha256: 'c'.repeat(64),
+          count: 1,
+          bytes: 10,
+          records: [
+            {
+              uuid: row.uuid,
+              path: row.path,
+              recordPath: 'markdown/collections/heroes/murph.json',
+              commit: 'commit-sha-murph-1',
+              version: 1,
+              sha256: 'd'.repeat(64),
+              title: 'Murph',
+            },
+          ],
+        },
+      ],
+    };
+    let fetchCount = 0;
+    const source = new (class extends InMemorySeedSource {
+      override async fetchChunk(chunkPath: string) {
+        fetchCount++;
+        return super.fetchChunk(chunkPath);
+      }
+    })(manifest, {
+      'markdown/collections/heroes/murph.json': row,
+    });
+
+    await new SeedImporter(storage, source, 'core').applyAll({ granularRecords: true });
+    expect(fetchCount).toBe(1);
+
+    await new SeedImporter(storage, source, 'core').applyAll({ granularRecords: true });
+    expect(fetchCount).toBe(1);
+  });
+});

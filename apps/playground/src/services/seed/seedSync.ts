@@ -23,8 +23,8 @@ import { mainThreadSeedImportStorage } from './seedStorageDefault';
 import { assertManifest, type ISeedSource } from './ISeedSource';
 import { EMBEDDED_SEED_VERSIONS } from './seedVersion';
 import { customSeedSources, CORE_SEED_URL, SEED_SOURCES, notebooksOfSeed, hideSeedSourceRow, hiddenSeedSourceIds, removeCustomSeedSource, safeRepositoryUrl, toAbsoluteSeedUrl } from './seedSources';
-import { isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } from './seedSubscriptions';
-import { beginSyncActivity, reportSyncResult, reportSyncError } from '@/services/syncActivity';
+import { getSubscribedNotebooks, isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } from './seedSubscriptions';
+import { beginSyncActivity, reportSyncResult, reportSyncError, reportSyncProgress } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
 import { hydrateAppEquipmentRegistry, getAppEquipmentRegistry } from '@/services/equipmentRegistry';
@@ -288,6 +288,7 @@ async function runSeedSyncViaWorker(
     const totalSources = sources.length;
     let received = false;
     const settle = (value: SeedSyncOutcome | null): void => {
+      reportSyncProgress(null);
       worker.terminate();
       resolve(value);
     };
@@ -300,6 +301,17 @@ async function runSeedSyncViaWorker(
       const msg = event.data;
       if (msg.type === 'progress') {
         const spec = sources.find((s) => s.id === msg.sourceId);
+        reportSyncProgress({
+          sourceId: msg.sourceId,
+          sourceLabel: spec?.label ?? msg.sourceId,
+          chunkId: msg.progress.chunkId,
+          recordId: msg.progress.recordId,
+          completedRecords: msg.progress.completedRecords,
+          totalRecords: msg.progress.totalRecords,
+          completedChunks: msg.progress.completedChunks,
+          totalChunks: msg.progress.totalChunks,
+          phase: msg.progress.phase,
+        });
         deps.onProgress?.({
           ...msg.progress,
           sourceId: msg.sourceId,
@@ -347,6 +359,8 @@ async function runSeedSyncViaWorker(
         ...(s.tier ? { tier: s.tier } : {}),
         embeddedVersion: s.embeddedVersion,
         autoSyncOn: isSeedAutoSync(s.id),
+        notebookIds: getSubscribedNotebooks(s.id) ?? undefined,
+        granularRecords: true,
       })),
     });
   });
@@ -484,7 +498,7 @@ export async function runBootSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSync
   if (!coreCheckpoint || coreCheckpoint.seedVersion <= 0) {
     return runSeedSync({ ...deps, sources: all.filter((s) => s.autoImport !== false) });
   }
-  const sources = all.filter((s) => s.id === 'core' || isSeedSubscribed(s.id));
+  const sources = all.filter((s) => s.id === 'core' || isSeedSubscribed(s.id) || getSubscribedNotebooks(s.id) !== null);
   return runSeedSync({
     ...deps,
     sources,
@@ -526,14 +540,27 @@ async function runSourceSync(
         embeddedVersion: spec.embeddedVersion,
         autoSyncOn: isSeedAutoSync(spec.id),
         ...(spec.tier ? { tier: spec.tier } : {}),
+        notebookIds: getSubscribedNotebooks(spec.id) ?? undefined,
+        granularRecords: true,
       },
       { storage, owner, now, force: deps.force, probeManifests: deps.probeManifests, background: deps.mode === 'background' },
       {
         // Tag importer chunk phases with this source's identity. No
         // subscriber → no per-event allocation.
-        onProgress: onProgress
-          ? (progress) => onProgress({ ...progress, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources })
-          : undefined,
+        onProgress: (progress) => {
+          reportSyncProgress({
+            sourceId: spec.id,
+            sourceLabel: spec.label,
+            chunkId: progress.chunkId,
+            recordId: progress.recordId,
+            completedRecords: progress.completedRecords,
+            totalRecords: progress.totalRecords,
+            completedChunks: progress.completedChunks,
+            totalChunks: progress.totalChunks,
+            phase: progress.phase,
+          });
+          onProgress?.({ ...progress, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
+        },
         // First paint: as soon as the canvas chunk (home page + canvas
         // routes) is committed, refresh content consumers — the home page
         // renders while the rest of the library is still importing. Sources
@@ -548,6 +575,7 @@ async function runSourceSync(
     finish(result.outcome, result.error);
     return result.outcome;
   } finally {
+    reportSyncProgress(null);
     endActivity();
   }
 }

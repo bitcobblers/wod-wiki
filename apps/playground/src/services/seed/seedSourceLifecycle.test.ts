@@ -22,10 +22,13 @@ import {
   type SeedSourceSpec,
 } from './seedSync';
 import {
+  getSubscribedNotebooks,
+  isNotebookSubscribed,
   isSeedAutoSync,
   isSeedSubscribed,
   migrateSeedSubscriptions,
   resetSeedSubscriptionsForTest,
+  setNotebookSubscribed,
   setSeedAutoSync,
   setSeedSubscribed,
 } from './seedSubscriptions';
@@ -51,6 +54,22 @@ describe('catalog auto-sync preference', () => {
     expect(isSeedAutoSync('beta')).toBe(true);
     setSeedAutoSync('beta', false);
     expect(isSeedAutoSync('beta')).toBe(false);
+  });
+});
+
+describe('single notebook subscriptions', () => {
+  it('supports subscribing to a single notebook within a feed', () => {
+    expect(isNotebookSubscribed('feed-1', 'collection.heroes')).toBe(false);
+    expect(getSubscribedNotebooks('feed-1')).toBeNull();
+
+    setNotebookSubscribed('feed-1', 'collection.heroes', true);
+    expect(isNotebookSubscribed('feed-1', 'collection.heroes')).toBe(true);
+    expect(isNotebookSubscribed('feed-1', 'collection.other')).toBe(false);
+    expect(getSubscribedNotebooks('feed-1')).toEqual(['collection.heroes']);
+
+    setNotebookSubscribed('feed-1', 'collection.heroes', false);
+    expect(isNotebookSubscribed('feed-1', 'collection.heroes')).toBe(false);
+    expect(getSubscribedNotebooks('feed-1')).toBeNull();
   });
 });
 

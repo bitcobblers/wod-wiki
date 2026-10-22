@@ -47,6 +47,8 @@ export interface Note {
   seedChunkId?: string;
   /** Authored seed path used for deterministic identity and routing. */
   sourcePath?: string;
+  /** Git commit hash in which this note was published or changed. */
+  seedCommit?: string;
 }
 
 // ---------------------------------------------------------------------------

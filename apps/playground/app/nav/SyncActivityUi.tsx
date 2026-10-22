@@ -19,16 +19,18 @@ import {
   getSyncActivity,
   subscribeSyncActivity,
   type SyncActivitySnapshot,
+  type SyncProgressItem,
 } from '@/services/syncActivity'
 import { toast } from '@/hooks/use-toast'
 import { ToastAction } from '@/components/atoms/primitives/toast'
 import { ROUTE_PATTERNS } from '../lib/routes'
 import { getCatalogUpdates, subscribeCatalogUpdates } from '@/services/seed/seedSync'
 
-function activityLabel(direction: 'upload' | 'download', count: number, label: string | null): string {
+function activityLabel(direction: 'upload' | 'download', count: number, label: string | null, progress?: SyncProgressItem | null): string {
   const noun = direction === 'upload' ? 'Uploading' : 'Downloading'
   const target = label ?? 'data'
-  return count > 1 ? `${noun} ${target} (${count} syncs)` : `${noun} ${target}`
+  const detail = progress?.chunkId ? ` - ${progress.chunkId} (${progress.phase})` : ''
+  return count > 1 ? `${noun} ${target} (${count} syncs)${detail}` : `${noun} ${target}${detail}`
 }
 
 export function SyncActivityIndicators() {
@@ -43,8 +45,8 @@ export function SyncActivityIndicators() {
       {activity.downloading > 0 && (
         <span
           className="flex items-center gap-1"
-          aria-label={activityLabel('download', activity.downloading, activity.label)}
-          title={activityLabel('download', activity.downloading, activity.label)}
+          aria-label={activityLabel('download', activity.downloading, activity.label, activity.activeProgress)}
+          title={activityLabel('download', activity.downloading, activity.label, activity.activeProgress)}
         >
           <Download className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
           {activity.downloading > 1 && (
@@ -61,6 +63,18 @@ export function SyncActivityIndicators() {
           <Upload className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
           {activity.uploading > 1 && (
             <span className="text-[10px] tabular-nums">{activity.uploading}</span>
+          )}
+        </span>
+      )}
+      {activity.activeProgress && (
+        <span
+          data-testid="sync-granular-progress"
+          className="text-[11px] font-mono text-muted-foreground truncate max-w-[160px] hidden sm:inline"
+          title={`${activity.activeProgress.sourceLabel}: ${activity.activeProgress.phase} ${activity.activeProgress.chunkId ?? ''}`}
+        >
+          {activity.activeProgress.chunkId}
+          {activity.activeProgress.totalRecords !== undefined && activity.activeProgress.completedRecords !== undefined && (
+            ` (${activity.activeProgress.completedRecords + 1}/${activity.activeProgress.totalRecords})`
           )}
         </span>
       )}

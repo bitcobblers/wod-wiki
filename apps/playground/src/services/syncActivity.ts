@@ -14,6 +14,18 @@ export interface SyncActivityResult {
   added: number;
   updated: number;
 }
+export interface SyncProgressItem {
+  sourceId: string;
+  sourceLabel: string;
+  chunkId?: string | null;
+  recordId?: string | null;
+  recordTitle?: string | null;
+  completedRecords?: number;
+  totalRecords?: number;
+  completedChunks?: number;
+  totalChunks?: number;
+  phase: 'checking' | 'fetching' | 'applying' | 'committed' | 'finalizing';
+}
 
 export interface SyncActivitySnapshot {
   uploading: number;
@@ -21,12 +33,14 @@ export interface SyncActivitySnapshot {
   label: string | null;
   result: SyncActivityResult | null;
   error: string | null;
+  activeProgress?: SyncProgressItem | null;
 }
 
 let uploading = 0;
 let downloading = 0;
 let lastResult: SyncActivityResult | null = null;
 let lastError: string | null = null;
+let activeProgress: SyncProgressItem | null = null;
 let nextResultId = 1;
 
 /** Live task stack — the label is the most recent still-active task's. */
@@ -42,6 +56,7 @@ function rebuildSnapshot(): void {
     label: activeTasks.length ? activeTasks[activeTasks.length - 1].label : null,
     result: lastResult,
     error: lastError,
+    activeProgress,
   };
   for (const listener of listeners) listener();
 }
@@ -78,6 +93,12 @@ export function reportSyncResult(result: { source: string; added: number; update
   rebuildSnapshot();
 }
 
+/** Report live granular progress of the active background sync. */
+export function reportSyncProgress(progress: SyncProgressItem | null): void {
+  activeProgress = progress;
+  rebuildSnapshot();
+}
+
 /** Report a user-display-safe error (never secrets). */
 export function reportSyncError(message: string): void {
   lastError = message;
@@ -100,6 +121,7 @@ export function resetSyncActivityForTest(): void {
   uploading = 0;
   downloading = 0;
   activeTasks.length = 0;
+  activeProgress = null;
   lastResult = null;
   lastError = null;
   nextResultId = 1;

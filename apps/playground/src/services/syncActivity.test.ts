@@ -9,6 +9,7 @@ import {
   getSyncActivity,
   reportSyncError,
   reportSyncResult,
+  reportSyncProgress,
   subscribeSyncActivity,
 } from './syncActivity'
 
@@ -83,5 +84,26 @@ describe('syncActivity', () => {
     reportSyncResult({ source: 'Core (playground)', added: 2, updated: 0 })
     expect(getSyncActivity().error).toBeNull()
     expect(getSyncActivity().result).toMatchObject({ source: 'Core (playground)', added: 2 })
+  })
+
+  it('tracks granular progress of background sync and clears it', () => {
+    reportSyncProgress({
+      sourceId: 'feed-1',
+      sourceLabel: 'Feed One',
+      chunkId: 'collection.heroes',
+      recordId: 'rec-1',
+      completedRecords: 2,
+      totalRecords: 10,
+      phase: 'fetching',
+    })
+    expect(getSyncActivity().activeProgress).toMatchObject({
+      sourceId: 'feed-1',
+      chunkId: 'collection.heroes',
+      completedRecords: 2,
+      totalRecords: 10,
+      phase: 'fetching',
+    })
+    reportSyncProgress(null)
+    expect(getSyncActivity().activeProgress).toBeNull()
   })
 })

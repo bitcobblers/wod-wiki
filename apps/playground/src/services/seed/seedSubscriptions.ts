@@ -92,6 +92,34 @@ export function setSeedSubscribed(id: string, subscribed: boolean): boolean {
   return writeAll(all);
 }
 
+/** Check whether a specific notebook is subscribed (explicitly or via owning seed). */
+export function isNotebookSubscribed(seedId: string, notebookId: string): boolean {
+  if (seedId === 'core') return true;
+  const all = readAll();
+  const specificKey = `${seedId}#${notebookId}`;
+  if (specificKey in all) return all[specificKey] === true;
+  return isSeedSubscribed(seedId);
+}
+
+/** Subscribe or unsubscribe an individual notebook from a feed. */
+export function setNotebookSubscribed(seedId: string, notebookId: string, subscribed: boolean): boolean {
+  const specificKey = `${seedId}#${notebookId}`;
+  const all = { ...readAll(), [specificKey]: subscribed };
+  return writeAll(all);
+}
+
+/** Returns the explicit notebook ids subscribed for a seed, or null if the full seed is subscribed. */
+export function getSubscribedNotebooks(seedId: string): string[] | null {
+  if (seedId === 'core') return null;
+  const all = readAll();
+  if (all[seedId] === true) return null;
+  const prefix = `${seedId}#`;
+  const notebookIds = Object.entries(all)
+    .filter(([key, val]) => val === true && key.startsWith(prefix))
+    .map(([key]) => key.slice(prefix.length));
+  return notebookIds.length > 0 ? notebookIds : null;
+}
+
 export function subscribeSeedSubscriptions(listener: () => void): () => void {
   listeners.add(listener);
   return () => {

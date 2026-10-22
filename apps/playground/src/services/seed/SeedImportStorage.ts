@@ -18,6 +18,7 @@ export interface SeedImportStorage {
    * stale checkpoint that re-imports removed content.
    */
   removeSourceContent(meta: SeedMetaRecord): Promise<number>;
+  getNoteCommits?(noteIds: string[]): Promise<Map<string, string | undefined>>;
 }
 export class IndexedDBSeedImportStorage implements SeedImportStorage {
   // The instance is required, never defaulted: '@/services/storage' touches
@@ -27,6 +28,15 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
   constructor(readonly storageInstance: IStorage) {}
   async getSeedMeta(key: string): Promise<SeedMetaRecord | undefined> {
     return await this.storageInstance.readonly('meta').get(key) as SeedMetaRecord | undefined;
+  }
+  async getNoteCommits(noteIds: string[]): Promise<Map<string, string | undefined>> {
+    const notes = await this.storageInstance.readonly('notes').getMany(noteIds);
+    const map = new Map<string, string | undefined>();
+    for (let i = 0; i < noteIds.length; i++) {
+      const note = notes[i] as { seedCommit?: string } | undefined;
+      map.set(noteIds[i], note?.seedCommit);
+    }
+    return map;
   }
   async putSeedMeta(meta: SeedMetaRecord, expected?: SeedMetaRecord | null): Promise<void> {
     await this.storageInstance.transaction(['meta'], 'readwrite', async (tx) => {

@@ -40,6 +40,8 @@ export interface SourceSyncCoreInput {
   autoSyncOn: boolean;
   /** Precedence tier stamped on the checkpoint (and on the rows it writes). */
   tier?: SeedPrecedenceTier;
+  notebookIds?: string[];
+  granularRecords?: boolean;
 }
 
 export interface SourceSyncCoreDeps {
@@ -157,6 +159,8 @@ export async function runSourceSyncCore(
         forceAll: deps.force === true,
         onFirstPaintApplied: () => callbacks.onFirstPaint?.(),
         onProgress: callbacks.onProgress,
+        notebookIds: input.notebookIds,
+        granularRecords: input.granularRecords,
       });
       // Reaching the apply stage at all means the version decision chose an
       // import (or force/builtAt mismatch) — the run counts as 'imported'
