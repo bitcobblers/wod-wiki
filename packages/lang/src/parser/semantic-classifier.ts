@@ -27,6 +27,9 @@ const PROPERTY_KEY_TO_METRIC_TYPE: Record<string, MetricType> = {
   load: MetricType.Load,
   volume: MetricType.Volume,
   work: MetricType.Work,
+  // `sound: classic` names a sound profile, the same way a `#{sound-classic}`
+  // tag reference does.
+  sound: MetricType.Sound,
 };
 
 /** Parser-level reference configuration: shared index + note-level defaults. */

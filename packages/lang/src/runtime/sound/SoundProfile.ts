@@ -34,7 +34,7 @@
 export type SoundTriggerAnchor = 'start' | 'end';
 
 /** A trigger point: an anchor plus an offset from that anchor. */
-export interface SoundTrigger {
+export interface SoundTriggerPoint {
     /** Counts from the block's start (`start`) or its end (`end`). */
     readonly anchor: SoundTriggerAnchor;
     /** Offset from the anchor, in milliseconds. Never negative. */
@@ -44,7 +44,7 @@ export interface SoundTrigger {
 /** One rule in a profile: a trigger point plus the sound to play there. */
 export interface SoundRule {
     /** When the sound fires. */
-    readonly trigger: SoundTrigger;
+    readonly trigger: SoundTriggerPoint;
     /** Name of the sound to play. Resolved against the app's sound table. */
     readonly sound: string;
 }
@@ -60,30 +60,38 @@ export interface SoundProfile {
 }
 
 /**
- * Parse a trigger notation into a {@link SoundTrigger}.
+ * Parse a trigger notation into a {@link SoundTriggerPoint}.
  *
- * Accepts the anchor forms `:` (from start) and `-:` (from end), each
- * optionally followed by a duration written in any of the spellings the
- * language understands: `05:00`, `5:00`, `00:05:00`, `5`.
+ * The anchor says which end of the block the offset counts from:
+ *
+ * - `:` — from the block's start (elapsed). This is the default, so the
+ *   magnitude may be written with or without it: `:05:00`, `05:00`,
+ *   `00:05:00` and `5:00` all mean five minutes from the start.
+ * - `-` — from the block's end (remaining). The colon is optional here
+ *   too: `-:03` and `-03` both mean three seconds remaining.
+ *
+ * The magnitude accepts every duration spelling the language already
+ * understands: `5` (seconds), `5:00` (minutes), `00:05:00` (hours).
  *
  * @returns the parsed trigger, or `undefined` when the notation is malformed.
  */
-export function parseSoundTrigger(notation: string): SoundTrigger | undefined {
+export function parseSoundTrigger(notation: string): SoundTriggerPoint | undefined {
     const trimmed = notation.trim();
     if (trimmed.length === 0) return undefined;
 
     let anchor: SoundTriggerAnchor;
     let magnitude: string;
 
-    if (trimmed.startsWith('-:')) {
+    if (trimmed.startsWith('-')) {
         anchor = 'end';
-        magnitude = trimmed.slice(2);
-    } else if (trimmed.startsWith(':')) {
-        anchor = 'start';
         magnitude = trimmed.slice(1);
     } else {
-        return undefined;
+        anchor = 'start';
+        magnitude = trimmed;
     }
+
+    // A leading colon is the explicit form of the (default) start anchor.
+    if (magnitude.startsWith(':')) magnitude = magnitude.slice(1);
 
     const offsetMs = parseDurationMagnitude(magnitude);
     if (offsetMs === undefined) return undefined;
@@ -118,7 +126,7 @@ function parseDurationMagnitude(magnitude: string): number | undefined {
  * `:00` for the start, `-:00` for the end, `-:03` for three seconds before
  * the end, `:05:00` for five minutes after the start.
  */
-export function formatSoundTrigger(trigger: SoundTrigger): string {
+export function formatSoundTrigger(trigger: SoundTriggerPoint): string {
     const totalSeconds = Math.round(trigger.offsetMs / 1000);
     const seconds = totalSeconds % 60;
     const minutes = Math.floor(totalSeconds / 60) % 60;

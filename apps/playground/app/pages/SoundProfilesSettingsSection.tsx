@@ -15,13 +15,16 @@ import { Button } from '@/components/atoms/primitives/button'
 import { SOUND_NAMES } from '@/services/audio/AudioPolicy'
 import {
   readSoundProfiles,
+  removeProfileTag,
   soundProfileTagLabel,
   soundProfilesVersion,
   subscribeSoundProfiles,
+  syncProfileTag,
   updateSoundProfiles,
   type SoundRuleDraft,
   type StoredSoundProfile,
 } from '@/services/sound/soundProfiles'
+import { storageService } from '@/services/storage'
 
 function slugify(name: string): string {
   return name
@@ -74,7 +77,12 @@ export function SoundProfilesSettingsSection() {
       return
     }
     const ok = await change((current) => [...current, { id, name, rules: [] }])
-    if (ok) setNewName('')
+    if (ok) {
+      setNewName('')
+      // The profile is selected by a tag, so the tag has to exist for
+      // `sound: #{sound-classic}` to resolve.
+      await syncProfileTag(id, storageService)
+    }
   }
 
   const handleRename = async (profile: StoredSoundProfile) => {
@@ -90,6 +98,7 @@ export function SoundProfilesSettingsSection() {
   const handleDelete = async (profile: StoredSoundProfile) => {
     setConfirmDeleteId(null)
     await change((current) => current.filter((p) => p.id !== profile.id))
+    await removeProfileTag(profile.id, storageService)
   }
 
   const addRule = (profile: StoredSoundProfile, rule: SoundRuleDraft) =>

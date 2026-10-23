@@ -32,17 +32,24 @@ describe('parseSoundTrigger', () => {
         expect(parseSoundTrigger(':300')).toEqual({ anchor: 'start', offsetMs: 300000 });
     });
 
+    it('treats the start anchor as the default', () => {
+        const expected = { anchor: 'start', offsetMs: 300000 };
+        expect(parseSoundTrigger('05:00')).toEqual(expected);
+        expect(parseSoundTrigger('00:05:00')).toEqual(expected);
+        expect(parseSoundTrigger('5:00')).toEqual(expected);
+    });
+
+    it('accepts the end anchor with or without the colon', () => {
+        expect(parseSoundTrigger('-:03')).toEqual({ anchor: 'end', offsetMs: 3000 });
+        expect(parseSoundTrigger('-03')).toEqual({ anchor: 'end', offsetMs: 3000 });
+    });
+
     it('accepts bare seconds', () => {
         expect(parseSoundTrigger(':3')).toEqual({ anchor: 'start', offsetMs: 3000 });
     });
 
     it('accepts hours', () => {
         expect(parseSoundTrigger(':01:00:00')).toEqual({ anchor: 'start', offsetMs: 3600000 });
-    });
-
-    it('rejects notation without an anchor', () => {
-        expect(parseSoundTrigger('05:00')).toBeUndefined();
-        expect(parseSoundTrigger('5')).toBeUndefined();
     });
 
     it('rejects malformed magnitudes', () => {

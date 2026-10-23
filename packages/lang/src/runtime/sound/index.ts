@@ -15,7 +15,7 @@ export {
 export type {
     SoundProfile,
     SoundRule,
-    SoundTrigger,
+    SoundTriggerPoint,
     SoundTriggerAnchor,
 } from './SoundProfile';
 

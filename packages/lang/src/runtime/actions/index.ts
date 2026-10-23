@@ -11,9 +11,6 @@ export * from './stack';
 // Event actions
 export * from './events';
 
-// Audio actions
-export * from './audio';
-
 // Error actions
 export { ErrorAction } from './ErrorAction';
 export { ThrowError, ThrowErrorAction } from './ThrowError';

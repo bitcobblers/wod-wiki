@@ -75,7 +75,7 @@ export class SoundProfileBehavior implements IRuntimeBehavior {
 
     onUnmount(ctx: IBehaviorContext): IRuntimeAction[] {
         // A rule anchored to the end with no offset fires as the block ends.
-        this.fireDue(ctx, this.elapsedMs(ctx) ?? 0, this.durationMs);
+        this.fireDue(ctx, this.elapsedMs(ctx) ?? 0, this.durationMs, true);
         return [];
     }
 
@@ -98,8 +98,16 @@ export class SoundProfileBehavior implements IRuntimeBehavior {
      *
      * @param elapsed milliseconds elapsed on the block's timer
      * @param durationMs the block's total duration
+     * @param ending whether the block is ending — a rule anchored to the end
+     *   with no offset fires then, even when the block has no duration to
+     *   count down from
      */
-    private fireDue(ctx: IBehaviorContext, elapsed: number, durationMs: number | undefined): void {
+    private fireDue(
+        ctx: IBehaviorContext,
+        elapsed: number,
+        durationMs: number | undefined,
+        ending = false,
+    ): void {
         const remaining = durationMs === undefined ? undefined : Math.max(0, durationMs - elapsed);
 
         this.rules.forEach((rule, index) => {
@@ -108,7 +116,9 @@ export class SoundProfileBehavior implements IRuntimeBehavior {
 
             const due = anchor === 'start'
                 ? elapsed >= offsetMs
-                : (remaining !== undefined && remaining <= offsetMs);
+                : (offsetMs === 0
+                    ? ending || (remaining !== undefined && remaining <= 0)
+                    : (remaining !== undefined && remaining <= offsetMs));
 
             if (!due) return;
             this.fired.add(index);

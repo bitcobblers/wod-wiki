@@ -26,7 +26,7 @@ export class SoundStrategy implements IRuntimeBlockStrategy {
     readonly id = 'sound';
 
     match(statements: ICodeStatement[], _runtime: IRuntimeContext): boolean {
-        return statements && statements.length > 0;
+        return statements.length > 0;
     }
 
     apply(builder: BlockBuilder, statements: ICodeStatement[], runtime: IRuntimeContext): void {

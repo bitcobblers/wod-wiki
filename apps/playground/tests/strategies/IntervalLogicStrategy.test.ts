@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import { RuntimeTestBuilder } from '@/testing/harness/RuntimeTestBuilder';
 import { IntervalLogicStrategy } from '@bitcobblers/wod-wiki-engine';
-import { CountdownTimerBehavior, SoundCueBehavior } from '@bitcobblers/wod-wiki-engine';
+import { CountdownTimerBehavior, SoundProfileBehavior } from '@bitcobblers/wod-wiki-engine';
 
 describe('IntervalLogicStrategy', () => {
   it('should compile "1:00 EMOM 10" to an Interval block', () => {
@@ -20,6 +20,7 @@ describe('IntervalLogicStrategy', () => {
     // Now uses aspect-based behaviors
     expect(block.getBehavior(CountdownTimerBehavior)).toBeDefined();
     // Round tracking is wired via ChildrenStrategy (ChildSelectionBehavior) which is not registered here
-    expect(block.getBehavior(SoundCueBehavior)).toBeDefined();
+    // Sound cues come from SoundStrategy (the sound profile), not from this strategy.
+    expect(block.getBehavior(SoundProfileBehavior)).toBeUndefined();
   });
 });

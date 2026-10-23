@@ -86,7 +86,7 @@ Built-in behaviors:
 | ---------- | --------- |
 | `CountdownTimerBehavior` | Count-down timer |
 | `CountupTimerBehavior` | Count-up / elapsed timer |
-| `SoundCueBehavior` | Beep/cue sounds |
+| `SoundProfileBehavior` | Plays a sound profile's rules at their trigger points |
 | `ReportOutputBehavior` | Emit `OutputStatement`s |
 | `LabelingBehavior` | Compose display labels |
 | `ChildSelectionBehavior` | Advance child blocks |

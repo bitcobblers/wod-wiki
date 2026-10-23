@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import { RuntimeTestBuilder } from '@/testing/harness/RuntimeTestBuilder';
 import { AmrapLogicStrategy } from '@bitcobblers/wod-wiki-engine';
-import { CountdownTimerBehavior, LabelingBehavior, SoundCueBehavior } from '@bitcobblers/wod-wiki-engine';
+import { CountdownTimerBehavior, LabelingBehavior, SoundProfileBehavior } from '@bitcobblers/wod-wiki-engine';
 
 describe('AmrapLogicStrategy Integration', () => {
     it('should compile "10:00 AMRAP" (no rounds keyword) into AMRAP block', () => {
@@ -17,7 +17,8 @@ describe('AmrapLogicStrategy Integration', () => {
         // Now uses aspect-based behaviors
         expect(block.getBehavior(CountdownTimerBehavior)).toBeDefined();
         expect(block.getBehavior(LabelingBehavior)).toBeDefined();
-        expect(block.getBehavior(SoundCueBehavior)).toBeDefined();
+        // Sound cues come from SoundStrategy (the sound profile), not from this strategy.
+        expect(block.getBehavior(SoundProfileBehavior)).toBeUndefined();
     });
 
     it('should compile "10:00 5 Rounds" into AMRAP block', () => {

@@ -398,7 +398,7 @@ export {
   DEFAULT_SOUND_PROFILE,
   type SoundProfile,
   type SoundRule,
-  type SoundTrigger,
+  type SoundTriggerPoint,
   type SoundTriggerAnchor,
   // Compiler strategies (app-side harnesses + debug tooling)
   SessionRootStrategy,

@@ -18,13 +18,13 @@
 
 import {
     parseSoundTrigger,
-    resolveProfileRules,
+    SOUND_PROFILE_TAG_TYPE,
     type SoundProfile,
     type SoundRule,
 } from '@bitcobblers/wod-wiki-engine'
 import { LocalStore } from '@/services/storage/LocalStore'
 import { remotePrefsMode, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
-import type { TagMetric } from '@bitcobblers/wod-wiki-core'
+import type { Tag, TagMetric } from '@bitcobblers/wod-wiki-core'
 
 /** A rule as authored — the trigger is kept in its notation form. */
 export interface SoundRuleDraft {
@@ -42,7 +42,7 @@ export interface StoredSoundProfile {
 }
 
 /** The tag type whose tags select a sound profile. */
-export const SOUND_PROFILE_TAG_TYPE = 'sound'
+export { SOUND_PROFILE_TAG_TYPE }
 
 /** The prefix of a tag that selects a sound profile. */
 export const SOUND_PROFILE_TAG_PREFIX = 'sound-'
@@ -99,16 +99,6 @@ export function toSoundProfile(stored: StoredSoundProfile): SoundProfile {
         rules.push({ trigger, sound: draft.sound })
     }
     return { id: stored.id, name: stored.name, rules }
-}
-
-/**
- * The rules of a profile that apply to a block of the given duration.
- */
-export function rulesForDuration(
-    profile: SoundProfile,
-    durationMs: number | undefined,
-): SoundRule[] {
-    return resolveProfileRules(profile, durationMs)
 }
 
 /**
@@ -215,6 +205,53 @@ export async function updateSoundProfiles(
     // Keep the chain alive even when a write fails.
     writeChain = run.catch(() => false)
     return run
+}
+
+// ── Selector tags ──────────────────────────────────────────────────────────
+
+/**
+ * Keep the tag that selects a profile in step with the profile itself.
+ *
+ * A profile is selected by a tag — `sound-classic` on a note, or
+ * `sound: #{sound-classic}` on a line. For that to resolve, the tag has to
+ * exist and carry the sound metric naming the profile. Creating a profile
+ * therefore also creates its tag, and deleting a profile removes it.
+ *
+ * Tags live in the notes store rather than the profile store, so this
+ * writes through the storage service.
+ */
+export async function syncProfileTag(profileId: string, storage: TagStorage): Promise<void> {
+  const label = soundProfileTagLabel(profileId)
+  const existing = (await storage.getAllTags()).find(tag => tag.label === label)
+  if (existing) {
+    const metrics = soundProfileTagMetrics(profileId)
+    if (existing.metrics?.length === 1 && existing.metrics[0]?.type === metrics[0]?.type && existing.metrics[0]?.value === metrics[0]?.value) {
+      return
+    }
+    await storage.putTag({ ...existing, metrics, type: SOUND_PROFILE_TAG_TYPE })
+    return
+  }
+  await storage.putTag({
+    id: `sound-profile-${profileId}`,
+    label,
+    type: SOUND_PROFILE_TAG_TYPE,
+    metrics: soundProfileTagMetrics(profileId),
+    createdAt: Date.now(),
+  })
+}
+
+/** Remove the tag that selected a profile. */
+export async function removeProfileTag(profileId: string, storage: TagStorage): Promise<void> {
+  const label = soundProfileTagLabel(profileId)
+  const existing = (await storage.getAllTags()).find(tag => tag.label === label)
+  if (existing) await storage.deleteTag(existing.id)
+}
+
+/** The tag storage operations a profile needs. */
+export interface TagStorage {
+  getAllTags(): Promise<readonly Tag[]>
+  putTag(tag: Tag): Promise<void>
+  deleteTag(id: string): Promise<void>
 }
 
 // ── Reactivity ─────────────────────────────────────────────────────────────
