@@ -32,7 +32,9 @@ describe('tag references', () => {
     it('parses #{tag-slug} as a property value', () => {
         const metrics = parseMetrics('sound: #{sound-classic}');
         expect(metrics).toHaveLength(1);
-        expect(metrics[0].value).toBe('sound-classic');
+        // Without a catalog the reference is kept verbatim, so an unresolved
+        // reference stays visible rather than silently becoming a value.
+        expect(metrics[0].value).toBe('#{sound-classic}');
     });
 
     it('contributes the metrics the tag is marked down with', () => {
@@ -45,10 +47,19 @@ describe('tag references', () => {
         expect(metrics[0].value).toBe('classic');
     });
 
+    it('stacks several tag references on one line', () => {
+        const tags = createTagIndex([
+            { slug: 'sound-classic', metrics: [{ type: MetricType.Sound, value: 'classic' }] },
+            { slug: 'sound-loud', metrics: [{ type: MetricType.Sound, value: 'loud' }] },
+        ]);
+        const metrics = parseMetrics('sound: #{sound-classic} #{sound-loud}', tags);
+        expect(metrics.map(m => m.value)).toEqual(['classic', 'loud']);
+    });
+
     it('keeps the literal reference when the tag is unknown', () => {
         const metrics = parseMetrics('sound: #{nope}');
         expect(metrics).toHaveLength(1);
-        expect(metrics[0].value).toBe('nope');
+        expect(metrics[0].value).toBe('#{nope}');
     });
 
     it('leaves ordinary property values alone', () => {

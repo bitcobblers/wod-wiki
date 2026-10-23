@@ -155,27 +155,36 @@ function createPropertyPrimitive(
   if (!match) return null;
 
   const [, key, rawValue] = match;
-  const tagRef = parseTagRef(rawValue);
+  const tagRefs = parseTagRefs(rawValue);
   return {
     kind: 'property',
     raw,
     meta,
     key,
     valueRaw: rawValue,
-    value: tagRef !== undefined ? tagRef : parsePropertyValue(rawValue),
-    ...(tagRef !== undefined ? { tagRef } : {}),
+    value: tagRefs !== undefined ? rawValue.trim() : parsePropertyValue(rawValue),
+    ...(tagRefs !== undefined ? { tagRefs } : {}),
   };
 }
 
 /**
- * The tag slug when a property value is a tag reference (`#{tag-slug}`).
+ * The tag slugs when a property value is one or more tag references
+ * (`#{tag-slug}`).
  *
  * Returns `undefined` for any other value, including a bare word that
  * merely looks like one.
  */
-function parseTagRef(rawValue: string): string | undefined {
-  const match = rawValue.trim().match(/^#\{([a-zA-Z0-9][a-zA-Z0-9-]*)\}$/);
-  return match ? match[1] : undefined;
+function parseTagRefs(rawValue: string): string[] | undefined {
+  const parts = rawValue.trim().split(/\s+/).filter(part => part.length > 0);
+  if (parts.length === 0) return undefined;
+
+  const slugs: string[] = [];
+  for (const part of parts) {
+    const match = part.match(/^#\{([a-zA-Z0-9][a-zA-Z0-9-]*)\}$/);
+    if (!match) return undefined;
+    slugs.push(match[1]);
+  }
+  return slugs;
 }
 
 function parsePropertyValue(rawValue: string): string | number | boolean | null {

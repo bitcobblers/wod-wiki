@@ -9,7 +9,18 @@
 
 @top Program { (Property | Block | newline)* }
 
-Property { (Identifier colon (String | Number | Identifier | TagRef)) !property }
+/**
+ * Property — a `key: value` line.
+ *
+ * A value is normally a single string, number or identifier. A **tag
+ * reference** (`#{tag-slug}`) is also a value, and several of them can be
+ * stacked on one line so a line can point at more than one tag:
+ * `sound: #{sound-classic} #{sound-loud}`.
+ */
+Property {
+  (Identifier colon (String | Number | Identifier)) !property |
+  (Identifier colon TagRef+) !property
+}
 
 Block { ((Lap !lap)? (Fragment !fragment)+ newline) !block }
 

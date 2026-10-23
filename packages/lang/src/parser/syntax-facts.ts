@@ -84,13 +84,14 @@ export interface PropertyPrimitive extends BasePrimitive {
   valueRaw: string;
   value: string | number | boolean | null;
   /**
-   * The tag slug when the value is a tag reference (`#{tag-slug}`).
+   * The tag slugs when the value is one or more tag references
+   * (`#{tag-slug}`). Several can be stacked on one line.
    *
    * A tag reference names a tag rather than repeating what the tag means.
-   * The parser records the reference; resolving it to metrics is the
+   * The parser records the references; resolving them to metrics is the
    * classifier's job, since only it knows the tag catalog.
    */
-  tagRef?: string;
+  tagRefs?: string[];
 }
 
 export type SyntaxPrimitive =

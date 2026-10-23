@@ -284,9 +284,12 @@ function classifyPrimitive(primitive: SyntaxPrimitive, references?: ParseReferen
 
     case 'property': {
       // A tag reference (`#{tag-slug}`) contributes the metrics the tag is
-      // marked down with, rather than the literal reference text.
-      if (primitive.tagRef !== undefined) {
-        const tagMetrics = resolveTagMetrics(references?.tags, primitive.tagRef);
+      // marked down with, rather than the literal reference text. Several
+      // references can be stacked on one line, so every one contributes.
+      if (primitive.tagRefs !== undefined) {
+        const tagMetrics = primitive.tagRefs.flatMap(
+          slug => resolveTagMetrics(references?.tags, slug),
+        );
         if (tagMetrics.length > 0) {
           return tagMetrics.map(metrics => ({ metrics, meta: primitive.meta }));
         }
