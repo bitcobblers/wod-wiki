@@ -38,8 +38,8 @@ On desktop screens, the stream view operates as a high-density triage workstatio
      - **Rows (`LibraryRow.tsx`)**: Compact table rows. Hovering reveals a persistent action stack: *Open*, *Add to Today*, *Run*, *Compare*.
      - **Feed (`StreamFeed.tsx`)**: Expanded cards showing full markdown workout blocks, round estimates, and execution controls.
      - **Cards**: Tile grid with metadata badges (discipline, MET, duration).
-5. **Auxiliary Date/TOC Rail (≥2xl screens)**:
-   - On ultra-wide viewports, `JournalDateScroll.tsx` mounts on the right margin, providing quick-jump anchors for chronological date clusters.
+5. **Date Grouping**:
+   - Chronological date grouping comes from the stream's own feed (`StreamFeed`). No auxiliary date-jump rail is mounted (the `JournalDateScroll` runway was removed — it was never wired in).
 
 ---
 
@@ -91,7 +91,7 @@ The table below specifies how each concrete route implements the abstract `Queri
 
 | Typed View | Route Pattern | StreamProfile Key | Default WQL Query | Primary Data Source | Specific Header / Mobile Actions | Layout Defaults |
 |---|---|---|---|---|---|---|
-| **Journal Stream** | `/journal` | `JOURNAL_STREAM_PROFILE` | `find:note{source:journal} last 4w` | `notes`, `page` (IndexedDB) | View Settings; tap opens `/journal/:date` | Chronological date-grouped feed with `JournalDateScroll` |
+| **Journal Stream** | `/journal` | `JOURNAL_STREAM_PROFILE` | `find:note{source:journal} last 4w` | `notes`, `page` (IndexedDB) | View Settings; tap opens `/journal/:date` | Chronological date-grouped feed (`StreamFeed`) |
 | **Library Catalog** | `/library` | `LIBRARY_STREAM_PROFILE` | `find:note last 2w` | `notes`, `blockIndex` | View Settings; Undated shelf; Multi-select compare | Compact rows with hover action stack (Open/Add/Run) |
 | **Notebooks Listing** | `/catalogs` | `CATALOGS_STREAM_PROFILE` | `:notebook{} by {tag}` | `markdown/collections/` + seed notes | Sync notice when no library imported; tap opens `/c/:slug` | Tag-grouped card grid |
 | **Efforts Registry** | `/efforts` | `EFFORTS_STREAM_PROFILE` | `find:effort` | `efforts` store + `useEffortRegistry` | **Primary "+ New Effort"** button (Dock FAB on mobile) | Property table showing MET, discipline, aliases |

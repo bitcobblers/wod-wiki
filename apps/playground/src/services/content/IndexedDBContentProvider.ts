@@ -10,14 +10,10 @@ import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import type { DomainEntry, DomainPredicate } from '@bitcobblers/wod-wiki-storage';
 import { sessionToPayload } from '../persistence/sessionPayload';
 import { NotePersistenceError } from '../persistence/types';
+import { localDateKey } from '@/lib/dateFormat';
 
 const BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
 const MUTATION_STORES = ['notes', 'block_revisions', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'sessions', 'events', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'] as const;
-
-function localDateKey(ts: number): string {
-    const date = new Date(ts);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
 
 function entryFromDomainRow(row: DomainEntry): HistoryEntry {
     const pages = new Map(row.pages.map(page => [page.id, page]));
@@ -103,7 +99,7 @@ export class IndexedDBContentProvider implements IContentProvider {
         if (!source) throw new Error(`Source entry not found: ${sourceId}`);
         const date = targetDate ?? Date.now();
         return this.saveEntry({ title: source.title, rawContent: source.rawContent, tags: source.tags,
-            targetDate: date, journalDate: localDateKey(date), type: 'journal', sourceId: source.id });
+            targetDate: date, journalDate: localDateKey(new Date(date)), type: 'journal', sourceId: source.id });
     }
 
     async saveEntry(entry: NoteSaveInput): Promise<HistoryEntry> {

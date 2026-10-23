@@ -49,3 +49,10 @@ export function formatDateTimeMedium(date: Date): string {
 export function formatDateDefault(date: Date): string {
   return date.toLocaleDateString('en-US');
 }
+
+/**
+ * 'YYYY-MM-DD' in local time. Avoids the UTC shift `toISOString()` introduces.
+ */
+export function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}

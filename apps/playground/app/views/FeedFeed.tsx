@@ -9,7 +9,6 @@ import { useMemo } from 'react';
 import { CalendarIcon, FileTextIcon, ChevronRightIcon, PlusIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDateHeader } from '@/lib/dateFormat';
-import type { JournalEntrySummary } from './queriable-list/JournalDateScroll';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -21,6 +20,12 @@ export interface FeedItem {
   name: string;
   content: string;
   path: string;
+}
+
+/** Journal note metadata for a given date (title + last update). */
+export interface JournalEntrySummary {
+  title: string;
+  updatedAt: number;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

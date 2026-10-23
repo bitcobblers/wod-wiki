@@ -1,9 +1,8 @@
 /**
- * App-version seam for the playground shell (app/). The workbench (src/)
- * keeps its own inline copy (Workbench.tsx); this one serves the app chrome:
- * the settings-gear hover popover and the System settings About section.
- * `__APP_VERSION__` is stamped by vite define — CI passes VITE_APP_VERSION,
- * local dev falls back to package.json (vite.config.ts).
+ * App-version seam for the playground shell (app/). One source for the whole
+ * app — the settings-gear hover popover and the System settings About section
+ * both read it. `__APP_VERSION__` is stamped by vite define — CI passes
+ * VITE_APP_VERSION, local dev falls back to package.json (vite.config.ts).
  */
 declare const __APP_VERSION__: string | undefined;
 

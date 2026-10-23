@@ -38,7 +38,7 @@ import { PageActions } from './shared/PageActions';
 import { ResponsiveActions } from '../nav/ResponsiveActions';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/atoms/primitives/toast';
-import { localDateKey } from '../views/queriable-list/JournalDateScroll';
+import { localDateKey } from '@/lib/dateFormat';
 
 export interface FeedItemPageProps {
   feedSlug: string;

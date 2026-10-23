@@ -85,7 +85,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
 - **Page Outline:**
   - **Sticky Header Bar:** WQL search/filter strip (`find:note last 2w`), sort/group buttons, layout mode toggles (Cards vs Feed).
   - **Feed / Content Stream:** Date-grouped feed items (`StreamFeed`) or card rows with workout previews and action pills.
-  - **Right Rail:** `JournalDateScroll` date-jump anchors and TOC synchronizer.
+  - **Date Grouping:** Provided by the stream feed itself — no separate date-jump rail (the `JournalDateScroll` runway was removed; it was never wired in).
 - **Data Sources:**
   - *Primary:* `queryService.execute(wql)` scans `notes`, `blockIndex`, and `page` stores.
   - *Configuration:* `routeWqlConfig` from `localStorage` / `meta` store sets landing query defaults.

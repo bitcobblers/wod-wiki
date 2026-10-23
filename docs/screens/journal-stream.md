@@ -12,7 +12,6 @@
 - `QueriableStreamView` (`apps/playground/app/views/stream/QueriableStreamView.tsx`). Unified stream controller.
 - `StreamQueryBar` (`apps/playground/app/views/stream/StreamQueryBar.tsx`). Single-line query bar embedded in the sticky header.
 - `StreamFeed` (`apps/playground/app/views/stream/StreamFeed.tsx`). Grouped chronological feed view.
-- `JournalDateScroll` (`apps/playground/app/views/queriable-list/JournalDateScroll.tsx`). Date-grouped scroll runway with virtualized intersection observers.
 - `MobileQueryFooter` (`apps/playground/src/templates/SidebarLayout.tsx`). Mobile bottom query button row.
 
 ### Services & Query Engines
@@ -36,7 +35,7 @@
 - **Main Stream Column:**
   - Date-grouped stream items with infinite scroll sentinels.
   - Cards show title, tags, formatted workout preview, and quick-action buttons.
-- **Right Rail (216px right):** Contextual date jump navigator and month groupings.
+  - Date grouping comes from the stream feed itself; there is no separate date-jump rail (the `JournalDateScroll` runway was removed — it was never wired into this screen).
 
 ---
 
@@ -54,5 +53,3 @@
 - **Header Query Bar vs Bottom Footer:**
   - Desktop executes query edits directly in the sticky top bar.
   - Mobile elevates the query editor into a slide-up bottom sheet to clear the software keyboard.
-- **Date Group Scroll Synchronization:**
-  - Intersection observers on date group headers synchronize with the table of contents rail on desktop and floating date pill on mobile.

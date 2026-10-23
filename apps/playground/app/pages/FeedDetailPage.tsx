@@ -10,12 +10,11 @@ import { useNavigate } from 'react-router-dom';
 import { buildScriptFeeds } from '@/repositories/script-feeds';
 import { useSeedContent } from '@/services/content/seedContent';
 import { playgroundContent } from '../services/playgroundContent';
-import { localDateKey } from '../views/queriable-list/JournalDateScroll';
-import type { JournalEntrySummary } from '../views/queriable-list/JournalDateScroll';
+import { localDateKey } from '@/lib/dateFormat';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
 import { journalEntryPath } from '../lib/routes';
 import { useFeedsQueryState } from '../hooks/useFeedsQueryState';
-import { FeedFeed, type FeedItem } from '../views/FeedFeed';
+import { FeedFeed, type FeedItem, type JournalEntrySummary } from '../views/FeedFeed';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/atoms/primitives/toast';
 
