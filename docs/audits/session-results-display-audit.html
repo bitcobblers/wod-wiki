@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session Results Display — Audit</title>
+<style>
+  :root {
+    --fg: #1a1d23;
+    --muted: #5c6470;
+    --border: #d9dee5;
+    --surface: #f6f8fa;
+    --accent: #2563eb;
+    --success: #15803d;
+    --warning: #b45309;
+    --error: #b91c1c;
+    --c1: #2563eb; --c2: #0891b2; --c3: #7c3aed; --c4: #b45309;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #ffffff;
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  [data-whiteboard-document] { max-width: 1020px; margin: 0 auto; padding: 32px 24px 96px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  h2 { font-size: 19px; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+  h3 { font-size: 16px; margin: 0 0 6px; }
+  p { margin: 8px 0; }
+  code, .path {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .path { display: inline-block; padding: 2px 7px; word-break: break-all; }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 6px; }
+  .chip {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 14px; background: var(--surface); min-width: 120px;
+  }
+  .chip b { display: block; font-size: 20px; }
+  .chip span { font-size: 12px; color: var(--muted); }
+  .card {
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; margin: 14px 0; background: #ffffff;
+  }
+  .card.live { border-left: 4px solid var(--success); }
+  .card.legacy { border-left: 4px solid var(--warning); background: var(--surface); }
+  .card.partial { border-left: 4px solid var(--c4); }
+  .badge {
+    display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; border-radius: 4px; padding: 2px 7px; margin-left: 8px;
+    vertical-align: 2px;
+  }
+  .badge.live { background: #dcfce7; color: var(--success); }
+  .badge.legacy { background: #fef3c7; color: var(--warning); }
+  .badge.partial { background: #ffedd5; color: var(--c4); }
+  .badge.doc { background: #ede9fe; color: var(--c3); }
+  .kv { margin: 6px 0 0; font-size: 13.5px; }
+  .kv dt { font-weight: 600; float: left; clear: left; width: 110px; color: var(--muted); }
+  .kv dd { margin: 0 0 4px 120px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 12px 0; }
+  th, td { border: 1px solid var(--border); padding: 6px 9px; text-align: left; vertical-align: top; }
+  th { background: var(--surface); font-size: 12px; }
+  td.yes { color: var(--success); font-weight: 600; text-align: center; }
+  td.no { color: var(--muted); text-align: center; }
+  ol.findings > li { margin: 10px 0; }
+  .flow { width: 100%; height: auto; display: block; margin: 16px 0 4px; }
+  .flow text { font-family: inherit; }
+  footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 12px; }
+</style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/audits/session-results-display-audit.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  :root { --wb-bar-height: 112px; }
+  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 16px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #cbd5e1; padding: 10px max(16px, calc((100% - 1032px) / 2)); }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 44px; padding: 8px 12px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button:disabled { opacity: .5; cursor: default; }
+  #wb-bar #wb-publish, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-help, #wb-status, #wb-storage-warning { margin: 4px 0 0; font-size: 12px; }
+  #wb-help { color: #475569; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; padding: 16px; border: 1px solid #b45309; border-radius: 8px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current h2 { margin: 0 0 8px; padding: 0; font-size: 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite">0 annotations</strong>
+    <button id="wb-add" type="button" aria-pressed="false">Add annotation</button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation">Previous</button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation">Next</button>
+    <button id="wb-publish" type="button" disabled>Publish</button>
+  </div>
+  <p id="wb-help">Highlight text to annotate, or click Add annotation then click any block. Drafts stay in this browser. Publish copies them for your agent.</p>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+<div data-whiteboard-document>
+
+  <h1 id="wb-h1-7a4c581e6a3d4cc185364d8aec60672a" data-whiteboard-anchor>Session Results Display — Audit</h1>
+  <p class="meta" id="wb-p-f6efe5d24d8648058f324a6eaa5a1873" data-whiteboard-anchor>wod-wiki · 2026-10-22 · Scope: every surface that renders <em>completed</em> workout/session results (post-run). Live in-workout logging UIs and pure editor/debug panels excluded.</p>
+
+  <div class="chips">
+    <div class="chip"><b>10</b><span>live surfaces</span></div>
+    <div class="chip"><b>0</b><span>legacy stacks left (4 deleted)</span></div>
+    <div class="chip"><b>3</b><span>data currencies for the same results</span></div>
+    <div class="chip"><b>2</b><span>different "Workout Complete" UIs</span></div>
+    <div class="chip"><b>0</b><span>real PR computations (badge is cosmetic)</span></div>
+  </div>
+
+  <h2 id="wb-h2-53f54fa6549f4a70a5636dd62c879307" data-whiteboard-anchor>How results flow</h2>
+  <p id="wb-p-687dabd0bb4c4bc4ab69c1121ea17477" data-whiteboard-anchor>One write path, three read currencies, many renderers. Divergence starts at the read side.</p>
+  <svg class="flow" viewBox="0 0 980 340" role="img" aria-label="Data flow from run completion through storage to display surfaces" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path>
+      </marker>
+    </defs>
+    <g font-size="13" fill="var(--fg)">
+      <!-- Write path -->
+      <rect x="10" y="20" width="220" height="64" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+      <text x="22" y="46" font-weight="600">Run completes</text>
+      <text x="22" y="66" font-size="11.5" fill="var(--muted)">FullscreenTimer / canvas / journal</text>
+      <line x1="230" y1="52" x2="300" y2="52" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"></line>
+      <rect x="305" y="20" width="230" height="64" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+      <text x="317" y="46" font-weight="600">resultRecorder.record()</text>
+      <text x="317" y="66" font-size="11.5" fill="var(--muted)">finishSession → IndexedDB row</text>
+      <line x1="535" y1="52" x2="605" y2="52" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"></line>
+      <rect x="610" y="20" width="220" height="64" rx="8" fill="#eff6ff" stroke="var(--c1)"></rect>
+      <text x="622" y="46" font-weight="600" fill="var(--c1)">Stored Session</text>
+      <text x="622" y="66" font-size="11.5" fill="var(--muted)">logs: StoredOutputStatement[]</text>
+
+      <!-- Read currencies -->
+      <line x1="720" y1="84" x2="720" y2="120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"></line>
+      <line x1="470" y1="84" x2="470" y2="120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"></line>
+      <line x1="220" y1="84" x2="220" y2="120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"></line>
+
+      <rect x="600" y="124" width="250" height="56" rx="8" fill="#ffffff" stroke="var(--c1)"></rect>
+      <text x="612" y="147" font-weight="600" fill="var(--c1)">A · Raw Session.logs</text>
+      <text x="612" y="166" font-size="11.5" fill="var(--muted)">IMetric[] per statement</text>
+
+      <rect x="350" y="124" width="250" height="56" rx="8" fill="#ffffff" stroke="var(--c2)"></rect>
+      <text x="362" y="147" font-weight="600" fill="var(--c2)">B · WQL RowsQueryResult</text>
+      <text x="362" y="166" font-size="11.5" fill="var(--muted)">:session{} → RowsRun.events</text>
+
+      <rect x="100" y="124" width="250" height="56" rx="8" fill="#ffffff" stroke="var(--c3)"></rect>
+      <text x="112" y="147" font-weight="600" fill="var(--c3)">C · Derived Entry scalars</text>
+      <text x="112" y="166" font-size="11.5" fill="var(--muted)">elapsedMs / reps / loadLbs / tis</text>
+
+      <line x1="725" y1="180" x2="725" y2="216" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"></line>
+      <line x1="475" y1="180" x2="475" y2="216" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"></line>
+      <line x1="225" y1="180" x2="225" y2="216" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"></line>
+
+      <!-- Renderers -->
+      <rect x="590" y="220" width="370" height="96" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+      <text x="602" y="243" font-weight="600">WhiteboardCompanion gutter · run badges</text>
+      <text x="602" y="263" font-size="11.5" fill="var(--muted)">TourSessionInsights timeline</text>
+      <text x="602" y="283" font-size="11.5" fill="var(--muted)">Workout Complete dialog (ReviewGrid, in-memory)</text>
+
+      <rect x="340" y="220" width="250" height="96" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+      <text x="352" y="243" font-weight="600">/results/:id detail · /sessions list</text>
+      <text x="352" y="263" font-size="11.5" fill="var(--muted)">RowsResultsChrome in-note tables</text>
+      <text x="352" y="283" font-size="11.5" fill="var(--muted)">RpeChip (SessionRPE)</text>
+
+      <rect x="90" y="220" width="250" height="96" rx="8" fill="var(--surface)" stroke="var(--border)"></rect>
+      <text x="102" y="243" font-weight="600">LibraryRow cards · StreamFeed chips</text>
+      <text x="102" y="263" font-size="11.5" fill="var(--muted)">dashboards / analytics aggregates</text>
+      <text x="102" y="283" font-size="11.5" fill="var(--muted)">Chromecast summary (own aggregate)</text>
+    </g>
+  </svg>
+
+  <h2 id="wb-h2-8eb978818b6f4ec69fa8e7db23bd2c53" data-whiteboard-anchor>Live surfaces</h2>
+
+  <div class="card live" id="surf-dialog">
+    <h3 id="wb-h3-a6c034e3023a42cbac2c9a12a7d7873a" data-whiteboard-anchor>1 · Workout Complete dialog <span class="badge live">live · primary</span></h3>
+    <dl class="kv">
+      <dt>Where</dt><dd><span class="path">apps/playground/src/components/organisms/review/FullscreenTimer.tsx:404-435</span> — <code>FocusedDialog</code> in review mode</dd>
+      <dt>Shows</dt><dd><code>ReviewGrid</code> over in-memory <code>Segment[]</code> (CDL-driven columns: Elapsed, Load, Pace, Exercise…), post-run missing-actual queue (<code>CollectionWizard</code> mode="post-run"), save banner (Saving… / error + Retry / Saved ✓), Cast + Audio toggles</dd>
+      <dt>Data</dt><dd>In-memory <code>Segment[]</code> via <code>getAnalyticsFromLogs</code>; GA4 synthetic page <code>/workout/review</code>, title "Wod.Wiki - Workout Complete: …"</dd>
+      <dt>Hosts</dt><dd><code>JournalDatePage.tsx:429</code>, canvas pages via <code>useCanvasRuntime.handleWorkoutComplete</code>; <code>WallClockPage</code> instead navigates to <code>/results/:id</code> on completion</dd>
+      <dt>Decision</dt><dd><strong>Kept</strong> for the home page and the syntax/guide pages. Regular journal workouts render their output <em>under the block that was just run</em> and link to <code>/results/:id</code> for full control.</dd>
+    </dl>
+  </div>
+
+  <div class="card live" id="surf-tv">
+    <h3 id="wb-h3-4345e06edaf84fa19729dc32c40fafd2" data-whiteboard-anchor>2 · Chromecast "Workout Complete" (TV) <span class="badge live">live</span></h3>
+    <dl class="kv">
+      <dt>Where</dt><dd><span class="path">apps/playground/src/panels/review-panel-chromecast.tsx:136-260</span></dd>
+      <dt>Shows</dt><dd>10-ft UI: "Workout Complete" header, Total Duration card, segment count, 2-col grid of aggregated <code>ProjectionResult</code> (volume / reps / distance / work / load / elapsed), D-pad dismiss</dd>
+      <dt>Data</dt><dd>Cast RPC (<code>WorkoutCompleteMessage</code>, <code>src/types/cast/messages.ts:271</code>); aggregation is its own <code>aggregateProjections</code> — code path disjoint from surface 1</dd>
+    </dl>
+  </div>
+
+  <div class="card live" id="surf-detail">
+    <h3 id="wb-h3-66d1b81e595b464d9f458100673398f4" data-whiteboard-anchor>3 · /results/:sessionId — session detail <span class="badge live">live · canonical</span></h3>
+    <dl class="kv">
+      <dt>Where</dt><dd><code>app/App.tsx:231</code> → <code>QueriableStreamView</code> PropertyTable; profile <span class="path">app/views/stream/streamProfile.ts:180-189</span> — WQL <code>:session{result:&lt;id&gt;, plane:segment}</code>, level <code>segment</code></dd>
+      <dt>Shows</dt><dd>Per-segment rows: Split Duration, Round/Lap Index, Reps, Load, Pacing/HR tier (links to effort history) — <code>app/lib/fieldProjection.ts:193-236</code>; StreamFeed card mode also available</dd>
+      <dt>Legacy in</dt><dd><code>/review/:runtimeId</code> and note-review routes redirect here (<code>routeRedirects.tsx:96-112</code>)</dd>
+      <dt>Decision</dt><dd>This is the <strong>full-control surface</strong>: every journal run links here. Dashboards and graphs for a session land on this route (later).</dd>
+    </dl>
+  </div>
+
+  <div class="card live" id="surf-list">
+    <h3 id="wb-h3-219e48b982e04d11806ec37183f7f0f7" data-whiteboard-anchor>4 · /sessions — sessions list <span class="badge live">live · canonical</span></h3>
+    <dl class="kv">
+      <dt>Where</dt><dd><code>app/App.tsx:232</code>; profile <span class="path">streamProfile.ts:160-167</span> — <code>:session{} last 1d</code>, level <code>result</code> (also <code>/session/:date</code>, same renderers)</dd>
+      <dt>Shows</dt><dd>Three render modes: <code>LibraryRow</code> cards (Trophy icon, effort-slug chip); <code>StreamFeed</code> chips — elapsed, reps, load lb, km, TIS; PropertyTable result columns — Elapsed Time, Total Tonnage, TIS Score, PR badge (<code>fieldProjection.ts:145-190</code>)</dd>
+      <dt>Data</dt><dd><code>Entry.execution</code> scalars aggregated from <code>RowsRun.events</code> metrics (<code>entryMapper.ts:526-598</code>)</dd>
+    </dl>
+  </div>
+
+  <div class="card live" id="surf-rows">
+    <h3 id="wb-h3-96ee0360d6cf4ebf9537edd777116f07" data-whiteboard-anchor>5 · RowsResultsChrome + RowsTable — in-note query blocks <span class="badge live">live</span></h3>
+    <dl class="kv">
+      <dt>Where</dt><dd><span class="path">packages/ui/src/blocks/RowsResultsChrome.tsx</span>, <code>packages/ui/src/widgets/RowsTable.tsx</code>; hosted by <code>QueryBlockView.tsx:186-226</code> for <code>query:table</code> fences targeting <code>:session{result:…}</code></dd>
+      <dt>Shows</dt><dd>Chrome: this-session ⇄ all-versions toggle, "View in Results →" link, <code>RpeChip</code> (read-only or 1–10 capture via <code>MetricType.SessionRPE</code>). Table: Type / Time (+offset, elapsed, wall) / Movement / Reps / Load / Rounds / Target / Distance / Hints from <code>IMetric</code> badges. Mobile &lt;sm switches to <code>StatementCards</code></dd>
+      <dt>Note</dt><dd>These fences are auto-inserted into notes on completion (<code>JournalDatePage</code> <code>sessionQueryInsert</code>). The <em>only</em> surface with RPE capture</dd>
+    </dl>
+  </div>
+
+  <div class="card live" id="surf-companion">
+    <h3 id="wb-h3-0b3d1706da7f472e9d0d5617bde47863" data-whiteboard-anchor>6 · WhiteboardCompanion — editor gutter <span class="badge live">live</span></h3>
+    <dl class="kv">
+      <dt>Where</dt><dd><span class="path">apps/playground/src/components/organisms/editor/WhiteboardCompanion.tsx</span> (results use :366, :408; run-count badge :446-452; <code>LineExecutionSummaryCard</code> :506); hosted by <code>NoteEditor.tsx:928-936</code></dd>
+      <dt>Shows</dt><dd>Inactive: latest-result strip. Active: results count, per-line execution history (totalHits, per-result elapsed), previous-run list. Matches storybook "Version 3" incl. PR/latest chips (mock)</dd>
+      <dt>Data</dt><dd><code>useScriptBlockResults</code> → <code>workbenchSessionStore</code> history-detail projection or in-memory; per-line stats via <code>MetricType.Elapsed</code> from <code>StoredOutputStatement.metrics</code></dd>
+    </dl>
+  </div>
+
+  <div class="card live" id="surf-misc">
+    <h3 id="wb-h3-bcd46574c59c4da3a43b5076e7e51423" data-whiteboard-anchor>7 · Count-only badges, tour insights, dashboards <span class="badge live">live · secondary</span></h3>
+    <dl class="kv">
+      <dt>Badges</dt><dd><code>useNotePageNav.ts:59-63</code> + <code>groupResultsByVersion</code>; <code>PlaygroundNotePage:104-115</code> (completed-only counts) — count only, no metrics</dd>
+      <dt>Tour</dt><dd><code>app/tour/screens/TourSessionInsights.tsx:116-192</code> — session timeline, Rest/Test Ratio, Reaction Time from <code>Sessions.logs</code> spans</dd>
+      <dt>Dashboards</dt><dd><code>DashboardViewPage</code>, <code>AnalyticsExplorerPage</code> — WQL timeseries / bars / value aggregates over sessions</dd>
+    </dl>
+  </div>
+
+  <h2 id="wb-h2-625937b5771d4ea2abb24fea65d2e7f9" data-whiteboard-anchor>Field matrix — what each surface shows</h2>
+  <table>
+    <thead>
+      <tr><th id="wb-th-2da20d24c8d9463bafc25c2b1637b793" data-whiteboard-anchor>Surface</th><th id="wb-th-0eea1db2884e4c2090a83319e617ea55" data-whiteboard-anchor>Splits / rounds</th><th id="wb-th-808b12a0f1fc44a58740aeeff1a40e68" data-whiteboard-anchor>Reps</th><th id="wb-th-4a0a609e6600440cb45a7097c77e3f0e" data-whiteboard-anchor>Load</th><th id="wb-th-66eb6ba0bfbd4737aad418ee78295f09" data-whiteboard-anchor>Distance</th><th id="wb-th-280cf29e48824ff590169f06aa5d72d4" data-whiteboard-anchor>Volume / tonnage</th><th id="wb-th-3aa1612b51ce417f916bd84506e1f423" data-whiteboard-anchor>TIS</th><th id="wb-th-b79e3986edbb49b182b273ddd8af5233" data-whiteboard-anchor>RPE</th><th id="wb-th-37a69530e58b461ba99d4b1bfb242c23" data-whiteboard-anchor>PR badge</th><th id="wb-th-5a666badac484769920f7bcb0876d83d" data-whiteboard-anchor>Metadata</th></tr>
+    </thead>
+    <tbody>
+      <tr><td id="wb-td-5056ac653155414d960440f19f2735c5" data-whiteboard-anchor>1 · Complete dialog (ReviewGrid)</td><td class="yes" id="wb-td-9327c5fe79004d26b0efdcaeeb0eddf2" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-39df14793cf5450491922d0fdd4eb09c" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-65a65597db354fdf9931c94a3715abe9" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-157c11c05a6740cdb4e81eb04f4e23e7" data-whiteboard-anchor>✓</td><td class="no" id="wb-td-ccedca20f851458d967c51cb8b2309f4" data-whiteboard-anchor>—</td><td class="no" id="wb-td-33aa9abeb6a645019e622847c35e9d5e" data-whiteboard-anchor>—</td><td class="no" id="wb-td-64ce177ff47c4e268b907a453c3c1a3d" data-whiteboard-anchor>—</td><td class="no" id="wb-td-35051e08d2fc4b7499f8dcba61c635c7" data-whiteboard-anchor>—</td><td id="wb-td-79e016850f3d4e14ab0f72bb2d5d259d" data-whiteboard-anchor>presets, overrides, save state</td></tr>
+      <tr><td id="wb-td-5e1cbf83a21d4d73b19d68bd0d68e09e" data-whiteboard-anchor>2 · Chromecast TV</td><td class="no" id="wb-td-b0cef2eb8dcc47a78ac4c1a7d21c9ddb" data-whiteboard-anchor>count only</td><td class="yes" id="wb-td-386aa87cfaf5454294a6967ad355f9e6" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-9c607ed5aaa94298a6eb68ab32ee69ff" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-753d5966927b48e5bac2d93d19e885f6" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-6490328661cb4d42af3e5caf82572959" data-whiteboard-anchor>✓ (volume + work)</td><td class="no" id="wb-td-1fdbaffeda554a709dc4fe347ae13b5d" data-whiteboard-anchor>—</td><td class="no" id="wb-td-bc676333f89a431d9374a6bb783197f1" data-whiteboard-anchor>—</td><td class="no" id="wb-td-1bffb0fc0099487d96d5712a7509de54" data-whiteboard-anchor>—</td><td id="wb-td-d296b952d98c4b6995f3eaf4a3bb71ed" data-whiteboard-anchor>duration card</td></tr>
+      <tr><td id="wb-td-045046332f43461e8348698d1fe90ce6" data-whiteboard-anchor>3 · /results/:id</td><td class="yes" id="wb-td-33d7055ccee44e9d85c16c52e05aceb5" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-8ea9a6ce2ebf4e1f9daf67cbbeb21a76" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-9b6490ad29c44382b07071a18c5ac5e7" data-whiteboard-anchor>✓</td><td class="no" id="wb-td-beeebeebc8144eebb9f1aa0e0b55b78f" data-whiteboard-anchor>—</td><td class="no" id="wb-td-3b293d68cec84a7995069f76603021a2" data-whiteboard-anchor>—</td><td class="no" id="wb-td-8b8c4721dce44bea80cfef98e782141e" data-whiteboard-anchor>—</td><td class="no" id="wb-td-b88f61703bc545fbac619c8bc556c8e8" data-whiteboard-anchor>—</td><td class="no" id="wb-td-2cba1c8f74844b628038e184855a8b2c" data-whiteboard-anchor>—</td><td id="wb-td-619cd6b4a1fc4b7e8e20198f7c19b0b8" data-whiteboard-anchor>pacing → effort history</td></tr>
+      <tr><td id="wb-td-615419df406a4d64bfd16545845056c5" data-whiteboard-anchor>4 · /sessions list</td><td class="no" id="wb-td-8a97042d96454211b300d11ef7361c8b" data-whiteboard-anchor>count</td><td class="yes" id="wb-td-8883c9eb3e2645d7ac2feb9eb5117ee2" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-2cea3cc2d2204bd58e21976cc77c5928" data-whiteboard-anchor>✓ (lb / tonnage)</td><td class="yes" id="wb-td-82950a057d6446bdb00c78573fd4158b" data-whiteboard-anchor>✓ (km)</td><td class="yes" id="wb-td-3fa555190bc948dcbc77dccce967a820" data-whiteboard-anchor>tonnage</td><td class="yes" id="wb-td-84042deb59b9401c9ce9b5d0d9426ca7" data-whiteboard-anchor>✓</td><td class="no" id="wb-td-9c73e0853ed643bd97735135dcc7ff29" data-whiteboard-anchor>—</td><td class="yes" id="wb-td-f97a4d3fe1f44ad2b7757669ca3ed182" data-whiteboard-anchor>regex only</td><td id="wb-td-1a68deea61c94837a3adf7188b9438ca" data-whiteboard-anchor>effort slug, note link</td></tr>
+      <tr><td id="wb-td-6d6c65a66e3148b2b04144301611d84b" data-whiteboard-anchor>5 · RowsTable in note</td><td class="yes" id="wb-td-cf17e2b905a34e4b912e0604600ff2d2" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-65dbffbb25a24778beaa0cb14216618f" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-ae36111431784d6e878f1e82615df94c" data-whiteboard-anchor>✓</td><td class="yes" id="wb-td-03afabe9207f40678b14223147649f4c" data-whiteboard-anchor>✓</td><td class="no" id="wb-td-64d0848234f546189582f1c9883b5d4b" data-whiteboard-anchor>—</td><td class="no" id="wb-td-7c7f27b3983947e086a806374a08570e" data-whiteboard-anchor>—</td><td class="yes" id="wb-td-bef4ea990b08415f839a44db9c3c261c" data-whiteboard-anchor>✓ capture</td><td class="no" id="wb-td-fb76a34e573f4b7f883951d0fc65b484" data-whiteboard-anchor>—</td><td id="wb-td-94b121f85f9941889729830b43d960e0" data-whiteboard-anchor>wall time, targets, versions</td></tr>
+      <tr><td id="wb-td-d449c7558b8a4e0ab39409a33d3f615d" data-whiteboard-anchor>6 · Companion gutter</td><td class="no" id="wb-td-a2352ade6b81476991d4b9dd7841fa34" data-whiteboard-anchor>—</td><td class="no" id="wb-td-47741671fee34fd595b8ff310e91c8b5" data-whiteboard-anchor>—</td><td class="no" id="wb-td-4bfee0082b6045558290179aec92c43e" data-whiteboard-anchor>—</td><td class="no" id="wb-td-29a6afa8d0d0402f908a58367c95b664" data-whiteboard-anchor>—</td><td class="no" id="wb-td-d48792ba89e24e38baf972b0a8303b9d" data-whiteboard-anchor>—</td><td class="no" id="wb-td-819e8deee97e4d3494361e1956e4938a" data-whiteboard-anchor>—</td><td class="no" id="wb-td-ab33a0e8c38a4b7c8781d12d54c93aa8" data-whiteboard-anchor>—</td><td class="no" id="wb-td-18fe35d9f4af48e9975db23fa96ecd57" data-whiteboard-anchor>storybook mock</td><td id="wb-td-909a6df7483d4ac58e104f7dc900cc8e" data-whiteboard-anchor>run count, per-line hits</td></tr>
+      <tr><td id="wb-td-10a7c9b8ef8a469f89c27a8e183f7ae9" data-whiteboard-anchor>7 · Tour / dashboards</td><td class="yes" id="wb-td-a864b194e30d4a10b78c42defe6a2088" data-whiteboard-anchor>timeline</td><td class="yes" id="wb-td-7c6ff34470ab4c898acf7abc20e22333" data-whiteboard-anchor>agg</td><td class="yes" id="wb-td-de70f9beaa964b8584b53f87072eadca" data-whiteboard-anchor>agg</td><td class="yes" id="wb-td-4dbf18f9eb4d4d9faaedb5a0e37959ce" data-whiteboard-anchor>agg</td><td class="yes" id="wb-td-40628c44f0ce47f7adf1e0a0849e3247" data-whiteboard-anchor>agg</td><td class="no" id="wb-td-8b8a88dfc1654010885b843699c5b80c" data-whiteboard-anchor>—</td><td class="no" id="wb-td-5006da887d514d82b28738359f65d039" data-whiteboard-anchor>—</td><td class="no" id="wb-td-364df43de96841b5a0beaaf5a2a15ac9" data-whiteboard-anchor>—</td><td id="wb-td-a20e63f37d2641cfa92a8b4f4e2dfd97" data-whiteboard-anchor>ratios, trends</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="wb-h2-562e735323024c989bbbd96603bb6450" data-whiteboard-anchor>Legacy / unwired stacks — deleted 2026-10-22</h2>
+
+  <div class="card legacy" id="surf-resultsview">
+    <h3 id="wb-h3-0366db285b0c4d5f967979f5845f4dff" data-whiteboard-anchor>ResultsView + Workbench <span class="badge legacy">deleted 2026-10-22</span></h3>
+    <p id="wb-p-82ba74f75fda43d39e0fad266c18dd3b" data-whiteboard-anchor>Removed <span class="path">review/ResultsView.tsx</span> and <span class="path">organisms/layout/Workbench.tsx</span> (no importers). The <code>review-grid-index</code> barrel no longer re-exports ResultsView. <code>AnalyticsScorecard</code>, <code>ReviewGrid</code> and <code>gridPresets</code> survive as live modules.</p>
+  </div>
+
+  <div class="card legacy" id="surf-historypostlist">
+    <h3 id="wb-h3-f039cfeadba44c298a69ba7d36ef5b1f" data-whiteboard-anchor>HistoryPostList → ListOfNotes → CollectionsPage / NotebooksPage <span class="badge legacy">deleted 2026-10-22</span></h3>
+    <p id="wb-p-29cbb591a5f442bbb2caa381a4a02f6b" data-whiteboard-anchor>Removed <span class="path">history/HistoryPostList.tsx</span>, <span class="path">workbench/ListOfNotes.tsx</span> and the unrouted legacy pages <span class="path">src/app/pages/CollectionsPage.tsx</span> + <span class="path">NotebooksPage.tsx</span> (the whole <code>src/app/pages</code> tree). Nothing imported or routed them.</p>
+  </div>
+
+  <div class="card legacy" id="surf-journaldatescroll">
+    <h3 id="wb-h3-c0516124b8fe4f86bbb8a434087fcce0" data-whiteboard-anchor>JournalDateScroll component <span class="badge legacy">deleted 2026-10-22</span></h3>
+    <p id="wb-p-30e174d6dabd4ecfbaf75fb7bb34cce5" data-whiteboard-anchor>Removed <span class="path">queriable-list/JournalDateScroll.tsx</span>, its test, and the orphaned <code>queriable-list/types.ts</code>. Its two live helpers were kept: <code>localDateKey</code> moved to <span class="path">src/lib/dateFormat.ts</span> (the private copy in <code>IndexedDBContentProvider</code> now uses it too) and <code>JournalEntrySummary</code> now lives in <span class="path">app/views/FeedFeed.tsx</span>. The stale docs that described it as the journal right rail were corrected.</p>
+  </div>
+
+  <div class="card legacy" id="surf-domtwin">
+    <h3 id="wb-h3-492949b0761f4541bdd4aec4a07480fb" data-whiteboard-anchor>buildResultListItemDOM — CodeMirror inlay twin <span class="badge legacy">deleted 2026-10-22</span></h3>
+    <p id="wb-p-8210bfc9a79341da9773b6904e9382da" data-whiteboard-anchor>Removed <span class="path">molecules/resultListItemDOM.ts</span> (zero callers). <code>ResultListItem.tsx</code> stays — storybook and the feed views still use it.</p>
+  </div>
+
+  <div class="card doc" id="surf-gallery">
+    <h3 id="wb-h3-0aa5003bc1f5481685ed48de5a227716" data-whiteboard-anchor>Storybook gallery — the divergence, documented <span class="badge doc">reference</span></h3>
+    <p id="wb-p-d652dc1a8ba14f12ac9f12e06b9e3ca0" data-whiteboard-anchor><span class="path">apps/storybook/src/ResultDisplayVersions.stories.tsx</span> catalogs 5 current displays + a proposed unified <code>NoteSessionLedger</code> (block-grouped runs, PR / Stopped badges). <code>Screens.stories.tsx</code> mocks <code>SessionExecutionDetail</code> (outcome header, split-metrics grid, statement stream). All mock data — no app code implements the ledger.</p>
+  </div>
+
+  <h2 id="wb-h2-b2c641902547435c8406828a83908cae" data-whiteboard-anchor>Findings</h2>
+  <ol class="findings">
+    <li id="wb-li-a0ae28347bea419aa96110d238646db4" data-whiteboard-anchor><strong>Two "Workout Complete" UIs, zero shared code.</strong> The dialog renders <code>ReviewGrid</code> from in-memory Segments; the TV renders its own <code>aggregateProjections</code> over Cast RPC. Any results UX change must be made twice.</li>
+    <li id="wb-li-2e9cac5444674852882259065827ea0f" data-whiteboard-anchor><strong>Divergent post-run destinations.</strong> Journal/canvas runs stay in the dialog; <code>WallClockPage</code> navigates to <code>/results/:id</code>. Same event, two endings.</li>
+    <li id="wb-li-0bf995ead66848b3b334232882a9e519" data-whiteboard-anchor><strong>Three read currencies</strong> (raw <code>Session.logs</code>, WQL <code>RowsQueryResult</code>, derived <code>Entry</code> scalars) mean the same workout surfaces as different fields/units per screen: load lb vs tonnage vs volume vs work.</li>
+    <li id="wb-li-9c82dd315b1041d085ad6787fb75ef61" data-whiteboard-anchor><strong>PR badges are cosmetic.</strong> Rendered in storybook mockups and a regex in <code>fieldProjection.ts:181-190</code>; no PR computation exists in the codebase.</li>
+    <li id="wb-li-7bc6afa3bf164b7abb0972ca9e680850" data-whiteboard-anchor><strong>RPE capture lives only in the in-note table</strong> (surface 5). The completion flow captures missing actuals (CollectionWizard) but never session RPE.</li>
+    <li id="wb-li-ddac54a28a364444b66566ea4e79bf58" data-whiteboard-anchor><strong>The four legacy stacks are deleted</strong> (2026-10-22): ResultsView + Workbench, HistoryPostList → unrouted pages, JournalDateScroll, DOM twin. One dead import surface remains — the <code>review-grid-index</code> barrel now has no importer.</li>
+    <li id="wb-li-a4ca72cb28ac494b83ca251061a16121" data-whiteboard-anchor><strong>Unification is already specced</strong> — the storybook <code>NoteSessionLedger</code> proposal is the standard the decisions above point at; no app code started.</li>
+  </ol>
+
+  <h2 id="wb-h2-3b4a0de4723349f2819465020d54c808" data-whiteboard-anchor>Decisions for the rework</h2>
+  <p id="wb-p-2393d6b5fe874e359e352ce5cc1d4af2" data-whiteboard-anchor>Recorded 2026-10-22 from the annotated review of this document.</p>
+  <ul>
+    <li id="wb-li-2eea6c145655449fa27e35c624a19b9b" data-whiteboard-anchor><strong>Post-run destination — decided.</strong> The dialog is supported for the home page and the syntax/guide pages. For regular journal workouts the output renders <em>under the block that was just run</em>, with a link to <code>/results/:id</code> for full control — that is where dashboards and graphs land, later.</li>
+    <li id="wb-li-454091a2abbe402ba207153f4e032216" data-whiteboard-anchor><strong>Results rendering — decided: standardize.</strong> One shared read currency and a standard way to render session records, with row-level flexibility kept: <code>#tags</code> allow custom metrics to be added to tagged rows.</li>
+    <li id="wb-li-8d9db0d923824c9b99378b5d87502992" data-whiteboard-anchor><strong>PR badges — decided: support both.</strong> A computed PR and a tagged PR. <code>#tags</code> carry that function — a hashtag marks a row as a PR the same way a hashtag carries any other function.</li>
+    <li id="wb-li-44c518c2e70547eabb29d7518af8351d" data-whiteboard-anchor>Move RPE capture into the completion flow? <em>(still open)</em></li>
+    <li id="wb-li-c6c669505f3e404b9f390c3d6e88f9ba" data-whiteboard-anchor><strong>Delete the four unwired stacks — done</strong> (2026-10-22): ResultsView + Workbench, HistoryPostList → ListOfNotes → CollectionsPage/NotebooksPage, JournalDateScroll, <code>buildResultListItemDOM</code>.</li>
+  </ul>
+
+  <footer>Audit generated 2026-10-22 · every path/line verified against the working tree · decisions recorded 2026-10-22 · companion skill: whiteboard-html (annotate in place, feedback re-read from this file).</footer>
+</div>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2 id="wb-current-title"></h2>
+  <a id="wb-current-source">Source block</a>
+  <p id="wb-current-quote"></p>
+  <p id="wb-current-context"></p>
+  <p id="wb-current-note"></p>
+  <div class="wb-controls">
+    <button id="wb-edit" type="button">Edit</button>
+    <button id="wb-delete" type="button">Delete</button>
+    <button id="wb-hide" type="button">Hide</button>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Publish annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Publish before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Publish before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    byId('wb-count').textContent = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : ` · ${active + 1}/${count}`}`;
+    for (const id of ['wb-prev', 'wb-next', 'wb-publish']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+
+  byId('wb-publish').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    byId('wb-copy-status').textContent = 'Copying…';
+    byId('wb-export').showModal();
+    output.focus();
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy-status').textContent = 'Copied. Paste into your agent window. Drafts are kept.';
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  new ResizeObserver(() => document.documentElement.style.setProperty('--wb-bar-height', byId('wb-bar').offsetHeight + 'px')).observe(byId('wb-bar'));
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>
