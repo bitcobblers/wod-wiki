@@ -171,7 +171,9 @@ Each filter value has one button that cycles Off, Include, and Exclude. Expanded
 
 The mobile drawer fills the screen width. Selecting an L1 destination keeps it open for L2 filtering. Filters update immediately; Apply closes the drawer. Full-query shortcuts such as All and Feeds navigate and close it immediately.
 
-Result-identity catalogs are hidden from their own library filters. Supported section headers have a Group checkbox that adds or removes that dimension from the current WQL. Save the query from its toolbar or the Custom navigation item with a label and icon; manage these shortcuts in Settings > Query Defaults. Unmatched queries select Custom above New shortcut. Equivalent queries select the same shortcut regardless of filter or grouping order.
+Result-identity catalogs are hidden from their own library filters. Supported section headers have a Group checkbox that adds or removes that dimension from the current WQL. Save the query from its toolbar or the Custom navigation item with a label and icon; manage these shortcuts in the page's own **Query settings** (the *Page options* menu on desktop, the page-options drawer on mobile). Unmatched queries select Custom above New shortcut. Equivalent queries select the same shortcut regardless of filter or grouping order.
+
+Each page's **Query settings** also holds that page's landing default query, its Where-stored scope favorites and its Group-By favorites. The favorites are priority lists: they reorder the offered choices and pick the dimension a bare landing groups by, but they never change what a query means. Changes apply to the open page immediately and persist per surface.
 
 ---
 

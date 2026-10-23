@@ -115,6 +115,19 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
     setSubmitted(q || (runOnLanding ? defaultQuery : ''))
   }, [q, defaultQuery, runOnLanding])
 
+  // A changed landing default (the surface's own query settings saved one)
+  // re-seeds a BARE landing — one with no `?q=` of its own. An explicit
+  // `?q=` always wins: the new default applies on the next bare landing, and
+  // the URL is never rewritten behind the user's back.
+  const prevDefaultRef = useRef(defaultQuery)
+  useEffect(() => {
+    if (defaultQuery === prevDefaultRef.current) return
+    prevDefaultRef.current = defaultQuery
+    if (q) return
+    setDraftState(defaultQuery)
+    setSubmitted(runOnLanding ? defaultQuery : '')
+  }, [defaultQuery, q, runOnLanding])
+
   // Draft → URL. Replace within an editing spell; one scratch entry per
   // spell so checkpoints survive (never a history entry per keystroke).
   const setDraft = useCallback(

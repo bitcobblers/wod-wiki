@@ -23,9 +23,11 @@ export interface ExplorerOptionsMenuProps {
   onWeeks: (weeks: ExplorerRangeWeeks) => void
   /** When the query pins a unit (`in <unit>`), the units section is inert. */
   unitForced: boolean
+  /** Open the page's own query settings (landing default, scope favorites). */
+  onOpenQuerySettings?: () => void
 }
 
-export function ExplorerOptionsMenu({ weeks, onWeeks, unitForced }: ExplorerOptionsMenuProps) {
+export function ExplorerOptionsMenu({ weeks, onWeeks, unitForced, onOpenQuerySettings }: ExplorerOptionsMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const { unit, setUnit } = useAnalyticsUnitPreference()
@@ -108,6 +110,23 @@ export function ExplorerOptionsMenu({ weeks, onWeeks, unitForced }: ExplorerOpti
               {u}
             </button>
           ))}
+
+          {onOpenQuerySettings && (
+            <>
+              <div className="mt-1 border-t border-border/60 px-2 pt-2 pb-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">
+                This page
+              </div>
+              <button
+                type="button"
+                onClick={pick(onOpenQuerySettings)}
+                data-testid="explorer-query-settings"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
+              >
+                <span className="w-3.5 text-primary" />
+                Query settings
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

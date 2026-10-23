@@ -6,6 +6,8 @@ import {
   clearRouteWqlConfig,
   applyRouteWqlConfig,
   getRouteWqlStorageKey,
+  routeWqlConfigVersion,
+  subscribeRouteWqlConfig,
   ROUTE_WQL_STORAGE_PREFIX,
   PALETTE_ROUTE_ID,
   type RouteWqlConfig,
@@ -236,10 +238,49 @@ describe('routeWqlConfig — resolution', () => {
     expect(applyRouteWqlConfig(FEEDS_STREAM_PROFILE)).toBe(FEEDS_STREAM_PROFILE)
   })
 
+  it('carries the Group-By favorites onto the profile', async () => {
+    await writeRouteWqlConfig('/feeds', { groupByOptions: ['week', 'discipline'] })
+    expect(applyRouteWqlConfig(FEEDS_STREAM_PROFILE).groupByOptions).toEqual(['week', 'discipline'])
+  })
+
   it('exposes the palette as a configurable synthetic route id', async () => {
     expect(PALETTE_ROUTE_ID).toBe('/palette')
     await writeRouteWqlConfig(PALETTE_ROUTE_ID, { defaultWql: ':note{text:fran}' })
     expect(readRouteWqlConfig(PALETTE_ROUTE_ID).defaultWql).toBe(':note{text:fran}')
+  })
+})
+
+describe('routeWqlConfig — reactivity', () => {
+  it('notifies subscribers when a config is written', async () => {
+    let notified = 0
+    const unsubscribe = subscribeRouteWqlConfig(() => {
+      notified += 1
+    })
+
+    await writeRouteWqlConfig('/journal', { defaultWql: ':note last 6w' })
+    expect(notified).toBe(1)
+
+    unsubscribe()
+    await writeRouteWqlConfig('/journal', { defaultWql: ':note last 8w' })
+    expect(notified).toBe(1)
+  })
+
+  it('notifies subscribers when a config is cleared', async () => {
+    await writeRouteWqlConfig('/journal', { defaultWql: ':note last 6w' })
+    let notified = 0
+    const unsubscribe = subscribeRouteWqlConfig(() => {
+      notified += 1
+    })
+
+    await clearRouteWqlConfig('/journal')
+    expect(notified).toBe(1)
+    unsubscribe()
+  })
+
+  it('bumps the version on every write, so live consumers re-read', async () => {
+    const before = routeWqlConfigVersion()
+    await writeRouteWqlConfig('/journal', { defaultWql: ':note last 6w' })
+    expect(routeWqlConfigVersion()).toBeGreaterThan(before)
   })
 })
 

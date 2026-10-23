@@ -50,8 +50,12 @@ export interface ComposerLegacyConfig {
 }
 
 export interface ComposerQueryStateConfig {
-  /** Landing state when no usable URL state exists. */
-  defaultQuery: () => string
+  /**
+   * Landing state when no usable URL state exists — the surface's default
+   * query. A VALUE, not a thunk, so a changed default is a dependency: the
+   * composer re-seeds when the surface's own settings change it.
+   */
+  defaultQuery: string
   legacy?: ComposerLegacyConfig
 }
 
@@ -80,9 +84,9 @@ export function useComposerQueryState(config: ComposerQueryStateConfig): Compose
     if (q) {
       const parsed = parseQuery(q)
       if (!parsed.error) return q
-      return legacy?.salvageQ?.(q, searchParams) ?? makeDefault()
+      return legacy?.salvageQ?.(q, searchParams) ?? makeDefault
     }
-    return legacy?.toQuery(searchParams) ?? makeDefault()
+    return legacy?.toQuery(searchParams) ?? makeDefault
   })
   const [urlQueryError, setUrlQueryError] = useState<string | null>(() => {
     if (!q) return null
@@ -134,9 +138,22 @@ export function useComposerQueryState(config: ComposerQueryStateConfig): Compose
     clearTimeout(settleRef.current)
     settleRef.current = null
     setUrlQueryError(urlQueryErrorFor(q))
-    const restored = q && !parseQuery(q).error ? q : configRef.current.defaultQuery()
+    const restored = q && !parseQuery(q).error ? q : configRef.current.defaultQuery
     setQueryState(current => (current === restored ? current : restored))
   }, [q])
+
+  // A changed landing default (the surface's own settings dialog saved one)
+  // re-seeds a BARE landing — one with no `?q=` of its own. An explicit
+  // `?q=` always wins: the new default applies on the next bare landing, and
+  // the URL is never rewritten behind the user's back.
+  const prevDefaultRef = useRef(configRef.current.defaultQuery)
+  useEffect(() => {
+    const next = configRef.current.defaultQuery
+    if (next === prevDefaultRef.current) return
+    prevDefaultRef.current = next
+    if (q) return
+    setQueryState(current => (current === next ? current : next))
+  }, [q, configRef.current.defaultQuery])
 
   useEffect(() => {
     const restore = () => {
@@ -150,7 +167,7 @@ export function useComposerQueryState(config: ComposerQueryStateConfig): Compose
       clearTimeout(settleRef.current)
       settleRef.current = null
       setUrlQueryError(urlQueryErrorFor(restoredQ))
-      setQueryState(restoredQ && !parseQuery(restoredQ).error ? restoredQ : configRef.current.defaultQuery())
+      setQueryState(restoredQ && !parseQuery(restoredQ).error ? restoredQ : configRef.current.defaultQuery)
     }
     window.addEventListener('popstate', restore)
     return () => {

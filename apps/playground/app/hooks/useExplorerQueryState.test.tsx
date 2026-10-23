@@ -29,8 +29,10 @@ afterEach(cleanup)
 let captured: ExplorerQueryState
 let capturedNavigate: ReturnType<typeof useNavigate>
 
-function Probe() {
-  captured = useExplorerQueryState()
+function Probe({ defaultQuery }: { defaultQuery?: string } = {}) {
+  captured = useExplorerQueryState(
+    defaultQuery ? { defaultQuery, runOnLanding: true } : {},
+  )
   capturedNavigate = useNavigate()
   const location = useLocation()
   return (
@@ -217,5 +219,43 @@ describe('useExplorerQueryState', () => {
     renderAt([`/analytics/explorer?q=${encodeURIComponent('sum:tis{} )))garbage((((')}`])
     expect(draft()).toBe(DEFAULT_EXPLORER_QUERY)
     expect(submitted()).toBe('sum:tis{} )))garbage((((')
+  })
+
+  it('re-seeds a bare landing when the landing default changes', async () => {
+    renderAt(['/analytics/explorer'])
+    expect(draft()).toBe(DEFAULT_EXPLORER_QUERY)
+    cleanup()
+
+    // A changed default (the surface's own query settings saved one) applies
+    // to a landing with no `?q=` of its own.
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/analytics/explorer']}>
+        <Probe defaultQuery="sum:totalVolume{}" />
+      </MemoryRouter>,
+    )
+    rerender(
+      <MemoryRouter initialEntries={['/analytics/explorer']}>
+        <Probe defaultQuery="sum:sessionLoad{}" />
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(draft()).toBe('sum:sessionLoad{}'))
+  })
+
+  it('leaves an explicit q alone when the landing default changes', async () => {
+    const q = 'sum:tis{}'
+    const { rerender } = render(
+      <MemoryRouter initialEntries={[`/analytics/explorer?q=${encodeURIComponent(q)}`]}>
+        <Probe defaultQuery="sum:totalVolume{}" />
+      </MemoryRouter>,
+    )
+    expect(draft()).toBe(q)
+
+    rerender(
+      <MemoryRouter initialEntries={[`/analytics/explorer?q=${encodeURIComponent(q)}`]}>
+        <Probe defaultQuery="sum:sessionLoad{}" />
+      </MemoryRouter>,
+    )
+    await act(async () => {})
+    expect(draft()).toBe(q)
   })
 })

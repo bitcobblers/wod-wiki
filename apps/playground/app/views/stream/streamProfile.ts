@@ -34,6 +34,13 @@ export interface StreamProfile {
    *  plural-noun typeOptions vocabulary (notes/blocks/efforts were targets,
    *  not scopes). */
   scopeOptions: readonly WqlSourceValue[]
+  /** The surface's Group-By favorites, in priority order — the dimensions the
+   *  page offers first and the one a bare landing falls back to. Absent =
+   *  no preferences (the target's own dimensions, in canonical order); an
+   *  empty list = the same, with no favorite to fall back to. Never a
+   *  filter: a dimension the target cannot group by is not offered, but the
+   *  favorite stays stored. */
+  groupByOptions?: readonly string[]
   /** When true, renders the undated Sessions shelf alongside the dated stream. */
   shelfVisible?: boolean
   /** Optional message displayed when query yields zero results. */

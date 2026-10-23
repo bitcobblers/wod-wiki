@@ -1,6 +1,6 @@
 /**
  * routeWqlShortcuts — user-saved full-query shortcuts per library route
- * (wayfinder: library group links + Settings ▸ Query Defaults).
+ * (the library group links, managed in the surface's own query settings).
  *
  * A shortcut is { id, label, icon, wql } plus one optional behaviour field:
  *   - plain  — navigating applies its FULL WQL to the route (URL `?q=`,
@@ -35,6 +35,7 @@ import {
   Folder,
   FlaskConical,
   Heart,
+  Library,
   Rss,
   Star,
   Tag,
@@ -69,6 +70,7 @@ export const SHORTCUT_ICONS: Record<string, LucideIcon> = {
   folder: Folder,
   'flask-conical': FlaskConical,
   heart: Heart,
+  library: Library,
   rss: Rss,
   star: Star,
   tag: Tag,

@@ -42,6 +42,22 @@ function useDropdownMenu() {
   return ctx
 }
 
+/**
+ * Close the enclosing dropdown, if there is one.
+ *
+ * A menu item that opens a MODAL (the page's query settings) must dismiss
+ * the menu first: the menu's content is portaled at a higher z-index than
+ * the modal's overlay, so a still-open menu would paint over the dialog.
+ * Returns a no-op outside a menu — the same trigger renders inside a menu
+ * on some breakpoints and outside it on others.
+ */
+export function useCloseDropdownMenu(): () => void {
+  const ctx = React.useContext(DropdownMenuContext)
+  return React.useCallback(() => {
+    ctx?.setIsOpen(false)
+  }, [ctx])
+}
+
 // ---------------------------------------------------------------------------
 // DropdownMenu — controlled state wrapper
 // ---------------------------------------------------------------------------

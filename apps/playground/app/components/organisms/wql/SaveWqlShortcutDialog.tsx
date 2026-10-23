@@ -3,7 +3,7 @@
  * shortcuts (wayfinder: library group links).
  *
  * One editor for every entry point: the WQL line save icon, the nav panel's
- * Custom row / Create action, and Settings ▸ Query Defaults. Plain
+ * Custom row / Create action, and the surface's own query settings. Plain
  * shortcuts prefill the current WQL and validate a nonempty label,
  * parser-valid WQL and the finite icon vocabulary (grouping `by {}` is just
  * part of the saved query). The built-in route action edits label/icon

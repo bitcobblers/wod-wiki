@@ -16,10 +16,13 @@
  *   - /settings/system: About (build version + GitHub release link), audio
  *     feedback (sound effects & test chime), developer debug mode toggle, and
  *     "Reset & Clear Cache" danger zone.
- *   - /settings/queries: per-surface landing query and source / Group-By
- *     option overrides (routeWqlConfig).
  *   - /settings/sound-profiles: named sets of sound rules (trigger
  *     notation + sound) selected per note or per block via sound tags.
+ *
+ * Per-surface query configuration (the landing default query, the
+ * Where-stored scope favorites, the Group-By favorites and the saved
+ * navigation links) lives with the page it configures — it is edited in
+ * that page's own query settings, not here.
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -51,7 +54,6 @@ import { useAudio } from '@/contexts/AudioContext'
 import { useDebugMode } from '@/contexts/DebugModeContext'
 import { useFabAlignment, FAB_ALIGNMENT_OPTIONS } from '../lib/fabAlignment'
 import { resetUserData } from '../services/resetUserData'
-import { QueryDefaultsSection } from './QueryDefaultsSection'
 import { ProfileSection } from './ProfileSection'
 import { DataSection } from './DataSection'
 import { SyncSection } from './SyncSection'
@@ -68,7 +70,6 @@ const SETTINGS_SECTIONS = [
   { id: 'profile', content: <ProfileSection /> },
   { id: 'storage', content: <DataSection /> },
   { id: 'sync', content: <SyncSection /> },
-  { id: 'queries', content: <QueryDefaultsSection /> },
   { id: 'tags', content: <TagsSettingsSection /> },
   { id: 'sound-profiles', content: <SoundProfilesSettingsSection /> },
   { id: 'routes', content: <RoutesSection /> },
@@ -89,13 +90,11 @@ export function SettingsPage() {
         ? 'storage'
         : location.pathname.endsWith('/sync')
           ? 'sync'
-          : location.pathname.endsWith('/queries')
-            ? 'queries'
-            : location.pathname.endsWith('/tags')
-              ? 'tags'
-              : location.pathname.endsWith('/sound-profiles')
-                ? 'sound-profiles'
-                : location.pathname.endsWith('/routes')
+          : location.pathname.endsWith('/tags')
+            ? 'tags'
+            : location.pathname.endsWith('/sound-profiles')
+              ? 'sound-profiles'
+              : location.pathname.endsWith('/routes')
                 ? 'routes'
                 : 'appearance'
 

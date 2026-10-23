@@ -87,7 +87,7 @@ export default defineConfig({
       // theme so the pass is deterministic. The playground's ThemeProvider
       // reads wod-wiki-playground-theme from localStorage on mount.
       name: 'journal-mobile-375',
-      testMatch: '**/gates/journal.mobile.smoke.e2e.ts',
+      testMatch: '**/gates/*.mobile.smoke.e2e.ts',
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 375, height: 812 },

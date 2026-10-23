@@ -41,7 +41,8 @@ import { TextFilterStrip } from './views/queriable-list/TextFilterStrip'
 import { HomeView } from './views/HomeView'
 import { QueriableStreamView } from './views/stream/QueriableStreamView'
 import { resolveStreamProfile } from './views/stream/streamProfile'
-import { applyRouteWqlConfig } from './lib/routeWqlConfig'
+import { applyRouteWqlConfig, useAppliedRouteWqlConfig } from './lib/routeWqlConfig'
+import { PaletteQuerySettings } from './components/organisms/wql/PaletteQuerySettings'
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc'
 import { CanvasPage } from '@/panels/page-shells'
 import { ChallengeHeaderBadge } from './components/molecules/ChallengeHeaderBadge'
@@ -113,10 +114,13 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   const crumbTitle = view.shell.title ?? currentWorkout.name
   // Stream surfaces resolve their profile once per path — the view reads it
   // directly (where-filters are L2-only; the L3 rail carries view controls).
-  const streamProfile = useMemo(
-    () => (view.page === 'library' ? applyRouteWqlConfig(resolveStreamProfile(location.pathname)) : undefined),
+  // The user's config is applied LIVE: a save in the page's own query
+  // settings updates the open page without a reload.
+  const rawStreamProfile = useMemo(
+    () => (view.page === 'library' ? resolveStreamProfile(location.pathname) : undefined),
     [view.page, location.pathname],
   )
+  const streamProfile = useAppliedRouteWqlConfig(rawStreamProfile)
   // Route-declared secondary spec (canvas pages may declare one).
   const secondarySpec = view.shell.secondary
 
@@ -165,6 +169,10 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
         initialQuery: streamDraftRef.current() ?? searchPaletteQuery(),
         execute: paletteExecute,
         preferredChoices: palettePreferredChoices(),
+        // The palette's own surface settings, rendered inside the palette.
+        settings: {
+          panel: <PaletteQuerySettings />,
+        },
       },
       sources: [
         wqlSearchSource(),

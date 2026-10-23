@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { SettingsPage } from './SettingsPage'
-import { writeRouteWqlConfig, readRouteWqlConfig } from '../lib/routeWqlConfig'
 
 // Mock contexts
 let currentTheme = 'system'
@@ -216,106 +215,4 @@ describe('SettingsPage', () => {
 
   })
 
-})
-
-describe('SettingsPage — Query Defaults tab', () => {
-  beforeEach(() => {
-    localStorage.clear()
-  })
-
-  afterEach(() => {
-    cleanup()
-    localStorage.clear()
-  })
-
-  it('renders the tab and one card per configurable surface', () => {
-    renderSettings('/settings/queries')
-
-    expect(screen.getByTestId('query-defaults-section')).toBeDefined()
-    for (const id of ['/journal', '/catalogs', '/feeds', '/efforts', '/sessions', '/playgrounds', '/dashboards', '/palette']) {
-      expect(screen.getByTestId(`query-defaults-card-${id}`)).toBeDefined()
-    }
-  })
-
-  it('saves a landing default query override into routeWqlConfig storage', async () => {
-    renderSettings('/settings/queries')
-
-    fireEvent.change(screen.getByTestId('query-defaults-wql-/journal'), {
-      target: { value: ':note{source:journal} last 52w' },
-    })
-    fireEvent.click(screen.getByTestId('query-defaults-save-/journal'))
-    expect(screen.queryByTestId('query-defaults-wql-error-/journal')).toBeNull()
-    expect(readRouteWqlConfig('/journal').defaultWql).toBe(':note{source:journal} last 52w')
-    // Saved state is no longer dirty — save disables (after the async save settles).
-    await waitFor(() =>
-      expect((screen.getByTestId('query-defaults-save-/journal') as HTMLButtonElement).disabled).toBe(true),
-    )
-  })
-
-  it('blocks saving an unparseable default query', () => {
-    renderSettings('/settings/queries')
-
-    fireEvent.change(screen.getByTestId('query-defaults-wql-/journal'), {
-      target: { value: ':note{' },
-    })
-    expect(screen.getByTestId('query-defaults-wql-error-/journal')).toBeDefined()
-    expect((screen.getByTestId('query-defaults-save-/journal') as HTMLButtonElement).disabled).toBe(true)
-  })
-
-  it('reset discards the stored override and returns to the system default', async () => {
-    await writeRouteWqlConfig('/journal', { defaultWql: ':note last 6w' })
-    renderSettings('/settings/queries')
-
-    fireEvent.click(screen.getByTestId('query-defaults-reset-/journal'))
-
-    expect(readRouteWqlConfig('/journal')).toEqual({})
-    await waitFor(() =>
-      expect((screen.getByTestId('query-defaults-wql-/journal') as HTMLTextAreaElement).value).toBe(''),
-    )
-  })
-
-  it('persists custom scope options, including the emptied nudge state', async () => {
-    await writeRouteWqlConfig('/feeds', { typeOptions: ['notes', 'journal'] })
-    renderSettings('/settings/queries')
-
-    // `notes` shows migrated to the canonical `note` target favorite.
-    fireEvent.click(screen.getByTestId('query-defaults-type-/feeds-remove-note'))
-    fireEvent.click(screen.getByTestId('query-defaults-type-/feeds-remove-journal'))
-    expect(screen.getByTestId('query-defaults-type-empty-/feeds')).toBeDefined()
-    fireEvent.click(screen.getByTestId('query-defaults-save-/feeds'))
-
-    expect(readRouteWqlConfig('/feeds').typeOptions).toEqual([])
-  })
-
-  it('adds a supported scope option and persists it', () => {
-    renderSettings('/settings/queries')
-
-    fireEvent.click(screen.getByTestId('query-defaults-type-custom-/feeds'))
-    fireEvent.click(screen.getByTestId('query-defaults-type-/feeds-add-playground'))
-    fireEvent.click(screen.getByTestId('query-defaults-save-/feeds'))
-
-    expect(readRouteWqlConfig('/feeds').typeOptions).toEqual(['playground'])
-  })
-
-  it('restricts Group-By favorites to the supported arrangement dimensions', () => {
-    renderSettings('/settings/queries')
-
-    fireEvent.click(screen.getByTestId('query-defaults-group-custom-/efforts'))
-    fireEvent.click(screen.getByTestId('query-defaults-group-/efforts-add-week'))
-    fireEvent.click(screen.getByTestId('query-defaults-group-/efforts-add-discipline'))
-    fireEvent.click(screen.getByTestId('query-defaults-save-/efforts'))
-
-    expect(readRouteWqlConfig('/efforts').groupByOptions).toEqual(['week', 'discipline'])
-  })
-
-  it('reports stored option ids that are neither canonical nor migratable', async () => {
-    await writeRouteWqlConfig('/feeds', { typeOptions: ['rows', 'journal'] })
-    renderSettings('/settings/queries')
-
-    const report = screen.getByTestId('query-defaults-invalid-/feeds')
-    expect(report.textContent).toContain('rows')
-    // The invalid id never becomes a favorite — only the canonical scope does.
-    expect(screen.queryByTestId('query-defaults-type-/feeds-chip-rows')).toBeNull()
-    expect(screen.getByTestId('query-defaults-type-/feeds-chip-journal')).toBeDefined()
-  })
 })

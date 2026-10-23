@@ -190,7 +190,9 @@ export function App() {
                   <Route path={ROUTE_PATTERNS.settingsStorage} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsSync} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/system" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.settingsQueries} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  {/* Retired /settings/queries — per-surface query config now lives on
+                      the pages themselves (each page's own query settings). */}
+                  <Route path={ROUTE_PATTERNS.settingsQueries} element={<Navigate to={ROUTE_PATTERNS.journal} replace />} />
                   <Route path={ROUTE_PATTERNS.settingsTags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsSoundProfiles} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/library/calcs" element={<div className="p-6"><CalcAuthoringPanel /></div>} />

@@ -17,6 +17,7 @@ import { LocalStore, InMemoryBackend, type StorageBackend } from '@/services/sto
 import {
   ALL_SHORTCUT_ID,
   ROUTE_SHORTCUTS_STORAGE_PREFIX,
+  SHORTCUT_ICONS,
   builtinShortcuts,
   readRouteShortcuts,
   resolveRouteShortcuts,
@@ -80,6 +81,15 @@ describe('routeWqlShortcuts — built-in library-group links', () => {
     expect(builtinShortcuts('/catalogs')).toEqual([
       { id: ALL_SHORTCUT_ID, label: 'All notebooks', icon: 'library', wql: '' },
     ])
+  })
+
+  it('gives every built-in landing icon a rendering in the icon vocabulary', () => {
+    // A built-in icon outside SHORTCUT_ICONS renders as `undefined` — the
+    // shortcut list would blank the page. Every landing icon must resolve.
+    for (const route of ['/journal', '/feeds', '/catalogs', '/playgrounds', '/efforts', '/equipment', '/sessions']) {
+      const icon = builtinShortcuts(route)[0]!.icon
+      expect(SHORTCUT_ICONS[icon]).toBeDefined()
+    }
   })
 
   it('resolve to built-ins until stored, then the stored list is authoritative for user links', async () => {

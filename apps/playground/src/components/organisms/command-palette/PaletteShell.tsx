@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
+import { SlidersHorizontal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePaletteStore } from './palette-store';
 import { CommandListView } from '@/components/molecules/CommandListView';
@@ -150,6 +151,9 @@ export const PaletteShell: React.FC = () => {
   }, [isOpen, _dismiss, navigate]);
 
   const wqlConfig = request?.wql;
+  // The palette's own surface settings panel — open state lives here so it
+  // resets with each request (a new palette open starts closed).
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Shared visual-viewport tracking (keyboard-aware sheet bounds — no
   // duplicate viewport listeners in this host).
@@ -174,6 +178,7 @@ export const PaletteShell: React.FC = () => {
       setModeOverride(undefined);
       setResults([]);
       setIsLoading(false);
+      setSettingsOpen(false);
     }
   }, [isOpen, request]); // request is a new object on every open() call
 
@@ -263,6 +268,7 @@ export const PaletteShell: React.FC = () => {
 
   const searchRow = wqlConfig ? (
     <div className="border-b border-border/80 px-3 py-2">
+      <div className="flex items-center gap-2">
       <button
         type="button"
         data-testid="palette-mode"
@@ -277,11 +283,30 @@ export const PaletteShell: React.FC = () => {
       >
         {isWqlMode ? 'WQL' : 'Find'}
       </button>
+      {/* The palette's own surface settings — rendered in the palette body
+          (a nested modal would be unreachable inside this focus-trapped
+          dialog), toggled from the gear beside the mode chip. */}
+      {wqlConfig.settings && (
+        <button
+          type="button"
+          data-testid="palette-settings"
+          aria-expanded={settingsOpen}
+          aria-label={wqlConfig.settings.label ?? 'Query settings'}
+          onClick={() => setSettingsOpen(open => !open)}
+          className="mb-2 ml-auto grid size-7 place-items-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+        </button>
+      )}
+      </div>
       {/* Find mode suppresses the composer's WQL error surfaces (the
           fallback role="alert" shown when diagnostics are hidden, and the
           pending-draft hint that echoes the parse error). Scoped here so
           the shared WqlComposer API stays unchanged. */}
-      <div className={isWqlMode ? undefined : '[&_[role=alert]]:hidden [&_[data-testid=wql-composer-pending]]:hidden'}>
+      <div
+        data-testid="palette-composer"
+        className={isWqlMode ? undefined : '[&_[role=alert]]:hidden [&_[data-testid=wql-composer-pending]]:hidden'}
+      >
         <WqlComposer
           key={requestSeqRef.current}
           query={query}
@@ -297,6 +322,11 @@ export const PaletteShell: React.FC = () => {
           placeholder="Search or edit WQL…"
         />
       </div>
+      {wqlConfig.settings && settingsOpen && (
+        <div className="mt-2 border-t border-border/80 pt-2" data-testid="palette-settings-panel">
+          {wqlConfig.settings.panel}
+        </div>
+      )}
     </div>
   ) : undefined;
 

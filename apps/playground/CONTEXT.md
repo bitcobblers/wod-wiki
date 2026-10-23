@@ -43,7 +43,7 @@ Domain vocabulary that applies repo-wide lives in the root
 | Composer query state | `playground/src/hooks/useComposerQueryState.ts` | URL ↔ WqlComposer clause round-trip through `q` (back/forward restores the composer; salvage parser keeps invalid states editable). Stream profiles supply their landing defaults + legacy-param migration. |
 | Effort find plane | `src/services/analytics/query/QueryService.ts` (`runFindEffort`) | `find:effort{…}` queries the effort registry through the `EffortQueryStore` seam (default: CompositeEffortRegistry). Filter vocab: effort/discipline/intensity/origin/text. |
 
-## Route & query vocabulary (wayfinder: Route WQL defaults settings)
+## Route & query vocabulary (per-page query settings)
 
 - **Stream Route** — a route mounting the shared queriable stream
   (`/journal`, `/collections`, `/feeds`, `/feed`, `/library`, `/efforts`,
@@ -54,16 +54,30 @@ Domain vocabulary that applies repo-wide lives in the root
   (`apps/playground/app/views/stream/streamProfile.ts`). Code-owned, read-only
   at runtime. Not the user's **Route WQL Config**.
 - **System Default** — the in-code fallback a stream route or the palette uses
-  where no Route WQL Config exists; shown read-only in Settings; reset
-  restores it.
+  where no Route WQL Config exists; shown read-only in the surface's own query
+  settings; reset restores it.
 - **Route WQL Config** — the user's per-surface override: landing default WQL
   plus source and Group-By option lists, persisted client-side
   (`apps/playground/app/lib/routeWqlConfig.ts`); absent fields fall back to
   the System Default individually. An empty options array is a deliberate
-  "no predefined options" state.
+  "no predefined options" state. The store is live — a write notifies its
+  subscribers, so the open page reflects its own edits without a reload.
+- **Config Surface** — a page whose query the user configures
+  (`apps/playground/app/lib/queryConfigSurfaces.ts`): the library listing
+  pages, the Metric Explorer and the ⌘/ palette. Detail routes (`/c/:slug`,
+  `/session/:date`, `/results/:id`) have none — their defaults stay in code,
+  so the keyspace does not grow one entry per item.
+- **Query Settings** — the surface's own editor, opened from the page's
+  options surface (`QuerySettingsDialog`): the landing default, the scope and
+  Group-By favorites, and the saved navigation links.
 - **Landing Default** — the query a surface seeds when reached bare (no `?q=`).
   Resolution: explicit `?q=`, else Route WQL Config, else System Default.
-  Config changes never rewrite existing URL state.
+  Config changes never rewrite existing URL state — a changed default re-seeds
+  a bare landing only, and an authored `?q=` always wins.
+- **Group-By Favorites** — the dimensions a surface offers first, in priority
+  order; the first one is what a bare landing groups by. A priority list, never
+  a filter — a dimension the target cannot group by stays stored but is not
+  offered (`apps/playground/app/lib/groupByOptions.ts`).
 - **Quick Edit Pill** — the composer's click-to-edit clause chip
   (`TokenSlotPill`).
 - **Nudge** — the non-blocking prompt for a configured option left without a

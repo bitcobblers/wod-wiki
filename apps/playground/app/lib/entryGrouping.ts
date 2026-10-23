@@ -9,6 +9,7 @@ import type { Entry } from './entryMapper'
 import { todayKey, formatDateHeader } from './dateFormat'
 import { parseQuery, type AnyParsedQuery } from '@bitcobblers/wod-wiki-engine'
 import { CONTENT_GROUPING_DIMENSIONS } from '@bitcobblers/wod-wiki-ui'
+import { sortGroupBuckets } from './groupByOptions'
 
 export const UNDATED_KEY = '(undated)'
 
@@ -295,14 +296,9 @@ function groupByDimension(
     }
 
     const priority = ['Strength', 'Gymnastics', 'Cardio', 'Running', 'Rowing', 'Weightlifting']
-    const sorted = Array.from(map.keys()).sort((a, b) => {
-      const ia = priority.indexOf(a)
-      const ib = priority.indexOf(b)
-      if (ia !== -1 && ib !== -1) return ia - ib
-      if (ia !== -1) return -1
-      if (ib !== -1) return 1
-      return a.localeCompare(b)
-    })
+    const sorted = sortGroupBuckets(Array.from(map.entries()), 'priority-then-alpha', { priority }).map(
+      ([key]) => key,
+    )
 
     return sorted.map(key => ({
       id: `group-discipline-${safeSlug(key)}`,
@@ -320,7 +316,7 @@ function groupByDimension(
       if (arr) arr.push(e)
       else map.set(origin, [e])
     }
-    return Array.from(map.entries()).map(([key, groupEntries]) => ({
+    return sortGroupBuckets(Array.from(map.entries()), 'alpha').map(([key, groupEntries]) => ({
       id: `group-origin-${safeSlug(key)}`,
       key,
       label: key,
@@ -337,14 +333,12 @@ function groupByDimension(
       if (arr) arr.push(e)
       else map.set(label, [e])
     }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, groupEntries]) => ({
-        id: `group-source-${safeSlug(key)}`,
-        key,
-        label: key,
-        entries: groupEntries,
-      }))
+    return sortGroupBuckets(Array.from(map.entries()), 'alpha').map(([key, groupEntries]) => ({
+      id: `group-source-${safeSlug(key)}`,
+      key,
+      label: key,
+      entries: groupEntries,
+    }))
   }
 
   if (dim === 'kind' || dim === 'type') {
@@ -355,7 +349,7 @@ function groupByDimension(
       if (arr) arr.push(e)
       else map.set(kind, [e])
     }
-    return Array.from(map.entries()).map(([key, groupEntries]) => ({
+    return sortGroupBuckets(Array.from(map.entries()), 'alpha').map(([key, groupEntries]) => ({
       id: `group-kind-${safeSlug(key)}`,
       key,
       label: key,
@@ -374,12 +368,14 @@ function groupByDimension(
       if (arr) arr.push(e)
       else map.set(value, [e])
     }
-    return Array.from(map.entries()).map(([key, groupEntries]) => ({
-      id: `group-property-${safeSlug(dim)}-${safeSlug(key)}`,
-      key,
-      label: key,
-      entries: groupEntries,
-    }))
+    return sortGroupBuckets(Array.from(map.entries()), 'alpha-sink-last', { sink: 'Unassigned' }).map(
+      ([key, groupEntries]) => ({
+        id: `group-property-${safeSlug(dim)}-${safeSlug(key)}`,
+        key,
+        label: key,
+        entries: groupEntries,
+      }),
+    )
   }
 
   // Fallback: group by tag
@@ -390,10 +386,12 @@ function groupByDimension(
     if (arr) arr.push(e)
     else map.set(tag, [e])
   }
-  return Array.from(map.entries()).map(([key, groupEntries]) => ({
-    id: `group-tag-${safeSlug(key)}`,
-    key,
-    label: key,
-    entries: groupEntries,
-  }))
+  return sortGroupBuckets(Array.from(map.entries()), 'alpha-sink-last', { sink: 'Untagged' }).map(
+    ([key, groupEntries]) => ({
+      id: `group-tag-${safeSlug(key)}`,
+      key,
+      label: key,
+      entries: groupEntries,
+    }),
+  )
 }
