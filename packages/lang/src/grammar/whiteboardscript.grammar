@@ -9,7 +9,7 @@
 
 @top Program { (Property | Block | newline)* }
 
-Property { (Identifier colon (String | Number | Identifier)) !property }
+Property { (Identifier colon (String | Number | Identifier | TagRef)) !property }
 
 Block { ((Lap !lap)? (Fragment !fragment)+ newline) !block }
 
@@ -83,6 +83,17 @@ Effort { (Identifier | allowedSymbol | minus)+ !effort }
   Timer { (":" $[0-9]+) | ($[0-9]+ ":")+ $[0-9]+ }
   collectibleTimer { ":?" }
   Identifier { $[a-zA-Z] $[a-zA-Z0-9]* }
+  /**
+   * TagRef — a reference to a named tag, written `#{tag-slug}`.
+   *
+   * Used as a property value so a line can point at a tag rather than
+   * repeating what the tag means, e.g. `sound: #{sound-classic}`.
+   *
+   * The slug allows letters, digits and hyphens. It is one token rather
+   * than a composite of Identifier and minus, because a hyphen is not
+   * valid inside an Identifier.
+   */
+  TagRef { "#{" $[a-zA-Z0-9] $[a-zA-Z0-9-]* "}" }
   String { '"' (![\\\n\r] | "\\" _) * '"' }
   textComment { "//" ![\n\r]* }
   heading { "#" ![\n\r]* }
@@ -108,8 +119,9 @@ Effort { (Identifier | allowedSymbol | minus)+ !effort }
   groupClose { ")" }
   newline { $[ \t]* ("\n" | "\r\n") }
   whitespace { $[ \t]+ }
-  @precedence { 
+  @precedence {
     textComment,
+    TagRef,
     heading,
     schemeNumber,
     schemeSpaced,
@@ -128,8 +140,8 @@ Effort { (Identifier | allowedSymbol | minus)+ !effort }
     True,
     False,
     Null,
-    Identifier, 
-    minus, 
+    Identifier,
+    minus,
     plus, 
     Number,
     newline,

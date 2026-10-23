@@ -2,6 +2,7 @@ import type { IRuntimeContext } from '../contracts/IRuntimeContext';
 import { IRuntimeBehavior } from '../contracts/IRuntimeBehavior';
 import { IRuntimeAction } from '../contracts/IRuntimeAction';
 import { BlockLifecycleOptions } from '../contracts/IRuntimeBlock';
+import type { RuntimeStackOptions } from '../contracts/IRuntimeOptions';
 import { RuntimeBlock } from '../RuntimeBlock';
 import { BlockContext } from '../BlockContext';
 import { BlockKey } from '@bitcobblers/wod-wiki-core';
@@ -12,8 +13,9 @@ import {
     CountdownTimerBehavior,
     ExitBehavior,
     LabelingBehavior,
-    SoundCueBehavior
+    SoundProfileBehavior
 } from '../behaviors';
+import { resolveSoundProfile } from '../sound/resolveSoundProfile';
 
 /**
  * Configuration for the rest block.
@@ -43,7 +45,7 @@ export interface RestBlockConfig {
  * - ReportOutputBehavior (output on mount/unmount)
  * - CountdownTimerBehavior (countdown timer + pause/resume + auto-complete)
  * - LabelingBehavior (show rest countdown)
- * - SoundCueBehavior (beep on unmount for rest-over signal)
+ * - SoundProfileBehavior (the block's sound profile)
  */
 export class RestBlock extends RuntimeBlock {
     constructor(
@@ -57,7 +59,7 @@ export class RestBlock extends RuntimeBlock {
         const restLabel = config.label ?? 'Rest';
         const blockKey = new BlockKey('rest');
         const context = new BlockContext(runtime, blockKey.toString(), 'Rest');
-        const behaviors = RestBlock.buildBehaviors(config);
+        const behaviors = RestBlock.buildBehaviors(config, runtime.options?.soundOptions);
 
         super({
             runtime,
@@ -73,7 +75,7 @@ export class RestBlock extends RuntimeBlock {
     /**
      * Builds the behavior list for a rest block.
      */
-    static buildBehaviors(config: RestBlockConfig): IRuntimeBehavior[] {
+    static buildBehaviors(config: RestBlockConfig, soundOptions?: RuntimeStackOptions['soundOptions']): IRuntimeBehavior[] {
         const behaviors: IRuntimeBehavior[] = [];
         const restLabel = config.label ?? 'Rest';
 
@@ -112,20 +114,10 @@ export class RestBlock extends RuntimeBlock {
         }));
 
         // =====================================================================
-        // Sound Aspect - Rest-over beep
+        // Sound Aspect - the block's sound profile
         // =====================================================================
-        behaviors.push(new SoundCueBehavior({
-            cues: [
-                {
-                    sound: 'rest-over',
-                    trigger: 'complete'
-                },
-                {
-                    sound: 'countdown-beep',
-                    trigger: 'countdown',
-                    atSeconds: [3, 2, 1]
-                }
-            ]
+        behaviors.push(new SoundProfileBehavior({
+            profile: resolveSoundProfile([], soundOptions),
         }));
 
         return behaviors;

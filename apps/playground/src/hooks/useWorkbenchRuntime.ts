@@ -3,11 +3,11 @@ import { useRuntimeLifecycle } from '@/contexts/RuntimeLifecycleProvider';
 import { useWorkoutEvents } from './useWorkoutEvents';
 import { useRuntimeExecution, NextEvent, RegisterEventHandlerAction, UnregisterEventHandlerAction } from './useRuntimeTimer';
 import type { IEventHandler, IEvent, IScriptRuntime } from './useRuntimeTimer';
-import { audioService } from '@/hooks/useBrowserServices';
+import { useAudioOptional } from '@/contexts/AudioContext';
 import type { WorkoutEvent } from '@/hooks/useBrowserServices';
 import type { Sessions, ScriptBlock } from '@/components/Editor/types';
 import { toStoredOutputStatement } from '@/components/Editor/types';
-import { wallClockNow } from '@bitcobblers/wod-wiki-engine';
+import { wallClockNow, SOUND_PLAY_EVENT } from '@bitcobblers/wod-wiki-engine';
 
 /**
  * Hook to encapsulate Workbench runtime logic.
@@ -20,6 +20,8 @@ export const useWorkbenchRuntime = <T extends ScriptBlock | null = ScriptBlock |
 ) => {
     const { runtime, initializeRuntime, disposeRuntime } = useRuntimeLifecycle();
     const execution = useRuntimeExecution(runtime);
+    const audio = useAudioOptional();
+    const playSound = audio?.playSound;
     const latestRef = useRef({ runtime, execution, completeWorkout });
     latestRef.current = { runtime, execution, completeWorkout };
 
@@ -30,20 +32,23 @@ export const useWorkbenchRuntime = <T extends ScriptBlock | null = ScriptBlock |
                 id: 'global-audio-handler',
                 name: 'GlobalAudioHandler',
                 handler: (event: IEvent, _runtime: IScriptRuntime) => {
-                    if (event.name === 'sound:play' && event.data) {
+                    if (event.name === SOUND_PLAY_EVENT && event.data) {
                         const { sound, volume } = event.data as { sound: string, volume?: number };
                         if (sound) {
-                            audioService.playSound(sound, volume).catch(() => {
-                                // Sound playback failed silently
-                            });
+                            // Routed through the audio context so a workout cue
+                            // reaches the cast receiver the same way a UI click
+                            // does — and so the enabled flag is honoured.
+                            playSound?.(sound, volume);
                         }
                     }
                     return [];
                 }
             };
 
-            // Register the handler
-            const action = new RegisterEventHandlerAction(audioHandler, 'global');
+            // Register the handler. The scope must be 'global': the owner id
+            // is not a block key, so the default 'active' scope would never
+            // match the active block and the handler would never fire.
+            const action = new RegisterEventHandlerAction(audioHandler, 'global', 'global');
             action.do(runtime);
 
             // Cleanup on unmount or runtime change
@@ -52,7 +57,7 @@ export const useWorkbenchRuntime = <T extends ScriptBlock | null = ScriptBlock |
                 unregisterAction.do(runtime);
             };
         }
-    }, [runtime]);
+    }, [runtime, playSound]);
 
     // Save partial results on unmount if workout is still running/paused
     useEffect(() => {

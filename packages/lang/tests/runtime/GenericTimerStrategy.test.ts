@@ -10,7 +10,7 @@ import {
     CountupTimerBehavior,
     ExitBehavior,
     type ExitConfig,
-    SoundCueBehavior,
+    SoundProfileBehavior,
     LabelingBehavior,
 } from '../../src/runtime/behaviors';
 import type { IRuntimeBehavior } from '../../src/runtime/contracts/IRuntimeBehavior';
@@ -43,21 +43,24 @@ describe('GenericTimerStrategy', () => {
             strategy.apply(builder, stmts, runtime);
             expect(builder.getBlockType()).toBe('Block');
         });
-        it('with countdown duration, adds CountdownTimerBehavior, ExitBehavior, SoundCueBehavior, and LabelingBehavior', () => {
+        it('with countdown duration, adds CountdownTimerBehavior, ExitBehavior, and LabelingBehavior', () => {
             const stmts = [makeStatement([new DurationMetric('3:00')])];
             const result = apply(strategy, stmts, runtime);
             expect(result.hasBehavior(CountdownTimerBehavior)).toBe(true);
             expect(result.hasBehavior(ExitBehavior)).toBe(true);
-            expect(result.hasBehavior(SoundCueBehavior)).toBe(true);
             expect(result.hasBehavior(LabelingBehavior)).toBe(true);
         });
-        it('with countup (no duration), adds CountupTimerBehavior, ExitBehavior, and LabelingBehavior but no sound', () => {
+        it('with countup (no duration), adds CountupTimerBehavior, ExitBehavior, and LabelingBehavior', () => {
             const stmts = [makeStatement([new DurationMetric(':?')])];
             const result = apply(strategy, stmts, runtime);
             expect(result.hasBehavior(CountupTimerBehavior)).toBe(true);
             expect(result.hasBehavior(ExitBehavior)).toBe(true);
             expect(result.hasBehavior(LabelingBehavior)).toBe(true);
-            expect(result.hasBehavior(SoundCueBehavior)).toBe(false);
+        });
+        it('adds no sound behavior of its own — SoundStrategy owns cues', () => {
+            const stmts = [makeStatement([new DurationMetric('3:00')])];
+            const result = apply(strategy, stmts, runtime);
+            expect(result.hasBehavior(SoundProfileBehavior)).toBe(false);
         });
         it('required countdown timer gives ExitBehavior onEvents timer:complete', () => {
             const stmts = [

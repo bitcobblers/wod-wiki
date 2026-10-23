@@ -5,6 +5,7 @@ import type { StackSnapshot } from '@bitcobblers/wod-wiki-engine';
 import type { IRuntimeBlock } from '@bitcobblers/wod-wiki-engine';
 import type { WhiteboardScript } from '@bitcobblers/wod-wiki-engine';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-engine';
+import type { RuntimeStackOptions } from '@bitcobblers/wod-wiki-engine';
 
 import { RuntimeStack } from '@bitcobblers/wod-wiki-engine';
 import { EventBus } from '@bitcobblers/wod-wiki-engine';
@@ -24,6 +25,8 @@ export interface TestScriptConfig {
     clock?: MockClock;
     /** The cast-side transport (paired with a browser-side fake). */
     castTransport?: FakeRpcTransport;
+    /** Runtime options — e.g. the run's sound configuration. */
+    options?: RuntimeStackOptions;
 }
 
 export class TestScript {
@@ -65,7 +68,7 @@ export class TestScript {
         const clock = config?.clock ?? createMockClock(new Date('2024-01-01T12:00:00Z'));
         const stack = new RuntimeStack();
         const eventBus = new EventBus();
-        const runtime = config?.runtime ?? new ScriptRuntime(script, compiler, { stack, clock, eventBus });
+        const runtime = config?.runtime ?? new ScriptRuntime(script, compiler, { stack, clock, eventBus }, config?.options);
         const castTransport = config?.castTransport ?? new FakeRpcTransport();
         if (!config?.castTransport) {
             const browserFake = new FakeRpcTransport();

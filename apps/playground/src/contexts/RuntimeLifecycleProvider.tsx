@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ScriptRuntime, SubscriptionManager, LocalRuntimeSubscription } from '@/hooks/useRuntimeTimer';
 import type { IRuntimeFactory } from '@/hooks/useRuntimeFactory';
 import type { ScriptBlock } from '@/components/Editor/types';
+import type { RuntimeStackOptions } from '@bitcobblers/wod-wiki-engine';
 import { RuntimeLifecycleContext, type RuntimeLifecycleState } from './RuntimeLifecycleContext';
 import { SubscriptionManagerContext } from './SubscriptionManagerContext';
 import { useWorkbenchSessionStore } from '@/stores/workbenchSessionStore.shim';
@@ -80,7 +81,7 @@ export const RuntimeLifecycleProvider: React.FC<RuntimeLifecycleProviderProps> =
    * Initialize a new runtime for the given block
    * Automatically disposes existing runtime first
    */
-  const initializeRuntime = useCallback((block: ScriptBlock) => {
+  const initializeRuntime = useCallback((block: ScriptBlock, options?: RuntimeStackOptions) => {
     // Guard against duplicate initialization using ref (avoids re-render cascade)
     if (isInitializingRef.current) {
       return;
@@ -111,7 +112,7 @@ export const RuntimeLifecycleProvider: React.FC<RuntimeLifecycleProviderProps> =
         }
       }
 
-      const newRuntime = factoryRef.current.createRuntime(block) as ScriptRuntime | null;
+      const newRuntime = factoryRef.current.createRuntime(block, options) as ScriptRuntime | null;
       currentRuntimeRef.current = newRuntime;
       setRuntime(newRuntime);
 

@@ -7,8 +7,7 @@ import { DurationMetric } from "../../metrics/DurationMetric";
 import { compose } from "../../BlockTemplateComposer";
 import type { BlockTemplate } from "../../BlockTemplate";
 import {
-    LabelingBehavior,
-    SoundCueBehavior
+    LabelingBehavior
 } from "../../../behaviors";
 
 /**
@@ -84,13 +83,7 @@ export class AmrapLogicStrategy implements IRuntimeBlockStrategy {
             label
         }));
 
-        // Sound Cues
-        builder.addBehavior(new SoundCueBehavior({
-            cues: [
-                { sound: 'start-beep', trigger: 'mount' },
-                { sound: 'countdown-beep', trigger: 'countdown', atSeconds: [3, 2, 1] },
-                { sound: 'timer-complete', trigger: 'complete' }
-            ]
-        }));
+        // Sound cues are attached by SoundStrategy from the block's sound
+        // profile — no cues are hardcoded here.
     }
 }

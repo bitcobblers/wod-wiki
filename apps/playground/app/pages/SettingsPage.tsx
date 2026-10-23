@@ -1,6 +1,6 @@
 /**
  * SettingsPage — /settings, /settings/appearance, /settings/profile, /settings/storage,
- * /settings/sync, /settings/system
+ * /settings/sync, /settings/system, /settings/sound-profiles
  *
  * Dedicated settings surface for Wod Wiki, replacing the header "…" dropdown
  * configuration options.
@@ -18,6 +18,8 @@
  *     "Reset & Clear Cache" danger zone.
  *   - /settings/queries: per-surface landing query and source / Group-By
  *     option overrides (routeWqlConfig).
+ *   - /settings/sound-profiles: named sets of sound rules (trigger
+ *     notation + sound) selected per note or per block via sound tags.
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -53,6 +55,7 @@ import { QueryDefaultsSection } from './QueryDefaultsSection'
 import { ProfileSection } from './ProfileSection'
 import { DataSection } from './DataSection'
 import { SyncSection } from './SyncSection'
+import { SoundProfilesSettingsSection } from './SoundProfilesSettingsSection'
 import { Switch } from '@/components/atoms/primitives/switch'
 import { Button } from '@/components/atoms/primitives/button'
 import { cn } from '@/lib/utils'
@@ -67,6 +70,7 @@ const SETTINGS_SECTIONS = [
   { id: 'sync', content: <SyncSection /> },
   { id: 'queries', content: <QueryDefaultsSection /> },
   { id: 'tags', content: <TagsSettingsSection /> },
+  { id: 'sound-profiles', content: <SoundProfilesSettingsSection /> },
   { id: 'routes', content: <RoutesSection /> },
   { id: 'system', content: <SystemSection /> },
 ] as const
@@ -89,7 +93,9 @@ export function SettingsPage() {
             ? 'queries'
             : location.pathname.endsWith('/tags')
               ? 'tags'
-              : location.pathname.endsWith('/routes')
+              : location.pathname.endsWith('/sound-profiles')
+                ? 'sound-profiles'
+                : location.pathname.endsWith('/routes')
                 ? 'routes'
                 : 'appearance'
 

@@ -1,3 +1,15 @@
+/**
+ * AudioPolicy — the single table of sounds the app can play.
+ *
+ * A sound is named, and a name maps to the notes that synthesize it. Every
+ * sound in the product lives here: UI feedback sounds and workout cue
+ * sounds alike. One table means a cue name from a sound profile resolves
+ * in exactly one place.
+ *
+ * An unknown name is an error the caller must see — not a silent fallback
+ * to some other sound. `AudioService` reports it; it does not paper over it.
+ */
+
 export interface NoteDef {
   freq: number;
   type: OscillatorType;
@@ -10,6 +22,7 @@ export interface SoundDef {
 }
 
 const SOUNDS: Record<string, SoundDef> = {
+  // ── UI feedback ──────────────────────────────────────────────────────────
   beep: {
     notes: [{ freq: 880, type: 'sine', duration: 0.1 }],
   },
@@ -46,6 +59,49 @@ const SOUNDS: Record<string, SoundDef> = {
     notes: [
       { freq: 440, type: 'square', duration: 0.1, offset: 0 },
       { freq: 880, type: 'square', duration: 0.3, offset: 0.15 },
+    ],
+  },
+
+  // ── Workout cues ────────────────────────────────────────────────────────
+  /** One tick of a countdown into the end of a block. */
+  'countdown-beep': {
+    notes: [{ freq: 880, type: 'sine', duration: 0.1 }],
+  },
+  /** A block finished. */
+  'timer-complete': {
+    notes: [
+      { freq: 523.25, type: 'sine', duration: 0.4, offset: 0 },
+      { freq: 659.25, type: 'sine', duration: 0.4, offset: 0.1 },
+      { freq: 783.99, type: 'sine', duration: 0.6, offset: 0.2 },
+    ],
+  },
+  /** A block started. */
+  'start-beep': {
+    notes: [
+      { freq: 440, type: 'square', duration: 0.1, offset: 0 },
+      { freq: 880, type: 'square', duration: 0.3, offset: 0.15 },
+    ],
+  },
+  /** An interval (EMOM) round started. */
+  'interval-start': {
+    notes: [
+      { freq: 440, type: 'square', duration: 0.1, offset: 0 },
+      { freq: 880, type: 'square', duration: 0.3, offset: 0.15 },
+    ],
+  },
+  /** An interval (EMOM) round finished. */
+  'interval-complete': {
+    notes: [
+      { freq: 523.25, type: 'sine', duration: 0.4, offset: 0 },
+      { freq: 659.25, type: 'sine', duration: 0.4, offset: 0.1 },
+      { freq: 783.99, type: 'sine', duration: 0.6, offset: 0.2 },
+    ],
+  },
+  /** A rest period finished. */
+  'rest-over': {
+    notes: [
+      { freq: 783.99, type: 'sine', duration: 0.3, offset: 0 },
+      { freq: 1046.5, type: 'sine', duration: 0.5, offset: 0.15 },
     ],
   },
 };

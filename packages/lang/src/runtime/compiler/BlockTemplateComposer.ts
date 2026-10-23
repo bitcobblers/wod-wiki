@@ -22,7 +22,7 @@
  *     repeater: { startRound: 1, totalRounds: undefined, addCompletion: false },
  *   });
  *   builder.addBehavior(new LabelingBehavior({ mode: 'countdown', label: ... }));
- *   builder.addBehavior(new SoundCueBehavior({ cues: [...] }));
+ *   builder.addBehavior(new SoundProfileBehavior({ profile }));
  * }
  * ```
  */
@@ -40,7 +40,7 @@ const DEFAULT_PICK = (statements: ICodeStatement[]): ICodeStatement => statement
 /**
  * Apply a {@link BlockTemplate} to the supplied builder.  Returns the
  * label so callers can attach downstream behaviors that reference it
- * (e.g. `LabelingBehavior`, `SoundCueBehavior`) without re-deriving it.
+ * (e.g. `LabelingBehavior`, `SoundProfileBehavior`) without re-deriving it.
  */
 export function compose(builder: BlockBuilder, template: BlockTemplate): string {
     const { statements, runtime, blockType, defaultLabel } = template;

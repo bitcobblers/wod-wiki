@@ -13,7 +13,6 @@ import type { BlockTemplate } from "../../BlockTemplate";
 import {
     LabelingBehavior,
     MetricPromotionBehavior,
-    SoundCueBehavior,
 } from "../../../behaviors";
 
 /**
@@ -101,14 +100,8 @@ export class IntervalLogicStrategy implements IRuntimeBlockStrategy {
             label
         }));
 
-        // Sound Cues
-        builder.addBehavior(new SoundCueBehavior({
-            cues: [
-                { sound: 'interval-start', trigger: 'mount' },
-                { sound: 'countdown-beep', trigger: 'countdown', atSeconds: [3, 2, 1] },
-                { sound: 'interval-complete', trigger: 'complete' }
-            ]
-        }));
+        // Sound cues are attached by SoundStrategy from the block's sound
+        // profile — no cues are hardcoded here.
 
         // Promotion Aspect - cascade resistance/distance to child blocks
         const hasResistance = statements.some(s => s.metrics.some(m => m.type === MetricType.Resistance));

@@ -23,7 +23,7 @@
  */
 
 import { HomeIcon, CodeBracketIcon } from '@heroicons/react/20/solid'
-import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, Layers, ListFilter, Tag, Library, Plus, CalendarPlus, UserRound, Database, CloudDownload, Wrench } from 'lucide-react'
+import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, Layers, ListFilter, Tag, Library, Plus, CalendarPlus, UserRound, Database, CloudDownload, Wrench, Volume2 } from 'lucide-react'
 import type { NavItem } from './navTypes'
 import type { Location } from 'react-router-dom'
 import { JOURNAL_STREAM_PROFILE, CATALOGS_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PLAYGROUNDS_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
@@ -376,6 +376,14 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
           icon: Tag,
           action: { type: 'route', to: ROUTE_PATTERNS.settingsTags },
           isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.settingsTags,
+        },
+        {
+          id: 'settings-sound-profiles',
+          label: 'Sound Profiles',
+          level: 2,
+          icon: Volume2,
+          action: { type: 'route', to: ROUTE_PATTERNS.settingsSoundProfiles },
+          isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.settingsSoundProfiles,
         },
         {
           id: 'settings-sync',

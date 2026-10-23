@@ -19,6 +19,7 @@ export { parser as whiteboardParser } from './grammar/parser';
 
 // 5. Effort registry (pure)
 export * from './effort-registry';
+export * from './tags';
 
 // 6. Runtime & Compiler
 export * from './runtime';

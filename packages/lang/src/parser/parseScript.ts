@@ -1,6 +1,8 @@
 import { WhiteboardScript } from './WhiteboardScript';
 import { extractStatements, extractStatementsRaw } from './lezer-mapper';
 import type { ReferenceIndex, ReferenceResolutionDefaults } from '../effort-registry/reference-resolution';
+import { createReferenceIndex } from '../effort-registry/reference-resolution';
+import type { TagIndex } from '../tags/TagCatalog';
 import { parser } from '../grammar/parser';
 
 export interface ParseOptions {
@@ -12,6 +14,8 @@ export interface ParseOptions {
   references?: ReferenceIndex;
   /** Note-level `metrics.*` defaults applied by the resolver. */
   defaults?: ReferenceResolutionDefaults;
+  /** Tags a script can reference with `#{tag-slug}`. */
+  tags?: TagIndex;
 }
 
 /**
@@ -30,8 +34,14 @@ export function parseScript(inputText: string, options: ParseOptions = {}): Whit
     const doc = inputText.endsWith('\n') ? inputText : inputText + '\n';
     const tree = parser.parse(doc);
     const sport = options.sport ?? options.dialect;
-    const references = options.references
-      ? { index: options.references, defaults: options.defaults }
+    // A tag index is usable on its own — it needs an index only to resolve
+    // effort/equipment references, which an empty catalog satisfies.
+    const references = (options.references || options.tags)
+      ? {
+        index: options.references ?? createReferenceIndex({ efforts: [], equipment: [] }),
+        defaults: options.defaults,
+        tags: options.tags,
+      }
       : undefined;
     const statements = options.withoutDialects
       ? extractStatementsRaw(inputText, tree, references)

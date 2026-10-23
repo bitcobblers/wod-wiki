@@ -15,6 +15,8 @@ import type { ReferenceIndex, ReferenceResolutionDefaults, ResolvedReferences } 
 import { UnitRegistry } from '../metrics/units';
 import { EMPTY_UNIT } from '../runtime/compiler/metrics/dimensionFactory';
 import { SyntaxFacts, SyntaxMeta, SyntaxPrimitive, SyntaxStatement } from './syntax-facts';
+import { resolveTagMetrics } from '../tags/TagCatalog';
+import type { TagIndex } from '../tags/TagCatalog';
 
 type MetricPair = { metrics: IMetric; meta: SyntaxMeta };
 
@@ -31,6 +33,8 @@ const PROPERTY_KEY_TO_METRIC_TYPE: Record<string, MetricType> = {
 export interface ParseReferences {
   index: ReferenceIndex;
   defaults?: ReferenceResolutionDefaults;
+  /** Tags a script can reference with `#{tag-slug}`. */
+  tags?: TagIndex;
 }
 
 /** Structural keywords that lex as effort words but are not movements. */
@@ -58,7 +62,7 @@ export function classifyStatements(facts: SyntaxFacts, references?: ParseReferen
     let metricPairs: MetricPair[] = [];
 
     for (const primitive of fact.primitives) {
-      metricPairs.push(...classifyPrimitive(primitive));
+      metricPairs.push(...classifyPrimitive(primitive, references));
     }
 
     const mergedPairs = mergeFragments(metricPairs);
@@ -207,7 +211,7 @@ function applyReferenceResolution(pairs: MetricPair[], fact: SyntaxStatement, re
   return result;
 }
 
-function classifyPrimitive(primitive: SyntaxPrimitive): MetricPair[] {
+function classifyPrimitive(primitive: SyntaxPrimitive, references?: ParseReferences): MetricPair[] {
   switch (primitive.kind) {
     case 'lap':
       return [{ metrics: new GroupMetric(primitive.lapType, primitive.raw), meta: primitive.meta }];
@@ -279,6 +283,15 @@ function classifyPrimitive(primitive: SyntaxPrimitive): MetricPair[] {
       return [{ metrics: new EffortMetric(primitive.raw), meta: primitive.meta }];
 
     case 'property': {
+      // A tag reference (`#{tag-slug}`) contributes the metrics the tag is
+      // marked down with, rather than the literal reference text.
+      if (primitive.tagRef !== undefined) {
+        const tagMetrics = resolveTagMetrics(references?.tags, primitive.tagRef);
+        if (tagMetrics.length > 0) {
+          return tagMetrics.map(metrics => ({ metrics, meta: primitive.meta }));
+        }
+      }
+
       const metricType = PROPERTY_KEY_TO_METRIC_TYPE[primitive.key.toLowerCase()] ?? MetricType.Custom;
       return [{
         metrics: new PropertyMetric(primitive.key, primitive.value, {

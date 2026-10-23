@@ -2,6 +2,7 @@ import { IRuntimeBlock } from './IRuntimeBlock';
 import type { TestableBlockConfig } from './ITestableBlockConfig';
 import type { IEffortResolver } from '../../effort-registry/types';
 import type { ReferenceIndex } from '../../effort-registry/reference-resolution';
+import type { SoundProfile } from '../sound/SoundProfile';
 
 /**
  * Factory function type for wrapping blocks in debug mode.
@@ -116,5 +117,19 @@ export interface RuntimeStackOptions extends IRuntimeOptions {
         effortResolver?: IEffortResolver;
         references?: ReferenceIndex;
         userProfile?: { vo2max?: number };
+    };
+    /**
+     * Sound configuration for this run.
+     *
+     * `profiles` are the user's sound profiles, available for selection.
+     * `noteProfileId` is the profile selected for the note as a whole — the
+     * note-level `sound-{profile}` tag, resolved by the host before the
+     * runtime starts. A block that names its own profile overrides it.
+     *
+     * With neither, blocks fall back to the default profile.
+     */
+    soundOptions?: {
+        profiles?: readonly SoundProfile[];
+        noteProfileId?: string;
     };
 }

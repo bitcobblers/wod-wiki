@@ -86,10 +86,25 @@ export interface TagTypeRecord {
   createdAt: number;
 }
 
+/**
+ * A metric a tag contributes when a script references it (`#{tag-slug}`).
+ *
+ * Keeping the metrics on the tag means the meaning lives in one place
+ * instead of being repeated on every line that wants the tag.
+ */
+export interface TagMetric {
+  /** The metric type, e.g. `sound`. */
+  type: string;
+  /** The metric's value, e.g. the id of the sound profile it selects. */
+  value: string;
+}
+
 export interface Tag {
   id: string;
   label: string;
   type?: TagType;
+  /** Metrics this tag adds when referenced from script content. */
+  metrics?: TagMetric[];
   createdAt: number;
 }
 

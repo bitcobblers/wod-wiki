@@ -188,7 +188,7 @@ describe('appNavTree - Settings navigation', () => {
     cleanup()
   })
 
-  it('defines L1 settings item with L2 children in menu order: Profile, Appearance, Pages, Tags, Sync, Storage, System', () => {
+  it('defines L1 settings item with L2 children in menu order: Profile, Appearance, Pages, Tags, Sound Profiles, Sync, Storage, System', () => {
     const tree = buildAppNavTree(() => {})
     const settings = tree.find(item => item.id === 'settings')
 
@@ -197,9 +197,9 @@ describe('appNavTree - Settings navigation', () => {
     expect(settings?.level).toBe(1)
     expect(settings?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsAppearance })
     expect(settings?.children).toBeDefined()
-    expect(settings?.children?.length).toBe(7)
+    expect(settings?.children?.length).toBe(8)
 
-    const [profile, appearance, queries, tags, sync, storage, system] = settings!.children!
+    const [profile, appearance, queries, tags, soundProfiles, sync, storage, system] = settings!.children!
 
     expect(appearance.id).toBe('settings-appearance')
     expect(appearance.label).toBe('Appearance')
@@ -225,6 +225,10 @@ describe('appNavTree - Settings navigation', () => {
     expect(tags.label).toBe('Tags')
     expect(tags.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsTags })
 
+    expect(soundProfiles.id).toBe('settings-sound-profiles')
+    expect(soundProfiles.label).toBe('Sound Profiles')
+    expect(soundProfiles.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsSoundProfiles })
+
     expect(system.id).toBe('settings-system')
     expect(system.label).toBe('System')
     expect(system.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsSystem })
@@ -242,7 +246,7 @@ describe('appNavTree - Settings navigation', () => {
   it('activates appropriate L2 child based on route', () => {
     const tree = buildAppNavTree(() => {})
     const settings = tree.find(item => item.id === 'settings')!
-    const [profile, appearance, queries, tags, sync, storage, system] = settings.children!
+    const [profile, appearance, queries, tags, soundProfiles, sync, storage, system] = settings.children!
 
     expect(appearance.isActive!(mockLocation('/settings'))).toBe(true)
     expect(appearance.isActive!(mockLocation('/settings/appearance'))).toBe(true)
@@ -261,6 +265,9 @@ describe('appNavTree - Settings navigation', () => {
     expect(appearance.isActive!(mockLocation('/settings/system'))).toBe(false)
     expect(tags.isActive!(mockLocation('/settings/tags'))).toBe(true)
     expect(tags.isActive!(mockLocation('/settings/appearance'))).toBe(false)
+
+    expect(soundProfiles.isActive!(mockLocation('/settings/sound-profiles'))).toBe(true)
+    expect(soundProfiles.isActive!(mockLocation('/settings/appearance'))).toBe(false)
 
 
     expect(system.isActive!(mockLocation('/settings/system'))).toBe(true)

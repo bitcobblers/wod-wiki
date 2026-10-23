@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { apply, stmtWith, stubRuntime } from '../harness/harness/StrategyTestHarness';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 import { AmrapLogicStrategy } from '../../src/runtime/compiler/strategies/logic/AmrapLogicStrategy';
-import { CountdownTimerBehavior, LabelingBehavior, SoundCueBehavior, ChildSelectionBehavior } from '../../src/runtime/behaviors';
+import { CountdownTimerBehavior, LabelingBehavior, SoundProfileBehavior, ChildSelectionBehavior } from '../../src/runtime/behaviors';
 
 const runtime = stubRuntime();
 const strategy = new AmrapLogicStrategy();
@@ -46,8 +46,12 @@ describe('AmrapLogicStrategy', () => {
             expect(result.blockType).toBe('AMRAP');
             expect(result.hasBehavior(CountdownTimerBehavior)).toBe(true);
             expect(result.hasBehavior(LabelingBehavior)).toBe(true);
-            expect(result.hasBehavior(SoundCueBehavior)).toBe(true);
             expect(result.hasBehavior(ChildSelectionBehavior)).toBe(false);
+        });
+
+        it('adds no sound behavior of its own — SoundStrategy owns cues', () => {
+            const result = apply(strategy, [stmtWith(MetricType.Duration, 600000), stmtWith(MetricType.Rounds, 5)], runtime);
+            expect(result.hasBehavior(SoundProfileBehavior)).toBe(false);
         });
 
         it('sets sourceIds, label, and fragments via compose', () => {

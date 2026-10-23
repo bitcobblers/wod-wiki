@@ -35,6 +35,9 @@ import { useWorkbenchRuntime } from '@/hooks/useWorkbenchRuntime';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { parseDocumentStructure } from '@/components/Editor/utils/documentStructure';
 import { useWorkbenchSession, getActiveWorkbenchSessionStore } from '@/stores/workbenchSessionStore'
+import { resolveSoundProfiles } from '@/services/sound/soundProfiles'
+import { noteProfileIdFromTags, setSoundTagIndex } from '@/services/sound/soundTagCatalog'
+import { storageService } from '@/services/storage'
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 
 /**
@@ -129,6 +132,28 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
     setActiveBlockId(item?.id ?? null);
   }, [documentItems, cursorLine, setActiveBlockId]);
 
+  // ── Sound configuration ──
+  // The note's tags select the note's sound profile; a block that names its
+  // own profile overrides it. Resolved here, at the compile level, so the
+  // runtime needs no lookup of its own.
+  const noteTags = useWorkbenchSession((s) => s.currentEntry?.tags);
+
+  // The tag index lets a line reference a tag with `#{tag-slug}`. Parsing is
+  // synchronous and tags live in async storage, so the index is cached and
+  // refreshed here.
+  useEffect(() => {
+    let cancelled = false;
+    storageService.getAllTags()
+      .then(tags => { if (!cancelled) setSoundTagIndex(tags); })
+      .catch(() => { /* Tags are optional — a document without them still runs. */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const soundOptions = useMemo(() => ({
+    profiles: resolveSoundProfiles(),
+    noteProfileId: noteProfileIdFromTags(noteTags ?? []),
+  }), [noteTags]);
+
   // ── Runtime initialization on view-mode changes ──
   // when entering track view with a fresh selectedBlock; dispose when
   // leaving. The `getBlockKey` helper matches the prior bridge's identity
@@ -140,7 +165,7 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
       lastInitializedKeyRef.current = 'starting';
       sessionApi.getState().startPinnedRun(selectedBlock).then(block => {
         if (cancelled) return;
-        runtimeControls.initializeRuntime(block);
+        runtimeControls.initializeRuntime(block, { soundOptions });
         lastInitializedKeyRef.current = block.id;
       }).catch(() => { lastInitializedKeyRef.current = null; });
     } else if (viewMode !== 'track' && lastInitializedKeyRef.current !== null) {
@@ -148,7 +173,7 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
       lastInitializedKeyRef.current = null;
     }
     return () => { cancelled = true; };
-  }, [viewMode, selectedBlock?.id, sessionApi, runtimeControls.initializeRuntime, runtimeControls.disposeRuntime]);
+  }, [viewMode, selectedBlock?.id, sessionApi, soundOptions, runtimeControls.initializeRuntime, runtimeControls.disposeRuntime]);
 
   // ── Clear stale analytics on selection change ──
 

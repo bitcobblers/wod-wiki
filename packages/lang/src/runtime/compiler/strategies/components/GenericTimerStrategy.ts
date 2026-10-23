@@ -11,8 +11,7 @@ import type { BlockTemplate } from "../../BlockTemplate";
 // Specific behaviors not covered by aspect composers
 import {
     LabelingBehavior,
-    ExitBehavior,
-    SoundCueBehavior
+    ExitBehavior
 } from "../../../behaviors";
 
 /**
@@ -94,18 +93,11 @@ export class GenericTimerStrategy implements IRuntimeBlockStrategy {
         }
 
         // =====================================================================
-        // Display and Sound
+        // Display
         // =====================================================================
 
-        // Sound Cues
-        if (isCountdown) {
-            builder.addBehavior(new SoundCueBehavior({
-                cues: [
-                    { sound: 'countdown-beep', trigger: 'countdown', atSeconds: [3, 2, 1] },
-                    { sound: 'timer-complete', trigger: 'complete' }
-                ]
-            }));
-        }
+        // Sound cues are attached by SoundStrategy from the block's sound
+        // profile — no cues are hardcoded here.
 
         // Display Aspect
         builder.addBehavior(new LabelingBehavior({

@@ -36,10 +36,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             } catch (err) {
                 console.error('[AudioContext] Failed to send rpc-audio', err);
                 // Fallback to local if cast send fails
-                audioService.playSound(name, volume);
+                audioService.playSound(name, volume).catch(reportPlaybackFailure);
             }
         } else {
-            audioService.playSound(name, volume);
+            audioService.playSound(name, volume).catch(reportPlaybackFailure);
         }
     }, [isEnabled, castTransport]);
 
@@ -49,8 +49,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         // Note: useEffect syncs the service state, no need to call setEnabled here
 
         if (newState) {
-            // Local beep to confirm toggle
-            audioService.playSound('beep');
+            // Local beep to confirm toggle. Played directly rather than through
+            // `playSound` because the service is still disabled at this point
+            // — the effect that enables it runs after this handler.
+            audioService.setEnabled(true);
+            audioService.playSound('beep').catch(reportPlaybackFailure);
         }
     }, [isEnabled]);
 
@@ -77,10 +80,31 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     );
 }
 
+/**
+ * Report a failed playback.
+ *
+ * A sound that cannot play is worth knowing about — an unknown sound name
+ * is a defect in a sound profile, not a transient hiccup.
+ */
+function reportPlaybackFailure(err: unknown): void {
+    console.error('[AudioContext] Sound playback failed', err);
+}
+
 export function useAudio() {
     const context = useContext(WodAudioContext);
     if (context === undefined) {
         throw new Error('useAudio must be used within an AudioProvider');
     }
     return context;
+}
+
+/**
+ * The audio context, or `null` when no provider is mounted.
+ *
+ * For components that can run without audio — a hook used in isolation, or
+ * a surface rendered outside the app shell — so a missing provider degrades
+ * to silence rather than throwing.
+ */
+export function useAudioOptional(): AudioContextType | null {
+    return useContext(WodAudioContext);
 }

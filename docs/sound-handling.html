@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sound Handling — Current Architecture</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0 auto; max-width: 1080px; padding: 2rem 1.25rem 6rem; line-height: 1.45; color: #172033; background: #ffffff; }
+  header.doc { border-bottom: 2px solid #cbd5e1; margin-bottom: 2rem; padding-bottom: .75rem; }
+  header.doc .title { font-size: 1.6rem; font-weight: 700; }
+  header.doc .meta { color: #64748b; font-size: .85rem; margin-top: .25rem; }
+  h1 { font-size: 1.3rem; border-bottom: 1px solid #cbd5e1; padding-bottom: .2rem; margin: 2.5rem 0 .5rem; }
+  h2 { font-size: 1.05rem; margin: 1.6rem 0 .35rem; color: #334155; }
+  p.purpose { margin: .35rem 0 .75rem; color: #475569; }
+  table { border-collapse: collapse; width: 100%; font-size: .86rem; margin: 0 0 1rem; }
+  th, td { border: 1px solid #cbd5e1; padding: .4rem .6rem; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; white-space: nowrap; width: 9.5rem; font-weight: 600; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; background: #f1f5f9; padding: .05rem .3rem; border-radius: 4px; }
+  ul { margin: .15rem 0; padding-left: 1.2rem; }
+  li { margin: .1rem 0; }
+  .callout { border: 1px solid #cbd5e1; border-left: 4px solid #64748b; background: #f8fafc; padding: .7rem .9rem; margin: 0 0 1rem; border-radius: 4px; }
+  .callout.broken { border-left-color: #b91c1c; background: #fef2f2; }
+  .callout.dead { border-left-color: #b45309; background: #fffbeb; }
+  .callout.ok { border-left-color: #15803d; background: #f0fdf4; }
+  .callout .label { font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .25rem; }
+  .callout.broken .label { color: #b91c1c; }
+  .callout.dead .label { color: #b45309; }
+  .callout.ok .label { color: #15803d; }
+  .gap { color: #b91c1c; font-weight: 600; }
+  .dead { color: #b45309; font-weight: 600; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .84rem; }
+  .flow { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: .8rem 1rem; margin: 0 0 1rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.6; overflow-x: auto; }
+  .flow .ok { color: #15803d; font-weight: 600; }
+  .flow .no { color: #b91c1c; font-weight: 600; }
+  .flow .dim { color: #64748b; }
+  .src { color: #64748b; font-size: .82rem; }
+  .flow .note { color: #64748b; font-style: italic; }
+</style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/sound-handling.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  :root { --wb-bar-height: 112px; }
+  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 16px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #cbd5e1; padding: 10px max(16px, calc((100% - 1032px) / 2)); }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 44px; padding: 8px 12px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button:disabled { opacity: .5; cursor: default; }
+  #wb-bar #wb-publish, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-help, #wb-status, #wb-storage-warning { margin: 4px 0 0; font-size: 12px; }
+  #wb-help { color: #475569; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; padding: 16px; border: 1px solid #b45309; border-radius: 8px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current h2 { margin: 0 0 8px; padding: 0; font-size: 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite">0 annotations</strong>
+    <button id="wb-add" type="button" aria-pressed="false">Add annotation</button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation">Previous</button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation">Next</button>
+    <button id="wb-publish" type="button" disabled>Publish</button>
+  </div>
+  <p id="wb-help">Highlight text to annotate, or click Add annotation then click any block. Drafts stay in this browser. Publish copies them for your agent.</p>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+<header class="doc">
+  <div class="title">Sound Handling — Current Architecture</div>
+  <div class="meta">Scope: how sound is produced, routed, and (not) played today. Sources: <code>packages/lang/src/runtime/</code> (behaviors, strategies, metrics), <code>apps/playground/src/services/audio/</code>, <code>apps/playground/src/contexts/AudioContext.tsx</code>, <code>apps/playground/src/hooks/useWorkbenchRuntime.ts</code>, <code>apps/playground/src/services/cast/rpc/</code>. All claims verified against the working tree at commit <code>3bb30961</code>.</div>
+</header>
+
+<main data-whiteboard-document="">
+
+<h1 id="wb-h1-verdict" data-whiteboard-anchor>1. Verdict</h1>
+<p class="purpose" id="wb-p-11f1bd022b3242f7b6a0ef0b85d1f87c" data-whiteboard-anchor>Sound is implemented twice, in two disconnected halves. Both halves work in isolation; <span class="gap">they never meet</span>. Every audible sound in the product today comes from a UI click — not from the workout runtime.</p>
+
+<div class="callout broken">
+  <div class="label">The broken link</div>
+  <p id="wb-p-003909d33b694cbd8ec684e2c1c4f77a" data-whiteboard-anchor>The runtime emits sound cues correctly as <code>SoundMetric</code> outputs on <code>emitOutput('system', …)</code>. <strong>Nothing in the app subscribes to those outputs to play audio.</strong> The one code path that <em>would</em> bridge runtime → audio is a runtime <em>event</em> (<code>'sound:play'</code>) whose only producer, <code>PlaySoundAction</code>, is never constructed anywhere in the repository.</p>
+  <p style="margin-bottom:0" id="wb-p-f90682a35d844cdb81f569de0fbe255b" data-whiteboard-anchor>Net effect: the workout runtime's countdown beeps, completion cues, and interval alerts are <strong>silent</strong>. The compliance tests that assert "a sound output was emitted" pass, because they assert on <em>metric presence</em>, never on <em>audible playback</em>.</p>
+</div>
+
+<h2 id="wb-h2-two-halves" data-whiteboard-anchor>1.1 The two halves</h2>
+<div class="flow">
+<div><span class="dim">HALF A — runtime cue production</span>  <code>packages/lang</code></div>
+<div>  Compiler strategies → <code>SoundCueBehavior</code> → <code>SoundMetric</code> → <code>emitOutput('system')</code></div>
+<div>      <span class="ok">✔ works</span> — ticks fire, metrics are emitted (43/43 compliance tests pass)</div>
+<div>&nbsp;</div>
+<div><span class="dim">HALF B — audio synthesis</span>  <code>apps/playground</code></div>
+<div>  <code>AudioService</code> → <code>AudioPolicy</code> (name → notes) → <code>WebAudioSink</code> → Web Audio API</div>
+<div>      <span class="ok">✔ works</span> — oscillators, envelopes, master gain all fine</div>
+<div>&nbsp;</div>
+<div><span class="dim">THE BRIDGE</span></div>
+<div>  <code>SoundMetric</code> output ──▶ <span class="no">✖ no consumer</span></div>
+<div>  <code>'sound:play'</code> event  ──▶ <code>audioService.playSound()</code>   <span class="no">✖ no producer</span></div>
+<div>      <span class="note">(PlaySoundAction is never constructed; not even exported from the engine barrel)</span></div>
+</div>
+
+<h1 id="wb-h1-runtime" data-whiteboard-anchor>2. Half A — runtime cue production</h1>
+<p class="purpose" id="wb-p-36a64840b6674ee08a07c621c5e91605" data-whiteboard-anchor>The language runtime decides <em>when</em> a sound should fire and <em>what</em> it is called. It never touches an audio API.</p>
+
+<h2 id="wb-h2-strategies" data-whiteboard-anchor>2.1 Where cues are declared</h2>
+<p class="purpose" id="wb-p-d4e3d0562bf34a2d99f04257db2d8ea5" data-whiteboard-anchor>Cue configuration lives in compiler strategies, not in the DSL. There is no grammar keyword for sound — <code>packages/lang/src/grammar/</code> has no <code>sound</code>/<code>beep</code>/<code>chime</code> token, so a user cannot author a cue by writing it.</p>
+<table>
+  <tr><th data-whiteboard-anchor id="wb-th-e89ff02dd5c44f38b918cfe7b1ab533c">Strategy / block</th><td data-whiteboard-anchor id="wb-td-f09353b4f5034cd6a705890c72d6c714">File</td><td data-whiteboard-anchor id="wb-td-b8a4906240534073a8475c1b07aea9df">Declares</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-0b3b5cbaec0847b8be097944ab8638ad">SoundStrategy</th><td data-whiteboard-anchor id="wb-td-a54bdfb1c8d64b2e8040d33d31088fb5"><code>packages/lang/src/runtime/compiler/strategies/enhancements/SoundStrategy.ts</code></td><td data-whiteboard-anchor id="wb-td-1d1399cd182e48c4b8e5392d450e6fef">Countdown → <code>countdown-beep</code> @3,2,1 + <code>timer-complete</code>; count-up → <code>start-beep</code>. Priority 20. Skips if a cue behavior already exists.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-7d0b1a40087f43a38b9f5c4e0e9121e1">GenericTimerStrategy</th><td data-whiteboard-anchor id="wb-td-a62136fc55ce4c8fbc8735221f7ec623"><code>…/strategies/components/GenericTimerStrategy.ts:102</code></td><td data-whiteboard-anchor id="wb-td-ed777b64cb3c469f8cee0913a459c753">Countdown timers get <code>countdown-beep</code> @3,2,1 + <code>timer-complete</code>.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-fce7922c3efb4f09b9b483685f320d2c">AmrapLogicStrategy</th><td data-whiteboard-anchor id="wb-td-92abc90e684a4acf897129ccaa294d93"><code>…/strategies/logic/AmrapLogicStrategy.ts:88</code></td><td data-whiteboard-anchor id="wb-td-418ca0392c5b4860b9c2ed61eef6c3ff"><code>start-beep</code> (mount) + <code>countdown-beep</code> @3,2,1 + <code>timer-complete</code>.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-31896f14e0ae4715b26f951f716c47e0">IntervalLogicStrategy</th><td data-whiteboard-anchor id="wb-td-cd4511b8e8e14250ad87adf14b826a97"><code>…/strategies/logic/IntervalLogicStrategy.ts:105</code></td><td data-whiteboard-anchor id="wb-td-90018fb57a1e46339517a0a05c34189b"><code>interval-start</code> (mount) + <code>countdown-beep</code> @3,2,1 + <code>interval-complete</code>.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-b36e2ab8772b4df7980aeebf7fadb339">RestBlock</th><td data-whiteboard-anchor id="wb-td-c52d574114c54ed3b1cdc18ba17a3607"><code>packages/lang/src/runtime/blocks/RestBlock.ts:117</code></td><td data-whiteboard-anchor id="wb-td-c5c35924e3654992aa7f7db4720936eb"><code>rest-over</code> (complete) + <code>countdown-beep</code> @3,2,1.</td></tr>
+</table>
+
+<h2 id="wb-h2-behavior" data-whiteboard-anchor>2.2 The cue behavior</h2>
+<p class="purpose" id="wb-p-857926e4dbf54c0c97170fdfbae9c56b" data-whiteboard-anchor><code>SoundCueBehavior</code> (<code>packages/lang/src/runtime/behaviors/SoundCueBehavior.ts</code>) is the single runtime sound emitter. It has three trigger points:</p>
+<table>
+  <tr><th data-whiteboard-anchor id="wb-th-aee034abfc474bcd93b8e91586710e10">Trigger</th><td data-whiteboard-anchor id="wb-td-01965f43c6c4426590c03e435d638f6e">When</td><td data-whiteboard-anchor id="wb-td-c7045a7b7a5545dcbe02ab8c87529d99">Emits</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-3bb7c4f918e24d3a9dc601a81f784841"><code>mount</code></th><td data-whiteboard-anchor id="wb-td-fcb618cda7064da29ce3ac893549c8fe"><code>onMount</code></td><td data-whiteboard-anchor id="wb-td-05a308793adb4eb4b1432cb0be091d2a"><code>new SoundMetric(cue.sound, 'mount')</code> as a <code>system</code> output.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-d3e62e2c5e9a463f914953690033a933"><code>countdown</code></th><td data-whiteboard-anchor id="wb-td-44eff74df2e141b5a42cf45a962ad201">On <code>tick</code>, scope <code>'bubble'</code> so parent timers still beep while a child block runs.</td><td data-whiteboard-anchor id="wb-td-51b35846ce114ee4aa3a57badad322b2"><code>new SoundMetric(cue.sound, 'countdown', { atSecond })</code>. De-duplicated by a per-behavior <code>Set&lt;number&gt;</code> of played seconds.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-353dffe0aeae4f88a9da499de5691656"><code>complete</code> / <code>unmount</code></th><td data-whiteboard-anchor id="wb-td-2a8a88dcea8240d7be259401b24c11c8"><code>onUnmount</code></td><td data-whiteboard-anchor id="wb-td-72d679ffaab443b6a4d673819ce54ad5"><code>new SoundMetric(cue.sound, cue.trigger)</code>.</td></tr>
+</table>
+<p class="purpose" id="wb-p-145e1aebab494444b1a4bcf0b8af7f29" data-whiteboard-anchor><strong>Remaining-seconds math</strong> is hand-rolled inside the behavior rather than reusing <code>calculateElapsed()</code> from <code>packages/lang/src/runtime/time/calculateElapsed.ts</code> — it re-implements the span-sum inline at lines 78–85. The canonical helper exists and is used by <code>CountdownTimerBehavior</code>; the sound path duplicates it.</p>
+
+<div class="callout dead">
+  <div class="label">Dead code</div>
+  <p style="margin-bottom:0" id="wb-p-a5a399d59abb45c288304484bdda7338" data-whiteboard-anchor><code>packages/lang/src/runtime/models/SoundModels.ts</code> and <code>packages/lang/src/runtime/utils/soundUtils.ts</code> define a <em>second, incompatible</em> cue model: <code>SoundCue { id, threshold, sound, volume }</code> with a threshold-based (not trigger-based) contract, plus <code>PREDEFINED_SOUNDS</code> and <code>createCountdownSoundCues()</code> / <code>createCountUpSoundCues()</code>. Nothing imports <code>soundUtils</code>; <code>SoundCueBehavior</code> defines its own local <code>SoundCue</code> interface instead. The two types are exported from the same barrel under the same name — <code>SoundCue</code> means the dead one.</p>
+</div>
+
+<h2 id="wb-h2-tick" data-whiteboard-anchor>2.3 The tick driver</h2>
+<p class="purpose" id="wb-p-a5d90c9e734341689e71392f90272543" data-whiteboard-anchor>A real-time tick driver <strong>does</strong> exist in the browser, so cue timing is not the problem:</p>
+<div class="flow">
+<div><code>packages/lang/src/react/hooks/useRuntimeExecution.ts</code></div>
+<div>  <span class="dim">:</span> 16  <code>EXECUTION_TICK_RATE_MS = 20</code>   <span class="dim">(50 Hz)</span></div>
+<div>  <span class="dim">:</span> 158 <code>setInterval(executeStep, EXECUTION_TICK_RATE_MS)</code></div>
+<div>  <span class="dim">:</span> 84  <code>runtime.handle(new TickEvent(...))</code></div>
+<div>      └─▶ <code>SoundCueBehavior</code> tick subscription → countdown cue</div>
+</div>
+<p class="purpose" id="wb-p-975637ced7394df7a8a99a4997bbba42" data-whiteboard-anchor>Other intervals in the app (<code>RuntimeHistoryLog</code> 100 ms, <code>useTimerSurfaceModel</code> rAF, hero sliders) are UI re-render clocks, not runtime ticks. <code>ScriptRuntime</code> itself has no internal clock.</p>
+
+<h1 id="wb-h1-playback" data-whiteboard-anchor>3. Half B — audio synthesis</h1>
+<p class="purpose" id="wb-p-1c318a7af68c4600a36cdc4fd2d92ada" data-whiteboard-anchor>The app-side audio stack is clean and well-layered. It simply never receives runtime cues.</p>
+
+<h2 id="wb-h2-stack" data-whiteboard-anchor>3.1 The stack</h2>
+<table>
+  <tr><th data-whiteboard-anchor id="wb-th-73291889bbf8489298cbb6500c43bcac">Layer</th><td data-whiteboard-anchor id="wb-td-90a80a7d8abd4ffeb0d4601541e3a36f">File</td><td data-whiteboard-anchor id="wb-td-6e631e891fe14add8c049db6c25e10e6">Responsibility</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-4f5e1147a81148a0bd73f1d1f262481d">React context</th><td data-whiteboard-anchor id="wb-td-aaeedcbcac7a4cc9b2ea47c7108d234a"><code>apps/playground/src/contexts/AudioContext.tsx</code></td><td data-whiteboard-anchor id="wb-td-dcf057cb51744832a3fbba322224a417"><code>isEnabled</code> state, toggle, <code>playClick()</code>, <code>playTestSound()</code>, <code>playSound(name, volume)</code>. Routes to Chromecast via <code>rpc-audio</code> when connected. Mounted at <code>app/App.tsx:153</code>.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-ccb1f4ec619a49efa9a9f15ee2a929dc">Service</th><td data-whiteboard-anchor id="wb-td-fcfa021500cb49a6b7faac67ca479fc9"><code>apps/playground/src/services/AudioService.ts</code></td><td data-whiteboard-anchor id="wb-td-6c73cb9024b5439b87a3c126d13a6fa3">Enabled flag persisted to <code>localStorage['wod-wiki-audio-enabled']</code>. Resolves a name to a <code>SoundDef</code>; unknown names <strong>silently fall back to <code>beep</code></strong>. Singleton <code>audioService</code>.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-52bf2cb717da451d83e80355455b6cdc">Policy</th><td data-whiteboard-anchor id="wb-td-c5967961c4884963aa956fff0d025afc"><code>apps/playground/src/services/audio/AudioPolicy.ts</code></td><td data-whiteboard-anchor id="wb-td-56265cc94c574c8cb835bebc911e8505">8 named sounds → <code>NoteDef[]</code> (<code>freq</code>, <code>type</code>, <code>duration</code>, <code>offset</code>). Pure data, fully unit-tested.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-12c931eea5e4473897f899da8b3c5a97">Sink port</th><td data-whiteboard-anchor id="wb-td-2393f7393b8b48a39f0c5715a9272c3e"><code>apps/playground/src/services/audio/IAudioSink.ts</code></td><td data-whiteboard-anchor id="wb-td-3f1295d5bdbb478ea0f5296c6bd19ff6"><code>playNotes(notes, volume)</code> + optional <code>init()</code>.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-0b2a1170ba1c46cfb9ede8702c999b81">Sink impl</th><td data-whiteboard-anchor id="wb-td-99bf60e7cdba4e79a1814ad1f98fae00"><code>apps/playground/src/services/audio/WebAudioSink.ts</code></td><td data-whiteboard-anchor id="wb-td-557fb4d1480f48dc8f19b393f133701e">Creates <code>AudioContext</code> + <code>masterGain</code>; per-note oscillator → gain envelope → master → destination. Resumes a suspended context on first play (browser autoplay policy).</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-efb70a2342eb4b03b321f85239008db6">Test sink</th><td data-whiteboard-anchor id="wb-td-a19ba032786e4a34a8a3b110cd4de27d"><code>apps/playground/src/services/audio/RecordingAudioSink.ts</code></td><td data-whiteboard-anchor id="wb-td-953dd9beb85b4b87b2f4c8b55d2e75b9">Records calls for assertions. <span class="dead">Used only by its own test</span> — the injectable sink seam exists but no test drives <code>AudioService</code> through it.</td></tr>
+</table>
+
+<h2 id="wb-h2-names" data-whiteboard-anchor>3.2 Sound name vocabulary</h2>
+<p class="purpose" id="wb-p-4e0a21b9e2dd4e68ad53bc0b59ee2cf3" data-whiteboard-anchor>Two disjoint name sets. <span class="gap">Zero overlap.</span></p>
+<table>
+  <tr><th data-whiteboard-anchor id="wb-th-02b834f8321740179a0ec3c00d1b7874">Set</th><td data-whiteboard-anchor id="wb-td-4ae9f10b675d4d618970737f8da900cf">Names</td><td data-whiteboard-anchor id="wb-td-2a03319ab39047f483ab7d939003c92c">Used by</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-135c1c128b574c3eab2ab4582febda93">AudioPolicy</th><td data-whiteboard-anchor id="wb-td-b53fa97e24bd466481cd77ca164a3a58"><code>beep</code>, <code>tick</code>, <code>click</code>, <code>buzzer</code>, <code>chime</code>, <code>complete</code>, <code>select</code>, <code>start</code></td><td data-whiteboard-anchor id="wb-td-f67859e6c21c4213bb5fdc2c1c8e72ff">UI clicks, test sounds, receiver feedback.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-924c0fa63903450386b80e19ba02020d">Runtime cues</th><td data-whiteboard-anchor id="wb-td-3c1faef817b64e24ba58f289a55e61c0"><code>countdown-beep</code>, <code>timer-complete</code>, <code>start-beep</code>, <code>interval-start</code>, <code>interval-complete</code>, <code>rest-over</code></td><td data-whiteboard-anchor id="wb-td-1a07397188f8409f92a3aa03d1ac1493">Runtime strategies and <code>RestBlock</code>.</td></tr>
+</table>
+<p class="purpose" id="wb-p-e67523a5a51b4c188d407d92280c8ba7" data-whiteboard-anchor><strong>Verified empirically.</strong> Driving a <code>5:00 Run</code> through the production compiler and real runtime emits <code>countdown-beep</code> @3/2/1 and <code>timer-complete</code> — then <code>getSoundDef()</code> returns <code>undefined</code> for <em>both</em>. Even if the bridge were wired today, <strong>every</strong> workout cue would collapse to the same generic <code>beep</code> via the <code>AudioService.ts:52</code> fallback.</p>
+
+<h1 id="wb-h1-what-plays" data-whiteboard-anchor>4. What actually makes a sound today</h1>
+<p class="purpose" id="wb-p-cf363ce8c6834a6083f26f93120313a6" data-whiteboard-anchor>Every audible sound is a UI interaction. The complete list of names that reach <code>AudioService.playSound()</code> in production:</p>
+<table>
+  <tr><th data-whiteboard-anchor id="wb-th-d6b378a7fafe4764915636237393c146">Name</th><td data-whiteboard-anchor id="wb-td-348b9717fba345a3b559f2e13ad3cb71">Call site</td><td data-whiteboard-anchor id="wb-td-d137c5f148a145ebb6f5983b7783c2bc">Purpose</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-f1ede24cb3654e129b169fcd16d38117"><code>click</code></th><td data-whiteboard-anchor id="wb-td-02c6fc9ae1114b85be8fb3b15121645d"><code>AudioContext.tsx:62</code> via <code>useClickAudio()</code> in <code>TimerCore.tsx</code> / <code>TimerStackView.tsx</code>; also <code>receiver-rpc.tsx:275,427</code></td><td data-whiteboard-anchor id="wb-td-968f2efaddb04837af5bfb32c6540fe3">Button-press feedback on start/pause/stop/next.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-aa2733ce91a14551840b4e84ed883c40"><code>chime</code></th><td data-whiteboard-anchor id="wb-td-ccf3a1b5878a4da68af365bfae7b59db"><code>AudioContext.tsx:58</code> → <code>SettingsPage.tsx:465</code></td><td data-whiteboard-anchor" id="wb-td-5af2ac7c2bd64463a92a28de97e49434" data-whiteboard-anchor>"Test sound" button in Settings → System.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-788901715a7b418ba96268e57c23c13d"><code>beep</code></th><td data-whiteboard-anchor id="wb-td-d7f351bea50845029eb72adcba850135"><code>AudioContext.tsx:53</code></td><td data-whiteboard-anchor id="wb-td-44180e205f12448a91fe3007fbd96907">Intended as toggle confirmation — <span class="gap">never plays</span>, see §6.1.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-ca29fd7a69b0470392448076859ef2f4"><code>select</code></th><td data-whiteboard-anchor id="wb-td-9c4e30e0c23a4a1ba9aa1de9a411a5d1"><code>receiver-rpc.tsx:280</code></td><td data-whiteboard-anchor" id="wb-td-56545b6d4f384a8f84b7585a0bd6b926" data-whiteboard-anchor>Chromecast remote button-press feedback.</td></tr>
+</table>
+<p class="purpose" id="wb-p-372df93af1154f00a187707c4e11b132" data-whiteboard-anchor>The Settings copy at <code>apps/playground/app/pages/SettingsPage.tsx:449</code> promises <em>"Play countdown beeps, interval alerts, and workout finish chimes"</em>. <span class="gap">None of the three currently happen.</span></p>
+
+<h1 id="wb-h1-channels" data-whiteboard-anchor>5. Delivery channels</h1>
+
+<h2 id="wb-h2-local" data-whiteboard-anchor>5.1 Local</h2>
+<p class="purpose" id="wb-p-a39f9782ee6d4c3880a67f8244d30dca" data-whiteboard-anchor>Straightforward: <code>AudioContext.playSound()</code> → <code>audioService.playSound()</code> → <code>WebAudioSink</code>.</p>
+
+<h2 id="wb-h2-cast" data-whiteboard-anchor>5.2 Chromecast</h2>
+<p class="purpose" id="wb-p-4b660ffa3462491aad2eeb69112f638f" data-whiteboard-anchor>The cast path has its own event channel, and the runtime is not on it.</p>
+<div class="flow">
+<div><span class="dim">UI click / test sound</span> ──▶ <code>AudioContext.playSound()</code></div>
+<div>   └─▶ <code>castTransport.send({ type: 'rpc-audio', name, volume })</code></div>
+<div>       └─▶ receiver <code>ReceiverSessionManager.ts:136</code> → <code>audioService.playSound()</code>   <span class="ok">✔ works</span></div>
+<div>&nbsp;</div>
+<div><span class="dim">runtime cue</span> ──▶ <code>SoundMetric</code> in <code>system</code> output</div>
+<div>   └─▶ <code>serializeOutput()</code> carries all metrics (<code>RpcSerializer.ts:157</code>)</div>
+<div>       └─▶ <code>rpc-output</code> → receiver <code>ChromecastProxyRuntime.ts:479</code> rebuilds the output</div>
+<div>           └─▶ <span class="no">✖ receiver never subscribes to outputs and never plays them</span></div>
+</div>
+<p class="purpose" id="wb-p-b1cf497adbcc422d9928f10f20218932" data-whiteboard-anchor>So the receiver <em>receives</em> sound metrics but treats them as inert data. The receiver's only audio input is <code>rpc-audio</code>, which the runtime never sends.</p>
+
+<h1 id="wb-h1-defects" data-whiteboard-anchor>6. Defects found</h1>
+
+<h2 id="wb-h2-d1" data-whiteboard-anchor>6.1 Toggle confirmation beep never plays</h2>
+<p class="purpose" id="wb-p-7e057e62fb2d4832a8de9501531f7c21" data-whiteboard-anchor><code>AudioContext.tsx:47-55</code> calls <code>audioService.playSound('beep')</code> inside <code>toggleAudio</code>, but the <code>audioService.setEnabled(isEnabled)</code> sync lives in a <code>useEffect</code> that runs <em>after</em> the click handler. <code>AudioService.playSound()</code> returns early on <code>if (!this.enabled) return;</code> — and the service is still disabled at that instant.</p>
+<p class="purpose" id="wb-p-9941c13b1f9c4c0e8384238529f6914e" data-whiteboard-anchor><strong>Verified empirically</strong> with a probe that mocked <code>audioService</code> and reproduced the real gate: after clicking to enable, <code>playSound</code> was called with the service still disabled and produced no note. The user gets silence when turning sound <em>on</em> — the exact moment a confirmation would matter most.</p>
+
+<h2 id="wb-h2-d2" data-whiteboard-anchor>6.2 Runtime cues are silent</h2>
+<p class="purpose" id="wb-p-57c52cfb65d44bc6aa2e2be1b8ada02e" data-whiteboard-anchor>The headline defect, detailed in §1. Root cause is a design split: <code>SoundCueBehavior</code> emits <em>outputs</em> (a data channel), while the app listens for <em>events</em> (a command channel). The output channel has no audio consumer; the event channel has no producer.</p>
+
+<h2 id="wb-h2-d3" data-whiteboard-anchor>6.3 Name vocabularies are disjoint</h2>
+<p class="purpose" id="wb-p-ffd74170bebd40ebb6dd35215ce744f1" data-whiteboard-anchor>Detailed in §3.2. Latent today, immediately fatal the moment the bridge is wired — every cue would become the same beep.</p>
+
+<h2 id="wb-h2-d4" data-whiteboard-anchor>6.4 Dead code and unused seams</h2>
+<table>
+  <tr><th data-whiteboard-anchor id="wb-th-4eda9915fa734c9c98c281d0dab607ab">Item</th><td data-whiteboard-anchor id="wb-td-6a86bdb317be422381cfe68f784e9ad8">Location</td><td data-whiteboard-anchor id="wb-td-d02ef91c568c403b894d0ce996c43274">Status</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-e575ea6723ee421c937db1e91da7f81c"><code>PlaySoundAction</code></th><td data-whiteboard-anchor id="wb-td-860406f99c7b4e4e8fdf20403b160559"><code>packages/lang/src/runtime/actions/audio/PlaySoundAction.ts</code></td><td data-whiteboard-anchor" id="wb-td-553951f624f4440f9f6e9b2600aabed9" data-whiteboard-anchor><span class="dead">Never constructed anywhere</span>, and not re-exported from the engine barrel — so it is unreachable from the app even by import.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-b24cf49c56a34452abdf00ae50dba89d"><code>soundUtils.ts</code>, <code>SoundModels.ts</code></td><td data-whiteboard-anchor id="wb-td-3dadbe523fe04d29b438724c6856f3fe"><code>packages/lang/src/runtime/{utils,models}/</code></td><td data-whiteboard-anchor" id="wb-td-4515c9a3d75543a7b3b8b538534370d0" data-whiteboard-anchor><span class="dead">Dead</span> — a second cue model with a conflicting contract, exported under the same <code>SoundCue</code> name as the live one.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-d12211ec90dc44598f8c75568c9ed97e"><code>PREDEFINED_SOUNDS</code></td><td data-whiteboard-anchor id="wb-td-68acf3e9af3c467180b88bc251fcaa75"><code>packages/lang/src/runtime/models/SoundModels.ts:74</code></td><td data-whiteboard-anchor id="wb-td-c2f7a08ad4b24a06997cceaa39472ace"><span class="dead">Dead</span> — a third name vocabulary (<code>beep</code>/<code>buzzer</code>/<code>chime</code>/<code>tick</code>/<code>start</code>), used only by dead <code>soundUtils</code>. It happens to overlap <code>AudioPolicy</code> — which may be why the vocabulary drift went unnoticed.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-32192e20e9b24e249c5bf6725978d87c"><code>RecordingAudioSink</code> seam</th><td data-whiteboard-anchor id="wb-td-c9babff31fc943a5977a7ea018d25936"><code>apps/playground/src/services/audio/RecordingAudioSink.ts</code></td><td data-whiteboard-anchor" id="wb-td-285d92dc7f9c49e79458514c40f58924" data-whiteboard-anchor>Injected-sink constructor path exists on <code>AudioService</code>, but <span class="dead">no test drives the service through it</span> — the one seam that would have caught §6.2–6.3 is untested.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-cf5a2f35e9c04465a95f15dcdf57130f"><code>'debug'</code> sound surface</th><td data-whiteboard-anchor id="wb-td-22cef6069838499fa521457b902c6835"><code>packages/lang/src/metrics/presentation/MetricPresentationPolicy.ts:61</code></td><td data-whiteboard-anchor" id="wb-td-8bb20050043c4064a1487dfb1f00a136" data-whiteboard-anchor><span class="dead">Dead branch</span> — no caller passes surface <code>'debug'</code>, so even the debug view never shows sound cues.</td></tr>
+</table>
+
+<h2 id="wb-h2-d5" data-whiteboard-anchor>6.5 Test coverage asserts the wrong thing</h2>
+<p class="purpose" id="wb-p-bf281adc439a451d91e1773a586393fd" data-whiteboard-anchor>Every sound test asserts metric <em>presence</em>, never audible <em>playback</em>:</p>
+<ul>
+  <li id="wb-li-9a8643af0138418eb4aeaf37190ef7c8" data-whiteboard-anchor><code>apps/playground/tests/runtime-compliance/timer.compliance.test.ts:322-353</code> — asserts a <code>sound</code>-type metric exists with <code>trigger === 'complete'</code> and countdown <code>atSecond</code> values 3, 2, 1.</li>
+  <li id="wb-li-2a1bd2a91e684423b5b8e7afcc81fead" data-whiteboard-anchor>Equivalent assertions in <code>amrap.compliance.test.ts:629-661</code>, <code>emom.compliance.test.ts:169-207</code>, <code>jit-compilation/forced-timer.test.ts:106-114</code>.</li>
+</ul>
+<p class="purpose" id="wb-p-4121be14fb4343b19ebc2f5b2aeb82da" data-whiteboard-anchor>These are green today and would stay green with the playback path entirely deleted. Nothing in the suite would notice that the product is silent. <strong>A future bridge must be tested at the playback boundary</strong> — e.g. drive <code>AudioService</code> with a <code>RecordingAudioSink</code> and assert the resolved notes, which would have caught both the missing bridge and the name mismatch.</p>
+
+<h1 id="wb-h1-model" data-whiteboard-anchor>7. The shape of the current design</h1>
+<p class="purpose" id="wb-p-bdc9733971d6401ea1ac139c6e5fca43" data-whiteboard-anchor>What the code is actually asking for, independent of the fix:</p>
+<ul>
+  <li id="wb-li-e9b01012e16b4526a16e8d4fd9bf1053" data-whiteboard-anchor><strong>Runtime owns semantics, app owns synthesis.</strong> The runtime correctly decides <em>what</em> happened and <em>when</em>; the app correctly knows <em>how</em> to make a tone. The split is right. Only the seam between them is missing.</li>
+  <li id="wb-li-bee08460e7094b4caad349d947b8d7a1" data-whiteboard-anchor><strong>Sound needs a single owner for names.</strong> Three vocabularies exist today (<code>AudioPolicy</code>, runtime cue names, <code>PREDEFINED_SOUNDS</code>) and none is authoritative. A cue name should resolve in exactly one place, and an unmapped name should be a loud, visible error rather than a silent fallback to <code>beep</code>.</li>
+  <li id="wb-li-1b13daed096347188479e8fe4e059183" data-whiteboard-anchor><strong>Output vs. event.</strong> The runtime's <code>system</code> output channel is a good fit for <em>recording</em> a cue that fired (it already lands in analytics and the cast channel), but a poor fit for <em>commanding</em> playback at a precise moment. A cue needs both: a recorded fact and an immediate trigger.</li>
+  <li id="wb-li-fa65f810e7aa440b8842cb13ab0eebb3" data-whiteboard-anchor><strong>Volume is per-call only.</strong> <code>playSound(name, volume)</code> takes a scalar, but there is no global user volume setting — the Settings page offers on/off only, despite the "Audio bell toggle &amp; volume indicator" described in <code>docs/abstract-views/</code>.</li>
+  <li id="wb-li-e1dd87fc05b042c1b5d2ba4c7fc7fa6b" data-whiteboard-anchor><strong>The <code>WebAudioSink</code> envelope is fixed.</strong> Gain ramps from <code>volume × 0.5</code> down to <code>0.01</code> over the note duration. There is no attack, no per-cue timbre beyond oscillator type, and no sample/asset path — every sound is synthesized.</li>
+</ul>
+
+<h1 id="wb-h1-request" data-whiteboard-anchor>8. The request, broken down</h1>
+<p class="purpose" id="wb-p-70563c23daab4d38af5a0dc1a83bf8e1" data-whiteboard-anchor>A target design, stated in terms the codebase can be checked against. Everything below is <em>intent</em>, not current behaviour — §9 is the gap analysis.</p>
+
+<h2 id="wb-h2-req-concepts" data-whiteboard-anchor>8.1 Core concepts</h2>
+<table>
+  <tr><th data-whiteboard-anchor id="wb-th-92bd830c4c5541af965ecb0e4d5f8fd4">Concept</th><td data-whiteboard-anchor id="wb-td-9bcee78197a344029bc90af89ef0dfd8">Definition</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-21610751ff70403fa2663dcfe7ec5da1">Sound profile</th><td data-whiteboard-anchor id="wb-td-39ad8d3be2df44c7a864758729ddd712">A named, user-defined set of rules describing <em>which</em> sounds fire and <em>when</em>, relative to a block's own duration. Profiles are defined in Settings and are the unit of selection.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-63e8c94bca004d8383ed8d9354c48b61">Profile rule</th><td data-whiteboard-anchor id="wb-td-2033cf474dfb41499be772f9ea067787">One trigger within a profile: an offset notation (<code>:00</code>, <code>-:03</code>, …) plus the sound to play at that point.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-432e23b740544e17a5ce4d6489107f35">Default profile</th><td data-whiteboard-anchor id="wb-td-672695324f5342d9bd9bb897c21e3400">The profile applied when no profile is selected. Always defined; falls back to the default profile.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-6965a59c93f147cf8363ef990c531f78">Profile selection</th><td data-whiteboard-anchor id="wb-td-736a00c5ce924934b80063cab8139347">A tag of the form <code>sound-{profile}</code>. On a <strong>note</strong> it selects the profile for the whole note; on a <strong>line/block</strong> it selects the profile for that block only.</td></tr>
+</table>
+
+<h2 id="wb-h2-req-rules" data-whiteboard-anchor>8.2 Rule notation</h2>
+<p class="purpose" id="wb-p-d634e1eec73348c1b326eb911afefaa3" data-whiteboard-anchor>Rules reuse the language's existing duration notation, with a leading <code>:</code> or <code>-</code> selecting the anchor:</p>
+<table>
+  <tr><th data-whiteboard-anchor id="wb-th-dfa6c9af73e84714bf5d219896e0e14e">Notation</th><td data-whiteboard-anchor id="wb-td-0e3471a637f24992b2f5c166b93f57ea">Meaning</td><td data-whiteboard-anchor id="wb-td-6ab0de6e87504767a5cea8cd7caac53e">Example</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-afda61d9c4a74382b7e5d8161ecf5085"><code>:00</code></th><td data-whiteboard-anchor id="wb-td-9bebf649d603453bb1eba070893a6294">Start of the block.</td><td data-whiteboard-anchor id="wb-td-08ce9941f1404a82b96706a9e442406d">A profile that opens with a horn at <code>:00</code>.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-5f54284ad659422382b8cfd57d7e7f95"><code>-:00</code></th><td data-whiteboard-anchor id="wb-td-82268d0aa7914c15bcba21e6defa47f1">End of the block.</td><td data-whiteboard-anchor id="wb-td-396390cf1e8b4fe4950e9555ab685ee3">A profile that finishes with a bell at <code>-:00</code>.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-21d82ca0cbaf4f3896efbe2b2908a985"><code>-:03</code>, <code>-:02</code>, <code>-:01</code></th><td data-whiteboard-anchor id="wb-td-826e90a297634726a7e7a1e8c85f370d">Seconds remaining, counted back from the end.</td><td data-whiteboard-anchor id="wb-td-a103c4efcbce44fbbed77a972ec41ff3">The classic 3-2-1 countdown is three rules: <code>-:03</code>, <code>-:02</code>, <code>-:01</code>.</td></tr>
+  <tr><th data-whiteboard-anchor id="wb-th-4b2cb21a100246f8b9aaf4259066ee73"><code>:05:00</code></th><td data-whiteboard-anchor id="wb-td-69d30600dd5b46c6903f2e171497fe5d">Elapsed time from the start — a sound 5 minutes into a 5:00 block. The magnitude accepts every duration spelling: <code>00:05:00</code>, <code>05:00</code> and <code>5:00</code> all mean the same offset.</td><td data-whiteboard-anchor id="wb-td-412f53bf6a754079956904700a0d982f">A mid-workout mark.</td></tr>
+</table>
+<p class="purpose" id="wb-p-5a03e7b5772d4a3db6d054ba114c393e" data-whiteboard-anchor>Two families, distinguished by the sign: <strong>anchored to the start</strong> (<code>:…</code>, elapsed) and <strong>anchored to the end</strong> (<code>-:…</code>, remaining). A rule's offset is relative to the block's own duration, so one profile works for any block length.</p>
+
+<h2 id="wb-h2-req-selection" data-whiteboard-anchor>8.3 Selection and precedence</h2>
+<p class="purpose" id="wb-p-7eab81ac80cb4992868a114ea21044c4" data-whiteboard-anchor>Three levels, most specific wins:</p>
+<div class="flow">
+<div><span class="dim">1</span>  <strong>Block level</strong> — a <code>sound-{profile}</code> tag on a line selects the profile for that block only.</div>
+<div><span class="dim">2</span>  <strong>Note level</strong> — a <code>sound-{profile}</code> tag on the note selects the profile for every block in the note.</div>
+<div><span class="dim">3</span>  <strong>Default</strong> — no selection anywhere → the default profile applies.</div>
+<div>&nbsp;</div>
+<div><span class="dim">note tag</span> ──▶ compile-level resolution ──▶ <strong>default profile</strong></div>
+<div><span class="dim">block tag</span> ──▶ overrides the note-level choice for that one block</div>
+</div>
+<p class="purpose" id="wb-p-10c1a4895dc24a7f93d5b88c969b6272" data-whiteboard-anchor>The note-level tag is resolved <strong>at compile level</strong>, not at runtime — the compiler already knows the note, so the resolution is a compile-time decision and needs no runtime lookup.</p>
+
+<h2 id="wb-h2-req-runtime" data-whiteboard-anchor>8.4 What the runtime must do</h2>
+<p class="purpose" id="wb-p-f36a9d3db9df4fb68fbb266591719585" data-whiteboard-anchor>Given a block and the profile resolved for it, the runtime subscribes to the right event triggers and plays the right sound for each rule:</p>
+<div class="flow">
+<div><span class="dim">profile rules</span> ──▶ <code>SoundCueBehavior</code> (or successor)</div>
+<div>   ├─ <code>:00</code>        ──▶ subscribe <code>mount</code>   ──▶ play</div>
+<div>   ├─ <code>-:00</code>       ──▶ subscribe <code>unmount</code> ──▶ play</div>
+<div>   ├─ <code>-:03/-:02/-:01</code> ──▶ subscribe <code>tick</code> (bubble) ──▶ play at each remaining second</div>
+<div>   └─ <code>:05:00</code>     ──▶ subscribe <code>tick</code> (bubble) ──▶ play when elapsed reaches 5:00</div>
+<div>&nbsp;</div>
+<div>cue fires ──▶ emit <code>SoundMetric</code> (record the fact) <em>and</em> trigger playback (act on it)</div>
+</div>
+<p class="purpose" id="wb-p-332623886a454a7b904714ba91be85e3" data-whiteboard-anchor>The rule's <strong>sound name</strong> is carried on the metric, so the same resolution path that records the cue is the one that plays it. A profile's rule names a sound; that name must resolve against the same authoritative sound table the app uses — <em>not</em> the current disjoint vocabularies of §3.2.</p>
+
+<h1 id="wb-h1-gap" data-whiteboard-anchor>9. Gap analysis — what is there, what is missing</h1>
+<p class="purpose" id="wb-p-b0ee810fad184f01ad25c1c9ae083aa5" data-whiteboard-anchor>Each row states the current state, the gap, and the change required. <strong>Ready</strong> = usable plumbing exists; <strong>Partial</strong> = the mechanism exists but does not reach the target; <strong>Absent</strong> = nothing to build on.</p>
+
+<h2 id="wb-h2-gap-a" data-whiteboard-anchor>9.1 Summary table</h2>
+<table>
+  <tr><th data-whiteboard-anchor id="wb-th-97dee42e3fb8455c949bcec02fe77b93">Area</th><td data-whiteboard-anchor id="wb-td-37e14f1c1df747ba9d39ac179ce20a93">State</td><td data-whiteboard-anchor id="wb-td-10701a790310464f831d7ba4bac01883">What exists / what's missing / what must change</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-3caae56bdc824e32a74c0801dcf1412a">Sound profile storage</th><td data-whiteboard-anchor" id="wb-td-afa34fbd4f7c4c54ab7bed6332c35e39" data-whiteboard-anchor><strong>Partial</strong></td><td data-whiteboard-anchor id="wb-td-ce127c062d9c4540967c3565dec71f49"><strong>Exists:</strong> a settings convention — namespaced <code>localStorage</code> keys (<code>'wod-wiki-audio-enabled'</code>, <code>'wodwiki.profile.v1'</code>), the <code>LocalStore</code> typed-JSON wrapper, and a remote-capable <code>meta</code> KV (<code>metaSetPref</code>/<code>metaGetRow</code>) for API builds. <strong>Missing:</strong> any profile schema; there is no generic settings registry, so this is a new one-off module. <strong>Change:</strong> a <code>soundProfiles</code> store following the house pattern, with a default profile that always exists.</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-5b6b4cbbb32740f3a4cd1587d0c26ccc">Profile authoring UI</th><td data-whiteboard-anchor" id="wb-td-a17a6bdd46da472e8be68f3fcaab1cbc" data-whiteboard-anchor><strong>Absent</strong></td><td data-whiteboard-anchor id="wb-td-6e0fa2b7de7644a2b62bca62e010426c"><strong>Exists:</strong> <code>SettingsPage.tsx</code> has the pattern to copy — the <code>TagsSettingsSection</code> (:662) is a create/list/delete CRUD over a store. <strong>Missing:</strong> a Sound Profiles section, and any editor for rule lists. <strong>Change:</strong> a new Settings section with a rule editor (offset notation + sound name per row) and CRUD over profiles.</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-c80721295e9643ce8a0a3b5188216af2">Note-level tag → compile</th><td data-whiteboard-anchor" id="wb-td-04940c8f92da4e21b10aa71590032571" data-whiteboard-anchor><strong>Partial</strong></td><td data-whiteboard-anchor id="wb-td-b7db59ec6d47441583d337b929bfb557"><strong>Exists:</strong> note tags are first-class — <code>Note.tags</code> (<code>packages/core/src/types/storage.ts:43</code>), <code>HistoryEntry.tags</code> (<code>apps/playground/src/types/history.ts:43</code>), the <code>note_tags</code> junction store, and frontmatter extraction (<code>extractTypedFrontmatterTags</code>). <strong>Missing:</strong> the path from a note's tags into compilation — <code>ScriptBlock</code> carries no <code>noteId</code> or <code>tags</code>, the parse path takes only content + sport (<code>runtimeTimerModel.ts:12-15</code>), and <code>IRuntimeContext</code> exposes no note metadata. <strong>Change:</strong> carry the resolved profile (or the note's tags) into the compile call. <code>RuntimeStackOptions.analyticsOptions.userProfile</code> is the existing precedent for compile-time user data (<code>IRuntimeOptions.ts:113-117</code>).</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-c8ad1fcd1c454c6c894afd07b1f6dfa4">Block-level tag</th><td data-whiteboard-anchor" id="wb-td-8bf53cf1aa3e458da869099f64793b3c" data-whiteboard-anchor><strong>Partial</strong></td><td data-whiteboard-anchor id="wb-td-9d06688a823f436f8ed7ba13f27e7e96"><strong>Exists:</strong> a per-line <em>property</em> already parses — <code>sound: classic</code> and <code>{ "sound": "classic" }</code> both yield a <code>Custom</code> <code>PropertyMetric</code> with key <code>"sound"</code> (verified). <strong>Missing:</strong> it is not a <em>tag</em> and not a <code>SoundMetric</code>; there is no per-line tag token in the grammar, and <code>'sound'</code> is absent from <code>PROPERTY_KEY_TO_METRIC_TYPE</code> (<code>semantic-classifier.ts:21-28</code>), so it lands as <code>Custom</code>. <strong>Change:</strong> either promote the property key to <code>MetricType.Sound</code>, or extend the grammar for a true tag token. The property route is far cheaper and needs no grammar change.</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-f4172dd65dad4b4dbc0d138d51ad36f1">Tag type registry</th><td data-whiteboard-anchor id="wb-td-aa98da3e71194647b6b8bd4ad83e3749"><strong>Ready</strong></td><td data-whiteboard-anchor id="wb-td-c62238dd2db543a8afe0cccfac6eef67"><strong>Exists:</strong> tag types are fully user-creatable at runtime — <code>SettingsPage.tsx:705</code> calls <code>putTagType</code> with only a uniqueness check, and <code>TagType</code> is an open union <code>(string &amp; {})</code> (<code>storage.ts:77</code>). A <code>sound-classic</code> type is registrable today. <strong>Gap:</strong> a tag <em>type</em> is a classification dimension, not a value — it does not by itself carry "which profile". The profile <em>name</em> needs a home: either a tag whose label is <code>sound-classic</code>, or a dedicated <code>sound-profile</code> type whose label is the profile name.</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-366f4accc2b943a1a12ebe599b76378a">Rule notation parsing</th><td data-whiteboard-anchor id="wb-td-00fb4edba8704a88a9ba742d3420b473"><strong>Partial</strong></td><td data-whiteboard-anchor id="wb-td-9b42a1f8059e4ad88d445498b4dc53c3"><strong>Exists:</strong> duration parsing is solid — <code>DurationMetric</code> splits on <code>:</code> and reverses into d/h/m/s (<code>DurationMetric.ts:57-77</code>), so <code>:30</code> = 30 s and <code>5:00</code> = 300 000 ms. <strong>Missing:</strong> <strong>negative offsets do not exist.</strong> The <code>Timer</code> token is digits-only (<code>whiteboardscript.grammar:83</code>); <code>Duration</code> admits no sign (:65); <code>DurationMetric</code> throws on negative components (:64). Verified: <code>-:03</code> parses today as a <strong>round-lap marker plus a 3-second timer</strong> — not a negative duration, not an error. <strong>Change:</strong> rule offsets need their own parser rather than reusing the grammar's <code>Timer</code> token. Reusing <code>DurationMetric</code> for the magnitude and adding sign handling outside it avoids touching the language.</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-7d2e31d525934789b318d10221007bb6">Runtime trigger subscription</th><td data-whiteboard-anchor id="wb-td-9240104c31fc4afe9ab747ceafcb856a"><strong>Partial</strong></td><td data-whiteboard-anchor id="wb-td-076a90103c694c00af2ef6370944ea72"><strong>Exists:</strong> <code>SoundCueBehavior</code> already subscribes to <code>mount</code>, <code>tick</code> (scope <code>'bubble'</code>), and <code>unmount</code>, and de-duplicates countdown seconds via a <code>Set&lt;number&gt;</code>. <strong>Missing:</strong> the trigger set is fixed — <code>mount</code> / <code>countdown</code> / <code>complete</code> / <code>unmount</code> — and the countdown path only understands "N seconds remaining", computed from <code>durationMs − elapsed</code>. There is no notion of an <em>elapsed-from-start</em> offset (<code>:05:00</code>), and rules are not data — they are hardcoded per strategy. <strong>Change:</strong> generalize the behavior to take rules as data, and add an elapsed-relative trigger alongside the remaining-relative one.</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-53e3ec76a7f94723a9d2da46bd98e340">Sound name resolution</th><td data-whiteboard-anchor id="wb-td-0bce1faa78f74198bf97011a6179a21c"><strong>Absent</strong></td><td data-whiteboard-anchor id="wb-td-52c868e0e42941e892dbbeb43a199d81"><strong>Exists:</strong> <code>AudioPolicy</code> maps 8 names → notes; <code>AudioService</code> resolves and plays. <strong>Missing:</strong> the runtime's 6 cue names are disjoint from those 8 (§3.2, verified), and <code>AudioService</code> <em>silently</em> falls back to <code>beep</code> on an unknown name (<code>AudioService.ts:52-59</code>). A profile rule naming a sound would therefore always produce a generic beep, invisibly. <strong>Change:</strong> one authoritative name table. A profile's rule names a sound from that table; an unmapped name must be a visible error, not a fallback.</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-d8a2db54d89945bbb5b7ba3dba0e9fbb">Runtime → playback bridge</th><td data-whiteboard-anchor" id="wb-td-6297b7df5883465b8ccf876f0b049bc3" data-whiteboard-anchor><strong>Absent</strong></td><td data-whiteboard-anchor id="wb-td-01ee7d1b9011421fa04ee0c334ab84e3"><strong>Exists:</strong> <code>useWorkbenchRuntime.ts:33</code> listens for a <code>'sound:play'</code> event and calls <code>audioService.playSound</code>; the cast path carries an <code>rpc-audio</code> channel end-to-end. <strong>Missing:</strong> no producer for <code>'sound:play'</code> — <code>PlaySoundAction</code> is never constructed and is not exported from the engine barrel — and no consumer reads <code>SoundMetric</code> outputs (§1, §6.2). <strong>Change:</strong> decide the channel and wire it. An output→playback subscriber and an event→playback event are both viable; the event channel is closer to existing intent but needs its producer built and exported.</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-568c7b4c65344f15a37bef5069d5153e">Block duration at compile time</th><td data-whiteboard-anchor id="wb-td-47a8751536aa4d02a36cdb7ec7efbb92"><strong>Ready</strong></td><td data-whiteboard-anchor id="wb-td-a599ece9c76b4bd59ae47d26df2ae278"><strong>Exists:</strong> a block's duration is known at compile time — <code>AmrapLogicStrategy.ts:44-47</code> reads <code>MetricType.Duration</code> from the statements. <strong>Gap:</strong> only usable if a profile's rules are resolved <em>against</em> that duration at compile time (which §8.3 wants for the note-level tag). Elapsed-relative rules must also handle a block whose duration is unknown (<code>:?</code> collectible).</td></tr>
+
+  <tr><th data-whiteboard-anchor id="wb-th-dc81d76492a2427c9624b4ecbe0d514e">Test coverage</th><td data-whiteboard-anchor id="wb-td-bb153333b2db4b56b67ab23e0d1bc2d7"><strong>Absent</strong></td><td data-whiteboard-anchor id="wb-td-3b7c603658d24684b6560a2b75f64ca3"><strong>Missing:</strong> no test asserts audible playback (§6.5); the sound compliance tests assert metric presence only. The <code>RecordingAudioSink</code> seam exists on <code>AudioService</code> but no test drives the service through it. <strong>Change:</strong> a playback-boundary test (drive the service with a recording sink, assert resolved notes) plus profile-resolution tests — these are what would have caught both the missing bridge and the name mismatch.</td></tr>
+</table>
+
+<h2 id="wb-h2-gap-b" data-whiteboard-anchor>9.2 Where the work concentrates</h2>
+<p class="purpose" id="wb-p-106aea452a6e4cc78df4a2ca4b7d1878" data-whiteboard-anchor>Two clusters, plus one cross-cutting decision:</p>
+<ul>
+  <li id="wb-li-ad9a900859314d14b4383132c77a7407" data-whiteboard-anchor><strong>Compile-side resolution</strong> (mostly new): profile storage → rule parsing → note-level tag → compile-level selection → per-block profile. The pieces that make this feasible already exist — the settings convention, the tag-type registry, and <code>analyticsOptions.userProfile</code> as precedent for compile-time user data. What does <em>not</em> exist is the path from note tags into the compiler.</li>
+  <li id="wb-li-de37d956d5b04091a8db91bcfd356900" data-whiteboard-anchor><strong>Runtime-side generalization</strong> (mostly extending): <code>SoundCueBehavior</code> already does mount / tick / unmount and countdown de-duplication. It needs rules as data instead of hardcoded cues, plus an elapsed-relative trigger for <code>:05:00</code>-style rules.</li>
+  <li id="wb-li-180ba82bf2754b04b877edfd28eeec30" data-whiteboard-anchor><strong>Cross-cutting — the one vocabulary decision.</strong> Everything above converges on a single question: <em>what is a sound called?</em> Until one table owns the names, profiles will resolve to strings that playback cannot honor, and the existing silent-fallback will hide it. This is the same defect as §3.2 and §6.3, seen from the profile angle.</li>
+</ul>
+
+<h2 id="wb-h2-gap-c" data-whiteboard-anchor>9.3 Resolved design decisions</h2>
+<p class="purpose" id="wb-p-51d5df16d67e43efb8703a7c837557c5" data-whiteboard-anchor>Points where the request as stated left a choice open, and the answers now given:</p>
+<ul>
+  <li id="wb-li-070eec188dda41d59a5d2659f3d1717d" data-whiteboard-anchor><strong>Does a profile select <em>sounds</em> or <em>trigger points</em>?</strong> <strong>Both.</strong> Each trigger point defines the sound it generates, so a rule is "offset + sound name" and the profile fully determines both <em>when</em> and <em>what</em>.</li>
+  <li id="wb-li-d62a4cc070464c7fb2f47b08df70be29" data-whiteboard-anchor><strong>Is the block-level selection a tag or the existing property?</strong> <strong>Parser-level tag references.</strong> A tag reference is written <code>#{tag-slug}</code> and used as a property value; tags are marked down with the metrics they add, so a tag can contribute a sound selection. Several tags can be stacked on one line.</li>
+  <li id="wb-li-ec695838c1fe42be8a1b26950ca1575d" data-whiteboard-anchor><strong>Does the note-level tag override a block-level one, or merge?</strong> <strong>Strict precedence, no merge.</strong> The note level overrides the default, and the line level overrides the note level.</li>
+  <li id="wb-li-fa8635ef5b02406196f9ec33fb696413" data-whiteboard-anchor"><strong>What happens to a rule whose offset exceeds the block's duration?</strong> <strong>It never fires.</strong> The rule is dropped when the profile is resolved against the block's duration — no warning, no error.</li>
+  <li id="wb-li-97cd792c63f544e7bbc1e8244a1db900" data-whiteboard-anchor"><strong>Does the profile replace the existing per-strategy cues</strong> (<code>countdown-beep</code>, <code>timer-complete</code>, …), or coexist with them? <strong>Replaced.</strong> A generic sound behavior loads the profile's rules and sends sound events at the trigger points; the per-strategy hardcoded cues are gone.</li>
+</ul>
+<p class="purpose" id="wb-p-a1b2c3d4e5f60718293a4b5c6d7e8f90" data-whiteboard-anchor>Two further consequences worth recording. First, the trigger magnitude accepts every duration spelling the language already understands — <code>:05:00</code>, <code>:00:05:00</code>, <code>:5:00</code> and <code>:300</code> are the same offset. Second, a rule's offset is relative to the block's own duration, so one profile works for any block length.</p>
+
+</main>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2 id="wb-current-title"></h2>
+  <a id="wb-current-source">Source block</a>
+  <p id="wb-current-quote"></p>
+  <p id="wb-current-context"></p>
+  <p id="wb-current-note"></p>
+  <div class="wb-controls">
+    <button id="wb-edit" type="button">Edit</button>
+    <button id="wb-delete" type="button">Delete</button>
+    <button id="wb-hide" type="button">Hide</button>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Publish annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Publish before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Publish before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    byId('wb-count').textContent = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : ` · ${active + 1}/${count}`}`;
+    for (const id of ['wb-prev', 'wb-next', 'wb-publish']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+
+  byId('wb-publish').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    byId('wb-copy-status').textContent = 'Copying…';
+    byId('wb-export').showModal();
+    output.focus();
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy-status').textContent = 'Copied. Paste into your agent window. Drafts are kept.';
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  new ResizeObserver(() => document.documentElement.style.setProperty('--wb-bar-height', byId('wb-bar').offsetHeight + 'px')).observe(byId('wb-bar'));
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>

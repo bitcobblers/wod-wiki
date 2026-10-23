@@ -10,6 +10,20 @@ import { getSoundDef } from './audio/AudioPolicy';
 import type { IAudioSink } from './audio/IAudioSink';
 import { WebAudioSink } from './audio/WebAudioSink';
 
+/**
+ * Thrown when a sound name has no entry in the sound table.
+ *
+ * An unmapped name is a mistake in a sound profile or a cue, and it is
+ * reported rather than papered over — a silent fallback would make every
+ * cue sound identical and hide the mistake.
+ */
+export class UnknownSoundError extends Error {
+  constructor(public readonly sound: string) {
+    super(`Unknown sound "${sound}" — it has no entry in the sound table`);
+    this.name = 'UnknownSoundError';
+  }
+}
+
 export class AudioService {
   private enabled: boolean;
   private sink: IAudioSink;
@@ -46,17 +60,18 @@ export class AudioService {
     return this.enabled;
   }
 
+  /**
+   * Play a named sound.
+   *
+   * @throws {UnknownSoundError} when the name has no entry in the sound
+   * table. A missing sound is a real defect and must be visible.
+   */
   async playSound(name: string, volume: number = 1.0): Promise<void> {
     if (!this.enabled) return;
 
     const def = getSoundDef(name);
     if (!def) {
-      // Fallback: play a default beep
-      const fallback = getSoundDef('beep');
-      if (fallback) {
-        await this.sink.playNotes(fallback.notes, volume);
-      }
-      return;
+      throw new UnknownSoundError(name);
     }
 
     // Initialize sink if it supports init (WebAudioSink does)

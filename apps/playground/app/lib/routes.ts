@@ -75,6 +75,7 @@ export const ROUTE_PATTERNS = {
   settingsSystem: '/settings/system',
   settingsQueries: '/settings/queries',
   settingsTags: '/settings/tags',
+  settingsSoundProfiles: '/settings/sound-profiles',
   /** Retired — split into /settings/database + /settings/sync; redirects to storage. */
   settingsData: '/settings/data',
   /** Retired — /settings/database renamed to /settings/storage; redirects. */

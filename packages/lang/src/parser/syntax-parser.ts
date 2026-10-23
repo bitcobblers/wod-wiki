@@ -155,14 +155,27 @@ function createPropertyPrimitive(
   if (!match) return null;
 
   const [, key, rawValue] = match;
+  const tagRef = parseTagRef(rawValue);
   return {
     kind: 'property',
     raw,
     meta,
     key,
     valueRaw: rawValue,
-    value: parsePropertyValue(rawValue),
+    value: tagRef !== undefined ? tagRef : parsePropertyValue(rawValue),
+    ...(tagRef !== undefined ? { tagRef } : {}),
   };
+}
+
+/**
+ * The tag slug when a property value is a tag reference (`#{tag-slug}`).
+ *
+ * Returns `undefined` for any other value, including a bare word that
+ * merely looks like one.
+ */
+function parseTagRef(rawValue: string): string | undefined {
+  const match = rawValue.trim().match(/^#\{([a-zA-Z0-9][a-zA-Z0-9-]*)\}$/);
+  return match ? match[1] : undefined;
 }
 
 function parsePropertyValue(rawValue: string): string | number | boolean | null {

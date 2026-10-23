@@ -38,11 +38,11 @@ export class AppliedStrategy {
         return this.builder.getSourceIds();
     }
 
-    hasBehavior<T extends IRuntimeBehavior>(type: new (...args: unknown[]) => T): boolean {
+    hasBehavior<T extends IRuntimeBehavior>(type: new (...args: any[]) => T): boolean {
         return this.builder.hasBehavior(type);
     }
 
-    getBehavior<T extends IRuntimeBehavior>(type: new (...args: unknown[]) => T): T | undefined {
+    getBehavior<T extends IRuntimeBehavior>(type: new (...args: any[]) => T): T | undefined {
         return this.builder.getBehavior(type);
     }
     get exitMode(): 'immediate' | 'deferred' | undefined {

@@ -17,7 +17,7 @@ import { CodeMetadata } from '@bitcobblers/wod-wiki-core';
 import {
     CountdownTimerBehavior,
     ChildSelectionBehavior,
-    SoundCueBehavior,
+    SoundProfileBehavior,
     ReportOutputBehavior
 } from '../../src/runtime/behaviors';
 
@@ -143,7 +143,7 @@ describe('Phase 5: Strategy ChildSelectionBehavior Integration', () => {
 
             const block = compiler.compile([statement], runtime);
 
-            expect(block!.getBehavior(SoundCueBehavior)).toBeDefined();
+            expect(block!.getBehavior(SoundProfileBehavior)).toBeDefined();
         });
 
         it('should include segment output', () => {
@@ -245,7 +245,7 @@ describe('Phase 5: Strategy ChildSelectionBehavior Integration', () => {
 
             const block = compiler.compile([statement], runtime);
 
-            expect(block!.getBehavior(SoundCueBehavior)).toBeDefined();
+            expect(block!.getBehavior(SoundProfileBehavior)).toBeDefined();
         });
 
         it('should include segment output', () => {

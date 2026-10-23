@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { apply, stmtWith, stubRuntime, makeStatement } from '../harness/harness/StrategyTestHarness';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 import { IntervalLogicStrategy } from '../../src/runtime/compiler/strategies/logic/IntervalLogicStrategy';
-import { CountdownTimerBehavior, LabelingBehavior, SoundCueBehavior, MetricPromotionBehavior } from '../../src/runtime/behaviors';
+import { CountdownTimerBehavior, LabelingBehavior, SoundProfileBehavior, MetricPromotionBehavior } from '../../src/runtime/behaviors';
 
 const runtime = stubRuntime();
 const strategy = new IntervalLogicStrategy();
@@ -37,7 +37,7 @@ describe('IntervalLogicStrategy', () => {
     });
 
     describe('apply', () => {
-        it('sets blockType EMOM and adds timer, label, and sound behaviors', () => {
+        it('sets blockType EMOM and adds timer and label behaviors', () => {
             const stmt = makeStatement([
                 { type: MetricType.Duration, value: 60000, origin: 'parser' },
                 { type: MetricType.Hint, value: 'behavior.repeating_interval', origin: 'parser' },
@@ -46,7 +46,15 @@ describe('IntervalLogicStrategy', () => {
             expect(result.blockType).toBe('EMOM');
             expect(result.hasBehavior(CountdownTimerBehavior)).toBe(true);
             expect(result.hasBehavior(LabelingBehavior)).toBe(true);
-            expect(result.hasBehavior(SoundCueBehavior)).toBe(true);
+        });
+
+        it('adds no sound behavior of its own — SoundStrategy owns cues', () => {
+            const stmt = makeStatement([
+                { type: MetricType.Duration, value: 60000, origin: 'parser' },
+                { type: MetricType.Hint, value: 'behavior.repeating_interval', origin: 'parser' },
+            ]);
+            const result = apply(strategy, [stmt], runtime);
+            expect(result.hasBehavior(SoundProfileBehavior)).toBe(false);
         });
 
         it('adds MetricPromotionBehavior when Resistance is present', () => {

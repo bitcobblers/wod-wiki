@@ -187,6 +187,7 @@ export function App() {
                   <Route path="/settings/system" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsQueries} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsTags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.settingsSoundProfiles} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/library/calcs" element={<div className="p-6"><CalcAuthoringPanel /></div>} />
                   <Route path="/legacy" element={<PlaygroundLandingPage />} />
                   <Route path="/syntax" element={<SyntaxView />} />

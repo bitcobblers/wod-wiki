@@ -86,11 +86,34 @@ describe('AudioPolicy', () => {
   });
 
   describe('SOUND_NAMES', () => {
-    it('includes all expected names', () => {
+    it('includes the UI feedback sounds', () => {
       const expected = ['beep', 'tick', 'click', 'buzzer', 'chime', 'complete', 'select', 'start'];
       for (const name of expected) {
         expect(SOUND_NAMES).toContain(name);
       }
+    });
+
+    it('includes the workout cue sounds', () => {
+      const expected = [
+        'countdown-beep',
+        'timer-complete',
+        'start-beep',
+        'interval-start',
+        'interval-complete',
+        'rest-over',
+      ];
+      for (const name of expected) {
+        expect(SOUND_NAMES).toContain(name);
+        expect(getSoundDef(name)).toBeDefined();
+      }
+    });
+
+    it('has no names beyond the known set', () => {
+      const expected = [
+        'beep', 'tick', 'click', 'buzzer', 'chime', 'complete', 'select', 'start',
+        'countdown-beep', 'timer-complete', 'start-beep',
+        'interval-start', 'interval-complete', 'rest-over',
+      ];
       expect(SOUND_NAMES).toHaveLength(expected.length);
     });
   });

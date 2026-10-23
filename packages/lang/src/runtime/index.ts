@@ -23,6 +23,7 @@ export * from './memory';
 export * from './time';
 export * from './utils';
 export * from './blocks';
+export * from './sound';
 export * from './services/runtimeServices';
 export * from './actions';
 export * from './adapters/RuntimeAdapter';

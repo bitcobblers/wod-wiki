@@ -59,8 +59,8 @@ export type { ChildSelectionConfig, ChildSelectionLoopCondition } from './ChildS
 // ============================================================================
 export { ReportOutputBehavior } from './ReportOutputBehavior';
 export type { ReportOutputConfig } from './ReportOutputBehavior';
-export { SoundCueBehavior } from './SoundCueBehavior';
-export type { SoundCueConfig } from './SoundCueBehavior';
+export { SoundProfileBehavior, SOUND_PLAY_EVENT } from './SoundProfileBehavior';
+export type { SoundProfileBehaviorConfig } from './SoundProfileBehavior';
 
 // ============================================================================
 // Controls Aspect

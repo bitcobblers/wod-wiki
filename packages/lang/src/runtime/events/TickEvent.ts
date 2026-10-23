@@ -7,7 +7,7 @@ import { INowProvider, wallClockNow } from '../INowProvider';
  * Behaviors subscribe to `'tick'` to receive periodic updates:
  * - `TimerTickBehavior` — updates timer elapsed time
  * - `TimerEndingBehavior` — checks if countdown has expired
- * - `SoundCueBehavior` — triggers countdown audio cues
+ * - `SoundProfileBehavior` — triggers countdown audio cues
  * 
  * Production entry point: `runtime.handle(new TickEvent())`
  */

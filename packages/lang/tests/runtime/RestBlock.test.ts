@@ -6,7 +6,7 @@ import {
     ReportOutputBehavior,
     CountdownTimerBehavior,
     LabelingBehavior,
-    SoundCueBehavior
+    SoundProfileBehavior
 } from '../../src/runtime/behaviors';
 
 describe('RestBlock', () => {
@@ -29,7 +29,7 @@ describe('RestBlock', () => {
             expect(block.getBehavior(ReportOutputBehavior)).toBeDefined();
             expect(block.getBehavior(CountdownTimerBehavior)).toBeDefined();
             expect(block.getBehavior(LabelingBehavior)).toBeDefined();
-            expect(block.getBehavior(SoundCueBehavior)).toBeDefined();
+            expect(block.getBehavior(SoundProfileBehavior)).toBeDefined();
         });
 
         it('should set correct block type and label', () => {

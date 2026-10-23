@@ -18,7 +18,7 @@ import { CodeMetadata } from '@bitcobblers/wod-wiki-core';
 import { 
     CountdownTimerBehavior,
     ChildSelectionBehavior,
-    SoundCueBehavior,
+    SoundProfileBehavior,
     MetricPromotionBehavior
 } from '../../src/runtime/behaviors';
 
@@ -115,8 +115,8 @@ describe("JIT Composition", () => {
         expect((timer as any).config.restBlockFactory).toBeDefined();
         expect(typeof (timer as any).config.restBlockFactory).toBe('function');
 
-        // Should have SoundCueBehavior (added by SoundStrategy)
-        expect(block.getBehavior(SoundCueBehavior)).toBeDefined();
+        // Should have SoundProfileBehavior (added by SoundStrategy)
+        expect(block.getBehavior(SoundProfileBehavior)).toBeDefined();
     });
 
     it("should compile generic Timer block with aspect-based behaviors", () => {
@@ -134,7 +134,7 @@ describe("JIT Composition", () => {
         expect(block).toBeDefined();
         expect(block?.blockType).toBe("Timer");
         expect(block?.getBehavior(CountdownTimerBehavior)).toBeDefined();
-        expect(block?.getBehavior(SoundCueBehavior)).toBeDefined();
+        expect(block?.getBehavior(SoundProfileBehavior)).toBeDefined();
     });
 
     it("should auto-detect rep scheme from RepMetrics and add MetricPromotionBehavior", () => {

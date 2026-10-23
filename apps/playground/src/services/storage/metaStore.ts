@@ -18,7 +18,7 @@ export const remotePrefsMode: boolean = storageBackend === 'api';
 
 /** Prefix namespaces hydrated into the pref cache (the vocabulary of remote
  *  pref rows in API builds). */
-export const PREF_NAMESPACES = ['wodwiki.routeWql.v1', 'wodwiki.routeWqlShortcuts.v1'];
+export const PREF_NAMESPACES = ['wodwiki.routeWql.v1', 'wodwiki.routeWqlShortcuts.v1', 'wodwiki.soundProfiles.v1'];
 /** Exact notebook rows (kept narrow — no blanket `wodwiki:` capture). */
 export const PREF_KEYS = ['wodwiki:notebooks', 'wodwiki:active-notebook'];
 

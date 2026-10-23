@@ -7,7 +7,7 @@ export type SoundTrigger = 'mount' | 'unmount' | 'countdown' | 'complete';
 /**
  * SoundMetric represents an audio cue to be played during workout execution.
  * 
- * Used by SoundCueBehavior to emit output records that audio systems can process.
+ * Used by SoundProfileBehavior to emit output records that audio systems can process.
  * 
  * @example
  * ```typescript
