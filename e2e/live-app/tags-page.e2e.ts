@@ -38,7 +38,9 @@ test.describe('Tags — /tags', () => {
   test('gives a tag a metric contribution and keeps it', async ({ page }) => {
     await page.getByPlaceholder('heavy').fill(TAG_NAME);
     await page.getByRole('button', { name: /Add Tag/i }).click();
-    await page.getByRole('button', { name: TAG_NAME, exact: true }).click();
+    const tag = page.getByRole('button', { name: TAG_NAME, exact: true });
+    await expect(tag).toBeVisible();
+    await tag.click();
 
     await expect(page.getByRole('heading', { name: `Edit ${TAG_NAME}` })).toBeVisible();
     await page.getByRole('button', { name: 'Metric' }).click();
@@ -46,12 +48,18 @@ test.describe('Tags — /tags', () => {
     await page.getByLabel('Metric value').fill('heavy');
     await page.getByLabel('Metric unit').fill('text');
     await page.getByRole('button', { name: 'Save' }).click();
+    // The save is a write — wait for the page to say it landed before
+    // reloading.
+    await expect(page.getByText('Saved')).toBeVisible();
 
     // The contribution survives a reload — it is stored, not just held in
     // the editor.
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Tags', level: 1 })).toBeVisible();
-    await page.getByRole('button', { name: TAG_NAME, exact: true }).click();
+    const reloadedTag = page.getByRole('button', { name: TAG_NAME, exact: true });
+    await expect(reloadedTag).toBeVisible();
+    await reloadedTag.click();
+    await expect(page.getByRole('heading', { name: `Edit ${TAG_NAME}` })).toBeVisible();
     await expect(page.getByLabel('Metric type')).toHaveValue('intensity');
     await expect(page.getByLabel('Metric value')).toHaveValue('heavy');
     await expect(page.getByLabel('Metric unit')).toHaveValue('text');
@@ -60,7 +68,9 @@ test.describe('Tags — /tags', () => {
   test('deletes a tag', async ({ page }) => {
     await page.getByPlaceholder('heavy').fill(TAG_NAME);
     await page.getByRole('button', { name: /Add Tag/i }).click();
-    await page.getByRole('button', { name: TAG_NAME, exact: true }).click();
+    const tag = page.getByRole('button', { name: TAG_NAME, exact: true });
+    await expect(tag).toBeVisible();
+    await tag.click();
 
     await page.getByRole('button', { name: 'Delete' }).click();
 

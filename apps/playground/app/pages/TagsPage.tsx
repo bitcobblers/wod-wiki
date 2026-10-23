@@ -49,6 +49,7 @@ export function TagsPage() {
   const [newLabel, setNewLabel] = useState('');
   const [newKind, setNewKind] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const load = useCallback(async () => {
     const [storedTags, storedTypes] = await Promise.all([
@@ -109,6 +110,7 @@ export function TagsPage() {
     await refreshTagIndex();
     await load();
     setError(null);
+    setSaved(true);
     return true;
   };
 
@@ -146,6 +148,7 @@ export function TagsPage() {
   };
 
   const updateContribution = (index: number, contribution: TagContribution): void => {
+    setSaved(false);
     setContributions(current => current.map((entry, i) => (i === index ? contribution : entry)));
   };
 
@@ -351,6 +354,9 @@ export function TagsPage() {
               >
                 <Trash2 className="size-3.5 mr-1" /> Delete
               </Button>
+              {saved && (
+                <span className="text-xs text-muted-foreground self-center">Saved</span>
+              )}
             </div>
           </div>
         </section>
