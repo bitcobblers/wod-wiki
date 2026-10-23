@@ -7,7 +7,7 @@ import type { SoundProfile } from '../sound/SoundProfile';
  * The metric type a block uses to name its own sound profile.
  *
  * A block-level selection is written as a `sound` metric — `sound: classic`
- * in script content, or contributed by a `#{sound-classic}` tag reference.
+ * in script content, or contributed by a `#sound-classic` tag reference.
  */
 export const SOUND_PROFILE_METRIC = MetricType.Sound;
 

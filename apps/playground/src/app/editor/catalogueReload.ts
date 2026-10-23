@@ -1,7 +1,7 @@
 /**
  * catalogueReload — the editor's signal that a reference catalogue changed.
  *
- * The editor resolves `#{slug}` references and equipment aliases against
+ * The editor resolves `#slug` references and equipment aliases against
  * catalogues that live in async storage: the tag catalogue, the effort
  * registry, the equipment registry. They hydrate after the editor is already
  * on screen, so the marks the editor draws (a tag reference as a hashtag, an

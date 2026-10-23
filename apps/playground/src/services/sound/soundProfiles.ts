@@ -8,7 +8,7 @@
  * A profile is selected two ways, both spelled with a tag:
  *
  * - `sound-{profile}` on a **note** — the profile applies to the whole note.
- * - `sound: #{sound-{profile}}` on a **line** — the profile applies to that
+ * - `sound: #sound-{profile}` on a **line** — the profile applies to that
  *   block only, overriding the note's choice.
  *
  * Both spellings go through the same mechanism: a tag carries the metrics
@@ -216,7 +216,7 @@ export async function updateSoundProfiles(
  * Keep the tag that selects a profile in step with the profile itself.
  *
  * A profile is selected by a tag — `sound-classic` on a note, or
- * `sound: #{sound-classic}` on a line. For that to resolve, the tag has to
+ * `sound: #sound-classic` on a line. For that to resolve, the tag has to
  * exist and carry the sound metric naming the profile. Creating a profile
  * therefore also creates its tag, and deleting a profile removes it.
  *

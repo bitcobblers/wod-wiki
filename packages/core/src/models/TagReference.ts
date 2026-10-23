@@ -1,7 +1,7 @@
 /**
  * Tag references — the tag a metric came from.
  *
- * A script line can point at a tag (`5 reps @ 100 kg #{heavy}`), and the tag
+ * A script line can point at a tag (`5 reps @ 100 kg #heavy`), and the tag
  * brings metrics, other tags and functions. The metrics it brings record
  * where they came from, so the editor can show the tag, link to it, and the
  * compiler can compose what the block used.
@@ -11,7 +11,7 @@
 
 /** A tag reference: the tag, what it carries, and what it names. */
 export interface TagReferenceMetadata {
-  /** The tag's slug — what `#{slug}` refers to. */
+  /** The tag's slug — what `#slug` refers to. */
   slug: string;
   /** The tag's display label (its slug, for now). */
   label: string;

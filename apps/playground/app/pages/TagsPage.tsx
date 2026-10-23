@@ -1,7 +1,7 @@
 /**
  * TagsPage — /tags.
  *
- * A tag is a named bundle a script can reference with `#{slug}`. This page
+ * A tag is a named bundle a script can reference with `#slug`. This page
  * is where those bundles are written: what each tag contributes (metrics
  * with typed values and units, other tags, and functions), and which kind it
  * is.
@@ -105,7 +105,7 @@ export function TagsPage() {
     if (!selected) return false;
     const trimmed = label.trim();
     if (trimmed.length === 0) {
-      setError('A tag needs a name — that name is what `#{slug}` refers to.');
+      setError('A tag needs a name — that name is what `#slug` refers to.');
       return false;
     }
     const clash = tags.find(tag => tag.id !== selected.id && tag.label.trim() === trimmed);
@@ -194,7 +194,7 @@ export function TagsPage() {
         <h1 className="text-lg font-semibold text-foreground">Tags</h1>
         <p className="text-sm text-muted-foreground">
           A tag is a named bundle a script can point at:{' '}
-          <code className="font-mono">5 reps @ 100 kg {'#{heavy}'}</code>. What the tag brings
+          <code className="font-mono">5 reps @ 100 kg {'#heavy'}</code>. What the tag brings
           applies to the line it sits on. A tag can contribute a metric (a typed value with a unit),
           another tag, or a function — a named calculation that runs where the tag applies.
         </p>

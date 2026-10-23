@@ -4,7 +4,7 @@
  * A script line points at a tag instead of repeating what the tag means:
  *
  * ```text
- * 5 reps @ 100 kg #{heavy}
+ * 5 reps @ 100 kg #heavy
  * ```
  *
  * A tag contributes three kinds of thing to the statements that reference
@@ -15,7 +15,7 @@
  * - a **function** — a named calculation the tag activates where it applies.
  *
  * The model lives in core because both the parser (which resolves
- * `#{slug}` references) and the runtime (which runs the functions a tag
+ * `#slug` references) and the runtime (which runs the functions a tag
  * carries) need it, and neither should know how tags are stored.
  */
 
@@ -56,7 +56,7 @@ export type TagContribution =
 
 /** A tag and what it contributes. */
 export interface TagDefinition {
-  /** The slug a script references: `#{slug}`. */
+  /** The slug a script references: `#slug`. */
   readonly slug: string;
   /** What the tag contributes when referenced. */
   readonly contributions: readonly TagContribution[];

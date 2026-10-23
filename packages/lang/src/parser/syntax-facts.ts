@@ -85,7 +85,7 @@ export interface PropertyPrimitive extends BasePrimitive {
   value: string | number | boolean | null;
   /**
    * The tag slugs when the value is one or more tag references
-   * (`#{tag-slug}`). Several can be stacked on one line.
+   * (`#tag-slug`). Several can be stacked on one line.
    *
    * A tag reference names a tag rather than repeating what the tag means.
    * The parser records the references; resolving them to metrics is the
@@ -95,7 +95,7 @@ export interface PropertyPrimitive extends BasePrimitive {
 }
 
 /**
- * A tag reference standing on its own — `5 reps @ 100 kg #{heavy}`.
+ * A tag reference standing on its own — `5 reps @ 100 kg #heavy`.
  *
  * The reference names a tag rather than repeating what the tag means, so
  * the tag applies to the line it sits on.

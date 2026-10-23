@@ -13,7 +13,7 @@ export function prepareRuntimeBlock(block: ScriptBlock): ScriptBlock & { stateme
   if (block.statements?.length) {
     return block as ScriptBlock & { statements: NonNullable<ScriptBlock['statements']> };
   }
-  // The tag index lets a line reference a tag with `#{tag-slug}`.
+  // The tag index lets a line reference a tag with `#tag-slug`.
   const parser = createParser({ tags: getTagIndex() });
   return { ...block, statements: parser.read(block.content, block.sport).statements };
 }

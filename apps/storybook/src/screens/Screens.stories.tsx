@@ -93,7 +93,7 @@ function UniversalNoteEditorView() {
             <div className="flex gap-2 mb-2">
               {(note.tags ?? []).map((t) => (
                 <span key={t} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                  #{t}
+                  #t
                 </span>
               ))}
             </div>
@@ -157,7 +157,7 @@ export const JournalDateStack: StoryObj = {
                   <div className="flex gap-1.5">
                     {(n.tags ?? []).map((t) => (
                       <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                        #{t}
+                        #t
                       </span>
                     ))}
                   </div>
@@ -202,7 +202,7 @@ export const JournalStream: StoryObj = {
                   <div className="flex gap-1">
                     {e.tags.map((t) => (
                       <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                        #{t}
+                        #t
                       </span>
                     ))}
                   </div>

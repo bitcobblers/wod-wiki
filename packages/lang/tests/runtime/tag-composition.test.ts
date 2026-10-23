@@ -28,7 +28,7 @@ describe('the tag composition of a compiled block', () => {
                 ],
             },
         ]);
-        const statements = statementsFor('1:00 #{heavy}', tags);
+        const statements = statementsFor('1:00 #heavy', tags);
 
         const compiler = new JitCompiler();
         compiler.registerStrategy(new GenericTimerStrategy());
@@ -55,7 +55,7 @@ describe('the tag composition of a compiled block', () => {
                 contributions: [{ kind: 'metric', type: MetricType.Sound, value: 'classic' }],
             },
         ]);
-        const statements = statementsFor('1:00 #{sound-classic}', tags);
+        const statements = statementsFor('1:00 #sound-classic', tags);
 
         const compiler = new JitCompiler();
         compiler.registerStrategy(new GenericTimerStrategy());

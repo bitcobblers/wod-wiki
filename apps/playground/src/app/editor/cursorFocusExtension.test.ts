@@ -100,7 +100,7 @@ describe("cursorFocusExtension", () => {
       },
     ]);
 
-    const doc = ["# Repro Note", "", "```time", "10 Pushups #{heavy}", "```", ""].join("\n");
+    const doc = ["# Repro Note", "", "```time", "10 Pushups #heavy", "```", ""].join("\n");
     const state = EditorState.create({
       doc,
       extensions: [sectionField, cursorFocusExtension],
@@ -130,11 +130,11 @@ describe("cursorFocusExtension", () => {
 
     // The tag reference is a hashtag, not a metric mark.
     const tagMarks = markRanges.filter((m) => m.cls.includes("tag-reference"));
-    expect(tagMarks.some((m) => m.text === "#{heavy}")).toBe(true);
+    expect(tagMarks.some((m) => m.text === "#heavy")).toBe(true);
     expect(tagMarks[0]?.cls).toBe("cm-tag-reference");
 
     // The metric the tag brought is not marked as a metric of its own kind.
-    expect(markRanges.some((m) => m.text === "#{heavy}" && m.cls.includes("underline"))).toBe(false);
+    expect(markRanges.some((m) => m.text === "#heavy" && m.cls.includes("underline"))).toBe(false);
   });
 
   it("redraws the marks when a catalogue loads", () => {
@@ -142,7 +142,7 @@ describe("cursorFocusExtension", () => {
     // when it lands, so the marks have to be redrawn when it does.
     setTagIndex([]);
 
-    const doc = ["# Repro Note", "", "```time", "10 Pushups #{heavy}", "```", ""].join("\n");
+    const doc = ["# Repro Note", "", "```time", "10 Pushups #heavy", "```", ""].join("\n");
     const state = EditorState.create({
       doc,
       extensions: [sectionField, cursorFocusExtension],

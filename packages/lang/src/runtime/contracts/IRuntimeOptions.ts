@@ -125,7 +125,7 @@ export interface RuntimeStackOptions extends IRuntimeOptions {
          */
         calcs?: CalculationDefinition[];
         /**
-         * The tag catalogue: the tags a script can reference with `#{slug}`
+         * The tag catalogue: the tags a script can reference with `#slug`
          * and the functions they carry.
          */
         tags?: TagIndex;

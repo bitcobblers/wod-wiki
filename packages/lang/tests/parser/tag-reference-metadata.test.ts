@@ -22,7 +22,7 @@ describe('tag references', () => {
             },
         ]);
 
-        const statements = parse('5 reps #{heavy}', tags);
+        const statements = parse('5 reps #heavy', tags);
         const contributed = statements[0].metrics.toArray().find(m => m.type === 'intensity');
         const reference = getTagReference(contributed?.metadata);
 
@@ -35,7 +35,7 @@ describe('tag references', () => {
             { slug: 'power', contributions: [{ kind: 'function', name: 'power-calc' }] },
         ]);
 
-        const statements = parse('5 reps #{power}', tags);
+        const statements = parse('5 reps #power', tags);
         const marker = statements[0].metrics.toArray().find(m => m.type === tagMarkerType('power'));
         const reference = getTagReference(marker?.metadata);
 
@@ -51,7 +51,7 @@ describe('tag references', () => {
             },
         ]);
 
-        const statements = parse('5 reps #{sound-classic}', tags);
+        const statements = parse('5 reps #sound-classic', tags);
         const marker = statements[0].metrics.toArray().find(m => m.type === tagMarkerType('sound-classic'));
         const reference = getTagReference(marker?.metadata);
 
@@ -67,7 +67,7 @@ describe('tag references', () => {
             },
         ]);
 
-        const statements = parse('5 reps #{heavy}', tags);
+        const statements = parse('5 reps #heavy', tags);
         const marker = statements[0].metrics.toArray().find(m => m.type === tagMarkerType('strength'));
 
         expect(getTagReference(marker?.metadata)?.slug).toBe('strength');

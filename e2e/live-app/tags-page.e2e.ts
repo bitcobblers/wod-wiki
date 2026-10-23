@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 /**
  * Tags (/tags) — the catalogue of what a tag brings.
  *
- * A tag is a named bundle a script points at: `5 reps @ 100 kg #{heavy}`.
+ * A tag is a named bundle a script points at: `5 reps @ 100 kg #heavy`.
  * What the tag contributes applies to the line it sits on — a metric with a
  * typed value and a unit, another tag, or a function (a named calculation
  * that runs where the tag applies).

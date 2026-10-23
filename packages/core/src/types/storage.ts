@@ -88,7 +88,7 @@ export interface TagTypeRecord {
 }
 
 /**
- * A tag: a named bundle a script can reference with `#{slug}`.
+ * A tag: a named bundle a script can reference with `#slug`.
  *
  * Keeping the contributions on the tag means the meaning lives in one place
  * instead of being repeated on every line that wants the tag.

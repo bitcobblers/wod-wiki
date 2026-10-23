@@ -44,7 +44,7 @@ const PROPERTY_KEY_TO_METRIC_TYPE: Record<string, MetricType> = {
   load: MetricType.Load,
   volume: MetricType.Volume,
   work: MetricType.Work,
-  // `sound: classic` names a sound profile, the same way a `#{sound-classic}`
+  // `sound: classic` names a sound profile, the same way a `#sound-classic`
   // tag reference does.
   sound: MetricType.Sound,
 };
@@ -53,7 +53,7 @@ const PROPERTY_KEY_TO_METRIC_TYPE: Record<string, MetricType> = {
 export interface ParseReferences {
   index: ReferenceIndex;
   defaults?: ReferenceResolutionDefaults;
-  /** Tags a script can reference with `#{tag-slug}`. */
+  /** Tags a script can reference with `#tag-slug`. */
   tags?: TagIndex;
 }
 
@@ -375,7 +375,7 @@ function classifyPrimitive(primitive: SyntaxPrimitive): MetricPair[] {
 /**
  * Classify one primitive into the metrics it states, contributes, or marks.
  *
- * A tag reference (`#{tag-slug}`) is not a value the line states — it points
+ * A tag reference (`#tag-slug`) is not a value the line states — it points
  * at what the tag brings — so it is classified separately from the other
  * primitives.
  */

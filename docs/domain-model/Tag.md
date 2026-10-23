@@ -17,7 +17,7 @@ db: wodwiki-db (v20)
 - **Type source:** `apps/playground/src/types/storage.ts`
 - **Database version:** `wodwiki-db` (v23)
 
-A tag is a named bundle a script can reference with `#{slug}` — and the
+A tag is a named bundle a script can reference with `#slug` — and the
 classification label a note carries. Attached to notes through the [[NoteTag]]
 relationship table; referenced by script content through its label (the slug).
 
@@ -30,7 +30,7 @@ references it.
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | string | UUID |
-| `label` | string | Unique. Also the slug a script references: `#{label}`. |
+| `label` | string | Unique. Also the slug a script references: `#label`. |
 | `type?` | TagType | Dynamic string matching a [[TagType]] name (e.g. `'equipment'`, `'discipline'`); also the tag's *kind* (`'sound'` selects a sound profile). |
 | `contributions?` | TagContribution[] | What the tag contributes: `{ kind: 'metric', type, value, unit? }`, `{ kind: 'tag', slug }`, `{ kind: 'function', name }`. |
 | `createdAt` | number | Unix ms |

@@ -19,7 +19,7 @@ export {
   CONSUMED_HINTS,
   createParser,
   MdTimerRuntime,
-  // Tags a script can reference with `#{tag-slug}`
+  // Tags a script can reference with `#tag-slug`
   findTagContributionCycles,
   resolveTagContributions,
   tagContributionMetrics,

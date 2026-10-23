@@ -223,12 +223,12 @@ from a **Tag**, the bundle a script references. Not the physical quantity a
 quantity.
 _Avoid_: tag (the script-facing bundle), label, facet, frontmatter tag.
 **Tag**:
-A named bundle a script can point at with `#{slug}` — `5 reps @ 100 kg #{heavy}`.
+A named bundle a script can point at with `#slug` — `5 reps @ 100 kg #heavy`.
 A tag contributes **metrics** (a typed value with a unit), other **tags**, and
 **functions**; what it contributes applies to the line it sits on. The model
 lives in `packages/core` (a tag definition and its contributions); the catalogue
 is storage-agnostic — the host loads tags and hands the language a tag index,
-and `packages/lang` resolves `#{slug}` references through it.
+and `packages/lang` resolves `#slug` references through it.
 A tag that no line names still applies to a whole note when the note carries it
 as one of its tags — the note-level path.
 One namespace: a user-defined tag layers over a seeded tag of the same slug.

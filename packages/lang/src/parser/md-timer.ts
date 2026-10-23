@@ -7,7 +7,7 @@ import type { TagIndex } from '@bitcobblers/wod-wiki-core';
 export interface ParserConfig {
   references?: ReferenceIndex;
   defaults?: ReferenceResolutionDefaults;
-  /** Tags a script can reference with `#{tag-slug}`. */
+  /** Tags a script can reference with `#tag-slug`. */
   tags?: TagIndex;
 }
 

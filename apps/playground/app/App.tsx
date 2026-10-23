@@ -97,7 +97,7 @@ function GlobalState() {
     // immediately and refreshes subscribed feeds in the background.
     initSeedContentBroadcast()
     void startSeedBootstrap()
-    // The tag catalogue: every surface that resolves a `#{slug}` reference
+    // The tag catalogue: every surface that resolves a `#slug` reference
     // (the editor, the parser, the runtime) reads it from one cache, so it
     // is loaded once here — for the whole app, not just the workbench.
     void loadTagIndex().catch(() => { /* Tags are optional — a document without them still runs. */ })

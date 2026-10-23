@@ -140,7 +140,7 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
   // runtime needs no lookup of its own.
   const noteTags = useWorkbenchSession((s) => s.currentEntry?.tags);
 
-  // The tag index lets a line reference a tag with `#{tag-slug}`, and it
+  // The tag index lets a line reference a tag with `#tag-slug`, and it
   // tells the runtime which functions the tags carry. Parsing is synchronous
   // and tags live in async storage, so the index is cached and refreshed
   // here.
@@ -151,7 +151,7 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
   const [userCalcs, setUserCalcs] = useState<CalculationDefinition[]>([]);
 
   // A run must not start before its configuration has loaded: a run started
-  // against an empty catalogue would resolve no `#{tag}` reference and
+  // against an empty catalogue would resolve no `#tag` reference and
   // register no function.
   const [configurationLoaded, setConfigurationLoaded] = useState(false);
 

@@ -272,7 +272,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     }
     diagnostics.push(...metadata.diagnostics);
   }
-  // The tag references the line carries — what a `#{slug}` brought, and the
+  // The tag references the line carries — what a `#slug` brought, and the
   // sound profile a `#sound-` reference names.
   const tagRefs: TagReferenceMetadata[] = [];
   for (const metric of lineMetrics) {

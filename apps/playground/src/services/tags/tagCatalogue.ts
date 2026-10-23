@@ -4,7 +4,7 @@
  * The language never reads storage: the host loads its tags and hands the
  * language a tag index. This module is that host side. It loads the tags
  * from the tags store, turns them into definitions, and caches the index
- * for the parser (which resolves `#{slug}` references) and the runtime
+ * for the parser (which resolves `#slug` references) and the runtime
  * (which runs the functions a tag carries).
  *
  * Tags live in one namespace. A user-defined tag layers over a seeded tag
@@ -32,7 +32,7 @@ function inferredContributions(slug: string): TagContribution[] {
 /**
  * The tag definitions a set of stored tags makes.
  *
- * A tag's slug is its label — that is what `#{slug}` refers to.
+ * A tag's slug is its label — that is what `#slug` refers to.
  */
 export function buildTagDefinitions(tags: readonly Tag[]): TagDefinition[] {
     const definitions: TagDefinition[] = []
@@ -65,7 +65,7 @@ const tagSource: ITagSource = new StorageTagSource();
 // ── Cached index ───────────────────────────────────────────────────────────
 
 /**
- * The tag index the parser resolves `#{tag-slug}` references against.
+ * The tag index the parser resolves `#tag-slug` references against.
  *
  * Parsing is synchronous but tags live in async storage, so the index is
  * cached here and refreshed when the tags are loaded. A parse that happens

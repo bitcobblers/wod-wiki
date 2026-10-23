@@ -1,5 +1,5 @@
 /**
- * Tag contributions — what a `#{slug}` reference resolves to.
+ * Tag contributions — what a `#slug` reference resolves to.
  *
  * A tag contributes metrics (a typed value with a unit), other tags, and
  * functions (named calculations). Resolving a reference flattens that

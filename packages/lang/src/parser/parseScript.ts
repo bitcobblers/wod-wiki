@@ -14,7 +14,7 @@ export interface ParseOptions {
   references?: ReferenceIndex;
   /** Note-level `metrics.*` defaults applied by the resolver. */
   defaults?: ReferenceResolutionDefaults;
-  /** Tags a script can reference with `#{tag-slug}`. */
+  /** Tags a script can reference with `#tag-slug`. */
   tags?: TagIndex;
 }
 

@@ -170,7 +170,7 @@ function createPropertyPrimitive(
 
 /**
  * The tag slugs when a property value is one or more tag references
- * (`#{tag-slug}`).
+ * (`#tag-slug`).
  *
  * Returns `undefined` for any other value, including a bare word that
  * merely looks like one.
@@ -181,7 +181,7 @@ function parseTagRefs(rawValue: string): string[] | undefined {
 
   const slugs: string[] = [];
   for (const part of parts) {
-    const match = part.match(/^#\{([a-zA-Z0-9][a-zA-Z0-9-]*)\}$/);
+    const match = part.match(/^#([a-zA-Z0-9][a-zA-Z0-9-]*)$/);
     if (!match) return undefined;
     slugs.push(match[1]);
   }
@@ -315,7 +315,7 @@ function mapFragmentToPrimitive(
     }
 
     case terms.TagRef: {
-      const match = raw.match(/^#\{([a-zA-Z0-9][a-zA-Z0-9-]*)\}$/);
+      const match = raw.match(/^#([a-zA-Z0-9][a-zA-Z0-9-]*)$/);
       if (!match) return null;
       const primitive: TagRefPrimitive = {
         kind: 'tag_ref',
