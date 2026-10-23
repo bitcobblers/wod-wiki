@@ -663,20 +663,22 @@ function SystemSection() {
   )
 }
 
-// ── Tags Section ──────────────────────────────────────────────────────────────
+// ── Tag Types Section ────────────────────────────────────────────────────────
 
+/**
+ * The taxonomy: the kinds of tag that exist.
+ *
+ * The tags themselves — what each one contributes — are authored on the
+ * Tags page (/tags). This section administers the classification dimensions
+ * the kinds are drawn from: the note frontmatter typeahead offers them, and
+ * a tag picks one as its kind.
+ */
 function TagsSettingsSection() {
   const [tagTypes, setTagTypes] = useState<TagTypeRecord[]>([])
   const [tags, setTags] = useState<Tag[]>([])
   const [newTypeName, setNewTypeName] = useState('')
   const [newTypeLabel, setNewTypeLabel] = useState('')
   const [newTypeColor, setNewTypeColor] = useState('#3b82f6')
-  const [newTagLabel, setNewTagLabel] = useState('')
-  const [newTagType, setNewTagType] = useState('')
-  const [searchFilter, setSearchFilter] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
-  const [editingTagId, setEditingTagId] = useState<string | null>(null)
-  const [editingTagLabel, setEditingTagLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
   const reload = useCallback(async () => {
     try {
@@ -732,49 +734,6 @@ function TagsSettingsSection() {
     await reload()
   }
 
-  const handleAddTag = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const label = newTagLabel.trim()
-    if (!label) return
-    const existing = tags.find((t) => t.label.toLowerCase() === label.toLowerCase())
-    if (existing) {
-      if (newTagType && existing.type !== newTagType) {
-        await storageService.updateTagType(existing.id, newTagType)
-      }
-    } else {
-      const newTag: Tag = {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        label,
-        type: newTagType || undefined,
-        createdAt: Date.now(),
-      }
-      await storageService.putTag(newTag)
-    }
-    setNewTagLabel('')
-    await reload()
-  }
-
-  const handleReassignTag = async (tagId: string, type: string) => {
-    await storageService.updateTagType(tagId, type === '' ? undefined : type)
-    await reload()
-  }
-
-  const handleDeleteTag = async (tagId: string) => {
-    await storageService.deleteTag(tagId)
-    await reload()
-  }
-  const handleSaveTagLabel = async (tagId: string) => {
-    const trimmed = editingTagLabel.trim()
-    setEditingTagId(null)
-    if (!trimmed) return
-    const tag = tags.find((t) => t.id === tagId)
-    if (!tag || tag.label === trimmed) return
-    await storageService.putTag({ ...tag, label: trimmed })
-    await reload()
-  }
-
-
-  const untypedTags = tags.filter((t) => !t.type || !tagTypes.some((tt) => tt.name.toLowerCase() === t.type?.toLowerCase()))
 
   return (
     <div className="space-y-8">
@@ -783,7 +742,10 @@ function TagsSettingsSection() {
         <div>
           <h2 className="text-base font-semibold text-foreground">Tag Types</h2>
           <p className="text-sm text-muted-foreground">
-            Define classification dimensions for tags. Note frontmatter properties matching a type name will automatically provide typeahead suggestions.
+            The kinds of tag that exist. A tag picks one as its kind, and note frontmatter
+            properties matching a type name provide typeahead suggestions. The tags themselves —
+            and what they contribute — are authored on the{' '}
+            <span className="font-mono">/tags</span> page.
           </p>
         </div>
 
@@ -860,178 +822,6 @@ function TagsSettingsSection() {
         </div>
       </section>
 
-      {/* 2. Filterable & Editable Tags Table */}
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">Tags Table</h2>
-            <p className="text-sm text-muted-foreground">
-              Filter, search, edit, reassign, or delete stored tags.
-            </p>
-          </div>
-        </div>
-
-        <div className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-4">
-          {/* Filters & Quick Add */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-              <input
-                aria-label="Filter tags"
-                className="w-full h-9 rounded-md border border-input bg-background pl-8 pr-3 text-xs outline-none focus:border-primary"
-                placeholder="Filter tags by label…"
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-              />
-            </div>
-
-            <div className="w-48">
-              <select
-                aria-label="Filter by type"
-                className="w-full h-9 rounded-md border border-input bg-background px-2.5 text-xs outline-none focus:border-primary"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-              >
-                <option value="">All Types ({tags.length})</option>
-                <option value="__untyped__">Untyped / General ({untypedTags.length})</option>
-                {tagTypes.map((t) => {
-                  const count = tags.filter((tag) => tag.type?.toLowerCase() === t.name.toLowerCase()).length
-                  return (
-                    <option key={t.id} value={t.name}>
-                      {t.label} ({count})
-                    </option>
-                  )
-                })}
-              </select>
-            </div>
-
-            <form onSubmit={handleAddTag} className="flex items-center gap-2">
-              <input
-                className="h-9 w-36 sm:w-44 rounded-md border border-input bg-background px-3 text-xs outline-none focus:border-primary font-mono"
-                placeholder="New tag…"
-                value={newTagLabel}
-                onChange={(e) => setNewTagLabel(e.target.value)}
-              />
-              <select
-                className="h-9 w-28 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
-                value={newTagType}
-                onChange={(e) => setNewTagType(e.target.value)}
-              >
-                <option value="">Untyped</option>
-                {tagTypes.map((t) => (
-                  <option key={t.id} value={t.name}>{t.label}</option>
-                ))}
-              </select>
-              <Button type="submit" size="sm" className="h-9">
-                <Plus className="size-3.5 mr-1" /> Add
-              </Button>
-            </form>
-          </div>
-
-          {/* Table */}
-          <div className="border border-border rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-muted/50 border-b border-border">
-                  <tr>
-                    <th className="px-4 py-2.5 font-medium">Tag Label</th>
-                    <th className="px-4 py-2.5 font-medium">Type</th>
-                    <th className="px-4 py-2.5 font-medium">Created</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {tags
-                    .filter((tag) => {
-                      if (searchFilter && !tag.label.toLowerCase().includes(searchFilter.toLowerCase().trim())) {
-                        return false
-                      }
-                      if (typeFilter === '__untyped__') {
-                        return !tag.type || !tagTypes.some((tt) => tt.name.toLowerCase() === tag.type?.toLowerCase())
-                      }
-                      if (typeFilter) {
-                        return tag.type?.toLowerCase() === typeFilter.toLowerCase()
-                      }
-                      return true
-                    })
-                    .map((tag) => {
-                      const matchedType = tagTypes.find((t) => t.name.toLowerCase() === tag.type?.toLowerCase())
-                      const isEditing = editingTagId === tag.id
-                      return (
-                        <tr key={tag.id} className="hover:bg-muted/20 transition-colors">
-                          <td className="px-4 py-2 font-mono">
-                            {isEditing ? (
-                              <input
-                                autoFocus
-                                className="h-7 w-full max-w-[200px] rounded border border-primary bg-background px-2 font-mono text-xs outline-none"
-                                value={editingTagLabel}
-                                onChange={(e) => setEditingTagLabel(e.target.value)}
-                                onKeyDown={async (e) => {
-                                  if (e.key === 'Enter') {
-                                    await handleSaveTagLabel(tag.id)
-                                  } else if (e.key === 'Escape') {
-                                    setEditingTagId(null)
-                                  }
-                                }}
-                                onBlur={() => handleSaveTagLabel(tag.id)}
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                className="font-mono text-foreground hover:underline text-left"
-                                title="Click to rename"
-                                onClick={() => {
-                                  setEditingTagId(tag.id)
-                                  setEditingTagLabel(tag.label)
-                                }}
-                              >
-                                {tag.label}
-                              </button>
-                            )}
-                          </td>
-                          <td className="px-4 py-2">
-                            <div className="flex items-center gap-2">
-                              {matchedType && (
-                                <span
-                                  className="size-2 rounded-full shrink-0"
-                                  style={{ backgroundColor: matchedType.color || '#3b82f6' }}
-                                />
-                              )}
-                              <select
-                                aria-label={`Type for ${tag.label}`}
-                                className="h-7 rounded border border-input bg-background px-2 text-xs outline-none cursor-pointer focus:border-primary"
-                                value={tag.type ?? ''}
-                                onChange={(e) => handleReassignTag(tag.id, e.target.value)}
-                              >
-                                <option value="">Untyped</option>
-                                {tagTypes.map((t) => (
-                                  <option key={t.id} value={t.name}>{t.label}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </td>
-                          <td className="px-4 py-2 text-muted-foreground text-[11px]">
-                            {tag.createdAt ? new Date(tag.createdAt).toLocaleDateString() : '—'}
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            <button
-                              type="button"
-                              aria-label={`Delete tag ${tag.label}`}
-                              className="text-muted-foreground hover:text-destructive p-1 rounded transition"
-                              onClick={() => handleDeleteTag(tag.id)}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   )
 }

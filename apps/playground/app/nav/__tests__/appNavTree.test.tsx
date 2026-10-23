@@ -223,7 +223,7 @@ describe('appNavTree - Settings navigation', () => {
     expect(queries.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsQueries })
 
     expect(tags.id).toBe('settings-tags')
-    expect(tags.label).toBe('Tags')
+    expect(tags.label).toBe('Tag Types')
     expect(tags.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsTags })
 
     expect(soundProfiles.id).toBe('settings-sound-profiles')

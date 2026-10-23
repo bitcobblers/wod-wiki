@@ -67,6 +67,26 @@ describe('TagsPage', () => {
         });
     });
 
+    it('filters the tag list by name and by kind', async () => {
+        await storageService.putTag({ id: 'tag-1', label: 'heavy', type: 'equipment', createdAt: 1000 });
+        await storageService.putTag({ id: 'tag-2', label: 'benchmark', createdAt: 1001 });
+
+        renderTags();
+
+        await waitFor(() => expect(screen.getByText('heavy')).toBeTruthy());
+
+        const search = screen.getByLabelText('Filter tags');
+        fireEvent.change(search, { target: { value: 'bench' } });
+        await waitFor(() => expect(screen.queryByText('heavy')).toBeNull());
+        expect(screen.getByText('benchmark')).toBeTruthy();
+
+        fireEvent.change(search, { target: { value: '' } });
+        const kind = screen.getByLabelText('Filter by kind');
+        fireEvent.change(kind, { target: { value: 'equipment' } });
+        await waitFor(() => expect(screen.queryByText('benchmark')).toBeNull());
+        expect(screen.getByText('heavy')).toBeTruthy();
+    });
+
     it('refuses a second tag with the same name', async () => {
         await storageService.putTag({ id: 'tag-1', label: 'heavy', createdAt: 1000 });
 

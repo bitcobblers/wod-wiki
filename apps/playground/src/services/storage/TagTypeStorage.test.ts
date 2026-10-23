@@ -80,4 +80,25 @@ describe('TagType Storage and CRUD (Ticket 01)', () => {
     const updatedDisciplineTags = await service.getTags('discipline');
     expect(updatedDisciplineTags.map(t => t.label).sort()).toEqual(['general-note', 'gymnastics']);
   });
+  it('seeds the default kinds when the registry is empty', async () => {
+    await service.ensureDefaultTagTypes();
+
+    const names = (await service.getAllTagTypes()).map(t => t.name).sort();
+    expect(names).toContain('equipment');
+    expect(names).toContain('discipline');
+  });
+
+  it('leaves a registry the user already filled alone', async () => {
+    await service.putTagType({
+      id: 'type-movement',
+      name: 'movement',
+      label: 'Movement',
+      createdAt: 1000,
+    });
+
+    await service.ensureDefaultTagTypes();
+
+    const names = (await service.getAllTagTypes()).map(t => t.name);
+    expect(names).toEqual(['movement']);
+  });
 });

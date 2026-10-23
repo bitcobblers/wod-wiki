@@ -379,7 +379,7 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
         },
         {
           id: 'settings-tags',
-          label: 'Tags',
+          label: 'Tag Types',
           level: 2,
           icon: Tag,
           action: { type: 'route', to: ROUTE_PATTERNS.settingsTags },

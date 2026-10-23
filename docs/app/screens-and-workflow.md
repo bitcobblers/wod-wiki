@@ -88,9 +88,13 @@ Workout metrics refresh on the current line as it changes. Movement names are pa
 * **Composed Dashboards (`/dashboard`, `/dashboard/:slug`)**:
   - Visual charts (timeseries, bar, toplist, summary cards) powered by embedded WQL queries.
   - Real-time filtering by effort, discipline, or custom tag dimensions.
-* **Settings & Tags Management (`/settings`, `/settings/tags`)**:
+* **Tags (`/tags`)**:
+  - The tag catalogue: every tag a script can point at with `#{slug}`.
+  - Per tag: the name (the slug), the kind, and what it contributes — a metric with a typed value and a unit, another tag, or a function.
+  - Filterable by name and kind.
+* **Settings (`/settings`, `/settings/tags`)**:
   - Appearance and audio preferences.
-  - Registered tag types CRUD and full filterable/editable tags table.
+  - Registered tag **types** CRUD — the kinds of tag that exist. The tags themselves are authored on `/tags`.
 
 ## WQL editing
 

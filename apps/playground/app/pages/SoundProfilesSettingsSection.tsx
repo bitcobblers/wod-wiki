@@ -25,6 +25,7 @@ import {
   type StoredSoundProfile,
 } from '@/services/sound/soundProfiles'
 import { storageService } from '@/services/storage'
+import { refreshTagIndex } from '@/services/tags/tagCatalogue'
 
 function slugify(name: string): string {
   return name
@@ -82,6 +83,9 @@ export function SoundProfilesSettingsSection() {
       // The profile is selected by a tag, so the tag has to exist for
       // `sound: #{sound-classic}` to resolve.
       await syncProfileTag(id, storageService)
+      // The tag just changed — the catalogue the parser resolves against
+      // has to learn it, or the reference stays unresolved until a reload.
+      await refreshTagIndex()
     }
   }
 
@@ -99,6 +103,7 @@ export function SoundProfilesSettingsSection() {
     setConfirmDeleteId(null)
     await change((current) => current.filter((p) => p.id !== profile.id))
     await removeProfileTag(profile.id, storageService)
+    await refreshTagIndex()
   }
 
   const addRule = (profile: StoredSoundProfile, rule: SoundRuleDraft) =>

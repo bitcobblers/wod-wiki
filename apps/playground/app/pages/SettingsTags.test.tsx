@@ -32,7 +32,7 @@ function renderSettings(initialPath = '/settings/tags') {
   );
 }
 
-describe('SettingsPage Tags Management (Ticket 04)', () => {
+describe('SettingsPage Tag Types', () => {
   let memoryStorage: InMemoryStorage;
 
   beforeEach(async () => {
@@ -61,15 +61,26 @@ describe('SettingsPage Tags Management (Ticket 04)', () => {
     });
   });
 
-  it('renders the tags management subroute with tag types and tags', async () => {
+  it('shows the taxonomy, with the tags themselves left to the Tags page', async () => {
     renderSettings('/settings/tags');
 
-    // Tag Types header and seeded item
     await waitFor(() => {
       expect(screen.getAllByText('Equipment').length).toBeGreaterThan(0);
-      expect(screen.getByText('barbell')).toBeTruthy();
-      expect(screen.getByText('benchmark')).toBeTruthy();
     });
+    // The tags live on /tags now — the settings section points there rather
+    // than editing them a second time.
+    expect(screen.getByText('/tags')).toBeTruthy();
+    expect(screen.queryByText('barbell')).toBeNull();
+  });
+
+  it('counts the tags that use a type', async () => {
+    renderSettings('/settings/tags');
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Equipment').length).toBeGreaterThan(0);
+    });
+    // One tag uses the equipment type; the count sits beside its name.
+    expect(screen.getByText('1')).toBeTruthy();
   });
 
   it('can create a new tag type from the UI', async () => {
@@ -94,75 +105,14 @@ describe('SettingsPage Tags Management (Ticket 04)', () => {
     expect(types.map((t) => t.name)).toContain('movement');
   });
 
-  it('can reassign a tag type from the UI', async () => {
+  it('refuses to delete a type that tags still use', async () => {
     renderSettings('/settings/tags');
 
     await waitFor(() => {
-      expect(screen.getByText('benchmark')).toBeTruthy();
+      expect(screen.getAllByText('Equipment').length).toBeGreaterThan(0);
     });
 
-    const select = screen.getByLabelText('Type for benchmark');
-    fireEvent.change(select, { target: { value: 'equipment' } });
-
-    await waitFor(async () => {
-      const tag = (await storageService.getAllTags()).find((t) => t.label === 'benchmark');
-      expect(tag?.type).toBe('equipment');
-    });
-  });
-
-  it('filters the tags table by search text and by type', async () => {
-    renderSettings('/settings/tags');
-
-    await waitFor(() => {
-      expect(screen.getByText('barbell')).toBeTruthy();
-      expect(screen.getByText('benchmark')).toBeTruthy();
-    });
-
-    // Search filter
-    const searchInput = screen.getByLabelText('Filter tags');
-    fireEvent.change(searchInput, { target: { value: 'barb' } });
-
-    await waitFor(() => {
-      expect(screen.queryByText('barbell')).toBeTruthy();
-      expect(screen.queryByText('benchmark')).toBeNull();
-    });
-
-    // Reset search
-    fireEvent.change(searchInput, { target: { value: '' } });
-    await waitFor(() => {
-      expect(screen.queryByText('benchmark')).toBeTruthy();
-    });
-
-    // Type filter: filter to equipment only
-    const typeFilterSelect = screen.getByLabelText('Filter by type');
-    fireEvent.change(typeFilterSelect, { target: { value: 'equipment' } });
-
-    await waitFor(() => {
-      expect(screen.queryByText('barbell')).toBeTruthy();
-      expect(screen.queryByText('benchmark')).toBeNull();
-    });
-  });
-
-  it('edits a tag label inline in the table', async () => {
-    renderSettings('/settings/tags');
-
-    await waitFor(() => {
-      expect(screen.getByText('barbell')).toBeTruthy();
-    });
-
-    // Click to rename
-    const tagButton = screen.getByText('barbell');
-    fireEvent.click(tagButton);
-
-    const editInput = screen.getByDisplayValue('barbell');
-    fireEvent.change(editInput, { target: { value: 'barbell-renamed' } });
-    fireEvent.keyDown(editInput, { key: 'Enter' });
-
-    await waitFor(async () => {
-      const tags = await storageService.getAllTags();
-      const labels = tags.map((t) => t.label);
-      expect(labels).toContain('barbell-renamed');
-      expect(labels).not.toContain('barbell');
-    });
+    const deleteButton = screen.getByLabelText('Delete tag type Equipment');
+    expect((deleteButton as HTMLButtonElement).disabled).toBe(true);
   });
 });

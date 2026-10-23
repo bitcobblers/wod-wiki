@@ -48,6 +48,8 @@ export function TagsPage() {
   const [contributions, setContributions] = useState<TagContribution[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [newKind, setNewKind] = useState('');
+  const [search, setSearch] = useState('');
+  const [kindFilter, setKindFilter] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -156,11 +158,25 @@ export function TagsPage() {
     setContributions(current => current.filter((_, i) => i !== index));
   };
 
+  const visibleTags = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return tags.filter(tag => {
+      if (needle && !tag.label.toLowerCase().includes(needle)) return false;
+      if (kindFilter && (tag.type ?? '') !== kindFilter) return false;
+      return true;
+    });
+  }, [tags, search, kindFilter]);
+
+  // The kinds a tag can have: the registered types, plus the kinds the tags
+  // actually use (a kind can be written without being registered).
   const kindOptions = useMemo(() => {
     const names = new Set(tagTypes.map(type => type.name));
+    for (const tag of tags) {
+      if (tag.type) names.add(tag.type);
+    }
     if (kind && !names.has(kind)) names.add(kind);
     return [...names].sort();
-  }, [tagTypes, kind]);
+  }, [tagTypes, tags, kind]);
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-8">
@@ -223,12 +239,38 @@ export function TagsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold text-foreground">Tags</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-foreground">Tags</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              aria-label="Filter tags"
+              className="h-8 w-44 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
+              placeholder="Filter by name…"
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+            />
+            <select
+              aria-label="Filter by kind"
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
+              value={kindFilter}
+              onChange={event => setKindFilter(event.target.value)}
+            >
+              <option value="">All kinds</option>
+              {kindOptions.map(name => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
         {tags.length === 0 ? (
           <p className="text-xs text-muted-foreground italic">No tags yet.</p>
+        ) : visibleTags.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">No tags match the filter.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {tags.map(tag => (
+            {visibleTags.map(tag => (
               <button
                 key={tag.id}
                 type="button"
@@ -250,6 +292,9 @@ export function TagsPage() {
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-foreground">Edit {selected.label}</h2>
           <div className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Created {new Date(selected.createdAt).toLocaleDateString()}
+            </p>
             <div className="flex flex-wrap items-end gap-3">
               <div className="flex-1 min-w-[200px]">
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
