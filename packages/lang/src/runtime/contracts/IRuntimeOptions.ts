@@ -3,6 +3,8 @@ import type { TestableBlockConfig } from './ITestableBlockConfig';
 import type { IEffortResolver } from '../../effort-registry/types';
 import type { ReferenceIndex } from '../../effort-registry/reference-resolution';
 import type { SoundProfile } from '../sound/SoundProfile';
+import type { TagIndex } from '@bitcobblers/wod-wiki-core';
+import type { CalculationDefinition } from '../../analytics/calc/types';
 
 /**
  * Factory function type for wrapping blocks in debug mode.
@@ -117,6 +119,21 @@ export interface RuntimeStackOptions extends IRuntimeOptions {
         effortResolver?: IEffortResolver;
         references?: ReferenceIndex;
         userProfile?: { vo2max?: number };
+        /**
+         * The functions available to the run — user-authored calculations,
+         * registered after the built-ins.
+         */
+        calcs?: CalculationDefinition[];
+        /**
+         * The tag catalogue: the tags a script can reference with `#{slug}`
+         * and the functions they carry.
+         */
+        tags?: TagIndex;
+        /**
+         * Tags active for the whole run, whatever the segments say — the
+         * bundle a profile applies.
+         */
+        activeTags?: readonly string[];
     };
     /**
      * Sound configuration for this run.

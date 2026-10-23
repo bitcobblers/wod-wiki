@@ -48,6 +48,8 @@ export const ROUTE_PATTERNS = {
   /** /results/:sessionId — one session's execution detail (canonical). */
   sessionDetail: '/results/:sessionId',
   sessionDate: '/session/:date',
+  /** /tags — the tag catalogue: what each tag contributes. */
+  tags: '/tags',
   /** /dashboards — dashboard list / WQL explorer landing. */
   dashboards: '/dashboards',
   /** /d/:slug — a dashboard addressed by its page slug. */

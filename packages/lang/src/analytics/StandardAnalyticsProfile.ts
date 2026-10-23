@@ -51,6 +51,8 @@ export class StandardAnalyticsProfile implements IAnalyticsProfile {
                 effortResolver: context.analyticsContext.effortResolver,
                 userProfile: context.userProfile,
                 calcs: context.calcs,
+                tags: context.tags,
+                activeTags: context.activeTags,
             });
             realtime.push(calcEngine);
             summary.push(calcEngine);

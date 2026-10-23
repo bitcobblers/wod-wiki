@@ -51,6 +51,7 @@ import { PlaygroundNotePage } from './pages/PlaygroundNotePage'
 import { WorkoutEditorPage } from './pages/WorkoutEditorPage'
 import { EffortDetailPage } from './pages/EffortDetailPage'
 import { EquipmentDetailPage } from './pages/EquipmentDetailPage'
+import { TagsPage } from './pages/TagsPage'
 import { NoteByIdPage } from './pages/NoteByIdPage'
 import { CollectionDatePage } from './pages/CollectionDatePage'
 import { AnalyticsExplorerPage } from './views/analytics/AnalyticsExplorerPage'
@@ -233,6 +234,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     ),
     effortDetail: () => <EffortDetailPage />,
     equipmentDetail: () => <EquipmentDetailPage />,
+    tags: () => <TagsPage />,
     analyticsExplorer: () => (
       <AnalyticsExplorerPage
         actions={<PageActions mode="collection-readonly" currentWorkout={currentWorkout} index={[]} />}

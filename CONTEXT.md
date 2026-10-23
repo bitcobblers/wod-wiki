@@ -211,14 +211,43 @@ adds session chrome), the Storybook Workbench, and the analytics explorer.
 Distinct from the **Review Grid** — the workbench screen's interactive
 segment-pivot analysis surface, which stays app-side.
 _Avoid_: results table (generic), outputs table, plain segment list (deleted fallback).
-**Tag**:
+**Dimension**:
 A `key:value` dimension carried on an **Analytics Store** fact row (`effort`,
-`discipline`, `note`, …) that **WQL** filters and groups by. Tags are query-time
-dimensions riding on fact rows — they never enter the `IMetric` stream.
+`discipline`, `note`, …) that **WQL** filters and groups by. Dimensions are
+query-time dimensions riding on fact rows — they never enter the `IMetric` stream.
 A WQL filter key takes multiple values (`{note:a|b}` or repeated `note:a, note:b`)
 — values OR within a key, keys AND across, `!` negates the whole list.
-Distinct from markdown `tags:` frontmatter, which feeds the note_tags store.
-_Avoid_: label, facet, frontmatter tag.
+Distinct from markdown `tags:` frontmatter, which feeds the note_tags store, and
+from a **Tag**, the bundle a script references. Not the physical quantity a
+**Unit** measures (also called a dimension) — a fact dimension is a key, not a
+quantity.
+_Avoid_: tag (the script-facing bundle), label, facet, frontmatter tag.
+**Tag**:
+A named bundle a script can point at with `#{slug}` — `5 reps @ 100 kg #{heavy}`.
+A tag contributes **metrics** (a typed value with a unit), other **tags**, and
+**functions**; what it contributes applies to the line it sits on. The model
+lives in `packages/core` (a tag definition and its contributions); the catalogue
+is storage-agnostic — the host loads tags and hands the language a tag index,
+and `packages/lang` resolves `#{slug}` references through it.
+A tag that no line names still applies to a whole note when the note carries it
+as one of its tags — the note-level path.
+One namespace: a user-defined tag layers over a seeded tag of the same slug.
+_Avoid_: dimension (the query-time fact dimension), attachment (a temporal blob),
+frontmatter tag.
+**Tag Contribution**:
+One thing a **Tag** brings: a metric (typed value + unit), another tag, or a
+function. What the line states wins over what a tag contributes — a contributed
+metric only fills a type the statement does not already carry. Tags may apply
+tags, to a bounded depth; a tag that applies itself contributes nothing further.
+_Avoid_: metric (the value itself), attribute.
+**Function**:
+A named calculation a **Tag** carries. A function is a **Calculation** in the
+calc registry, resolved by name; the calculation's own scope decides the grain
+it runs at — `segment` per record, `workout` at the end of the workout. A
+function no tag carries runs wherever its calculation applies; a function a tag
+carries runs where that tag applies. Stored callables are ruled out: metrics
+and tags are JSON-pure and survive storage round-trips.
+_Avoid_: calc (the calculation itself), script (a stored expression).
 **Query Service**:
 The executor of **WQL** against the **Analytics Store**: index-first SELECT
 (by-metric + by-timestamp range fetches intersected in memory), then in-memory

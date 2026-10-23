@@ -37,7 +37,8 @@ Fragment {
   Slash |
   Pipe |
   Effort |
-  MetricObject
+  MetricObject |
+  TagRef
 }
 
 /**
@@ -98,7 +99,9 @@ Effort { (Identifier | allowedSymbol | minus)+ !effort }
    * TagRef — a reference to a named tag, written `#{tag-slug}`.
    *
    * Used as a property value so a line can point at a tag rather than
-   * repeating what the tag means, e.g. `sound: #{sound-classic}`.
+   * repeating what the tag means, e.g. `sound: #{sound-classic}`, and as a
+   * fragment so a tag can apply to the line it sits on, e.g.
+   * `5 reps @ 100 kg #{heavy}`.
    *
    * The slug allows letters, digits and hyphens. It is one token rather
    * than a composite of Identifier and minus, because a hyphen is not

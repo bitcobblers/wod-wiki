@@ -37,6 +37,7 @@ describe('appNavTree - Flattened listing zones', () => {
       'efforts',
       'equipment',
       'sessions',
+      'tags',
       'settings',
       'buy-me-a-coffee',
     ])

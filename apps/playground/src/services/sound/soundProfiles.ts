@@ -18,13 +18,12 @@
 
 import {
     parseSoundTrigger,
-    SOUND_PROFILE_TAG_TYPE,
     type SoundProfile,
     type SoundRule,
 } from '@bitcobblers/wod-wiki-engine'
 import { LocalStore } from '@/services/storage/LocalStore'
 import { remotePrefsMode, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
-import type { Tag, TagMetric } from '@bitcobblers/wod-wiki-core'
+import type { Tag, TagMetricContribution } from '@bitcobblers/wod-wiki-core'
 
 /** A rule as authored — the trigger is kept in its notation form. */
 export interface SoundRuleDraft {
@@ -42,7 +41,7 @@ export interface StoredSoundProfile {
 }
 
 /** The tag type whose tags select a sound profile. */
-export { SOUND_PROFILE_TAG_TYPE }
+export const SOUND_PROFILE_TAG_TYPE = 'sound'
 
 /** The prefix of a tag that selects a sound profile. */
 export const SOUND_PROFILE_TAG_PREFIX = 'sound-'
@@ -77,11 +76,26 @@ export function soundProfileIdFromTag(label: string): string | undefined {
 }
 
 /**
- * The metrics a sound profile tag contributes — the sound metric naming the
+ * The contributions a sound profile tag makes — the sound metric naming the
  * profile.
  */
-export function soundProfileTagMetrics(profileId: string): TagMetric[] {
-    return [{ type: 'sound', value: profileId }]
+export function soundProfileTagContributions(profileId: string): TagMetricContribution[] {
+    return [{ kind: 'metric', type: 'sound', value: profileId }]
+}
+
+/**
+ * The profile id a set of note tags selects, or `undefined` when none do.
+ *
+ * The note-level selection: a note tagged `sound-classic` runs the `classic`
+ * profile. The first matching tag wins, so a note with two sound tags picks
+ * one deterministically.
+ */
+export function noteProfileIdFromTags(tags: readonly string[]): string | undefined {
+    for (const tag of tags) {
+        const profileId = soundProfileIdFromTag(tag.trim())
+        if (profileId) return profileId
+    }
+    return undefined
 }
 
 /**
@@ -224,18 +238,20 @@ export async function syncProfileTag(profileId: string, storage: TagStorage): Pr
   const label = soundProfileTagLabel(profileId)
   const existing = (await storage.getAllTags()).find(tag => tag.label === label)
   if (existing) {
-    const metrics = soundProfileTagMetrics(profileId)
-    if (existing.metrics?.length === 1 && existing.metrics[0]?.type === metrics[0]?.type && existing.metrics[0]?.value === metrics[0]?.value) {
+    const contributions = soundProfileTagContributions(profileId)
+    const current = existing.contributions?.[0]
+    if (existing.contributions?.length === 1 && current?.kind === 'metric' &&
+        current.type === contributions[0].type && current.value === contributions[0].value) {
       return
     }
-    await storage.putTag({ ...existing, metrics, type: SOUND_PROFILE_TAG_TYPE })
+    await storage.putTag({ ...existing, contributions, type: SOUND_PROFILE_TAG_TYPE })
     return
   }
   await storage.putTag({
     id: `sound-profile-${profileId}`,
     label,
     type: SOUND_PROFILE_TAG_TYPE,
-    metrics: soundProfileTagMetrics(profileId),
+    contributions: soundProfileTagContributions(profileId),
     createdAt: Date.now(),
   })
 }

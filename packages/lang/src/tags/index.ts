@@ -7,11 +7,14 @@
  */
 
 export {
-    createTagIndex,
-    resolveTagMetrics,
-    SOUND_PROFILE_TAG_TYPE,
-} from './TagCatalog';
-export type {
-    TagDefinition,
-    TagIndex,
-} from './TagCatalog';
+    MAX_TAG_CONTRIBUTION_DEPTH,
+    TAG_MARKER_PREFIX,
+    findTagContributionCycles,
+    resolveTagContributions,
+    sortedTagDefinitions,
+    tagContributionMetrics,
+    tagMarkerSlug,
+    tagMarkerSlugs,
+    tagMarkerType,
+} from './TagContributions';
+export type { ResolvedTagContributions } from './TagContributions';

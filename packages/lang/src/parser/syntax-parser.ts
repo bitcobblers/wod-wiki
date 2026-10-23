@@ -9,6 +9,7 @@ import {
   LapPrimitive,
   MetricObjectPrimitive,
   PropertyPrimitive,
+  TagRefPrimitive,
   QuantityPrimitive,
   RoundSchemePrimitive,
   RoundsPrimitive,
@@ -309,6 +310,18 @@ function mapFragmentToPrimitive(
         kind: 'effort',
         raw,
         meta,
+      };
+      return primitive;
+    }
+
+    case terms.TagRef: {
+      const match = raw.match(/^#\{([a-zA-Z0-9][a-zA-Z0-9-]*)\}$/);
+      if (!match) return null;
+      const primitive: TagRefPrimitive = {
+        kind: 'tag_ref',
+        raw,
+        meta,
+        slug: match[1],
       };
       return primitive;
     }

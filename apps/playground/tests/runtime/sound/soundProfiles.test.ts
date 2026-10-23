@@ -5,9 +5,10 @@ import {
     toSoundProfile,
     soundProfileTagLabel,
     soundProfileIdFromTag,
-    soundProfileTagMetrics,
+    soundProfileTagContributions,
+    noteProfileIdFromTags,
 } from '@/services/sound/soundProfiles';
-import { buildTagDefinitions, noteProfileIdFromTags } from '@/services/sound/soundTagCatalog';
+import { buildTagDefinitions } from '@/services/tags/tagCatalogue';
 import { LocalStore, InMemoryBackend } from '@/services/storage/LocalStore';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 
@@ -30,7 +31,9 @@ describe('sound profile tags', () => {
     });
 
     it('contributes the sound metric that names the profile', () => {
-        expect(soundProfileTagMetrics('classic')).toEqual([{ type: 'sound', value: 'classic' }]);
+        expect(soundProfileTagContributions('classic')).toEqual([
+            { kind: 'metric', type: 'sound', value: 'classic' },
+        ]);
     });
 
     it('finds the note-level profile from a note\'s tags', () => {
@@ -48,22 +51,29 @@ describe('tag catalog', () => {
             { id: 't1', label: 'sound-classic', createdAt: 0 },
         ]);
         expect(definitions).toEqual([
-            { slug: 'sound-classic', metrics: [{ type: 'sound', value: 'classic' }] },
+            { slug: 'sound-classic', contributions: [{ kind: 'metric', type: 'sound', value: 'classic' }] },
         ]);
     });
 
-    it('uses the metrics a tag is marked down with when it has them', () => {
+    it('uses the contributions a tag carries when it has them', () => {
         const definitions = buildTagDefinitions([
-            { id: 't1', label: 'sound-classic', createdAt: 0, metrics: [{ type: 'sound', value: 'explicit' }] },
+            {
+                id: 't1',
+                label: 'sound-classic',
+                createdAt: 0,
+                contributions: [{ kind: 'metric', type: 'sound', value: 'explicit' }],
+            },
         ]);
-        expect(definitions[0].metrics).toEqual([{ type: 'sound', value: 'explicit' }]);
+        expect(definitions[0].contributions).toEqual([
+            { kind: 'metric', type: 'sound', value: 'explicit' },
+        ]);
     });
 
-    it('skips tags with no metrics and no inference', () => {
+    it('keeps a tag that contributes nothing', () => {
         const definitions = buildTagDefinitions([
             { id: 't1', label: 'strength', createdAt: 0 },
         ]);
-        expect(definitions).toEqual([]);
+        expect(definitions).toEqual([{ slug: 'strength', contributions: [] }]);
     });
 });
 

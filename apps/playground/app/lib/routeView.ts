@@ -61,6 +61,7 @@ export type PageKind =
   | 'effortDetail'
   | 'equipmentDetail'
   | 'analyticsExplorer'
+  | 'tags'
   | 'dashboardExplorer'
   | 'dashboardView'
   | 'canvas'
@@ -282,6 +283,7 @@ function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanva
   if (pathname === '/dashboard' || pathname === '/dashboards') return 'dashboardExplorer'
   if (pathname.startsWith('/dashboard/') || pathname.startsWith('/d/')) return 'dashboardView'
   if (clean === '/settings' || clean.startsWith('/settings/')) return 'settings'
+  if (clean === '/tags') return 'tags'
 
   if (canvasPage) return 'canvas'
   if (flags.isPlaygroundRoute && flags.effectivePlaygroundId) return 'playground'

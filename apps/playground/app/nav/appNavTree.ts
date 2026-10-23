@@ -336,6 +336,14 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       }),
     },
     {
+      id: 'tags',
+      label: 'Tags',
+      level: 1,
+      icon: Tag,
+      action: { type: 'route', to: ROUTE_PATTERNS.tags },
+      isActive: (loc: Location) => loc.pathname.startsWith('/tags'),
+    },
+    {
       id: 'settings',
       label: 'Settings',
       level: 1,

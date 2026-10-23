@@ -2,7 +2,7 @@ import { WhiteboardScript } from './WhiteboardScript';
 import { extractStatements, extractStatementsRaw } from './lezer-mapper';
 import type { ReferenceIndex, ReferenceResolutionDefaults } from '../effort-registry/reference-resolution';
 import { createReferenceIndex } from '../effort-registry/reference-resolution';
-import type { TagIndex } from '../tags/TagCatalog';
+import type { TagIndex } from '@bitcobblers/wod-wiki-core';
 import { parser } from '../grammar/parser';
 
 export interface ParseOptions {

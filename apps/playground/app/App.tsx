@@ -243,6 +243,7 @@ export function App() {
                   <Route path={ROUTE_PATTERNS.effortSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Equipment — list is the note stream; detail/create are note pages. */}
                   <Route path={ROUTE_PATTERNS.equipment} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.tags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.equipmentSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Dashboards: /dashboards = list + WQL explorer, /dashboard/:slug = a
                       saved dashboard by id, /d/:slug = by page slug. Legacy

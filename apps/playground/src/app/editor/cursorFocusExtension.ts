@@ -15,6 +15,7 @@
  *     getCursorFocusState(view.state) to drive MetricInlinePanel.
  */
 
+import { getTagIndex } from '@/services/tags/tagCatalogue';
 import {
   Decoration,
   DecorationSet,
@@ -80,10 +81,12 @@ function parseStatements(
     // Same shared resolver the frontmatter preview uses, plus the note's
     // flat metrics.* defaults, so focused-line chips match the runtime.
     const references = getSharedReferenceIndex();
-    if (!references) return createParser().read(raw, section.sport).statements as ICodeStatement[];
+    const tags = getTagIndex();
+    if (!references) return createParser({ tags }).read(raw, section.sport).statements as ICodeStatement[];
     const parser = createParser({
       references,
       defaults: readNoteReferenceDefaults(state.doc.toString()),
+      tags,
     });
     return parser.read(raw, section.sport).statements as ICodeStatement[];
   } catch {

@@ -10,4 +10,5 @@ export * from './BlockKey';
 export * from './Dialect';
 export * from './DisplayItem';
 export * from './AnalyticsModels';
+export * from './Tag';
 export * from './blockContentId';

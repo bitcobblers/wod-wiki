@@ -1,4 +1,4 @@
-import type { MetricType } from '@bitcobblers/wod-wiki-core';
+import type { MetricType, TagIndex } from '@bitcobblers/wod-wiki-core';
 import type { FenceDialect } from '@bitcobblers/wod-wiki-core';
 import type { IRealtimeProcessor } from './IRealtimeProcessor';
 import type { ISummaryProcessor } from './ISummaryProcessor';
@@ -33,6 +33,18 @@ export interface AnalyticsProfileContext {
    * they override same-id built-ins and evaluate at high priority.
    */
   calcs?: CalculationDefinition[];
+
+  /**
+   * The tag catalogue — the tags a script can reference and the functions
+   * they carry. A function a tag carries runs where that tag applies.
+   */
+  tags?: TagIndex;
+
+  /**
+   * Tags active for the whole run, whatever the segments say — the bundle a
+   * profile applies.
+   */
+  activeTags?: readonly string[];
 }
 
 /**
