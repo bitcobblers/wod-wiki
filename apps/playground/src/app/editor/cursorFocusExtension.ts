@@ -40,6 +40,7 @@ import {
 } from "@bitcobblers/wod-wiki-engine";
 import { getTagReference, type TagReferenceMetadata } from "@bitcobblers/wod-wiki-core";
 import { getSharedReferenceIndex, readNoteReferenceDefaults } from "@/app/editor/noteEditorServices";
+import { catalogueReload, catalogueReloadPlugin } from "@/app/editor/catalogueReload";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -247,7 +248,11 @@ const cursorFocusInternal = StateField.define<InternalState>({
     return computeFocusState(state);
   },
   update(prev, tr) {
-    if (tr.effects.some((e) => e.is(referenceIndexReload))) return computeFocusState(tr.state);
+    // A catalogue that changed (tags, efforts, equipment) changes what the
+    // marks should say — redraw them even though the document did not move.
+    if (tr.effects.some((e) => e.is(referenceIndexReload) || e.is(catalogueReload))) {
+      return computeFocusState(tr.state);
+    }
     if (!tr.docChanged && tr.startState.selection.eq(tr.state.selection)) return prev;
     return computeFocusState(tr.state);
   },
@@ -357,4 +362,5 @@ export const cursorFocusExtension: Extension = [
   cursorFocusInternal,
   metricUnderlineTheme,
   metricNavKeymap,
+  catalogueReloadPlugin,
 ];

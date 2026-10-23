@@ -7,6 +7,7 @@ import {
 } from "./cursorFocusExtension";
 import { MetricType } from "@bitcobblers/wod-wiki-engine";
 import { setTagIndex } from "@/services/tags/tagCatalogue";
+import { catalogueReload } from "@/app/editor/catalogueReload";
 
 describe("cursorFocusExtension", () => {
   it("assigns token-level metric highlight marks based on parser metrics", () => {
@@ -134,6 +135,45 @@ describe("cursorFocusExtension", () => {
 
     // The metric the tag brought is not marked as a metric of its own kind.
     expect(markRanges.some((m) => m.text === "#{heavy}" && m.cls.includes("underline"))).toBe(false);
+  });
+
+  it("redraws the marks when a catalogue loads", () => {
+    // The catalogue lives in async storage: the editor is already on screen
+    // when it lands, so the marks have to be redrawn when it does.
+    setTagIndex([]);
+
+    const doc = ["# Repro Note", "", "```time", "10 Pushups #{heavy}", "```", ""].join("\n");
+    const state = EditorState.create({
+      doc,
+      extensions: [sectionField, cursorFocusExtension],
+    });
+
+    const marksIn = (s: EditorState) => {
+      const field = (cursorFocusExtension as unknown as StateField<unknown>[])[0];
+      const decos = s.field(field).decos;
+      const out: string[] = [];
+      const iter = decos.iter();
+      while (iter.value) {
+        const cls = (iter.value.spec as unknown as { class?: string }).class;
+        if (cls) out.push(cls);
+        iter.next();
+      }
+      return out;
+    };
+
+    expect(marksIn(state).some((cls) => cls.includes("tag-reference"))).toBe(false);
+
+    // The catalogue arrives.
+    setTagIndex([
+      {
+        id: "tag-heavy",
+        label: "heavy",
+        contributions: [{ kind: "metric", type: "intensity", value: "heavy" }],
+      },
+    ]);
+    const reloaded = state.update({ effects: catalogueReload.of(null) }).state;
+
+    expect(marksIn(reloaded).some((cls) => cls.includes("tag-reference"))).toBe(true);
   });
 
   it('focuses metrics owned by both statements on an inline rounds line', () => {

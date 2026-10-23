@@ -128,6 +128,28 @@ export function classifyStatements(facts: SyntaxFacts, references?: ParseReferen
 }
 
 /**
+ * The meta of the equipment token itself — the prefix of the authored label.
+ *
+ * `KB swings` resolves to the equipment `KB` and the effort `swings`; the
+ * equipment's own range is `KB`, so the two marks do not overlap.
+ */
+function equipmentMeta(resolution: ResolvedReferences, authored: string, meta: SyntaxMeta): SyntaxMeta {
+  if (resolution.matched !== 'split' || !resolution.remaining) return meta;
+  const prefixEnd = authored.trimEnd().length - resolution.remaining.length;
+  if (prefixEnd <= 0) return meta;
+  const raw = meta.raw.slice(0, prefixEnd).trimEnd();
+  const length = raw.length;
+  if (length <= 0) return meta;
+  return {
+    ...meta,
+    endOffset: meta.startOffset + length,
+    length,
+    columnEnd: meta.columnStart + length,
+    raw,
+  };
+}
+
+/**
  * Statement-level reference resolution: explicit JSON refs, equipment-prefix
  * split with canonical EffortMetric/EquipmentMetric emission, and note-default
  * effort fill for leaf exercise lines missing a movement. Rest/group headings
@@ -158,7 +180,10 @@ function applyReferenceResolution(pairs: MetricPair[], fact: SyntaxStatement, re
             diagnostics: resolution.diagnostics,
           },
         ),
-        meta,
+        // The equipment is the prefix of the authored label; the effort is
+        // what follows. Marking the whole phrase for both would let one mark
+        // hide the other.
+        meta: equipmentMeta(resolution, authored, meta),
       });
     }
   };

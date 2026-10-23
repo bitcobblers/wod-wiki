@@ -27,6 +27,7 @@ import { getSubscribedNotebooks, isNotebookSubscribed, isSeedAutoSync, isSeedSub
 import { beginSyncActivity, reportSyncResult, reportSyncError, reportSyncProgress } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
+import { refreshTagIndex } from '@/services/tags/tagCatalogue';
 import { hydrateAppEquipmentRegistry, getAppEquipmentRegistry } from '@/services/equipmentRegistry';
 import { profileService, storageBackend } from '@/services/storage';
 import { getActiveLocalDbName } from '@/services/storage/dataSettings';
@@ -208,6 +209,9 @@ function defaultBroadcast(message: unknown): void {
  *  context, so every driver calls this directly. */
 async function hydrateImportedContent(): Promise<void> {
   invalidateSeedContent();
+  // The tag catalogue learned about the import through the broadcast; the
+  // importing context does not receive its own broadcast, so it re-reads.
+  await refreshTagIndex().catch(() => { /* The catalogue keeps the tags it has. */ });
   const registry = getAppEffortRegistry();
   if (registry.isInitialized()) await hydrateAppEffortRegistry(registry);
   const equipmentRegistry = getAppEquipmentRegistry();

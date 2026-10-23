@@ -22,6 +22,7 @@ import {
     type SoundRule,
 } from '@bitcobblers/wod-wiki-engine'
 import { LocalStore } from '@/services/storage/LocalStore'
+import { SOUND_PROFILE_TAG_PREFIX, soundProfileIdFromTag } from './soundTagNaming'
 import { remotePrefsMode, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
 import type { Tag, TagMetricContribution } from '@bitcobblers/wod-wiki-core'
 
@@ -43,8 +44,6 @@ export interface StoredSoundProfile {
 /** The tag type whose tags select a sound profile. */
 export const SOUND_PROFILE_TAG_TYPE = 'sound'
 
-/** The prefix of a tag that selects a sound profile. */
-export const SOUND_PROFILE_TAG_PREFIX = 'sound-'
 
 export const SOUND_PROFILES_STORAGE_PREFIX = 'wodwiki.soundProfiles.v1'
 
@@ -63,16 +62,6 @@ const soundProfilesStore = new LocalStore(
  */
 export function soundProfileTagLabel(profileId: string): string {
     return `${SOUND_PROFILE_TAG_PREFIX}${profileId}`
-}
-
-/**
- * The profile id a tag selects, or `undefined` when the tag is not a sound
- * profile tag.
- */
-export function soundProfileIdFromTag(label: string): string | undefined {
-    if (!label.startsWith(SOUND_PROFILE_TAG_PREFIX)) return undefined
-    const id = label.slice(SOUND_PROFILE_TAG_PREFIX.length)
-    return id.length > 0 ? id : undefined
 }
 
 /**

@@ -14,7 +14,8 @@
 import { createTagIndex, type TagDefinition, type TagIndex } from '@bitcobblers/wod-wiki-engine'
 import type { ITagSource, Tag, TagContribution } from '@bitcobblers/wod-wiki-core'
 import { storageService } from '@/services/storage'
-import { soundProfileIdFromTag } from '@/services/sound/soundProfiles'
+import { soundProfileIdFromTag } from '@/services/sound/soundTagNaming'
+import { SEED_BROADCAST_CHANNEL } from '@/types/seed'
 
 /**
  * The contributions of a tag that carries none of its own.

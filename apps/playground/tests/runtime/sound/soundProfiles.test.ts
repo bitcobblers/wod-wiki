@@ -4,11 +4,11 @@ import {
     writeSoundProfiles,
     toSoundProfile,
     soundProfileTagLabel,
-    soundProfileIdFromTag,
     soundProfileTagContributions,
     noteProfileIdFromTags,
 } from '@/services/sound/soundProfiles';
 import { buildTagDefinitions } from '@/services/tags/tagCatalogue';
+import { soundProfileIdFromTag } from '@/services/sound/soundTagNaming';
 import { LocalStore, InMemoryBackend } from '@/services/storage/LocalStore';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 

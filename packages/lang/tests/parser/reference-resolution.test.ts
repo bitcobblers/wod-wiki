@@ -75,6 +75,16 @@ describe('reference resolver (exact index)', () => {
     expect(resolved.diagnostics).toEqual([]);
   });
 
+  it('marks the equipment token, not the whole phrase', () => {
+    const statement = parse('KB swings').statements[0];
+    const equipment = statement.getMetric(MetricType.Equipment);
+    const effort = statement.getMetric(MetricType.Effort);
+    // The equipment is `KB`; the effort is `swings`. Their marks must not
+    // cover each other.
+    expect(statement.metricMeta.get(equipment!)?.raw).toBe('KB');
+    expect(statement.metricMeta.get(effort!)?.raw).toBe('KB swings');
+  });
+
   it('splits an exact equipment prefix + remaining effort even when the whole phrase is also a record', () => {
     const resolved = index().resolve('Dumbbell Snatch');
     expect(resolved.matched).toBe('split');
