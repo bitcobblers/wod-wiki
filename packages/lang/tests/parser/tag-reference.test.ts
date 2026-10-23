@@ -100,6 +100,14 @@ describe('tag references', () => {
         expect(metrics[0].type).toBe(MetricType.Text);
     });
 
+    it('reads free text and a tag on one line', () => {
+        // `//` opens a comment and `#tag` names a tag: the line carries both.
+        const metrics = parseMetrics('//some free text #tag');
+        const types = metrics.map(m => m.type);
+        expect(types).toContain(MetricType.Text);
+        expect(types).toContain(MetricType.Custom);
+    });
+
     it('no longer reads the braced form as a tag reference', () => {
         // The syntax is `#slug`; `#{slug}` is not a tag reference.
         const metrics = parseMetrics('sound: #{sound-classic}');

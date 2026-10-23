@@ -109,7 +109,13 @@ Effort { (Identifier | allowedSymbol | minus)+ !effort }
    */
   TagRef { "#" $[a-zA-Z0-9] $[a-zA-Z0-9-]* }
   String { '"' (![\\\n\r] | "\\" _) * '"' }
-  textComment { "//" ![\n\r]* }
+  /**
+   * textComment — a `//` comment, running to the end of the line.
+   *
+   * A comment stops before a `#`: a tag reference after free text is still a
+   * tag reference, so `// some free text #tag` carries both.
+   */
+  textComment { "//" ![#\n\r]* }
   heading { "#" ![a-zA-Z0-9] ![\n\r]* }
   slash { "/" }
   pipe { "|" }

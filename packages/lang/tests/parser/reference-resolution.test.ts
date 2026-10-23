@@ -75,6 +75,16 @@ describe('reference resolver (exact index)', () => {
     expect(resolved.diagnostics).toEqual([]);
   });
 
+  it('resolves an equipment prefix and the movement after it', () => {
+    // `KB Snatch` — the kettlebell, and the snatch.
+    const statement = parse('KB Snatch').statements[0];
+    const effort = statement.getMetric(MetricType.Effort);
+    const equipment = statement.getMetric(MetricType.Equipment);
+
+    expect(effort?.value).toBe('snatch');
+    expect(equipment?.value).toEqual(['kettlebell']);
+  });
+
   it('marks the equipment token, not the whole phrase', () => {
     const statement = parse('KB swings').statements[0];
     const equipment = statement.getMetric(MetricType.Equipment);
