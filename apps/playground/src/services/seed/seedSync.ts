@@ -23,7 +23,7 @@ import { mainThreadSeedImportStorage } from './seedStorageDefault';
 import { assertManifest, type ISeedSource } from './ISeedSource';
 import { EMBEDDED_SEED_VERSIONS } from './seedVersion';
 import { customSeedSources, CORE_SEED_URL, SEED_SOURCES, notebooksOfSeed, hideSeedSourceRow, hiddenSeedSourceIds, removeCustomSeedSource, safeRepositoryUrl, toAbsoluteSeedUrl } from './seedSources';
-import { getSubscribedNotebooks, isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } from './seedSubscriptions';
+import { getSubscribedNotebooks, isNotebookSubscribed, isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } from './seedSubscriptions';
 import { beginSyncActivity, reportSyncResult, reportSyncError, reportSyncProgress } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
@@ -600,6 +600,7 @@ export interface SeedNotebookStatus {
   bytes: number;
   /** The stored checkpoint covers this chunk. */
   imported: boolean;
+  subscribed?: boolean;
 }
 
 export interface SeedSourceStatus {
@@ -827,6 +828,7 @@ function seedNotebookStatuses(
     count: chunk.count,
     bytes: chunk.bytes,
     imported: Boolean(stored?.chunks[chunk.id]),
+    subscribed: isNotebookSubscribed(seedId, chunk.id),
   }));
   if (published.length > 0) return published;
   return notebooksOfSeed(seedId).map((notebook): SeedNotebookStatus => ({
@@ -836,6 +838,7 @@ function seedNotebookStatuses(
     count: 0,
     bytes: 0,
     imported: Boolean(stored?.chunks[notebook.chunkId]),
+    subscribed: isNotebookSubscribed(seedId, notebook.chunkId),
   }));
 }
 

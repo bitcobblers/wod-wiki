@@ -215,6 +215,18 @@ describe('filterSeeds / sortSeeds', () => {
     expect(filterSeeds(catalog, { kind: 'feed' })).toHaveLength(1);
   });
 
+  it('filters seeds by seedId and subscribedOnly', () => {
+    const isSubscribed = (seedId: string, chunkId: string) => chunkId === 'feed.crossfit-programming';
+    const subCatalog = buildSeedCatalog(NOTEBOOK_FIXTURES, null, SEED_SOURCES, isSubscribed);
+    expect(filterSeeds(subCatalog, { seedId: 'seed-crossfit' })).toHaveLength(1);
+    expect(filterSeeds(subCatalog, { seedId: 'other-seed' })).toHaveLength(0);
+    expect(filterSeeds(subCatalog, { subscribedOnly: true })).toHaveLength(1);
+
+    const noneSubscribed = buildSeedCatalog(NOTEBOOK_FIXTURES, null, SEED_SOURCES, () => false);
+    expect(filterSeeds(noneSubscribed, { subscribedOnly: true })).toHaveLength(0);
+    expect(filterSeeds(noneSubscribed, { subscribedOnly: false })).toHaveLength(1);
+  });
+
   it('sorts by name and by local size', () => {
     const withLocal = buildSeedCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'my-garage-gym'), SEED_SOURCES);
     expect(sortSeeds(withLocal, 'name').map(seed => seed.label)).toEqual(['CrossFit', 'Local']);

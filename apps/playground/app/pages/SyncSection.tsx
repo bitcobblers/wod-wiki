@@ -14,7 +14,7 @@ import { Input } from '@/components/atoms/primitives/input'
 import { deleteSeedSource, readSeedStatus, runSeedSync, subscribeCatalogUpdates, syncSeedSource, unsubscribeSeedSource, type SeedSourceStatus, type SeedStatus, type SeedSyncOutcome, type SeedSyncProgress } from '@/services/seed/seedSync'
 import type { SeedImportProgress } from '@/services/seed/SeedImporter'
 import { addCustomSeedSource, type CustomSeedSource } from '@/services/seed/seedSources'
-import { isSeedAutoSync, setSeedAutoSync, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
+import { isNotebookSubscribed, isSeedAutoSync, setNotebookSubscribed, setSeedAutoSync, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
 import { ProgressBar } from '../components/atoms/ProgressBar'
 import { toast } from '@/hooks/use-toast'
 import { formatDateTimeMediumShort } from '@/lib/dateFormat'
@@ -76,7 +76,7 @@ function progressLabel(event: SeedSyncProgress): string {
  *  /settings/sync and the /catalogs manager drawer. Identity (origin, counts,
  *  size, versions, last check/sync, subscription) comes from readSeedStatus;
  *  lifecycle actions ride the shared seed service contract. */
-function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscribe, onDelete, onAutoSync }: {
+function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscribe, onDelete, onAutoSync, onToggleNotebook, subscribedOnly }: {
   source: SeedSourceStatus
   /** This source's sync is the one in flight — spin its button. */
   running: boolean
@@ -87,10 +87,15 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
   onUnsubscribe: (id: string) => void
   onDelete: (id: string) => void
   onAutoSync: (id: string, enabled: boolean) => void
+  onToggleNotebook?: (seedId: string, chunkId: string, subscribed: boolean) => void
+  subscribedOnly?: boolean
 }) {
   // Read the preference synchronously so React cannot restore a stale checked prop.
   const autoSync = useSyncExternalStore(subscribeSeedSubscriptions, () => isSeedAutoSync(source.id))
-  const notebooks = source.notebooks.filter(notebook => notebook.id !== source.id)
+  const allNotebooks = source.notebooks.filter(notebook => notebook.id !== source.id)
+  const notebooks = subscribedOnly
+    ? allNotebooks.filter(notebook => notebook.subscribed)
+    : allNotebooks
   const core = source.autoImport
   // Primary Sync ONLY while a subscribed source has a detected update; a
   // current source shows status text instead of a redundant button.
@@ -223,7 +228,7 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
       {notebooks.length > 0 && (
         <div className="rounded-lg border border-border bg-muted/20 px-3 py-2" data-testid={`seed-notebooks-${source.id}`}>
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">
-            {notebooks.length === 1 ? '1 notebook' : `${notebooks.length} notebooks`} · imported with this seed
+            {notebooks.length === 1 ? '1 notebook' : `${notebooks.length} notebooks`} · {subscribedOnly ? 'subscribed' : 'available in this seed'}
           </p>
           <ul className="mt-1.5 flex flex-col gap-1">
             {notebooks.map(notebook => (
@@ -238,9 +243,25 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
                     : <CloudDownload className="size-3 shrink-0 opacity-60" aria-hidden />}
                   <span className="truncate">{notebook.label}</span>
                 </span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {notebook.count.toLocaleString()} {notebook.count === 1 ? 'item' : 'items'}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="tabular-nums text-muted-foreground">
+                    {notebook.count.toLocaleString()} {notebook.count === 1 ? 'item' : 'items'}
+                  </span>
+                  {!core && onToggleNotebook && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleNotebook(source.id, notebook.chunkId, !notebook.subscribed)}
+                      data-testid={`seed-notebook-toggle-${source.id}-${notebook.chunkId}`}
+                      className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 transition-colors ${
+                        notebook.subscribed
+                          ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
+                          : 'border border-border text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {notebook.subscribed ? 'Subscribed' : 'Subscribe'}
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -329,6 +350,9 @@ export function SyncSection() {
   const [newLabel, setNewLabel] = useState('')
   const [newUrl, setNewUrl] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
+  const [subscribedOnly, setSubscribedOnly] = useState(true)
+  const [seedFilter, setSeedFilter] = useState<string | undefined>()
+
 
   const refresh = useCallback(async () => {
     setLoadError(null)
@@ -371,6 +395,7 @@ export function SyncSection() {
     try {
       const outcome = id
         ? await syncSeedSource(id, { force: true, onProgress })
+
         : await runSeedSync({ force: true, onProgress })
       const label = id ? (status?.sources.find(s => s.id === id)?.label ?? id) : 'All sources'
       announceOutcome(outcome, label)
@@ -379,6 +404,15 @@ export function SyncSection() {
       setBusyId(null)
     }
   }, [refresh, status])
+
+  const handleToggleNotebook = useCallback(async (seedId: string, chunkId: string, sub: boolean) => {
+    setNotebookSubscribed(seedId, chunkId, sub)
+    if (sub) {
+      await handleSync(seedId)
+    } else {
+      await refresh()
+    }
+  }, [handleSync, refresh])
 
   const handleAdd = useCallback(async () => {
     setAddError(null)
@@ -506,20 +540,60 @@ export function SyncSection() {
           </div>
         )}
 
-        <div className="grid gap-3" data-testid="seed-source-list">
-          {status?.sources.map((source) => (
-            <SourceCard
-              key={source.id}
-              source={source}
-              running={busyId === source.id || busyId === 'all'}
-              disabled={busyId !== null}
-              onSync={(id) => { void handleSync(id) }}
-              onSubscribe={(id) => { void handleSync(id) }}
-              onUnsubscribe={(id) => { void handleUnsubscribe(id) }}
-              onDelete={(id) => { void handleDelete(id) }}
-              onAutoSync={handleAutoSync}
+        {/* Subscription filter and seed source selector */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-xl border border-border bg-card text-xs">
+          <label className="flex items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground">
+            <input
+              type="checkbox"
+              checked={subscribedOnly}
+              onChange={(e) => setSubscribedOnly(e.target.checked)}
+              data-testid="sync-subscribed-only-toggle"
+              className="size-3.5 accent-primary rounded"
             />
-          ))}
+            <span className="font-medium text-foreground">Subscribed only</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Source:</span>
+            <select
+              value={seedFilter ?? ''}
+              onChange={(e) => setSeedFilter(e.target.value ? e.target.value : undefined)}
+              data-testid="sync-seed-source-filter"
+              aria-label="Filter notebooks by seed source"
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50"
+            >
+              <option value="">All sources</option>
+              {status?.sources.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid gap-3" data-testid="seed-source-list">
+          {status?.sources
+            .filter((source) => {
+              if (seedFilter && source.id !== seedFilter) return false
+              if (subscribedOnly) {
+                const hasSubscribedNotebook = source.notebooks.some((n) => n.subscribed)
+                if (!source.subscribed && !hasSubscribedNotebook) return false
+              }
+              return true
+            })
+            .map((source) => (
+              <SourceCard
+                key={source.id}
+                source={source}
+                running={busyId === source.id || busyId === 'all'}
+                disabled={busyId !== null}
+                onSync={(id) => { void handleSync(id) }}
+                onSubscribe={(id) => { void handleSync(id) }}
+                onUnsubscribe={(id) => { void handleUnsubscribe(id) }}
+                onDelete={(id) => { void handleDelete(id) }}
+                onAutoSync={handleAutoSync}
+                onToggleNotebook={handleToggleNotebook}
+                subscribedOnly={subscribedOnly}
+              />
+            ))}
           {isLoading && status === null && (
             <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
               Checking sources…

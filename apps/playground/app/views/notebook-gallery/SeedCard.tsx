@@ -32,9 +32,10 @@ export interface SeedCardProps {
   busy?: boolean;
   /** Inline status line from the owning section (progress / error text). */
   status?: { text: string; tone: 'muted' | 'error' };
+  /** Toggle an individual notebook subscription */
+  onToggleNotebookSubscription?: (seedId: string, chunkId: string, subscribed: boolean) => void;
 }
-
-export function SeedCard({ seed, testId = 'seed-card', className, onImport, importing, busy, status }: SeedCardProps) {
+export function SeedCard({ seed, testId = 'seed-card', className, onImport, importing, busy, status, onToggleNotebookSubscription }: SeedCardProps) {
   const tint = monogramTint(seed.slug);
   const [background, foreground] = tint.split(' ');
   const updated = formatDate(seed.latestDate);
@@ -142,26 +143,42 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
         {/* One Subscribe brings every notebook — say which. */}
         {seed.notebooks.length > 0 && (
           <div className="flex flex-wrap gap-1.5" data-testid={`${testId}-notebooks`}>
-            {shown.map((notebook) =>
-              notebook.installed ? (
-                <Link
-                  key={notebook.packageId}
-                  to={notebook.href}
-                  data-testid={`${testId}-notebook-${notebook.packageId}`}
-                  className="rounded-full border border-border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/80 transition-colors hover:border-primary/40 hover:text-primary"
-                >
-                  {notebook.label}
-                </Link>
-              ) : (
-                <span
-                  key={notebook.packageId}
-                  data-testid={`${testId}-notebook-${notebook.packageId}`}
-                  className="rounded-full border border-border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/70"
-                >
-                  {notebook.label}
-                </span>
-              ),
-            )}
+            {shown.map((notebook) => (
+              <span
+                key={notebook.packageId}
+                data-testid={`${testId}-notebook-${notebook.packageId}`}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest transition-colors',
+                  notebook.subscribed
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
+                    : 'border-border text-muted-foreground/70',
+                )}
+              >
+                {notebook.installed ? (
+                  <Link to={notebook.href} className="hover:text-primary">
+                    {notebook.label}
+                  </Link>
+                ) : (
+                  <span>{notebook.label}</span>
+                )}
+                {onToggleNotebookSubscription && seed.seedId && notebook.chunkId && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onToggleNotebookSubscription(seed.seedId!, notebook.chunkId!, !notebook.subscribed);
+                    }}
+                    title={notebook.subscribed ? `Unsubscribe ${notebook.label}` : `Subscribe ${notebook.label}`}
+                    aria-label={notebook.subscribed ? `Unsubscribe ${notebook.label}` : `Subscribe ${notebook.label}`}
+                    data-testid={`${testId}-notebook-toggle-${notebook.packageId}`}
+                    className="ml-0.5 font-bold hover:text-foreground"
+                  >
+                    {notebook.subscribed ? '✓' : '+'}
+                  </button>
+                )}
+              </span>
+            ))}
             {overflow > 0 && (
               <span className="rounded-full border border-dashed border-border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
                 +{overflow} more

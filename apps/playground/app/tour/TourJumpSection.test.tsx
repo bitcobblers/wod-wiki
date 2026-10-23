@@ -42,6 +42,7 @@ function mockMedia(matches: boolean) {
 }
 
 let subscribed = new Set<string>()
+let notebookSubscribed = new Set<string>()
 let outcomes: Record<string, 'imported' | 'current' | 'server-stale' | 'error' | 'busy'> = {}
 const pending = new Set<string>()
 const synced: string[] = []
@@ -49,9 +50,18 @@ const subscriptionListeners = new Set<() => void>()
 
 mock.module('@/services/seed/seedSubscriptions', () => ({
   isSeedSubscribed: (id: string) => subscribed.has(id),
+  isNotebookSubscribed: (seedId: string, chunkId: string) =>
+    subscribed.has(seedId) || notebookSubscribed.has(`${seedId}#${chunkId}`),
   setSeedSubscribed: (id: string, value: boolean) => {
     if (value) subscribed.add(id)
     else subscribed.delete(id)
+    for (const listener of subscriptionListeners) listener()
+    return true
+  },
+  setNotebookSubscribed: (seedId: string, chunkId: string, value: boolean) => {
+    const key = `${seedId}#${chunkId}`
+    if (value) notebookSubscribed.add(key)
+    else notebookSubscribed.delete(key)
     for (const listener of subscriptionListeners) listener()
     return true
   },
@@ -101,6 +111,7 @@ function cardIds(el: HTMLElement) {
 describe('TourJumpSection', () => {
   beforeEach(() => {
     subscribed = new Set()
+    notebookSubscribed.clear()
     outcomes = {}
     pending.clear()
     synced.length = 0
@@ -272,5 +283,42 @@ describe('TourJumpSection', () => {
     expect(screen.queryByTestId('jump-row-a')).toBeNull()
     expect(screen.queryByTestId('jump-row-b')).toBeNull()
     expect(cardIds(copyEl('jump-row-mobile'))).toEqual(seedCardIds())
+  })
+
+  it('filters by subscribed only and by seed source', () => {
+    renderSection()
+    // Default: subscribedOnly is false, all seeds shown
+    expect(screen.getByTestId('seed-card-seed-crossfit')).toBeTruthy()
+    expect(screen.getByTestId('seed-card-seed-swimming')).toBeTruthy()
+
+    // Filter by seed source: only CrossFit should appear
+    const seedSelect = screen.getByTestId('filter-seed-source')
+    fireEvent.change(seedSelect, { target: { value: 'seed-crossfit' } })
+    expect(screen.getByTestId('seed-card-seed-crossfit')).toBeTruthy()
+    expect(screen.queryByTestId('seed-card-seed-swimming')).toBeNull()
+
+    // Reset seed source filter
+    fireEvent.change(seedSelect, { target: { value: '' } })
+    expect(screen.getByTestId('seed-card-seed-swimming')).toBeTruthy()
+
+    // Enable subscribed only when nothing is subscribed -> no seeds match
+    const subCheckbox = screen.getByTestId('filter-subscribed-only')
+    fireEvent.click(subCheckbox)
+    expect(screen.getByText(/No seeds match/i)).toBeTruthy()
+
+    // Uncheck subscribed only -> all seeds visible again
+    fireEvent.click(subCheckbox)
+    expect(screen.getByTestId('seed-card-seed-crossfit')).toBeTruthy()
+  })
+
+  it('toggles individual notebook subscription and updates chip state', () => {
+    renderSection()
+    const toggleBtn = screen.getByTestId('seed-card-seed-crossfit-notebook-toggle-community-crossfit-games')
+    expect(toggleBtn.textContent).toBe('+')
+
+    // Subscribe the notebook
+    fireEvent.click(toggleBtn)
+    expect(notebookSubscribed.has('seed-crossfit#collection.crossfit-games')).toBe(true)
+    expect(synced).toContain('seed-crossfit')
   })
 })

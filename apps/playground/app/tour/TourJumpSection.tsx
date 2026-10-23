@@ -32,7 +32,7 @@ import { journalNotes } from '../services/journalNotes'
 import { noteByIdPath } from '../lib/routes'
 import { getTodayDateKey } from '../services/dateUtils'
 import { listNotebooks, listSeedSources } from '@/services/seed/seedSources'
-import { setSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
+import { isNotebookSubscribed, setNotebookSubscribed, setSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
 import { syncSeedSource, readSeedCoverage } from '@/services/seed/seedSync'
 import { useSeedContent } from '@/services/content/seedContent'
 import { cn } from '@/lib/utils'
@@ -110,15 +110,25 @@ export function TourJumpSection() {
   const [sort, setSort] = useState<NotebookSort>('updated')
   const [importingSeedId, setImportingSeedId] = useState<string | null>(null)
   const [statuses, setStatuses] = useState<Record<string, { text: string; tone: 'muted' | 'error' }>>({})
+  const [subscribedOnly, setSubscribedOnly] = useState(false)
+  const [selectedSeedId, setSelectedSeedId] = useState<string | undefined>()
+  const [subTick, setSubTick] = useState(0)
+
+  useEffect(() => {
+    return subscribeSeedSubscriptions(() => setSubTick((t) => t + 1))
+  }, [])
 
   const anyBusy = importingSeedId !== null
   const files = useSeedContent()
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   // ponytail: seeds and their notebooks come from the registry; upgrade to dynamic remote manifest discovery when an index catalog is published.
-  const catalog = useMemo(() => buildSeedCatalog(listNotebooks(), files, listSeedSources()), [files])
+  const catalog = useMemo(
+    () => buildSeedCatalog(listNotebooks(), files, listSeedSources(), (seedId, chunkId) => isNotebookSubscribed(seedId, chunkId)),
+    [files, subTick],
+  )
   const visible = useMemo(
-    () => sortSeeds(filterSeeds(catalog, { text: search, kind }), sort),
-    [catalog, search, kind, sort],
+    () => sortSeeds(filterSeeds(catalog, { text: search, kind, seedId: selectedSeedId, subscribedOnly }), sort),
+    [catalog, search, kind, sort, selectedSeedId, subscribedOnly],
   )
   // Two rows sliding opposite ways on desktop: split the catalog in half.
   const half = Math.ceil(visible.length / 2)
@@ -182,6 +192,13 @@ export function TourJumpSection() {
       setImportingSeedId(null)
     }
   }, [importingSeedId])
+
+  const handleToggleNotebook = useCallback(async (seedId: string, chunkId: string, sub: boolean) => {
+    setNotebookSubscribed(seedId, chunkId, sub)
+    if (sub) {
+      void syncSeedSource(seedId, { force: false })
+    }
+  }, [])
 
   const handleNewNote = useCallback(async () => {
     const today = getTodayDateKey()
@@ -260,6 +277,32 @@ export function TourJumpSection() {
               )
             })}
           </div>
+
+          {/* Subscribed only toggle */}
+          <label className="flex items-center gap-1.5 cursor-pointer select-none text-muted-foreground hover:text-foreground">
+            <input
+              type="checkbox"
+              checked={subscribedOnly}
+              onChange={(e) => setSubscribedOnly(e.target.checked)}
+              data-testid="filter-subscribed-only"
+              className="size-3.5 accent-primary rounded"
+            />
+            <span className="text-[10px] font-black uppercase tracking-widest">Subscribed only</span>
+          </label>
+
+          {/* Seed source selector */}
+          <select
+            value={selectedSeedId ?? ''}
+            onChange={(e) => setSelectedSeedId(e.target.value ? e.target.value : undefined)}
+            aria-label="Filter by seed source"
+            data-testid="filter-seed-source"
+            className="h-8 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50"
+          >
+            <option value="">All seeds</option>
+            {listSeedSources().map((s) => (
+              <option key={s.id} value={s.id}>{s.label}</option>
+            ))}
+          </select>
 
           <div className="ml-auto flex items-center gap-0.5" role="group" aria-label="Sort seeds">
             {SORT_OPTIONS.map(option => {
@@ -343,6 +386,7 @@ export function TourJumpSection() {
                     importing={!!seed.seedId && importingSeedId === seed.seedId}
                     busy={anyBusy}
                     status={seed.seedId ? statuses[seed.seedId] : undefined}
+                    onToggleNotebookSubscription={handleToggleNotebook}
                   />
                 ))}
               </MarqueeRow>
@@ -358,6 +402,7 @@ export function TourJumpSection() {
                       importing={!!seed.seedId && importingSeedId === seed.seedId}
                       busy={anyBusy}
                       status={seed.seedId ? statuses[seed.seedId] : undefined}
+                      onToggleNotebookSubscription={handleToggleNotebook}
                     />
                   ))}
                 </MarqueeRow>
@@ -376,6 +421,7 @@ export function TourJumpSection() {
                   importing={!!seed.seedId && importingSeedId === seed.seedId}
                   busy={anyBusy}
                   status={seed.seedId ? statuses[seed.seedId] : undefined}
+                  onToggleNotebookSubscription={handleToggleNotebook}
                 />
               ))}
             </MarqueeRow>
@@ -392,7 +438,7 @@ export function TourJumpSection() {
                 <button
                   type="button"
                   data-testid="jump-clear-filters"
-                  onClick={() => { setSearch(''); setKind(undefined) }}
+                  onClick={() => { setSearch(''); setKind(undefined); setSelectedSeedId(undefined); setSubscribedOnly(false) }}
                   className="mt-3 h-8 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
                 >
                   Clear filters
