@@ -66,6 +66,13 @@ const workoutCalc: CalculationDefinition = {
 const tags = createTagIndex([
   { slug: 'heavy', contributions: [{ kind: 'function', name: 'tag-fn' }] },
   { slug: 'summarised', contributions: [{ kind: 'function', name: 'tag-summary' }] },
+  {
+    slug: 'composite',
+    contributions: [
+      { kind: 'tag', slug: 'heavy' },
+      { kind: 'metric', type: 'intensity', value: 'composite' },
+    ],
+  },
 ]);
 
 function engineWith(calcs: CalculationDefinition[], activeTags?: readonly string[]) {
@@ -137,6 +144,20 @@ describe('tag-carried functions', () => {
     engine.process(untagged);
     const projections = engine.summarize([untagged]);
     expect(projections.map(p => p.metricType)).not.toContain('calc.tag-summary');
+  });
+
+  it('runs a function a tag carries through a tag it applies', () => {
+    const engine = engineWith([segmentCalc]);
+    const tagged = segment([reps(5), marker('composite')]);
+    engine.process(tagged);
+    expect(annotations(tagged, 'calc.tag-fn')).toHaveLength(1);
+  });
+
+  it('runs a carried function on every segment when the run activates the tag', () => {
+    const engine = engineWith([segmentCalc], ['heavy']);
+    const untagged = segment([reps(5)]);
+    engine.process(untagged);
+    expect(annotations(untagged, 'calc.tag-fn')).toHaveLength(1);
   });
 
   it('runs a workout-scope carried function the run activates', () => {

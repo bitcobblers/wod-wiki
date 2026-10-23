@@ -7,6 +7,7 @@ import type {
   MetricTone,
 } from './types';
 import { computeLabel, computeColumnLabel, buildTooltip } from './labelFormatting';
+import { TAG_MARKER_PREFIX } from '../../tags/TagContributions';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,10 @@ function createPolicy(): IMetricPresentationPolicy {
       const t = metric.type as string;
       // Sound never shows in non-debug surfaces
       if ((t === MetricType.Sound || t === 'sound') && surface !== 'debug') return true;
+      // A tag marker records which tag applied to a statement — the
+      // machinery behind a tag, not a metric the reader needs. What the tag
+      // contributes is what shows.
+      if (t.startsWith(TAG_MARKER_PREFIX) && surface !== 'debug') return true;
       // review-grid-column suppresses combined time columns and system metrics
       if (surface === 'review-grid-column') {
         if (

@@ -35,8 +35,7 @@ import { useWorkbenchRuntime } from '@/hooks/useWorkbenchRuntime';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { parseDocumentStructure } from '@/components/Editor/utils/documentStructure';
 import { useWorkbenchSession, getActiveWorkbenchSessionStore } from '@/stores/workbenchSessionStore'
-import { resolveSoundProfiles } from '@/services/sound/soundProfiles'
-import { noteProfileIdFromTags } from '@/services/sound/soundProfiles'
+import { resolveSoundProfiles, noteProfileIdFromTags } from '@/services/sound/soundProfiles'
 import { loadTagIndex } from '@/services/tags/tagCatalogue'
 import { useTagIndex } from '@/hooks/useTagIndex'
 import { hydrateUserCalcs } from '@/stores/userCalcStore'
@@ -151,13 +150,19 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
   // registered with the run, so a function a tag carries can be one of them.
   const [userCalcs, setUserCalcs] = useState<CalculationDefinition[]>([]);
 
+  // A run must not start before its configuration has loaded: a run started
+  // against an empty catalogue would resolve no `#{tag}` reference and
+  // register no function.
+  const [configurationLoaded, setConfigurationLoaded] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
-    loadTagIndex()
-      .catch(() => { /* Tags are optional — a document without them still runs. */ });
-    hydrateUserCalcs()
-      .then(({ defs }) => { if (!cancelled) setUserCalcs(defs); })
-      .catch(() => { /* A calc that does not compile must not stop the run. */ });
+    Promise.all([
+      loadTagIndex().catch(() => { /* Tags are optional — a document without them still runs. */ }),
+      hydrateUserCalcs()
+        .then(({ defs }) => { if (!cancelled) setUserCalcs(defs); })
+        .catch(() => { /* A calc that does not compile must not stop the run. */ }),
+    ]).then(() => { if (!cancelled) setConfigurationLoaded(true); });
     return () => {
       cancelled = true;
     };
@@ -184,7 +189,7 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
   const lastInitializedKeyRef = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    if (viewMode === 'track' && selectedBlock && lastInitializedKeyRef.current === null) {
+    if (viewMode === 'track' && selectedBlock && configurationLoaded && lastInitializedKeyRef.current === null) {
       lastInitializedKeyRef.current = 'starting';
       sessionApi.getState().startPinnedRun(selectedBlock).then(block => {
         if (cancelled) return;
@@ -196,7 +201,7 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
       lastInitializedKeyRef.current = null;
     }
     return () => { cancelled = true; };
-  }, [viewMode, selectedBlock?.id, sessionApi, soundOptions, analyticsOptions, runtimeControls.initializeRuntime, runtimeControls.disposeRuntime]);
+  }, [viewMode, selectedBlock?.id, sessionApi, soundOptions, analyticsOptions, configurationLoaded, runtimeControls.initializeRuntime, runtimeControls.disposeRuntime]);
 
   // ── Clear stale analytics on selection change ──
 

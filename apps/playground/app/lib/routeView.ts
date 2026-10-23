@@ -210,6 +210,9 @@ function deriveWorkout(
   if (flags.feedDetailMatch) {
     return { name: decodeURIComponent(flags.feedDetailMatch), content: '', category: 'feed' }
   }
+  if (cleanRoutePath(pathname) === '/tags') {
+    return { name: 'Tags', content: '', category: 'tags' }
+  }
   if (pathname.startsWith('/dashboard/') || pathname.startsWith('/d/')) {
     const segment = pathname.startsWith('/d/')
       ? pathname.slice('/d/'.length)

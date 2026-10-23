@@ -11,7 +11,6 @@ export {
     TAG_MARKER_PREFIX,
     findTagContributionCycles,
     resolveTagContributions,
-    sortedTagDefinitions,
     tagContributionMetrics,
     tagMarkerSlug,
     tagMarkerSlugs,

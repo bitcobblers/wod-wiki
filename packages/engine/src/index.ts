@@ -22,7 +22,6 @@ export {
   // Tags a script can reference with `#{tag-slug}`
   findTagContributionCycles,
   resolveTagContributions,
-  sortedTagDefinitions,
   tagContributionMetrics,
   tagMarkerSlug,
   tagMarkerSlugs,

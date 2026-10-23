@@ -30,8 +30,13 @@ interface FunctionOption {
 const GRAIN_BY_SCOPE: Record<string, string> = {
   segment: 'per record',
   workout: 'at workout end',
-  store: 'across workouts',
 };
+
+/**
+ * The scopes a function can run at. Store scope has no evaluator yet, so a
+ * function that spans workouts is not offered.
+ */
+const RUNNABLE_SCOPES = new Set(['segment', 'workout']);
 
 export function TagsPage() {
   const [tags, setTags] = useState<Tag[]>([]);
@@ -54,11 +59,14 @@ export function TagsPage() {
     const hydration = await hydrateUserCalcs().catch(() => ({ defs: [], errors: [] }));
     setTags(storedTags);
     setTagTypes(storedTypes);
-    const options: FunctionOption[] = BUILTIN_CALCS.map(calc => ({
+    const options: FunctionOption[] = BUILTIN_CALCS.filter(calc =>
+      RUNNABLE_SCOPES.has(calc.scope),
+    ).map(calc => ({
       name: calc.id,
       grain: GRAIN_BY_SCOPE[calc.scope] ?? calc.scope,
     }));
     for (const calc of hydration.defs) {
+      if (!RUNNABLE_SCOPES.has(calc.scope)) continue;
       options.push({ name: calc.id, grain: GRAIN_BY_SCOPE[calc.scope] ?? calc.scope });
     }
     setFunctions(options);
@@ -351,6 +359,20 @@ export function TagsPage() {
   );
 }
 
+/** The props a contribution row is edited with. */
+interface ContributionRowProps {
+  /** The contribution being edited. */
+  contribution: TagContribution;
+  /** The tags this one may apply. */
+  tagOptions: string[];
+  /** The functions that may be carried. */
+  functionOptions: FunctionOption[];
+  /** Called with the edited contribution. */
+  onChange: (contribution: TagContribution) => void;
+  /** Called when the contribution is removed. */
+  onRemove: () => void;
+}
+
 /** One contribution, edited in place. */
 function ContributionRow({
   contribution,
@@ -358,13 +380,7 @@ function ContributionRow({
   functionOptions,
   onChange,
   onRemove,
-}: {
-  contribution: TagContribution;
-  tagOptions: string[];
-  functionOptions: FunctionOption[];
-  onChange: (contribution: TagContribution) => void;
-  onRemove: () => void;
-}) {
+}: ContributionRowProps) {
   const inputClass =
     'h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary';
 

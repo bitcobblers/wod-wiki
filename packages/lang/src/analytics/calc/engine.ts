@@ -29,7 +29,7 @@ import type { ProjectionResult } from '../ProjectionResult';
 import { extractEffortData } from '../effortResolution';
 import { ExprNode } from './ast';
 import { STREAM_ATOMS } from './atoms';
-import { tagMarkerSlugs } from '../../tags/TagContributions';
+import { resolveTagContributions, tagMarkerSlugs } from '../../tags/TagContributions';
 import { evaluate, EvalContext } from './evaluator';
 import { LookupRegistry } from './lookup';
 import { outputNodeIds, CalculationRegistry } from './registry';
@@ -79,6 +79,8 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
   private readonly tagCarriedFunctions = new Map<string, Set<string>>();
   /** The tags applied anywhere in the run so far. */
   private readonly activatedTags = new Set<string>();
+  /** The tags the run activates — a note-level bundle of attachments. */
+  private readonly runTags: string[];
 
   constructor(
     private readonly registry: CalculationRegistry,
@@ -87,15 +89,18 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
     const fenced = (d: CalculationDefinition) => !d.fences || d.fences.includes(deps.dialect);
     this.segmentCalcs = registry.byScope('segment').filter(fenced);
     this.workoutCalcs = registry.byScope('workout').filter(fenced);
+    // A tag carries the functions it names and the functions the tags it
+    // applies name — the same resolution the parser does.
     for (const tag of deps.tags?.list() ?? []) {
-      for (const contribution of tag.contributions) {
-        if (contribution.kind !== 'function') continue;
-        const carriers = this.tagCarriedFunctions.get(contribution.name);
+      const resolved = resolveTagContributions(deps.tags, tag.slug);
+      for (const name of resolved.functions) {
+        const carriers = this.tagCarriedFunctions.get(name);
         if (carriers) carriers.add(tag.slug);
-        else this.tagCarriedFunctions.set(contribution.name, new Set([tag.slug]));
+        else this.tagCarriedFunctions.set(name, new Set([tag.slug]));
       }
     }
-    for (const tag of deps.activeTags ?? []) this.activatedTags.add(tag);
+    this.runTags = [...(deps.activeTags ?? [])];
+    for (const tag of this.runTags) this.activatedTags.add(tag);
   }
 
   /**
@@ -114,14 +119,18 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
   }
 
   /**
-   * The tags applied to a segment — the tags its statement marked — and a
-   * record that they were applied, so a workout-scope function the tag
+   * The tags applied to a segment: the tags its statement marked, plus the
+   * tags the run activates — a note-level tag applies to every segment of
+   * the note it belongs to.
+   *
+   * The applied tags are recorded, so a workout-scope function the tag
    * carries runs at the end of the workout.
    */
   private appliedTags(output: IOutputStatement): string[] {
     const slugs = tagMarkerSlugs(output.metrics.rawMetrics);
     for (const slug of slugs) this.activatedTags.add(slug);
-    return slugs;
+    if (this.runTags.length === 0) return slugs;
+    return [...slugs, ...this.runTags.filter(slug => !slugs.includes(slug))];
   }
 
   // ── Phase 1: segment scope ─────────────────────────────────────────────

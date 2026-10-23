@@ -12,7 +12,7 @@
  */
 
 import { createTagIndex, type TagDefinition, type TagIndex } from '@bitcobblers/wod-wiki-engine'
-import type { Tag, TagContribution } from '@bitcobblers/wod-wiki-core'
+import type { ITagSource, Tag, TagContribution } from '@bitcobblers/wod-wiki-core'
 import { storageService } from '@/services/storage'
 import { soundProfileIdFromTag } from '@/services/sound/soundProfiles'
 
@@ -47,6 +47,19 @@ export function buildTagDefinitions(tags: readonly Tag[]): TagDefinition[] {
     }
     return definitions
 }
+
+/**
+ * The app's tag source — the tags the tags store holds, as definitions the
+ * language can resolve.
+ */
+class StorageTagSource implements ITagSource {
+    async loadTags(): Promise<readonly TagDefinition[]> {
+        const tags = await storageService.getAllTags();
+        return buildTagDefinitions(tags);
+    }
+}
+
+const tagSource: ITagSource = new StorageTagSource();
 
 // ── Cached index ───────────────────────────────────────────────────────────
 
@@ -83,10 +96,11 @@ let loadPromise: Promise<TagIndex> | null = null
 
 export function loadTagIndex(): Promise<TagIndex> {
     if (!loadPromise) {
-        loadPromise = storageService
-            .getAllTags()
-            .then(tags => {
-                setTagIndex(tags)
+        loadPromise = tagSource
+            .loadTags()
+            .then(definitions => {
+                cachedTagIndex = createTagIndex(definitions)
+                for (const listener of listeners) listener()
                 return cachedTagIndex
             })
             .finally(() => {
@@ -100,8 +114,9 @@ export function loadTagIndex(): Promise<TagIndex> {
  * Refresh the cached index from storage, bypassing the shared load.
  */
 export async function refreshTagIndex(): Promise<TagIndex> {
-    const tags = await storageService.getAllTags()
-    setTagIndex(tags)
+    const definitions = await tagSource.loadTags()
+    cachedTagIndex = createTagIndex(definitions)
+    for (const listener of listeners) listener()
     return cachedTagIndex
 }
 

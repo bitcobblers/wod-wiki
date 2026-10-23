@@ -13,7 +13,6 @@
 import type {
     IMetric,
     MetricOrigin,
-    TagDefinition,
     TagIndex,
     TagMetricContribution,
 } from '@bitcobblers/wod-wiki-core';
@@ -191,12 +190,4 @@ export function tagContributionMetrics(
         image: String(contribution.value),
         ...(contribution.unit ? { unit: contribution.unit } : {}),
     }));
-}
-
-/**
- * The tag definitions a catalogue holds, in slug order.
- */
-export function sortedTagDefinitions(tagIndex: TagIndex | undefined): TagDefinition[] {
-    if (!tagIndex) return [];
-    return [...tagIndex.list()].sort((a, b) => a.slug.localeCompare(b.slug));
 }

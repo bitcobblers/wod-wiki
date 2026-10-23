@@ -16,7 +16,7 @@ import { UnitRegistry } from '../metrics/units';
 import { EMPTY_UNIT } from '../runtime/compiler/metrics/dimensionFactory';
 import { SyntaxFacts, SyntaxMeta, SyntaxPrimitive, SyntaxStatement } from './syntax-facts';
 import type { PropertyPrimitive, TagRefPrimitive } from './syntax-facts';
-import { resolveTagContributions, tagMarkerType } from '../tags/TagContributions';
+import { resolveTagContributions, tagContributionMetrics, tagMarkerType } from '../tags/TagContributions';
 import type { TagIndex } from '@bitcobblers/wod-wiki-core';
 
 type MetricPair = { metrics: IMetric; meta: SyntaxMeta };
@@ -411,21 +411,10 @@ function referenceSlots(
   for (const slug of slugs) {
     const contributions = resolveTagContributions(references?.tags, slug);
 
-    for (const contribution of contributions.metrics) {
-      resolved = true;
-      slots.push({
-        kind: 'contributed',
-        pair: {
-          metrics: {
-            type: contribution.type,
-            value: contribution.value,
-            origin: 'parser',
-            image: String(contribution.value),
-            ...(contribution.unit ? { unit: contribution.unit } : {}),
-          },
-          meta,
-        },
-      });
+    const contributed = tagContributionMetrics(contributions.metrics);
+    if (contributed.length > 0) resolved = true;
+    for (const metric of contributed) {
+      slots.push({ kind: 'contributed', pair: { metrics: metric, meta } });
     }
 
     for (const tag of contributions.tags) {
