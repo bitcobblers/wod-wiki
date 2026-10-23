@@ -1,3 +1,4 @@
+import type { TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
 import { BlockKey } from '@bitcobblers/wod-wiki-core';
 import { IRuntimeAction } from './IRuntimeAction';
 import { IBlockContext } from './IBlockContext';
@@ -47,6 +48,15 @@ export interface CompletionDecision {
  * - Memory usage should be minimized during execution
  */
 export interface IRuntimeBlock extends IBlockRef {
+    /**
+     * The tag composition of this block — the tags its statements referenced,
+     * and what each carried (the functions it activates, the sound profile it
+     * names).
+     *
+     * Resolved at compile time, so the runtime and the surfaces that show a
+     * block know which tags shaped it without re-reading the catalogue.
+     */
+    readonly tagComposition?: readonly TagReferenceMetadata[];
     /**
      * Execution timing metadata propagated by the runtime (start/completion timestamps).
      * Implementations can rely on RuntimeStack/PushBlockAction to set this.

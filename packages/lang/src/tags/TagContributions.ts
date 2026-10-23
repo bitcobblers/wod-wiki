@@ -10,12 +10,54 @@
  * or through other tags, contributes nothing further rather than looping.
  */
 
-import type {
-    IMetric,
-    MetricOrigin,
-    TagIndex,
-    TagMetricContribution,
+import {
+    getTagReference,
+    MetricType,
+    type IMetric,
+    type MetricOrigin,
+    type TagIndex,
+    type TagMetricContribution,
+    type TagReferenceMetadata,
 } from '@bitcobblers/wod-wiki-core';
+
+/**
+ * The reference a tag contributes: the tag itself, the functions it carries,
+ * and the sound profile it names.
+ *
+ * A tag that carries a sound metric points at the profile that metric names
+ * — the link a `#sound-` reference marks.
+ */
+export function tagReferenceFor(tagIndex: TagIndex | undefined, slug: string): TagReferenceMetadata {
+    const resolved = resolveTagContributions(tagIndex, slug);
+    const sound = resolved.metrics.find(
+        contribution => contribution.type === MetricType.Sound && typeof contribution.value === 'string',
+    );
+    return {
+        slug,
+        label: slug,
+        ...(resolved.functions.length > 0 ? { functions: [...resolved.functions] } : {}),
+        ...(sound ? { soundProfileId: sound.value as string } : {}),
+    };
+}
+
+/**
+ * The tag references a set of metrics carries, deduplicated, in order.
+ *
+ * The references are collected into `into` when one is given, so a caller
+ * walking many statements does not allocate a list per statement.
+ */
+export function collectTagReferences(
+    metrics: Iterable<IMetric>,
+    into: TagReferenceMetadata[] = [],
+): TagReferenceMetadata[] {
+    for (const metric of metrics) {
+        const reference = getTagReference(metric.metadata);
+        if (!reference) continue;
+        if (into.some(existing => existing.slug === reference.slug)) continue;
+        into.push(reference);
+    }
+    return into;
+}
 
 /**
  * The metric type prefix that marks a statement as carrying a tag.

@@ -6,6 +6,7 @@ import {
   getCursorFocusState,
 } from "./cursorFocusExtension";
 import { MetricType } from "@bitcobblers/wod-wiki-engine";
+import { setTagIndex } from "@/services/tags/tagCatalogue";
 
 describe("cursorFocusExtension", () => {
   it("assigns token-level metric highlight marks based on parser metrics", () => {
@@ -87,6 +88,52 @@ describe("cursorFocusExtension", () => {
 
     const dimDurationMark = markRanges.find((m) => m.text === "2:00");
     expect(dimDurationMark?.cls).toBe("cm-metric-underline-duration-dim");
+  });
+
+  it("marks a tag reference as a hashtag", () => {
+    setTagIndex([
+      {
+        id: "tag-heavy",
+        label: "heavy",
+        contributions: [{ kind: "metric", type: "intensity", value: "heavy" }],
+      },
+    ]);
+
+    const doc = ["# Repro Note", "", "```time", "10 Pushups #{heavy}", "```", ""].join("\n");
+    const state = EditorState.create({
+      doc,
+      extensions: [sectionField, cursorFocusExtension],
+    });
+
+    const activeState = state.update({
+      selection: { anchor: doc.indexOf("Pushups") + 2 },
+    }).state;
+
+    const internalStateField = (cursorFocusExtension as unknown as StateField<unknown>[])[0];
+    const decos = activeState.field(internalStateField).decos;
+
+    const markRanges: { from: number; to: number; text: string; cls: string }[] = [];
+    const iter = decos.iter();
+    while (iter.value) {
+      const cls = (iter.value.spec as unknown as { class?: string }).class;
+      if (cls) {
+        markRanges.push({
+          from: iter.from,
+          to: iter.to,
+          text: doc.slice(iter.from, iter.to),
+          cls,
+        });
+      }
+      iter.next();
+    }
+
+    // The tag reference is a hashtag, not a metric mark.
+    const tagMarks = markRanges.filter((m) => m.cls.includes("tag-reference"));
+    expect(tagMarks.some((m) => m.text === "#{heavy}")).toBe(true);
+    expect(tagMarks[0]?.cls).toBe("cm-tag-reference");
+
+    // The metric the tag brought is not marked as a metric of its own kind.
+    expect(markRanges.some((m) => m.text === "#{heavy}" && m.cls.includes("underline"))).toBe(false);
   });
 
   it('focuses metrics owned by both statements on an inline rounds line', () => {

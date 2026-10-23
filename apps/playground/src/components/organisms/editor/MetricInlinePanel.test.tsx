@@ -66,6 +66,45 @@ describe('MetricInlinePanel ADR-0009 regressions', () => {
     expect(screen.getByText('Zone 2')).toBeDefined();
   });
 
+  it('shows the tag a line points at, with a link to the tag', () => {
+    const view = {
+      ...createMockView(),
+      state: {
+        facet: () => () => ({
+          openHref: (kind: string, slug: string) =>
+            kind === 'tag' ? `/tags?tag=${slug}` : `/e/${slug}`,
+          createHref: () => '/tags',
+        }),
+      } as unknown as EditorState,
+    };
+    const statement = makeStatement([
+      {
+        type: 'intensity',
+        value: 'heavy',
+        image: 'heavy',
+        origin: 'parser',
+        metadata: {
+          tagReference: { slug: 'heavy', label: 'heavy', functions: ['e1rm'] },
+        },
+      } as IMetric,
+    ]);
+    const section = makeSection();
+
+    const getCursorFocusState = mock(() => ({
+      section,
+      statement,
+      cursorLine: 1,
+      lineFrom: 0,
+      lineTo: 10,
+      focusedMetric: null,
+    }));
+
+    render(<MetricInlinePanel view={view as unknown as EditorView} cursorVersion={1} getCursorFocusState={getCursorFocusState} />);
+
+    const link = screen.getByLabelText('Open the heavy tag') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/tags?tag=heavy');
+  });
+
   it('renders calculated metric chips inline', () => {
     const view = createMockView();
     const statement = makeStatement([

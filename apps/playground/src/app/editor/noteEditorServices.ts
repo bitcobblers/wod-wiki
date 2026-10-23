@@ -54,13 +54,22 @@ function referenceOpenHref(kind: 'effort' | 'equipment', slug: string, label: st
   return entryOpenHref(entry);
 }
 
+/** Route href for a tag — the catalogue page, opened on that tag. */
+function tagOpenHref(slug: string): string {
+  return `/tags?tag=${encodeURIComponent(slug)}`;
+}
+
 function buildProvider(index: ReferenceIndex): FrontmatterReferenceProvider {
   return {
     resolve: (label, defaults) => index.resolve(label, defaults),
     resolveEffort: (slugOrAlias) => index.resolveEffort(slugOrAlias),
     resolveEquipment: (slugOrAlias) => index.resolveEquipment(slugOrAlias),
-    openHref: (kind, slug) => referenceOpenHref(kind, slug, slug),
-    createHref: (kind) => (kind === 'effort' ? '/e/new?mode=create' : '/equipment/new?mode=create'),
+    openHref: (kind, slug) => (kind === 'tag' ? tagOpenHref(slug) : referenceOpenHref(kind, slug, slug)),
+    createHref: (kind) => (kind === 'effort'
+      ? '/e/new?mode=create'
+      : kind === 'equipment'
+        ? '/equipment/new?mode=create'
+        : '/tags'),
   };
 }
 

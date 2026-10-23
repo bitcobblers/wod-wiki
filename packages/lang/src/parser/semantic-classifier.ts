@@ -16,8 +16,13 @@ import { UnitRegistry } from '../metrics/units';
 import { EMPTY_UNIT } from '../runtime/compiler/metrics/dimensionFactory';
 import { SyntaxFacts, SyntaxMeta, SyntaxPrimitive, SyntaxStatement } from './syntax-facts';
 import type { PropertyPrimitive, TagRefPrimitive } from './syntax-facts';
-import { resolveTagContributions, tagContributionMetrics, tagMarkerType } from '../tags/TagContributions';
-import type { TagIndex } from '@bitcobblers/wod-wiki-core';
+import {
+    resolveTagContributions,
+    tagContributionMetrics,
+    tagMarkerType,
+    tagReferenceFor,
+} from '../tags/TagContributions';
+import { TAG_REFERENCE_METADATA_KEY, type TagIndex, type TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
 
 type MetricPair = { metrics: IMetric; meta: SyntaxMeta };
 
@@ -410,24 +415,35 @@ function referenceSlots(
 
   for (const slug of slugs) {
     const contributions = resolveTagContributions(references?.tags, slug);
+    // The tag the line points at: the metrics it brings record where they
+    // came from, so the editor can link to the tag.
+    const reference = tagReferenceFor(references?.tags, slug);
 
     const contributed = tagContributionMetrics(contributions.metrics);
     if (contributed.length > 0) resolved = true;
     for (const metric of contributed) {
-      slots.push({ kind: 'contributed', pair: { metrics: metric, meta } });
+      slots.push({
+        kind: 'contributed',
+        pair: { metrics: withTagReference(metric, reference), meta },
+      });
     }
 
     for (const tag of contributions.tags) {
       resolved = true;
+      // Each tag that applied carries its own reference — a tag a tag
+      // applies is a reference of its own, not of the tag that applied it.
+      const tagReference = tag === slug
+        ? reference
+        : tagReferenceFor(references?.tags, tag);
       slots.push({
         kind: 'marker',
         pair: {
-          metrics: {
+          metrics: withTagReference({
             type: tagMarkerType(tag),
             value: tag,
             origin: 'parser',
             image: tag,
-          },
+          }, tagReference),
           meta,
         },
       });
@@ -435,6 +451,14 @@ function referenceSlots(
   }
 
   return { slots, resolved };
+}
+
+/** A metric that records the tag it came from. */
+function withTagReference(metric: IMetric, reference: TagReferenceMetadata): IMetric {
+  return {
+    ...metric,
+    metadata: { ...(metric.metadata ?? {}), [TAG_REFERENCE_METADATA_KEY]: reference },
+  };
 }
 
 /** The property metric a line states outright. */

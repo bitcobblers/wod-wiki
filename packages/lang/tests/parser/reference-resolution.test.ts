@@ -37,6 +37,11 @@ const efforts: IEffort[] = [
     id: 'e5', slug: 'press-b', label: 'Bench Press', aliases: ['press'],
     baseAttributes: { met: 4 }, registrySource: 'bundled',
   },
+  {
+    id: 'e6', slug: 'kettlebell-swings', label: 'Kettlebell Swings', aliases: ['swings'],
+    baseAttributes: { met: 8.5 }, registrySource: 'bundled',
+    equipment: ['kettlebell'],
+  },
 ];
 
 const equipment: IEquipment[] = [
@@ -46,6 +51,10 @@ const equipment: IEquipment[] = [
   },
   {
     id: 'q2', slug: 'barbell', label: 'Barbell', aliases: [],
+    registrySource: 'bundled',
+  },
+  {
+    id: 'q3', slug: 'kettlebell', label: 'Kettlebell', aliases: ['kb', 'kettlebells'],
     registrySource: 'bundled',
   },
 ];
@@ -59,6 +68,13 @@ function parse(text: string, overrides?: { defaults?: { effort?: string; equipme
 }
 
 describe('reference resolver (exact index)', () => {
+  it('flags an equipment alias as equipment, without a hash', () => {
+    const resolved = index().resolve('KB swings');
+    expect(resolved.matched).toBe('split');
+    expect(resolved.equipment.map(ref => ref.slug)).toEqual(['kettlebell']);
+    expect(resolved.diagnostics).toEqual([]);
+  });
+
   it('splits an exact equipment prefix + remaining effort even when the whole phrase is also a record', () => {
     const resolved = index().resolve('Dumbbell Snatch');
     expect(resolved.matched).toBe('split');

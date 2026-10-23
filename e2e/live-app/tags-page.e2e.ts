@@ -65,6 +65,18 @@ test.describe('Tags — /tags', () => {
     await expect(page.getByLabel('Metric unit')).toHaveValue('text');
   });
 
+  test('opens the tag a link points at', async ({ page }) => {
+    await page.getByPlaceholder('heavy').fill(TAG_NAME);
+    await page.getByRole('button', { name: /Add Tag/i }).click();
+    const tag = page.getByRole('button', { name: TAG_NAME, exact: true });
+    await expect(tag).toBeVisible();
+
+    // The editor links a tag reference to /tags?tag=<slug> — that link has
+    // to land on the tag itself.
+    await page.goto(`/tags?tag=${TAG_NAME}`);
+    await expect(page.getByRole('heading', { name: `Edit ${TAG_NAME}` })).toBeVisible();
+  });
+
   test('deletes a tag', async ({ page }) => {
     await page.getByPlaceholder('heavy').fill(TAG_NAME);
     await page.getByRole('button', { name: /Add Tag/i }).click();

@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { BUILTIN_CALCS, findTagContributionCycles } from '@bitcobblers/wod-wiki-engine';
 import type { Tag, TagContribution, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
 import { Plus, Trash2 } from 'lucide-react';
@@ -39,6 +40,8 @@ const GRAIN_BY_SCOPE: Record<string, string> = {
 const RUNNABLE_SCOPES = new Set(['segment', 'workout']);
 
 export function TagsPage() {
+  const [searchParams] = useSearchParams();
+  const requestedTag = searchParams.get('tag');
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagTypes, setTagTypes] = useState<TagTypeRecord[]>([]);
   const [functions, setFunctions] = useState<FunctionOption[]>([]);
@@ -78,6 +81,13 @@ export function TagsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A link from the editor points at a tag: open it.
+  useEffect(() => {
+    if (!requestedTag || tags.length === 0) return;
+    const match = tags.find(tag => tag.label === requestedTag);
+    if (match) setSelectedId(match.id);
+  }, [requestedTag, tags]);
 
   const selected = tags.find(tag => tag.id === selectedId) ?? null;
 
