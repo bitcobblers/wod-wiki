@@ -14,7 +14,9 @@ test.describe(`Settings version surfaces — ${appBaseURL()}`, () => {
     await expect(gear).toBeVisible();
     await gear.hover();
 
-    const tooltip = page.getByRole('tooltip');
+    // Scope to the gear: the rail renders one role="tooltip" per nav item,
+    // all in-DOM (opacity-0) — a page-level locator is a strict-mode violation.
+    const tooltip = gear.getByRole('tooltip');
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText(/v.+/, { timeout: 5_000 });
   });
