@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { frontmatterPreview, frontmatterSuggestions, sectionField, type FrontmatterSuggestionCatalog } from '../src/extensions';
-import { computeInlinePanelBox } from '../src/extensions/frontmatter-suggestions';
+import { computeFloatingPlacement } from '../src/extensions/frontmatter-suggestions';
 
 const catalog: FrontmatterSuggestionCatalog = {
   types: ['format', 'domain'],
@@ -63,8 +63,8 @@ describe('inline frontmatter suggestions', () => {
     if (!(add instanceof HTMLButtonElement)) throw new Error('Missing Add tag action');
     add.click();
     vi.advanceTimersByTime(0);
-    expect(document.activeElement).toBe(input(first.container, 'Value for tags'));
-    expect(second.container.querySelector('input[aria-label="Value for tags"]')).toBeNull();
+    expect(document.activeElement).toBe(input(first.container, 'Value for category'));
+    expect(second.container.querySelector('input[aria-label="Value for category"]')).toBeNull();
     expect(second.view.state.doc.toString()).toBe('---\nformat: amrap\n---\nBody');
   });
 
@@ -194,63 +194,74 @@ describe('inline frontmatter suggestions', () => {
     expect(list?.querySelectorAll('[role="option"]').length).toBe(2);
   });
 
-  it('expands inside the properties table instead of floating over the page', async () => {
+  it('floats over the properties panel without changing its height', async () => {
     const { container } = editor('---\nformat: ""\n---\nBody');
     const format = input(container, 'Value for format');
+    const panel = container.querySelector('.cm-frontmatter-preview') as HTMLElement;
+    const heightBefore = panel.getBoundingClientRect().height;
+
     format.focus();
     await settle();
 
     const list = document.getElementById(format.getAttribute('aria-controls') ?? '');
-    // Inside the properties table: the metadata actions below are pushed
-    // down, never covered.
-    expect(list?.closest('.cm-frontmatter-preview')).not.toBeNull();
-    expect(list?.parentElement?.className).toContain('rounded-lg');
+    // The popup lives outside the editor: the properties panel keeps its
+    // height and the note below it does not move.
+    expect(list?.closest('.cm-frontmatter-preview')).toBeNull();
+    expect(panel.getBoundingClientRect().height).toBe(heightBefore);
   });
 });
 
-describe('frontmatter suggestion panel geometry', () => {
+describe('frontmatter suggestion panel placement', () => {
+  const field = { top: 100, bottom: 130, left: 400, width: 900 };
+
   it('clamps the panel to the field width instead of the full row', () => {
-    const box = computeInlinePanelBox(
-      { left: 400, top: 100, width: 900 },
-      { left: 280, top: 80, width: 1000 },
-      800,
-    );
-    expect(box.width).toBe(320);
+    const placement = computeFloatingPlacement(field, { width: 1280, height: 800 }, 200);
+    expect(placement.width).toBe(320);
   });
 
   it('gives a narrow field a readable minimum width', () => {
-    const box = computeInlinePanelBox(
-      { left: 280, top: 100, width: 90 },
-      { left: 280, top: 80, width: 1000 },
-      800,
+    const placement = computeFloatingPlacement(
+      { top: 100, bottom: 130, left: 20, width: 90 },
+      { width: 1280, height: 800 },
+      200,
     );
-    expect(box.width).toBe(192);
+    expect(placement.width).toBe(192);
   });
 
-  it('anchors the panel to the field inside its row', () => {
-    const box = computeInlinePanelBox(
-      { left: 480, top: 100, width: 176 },
-      { left: 280, top: 80, width: 1000 },
-      800,
-    );
-    expect(box.offsetLeft).toBe(200);
+  it('opens below the field', () => {
+    const placement = computeFloatingPlacement(field, { width: 1280, height: 800 }, 200);
+    expect(placement.placement).toBe('below');
+    expect(placement.top).toBe(138);
+    expect(placement.left).toBe(400);
   });
 
-  it('keeps the panel inside the row and the viewport', () => {
-    // A field at the far right of a narrow row: the panel slides back inside.
-    const narrow = computeInlinePanelBox(
-      { left: 900, top: 100, width: 300 },
-      { left: 280, top: 80, width: 700 },
-      800,
+  it('flips above the field when the space below is too small', () => {
+    const placement = computeFloatingPlacement(
+      { top: 600, bottom: 630, left: 40, width: 400 },
+      { width: 1280, height: 700 },
+      256,
     );
-    expect(narrow.offsetLeft + narrow.width).toBeLessThanOrEqual(700);
+    expect(placement.placement).toBe('above');
+    expect(placement.top).toBe(600 - 8 - 256);
+  });
 
-    // A field near the bottom of the viewport: the panel scrolls internally.
-    const low = computeInlinePanelBox(
-      { left: 300, top: 700, width: 200 },
-      { left: 280, top: 680, width: 1000 },
-      800,
+  it('flips above the field rather than covering the metadata actions', () => {
+    const placement = computeFloatingPlacement(
+      { top: 300, bottom: 330, left: 40, width: 400 },
+      { width: 1280, height: 900 },
+      200,
+      { top: 340, bottom: 374, left: 0, right: 600 },
     );
-    expect(low.maxHeight).toBe(96);
+    expect(placement.placement).toBe('above');
+    expect(placement.top).toBe(300 - 8 - 200);
+  });
+
+  it('keeps the panel inside the viewport horizontally', () => {
+    const placement = computeFloatingPlacement(
+      { top: 100, bottom: 130, left: 1200, width: 400 },
+      { width: 1280, height: 800 },
+      200,
+    );
+    expect(placement.left + placement.width).toBeLessThanOrEqual(1280 - 8);
   });
 });

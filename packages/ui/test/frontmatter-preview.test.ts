@@ -287,7 +287,7 @@ author: Coach
     container.remove();
   });
 
-  it('Add tag with missing tags property drafts input without touching the doc until a value commits', async () => {
+  it('Add tag with missing tag property drafts a category input without touching the doc until a value commits', async () => {
     const NOTE_NO_TAGS = `---
 title: My Workout
 ---
@@ -306,10 +306,10 @@ title: My Workout
     expect(addTagBtn).not.toBeNull();
     addTagBtn.click();
 
-    // Clicking must not persist an empty tags property.
+    // Clicking must not persist an empty category property.
     expect(view.state.doc.toString()).toBe(NOTE_NO_TAGS);
 
-    const draftInput = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
+    const draftInput = container.querySelector('input[aria-label="Value for category"]') as HTMLInputElement;
     expect(draftInput).not.toBeNull();
     expect(document.activeElement).toBe(draftInput);
 
@@ -321,22 +321,24 @@ title: My Workout
 
     // Escape discards too, even when the suggestion listbox handled the same event.
     addTagBtn.click();
-    const draftInputEsc = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
+    const draftInputEsc = container.querySelector('input[aria-label="Value for category"]') as HTMLInputElement;
     expect(draftInputEsc).not.toBeNull();
     draftInputEsc.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(container.querySelector('[data-frontmatter-tag-draft]')).toBeNull();
     expect(view.state.doc.toString()).toBe(NOTE_NO_TAGS);
 
-    // Committing a value writes it once.
+    // Committing a value writes it once, as a category (the app's
+    // tagged-resource classification).
     addTagBtn.click();
-    const draftInput2 = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
+    const draftInput2 = container.querySelector('input[aria-label="Value for category"]') as HTMLInputElement;
     draftInput2.value = 'parkour';
     draftInput2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
     const after = view.state.doc.toString();
-    expect(after).toContain('parkour');
-    expect(after).not.toContain('tags: []');
-    expect(after).not.toContain('tags: ""');
+    expect(after).toMatch(/category:\n\s+- parkour/);
+    expect(after).not.toContain('tags:');
+    expect(after).not.toContain('category: []');
+    expect(after).not.toContain('category: ""');
 
     view.destroy();
     container.remove();
@@ -538,13 +540,13 @@ No frontmatter here.
     // Draft only: the note still has no frontmatter until a tag value commits.
     expect(view.state.doc.toString()).toBe(NOTE_WITHOUT_FM);
 
-    const draftInput = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
+    const draftInput = container.querySelector('input[aria-label="Value for category"]') as HTMLInputElement;
     expect(draftInput).not.toBeNull();
     draftInput.value = 'strength';
     draftInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
     const after = view.state.doc.toString();
-    expect(after).toMatch(/^---\r?\ntags:/);
+    expect(after).toMatch(/^---\r?\ncategory:/);
     expect(after).toContain('strength');
     expect(after).toContain(NOTE_WITHOUT_FM.trim());
 

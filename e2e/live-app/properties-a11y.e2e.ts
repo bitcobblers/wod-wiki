@@ -76,6 +76,8 @@ for (const viewport of [
     await expect(value).toHaveAttribute('aria-haspopup', 'listbox');
     await expect(value).toHaveAttribute('role', 'combobox');
 
+    const panelHeight = (await preview.boundingBox())?.height ?? 0;
+
     await value.click();
     // The popup is the listbox this field controls (every field keeps its own).
     const listId = await value.getAttribute('aria-controls');
@@ -83,6 +85,12 @@ for (const viewport of [
     const list = page.locator(`#${listId}`);
     await expect(list).toBeVisible({ timeout: 10_000 });
     await expect(list).toHaveAttribute('aria-label', 'Suggested tags');
+
+    // The list floats: it is not part of the properties panel, and opening it
+    // does not grow the panel (the note below it must not move).
+    expect(await list.evaluate((element) => element.closest('.cm-frontmatter-preview'))).toBeNull();
+    const panelBox = await preview.boundingBox();
+    expect(Math.abs((panelBox?.height ?? 0) - panelHeight)).toBeLessThanOrEqual(1);
 
     // The list is a popup: bounded by the field, not by the property row.
     const listBox = await list.boundingBox();
@@ -103,3 +111,27 @@ for (const viewport of [
     expect(errors, 'no page errors').toHaveLength(0);
   });
 }
+
+test('Add tag classifies the note with a category property', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+  await waitForSeedReady(page);
+  await seedJournalNote(page, DATE, CONTENT);
+
+  const journal = new JournalEntryPage(page);
+  await journal.goto(DATE);
+
+  const preview = page.locator('.cm-frontmatter-preview').first();
+  await expect(preview).toBeVisible({ timeout: 15_000 });
+
+  // The note has no tag property yet: Add tag classifies it as a category.
+  await page.getByRole('button', { name: 'Add tag', exact: true }).click();
+  const field = preview.locator('input[aria-label="Value for category"]');
+  await expect(field).toBeVisible();
+  await field.fill('strength');
+  await field.press('Enter');
+
+  await expect.poll(async () => journal.storedContent(DATE)).toContain('category:');
+  const stored = (await journal.storedContent(DATE)) ?? '';
+  expect(stored).toMatch(/category:\n\s+- strength/);
+  expect(stored).not.toContain('tags:');
+});

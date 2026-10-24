@@ -148,14 +148,12 @@ function attachSuggestions(
 ): void {
   const provider = view.state.facet(frontmatterSuggestions);
   if (!provider || !input.parentElement) return;
-  // The panel expands under the property row it belongs to, so it pushes the
-  // metadata actions down instead of covering them.
-  const host = input.closest<HTMLElement>("[data-frontmatter-row]") ?? input.parentElement;
   const panel = new SuggestionPanel(input, {
     label: kind === "key" ? "Suggested properties" : suggestionListLabel(valueKind),
     onPick: () => commit(),
-    view,
-    host,
+    // The popup floats over the properties panel; it must never cover the
+    // metadata actions below it.
+    avoid: () => root.querySelector<HTMLElement>("[data-frontmatter-actions]"),
   });
   let generation = 0;
   const close = () => {
@@ -1120,10 +1118,15 @@ export class DefaultFrontmatterWidget extends WidgetType {
     }
 
     if (!this.readOnly) {
-      const existingTagKey = entries.find(([key]) => isTagProperty(key))?.[0];
+      // The app reads `tags` first, then `category` — Add tag follows the
+      // same precedence when a note already carries a tag property.
+      const existingTagKey =
+        entries.find(([key]) => key.trim().toLowerCase() === "tags")?.[0] ??
+        entries.find(([key]) => isTagProperty(key))?.[0];
 
       const actionsRow = document.createElement("div");
       actionsRow.className = "mt-2 flex items-center gap-3";
+      actionsRow.dataset.frontmatterActions = "true";
 
       const addBtn = document.createElement("button");
       addBtn.type = "button";
@@ -1207,9 +1210,11 @@ export class DefaultFrontmatterWidget extends WidgetType {
             existingDraft.focus();
             return;
           }
-          const draftRow = createTagDraftRow(view, root, "tags", (val) => {
-            pendingFocus.set(view, { kind: "tag", key: "tags" });
-            patchPropertyInView(view, this.sectionId, ["tags"], [val]);
+          // A note without a tag property gets a `category` one — the
+          // tagged-resource classification the app reads back.
+          const draftRow = createTagDraftRow(view, root, "category", (val) => {
+            pendingFocus.set(view, { kind: "tag", key: "category" });
+            patchPropertyInView(view, this.sectionId, ["category"], [val]);
           });
           box.appendChild(draftRow);
           draftRow.querySelector("input")?.focus();
@@ -1364,6 +1369,7 @@ class EmptyFrontmatterWidget extends WidgetType {
 
     const actionsRow = document.createElement("div");
     actionsRow.className = "flex items-center gap-3";
+    actionsRow.dataset.frontmatterActions = "true";
 
     const addBtn = document.createElement("button");
     addBtn.type = "button";
@@ -1401,9 +1407,11 @@ class EmptyFrontmatterWidget extends WidgetType {
         existingDraft.focus();
         return;
       }
-      const draftRow = createTagDraftRow(view, root, "tags", (val) => {
-        pendingFocus.set(view, { kind: "tag", key: "tags" });
-        patchPropertyInView(view, "new", ["tags"], [val]);
+      // A note without a tag property gets a `category` one — the
+      // tagged-resource classification the app reads back.
+      const draftRow = createTagDraftRow(view, root, "category", (val) => {
+        pendingFocus.set(view, { kind: "tag", key: "category" });
+        patchPropertyInView(view, "new", ["category"], [val]);
       });
       // The draft row is a table row too — it gets the same column labels.
       root.appendChild(draftRow);

@@ -1,24 +1,22 @@
 /**
  * Suggestion popover for frontmatter property fields.
  *
- * The list is rendered INSIDE the properties panel, directly under the field
- * it belongs to, instead of floating over the page:
- *  - a floating panel covers whatever sits below the field — in the note
- *    editor that is the metadata actions (Add property / Add metric / Add
- *    tag / Edit YAML) and the saved-history region, which the audit calls
- *    out as hidden by the suggestions;
- *  - expanding in flow pushes those rows down instead of hiding them, and
- *    the whole candidate list stays readable;
- *  - the panel is anchored to the field (same left edge, width derived from
- *    the field) and its height is capped so it never grows past the
- *    viewport — the list scrolls internally instead.
+ * The list floats over the properties panel in a document-level layer, so
+ * opening it never changes the panel's height (the panel is a table, and a
+ * growing table reflows the whole note below it).
+ *
+ * Placement rules:
+ *  - the popup is anchored to the field it belongs to and its width follows
+ *    the field, clamped to 12rem…20rem, so it never spans the property row;
+ *  - it opens below the field and flips above it when the space below is
+ *    too small, or when opening below would cover the metadata actions —
+ *    those are live controls, and a popup must not hide them;
+ *  - it is clamped inside the viewport on both axes and scrolls internally.
  *
  * ARIA: the field is the combobox, the panel is its listbox popup
  * (`aria-controls` + `aria-activedescendant`); the panel carries its own
  * accessible name so the popup is announced, not just the field.
  */
-
-import type { EditorView } from "@codemirror/view";
 
 /** Narrowest panel: still readable for a two-word suggestion. */
 export const POPOVER_MIN_WIDTH = 192;
@@ -26,43 +24,55 @@ export const POPOVER_MIN_WIDTH = 192;
 export const POPOVER_MAX_WIDTH = 320;
 /** Tallest panel before it scrolls internally. */
 export const POPOVER_MAX_HEIGHT = 256;
+/** Gap between the field and the panel. */
+export const POPOVER_GAP = 8;
 
-export interface PopoverRect {
+export interface FloatingRect {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+export interface FloatingPlacement {
   left: number;
   top: number;
   width: number;
-}
-
-export interface InlinePanelBox {
-  width: number;
-  offsetLeft: number;
-  maxHeight: number;
+  placement: "below" | "above";
 }
 
 /**
- * Pure geometry — no DOM, so the anchoring rules stay testable.
+ * Pure placement math — no DOM, so the collision rules stay testable.
  *
- * Collision handling: the panel never leaves the row it belongs to
- * horizontally, and never grows past the viewport below the field — it
- * scrolls internally instead.
- *
- * @param field  the field's viewport rect
- * @param host   the row the panel is inserted under
- * @param viewportHeight  available viewport height
+ * @param field     the field's viewport rect
+ * @param viewport  the visible viewport
+ * @param panelHeight  the panel's natural height
+ * @param avoid     region the popup must not cover (the metadata actions)
  */
-export function computeInlinePanelBox(
-  field: PopoverRect,
-  host: PopoverRect,
-  viewportHeight: number,
-): InlinePanelBox {
-  const offsetLeft = Math.max(0, Math.min(field.left - host.left, Math.max(0, host.width - POPOVER_MIN_WIDTH)));
-  const room = Math.max(host.width - offsetLeft, POPOVER_MIN_WIDTH);
-  const width = Math.min(Math.max(field.width, POPOVER_MIN_WIDTH), POPOVER_MAX_WIDTH, room);
-  const belowField = Math.max(0, viewportHeight - field.top - 64);
+export function computeFloatingPlacement(
+  field: { top: number; bottom: number; left: number; width: number },
+  viewport: { width: number; height: number },
+  panelHeight: number,
+  avoid?: FloatingRect,
+  gap: number = POPOVER_GAP,
+): FloatingPlacement {
+  const width = Math.min(Math.max(field.width, POPOVER_MIN_WIDTH), POPOVER_MAX_WIDTH);
+  const height = Math.min(Math.max(panelHeight, 0), POPOVER_MAX_HEIGHT);
+  const below = { top: field.bottom + gap, bottom: field.bottom + gap + height };
+  const above = { top: field.top - gap - height, bottom: field.top - gap };
+  const fitsBelow = below.bottom <= viewport.height;
+  const fitsAbove = above.top >= 0;
+  const coversActions = avoid
+    ? below.bottom > avoid.top && below.top < avoid.bottom
+    : false;
+  const placement: "below" | "above" =
+    (coversActions || !fitsBelow) && fitsAbove ? "above" : "below";
+  const chosen = placement === "below" ? below : above;
   return {
+    left: Math.min(Math.max(gap, field.left), Math.max(gap, viewport.width - width - gap)),
+    top: Math.min(Math.max(gap, chosen.top), Math.max(gap, viewport.height - height - gap)),
     width,
-    offsetLeft,
-    maxHeight: Math.max(96, Math.min(POPOVER_MAX_HEIGHT, belowField)),
+    placement,
   };
 }
 
@@ -76,10 +86,8 @@ export interface SuggestionPanelOptions {
   label: string;
   /** Called after a choice is applied to the field. */
   onPick: (choice: SuggestionChoice) => void;
-  /** The editor view — opening the panel changes the widget height. */
-  view: EditorView;
-  /** The row the panel is inserted under. */
-  host: HTMLElement;
+  /** Region the popup must not cover (the metadata actions row). */
+  avoid?: () => HTMLElement | null;
 }
 
 let panelId = 0;
@@ -88,8 +96,7 @@ export class SuggestionPanel {
   readonly element: HTMLElement;
   private readonly inputElement: HTMLInputElement;
   private readonly onPick: (choice: SuggestionChoice) => void;
-  private readonly view: EditorView;
-  private readonly host: HTMLElement;
+  private readonly avoid: (() => HTMLElement | null) | undefined;
   private readonly listId: string;
   private currentChoices: SuggestionChoice[] = [];
   private currentIndex = -1;
@@ -98,8 +105,7 @@ export class SuggestionPanel {
   constructor(input: HTMLInputElement, options: SuggestionPanelOptions) {
     this.inputElement = input;
     this.onPick = options.onPick;
-    this.view = options.view;
-    this.host = options.host;
+    this.avoid = options.avoid;
     this.listId = `frontmatter-suggestions-${++panelId}`;
 
     const list = document.createElement("div");
@@ -108,14 +114,12 @@ export class SuggestionPanel {
     list.setAttribute("aria-label", options.label);
     list.tabIndex = -1;
     list.className =
-      "mt-1 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md text-xs";
+      "fixed z-[60] max-h-64 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md text-xs";
     list.hidden = true;
     this.element = list;
-
-    // The popup stays mounted (hidden) so `aria-controls` always resolves to
-    // an existing element, even while the list is collapsed. It joins the DOM
-    // as soon as its host row is connected.
-    this.attach();
+    // The popup lives outside the editor: it must not change the height of
+    // the properties panel it belongs to.
+    document.body.appendChild(list);
 
     input.setAttribute("role", "combobox");
     input.setAttribute("aria-haspopup", "listbox");
@@ -156,10 +160,10 @@ export class SuggestionPanel {
     if (this.isOpen) return;
     this.isOpen = true;
     this.element.hidden = false;
-    this.attach();
     this.position();
     this.inputElement.setAttribute("aria-expanded", "true");
-    this.view.requestMeasure();
+    window.addEventListener("scroll", this.handleViewportChange, true);
+    window.addEventListener("resize", this.handleViewportChange);
   }
 
   close(): void {
@@ -169,11 +173,13 @@ export class SuggestionPanel {
     this.currentIndex = -1;
     this.inputElement.setAttribute("aria-expanded", "false");
     this.inputElement.removeAttribute("aria-activedescendant");
-    this.view.requestMeasure();
+    window.removeEventListener("scroll", this.handleViewportChange, true);
+    window.removeEventListener("resize", this.handleViewportChange);
   }
 
   destroy(): void {
     this.close();
+    this.element.remove();
   }
 
   activate(index: number): void {
@@ -211,21 +217,35 @@ export class SuggestionPanel {
     this.onPick(choice);
   }
 
-  /** Join the DOM under its host row (idempotent). */
-  private attach(): void {
-    if (this.element.parentElement) return;
-    this.host.after(this.element);
-  }
+  private readonly handleViewportChange = (): void => {
+    if (this.isOpen) this.position();
+  };
 
-  /** Anchor the panel to the field inside its row. */
+  /** Anchor the panel to the field, flipped away from the metadata actions. */
   private position(): void {
-    const box = computeInlinePanelBox(
-      this.inputElement.getBoundingClientRect(),
-      this.host.getBoundingClientRect(),
-      window.innerHeight,
+    const field = this.inputElement.getBoundingClientRect();
+    const avoidElement = this.avoid?.() ?? null;
+    const avoidRect = avoidElement?.getBoundingClientRect();
+    // The list scrolls internally: a full catalogue must not become a
+    // screen-height panel.
+    const height = Math.min(this.element.scrollHeight, POPOVER_MAX_HEIGHT);
+    const placement = computeFloatingPlacement(
+      { top: field.top, bottom: field.bottom, left: field.left, width: field.width },
+      { width: window.innerWidth, height: window.innerHeight },
+      height,
+      avoidRect
+        ? {
+            top: avoidRect.top,
+            bottom: avoidRect.bottom,
+            left: avoidRect.left,
+            right: avoidRect.right,
+          }
+        : undefined,
     );
-    this.element.style.width = `${box.width}px`;
-    this.element.style.marginLeft = `${box.offsetLeft}px`;
-    this.element.style.maxHeight = `${box.maxHeight}px`;
+    this.element.style.width = `${placement.width}px`;
+    this.element.style.maxHeight = `${height}px`;
+    this.element.style.left = `${placement.left}px`;
+    this.element.style.top = `${placement.top}px`;
+    this.element.dataset.placement = placement.placement;
   }
 }
