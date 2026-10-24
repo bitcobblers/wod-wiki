@@ -5,14 +5,15 @@
  *  - the property table has persistent, visible Key/Value column labels;
  *  - every field exposes a programmatic name and the value field is wired as
  *    a combobox (`aria-haspopup`) with a named listbox;
- *  - the suggestion popup stays a popup: it is anchored to the field, it
- *    does not span the property row, and it does not cover the metadata
- *    actions or the saved-history region below it.
+ *  - the suggestion list expands inside the properties panel under the field
+ *    it belongs to, so it never covers the metadata actions or the
+ *    saved-history region below it.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { seedJournalNote } from '../helpers/wodwikiDb';
 import { waitForSeedReady } from '../helpers/seedReadiness';
+import { JournalEntryPage } from '../pages/JournalEntryPage';
 
 const DATE = '2099-09-09';
 const CONTENT = [
@@ -42,50 +43,63 @@ function overlaps(a: Box | null, b: Box | null): boolean {
   );
 }
 
-test('property fields are labelled and the suggestion popup stays clear of the metadata actions', async ({ page }, testInfo) => {
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-
+async function openProperties(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
   await waitForSeedReady(page);
   await seedJournalNote(page, DATE, CONTENT);
 
-  await page.goto(`/journal/${DATE}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-  await waitForSeedReady(page);
+  const journal = new JournalEntryPage(page);
+  await journal.goto(DATE);
+  await expect(page.locator('.cm-frontmatter-preview').first()).toBeVisible({ timeout: 15_000 });
+  return journal;
+}
 
-  const preview = page.locator('.cm-frontmatter-preview').first();
-  await expect(preview).toBeVisible({ timeout: 15_000 });
+for (const viewport of [
+  { name: 'desktop', width: 1280, height: 800 },
+  { name: 'mobile', width: 375, height: 812 },
+]) {
+  test(`property fields are labelled and the suggestion list stays clear of the metadata actions (${viewport.name})`, async ({ page }, testInfo) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
 
-  // Persistent, visible column labels — the placeholder is never the only cue.
-  await expect(preview.locator('[data-frontmatter-column="key"]')).toHaveText('Key');
-  await expect(preview.locator('[data-frontmatter-column="value"]')).toHaveText('Value');
+    await openProperties(page);
 
-  const value = preview.locator(
-    '[data-frontmatter-row="category"] input[aria-label="Value for category"]',
-  );
-  await expect(value).toHaveAttribute('aria-haspopup', 'listbox');
-  await expect(value).toHaveAttribute('role', 'combobox');
+    const preview = page.locator('.cm-frontmatter-preview').first();
+    // Persistent, visible column labels — the placeholder is never the only cue.
+    await expect(preview.locator('[data-frontmatter-column="key"]')).toHaveText('Key');
+    await expect(preview.locator('[data-frontmatter-column="value"]')).toHaveText('Value');
 
-  await value.click();
-  const list = page.locator('[role="listbox"]').first();
-  await expect(list).toBeVisible({ timeout: 10_000 });
-  await expect(list).toHaveAttribute('aria-label', 'Suggested tags');
+    const value = preview.locator(
+      '[data-frontmatter-row="category"] input[aria-label="Value for category"]',
+    );
+    await expect(value).toHaveAttribute('aria-haspopup', 'listbox');
+    await expect(value).toHaveAttribute('role', 'combobox');
 
-  // The popup is a popup: bounded by the field, not by the property row.
-  const listBox = await list.boundingBox();
-  expect(listBox?.width ?? 0, 'popup width').toBeLessThanOrEqual(340);
+    await value.click();
+    // The popup is the listbox this field controls (every field keeps its own).
+    const listId = await value.getAttribute('aria-controls');
+    expect(listId).toBeTruthy();
+    const list = page.locator(`#${listId}`);
+    await expect(list).toBeVisible({ timeout: 10_000 });
+    await expect(list).toHaveAttribute('aria-label', 'Suggested tags');
 
-  // It must not cover the metadata actions or the saved-history region.
-  const addProperty = await page.getByRole('button', { name: 'Add property', exact: true }).boundingBox();
-  const savedHistory = await page.getByText('Saved block history').boundingBox();
-  expect(overlaps(listBox, addProperty), 'popup covers the metadata actions').toBe(false);
-  expect(overlaps(listBox, savedHistory), 'popup covers the saved-history region').toBe(false);
+    // The list is a popup: bounded by the field, not by the property row.
+    const listBox = await list.boundingBox();
+    expect(listBox?.width ?? 0, 'suggestion list width').toBeLessThanOrEqual(340);
 
-  // The popup is anchored to the field it describes.
-  const fieldBox = await value.boundingBox();
-  expect(Math.abs((listBox?.x ?? 0) - (fieldBox?.x ?? 0))).toBeLessThan(24);
+    // It must not cover the metadata actions or the saved-history region.
+    const addProperty = await page.getByRole('button', { name: 'Add property', exact: true }).boundingBox();
+    const savedHistory = await page.getByText('Saved block history').boundingBox();
+    expect(overlaps(listBox, addProperty), 'suggestion list covers the metadata actions').toBe(false);
+    expect(overlaps(listBox, savedHistory), 'suggestion list covers the saved-history region').toBe(false);
 
-  await page.screenshot({ path: testInfo.outputPath('properties-suggestions.png'), fullPage: true });
+    // The list is anchored to the field it describes.
+    const fieldBox = await value.boundingBox();
+    expect(Math.abs((listBox?.x ?? 0) - (fieldBox?.x ?? 0))).toBeLessThan(24);
 
-  expect(errors, 'no page errors').toHaveLength(0);
-});
+    await page.screenshot({ path: testInfo.outputPath(`properties-suggestions-${viewport.name}.png`), fullPage: true });
+
+    expect(errors, 'no page errors').toHaveLength(0);
+  });
+}

@@ -59,6 +59,8 @@
     --ring: 212 32% 50%;
     /* Interactive field boundary — clears 3:1 against --background (WCAG 1.4.11). */
     --field-border: 30 12% 50%;
+    /* Field placeholder — clears 4.5:1 against --background (WCAG 1.4.3). */
+    --field-placeholder: 30 12% 42%;
     --radius: 1rem;
 
     /* ── Metric tokens — 7 semantic colors ────────────────────────── */
@@ -123,6 +125,8 @@
     --ring: 210 35% 64%;
     /* Interactive field boundary — clears 3:1 against --background (WCAG 1.4.11). */
     --field-border: 214 12% 62%;
+    /* Field placeholder — clears 4.5:1 against --background (WCAG 1.4.3). */
+    --field-placeholder: 219 14% 66%;
 
     /* ── Metric tokens — Arctic Frost aurora palette ─────────────── */
     --metric-time:       210 35% 64%;  /* #81a1c1 frost blue */
@@ -177,6 +181,7 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-field-border: hsl(var(--field-border));
+  --color-field-placeholder: hsl(var(--field-placeholder));
 
   --color-metric-time: hsl(var(--metric-time));
   --color-metric-rep: hsl(var(--metric-rep));

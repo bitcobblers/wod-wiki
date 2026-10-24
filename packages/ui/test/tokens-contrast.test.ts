@@ -46,14 +46,6 @@ function hslToRgb(value: string): Rgb {
   return [(r + offset) * 255, (g + offset) * 255, (b + offset) * 255];
 }
 
-function composite(fg: Rgb, bg: Rgb, alpha: number): Rgb {
-  return [
-    alpha * fg[0] + (1 - alpha) * bg[0],
-    alpha * fg[1] + (1 - alpha) * bg[1],
-    alpha * fg[2] + (1 - alpha) * bg[2],
-  ];
-}
-
 function luminance(rgb: Rgb): number {
   const [r, g, b] = rgb.map((channel) => {
     const value = channel / 255;
@@ -87,12 +79,8 @@ describe('design token contrast', () => {
 
   it('keeps placeholder text legible in both themes', () => {
     for (const [name, tokens] of [['light', light], ['dark', dark]] as const) {
-      const background = token(tokens, 'background');
-      const ratio = contrast(
-        composite(token(tokens, 'foreground'), background, 0.7),
-        background,
-      );
-      expect(ratio, `${name} placeholder vs background`).toBeGreaterThanOrEqual(4.5);
+      const ratio = contrast(token(tokens, 'field-placeholder'), token(tokens, 'background'));
+      expect(ratio, `${name} field-placeholder vs background`).toBeGreaterThanOrEqual(4.5);
     }
   });
 

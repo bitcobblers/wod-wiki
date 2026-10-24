@@ -130,6 +130,12 @@ function createColumnHeader(): HTMLElement {
   return header;
 }
 
+/** Keep the Key/Value labels in place once the table has rows to label. */
+function ensureColumnHeader(box: HTMLElement, before: HTMLElement): void {
+  if (box.querySelector("[data-frontmatter-column]")) return;
+  box.insertBefore(createColumnHeader(), before);
+}
+
 function attachSuggestions(
   input: HTMLInputElement,
   view: EditorView,
@@ -142,10 +148,14 @@ function attachSuggestions(
 ): void {
   const provider = view.state.facet(frontmatterSuggestions);
   if (!provider || !input.parentElement) return;
+  // The panel expands under the property row it belongs to, so it pushes the
+  // metadata actions down instead of covering them.
+  const host = input.closest<HTMLElement>("[data-frontmatter-row]") ?? input.parentElement;
   const panel = new SuggestionPanel(input, {
     label: kind === "key" ? "Suggested properties" : suggestionListLabel(valueKind),
     onPick: () => commit(),
     view,
+    host,
   });
   let generation = 0;
   const close = () => {
@@ -357,7 +367,7 @@ function createTagDraftRow(
   valCol.className = "flex items-center flex-wrap gap-1.5 px-3 py-1.5 flex-1 min-w-0";
   const input = document.createElement("input");
   input.className =
-    "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring";
+    "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring";
   input.placeholder = "Add tag…";
   input.setAttribute("aria-label", `Value for ${key}`);
   input.dataset.frontmatterField = "value";
@@ -494,7 +504,7 @@ function createMetricDraftRow(
   valCol.className = "flex items-center flex-wrap gap-1.5 px-3 py-1.5 flex-1 min-w-0";
   const input = document.createElement("input");
   input.className =
-    "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring";
+    "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring";
   input.placeholder = "Value…";
   input.setAttribute("aria-label", "Metric value");
   input.dataset.frontmatterField = "value";
@@ -729,13 +739,14 @@ export class DefaultFrontmatterWidget extends WidgetType {
     const referenceProvider = view.state.facet(frontmatterReferenceIndex)?.() ?? null;
     const base = docKind === "effort" ? readBaseAttributes(body) : {};
 
+    // The table always carries its Key/Value labels — a field never has to
+    // rely on its placeholder to say what it is.
+    box.appendChild(createColumnHeader());
     if (entries.length === 0) {
       const emptyRow = document.createElement("div");
       emptyRow.className = "px-3 py-2 text-xs text-muted-foreground/60 italic";
       emptyRow.textContent = "No properties";
       box.appendChild(emptyRow);
-    } else {
-      box.appendChild(createColumnHeader());
     }
 
     for (const [key, value] of entries) {
@@ -754,6 +765,9 @@ export class DefaultFrontmatterWidget extends WidgetType {
       const keyCol = document.createElement("div");
       keyCol.className =
         "flex items-center gap-2 px-3 py-1.5 w-36 shrink-0 border-r border-dashed border-border text-muted-foreground max-[479px]:w-auto max-[479px]:border-r-0 max-[479px]:border-b";
+      // The column joins the row before it is filled, so a field can find the
+      // row it belongs to (the suggestion panel expands under that row).
+      row.appendChild(keyCol);
       keyCol.appendChild(isTags || isReferenceList ? createTagIcon() : createListIcon());
 
       if (this.readOnly || nested) {
@@ -767,7 +781,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
           "w-full bg-transparent text-xs text-foreground/90 font-medium outline-none truncate hover:bg-muted/30 focus:bg-background focus:ring-1 focus:ring-ring rounded px-1 -mx-1";
         keyInput.value = key;
         keyInput.spellcheck = false;
-        keyInput.setAttribute("aria-label", "Property key");
+        keyInput.setAttribute("aria-label", `Property key: ${key}`);
         keyInput.dataset.frontmatterField = "key";
         keyInput.dataset.frontmatterProperty = key;
         keyInput.setAttribute(
@@ -821,11 +835,11 @@ export class DefaultFrontmatterWidget extends WidgetType {
           pendingFocus.delete(view);
         }
       }
-      row.appendChild(keyCol);
 
       // Value column
       const valCol = document.createElement("div");
       valCol.className = "flex items-center flex-wrap gap-1.5 px-3 py-1.5 flex-1 min-w-0";
+      row.appendChild(valCol);
 
       const commitList = (next: string[]) => {
         meta[key] = next;
@@ -890,7 +904,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
         if (!this.readOnly) {
           const chipInput = document.createElement("input");
           chipInput.className =
-            "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring";
+            "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring";
           chipInput.placeholder = chips.length === 0
             ? (isReferenceList ? `Add ${valueKind === "effort" ? "effort" : "equipment"}…` : "Add tags…")
             : (isTags ? "Add tag…" : "Add…");
@@ -983,7 +997,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
         } else {
           const valInput = document.createElement("input");
           valInput.className =
-            "w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring transition-colors";
+            "w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring transition-colors";
           valInput.value = strVal;
           valInput.spellcheck = false;
           valInput.setAttribute("aria-label", `Value for ${key}`);
@@ -1047,7 +1061,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
 
               valCol.insertBefore(pill, valInput);
               valInput.className =
-                "flex-1 min-w-[70px] rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring transition-colors";
+                "flex-1 min-w-[70px] rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring transition-colors";
             }
 
             const diag = renderEffortValueDiagnostics(
@@ -1075,7 +1089,6 @@ export class DefaultFrontmatterWidget extends WidgetType {
           valCol.appendChild(openLink);
         }
       }
-      row.appendChild(valCol);
 
       // Delete property button
       if (!this.readOnly && !nested) {
@@ -1392,7 +1405,9 @@ class EmptyFrontmatterWidget extends WidgetType {
         pendingFocus.set(view, { kind: "tag", key: "tags" });
         patchPropertyInView(view, "new", ["tags"], [val]);
       });
+      // The draft row is a table row too — it gets the same column labels.
       root.appendChild(draftRow);
+      ensureColumnHeader(root, draftRow);
       draftRow.querySelector("input")?.focus();
       view.requestMeasure();
     });

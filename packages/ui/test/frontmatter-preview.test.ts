@@ -362,7 +362,7 @@ title: My Workout
     await vi.advanceTimersByTimeAsync(10);
 
     const keyInput = document.activeElement as HTMLInputElement;
-    expect(keyInput.getAttribute('aria-label')).toBe('Property key');
+    expect(keyInput.getAttribute('aria-label')).toBe('Property key: property');
 
     const list = document.getElementById(keyInput.getAttribute('aria-controls')!) as HTMLElement;
     expect(list.hidden).toBe(false);
@@ -609,7 +609,7 @@ No frontmatter here.
     const keyField = preview?.querySelector<HTMLInputElement>(
       '[data-frontmatter-row="store"] [data-frontmatter-field="key"]',
     );
-    expect(keyField?.getAttribute('aria-label')).toBe('Property key');
+    expect(keyField?.getAttribute('aria-label')).toBe('Property key: store');
 
     const valueField = preview?.querySelector<HTMLInputElement>(
       '[data-frontmatter-row="store"] [data-frontmatter-field="value"]',

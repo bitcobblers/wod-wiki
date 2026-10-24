@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { act } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { completionStatus, currentCompletions, setSelectedCompletion, startCompletion } from '@codemirror/autocomplete';
@@ -140,14 +140,15 @@ describe('NoteEditor frontmatter raw editing reachability (preview on)', () => {
     const doc = '---\ndomain: climbing\n---\n\nBody text.';
     const view = editor(doc, doc.length, { preview: true });
     await waitFor(() => expect(
-      document.querySelector('[data-frontmatter-row="domain"] input[aria-label="Property key"]'),
+      within(document.querySelector('[data-frontmatter-row="domain"]') as HTMLElement)
+        .getByLabelText('Property key: domain'),
     ).toBeTruthy());
     expect(view.contentDOM.textContent).not.toContain('domain: climbing');
 
     act(() => { fireEvent.click(screen.getByLabelText('Edit YAML')); });
     await waitFor(() => expect(view.contentDOM.textContent).toContain('domain: climbing'));
     await waitFor(() => expect(
-      document.querySelector('[data-frontmatter-row="domain"] input[aria-label="Property key"]'),
+      document.querySelector('[data-frontmatter-row="domain"]'),
     ).toBeNull());
 
     // New property typed on a fresh line inside the closed block.
@@ -166,7 +167,8 @@ describe('NoteEditor frontmatter raw editing reachability (preview on)', () => {
 
     act(() => { view.dispatch({ selection: { anchor: view.state.doc.length } }); });
     await waitFor(() => expect(
-      document.querySelector('[data-frontmatter-row="format"] input[aria-label="Property key"]'),
+      within(document.querySelector('[data-frontmatter-row="format"]') as HTMLElement)
+        .getByLabelText('Property key: format'),
     ).toBeTruthy());
     expect(view.contentDOM.textContent).not.toContain('format:\n  - amrap');
   });

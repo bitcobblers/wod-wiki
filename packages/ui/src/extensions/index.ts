@@ -41,17 +41,6 @@ export {
 export { previewDecorations } from './preview-decorations';
 export { embedPreviewDecorations } from './embed-preview';
 export { frontmatterPreview, frontmatterPreviewField, frontmatterVisibility, DefaultFrontmatterWidget, frontmatterSuggestions, frontmatterReferenceIndex, referenceIndexReload, type FrontmatterSuggestionCatalog, type FrontmatterCatalogEntry, type FrontmatterReferenceProvider, type FrontmatterReferenceRef, type FrontmatterRefDiagnostic, type FrontmatterReferenceResolution } from './frontmatter-preview';
-export {
-  SuggestionPanel,
-  computeInlinePanelBox,
-  POPOVER_MIN_WIDTH,
-  POPOVER_MAX_WIDTH,
-  POPOVER_MAX_HEIGHT,
-  type InlinePanelBox,
-  type PopoverRect,
-  type SuggestionChoice,
-  type SuggestionPanelOptions,
-} from './frontmatter-suggestions';
 export { markdownSyntaxHiding } from './markdown-syntax-hiding';
 export { markdownTablePreview } from './markdown-tables';
 export { linkPreview } from './link-preview';

@@ -29,6 +29,7 @@ export const POPOVER_MAX_HEIGHT = 256;
 
 export interface PopoverRect {
   left: number;
+  top: number;
   width: number;
 }
 
@@ -41,6 +42,10 @@ export interface InlinePanelBox {
 /**
  * Pure geometry — no DOM, so the anchoring rules stay testable.
  *
+ * Collision handling: the panel never leaves the row it belongs to
+ * horizontally, and never grows past the viewport below the field — it
+ * scrolls internally instead.
+ *
  * @param field  the field's viewport rect
  * @param host   the row the panel is inserted under
  * @param viewportHeight  available viewport height
@@ -50,10 +55,14 @@ export function computeInlinePanelBox(
   host: PopoverRect,
   viewportHeight: number,
 ): InlinePanelBox {
+  const offsetLeft = Math.max(0, Math.min(field.left - host.left, Math.max(0, host.width - POPOVER_MIN_WIDTH)));
+  const room = Math.max(host.width - offsetLeft, POPOVER_MIN_WIDTH);
+  const width = Math.min(Math.max(field.width, POPOVER_MIN_WIDTH), POPOVER_MAX_WIDTH, room);
+  const belowField = Math.max(0, viewportHeight - field.top - 64);
   return {
-    width: Math.min(Math.max(field.width, POPOVER_MIN_WIDTH), POPOVER_MAX_WIDTH),
-    offsetLeft: Math.max(0, field.left - host.left),
-    maxHeight: Math.max(96, Math.min(POPOVER_MAX_HEIGHT, viewportHeight - 64)),
+    width,
+    offsetLeft,
+    maxHeight: Math.max(96, Math.min(POPOVER_MAX_HEIGHT, belowField)),
   };
 }
 
@@ -69,6 +78,8 @@ export interface SuggestionPanelOptions {
   onPick: (choice: SuggestionChoice) => void;
   /** The editor view — opening the panel changes the widget height. */
   view: EditorView;
+  /** The row the panel is inserted under. */
+  host: HTMLElement;
 }
 
 let panelId = 0;
@@ -78,6 +89,7 @@ export class SuggestionPanel {
   private readonly inputElement: HTMLInputElement;
   private readonly onPick: (choice: SuggestionChoice) => void;
   private readonly view: EditorView;
+  private readonly host: HTMLElement;
   private readonly listId: string;
   private currentChoices: SuggestionChoice[] = [];
   private currentIndex = -1;
@@ -87,6 +99,7 @@ export class SuggestionPanel {
     this.inputElement = input;
     this.onPick = options.onPick;
     this.view = options.view;
+    this.host = options.host;
     this.listId = `frontmatter-suggestions-${++panelId}`;
 
     const list = document.createElement("div");
@@ -98,6 +111,11 @@ export class SuggestionPanel {
       "mt-1 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md text-xs";
     list.hidden = true;
     this.element = list;
+
+    // The popup stays mounted (hidden) so `aria-controls` always resolves to
+    // an existing element, even while the list is collapsed. It joins the DOM
+    // as soon as its host row is connected.
+    this.attach();
 
     input.setAttribute("role", "combobox");
     input.setAttribute("aria-haspopup", "listbox");
@@ -139,6 +157,7 @@ export class SuggestionPanel {
     this.isOpen = true;
     this.element.hidden = false;
     this.attach();
+    this.position();
     this.inputElement.setAttribute("aria-expanded", "true");
     this.view.requestMeasure();
   }
@@ -147,7 +166,6 @@ export class SuggestionPanel {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.element.hidden = true;
-    this.element.remove();
     this.currentIndex = -1;
     this.inputElement.setAttribute("aria-expanded", "false");
     this.inputElement.removeAttribute("aria-activedescendant");
@@ -193,20 +211,21 @@ export class SuggestionPanel {
     this.onPick(choice);
   }
 
-  /** Insert the panel under the field's row, anchored to the field itself. */
+  /** Join the DOM under its host row (idempotent). */
   private attach(): void {
-    const host =
-      this.inputElement.closest<HTMLElement>("[data-frontmatter-row]") ??
-      this.inputElement.parentElement;
-    if (!host) return;
+    if (this.element.parentElement) return;
+    this.host.after(this.element);
+  }
+
+  /** Anchor the panel to the field inside its row. */
+  private position(): void {
     const box = computeInlinePanelBox(
       this.inputElement.getBoundingClientRect(),
-      host.getBoundingClientRect(),
+      this.host.getBoundingClientRect(),
       window.innerHeight,
     );
     this.element.style.width = `${box.width}px`;
     this.element.style.marginLeft = `${box.offsetLeft}px`;
     this.element.style.maxHeight = `${box.maxHeight}px`;
-    host.after(this.element);
   }
 }
