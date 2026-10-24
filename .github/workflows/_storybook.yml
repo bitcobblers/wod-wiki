@@ -140,9 +140,13 @@ jobs:
           PREFIX="${{ inputs.s3-prefix }}/"
           echo "Uploading to s3://$S3_BUCKET/$PREFIX"
           aws s3 sync ./storybook-static/ "s3://$S3_BUCKET/$PREFIX" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*" --include "assets/*"
+          aws s3 sync ./storybook-static/ "s3://$S3_BUCKET/$PREFIX" \
             --delete \
             --cache-control "max-age=300, must-revalidate" \
-            --exclude "*.map"
+            --exclude "*.map" \
+            --exclude "assets" --exclude "assets/*"
 
       - name: Invalidate CloudFront (best-effort)
         continue-on-error: true
