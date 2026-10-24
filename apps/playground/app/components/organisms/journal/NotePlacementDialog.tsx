@@ -178,6 +178,14 @@ export function NotePlacementDialog({
       }
     >
       <form id="note-placement-form" onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+        {!isClone && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Note path</span>
+            <code className="rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted-foreground select-all">
+              /notes/{entry.id}
+            </code>
+          </div>
+        )}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="note-placement-date" className="text-sm font-medium">
             Journal date

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { v7 as uuidv7 } from 'uuid'
-import { CalendarDays, Copy } from 'lucide-react'
+import { CalendarDays, Check, Copy, Link2 } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import { JournalPageShell } from '@/panels/page-shells'
 import { NoteEditor, type EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor'
@@ -58,7 +58,15 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const isReadOnly = location.pathname.startsWith('/p/') || (entry !== null && !isNoteEditable(entry))
   const [saveError, setSaveError] = useState<{ noteId: string; message: string } | null>(null)
   const [placement, setPlacement] = useState<NotePlacementMode | null>(null)
+  const [copied, setCopied] = useState(false)
   const [sourceEntry, setSourceEntry] = useState<HistoryEntry | null>(null)
+  const handleCopyLink = useCallback(() => {
+    // ponytail: navigator.clipboard only; fallback textarea omitted for modern browsers.
+    void navigator.clipboard?.writeText(window.location.href).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }, [])
   // Page-source datasets (@session/@today) populate before the first child
   // query block evaluates; a new page context re-populates (@today may have
   // changed since the previous page loaded).
@@ -237,6 +245,16 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           <Copy className="size-3.5" aria-hidden="true" />
           Clone
         </button>
+        <button
+          type="button"
+          className={actionPill}
+          onClick={handleCopyLink}
+          title={noteByIdPath(entry.id)}
+          aria-label="Copy link"
+        >
+          {copied ? <Check className="size-3.5 text-emerald-500" aria-hidden="true" /> : <Link2 className="size-3.5" aria-hidden="true" />}
+          {copied ? 'Copied' : 'Copy link'}
+        </button>
       </ResponsiveActions>
     )
 
@@ -244,14 +262,20 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
       <WorkbenchSessionProvider notePersistence={notePersistence} provider={contentProvider}>
         <JournalPageShell
           title={entry.title}
-          subtitle={noteByIdPath(entry.id)}
+          subtitle={
+            ownership.up ? (
+              <Link to={ownership.up.to} className="underline-offset-2 hover:underline">
+                {ownership.up.title}
+              </Link>
+            ) : undefined
+          }
           actions={pageActions}
           editor={
             <div className="flex flex-col gap-4 px-4 py-6 sm:px-6 min-w-0 max-w-full">
               <NoteContextNav data={contextLinks} up={ownership.up} />
-              {(entry.journalDate || entry.slug || entry.sourceId) && (
+              {((entry.journalDate && entry.journalDate !== entry.title) || entry.slug || entry.sourceId) && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  {entry.journalDate && (
+                  {entry.journalDate && entry.journalDate !== entry.title && (
                     <Link to={journalDatePath(entry.journalDate)} className="underline-offset-2 hover:underline">
                       {entry.journalDate}
                     </Link>
