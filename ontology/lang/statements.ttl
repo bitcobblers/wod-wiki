@@ -1,0 +1,64 @@
+# wod.wiki ontology — lang/statements
+# Library: packages/lang (@bitcobblers/wod-wiki-lang) — grammar, parser,
+#          dialects; executed by packages/engine (the runtime)
+# Types:   ICodeStatement (statements), ScriptBlock (segment payloads)
+# Docs:    docs/language/ (syntax reference, dialects), AGENTS.md pipeline:
+#          Lezer CST -> SyntaxPrimitives -> IMetrics -> WhiteboardScript
+# ---------------------------------------------------------------------------
+# The authoring language itself (Whiteboard Language; fence tag `wod`).
+# A note's workout segment stores a structured ScriptBlock payload; the
+# parser turns source text into statements, each carrying typed metrics;
+# the engine executes statements and emits the output statements that
+# core/results stores as EventRecords.
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/lang/statements> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — lang: statements & dialects" ;
+    owl:versionInfo "0.2.0" .
+
+# === Classes ==============================================================
+
+wod:ScriptBlock a owl:Class ;
+    rdfs:label "Script Block" ;
+    rdfs:comment "The structured JSON payload stored on a 'wod' NoteSegment (NoteSegment.data): the parsed form of one workout section, from which statements are compiled at run time." .
+
+wod:Statement a owl:Class ;
+    rdfs:label "Statement" ;
+    rdfs:comment "One parsed statement of the authoring language (ICodeStatement): a line/construct of a workout script carrying a container of typed metrics. Executed by the engine; its execution emits output statements, stored as EventRecords." .
+
+wod:Dialect a owl:Class ;
+    rdfs:label "Dialect" ;
+    rdfs:comment "A post-parse dialect of the language (packages/lang/src/dialects): a lens that classifies and fuses primitives for a training style — e.g. unit fusion turning a number plus a unit word into one metric. Dialects are vocabulary individuals below." .
+
+# === Properties ===========================================================
+
+wod:hasStatement a owl:ObjectProperty ;
+    rdfs:label "has statement" ;
+    rdfs:domain wod:ScriptBlock ;
+    rdfs:range wod:Statement ;
+    rdfs:comment "The statements compiled from a script block, in source order." .
+
+wod:statementIndex a owl:DatatypeProperty ;
+    rdfs:label "statement index" ;
+    rdfs:domain wod:Statement ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Source order position of a statement within its block (0-based in the parser's tree)." .
+
+wod:inDialect a owl:ObjectProperty ;
+    rdfs:label "in dialect" ;
+    rdfs:domain wod:Statement ;
+    rdfs:range wod:Dialect ;
+    rdfs:comment "The dialect that classified this statement's metrics, when one applies." .
+
+# === Dialect vocabulary (packages/lang/src/dialects + built-in docs) ======
+
+wod:dialectTime   a wod:Dialect ; rdfs:label "time" .
+wod:dialectClimb  a wod:Dialect ; rdfs:label "climb" .
+wod:dialectCardio a wod:Dialect ; rdfs:label "cardio" .
+wod:dialectYoga   a wod:Dialect ; rdfs:label "yoga" .
+wod:dialectHabits a wod:Dialect ; rdfs:label "habits" .

@@ -22,7 +22,7 @@ export interface PlaygroundLibraryPageProps {
 }
 
 export function PlaygroundLibraryPage({ persistence = notePersistence }: PlaygroundLibraryPageProps) {
-  const { activeName, dataVersion } = useDatabase();
+  const { activeName, dataVersion, seed } = useDatabase();
   const [selected, setSelected] = useState<HistoryEntry | null>(null);
   /** Bumped on reload so an unchanged note still re-applies to the workbench. */
   const [reloadNonce, setReloadNonce] = useState(0);
@@ -114,11 +114,12 @@ export function PlaygroundLibraryPage({ persistence = notePersistence }: Playgro
             <button
               type="button"
               onClick={openSearchPalette}
+              disabled={!seed.coreImported}
               data-testid="playground-library-find"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-accent text-xs font-mono font-semibold text-foreground shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-accent text-xs font-mono font-semibold text-foreground shadow-2xs transition-all cursor-pointer disabled:opacity-50"
             >
               <Search className="size-3.5 text-muted-foreground" />
-              <span>Find workout note…</span>
+              <span>{seed.status === 'running' ? 'Importing seed…' : !seed.coreImported ? 'Waiting for seed…' : 'Find workout note…'}</span>
               <kbd className="ml-2 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
                 Ctrl+/
               </kbd>

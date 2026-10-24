@@ -1,0 +1,120 @@
+# wod.wiki ontology — app/content
+# Library: apps/playground
+# Types:   apps/playground/src/types/storage.ts
+# Docs:    docs/domain-model/Note.md, docs/domain-model/NoteSegment.md
+# ---------------------------------------------------------------------------
+# Authored content. A Note is the owning unit of authored content; its content
+# lives in ordered, VERSIONED NoteSegment rows, not in a content field on the
+# note. A rendered page composes notes; it never copies or merges them away.
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/app/content> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — app: notes & segments" ;
+    owl:versionInfo "0.2.0" .
+
+# === Classes ==============================================================
+
+wod:Note a owl:Class ;
+    rdfs:label "Note" ;
+    rdfs:comment "The owning unit of authored content: identity, routing, placement, provenance. Content lives in its NoteSegments. Identity is a UUID for user notes; seed import derives ids from source paths, and static projections expose block-index locators — canonical joins use the note id and preserve locators for deep links. Repo store: notes." .
+
+wod:NoteSegment a owl:Class ;
+    rdfs:label "Note Segment" ;
+    rdfs:comment "A versioned chunk of an owning note's content. Storage key is the PAIR (id, version): content changes create new incarnations, superseded ones flagged isHistory. This storage unit is not an editor section, not a runtime output grain, and not a page block — three other things also called 'segment/block' in the codebase. Repo store: segments." .
+
+# === Note properties =======================================================
+
+wod:noteKind a owl:DatatypeProperty ;
+    rdfs:label "note kind" ;
+    rdfs:domain wod:Note ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: Note.type (NoteKind) — a content/configuration descriptor selecting default presentation, never permission, placement or provenance. Values: journal, template, playground, collection, dashboard, page; absent defaults to 'journal'/'note'. Whether every flavor needs an explicit value is an open taxonomy question (issue #1026)." .
+
+wod:noteTitle a owl:DatatypeProperty ;
+    rdfs:label "note title" ;
+    rdfs:domain wod:Note ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: Note.title — display name." .
+
+wod:domainDate a owl:DatatypeProperty ;
+    rdfs:label "domain date" ;
+    rdfs:domain wod:Note ;
+    rdfs:range xsd:dateTime ;
+    rdfs:comment "Repo field: Note.date (epoch ms) — the domain date of the content (e.g. workout date from frontmatter), distinct from creation/import time and from the journal Page's calendar date." .
+
+wod:createdAt a owl:DatatypeProperty ;
+    rdfs:label "created at" ;
+    rdfs:range xsd:dateTime ;
+    rdfs:comment "Creation timestamp (repo: epoch ms). Caveat: seed rows carry the seed-build timestamp, not an authored date." .
+
+wod:derivedFromNote a owl:ObjectProperty ;
+    rdfs:label "derived from note" ;
+    rdfs:domain wod:Note ;
+    rdfs:range wod:Note ;
+    rdfs:comment "Repo field: Note.sourceId — the note this one was created from (template/collection source). Copies own their edits and retain this provenance." .
+
+wod:catalogId a owl:DatatypeProperty ;
+    rdfs:label "catalog id" ;
+    rdfs:domain wod:Note ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: Note.catalog — the catalog/collection directory id for static (seed) notes." .
+
+wod:seedOrigin a owl:DatatypeProperty ;
+    rdfs:label "seed origin" ;
+    rdfs:domain wod:Note ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: Note.seedOrigin — 'seed' | 'user'; absent means user-owned. Seed source is protected: displayed notes do not become writable by being displayed." .
+
+# === Segment properties ====================================================
+
+wod:segmentOf a owl:ObjectProperty ;
+    rdfs:label "segment of" ;
+    rdfs:domain wod:NoteSegment ;
+    rdfs:range wod:Note ;
+    owl:inverseOf wod:hasSegment ;
+    rdfs:comment "Repo field: NoteSegment.noteId." .
+
+wod:hasSegment a owl:ObjectProperty ;
+    rdfs:label "has segment" ;
+    rdfs:domain wod:Note ;
+    rdfs:range wod:NoteSegment ;
+    rdfs:comment "The note's segment incarnations (all versions; the live set is isHistory = false)." .
+
+wod:segmentVersion a owl:DatatypeProperty ;
+    rdfs:label "segment version" ;
+    rdfs:domain wod:NoteSegment ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Repo field: NoteSegment.version — 1, 2, 3..., bumps on content change; half of the storage key [id, version]. Sessions and events record (segmentId, segmentVersion) pairs: occurrence identity, distinct from a same-content join." .
+
+wod:segmentDataType a owl:DatatypeProperty ;
+    rdfs:label "segment data type" ;
+    rdfs:domain wod:NoteSegment ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: NoteSegment.dataType (SegmentDataType). The content provider writes wod, markdown, frontmatter and h1-h6; the enum still admits legacy values (script, header, title, youtube). A query/widget fence lives INSIDE a markdown segment — a presentation suffix is not a new stored type." .
+
+wod:position a owl:DatatypeProperty ;
+    rdfs:label "position" ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Ordinal within the parent (segment within note, note within page). Document order." .
+
+wod:isHistory a owl:DatatypeProperty ;
+    rdfs:label "is history" ;
+    rdfs:domain wod:NoteSegment ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Repo field: NoteSegment.isHistory — true for superseded versions; exactly one live incarnation per segment id." .
+
+wod:rawContent a owl:DatatypeProperty ;
+    rdfs:label "raw content" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Stored source fragment. Not byte-exact: workout/frontmatter delimiters are reconstructed on read, so round-trip preserves semantics and recoverability, not whitespace." .
+
+wod:hasScriptBlock a owl:ObjectProperty ;
+    rdfs:label "has script block" ;
+    rdfs:domain wod:NoteSegment ;
+    rdfs:range wod:ScriptBlock ;
+    rdfs:comment "Repo field: NoteSegment.data — the structured payload, present on 'wod' segments." .

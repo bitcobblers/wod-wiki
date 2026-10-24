@@ -381,7 +381,7 @@ describe('PaletteShell Find mode (plain text default)', () => {
     expect(chip.getAttribute('aria-pressed')).toBe('false')
     // The composer's WQL error fallback (role="alert") is CSS-suppressed in
     // Find mode — jsdom applies no styles, so assert the scoping class.
-    const wrapper = chip.parentElement!.children[1] as HTMLElement
+    const wrapper = screen.getByTestId('palette-composer')
     expect(wrapper.className).toContain('[&_[role=alert]]:hidden')
   })
 

@@ -126,11 +126,11 @@ for (const viewport of [
         const box = await insights.boundingBox()
         return !!box && box.y >= 0 && box.y <= 140
       }, { message: 'closing the run parks the dashboards section under the sticky header' }).toBe(true)
-      // The session analytics (rest/test ratios) light up in the sticky
-      // viewport when the Session Insights step scrolls into view.
+      // The session analytics (impatience score, reaction time) light up in
+      // the sticky viewport when the Session Insights step scrolls into view.
       await analyticsStep.evaluate(el => el.scrollIntoView({ block: 'center', behavior: 'instant' }))
       await expect(page.getByTestId('tour-insights-timeline').filter({ visible: true })).toBeVisible()
-      await expect(page.getByTestId('tour-insights-ratio').filter({ visible: true })).toBeVisible()
+      await expect(page.getByTestId('tour-insights-impatience').filter({ visible: true })).toBeVisible()
       await expect(page.getByTestId('tour-insights-reaction').filter({ visible: true })).toBeVisible()
       // The pane header slides the visitor back up to the editor viewport
       // and resets the runtime for another run. Scope to the active pane —
@@ -195,7 +195,7 @@ test('editor run records results and glides the dashboards into view', async ({ 
   // The recorded run lit up the Session Insights scope.
   const analyticsStep = page.locator('[data-scope="analytics"]').filter({ visible: true })
   await analyticsStep.evaluate(el => el.scrollIntoView({ block: 'center', behavior: 'instant' }))
-  await expect(page.getByTestId('tour-insights-ratio').filter({ visible: true })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('tour-insights-impatience').filter({ visible: true })).toBeVisible({ timeout: 15_000 })
   // Reading to the page bottom and back does not disturb the editor: it
   // stays an editor, and the recorded session stays in the insights pane.
   await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }))

@@ -49,6 +49,7 @@ import { runSeedSync } from '@/services/seed/seedSync'
 import { startSeedBootstrap, useSeedReadiness } from '@/services/seed/seedReadiness'
 import { profileService } from '@/services/storage'
 import { initSeedContentBroadcast, invalidateSeedContent } from '@/services/content/seedContent'
+import { loadTagIndex } from '@/services/tags/tagCatalogue'
 import { Button } from '@/components/atoms/primitives/button'
 import type { WorkoutItem } from './lib/workoutIndex'
 
@@ -96,6 +97,10 @@ function GlobalState() {
     // immediately and refreshes subscribed feeds in the background.
     initSeedContentBroadcast()
     void startSeedBootstrap()
+    // The tag catalogue: every surface that resolves a `#slug` reference
+    // (the editor, the parser, the runtime) reads it from one cache, so it
+    // is loaded once here — for the whole app, not just the workbench.
+    void loadTagIndex().catch(() => { /* Tags are optional — a document without them still runs. */ })
   }, [])
   return null
 }
@@ -185,7 +190,9 @@ export function App() {
                   <Route path={ROUTE_PATTERNS.settingsStorage} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsSync} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/system" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.settingsQueries} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  {/* Retired /settings/queries — per-surface query config now lives on
+                      the pages themselves (each page's own query settings). */}
+                  <Route path={ROUTE_PATTERNS.settingsQueries} element={<Navigate to={ROUTE_PATTERNS.journal} replace />} />
                   <Route path={ROUTE_PATTERNS.settingsTags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsSoundProfiles} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/library/calcs" element={<div className="p-6"><CalcAuthoringPanel /></div>} />
@@ -243,6 +250,7 @@ export function App() {
                   <Route path={ROUTE_PATTERNS.effortSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Equipment — list is the note stream; detail/create are note pages. */}
                   <Route path={ROUTE_PATTERNS.equipment} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.tags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.equipmentSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Dashboards: /dashboards = list + WQL explorer, /dashboard/:slug = a
                       saved dashboard by id, /d/:slug = by page slug. Legacy

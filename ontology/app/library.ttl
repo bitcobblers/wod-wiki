@@ -1,0 +1,73 @@
+# wod.wiki ontology — app/library
+# Library: apps/playground
+# Types:   apps/playground/src/types/storage.ts; collection adapter in
+#          apps/playground/src/repositories/script-collections.ts
+# Docs:    docs/domain-model/BlockIndexRow.md, collection.md, Configuration.md
+# ---------------------------------------------------------------------------
+# The Library surface: derived search projections, bundled collections, and
+# the opaque app-configuration store. The theme of this module is DERIVED vs
+# AUTHORED: block index rows and collections are computed from sources and
+# must never become a second authoring source.
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/app/library> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — app: library, collections, configuration" ;
+    owl:versionInfo "0.2.0" .
+
+# === Block index ===========================================================
+
+wod:BlockIndexRow a owl:Class ;
+    rdfs:label "Block Index Row" ;
+    rdfs:comment "A DERIVED content-search projection (one row per live NoteSegment for user notes) backing WQL find:block and Library deep links. Query data, never an authoring source; rebuildable from the owning note. Corpus/static rows are generated separately and are NOT guaranteed to reference the same segment rows or note ids — locator-to-note reconciliation is a known gap. Repo store: block_index." .
+
+wod:projectsSegment a owl:ObjectProperty ;
+    rdfs:label "projects segment" ;
+    rdfs:domain wod:BlockIndexRow ;
+    rdfs:range wod:NoteSegment ;
+    rdfs:comment "The (segmentId, segmentVersion) source this row projects — for user-note rebuilds. Corpus rows may have no matching segment row." .
+
+wod:projectsNote a owl:ObjectProperty ;
+    rdfs:label "projects note" ;
+    rdfs:domain wod:BlockIndexRow ;
+    rdfs:range wod:Note ;
+    rdfs:comment "Repo field: BlockIndexRow.noteId — the owning note for user rebuilds; a source locator for corpus projections." .
+
+wod:isStatic a owl:DatatypeProperty ;
+    rdfs:label "is static" ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "True for bundled corpus projections (collection items), whose blocks carry a sourceId path instead of a stored-note identity." .
+
+# === Collections ===========================================================
+
+wod:Collection a owl:Class ;
+    rdfs:label "Collection" ;
+    rdfs:comment "A grouping of named items from the bundled seed corpus (markdown/collections/{dir}/). NOT a database row: derived at read from the corpus snapshot. Identity is the directory name ('crossfit-girls'); categories come from the README frontmatter. Seed import materializes members as Notes with seedOrigin 'seed' and catalog set to this id. Feeds are the dated sibling of the same mechanism." .
+
+wod:collectionName a owl:DatatypeProperty ;
+    rdfs:label "collection name" ;
+    rdfs:domain wod:Collection ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Humanized directory name ('crossfit-girls' -> 'Crossfit Girls')." .
+
+wod:hasCollectionItem a owl:ObjectProperty ;
+    rdfs:label "has collection item" ;
+    rdfs:domain wod:Collection ;
+    rdfs:range wod:Note ;
+    rdfs:comment "Membership by file location in the corpus, materialized on seed import as notes whose catalog names this collection. Distinct from query-composed collection PAGES (a proposed composition over Page + a configuration note + a WQL listing) — membership-by-query is never copied into rows or tags." .
+
+# === Configuration =========================================================
+
+wod:Configuration a owl:Class ;
+    rdfs:label "Configuration" ;
+    rdfs:comment "The opaque key-value store (repo store: 'meta', proposed rename 'configuration'): seed-import checkpoints and app-level state. Values are schema-level unknown BY DESIGN — readers cast. Modeled so the inventory is complete; the ontology intentionally says nothing about value shapes. Type source: apps/playground/src/services/db/IndexedDBService.ts." .
+
+wod:configKey a owl:DatatypeProperty ;
+    rdfs:label "configuration key" ;
+    rdfs:domain wod:Configuration ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: Configuration.key — the key path; one row per key." .

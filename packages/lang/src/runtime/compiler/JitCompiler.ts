@@ -1,3 +1,5 @@
+import type { TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
+import { collectTagReferences } from '../../tags/TagContributions';
 import type { IRuntimeBlock } from "../contracts/IRuntimeBlock";
 import type { IRuntimeContext } from "../contracts/IRuntimeContext";
 import type { IRuntimeBlockStrategy } from "../contracts/IRuntimeBlockStrategy";
@@ -67,6 +69,14 @@ export class JitCompiler implements IJitCompiler {
 
     // Composition Flow
     const builder = new BlockBuilder(runtime);
+
+    // The tags these statements referenced, and what each carried — the
+    // block's tag composition, resolved once at compile time.
+    const tagComposition: TagReferenceMetadata[] = [];
+    for (const node of effectiveNodes) {
+        collectTagReferences(node.metrics, tagComposition);
+    }
+    builder.setTagComposition(tagComposition);
 
     for (const strategy of matchingStrategies) {
       strategy.apply(builder, effectiveNodes, runtime);

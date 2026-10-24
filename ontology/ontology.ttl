@@ -1,0 +1,38 @@
+# wod.wiki ontology — root manifest
+# ---------------------------------------------------------------------------
+# The ontology is split into modules that mirror the libraries (packages and
+# the playground app) where the modeled types live in the codebase:
+#
+#   ontology/lang/    @bitcobblers/wod-wiki-lang   — language & registries
+#   ontology/core/    @bitcobblers/wod-wiki-core   — stored results & fields
+#   ontology/wql/     @bitcobblers/wod-wiki-wql    — queries & dashboards
+#   ontology/app/     apps/playground              — authored content & library
+#
+# packages/engine executes the lang statements at runtime; packages/storage
+# defines the physical stores beneath the core/app types. Neither owns domain
+# types of its own, so neither gets a module — see README.md.
+#
+# All modules share the single wod: namespace for now; per-module namespaces
+# are a possible future step, not needed while the model is one team's.
+# Validate everything with ontology/validate.sh.
+# ---------------------------------------------------------------------------
+
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+<https://wod.wiki/ontology> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology" ;
+    owl:versionInfo "0.2.0" ;
+    rdfs:comment "Formal domain model for wod.wiki, split by owning library. Start with README.md in this directory." ;
+    owl:imports
+        <https://wod.wiki/ontology/lang/metrics> ,
+        <https://wod.wiki/ontology/lang/efforts> ,
+        <https://wod.wiki/ontology/lang/statements> ,
+        <https://wod.wiki/ontology/core/results> ,
+        <https://wod.wiki/ontology/core/fields> ,
+        <https://wod.wiki/ontology/app/content> ,
+        <https://wod.wiki/ontology/app/pages> ,
+        <https://wod.wiki/ontology/app/taxonomy> ,
+        <https://wod.wiki/ontology/app/attachments> ,
+        <https://wod.wiki/ontology/app/library> ,
+        <https://wod.wiki/ontology/wql/queries> .

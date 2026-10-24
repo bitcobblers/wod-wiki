@@ -27,7 +27,7 @@ let captured: ComposerQueryState
 let capturedNavigate: ReturnType<typeof useNavigate>
 
 function Probe() {
-  captured = useComposerQueryState({ defaultQuery: () => DEFAULT_QUERY })
+  captured = useComposerQueryState({ defaultQuery: DEFAULT_QUERY })
   capturedNavigate = useNavigate()
   const location = useLocation()
   return (

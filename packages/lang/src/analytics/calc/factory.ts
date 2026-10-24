@@ -5,6 +5,7 @@
  * AnalyticsEngine processor chain.
  */
 
+import type { TagIndex } from '@bitcobblers/wod-wiki-core';
 import type { IEffortResolver } from '../../effort-registry/types';
 import { CalcEngine } from './engine';
 import { LookupRegistry } from './lookup';
@@ -18,6 +19,12 @@ export interface CalcStackOptions {
   userProfile?: IProfileSource;
   /** Extra/override calcs (dialect, user) registered after the built-ins. */
   calcs?: CalculationDefinition[];
+  /**
+   * The tag catalogue. A function a tag carries runs where that tag applies.
+   */
+  tags?: TagIndex;
+  /** Tags active for the whole run, whatever the segments say. */
+  activeTags?: readonly string[];
 }
 
 export interface CalcStack {
@@ -40,5 +47,11 @@ export function createCalcStack(options: CalcStackOptions): CalcStack {
 
 export function createCalcEngine(dialect: string, options: CalcStackOptions): CalcEngine {
   const stack = createCalcStack(options);
-  return new CalcEngine(stack.registry, { dialect, lookups: stack.lookups, userProfile: options.userProfile });
+  return new CalcEngine(stack.registry, {
+    dialect,
+    lookups: stack.lookups,
+    userProfile: options.userProfile,
+    tags: options.tags,
+    activeTags: options.activeTags,
+  });
 }

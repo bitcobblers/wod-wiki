@@ -30,14 +30,16 @@
  * the plain store.
  */
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkbenchRuntime } from '@/hooks/useWorkbenchRuntime';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { parseDocumentStructure } from '@/components/Editor/utils/documentStructure';
 import { useWorkbenchSession, getActiveWorkbenchSessionStore } from '@/stores/workbenchSessionStore'
-import { resolveSoundProfiles } from '@/services/sound/soundProfiles'
-import { noteProfileIdFromTags, setSoundTagIndex } from '@/services/sound/soundTagCatalog'
-import { storageService } from '@/services/storage'
+import { resolveSoundProfiles, noteProfileIdFromTags } from '@/services/sound/soundProfiles'
+import { loadTagIndex } from '@/services/tags/tagCatalogue'
+import { useTagIndex } from '@/hooks/useTagIndex'
+import { hydrateUserCalcs } from '@/stores/userCalcStore'
+import type { CalculationDefinition } from '@bitcobblers/wod-wiki-engine'
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 
 /**
@@ -138,21 +140,47 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
   // runtime needs no lookup of its own.
   const noteTags = useWorkbenchSession((s) => s.currentEntry?.tags);
 
-  // The tag index lets a line reference a tag with `#{tag-slug}`. Parsing is
-  // synchronous and tags live in async storage, so the index is cached and
-  // refreshed here.
+  // The tag index lets a line reference a tag with `#tag-slug`, and it
+  // tells the runtime which functions the tags carry. Parsing is synchronous
+  // and tags live in async storage, so the index is cached and refreshed
+  // here.
+  const tagIndex = useTagIndex();
+
+  // The user's own calculations — the functions they wrote. They are
+  // registered with the run, so a function a tag carries can be one of them.
+  const [userCalcs, setUserCalcs] = useState<CalculationDefinition[]>([]);
+
+  // A run must not start before its configuration has loaded: a run started
+  // against an empty catalogue would resolve no `#tag` reference and
+  // register no function.
+  const [configurationLoaded, setConfigurationLoaded] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
-    storageService.getAllTags()
-      .then(tags => { if (!cancelled) setSoundTagIndex(tags); })
-      .catch(() => { /* Tags are optional — a document without them still runs. */ });
-    return () => { cancelled = true; };
+    Promise.all([
+      loadTagIndex().catch(() => { /* Tags are optional — a document without them still runs. */ }),
+      hydrateUserCalcs()
+        .then(({ defs }) => { if (!cancelled) setUserCalcs(defs); })
+        .catch(() => { /* A calc that does not compile must not stop the run. */ }),
+    ]).then(() => { if (!cancelled) setConfigurationLoaded(true); });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const soundOptions = useMemo(() => ({
     profiles: resolveSoundProfiles(),
     noteProfileId: noteProfileIdFromTags(noteTags ?? []),
   }), [noteTags]);
+
+  // The analytics options carry the run's functions and the tags they come
+  // from. The note's own tags apply to the whole note, which is how a tag
+  // reaches a workout that never names it on a line.
+  const analyticsOptions = useMemo(() => ({
+    tags: tagIndex,
+    calcs: userCalcs,
+    activeTags: noteTags ?? [],
+  }), [tagIndex, userCalcs, noteTags]);
 
   // ── Runtime initialization on view-mode changes ──
   // when entering track view with a fresh selectedBlock; dispose when
@@ -161,11 +189,11 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
   const lastInitializedKeyRef = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    if (viewMode === 'track' && selectedBlock && lastInitializedKeyRef.current === null) {
+    if (viewMode === 'track' && selectedBlock && configurationLoaded && lastInitializedKeyRef.current === null) {
       lastInitializedKeyRef.current = 'starting';
       sessionApi.getState().startPinnedRun(selectedBlock).then(block => {
         if (cancelled) return;
-        runtimeControls.initializeRuntime(block, { soundOptions });
+        runtimeControls.initializeRuntime(block, { soundOptions, analyticsOptions });
         lastInitializedKeyRef.current = block.id;
       }).catch(() => { lastInitializedKeyRef.current = null; });
     } else if (viewMode !== 'track' && lastInitializedKeyRef.current !== null) {
@@ -173,7 +201,7 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
       lastInitializedKeyRef.current = null;
     }
     return () => { cancelled = true; };
-  }, [viewMode, selectedBlock?.id, sessionApi, soundOptions, runtimeControls.initializeRuntime, runtimeControls.disposeRuntime]);
+  }, [viewMode, selectedBlock?.id, sessionApi, soundOptions, analyticsOptions, configurationLoaded, runtimeControls.initializeRuntime, runtimeControls.disposeRuntime]);
 
   // ── Clear stale analytics on selection change ──
 

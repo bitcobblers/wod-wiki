@@ -1,11 +1,12 @@
 /**
- * routeWqlConfig — user-configurable per-route WQL defaults (wayfinder: Route WQL defaults settings).
+ * routeWqlConfig — the user's per-surface WQL configuration, edited in the
+ * surface's own query settings.
  *
  * Persists the user's override of a surface's landing default WQL, Where-stored
- * scope options, and fallback Group-By options, one key per route id — browser
+ * scope options, and Group-By favorites, one key per route id — browser
  * localStorage locally, namespaced meta rows on the server in api mode. Absent fields fall back individually
- * to the in-code system defaults (the route's StreamProfile, the palette seed,
- * the view settings dialog's fallback list); an empty array is a deliberate
+ * to the in-code system defaults (the route's StreamProfile, the palette seed);
+ * an empty array is a deliberate
  * "no predefined options" state and is preserved. An explicit URL `?q=` always
  * wins over any default — that precedence lives in useComposerQueryState, so
  * defaults apply only when `?q` is absent and Back/Forward restores explicit
@@ -15,23 +16,34 @@
  * narrowly to canonical target/scope choices on read (work item 3); ids that
  * are neither canonical nor migratable are reported (`invalidTypeOptions`,
  * `invalidGroupByOptions`) instead of silently turning into query clauses.
+ *
+ * The store is live: a write notifies its subscribers, so a surface's own
+ * settings change the open page without a reload.
  */
+import { useMemo, useSyncExternalStore } from 'react'
 import { WQL_FIND_TARGETS, WQL_SOURCE_VALUES } from '@bitcobblers/wod-wiki-engine'
 import type { StreamProfile } from '../views/stream/streamProfile'
 import { LocalStore } from '@/services/storage/LocalStore'
 import { remotePrefsMode, metaDeletePrefs, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
+import {
+  GROUP_BY_DIMENSION_IDS,
+  normalizeGroupByFavorites,
+} from './groupByOptions'
 
 export interface RouteWqlConfig {
   /** Landing default WQL when the URL carries no `?q=`. */
   defaultWql?: string
   /** Replaces the profile's scopeOptions when present (empty = no predefined options). */
   typeOptions?: string[]
-  /** Replaces the view settings dialog's fallback Group-By list when present. */
+  /** The surface's Group-By favorites, in priority order — the order the
+   *  dimensions are offered in and the dimension a bare landing falls back
+   *  to. Never a filter: dimensions the target cannot group by stay stored
+   *  but are not offered. */
   groupByOptions?: string[]
   /** Stored type-option ids that are neither canonical nor migratable — surfaced
-   *  in Settings ▸ Query Defaults, never turned into query clauses. */
+   *  in the surface's query settings, never turned into query clauses. */
   invalidTypeOptions?: string[]
-  /** Stored group-by ids outside the supported fallback dimensions. */
+  /** Stored group-by ids outside the canonical dimension vocabulary. */
   invalidGroupByOptions?: string[]
 }
 
@@ -51,20 +63,14 @@ export const SCOPE_OPTION_VALUES: readonly string[] = WQL_SOURCE_VALUES
 export const CANONICAL_TYPE_OPTIONS: readonly string[] = [...WQL_FIND_TARGETS, ...WQL_SOURCE_VALUES]
 
 /**
- * Fallback card-arrangement dimensions — the shared vocabulary the view
- * settings dialog renders, the query-defaults settings editor validates
- * against, and the stream grouping consumer (`groupEntriesByDimension`)
- * implements. Query grouping (WQL `by {…}`) wins over these while present.
+ * Fallback card-arrangement dimensions — the shared vocabulary the per-page
+ * query settings editor offers, the stored-favorites validation below, and
+ * the stream grouping consumer (`groupEntriesByDimension`) implements. The
+ * vocabulary and its sort rules live in `groupByOptions` — one list, three
+ * consumers. Query grouping (WQL `by {…}`) wins over the fallback while
+ * present.
  */
-export const GROUP_BY_FAVORITE_OPTIONS: readonly { id: string; label: string }[] = [
-  { id: 'date', label: 'Date' },
-  { id: 'week', label: 'Week' },
-  { id: 'month', label: 'Month' },
-  { id: 'year', label: 'Year' },
-  { id: 'discipline', label: 'Discipline' },
-  { id: 'tag', label: 'Tags' },
-  { id: 'source', label: 'Source' },
-]
+export { GROUP_BY_DIMENSIONS, GROUP_BY_DIMENSION_IDS } from './groupByOptions'
 
 /**
  * Narrow one-time id migration for persisted favorites (work item 3): the old
@@ -156,13 +162,9 @@ export function readRouteWqlConfig(routeId: string, store: LocalStore = routeWql
   const typeOptions = sanitizeStringArray(parsed.typeOptions)
   const groupByOptions = sanitizeStringArray(parsed.groupByOptions)
   const migratedType = typeOptions && migrateFavoriteIds(typeOptions, CANONICAL_TYPE_OPTIONS, LEGACY_TYPE_OPTION_IDS)
-  const migratedGroup =
-    groupByOptions &&
-    migrateFavoriteIds(
-      groupByOptions,
-      GROUP_BY_FAVORITE_OPTIONS.map(o => o.id),
-      {},
-    )
+  const migratedGroup = groupByOptions
+    ? normalizeGroupByFavorites(groupByOptions)
+    : undefined
   return {
     defaultWql:
       typeof parsed.defaultWql === 'string' && parsed.defaultWql.trim().length > 0
@@ -194,9 +196,11 @@ export async function writeRouteWqlConfig(routeId: string, config: RouteWqlConfi
       console.error('[routeWqlConfig] server write failed:', err)
       return false
     }
+    notifyRouteWqlConfig()
     return true
   }
   store.set(id, payload)
+  notifyRouteWqlConfig()
   return true
 }
 
@@ -214,10 +218,60 @@ export async function clearRouteWqlConfig(routeId: string, store: LocalStore = r
       console.error('[routeWqlConfig] server delete failed:', err)
       return false
     }
+    notifyRouteWqlConfig()
     return true
   }
   store.remove(id, legacyId)
+  notifyRouteWqlConfig()
   return true
+}
+
+// ── Reactivity — version-counter store for useSyncExternalStore ─────────────
+
+/**
+ * The config store is read on every render of every consumer (the stream
+ * view's profile overlay, the nav panel's fallback, the page's own settings
+ * dialog), so a save has to reach the open page without a reload. A version
+ * counter is the cheapest channel that fits the existing `routeWqlShortcuts`
+ * pattern: writes bump it, subscribers re-read.
+ */
+let configVersion = 0
+const listeners = new Set<() => void>()
+
+/** Subscribe to config changes (write / clear). Returns an unsubscribe fn. */
+export function subscribeRouteWqlConfig(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+/** The current config version — changes on every write/clear. */
+export function routeWqlConfigVersion(): number {
+  return configVersion
+}
+
+function notifyRouteWqlConfig(): void {
+  configVersion += 1
+  for (const listener of listeners) listener()
+}
+
+/**
+ * The live config for a route — re-reads whenever any surface's config is
+ * written, so the page reflects its own edits immediately.
+ */
+export function useRouteWqlConfig(routeId: string): RouteWqlConfig {
+  const version = useSyncExternalStore(subscribeRouteWqlConfig, routeWqlConfigVersion, routeWqlConfigVersion)
+  return useMemo(() => readRouteWqlConfig(routeId), [routeId, version])
+}
+
+/**
+ * The current config version — a dependency for callers that read the
+ * config outside a hook (the stream profile overlay, the nav panel's
+ * fallback), so they re-derive when a surface saves.
+ */
+export function useRouteWqlConfigVersion(): number {
+  return useSyncExternalStore(subscribeRouteWqlConfig, routeWqlConfigVersion, routeWqlConfigVersion)
 }
 
 /**
@@ -226,19 +280,37 @@ export async function clearRouteWqlConfig(routeId: string, store: LocalStore = r
  *
  * Stored favorites overlay the scope list only: canonical target favorites
  * (e.g. a migrated `notes` → `note`) are inert here — the route's target is
- * fixed by the page — but stay visible and removable in Settings ▸ Query
- * Defaults. A stored list without scope entries (including a deliberate
+ * fixed by the page — but stay visible and removable in the surface's own
+ * query settings. A stored list without scope entries (including a deliberate
  * empty list) leaves the route with no predefined scope options — the nudge
  * state, never a blocker.
+ *
+ * The Group-By favorites ride along as a priority list: the page offers those
+ * dimensions first and falls back to the first one on a bare landing. They
+ * never filter — a dimension the target cannot group by stays stored but is
+ * not offered.
  */
-export function applyRouteWqlConfig(profile: StreamProfile): StreamProfile {
-  const config = readRouteWqlConfig(profile.route)
-  if (!config.defaultWql && !config.typeOptions) return profile
+export function applyRouteWqlConfig(profile: StreamProfile, config?: RouteWqlConfig): StreamProfile {
+  const resolved = config ?? readRouteWqlConfig(profile.route)
+  if (!resolved.defaultWql && !resolved.typeOptions && !resolved.groupByOptions) return profile
   return {
     ...profile,
-    defaultWql: config.defaultWql ?? profile.defaultWql,
-    scopeOptions: config.typeOptions
-      ? config.typeOptions.filter(v => (WQL_SOURCE_VALUES as readonly string[]).includes(v))
+    defaultWql: resolved.defaultWql ?? profile.defaultWql,
+    scopeOptions: resolved.typeOptions
+      ? resolved.typeOptions.filter(v => (WQL_SOURCE_VALUES as readonly string[]).includes(v))
       : profile.scopeOptions,
+    groupByOptions: resolved.groupByOptions,
   }
+}
+
+/**
+ * The profile with the user's config applied, kept live: a save on the page
+ * updates the open page without a reload. An absent profile stays absent.
+ */
+export function useAppliedRouteWqlConfig(profile: StreamProfile | undefined): StreamProfile | undefined {
+  const config = useRouteWqlConfig(profile?.route ?? '')
+  return useMemo(
+    () => (profile ? applyRouteWqlConfig(profile, config) : undefined),
+    [profile, config],
+  )
 }

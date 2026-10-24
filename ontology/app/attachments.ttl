@@ -1,0 +1,47 @@
+# wod.wiki ontology — app/attachments
+# Library: apps/playground
+# Types:   apps/playground/src/types/storage.ts
+# Docs:    docs/domain-model/Attachment.md
+# ---------------------------------------------------------------------------
+# Temporal blob data captured around a workout — GPS/HR streams (GPX, JSON).
+# Ownership is explicit: an attachment belongs to a note, and to a session
+# when the run is known. A page move, query listing or mode switch must never
+# redirect that ownership.
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/app/attachments> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — app: attachments" ;
+    owl:versionInfo "0.2.0" .
+
+wod:Attachment a owl:Class ;
+    rdfs:label "Attachment" ;
+    rdfs:comment "A captured blob (GPX track, HR stream JSON, ...) with a time span. The payload itself (ArrayBuffer|string in the repo) is deliberately not modeled — the ontology describes the record, not the bytes. Repo store: attachments." .
+
+wod:attachedToNote a owl:ObjectProperty ;
+    rdfs:label "attached to note" ;
+    rdfs:domain wod:Attachment ;
+    rdfs:range wod:Note ;
+    rdfs:comment "Repo field: Attachment.noteId — the owning note. Required before a save can claim success." .
+
+wod:attachedToSession a owl:ObjectProperty ;
+    rdfs:label "attached to session" ;
+    rdfs:domain wod:Attachment ;
+    rdfs:range wod:Session ;
+    rdfs:comment "Repo field: Attachment.resultId (V10 name; 'sessionId' is the proposed rename) — the owning run, when known." .
+
+wod:mimeType a owl:DatatypeProperty ;
+    rdfs:label "MIME type" ;
+    rdfs:domain wod:Attachment ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: Attachment.mimeType — e.g. 'application/gpx+xml', 'application/json'." .
+
+wod:attachmentLabel a owl:DatatypeProperty ;
+    rdfs:label "attachment label" ;
+    rdfs:domain wod:Attachment ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: Attachment.label — human-readable name, e.g. 'Garmin HR stream'." .

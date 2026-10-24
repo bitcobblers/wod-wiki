@@ -176,13 +176,13 @@
 </table>
 
 <h1 id="wb-h1-1a6c26791f0042159f5c93893e9c5488" data-whiteboard-anchor>Settings</h1>
-<p class="purpose" id="wb-p-ed367edcd86f489da064e286e5f27fcb" data-whiteboard-anchor>Browser-local preferences: appearance/audio, profile, per-surface WQL defaults, tag-type CRUD, storage &amp; sync. Nothing here touches the active page query unless saved.</p>
+<p class="purpose" id="wb-p-ed367edcd86f489da064e286e5f27fcb" data-whiteboard-anchor>Browser-local preferences: appearance/audio, profile, tag-type CRUD, storage &amp; sync. Per-surface WQL defaults moved to the pages themselves — each page configures its own query.</p>
 <table>
-  <tr><th id="wb-th-bbe5daf133f14c2dbb9ab9b3df8f9771" data-whiteboard-anchor>Routes</th><td id="wb-td-368cce0f90af4c978da5fa9fe527bbf3" data-whiteboard-anchor><code>/settings</code> → appearance; <code>/settings/{profile,appearance,queries,tags,sync,storage,system}</code> (data/database legacy aliases redirect)</td></tr>
-  <tr><th id="wb-th-5a847004713c40fca43739bbb1cc0056" data-whiteboard-anchor>L2 nav</th><td id="wb-td-b5d32e1514764ced88c05cdf452cd92a" data-whiteboard-anchor>Static children: Profile, Appearance, Pages, Tags, Sync, Storage, System.</td></tr>
+  <tr><th id="wb-th-bbe5daf133f14c2dbb9ab9b3df8f9771" data-whiteboard-anchor>Routes</th><td id="wb-td-368cce0f90af4c978da5fa9fe527bbf3" data-whiteboard-anchor><code>/settings</code> → appearance; <code>/settings/{profile,appearance,tags,sync,storage,system}</code> (data/database legacy aliases redirect; <code>/settings/queries</code> retired → <code>/journal</code>)</td></tr>
+  <tr><th id="wb-th-5a847004713c40fca43739bbb1cc0056" data-whiteboard-anchor>L2 nav</th><td id="wb-td-b5d32e1514764ced88c05cdf452cd92a" data-whiteboard-anchor>Static children: Profile, Appearance, Tag Types, Sync, Storage, System.</td></tr>
   <tr><th id="wb-th-31e37085c5cf485488997f4d8dd1e40d" data-whiteboard-anchor>L3 nav</th><td id="wb-td-692ac3960e014f99aeade764c00f3c30" data-whiteboard-anchor>Intentionally none.</td></tr>
-  <tr><th id="wb-th-a0d6bc9b12a04f2da324688313336a98" data-whiteboard-anchor>Default WQL</th><td id="wb-td-ded0ef19c1cc4ba88c079dbecce30eb7" data-whiteboard-anchor>Pages section edits per-route <code>defaultWql</code> / scope favorites / Group-By options (<code>routeWqlConfig</code>, localStorage; empty = system default).</td></tr>
-  <tr><th id="wb-th-8414378b45c4416ebabdd8b1e3ae1bf3" data-whiteboard-anchor>Key buttons</th><td id="wb-td-1206c0bf84c447d69296c4d447acf20c" data-whiteboard-anchor>Per-section saves (browser-local), Reset to system default, tag CRUD, sync/storage actions.</td></tr>
+  <tr><th id="wb-th-a0d6bc9b12a04f2da324688313336a98" data-whiteboard-anchor>Default WQL</th><td id="wb-td-ded0ef19c1cc4ba88c079dbecce30eb7" data-whiteboard-anchor>Owned by the page, not by Settings: each surface's query settings edit its <code>defaultWql</code> / scope favorites / Group-By options (<code>routeWqlConfig</code>, localStorage; empty = system default).</td></tr>
+  <tr><th id="wb-th-8414378b45c4416ebabdd8b1e3ae1bf3" data-whiteboard-anchor>Key buttons</th><td id="wb-td-1206c0bf84c447d69296c4d447acf20c" data-whiteboard-anchor>Per-section saves (browser-local), tag CRUD, sync/storage actions.</td></tr>
 </table>
 
 </main>

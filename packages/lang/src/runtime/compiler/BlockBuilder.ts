@@ -1,3 +1,4 @@
+import type { TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
 import { IRuntimeBehavior } from "../contracts/IRuntimeBehavior";
 import { IBlockContext } from "../contracts/IBlockContext";
 import { BlockKey } from '@bitcobblers/wod-wiki-core';
@@ -63,6 +64,8 @@ export class BlockBuilder {
     private blockType: string = "Block";
     private metrics: MetricContainer[] | undefined;
     private sourceIds: number[] = [];
+    /** The tags the block's statements referenced, resolved at compile time. */
+    private tagComposition: readonly TagReferenceMetadata[] = [];
     /** Pending round config stored by asRepeater(), consumed by asContainer() */
     private pendingRoundConfig: RepeaterConfig | undefined;
     /** Declared exit intent — resolved into a single ExitBehavior in build(). */
@@ -198,6 +201,12 @@ export class BlockBuilder {
 
     setSourceIds(ids: number[]): BlockBuilder {
         this.sourceIds = ids;
+        return this;
+    }
+
+    /** The tags the block's statements referenced, and what each carried. */
+    setTagComposition(composition: readonly TagReferenceMetadata[]): BlockBuilder {
+        this.tagComposition = composition;
         return this;
     }
     getLabel(): string {
@@ -364,6 +373,7 @@ export class BlockBuilder {
         const block = new RuntimeBlock({
             runtime: this.runtime,
             sourceIds: this.sourceIds,
+            tagComposition: this.tagComposition,
             behaviors: Array.from(this.behaviors.values()),
             context: this.context,
             key: this.key,

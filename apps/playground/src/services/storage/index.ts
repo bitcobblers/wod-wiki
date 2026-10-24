@@ -118,10 +118,32 @@ export const storageService = new StorageService(storage);
 // is the sync engine's job (startBackgroundStorageSync), not ordinary boot.
 let readyPromise: Promise<void> | undefined;
 
+/**
+ * Seed the tag kinds the app offers (equipment, discipline, …).
+ *
+ * The kinds are a registry the user can extend, and the defaults belong
+ * there before anyone adds a tag — otherwise the taxonomy is empty while
+ * tags already carry kinds, and the note frontmatter typeahead has nothing
+ * to offer. The seed only fills an empty registry, so a user's own kinds
+ * are never overwritten.
+ */
+async function seedTagTypes(): Promise<void> {
+  try {
+    await storageService.ensureDefaultTagTypes();
+  } catch {
+    // The taxonomy is optional — a failure here must not stop the boot.
+  }
+}
+
 export function whenStorageReady(): Promise<void> {
   if (readyPromise) return readyPromise;
   readyPromise = (async () => {
-    if (storageBackend === 'api') return; // ApiStorage is ready on first request
+    if (storageBackend === 'api') {
+      // ApiStorage is ready on first request, but the kinds the app offers
+      // still have to be seeded.
+      await seedTagTypes();
+      return;
+    }
     try {
       // Inspect the ACTUAL local schema version WITHOUT opening or mutating
       // anything: ordinary boots stay silent (no checking flash, no blank
@@ -145,6 +167,7 @@ export function whenStorageReady(): Promise<void> {
       }
       await (currentStorage as IndexedDBStorage).open();
       markStorageIdle(DB_VERSION);
+      await seedTagTypes();
     } catch (error) {
       // The memo clears on failure so a boot retry re-attempts the open.
       readyPromise = undefined;

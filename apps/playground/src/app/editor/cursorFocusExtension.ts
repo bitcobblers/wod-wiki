@@ -15,6 +15,7 @@
  *     getCursorFocusState(view.state) to drive MetricInlinePanel.
  */
 
+import { getTagIndex } from '@/services/tags/tagCatalogue';
 import {
   Decoration,
   DecorationSet,
@@ -33,10 +34,13 @@ import {
   ChoiceGroupMetric,
   createParser,
   MetricType,
+  TAG_MARKER_PREFIX,
   type ICodeStatement,
   type IMetric,
 } from "@bitcobblers/wod-wiki-engine";
+import { getTagReference, type TagReferenceMetadata } from "@bitcobblers/wod-wiki-core";
 import { getSharedReferenceIndex, readNoteReferenceDefaults } from "@/app/editor/noteEditorServices";
+import { catalogueReload, catalogueReloadPlugin } from "@/app/editor/catalogueReload";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -65,7 +69,18 @@ const METRIC_MARK_CLASS: Partial<Record<string, string>> = {
   [MetricType.Distance]:   "cm-metric-underline-distance",
   [MetricType.Resistance]: "cm-metric-underline-resistance",
   [MetricType.Action]:     "cm-metric-underline-action",
+  [MetricType.Equipment]:  "cm-metric-underline-equipment",
 };
+
+/**
+ * The class a tag reference is marked with.
+ *
+ * A tag reference is a hashtag, not a metric — it gets its own mark. A
+ * `#sound-` reference names a sound profile, so it is marked as one.
+ */
+function tagMarkClass(reference: TagReferenceMetadata | undefined): string {
+  return reference?.soundProfileId ? "cm-tag-reference-sound" : "cm-tag-reference";
+}
 
 // ── Parser helper ─────────────────────────────────────────────────────
 
@@ -80,10 +95,12 @@ function parseStatements(
     // Same shared resolver the frontmatter preview uses, plus the note's
     // flat metrics.* defaults, so focused-line chips match the runtime.
     const references = getSharedReferenceIndex();
-    if (!references) return createParser().read(raw, section.sport).statements as ICodeStatement[];
+    const tags = getTagIndex();
+    if (!references) return createParser({ tags }).read(raw, section.sport).statements as ICodeStatement[];
     const parser = createParser({
       references,
       defaults: readNoteReferenceDefaults(state.doc.toString()),
+      tags,
     });
     return parser.read(raw, section.sport).statements as ICodeStatement[];
   } catch {
@@ -112,10 +129,18 @@ function buildDecorations(
         cursorSection === section && stmtDocLine === cursorDocLine;
 
       for (const metric of s.metrics) {
+        const reference = getTagReference(metric.metadata);
+        const isTagMarker = typeof metric.type === 'string' && metric.type.startsWith(TAG_MARKER_PREFIX);
+        // A metric a tag brought is marked by the hashtag on the reference
+        // itself — not by the kind of the value it carries.
+        if (reference && !isTagMarker) continue;
+
         const effectiveType = metric.type === MetricType.Choice
           ? (metric as ChoiceGroupMetric).alternatives[0]?.type
           : metric.type;
-        const baseClass = METRIC_MARK_CLASS[effectiveType as string];
+        const baseClass = isTagMarker
+          ? tagMarkClass(reference)
+          : METRIC_MARK_CLASS[effectiveType as string];
         if (!baseClass) continue;
 
         const meta = s.metricMeta?.get(metric);
@@ -223,7 +248,11 @@ const cursorFocusInternal = StateField.define<InternalState>({
     return computeFocusState(state);
   },
   update(prev, tr) {
-    if (tr.effects.some((e) => e.is(referenceIndexReload))) return computeFocusState(tr.state);
+    // A catalogue that changed (tags, efforts, equipment) changes what the
+    // marks should say — redraw them even though the document did not move.
+    if (tr.effects.some((e) => e.is(referenceIndexReload) || e.is(catalogueReload))) {
+      return computeFocusState(tr.state);
+    }
     if (!tr.docChanged && tr.startState.selection.eq(tr.state.selection)) return prev;
     return computeFocusState(tr.state);
   },
@@ -298,6 +327,7 @@ const metricUnderlineTheme = EditorView.baseTheme({
   ".cm-metric-underline-distance":   { borderBottom: "2px solid hsl(var(--metric-distance))",   color: "hsl(var(--metric-distance))" },
   ".cm-metric-underline-resistance": { borderBottom: "2px solid hsl(var(--metric-resistance))", color: "hsl(var(--metric-resistance))" },
   ".cm-metric-underline-action":     { borderBottom: "2px solid hsl(var(--metric-action))",     color: "hsl(var(--metric-action))" },
+  ".cm-metric-underline-equipment":  { borderBottom: "2px solid hsl(var(--metric-equipment))",  color: "hsl(var(--metric-equipment))" },
 
   ".cm-metric-underline-duration-dim":   { borderBottom: "2px solid hsl(var(--metric-time) / 0.2)",       color: "hsl(var(--metric-time))" },
   ".cm-metric-underline-rep-dim":        { borderBottom: "2px solid hsl(var(--metric-rep) / 0.2)",        color: "hsl(var(--metric-rep))" },
@@ -306,6 +336,24 @@ const metricUnderlineTheme = EditorView.baseTheme({
   ".cm-metric-underline-distance-dim":   { borderBottom: "2px solid hsl(var(--metric-distance) / 0.2)",   color: "hsl(var(--metric-distance))" },
   ".cm-metric-underline-resistance-dim": { borderBottom: "2px solid hsl(var(--metric-resistance) / 0.2)", color: "hsl(var(--metric-resistance))" },
   ".cm-metric-underline-action-dim":     { borderBottom: "2px solid hsl(var(--metric-action) / 0.2)",     color: "hsl(var(--metric-action))" },
+  ".cm-metric-underline-equipment-dim":  { borderBottom: "2px solid hsl(var(--metric-equipment) / 0.2)",  color: "hsl(var(--metric-equipment))" },
+
+  // A tag reference is a hashtag: a chip, not an underline.
+  ".cm-tag-reference": {
+    color: "hsl(var(--primary))",
+    backgroundColor: "hsl(var(--primary) / 0.08)",
+    borderRadius: "3px",
+    padding: "0 2px",
+  },
+  ".cm-tag-reference-dim": { color: "hsl(var(--primary) / 0.55)" },
+  // A `#sound-` reference names a sound profile.
+  ".cm-tag-reference-sound": {
+    color: "hsl(var(--metric-action))",
+    backgroundColor: "hsl(var(--metric-action) / 0.12)",
+    borderRadius: "3px",
+    padding: "0 2px",
+  },
+  ".cm-tag-reference-sound-dim": { color: "hsl(var(--metric-action) / 0.55)" },
 });
 
 // ── Exported extension ───────────────────────────────────────────────
@@ -314,4 +362,5 @@ export const cursorFocusExtension: Extension = [
   cursorFocusInternal,
   metricUnderlineTheme,
   metricNavKeymap,
+  catalogueReloadPlugin,
 ];

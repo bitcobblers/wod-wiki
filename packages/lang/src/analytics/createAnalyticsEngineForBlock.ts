@@ -2,7 +2,7 @@ import { AnalyticsEngine } from './AnalyticsEngine';
 import { StandardAnalyticsProfile } from './StandardAnalyticsProfile';
 import type { AnalyticsProfileContext } from './IAnalyticsProfile';
 import type { AnalyticsContext } from './AnalyticsContext';
-import type { ScriptBlock } from '@bitcobblers/wod-wiki-core';
+import type { ScriptBlock, TagIndex } from '@bitcobblers/wod-wiki-core';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 import { InMemoryEffortRegistry } from '../effort-registry/InMemoryEffortRegistry';
 import { EffortResolver } from '../effort-registry/EffortResolver';
@@ -23,6 +23,13 @@ export interface CreateAnalyticsEngineOptions {
   userProfile?: { vo2max?: number };
   /** User-authored composed calcs (#880), registered after the built-ins. */
   calcs?: CalculationDefinition[];
+  /**
+   * The tag catalogue — the tags a script can reference and the functions
+   * they carry.
+   */
+  tags?: TagIndex;
+  /** Tags active for the whole run, whatever the segments say. */
+  activeTags?: readonly string[];
 }
 
 /**
@@ -68,6 +75,8 @@ export function createAnalyticsEngineForBlock(
     analyticsContext,
     userProfile: options?.userProfile,
     calcs: options?.calcs,
+    tags: options?.tags,
+    activeTags: options?.activeTags,
   };
 
   const profile = new StandardAnalyticsProfile();

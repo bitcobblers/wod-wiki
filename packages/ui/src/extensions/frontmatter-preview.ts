@@ -35,7 +35,7 @@ export const frontmatterSuggestions = Facet.define<
 // hard-codes routes.
 
 export interface FrontmatterReferenceRef {
-  kind: 'effort' | 'equipment';
+  kind: 'effort' | 'equipment' | 'tag';
   slug: string;
   label: string;
 }
@@ -61,7 +61,7 @@ export interface FrontmatterReferenceProvider {
   ): FrontmatterReferenceResolution;
   resolveEffort(slugOrAlias: string): { slug: string; label: string } | null;
   resolveEquipment(slugOrAlias: string): { slug: string; label: string } | null;
-  /** Route href for an existing effort/equipment page (app-owned). */
+  /** Route href for an existing effort/equipment/tag page (app-owned). */
   openHref(kind: FrontmatterReferenceRef['kind'], slug: string): string;
   /** Route href for the create page of a kind (app-owned). */
   createHref(kind: FrontmatterReferenceRef['kind']): string;

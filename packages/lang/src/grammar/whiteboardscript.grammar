@@ -37,7 +37,8 @@ Fragment {
   Slash |
   Pipe |
   Effort |
-  MetricObject
+  MetricObject |
+  TagRef
 }
 
 /**
@@ -95,19 +96,27 @@ Effort { (Identifier | allowedSymbol | minus)+ !effort }
   collectibleTimer { ":?" }
   Identifier { $[a-zA-Z] $[a-zA-Z0-9]* }
   /**
-   * TagRef — a reference to a named tag, written `#{tag-slug}`.
+   * TagRef — a reference to a named tag, written `#tag-slug`.
    *
    * Used as a property value so a line can point at a tag rather than
-   * repeating what the tag means, e.g. `sound: #{sound-classic}`.
+   * repeating what the tag means, e.g. `sound: #sound-classic`, and as a
+   * fragment so a tag can apply to the line it sits on, e.g.
+   * `5 reps @ 100 kg #heavy`.
    *
    * The slug allows letters, digits and hyphens. It is one token rather
    * than a composite of Identifier and minus, because a hyphen is not
    * valid inside an Identifier.
    */
-  TagRef { "#{" $[a-zA-Z0-9] $[a-zA-Z0-9-]* "}" }
+  TagRef { "#" $[a-zA-Z0-9] $[a-zA-Z0-9-]* }
   String { '"' (![\\\n\r] | "\\" _) * '"' }
-  textComment { "//" ![\n\r]* }
-  heading { "#" ![\n\r]* }
+  /**
+   * textComment — a `//` comment, running to the end of the line.
+   *
+   * A comment stops before a `#`: a tag reference after free text is still a
+   * tag reference, so `// some free text #tag` carries both.
+   */
+  textComment { "//" ![#\n\r]* }
+  heading { "#" ![a-zA-Z0-9] ![\n\r]* }
   slash { "/" }
   pipe { "|" }
   allowedSymbol { $[\\.,@!$%^*=&]+ }

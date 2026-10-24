@@ -20,6 +20,7 @@ import { useNav, type StreamNavControls } from './NavContext'
 import { l3ToMenuEntries } from './menuModel'
 import type { MenuSpec } from './menuModel'
 import { WqlWindowPicker } from '../views/stream/WqlWindowPicker'
+import { QuerySettingsTrigger } from '../components/organisms/wql/QuerySettingsTrigger'
 import type { LayoutMode } from '../lib/viewSettingsStorage'
 import { getFieldsForLevel } from '../lib/fieldProjection'
 
@@ -31,13 +32,22 @@ const LAYOUT_OPTIONS: readonly { id: LayoutMode; label: string; icon: typeof Lay
 
 /**
  * StreamControlsNav — the L3 stream-controls block (date window picker +
- * group-by toggles + layout + visible fields). Rendered by the 2xl+ rail
- * AND by the ⋯ fallback (dropdown + dock sheet) below 2xl, so every surface
- * carries the same components bound to the same NavContext streamControls.
+ * group-by toggles + layout + visible fields + the query-settings entry).
+ * Rendered by the 2xl+ rail AND by the ⋯ fallback (dropdown + dock sheet)
+ * below 2xl, so every surface carries the same components bound to the same
+ * NavContext streamControls.
  */
 export function StreamControlsNav({ streamControls }: { streamControls: StreamNavControls }) {
   return (
     <div className="flex flex-col gap-3" data-testid="l3-stream-controls">
+      {streamControls.onOpenQuerySettings && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            This page
+          </span>
+          <QuerySettingsTrigger onOpen={streamControls.onOpenQuerySettings} />
+        </div>
+      )}
       <div className="flex flex-col gap-1.5">
         <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
           Date window

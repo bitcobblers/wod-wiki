@@ -3,7 +3,7 @@
  *
  * Asserts the new flow: editor Run → fullscreen run (its review panel owns
  * the raw results) → closing it glides to the dashboards section, whose
- * Session Insights scope (Rest/Test Ratio + Reaction Time) renders the
+ * Session Insights scope (Impatience Score + Reaction Time) renders the
  * recorded run; the run-to-view CTA before any run; the boards carousel
  * tabs; the pane-header back-to-editor reset; the jump section exits; and
  * the note lifecycle contracts (fresh identity per Run, record-once
@@ -411,7 +411,7 @@ describe('HomeTour', () => {
     expect(runControl.run?.noteId).toBe('note-2')
   })
 
-  it('feeds the analytics scope after a recorded run — ratio, reaction, timeline', async () => {
+  it('feeds the analytics scope after a recorded run — impatience, reaction, timeline', async () => {
     await renderHomeTour()
     await editorRun()
     await act(async () => {
@@ -425,8 +425,8 @@ describe('HomeTour', () => {
 
     // The session analytics render in the analytics scope.
     expect(sticky.getByTestId('tour-insights-timeline')).toBeTruthy()
-    // 3s countdown vs 43.8s to Next → 1 : 14.6
-    expect(sticky.getByTestId('tour-insights-ratio')!.textContent).toContain('1 : 14.6')
+    // The 3s countdown expired naturally — nothing clicked early.
+    expect(sticky.getByTestId('tour-insights-impatience')!.textContent).toContain('0.0s')
     // avg (1.8s + 42s) / 2 over 2 clicks.
     expect(sticky.getByTestId('tour-insights-reaction')!.textContent).toContain('21.9s')
     expect(sticky.getByTestId('tour-insights-reaction')!.textContent).toContain('2 clicks')

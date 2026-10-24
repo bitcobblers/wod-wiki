@@ -92,6 +92,10 @@ export interface StreamNavControls {
   onLayoutChange: (layout: LayoutMode) => void
   onToggleField: (fieldId: string) => void
   level: EntityLevel
+  /** Open this surface's query settings (landing default, scope and Group-By
+   *  favorites, saved shortcuts). Published only by surfaces that HAVE a
+   *  configurable surface — absent means the page offers none. */
+  onOpenQuerySettings?: () => void
 }
 
 /** Route-scoped static L2 content registered by a page (e.g. note

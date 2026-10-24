@@ -1,0 +1,42 @@
+# wod.wiki ontology — SHACL shapes for wql/ modules
+# Contracts for packages/wql types: queries and dashboards.
+
+@prefix wod: <https://wod.wiki/ontology#> .
+@prefix sh:  <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+<https://wod.wiki/ontology/shapes/wql> a owl:Ontology .
+
+wod:WQLQueryShape a sh:NodeShape ;
+    sh:targetClass wod:WQLQuery ;
+    sh:property [
+        sh:path wod:querySource ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class wod:QuerySource ;
+        sh:message "A query starts from exactly one source head (:segment, :session, :event, :journal, find:note, find:block)." ;
+    ] .
+
+wod:DashboardShape a sh:NodeShape ;
+    sh:targetClass wod:Dashboard ;
+    sh:property [
+        sh:path wod:hasWidget ;
+        sh:minCount 1 ;
+        sh:class wod:DashboardWidget ;
+        sh:message "A dashboard composes at least one widget — an empty dashboard is a configuration error, not a view." ;
+    ] .
+
+wod:DashboardWidgetShape a sh:NodeShape ;
+    sh:targetClass wod:DashboardWidget ;
+    sh:property [
+        sh:path wod:presentsQuery ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class wod:WQLQuery ;
+        sh:message "A widget presents exactly one query — its edit target stays unambiguous." ;
+    ] ;
+    sh:property [
+        sh:path wod:widgetType ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A widget has exactly one presentation type." ;
+    ] .

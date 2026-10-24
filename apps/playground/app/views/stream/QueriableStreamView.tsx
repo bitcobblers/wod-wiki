@@ -49,6 +49,12 @@ import {
   groupEntriesByDimension,
   parseGroupingDimensions,
 } from '../../lib/entryGrouping'
+import {
+  resolveFallbackGroupDimension,
+  resolveGroupByOptions,
+} from '../../lib/groupByOptions'
+import { queryConfigSurface } from '../../lib/queryConfigSurfaces'
+import { QuerySettingsDialog } from '../../components/organisms/wql/QuerySettingsDialog'
 import { defaultStreamQueryEngine, StreamQueryEngine } from '../../lib/entrySearch'
 import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
@@ -80,17 +86,6 @@ import { useSeedContent } from '@/services/content/seedContent'
 
 const contentProvider = new IndexedDBContentProvider()
 
-const ALL_STREAM_GROUP_DIMS: readonly { id: string; label: string }[] = [
-  { id: 'date', label: 'Date' },
-  { id: 'week', label: 'Week' },
-  { id: 'month', label: 'Month' },
-  { id: 'year', label: 'Year' },
-  { id: 'tag', label: 'Tags' },
-  { id: 'type', label: 'Type' },
-  { id: 'discipline', label: 'Discipline' },
-  { id: 'source', label: 'Source' },
-  { id: 'origin', label: 'Origin' },
-]
 function BatchingSentinel({
   batch,
   testId = 'stream-load-more',
@@ -270,7 +265,7 @@ export function QueriableStreamView({
   )
   // Synchronize composer state with URL
   const { query, setQuery, urlQueryError } = useComposerQueryState({
-    defaultQuery: () => profile.defaultWql,
+    defaultQuery: profile.defaultWql,
     legacy: profile.legacy,
   })
 
@@ -284,6 +279,13 @@ export function QueriableStreamView({
     profile.level,
     profile.defaultLayout,
   )
+
+  // This page's own query settings — the landing default, the Where-stored
+  // and Group-By favorites and the saved shortcuts, edited where the query
+  // lives. Only surfaces WITH a configurable surface offer it (detail routes
+  // resolve a profile per item, so they keep their in-code defaults).
+  const querySettingsSurface = queryConfigSurface(profile.route)
+  const [querySettingsOpen, setQuerySettingsOpen] = useState(false)
 
   const [entries, setEntries] = useState<Entry[]>([])
   // The run's own stage counts (scope population vs matches) — captured from
@@ -631,19 +633,28 @@ export function QueriableStreamView({
   }, [query, activeEngine, parsed, location.pathname, seedReadiness, savedTick])
 
   // Grouping: the committed run's query `by {}` dimensions win; otherwise
-  // the view setting, then the level default. The query leg is stored WITH
-  // the results at commit time — a mid-edit draft (valid or not) never
-  // regroups the previous results; view/level legs regroup entries live.
+  // the view setting, then the surface's Group-By favorite, then the level
+  // default. The query leg is stored WITH the results at commit time — a
+  // mid-edit draft (valid or not) never regroups the previous results;
+  // view/favorite/level legs regroup entries live.
   const groupDims = useMemo<string[]>(() => {
     if (queryRunDims?.length) return queryRunDims
     if (settings.groupBy) return [settings.groupBy]
-    return [profile.level === 'effort' ? 'discipline' : 'date']
-  }, [queryRunDims, settings.groupBy, profile.level])
-  const groupingSource: 'query' | 'view' | 'level' = queryRunDims?.length
+    const target = parsed.error || !isFindQuery(parsed) ? (profile.level === 'effort' ? 'effort' : 'note') : parsed.target
+    const supported = wqlGroupingDimensions(target, 'find')
+    return [resolveFallbackGroupDimension(
+      profile.groupByOptions,
+      supported,
+      profile.level === 'effort' ? 'discipline' : 'date',
+    )]
+  }, [queryRunDims, settings.groupBy, profile.level, profile.groupByOptions, parsed])
+  const groupingSource: 'query' | 'view' | 'favorite' | 'level' = queryRunDims?.length
     ? 'query'
     : settings.groupBy
       ? 'view'
-      : 'level'
+      : profile.groupByOptions?.length
+        ? 'favorite'
+        : 'level'
   // Filter truth vs the target's own vocabulary: the executor IGNORES
   // unsupported keys (advisory) — the strip says applied vs ignored instead
   // of implying every requested filter ran.
@@ -691,8 +702,8 @@ export function QueriableStreamView({
   const availableGroupDims = useMemo(() => {
     const target = parsed.error || !isFindQuery(parsed) ? (profile.level === 'effort' ? 'effort' : 'note') : parsed.target
     const supported = wqlGroupingDimensions(target, 'find')
-    return ALL_STREAM_GROUP_DIMS.filter(d => supported.includes(d.id))
-  }, [parsed, profile.level])
+    return resolveGroupByOptions(supported, profile.groupByOptions)
+  }, [parsed, profile.level, profile.groupByOptions])
 
   const handleGroupByChange = useCallback(
     (newGroup: string) => {
@@ -727,9 +738,10 @@ export function QueriableStreamView({
       onLayoutChange: setLayout,
       onToggleField: toggleField,
       level: profile.level,
+      ...(querySettingsSurface ? { onOpenQuerySettings: () => setQuerySettingsOpen(true) } : {}),
     })
     return () => setStreamControls?.(null)
-  }, [query, setQuery, groupDims, handleToggleGroupDim, availableGroupDims, setStreamControls, settings, setLayout, toggleField, profile.level])
+  }, [query, setQuery, groupDims, handleToggleGroupDim, availableGroupDims, setStreamControls, settings, setLayout, toggleField, profile.level, querySettingsSurface])
 
   // Progressive anchor reachability: the L3 index covers ALL groups, but only
   // the rendered prefix has DOM anchors (progressive batching). A click on a
@@ -884,6 +896,13 @@ export function QueriableStreamView({
     <div className="bg-card flex flex-col flex-1" data-testid="queriable-stream-view">
       {catalogsManager}
       {createNotebookDialog}
+      {querySettingsSurface && (
+        <QuerySettingsDialog
+          surface={querySettingsSurface}
+          open={querySettingsOpen}
+          onOpenChange={setQuerySettingsOpen}
+        />
+      )}
       {/* Desktop: single-line header — the query bar fills the row left
           empty by the removed title. The header itself is the sticky zone
           (lg:sticky top-0) and MUST be a direct child of this full-height

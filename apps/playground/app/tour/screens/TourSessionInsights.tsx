@@ -4,8 +4,8 @@
  * Two states:
  *  - recorded session present: a session timeline (countdown/rest spans vs
  *    next-click spans, straight from the run's segment log) plus two cards —
- *    Rest/Test Ratio (time on countdown timers vs time to click Next) and
- *    Reaction Time (how long each line waited for its Next click).
+ *    Impatience Score (set time minus elapsed on countdowns Next-clicked
+ *    early) and Reaction Time (how long each line waited for its Next click).
  *  - no session yet: a call-to-action pane whose button triggers the
  *    fullscreen run.
  *
@@ -32,10 +32,10 @@ export interface InsightSegment {
 export interface SessionInsights {
   segments: InsightSegment[]
   totalMs: number
-  /** Time on countdown timers (the rest side of the ratio). */
-  clockMs: number
-  /** Time from line-shown to Next click (the test side). */
-  nextMs: number
+  /** Total planned-but-unwaited countdown time (set time minus elapsed). */
+  impatienceMs: number
+  /** Per early Next click on a countdown: ms clicked before time was due. */
+  impatiences: number[]
   /** Per Next click: ms the line waited. */
   reactions: number[]
 }
@@ -49,6 +49,7 @@ interface MetricLike {
 export function deriveSessionInsights(result: Sessions): SessionInsights | null {
   const base = Number.isFinite(result.startTime) ? result.startTime : 0
   const segments: InsightSegment[] = []
+  const impatiences: number[] = []
   for (const log of result.logs ?? []) {
     if (log.outputType !== 'segment') continue
     if (log.stackLevel !== 1 || log.line == null) continue
@@ -62,6 +63,11 @@ export function deriveSessionInsights(result: Sessions): SessionInsights | null 
       : log.completionReason === 'user-advance' ? 'next'
       : null
     if (!kind) continue
+    if (kind === 'clock' && log.completionReason === 'user-advance') {
+      const planned = metrics.find((m) => m.type === 'duration' && typeof m.value === 'number')?.value as number | undefined
+      const early = (planned ?? 0) - (span.ended - span.started)
+      if (early > 0) impatiences.push(early)
+    }
     segments.push({
       start: span.started - base,
       end: span.ended - base,
@@ -70,13 +76,12 @@ export function deriveSessionInsights(result: Sessions): SessionInsights | null 
     })
   }
   if (segments.length === 0) return null
+  const impatienceMs = impatiences.reduce((a, b) => a + b, 0)
   const totalMs = Number.isFinite(result.duration) && result.duration > 0
     ? result.duration
     : Math.max(...segments.map((s) => s.end))
-  const clockMs = segments.filter((s) => s.kind === 'clock').reduce((acc, s) => acc + (s.end - s.start), 0)
-  const nextMs = segments.filter((s) => s.kind === 'next').reduce((acc, s) => acc + (s.end - s.start), 0)
   const reactions = segments.filter((s) => s.kind === 'next').map((s) => s.end - s.start)
-  return { segments, totalMs, clockMs, nextMs, reactions }
+  return { segments, totalMs, impatienceMs, impatiences, reactions }
 }
 
 // ── Formatting ──────────────────────────────────────────────────────────────
@@ -126,10 +131,10 @@ export function TourSessionInsights({ result, onRun }: TourSessionInsightsProps)
     return <InsightsRunCta onRun={onRun} />
   }
 
-  const { segments, totalMs, clockMs, nextMs, reactions } = insights
+  const { segments, totalMs, impatienceMs, impatiences, reactions } = insights
   const avgReaction = reactions.length > 0 ? reactions.reduce((a, b) => a + b, 0) / reactions.length : 0
   const maxReaction = reactions.length > 0 ? Math.max(...reactions) : 0
-  const ratio = nextMs > 0 ? clockMs / nextMs : 0
+  const maxImpatience = impatiences.length > 0 ? Math.max(...impatiences) : 0
 
   return (
     <div className="flex h-full w-full flex-col gap-4 overflow-y-auto p-4" data-testid="tour-insights">
@@ -165,13 +170,15 @@ export function TourSessionInsights({ result, onRun }: TourSessionInsightsProps)
 
       {/* The two cards. */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <div data-testid="tour-insights-ratio" className="rounded-xl border border-border bg-card p-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Rest / Test Ratio</p>
+        <div data-testid="tour-insights-impatience" className="rounded-xl border border-border bg-card p-4">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Impatience Score</p>
           <p className="mt-2 text-2xl font-black tracking-tight text-foreground">
-            1 : {ratio > 0 ? (nextMs / Math.max(clockMs, 1)).toFixed(1) : '∞'}
+            {fmtSeconds(impatienceMs)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {fmtClock(clockMs)} on countdown timers · {fmtClock(nextMs)} to click Next
+            {impatiences.length === 0
+              ? 'every countdown ran to zero'
+              : `${impatiences.length} early click${impatiences.length === 1 ? '' : 's'}${impatiences.length > 1 ? ` · worst ${fmtSeconds(maxImpatience)}` : ''}`}
           </p>
         </div>
         <div data-testid="tour-insights-reaction" className="rounded-xl border border-border bg-card p-4">

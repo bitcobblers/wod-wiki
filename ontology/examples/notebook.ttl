@@ -1,0 +1,192 @@
+# Valid example: the authoring side, end to end.
+# A journal note ("Fran") with versioned segments, placed on a calendar
+# page, classified by a typed tag, with an HR-stream attachment, a block
+# index projection, field-catalog contributions, one recorded session with
+# a summary row, and a WQL query + dashboard widget over the results.
+# Exercises every module: app/content, app/pages, app/taxonomy,
+# app/attachments, app/library, core/fields, core/results, lang/*, wql/*.
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ex:   <https://wod.wiki/data/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix unit: <http://qudt.org/vocab/unit/> .
+
+# === The note and its versioned segments ==================================
+
+ex:note-fran a wod:Note ;
+    wod:noteTitle "Fran" ;
+    wod:noteKind "journal" ;
+    wod:createdAt "2026-10-23T06:30:00-04:00"^^xsd:dateTime ;
+    wod:domainDate "2026-10-23T00:00:00-04:00"^^xsd:dateTime ;
+    wod:hasSegment ex:seg-fran-intro-v1 , ex:seg-fran-wod-v1 , ex:seg-fran-wod-v2 .
+
+ex:seg-fran-intro-v1 a wod:NoteSegment ;
+    wod:segmentOf ex:note-fran ;
+    wod:segmentVersion 1 ;
+    wod:segmentDataType "markdown" ;
+    wod:position 0 ;
+    wod:isHistory false ;
+    wod:rawContent "Benchmark day. Thrusters felt light." .
+
+ex:seg-fran-wod-v1 a wod:NoteSegment ;
+    wod:segmentOf ex:note-fran ;
+    wod:segmentVersion 1 ;
+    wod:segmentDataType "wod" ;
+    wod:position 1 ;
+    wod:isHistory true ;
+    wod:hasScriptBlock ex:block-fran .
+
+ex:seg-fran-wod-v2 a wod:NoteSegment ;
+    wod:segmentOf ex:note-fran ;
+    wod:segmentVersion 2 ;
+    wod:segmentDataType "wod" ;
+    wod:position 1 ;
+    wod:isHistory false ;
+    wod:hasScriptBlock ex:block-fran .
+
+ex:block-fran a wod:ScriptBlock ;
+    wod:hasStatement ex:stmt-fran-1 .
+ex:stmt-fran-1 a wod:Statement ;
+    wod:statementIndex 0 ;
+    wod:inDialect wod:dialectTime .
+
+# === Placement on a calendar page ==========================================
+
+ex:page-2026-10-23 a wod:Page ;
+    wod:pageDate "2026-10-23" ;
+    wod:pageTitle "Friday, October 23" .
+
+ex:placement-fran a wod:PageNote ;
+    wod:placementPage ex:page-2026-10-23 ;
+    wod:placementNote ex:note-fran ;
+    wod:position 0 .
+
+ex:note-fran wod:placedOn ex:page-2026-10-23 .
+
+# === Classification =========================================================
+
+ex:tagtype-equipment a wod:TagType ;
+    wod:tagTypeName "equipment" ;
+    wod:tagTypeLabel "Equipment" .
+
+ex:tag-barbell a wod:Tag ;
+    wod:tagLabel "barbell" ;
+    wod:hasTagType ex:tagtype-equipment .
+
+ex:notetag-fran-barbell a wod:NoteTag ;
+    wod:noteTagNote ex:note-fran ;
+    wod:noteTagTag ex:tag-barbell .
+
+ex:note-fran wod:hasTag ex:tag-barbell .
+
+# === Attachment =============================================================
+
+ex:attachment-fran-hr a wod:Attachment ;
+    wod:attachedToNote ex:note-fran ;
+    wod:mimeType "application/json" ;
+    wod:attachmentLabel "Garmin HR stream" ;
+    wod:spanStart "2026-10-23T07:00:00-04:00"^^xsd:dateTime ;
+    wod:spanEnd   "2026-10-23T07:05:12-04:00"^^xsd:dateTime .
+
+# === Library: block index projection + a bundled collection ================
+
+ex:blockrow-fran-wod a wod:BlockIndexRow ;
+    wod:projectsNote ex:note-fran ;
+    wod:projectsSegment ex:seg-fran-wod-v2 ;
+    wod:blockContentId "bc-fran-wod" ;
+    wod:isStatic false .
+
+ex:note-fran-seed a wod:Note ;
+    wod:noteTitle "Fran (benchmark)" ;
+    wod:noteKind "collection" ;
+    wod:createdAt "2026-09-01T00:00:00-04:00"^^xsd:dateTime ;
+    wod:seedOrigin "seed" ;
+    wod:catalogId "crossfit-girls" .
+
+ex:collection-girls a wod:Collection ;
+    rdfs:label "crossfit-girls" ;
+    wod:collectionName "Crossfit Girls" ;
+    wod:hasCollectionItem ex:note-fran-seed .
+
+ex:config-seed-checkpoint a wod:Configuration ;
+    wod:configKey "seed-import-checkpoint" .
+
+# === Typed fields ===========================================================
+
+ex:field-equipment a wod:FieldCatalogEntry ;
+    wod:fieldPath "equipment" ;
+    wod:fieldKind "string" ;
+    wod:sourceCount 1 ;
+    wod:hasFieldValue ex:fieldvalue-barbell .
+
+ex:fieldvalue-barbell a wod:FieldValueRecord ;
+    wod:valueOfField ex:field-equipment ;
+    wod:fieldValue "barbell" ;
+    wod:sourceCount 1 .
+
+ex:fieldsource-fran a wod:FieldSourceRecord ;
+    wod:sourceRecordId "note:fran-2026-10-23" ;
+    wod:contributesField ex:field-equipment .
+
+ex:backfill a wod:CatalogBackfillState ;
+    wod:backfillStatus "complete" .
+
+# === A recorded run of the note, with a summary aggregate ==================
+
+ex:effort-thruster a wod:Effort ;
+    rdfs:label "Thruster" ;
+    wod:slug "thruster" ;
+    wod:met 5.0 ;
+    wod:discipline "strength" .
+
+ex:session-fran a wod:Session ;
+    wod:aboutNote ex:note-fran ;
+    wod:recordsSegment ex:seg-fran-wod-v2 ;
+    wod:status "completed" ;
+    wod:startTime "2026-10-23T07:00:00-04:00"^^xsd:dateTime ;
+    wod:endTime   "2026-10-23T07:05:12-04:00"^^xsd:dateTime ;
+    wod:blockContentId "bc-fran-wod" ;
+    wod:hasEvent ex:ev-fran-seg , ex:ev-fran-summary .
+
+ex:ev-fran-seg a wod:SegmentEvent ;
+    wod:sessionOf ex:session-fran ;
+    wod:seqInSession 1 ;
+    wod:grain "event" ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-thruster ;
+    wod:hasMetric ex:obs-fran-reps .
+ex:obs-fran-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult 45 ;
+    wod:hasUnit wod:CountUnit .
+
+ex:ev-fran-summary a wod:SummaryEvent ;
+    wod:sessionOf ex:session-fran ;
+    wod:seqInSession 2 ;
+    wod:grain "summary" ;
+    wod:outputType "analytics" ;
+    wod:hasMetric ex:obs-fran-volume .
+ex:obs-fran-volume a wod:MetricObservation ;
+    sosa:observedProperty wod:mTotalVolume ;
+    sosa:hasSimpleResult 2025 ;
+    wod:hasUnit unit:LB .
+
+ex:attachment-fran-hr wod:attachedToSession ex:session-fran .
+
+# === WQL over the results ===================================================
+
+ex:query-fran-volume a wod:WQLQuery ;
+    wod:querySource wod:srcSegment ;
+    wod:queriesMetric wod:mTotalVolume .
+
+ex:fact-fran-volume a wod:AnalyticsDataPoint ;
+    wod:projectedFrom ex:ev-fran-summary ;
+    wod:factValue 2025 .
+
+ex:dashboard-fran a wod:Dashboard ;
+    wod:hasWidget ex:widget-fran-volume .
+ex:widget-fran-volume a wod:DashboardWidget ;
+    wod:presentsQuery ex:query-fran-volume ;
+    wod:widgetType "bar" .

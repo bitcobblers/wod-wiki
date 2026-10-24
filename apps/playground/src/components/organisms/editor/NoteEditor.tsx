@@ -13,6 +13,7 @@
  * SectionEditor to a single, highly-extensible CodeMirror 6 instance."
  */
 
+import { getTagIndex } from '@/services/tags/tagCatalogue';
 import React, { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import { EditorState, Prec, StateEffect, type Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
@@ -1070,7 +1071,7 @@ function sectionToScriptBlock(section: EditorSection, state: EditorState): Scrip
   let statements: ICodeStatement[] = [];
   try {
     if (content.trim()) {
-      statements = createParser().read(content, section.sport).statements ?? [];
+      statements = createParser({ tags: getTagIndex() }).read(content, section.sport).statements ?? [];
     }
   } catch {
     // Silently ignore parse errors

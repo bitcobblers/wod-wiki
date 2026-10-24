@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
  * A profile is a named set of rules. Each rule pairs a trigger point
  * (an offset relative to a block's own duration) with the sound played
  * there. A profile is selected by a tag: `sound-classic` on a note applies
- * it to the whole note, and `sound: #{sound-classic}` on a line applies it
+ * it to the whole note, and `sound: #sound-classic` on a line applies it
  * to that block only.
  *
  * This covers the authoring loop the feature depends on: create a profile,

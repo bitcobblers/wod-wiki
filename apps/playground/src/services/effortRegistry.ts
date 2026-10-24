@@ -26,6 +26,25 @@ export function createAppEffortRegistry(): CompositeEffortRegistry {
 export async function hydrateAppEffortRegistry(registry: CompositeEffortRegistry): Promise<void> {
   const all = await storageService.getAllEfforts();
   await registry.loadBundled(all.filter((effort) => effort.registrySource === 'bundled'));
+  notifyEffortRegistry();
+}
+
+type EffortRegistryListener = () => void;
+const effortRegistryListeners = new Set<EffortRegistryListener>();
+
+/**
+ * Subscribe to the effort registry changing.
+ *
+ * The registry loads asynchronously; the editor draws its marks from it, so
+ * a load has to reach the editor that is already on screen.
+ */
+export function subscribeAppEffortRegistry(listener: EffortRegistryListener): () => void {
+  effortRegistryListeners.add(listener);
+  return () => effortRegistryListeners.delete(listener);
+}
+
+function notifyEffortRegistry(): void {
+  for (const listener of effortRegistryListeners) listener();
 }
 
 let appEffortRegistry: CompositeEffortRegistry | null = null;

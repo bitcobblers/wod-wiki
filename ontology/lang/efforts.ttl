@@ -1,0 +1,40 @@
+# wod.wiki ontology — lang/efforts
+# Library: packages/lang (@bitcobblers/wod-wiki-lang)
+# Types:   packages/lang/src/effort-registry/types.ts (IEffort)
+# Docs:    docs/domain-model/Effort.md
+# ---------------------------------------------------------------------------
+# The effort registry: movement/activity entries keyed by slug. In the domain
+# an effort is also a note ("effort-as-note" intent) with materialized
+# IEffort projections; the registry record modeled here is that projection.
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/lang/efforts> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — lang: efforts" ;
+    owl:versionInfo "0.2.0" .
+
+wod:Effort a owl:Class ;
+    rdfs:label "Effort" ;
+    rdfs:comment "A movement/activity registry entry, keyed by slug (e.g. 'burpees', 'back-squat'). Carries authored attributes used for matching and analytics. Referenced by EventRecord.effortSlug; authored as a note in the domain, projected to IEffort in the registry." .
+
+wod:slug a owl:DatatypeProperty ;
+    rdfs:label "slug" ;
+    rdfs:domain wod:Effort ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The effort's canonical identifier and durable lookup key: unique, lowercase, hyphenated (shape-enforced). Renaming a slug must not orphan the things keyed by it (tags on the owning note, recorded events)." .
+
+wod:met a owl:DatatypeProperty ;
+    rdfs:label "MET" ;
+    rdfs:domain wod:Effort ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Repo field: IEffort.baseAttributes.met — the effort's metabolic-equivalent intensity. Note where MET lives: on the Effort (an authored attribute), not on observations; calories are derived from it." .
+
+wod:discipline a owl:DatatypeProperty ;
+    rdfs:label "discipline" ;
+    rdfs:domain wod:Effort ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: IEffort.baseAttributes.discipline (indexed in the efforts store). Distinct from the tag dimension of the same name in app/taxonomy." .

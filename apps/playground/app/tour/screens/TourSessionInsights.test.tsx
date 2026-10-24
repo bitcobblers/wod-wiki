@@ -1,6 +1,6 @@
 /**
  * TourSessionInsights.test.tsx — the derivation behind the home page's
- * Rest/Test Ratio and Reaction Time cards, plus the pane's two states.
+ * Impatience Score and Reaction Time cards, plus the pane's two states.
  *
  * The segment shapes mirror what a real run records (probe: block-level
  * `segment` statements carry timeSpan, completionReason and the parsed
@@ -44,8 +44,8 @@ function homeRun(): Sessions {
 describe('deriveSessionInsights', () => {
   it('splits countdown spans from next-click spans and samples reactions', () => {
     const insights = deriveSessionInsights(homeRun())!
-    expect(insights.clockMs).toBe(3000)
-    expect(insights.nextMs).toBe(43800)
+    expect(insights.impatienceMs).toBe(0)
+    expect(insights.impatiences).toEqual([])
     expect(insights.reactions).toEqual([1800, 42000])
     expect(insights.totalMs).toBe(46800)
     expect(insights.segments).toHaveLength(3)
@@ -81,9 +81,26 @@ describe('deriveSessionInsights', () => {
       ],
     } as unknown as Sessions
     const insights = deriveSessionInsights(session)!
-    expect(insights.clockMs).toBe(6000)
-    expect(insights.nextMs).toBe(0)
+    expect(insights.impatienceMs).toBe(0)
+    expect(insights.impatiences).toEqual([])
     expect(insights.reactions).toEqual([])
+  })
+
+  it('scores impatience as planned minus elapsed when Next is clicked early on a countdown', () => {
+    const session = {
+      startTime: 0,
+      endTime: 4000,
+      duration: 4000,
+      completed: true,
+      logs: [
+        segment({ line: 1, timeSpan: { started: 0, ended: 1000 }, metrics: [{ type: 'duration', value: 3000, origin: 'parser' }] }),
+        segment({ line: 2, completionReason: 'timer-expired', timeSpan: { started: 1000, ended: 4000 }, metrics: [{ type: 'duration', value: 3000, origin: 'parser' }] }),
+      ],
+    } as unknown as Sessions
+    const insights = deriveSessionInsights(session)!
+    // 3s set time − 1s elapsed = 2s early; the expired countdown scores 0.
+    expect(insights.impatiences).toEqual([2000])
+    expect(insights.impatienceMs).toBe(2000)
   })
 
   it('returns null when nothing is measurable', () => {
@@ -110,14 +127,30 @@ describe('TourSessionInsights pane', () => {
   it('renders the timeline and both cards from a recorded run', () => {
     render(<TourSessionInsights result={homeRun()} onRun={() => {}} />)
     expect(screen.getByTestId('tour-insights-timeline')).toBeTruthy()
-    // 3s rest vs 43.8s to Next → 1 : 14.6
-    expect(screen.getByTestId('tour-insights-ratio')!.textContent).toContain('1 : 14.6')
-    expect(screen.getByTestId('tour-insights-ratio')!.textContent).toContain('0:03')
-    expect(screen.getByTestId('tour-insights-ratio')!.textContent).toContain('0:44')
+    // The countdown ran to zero — nothing clicked early.
+    expect(screen.getByTestId('tour-insights-impatience')!.textContent).toContain('0.0s')
+    expect(screen.getByTestId('tour-insights-impatience')!.textContent).toContain('every countdown ran to zero')
     // avg reaction (1.8 + 42) / 2 = 21.9s over 2 clicks, slowest 42.0s
     expect(screen.getByTestId('tour-insights-reaction')!.textContent).toContain('21.9s')
     expect(screen.getByTestId('tour-insights-reaction')!.textContent).toContain('2 clicks')
     expect(screen.getByTestId('tour-insights-reaction')!.textContent).toContain('42.0s')
+    cleanup()
+  })
+
+  it('shows the impatience score when a countdown is clicked early', () => {
+    const impatient = {
+      startTime: 0,
+      endTime: 4000,
+      duration: 4000,
+      completed: true,
+      logs: [
+        segment({ line: 1, timeSpan: { started: 0, ended: 1000 }, metrics: [{ type: 'duration', value: 3000, origin: 'parser' }, { type: 'effort', value: 'Count Down', origin: 'parser' }] }),
+        segment({ line: 2, timeSpan: { started: 1000, ended: 4000 }, metrics: [{ type: 'rep', value: 10, origin: 'parser' }, { type: 'effort', value: 'Pushups', origin: 'parser' }] }),
+      ],
+    } as unknown as Sessions
+    render(<TourSessionInsights result={impatient} onRun={() => {}} />)
+    expect(screen.getByTestId('tour-insights-impatience')!.textContent).toContain('2.0s')
+    expect(screen.getByTestId('tour-insights-impatience')!.textContent).toContain('1 early click')
     cleanup()
   })
 

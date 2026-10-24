@@ -68,6 +68,7 @@
     --metric-resistance: 0 34% 48%;    /* #a05858 terracotta */
     --metric-action:     46 52% 37%;   /* #948030 ochre */
     --metric-rest:       172 30% 40%;  /* sea teal (rest intervals) */
+    --metric-equipment:  215 18% 42%;  /* steel (equipment references) */
 
     /* ── Signal accents — vivid status hues for charts/validity ─────
      * Rings, zone bands, delta indicators, validity icons (#1000). */
@@ -128,6 +129,7 @@
     --metric-resistance: 354 34% 58%;  /* #bf616a aurora red */
     --metric-action:     40 67% 74%;   /* #ebcb8b aurora yellow */
     --metric-rest:       172 30% 60%;  /* frost teal-green */
+    --metric-equipment:  213 22% 72%;  /* frost steel */
 
     /* Signal accents — vivid status hues, lifted for dark surfaces (#1000) */
     --signal-positive: 158 55% 58%;    /* frost emerald */

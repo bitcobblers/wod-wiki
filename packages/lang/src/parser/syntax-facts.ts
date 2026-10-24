@@ -9,7 +9,7 @@ export interface SyntaxMeta {
 }
 
 interface BasePrimitive {
-  kind: 'lap' | 'duration' | 'rounds' | 'round_scheme' | 'action' | 'text' | 'heading' | 'quantity' | 'effort' | 'property' | 'metric_object';
+  kind: 'lap' | 'duration' | 'rounds' | 'round_scheme' | 'action' | 'text' | 'heading' | 'quantity' | 'effort' | 'property' | 'metric_object' | 'tag_ref';
   raw: string;
   meta: SyntaxMeta;
 }
@@ -85,13 +85,25 @@ export interface PropertyPrimitive extends BasePrimitive {
   value: string | number | boolean | null;
   /**
    * The tag slugs when the value is one or more tag references
-   * (`#{tag-slug}`). Several can be stacked on one line.
+   * (`#tag-slug`). Several can be stacked on one line.
    *
    * A tag reference names a tag rather than repeating what the tag means.
    * The parser records the references; resolving them to metrics is the
    * classifier's job, since only it knows the tag catalog.
    */
   tagRefs?: string[];
+}
+
+/**
+ * A tag reference standing on its own — `5 reps @ 100 kg #heavy`.
+ *
+ * The reference names a tag rather than repeating what the tag means, so
+ * the tag applies to the line it sits on.
+ */
+export interface TagRefPrimitive extends BasePrimitive {
+  kind: 'tag_ref';
+  /** The slug the reference names. */
+  slug: string;
 }
 
 export type SyntaxPrimitive =
@@ -105,7 +117,8 @@ export type SyntaxPrimitive =
   | QuantityPrimitive
   | EffortPrimitive
   | PropertyPrimitive
-  | MetricObjectPrimitive;
+  | MetricObjectPrimitive
+  | TagRefPrimitive;
 export interface SyntaxStatement {
   id: number;
   line: number;

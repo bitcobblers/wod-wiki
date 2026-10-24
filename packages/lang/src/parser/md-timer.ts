@@ -1,13 +1,13 @@
 import { WhiteboardScript } from './WhiteboardScript';
 import { parseScript } from './parseScript';
 import type { ReferenceIndex, ReferenceResolutionDefaults } from '../effort-registry/reference-resolution';
-import type { TagIndex } from '../tags/TagCatalog';
+import type { TagIndex } from '@bitcobblers/wod-wiki-core';
 
 /** Parser construction config: shared reference index + note-level defaults. */
 export interface ParserConfig {
   references?: ReferenceIndex;
   defaults?: ReferenceResolutionDefaults;
-  /** Tags a script can reference with `#{tag-slug}`. */
+  /** Tags a script can reference with `#tag-slug`. */
   tags?: TagIndex;
 }
 

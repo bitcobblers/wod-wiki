@@ -42,7 +42,7 @@ import { useCloseNavigationDrawer } from '../NavigationDrawerContext'
 
 import { storageService } from '@/services/storage'
 
-import { applyRouteWqlConfig } from '../../lib/routeWqlConfig'
+import { useAppliedRouteWqlConfig } from '../../lib/routeWqlConfig'
 import type { StreamProfile } from '../../views/stream/streamProfile'
 import { useStreamResults, type StreamResultSnapshot } from '../../views/stream/streamResults'
 import type { Entry } from '../../lib/entryMapper'
@@ -114,7 +114,7 @@ export function FacetProperties({ profile }: { profile: StreamProfile }) {
   // when it parses; absent or invalid falls back to the profile default —
   // the same rule useComposerQueryState applies, so publication matches.
   const rawQ = urlQuery(location)
-  const defaultProfile = useMemo(() => applyRouteWqlConfig(profile), [profile])
+  const defaultProfile = useAppliedRouteWqlConfig(profile)
   const effectiveQuery = rawQ && !parseQuery(rawQ).error ? rawQ : defaultProfile.defaultWql
   const parsed = useMemo(() => parseQuery(effectiveQuery), [effectiveQuery])
   const parsedFind = useMemo(

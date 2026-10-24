@@ -48,6 +48,8 @@ export const ROUTE_PATTERNS = {
   /** /results/:sessionId — one session's execution detail (canonical). */
   sessionDetail: '/results/:sessionId',
   sessionDate: '/session/:date',
+  /** /tags — the tag catalogue: what each tag contributes. */
+  tags: '/tags',
   /** /dashboards — dashboard list / WQL explorer landing. */
   dashboards: '/dashboards',
   /** /d/:slug — a dashboard addressed by its page slug. */
@@ -73,13 +75,15 @@ export const ROUTE_PATTERNS = {
   settingsStorage: '/settings/storage',
   settingsSync: '/settings/sync',
   settingsSystem: '/settings/system',
-  settingsQueries: '/settings/queries',
   settingsTags: '/settings/tags',
   settingsSoundProfiles: '/settings/sound-profiles',
   /** Retired — split into /settings/database + /settings/sync; redirects to storage. */
   settingsData: '/settings/data',
   /** Retired — /settings/database renamed to /settings/storage; redirects. */
   settingsDatabase: '/settings/database',
+  /** Retired — per-surface query config moved onto the pages themselves;
+   *  redirects to the library. */
+  settingsQueries: '/settings/queries',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -275,7 +279,7 @@ export function parseEffortRouteOptions(searchParams: URLSearchParams): {
 }
 
 /** /settings or /settings/:section */
-export function settingsPath(section?: 'appearance' | 'profile' | 'data' | 'system' | 'queries'): string {
+export function settingsPath(section?: 'appearance' | 'profile' | 'data' | 'system'): string {
   return section ? `/settings/${section}` : '/settings/appearance';
 }
 // Legacy-alias → canonical redirect matrix

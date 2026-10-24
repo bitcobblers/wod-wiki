@@ -25,6 +25,7 @@ import {
   type StoredSoundProfile,
 } from '@/services/sound/soundProfiles'
 import { storageService } from '@/services/storage'
+import { refreshTagIndex } from '@/services/tags/tagCatalogue'
 
 function slugify(name: string): string {
   return name
@@ -80,8 +81,11 @@ export function SoundProfilesSettingsSection() {
     if (ok) {
       setNewName('')
       // The profile is selected by a tag, so the tag has to exist for
-      // `sound: #{sound-classic}` to resolve.
+      // `sound: #sound-classic` to resolve.
       await syncProfileTag(id, storageService)
+      // The tag just changed — the catalogue the parser resolves against
+      // has to learn it, or the reference stays unresolved until a reload.
+      await refreshTagIndex()
     }
   }
 
@@ -99,6 +103,7 @@ export function SoundProfilesSettingsSection() {
     setConfirmDeleteId(null)
     await change((current) => current.filter((p) => p.id !== profile.id))
     await removeProfileTag(profile.id, storageService)
+    await refreshTagIndex()
   }
 
   const addRule = (profile: StoredSoundProfile, rule: SoundRuleDraft) =>
@@ -137,7 +142,7 @@ export function SoundProfilesSettingsSection() {
             minutes elapsed. Tag a note{' '}
             <code className="font-mono">{soundProfileTagLabel('classic')}</code> to apply that
             profile to the whole note;{' '}
-            <code className="font-mono">sound: {'#{sound-classic}'}</code> on a line applies it to
+            <code className="font-mono">sound: {'#sound-classic'}</code> on a line applies it to
             that block only.
           </p>
         </div>

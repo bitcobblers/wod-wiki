@@ -17,15 +17,22 @@ db: wodwiki-db (v20)
 - **Type source:** `apps/playground/src/types/storage.ts`
 - **Database version:** `wodwiki-db` (v23)
 
-Normalized note tag (V10). Attached to notes exclusively through the [[NoteTag]] relationship table.
+A tag is a named bundle a script can reference with `#slug` — and the
+classification label a note carries. Attached to notes through the [[NoteTag]]
+relationship table; referenced by script content through its label (the slug).
+
+A tag carries **contributions**: the metrics it brings, the tags it applies, and
+the functions it activates. What a tag contributes applies to the line that
+references it.
 
 ### Fields (Current)
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | string | UUID |
-| `label` | string | Unique |
-| `type?` | TagType | Dynamic string matching a [[TagType]] name (e.g. `'equipment'`, `'discipline'`) |
+| `label` | string | Unique. Also the slug a script references: `#label`. |
+| `type?` | TagType | Dynamic string matching a [[TagType]] name (e.g. `'equipment'`, `'discipline'`); also the tag's *kind* (`'sound'` selects a sound profile). |
+| `contributions?` | TagContribution[] | What the tag contributes: `{ kind: 'metric', type, value, unit? }`, `{ kind: 'tag', slug }`, `{ kind: 'function', name }`. |
 | `createdAt` | number | Unix ms |
 
 ### Indexes (Current)
@@ -50,6 +57,23 @@ Normalized note tag (V10). Attached to notes exclusively through the [[NoteTag]]
 
 - `tag_types` (V23) — dynamic tag classification dimensions (`{ id, name, label, color?, createdAt }`) with unique index `by-name`.
 ---
+
+## Tag contributions
+
+A tag contributes three kinds of thing (see `packages/core/src/models/Tag.ts`):
+
+| Kind | Shape | Meaning |
+|------|-------|---------|
+| `metric` | `{ kind, type, value, unit? }` | A metric the referenced line gains. What the line states wins: a contributed metric only fills a type the statement does not already carry. |
+| `tag` | `{ kind, slug }` | Another tag, whose contributions apply too. Tags may apply tags to a bounded depth; a tag that applies itself contributes nothing further. |
+| `function` | `{ kind, name }` | A named calculation the tag activates where the tag applies — per record for a `segment` calculation, at the end of the workout for a `workout` one. |
+
+### Legacy rows
+
+Rows written before contributions carried a `metrics` array
+(`{ type, value }`). The shape is gone: sound profile tags are the only rows
+that ever carried it, and their profile is inferred from the tag's slug
+(`sound-classic` → the `classic` profile), so those tags keep working.
 
 ## Future State (Proposed)
 

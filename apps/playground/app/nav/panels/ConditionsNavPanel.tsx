@@ -24,7 +24,7 @@ import { SidebarItem, SidebarLabel, SidebarSection } from '@/components/organism
 
 import { SaveWqlShortcutDialog } from '../../components/organisms/wql/SaveWqlShortcutDialog'
 
-import { applyRouteWqlConfig } from '../../lib/routeWqlConfig'
+import { useAppliedRouteWqlConfig } from '../../lib/routeWqlConfig'
 import { ALL_SHORTCUT_ID, SHORTCUT_ICONS, shortcutMatches, useRouteShortcuts } from '../../lib/routeWqlShortcuts'
 import type { StreamProfile } from '../../views/stream/streamProfile'
 
@@ -55,13 +55,14 @@ export interface ConditionsPanelSpec {
 const urlQuery = (loc: Location): string => new URLSearchParams(loc.search).get('q') ?? ''
 
 export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
-  // Factory scope: the spec is a stable tree literal, so the Route-Default
-  // overlay resolves once — the panel and the view agree on the fallback.
-  const profile = applyRouteWqlConfig(spec.profile)
   return function ConditionsNavPanel(_props: NavPanelProps | Record<string, unknown>) {
     const location = useLocation()
     const navigate = useNavigate()
     const { openCreateJournal } = useNav()
+    // The Route-Default overlay resolves LIVE, so the panel and the view
+    // agree on the fallback — and a save in the page's own query settings
+    // is reflected here without a reload.
+    const profile = useAppliedRouteWqlConfig(spec.profile)
 
     const rawQ = urlQuery(location)
     const effectiveQuery = rawQ && !parseQuery(rawQ).error ? rawQ : profile.defaultWql

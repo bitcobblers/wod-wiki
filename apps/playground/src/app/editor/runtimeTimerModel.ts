@@ -1,6 +1,6 @@
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import { runtimeFactory } from '@/hooks/useRuntimeFactory';
-import { getSoundTagIndex } from '@/services/sound/soundTagCatalog';
+import { getTagIndex } from '@/services/tags/tagCatalogue';
 import type { IScriptRuntime } from '@/hooks/useRuntimeTimer';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-engine';
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
@@ -13,8 +13,8 @@ export function prepareRuntimeBlock(block: ScriptBlock): ScriptBlock & { stateme
   if (block.statements?.length) {
     return block as ScriptBlock & { statements: NonNullable<ScriptBlock['statements']> };
   }
-  // The tag index lets a line reference a tag with `#{tag-slug}`.
-  const parser = createParser({ tags: getSoundTagIndex() });
+  // The tag index lets a line reference a tag with `#tag-slug`.
+  const parser = createParser({ tags: getTagIndex() });
   return { ...block, statements: parser.read(block.content, block.sport).statements };
 }
 

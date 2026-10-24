@@ -88,7 +88,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
   - **Date Grouping:** Provided by the stream feed itself — no separate date-jump rail (the `JournalDateScroll` runway was removed; it was never wired in).
 - **Data Sources:**
   - *Primary:* `queryService.execute(wql)` scans `notes`, `blockIndex`, and `page` stores.
-  - *Configuration:* `routeWqlConfig` from `localStorage` / `meta` store sets landing query defaults.
+  - *Configuration:* `routeWqlConfig` from `localStorage` / `meta` store sets the landing query defaults and the scope / Group-By favorites, edited in the page's own query settings.
 - **Models Involved:** Reads `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `Page`, `Tag`, `BlockIndexRow`.
 
 ---

@@ -1,0 +1,96 @@
+# wod.wiki ontology — lang/metrics
+# Library: packages/lang (@bitcobblers/wod-wiki-lang)
+# Types:   packages/lang/src/metrics/ (registry, units/), IMetric in
+#          packages/core/src/models/Metric.ts; stored form in
+#          packages/core/src/types/results.ts (StoredOutputStatement.metrics[])
+# Docs:    docs/language/wql-reference.md (the metric keys WQL aggregates)
+# ---------------------------------------------------------------------------
+# The metric vocabulary and the observation shape. A metric entry on a stored
+# statement is { metric, value, unit } — modeled here as a SOSA Observation:
+# the runtime/timer is the sensor, the metric is the observed property, the
+# value is the simple result. Metrics themselves are vocabulary INDIVIDUALS,
+# not classes: shapes validate values against the list.
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix qudt: <http://qudt.org/schema/qudt/> .
+@prefix unit: <http://qudt.org/vocab/unit/> .
+
+<https://wod.wiki/ontology/lang/metrics> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — lang: metrics & observations" ;
+    owl:versionInfo "0.2.0" .
+
+# === Classes ==============================================================
+
+wod:Metric a owl:Class ;
+    rdfs:label "Metric" ;
+    rdfs:comment "A measurable quantity the runtime can record — the metric keys WQL aggregates over. Members are individuals below (wod:mReps, wod:mDistance, ...). Live code types them as IMetric classes (RepMetric, DurationMetric, ...) flowing parser -> compiler -> runtime -> stored statements; the ontology models the shared vocabulary those types project onto." .
+
+wod:MetricObservation a owl:Class ;
+    rdfs:subClassOf sosa:Observation ;
+    rdfs:label "Metric Observation" ;
+    rdfs:comment "One typed metric entry on a statement: which metric, what value, in what unit. A SOSA Observation: observedProperty = the metric, hasSimpleResult = the value, hasUnit = the unit." .
+
+# === Properties ===========================================================
+
+wod:hasUnit a owl:ObjectProperty ;
+    rdfs:label "has unit" ;
+    rdfs:domain wod:MetricObservation ;
+    rdfs:range qudt:Unit ;
+    rdfs:comment "The unit the observation's value is expressed in (the metric entry's unit, resolved to a QUDT unit; unit registries live in packages/lang/src/metrics/units)." .
+
+wod:allowedUnit a owl:ObjectProperty ;
+    rdfs:label "allowed unit" ;
+    rdfs:domain wod:Metric ;
+    rdfs:range qudt:Unit ;
+    rdfs:comment "Units a metric may be recorded in. Read by the SHACL unit-compatibility constraint: an observation's unit must appear in its metric's allowedUnit list (when the metric declares one)." .
+
+# === Units used by this slice =============================================
+# QUDT individuals typed so SHACL class checks can see them in a merged
+# graph. (Asserting types about external IRIs is normal alignment practice.)
+unit:LB     a qudt:Unit .
+unit:KiloGM a qudt:Unit .
+unit:M      a qudt:Unit .
+unit:KiloM  a qudt:Unit .
+unit:MI     a qudt:Unit .
+unit:SEC    a qudt:Unit .
+unit:W      a qudt:Unit .
+
+wod:CountUnit a qudt:Unit ;
+    rdfs:label "count" ;
+    rdfs:comment "Local placeholder for counted repetitions. OPEN: the full pass must settle the canonical count unit IRI against QUDT instead of coining one here." .
+
+# === Metric vocabulary (the WQL metric keys) ===============================
+
+wod:mReps a wod:Metric ;
+    rdfs:label "reps" ;
+    wod:allowedUnit wod:CountUnit .
+
+wod:mDistance a wod:Metric ;
+    rdfs:label "distance" ;
+    wod:allowedUnit unit:M , unit:KiloM , unit:MI .
+
+wod:mResistance a wod:Metric ;
+    rdfs:label "resistance" ;
+    wod:allowedUnit unit:LB , unit:KiloGM .
+
+wod:mElapsed a wod:Metric ;
+    rdfs:label "elapsed" ;
+    wod:allowedUnit unit:SEC ;
+    rdfs:comment "Repo timers run in milliseconds at the storage layer; whether observations may also use a millisecond unit is an open question." .
+
+wod:mPower a wod:Metric ;
+    rdfs:label "power" ;
+    wod:allowedUnit unit:W .
+
+# Aggregate / derived metrics: vocabulary now, unit rules with the analytics
+# slice (their units follow the metric they aggregate). Values of these are
+# computed by WQL or Tier-2 analytics — never authored as raw observations.
+wod:mPace          a wod:Metric ; rdfs:label "pace" .
+wod:mTotalVolume   a wod:Metric ; rdfs:label "totalVolume" .
+wod:mTotalDistance a wod:Metric ; rdfs:label "totalDistance" .
+wod:mTis           a wod:Metric ; rdfs:label "tis" .
+wod:mSessionLoad   a wod:Metric ; rdfs:label "sessionLoad" .

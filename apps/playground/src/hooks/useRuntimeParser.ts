@@ -8,6 +8,7 @@
  * `@/hooks/useRuntimeFactory`.
  */
 
+import { useTagIndex } from '@/hooks/useTagIndex';
 import { useMemo } from 'react';
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import { createReferenceIndex } from '@bitcobblers/wod-wiki-lang';
@@ -48,13 +49,15 @@ export function useRuntimeParser(
   catalog?: ReferenceCatalog,
   defaults?: ReferenceResolutionDefaults,
 ): UseRuntimeParserReturn {
+  const tagIndex = useTagIndex();
   return useMemo(() => {
     const parser = createParser({
       references: catalog ? createReferenceIndex(catalog) : undefined,
       defaults,
+      tags: tagIndex,
     });
     return {
       parse: (text: string, sport?: string) => parser.read(text, sport),
     };
-  }, [catalog, defaults]);
+  }, [catalog, defaults, tagIndex]);
 }

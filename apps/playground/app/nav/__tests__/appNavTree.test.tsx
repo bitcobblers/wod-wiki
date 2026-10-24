@@ -37,6 +37,7 @@ describe('appNavTree - Flattened listing zones', () => {
       'efforts',
       'equipment',
       'sessions',
+      'tags',
       'settings',
       'buy-me-a-coffee',
     ])
@@ -188,7 +189,7 @@ describe('appNavTree - Settings navigation', () => {
     cleanup()
   })
 
-  it('defines L1 settings item with L2 children in menu order: Profile, Appearance, Pages, Tags, Sound Profiles, Sync, Storage, System', () => {
+  it('defines L1 settings item with L2 children in menu order: Profile, Appearance, Tags, Sound Profiles, Sync, Storage, System', () => {
     const tree = buildAppNavTree(() => {})
     const settings = tree.find(item => item.id === 'settings')
 
@@ -197,9 +198,9 @@ describe('appNavTree - Settings navigation', () => {
     expect(settings?.level).toBe(1)
     expect(settings?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsAppearance })
     expect(settings?.children).toBeDefined()
-    expect(settings?.children?.length).toBe(8)
+    expect(settings?.children?.length).toBe(7)
 
-    const [profile, appearance, queries, tags, soundProfiles, sync, storage, system] = settings!.children!
+    const [profile, appearance, tags, soundProfiles, sync, storage, system] = settings!.children!
 
     expect(appearance.id).toBe('settings-appearance')
     expect(appearance.label).toBe('Appearance')
@@ -217,12 +218,8 @@ describe('appNavTree - Settings navigation', () => {
     expect(sync.label).toBe('Sync')
     expect(sync.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsSync })
 
-    expect(queries.id).toBe('settings-queries')
-    expect(queries.label).toBe('Pages')
-    expect(queries.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsQueries })
-
     expect(tags.id).toBe('settings-tags')
-    expect(tags.label).toBe('Tags')
+    expect(tags.label).toBe('Tag Types')
     expect(tags.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsTags })
 
     expect(soundProfiles.id).toBe('settings-sound-profiles')
@@ -246,7 +243,7 @@ describe('appNavTree - Settings navigation', () => {
   it('activates appropriate L2 child based on route', () => {
     const tree = buildAppNavTree(() => {})
     const settings = tree.find(item => item.id === 'settings')!
-    const [profile, appearance, queries, tags, soundProfiles, sync, storage, system] = settings.children!
+    const [profile, appearance, tags, soundProfiles, sync, storage, system] = settings.children!
 
     expect(appearance.isActive!(mockLocation('/settings'))).toBe(true)
     expect(appearance.isActive!(mockLocation('/settings/appearance'))).toBe(true)
@@ -260,8 +257,6 @@ describe('appNavTree - Settings navigation', () => {
     expect(sync.isActive!(mockLocation('/settings/sync'))).toBe(true)
     expect(sync.isActive!(mockLocation('/settings/appearance'))).toBe(false)
 
-    expect(queries.isActive!(mockLocation('/settings/queries'))).toBe(true)
-    expect(queries.isActive!(mockLocation('/settings/appearance'))).toBe(false)
     expect(appearance.isActive!(mockLocation('/settings/system'))).toBe(false)
     expect(tags.isActive!(mockLocation('/settings/tags'))).toBe(true)
     expect(tags.isActive!(mockLocation('/settings/appearance'))).toBe(false)

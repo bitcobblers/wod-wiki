@@ -23,6 +23,7 @@ The canonical definition table for tag classification dimensions:
 - Defines dynamic dimensions for tagging notes (e.g. `category`, `type`, `equipment`, `discipline`).
 - Note frontmatter properties matching a registered tag type automatically provide typeahead autocompletion, on-the-fly tag creation, and bi-directional synchronization with [[Tag]] and [[NoteTag]].
 - Managed on the Settings page at `/settings/tags` with color, label, and unused deletion safety.
+- A type is the *kind* of a tag — what a tag is for (`equipment`, `discipline`, `sound`). The tags themselves, and what they contribute, are authored on the Tags page (`/tags`).
 
 ### Fields (Current)
 

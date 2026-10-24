@@ -12,7 +12,7 @@ import { MetricVisibility, getMetricVisibility } from './memory/MetricVisibility
 import { IMetric, MetricOrigin, MetricType } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { OutputStatement } from '@bitcobblers/wod-wiki-core';
-import {  } from '@bitcobblers/wod-wiki-core';
+import type { TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
 import { TimeSpan } from './models/TimeSpan';
 import { IRuntimeClock } from './contracts/IRuntimeClock';
 import { PopBlockAction } from './actions/stack/PopBlockAction';
@@ -42,6 +42,8 @@ export interface RuntimeBlockOptions {
     label?: string;
     /** Optional display metric groups, each stored as a `metric:display` location. */
     metrics?: MetricContainer[] | IMetric[][];
+    /** The tags this block's statements referenced, resolved at compile time. */
+    tagComposition?: readonly TagReferenceMetadata[];
 }
 
 /**
@@ -64,6 +66,8 @@ export class RuntimeBlock implements IRuntimeBlock {
     public readonly blockType?: string;
     public readonly context: IBlockContext;
     public readonly sourceIds: number[];
+    /** The tags this block's statements referenced, resolved at compile time. */
+    public readonly tagComposition?: readonly TagReferenceMetadata[];
 
     // List-based memory storage
     private _memory: IMemoryLocation[] = [];
@@ -110,6 +114,7 @@ export class RuntimeBlock implements IRuntimeBlock {
             blockType,
             label,
             metrics,
+            tagComposition,
         } = options;
 
         this._runtime = runtime;
@@ -117,6 +122,7 @@ export class RuntimeBlock implements IRuntimeBlock {
         this.behaviors = behaviors;
         this.key = key ?? new BlockKey();
         this.blockType = blockType;
+        this.tagComposition = tagComposition;
         this.context = context ?? new BlockContext(runtime, this.key.toString());
 
         // Store label as a Label metrics in memory (only if explicitly provided)

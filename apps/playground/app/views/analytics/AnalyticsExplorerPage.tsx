@@ -50,7 +50,9 @@ import {
   windowLabel,
 } from '@/components/organisms/analytics';
 import { setMetricQuery } from '../../lib/wqlEdits';
-import { readRouteWqlConfig } from '../../lib/routeWqlConfig';
+import { useRouteWqlConfig } from '../../lib/routeWqlConfig';
+import { DASHBOARDS_SURFACE } from '../../lib/queryConfigSurfaces';
+import { QuerySettingsDialog } from '../../components/organisms/wql/QuerySettingsDialog';
 import { WqlComposer } from '@bitcobblers/wod-wiki-ui';
 import { EXAMPLE_QUERIES } from '@/utils/analytics/explorerQueries';
 import { useExplorerVocabulary } from '@/utils/analytics/useExplorerVocabulary';
@@ -143,9 +145,9 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
     startFieldCatalogBackfill();
   }, []);
   // The /dashboards landing query — the annotation-9 dashboard search. A
-  // stored Route WQL Config default (Settings ▸ Query Defaults, legacy
+  // stored Route WQL Config default (the page's own query settings, legacy
   // /dashboard key aliased) overrides it; deep links (?q=) still win.
-  const routeConfig = useMemo(() => readRouteWqlConfig('/dashboards'), []);
+  const routeConfig = useRouteWqlConfig('/dashboards')
   const { draft, setDraft, submitted, submit, weeks: activeWeeks, setWeeks } =
     useExplorerQueryState({ defaultQuery: routeConfig.defaultWql ?? DASHBOARDS_LANDING_QUERY, runOnLanding: true });
   const { unit: preferredUnit } = useAnalyticsUnitPreference();
@@ -159,6 +161,9 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   const [efforts, setEfforts] = useState<IEffort[] | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [dashOpen, setDashOpen] = useState(false);
+  // The page's own query settings — the landing default and the scope
+  // favorites, edited where the query lives.
+  const [querySettingsOpen, setQuerySettingsOpen] = useState(false);
   // The composer's own synchronous verdict: parse errors AND transient
   // editor states (an unresolved kind/target pivot confirm) — Save must
   // honor both, not just a fresh parse of the draft text.
@@ -349,6 +354,11 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   return (
     <div className="bg-card flex flex-col flex-1">
       <AvailableFieldsPanel catalog={fieldCatalog} />
+      <QuerySettingsDialog
+        surface={DASHBOARDS_SURFACE}
+        open={querySettingsOpen}
+        onOpenChange={setQuerySettingsOpen}
+      />
       <StickyPageHeader
         title="Metric Explorer"
         actions={
@@ -357,6 +367,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
               weeks={activeWeeks}
               onWeeks={setWeeks}
               unitForced={unitForced}
+              onOpenQuerySettings={() => setQuerySettingsOpen(true)}
             />
             {actions}
           </div>

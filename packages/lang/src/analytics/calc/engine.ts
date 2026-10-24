@@ -20,7 +20,7 @@
  * Store scope (Phase 3) lives in the rollup driver replacement (#877).
  */
 
-import type { IMetric, MetricOrigin } from '@bitcobblers/wod-wiki-core';
+import type { IMetric, MetricOrigin, TagIndex } from '@bitcobblers/wod-wiki-core';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
 import type { IRealtimeProcessor } from '../IRealtimeProcessor';
@@ -29,6 +29,7 @@ import type { ProjectionResult } from '../ProjectionResult';
 import { extractEffortData } from '../effortResolution';
 import { ExprNode } from './ast';
 import { STREAM_ATOMS } from './atoms';
+import { resolveTagContributions, tagMarkerSlugs } from '../../tags/TagContributions';
 import { evaluate, EvalContext } from './evaluator';
 import { LookupRegistry } from './lookup';
 import { outputNodeIds, CalculationRegistry } from './registry';
@@ -43,6 +44,14 @@ export interface CalcEngineDeps {
   dialect: string;
   lookups: LookupRegistry;
   userProfile?: IProfileSource;
+  /**
+   * The tag catalogue. A function a tag carries runs where that tag applies —
+   * on the segments the tag marked, and at the end of the workout when the
+   * tag was applied anywhere in it.
+   */
+  tags?: TagIndex;
+  /** Tags active for the whole run, whatever the segments say. */
+  activeTags?: readonly string[];
 }
 
 /** Segment's resolved effort identity for grouping/exclusion. */
@@ -63,6 +72,15 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
    * calls (segments arrive in stream order, live and in replay).
    */
   private lastSegmentEffort?: string;
+  /**
+   * The tags that carry each function: function name → the tags that carry
+   * it. A function no tag carries runs everywhere, as it always did.
+   */
+  private readonly tagCarriedFunctions = new Map<string, Set<string>>();
+  /** The tags applied anywhere in the run so far. */
+  private readonly activatedTags = new Set<string>();
+  /** The tags the run activates — a note-level bundle of attachments. */
+  private readonly runTags: string[];
 
   constructor(
     private readonly registry: CalculationRegistry,
@@ -71,6 +89,48 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
     const fenced = (d: CalculationDefinition) => !d.fences || d.fences.includes(deps.dialect);
     this.segmentCalcs = registry.byScope('segment').filter(fenced);
     this.workoutCalcs = registry.byScope('workout').filter(fenced);
+    // A tag carries the functions it names and the functions the tags it
+    // applies name — the same resolution the parser does.
+    for (const tag of deps.tags?.list() ?? []) {
+      const resolved = resolveTagContributions(deps.tags, tag.slug);
+      for (const name of resolved.functions) {
+        const carriers = this.tagCarriedFunctions.get(name);
+        if (carriers) carriers.add(tag.slug);
+        else this.tagCarriedFunctions.set(name, new Set([tag.slug]));
+      }
+    }
+    this.runTags = [...(deps.activeTags ?? [])];
+    for (const tag of this.runTags) this.activatedTags.add(tag);
+  }
+
+  /**
+   * Whether a calculation runs here.
+   *
+   * A function a tag carries runs only where one of the tags that carry it
+   * applies; every other function runs as it always did.
+   */
+  private isActive(def: CalculationDefinition, appliedTags: readonly string[]): boolean {
+    const carriers = this.tagCarriedFunctions.get(def.id);
+    if (!carriers) return true;
+    for (const slug of carriers) {
+      if (appliedTags.includes(slug)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * The tags applied to a segment: the tags its statement marked, plus the
+   * tags the run activates — a note-level tag applies to every segment of
+   * the note it belongs to.
+   *
+   * The applied tags are recorded, so a workout-scope function the tag
+   * carries runs at the end of the workout.
+   */
+  private appliedTags(output: IOutputStatement): string[] {
+    const slugs = tagMarkerSlugs(output.metrics.rawMetrics);
+    for (const slug of slugs) this.activatedTags.add(slug);
+    if (this.runTags.length === 0) return slugs;
+    return [...slugs, ...this.runTags.filter(slug => !slugs.includes(slug))];
   }
 
   // ── Phase 1: segment scope ─────────────────────────────────────────────
@@ -96,12 +156,15 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
     }
     // Climb grade rides the annotation metadata too, so `calc.sends` facts
     // persist a `grade` tag and WQL groups them `by {grade}`.
-    const climbGrade = [...output.metrics.rawMetrics].find((m) => m.type === 'climb-grade')?.value;
+    const climbGrade = output.metrics.rawMetrics.find((m) => m.type === 'climb-grade')?.value;
     if (climbGrade && typeof climbGrade === 'object' && 'raw' in climbGrade) {
-      effortTags.grade = String((climbGrade as { raw: unknown }).raw);
+      effortTags.grade = String(climbGrade.raw);
     }
 
+    const appliedTags = this.appliedTags(output);
+
     for (const def of this.segmentCalcs) {
+      if (!this.isActive(def, appliedTags)) continue;
       const ctx = this.makeContext(atoms);
       if (!this.applicable(def.whenAst, ctx)) continue;
       const variant = this.selectVariant(def, ctx);
@@ -160,7 +223,17 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
 
   summarize(outputs: IOutputStatement[]): ProjectionResult[] {
     const projections: ProjectionResult[] = [];
+    // A workout-scope function a tag carries runs when that tag applied
+    // anywhere in the workout — on a segment, or through the run's active tags.
+    for (const output of outputs) {
+      if (output.outputType !== 'segment') continue;
+      for (const slug of tagMarkerSlugs(output.metrics.rawMetrics)) {
+        this.activatedTags.add(slug);
+      }
+    }
+    const appliedTags = [...this.activatedTags];
     for (const def of this.workoutCalcs) {
+      if (!this.isActive(def, appliedTags)) continue;
       if (def.output?.isGrouped) {
         projections.push(...this.summarizeGrouped(def, outputs));
       } else {

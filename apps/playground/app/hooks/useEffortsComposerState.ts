@@ -64,7 +64,7 @@ export const EFFORTS_LEGACY_CONFIG = {
 
 export function useEffortsComposerState(): EffortsComposerState {
   return useComposerQueryState({
-    defaultQuery: () => DEFAULT_EFFORTS_QUERY,
+    defaultQuery: DEFAULT_EFFORTS_QUERY,
     legacy: EFFORTS_LEGACY_CONFIG,
   })
 }

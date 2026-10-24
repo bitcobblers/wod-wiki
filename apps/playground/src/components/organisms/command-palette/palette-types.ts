@@ -33,6 +33,21 @@ export interface PaletteWqlConfig {
    * to its own state instead of navigating.
    */
   onApply?: (wql: string) => void;
+  /**
+   * The surface's own settings, rendered INSIDE the palette (not as a nested
+   * modal — the palette is a focus-trapped dialog, so a second overlay on
+   * top of it would be unreachable). The host supplies the panel content;
+   * the palette owns the open state and renders the gear that toggles it.
+   */
+  settings?: PaletteSettingsSlot;
+}
+
+/** The palette's per-surface settings affordance. */
+export interface PaletteSettingsSlot {
+  /** The panel content, shown in the palette body while open. */
+  panel: React.ReactNode;
+  /** Accessible label for the gear that opens the panel. */
+  label?: string;
 }
 
 /**

@@ -19,7 +19,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { EditorView } from "@codemirror/view";
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import type { IMetric } from '@bitcobblers/wod-wiki-engine';
-import { getReferenceMetadata } from '@bitcobblers/wod-wiki-core';
+import { getReferenceMetadata, getTagReference, type TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
 import { getCursorFocusState, type CursorFocusState } from '@/app/editor/cursorFocusExtension';
 import { frontmatterReferenceIndex } from '@bitcobblers/wod-wiki-ui/extensions';
 import { presentThemedGroup } from "@/components/metrics/presentation";
@@ -272,6 +272,15 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     }
     diagnostics.push(...metadata.diagnostics);
   }
+  // The tag references the line carries — what a `#slug` brought, and the
+  // sound profile a `#sound-` reference names.
+  const tagRefs: TagReferenceMetadata[] = [];
+  for (const metric of lineMetrics) {
+    const reference = getTagReference(metric.metadata);
+    if (!reference) continue;
+    if (tagRefs.some(existing => existing.slug === reference.slug)) continue;
+    tagRefs.push(reference);
+  }
   const referenceProvider = typeof view?.state?.facet === 'function' ? (view.state.facet(frontmatterReferenceIndex)?.() ?? null) : null;
   const lineRefs = typeof view?.state?.doc?.sliceString === 'function' ? parseLineRefs(view.state.doc.sliceString(focus.lineFrom, focus.lineTo)) : null;
 
@@ -441,6 +450,32 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                     href={referenceProvider.openHref(ref.kind, ref.slug)}
                     title={`Open ${ref.label} page`}
                     aria-label={`Open ${ref.label} page`}
+                    className="text-muted-foreground/70 hover:text-foreground"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    ↗
+                  </a>
+                )}
+              </span>
+            ))}
+
+            {/* Tag references — a tag the line points at, and the sound
+                profile a `#sound-` reference names. */}
+            {tagRefs.map((ref) => (
+              <span
+                key={`tag:${ref.slug}`}
+                title={ref.soundProfileId
+                  ? `Tag ${ref.label} · names the ${ref.soundProfileId} sound profile`
+                  : `Tag ${ref.label}`}
+                className="pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium bg-muted/40 text-foreground border-border/50"
+              >
+                <span>#</span>
+                <span className="font-semibold font-mono">{ref.label}</span>
+                {referenceProvider && (
+                  <a
+                    href={referenceProvider.openHref('tag', ref.slug)}
+                    title={`Open the ${ref.label} tag`}
+                    aria-label={`Open the ${ref.label} tag`}
                     className="text-muted-foreground/70 hover:text-foreground"
                     onClick={(e) => e.stopPropagation()}
                   >
