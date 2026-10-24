@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
-import { SEED_SCHEMA, emptySeedMeta, seedMetaKey } from '@/types/seed';
+import { SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord } from '@/types/seed';
 import { InMemorySeedStorage, type SeedChunkWrite, type SeedChunkResult } from './SeedImportStorage';
 import { CountingSeedSource, InMemorySeedSource } from './InMemorySeedSource';
 import { seedFixture as fixture } from './seedFixture';
-import { adoptLegacySeedCheckpoints, runSeedSync, readSeedCoverage, readSeedStatus, syncSeedSource, SEED_IMPORT_FLAG, isSeedImportEnabled, type SeedSourceSpec, type SeedSyncProgress } from './seedSync';
+import { adoptLegacyCoreRegistryCheckpoint, adoptLegacySeedCheckpoints, runBootSeedSync, runSeedSync, readSeedCoverage, readSeedStatus, syncSeedSource, SEED_IMPORT_FLAG, isSeedImportEnabled, type SeedSourceSpec, type SeedSyncProgress } from './seedSync';
 import type { ISeedSource } from './ISeedSource';
 
 function spec(source: ISeedSource, id = 'core', embeddedVersion = 0): SeedSourceSpec { return { source, id, label: id, url: `https://seed.test/${id}/`, embeddedVersion }; }
@@ -169,5 +169,162 @@ describe('legacy checkpoint adoption', () => {
 
   it('adopts nothing when no seed has legacy rows', async () => {
     expect(await adoptLegacySeedCheckpoints({ storage: new InMemorySeedStorage() })).toBe(0);
+  });
+});
+
+describe('legacy core registry migration', () => {
+  it('folds the retired remote registry into core, invalidated, and blanks the legacy record', async () => {
+    const storage = new InMemorySeedStorage();
+    await storage.putSeedMeta({
+      ...emptySeedMeta(seedMetaKey('core')),
+      seedVersion: 5, builtAt: 'b5', importedAt: 50,
+      chunks: {
+        canvas: { sha256: 'c'.repeat(64), noteIds: ['note-canvas'] },
+        efforts: { sha256: 'e'.repeat(64), noteIds: ['note-local-effort'] },
+      },
+    });
+    await storage.putSeedMeta({
+      ...emptySeedMeta(seedMetaKey('seed-core')),
+      seedVersion: 3, builtAt: 'b3', importedAt: 30, tier: 'community',
+      claim: { owner: 'old', at: 1 },
+      chunks: {
+        efforts: { sha256: 'x'.repeat(64), noteIds: ['note-remote-effort'] },
+        dashboards: { sha256: 'd'.repeat(64), noteIds: ['note-dashboards'] },
+      },
+    });
+
+    expect(await adoptLegacyCoreRegistryCheckpoint({ storage })).toBe(true);
+    const core = await storage.getSeedMeta(seedMetaKey('core'));
+    // Invalidated so the next core sync revalidates every folded record —
+    // but the version survives: returning users stay offline-ready.
+    expect(core).toMatchObject({ seedVersion: 5, builtAt: '', claim: null });
+    // Core's own memberships survive; the registry's chunks fold in — a
+    // chunk both own unions its note ids so neither build's rows lose ownership.
+    expect(core!.chunks.canvas).toEqual({ sha256: 'c'.repeat(64), noteIds: ['note-canvas'] });
+    expect(core!.chunks.efforts!.noteIds).toEqual(['note-local-effort', 'note-remote-effort']);
+    expect(core!.chunks.dashboards).toEqual({ sha256: 'd'.repeat(64), noteIds: ['note-dashboards'] });
+    // The legacy checkpoint is blanked — ownership lives in exactly one record.
+    const legacy = await storage.getSeedMeta(seedMetaKey('seed-core'));
+    expect(legacy).toMatchObject({ seedVersion: 0, builtAt: '', chunks: {}, claim: null });
+  });
+
+  it('is idempotent: a blanked legacy record is skipped and core is never clobbered', async () => {
+    const storage = new InMemorySeedStorage();
+    const core = {
+      ...emptySeedMeta(seedMetaKey('core')),
+      seedVersion: 7, builtAt: 'b7', importedAt: 70,
+      chunks: { canvas: { sha256: 'c'.repeat(64), noteIds: ['note-canvas'] } },
+    };
+    await storage.putSeedMeta(core);
+    await storage.putSeedMeta(emptySeedMeta(seedMetaKey('seed-core')));
+
+    expect(await adoptLegacyCoreRegistryCheckpoint({ storage })).toBe(false);
+    expect(await storage.getSeedMeta(seedMetaKey('core'))).toEqual(core);
+  });
+
+  it('upgrades a partial legacy import: version 0 with nonblank chunks/claim, optional noteIds tolerated', async () => {
+    const storage = new InMemorySeedStorage();
+    await storage.putSeedMeta({
+      ...emptySeedMeta(seedMetaKey('core')),
+      seedVersion: 4, builtAt: 'b4', importedAt: 40,
+      // Older checkpoints may omit noteIds on their memberships.
+      chunks: { canvas: { sha256: 'c'.repeat(64) }, efforts: { sha256: 'e'.repeat(64) } },
+    });
+    // A crashed sync left the retired registry at version 0 — but its
+    // memberships and claim are real and must still fold.
+    await storage.putSeedMeta({
+      ...emptySeedMeta(seedMetaKey('seed-core')),
+      claim: { owner: 'crashed', at: 1 },
+      chunks: {
+        efforts: { sha256: 'x'.repeat(64) },
+        equipment: { sha256: 'q'.repeat(64) },
+        dashboards: { sha256: 'd'.repeat(64), noteIds: ['note-dashboards'] },
+      },
+    });
+
+    expect(await adoptLegacyCoreRegistryCheckpoint({ storage })).toBe(true);
+    const core = await storage.getSeedMeta(seedMetaKey('core'));
+    expect(core).toMatchObject({ seedVersion: 4, builtAt: '', claim: null });
+    // Memberships fold without throwing; a chunk both own unions to an
+    // (empty) note id list; newly folded chunks normalize noteIds to [].
+    expect(core!.chunks.canvas).toEqual({ sha256: 'c'.repeat(64) });
+    expect(core!.chunks.efforts).toEqual({ sha256: 'e'.repeat(64), noteIds: [] });
+    expect(core!.chunks.equipment).toEqual({ sha256: 'q'.repeat(64), noteIds: [] });
+    expect(core!.chunks.dashboards).toEqual({ sha256: 'd'.repeat(64), noteIds: ['note-dashboards'] });
+    expect((await storage.getSeedMeta(seedMetaKey('seed-core')))?.chunks).toEqual({});
+    // Idempotent: the now-truly-blank record is skipped on the next boot.
+    expect(await adoptLegacyCoreRegistryCheckpoint({ storage })).toBe(false);
+  });
+
+  it('skips a legacy record missing its chunks map without throwing', async () => {
+    const storage = new InMemorySeedStorage();
+    const core = {
+      ...emptySeedMeta(seedMetaKey('core')),
+      seedVersion: 2, builtAt: 'b2', importedAt: 20,
+      chunks: { canvas: { sha256: 'c'.repeat(64), noteIds: ['note-canvas'] } },
+    };
+    await storage.putSeedMeta(core);
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('seed-core')), chunks: undefined } as SeedMetaRecord);
+
+    expect(await adoptLegacyCoreRegistryCheckpoint({ storage })).toBe(false);
+    expect(await storage.getSeedMeta(seedMetaKey('core'))).toEqual(core);
+  });
+
+  it('the invalidated core checkpoint makes the next boot sync re-import core', async () => {
+    const storage = new InMemorySeedStorage();
+    // Stored core matches the manifest's version AND builtAt — without the
+    // migration this returning visit would decide 'current' and skip.
+    await storage.putSeedMeta({
+      ...emptySeedMeta(seedMetaKey('core')),
+      seedVersion: 5, builtAt: new Date(5).toISOString(), importedAt: 50,
+      chunks: { canvas: { sha256: 'c'.repeat(64), noteIds: ['note-canvas'] } },
+    });
+    await storage.putSeedMeta({
+      ...emptySeedMeta(seedMetaKey('seed-core')),
+      seedVersion: 2, builtAt: 'b2', importedAt: 20,
+      chunks: { efforts: { sha256: 'x'.repeat(64), noteIds: ['note-efforts'] } },
+    });
+    expect(await adoptLegacyCoreRegistryCheckpoint({ storage })).toBe(true);
+
+    const counting = new CountingSeedSource(fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 5, 'canvas'));
+    expect(await runBootSeedSync({ sources: [spec(counting, 'core', 5)], storage, isEnabled: () => true })).toBe('imported');
+    // Two manifest reads: the boot decision probe, then the importer's own fetch.
+    expect(counting.fetchManifestCalls).toBe(2);
+    const core = await storage.getSeedMeta(seedMetaKey('core'));
+    expect(core?.seedVersion).toBe(5);
+    expect(core?.builtAt).toBe(new Date(5).toISOString());
+    expect(core?.chunks.canvas).toBeTruthy();
+    // The retired registry is no source — only the migration touched its record.
+    expect((await storage.getSeedMeta(seedMetaKey('seed-core')))?.seedVersion).toBe(0);
+  });
+
+  it('repeated failed boot fetches leave the prior core version intact (offline-ready)', async () => {
+    const storage = new InMemorySeedStorage();
+    await storage.putSeedMeta({
+      ...emptySeedMeta(seedMetaKey('core')),
+      seedVersion: 7, builtAt: new Date(7).toISOString(), importedAt: 70,
+      chunks: { canvas: { sha256: 'c'.repeat(64), noteIds: ['note-canvas'] } },
+    });
+    await storage.putSeedMeta({
+      ...emptySeedMeta(seedMetaKey('seed-core')),
+      seedVersion: 3, builtAt: 'b3', importedAt: 30,
+      chunks: { efforts: { sha256: 'x'.repeat(64), noteIds: ['note-efforts'] } },
+    });
+    const offline: ISeedSource = {
+      fetchManifest: () => Promise.reject(new Error('offline')),
+      fetchChunk: () => Promise.resolve([]),
+    };
+    for (let i = 0; i < 2; i++) {
+      expect(await runBootSeedSync({ sources: [spec(offline, 'core', 7)], storage, isEnabled: () => true })).toBe('error');
+    }
+    const core = await storage.getSeedMeta(seedMetaKey('core'));
+    // Still offline-ready: the imported verdict (version) survives repeated
+    // failed boots; only the revalidation trigger (builtAt/claim) changed.
+    expect(core?.seedVersion).toBe(7);
+    expect(core?.claim ?? null).toBeNull();
+    expect(core?.chunks.canvas).toEqual({ sha256: 'c'.repeat(64), noteIds: ['note-canvas'] });
+    // The fold landed once; the legacy record stays blank across retries.
+    expect(core?.chunks.efforts?.noteIds).toEqual(['note-efforts']);
+    expect((await storage.getSeedMeta(seedMetaKey('seed-core')))?.seedVersion).toBe(0);
   });
 });

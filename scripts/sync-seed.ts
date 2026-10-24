@@ -1,10 +1,12 @@
 /**
- * sync-seed — build the bundled seed artifacts into
- * apps/playground/public/seed/<sourceId>/ from this repo's own corpus.
+ * sync-seed — build each app's bundled seed artifacts into
+ * apps/<app>/public/seed/<sourceId>/ from this repo's own corpus.
  *
- * The playground bundles ONE source: `core` — this repo's markdown/ corpus
- * (the playground's own canvas pages) plus the playground template, versioned
- * by THIS repo's git history. Every other seed is NOT built here: each content
+ * Every app bundles ONE source: `core` — this repo's markdown/ corpus (the
+ * playground's own canvas pages), versioned by THIS repo's git history. The
+ * playground compiles it with its canvas template; Storybook compiles the
+ * same corpus through the same compiler without the playground-only template.
+ * Every other seed is NOT built here: each content
  * repo publishes its own seed dir to its GitHub Pages (the split corpus in
  * seedSources.ts SEED_SOURCES) and the app syncs it over HTTP at runtime.
  * Third-party seed libraries register the same way.
@@ -15,7 +17,7 @@
  * orchestrates; requires the workspace's node_modules.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 // Repo-internal import: the seed compiler is not exported from the engine
 // package index (that index is browser-bundled; seedbuild statically imports
 // node builtins). The `wod build` CLI is the public surface.
@@ -38,6 +40,8 @@ interface SeedManifestRef {
 }
 
 interface SeedSourceSpec {
+  /** Owning app — disambiguates logs/indexes when several sources share an id. */
+  app: 'playground' | 'storybook';
   id: string;
   corpusRoot: string;
   markdownDir: string;
@@ -49,16 +53,26 @@ const ROOT = resolve(import.meta.dirname, '..');
 const TEMPLATE_FILE = join(ROOT, 'apps', 'playground', 'app', 'templates', 'new-playground.md');
 /** Historical in-repo row path for the template chunk — the runtime derives the template note's id from it; must stay stable. */
 const TEMPLATE_ROW_PATH = 'apps/playground/app/templates/new-playground.md';
-const SEED_PUBLIC_DIR = join(ROOT, 'apps', 'playground', 'public', 'seed');
 
 const SOURCES: SeedSourceSpec[] = [
-  // Core: this repo's own corpus + the playground template.
+  // Core: this repo's own corpus, versioned by this repo's git. The
+  // playground adds its canvas template; Storybook compiles the same corpus
+  // without the playground-only template.
   {
+    app: 'playground',
     id: 'core',
     corpusRoot: ROOT,
     markdownDir: join(ROOT, 'markdown'),
-    outDir: join(SEED_PUBLIC_DIR, 'core'),
+    outDir: join(ROOT, 'apps', 'playground', 'public', 'seed', 'core'),
     template: true,
+  },
+  {
+    app: 'storybook',
+    id: 'core',
+    corpusRoot: ROOT,
+    markdownDir: join(ROOT, 'markdown'),
+    outDir: join(ROOT, 'apps', 'storybook', 'public', 'seed', 'core'),
+    template: false,
   },
 ];
 
@@ -86,10 +100,10 @@ for (const spec of SOURCES) {
   const removed = prevChunks.filter((c) => !nextById.has(c.id)).map((c) => c.id);
   const changed = manifest.chunks.filter((c) => prevById.has(c.id) && prevById.get(c.id) !== c.sha256).map((c) => c.id);
 
-  console.log(`[sync-seed] ${spec.id}: seed ${manifest.version} (${manifest.versionLabel ?? 'unversioned'}, commit ${(manifest.commit ?? '').slice(0, 8)})${manifest.dirty ? ' [dirty]' : ''} → ${spec.outDir}`);
+  console.log(`[sync-seed] ${spec.app}:${spec.id}: seed ${manifest.version} (${manifest.versionLabel ?? 'unversioned'}, commit ${(manifest.commit ?? '').slice(0, 8)})${manifest.dirty ? ' [dirty]' : ''} → ${spec.outDir}`);
   if (prevChunks.length > 0) {
     console.log(
-      `[sync-seed] ${spec.id}: vs previous (${prevManifest?.versionLabel ?? prevManifest?.version}): ` +
+      `[sync-seed] ${spec.app}:${spec.id}: vs previous (${prevManifest?.versionLabel ?? prevManifest?.version}): ` +
       `${changed.length} changed, ${added.length} added, ${removed.length} removed, ` +
       `${manifest.chunks.length - changed.length - added.length} unchanged`,
     );
@@ -97,20 +111,22 @@ for (const spec of SOURCES) {
     for (const id of added) console.log(`  + ${id}`);
     for (const id of removed) console.log(`  - ${id}`);
   } else {
-    console.log(`[sync-seed] ${spec.id}: first sync — ${manifest.chunks.length} chunks`);
+    console.log(`[sync-seed] ${spec.app}:${spec.id}: first sync — ${manifest.chunks.length} chunks`);
   }
-  console.log(`[sync-seed] ${spec.id}: report: ${reportPath} (scan ${passMs.scan}ms, block-index ${passMs.blockIndex}ms, parse-gate ${passMs.parseGate}ms, block-efforts ${passMs.blockEfforts}ms, write ${passMs.write}ms)`);
+  console.log(`[sync-seed] ${spec.app}:${spec.id}: report: ${reportPath} (scan ${passMs.scan}ms, block-index ${passMs.blockIndex}ms, parse-gate ${passMs.parseGate}ms, block-efforts ${passMs.blockEfforts}ms, write ${passMs.write}ms)`);
   results.push({ spec, manifest });
 }
 
 /**
- * seed index — one static HTML page (served at `/seed/index.html`) listing
- * every compiled source: version, commit, build time, chunk stats, and links
- * to each source's `report.html` and `manifest.json`. Regenerated on every
- * sync (dev and build run sync-seed before vite), so it always reflects the
- * published artifacts with zero runtime fetches.
+ * seed index — one static HTML page per app (served at `/seed/index.html`)
+ * listing that app's compiled sources: version, commit, build time, chunk
+ * stats, and links to each source's `report.html` and `manifest.json`.
+ * Regenerated on every sync (dev and build run sync-seed before vite), so it
+ * always reflects the published artifacts with zero runtime fetches. Each
+ * app gets its own index next to its own artifacts — there is no shared
+ * global index, and duplicate source ids across apps stay unambiguous.
  */
-function writeSeedIndex(entries: Array<{ spec: SeedSourceSpec; manifest: SeedManifestRef }>): void {
+function writeSeedIndex(app: string, entries: Array<{ spec: SeedSourceSpec; manifest: SeedManifestRef }>): void {
   const escape = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sections = entries.map(({ spec, manifest }) => {
     const bytes = manifest.chunks.reduce((sum, c) => sum + (c.bytes ?? 0), 0);
@@ -126,7 +142,7 @@ function writeSeedIndex(entries: Array<{ spec: SeedSourceSpec; manifest: SeedMan
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Seed index</title>
+<title>Seed index — ${escape(app)}</title>
 <style>
   :root { color-scheme: light dark; }
   body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem auto; max-width: 40rem; padding: 0 1rem; line-height: 1.5; }
@@ -143,8 +159,16 @@ ${sections.join('\n')}
 </body>
 </html>
 `;
-  writeFileSync(join(SEED_PUBLIC_DIR, 'index.html'), html);
-  console.log(`[sync-seed] index: ${join(SEED_PUBLIC_DIR, 'index.html')} (${entries.length} sources)`);
+  const indexFile = join(dirname(entries[0].spec.outDir), 'index.html');
+  writeFileSync(indexFile, html);
+  console.log(`[sync-seed] ${app} index: ${indexFile} (${entries.length} sources)`);
 }
 
-writeSeedIndex(results);
+// Group by app — each app's /seed/index.html lists only its own sources.
+const byApp = new Map<string, Array<{ spec: SeedSourceSpec; manifest: SeedManifestRef }>>();
+for (const entry of results) {
+  const group = byApp.get(entry.spec.app) ?? [];
+  group.push(entry);
+  byApp.set(entry.spec.app, group);
+}
+for (const [app, entries] of byApp) writeSeedIndex(app, entries);

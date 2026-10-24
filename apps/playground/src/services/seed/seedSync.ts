@@ -11,6 +11,7 @@
 import {
   SEED_BROADCAST_CHANNEL,
   SEED_SCHEMA,
+  emptySeedMeta,
   seedMetaKey,
   type SeedManifest,
   type SeedMetaRecord,
@@ -95,7 +96,8 @@ export interface SeedSourceSpec {
 
 /**
  * The default seed sources, in import order. The bundled core seed carries
- * the playground's own canvas pages + template (this repo's markdown/, first
+ * the app's own corpus (this repo's markdown/ — canvas pages, the page
+ * template, and the effort/equipment/dashboards reference chunks; first
  * paint, built at build time by scripts/sync-seed.ts). Every other seed is
  * one split content repo publishing to its own GitHub Pages and syncing as
  * an independent source — subscribing imports every notebook it publishes.
@@ -107,7 +109,7 @@ export function defaultSeedSources(): SeedSourceSpec[] {
   return [
     {
       id: 'core',
-      label: 'Core (playground)',
+      label: 'Core',
       source: new HttpSeedSource(coreUrl),
       url: coreUrl,
       embeddedVersion: EMBEDDED_SEED_VERSIONS['core'] ?? 0,
@@ -490,6 +492,11 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
 export async function runBootSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
   const all = deps.sources ?? defaultSeedSources();
   const storage = deps.storage ?? mainThreadSeedImportStorage();
+  // Retired remote Core Registry (seed:seed-core) folds into the local core
+  // checkpoint before the boot decision reads it — the fold invalidates core
+  // so this very run revalidates the folded records.
+  await adoptLegacyCoreRegistryCheckpoint({ storage })
+    .catch((err) => console.warn('[seedSync] core registry migration failed', err));
   let coreCheckpoint: SeedMetaRecord | undefined;
   try {
     coreCheckpoint = await storage.getSeedMeta(seedMetaKey('core'));
@@ -896,4 +903,49 @@ export async function adoptLegacySeedCheckpoints(deps: Pick<SeedSyncDeps, 'stora
     }
   }
   return adopted;
+}
+
+/**
+ * One-time upgrade for the retired remote Core Registry: builds before the
+ * unification synced `wod-wiki-seed-core` into a `seed:seed-core` checkpoint
+ * (efforts/equipment/dashboards chunks). Those memberships fold into the
+ * local core checkpoint, which is then invalidated (empty builtAt, claim
+ * cleared — seedVersion PRESERVED so a returning user stays offline-ready;
+ * the builtAt mismatch forces revalidation on the next sync that reaches
+ * the manifest; a never-imported core keeps version 0) against the
+ * authoritative local corpus — rows the corpus dropped are swept, rows it
+ * still publishes are reclaimed, user edits always win.
+ * Core is invalidated BEFORE the legacy record is blanked: a crash in
+ * between just re-runs the migration on the next boot, while the reverse
+ * order could blank the only copy of the memberships. Notes are never
+ * touched. Idempotent: the legacy record is blanked to the emptySeedMeta
+ * shape via the putSeedMeta CAS, so a re-run finds nothing to upgrade.
+ */
+export async function adoptLegacyCoreRegistryCheckpoint(deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<boolean> {
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
+  const legacyKey = seedMetaKey('seed-core');
+  const legacy = await storage.getSeedMeta(legacyKey);
+  // Older checkpoints may omit chunks; normalize before reading it.
+  const legacyChunks = legacy?.chunks ?? {};
+  // Skip only an actually blank checkpoint: a crashed sync can leave
+  // seedVersion 0 with real memberships (and a claim) that must still fold.
+  if (!legacy || (legacy.seedVersion <= 0 && Object.keys(legacyChunks).length === 0 && !legacy.claim)) return false;
+  const coreKey = seedMetaKey('core');
+  const core = await storage.getSeedMeta(coreKey);
+  // Core keeps every membership it has; the registry's chunks fold in — a
+  // chunk both own unions its note ids so neither build's rows lose ownership.
+  // noteIds is optional on older checkpoints; normalize before spreading.
+  const chunks: SeedMetaRecord['chunks'] = { ...core?.chunks };
+  for (const [chunkId, membership] of Object.entries(legacyChunks)) {
+    const existing = chunks[chunkId];
+    chunks[chunkId] = existing
+      ? { sha256: existing.sha256, noteIds: [...new Set([...(existing.noteIds ?? []), ...(membership.noteIds ?? [])])] }
+      : { ...membership, noteIds: membership.noteIds ?? [] };
+  }
+  const invalidated: SeedMetaRecord = core
+    ? { ...core, builtAt: '', claim: null, chunks }
+    : { ...emptySeedMeta(coreKey), chunks };
+  await storage.putSeedMeta(invalidated, core ?? null);
+  await storage.putSeedMeta(emptySeedMeta(legacyKey), legacy);
+  return true;
 }

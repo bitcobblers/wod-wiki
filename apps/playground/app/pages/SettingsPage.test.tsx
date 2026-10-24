@@ -46,7 +46,7 @@ mock.module('@/services/seed/seedSync', () => ({
     sources: [
       {
         id: 'core',
-        label: 'Core (playground)',
+        label: 'Core',
         autoImport: true,
         count: 0,
         bytes: 0,

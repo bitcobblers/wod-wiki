@@ -9,7 +9,9 @@ const config: StorybookConfig = {
   stories: [
     '../src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
   ],
-  staticDirs: ['../public', { from: '../../playground/public/seed', to: '/seed' }],
+  // Serves this app's own /seed (core artifact emitted by scripts/sync-seed.ts
+  // into ../public/seed) — no mapping into the playground's public dir.
+  staticDirs: ['../public'],
   addons: [
     getAbsolutePath("@storybook/addon-docs"),
     getAbsolutePath("@storybook/addon-vitest"),

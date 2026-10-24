@@ -83,7 +83,7 @@ fields:
   autoImport:      { type: boolean, default: true, note: "false = never imported at boot (split seeds, custom libraries)" }
 depends_on: [CustomSeedSource, SeedManifest]
 lifecycle:
-  resolved_by: defaultSeedSources() in order: core (Http, autoImport, build-stamped) → SEED_SOURCES in seedSources.ts, the 15 built-in split seeds (Http, embeddedVersion 0, tier 'community'; only the seed-core registry autoImports) → custom sources (Http, embeddedVersion 0, no tier)
+  resolved_by: defaultSeedSources() in order: core (Http, autoImport, build-stamped) → SEED_SOURCES in seedSources.ts, the 14 built-in split seeds (Http, embeddedVersion 0, tier 'community', none auto-import at boot) → custom sources (Http, embeddedVersion 0, no tier)
   consumed_by: [startSeedBootstrap, runBootSeedSync, runSeedSync, SubscribePage intake]
 notes: >
   NOTEBOOKS in seedSources.ts is the per-chunk registry (ids unchanged from

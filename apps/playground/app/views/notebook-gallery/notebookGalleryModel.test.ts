@@ -34,14 +34,6 @@ const NOTEBOOK_FIXTURES: NotebookDef[] = [
     category: 'collections',
     description: 'Classic benchmark workouts.',
   },
-  {
-    id: 'community-dashboards',
-    seedId: 'seed-core',
-    chunkId: 'dashboards',
-    label: 'Common Dashboards',
-    category: 'dashboards',
-    description: 'Prebuilt dashboards.',
-  },
 ];
 
 const FEED_README = `---
@@ -79,7 +71,7 @@ describe('parseNotebookChunkId', () => {
 describe('buildNotebookCatalog', () => {
   it('lists registry packages even without local corpus, marked not installed', () => {
     const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
-    expect(catalog).toHaveLength(2); // dashboards excluded
+    expect(catalog).toHaveLength(2); // both crossfit notebooks
     const feed = catalog.find(n => n.slug === 'crossfit-programming')!;
     expect(feed.installed).toBe(false);
     expect(feed.itemCount).toBe(0);

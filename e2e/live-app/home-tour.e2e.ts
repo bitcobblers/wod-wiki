@@ -265,8 +265,6 @@ test.describe('library & community feeds gallery', () => {
     ]) {
       await expect(crossfit.getByTestId(`seed-card-seed-crossfit-notebook-${notebook}`)).toBeVisible()
     }
-    // Registries and dashboards are not notebooks — never a card.
-    await expect(copies.getByTestId('seed-card-seed-core')).toHaveCount(0)
 
     // Search matches the seed AND the notebooks it publishes.
     await section.getByTestId('package-search-input').fill('heroes')

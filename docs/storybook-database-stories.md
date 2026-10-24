@@ -71,10 +71,14 @@ playground app has no import of `apps/storybook`.
 
 ## Seed assets in a Storybook build
 
-The bundled core seed is generated into `apps/playground/public/seed` by
-`scripts/sync-seed.ts`. The Storybook scripts run that generator first and
-serve the result at `/seed`, so the browser fetches the same artifacts the
-playground app serves.
+Storybook builds and serves its own core seed artifact. `scripts/sync-seed.ts`
+compiles this repo's markdown corpus for each app: the playground's bundle
+(with the playground canvas template) into `apps/playground/public/seed`,
+and Storybook's bundle — the same corpus and compiler, without the
+playground-only template — into `apps/storybook/public/seed`. The Storybook
+scripts run the generator first, and Storybook's own `../public` static dir
+serves that output at `/seed`, so the browser fetches Storybook's artifacts,
+not the playground's.
 
 ## Checks
 

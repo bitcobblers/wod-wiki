@@ -21,6 +21,7 @@ import {
 } from '@/services/storage';
 import { rehydrateActiveDatabaseCaches } from '@/services/storage/activeDatabaseCaches';
 import {
+  adoptLegacyCoreRegistryCheckpoint,
   defaultSeedSources,
   isCoreSeedImported,
   runBootSeedSync,
@@ -103,10 +104,14 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
 
   // The exact boot policy the playground app runs: when the active database
   // has no core seed checkpoint, runBootSeedSync populates it. A failing
-  // source lands in seed.status/seed.message — never a broken page.
+  // source lands in seed.status/seed.message — never a broken page. The
+  // retired remote Core Registry checkpoint folds into local core BEFORE the
+  // imported probe: a returning database whose only import was the old
+  // registry must migrate even when runBootSeedSync is then skipped.
   const ensureCoreSeed = useCallback(async () => {
     setSeed((prev) => ({ ...prev, status: 'running', message: null }));
     try {
+      await adoptLegacyCoreRegistryCheckpoint();
       const imported = await isCoreSeedImported();
       if (!imported) {
         const outcome = await runBootSeedSync();

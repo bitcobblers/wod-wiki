@@ -207,7 +207,10 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     if (write.meta.schema !== SEED_SCHEMA || write.manifest.schema !== SEED_SCHEMA) throw new Error('Incompatible seed schema; recreate artifacts');
     const noteStore = tx.readwrite('notes');
     const priorIds = write.chunkId ? write.expectedMeta?.chunks[write.chunkId]?.noteIds ?? [] : [];
-    const declared = new Set(ids);
+    // Declared membership comes from the chunk meta written with this call,
+    // not the fetched rows: granular imports fetch only changed records, so
+    // rows can be a strict subset of the notebook.
+    const declared = new Set((write.chunkId ? write.meta.chunks[write.chunkId]?.noteIds : undefined) ?? ids);
     const goneIds = priorIds.filter((id) => !declared.has(id));
     const allIds = [...new Set([...ids, ...goneIds])];
     const stored = await noteStore.getMany(allIds);

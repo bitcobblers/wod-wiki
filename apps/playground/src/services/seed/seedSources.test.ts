@@ -114,8 +114,8 @@ describe('seeds and their notebooks', () => {
       expect(seedIds.has(notebook.seedId)).toBe(true);
       expect(notebooksOfSeed(notebook.seedId)).toContainEqual(notebook);
     }
-    // The split corpus: 15 seeds, one checkpoint and one Subscribe each.
-    expect(SEED_SOURCES).toHaveLength(15);
+    // The split corpus: 14 seeds, one checkpoint and one Subscribe each.
+    expect(SEED_SOURCES).toHaveLength(14);
     expect(listSeedSources().map((s) => s.id)).toEqual([...seedIds]);
   });
 
@@ -137,10 +137,13 @@ describe('seeds and their notebooks', () => {
     // A slug colliding with a built-in notebook gets a suffix instead of
     // hijacking its checkpoint namespace.
     const notebook = NOTEBOOKS[0];
-    const slug = notebook.id.replace(/^community-/, ''); // → 'efforts'
+    const slug = notebook.id.replace(/^community-/, ''); // → 'crossfit-games'
     const added = addCustomSeedSource(`community ${slug.replace(/-/g, ' ')}`, 'https://custom.example/seed/');
     expect(added.id).not.toBe(notebook.id);
     expect(customSeedSources().some((s) => s.id === notebook.id)).toBe(false);
+    // Retired checkpoint namespaces never become new sources either.
+    const legacy = addCustomSeedSource('seed core', 'https://legacy.example/seed/');
+    expect(legacy.id).not.toBe('seed-core');
   });
 });
 

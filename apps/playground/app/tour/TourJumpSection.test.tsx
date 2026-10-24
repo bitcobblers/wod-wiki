@@ -7,7 +7,7 @@ import { parseNotebookChunkId } from '../views/notebook-gallery/notebookGalleryM
 
 /** Notebooks a card can carry — effort/equipment/dashboard registries are not. */
 const CARDS = NOTEBOOKS.filter(notebook => parseNotebookChunkId(notebook.chunkId) !== null)
-/** Seeds that publish at least one card notebook (seed-core publishes only registries). */
+/** Seeds that publish at least one card notebook. */
 const SEEDS = SEED_SOURCES.filter(seed => CARDS.some(notebook => notebook.seedId === seed.id))
 /** Default card order: nothing imported → labels alphabetically. */
 const seedCardIds = (seeds = SEEDS) =>
@@ -138,9 +138,6 @@ describe('TourJumpSection', () => {
     const half = Math.ceil(expected.length / 2)
     expect(cardIds(copyEl('jump-row-a'))).toEqual(expected.slice(0, half))
     expect(cardIds(copyEl('jump-row-b'))).toEqual(expected.slice(half))
-    // The core registry publishes efforts/equipment/dashboards — synced at
-    // boot, and never a card of its own.
-    expect(screen.queryByTestId('seed-card-seed-core')).toBeNull()
   })
 
   it('cards are seeds: each lists the notebooks that one import brings', () => {

@@ -246,10 +246,9 @@ export function QueriableStreamView({
   const [seedSyncError, setSeedSyncError] = useState<string | null>(null)
   // Subscribed library sources — the notice's real sync worklist. "Library"
   // means exactly what the coverage probe means by it: a source that does
-  // NOT auto-import (autoImport === false — readSeedCoverage's own rule).
-  // Filtering on `id !== 'core'` instead would sweep in seed-core, which
-  // auto-imports at boot and would satisfy the notice with the Core
-  // Registry while the community library the page needs is still missing.
+  // NOT auto-import (autoImport === false — readSeedCoverage's own rule);
+  // the bundled core auto-imports at boot and must never satisfy the notice
+  // while the community library the page needs is still missing.
   // useSyncExternalStore needs a referentially stable snapshot, so the ids
   // cross as one joined string; splitting is per-render and cheap.
   // Subscribing in the manager drawer updates this live.

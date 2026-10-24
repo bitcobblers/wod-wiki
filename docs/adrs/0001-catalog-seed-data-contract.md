@@ -171,7 +171,7 @@ fields:
   seedVersion: { type: number, note: "manifest.version of the last applied import" }
   builtAt:     { type: string }
   importedAt:  { type: number, note: "Date.now() at write; drives Tag.createdAt and BlockRevision.savedAt" }
-  chunks:      { type: "Record<chunkId, { sha256, noteIds? }>", note: "noteIds drive exact-ownership deletion" }
+  chunks:      { type: "Record<chunkId, { sha256, noteIds? }>", note: "noteIds are the manifest's complete membership and drive exact-ownership deletion; granular write.rows may contain only changed records" }
   claim:       { type: "{ owner, at } | null", note: "multi-tab import claim; 45 s TTL on the app side" }
 depends_on: [SeedManifest, Note]
 lifecycle:

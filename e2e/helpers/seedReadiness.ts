@@ -40,6 +40,8 @@ export async function waitForSeedReady(page: Page, timeout = 60_000): Promise<vo
  */
 export async function syncSeed(page: Page, seedId: string, timeout = 180_000): Promise<void> {
   await page.goto('/settings/sync', { waitUntil: 'domcontentloaded' });
+  const subscribedOnly = page.getByTestId('sync-subscribed-only-toggle');
+  if (await subscribedOnly.isChecked()) await subscribedOnly.uncheck();
   const card = page.getByTestId(`seed-source-${seedId}`);
   await expect(card, `${seedId} seed source must be registered`).toBeVisible({ timeout: 15_000 });
   const localVersion = card.getByTestId('seed-local-version');

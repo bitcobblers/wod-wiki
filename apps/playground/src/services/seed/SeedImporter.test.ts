@@ -293,4 +293,190 @@ describe('granular record sync and notebook filtering', () => {
     await new SeedImporter(storage, source, 'core').applyAll({ granularRecords: true });
     expect(fetchCount).toBe(1);
   });
+
+  it('updates one changed record and deletes its vanished sibling without refetching', async () => {
+    const storage = new InMemorySeedStorage();
+    const homePath = 'markdown/collections/welcome/home.md';
+    const guidePath = 'markdown/collections/welcome/guide.md';
+    const homeContent = '# Home\n\nWelcome to your canvas.\n';
+    const guideContentV1 = '# Guide\n\nGetting started steps.\n';
+    const guideContentV2 = '# Guide\n\nGetting started steps, updated.\n';
+    const homeRow = compileSeedRow(homePath, homeContent);
+    const guideRow = compileSeedRow(guidePath, guideContentV1);
+    homeRow.uuid = await seedNoteId(homePath);
+    homeRow.commit = 'commit-home-1';
+    homeRow.version = 1;
+    guideRow.uuid = await seedNoteId(guidePath);
+    guideRow.commit = 'commit-guide-1';
+    guideRow.version = 1;
+    const homeRef = {
+      uuid: homeRow.uuid,
+      path: homePath,
+      recordPath: 'markdown/collections/welcome/home.json',
+      commit: 'commit-home-1',
+      version: 1,
+      sha256: 'd'.repeat(64),
+      title: 'Home',
+    };
+    const manifestV1: SeedManifest = {
+      schema: SEED_SCHEMA,
+      version: 1,
+      commit: 'seed-commit-1',
+      builtAt: new Date(1).toISOString(),
+      chunks: [
+        {
+          id: 'collection.welcome',
+          path: 'chunks/collection.welcome.json',
+          sha256: 'c'.repeat(64),
+          count: 2,
+          bytes: 10,
+          records: [homeRef, {
+            uuid: guideRow.uuid,
+            path: guidePath,
+            recordPath: 'markdown/collections/welcome/guide.json',
+            commit: 'commit-guide-1',
+            version: 1,
+            sha256: 'd'.repeat(64),
+            title: 'Guide',
+          }],
+        },
+      ],
+    };
+    await new SeedImporter(storage, new InMemorySeedSource(manifestV1, {
+      'markdown/collections/welcome/home.json': homeRow,
+      'markdown/collections/welcome/guide.json': guideRow,
+    }), 'core').applyAll({ granularRecords: true });
+
+    const guideRowV2 = compileSeedRow(guidePath, guideContentV2);
+    guideRowV2.uuid = guideRow.uuid;
+    guideRowV2.commit = 'commit-guide-2';
+    guideRowV2.version = 2;
+    const manifestV2: SeedManifest = {
+      schema: SEED_SCHEMA,
+      version: 2,
+      commit: 'seed-commit-2',
+      builtAt: new Date(2).toISOString(),
+      chunks: [
+        {
+          id: 'collection.welcome',
+          path: 'chunks/collection.welcome.json',
+          sha256: 'e'.repeat(64),
+          count: 2,
+          bytes: 10,
+          records: [homeRef, {
+            uuid: guideRow.uuid,
+            path: guidePath,
+            recordPath: 'markdown/collections/welcome/guide.json',
+            commit: 'commit-guide-2',
+            version: 2,
+            sha256: 'f'.repeat(64),
+            title: 'Guide',
+          }],
+        },
+      ],
+    };
+    const fetchCalls: string[] = [];
+    const sourceV2 = new (class extends InMemorySeedSource {
+      override async fetchChunk(chunkPath: string) {
+        fetchCalls.push(chunkPath);
+        return super.fetchChunk(chunkPath);
+      }
+    })(manifestV2, {
+      'markdown/collections/welcome/guide.json': guideRowV2,
+    });
+    await new SeedImporter(storage, sourceV2, 'core').applyAll({ granularRecords: true });
+
+    const home = await storage.storageInstance.readonly('notes').get(homeRow.uuid!);
+    expect(home).toBeDefined();
+    expect(home!.rawContent).toBe(homeContent);
+    const guide = await storage.storageInstance.readonly('notes').get(guideRow.uuid!);
+    expect(guide!.rawContent).toBe(guideContentV2);
+    expect(fetchCalls).toEqual(['markdown/collections/welcome/guide.json']);
+    expect((await storage.getSeedMeta(seedMetaKey('core')))!.chunks['collection.welcome'].noteIds)
+      .toEqual([homeRow.uuid, guideRow.uuid]);
+
+    // Manifest v3 removes home while guide's commit/version stay unchanged:
+    // the membership delta alone must delete home, and since no remaining
+    // record changed, no record JSON is fetched at all.
+    const manifestV3: SeedManifest = {
+      schema: SEED_SCHEMA,
+      version: 3,
+      commit: 'seed-commit-3',
+      builtAt: new Date(3).toISOString(),
+      chunks: [
+        {
+          id: 'collection.welcome',
+          path: 'chunks/collection.welcome.json',
+          sha256: 'a'.repeat(64),
+          count: 1,
+          bytes: 10,
+          records: [{
+            uuid: guideRow.uuid,
+            path: guidePath,
+            recordPath: 'markdown/collections/welcome/guide.json',
+            commit: 'commit-guide-2',
+            version: 2,
+            sha256: 'f'.repeat(64),
+            title: 'Guide',
+          }],
+        },
+      ],
+    };
+    const sourceV3 = new (class extends InMemorySeedSource {
+      override async fetchChunk(chunkPath: string) {
+        fetchCalls.push(chunkPath);
+        return super.fetchChunk(chunkPath);
+      }
+    })(manifestV3, {});
+    await new SeedImporter(storage, sourceV3, 'core').applyAll({ granularRecords: true });
+
+    expect(await storage.storageInstance.readonly('notes').get(homeRow.uuid!)).toBeUndefined();
+    const unchangedGuide = await storage.storageInstance.readonly('notes').get(guideRow.uuid!);
+    expect(unchangedGuide!.rawContent).toBe(guideContentV2);
+    expect(unchangedGuide!.seedCommit).toBe('commit-guide-2');
+    expect(fetchCalls).toEqual(['markdown/collections/welcome/guide.json']);
+    expect((await storage.getSeedMeta(seedMetaKey('core')))!.chunks['collection.welcome'].noteIds)
+      .toEqual([guideRow.uuid]);
+
+    // Manifest v4 advances version/builtAt/chunk hash while guide membership
+    // and record commits stay unchanged: the checkpoint must commit the new
+    // chunk hash and membership without fetching any record JSON.
+    const manifestV4: SeedManifest = {
+      schema: SEED_SCHEMA,
+      version: 4,
+      commit: 'seed-commit-4',
+      builtAt: new Date(4).toISOString(),
+      chunks: [
+        {
+          id: 'collection.welcome',
+          path: 'chunks/collection.welcome.json',
+          sha256: 'b'.repeat(64),
+          count: 1,
+          bytes: 10,
+          records: [{
+            uuid: guideRow.uuid,
+            path: guidePath,
+            recordPath: 'markdown/collections/welcome/guide.json',
+            commit: 'commit-guide-2',
+            version: 2,
+            sha256: 'f'.repeat(64),
+            title: 'Guide',
+          }],
+        },
+      ],
+    };
+    const sourceV4 = new (class extends InMemorySeedSource {
+      override async fetchChunk(chunkPath: string) {
+        fetchCalls.push(chunkPath);
+        return super.fetchChunk(chunkPath);
+      }
+    })(manifestV4, {});
+    await new SeedImporter(storage, sourceV4, 'core').applyAll({ granularRecords: true });
+
+    expect(await storage.storageInstance.readonly('notes').get(guideRow.uuid!)).toBeDefined();
+    expect(fetchCalls).toEqual(['markdown/collections/welcome/guide.json']);
+    const metaV4 = await storage.getSeedMeta(seedMetaKey('core'));
+    expect(metaV4!.chunks['collection.welcome'].sha256).toBe('b'.repeat(64));
+    expect(metaV4!.chunks['collection.welcome'].noteIds).toEqual([guideRow.uuid]);
+  });
 });

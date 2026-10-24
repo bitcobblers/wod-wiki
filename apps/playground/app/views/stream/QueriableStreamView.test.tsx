@@ -866,12 +866,10 @@ describe('QueriableStreamView component', () => {
     expect(syncSeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.not.objectContaining({ force: true }))
   })
 
-  it('never syncs the auto-importing core registry as a library', async () => {
-    // seed-core auto-imports at boot and is autoImport:true — it is not a
-    // "library" by the coverage probe's own rule. Syncing it would satisfy
-    // the notice with the Core Registry while the community library the
-    // page needs is still missing.
-    setSeedSubscribed('seed-core', true)
+  it('never syncs the auto-importing core as a library', async () => {
+    // The bundled core auto-imports at boot and is not a "library" by the
+    // coverage probe's own rule — syncing it must not satisfy the notice
+    // while the community library the page needs is still missing.
     setSeedSubscribed('seed-crossfit', true)
     const engine = createMockEngine([])
     render(
@@ -886,7 +884,7 @@ describe('QueriableStreamView component', () => {
     })
 
     const syncedIds = syncSeedSourceMock.mock.calls.map(([id]) => id)
-    expect(syncedIds).not.toContain('seed-core')
+    expect(syncedIds).not.toContain('core')
     expect(syncedIds).toContain('seed-crossfit')
   })
 

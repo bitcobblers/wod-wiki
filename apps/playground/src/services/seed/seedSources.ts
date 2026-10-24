@@ -264,7 +264,6 @@ function seedSource(id: string, label: string, name: string, description: string
  * (transferred from the interim SergeiGolos account; Pages moved with them).
  */
 export const SEED_SOURCES: SeedSource[] = [
-  seedSource('seed-core', 'Core Registry', 'wod-wiki-seed-core', 'Shared effort and equipment registries plus prebuilt WQL dashboards.', true),
   seedSource('seed-crossfit', 'CrossFit', 'wod-wiki-seed-crossfit', 'CrossFit benchmark collections (Games, Girls, Heroes) and weekly programming.'),
   seedSource('seed-hyrox', 'HYROX', 'wod-wiki-seed-hyrox', 'HYROX race preparation and simulation workouts.'),
   seedSource('seed-kettlebell', 'Kettlebell Coaches', 'wod-wiki-seed-kettlebell', 'Kettlebell coach collections and the Dan John 40-Day Program feed.'),
@@ -309,11 +308,6 @@ function notebook(seedId: string, slug: string, chunkId: string, label: string, 
  * what imports and subscribes.
  */
 export const NOTEBOOKS: NotebookDef[] = [
-  // Core registry (reference data — imports at boot like the bundled core,
-  // workouts resolve efforts/equipment against it).
-  notebook('seed-core', 'efforts', 'efforts', 'Effort Registry', 'efforts', 'The shared effort registry — movement definitions workouts resolve against.'),
-  notebook('seed-core', 'equipment', 'equipment', 'Equipment Registry', 'equipment', 'The shared equipment registry resolved against workout programming.'),
-  notebook('seed-core', 'dashboards', 'dashboards', 'Common Dashboards', 'dashboards', 'Prebuilt WQL analytics dashboards tracking training volume, intensity distribution, and movement frequency.'),
   // CrossFit
   notebook('seed-crossfit', 'crossfit-games', 'collection.crossfit-games', 'CrossFit Games', 'collections', 'CrossFit Games workouts — Open, Regionals, and Games programming, formatted for Wod Wiki.'),
   notebook('seed-crossfit', 'crossfit-girls', 'collection.crossfit-girls', 'CrossFit Girls', 'collections', 'Classic benchmark workouts — Fran, Helen, Grace, Diane, and more, formatted for Wod Wiki.'),
@@ -432,9 +426,11 @@ export function demoSeedSources(): DemoSeedSource[] {
 /** Ids owned by the built-ins — addCustomSeedSource must never issue them. */
 const RESERVED_SEED_SOURCE_IDS: Record<string, true> = Object.fromEntries([
   ['core', true] as const,
-  // Legacy monolith namespaces: an old checkpoint family, never a new source.
+  // Legacy namespaces: old checkpoint families, never new sources. seed-core
+  // is the retired remote Core Registry — its checkpoint migrates into core.
   ['community', true] as const,
   ['common', true] as const,
+  ['seed-core', true] as const,
   ...SEED_SOURCES.map((seed) => [seed.id, true] as const),
   ...NOTEBOOKS.map((notebook) => [notebook.id, true] as const),
 ]);

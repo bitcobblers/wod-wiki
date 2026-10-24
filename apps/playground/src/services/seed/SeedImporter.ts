@@ -78,10 +78,6 @@ export class SeedImporter {
           const neededRecords = commits
             ? records.filter((r) => commits.get(r.uuid) !== r.commit)
             : records;
-          if (neededRecords.length === 0 && !opts.forceAll) {
-            result.appliedChunks++;
-            continue;
-          }
           const fetchedRows: SeedRow[] = [];
           let recIdx = 0;
           for (const rec of neededRecords) {
@@ -98,7 +94,12 @@ export class SeedImporter {
           rows = assertSeedRows(fetched);
           if (rows.length !== chunk.count) throw new Error('Seed chunk count mismatch');
         }
-        const noteIds = await Promise.all(rows.map((r) => seedNoteId(r.path)));
+        // Granular membership is the manifest's complete record list, not the
+        // fetched subset: unchanged siblings must stay declared so they are
+        // not treated as vanished.
+        const noteIds = opts.granularRecords && records && records.length > 0
+          ? records.map((r) => r.uuid)
+          : await Promise.all(rows.map((r) => seedNoteId(r.path)));
         const next: SeedMetaRecord = { ...meta, chunks: { ...meta.chunks, [chunk.id]: { sha256: chunk.sha256, noteIds } }, importedAt: this.now() };
         report('applying', chunk.id);
         const committed = await this.storage.applyChunk({ chunkId: chunk.id, rows, manifest, expectedMeta: expected, meta: next });

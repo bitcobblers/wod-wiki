@@ -53,7 +53,7 @@ describe('syncActivity', () => {
   it('stamps each result with a unique, monotonic id', () => {
     reportSyncResult({ source: 'Community', added: 12, updated: 3 })
     const first = getSyncActivity().result!
-    reportSyncResult({ source: 'Core (playground)', added: 0, updated: 0 })
+    reportSyncResult({ source: 'Core', added: 0, updated: 0 })
     const second = getSyncActivity().result!
     expect(second.id).toBeGreaterThan(first.id)
     expect(first).toMatchObject({ source: 'Community', added: 12, updated: 3 })
@@ -81,9 +81,9 @@ describe('syncActivity', () => {
   it('a successful result clears a stale error', () => {
     reportSyncError('Network unreachable')
     expect(getSyncActivity().error).toBe('Network unreachable')
-    reportSyncResult({ source: 'Core (playground)', added: 2, updated: 0 })
+    reportSyncResult({ source: 'Core', added: 2, updated: 0 })
     expect(getSyncActivity().error).toBeNull()
-    expect(getSyncActivity().result).toMatchObject({ source: 'Core (playground)', added: 2 })
+    expect(getSyncActivity().result).toMatchObject({ source: 'Core', added: 2 })
   })
 
   it('tracks granular progress of background sync and clears it', () => {
