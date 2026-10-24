@@ -1,0 +1,139 @@
+# wod.wiki ontology — SHACL shapes for core/ modules
+# Contracts for packages/core types: sessions, event records, typed fields.
+# Event/session shapes are OPEN (unlike observations): the statement stream
+# is an open vocabulary in the product and must grow new statement kinds
+# without breaking the contract.
+
+@prefix wod: <https://wod.wiki/ontology#> .
+@prefix sh:  <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+<https://wod.wiki/ontology/shapes/core> a owl:Ontology .
+
+# === Session ==============================================================
+
+wod:SessionShape a sh:NodeShape ;
+    sh:targetClass wod:Session ;
+    sh:property [
+        sh:path wod:hasEvent ;
+        sh:minCount 1 ;
+        sh:class wod:EventRecord ;
+        sh:message "A session must carry at least one event record — a run that emitted nothing is not a session." ;
+    ] ;
+    sh:property [
+        sh:path wod:status ;
+        sh:maxCount 1 ;
+        sh:in ( "in-progress" "completed" ) ;
+        sh:message "Session status must be 'in-progress' or 'completed'." ;
+    ] ;
+    sh:property [
+        sh:path wod:startTime ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:dateTime ;
+        sh:message "A session has exactly one start time." ;
+    ] .
+
+# === Segment event =========================================================
+
+wod:SegmentEventShape a sh:NodeShape ;
+    sh:targetClass wod:SegmentEvent ;
+    sh:property [
+        sh:path wod:observesEffort ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class wod:Effort ;
+        sh:message "A segment event observes exactly one effort (its effortSlug, resolved)." ;
+    ] ;
+    sh:property [
+        sh:path wod:hasMetric ;
+        sh:minCount 1 ;
+        sh:class wod:MetricObservation ;
+        sh:message "A segment event carries at least one metric observation." ;
+    ] ;
+    sh:property [
+        sh:path wod:seqInSession ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:minInclusive 1 ;
+        sh:message "A segment event has exactly one stream position, >= 1." ;
+    ] ;
+    sh:property [
+        sh:path wod:grain ;
+        sh:maxCount 1 ;
+        sh:in ( "event" "summary" ) ;
+        sh:message "Grain, when present, is 'event' or 'summary'." ;
+    ] .
+
+# === Summary event =========================================================
+
+wod:SummaryEventShape a sh:NodeShape ;
+    sh:targetClass wod:SummaryEvent ;
+    sh:property [
+        sh:path wod:hasMetric ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class wod:MetricObservation ;
+        sh:message "A summary row carries exactly one metric entry — aggregates are one fact per row." ;
+    ] ;
+    sh:property [
+        sh:path wod:grain ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( "summary" ) ;
+        sh:message "A summary event's grain is 'summary'." ;
+    ] .
+
+# === Typed fields ==========================================================
+
+wod:FieldCatalogEntryShape a sh:NodeShape ;
+    sh:targetClass wod:FieldCatalogEntry ;
+    sh:property [
+        sh:path wod:fieldPath ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A catalog entry has exactly one normalized field path." ;
+    ] ;
+    sh:property [
+        sh:path wod:sourceCount ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:minInclusive 0 ;
+        sh:message "A live catalog entry has a non-negative source count (rows prune at zero rather than going negative)." ;
+    ] .
+
+wod:FieldValueRecordShape a sh:NodeShape ;
+    sh:targetClass wod:FieldValueRecord ;
+    sh:property [
+        sh:path wod:valueOfField ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class wod:FieldCatalogEntry ;
+        sh:message "A field value belongs to exactly one field." ;
+    ] ;
+    sh:property [
+        sh:path wod:fieldValue ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A field value record carries exactly one observed value." ;
+    ] .
+
+wod:FieldSourceRecordShape a sh:NodeShape ;
+    sh:targetClass wod:FieldSourceRecord ;
+    sh:property [
+        sh:path wod:sourceRecordId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:pattern "^(note|result|session):.+" ;
+        sh:message "A source record id is prefixed by its entity kind ('note:', 'result:', proposed 'session:')." ;
+    ] ;
+    sh:property [
+        sh:path wod:contributesField ;
+        sh:minCount 1 ;
+        sh:class wod:FieldCatalogEntry ;
+        sh:message "A source record contributes at least one field — an empty reversal record is meaningless." ;
+    ] .
+
+wod:CatalogBackfillStateShape a sh:NodeShape ;
+    sh:targetClass wod:CatalogBackfillState ;
+    sh:property [
+        sh:path wod:backfillStatus ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( "initializing" "complete" ) ;
+        sh:message "Backfill status is 'initializing' or 'complete'." ;
+    ] .

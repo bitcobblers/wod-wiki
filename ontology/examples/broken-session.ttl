@@ -1,0 +1,61 @@
+# Broken example: five deliberate defects, one of each kind the shapes exist
+# to catch. Validation MUST fail on this file — if it ever passes, the shapes
+# have gone soft. Expected violations:
+#   1. effort slug "Back Squat!"        -> EffortShape slug pattern
+#   2. session status "done"            -> SessionShape status sh:in
+#   3. ev-b1 has no effort              -> SegmentEventShape observesEffort minCount
+#   4. ev-b1 reps value "fourteen"      -> MetricObservationShape result datatype
+#   5. ev-b2 distance in pounds (LB)    -> MetricObservationShape SPARQL unit rule
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ex:   <https://wod.wiki/data/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix unit: <http://qudt.org/vocab/unit/> .
+
+# Defect 1: not lowercase-hyphenated — this is a label, not a slug.
+ex:effort-back-squat-bad a wod:Effort ;
+    rdfs:label "Back Squat" ;
+    wod:slug "Back Squat!" ;
+    wod:met 6.0 ;
+    wod:discipline "strength" .
+
+ex:note-broken a wod:Note ;
+    wod:noteTitle "Broken session source" ;
+    wod:createdAt "2026-10-21T06:55:00-04:00"^^xsd:dateTime .
+ex:segment-broken a wod:NoteSegment ;
+    wod:segmentOf ex:note-broken ;
+    wod:segmentVersion 1 ;
+    wod:segmentDataType "wod" .
+
+# Defect 2: status outside the allowed pair.
+ex:session-broken a wod:Session ;
+    wod:aboutNote ex:note-broken ;
+    wod:recordsSegment ex:segment-broken ;
+    wod:status "done" ;
+    wod:startTime "2026-10-21T07:00:00-04:00"^^xsd:dateTime ;
+    wod:hasEvent ex:ev-b1 , ex:ev-b2 .
+
+# Defects 3 + 4: no effort at all, and the reps value is a word, not a number.
+ex:ev-b1 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-broken ;
+    wod:seqInSession 1 ;
+    wod:outputType "segment" ;
+    wod:hasMetric ex:obs-b1-reps .
+ex:obs-b1-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult "fourteen" ;
+    wod:hasUnit wod:CountUnit .
+
+# Defect 5: a 400 distance recorded in pounds.
+ex:ev-b2 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-broken ;
+    wod:seqInSession 2 ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-back-squat-bad ;
+    wod:hasMetric ex:obs-b2-distance .
+ex:obs-b2-distance a wod:MetricObservation ;
+    sosa:observedProperty wod:mDistance ;
+    sosa:hasSimpleResult 400 ;
+    wod:hasUnit unit:LB .

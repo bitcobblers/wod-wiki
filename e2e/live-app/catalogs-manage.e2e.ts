@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { seedNoteId } from '@bitcobblers/wod-wiki-engine';
-import { compileSeedRow } from '../../packages/tools/src/seedbuild/compiler';
+import { compileSeedRow, seedNoteIdSync } from '../../packages/tools/src/seedbuild/compiler';
 import { getNoteContentByRouteId, seedNote } from '../helpers/wodwikiDb';
 import { waitForSeedReady } from '../helpers/seedReadiness';
 
@@ -221,7 +220,7 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     const row = page.getByTestId('seed-source-seed-crossfit');
     await row.getByTestId('seed-subscribe-seed-crossfit').click();
     await expect(row.getByTestId('seed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
-    expect(await getNoteContentByRouteId(page, await seedNoteId(chunks[0].path))).toBe(chunks[0].content);
-    expect(await getNoteContentByRouteId(page, await seedNoteId(chunks[1].path))).toBe(chunks[1].content);
+    expect(await getNoteContentByRouteId(page, seedNoteIdSync(chunks[0].path))).toBe(chunks[0].content);
+    expect(await getNoteContentByRouteId(page, seedNoteIdSync(chunks[1].path))).toBe(chunks[1].content);
   });
 });

@@ -1,0 +1,128 @@
+# wod.wiki ontology — core/results
+# Library: packages/core (@bitcobblers/wod-wiki-core)
+# Types:   packages/core/src/types/storage.ts, packages/core/src/types/results.ts
+# Docs:    docs/domain-model/Session.md, docs/domain-model/EventRecord.md,
+#          docs/domain-model/workout-data-pipeline.md
+# ---------------------------------------------------------------------------
+# Recorded workouts. The pipeline in one line: the engine (packages/engine)
+# executes lang statements and emits live output statements; each statement is
+# stored as an EventRecord row — THE single statement/metric store — while the
+# Session row carries execution metadata only (DB v21 flattening).
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/core/results> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — core: sessions & event records" ;
+    owl:versionInfo "0.2.0" .
+
+# === Classes ==============================================================
+
+wod:Session a owl:Class ;
+    rdfs:label "Session" ;
+    rdfs:comment "Execution metadata for one run of a note segment: born in-progress at workout start, completed at finalize. Identity and totals only — the statement stream lives on EventRecords, not on the session row. Repo store: sessions." .
+
+wod:EventRecord a owl:Class ;
+    rdfs:label "Event Record" ;
+    rdfs:comment "One row of the archival statement stream the runtime engine emits (the stored form of a live output statement). Grain 'event' rows are raw statements; grain 'summary' rows are derived aggregates folded from Tier-2 outputs. Repo store: events." .
+
+wod:SegmentEvent a owl:Class ;
+    rdfs:subClassOf wod:EventRecord ;
+    rdfs:label "Segment Event" ;
+    rdfs:comment "An EventRecord with outputType 'segment': one performed piece of the workout carrying the metrics recorded for it." .
+
+wod:SummaryEvent a owl:Class ;
+    rdfs:subClassOf wod:EventRecord ;
+    rdfs:label "Summary Event" ;
+    rdfs:comment "An EventRecord with grain 'summary': a derived aggregate row. Carries exactly one metric entry (EventRecord.metrics[0] is shape-uniform with events). Produced by finalizeSummaries / re-derivation, never authored directly." .
+
+# === Properties ===========================================================
+
+wod:hasEvent a owl:ObjectProperty ;
+    rdfs:label "has event" ;
+    rdfs:domain wod:Session ;
+    rdfs:range wod:EventRecord ;
+    owl:inverseOf wod:sessionOf ;
+    rdfs:comment "The statement stream belonging to a session. Inverse of the EventRecord.resultId foreign key." .
+
+wod:sessionOf a owl:ObjectProperty ;
+    rdfs:label "session of" ;
+    rdfs:domain wod:EventRecord ;
+    rdfs:range wod:Session ;
+    rdfs:comment "Repo field: EventRecord.resultId." .
+
+wod:aboutNote a owl:ObjectProperty ;
+    rdfs:label "about note" ;
+    rdfs:range wod:Note ;
+    rdfs:comment "Repo field: noteId, present on Session, EventRecord, NoteSegment, Attachment and others. The canonical join for recorded data: telemetry resolves through the note, never through copied page ids." .
+
+wod:recordsSegment a owl:ObjectProperty ;
+    rdfs:label "records segment" ;
+    rdfs:domain wod:Session ;
+    rdfs:range wod:NoteSegment ;
+    rdfs:comment "Repo fields: Session.segmentId + segmentVersion — the recorded occurrence identity: a specific version of a specific segment occurrence." .
+
+wod:observesEffort a owl:ObjectProperty ;
+    rdfs:label "observes effort" ;
+    rdfs:domain wod:EventRecord ;
+    rdfs:range wod:Effort ;
+    rdfs:comment "Repo field: EventRecord.effortSlug, resolved from the slug to the Effort record." .
+
+wod:hasMetric a owl:ObjectProperty ;
+    rdfs:label "has metric" ;
+    rdfs:domain wod:EventRecord ;
+    rdfs:range wod:MetricObservation ;
+    rdfs:comment "One entry of the statement's typed metrics array (StoredOutputStatement.metrics[])." .
+
+wod:grain a owl:DatatypeProperty ;
+    rdfs:label "grain" ;
+    rdfs:domain wod:EventRecord ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo field: EventRecord.grain — 'event' (raw statement) or 'summary' (derived aggregate). Shape-enforced pair." .
+
+wod:outputType a owl:DatatypeProperty ;
+    rdfs:label "output type" ;
+    rdfs:domain wod:EventRecord ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Open vocabulary in the repo (KNOWN_OUTPUT_TYPES: segment, system, load, event, compiler, completion, analytics, wellness). Deliberately NOT closed by shapes: the stream is allowed to grow new statement kinds." .
+
+wod:seqInSession a owl:DatatypeProperty ;
+    rdfs:label "sequence in session" ;
+    rdfs:domain wod:EventRecord ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Position in the session's statement stream; repo event ids are '${resultId}:${seq}'." .
+
+wod:blockContentId a owl:DatatypeProperty ;
+    rdfs:label "block content id" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Workout content-comparison key (on Session, EventRecord, BlockIndexRow). A content-hash JOIN, not a foreign key and not an occurrence identity: two identical workouts share it while remaining distinct occurrences. Editor and persistence mint these ids with different functions today (wblk- vs bc- prefixes) — cross-path equivalence is an open contract question." .
+
+wod:startTime a owl:DatatypeProperty ;
+    rdfs:label "start time" ;
+    rdfs:domain wod:Session ;
+    rdfs:range xsd:dateTime ;
+    rdfs:comment "Repo stores epoch milliseconds; the ontology uses xsd:dateTime. The mapping is a serialization concern, flagged in the README's open questions." .
+
+wod:endTime a owl:DatatypeProperty ;
+    rdfs:label "end time" ;
+    rdfs:domain wod:Session ;
+    rdfs:range xsd:dateTime .
+
+wod:status a owl:DatatypeProperty ;
+    rdfs:label "status" ;
+    rdfs:domain wod:Session ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo values: 'in-progress' | 'completed' (absent = completed on legacy rows). The shape enforces the pair." .
+
+wod:spanStart a owl:DatatypeProperty ;
+    rdfs:label "time span start" ;
+    rdfs:range xsd:dateTime ;
+    rdfs:comment "Start of a record's timeSpan { started, ended } (EventRecord, Attachment). Repo: epoch ms." .
+
+wod:spanEnd a owl:DatatypeProperty ;
+    rdfs:label "time span end" ;
+    rdfs:range xsd:dateTime ;
+    rdfs:comment "End of a record's timeSpan; absent while a statement is still open." .

@@ -1,0 +1,101 @@
+# wod.wiki ontology — core/fields
+# Library: packages/core (@bitcobblers/wod-wiki-core)
+# Types:   packages/core/src/types/storage.ts
+# Docs:    docs/domain-model/FieldCatalogEntry.md, FieldSourceRecord.md,
+#          FieldValueRecord.md, CatalogBackfillState.md
+# ---------------------------------------------------------------------------
+# The typed-field subsystem (V17): user-authored fields (frontmatter and
+# custom property metrics) get derived, reference-counted identities so
+# authoring surfaces can offer typeahead and queries can rely on stable field
+# keys. Everything here is DERIVED from owning records (notes, sessions) —
+# contributions reverse cleanly when a source is re-saved or deleted.
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/core/fields> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — core: typed fields" ;
+    owl:versionInfo "0.2.0" .
+
+# === Classes ==============================================================
+
+wod:FieldCatalogEntry a owl:Class ;
+    rdfs:label "Field Catalog Entry" ;
+    rdfs:comment "Derived typed identity of one authored field: a normalized path plus kind (and dimension for numeric variants). Reference-counted — the row prunes when its sourceCount reaches zero. Repo store: field_catalog." .
+
+wod:FieldSourceRecord a owl:Class ;
+    rdfs:label "Field Source Record" ;
+    rdfs:comment "The reversal record for one source: the exact set of field contributions one stable record (a Note, or a Session under its legacy 'result:' prefix) makes to the catalog, so re-saves stay idempotent and deletes reverse. Repo store: field_sources." .
+
+wod:FieldValueRecord a owl:Class ;
+    rdfs:label "Field Value Record" ;
+    rdfs:comment "One observed categorical value of a field (string/boolean fields only), keyed [fieldId, value] with the value's original spelling preserved. Repo store: field_values." .
+
+wod:CatalogBackfillState a owl:Class ;
+    rdfs:label "Catalog Backfill State" ;
+    rdfs:comment "Singleton 'backfill' row: resumable progress marker for the initial field-catalog population, invoked by app bootstrap. Operational state, modeled for completeness. Repo store: field_catalog_meta." .
+
+# === Properties ===========================================================
+
+wod:fieldPath a owl:DatatypeProperty ;
+    rdfs:label "field path" ;
+    rdfs:domain wod:FieldCatalogEntry ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Normalized full path of the field; the ordered prefix-lookup key for typeahead." .
+
+wod:fieldKind a owl:DatatypeProperty ;
+    rdfs:label "field kind" ;
+    rdfs:domain wod:FieldCatalogEntry ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The field's value kind as recorded by the catalog." .
+
+wod:fieldDimension a owl:DatatypeProperty ;
+    rdfs:label "field dimension" ;
+    rdfs:domain wod:FieldCatalogEntry ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Physical or named dimension of a numeric field variant (e.g. a load or a duration), when the field has one." .
+
+wod:sourceCount a owl:DatatypeProperty ;
+    rdfs:label "source count" ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "How many sources currently support this identity/value. Rows prune at zero. (FieldCatalogEntry, FieldValueRecord.)" .
+
+wod:contributesField a owl:ObjectProperty ;
+    rdfs:label "contributes field" ;
+    rdfs:domain wod:FieldSourceRecord ;
+    rdfs:range wod:FieldCatalogEntry ;
+    rdfs:comment "One contribution of a source record to a catalog entry (contributions[].fieldId in the repo)." .
+
+wod:sourceRecordId a owl:DatatypeProperty ;
+    rdfs:label "source record id" ;
+    rdfs:domain wod:FieldSourceRecord ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The polymorphic source key '${entityKind}:${recordId}' — 'note:<id>' or 'result:<id>' today ('session:' is the proposed rename). The prefix is load-bearing: it is how a contribution finds its owning record." .
+
+wod:hasFieldValue a owl:ObjectProperty ;
+    rdfs:label "has field value" ;
+    rdfs:domain wod:FieldCatalogEntry ;
+    rdfs:range wod:FieldValueRecord ;
+    owl:inverseOf wod:valueOfField ;
+    rdfs:comment "The observed categorical values of a field." .
+
+wod:valueOfField a owl:ObjectProperty ;
+    rdfs:label "value of field" ;
+    rdfs:domain wod:FieldValueRecord ;
+    rdfs:range wod:FieldCatalogEntry ;
+    rdfs:comment "Repo field: FieldValueRecord.fieldId." .
+
+wod:fieldValue a owl:DatatypeProperty ;
+    rdfs:label "field value" ;
+    rdfs:domain wod:FieldValueRecord ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The observed value, in its original spelling — normalization happens on the field identity, not on the recorded value." .
+
+wod:backfillStatus a owl:DatatypeProperty ;
+    rdfs:label "backfill status" ;
+    rdfs:domain wod:CatalogBackfillState ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo values: 'initializing' | 'complete'. Shape-enforced pair." .

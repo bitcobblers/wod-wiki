@@ -1,0 +1,164 @@
+# Valid example: the canonical Tabata session.
+# Same dataset as the explainer video / product guide: (8) x :20 Max Effort
+# Burpees / :10 Rest, splits 14/14/13/13/12/12/11/11 = 100 reps.
+# One session, eight segment events (one per work window), each carrying a
+# reps observation and an elapsed observation. Aggregates (the 100 total)
+# are deliberately NOT stored — deriving them is WQL's job.
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ex:   <https://wod.wiki/data/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix unit: <http://qudt.org/vocab/unit/> .
+
+ex:effort-burpees a wod:Effort ;
+    rdfs:label "Burpees" ;
+    wod:slug "burpees" ;
+    wod:met 8.0 ;
+    wod:discipline "cardio" .
+
+ex:note-tabata a wod:Note ;
+    wod:noteTitle "Tabata" ;
+    wod:createdAt "2026-10-20T06:55:00-04:00"^^xsd:dateTime .
+ex:segment-tabata a wod:NoteSegment ;
+    wod:segmentOf ex:note-tabata ;
+    wod:segmentVersion 1 ;
+    wod:segmentDataType "wod" .
+
+ex:session-tabata-2026-10-20 a wod:Session ;
+    wod:aboutNote ex:note-tabata ;
+    wod:recordsSegment ex:segment-tabata ;
+    wod:status "completed" ;
+    wod:startTime "2026-10-20T07:00:00-04:00"^^xsd:dateTime ;
+    wod:endTime   "2026-10-20T07:04:10-04:00"^^xsd:dateTime ;
+    wod:hasEvent ex:ev-r1 , ex:ev-r2 , ex:ev-r3 , ex:ev-r4 ,
+                 ex:ev-r5 , ex:ev-r6 , ex:ev-r7 , ex:ev-r8 .
+
+# --- Round 1 ---------------------------------------------------------------
+ex:ev-r1 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-tabata-2026-10-20 ;
+    wod:seqInSession 1 ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-burpees ;
+    wod:hasMetric ex:obs-r1-reps , ex:obs-r1-elapsed .
+ex:obs-r1-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult 14 ;
+    wod:hasUnit wod:CountUnit .
+ex:obs-r1-elapsed a wod:MetricObservation ;
+    sosa:observedProperty wod:mElapsed ;
+    sosa:hasSimpleResult 20 ;
+    wod:hasUnit unit:SEC .
+
+# --- Round 2 ---------------------------------------------------------------
+ex:ev-r2 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-tabata-2026-10-20 ;
+    wod:seqInSession 2 ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-burpees ;
+    wod:hasMetric ex:obs-r2-reps , ex:obs-r2-elapsed .
+ex:obs-r2-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult 14 ;
+    wod:hasUnit wod:CountUnit .
+ex:obs-r2-elapsed a wod:MetricObservation ;
+    sosa:observedProperty wod:mElapsed ;
+    sosa:hasSimpleResult 20 ;
+    wod:hasUnit unit:SEC .
+
+# --- Round 3 ---------------------------------------------------------------
+ex:ev-r3 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-tabata-2026-10-20 ;
+    wod:seqInSession 3 ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-burpees ;
+    wod:hasMetric ex:obs-r3-reps , ex:obs-r3-elapsed .
+ex:obs-r3-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult 13 ;
+    wod:hasUnit wod:CountUnit .
+ex:obs-r3-elapsed a wod:MetricObservation ;
+    sosa:observedProperty wod:mElapsed ;
+    sosa:hasSimpleResult 20 ;
+    wod:hasUnit unit:SEC .
+
+# --- Round 4 ---------------------------------------------------------------
+ex:ev-r4 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-tabata-2026-10-20 ;
+    wod:seqInSession 4 ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-burpees ;
+    wod:hasMetric ex:obs-r4-reps , ex:obs-r4-elapsed .
+ex:obs-r4-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult 13 ;
+    wod:hasUnit wod:CountUnit .
+ex:obs-r4-elapsed a wod:MetricObservation ;
+    sosa:observedProperty wod:mElapsed ;
+    sosa:hasSimpleResult 20 ;
+    wod:hasUnit unit:SEC .
+
+# --- Round 5 ---------------------------------------------------------------
+ex:ev-r5 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-tabata-2026-10-20 ;
+    wod:seqInSession 5 ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-burpees ;
+    wod:hasMetric ex:obs-r5-reps , ex:obs-r5-elapsed .
+ex:obs-r5-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult 12 ;
+    wod:hasUnit wod:CountUnit .
+ex:obs-r5-elapsed a wod:MetricObservation ;
+    sosa:observedProperty wod:mElapsed ;
+    sosa:hasSimpleResult 20 ;
+    wod:hasUnit unit:SEC .
+
+# --- Round 6 ---------------------------------------------------------------
+ex:ev-r6 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-tabata-2026-10-20 ;
+    wod:seqInSession 6 ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-burpees ;
+    wod:hasMetric ex:obs-r6-reps , ex:obs-r6-elapsed .
+ex:obs-r6-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult 12 ;
+    wod:hasUnit wod:CountUnit .
+ex:obs-r6-elapsed a wod:MetricObservation ;
+    sosa:observedProperty wod:mElapsed ;
+    sosa:hasSimpleResult 20 ;
+    wod:hasUnit unit:SEC .
+
+# --- Round 7 ---------------------------------------------------------------
+ex:ev-r7 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-tabata-2026-10-20 ;
+    wod:seqInSession 7 ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-burpees ;
+    wod:hasMetric ex:obs-r7-reps , ex:obs-r7-elapsed .
+ex:obs-r7-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult 11 ;
+    wod:hasUnit wod:CountUnit .
+ex:obs-r7-elapsed a wod:MetricObservation ;
+    sosa:observedProperty wod:mElapsed ;
+    sosa:hasSimpleResult 20 ;
+    wod:hasUnit unit:SEC .
+
+# --- Round 8 ---------------------------------------------------------------
+ex:ev-r8 a wod:SegmentEvent ;
+    wod:sessionOf ex:session-tabata-2026-10-20 ;
+    wod:seqInSession 8 ;
+    wod:outputType "segment" ;
+    wod:observesEffort ex:effort-burpees ;
+    wod:hasMetric ex:obs-r8-reps , ex:obs-r8-elapsed .
+ex:obs-r8-reps a wod:MetricObservation ;
+    sosa:observedProperty wod:mReps ;
+    sosa:hasSimpleResult 11 ;
+    wod:hasUnit wod:CountUnit .
+ex:obs-r8-elapsed a wod:MetricObservation ;
+    sosa:observedProperty wod:mElapsed ;
+    sosa:hasSimpleResult 20 ;
+    wod:hasUnit unit:SEC .

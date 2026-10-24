@@ -26,7 +26,7 @@ test('Storybook manager loads', async ({ page }) => {
 });
 
 test('Language Workbench story renders live parse and wall clock panel', async ({ page }) => {
-  await page.goto(storyUrl('playground--empty-workbench'), { waitUntil: 'networkidle' });
+  await page.goto(storyUrl('playground--empty-workbench'), { waitUntil: 'domcontentloaded' });
 
   // Compiled statements strip and wall clock panel render on workbench boot
   await expect(page.getByTestId('statement-strip')).toBeVisible({ timeout: 15_000 });
@@ -34,28 +34,28 @@ test('Language Workbench story renders live parse and wall clock panel', async (
 });
 
 test('WQL Example Gallery story renders widgets', async ({ page }) => {
-  await page.goto(storyUrl('gallery-wql-example-gallery--value-section'), { waitUntil: 'networkidle' });
+  await page.goto(storyUrl('gallery-wql-example-gallery--value-section'), { waitUntil: 'domcontentloaded' });
   // Live gallery renders titled card over corpus QueryResult data
   await expect(page.locator('text=Average sleep').first()).toBeVisible({ timeout: 15_000 });
 });
 
 test('WQL Composer story renders clauses', async ({ page }) => {
-  await page.goto(storyUrl('gallery-wql-composer--default'), { waitUntil: 'networkidle' });
+  await page.goto(storyUrl('gallery-wql-composer--default'), { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-testid="wql-composer"], .wql-composer').first()).toBeVisible({ timeout: 15_000 });
 });
 
 test('Timer Surfaces stories render the Minimal and General tiers', async ({ page }) => {
-  await page.goto(storyUrl('gallery-timer-surfaces--minimal-rest'), { waitUntil: 'networkidle' });
+  await page.goto(storyUrl('gallery-timer-surfaces--minimal-rest'), { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('timer-status-strip')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('timer')).toBeVisible();
 
-  await page.goto(storyUrl('gallery-timer-surfaces--general-tv'), { waitUntil: 'networkidle' });
+  await page.goto(storyUrl('gallery-timer-surfaces--general-tv'), { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Helen')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('timer-up-next-caption')).toBeVisible();
 });
 
 test('Timer Surfaces prompt-row variant renders', async ({ page }) => {
   // Live-metric prompt slot renders above the hero.
-  await page.goto(storyUrl('gallery-timer-surfaces--general-prompts'), { waitUntil: 'networkidle' });
+  await page.goto(storyUrl('gallery-timer-surfaces--general-prompts'), { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('prompts-fixture')).toBeVisible({ timeout: 15_000 });
 });

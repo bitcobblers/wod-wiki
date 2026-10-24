@@ -1,0 +1,95 @@
+# wod.wiki ontology — wql/queries
+# Library: packages/wql (@bitcobblers/wod-wiki-wql)
+# Types:   packages/wql/src/document.ts (QueryDocument), stores.ts,
+#          packages/wql/src/dashboard/model.ts (Dashboard, DashboardWidget)
+# Docs:    docs/language/wql-reference.md; pipeline projection in
+#          docs/domain-model/workout-data-pipeline.md
+# ---------------------------------------------------------------------------
+# The read side. WQL queries run over FACTS projected from EventRecords —
+# projectEventToFacts flattens each event row into one AnalyticsDataPoint per
+# numeric metric — and over the block index for find: queries. Queries live
+# inside markdown segments of notes (query fences); dashboards compose
+# widgets over query results. Definitions stay local to their document.
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/wql/queries> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — wql: queries, facts & dashboards" ;
+    owl:versionInfo "0.2.0" .
+
+# === Classes ==============================================================
+
+wod:WQLQuery a owl:Class ;
+    rdfs:label "WQL Query" ;
+    rdfs:comment "One query document: a source head, a pipeline of transforms, and a presentation. Authored inside a note's markdown segment as a query fence; the definition is scoped to that document and is never a stored row of its own." .
+
+wod:AnalyticsDataPoint a owl:Class ;
+    rdfs:label "Analytics Data Point" ;
+    rdfs:comment "An in-memory query FACT projected from one EventRecord for one numeric metric (projectEventToFacts). Filters, buckets, rollups and cross-workout joins run over these — they are computed, never stored. Joins are relational: to the session, through the note to pages, and by blockContentId to the same workout across notes and days." .
+
+wod:Dashboard a owl:Class ;
+    rdfs:label "Dashboard" ;
+    rdfs:comment "A composed presentation over query results (packages/wql dashboard model), configured by a dashboard note. A composition of widgets — not a storage kind of its own." .
+
+wod:DashboardWidget a owl:Class ;
+    rdfs:label "Dashboard Widget" ;
+    rdfs:comment "One widget on a dashboard, presenting one query's results in one form." .
+
+# === Properties ===========================================================
+
+wod:querySource a owl:ObjectProperty ;
+    rdfs:label "query source" ;
+    rdfs:domain wod:WQLQuery ;
+    rdfs:range wod:QuerySource ;
+    rdfs:comment "The query's source head — what population of facts or content it starts from." .
+
+wod:QuerySource a owl:Class ;
+    rdfs:label "Query Source" ;
+    rdfs:comment "Vocabulary class for WQL source heads. Members are individuals; shapes may pin a query to exactly one." .
+
+wod:srcSegment a wod:QuerySource ; rdfs:label ":segment" ; rdfs:comment "Facts from segment events of recorded sessions." .
+wod:srcSession a wod:QuerySource ; rdfs:label ":session" ; rdfs:comment "Facts at session grain." .
+wod:srcEvent   a wod:QuerySource ; rdfs:label ":event"   ; rdfs:comment "Facts from the raw event stream." .
+wod:srcJournal a wod:QuerySource ; rdfs:label ":journal" ; rdfs:comment "Content population: journal notes." .
+wod:srcFindNote  a wod:QuerySource ; rdfs:label "find:note"  ; rdfs:comment "Note search over note metadata/content (type, text, source, catalog, tags)." .
+wod:srcFindBlock a wod:QuerySource ; rdfs:label "find:block" ; rdfs:comment "Block search over the BlockIndexRow projection." .
+
+wod:queriesMetric a owl:ObjectProperty ;
+    rdfs:label "queries metric" ;
+    rdfs:domain wod:WQLQuery ;
+    rdfs:range wod:Metric ;
+    rdfs:comment "The metric a query aggregates (its facts' observed property)." .
+
+wod:projectedFrom a owl:ObjectProperty ;
+    rdfs:label "projected from" ;
+    rdfs:domain wod:AnalyticsDataPoint ;
+    rdfs:range wod:EventRecord ;
+    rdfs:comment "The event record this fact was flattened from (with its metric). Projection is lossy by design: replay/display rebuild statements from events, not from facts." .
+
+wod:factValue a owl:DatatypeProperty ;
+    rdfs:label "fact value" ;
+    rdfs:domain wod:AnalyticsDataPoint ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "The numeric value of the projected metric on this fact." .
+
+wod:hasWidget a owl:ObjectProperty ;
+    rdfs:label "has widget" ;
+    rdfs:domain wod:Dashboard ;
+    rdfs:range wod:DashboardWidget ;
+    rdfs:comment "The widgets composing a dashboard." .
+
+wod:presentsQuery a owl:ObjectProperty ;
+    rdfs:label "presents query" ;
+    rdfs:domain wod:DashboardWidget ;
+    rdfs:range wod:WQLQuery ;
+    rdfs:comment "The query whose results this widget presents. Identical widgets over different queries keep distinct edit targets — the query definition stays in its own document." .
+
+wod:widgetType a owl:DatatypeProperty ;
+    rdfs:label "widget type" ;
+    rdfs:domain wod:DashboardWidget ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo: DASHBOARD_WIDGET_TYPES — table, list, value, timeseries, bar, donut, and further chart kinds. A presentation variant of the query, not a new stored segment kind." .

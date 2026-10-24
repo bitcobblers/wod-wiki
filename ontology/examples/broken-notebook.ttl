@@ -1,0 +1,30 @@
+# Broken example (authoring side): five deliberate defects. Validation MUST
+# fail on this file. Expected violations:
+#   1. segment dataType "video"      -> NoteSegmentShape segmentDataType sh:in
+#   2. segment version 0             -> NoteSegmentShape segmentVersion minInclusive
+#   3. segment has no owning note     -> NoteSegmentShape segmentOf minCount
+#   4. page with neither date nor slug -> PageShape sh:or
+#   5. placement with no note        -> PageNoteShape placementNote minCount
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ex:   <https://wod.wiki/data/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+ex:note-ok a wod:Note ;
+    wod:noteTitle "Scratch" ;
+    wod:createdAt "2026-10-23T06:30:00-04:00"^^xsd:dateTime .
+
+# Defects 1-3: unknown kind, impossible version, no owner.
+ex:seg-broken a wod:NoteSegment ;
+    wod:segmentVersion 0 ;
+    wod:segmentDataType "video" ;
+    wod:isHistory false .
+
+# Defect 4: a page that addresses nothing.
+ex:page-broken a wod:Page ;
+    wod:pageTitle "Nowhere" .
+
+# Defect 5: a placement pointing at a page but no note.
+ex:placement-broken a wod:PageNote ;
+    wod:placementPage ex:page-broken ;
+    wod:position 0 .

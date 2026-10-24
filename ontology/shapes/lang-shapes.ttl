@@ -1,0 +1,81 @@
+# wod.wiki ontology — SHACL shapes for lang/ modules
+# Contracts for packages/lang types: metric observations and efforts.
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix qudt: <http://qudt.org/schema/qudt/> .
+
+<https://wod.wiki/ontology/shapes/lang> a owl:Ontology ;
+    sh:declare
+        [ sh:prefix "wod" ;  sh:namespace "https://wod.wiki/ontology#"^^xsd:anyURI ] ,
+        [ sh:prefix "sosa" ; sh:namespace "http://www.w3.org/ns/sosa/"^^xsd:anyURI ] .
+
+# === Metric observation ====================================================
+# CLOSED: a metric entry is a small, fully-known record (metric, value,
+# unit); extra properties are errors.
+
+wod:MetricObservationShape a sh:NodeShape ;
+    sh:targetClass wod:MetricObservation ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path sosa:observedProperty ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class wod:Metric ;
+        sh:message "An observation names exactly one metric from the vocabulary." ;
+    ] ;
+    sh:property [
+        sh:path sosa:hasSimpleResult ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:or (
+            [ sh:datatype xsd:integer ]
+            [ sh:datatype xsd:decimal ]
+            [ sh:datatype xsd:double ]
+        ) ;
+        sh:message "An observation's value is exactly one number." ;
+    ] ;
+    sh:property [
+        sh:path wod:hasUnit ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class qudt:Unit ;
+        sh:message "An observation is expressed in exactly one unit." ;
+    ] ;
+    sh:sparql [
+        sh:message "Unit is not in the allowedUnit list for this metric (e.g. a distance recorded in pounds)." ;
+        sh:select """
+            SELECT $this ?metric ?unit
+            WHERE {
+              $this sosa:observedProperty ?metric ;
+                    wod:hasUnit ?unit .
+              FILTER EXISTS { ?metric wod:allowedUnit ?anyAllowed }
+              FILTER NOT EXISTS { ?metric wod:allowedUnit ?unit }
+            }
+            """ ;
+    ] .
+
+# === Effort ================================================================
+
+wod:EffortShape a sh:NodeShape ;
+    sh:targetClass wod:Effort ;
+    sh:property [
+        sh:path wod:slug ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z0-9]+(-[a-z0-9]+)*$" ;
+        sh:message "An effort slug is its key: unique, lowercase, hyphenated (e.g. 'back-squat')." ;
+    ] ;
+    sh:property [
+        sh:path wod:met ;
+        sh:maxCount 1 ;
+        sh:or (
+            [ sh:datatype xsd:integer ]
+            [ sh:datatype xsd:decimal ]
+            [ sh:datatype xsd:double ]
+        ) ;
+        sh:minInclusive 0 ;
+        sh:message "MET, when present, is a single non-negative number." ;
+    ] .

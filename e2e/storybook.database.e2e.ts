@@ -78,6 +78,7 @@ test.describe('database-driven Storybook stories', () => {
   test('a workout run is stored as a session in the active database', async ({ page }) => {
     await gotoStory(page, 'playground--library-page');
     await expect(page.getByTestId('playground-library-page')).toBeVisible({ timeout: SEED_TIMEOUT });
+    await expect(page.getByTestId('playground-library-find')).toBeEnabled({ timeout: SEED_TIMEOUT });
 
     // The command palette opens from the Find button (or Ctrl+/ shortcut).
     await page.getByTestId('playground-library-find').click();
