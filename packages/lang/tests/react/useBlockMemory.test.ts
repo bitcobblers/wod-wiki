@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, cleanup } from '@testing-library/react';
 import {
     useBlockMemory,
     useTimerState,
@@ -22,6 +22,12 @@ import { TimerState, RoundState, DisplayState } from '../../src/runtime/memory/M
 import { TimeSpan } from '../../src/runtime/models/TimeSpan';
 
 import { MemoryLocation, MemoryTag } from '../../src/runtime/memory/MemoryLocation';
+
+// Workspace has no `globals: true`, so testing-library's auto-cleanup never
+// registers. Without this, mounted useTimerDisplay/useRoundDisplay rAF loops
+// keep scheduling React work past happy-dom teardown (window is gone → uncaught
+// ReferenceError fails the whole vitest run).
+afterEach(() => cleanup());
 
 // Mock block factory
 function createMockBlock(initialMemory: Map<string, unknown> = new Map()): IRuntimeBlock {
