@@ -112,7 +112,7 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
               to={open}
               data-testid={`${testId}-cta`}
               aria-label={`Open the library for ${seed.label}`}
-              className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+              className="flex min-h-11 min-w-11 size-11 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
             >
               <ArrowRight className="size-3.5" aria-hidden />
             </Link>
@@ -123,7 +123,7 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
               disabled={importing || busy}
               onClick={() => onImport(seed.seedId!)}
               className={cn(
-                'flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3',
+                'flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4',
                 'text-[10px] font-black uppercase tracking-widest',
                 'border-primary/30 bg-primary/10 text-primary',
                 'transition-colors hover:bg-primary/20',
@@ -142,13 +142,13 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
 
         {/* One Subscribe brings every notebook — say which. */}
         {seed.notebooks.length > 0 && (
-          <div className="flex flex-wrap gap-1.5" data-testid={`${testId}-notebooks`}>
+          <div className="flex flex-wrap gap-2" data-testid={`${testId}-notebooks`}>
             {shown.map((notebook) => (
               <span
                 key={notebook.packageId}
                 data-testid={`${testId}-notebook-${notebook.packageId}`}
                 className={cn(
-                  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest transition-colors',
+                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-widest transition-colors',
                   notebook.subscribed
                     ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
                     : 'border-border text-muted-foreground/70',
@@ -161,6 +161,7 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
                 ) : (
                   <span>{notebook.label}</span>
                 )}
+                {/* ponytail: -my-3 negative margin keeps pill compact while providing 44px tap target; expand pill fully if touch collision occurs. */}
                 {onToggleNotebookSubscription && seed.seedId && notebook.chunkId && (
                   <button
                     type="button"
@@ -172,7 +173,7 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
                     title={notebook.subscribed ? `Unsubscribe ${notebook.label}` : `Subscribe ${notebook.label}`}
                     aria-label={notebook.subscribed ? `Unsubscribe ${notebook.label}` : `Subscribe ${notebook.label}`}
                     data-testid={`${testId}-notebook-toggle-${notebook.packageId}`}
-                    className="ml-0.5 font-bold hover:text-foreground"
+                    className="relative -my-3 -mr-2.5 ml-0.5 inline-flex min-h-11 min-w-11 items-center justify-center font-bold hover:text-foreground"
                   >
                     {notebook.subscribed ? '✓' : '+'}
                   </button>

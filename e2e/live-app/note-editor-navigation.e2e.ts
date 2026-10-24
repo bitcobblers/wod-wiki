@@ -217,7 +217,10 @@ test('note editor: opens focused and editable, arrows walk visual rows, Home no-
 
   await setCaret(page, CONTENT.length);
   await page.getByRole('button', { name: 'Add property', exact: true }).click();
-  await page.getByLabel('Property name property', { exact: true }).fill('stale_draft');
+  await page
+    .locator('[data-frontmatter-row="property"]')
+    .getByLabel('Property key', { exact: true })
+    .fill('stale_draft');
   await page.evaluate(
     ({ view, content }: { view: EditorView; content: string }) => view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: content },

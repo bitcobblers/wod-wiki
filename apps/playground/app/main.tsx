@@ -4,6 +4,14 @@ import { App } from './App';
 import { BootRecovery } from './BootRecovery';
 import { StorageUpdateScreen } from './StorageUpdateScreen';
 import './lib/telemetry-gtag';
+// Self-hosted fonts (fontsource): no external stylesheet requests, font-display: swap,
+// family names match the stacks in src/index.css. Shell renders on system fallbacks.
+import '@fontsource/inter/latin-400.css';
+import '@fontsource/inter/latin-500.css';
+import '@fontsource/inter/latin-600.css';
+import '@fontsource/inter/latin-700.css';
+import '@fontsource/jetbrains-mono/latin-400.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
 import '../src/index.css';
 import { remotePrefsMode, hydrateMetaPrefs } from '@/services/storage/metaStore';
 import { whenStorageReady, startBackgroundStorageSync } from '@/services/storage';

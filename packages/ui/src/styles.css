@@ -57,6 +57,8 @@
     --border: 36 14% 76%;              /* #cdc5b8 */
     --input: 36 14% 82%;
     --ring: 212 32% 50%;
+    /* Interactive field boundary — clears 3:1 against --background (WCAG 1.4.11). */
+    --field-border: 30 12% 50%;
     --radius: 1rem;
 
     /* ── Metric tokens — 7 semantic colors ────────────────────────── */
@@ -119,6 +121,8 @@
     --border: 218 17% 30%;             /* #3f4859 */
     --input: 218 17% 30%;
     --ring: 210 35% 64%;
+    /* Interactive field boundary — clears 3:1 against --background (WCAG 1.4.11). */
+    --field-border: 214 12% 62%;
 
     /* ── Metric tokens — Arctic Frost aurora palette ─────────────── */
     --metric-time:       210 35% 64%;  /* #81a1c1 frost blue */
@@ -172,6 +176,7 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+  --color-field-border: hsl(var(--field-border));
 
   --color-metric-time: hsl(var(--metric-time));
   --color-metric-rep: hsl(var(--metric-rep));
@@ -214,7 +219,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: 4px;
 
-  --font-sans: Inter, "Inter Fallback", system-ui, -apple-system, sans-serif;
+  --font-sans: Inter, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   --breakpoint-xl: 1280px;

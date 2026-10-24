@@ -241,14 +241,14 @@ export function TourJumpSection() {
               placeholder="Search seeds…"
               aria-label="Search seeds"
               data-testid="package-search-input"
-              className="h-9 w-full rounded-full border border-border bg-background pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none transition-colors focus:border-primary/50"
+              className="h-11 w-full rounded-full border border-border bg-background pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none transition-colors focus:border-primary/50"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch('')}
                 aria-label="Clear search"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-0 top-1/2 -translate-y-1/2 size-11 inline-flex items-center justify-center text-muted-foreground hover:text-foreground"
               >
                 <X className="size-3.5" />
               </button>
@@ -266,7 +266,7 @@ export function TourJumpSection() {
                   data-testid={`package-kind-${option.value}`}
                   onClick={() => setKind(active ? undefined : option.value)}
                   className={cn(
-                    'h-8 rounded-full border px-3 text-[10px] font-black uppercase tracking-widest transition-colors',
+                    'inline-flex min-h-11 items-center justify-center rounded-full border px-4 text-[10px] font-black uppercase tracking-widest transition-colors',
                     active
                       ? 'border-primary/40 bg-primary/10 text-primary'
                       : 'border-border text-muted-foreground hover:border-foreground/25 hover:text-foreground',
@@ -279,13 +279,13 @@ export function TourJumpSection() {
           </div>
 
           {/* Subscribed only toggle */}
-          <label className="flex items-center gap-1.5 cursor-pointer select-none text-muted-foreground hover:text-foreground">
+          <label className="flex min-h-11 items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground px-2">
             <input
               type="checkbox"
               checked={subscribedOnly}
               onChange={(e) => setSubscribedOnly(e.target.checked)}
               data-testid="filter-subscribed-only"
-              className="size-3.5 accent-primary rounded"
+              className="size-4 accent-primary rounded"
             />
             <span className="text-[10px] font-black uppercase tracking-widest">Subscribed only</span>
           </label>
@@ -296,7 +296,7 @@ export function TourJumpSection() {
             onChange={(e) => setSelectedSeedId(e.target.value ? e.target.value : undefined)}
             aria-label="Filter by seed source"
             data-testid="filter-seed-source"
-            className="h-8 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50"
+            className="min-h-11 h-11 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50"
           >
             <option value="">All seeds</option>
             {listSeedSources().map((s) => (
@@ -304,7 +304,7 @@ export function TourJumpSection() {
             ))}
           </select>
 
-          <div className="ml-auto flex items-center gap-0.5" role="group" aria-label="Sort seeds">
+          <div className="ml-auto flex items-center gap-1.5" role="group" aria-label="Sort seeds">
             {SORT_OPTIONS.map(option => {
               const active = sort === option.value
               return (
@@ -315,7 +315,7 @@ export function TourJumpSection() {
                   data-testid={`package-sort-${option.value}`}
                   onClick={() => setSort(option.value)}
                   className={cn(
-                    'h-8 rounded-full px-3 text-[10px] font-black uppercase tracking-widest transition-colors',
+                    'inline-flex min-h-11 items-center justify-center rounded-full px-3 text-[10px] font-black uppercase tracking-widest transition-colors',
                     active ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >

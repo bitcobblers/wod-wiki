@@ -41,6 +41,13 @@ function input(container: HTMLElement, label: string) {
   return element;
 }
 
+/** The suggestion popup lives in a document-level layer, keyed by the field. */
+function options(field: HTMLInputElement): HTMLElement[] {
+  const listId = field.getAttribute('aria-controls');
+  const list = listId ? document.getElementById(listId) : null;
+  return Array.from(list?.querySelectorAll('[role="option"]') ?? []);
+}
+
 async function settle() {
   await Promise.resolve();
   await Promise.resolve();
@@ -55,8 +62,8 @@ describe('inline frontmatter suggestions', () => {
     if (!(add instanceof HTMLButtonElement)) throw new Error('Missing Add tag action');
     add.click();
     vi.advanceTimersByTime(0);
-    expect(document.activeElement).toBe(input(first.container, 'Add tag to tags'));
-    expect(second.container.querySelector('input[aria-label="Add tag to tags"]')).toBeNull();
+    expect(document.activeElement).toBe(input(first.container, 'Value for tags'));
+    expect(second.container.querySelector('input[aria-label="Value for tags"]')).toBeNull();
     expect(second.view.state.doc.toString()).toBe('---\nformat: amrap\n---\nBody');
   });
 
@@ -65,7 +72,7 @@ describe('inline frontmatter suggestions', () => {
     const format = input(container, 'Value for format');
     format.focus();
     await settle();
-    expect(Array.from(container.querySelectorAll('[role="option"]')).map((option) => option.textContent)).toEqual(['amrap', 'for-time']);
+    expect(options(format).map((option) => option.textContent)).toEqual(['amrap', 'for-time']);
     expect(format.hasAttribute('aria-activedescendant')).toBe(false);
     format.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
     const activeId = format.getAttribute('aria-activedescendant');
@@ -82,14 +89,14 @@ describe('inline frontmatter suggestions', () => {
 
   it('excludes selected chips, filters typing, and persists one clicked chip', async () => {
     const { container, view } = editor('---\ntags: [amrap]\n---\nBody');
-    const tags = input(container, 'Add tag to tags');
+    const tags = input(container, 'Value for tags');
     tags.focus();
     await settle();
-    expect(Array.from(container.querySelectorAll('[role="option"]')).map((option) => option.textContent)).toEqual(['for-time', 'parkour']);
+    expect(options(tags).map((option) => option.textContent)).toEqual(['for-time', 'parkour']);
     tags.value = 'park';
     tags.dispatchEvent(new Event('input', { bubbles: true }));
     await settle();
-    const option = container.querySelector('[role="option"]');
+    const option = options(tags)[0];
     if (!(option instanceof HTMLElement)) throw new Error('Missing parkour option');
     expect(option.textContent).toBe('parkour');
     option.click();
@@ -119,12 +126,12 @@ describe('inline frontmatter suggestions', () => {
 
   it('property key choices commit a rename without losing its value', async () => {
     const { container, view } = editor('---\nproperty: parkour\n---\nBody');
-    const key = input(container, 'Property name property');
+    const key = input(container, 'Property key');
     key.focus();
     key.value = '';
     key.dispatchEvent(new Event('input', { bubbles: true }));
     await settle();
-    expect(Array.from(container.querySelectorAll('[role="option"]')).map((option) => option.textContent)).toEqual(['format', 'domain']);
+    expect(options(key).map((option) => option.textContent)).toEqual(['format', 'domain']);
     key.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
     key.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     expect(view.state.doc.toString()).toContain('domain: parkour');
@@ -140,10 +147,10 @@ describe('inline frontmatter suggestions', () => {
     format.dispatchEvent(new Event('input', { bubbles: true }));
     requests[1](catalog);
     await settle();
-    expect(Array.from(container.querySelectorAll('[role="option"]')).map((option) => option.textContent)).toEqual(['for-time']);
+    expect(options(format).map((option) => option.textContent)).toEqual(['for-time']);
     requests[0](catalog);
     await settle();
-    expect(Array.from(container.querySelectorAll('[role="option"]')).map((option) => option.textContent)).toEqual(['for-time']);
+    expect(options(format).map((option) => option.textContent)).toEqual(['for-time']);
     format.value = 'am';
     format.dispatchEvent(new Event('input', { bubbles: true }));
     format.blur();

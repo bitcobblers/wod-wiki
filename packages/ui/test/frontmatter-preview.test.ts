@@ -281,7 +281,7 @@ author: Coach
     const addTagBtn = container.querySelector('button[aria-label="Add tag"]');
     if (!(addTagBtn instanceof HTMLButtonElement)) throw new Error('Missing Add tag action');
     addTagBtn.click();
-    expect(document.activeElement?.getAttribute('aria-label')).toBe(`Add tag to ${key}`);
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(`Value for ${key}`);
     expect(view.state.doc.toString()).toBe(before);
     view.destroy();
     container.remove();
@@ -309,7 +309,7 @@ title: My Workout
     // Clicking must not persist an empty tags property.
     expect(view.state.doc.toString()).toBe(NOTE_NO_TAGS);
 
-    const draftInput = container.querySelector('input[aria-label="Add tag to tags"]') as HTMLInputElement;
+    const draftInput = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
     expect(draftInput).not.toBeNull();
     expect(document.activeElement).toBe(draftInput);
 
@@ -321,7 +321,7 @@ title: My Workout
 
     // Escape discards too, even when the suggestion listbox handled the same event.
     addTagBtn.click();
-    const draftInputEsc = container.querySelector('input[aria-label="Add tag to tags"]') as HTMLInputElement;
+    const draftInputEsc = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
     expect(draftInputEsc).not.toBeNull();
     draftInputEsc.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(container.querySelector('[data-frontmatter-tag-draft]')).toBeNull();
@@ -329,7 +329,7 @@ title: My Workout
 
     // Committing a value writes it once.
     addTagBtn.click();
-    const draftInput2 = container.querySelector('input[aria-label="Add tag to tags"]') as HTMLInputElement;
+    const draftInput2 = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
     draftInput2.value = 'parkour';
     draftInput2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
@@ -362,7 +362,7 @@ title: My Workout
     await vi.advanceTimersByTimeAsync(10);
 
     const keyInput = document.activeElement as HTMLInputElement;
-    expect(keyInput.getAttribute('aria-label')).toBe('Property name property');
+    expect(keyInput.getAttribute('aria-label')).toBe('Property key');
 
     const list = document.getElementById(keyInput.getAttribute('aria-controls')!) as HTMLElement;
     expect(list.hidden).toBe(false);
@@ -475,7 +475,7 @@ title: My Workout
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
-    const tagInput = container.querySelector('input[aria-label="Add tag to tags"]') as HTMLInputElement;
+    const tagInput = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
     expect(tagInput).not.toBeNull();
     tagInput.value = 'PARKOUR';
     tagInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -538,7 +538,7 @@ No frontmatter here.
     // Draft only: the note still has no frontmatter until a tag value commits.
     expect(view.state.doc.toString()).toBe(NOTE_WITHOUT_FM);
 
-    const draftInput = container.querySelector('input[aria-label="Add tag to tags"]') as HTMLInputElement;
+    const draftInput = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
     expect(draftInput).not.toBeNull();
     draftInput.value = 'strength';
     draftInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -586,6 +586,52 @@ No frontmatter here.
     expect(roLink.href).toBe('https://example.com/src');
     roView.destroy();
     roContainer.remove();
+  });
+
+  it('labels every property field visibly and programmatically', () => {
+    const doc = '---\ncategory:\nstore: field_catalog\n---\n# Body\n';
+    const state = EditorState.create({
+      doc,
+      extensions: [sectionField, frontmatterPreview],
+    });
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({ state, parent: container });
+
+    const preview = container.querySelector('.cm-frontmatter-preview');
+    expect(preview).not.toBeNull();
+
+    // Visible, persistent column labels — the placeholder is never the only cue.
+    expect(preview?.querySelector('[data-frontmatter-column="key"]')?.textContent).toBe('Key');
+    expect(preview?.querySelector('[data-frontmatter-column="value"]')?.textContent).toBe('Value');
+
+    const keyField = preview?.querySelector<HTMLInputElement>(
+      '[data-frontmatter-row="store"] [data-frontmatter-field="key"]',
+    );
+    expect(keyField?.getAttribute('aria-label')).toBe('Property key');
+
+    const valueField = preview?.querySelector<HTMLInputElement>(
+      '[data-frontmatter-row="store"] [data-frontmatter-field="value"]',
+    );
+    expect(valueField?.getAttribute('aria-label')).toBe('Value for store');
+
+    // A tag property is still a VALUE field, not a separate "add tag" control.
+    const tagField = preview?.querySelector<HTMLInputElement>(
+      '[data-frontmatter-row="category"] [data-frontmatter-field="value"]',
+    );
+    expect(tagField?.getAttribute('aria-label')).toBe('Value for category');
+
+    // Every field carries readable helper text for assistive technology.
+    for (const field of [keyField, valueField, tagField]) {
+      const describedBy = field?.getAttribute('aria-describedby');
+      expect(describedBy).toBeTruthy();
+      const helper = document.getElementById(describedBy ?? '');
+      expect(helper?.textContent?.trim().length ?? 0).toBeGreaterThan(0);
+    }
+
+    view.destroy();
+    container.remove();
   });
 
   it('does not render metadata buttons for notes without frontmatter in read-only mode', () => {

@@ -139,12 +139,16 @@ describe('NoteEditor frontmatter raw editing reachability (preview on)', () => {
   it('reveals closed frontmatter for completion while raw editing and restores the widget on exit', async () => {
     const doc = '---\ndomain: climbing\n---\n\nBody text.';
     const view = editor(doc, doc.length, { preview: true });
-    await waitFor(() => expect(screen.getByLabelText('Property name domain')).toBeTruthy());
+    await waitFor(() => expect(
+      document.querySelector('[data-frontmatter-row="domain"] input[aria-label="Property key"]'),
+    ).toBeTruthy());
     expect(view.contentDOM.textContent).not.toContain('domain: climbing');
 
     act(() => { fireEvent.click(screen.getByLabelText('Edit YAML')); });
     await waitFor(() => expect(view.contentDOM.textContent).toContain('domain: climbing'));
-    await waitFor(() => expect(screen.queryByLabelText('Property name domain')).toBeNull());
+    await waitFor(() => expect(
+      document.querySelector('[data-frontmatter-row="domain"] input[aria-label="Property key"]'),
+    ).toBeNull());
 
     // New property typed on a fresh line inside the closed block.
     const at = view.state.doc.line(2).to;
@@ -161,7 +165,9 @@ describe('NoteEditor frontmatter raw editing reachability (preview on)', () => {
     expect(view.state.doc.toString()).toBe('---\ndomain: climbing\nformat:\n  - amrap\n---\n\nBody text.');
 
     act(() => { view.dispatch({ selection: { anchor: view.state.doc.length } }); });
-    await waitFor(() => expect(screen.getByLabelText('Property name format')).toBeTruthy());
+    await waitFor(() => expect(
+      document.querySelector('[data-frontmatter-row="format"] input[aria-label="Property key"]'),
+    ).toBeTruthy());
     expect(view.contentDOM.textContent).not.toContain('format:\n  - amrap');
   });
 

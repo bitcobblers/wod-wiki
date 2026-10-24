@@ -43,7 +43,7 @@ export const NavbarItem = forwardRef(function NavbarItem(
 ) {
   let classes = clsx(
     // Base
-    'group relative flex min-w-0 items-center gap-3 rounded-lg p-2 text-left text-base/6 font-medium text-foreground sm:text-sm/5',
+    'group relative flex min-w-0 min-h-11 min-w-11 items-center justify-center gap-3 rounded-lg p-2 text-left text-base/6 font-medium text-foreground sm:text-sm/5 sm:justify-start',
     // Leading icon/icon-only
     '[&>[data-slot=icon]]:size-6 [&>[data-slot=icon]]:shrink-0 [&>[data-slot=icon]]:fill-muted-foreground sm:[&>[data-slot=icon]]:size-5',
     // Trailing icon (down chevron or similar)

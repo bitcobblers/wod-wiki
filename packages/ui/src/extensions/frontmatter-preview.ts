@@ -6,6 +6,7 @@ import { parseFrontmatterBody, type ParsedFrontmatter } from "@bitcobblers/wod-w
 import { patchFrontmatterProperty } from "@bitcobblers/wod-wiki-core";
 import { EFFORT_DISCIPLINES } from "@bitcobblers/wod-wiki-lang";
 import { sectionField } from "./section-state";
+import { SuggestionPanel } from "./frontmatter-suggestions";
 
 // ponytail: flat scalar and string-list properties with inline commit; add schema types / drag-to-reorder when multi-type nested schemas are required.
 export interface FrontmatterCatalogEntry {
@@ -89,10 +90,44 @@ export const frontmatterVisibility = Facet.define<boolean, boolean>({
 
 const pendingFocus = new WeakMap<EditorView, { kind: "key" | "tag"; key: string }>();
 const widgetCleanup = new WeakMap<HTMLElement, (() => void)[]>();
-let suggestionId = 0;
+let helperId = 0;
 
 function isTagProperty(key: string): boolean {
   return ["tag", "tags", "category"].includes(key.trim().toLowerCase());
+}
+
+/**
+ * Screen-reader helper text for a property field. A placeholder is a hint,
+ * not a label — the interaction rules live in an `aria-describedby` node so
+ * they are read out with the field.
+ */
+function appendFieldHelper(parent: HTMLElement, text: string): HTMLElement {
+  const helper = document.createElement("span");
+  helper.id = `frontmatter-hint-${++helperId}`;
+  helper.className = "sr-only";
+  helper.textContent = text;
+  parent.appendChild(helper);
+  return helper;
+}
+
+/** Persistent Key/Value column labels — the property rows are a table. */
+function createColumnHeader(): HTMLElement {
+  const header = document.createElement("div");
+  header.className =
+    "flex items-center border-b border-border text-[11px] font-semibold uppercase tracking-wide text-muted-foreground";
+  const key = document.createElement("div");
+  key.dataset.frontmatterColumn = "key";
+  key.className =
+    "px-3 py-1.5 w-36 shrink-0 border-r border-border max-[479px]:w-auto max-[479px]:border-r-0 max-[479px]:border-b";
+  key.textContent = "Key";
+  const value = document.createElement("div");
+  value.dataset.frontmatterColumn = "value";
+  value.className = "px-3 py-1.5 flex-1 min-w-0";
+  value.textContent = "Value";
+  const actions = document.createElement("div");
+  actions.className = "w-9 shrink-0";
+  header.append(key, value, actions);
+  return header;
 }
 
 function attachSuggestions(
@@ -107,45 +142,15 @@ function attachSuggestions(
 ): void {
   const provider = view.state.facet(frontmatterSuggestions);
   if (!provider || !input.parentElement) return;
-  const parent = input.parentElement;
-  parent.classList.add("relative");
-  const list = document.createElement("div");
-  list.id = `frontmatter-suggestions-${++suggestionId}`;
-  list.setAttribute("role", "listbox");
-  list.className = "absolute left-0 top-full z-50 max-h-48 overflow-auto rounded-md border border-border bg-background shadow-md min-w-full text-xs";
-  list.hidden = true;
-  parent.appendChild(list);
-  input.setAttribute("role", "combobox");
-  input.setAttribute("aria-autocomplete", "list");
-  input.setAttribute("aria-controls", list.id);
-  input.setAttribute("aria-expanded", "false");
+  const panel = new SuggestionPanel(input, {
+    label: kind === "key" ? "Suggested properties" : suggestionListLabel(valueKind),
+    onPick: () => commit(),
+    view,
+  });
   let generation = 0;
-  let choices: Array<{ value: string; label: string }> = [];
-  let active = -1;
   const close = () => {
     generation++;
-    choices = [];
-    active = -1;
-    list.hidden = true;
-    input.setAttribute("aria-expanded", "false");
-    input.removeAttribute("aria-activedescendant");
-  };
-  const select = (choice: { value: string; label: string }) => {
-    input.value = choice.value;
-    close();
-    commit();
-  };
-  const activate = (index: number) => {
-    active = index;
-    Array.from(list.children).forEach((option, i) => {
-      option.setAttribute("aria-selected", String(i === active));
-      option.classList.toggle("bg-muted", i === active);
-    });
-    const option = list.children[active];
-    if (option) {
-      input.setAttribute("aria-activedescendant", option.id);
-      if (option instanceof HTMLElement) option.scrollIntoView?.({ block: "nearest" });
-    }
+    panel.close();
   };
   // Focus and Ctrl+Space open the full candidate list; typing filters it.
   const refresh = async (showAll = false) => {
@@ -173,27 +178,15 @@ function attachSuggestions(
           .map((tag) => ({ value: tag.label, label: tag.label, haystack: tag.label.toLowerCase() }));
       }
       const selected = new Set(excluded.map((label) => label.toLowerCase()));
-      choices = candidates.filter(
-        (candidate) =>
-          (query === "" || candidate.haystack.includes(query)) &&
-          !selected.has(candidate.value.toLowerCase()),
-      );
-      active = -1;
-      input.removeAttribute("aria-activedescendant");
-      list.replaceChildren();
-      choices.forEach((choice, index) => {
-        const option = document.createElement("div");
-        option.id = `${list.id}-${index}`;
-        option.setAttribute("role", "option");
-        option.setAttribute("aria-selected", "false");
-        option.className = "cursor-pointer px-2 py-1.5 hover:bg-muted";
-        option.textContent = choice.label;
-        option.addEventListener("mousedown", (event) => event.preventDefault());
-        option.addEventListener("click", () => select(choice));
-        list.appendChild(option);
-      });
-      list.hidden = choices.length === 0;
-      input.setAttribute("aria-expanded", String(choices.length > 0));
+      const choices = candidates
+        .filter(
+          (candidate) =>
+            (query === "" || candidate.haystack.includes(query)) &&
+            !selected.has(candidate.value.toLowerCase()),
+        )
+        .map((candidate) => ({ value: candidate.value, label: candidate.label }));
+      panel.setChoices(choices);
+      if (choices.length > 0) panel.open();
     } catch {
       if (request === generation) close();
     }
@@ -208,16 +201,24 @@ function attachSuggestions(
     } else if (event.key === "Escape") {
       event.preventDefault();
       close();
-    } else if ((event.key === "ArrowDown" || event.key === "ArrowUp") && choices.length) {
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (panel.choices.length === 0) return;
       event.preventDefault();
-      const direction = event.key === "ArrowDown" ? 1 : -1;
-      activate(active < 0 ? (direction === 1 ? 0 : choices.length - 1) : (active + direction + choices.length) % choices.length);
-    } else if ((event.key === "Enter" || event.key === "Tab") && active >= 0) {
+      panel.moveActive(event.key === "ArrowDown" ? 1 : -1);
+    } else if (event.key === "Enter" || event.key === "Tab") {
+      if (panel.activeIndex < 0) return;
       event.preventDefault();
-      select(choices[active]);
+      panel.pickActive();
     }
   });
-  widgetCleanup.get(root)?.push(close);
+  widgetCleanup.get(root)?.push(() => panel.destroy());
+}
+
+/** Accessible name of the suggestion popup for a value field. */
+function suggestionListLabel(valueKind: "tags" | "effort" | "equipment"): string {
+  if (valueKind === "effort") return "Suggested efforts";
+  if (valueKind === "equipment") return "Suggested equipment";
+  return "Suggested tags";
 }
 
 function parseTagList(val: unknown): string[] {
@@ -338,12 +339,13 @@ function createTagDraftRow(
 ): HTMLElement {
   const row = document.createElement("div");
   row.className =
-    "flex items-center min-h-[34px] border-b border-dashed border-border/60 last:border-b-0 group hover:bg-muted/10 transition-colors max-[479px]:flex-col max-[479px]:items-stretch";
+    "flex items-center min-h-[34px] border-b border-dashed border-border last:border-b-0 group hover:bg-muted/10 transition-colors max-[479px]:flex-col max-[479px]:items-stretch";
   row.setAttribute("data-frontmatter-tag-draft", "true");
+  row.dataset.frontmatterRow = key;
 
   const keyCol = document.createElement("div");
   keyCol.className =
-    "flex items-center gap-2 px-3 py-1.5 w-36 shrink-0 border-r border-dashed border-border/60 text-muted-foreground max-[479px]:w-auto max-[479px]:border-r-0 max-[479px]:border-b";
+    "flex items-center gap-2 px-3 py-1.5 w-36 shrink-0 border-r border-dashed border-border text-muted-foreground max-[479px]:w-auto max-[479px]:border-r-0 max-[479px]:border-b";
   keyCol.appendChild(createTagIcon());
   const keyLabel = document.createElement("span");
   keyLabel.className = "truncate font-medium text-foreground/90";
@@ -355,9 +357,15 @@ function createTagDraftRow(
   valCol.className = "flex items-center flex-wrap gap-1.5 px-3 py-1.5 flex-1 min-w-0";
   const input = document.createElement("input");
   input.className =
-    "flex-1 min-w-[70px] bg-transparent text-xs text-foreground outline-none px-1 py-0.5 placeholder:text-muted-foreground/40";
+    "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring";
   input.placeholder = "Add tag…";
-  input.setAttribute("aria-label", `Add tag to ${key}`);
+  input.setAttribute("aria-label", `Value for ${key}`);
+  input.dataset.frontmatterField = "value";
+  input.dataset.frontmatterProperty = key;
+  input.setAttribute(
+    "aria-describedby",
+    appendFieldHelper(valCol, "Press Enter to add the value.").id,
+  );
   valCol.appendChild(input);
   row.appendChild(valCol);
 
@@ -466,8 +474,9 @@ function createMetricDraftRow(
 ): HTMLElement {
   const row = document.createElement("div");
   row.className =
-    "flex items-center min-h-[34px] border-b border-dashed border-border/60 last:border-b-0 group hover:bg-muted/10 transition-colors max-[479px]:flex-col max-[479px]:items-stretch";
+    "flex items-center min-h-[34px] border-b border-dashed border-border last:border-b-0 group hover:bg-muted/10 transition-colors max-[479px]:flex-col max-[479px]:items-stretch";
   row.setAttribute("data-frontmatter-metric-draft", "true");
+  row.dataset.frontmatterRow = "metric";
 
   const select = document.createElement("select");
   select.setAttribute("aria-label", "Metric kind");
@@ -485,9 +494,14 @@ function createMetricDraftRow(
   valCol.className = "flex items-center flex-wrap gap-1.5 px-3 py-1.5 flex-1 min-w-0";
   const input = document.createElement("input");
   input.className =
-    "flex-1 min-w-[70px] bg-transparent text-xs text-foreground outline-none px-1 py-0.5 placeholder:text-muted-foreground/40";
+    "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring";
   input.placeholder = "Value…";
   input.setAttribute("aria-label", "Metric value");
+  input.dataset.frontmatterField = "value";
+  input.setAttribute(
+    "aria-describedby",
+    appendFieldHelper(valCol, "Press Enter to apply the metric value.").id,
+  );
   valCol.appendChild(input);
   row.appendChild(valCol);
 
@@ -720,6 +734,8 @@ export class DefaultFrontmatterWidget extends WidgetType {
       emptyRow.className = "px-3 py-2 text-xs text-muted-foreground/60 italic";
       emptyRow.textContent = "No properties";
       box.appendChild(emptyRow);
+    } else {
+      box.appendChild(createColumnHeader());
     }
 
     for (const [key, value] of entries) {
@@ -730,13 +746,14 @@ export class DefaultFrontmatterWidget extends WidgetType {
 
       const row = document.createElement("div");
       row.className =
-        "flex items-center min-h-[34px] border-b border-dashed border-border/60 last:border-b-0 group hover:bg-muted/10 transition-colors max-[479px]:flex-col max-[479px]:items-stretch";
+        "flex items-center min-h-[34px] border-b border-dashed border-border last:border-b-0 group hover:bg-muted/10 transition-colors max-[479px]:flex-col max-[479px]:items-stretch";
+      row.dataset.frontmatterRow = key;
       box.appendChild(row);
 
       // Key column
       const keyCol = document.createElement("div");
       keyCol.className =
-        "flex items-center gap-2 px-3 py-1.5 w-36 shrink-0 border-r border-dashed border-border/60 text-muted-foreground max-[479px]:w-auto max-[479px]:border-r-0 max-[479px]:border-b";
+        "flex items-center gap-2 px-3 py-1.5 w-36 shrink-0 border-r border-dashed border-border text-muted-foreground max-[479px]:w-auto max-[479px]:border-r-0 max-[479px]:border-b";
       keyCol.appendChild(isTags || isReferenceList ? createTagIcon() : createListIcon());
 
       if (this.readOnly || nested) {
@@ -750,7 +767,16 @@ export class DefaultFrontmatterWidget extends WidgetType {
           "w-full bg-transparent text-xs text-foreground/90 font-medium outline-none truncate hover:bg-muted/30 focus:bg-background focus:ring-1 focus:ring-ring rounded px-1 -mx-1";
         keyInput.value = key;
         keyInput.spellcheck = false;
-        keyInput.setAttribute("aria-label", `Property name ${key}`);
+        keyInput.setAttribute("aria-label", "Property key");
+        keyInput.dataset.frontmatterField = "key";
+        keyInput.dataset.frontmatterProperty = key;
+        keyInput.setAttribute(
+          "aria-describedby",
+          appendFieldHelper(
+            keyCol,
+            "Property name. Press Enter to apply. Arrow keys browse suggested property names.",
+          ).id,
+        );
 
         let currentKey = key;
         const commitKey = () => {
@@ -864,11 +890,20 @@ export class DefaultFrontmatterWidget extends WidgetType {
         if (!this.readOnly) {
           const chipInput = document.createElement("input");
           chipInput.className =
-            "flex-1 min-w-[70px] bg-transparent text-xs text-foreground outline-none px-1 py-0.5 placeholder:text-muted-foreground/40";
+            "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring";
           chipInput.placeholder = chips.length === 0
             ? (isReferenceList ? `Add ${valueKind === "effort" ? "effort" : "equipment"}…` : "Add tags…")
             : (isTags ? "Add tag…" : "Add…");
-          chipInput.setAttribute("aria-label", isTags ? `Add tag to ${key}` : `Add to ${key}`);
+          chipInput.setAttribute("aria-label", `Value for ${key}`);
+          chipInput.dataset.frontmatterField = "value";
+          chipInput.dataset.frontmatterProperty = key;
+          chipInput.setAttribute(
+            "aria-describedby",
+            appendFieldHelper(
+              valCol,
+              "Press Enter or comma to add a value. Arrow keys browse the suggestions.",
+            ).id,
+          );
 
           const commitNewChip = () => {
             const val = chipInput.value.trim().replace(/^,|,$/g, "");
@@ -948,10 +983,16 @@ export class DefaultFrontmatterWidget extends WidgetType {
         } else {
           const valInput = document.createElement("input");
           valInput.className =
-            "w-full bg-transparent text-xs text-foreground outline-none py-0.5 hover:bg-muted/20 focus:bg-background focus:ring-1 focus:ring-ring rounded px-1 -mx-1 transition-colors";
+            "w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring transition-colors";
           valInput.value = strVal;
           valInput.spellcheck = false;
           valInput.setAttribute("aria-label", `Value for ${key}`);
+          valInput.dataset.frontmatterField = "value";
+          valInput.dataset.frontmatterProperty = key;
+          valInput.setAttribute(
+            "aria-describedby",
+            appendFieldHelper(valCol, "Property value. Press Enter to apply.").id,
+          );
 
           let committedVal = strVal;
           const commitVal = () => {
@@ -1006,7 +1047,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
 
               valCol.insertBefore(pill, valInput);
               valInput.className =
-                "flex-1 min-w-[70px] bg-transparent text-xs text-foreground outline-none py-0.5 hover:bg-muted/20 focus:bg-background focus:ring-1 focus:ring-ring rounded px-1 -mx-1 transition-colors";
+                "flex-1 min-w-[70px] rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-foreground/70 focus:border-ring focus:ring-1 focus:ring-ring transition-colors";
             }
 
             const diag = renderEffortValueDiagnostics(
@@ -1045,7 +1086,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
         delBtn.type = "button";
         delBtn.setAttribute("aria-label", `Remove property ${key}`);
         delBtn.className =
-          "opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-destructive p-1 rounded transition-opacity cursor-pointer";
+          "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground/70 hover:text-destructive p-1 rounded transition-opacity cursor-pointer";
         delBtn.appendChild(createCloseIcon("md"));
         delBtn.addEventListener("click", (e) => {
           e.preventDefault();
@@ -1142,7 +1183,9 @@ export class DefaultFrontmatterWidget extends WidgetType {
           e.preventDefault();
           e.stopPropagation();
           if (existingTagKey) {
-            const input = Array.from(root.querySelectorAll("input")).find((element) => element.getAttribute("aria-label") === `Add tag to ${existingTagKey}`);
+            const input = Array.from(root.querySelectorAll<HTMLInputElement>(
+              '[data-frontmatter-field="value"]',
+            )).find((element) => element.dataset.frontmatterProperty === existingTagKey);
             input?.focus();
             return;
           }
