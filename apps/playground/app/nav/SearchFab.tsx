@@ -19,6 +19,7 @@ export function SearchFab({ onOpen }: SearchFabProps) {
       type="button"
       onClick={onOpen}
       aria-label="Search"
+      title="Search"
       data-testid="search-fab"
       className={cn(
         'size-14 rounded-full flex items-center justify-center',
@@ -28,6 +29,7 @@ export function SearchFab({ onOpen }: SearchFabProps) {
       )}
     >
       <MagnifyingGlassIcon className="size-6" />
+      <span className="sr-only">Search</span>
     </button>
   )
 }

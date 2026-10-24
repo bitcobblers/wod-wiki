@@ -325,8 +325,16 @@ export const CastButtonRpc: React.FC = () => {
 
     if (isUnavailable) {
         return (
-            <Button variant="ghost" size="icon" disabled className="opacity-20 cursor-not-allowed">
+            <Button
+                variant="ghost"
+                size="icon"
+                disabled
+                className="opacity-20 cursor-not-allowed"
+                aria-label="Cast to TV (unavailable)"
+                title="Cast to TV (unavailable)"
+            >
                 <Cast className="h-5 w-5" />
+                <span className="sr-only">Cast to TV (unavailable)</span>
             </Button>
         );
     }
@@ -350,6 +358,7 @@ export const CastButtonRpc: React.FC = () => {
                     title={isWebRtcActive ? 'Stop casting' : isCurrentlyConnecting ? 'Connecting...' : 'Cast to TV'}
                 >
                     {isWebRtcActive ? <TvMinimal className="h-5 w-5" /> : <Cast className="h-5 w-5" />}
+                    <span className="sr-only">{isWebRtcActive ? 'Stop casting' : 'Cast to TV'}</span>
                 </Button>
             </ProjectionSyncProvider>
         </CastTransportProvider>

@@ -88,8 +88,9 @@ function MobileSidebar({ open, close, onSearch, onCreate, children }: React.Prop
           </div>
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex items-center px-4 pt-3">
-              <Headless.CloseButton as={NavbarItem} aria-label="Close navigation">
+              <Headless.CloseButton as={NavbarItem} aria-label="Close navigation" title="Close navigation">
                 <CloseMenuIcon />
+                <span className="sr-only">Close navigation</span>
               </Headless.CloseButton>
             </div>
             {/* No own overflow: SidebarBody inside {children} is the single
@@ -132,8 +133,9 @@ function MobileRightDrawer({ open, close, children }: React.PropsWithChildren<{ 
         <NavigationDrawerProvider close={close}>
         <div className="flex h-full min-h-0 flex-col bg-card">
           <div className="flex items-center justify-end px-4 pt-3">
-            <Headless.CloseButton as={NavbarItem} aria-label="Close page options">
+            <Headless.CloseButton as={NavbarItem} aria-label="Close page options" title="Close page options">
               <CloseMenuIcon />
+              <span className="sr-only">Close page options</span>
             </Headless.CloseButton>
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -247,21 +249,23 @@ export function SidebarLayout({
         <div className="flex flex-1 flex-col min-w-0 xl:max-w-[984px] 2xl:max-w-none">
           <header data-page-sticky-boundary="true" className="lg:hidden sticky top-0 z-20 flex items-center px-2 sm:px-4 bg-card">
             <div className="py-2.5 shrink-0">
-              <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation">
+              <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation" title="Open navigation">
                 <OpenMenuIcon />
+                <span className="sr-only">Open navigation</span>
               </NavbarItem>
             </div>
             <div className="min-w-0 flex-1">{navbar}</div>
             {onCreate && (
               <div className="py-2.5 shrink-0">
-                <NavbarItem onClick={onCreate} aria-label="New journal note">
+                <NavbarItem onClick={onCreate} aria-label="New journal note" title="New journal note">
                   <CalendarPlus className="size-5" />
+                  <span className="sr-only">New journal note</span>
                 </NavbarItem>
               </div>
             )}
             {railHasContent && (
               <div className="py-2.5 shrink-0">
-                <NavbarItem onClick={() => setShowRightDrawer(true)} aria-label="Open page options">
+                <NavbarItem onClick={() => setShowRightDrawer(true)} aria-label="Open page options" title="Open page options">
                   <span className="relative inline-flex">
                     <SlidersHorizontal className="size-5" />
                     {hasAppliedFilters && (
@@ -272,6 +276,7 @@ export function SidebarLayout({
                       />
                     )}
                   </span>
+                  <span className="sr-only">Open page options</span>
                 </NavbarItem>
               </div>
             )}

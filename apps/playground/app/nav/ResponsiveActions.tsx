@@ -365,6 +365,7 @@ function ResponsiveActionsDock({
           type="button"
           onClick={() => setSheetOpen(open => !open)}
           aria-label={active?.label ?? globalActions?.label ?? 'Page options'}
+          title={active?.label ?? globalActions?.label ?? 'Page options'}
           aria-expanded={sheetOpen}
           data-testid="actions-overflow"
           className={cn(
@@ -375,6 +376,7 @@ function ResponsiveActionsDock({
           )}
         >
           {sheetOpen ? <XMarkIcon className="size-6" /> : <EllipsisVerticalIcon className="size-6" />}
+          <span className="sr-only">{active?.label ?? globalActions?.label ?? 'Page options'}</span>
         </button>
       )}
     </div>

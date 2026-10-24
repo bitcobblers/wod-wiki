@@ -72,6 +72,7 @@ export const NavbarItem = forwardRef(function NavbarItem(
           {...props}
           className={classes}
           data-current={current ? 'true' : undefined}
+          aria-current={current ? 'page' : undefined}
           ref={ref as React.ForwardedRef<HTMLAnchorElement>}
         >
           <TouchTarget>{children}</TouchTarget>
@@ -81,6 +82,7 @@ export const NavbarItem = forwardRef(function NavbarItem(
           {...props}
           className={clsx('cursor-default', classes)}
           data-current={current ? 'true' : undefined}
+          aria-current={current ? 'page' : undefined}
           ref={ref}
         >
           <TouchTarget>{children}</TouchTarget>
