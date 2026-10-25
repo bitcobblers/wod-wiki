@@ -43,7 +43,7 @@ Corpus size: 14 MB raw across 886 files (`collections` 13 MB, `canvas` 384 KB, `
 
 ### Concept: Seed
 
-> **Seed** — the immutable, timestamped compilation of the bundled content corpora (Catalogs, Canvas pages, syntax guides, Efforts, Dashboard Notes, page template) into versioned artifacts that the app imports into Storage. The Seed is the only path bundled content takes into IndexedDB. Seed rows are owned by the importer until the user edits them.
+> **Seed** — the immutable, timestamped compilation of the bundled content corpora (notebooks, Canvas pages, syntax guides, Efforts, Dashboard Notes, page template) into versioned artifacts that the app imports into Storage. The Seed is the only path bundled content takes into IndexedDB. Seed rows are owned by the importer until the user edits them. The publisher of a seed is a **feed**; the corpus it delivers materializes as **notebooks** of **notes**.
 
 New term — proposed for `CONTEXT.md` § Persistence & storage once this direction is accepted (see § Vocabulary).
 
@@ -84,7 +84,7 @@ public/seed/
 
 ### Module 2: Seed Import seam (runtime)
 
-One interface, real adapters — the seam exists because the implementations genuinely vary:
+One interface, real adapters — the seam exists because the implementations genuinely vary. A **feed** publishes the seed; the seam imports it.
 
 | Adapter | Used by |
 |---|---|
@@ -94,7 +94,7 @@ One interface, real adapters — the seam exists because the implementations gen
 
 `SeedImporter.apply(manifest, chunkLoader)` writes through the existing **Storage** layer in per-chunk transactions:
 
-- Materializes corpus items into Storage: **Notes** (deterministic UUID id from path, title, date, catalog) holding byte-faithful markdown in `rawContent` plus the occurrence `blocks` map, initial **BlockRevision** v1 rows for actionable blocks, **Pages** (slug/date anchors via `page_notes`), **Tags** & **NoteTags** (typed via `DEFAULT_TAG_TYPES`), Efforts (`registrySource: 'bundled'`), and current-only `block_index`/`block_efforts` projections. (Schema 8; superseded the retired per-segment rows and separate derived chunks.)
+- Materializes a feed's corpus into Storage as **notebooks** of **notes**: **Notes** (deterministic UUID id from path, title, date, notebook slug) holding byte-faithful markdown in `rawContent` plus the occurrence `blocks` map, initial **BlockRevision** v1 rows for actionable blocks, **Pages** (slug/date anchors via `page_notes`), **Tags** & **NoteTags** (typed via `DEFAULT_TAG_TYPES`), Efforts (`registrySource: 'bundled'`), and current-only `block_index`/`block_efforts` projections. (Schema 9; superseded the retired per-segment rows and separate derived chunks.)
 - **Checkpoint record** in a new `meta` key-value store (V19): `{ seedVersion, importedAt, chunks: { [id]: sha256 } }` — per-chunk resume, same pattern as `field_catalog_meta` backfill state.
 - **Idempotent**: re-applying a chunk with a hash already recorded in `meta` is a no-op. Crash mid-import → next boot resumes at the first unrecorded chunk.
 
@@ -181,3 +181,5 @@ After the cutover this seam has two adapters — IDB (production) and `InMemoryS
 - **Seed** — as defined above; § Persistence & storage.
 - **Seed Import** — the seam that pulls a manifest, applies changed chunks transactionally, and records `seedVersion`; adapters: HTTP (static host), embedded bootstrap, in-memory (tests).
 - **Seed Origin** — provenance on a row (`'seed' | 'user'`): the single ownership rule deciding whether the importer may overwrite or delete it. Replaces the bundled/user tier language for Efforts and the read-only-until-cloned language for Dashboard Notes.
+- **Feed** — the configured source that publishes the seed; what the user subscribes to. See `CONTEXT.md` § Content model.
+- **Notebook** — the container the imported corpus materializes into; the notes it holds. See `CONTEXT.md` § Content model.

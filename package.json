@@ -71,6 +71,7 @@
     "sync:skills": "bun scripts/sync-skills.ts",
     "check:skills": "bun scripts/sync-skills.ts --check",
     "test:seed": "bun scripts/sync-seed.ts",
+    "docs:check": "node scripts/check-docs-links.cjs",
     "check:architecture-regressions": "node scripts/check-architecture-regressions.cjs",
     "check:unused-exports": "node scripts/check-unused-exports-regressions.cjs",
     "check:architecture": "node scripts/check-architecture-regressions.cjs && node scripts/check-unused-exports-regressions.cjs",

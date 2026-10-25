@@ -630,11 +630,11 @@ export function isNoteEditable(note: Pick&lt;Note, 'seedOrigin'&gt;): boolean {
   </thead>
   <tbody>
     <tr>
-      <td id="wb-td-6d3ae28aff624a62aa760df0f4dd138b" data-whiteboard-anchor><code>docs/domain-model/Note.md</code> &amp; <code>docs/domain-model/collection.md</code></td>
+      <td id="wb-td-6d3ae28aff624a62aa760df0f4dd138b" data-whiteboard-anchor><code>docs/domain-model/Note.md</code> &amp; <code>docs/domain-model/Notebook.md</code></td>
       <td id="wb-td-49a68ecd4d0047b7a9c79db5c84a3d91" data-whiteboard-anchor>Replace `collection.md` with `Notebook.md`; document `Note.notebookId` and `Note.clonedFromNoteId`, and retire the overloaded `Note.sourceId` / `Note.catalog` split.</td>
     </tr>
     <tr>
-      <td id="wb-td-62f8f8f95afb451095e6863ea4abf4cd" data-whiteboard-anchor><code>docs/adrs/0001-catalog-seed-data-contract.md</code> &amp; <code>0002-catalog-source-lifecycle.md</code></td>
+      <td id="wb-td-62f8f8f95afb451095e6863ea4abf4cd" data-whiteboard-anchor><code>docs/adrs/0001-feed-seed-data-contract.md</code> &amp; <code>0002-feed-lifecycle.md</code></td>
       <td id="wb-td-10972bab8ede45f2a73a2152627fabf9" data-whiteboard-anchor>Document that seed manifests deliver one or more read-only `Notebook` records (one per `collection.*` / `feed.*` / `notebook.*` chunk) and that cloning into a writable notebook stamps `seedOrigin: 'user'` and `clonedFromNoteId`.</td>
     </tr>
     <tr>

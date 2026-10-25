@@ -1,11 +1,15 @@
-# ADR 0001: Catalog Seed Data Contract (Publisher → Engine)
+# ADR 0001: Feed Seed Data Contract (Publisher → Engine)
 
 **Status:** Accepted
 **Date:** 2026-10-16
+**Vocabulary:** the publisher is a **feed**; the artifacts it publishes are the feed's
+**seed** (manifest + chunks); the container its rows materialize into is a **notebook**.
+The wire identifiers recorded below keep their pre-rename spellings until the
+feed-contract ticket lands — this ADR records the contract, not the vocabulary.
 
 ## Context
 
-Workout catalogs are distributed as static, versioned seed artifacts: a
+Workout corpora are published by feeds as static, versioned seed artifacts: a
 publisher repository holds Markdown corpus files, `wod build` compiles
 them into immutable chunks plus a manifest, and consumers import those
 chunks into their local IndexedDB. The contract between the two sides
@@ -25,8 +29,9 @@ A seed publication is a directory containing exactly:
 
 - `manifest.json` — one `SeedManifest` (validated by `assertSeedManifest`).
 - `chunks/<id>.<sha256-8>.json` — an array of `SeedRow`, one chunk per
-  `ChunkGroup` (`chunkIdFor`). Collections and feeds get one chunk per
-  catalog (`collection.<slug>` / `feed.<slug>`); the reserved chunk ids
+  `ChunkGroup` (`chunkIdFor`). Each published notebook gets one chunk
+  (`collection.<slug>` / `feed.<slug>` — the chunk-id spelling is
+  unchanged by this rename); the reserved chunk ids
   are `canvas`, `dashboards`, `efforts`, `equipment`, `template`.
 
 Identity is deterministic: `seedNoteId(path)` maps a row path to a v5 UUID,
@@ -147,7 +152,7 @@ fields:
   createdAt:     { type: number, rule: "manifest.version (git commit count), not a timestamp" }
   type:          { type: NoteKind? }
   sourceId:      { type: string? }
-  catalog:       { type: string?, rule: "catalogForChunkId(chunkId)" }
+  catalog:       { type: string?, rule: "catalogForChunkId(chunkId)", note: "field name unchanged by the vocabulary rename; the value is the notebook's directory slug" }
   tags:          { type: string[]? }
   seedOrigin:    { type: "'seed'|'user'" }
   seedVersion:   { type: number? }

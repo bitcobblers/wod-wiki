@@ -71,7 +71,7 @@ Disposable, current-only content-search projection for WQL `find:block`. The not
 
 ### Questions owned by this datatype
 
-Supports [[Note#Wayfinder questions and proposed answers]], [[BlockRevision]] and [[collection#Membership questions and proposed answers]]; their linked tickets remain the decision owners.
+Supports [[Note#Wayfinder questions and proposed answers]], [[BlockRevision]] and [[Page#Membership questions and proposed answers]]; their linked tickets remain the decision owners.
 
 - **Can one corpus item safely join to its note?** Proposed answer: resolve the locator to canonical note ownership, keeping the locator as routing data. The reconciliation/backfill and existing result-reference handling remain open.
 - **What happens on delete/re-key?** Proposed answer: no searchable orphan or lost classification contribution after a successful operation; choose transaction or explicit rebuild/recovery semantics when implementing.

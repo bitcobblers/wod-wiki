@@ -138,8 +138,8 @@ block-revision appends, pinned-session capture, cascade delete,
 analytics write) — they do not embed engine specifics.
 _Avoid_: data layer, store (overloaded).
 **Seed**:
-A seed library: an immutable, timestamped compilation of one content corpus into versioned artifacts a static host serves and the app imports into Storage (`wodwiki-db`; import seam — `docs/prototypes/seed-data-unification.md`). Seeds are the only path bundled content takes into Storage. **Multi-seed**: each source (the playground's own **core** seed — this repo's `markdown/` corpus: canvas pages, the page template, and the effort/equipment/dashboards reference chunks, compiled from this repo; the **community** seed — collections/feeds from the sibling `wod-wiki-seed` repo; future third-party libraries) compiles via the seed repo's compiler (`scripts/sync-seed.ts`, run by the playground build) into `public/seed/<sourceId>/` (schema 8): a manifest + content-hashed chunks of whole-note rows carrying `{ path, content, blocks, blockIndex, blockEfforts }` — source, occurrence map and sparse projections travel together; unchanged refreshes write nothing of precomputed `BlockIndexRow[]` corpus rows. Each source has an independent import checkpoint (`seed:<sourceId>` meta record) and git version, so version decisions and vanished-chunk sweeps never cross sources. Seed provenance (`'seed' | 'user'`) decides whether the Seed Import may overwrite or delete a row — user edits always win. After the import, **every runtime content read loads from Storage**: canvas routes, collections/feeds, dashboards, guide snippets, and view-source go through the seed-content seam (`src/services/content/seedContent.ts`), and the Query Service reads one `block_index` store (user + corpus rows; the generated `static-block-index.json` predecessor is retired).
-_Avoid_: bundle, corpus dump, static index (the generated `static-block-index.json` predecessor).
+The published artifact a **feed** serves: an immutable, timestamped compilation of one content corpus into versioned files a static host serves and the app imports into Storage (`wodwiki-db`; import seam — `docs/prototypes/seed-data-unification.md`). A seed is a payload, not a source — the source is the **feed** that publishes it. Seeds are the only path bundled content takes into Storage. **Multi-feed**: each feed (the playground's own **core** feed — this repo's `markdown/` corpus: canvas pages, the page template, and the effort/equipment/dashboards reference chunks, compiled from this repo; the **community** feeds — notebooks from the sibling `wod-wiki-seed` repo; future third-party libraries) compiles via the seed repo's compiler (`scripts/sync-seed.ts`, run by the playground build) into `public/seed/<sourceId>/` (schema 9): a manifest + content-hashed chunks of whole-note rows carrying `{ path, content, blocks, blockIndex, blockEfforts }` — source, occurrence map and sparse projections travel together; unchanged refreshes write nothing of precomputed `BlockIndexRow[]` corpus rows. Each feed has an independent import checkpoint (`seed:<sourceId>` meta record) and git version, so version decisions and vanished-chunk sweeps never cross feeds. Seed provenance (`'seed' | 'user'`) decides whether the Seed Import may overwrite or delete a row — user edits always win. After the import, **every runtime content read loads from Storage**: canvas routes, notebooks, dashboards, guide snippets, and view-source go through the seed-content seam (`apps/playground/src/services/content/seedContent.ts`), and the Query Service reads one `block_index` store (user + corpus rows; the generated `static-block-index.json` predecessor is retired).
+_Avoid_: bundle, corpus dump, static index (the generated `static-block-index.json` predecessor), feed (the source, not the artifact).
 **Home Slice**:
 The bundle-owned subset of the playground's canvas content needed to render `/` before any Seed import: `HOME_PAGE` plus `HOME_DOCS`, compiled from `markdown/` through `app/canvas/homeSlice.ts`. It is the only bundled-content read that does not pass through Storage; all other bundled content still follows the Seed path.
 _Avoid_: static home, hardcoded home (the slice is compiled from markdown, not a second authored copy).
@@ -411,6 +411,123 @@ tokens only (no raw palette classes); app surfaces may use `dark:` variants for
 app-only chrome; stories are theme-agnostic.
 _Avoid_: dark theme (the palette itself), night mode.
 
+### Content model
+
+The container/source/entry/placement layer is four nouns: a **notebook** is the container of
+notes, a **feed** is the configured source that publishes notebooks, a **note** is an
+entry, and a **page** is a placement of notes. The canonical vocabulary table below adds
+the remaining named concepts — day, dashboard, effort, equipment, tag — and gives each
+one a route, a list route, a WQL head and a storage table.
+
+**Notebook**:
+The container that holds notes. A notebook owns the notes inside it: it is their home in
+storage, it decides their editability, and it is the scope a query reaches them through.
+Identity is the slug (`notebook/{slug}`); the predefined notebooks are `notebook/journal`,
+`notebook/playground` and `notebook/guides`. A feed-delivered notebook is read-only; the
+journal, the playground and the starter notes of `notebook/defaults` are user-owned. A
+dated container is a notebook whose notes carry a date — not a second kind of notebook.
+A page never contains notes: it places the notes of one notebook (or of several) for
+display.
+Canonical route `/notebook/{slug}`, list route `/notebooks`, WQL head `:notebook{}`.
+_Avoid_: folder, grouping, library (as a container), page (a page places notes; it does
+not contain them).
+
+**Feed**:
+The configured source that publishes notebooks. A feed is one published directory: one
+manifest, one version, one import checkpoint, one subscription. It delivers notebooks —
+never notes of its own: the notebooks it publishes stay read-only until the user clones
+content into a notebook they own. Effort and equipment definitions arrive the same way,
+as markdown delivered by a feed and imported as notes.
+Canonical route `/feed/{slug}`, list route `/feeds`, WQL head `:feed{}`.
+_Avoid_: publisher, repository, subscription, notebook (a feed publishes notebooks; it is
+not one).
+
+**Note**:
+An entry: one piece of authored content inside a notebook — a workout, a dated log, a
+guide page, an effort definition, an equipment definition, a dashboard. A note is the unit
+storage persists (`notes` table), the unit a block belongs to, and the unit results and
+attachments hang off. Its identity is the UUID; its kind says what it *is*, never which
+container it lives in. A note carries its container as a notebook and may be placed on
+many pages. The two kinds that used to be separate words — the catalog's named session
+and its dated post — are note kinds now: a session is a note whose date is derived from
+first publication, a post is a note whose date is editorial.
+Canonical route `/note/{uuid}`, list route `/notes`, WQL head `:note{}`.
+_Avoid_: entry, item, record (a note is the content unit).
+
+**Page**:
+A placement, not a second container. A page groups notes for display — by calendar date
+or by a declared slug — and holds no content of its own; the notes it places stay owned
+by their notebook. Placement is many-to-many: a note may sit on several pages, and a page
+may hold notes from several notebooks. The stored `page` row is an addressing record
+(a date or a slug) and the `page_notes` junction carries membership; the note→pages
+index and a move operation are later deliverables.
+Canonical route `/page/{slug}`, list route `/pages`, WQL head `:page{}`.
+_Avoid_: container, notebook, section.
+
+**Library List**:
+The browse surface for one concept at a time. The navigation ladder has three levels:
+**L1** is a queryable library list (a bare plural route), **L2** is one thing (singular
+prefix plus slug), **L3** is a place inside that thing (a note, a day, a page, a section
+anchor). Every library list binds a default query, accepts `?q=`, renders query output
+rather than a bespoke list, exposes the filters of its own plane, and links each row to
+the concept's own prefix.
+_Avoid_: index, browse, listing.
+
+**Session**:
+The recorded execution of one workout — the results, not the content. A session belongs
+to the **Note** it ran from, carries the block it executed, and holds the round splits,
+reps, elapsed time and the events of that run. It is the write destination of the
+**Result Recorder** and the subject of the session results table.
+_Avoid_: entry (the retired name for the catalog item kind), workout (the content, not
+the run), note.
+
+**Playground Note**:
+The user-owned **Note** in `notebook/playground` — the scratch notebook for trying or
+running a workout outside the journal, discoverable in the **Library List** through
+`source:playground`.
+Every explicit Run (and Reset) creates a FRESH immutable snapshot note named
+`<page> <section> <timestamp>` — created before execution, never updated in place — so
+each run's results join their own note forever; encoded shared workouts still import one
+without automatically running it.
+Moving it to a journal date preserves its **UUID**, **Block Content Id** references,
+attachments, and recorded results rather than cloning and deleting it.
+_Avoid_: temporary workout, demo result, scratch copy (implies disposable data).
+
+### Canonical vocabulary
+
+One word per concept. These are the canonical names; the paths the app serves today are
+recorded in the domain-model docs' Current State sections and move when the route ticket
+lands.
+
+| Concept | Route | List route | WQL head | Storage |
+|---|---|---|---|---|
+| notebook | `/notebook/{slug}` | `/notebooks` | `:notebook{}` | derived — `notes.notebookId`, `notebook:` tag |
+| feed | `/feed/{slug}` | `/feeds` | `:feed{}` | registry + `meta` checkpoint `seed:<sourceId>` |
+| note | `/note/{uuid}` | `/notes` | `:note{}` | `notes` |
+| page | `/page/{slug}` | `/pages` | `:page{}` | `page` + `page_notes` |
+| day | `/day/{date}` | `/journal` | `:note{} by {date}` | `page.date` slice over `page_notes` |
+| dashboard | `/dashboard/{slug}` | `/dashboards` | `:dashboard{}` | `notes` (kind `dashboard`) |
+| effort | `/effort/{slug}` | `/efforts` | `:effort{}` | `efforts` (+ notes) |
+| equipment | `/equipment/{slug}` | `/equipment` | `:equipment{}` | `equipment` (+ notes) |
+| tag | `/t/{type}/{tag}` | `/tags` | `:tag{}` | `tags` + `tag_types` + `note_tags` |
+
+### Retired vocabulary
+
+Words the codebase still carries in identifiers but that no longer name a concept.
+
+| Retired word | Replaced by | Note |
+|---|---|---|
+| collection | **notebook** | The container's older name. The publisher corpus directories `markdown/collections/` and `markdown/feeds/` become `markdown/notebooks/`. |
+| catalog | **notebook** | The container's older name, and the name of the `/catalogs` route and the `catalog:` filter key. Unrelated senses keep their names: the **Field Catalog** inventory and the **Unit Registry** catalogue are not containers. |
+| entry | **note** | A list row is a note, not a thing of its own. |
+| session | **note** | The catalog item kind (a named workout) folds into note kinds. The execution-log **Session** — a recorded run — keeps the name; it is a different concept. |
+| post | **note** | The dated catalog item kind folds into note kinds; the date is an attribute of the note. |
+| item | **note** | A source item is a note. |
+| seed (source sense) | **feed** | The configured source. "Seed" survives only as the published artifact (manifest + chunks) and its per-row provenance stamps. |
+
+"Seed" has one more unrelated sense that this rename does not touch: the calc layer's
+base calculations (`packages/lang/src/analytics/calc/seeds.ts`).
+
 ### Identity & result recording
 
 **Note Identity (NoteRef)**:
@@ -427,47 +544,19 @@ A content-stable identity for a **Block** — a hash of its normalized fenced co
 _Avoid_: content hash (implementation detail), stable id (ambiguous).
 `src/components/Editor/utils/sectionParser.ts` — `blockContentId`.
 
-**Catalog**:
-Bundled, read-only workout seed-data a user loads into their own notes. A block cloned from a Catalog shares its **Block Content Id** with the source (identical content → identical hash), so the same workout run across different notes and days is one identity, not many. A Catalog exposes two flavors of item: **Session** (named, carrying a derived first-published date — e.g. "Fran" inside the "CrossFit Girls" Catalog) and **Post** (dated, e.g. "2026-01-15 Morining" inside the dated posts Catalog). Distinct from a **Note**, which the user owns and edits.
-_Avoid_: bundle, library, pack, collection (legacy), feed (legacy).
-
-**Library**:
-The unified `/library` route that lists **Entries** across all three kinds (Notes + Sessions + Posts) in a single date-windowed surface built on the Journal's layout, with a search panel that exposes source toggles, free-text, and the full WQL composer. **Replaces the three LIST routes** (`/journal`, `/collections`, `/feeds`) — the Library becomes the single entry point for browsing your training. The deep detail routes (`/journal/:date`, `/journal/:date/:uuid`, `/journal/:identity`, `/collections/:cat`, `/collections/:cat/:workout`, `/feeds/:feedSlug`, `/feeds/:feedSlug/:date/:item`) **survive unchanged** as direct links into a specific Entry; the Library's *Open* row action routes Notes to `/journal/:date`, Sessions to `/collections/:cat/:workout`, Posts to `/feeds/:feedSlug/:date/:item`. Nav label and document title: `Library` (`Wod.Wiki - Library`).
-_Avoid_: content library, library page.
-
-**Entry**:
-One row in the Library — the unified concept that abstracts a journal **Note**, a Catalog **Session**, and a Catalog **Post**. Identity = `{ source.catalog, source.item }`; kind = `Note | Session | Post`; carries title, optional **Date**, **Block Content Id**, and row actions (Open / Add to today / Run / Compare). A workout that exists in multiple sources lists as one Entry per source (a Session and a Post on the same date are two distinct Entries).
-_Avoid_: content item, library row, search result.
-
-**Playground Entry**:
-A user-owned **Note** for trying or running a workout outside the Journal, discoverable in the **Library** through `source:playground`.
-Every explicit Run (and Reset) creates a FRESH immutable snapshot entry named `<page> <section> <timestamp>` — created before execution, never updated in place — so each run's results join their own note forever; encoded shared workouts still import one without automatically running it.
-Moving it to a Journal date preserves its **UUID**, **Block Content Id** references, attachments, and recorded results rather than cloning and deleting it.
-_Avoid_: temporary workout, demo result, scratch copy (implies disposable data).
-
 **Homepage Run Flow**:
 The home page's walkthrough: the run document is ONE shared doc state shown in TWO desktop displays — a normal-flow hero view (tagline heading + live editor + Run/Share at first paint, scrolled out completely before the write track pins) and the write section's sticky editor pane, which follows the same tagline-header + sticky-runway pattern as the other tagged sections (Write it in Markdown / Run it as a Timer / Own the Metrics / Explore your analytics); on mobile the hero (heading + first editor display) is normal flow first, then each chapter owns its own bounded sticky window — TaglineHeader + a 40vh sticky track per section. Stages are INLINE — editor → timer → session table → dashboard — with no fullscreen overlay on any form factor.
 A run identity comes from `usePlaygroundRun`: dwelling at the timer stages auto-starts ONCE per identity (backward scroll never re-runs, blowing past never starts a hidden run); the Stop button, metrics-stage arrival, or scrolling out of the run stages finalizes the partial exactly once against the run's note; the metrics section then answers from that note (a `note:<id>`-scoped WQL table defaulting to elapsed per effort, an independent sample dataset, and a top-floating revert-to-session) and the explore section loads real seeded boards through the production dashboard renderer.
 _Avoid_: demo mode (the autostarted run is a real persisted run), ambient runtime (pre-inline term), fullscreen playground (removed surface), pinned hero rail (the hero is its own scrolling view; the caption rail never carries it).
 
-**Entry Feed**:
-The rich-preview presentation of a **Library** query, alongside Cards and Rows, with actions to open or run an **Entry** without embedding a live editor in every preview.
-Presentation changes preserve WQL, ordering, and grouping; scrolling never silently widens an explicit query time range.
-_Avoid_: feed source (a Catalog **Post** source, not a presentation).
-
-**Session**:
-One named workout inside a Catalog — a hard-set workout you can clone into your own journal (e.g. "Fran" in "CrossFit Girls"). Source: `{ catalog: <catalog id>, item: <session id> }`. Carries a **derived date** (first published — when its source markdown entered the catalog), not a user-chosen one; time windows treat Sessions as ordinary dated content. An Add-to-today row action clones it into today's journal Note.
-_Avoid_: collection item (legacy), feed item (legacy), drill, standard, prescription.
-
-**Post**:
-One dated workout entry inside the dated posts Catalog (e.g. "2026-01-15 Morining"). Source: `{ catalog: <YYYY-MM-DD>, item: <post id> }`. Carries a Date. Distinct from a **Session** by posting-context, not by datedness: a Post's date is editorial (when it was written), a Session's is derived (when it first appeared in the catalog).
-_Avoid_: feed item (legacy), post item.
+**Rich Preview**:
+The preview presentation of a **Library List** query, alongside Cards and Rows, with actions to open or run a **Note** without embedding a live editor in every preview.
+Presentation changes preserve WQL, ordering, and grouping; scrolling never silently widens an explicit query time range. The layout key in code is still `feed` (`LayoutMode`) — a code identifier, not a domain word; the domain word for the source is **feed**.
+_Avoid_: feed source (the source, not a presentation).
 
 **Grouping**:
-A bundled markdown directory of workout items under one slug
-(`markdown/collections/{slug}/` or `markdown/feeds/{slug}/`), loaded by
-`src/repositories/script-groupings.ts`. A **Catalog** is a Grouping whose items carry either named sessions (Collections) or dated posts (Feeds); the two flavors share the Grouping machinery but diverge in item shape and sort order. The public adapters (`script-collections.ts`, `script-feeds.ts`) own item shape and sort order; the Grouping module owns file discovery and display-name derivation.
-_Avoid_: loader, bundle directory.
+A publisher-side markdown directory of workout items under one slug — today `markdown/collections/{slug}/` or `markdown/feeds/{slug}/`, canonically `markdown/notebooks/{slug}/`. It is a corpus-layout term, not an app concept: the app sees the notebooks a **feed** publishes, never the directory behind them. The public adapters (`script-collections.ts`, `script-feeds.ts`) own item shape and sort order; the grouping builder owns file discovery and display-name derivation.
+_Avoid_: loader, bundle directory, notebook (the app-side container).
 
 **Result Recorder**:
 The single seam for persisting a **WorkoutResult**. Owns identity resolution (noteId from a **Note Identity**, blockContentId from the run block, sectionId resolved against the destination note's blocks) and the write — replacing the per-page ad-hoc `saveResult` / `mutateNote` calls that each re-derived identity from scratch. Built by `createResultRecorder(sink)` (testable with an in-memory sink); `playgroundRecorder` is the production instance over the **Storage** `results` store. Lives in the library: its ports (`INotePersistence`, storage types) are library-level and the **Workbench Session** (also library) routes through it — playground is a consumer.
@@ -475,21 +564,21 @@ _Avoid_: result service, result saver (too generic).
 `src/services/resultRecorder.ts`.
 
 **WQL Composer Panel**:
-The Library's sticky search header (component `WqlComposerPanel`) that composes a WQL query from three categories of controls: (a) three **Source Tri-State Toggles** (Note / Session / Post), each cycling `neutral → include-only → hide → neutral` with **at most one source in `include-only` at a time**; (b) a free-text input that emits `{text:<q>}` substring filter; (c) a Datadog-style time-range selector (presets `last 1d / 3d / 1w / 2w / 4w / 12w / 26w / 52w` plus a **Custom** range). Plus an `+ Add filter` menu that emits additional WQL filter chips (catalog, tag, effort, discipline). The panel renders a live preview of the resulting WQL string. The hand-edited raw composer is a separate, debug-gated field; when visible (under `useDebugMode()`), it round-trips with the panel state — the WQL string is parsed back into the toggles, time range, and filter chips on every edit, and any toggle edit re-emits the string. Distinct from the Analytics Explorer's existing `parseQuery` editor — the panel is content-query-only.
+The composer's control surface for a content query. It combines a source-scope control (one of the storage scopes in `WQL_SOURCE_VALUES` — `journal`, `feeds`, `guides`, `playground`, `dashboards`, `efforts`, `equipment`), a free-text input that emits `{text:<q>}` substring filter, and a Datadog-style time-range selector (presets `last 1d / 3d / 1w / 2w / 4w / 12w / 26w / 52w` plus a **Custom** range). An `+ Add filter` menu emits the content filter chips of the plane — `notebook:`, `tags:`, `effort:`, `discipline:`. The panel renders a live preview of the resulting WQL string. The hand-edited raw composer is a separate, debug-gated field; when visible (under `useDebugMode()`), it round-trips with the panel state — the WQL string is parsed back into the controls on every edit, and any control edit re-emits the string. Distinct from the Analytics Explorer's existing `parseQuery` editor — the panel is content-query-only.
 _Avoid_: search box, query input, filter bar.
 
 **WQL Source Filter**:
-The `source:` filter key in content-discovery WQL (e.g. `find:block{!source:feed} in all`), introduced for the **WQL Composer Panel**. Values: `journal`, `collection`, `feed`, or a specific catalog id (`collection:crossfit-girls`, `feed:crossfit-programming`). Maps onto the existing `sourceId` field on **Note** and **BlockIndexRow** rows. Negation (`!source:feed`) excludes that source from the result set. Distinct from `in <scope>`, which picks a *primary* scope; the source filter is a *fine-grained* inclusion/exclusion layered on top. The two compose: e.g. `find:block{!source:feed} in journal` means "look in journal, then drop anything tagged feed". Wired through `QueryService.runFind` and `runFindBlock` (which today already key off `sourceId.startsWith('collection:' / 'feed:')`).
-_Avoid_: catalog filter (the source filter *subsumes* catalog filtering — `source:collection:crossfit-girls` is the form), tag-source.
+The `source:` filter key in content-discovery WQL (e.g. `find:block{!source:feeds} in all`). Values are the storage scopes (`WQL_SOURCE_VALUES` in `packages/wql/src/vocabulary.ts`) plus the id-scoped forms `notebook:<slug>` (one notebook) and `feed:<slug>` (one feed's notes). Maps onto the `sourceId` field on **Note** and **BlockIndexRow** rows; negation (`!source:feeds`) excludes that scope from the result set. Distinct from `in <scope>`, which picks a *primary* scope; the source filter is a *fine-grained* inclusion/exclusion layered on top. The two compose: e.g. `find:block{!source:feeds} in journal` means "look in journal, then drop everything that is not journal-owned". Wired through `QueryService.runFind` and `runFindBlock`. The `catalog:` filter key is the retired spelling of `notebook:`; the `collection:` / `feed:` prefixes still ride on the stored `sourceId` values.
+_Avoid_: catalog filter (use `notebook:`), tag-source.
 
 **WQL Time Range Parameter**:
 The structured `{start, end}` time window passed alongside a WQL string to the **Query Service** (rather than embedded in the WQL as `last <n>w` / `from <date> to <date>`). The grammar accepts only relative `last <n>w|d`; the panel's **Custom** range produces absolute dates, which are passed as the structured parameter and combined with the WQL's scope/filter clauses. The WQL string the panel composes is a *partial* query (scope + filters); the host that calls the query service merges in the time range from the parameter. Presets are computed client-side and passed identically.
 _Avoid_: embedded time range (the parameter is the form; `last <n>w` is only a shortcut that the parser expands).
 
-A block cloned from a **Catalog** (Session or Post) shares its **Block Content Id** with the
+A block cloned from a **Notebook** note shares its **Block Content Id** with the
 source, so results for the same workout aggregate across notes by content id.
 
-- An **Entry**'s `source` identifies the catalog it belongs to — `{ catalog: <catalog id>, item: <item id> }`. A Journal note's Entry uses `catalog: 'journal'`; a Post uses `catalog: <YYYY-MM-DD>`. Two Entries share a **Block Content Id** when they reference the same workout across different sources; the Library does NOT dedupe across sources.
+- A **Note**'s `source` identifies the notebook it belongs to — `{ notebook: <notebook id>, item: <item id> }` in a library row. A journal note's row uses `notebook: 'journal'`; a feed-delivered note uses its notebook slug. Two rows share a **Block Content Id** when they reference the same workout across different notebooks; the library list does NOT dedupe across notebooks.
 - A **Statement** owns many **Metrics**; each Metric has exactly one **Origin**.
 - An **Origin** maps to exactly one **Ownership Layer**.
 - A **Dialect** emits **Hint** Metrics (and domain Metrics) onto a **Statement**.
@@ -500,7 +589,7 @@ source, so results for the same workout aggregate across notes by content id.
   applies it; the **Dialect Stack** composes these sets in order (later wins).
 - The parser is **Unit**-free: it emits bare Number + Text; **Fusion** (a Dialect
   concern) turns them into dimensioned Metrics.
-- A block cloned from a **Collection** shares its **Block Content Id** with the
+- A block cloned from a **Notebook** note shares its **Block Content Id** with the
   source, so results for the same workout aggregate across notes by content id.
 
 ### Canvas & scroll
