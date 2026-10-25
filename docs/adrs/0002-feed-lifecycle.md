@@ -1,48 +1,52 @@
-# ADR 0002: Catalog Source Lifecycle in the App (Consumer Side)
+# ADR 0002: Feed Lifecycle in the App (Consumer Side)
 
 **Status:** Accepted
 **Date:** 2026-10-16
 **Amended:** 2026-10-20 — the unit of sync and subscription is now the
-seed; the monolith `community` source and its per-notebook packages are
-retired.
+published source (the feed); the monolith `community` source and its
+per-notebook packages are retired.
+**Vocabulary:** the configured source is a **feed**; what it publishes is a **seed**
+(manifest + chunks); the container its rows materialize into is a **notebook**. The
+identifiers recorded below keep their pre-rename spellings until the feed-contract
+ticket lands — this ADR records the lifecycle, not the vocabulary.
 
 ## Context
 
-The playground app consumes seed catalogs from three kinds of sources:
-the build-embedded `core` seed, the built-in split content seeds (each an
+The playground app consumes published seeds from three kinds of feeds:
+the build-embedded `core` feed, the built-in split content feeds (each an
 independently published seed directory), and user-added custom seed
-libraries. Every source is a **seed**: one published seed directory with
-one manifest. A seed publishes **notebooks** — one manifest chunk each —
+libraries. Every feed is one published seed directory with
+one manifest. A feed publishes **notebooks** — one manifest chunk each —
 which the library surfaces list individually but which are never synced
-or subscribed on their own. Each source needs a lifecycle that is safe
+or subscribed on their own. Each feed needs a lifecycle that is safe
 with user data: importing must never
 clobber user-authored notes, and removal must never touch anything the
-source does not own. Multi-tab imports need mutual exclusion without a
+feed does not own. Multi-tab imports need mutual exclusion without a
 lock server, and update checks must be cheap enough to run on every page
 load without gating first paint.
 
 ## Decision
 
-**The seed is the unit**: one seed directory = one manifest = one
-checkpoint `seed:<seedId>` = one Subscribe, and Subscribe imports every
-notebook the seed publishes. A notebook is one chunk inside that import
+**The feed is the unit**: one published directory = one manifest = one
+checkpoint `seed:<sourceId>` = one Subscribe, and Subscribe imports every
+notebook the feed publishes. A notebook is one chunk inside that import
 and a listing row in the library surfaces — never a separate sync or
 subscription. The retired model (a monolith `community` source sliced
 into one package source per notebook) survives only as its migration
 path (see *Legacy checkpoint adoption* below).
 
-**Separation of concerns**: the *source registry* (what exists), the
+**Separation of concerns**: the *feed registry* (what exists), the
 *subscription map* (what the user opted into), and the *auto-sync map*
 (what may self-apply) are three independent localStorage documents.
 Subscribing never implies auto-updating; `core` is hardcoded
 always-subscribed and never removable.
 
-**Check vs apply**: every subscribed source's manifest is fetched in a
+**Check vs apply**: every subscribed feed's manifest is fetched in a
 nonblocking background pass on each load (`probeManifests: true` bypasses
 the skip-fetch fast path). Auto-sync ON applies the update; auto-sync OFF
 records a `pending` entry in one grouped `CatalogUpdatesSnapshot`
 surfaced as a single notification with a "Review updates" action to
-`/catalogs?manage=1`.
+`/catalogs?manage=1` (the current notebooks route).
 
 **Exact ownership**: deletion uses the checkpoint's recorded `noteIds`
 and only removes notes still stamped `seedOrigin === 'seed'`, cascading

@@ -2,9 +2,9 @@
 
 Scope: everything under `playground/` — the consumer app that hosts the editor,
 workbench, journal, results UI, cast/sender, and persistence wiring. This is
-*not* the public library; for library concerns, read [`src/CONTEXT.md`](../src/CONTEXT.md).
+*not* the public library; for library concerns, read [`src/CONTEXT.md`](src/CONTEXT.md).
 Domain vocabulary that applies repo-wide lives in the root
-[`CONTEXT.md`](../CONTEXT.md) — read that first.
+[`CONTEXT.md`](../../CONTEXT.md) — read that first.
 
 ## What lives here
 
@@ -20,7 +20,7 @@ Domain vocabulary that applies repo-wide lives in the root
   (`IndexedDBNotePersistence`, `playgroundRecorder`).
 - **Cast / sender** — `playground/src/cast/` and the `getCastBackend()` factory
   (returns the `ChromecastBackend` singleton; every build casts to the hosted receiver app).
-  `LibraryCastBridge` pushes the notebook catalog to the receiver and routes
+  `LibraryCastBridge` pushes the notebook list to the receiver and routes
   the browser on `open-notebook` — cast-and-walk-away entry point.
 - **Running workout** — a run outlives the surface that started it: the runtime
   is **parked** (not disposed) when the journal page unmounts, so the clock
@@ -46,9 +46,11 @@ Domain vocabulary that applies repo-wide lives in the root
 ## Route & query vocabulary (per-page query settings)
 
 - **Stream Route** — a route mounting the shared queriable stream
-  (`/journal`, `/collections`, `/feeds`, `/feed`, `/library`, `/efforts`,
-  `/results`, `/results/segments`, `/results/:resultId`), each backed by a
-  **Stream Profile**.
+  (`/journal`, `/catalogs`, `/feeds`, `/efforts`, `/equipment`, `/sessions`,
+  `/playgrounds`, `/results`, `/results/segments`, `/results/:resultId`),
+  each backed by a **Stream Profile**. The canonical names for what these
+  routes list — notebook, feed, note, page — live in `CONTEXT.md`
+  § Content model; the paths above are the ones the app serves today.
 - **Stream Profile** — the in-code per-route descriptor (`defaultWql`, source
   `typeOptions`, legacy-param salvage) resolved from the pathname
   (`apps/playground/app/views/stream/streamProfile.ts`). Code-owned, read-only
@@ -67,6 +69,9 @@ Domain vocabulary that applies repo-wide lives in the root
   pages, the Metric Explorer and the ⌘/ palette. Detail routes (`/c/:slug`,
   `/session/:date`, `/results/:id`) have none — their defaults stay in code,
   so the keyspace does not grow one entry per item.
+- **Note Row** — one row of a library list: a note (or one of its blocks)
+  rendered for browsing, carrying title, optional date, block content id and
+  the row actions. It is a presentation of a note, never a separate thing.
 - **Query Settings** — the surface's own editor, opened from the page's
   options surface (`QuerySettingsDialog`): the landing default, the scope and
   Group-By favorites, and the saved navigation links.

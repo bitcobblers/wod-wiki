@@ -202,5 +202,6 @@ Use these sections to mark decisions and track consensus.
 * Domain model specifications:
   - `docs/domain-model/Note.md`
   - `docs/domain-model/Page.md`
-  - `docs/domain-model/collection.md`
+  - `docs/domain-model/Notebook.md`
+  - `docs/domain-model/Feed.md`
   - `docs/domain-model/BlockRevision.md`

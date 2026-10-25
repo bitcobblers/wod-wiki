@@ -2,35 +2,33 @@
 tags: [domain-model]
 store: page
 keyPath: "id"
-db: wodwiki-db (v23)
+db: wodwiki-db (v32)
 ---
 
 # Page
 
 > [!info] Review status
-> Current State describes the stored Page; Future State describes recommended page composition for feedback. No new fields, mode rules or ticket resolutions are implemented here. See [[todo#Datatype review guide]].
+> Current State describes the stored Page; Future State describes the placement model and the recommended page composition for feedback. No new fields, mode rules or ticket resolutions are implemented here. See [[todo#Datatype review guide]].
 
 ## Current State (Implemented in Code)
 
 - **Store:** `page`
 - **Key path:** `id` (UUID)
-- **Type source:** `apps/playground/src/types/storage.ts`
-- **Database version:** `wodwiki-db` (v23)
+- **Type source:** `packages/core/src/types/storage.ts`
+- **Database version:** `wodwiki-db` (v32)
 
 ### Domain role (Current)
 
-The stored Page is a grouping/address record for notes, not a content-bearing `Note` row:
+The stored Page is a placement record for notes, not a content-bearing `Note` row and not a second container:
 
 - **Calendar page** — `date` (YYYY-MM-DD) defines the journal-date route; one per journal date.
-- **Custom page** — `slug` defines a named route for a grouped collection of notes.
+- **Custom page** — `slug` defines a named route for a grouped set of notes.
 
-Notes associate with Pages via the [[PageNote]] junction table (`page_notes`). `Page` has no body text, segments, or tags of its own; authored workout logic lives strictly in [[Note]].
+Notes associate with Pages via the [[PageNote]] junction table (`page_notes`). `Page` has no body text, segments, or tags of its own; authored workout logic lives strictly in [[Note]]. A note belongs to one [[Notebook]] — the container that decides where it lives and whether it is editable — while the pages it is attached to decide only where it is *displayed*.
 
-Library note and block results resolve named routes from `Page.slug` through
-`page_notes`. `Entry.pageId` retains the Page UUID; `Entry.pageSlug` supplies
-`/p/:slug`. Membership ordering uses position, then creation time, and skips
-calendar pages when choosing a named route. Notes without a named page open
-at `/notes/:noteId`; result recording keeps that note's UUID.
+Library note and block results resolve named routes from `Page.slug` through `page_notes`. `Entry.pageId` retains one Page UUID and `Entry.pageSlug` supplies `/p/:slug`. Membership ordering uses position, then creation time, and skips calendar pages when choosing a named route. Notes without a named page open at `/notes/:noteId`; result recording keeps that note's UUID.
+
+The junction table is already many-to-many, but the placement model is not finished: the content provider detaches a note from every other page of the same flavor when it attaches it to a destination (`apps/playground/src/services/content/IndexedDBContentProvider.ts`), so in practice a note sits on at most one date page plus one named page. There is no note→pages index and no move operation; both are deliverables of the target model below.
 
 ### Fields (Current)
 
@@ -57,24 +55,63 @@ None.
 
 #### Incoming (referenced by)
 
-- [[PageNote]].`pageId` — membership junction between Page and Note
+- [[PageNote]].`pageId` — placement junction between Page and Note
 - Legacy denormalized `pageId` on child rows ([[Session]], [[Attachment]], [[EventRecord]]) is deprecated; canonical joins and telemetry resolve exclusively through [[Note]].`id`.
 ---
 
 ## Future State (Proposed)
 
+### Placement model
+
+A page is a **placement**, never a second container. The resolved target:
+
+- A note belongs to exactly one [[Notebook]] and is placed on many pages; a page holds notes from one or many notebooks. Pages carry no content of their own — the content is always a note's.
+- **Deliverables:** a note→pages index (so a note can be asked where it is placed) and a move operation (detach from one page, attach to another, preserving position). Without them the many-to-many junction is not usable.
+- The legacy single `pageId` on child rows is not re-copied anywhere; existing copies need a defined update policy when a note moves.
+- Keep journal `Page.date` separate from content creation/import time. Displaying a note on a date does not rewrite its source history.
+- Canonical routes: `/page/{slug}` for one page and `/pages` for the list; a date slice is `/day/{date}`, which addresses the same content as a placement.
+
 ### Recommended composition contract
 
-- A rendered page composes one or more [[Note]]s. Any authored description/configuration belongs to the owning note's `rawContent`, not a duplicate `Page.body` or categories/provenance payload on the grouping row.
-- Keep calendar/custom addressing and existing placement. A note may appear in multiple query-composed pages without acquiring multiple `pageId` values; query inclusion belongs in [[collection]].
+- A rendered page composes one or more [[Note]]s. Any authored description/configuration belongs to the owning note's `rawContent`, not a duplicate `Page.body` or categories/provenance payload on the placement row.
+- A note may appear in multiple query-composed pages without acquiring multiple stored page ids; query inclusion is a **Notebook** concern (see [[Notebook]]).
 - A composed view must retain each note's identity, order and write target. Start with per-note editing; seamless whole-page editing needs transaction-mapped ownership boundaries before it is safe.
-- Do not extend `pageId` copying to more stores merely for reuse. Existing copies need a defined update policy when a note moves; this review does not prescribe an index-drop migration.
-- Keep journal `Page.date` separate from content creation/import time. Displaying a note on a date does not rewrite its source history.
-- **The `/p/:slug` universal page umbrella:** any slug is a page and renders generically at `/p/:slug`. Specialized prefix routes (`/c/:slug` for collections, `/e/:slug` for efforts, `/d/:slug` for dashboards) provide tailored interactions for those slug types, but resolve to the same underlying [[Page]] presentation model.
 - **Navigation identity:** lists retain `noteId` for canonical editing and result ownership, `pageId` for the Page UUID, and `pageSlug` for `/p/:slug` viewing.
 - **Per-note edit boundary preservation:** multi-note pages compose distinct notes rather than concatenating text into a single editable string. Each embedded note maintains its independent `noteId`, versioned segments, and save target.
 
 **Known implementation gap:** the review's isolated `JournalDatePage` slicing reproduction lost a line inserted near a note boundary. That is evidence about its fixed-offset algorithm, not a live browser/persistence test. It blocks extending concatenated editing, not read-only multi-note presentation.
+
+### Notebook page versus notebook
+
+**Proposed distinction:** a notebook page is a [[Page]] presentation configured by an authored [[Note]] containing prose and a WQL listing. A **Notebook** is the container of notes; the query that lists a notebook's notes belongs to the page that shows them, not to the notebook itself. The legacy collection-style adapter is an adapter over the source, not proof that query-page membership should become a stored entity.
+
+### Membership questions and proposed answers
+
+Owner: [Decide collection-page membership: WQL segment vs pageId](https://github.com/bitcobblers/wod-wiki/issues/1031).
+
+- **Live query, stored membership or hybrid?** Recommended answer: live query-derived display. `Note.pageId` remains owned placement, especially journal dates; it does not record all queries that happen to include a note. No membership backfill or second writable list is needed.
+- **Where do non-query segments live?** Recommended answer: ordinary prose/headings/metadata in the configuration note's `rawContent`. Do not add `Page.body`, duplicate category fields, or copy every member's source into the page.
+- **How do feeds fit?** Recommended answer: the same composition with explicit date selection, grouping and ordering. Preserve source/post dates; do not treat a seed-build timestamp as the publication date or rewrite source dates to the journal day.
+- **What WQL behavior is needed?** Use existing `find:note` filters for type/text/content/source/notebook/tags where supported. Require a navigable result preview, empty/error states and deterministic order. Decide exact ordering/limit/date requirements before declaring a grammar extension; this draft does not invent unsupported query syntax.
+- **Does this replace the corpus builder or the `catalog` filter key?** No. Retain current source loading, Library filters and deep links; add query-composed presentation without requiring a Page-store roll-up. The earlier mandatory `kind: collection`/`by-page` migration is not the recommendation.
+- **Feed convergence:** a feed publishes notebooks; a dated container is a notebook whose notes carry a date. Canonical routes: browsing all notebooks lives at `/notebooks`; a notebook landing lives at `/notebook/:slug`; a date-scoped view lives at `/day/:date`; a named workout editor lives at `/notebook/:notebook/:note`. Persisted notes open directly at `/note/:uuid`.
+- **Canonical page routes:** browsing all pages lives at `/pages` (`find:page`); one page lives at `/page/:slug` (a specialized view of the generic page render).
+
+### Ownership and interaction
+
+- Editing the listing query edits the configuration note. Opening a result identifies its owning note; rendering the result does not grant write access to that note.
+- Read presentation may inspect filters and follow results. Source authoring follows **Mode and write destinations** below, including explicit local scratch/copy actions instead of a universal disabled state.
+- Show previews rather than nested editable documents by default. Recursive embedding needs a defined bound/cycle behavior before it is enabled.
+- Counts derive from results; query membership is not copied to tags or relationship rows. [[BlockIndexRow]] owns derived-search identity and deletion consistency.
+
+### Remaining feedback
+
+- Which date is used for each source, how are undated notes handled, and what deterministic tie-breaker/order should a dated page use?
+- Do any notebooks need manual curation or pinned order, rather than a live query? That concrete requirement would justify revisiting membership, not prebuilding a hybrid.
+- Should embedded results be links, summaries or expanded read-only content? Define recursion/expansion limits if expanded content is required.
+- Which sort/limit/date operations are missing in the actual query path? Verify against a representative listing before extending WQL.
+
+**Feedback case:** the same dated source note appears in two notebooks and is copied into today's journal. Both listings retain its source identity/date; the journal copy owns its edits/results. A feed scratch persists without modifying the bundled note.
 
 ### Mode and write destinations
 
@@ -117,11 +154,11 @@ Recommended answer: judge completeness against the datatype contracts, then asse
 - Can two journal notes be edited/reordered and reopened without crossing text, result or attachment ownership?
 - Can a syntax example run/reset locally while teaching source stays unchanged, including mobile, keyboard and reduced-motion behavior?
 - Do identical query widgets retain distinct edit targets and reject stale saves without losing drafts?
-- Can collections show empty/error results, navigate to a note and prevent recursive embedding without altering Library deep links?
+- Can notebooks show empty/error results, navigate to a note and prevent recursive embedding without altering Library deep links?
 
 ### Source evidence
 
-- [Page schema](../../apps/playground/src/types/storage.ts); [journal composition](../../apps/playground/app/pages/JournalDatePage.tsx).
+- [Page schema](../../packages/core/src/types/storage.ts); [page↔note junction](../../apps/playground/src/services/storage/StorageService.ts) (`addNoteToPage`, `removeNoteFromPage`, `getNotePages`); [journal composition](../../apps/playground/app/pages/JournalDatePage.tsx).
 - [Responsive actions](../../apps/playground/app/nav/ResponsiveActions.tsx); [example host](../../apps/playground/app/components/organisms/editor/EditorWindow.tsx); [dashboard model](../../packages/wql/src/dashboard/model.ts).
 
 ## Map

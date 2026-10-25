@@ -9,8 +9,9 @@ the surface they're about to touch.
 
 - [`CONTEXT.md`](./CONTEXT.md) — shared glossary: Statement, Metric, Origin,
   Unit, Dimension, Unit Registry, Fusion, Block Dialect, Behavior, Strategy,
-  Block, Note Identity, Block Content Id, Collection, Result Recorder,
-  Workbench Session, Workbench Effect, etc. **Read first.**
+  Block, Notebook, Feed, Note, Page, Library List, Session, Note Identity,
+  Block Content Id, Result Recorder, Workbench Session, Workbench Effect,
+  etc. **Read first.**
 
 ## Contexts
 

@@ -1,0 +1,89 @@
+---
+tags: [domain-model]
+store: none (derived — notes.notebookId + notebook: tag)
+source: markdown/notebooks/ (canonical corpus layout)
+---
+
+# Notebook
+
+> [!info] Review status
+> Current State documents how notebooks exist in code today — derived from the note row, never their own table. Future State records the resolved target vocabulary: the notebook is the one container of notes, published by a feed. This document changes no runtime behavior. See [[todo#Datatype review guide]].
+
+## Current State (Implemented in Code)
+
+- **Store:** none — derived. A note names its notebook through the `notes.notebookId` column or a `notebook:` tag; `notebookOfItem` in `packages/wql/src/QueryService.ts` resolves either, plus the source-derived defaults.
+- **Identity:** `notebook/{slug}` (`packages/core/src/types/notebook.ts`); the predefined notebooks are `notebook/journal`, `notebook/playground` and `notebook/guides` (`DEFAULT_NOTEBOOK_SLUGS`).
+- **Type source:** `packages/core/src/types/notebook.ts` (`Notebook` shape — a shape only; no store holds a notebook row).
+- **Seed-delivered notebooks:** one per seed chunk — `NOTEBOOKS` in `apps/playground/src/services/seed/seedSources.ts` maps each chunk id to a notebook slug, label and description.
+- **Editability today:** decided per row, not per notebook — `isNoteEditable` (`packages/core/src/types/notebook.ts`) treats `seedOrigin === 'seed'` as read-only.
+- **WQL:** `:notebook{}` / `:notebooks{}` are source-scoped note heads bound to the `feeds` storage scope (`packages/wql/src/vocabulary.ts`); `notebook:<slug>` is the content filter key that pins one notebook.
+- **Routes today:** the notebook list renders at `/catalogs` and a notebook landing at `/c/:slug` (`apps/playground/app/lib/routes.ts`) — legacy paths the canonical vocabulary replaces with `/notebooks` and `/notebook/{slug}`.
+
+### Corpus layout (Current)
+
+A notebook's content comes from one publisher-side directory under one slug
+(`markdown/collections/{slug}/` today, canonically `markdown/notebooks/{slug}/`):
+
+| Knob | Where | Effect |
+|------|-------|--------|
+| Directory name | `markdown/collections/{dir}/` | The notebook's slug, and its id in the seed registry |
+| Member files | `{dir}/{file}.md` | One note per file (except `README.md`) |
+| `README.md` frontmatter `category` | `{dir}/README.md` | The notebook's categories (the only README field parsed) |
+| `README.md` body | `{dir}/README.md` | The notebook's description prose |
+
+The grouping builder (`apps/playground/src/repositories/groupings.ts`) owns file
+discovery and display-name derivation; the public adapters
+(`script-collections.ts`, `script-feeds.ts`) own item shape and sort order.
+
+### Legacy spellings still in the code (Current)
+
+The rename is not applied yet — these identifiers still say `collection`/`feed`
+while the concept is a notebook:
+
+| Spelling | Where | Means |
+|---|---|---|
+| `collection.<slug>` / `feed.<slug>` chunk ids | `packages/tools/src/seedbuild/compiler.ts` | one notebook's chunk |
+| `collection:` / `feed:` `sourceId` prefixes | seed-imported notes | which notebook a note came from |
+| `catalog` field on a note | `packages/core/src/types/storage.ts` | the notebook's directory slug |
+| `/catalogs`, `/c/:slug`, `/feeds`, `/feeds/:feedSlug` | `apps/playground/app/lib/routes.ts` | the notebook list and notebook landings |
+
+### Fields (Current)
+
+| Field | Type | Notes |
+|---|---|---|
+| `notes.notebookId` | `notebook/{string}` | Optional; the canonical container id on the note row |
+| tag `notebook:{slug}` | string | Tag form of the same id (`NOTEBOOK_TAG_PREFIX`) |
+| `origin` (`Notebook`) | `'default' \| 'user' \| 'seed'` | Predefined, user-created, or seed-delivered |
+| `sourceEntryId` (`Notebook`) | string | The registry entry of the feed that publishes the notebook |
+| `seedChunkId` (`Notebook`) | string | The seed chunk the notebook was imported from |
+
+### Relationships (Current)
+
+#### Outgoing (this concept references)
+
+- `notes.notebookId` → [[Note]] — the note's owning container
+- seed chunk id → the feed artifact the notebook was imported from
+
+#### Incoming (referenced by)
+
+- none — a notebook is resolved from its notes and from the seed registry, never joined from a stored row
+
+---
+
+## Future State (Proposed)
+
+- **One container vocabulary.** The notebook is the only container of notes. A **feed** publishes notebooks; a **note** is an entry; a **page** is a placement of notes (see [[Feed]], [[Note]], [[Page]]).
+- **Dated containers become notebooks.** What today ships as a dated "collection" or "feed" container is a notebook whose notes carry a date.
+- **Editability follows notebook ownership.** Feed-subscribed notebooks are read-only; the journal, the playground and the starter-notes notebook are user-owned.
+- **`notebook/defaults` replaces the `template` note kind.** It holds the user's starter notes, and any notebook can be cloned from.
+- **Definitions arrive as notes.** Effort and equipment definitions are markdown delivered by a feed, imported as notes and indexed on import for search, autocomplete, and parser/compiler resolution; import and export round-trip markdown.
+- **Pages become placements.** A note is placed on many pages and a page holds many notes; the note→pages index and a move operation are later deliverables (see [[Page]]).
+- **Corpus layout.** The publisher's `markdown/collections/` and `markdown/feeds/` directories become `markdown/notebooks/` — a corpus-side rename, not an app concept.
+
+## Source evidence
+
+- [Notebook types](../../packages/core/src/types/notebook.ts); [notebook resolution](../../packages/wql/src/QueryService.ts) (`notebookOfItem`); [notebook registry](../../apps/playground/src/services/seed/seedSources.ts) (`NOTEBOOKS`); [route table](../../apps/playground/app/lib/routes.ts).
+
+## Map
+
+![[domain-model.canvas]]
