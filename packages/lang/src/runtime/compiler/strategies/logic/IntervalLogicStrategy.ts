@@ -43,7 +43,28 @@ export class IntervalLogicStrategy implements IRuntimeBlockStrategy {
                 && typeof f.value === 'string'
                 && f.value.toLowerCase() === 'emom'
         ));
-        return hasTimer && (isInterval || hasEmomAction);
+
+        // An AMRAP-identified group ("20:00 (AMRAP)" parses as duration +
+        // Rounds('AMRAP') + repeating-interval hint) is time-capped, not
+        // interval-paced. Composing the EMOM chassis on top of the AMRAP
+        // chassis overrides complete-on-expiry with reset-interval and an
+        // arbitrary default round count, so the block can never finish.
+        const isAmrapIdentified = statements.some(s => hasHint(s, CONSUMED_HINTS.LABEL_AMRAP)
+            || s.metrics.some(f => f.type === MetricType.Rounds && typeof f.value === 'string'
+                && f.value.toLowerCase() === 'amrap')
+        );
+
+        // A TABATA-labelled work phase nested under a Rounds parent is not a
+        // self-contained EMOM. Without its own interval count, the EMOM
+        // chassis invents a default total and starves the parent's rounds.
+        const isTabataIdentified = statements.some(s => hasHint(s, CONSUMED_HINTS.LABEL_TABATA)
+            || s.metrics.some(f => f.type === MetricType.Effort && typeof f.value === 'string'
+                && f.value.toLowerCase() === 'tabata'));
+        const hasIntervalCount = hasEmomAction
+            || statements.some(s => s.metrics.some(f => f.type === MetricType.Rounds));
+
+        return hasTimer && (isInterval || hasEmomAction) && !isAmrapIdentified
+            && (!isTabataIdentified || hasIntervalCount);
     }
 
     apply(builder: BlockBuilder, statements: ICodeStatement[], runtime: IRuntimeContext): void {

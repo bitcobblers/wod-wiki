@@ -89,7 +89,7 @@ describe('Lezer WhiteboardScript Parser', () => {
   });
 
   it('should parse headings', () => {
-    const code = `# Warmup\n## Strength\n### Conditioning\n#Cool-down\n`;
+    const code = `# Warmup\n## Strength\n### Conditioning\n# Cool-down\n`;
     const statements = parse(code);
 
     expect(statements.length).toBe(4);

@@ -16,16 +16,25 @@
  * Usage: bun tests/run-isolated.ts <dir> [--preload <file>]
  */
 import { Glob } from 'bun';
-import { resolve } from 'path';
+import { resolve, sep } from 'path';
 import os from 'os';
 
 const args = process.argv.slice(2);
 let preload = './tests/unit-setup.ts';
+let maxWorkers = 16;
 let dirs: string[] = [];
+const excludes: string[] = [];
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--preload' && i + 1 < args.length) {
     preload = args[i + 1];
+    i++;
+  } else if (args[i] === '--workers' && i + 1 < args.length) {
+    maxWorkers = Number(args[i + 1]);
+    if (!Number.isInteger(maxWorkers) || maxWorkers < 1) throw new Error('--workers must be a positive integer');
+    i++;
+  } else if (args[i] === '--exclude' && i + 1 < args.length) {
+    excludes.push(args[i + 1]);
     i++;
   } else if (!args[i].startsWith('--')) {
     dirs.push(args[i]);
@@ -40,14 +49,17 @@ for (const targetDir of dirs) {
     filesSet.add(f);
   }
 }
-const files = Array.from(filesSet).sort();
+const excludedPaths = excludes.map(exclude => resolve(exclude));
+const files = Array.from(filesSet)
+  .filter(file => !excludedPaths.some(exclude => file === exclude || file.startsWith(exclude + sep)))
+  .sort();
 
 if (files.length === 0) {
   console.error(`No test files found under ${dirs.join(', ')}`);
   process.exit(1);
 }
 
-const concurrency = Math.max(2, Math.min(16, os.cpus().length || 4));
+const concurrency = Math.max(1, Math.min(maxWorkers, os.cpus().length || 4));
 console.log(`Running ${files.length} test file(s) in isolated processes (${concurrency} parallel workers, preload: ${preload})\n`);
 
 let totalPass = 0;

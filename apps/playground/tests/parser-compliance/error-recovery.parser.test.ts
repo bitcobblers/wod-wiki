@@ -119,10 +119,15 @@ describe('🟢 Parser: Spacing Between Statements', () => {
 // ── Special Characters in Exercise Names ──────────────────────────
 
 describe('🟢 Parser: Special Characters in Names', () => {
-    it('"5 Pushups (strict)" → handles parenthetical in name', () => {
+    it('"5 Pushups (strict)" → parenthetical lexes as named rounds, split parent/child', () => {
         const result = parse('5 Pushups (strict)');
-        result.hasStatementCount(1).hasNoErrors();
-        result.root(0).hasMetric(MetricType.Rep);
+        // (strict) is a named rounds specifier — like (EMOM) — so the line
+        // becomes a rounds+rep parent with the effort on the exercise child.
+        result.hasStatementCount(2).hasNoErrors();
+        result.root(0)
+            .hasMetric(MetricType.Rep)
+            .hasMetricValue(MetricType.Rounds, 'strict');
+        result.root(0).children()[0].hasMetric(MetricType.Effort);
     });
 
     it('"10 Clean & Jerk" → handles ampersand in name', () => {
@@ -167,7 +172,12 @@ describe('🟢 Parser: Single Round Schemes', () => {
 
     it('"(5) 10 Pushups" → rounds + rep scheme', () => {
         const result = parse('(5) 10 Pushups');
-        result.hasStatementCount(1).hasNoErrors();
+        // (N) M is equivalent to NxM: rounds+rep parent, effort child.
+        result.hasStatementCount(2).hasNoErrors();
+        result.root(0)
+            .hasMetricValue(MetricType.Rounds, 5)
+            .hasMetricValue(MetricType.Rep, 10);
+        result.root(0).children()[0].hasMetric(MetricType.Effort);
     });
 });
 

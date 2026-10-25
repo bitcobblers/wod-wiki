@@ -35,21 +35,25 @@ describe('🟢 Parser: Full Dialect Stack', () => {
             .hasMetricValue(MetricType.Effort, 'Pullups');
     });
 
-    it('"Strength\\n  5x5 Back Squat @ 225 lb" → strength hint + resistance on child', () => {
+    it('"Strength\\n  5x5 Back Squat @ 225 lb" → strength hint, scheme parent, load child', () => {
         const tree = parse('Strength\n  5x5 Back Squat @ 225 lb');
-        tree.hasStatementCount(2);
+        // Strength heading + inline NxM split (rounds parent → exercise child).
+        tree.hasStatementCount(3);
 
         tree.roots()[0]
             .hasHint('domain.wod')
             .hasHint('workout.strength')
             .hasHint('behavior.load_bearing');
 
-        // Child has the actual effort + resistance
-        const child = tree.roots()[0].children()[0];
-        child
-            .hasMetric(MetricType.Rep)
-            .hasMetric(MetricType.Resistance)
-            .hasMetric(MetricType.Effort);
+        // The scheme parent carries Rounds+Rep; the exercise child carries
+        // the actual effort + resistance.
+        const scheme = tree.roots()[0].children()[0];
+        scheme
+            .hasMetric(MetricType.Rounds)
+            .hasMetric(MetricType.Rep);
+        scheme.children()[0]
+            .hasMetric(MetricType.Effort)
+            .hasMetric(MetricType.Resistance);
     });
 
     it('"AMRAP 20 mins\\n  400m Run\\n  10 Pullups" → amrap + cardio on child', () => {
@@ -104,13 +108,17 @@ describe('🟢 Parser: Selective Dialect Stacks', () => {
     });
 
     it('empty dialects: no hints on anything', () => {
-        parse('Strength 5x5 Back Squat @ 225 lb', { dialects: [] })
-            .roots()[0]
-                .hasMetric(MetricType.Rep)
-                .hasMetric(MetricType.Effort)
-                .hasMetric(MetricType.Resistance)
-                .lacksHint('domain.wod')
-                .lacksHint('workout.strength');
+        const tree = parse('Strength 5x5 Back Squat @ 225 lb', { dialects: [] });
+        tree.hasStatementCount(2);
+        tree.roots()[0]
+            .hasMetric(MetricType.Rep)
+            .lacksHint('domain.wod')
+            .lacksHint('workout.strength');
+        tree.roots()[0].children()[0]
+            .hasMetric(MetricType.Effort)
+            .hasMetric(MetricType.Resistance)
+            .lacksHint('domain.wod')
+            .lacksHint('workout.strength');
     });
 });
 

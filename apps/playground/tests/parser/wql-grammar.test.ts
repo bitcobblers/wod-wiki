@@ -13,7 +13,7 @@
  *      tree, and marks the damage with error nodes so parseQuery can reject.
  */
 import { describe, it, expect } from 'bun:test';
-import type { Tree } from '@lezer/common';
+import type { SyntaxNode, Tree } from '@lezer/common';
 import { wqlParser as parser } from '@bitcobblers/wod-wiki-engine';
 
 const parse = (source: string): Tree => parser.parse(source);
@@ -26,6 +26,26 @@ function errorSpans(tree: Tree, source: string): string[] {
     },
   });
   return spans;
+}
+
+/** Recovered subtree text, or null when the node is absent. */
+function text(source: string, node: SyntaxNode | null | undefined): string | null {
+  return node ? source.slice(node.from, node.to) : null;
+}
+
+/** The mapper's walk (queryStageNode in packages/wql/src/wql.ts):
+ *  a single query wraps its stage as Query → Single → Stage. */
+function queryStage(top: SyntaxNode): SyntaxNode | null {
+  return top.getChild('Single')?.getChild('Stage') ?? top.getChild('Stage') ?? null;
+}
+
+function filterValues(source: string): (string | null)[] {
+  const filters = queryStage(parse(source).topNode)?.getChild('Filters');
+  return filters?.getChildren('Filter').flatMap(filter =>
+    filter.getChildren('TagValue').flatMap(tag =>
+      tag.getChildren('Value').map(value => text(source, value)),
+    ),
+  ) ?? [];
 }
 
 describe('wql.grammar', () => {
@@ -56,26 +76,30 @@ describe('wql.grammar', () => {
 
     it('exposes the structural nodes the AST mapper walks', () => {
       const source = 'sum:totalVolume{discipline:strength,!effort:burpee} by {week,effort}.rollup(1w)';
-      expect(parse(source).toString()).toBe(
-        'Query(' +
-          'Head(Aggregator(Word),Metric(Word)),' +
-          'Filters(Filter(TagKey(Word),TagValue(Value(Word))),Filter(Negate,TagKey(Word),TagValue(Value(Word)))),' +
-          'GroupBy(By,Dimension(Word),Dimension(Word)),' +
-          'Rollup(RollupDot,Int,Word)' +
-        ')',
-      );
+      const tree = parse(source);
+      // A single query wraps its stage: GroupBy/Rollup are siblings of Stage
+      // under Single, not children of Query.
+      // Node access along the mapper's walk (queryStageNode in src/wql.ts).
+      const single = tree.topNode.getChild('Single');
+      const stage = queryStage(tree.topNode);
+      const head = stage?.getChild('Head');
+      expect(head?.name).toBe('Head');
+      expect(text(source, head?.getChild('Aggregator'))).toBe('sum');
+      expect(text(source, head?.getChild('Metric'))).toBe('totalVolume');
+      expect(text(source, single?.getChild('GroupBy')?.getChild('Dimension'))).toBe('week');
+      // `.rollup(1w)` splits lexically into the magnitude and the unit word.
+      const rollup = single?.getChild('Rollup');
+      expect(text(source, rollup?.getChild('Int'))).toBe('1');
+      expect(text(source, rollup?.getChild('Word'))).toBe('w');
     });
 
     it('exposes repeated TagValue words for multi-value filters', () => {
-      expect(parse('sum:totalVolume{note:a|b|c}').toString()).toBe(
-        'Query(Head(Aggregator(Word),Metric(Word)),Filters(Filter(TagKey(Word),TagValue(Value(Word),Value(Word),Value(Word)))))',
-      );
-      expect(parse('max:tis{effort:back*|squat*}').toString()).toBe(
-        'Query(Head(Aggregator(Word),Metric(Word)),Filters(Filter(TagKey(Word),TagValue(Value(Word,Star),Value(Word,Star)))))',
-      );
-      expect(parse('sum:totalVolume{!effort:thruster|burpee}').toString()).toBe(
-        'Query(Head(Aggregator(Word),Metric(Word)),Filters(Filter(Negate,TagKey(Word),TagValue(Value(Word),Value(Word)))))',
-      );
+      expect(filterValues('sum:totalVolume{note:a|b|c}')).toEqual(['a', 'b', 'c']);
+      expect(filterValues('max:tis{effort:back*|squat*}')).toEqual(['back*', 'squat*']);
+      expect(filterValues('sum:totalVolume{!effort:thruster|burpee}')).toEqual(['thruster', 'burpee']);
+      const filter = queryStage(parse('sum:totalVolume{!effort:thruster|burpee}').topNode)
+        ?.getChild('Filters')?.getChild('Filter');
+      expect(filter?.getChild('Negate')).not.toBeNull();
     });
   });
 
@@ -101,9 +125,15 @@ describe('wql.grammar', () => {
 
   describe('error recovery', () => {
     it('recovers from garbage with error nodes, never throwing', () => {
-      const tree = parse('not a query');
+      const source = 'not a query';
+      const tree = parse(source);
       expect(tree.topNode.name).toBe('Query');
-      expect(errorSpans(tree, 'not a query').length).toBeGreaterThan(0);
+      expect(errorSpans(tree, source).length).toBeGreaterThan(0);
+      // Recovery salvages the leading word as a legacy `word:` head; only the
+      // stray trailing words are marked erroneous.
+      const head = queryStage(tree.topNode)?.getChild('Head');
+      expect(text(source, head?.getChild('Aggregator'))).toBe('not');
+      expect(errorSpans(tree, source)).toEqual(['a', 'query']);
     });
 
     it('marks an empty document as erroneous', () => {
@@ -114,16 +144,20 @@ describe('wql.grammar', () => {
       const source = 'sum:tis{effort:thruster, !!!} by {week}';
       const tree = parse(source);
       expect(errorSpans(tree, source).length).toBeGreaterThan(0);
-      // The head and group-by survive intact around the broken filter.
-      expect(tree.topNode.getChild('Head')?.name).toBe('Head');
-      expect(tree.topNode.getChild('GroupBy')?.name).toBe('GroupBy');
+      // The head and group-by survive intact around the broken filter,
+      // carrying their original text.
+      const stage = queryStage(tree.topNode);
+      expect(text(source, stage?.getChild('Head')?.getChild('Metric'))).toBe('tis');
+      expect(text(source, tree.topNode.getChild('Single')?.getChild('GroupBy')?.getChild('Dimension'))).toBe('week');
     });
 
     it('rejects an unterminated filter list without losing the head', () => {
       const source = 'sum:tis{effort:thruster';
       const tree = parse(source);
       expect(errorSpans(tree, source).length).toBeGreaterThan(0);
-      expect(tree.topNode.getChild('Head')?.getChild('Metric')?.name).toBe('Metric');
+      const head = queryStage(tree.topNode)?.getChild('Head');
+      expect(text(source, head?.getChild('Aggregator'))).toBe('sum');
+      expect(text(source, head?.getChild('Metric'))).toBe('tis');
     });
   });
 });

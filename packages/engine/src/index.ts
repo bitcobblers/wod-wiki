@@ -114,7 +114,7 @@ export {
   type MemoryEntry,
   type RuntimeBlock,
   type RuntimeController,
-  type BlockContext,
+  BlockContext,
   ExecutionContext,
   type BehaviorContext,
   type INowProvider,

@@ -7,7 +7,8 @@ import { MdTimerRuntime } from '@bitcobblers/wod-wiki-engine'
 import { TestScript, assertions } from '@/testing/script'
 import { parseCanvasMarkdown, type ParsedCanvasPage, type PipelineStep } from '../../app/canvas/parseCanvasMarkdown'
 
-const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
+// tests/canvas/ → apps/playground/tests/../../.. → apps/ → repo root
+const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url))
 const syntaxDir = path.join(repoRoot, 'markdown/canvas/syntax')
 
 function loadSyntaxPages(): Array<{ fileName: string; page: ParsedCanvasPage }> {

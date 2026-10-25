@@ -77,7 +77,7 @@ function fusedMeta(numberMeta: Meta, effortMeta: Meta, token: string): Meta {
   };
 }
 
-/** Meta for the residual effort text left after the unit token is peeled. */
+/** Meta for the residual effort text left after a LEADING unit token is peeled. */
 function residualMeta(effortMeta: Meta, rest: string): Meta {
   if (!effortMeta || effortMeta.raw === undefined) {
     return effortMeta ? { ...effortMeta, raw: rest } : effortMeta;
@@ -95,6 +95,48 @@ function residualMeta(effortMeta: Meta, rest: string): Meta {
     raw: rest,
   };
 }
+
+const TRAILING_WORD = /^([\s\S]*?)([a-zA-Z]+)$/;
+
+/** Peel the trailing word off `text`. Returns `null` when there is no word. */
+function splitTrailingWord(text: string): { rest: string; token: string } | null {
+  const m = TRAILING_WORD.exec(text.trimEnd());
+  if (!m) return null;
+  return { rest: m[1].trim(), token: m[2] };
+}
+
+/** Meta for the residual effort text left after a TRAILING unit token is peeled. */
+function trailingResidualMeta(effortMeta: Meta, rest: string): Meta {
+  if (!effortMeta) return effortMeta;
+  return {
+    line: effortMeta.line,
+    startOffset: effortMeta.startOffset,
+    endOffset: effortMeta.startOffset !== undefined ? effortMeta.startOffset + rest.length : effortMeta.endOffset,
+    columnStart: effortMeta.columnStart,
+    columnEnd: effortMeta.columnStart !== undefined ? effortMeta.columnStart + rest.length : effortMeta.columnEnd,
+    length: rest.length,
+    raw: rest,
+  };
+}
+
+/** Meta for a unit token peeled off the END of an effort text. */
+function trailingTokenMeta(effortMeta: Meta, token: string): Meta {
+  if (!effortMeta) return effortMeta;
+  const tokenStart = Math.max(0,
+    (effortMeta.raw?.trimEnd().length
+      ?? ((effortMeta.endOffset ?? 0) - (effortMeta.startOffset ?? 0))) - token.length,
+  );
+  return {
+    line: effortMeta.line,
+    startOffset: effortMeta.startOffset !== undefined ? effortMeta.startOffset + tokenStart : undefined,
+    endOffset: effortMeta.startOffset !== undefined ? effortMeta.startOffset + tokenStart + token.length : effortMeta.endOffset,
+    columnStart: effortMeta.columnStart !== undefined ? effortMeta.columnStart + tokenStart : undefined,
+    columnEnd: effortMeta.columnStart !== undefined ? effortMeta.columnStart + tokenStart + token.length : effortMeta.columnEnd,
+    length: token.length,
+    raw: token,
+  };
+}
+
 /** Meta spanning from the first metric through the last metric in a group. */
 function spanMeta(firstMeta: Meta, lastMeta: Meta): Meta {
   if (!firstMeta || !lastMeta) return firstMeta ?? lastMeta;
@@ -290,6 +332,29 @@ function fusePairs(pairs: MetaPair[], units: UnitSet): MetaPair[] {
           i++; // consume `next`
           continue;
         }
+      }
+    }
+
+    // ── {effort} bw → collectible Resistance(?, "bw") qualifier ─────────────
+    // The bodyweight qualifier is the only unit conventionally written with
+    // no amount ("20 Pushups bw"). When a statement-final effort text ends
+    // in that unit word, peel it into a hinted Resistance the collectible
+    // pipeline can fill. Every other trailing unit word stays inside the
+    // effort name (e.g. "Atlas Stone Carry").
+    if (!next) {
+      const text = effortText(cur.metric);
+      const split = text !== null ? splitTrailingWord(text) : null;
+      const unit = split ? units.get(split.token) : undefined;
+      if (split && split.rest && unit && unit.canonical === 'bw') {
+        out.push({
+          metric: new EffortMetric(split.rest),
+          meta: trailingResidualMeta(cur.meta, split.rest),
+        });
+        out.push({
+          metric: metricForDimension(undefined, split.token, unit.dimension),
+          meta: trailingTokenMeta(cur.meta, split.token),
+        });
+        continue;
       }
     }
 

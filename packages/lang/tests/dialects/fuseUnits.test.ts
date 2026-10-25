@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { fuseUnitsInMetrics } from '../../src/dialects/units/fuseUnits';
 import { UnitRegistry } from '../../src/metrics/units';
-import { MetricType, IMetric } from '@bitcobblers/wod-wiki-core';
+import { MetricType, IMetric, type ICodeStatement } from '@bitcobblers/wod-wiki-core';
 import { RepMetric } from '../../src/runtime/compiler/metrics/RepMetric';
 import { EffortMetric } from '../../src/runtime/compiler/metrics/EffortMetric';
 import { ResistanceMetric } from '../../src/runtime/compiler/metrics/ResistanceMetric';
@@ -109,6 +109,35 @@ describe('fuseUnitsInMetrics', () => {
     const out = fuseUnitsInMetrics([new RepMetric(1.5), new EffortMetric('pood Swings')], poodSet);
     expect(amountUnit(out[0])).toEqual({ type: MetricType.Resistance, amount: 1.5, unit: 'pood' });
     expect(out[1].value).toBe('Swings');
+  });
+
+  it('leaves a standalone bw word as effort instead of emitting orphaned resistance', () => {
+    const out = fuseUnitsInMetrics([new EffortMetric('bw')], std);
+    expect(out).toHaveLength(1);
+    expect(out[0].type).toBe(MetricType.Effort);
+    expect(out[0].value).toBe('bw');
+  });
+
+  it('keeps trailing bodyweight token metadata aligned after trailing whitespace', () => {
+    const effort = new EffortMetric('Pushups bw  ');
+    const statement = {
+      metrics: MetricContainer.from([effort]),
+      metricMeta: new Map<IMetric, unknown>([
+        [effort, { startOffset: 5, endOffset: 17, columnStart: 5, columnEnd: 17, raw: 'Pushups bw  ' }],
+      ]),
+    } as unknown as ICodeStatement;
+
+    fuseUnits(statement, std);
+
+    const [residual, resistance] = statement.metrics.toArray();
+    expect(residual.value).toBe('Pushups');
+    expect(statement.metricMeta.get(resistance)).toMatchObject({
+      startOffset: 13,
+      endOffset: 15,
+      columnStart: 13,
+      columnEnd: 15,
+      raw: 'bw',
+    });
   });
 
   describe('{number}|{number} {unit} → ChoiceGroupMetric (pipe choices, "/" + "|" ride as effort primitives)', () => {

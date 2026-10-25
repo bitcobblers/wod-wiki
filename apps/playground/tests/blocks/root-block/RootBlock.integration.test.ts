@@ -142,40 +142,21 @@ describe('RootBlock Integration: Complete Workout', () => {
             return new MockBlock(`section-${blockCount}`, []);
         });
 
-        harness.stack.push(rootBlock);
-        
-        const mountActions = rootBlock.mount(harness.runtime);
-        mountActions.forEach(a => a.do(harness.runtime));
+        harness.executeAction(new PushBlockAction(rootBlock)); // root + WaitingToStart gate
 
-        // Execute all 5 sections
-        for (let i = 0; i < 5; i++) {
-            if (i > 0) {
-                // For all but first (already pushed on mount)
-                harness.executeAction({
-                    type: `section-${i}`,
-                    do: (runtime) => {
-                        if (harness.stack.count > 1) {
-                            runtime.stack.pop()?.dispose(runtime);
-                        }
-                        const actions = rootBlock.next(runtime);
-                        actions.forEach(a => a.do(runtime));
-                    }
-                });
-            }
-            
-            harness.advanceClock(10000); // 10 seconds per section
+        // Gate exit dispatches section 1; each completed section dispatches the next;
+        // the final pop completes the session and auto-pops the root.
+        for (let i = 0; i < 6; i++) {
+            harness.executeAction(new PopBlockAction());
+            if (i < 5) harness.advanceClock(10000); // 10 seconds per section
         }
 
-        // Final cleanup
-        if (harness.stack.count > 1) {
-            harness.stack.pop()?.dispose(harness.runtime);
-        }
-
-        // Expectations: All 5 blocks compiled
+        // Expectations: All 5 blocks compiled; root auto-pops when workout completes
         expect(harness.mockJit.compileCalls).toHaveLength(5);
         
         const childSelection = rootBlock.getBehavior(ChildSelectionBehavior)!;
         expect(childSelection.allChildrenExecuted).toBe(true);
+        expect(harness.stack.count).toBe(0);
     });
 
     it('should handle empty workout gracefully', () => {
@@ -189,9 +170,14 @@ describe('RootBlock Integration: Complete Workout', () => {
         const mountActions = rootBlock.mount(harness.runtime);
         mountActions.forEach(a => a.do(harness.runtime));
 
-        // Expectations: No children pushed
-        expect(harness.stack.count).toBe(1); // Only root
+        // Expectations: No children compiled; the WaitingToStart gate is pushed
         expect(harness.mockJit.compileCalls).toHaveLength(0);
+        expect(harness.stack.count).toBe(2); // root + gate
+        expect(harness.stack.current?.blockType).toBe('WaitingToStart');
+
+        // Starting a workout with no sections completes and auto-pops the root
+        harness.executeAction(new PopBlockAction());
+        expect(harness.stack.count).toBe(0);
 
         // Should be able to unmount safely
         expect(() => {
@@ -343,21 +329,13 @@ describe('RootBlock Integration: Complete Workout', () => {
             return new MockBlock(`child-${blockId}`, []);
         });
 
-        harness.stack.push(rootBlock);
-        
-        const mountActions = rootBlock.mount(harness.runtime);
-        mountActions.forEach(a => a.do(harness.runtime));
+        harness.executeAction(new PushBlockAction(rootBlock)); // root + WaitingToStart gate
 
-        // Rapid fire through all sections (no time advancement)
-        for (let i = 0; i < 3; i++) {
-            if (i > 0) {
-                const actions = rootBlock.next(harness.runtime);
-                actions.forEach(a => a.do(harness.runtime));
-            }
-            
-            if (harness.stack.depth > 1) {
-                harness.stack.pop()?.dispose(harness.runtime);
-            }
+        // Rapid fire through all sections (no time advancement):
+        // gate exit dispatches section 1; each section pop dispatches the next;
+        // the final pop completes the session and auto-pops the root.
+        for (let i = 0; i < 4; i++) {
+            harness.executeAction(new PopBlockAction());
         }
 
         // Expectations: All sections handled
@@ -365,6 +343,7 @@ describe('RootBlock Integration: Complete Workout', () => {
         
         const childSelection = rootBlock.getBehavior(ChildSelectionBehavior)!;
         expect(childSelection.allChildrenExecuted).toBe(true);
+        expect(harness.stack.count).toBe(0);
         
         harness.dispose();
     });

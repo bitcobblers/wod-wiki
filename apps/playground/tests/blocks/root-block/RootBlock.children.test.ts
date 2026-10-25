@@ -17,7 +17,7 @@ describe('RootBlock Child Execution', () => {
         harness.dispose();
     });
 
-    it('should push first child on mount', () => {
+    it('should gate on mount and push first child on first next', () => {
         // Scenario: Root block with 3 children
         const childGroups = [[1], [2], [3]];
         
@@ -50,14 +50,22 @@ describe('RootBlock Child Execution', () => {
 
         // Create root block and push via PushBlockAction
         // ExecutionContext processes the full chain:
-        // PushBlockAction → mount → ChildSelectionBehavior → CompileChildBlockAction → PushBlockAction(child)
+        // PushBlockAction → mount → WaitingToStart gate pushed (children deferred to first next)
         const rootBlock = new SessionRootStrategy().build(harness.runtime, {
             childGroups
         });
 
         harness.executeAction(new PushBlockAction(rootBlock));
 
-        // Expectations: First child should be pushed
+        // Expectations: Mount pushes only the WaitingToStart idle gate —
+        // no child is compiled until the user starts the session
+        expect(harness.mockJit.compileCalls).toHaveLength(0);
+        expect(harness.stack.count).toBe(2); // root + gate
+        expect(harness.stack.current?.blockType).toBe('WaitingToStart');
+
+        // Gate exits (user starts) → root.next() dispatches the first child
+        harness.executeAction(new PopBlockAction());
+
         expect(harness.mockJit.compileCalls).toHaveLength(1);
         expect(harness.mockJit.lastCompileCall?.statements[0].id).toBe(1);
         
@@ -94,9 +102,13 @@ describe('RootBlock Child Execution', () => {
             child2
         );
 
-        // Mount root via PushBlockAction (pushes child-1)
+        // Mount root via PushBlockAction (pushes WaitingToStart gate)
         harness.executeAction(new PushBlockAction(rootBlock));
-        expect(harness.stack.count).toBe(2); // root + child1
+        expect(harness.stack.count).toBe(2); // root + gate
+
+        // Gate exits (user starts) → root.next() dispatches child-1
+        harness.executeAction(new PopBlockAction());
+        expect(harness.stack.current).toBe(child1);
 
         // Clear recordings to isolate next behavior
         harness.clearRecordings();
@@ -123,9 +135,14 @@ describe('RootBlock Child Execution', () => {
 
         harness.executeAction(new PushBlockAction(rootBlock));
 
-        // Expectations: No compilation, no child pushed
+        // Expectations: No compilation; the WaitingToStart gate is still pushed
         expect(harness.mockJit.compileCalls).toHaveLength(0);
-        expect(harness.stack.count).toBe(1); // Only root
+        expect(harness.stack.count).toBe(2); // root + gate
+        expect(harness.stack.current?.blockType).toBe('WaitingToStart');
+
+        // Starting the session with no children completes and auto-pops the root
+        harness.executeAction(new PopBlockAction());
+        expect(harness.stack.count).toBe(0);
     });
 
     it('should mark completion when all children executed', () => {
@@ -225,8 +242,9 @@ describe('RootBlock Child Execution', () => {
             group2Block
         );
 
-        // Mount root via PushBlockAction - processes entire chain
+        // Mount root via PushBlockAction - gate pushed; starting dispatches first group
         harness.executeAction(new PushBlockAction(rootBlock));
+        harness.executeAction(new PopBlockAction());
 
         // First group should be compiled with statements 1 and 2
         expect(harness.mockJit.compileCalls).toHaveLength(1);

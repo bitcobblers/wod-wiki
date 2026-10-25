@@ -146,12 +146,22 @@ describe('Syntax Features Regression Tests', () => {
       expect(result.statements[1].metrics[0].value).toEqual({ text: 'Conditioning', level: '3' });
     });
 
-    it('parses heading without space after hash', () => {
-      const result = parse('#Cool-down');
+    it('parses compact multi-hash heading (##Cool-down)', () => {
+      const result = parse('##Cool-down');
       expect(result.errors).toHaveLength(0);
       const metric = result.statements[0].metrics[0];
       expect(metricTypeOf(metric)).toBe(MetricType.Text);
-      expect(metric.value).toEqual({ text: 'Cool-down', level: '1' });
+      expect(metric.value).toEqual({ text: 'Cool-down', level: '2' });
+    });
+
+    it('parses #word as a tag reference, not a heading', () => {
+      // A single # followed by a letter is a tag reference (#slug). An
+      // unresolved tag stays visible as written instead of becoming a heading.
+      const result = parse('#Cool-down');
+      expect(result.errors).toHaveLength(0);
+      const metric = result.statements[0].metrics[0];
+      expect(metricTypeOf(metric)).toBe(MetricType.Custom);
+      expect(metric.value).toBe('#Cool-down');
     });
   });
 

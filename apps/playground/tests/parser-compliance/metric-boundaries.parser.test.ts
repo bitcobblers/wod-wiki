@@ -140,14 +140,14 @@ describe('🟢 Parser: Weight Boundaries', () => {
 // ── Bodyweight Marker ─────────────────────────────────────────────
 
 describe('🟢 Parser: Bodyweight Marker', () => {
-    it('"20 Pullups bw" → Rep + Effort (bw is part of effort name)', () => {
+    it('"20 Pullups bw" → Rep + Effort + bodyweight Resistance', () => {
         const root = parse('20 Pullups bw').roots()[0];
         root
             .hasMetric(MetricType.Rep)
             .hasMetricValue(MetricType.Rep, 20)
             .hasMetric(MetricType.Effort)
-            .hasMetricValue(MetricType.Effort, 'Pullups bw')
-            .lacksMetric(MetricType.Resistance);
+            .hasMetricValue(MetricType.Effort, 'Pullups')
+            .hasMetric(MetricType.Resistance);
     });
 });
 

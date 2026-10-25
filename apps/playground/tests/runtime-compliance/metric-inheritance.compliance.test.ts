@@ -191,7 +191,7 @@ describeCompliance('🟢 Weight Inside AMRAP — sibling weight isolation', '10:
         await script.next(); // Pushups R1
         await script.next(); // Thrusters R2
         expect(await currentHasResistance(await script.snapshot(), script)).toBe(true);
-        expect(await currentResistance(await script.snapshot(), script)?.amount).toBe(95);
+        expect((await currentResistance(await script.snapshot(), script))?.amount).toBe(95);
     });
 
     it('round 2: Pushups R2 still has NO resistance metric', async () => {
@@ -307,7 +307,7 @@ describeCompliance('🟢 Weight Cascading — 95 lb cascades to round children',
         if (!(await script.snapshot()).current?.label?.match(/clean/i)) {
             await script.next();
         }
-        expect(await currentResistance(await script.snapshot(), script)?.amount).toBe(95);
+        expect((await currentResistance(await script.snapshot(), script))?.amount).toBe(95);
     });
 
     it('Clean & Jerk carries resistance unit lb', async () => {
@@ -316,7 +316,7 @@ describeCompliance('🟢 Weight Cascading — 95 lb cascades to round children',
         if (!(await script.snapshot()).current?.label?.match(/clean/i)) {
             await script.next();
         }
-        expect(await currentResistance(await script.snapshot(), script)?.unit).toBe('lb');
+        expect((await currentResistance(await script.snapshot(), script))?.unit).toBe('lb');
     });
 
     it('Round 2 Clean & Jerk still carries inherited 95 lb resistance', async () => {
@@ -327,7 +327,7 @@ describeCompliance('🟢 Weight Cascading — 95 lb cascades to round children',
         }
         await script.next(); // R1 done → R2 effort
         expect(await currentHasResistance(await script.snapshot(), script)).toBe(true);
-        expect(await currentResistance(await script.snapshot(), script)?.amount).toBe(95);
+        expect((await currentResistance(await script.snapshot(), script))?.amount).toBe(95);
     });
 
     it('Round 3 Clean & Jerk still carries inherited 95 lb resistance', async () => {
@@ -339,7 +339,7 @@ describeCompliance('🟢 Weight Cascading — 95 lb cascades to round children',
         await script.next(); // R2
         await script.next(); // R3
         expect(await currentHasResistance(await script.snapshot(), script)).toBe(true);
-        expect(await currentResistance(await script.snapshot(), script)?.amount).toBe(95);
+        expect((await currentResistance(await script.snapshot(), script))?.amount).toBe(95);
     });
 });
 
@@ -369,13 +369,13 @@ describeCompliance('🟢 Weight Override — child overrides parent; sibling inh
     it('Clean resistance amount is 135 (child override wins over parent 95 lb)', async () => {
         const script = await ctx.compile();
         await script.next();
-        expect(await currentResistance(await script.snapshot(), script)?.amount).toBe(135);
+        expect((await currentResistance(await script.snapshot(), script))?.amount).toBe(135);
     });
 
     it('Clean resistance unit is lb', async () => {
         const script = await ctx.compile();
         await script.next();
-        expect(await currentResistance(await script.snapshot(), script)?.unit).toBe('lb');
+        expect((await currentResistance(await script.snapshot(), script))?.unit).toBe('lb');
     });
 
     it('Snatch effort is mounted after second userNext (Clean completes)', async () => {
@@ -396,14 +396,14 @@ describeCompliance('🟢 Weight Override — child overrides parent; sibling inh
         const script = await ctx.compile();
         await script.next();
         await script.next();
-        expect(await currentResistance(await script.snapshot(), script)?.amount).toBe(95);
+        expect((await currentResistance(await script.snapshot(), script))?.amount).toBe(95);
     });
 
     it('Snatch resistance unit is lb (inherited from parent)', async () => {
         const script = await ctx.compile();
         await script.next();
         await script.next();
-        expect(await currentResistance(await script.snapshot(), script)?.unit).toBe('lb');
+        expect((await currentResistance(await script.snapshot(), script))?.unit).toBe('lb');
     });
 });
 
@@ -434,7 +434,7 @@ describeCompliance('🟢 Distance Unit Inheritance — 400 m cascades to round c
         if (!(await script.snapshot()).current?.label?.match(/run/i)) {
             await script.next();
         }
-        expect(await currentDistance(await script.snapshot(), script)?.amount).toBe(400);
+        expect((await currentDistance(await script.snapshot(), script))?.amount).toBe(400);
     });
 
     it('Run effort distance unit is m', async () => {
@@ -443,7 +443,7 @@ describeCompliance('🟢 Distance Unit Inheritance — 400 m cascades to round c
         if (!(await script.snapshot()).current?.label?.match(/run/i)) {
             await script.next();
         }
-        expect(await currentDistance(await script.snapshot(), script)?.unit).toBe('m');
+        expect((await currentDistance(await script.snapshot(), script))?.unit).toBe('m');
     });
 
     it('All 3 rounds have Run effort with inherited 400 m distance', async () => {
@@ -503,14 +503,14 @@ describeCompliance('🟢 Three-Level Promotion — 75 kg through EMOM → Rounds
         const script = await ctx.compile();
         await script.next();
         await advanceToClean(script);
-        expect(await currentResistance(await script.snapshot(), script)?.amount).toBe(75);
+        expect((await currentResistance(await script.snapshot(), script))?.amount).toBe(75);
     });
 
     it('Clean effort resistance unit is kg', async () => {
         const script = await ctx.compile();
         await script.next();
         await advanceToClean(script);
-        expect(await currentResistance(await script.snapshot(), script)?.unit).toBe('kg');
+        expect((await currentResistance(await script.snapshot(), script))?.unit).toBe('kg');
     });
 
     it('Second Clean iteration (different EMOM interval) still carries 75 kg', async () => {
@@ -522,6 +522,6 @@ describeCompliance('🟢 Three-Level Promotion — 75 kg through EMOM → Rounds
         await script.tick(60_000); // EMOM interval ticks over
         await advanceToClean(script);
         expect(await currentHasResistance(await script.snapshot(), script)).toBe(true);
-        expect(await currentResistance(await script.snapshot(), script)?.amount).toBe(75);
+        expect((await currentResistance(await script.snapshot(), script))?.amount).toBe(75);
     });
 });

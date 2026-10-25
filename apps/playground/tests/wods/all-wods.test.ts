@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, relative } from 'path';
+import { fileURLToPath } from 'url';
 import { TestScript } from '@/testing/script';
 
 /**
@@ -43,7 +44,10 @@ function extractScriptBlocks(content: string): string[] {
     return blocks;
 }
 
-const wodDir = join(process.cwd(), 'markdown/collections');
+// Authoritative corpus: markdown/ at the repo root (canvas, efforts,
+// equipment, dashboards). tests/wods/ → repo root is four levels up.
+const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+const wodDir = join(repoRoot, 'markdown');
 const mdFiles = findMarkdownFiles(wodDir);
 
 describe('WOD Integration Tests', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-import { CanvasProse } from '../../playground/src/canvas/CanvasProse'
+import { CanvasProse } from '../../app/canvas/CanvasProse'
 
 describe('home feature markdown rendering', () => {
   it('renders analytics labels as bold prefixes with their labels intact', () => {

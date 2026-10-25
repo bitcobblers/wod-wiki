@@ -23,13 +23,13 @@ describe('🟢 Parser: Single Effort', () => {
                 .hasMetricValue(MetricType.Effort, 'Pullups');
     });
 
-    it('"20 Pushups bw" → Rep + Effort with bw marker', () => {
+    it('"20 Pushups bw" → Rep + Effort + bodyweight Resistance', () => {
         parse('20 Pushups bw')
             .roots()[0]
                 .hasMetric(MetricType.Rep)
                 .hasMetricValue(MetricType.Rep, 20)
-                .hasMetric(MetricType.Effort)
-                .hasMetricValue(MetricType.Effort, 'Pushups bw');
+                .hasMetricValue(MetricType.Effort, 'Pushups')
+                .hasMetric(MetricType.Resistance);
     });
 
     it('"400m Run" → Distance + Effort metrics', () => {

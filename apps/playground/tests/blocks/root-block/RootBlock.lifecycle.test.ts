@@ -90,9 +90,13 @@ describe('RootBlock Lifecycle', () => {
             child2
         );
 
-        // Mount root via PushBlockAction (pushes child-1)
+        // Mount root via PushBlockAction (pushes WaitingToStart gate)
         harness.executeAction(new PushBlockAction(rootBlock));
-        expect(harness.stack.count).toBe(2); // root + child1
+        expect(harness.stack.count).toBe(2); // root + gate
+
+        // Gate exits (user starts) → root.next() dispatches child-1
+        harness.executeAction(new PopBlockAction());
+        expect(harness.stack.current).toBe(child1);
 
         harness.clearRecordings();
 
@@ -230,15 +234,19 @@ describe('RootBlock Lifecycle', () => {
         const child = new MockBlock('child', []);
         harness.mockJit.whenMatches(() => true, child);
 
-        harness.stack.push(rootBlock);
-        rootBlock.mount(harness.runtime);
+        harness.executeAction(new PushBlockAction(rootBlock));
+        expect(harness.stack.current?.blockType).toBe('WaitingToStart');
 
-        // First next returns nothing (only 1 child, already pushed on mount)
+        // Starting the session dispatches the single child
+        harness.executeAction(new PopBlockAction());
+
+        // Next with no remaining children: preview cleared + auto-pop completes the session
         const nextActions = rootBlock.next(harness.runtime);
 
         // Expectations: ChildSelection clears next preview when no children remain
-        expect(nextActions.length).toBe(1);
-        expect(nextActions[0].type).toBe('update-next-preview');
+        const actionTypes = nextActions.map(a => a.type);
+        expect(actionTypes).toContain('update-next-preview');
+        expect(actionTypes).toContain('pop-block');
         
         const childSelection = rootBlock.getBehavior(ChildSelectionBehavior)!;
         expect(childSelection.allChildrenExecuted).toBe(true);

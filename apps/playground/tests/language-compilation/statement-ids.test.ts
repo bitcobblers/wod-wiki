@@ -1,4 +1,5 @@
-// Test to verify statement IDs use line numbers (not character offsets)
+// Test to verify statement IDs are stable structural identifiers (document-order
+// ordinals), while physical source location lives in `meta.line` / `line`.
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { MdTimerRuntime } from '@bitcobblers/wod-wiki-engine';
 
@@ -9,41 +10,44 @@ describe('Statement ID Line Number Verification', () => {
     runtime = new MdTimerRuntime();
   });
 
-  it('should assign line numbers as statement IDs', () => {
+  it('should assign unique document-order IDs to statements', () => {
     const input = `first statement
 second statement
 third statement`;
 
     const result = runtime.read(input);
-    
+
     // Verify we have 3 statements
     expect(result.statements.length).toBe(3);
-    
-    // Verify statement IDs are line numbers (1, 2, 3)
-    expect(result.statements[0].id).toBe(1);
-    expect(result.statements[1].id).toBe(2);
-    expect(result.statements[2].id).toBe(3);
+
+    // IDs are unique and ascend in document order (structural identity)
+    const ids = result.statements.map(s => s.id);
+    expect(new Set(ids).size).toBe(3);
+    expect([...ids].sort((a, b) => a - b)).toEqual(ids);
   });
 
-  it('should use line numbers not character offsets for nested statements', () => {
+  it('should link nested statements by ID, not line number', () => {
     const input = `parent
   child 1
   child 2`;
 
     const result = runtime.read(input);
-    
-    // Parent on line 1, children on lines 2 and 3
-    const parent = result.statements.find(stmt => stmt.id === 1);
+
+    const parent = result.statements.find(stmt => stmt.meta.line === 1);
     expect(parent).toBeDefined();
     expect(parent!.children).toBeDefined();
-    
-    // Children should have IDs 2 and 3 (line numbers)
+
+    // Children are referenced through the parent's child ID groups
     const allChildIds = parent!.children.flat();
-    expect(allChildIds).toContain(2);
-    expect(allChildIds).toContain(3);
+    expect(allChildIds).toHaveLength(2);
+    for (const childId of allChildIds) {
+      const child = result.statements.find(stmt => stmt.id === childId);
+      expect(child).toBeDefined();
+      expect(child!.parent).toBe(parent!.id);
+    }
   });
 
-  it('should maintain line numbers across complex structures', () => {
+  it('should maintain IDs and line numbers across complex structures', () => {
     const input = `line one
 line two
 line three
@@ -51,34 +55,41 @@ line four
 line five`;
 
     const result = runtime.read(input);
-    
-    // Verify all statement IDs match their line numbers
+
+    // IDs stay unique in document order; physical line lives on meta.line
     result.statements.forEach((stmt, index) => {
-      expect(stmt.id).toBe(index + 1);
+      expect(stmt.id).not.toBeNaN();
       expect(stmt.meta.line).toBe(index + 1);
     });
+    const ids = result.statements.map(s => s.id);
+    expect(new Set(ids).size).toBe(result.statements.length);
   });
 
-  it('should not use character offsets as IDs', () => {
+  it('should keep IDs independent of character offsets', () => {
     // This input has specific character offsets we can predict
     const input = `statement one
 statement two
 statement three`;
 
     const result = runtime.read(input);
-    
+
     // Line 1 starts at offset 0
     // Line 2 starts at offset 14 (after "statement one\n")
     // Line 3 starts at offset 28 (after "statement one\nstatement two\n")
-    
-    // IDs should be 1, 2, 3 (line numbers)
-    expect(result.statements[0].id).toBe(1);
-    expect(result.statements[1].id).toBe(2);
-    expect(result.statements[2].id).toBe(3);
-    
-    // Verify they are NOT character offsets (would be 0, 14, 28)
-    expect(result.statements[0].id).not.toBe(0);
-    expect(result.statements[1].id).not.toBe(14);
-    expect(result.statements[2].id).not.toBe(28);
+
+    // Each statement reports its 1-based line number via meta.line
+    expect(result.statements[0].meta.line).toBe(1);
+    expect(result.statements[1].meta.line).toBe(2);
+    expect(result.statements[2].meta.line).toBe(3);
+
+    // IDs are structural ordinals, not character offsets (would be 0, 14, 28)
+    // id 0 legitimately coincides with the first statement's offset 0; later
+    // statements must diverge, and ids never equal line numbers.
+    expect(result.statements[1].id).not.toBe(result.statements[1].meta.startOffset);
+    expect(result.statements[2].id).not.toBe(result.statements[2].meta.startOffset);
+    result.statements.forEach((stmt, i) => {
+      expect(stmt.id).not.toBe(stmt.meta.line);
+      if (i > 0) expect(stmt.id).toBeLessThan(stmt.meta.startOffset);
+    });
   });
 });

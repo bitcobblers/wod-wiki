@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from 'bun:test';
 import { TestScript, assertions, describeCompliance } from '@/testing/script';
-import { MetricType } from '@bitcobblers/wod-wiki-engine';
+import { MetricType, NextEvent } from '@bitcobblers/wod-wiki-engine';
 import { getRoundState, blockDisplayMetrics } from '../helpers/compliance-helpers';
 
 // ===========================================================================
@@ -162,22 +162,27 @@ describe('🟢 Large Round Count — (100) 5 Burpees', () => {
     });
 
     it('10000 iterations complete without memory issues and within performance target', async () => {
-        // Use TestScript directly (without output capture) so output-listener overhead
-        // does not inflate the timing measurement. OutputTracingHarness captures ~70 k
-        // objects for a 10 000-round run, adding ~400 ms that is test-infrastructure
-        // cost rather than real runtime cost.
+        // Drive the runtime dispatch path directly instead of TestScript.next():
+        // next() awaits a macrotask flush per call (~1ms under bun), which is
+        // observation bookkeeping rather than runtime work and would dominate a
+        // 20 000-iteration loop (~21s, blowing the test timeout). snapshot()
+        // flushes deferred observers before the assertions below, so final
+        // state is identical.
         const perf = await TestScript.compile('(20000)\n  5 Burpees');
-        await perf.next(); // advance WaitingToStart → first child
+        const dispatchNext = (): void =>
+            perf.runtime.handle(new NextEvent(undefined, perf.runtime.nowProvider));
+
+        dispatchNext(); // advance WaitingToStart → first child
 
         // Warm-up phase (un-timed): 10 000 rounds
         for (let i = 0; i < 10000; i++) {
-            await perf.next();
+            dispatchNext();
         }
 
         // Measured phase: 10 000 rounds must complete in < 500 ms
         const start = performance.now();
         for (let i = 0; i < 10000; i++) {
-            await perf.next();
+            dispatchNext();
         }
         const end = performance.now();
 

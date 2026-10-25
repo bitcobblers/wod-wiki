@@ -13,7 +13,9 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import { AnalyticsEngine } from '@bitcobblers/wod-wiki-engine';
 import { StandardAnalyticsProfile } from '@bitcobblers/wod-wiki-engine';
 import type { AnalyticsProfileContext } from '@bitcobblers/wod-wiki-engine';
-import { TwoPassEffortResolutionProcess } from '@bitcobblers/wod-wiki-engine';
+// TwoPassEffortResolutionProcess is a value class owned by lang; engine only
+// re-exports it as a type.
+import { TwoPassEffortResolutionProcess } from '@bitcobblers/wod-wiki-lang';
 import { createCalcEngine } from '@bitcobblers/wod-wiki-engine';
 import { MockEffortResolver } from '@/testing/harness/MockEffortResolver';
 import { OutputStatement } from '@bitcobblers/wod-wiki-engine';

@@ -43,7 +43,7 @@ describe('RootBlock Behavior Composition', () => {
 
         // Expectations: Single round configuration
         expect(rootBlock).toBeDefined();
-        expect(rootBlock.blockType).toBe('Root');
+        expect(rootBlock.blockType).toBe('SessionRoot');
     });
 
     it('should configure ChildSelectionBehavior with correct childGroups', () => {
@@ -90,10 +90,11 @@ describe('RootBlock Behavior Composition', () => {
     it('should set correct block type and label', () => {
         // Scenario: Verify root block metadata
         const rootBlock = new SessionRootStrategy().build(harness.runtime, {
-            childGroups: [[1]]
+            childGroups: [[1]],
+            label: 'Workout'
         });
 
-        expect(rootBlock.blockType).toBe('Root');
+        expect(rootBlock.blockType).toBe('SessionRoot');
         expect(rootBlock.label).toBe('Workout');
     });
 });

@@ -17,6 +17,15 @@ describe('IntervalLogicStrategy', () => {
             expect(result.matched).toBe(true);
         });
 
+        it('returns false for a nested Tabata work phase without an interval count', () => {
+            const result = apply(strategy, [
+                stmtWith(MetricType.Duration, 20000),
+                stmtWith(MetricType.Hint, 'behavior.repeating_interval'),
+                stmtWith(MetricType.Hint, 'workout.tabata'),
+            ], runtime);
+            expect(result.matched).toBe(false);
+        });
+
         it('returns true for Duration + emom keyword', () => {
             const result = apply(strategy, [
                 stmtWith(MetricType.Duration, 60000),

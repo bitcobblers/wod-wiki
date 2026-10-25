@@ -11,11 +11,17 @@ import { MetricType } from '@bitcobblers/wod-wiki-engine';
 // ── Weight / Resistance Formats ──────────────────────────────────
 
 describe('🟢 Parser: Weight Formats', () => {
-    it('"5x5 Back Squat @ 225 lb" → Rep + Effort + Resistance', () => {
-        const root = parse('5x5 Back Squat @ 225 lb').roots()[0];
-        root
-            .hasMetric(MetricType.Rep)
+    it('"5x5 Back Squat @ 225 lb" → Rounds+Rep parent, Effort + Resistance child', () => {
+        const tree = parse('5x5 Back Squat @ 225 lb');
+        // Inline NxM splits into a rounds parent and an exercise child
+        // (docs/language/syntax-reference.md, "Inline Strength Sets").
+        tree.hasStatementCount(2);
+        tree.roots()[0]
+            .hasMetric(MetricType.Rounds)
+            .hasMetricValue(MetricType.Rep, 5);
+        tree.roots()[0].children()[0]
             .hasMetric(MetricType.Effort)
+            .hasMetricValue(MetricType.Effort, 'Back Squat')
             .hasMetric(MetricType.Resistance);
     });
 
@@ -58,11 +64,15 @@ describe('🟢 Parser: Rep Schemes', () => {
         expect(reps.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('"5x5 Squat" → Rep + Effort (set/rep notation)', () => {
-        const root = parse('5x5 Squat').roots()[0];
-        root
-            .hasMetric(MetricType.Rep)
-            .hasMetric(MetricType.Effort);
+    it('"5x5 Squat" → Rounds+Rep parent, Effort child (set/rep notation)', () => {
+        const tree = parse('5x5 Squat');
+        tree.hasStatementCount(2);
+        tree.roots()[0]
+            .hasMetric(MetricType.Rounds)
+            .hasMetricValue(MetricType.Rep, 5);
+        tree.roots()[0].children()[0]
+            .hasMetric(MetricType.Effort)
+            .hasMetricValue(MetricType.Effort, 'Squat');
     });
 });
 // ── Group Markers (+ / - prefix) ──────────────────────────────────
