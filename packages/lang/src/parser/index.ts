@@ -7,3 +7,5 @@ export * from './parseScript';
 export * from './parserInstance';
 export * from './md-timer';
 export * from './whiteboard-script-language';
+export * from './completion';
+export * from './completion-snippets';

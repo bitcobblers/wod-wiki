@@ -72,5 +72,31 @@ export default defineConfig({
       testMatch: '**/storybook.dark.smoke.e2e.ts',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      // Completion acceptance: real editor typeahead on the Screens note
+      // stories — nested WQL/time fixtures, keyboard handling, dialog host.
+      // Same file runs desktop, 375×812 mobile, and dark-theme passes.
+      name: 'storybook-completion',
+      testMatch: '**/storybook.completion.e2e.ts',
+      timeout: 60 * 1000,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'storybook-completion-mobile-375',
+      testMatch: '**/storybook.completion.e2e.ts',
+      timeout: 60 * 1000,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 375, height: 812 },
+        hasTouch: true,
+        isMobile: true,
+      },
+    },
+    {
+      name: 'storybook-completion-dark',
+      testMatch: '**/storybook.completion.e2e.ts',
+      timeout: 60 * 1000,
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
 });

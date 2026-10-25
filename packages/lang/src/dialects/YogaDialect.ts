@@ -31,23 +31,23 @@ export class YogaDialect implements IDialect {
    * Common yoga pose keywords.
    * TODO: Expand this list as the dialect matures.
    */
-  private static readonly POSE_KEYWORDS = [
+  static readonly POSE_KEYWORDS = [
     'WARRIOR', 'DOWNWARD', 'UPWARD', "CHILD'S POSE", 'COBRA',
     'PIGEON', 'TRIANGLE', 'MOUNTAIN', 'TREE POSE', 'LOTUS',
     'CORPSE', 'SAVASANA', 'TADASANA', 'VIRABHADRASANA',
     'BALASANA', 'ADHO', 'URDHVA', 'UTTANASANA', 'VRKSASANA',
   ];
 
-  private static readonly FLOW_KEYWORDS = [
+  static readonly FLOW_KEYWORDS = [
     'SUN SALUTATION', 'VINYASA', 'FLOW', 'SEQUENCE',
   ];
 
-  private static readonly BREATHING_KEYWORDS = [
+  static readonly BREATHING_KEYWORDS = [
     'PRANAYAMA', 'BREATH', 'BREATHING', 'NADI SHODHANA',
     'KAPALABHATI', 'UJJAYI', 'BOX BREATH', 'WIM HOF',
   ];
 
-  private static readonly MEDITATION_KEYWORDS = [
+  static readonly MEDITATION_KEYWORDS = [
     'MEDITATION', 'MEDITATE', 'MINDFULNESS', 'BODY SCAN',
     'VISUALIZATION',
   ];

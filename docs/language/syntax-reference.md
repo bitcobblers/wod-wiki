@@ -97,3 +97,19 @@ Before starting the clock, the pre-run wizard prompts the user to select the app
 1. **Hierarchy**: An unindented line with children (`(3)` or `10:00 AMRAP`) controls the execution of all indented statements beneath it.
 2. **Sibling Ordering**: Statements at the same indentation level execute sequentially from top to bottom unless combined with a lap marker (`+`).
 3. **Compound Sets (`+`)**: Prepending `+` merges sibling movements into a single composed round interval.
+
+---
+
+## 4. Editor Completions
+
+The editor offers completions inside ` ```time ` and ` ```log ` fence bodies. Both dialects share the same grammar-aware provider, so the sections below apply to each:
+
+- **Structure templates**: an empty body line suggests parse-valid starters such as `Circuit` — accepting one inserts a complete, indented template (e.g. `(3)` with indented children), never a fragment that fails to parse.
+- **Structure keywords**: after a timer head such as `10:00 `, keywords like `AMRAP`, `EMOM`, `TABATA`, `FOR TIME`, and `Rest` complete the statement.
+- **Units**: after a number, matching units are offered with their dimension as detail (`100 k` → `kg`, detail `mass`); aliases (`kilos`, `lbs`) are offered as their own labels with the same detail.
+- **Property keys**: an empty body line offers the property set — `effort`, `equipment`, `rpe`, `rir`, `intensity`, `load`, `volume`, `work`, `sound`.
+- **Host catalogs**: when the host supplies them (movement registry, equipment, note tags), those values join the suggestions for effort names, `equipment`, tags, and `sound:` values.
+
+Markdown outside workout fences is untouched: frontmatter offers only frontmatter property/tag suggestions, prose never offers workout or query terms, and a Markdown line starting with backticks offers the fence names themselves (` ```time `, ` ```query `, …).
+
+Keyboard behavior is shared across every completion source: typing filters, arrow keys move the active option, Enter or Tab accepts into the document, and Escape dismisses without inserting.

@@ -39,7 +39,7 @@ type SendType =
   | 'top-rope'
   | 'did-not-finish';
 
-const SEND_ALIASES: Record<string, SendType> = {
+export const SEND_ALIASES: Record<string, SendType> = {
   onsight: 'onsight',
   os: 'onsight',
   flash: 'flash',
@@ -61,7 +61,7 @@ const SEND_ALIASES: Record<string, SendType> = {
   attempted: 'did-not-finish',
 };
 
-const DISCIPLINE_KEYWORDS: Record<string, string> = {
+export const DISCIPLINE_KEYWORDS: Record<string, string> = {
   boulder: 'bouldering',
   bouldering: 'bouldering',
   sport: 'sport',

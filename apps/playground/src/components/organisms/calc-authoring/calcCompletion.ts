@@ -26,6 +26,12 @@ import { analyzeCalcLine } from './calcDiagnostics';
 export interface CalcCompletionOptions {
   /** Scope used for atom suggestions and dimension inference. */
   scope?: CalcScope;
+  /**
+   * Live effort slugs for the `lookup("effort", …)` key slot — feed from the
+   * app's effort registry: `() => registry.list().map(e => e.slug)`.
+   * Absent/empty falls back to the static EFFORT_KEYS sample list.
+   */
+  effortKeys?: () => readonly string[];
 }
 
 interface Sugg {
@@ -39,6 +45,13 @@ const EFFORT_KEYS = ['effort', 'thruster', 'push-press', 'front-squat', 'wall-ba
 
 export function calcCompletionSource(options: CalcCompletionOptions = {}): (context: CompletionContext) => CompletionResult | null {
   const scope = options.scope ?? 'segment';
+
+  /** Live registry slugs first ('effort' = the note's own effort, always kept);
+   *  static sample list only until a host feeds the registry. */
+  const effortKeyOptions = (): string[] => {
+    const live = options.effortKeys?.().filter(Boolean) ?? [];
+    return ['effort', ...(live.length ? live : EFFORT_KEYS.slice(1))];
+  };
 
   return (context: CompletionContext): CompletionResult | null => {
     const text = context.state.sliceDoc(0, context.pos);
@@ -71,7 +84,7 @@ export function calcCompletionSource(options: CalcCompletionOptions = {}): (cont
       // Key slot (2nd arg) for effort.
       const keyM = /lookup\(\s*"(effort)"\s*,\s*"?([\w.-]*)"?$/.exec(text);
       if (keyM) {
-        const keys = EFFORT_KEYS.filter((k) => k.startsWith(keyM[2]));
+        const keys = effortKeyOptions().filter((k) => k.startsWith(keyM[2]));
         const options = keys.map((k) => ({ label: k, insert: k === 'effort' ? k : `"${k}"`, detail: 'effort key' }));
         return { from: context.pos - keyM[2].length, options, validFor: /^[\w.-]*$/ };
       }
@@ -126,7 +139,8 @@ export function calcCompletionSource(options: CalcCompletionOptions = {}): (cont
   };
 }
 
-/** Ready-to-use autocomplete extension. */
+/** Ready-to-use autocomplete extension. interactionDelay 0 matches every
+ *  other editor surface — keyboard nav/accept never waits out the delay. */
 export function calcCompletion(options?: CalcCompletionOptions) {
-  return autocompletion({ override: [calcCompletionSource(options)] });
+  return autocompletion({ override: [calcCompletionSource(options)], interactionDelay: 0 });
 }

@@ -1,9 +1,13 @@
 import { describe, expect, it  } from 'vitest';
-import { EditorState, type Transaction } from '@codemirror/state';
+import { EditorSelection, EditorState, type Transaction } from '@codemirror/state';
+import { CompletionContext } from '@codemirror/autocomplete';
 import { history, undo, redo, isolateHistory, moveLineDown } from '@codemirror/commands';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { whiteboardScriptCompletionSource, whiteboardScriptLanguage } from '@bitcobblers/wod-wiki-lang';
+import { wqlCompletionSource, wqlLanguage } from '@bitcobblers/wod-wiki-wql';
 import {
   editorPreset,
+  resolveCodeLanguage,
   sectionField,
   sectionIdentity,
   sectionIdentityHistory,
@@ -17,11 +21,18 @@ import {
   navigationFacet,
   editorTheme,
   previewDecorations,
-  registerCustomCompletionSource,
-  unregisterCustomCompletionSource,
+  autocompleteTooltipTheme,
+  customCompletionSources,
+  nestedCompletionOptions,
+  type NestedCompletionOptions,
+  nestedCompletion,
+  wodCompletionSource,
   wodAutocompletion,
+  wodAutoWrap,
+  handleFenceAutoWrap,
+  wodEditorKeymap,
 } from '../src/extensions';
-import { EditorView } from '@codemirror/view';
+import { EditorView, runScopeHandlers } from '@codemirror/view';
 
 describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
   it('editorPreset(dialect) returns a functional extension array', () => {
@@ -137,20 +148,262 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     container.remove();
   });
 
-  it('registerCustomCompletionSource allows custom sources to participate in autocompletion', () => {
-    let sourceInvoked = false;
-    const dummySource = () => {
-      sourceInvoked = true;
-      return null;
+  it('isolates per-editor custom completion sources through real editor state', async () => {
+    const forEditorA = customCompletionSources.of(() => ({ from: 0, options: [{ label: 'editor-a' }] }));
+    const forEditorB = customCompletionSources.of(() => ({ from: 0, options: [{ label: 'editor-b' }] }));
+    const labels = async (state: EditorState) =>
+      (await wodCompletionSource(new CompletionContext(state, state.doc.length, true)))?.options.map((option) => option.label) ?? [];
+
+    const stateA = EditorState.create({ doc: 'x', extensions: [wodAutocompletion, forEditorA] });
+    const stateB = EditorState.create({ doc: 'x', extensions: [wodAutocompletion, forEditorB] });
+    const stateC = EditorState.create({ doc: 'x', extensions: [wodAutocompletion] });
+    expect(await labels(stateA)).toEqual(['editor-a']);
+    expect(await labels(stateB)).toEqual(['editor-b']);
+    expect(await labels(stateC)).toEqual([]);
+  });
+
+  it('runs providers in explicit order — custom sources, opening fences, nested bodies', async () => {
+    // A custom source shadows the fence snippets at the same cursor.
+    const withCustom = EditorState.create({
+      doc: '`',
+      extensions: [wodAutocompletion, customCompletionSources.of(() => ({ from: 0, options: [{ label: 'custom' }] }))],
+    });
+    const custom = await wodCompletionSource(new CompletionContext(withCustom, 1, true));
+    expect(custom?.options.map((option) => option.label)).toEqual(['custom']);
+
+    // Without one, the same cursor yields the opening-fence snippets.
+    const fenced = EditorState.create({ doc: '`', extensions: [wodAutocompletion] });
+    const fences = await wodCompletionSource(new CompletionContext(fenced, 1, true));
+    expect(fences?.options.map((option) => option.label)).toContain('```time');
+  });
+
+  it('nested query bodies match the standalone WQL source options and ranges', async () => {
+    const wqlOptions = { effortNames: () => ['fran'] };
+    // ':no' pins the colon-head slot — the path a live editor reaches through
+    // its parsed language state. Both the runtime-recognized ```query fence
+    // and the highlight-only ```wql code fence dispatch nested WQL.
+    for (const fence of ['query', 'wql'] as const) {
+      for (const body of ['find session{effort:fr', ':no']) {
+        const standalone = await wqlCompletionSource(wqlOptions)(
+          new CompletionContext(EditorState.create({ doc: body, extensions: [wqlLanguage] }), body.length, true),
+        );
+
+        const note = '```' + fence + '\n' + body + '\n```';
+        const nestedState = EditorState.create({
+          doc: note,
+          extensions: [sectionField, nestedCompletionOptions.of({ wql: wqlOptions })],
+        });
+        const nested = await nestedCompletion(new CompletionContext(nestedState, note.length - 4, true));
+
+        expect(nested).not.toBeNull();
+        expect(nested!.options.map((option) => option.label)).toEqual(standalone!.options.map((option) => option.label));
+        expect(nested!.options.map((option) => option.apply ?? option.label))
+          .toEqual(standalone!.options.map((option) => option.apply ?? option.label));
+        expect(nested!.from).toBe(standalone!.from + ('```' + fence + '\n').length);
+      }
+    }
+    // Value-slot fixture proves options threading; colon-head proves the
+    // language-parsed slot list.
+    const threaded = await nestedCompletion(new CompletionContext(
+      EditorState.create({
+        doc: '```query\nfind session{effort:fr\n```',
+        extensions: [sectionField, nestedCompletionOptions.of({ wql: wqlOptions })],
+      }),
+      '```query\nfind session{effort:fr'.length,
+      true,
+    ));
+    expect(threaded!.options.map((option) => option.label)).toContain('fran');
+    const colonHead = await nestedCompletion(new CompletionContext(
+      EditorState.create({
+        doc: '```query\n:no\n```',
+        extensions: [sectionField, nestedCompletionOptions.of({ wql: wqlOptions })],
+      }),
+      '```query\n:no'.length,
+      true,
+    ));
+    expect(colonHead!.options.map((option) => option.label)).toContain('note');
+  });
+
+  it('nested time and log bodies match the standalone Whiteboard Script source options and ranges', async () => {
+    const wbOptions = { efforts: () => [{ value: 'fran', label: 'Fran' }] };
+    const body = '21-15-9 Thrusters ';
+    const standalone = await whiteboardScriptCompletionSource(wbOptions)(
+      new CompletionContext(EditorState.create({ doc: body, extensions: [whiteboardScriptLanguage] }), body.length, true),
+    );
+
+    for (const fence of ['time', 'log'] as const) {
+      const note = '```' + fence + '\n' + body + '\n```';
+      const nestedState = EditorState.create({
+        doc: note,
+        extensions: [sectionField, nestedCompletionOptions.of({ whiteboardScript: wbOptions })],
+      });
+      const nested = await nestedCompletion(new CompletionContext(nestedState, note.length - 4, true));
+
+      expect(nested).not.toBeNull();
+      expect(nested!.options.map((option) => option.label)).toEqual(standalone!.options.map((option) => option.label));
+      expect(nested!.options.map((option) => option.apply ?? option.label))
+        .toEqual(standalone!.options.map((option) => option.apply ?? option.label));
+      expect(nested!.from).toBe(standalone!.from + ('```' + fence + '\n').length);
+      expect(nested!.options.map((option) => option.label)).toContain('Fran');
+
+      // Snippets are available on an empty body line, like a standalone editor.
+      const blankNote = '```' + fence + '\n\n```';
+      const blankState = EditorState.create({
+        doc: blankNote,
+        extensions: [sectionField, nestedCompletionOptions.of({ whiteboardScript: wbOptions })],
+      });
+      const blank = await nestedCompletion(new CompletionContext(blankState, blankNote.indexOf('\n') + 1, true));
+      expect(blank?.options.map((option) => option.label)).toContain('Circuit');
+    }
+  });
+
+  it('nested time bodies offer effort, unit, and property suggestions inside the body', async () => {
+    const wbOptions = {
+      efforts: () => [{ value: 'fran', label: 'Fran' }],
+      equipment: () => [{ value: 'barbell', label: 'Barbell' }],
+    };
+    const nested = (body: string) =>
+      EditorState.create({
+        doc: '```time\n' + body + '\n```',
+        extensions: [sectionField, nestedCompletionOptions.of({ whiteboardScript: wbOptions })],
+      });
+    const at = async (state: EditorState, needle: string) => {
+      const pos = state.doc.toString().indexOf(needle) + needle.length;
+      return nestedCompletion(new CompletionContext(state, pos, true));
     };
 
-    registerCustomCompletionSource(dummySource);
+    // Bare word at line start: property keys share the slot with efforts.
+    const keys = await at(nested('eff'), 'eff');
+    expect(keys?.options.map((option) => option.label)).toContain('effort');
+    expect(keys?.options.map((option) => option.label)).toContain('Fran');
+    // `key: value` resolves the matching host catalog by slug.
+    const efforts = await at(nested('effort:fr'), 'effort:fr');
+    expect(efforts?.options.map((option) => option.apply)).toContain('fran');
+    const equipment = await at(nested('equipment:bar'), 'equipment:bar');
+    expect(equipment?.options.map((option) => option.apply)).toContain('barbell');
+    // Units after a number.
+    const units = await at(nested('10 cal'), '10 cal');
+    expect(units?.options.map((option) => option.label)).toContain('km');
+  });
+
+  it('nested log bodies add climb vocabulary from the fence sport', async () => {
+    const options: NestedCompletionOptions = { whiteboardScript: {} };
+    const at = async (note: string) => {
+      const state = EditorState.create({ doc: note, extensions: [sectionField, nestedCompletionOptions.of(options)] });
+      const pos = note.indexOf('Redpoint ') + 'Redpoint '.length;
+      return (await nestedCompletion(new CompletionContext(state, pos, true)))?.options.map((option) => option.label) ?? [];
+    };
+
+    expect(await at('```log:climbing\nRedpoint \n```')).toContain('flash');
+    expect(await at('```log\nRedpoint \n```')).not.toContain('flash');
+  });
+
+  it('keeps nested Whiteboard Script catalog callbacks per editor', async () => {
+    const doc = '```time\n21-15-9 Thrusters \n```';
+    const labels = async (options: NestedCompletionOptions) => {
+      const state = EditorState.create({ doc, extensions: [sectionField, nestedCompletionOptions.of(options)] });
+      const pos = doc.indexOf('Thrusters ') + 'Thrusters '.length;
+      return (await nestedCompletion(new CompletionContext(state, pos, true)))?.options.map((option) => option.label) ?? [];
+    };
+
+    expect(await labels({ whiteboardScript: { efforts: () => [{ value: 'fran' }] } })).toContain('fran');
+    expect(await labels({ whiteboardScript: { efforts: () => [{ value: 'grace' }] } })).not.toContain('fran');
+    // No options: grammar-aware defaults only — no host efforts leak across editors.
+    expect(await labels({})).not.toContain('fran');
+  });
+
+  it('keeps fence and nested suggestions inside their own sections', async () => {
+    const doc = '---\ntags: x\n---\n\n# Note\n\n```query\nfind session{effort:fr\n```\n\n```time\n10:00 Run\n```\n';
     const state = EditorState.create({
-      doc: 'test',
-      extensions: [wodAutocompletion],
+      doc,
+      extensions: [sectionField, wodAutocompletion, nestedCompletionOptions.of({ wql: { effortNames: () => ['fran'] } })],
     });
-    expect(state).toBeDefined();
-    unregisterCustomCompletionSource(dummySource);
+    const offset = (needle: string) => doc.indexOf(needle) + needle.length;
+    const labels = async (pos: number) =>
+      (await wodCompletionSource(new CompletionContext(state, pos, true)))?.options.map((option) => option.label) ?? [];
+
+    // Prose and frontmatter: no fence snippets, no nested WQL.
+    expect(await labels(offset('# Note'))).toEqual([]);
+    expect(await labels(offset('tags: x'))).toEqual([]);
+    // Query body: WQL options only — no opening-fence suggestions leak in.
+    const inQuery = await labels(offset('effort:fr'));
+    expect(inQuery).toContain('fran');
+    expect(inQuery.every((label) => !label.startsWith('```'))).toBe(true);
+    // Time body: Whiteboard Script suggestions only — no WQL, no fences.
+    const inTime = await labels(offset('10:00 Run'));
+    expect(inTime).toContain('FOR TIME');
+    expect(inTime.every((label) => !label.startsWith('```'))).toBe(true);
+    expect(inTime).not.toContain('fran');
+  });
+
+  it('exposes one fence-language resolver and the shared tooltip theme', () => {
+    expect(resolveCodeLanguage('time')).toBe(whiteboardScriptLanguage);
+    expect(resolveCodeLanguage('time:crossfit')).toBe(whiteboardScriptLanguage);
+    expect(resolveCodeLanguage('LOG')).toBe(whiteboardScriptLanguage);
+    expect(resolveCodeLanguage('wod')).toBe(whiteboardScriptLanguage);
+    expect(resolveCodeLanguage('whiteboard')).toBe(whiteboardScriptLanguage);
+    expect(resolveCodeLanguage('query')).toBe(wqlLanguage);
+    expect(resolveCodeLanguage('wql')).toBe(wqlLanguage);
+    expect(resolveCodeLanguage('python')).toBeNull();
+    for (const dialect of ['markdown', 'wql', 'wod', 'whiteboard', 'time']) {
+      expect(editorPreset(dialect).includes(autocompleteTooltipTheme)).toBe(true);
+    }
+  });
+
+  it('guards backtick auto-wrap to markdown sections', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const markdownView = new EditorView({
+      state: EditorState.create({ doc: 'sel', extensions: [wodAutoWrap] }),
+      parent: host,
+    });
+    markdownView.dispatch({ selection: EditorSelection.range(0, 3) });
+    expect(handleFenceAutoWrap({ data: '`' } as InputEvent, markdownView)).toBe(true);
+    expect(markdownView.state.doc.toString()).toBe('```time\nsel\n```');
+
+    const queryDoc = '```query\nsel\n```';
+    const queryView = new EditorView({
+      state: EditorState.create({ doc: queryDoc, extensions: [sectionField, wodAutoWrap] }),
+      parent: host,
+    });
+    queryView.dispatch({ selection: EditorSelection.range(9, 12) });
+    expect(handleFenceAutoWrap({ data: '`' } as InputEvent, queryView)).toBe(false);
+    expect(queryView.state.doc.toString()).toBe(queryDoc);
+
+    markdownView.destroy();
+    queryView.destroy();
+    host.remove();
+  });
+
+  it('keeps the Mod-Alt-w wrap chord out of code sections and frontmatter', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const wrapKey = (doc: string, from: number, to: number) => {
+      const view = new EditorView({
+        state: EditorState.create({ doc, extensions: [sectionField, wodEditorKeymap] }),
+        parent: host,
+      });
+      view.dispatch({ selection: EditorSelection.range(from, to) });
+      const handled = runScopeHandlers(view, new KeyboardEvent('keydown', {
+        key: 'w', ctrlKey: true, altKey: true, bubbles: true, cancelable: true,
+      }), 'editor');
+      const after = view.state.doc.toString();
+      view.destroy();
+      return { handled, after };
+    };
+
+    // Markdown prose: wraps the selection into a ```time fence (control).
+    expect(wrapKey('sel', 0, 3)).toEqual({ handled: true, after: '```time\nsel\n```' });
+
+    // Query/time bodies and frontmatter: no nested fences, no document change.
+    const queryDoc = '```query\nsel\n```';
+    expect(wrapKey(queryDoc, 9, 12)).toEqual({ handled: false, after: queryDoc });
+    const timeDoc = '```time\nsel\n```';
+    expect(wrapKey(timeDoc, 9, 12)).toEqual({ handled: false, after: timeDoc });
+    const frontmatterDoc = '---\ntags: x\n---\nsel';
+    expect(wrapKey(frontmatterDoc, 4, 11)).toEqual({ handled: false, after: frontmatterDoc });
+
+    host.remove();
   });
 });
 

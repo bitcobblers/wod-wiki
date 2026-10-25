@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { EditorDialog } from '@bitcobblers/wod-wiki-ui';
+import { useNoteEditor } from '../workbench/LanguageWorkbench';
 import noteEditorData from './data/note-editor';
 import journalDateStackData from './data/journal-date-stack';
 import journalStreamData from './data/journal-stream.json';
@@ -29,6 +31,67 @@ const meta: Meta = {
 export default meta;
 
 // ── 1. Universal Note Editor ──────────────────────────────────────────────────
+
+/**
+ * Editable completion sample: frontmatter, a nested ```query body, and
+ * ```time / ```log bodies — one note, every completion surface. Typing in the
+ * fences opens the real preset completions; frontmatter and prose stay plain
+ * Markdown.
+ */
+const NOTE_COMPLETION_SAMPLE = [
+  '---',
+  'title: Benchmark Day',
+  'date: 2026-10-24',
+  '---',
+  '',
+  '# Benchmark Day',
+  '',
+  'Frontmatter and prose stay plain Markdown — query and workout',
+  'completions belong inside the fences below.',
+  '',
+  '```query',
+  ':journal{effort:snatch} last 4w | :sum{metric:tis} | :bar{}',
+  '```',
+  '',
+  '```wql',
+  ':note{tags:benchmark} last 8w',
+  '```',
+  '',
+  '```time',
+  '(3)',
+  '  10 Power Cleans 135 lb',
+  '  12 Pull-ups',
+  '  * :90 Rest',
+  '```',
+  '',
+  '```log',
+  '5x5 Back Squat @100kg',
+  '```',
+].join('\n');
+
+/**
+ * Live markdown-preset editor mount (same hook as the workbench note lane).
+ * Owns its ref so remounts (mode toggles, dialog open) rebuild a fresh
+ * EditorView instead of orphaning one.
+ */
+function NoteEditorSurface({
+  doc,
+  testId = 'note-editor-host',
+}: {
+  doc: string;
+  testId?: string;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  useNoteEditor(host, doc, () => {});
+  return (
+    <div
+      ref={host}
+      data-testid={testId}
+      className="min-h-72 overflow-hidden rounded-lg border border-border/60 bg-background/70 shadow-inner text-sm"
+    />
+  );
+}
+
 function UniversalNoteEditorView() {
   const [mode, setMode] = useState<'read' | 'edit'>('edit');
   const { note } = noteEditorData;
@@ -99,9 +162,13 @@ function UniversalNoteEditorView() {
             </div>
 
             <div className="border border-border rounded-xl bg-card p-6 shadow-sm">
-              <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-                {note.rawContent}
-              </pre>
+              {mode === 'edit' ? (
+                <NoteEditorSurface doc={NOTE_COMPLETION_SAMPLE} />
+              ) : (
+                <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+                  {NOTE_COMPLETION_SAMPLE}
+                </pre>
+              )}
             </div>
           </main>
 
@@ -119,6 +186,38 @@ function UniversalNoteEditorView() {
 export const UniversalNoteEditor: StoryObj = {
   name: 'Universal Note Editor (/notes/:noteId)',
   render: () => <UniversalNoteEditorView />,
+};
+
+// ── 1b. Universal Note Editor — Dialog Host ───────────────────────────────────
+
+function NoteEditorDialogView() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-background text-foreground font-sans">
+      <button
+        type="button"
+        data-testid="note-dialog-open"
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+      >
+        <Edit3 className="size-4" /> Edit note
+      </button>
+      <EditorDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Edit note"
+        description="Completion menus must float above this dialog, and Escape dismisses the menu before the dialog."
+      >
+        <NoteEditorSurface doc={NOTE_COMPLETION_SAMPLE} testId="note-dialog-editor" />
+      </EditorDialog>
+    </div>
+  );
+}
+
+export const UniversalNoteEditorDialog: StoryObj = {
+  name: 'Universal Note Editor Dialog',
+  render: () => <NoteEditorDialogView />,
 };
 
 // ── 2. Journal Date Stack ─────────────────────────────────────────────────────

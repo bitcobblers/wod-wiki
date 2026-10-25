@@ -9,7 +9,6 @@ import { getAppEquipmentRegistry } from '@/services/equipmentRegistry';
 import { SEED_BROADCAST_CHANNEL } from '@/services/seed/seedSync';
 import { v7 as uuidv7 } from 'uuid';
 import { appWarn } from '@/lib/log';
-import { whiteboardScriptLanguage } from '@/hooks/useRuntimeParser';
 import { IndexedDBNotePersistence, type INotePersistence } from '@/services/persistence';
 import { entryOpenHref } from '../../../app/lib/entryActions';
 import type { Entry } from '../../../app/lib/entryActions';
@@ -373,13 +372,4 @@ export function createFileDropHandler(
       return true;
     },
   });
-}
-
-export function resolveWhiteboardCodeLanguage(info: string | null | undefined) {
-  const base = info?.split(':', 1)[0];
-  if (base === 'time' || base === 'log') {
-    return whiteboardScriptLanguage;
-  }
-
-  return null;
 }

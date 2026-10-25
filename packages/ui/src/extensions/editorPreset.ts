@@ -14,12 +14,19 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
 import { whiteboardScriptLanguage, whiteboardScript } from '@bitcobblers/wod-wiki-lang';
+import type { WhiteboardScriptCompletionOptions } from '@bitcobblers/wod-wiki-lang';
 import { wql, wqlLanguage, type IFieldCatalog } from '@bitcobblers/wod-wiki-wql';
 import { editorTheme } from "./theme";
+import { autocompleteTooltipTheme } from "./autocomplete-theme";
 import { sectionField, sectionIdentityHistory } from './section-state';
 import { previewDecorations } from "./preview-decorations";
 import { wodLinter } from "./whiteboard-linter";
-import { wodAutocompletion, wodEditorKeymap, wodAutoWrap } from "./whiteboard-autocomplete";
+import {
+  wodAutocompletion,
+  wodEditorKeymap,
+  wodAutoWrap,
+  nestedCompletionOptions,
+} from "./whiteboard-autocomplete";
 import { lineIdsExtension } from "./line-ids";
 import { linkOpen } from "./link-open";
 import { smartIncrement } from "./smart-increment";
@@ -54,6 +61,10 @@ export interface EditorPresetOptions {
   /** Dynamic typed-tag filter values (`domain:`/`format:`/`equipment:`/
    *  `quality:`/`intent:`) for wql editors — host reads its tags store. */
   tagTypeValues?: (key: string) => Promise<readonly string[]> | readonly string[];
+  /** Whiteboard Script completion inputs (sport, catalog callbacks) for
+   *  standalone wod/whiteboard/time editors and nested ```time/```log
+   *  bodies — one object, so both offer identical suggestions. */
+  whiteboardScript?: WhiteboardScriptCompletionOptions;
   extensions?: Extension[];
 }
 
@@ -76,6 +87,7 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
     onResultSaved,
     catalog,
     tagTypeValues,
+    whiteboardScript: whiteboardScriptCompletion,
     extensions: extraExtensions = [],
   } = options;
 
@@ -96,6 +108,8 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
       indentWithTab,
     ]),
     editorTheme(isDark),
+    // One token-based autocomplete tooltip theme for every dialect.
+    autocompleteTooltipTheme,
     lineIdsExtension,
     smartIncrement,
   ];
@@ -112,11 +126,22 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
     extensions.push(wql(completionOptions));
   } else if (dialect === 'wod' || dialect === 'whiteboard' || dialect === 'time') {
     extensions.push(
-      whiteboardScript(),
+      whiteboardScript(whiteboardScriptCompletion),
       wodLinter,
     );
   } else {
     // Default: Markdown with live sectionField, previews, wod completions, and query blocks
+    // Nested ```query/```wql bodies get the same completion inputs the standalone
+    // wql dialect receives (catalog, tagTypeValues), and nested ```time/```log
+    // bodies the same Whiteboard Script inputs — parity by construction.
+    const nestedWql = {
+      ...(catalog ? { catalog } : {}),
+      ...(tagTypeValues ? { tagTypeValues } : {}),
+    };
+    const nestedOptions = {
+      ...(Object.keys(nestedWql).length ? { wql: nestedWql } : {}),
+      ...(whiteboardScriptCompletion ? { whiteboardScript: whiteboardScriptCompletion } : {}),
+    };
     extensions.push(
       markdown({ codeLanguages: resolveCodeLanguage }),
       sectionField,
@@ -126,6 +151,7 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
       wodAutocompletion,
       wodEditorKeymap,
       wodAutoWrap,
+      ...(Object.keys(nestedOptions).length ? [nestedCompletionOptions.of(nestedOptions)] : []),
       linkOpen,
       markdownSyntaxHiding(),
       markdownTablePreview,

@@ -59,7 +59,8 @@ import { markdownTablePreview } from '@bitcobblers/wod-wiki-ui/extensions';
 import { linkPreview } from '@bitcobblers/wod-wiki-ui/extensions';
 import { markdownSyntaxHiding } from '@bitcobblers/wod-wiki-ui/extensions';
 import { wodLinter } from '@bitcobblers/wod-wiki-ui/extensions';
-import { wodAutocompletion, wodEditorKeymap, wodAutoWrap, registerCustomCompletionSource, unregisterCustomCompletionSource, type CustomCompletionSource } from '@bitcobblers/wod-wiki-ui/extensions';
+import { wodAutocompletion, wodEditorKeymap, wodAutoWrap, autocompleteTooltipTheme, customCompletionSources, nestedCompletionOptions, resolveCodeLanguage, type CustomCompletionSource, type NestedCompletionOptions } from '@bitcobblers/wod-wiki-ui/extensions';
+import { loadSuggestions } from '@bitcobblers/wod-wiki-ui';
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete';
 import { storageService } from '@/hooks/useBrowserServices';
 import { wodOverlayPanel } from '@bitcobblers/wod-wiki-ui/extensions';
@@ -75,7 +76,8 @@ import { cursorFocusExtension, getCursorFocusState } from "@/app/editor/cursorFo
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { INotePersistence } from "@/services/persistence";
 import { queryService, onResultSaved } from "@/hooks/useCastSignaling";
-import { createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence, resolveWhiteboardCodeLanguage } from "@/app/editor/noteEditorServices";
+import { createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence } from "@/app/editor/noteEditorServices";
+import { readSoundProfiles } from "@/services/sound/soundProfiles";
 
 import { entryOpenHref } from '../../../../app/lib/entryActions';
 import { toEntry, blockToEntry } from '../../../../app/lib/entryMapper';
@@ -257,89 +259,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   // content (home hero + runway window) must each seed their own blocks — a
   // module-level dedupe swallows the second editor's seed entirely.
   const lastBlocksJsonRef = useRef("");
-  // Register frontmatter tag completions into the global CodeMirror completion chain
-  useEffect(() => {
-    const source: CustomCompletionSource = async (context: CompletionContext): Promise<CompletionResult | null> => {
-      if (context.view !== viewRef.current || !isLeadingFrontmatter(context.state, context.pos)) return null;
-      const line = context.state.doc.lineAt(context.pos);
-      const textBefore = line.text.slice(0, context.pos - line.from);
-      const propMatch = textBefore.match(/^([a-zA-Z][\w.-]*)$/);
-      const valueContext = frontmatterValueContext(context.state, context.pos);
-      if (!propMatch && !valueContext) return null;
-
-      const [tagTypes, allTags] = await Promise.all([
-        storageService.getAllTagTypes().catch(() => []),
-        storageService.getAllTags().catch(() => []),
-      ]);
-
-      if (propMatch) {
-        return {
-          from: line.from,
-          options: tagTypes.map((t) => ({
-            label: t.name,
-            detail: `Tag Type (${t.label})`,
-            type: 'property',
-            apply: `${t.name}:\n  - `,
-          })),
-          validFor: (text, _from, to, state) =>
-            /^[a-zA-Z][\w.-]*$/.test(text) && isLeadingFrontmatter(state, to),
-        };
-      }
-
-      if (!valueContext) return null;
-      const { propertyKey, from: wordFrom } = valueContext;
-
-      // Durable reference values (note defaults + definition lists) complete
-      // from the same catalog the resolver uses; the slug is what's authored.
-      const REF_VALUE_KIND: Record<string, 'effort' | 'equipment'> = {
-        'metrics.effort': 'effort',
-        'metrics.equipment': 'equipment',
-        equipment: 'equipment',
-      };
-      const refKind = REF_VALUE_KIND[propertyKey.toLowerCase()];
-      if (refKind) {
-        const catalog = await loadReferenceCatalog();
-        const rows = refKind === 'effort' ? catalog.efforts : catalog.equipment;
-        return {
-          from: wordFrom,
-          options: rows.map((row) => ({
-            label: `${row.label} (${row.slug})`,
-            detail: refKind === 'effort' ? 'Effort' : 'Equipment',
-            type: 'constant',
-            apply: row.slug,
-          })),
-          validFor: (text, from, to, state) => {
-            const current = frontmatterValueContext(state, to);
-            return /^[\w-]*$/.test(text) && current?.propertyKey === propertyKey && current.from === from;
-          },
-        };
-      }
-
-      const matchingType = tagTypes.find((t) => t.name.toLowerCase() === propertyKey.toLowerCase());
-      if (!matchingType) return null;
-
-      const matchingTags = allTags.filter((t) => t.type?.toLowerCase() === matchingType.name.toLowerCase());
-      if (matchingTags.length === 0) return null;
-
-      return {
-        from: wordFrom,
-        options: matchingTags.map((t) => ({
-          label: t.label,
-          detail: matchingType.label,
-          type: 'constant',
-        })),
-        validFor: (text, from, to, state) => {
-          const current = frontmatterValueContext(state, to);
-          return /^[\w-]*$/.test(text) && current?.propertyKey === propertyKey && current.from === from;
-        },
-      };
-    };
-
-    registerCustomCompletionSource(source);
-    return () => {
-      unregisterCustomCompletionSource(source);
-    };
-  }, []);
+  // Per-editor completion wiring lives at module scope (below) and rides in
+  // baseExtensions: the mode-sync effect applies a full StateEffect.reconfigure
+  // after mount, so facet values mounted anywhere else would be dropped (the
+  // retired module-global registry existed for the same reason).
 
   const isDark = theme === "dark" || theme === "vs-dark";
   const notePersistence = resolveNotePersistence(defaultNotePersistenceRef, providedNotePersistence);
@@ -529,10 +452,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     return synthesized;
   }, [commands, onStartWorkout, onAddToPlan, enableInlineRuntime, hideDefaultCommands, handleRun]);
 
-  // Mixed language: Markdown + embedded Whiteboard Script in code fences
+  // Mixed language: Markdown + embedded dialect fences (time/log with sport,
+  // query/wql, wod/whiteboard aliases) via the shared resolver.
   const languages = useMemo(() => {
     return markdown({
-      codeLanguages: resolveWhiteboardCodeLanguage,
+      codeLanguages: resolveCodeLanguage,
     });
   }, []);
 
@@ -640,10 +564,16 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // Whiteboard Script linting (no separate lintGutter — unified gutter handles it)
       ...(enableLinting ? [wodLinter] : []),
 
-      // Autocomplete (fence-tag + embed completions) and fence wrapping
+      // Autocomplete (fence-tag + embed completions), the shared tooltip
+      // theme, and fence wrapping
       wodAutocompletion,
+      autocompleteTooltipTheme,
       wodEditorKeymap,
       wodAutoWrap,
+      // Per-editor completion sources (facet values must ride in
+      // baseExtensions to survive the mode-sync reconfigure).
+      customCompletionSources.of(frontmatterCompletionSource),
+      nestedCompletionOptions.of(NOTE_NESTED_WQL_OPTIONS),
 
       // Overlay panel for Whiteboard Script blocks
       ...(enableOverlay ? [wodOverlayPanel] : []),
@@ -1031,6 +961,120 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
     </div>
   );
+};
+
+// ---------- Completion wiring (module-level; see note in NoteEditor) ----------
+
+/** Frontmatter tag/reference completions, scoped to leading frontmatter via
+ *  the customCompletionSources facet (per editor state — never a global
+ *  registry). Reads only module singletons, so the identity is stable across
+ *  the mode-sync reconfigure. */
+const frontmatterCompletionSource: CustomCompletionSource = async (context: CompletionContext): Promise<CompletionResult | null> => {
+  if (!isLeadingFrontmatter(context.state, context.pos)) return null;
+  const line = context.state.doc.lineAt(context.pos);
+  const textBefore = line.text.slice(0, context.pos - line.from);
+  const propMatch = textBefore.match(/^([a-zA-Z][\w.-]*)$/);
+  const valueContext = frontmatterValueContext(context.state, context.pos);
+  if (!propMatch && !valueContext) return null;
+
+  const [tagTypes, allTags] = await Promise.all([
+    storageService.getAllTagTypes().catch(() => []),
+    storageService.getAllTags().catch(() => []),
+  ]);
+
+  if (propMatch) {
+    return {
+      from: line.from,
+      options: tagTypes.map((t) => ({
+        label: t.name,
+        detail: `Tag Type (${t.label})`,
+        type: 'property',
+        apply: `${t.name}:\n  - `,
+      })),
+      validFor: (text, _from, to, state) =>
+        /^[a-zA-Z][\w.-]*$/.test(text) && isLeadingFrontmatter(state, to),
+    };
+  }
+
+  if (!valueContext) return null;
+  const { propertyKey, from: wordFrom } = valueContext;
+
+  // Durable reference values (note defaults + definition lists) complete
+  // from the same catalog the resolver uses; the slug is what's authored.
+  const REF_VALUE_KIND: Record<string, 'effort' | 'equipment'> = {
+    'metrics.effort': 'effort',
+    'metrics.equipment': 'equipment',
+    equipment: 'equipment',
+  };
+  const refKind = REF_VALUE_KIND[propertyKey.toLowerCase()];
+  if (refKind) {
+    const catalog = await loadReferenceCatalog();
+    const rows = refKind === 'effort' ? catalog.efforts : catalog.equipment;
+    return {
+      from: wordFrom,
+      options: rows.map((row) => ({
+        label: `${row.label} (${row.slug})`,
+        detail: refKind === 'effort' ? 'Effort' : 'Equipment',
+        type: 'constant',
+        apply: row.slug,
+      })),
+      validFor: (text, from, to, state) => {
+        const current = frontmatterValueContext(state, to);
+        return /^[\w-]*$/.test(text) && current?.propertyKey === propertyKey && current.from === from;
+      },
+    };
+  }
+
+  const matchingType = tagTypes.find((t) => t.name.toLowerCase() === propertyKey.toLowerCase());
+  if (!matchingType) return null;
+
+  const matchingTags = allTags.filter((t) => t.type?.toLowerCase() === matchingType.name.toLowerCase());
+  if (matchingTags.length === 0) return null;
+
+  return {
+    from: wordFrom,
+    options: matchingTags.map((t) => ({
+      label: t.label,
+      detail: matchingType.label,
+      type: 'constant',
+    })),
+    validFor: (text, from, to, state) => {
+      const current = frontmatterValueContext(state, to);
+      return /^[\w-]*$/.test(text) && current?.propertyKey === propertyKey && current.from === from;
+    },
+  };
+};
+
+// Exactly the wqlCompletionSource options the standalone WQL editors configure,
+// so nested ```query/```wql bodies rank, apply, and insert identically.
+const NOTE_NESTED_WQL_OPTIONS: NestedCompletionOptions = {
+  wql: {
+    values: async (key) =>
+      (await loadSuggestions(key === 'tags' ? 'tag' : key)).map((item) => ({
+        label: item.value,
+        detail: item.label,
+        type: 'constant' as const,
+      })),
+  },
+  // Exactly the WhiteboardScriptCompletionOptions a standalone WB editor gets:
+  // efforts/equipment from the shared reference catalog, tags from the cached
+  // tag index, sound profiles from the sound service. The provider's sport
+  // comes from each section's `:sport` fence suffix, not here.
+  whiteboardScript: {
+    efforts: async () =>
+      (await loadReferenceCatalog()).efforts.map((effort) => ({
+        value: effort.slug,
+        label: `${effort.label} (${effort.slug})`,
+      })),
+    equipment: async () =>
+      (await loadReferenceCatalog()).equipment.map((item) => ({
+        value: item.slug,
+        label: `${item.label} (${item.slug})`,
+      })),
+    tags: async () => getTagIndex().list().map((tag) => ({ value: tag.slug })),
+    sounds: () =>
+      readSoundProfiles().map((profile) => ({ value: profile.id, label: profile.name })),
+  },
 };
 
 // ---------- Helpers ----------

@@ -1,6 +1,8 @@
 import { LRLanguage, LanguageSupport } from "@codemirror/language";
 import { styleTags, tags as t } from "@lezer/highlight";
 import { parser } from '../grammar/parser';
+import { whiteboardScriptCompletion } from './completion';
+import type { WhiteboardScriptCompletionOptions } from './completion';
 
 export const whiteboardScriptLanguage = LRLanguage.define({
   parser: parser.configure({
@@ -36,6 +38,13 @@ export const whiteboardScriptLanguage = LRLanguage.define({
   }
 });
 
-export function whiteboardScript() {
-  return new LanguageSupport(whiteboardScriptLanguage);
+/**
+ * Whiteboard Script language support with syntax-aware completion attached.
+ *
+ * @param options Optional completion configuration (sport, catalog callbacks).
+ *   Omit for the default provider; pass `whiteboardScriptLanguage` instead when
+ *   a host composes its own completion sources.
+ */
+export function whiteboardScript(options?: WhiteboardScriptCompletionOptions) {
+  return new LanguageSupport(whiteboardScriptLanguage, whiteboardScriptCompletion(options ?? {}));
 }

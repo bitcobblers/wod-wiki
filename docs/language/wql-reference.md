@@ -145,6 +145,12 @@ sum:totalVolume{} where :note{format:emom}
 :note{intent:benchmark} where :sum{metric:totalVolume} > 5000
 ```
 
+## Editor completions
+
+Note editors offer the same WQL completions inside ` ```query ` and ` ```wql ` fence bodies as a standalone WQL editor — source heads, functions, charts, filter keys and values, windows, and row-presentation keywords, with identical triggers and ranking. Typing a word character activates the menu (`fin` offers `find`). Host-supplied field catalogs and typed-tag values extend filter suggestions when provided.
+
+Fence spelling does not change behavior: `query` and `wql` bodies complete identically. Frontmatter, prose, headings, and widget or embed blocks never receive query suggestions. The shared keyboard behavior applies: arrows move the active option, Enter or Tab accepts into the document, Escape dismisses without inserting.
+
 ## Removed syntax
 
 - `find:<target>` is retired. Use `:<target>`.

@@ -9,6 +9,8 @@ import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { CalcScope } from '@bitcobblers/wod-wiki-engine';
+import { autocompleteTooltipTheme } from '@bitcobblers/wod-wiki-ui/extensions';
+import { getAppEffortRegistry } from '@/services/effortRegistry';
 import { calcLineSupport } from './calcLineLanguage';
 import { calcCompletion } from './calcCompletion';
 
@@ -50,7 +52,13 @@ export function CalcLineEditor({
         doc: value,
         extensions: [
           calcLineSupport(),
-          calcCompletion({ scope }),
+          calcCompletion({
+            scope,
+            // Live effort keys from the app effort registry (bundled + user
+            // tiers); falls back to the static sample list until hydration.
+            effortKeys: () => getAppEffortRegistry().list().map((effort) => effort.slug),
+          }),
+          autocompleteTooltipTheme,
           lineNumbers(),
           history(),
           keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),

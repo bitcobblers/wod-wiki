@@ -9,10 +9,14 @@ export {
   fenceCompletion,
   wrapInTimeFence,
   handleFenceAutoWrap,
-  registerCustomCompletionSource,
-  unregisterCustomCompletionSource,
+  wodCompletionSource,
+  nestedCompletion,
+  customCompletionSources,
+  nestedCompletionOptions,
   type CustomCompletionSource,
+  type NestedCompletionOptions,
 } from './whiteboard-autocomplete';
+export { autocompleteTooltipTheme } from './autocomplete-theme';
 export {
   sectionField,
   sectionAtPos,
@@ -91,4 +95,4 @@ export {
   type WidgetProps,
   type WidgetConfig,
 } from './widget-block-preview';
-export { editorPreset, type EditorPresetOptions } from './editorPreset';
+export { editorPreset, resolveCodeLanguage, type EditorPresetOptions } from './editorPreset';

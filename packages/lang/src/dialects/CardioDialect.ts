@@ -26,6 +26,18 @@ import { hintsToContainer } from '../metrics/hints';
  *   behavior.pace_based        - pacing / splits are relevant
  *   behavior.aerobic           - sustained aerobic effort
  */
+/**
+ * Activity keyword → emitted hint table, shared with the completion provider
+ * so the editor suggests the same vocabulary this dialect recognizes.
+ */
+export const CARDIO_ACTIVITY_KEYWORDS: readonly { keywords: readonly string[]; hints: readonly string[] }[] = [
+  { keywords: ['RUN', 'JOG', 'SPRINT'], hints: ['workout.run', 'behavior.aerobic'] },
+  { keywords: ['ROW', 'ROWING'], hints: ['workout.row', 'behavior.aerobic'] },
+  { keywords: ['BIKE', 'CYCLE', 'CYCLING'], hints: ['workout.bike', 'behavior.aerobic'] },
+  { keywords: ['SWIM', 'SWIMMING'], hints: ['workout.swim', 'behavior.aerobic'] },
+  { keywords: ['WALK', 'WALKING'], hints: ['workout.walk'] },
+];
+
 export class CardioDialect implements IDialect {
   id = 'cardio';
   name = 'Cardio Dialect';
@@ -47,46 +59,10 @@ export class CardioDialect implements IDialect {
     const hints: string[] = [];
     const metrics = MetricContainer.from(statement.metrics);
 
-    // TODO: Detect running activities
-    if (
-      this.hasKeyword(metrics, 'RUN') ||
-      this.hasKeyword(metrics, 'JOG') ||
-      this.hasKeyword(metrics, 'SPRINT')
-    ) {
-      hints.push('domain.cardio');
-      hints.push('workout.run');
-      hints.push('behavior.aerobic');
-    }
-
-    // TODO: Detect rowing
-    if (this.hasKeyword(metrics, 'ROW') || this.hasKeyword(metrics, 'ROWING')) {
-      hints.push('domain.cardio');
-      hints.push('workout.row');
-      hints.push('behavior.aerobic');
-    }
-
-    // TODO: Detect cycling
-    if (
-      this.hasKeyword(metrics, 'BIKE') ||
-      this.hasKeyword(metrics, 'CYCLE') ||
-      this.hasKeyword(metrics, 'CYCLING')
-    ) {
-      hints.push('domain.cardio');
-      hints.push('workout.bike');
-      hints.push('behavior.aerobic');
-    }
-
-    // TODO: Detect swimming
-    if (this.hasKeyword(metrics, 'SWIM') || this.hasKeyword(metrics, 'SWIMMING')) {
-      hints.push('domain.cardio');
-      hints.push('workout.swim');
-      hints.push('behavior.aerobic');
-    }
-
-    // TODO: Detect walking
-    if (this.hasKeyword(metrics, 'WALK') || this.hasKeyword(metrics, 'WALKING')) {
-      hints.push('domain.cardio');
-      hints.push('workout.walk');
+    for (const activity of CARDIO_ACTIVITY_KEYWORDS) {
+      if (activity.keywords.some(keyword => this.hasKeyword(metrics, keyword))) {
+        hints.push('domain.cardio', ...activity.hints);
+      }
     }
 
     // TODO: Detect distance-only statements (e.g. "400m", "5km" with no activity keyword)

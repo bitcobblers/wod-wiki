@@ -90,7 +90,9 @@ export function EditorDialog({
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
       event.stopPropagation();
-      onClose();
+      // CodeMirror and other nested popovers prevent Escape when they consume
+      // it to close themselves; only an unconsumed Escape closes the dialog.
+      if (!event.defaultPrevented) onClose();
       return;
     }
     if (event.key !== 'Tab') return;

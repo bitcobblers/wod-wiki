@@ -18,7 +18,7 @@ const UNITS_DIALECT_ID = 'units';
  * The fence suffix is a sport name (` ```log:climbing `); the registry id is
  * the dialect's short id (`climb`). Exact registry ids always match directly.
  */
-const SPORT_ALIASES: Readonly<Record<string, string>> = {
+export const SPORT_ALIASES: Readonly<Record<string, string>> = {
     climbing: 'climb',
 };
 

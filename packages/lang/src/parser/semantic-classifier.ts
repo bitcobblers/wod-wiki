@@ -37,7 +37,8 @@ type ClassifiedSlot =
   | { kind: 'contributed'; pair: MetricPair }
   | { kind: 'marker'; pair: MetricPair };
 
-const PROPERTY_KEY_TO_METRIC_TYPE: Record<string, MetricType> = {
+/** Property keys the classifier understands, mapped to their metric type. */
+export const PROPERTY_KEY_TO_METRIC_TYPE: Record<string, MetricType> = {
   rpe: MetricType.SessionRPE,
   rir: MetricType.RIR,
   intensity: MetricType.Intensity,
@@ -58,11 +59,12 @@ export interface ParseReferences {
 }
 
 /** Structural keywords that lex as effort words but are not movements. */
-const STRUCTURAL_EFFORT_WORDS: ReadonlySet<string> = new Set(['rest', 'amrap', 'emom', 'tabata', 'for time']);
+export const STRUCTURAL_EFFORT_WORDS: ReadonlySet<string> = new Set(['rest', 'amrap', 'emom', 'tabata', 'for time']);
 
 const STANDARD_UNITS = UnitRegistry.standard();
 
-const REFERENCE_PAIR_KEYS: ReadonlySet<string> = new Set(['effort', 'equipment']);
+/** Property keys resolved against the reference catalog (effort/equipment). */
+export const REFERENCE_PAIR_KEYS: ReadonlySet<string> = new Set(['effort', 'equipment']);
 
 function referenceMetadata(resolution: ResolvedReferences): Record<string, unknown> {
   return {

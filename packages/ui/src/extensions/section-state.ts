@@ -244,7 +244,9 @@ export const sectionIdentityHistory = invertedEffects.of(tr => {
 });
 
 export function sectionAtPos(state: EditorState, pos: number): EditorSection | null {
-  return state.field(sectionField).sections.find(section => pos >= section.from && pos <= section.to) ?? null;
+  // Tolerate states without sectionField (plain/nested-language editors) so
+  // cursor-section dispatch never throws there.
+  return state.field(sectionField, false)?.sections.find(section => pos >= section.from && pos <= section.to) ?? null;
 }
 
 export function activeCursorSection(state: EditorState): EditorSection | null {

@@ -31,12 +31,12 @@ export class HabitsDialect implements IDialect {
    * Keywords that indicate a habit/daily-tracking context.
    * TODO: Expand as habit vocabulary is refined.
    */
-  private static readonly HABIT_KEYWORDS = [
+  static readonly HABIT_KEYWORDS = [
     'DAILY', 'HABIT', 'STREAK', 'CHECK', 'LOG',
     'MORNING', 'EVENING', 'ROUTINE',
   ];
 
-  private static readonly STREAK_KEYWORDS = [
+  static readonly STREAK_KEYWORDS = [
     'STREAK', 'CONSECUTIVE', 'IN A ROW',
   ];
 
