@@ -34,6 +34,7 @@ import { getTodayDateKey } from '../services/dateUtils'
 import { listNotebooks, listSeedSources } from '@/services/seed/seedSources'
 import { isNotebookSubscribed, setNotebookSubscribed, setSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
 import { syncSeedSource, readSeedCoverage } from '@/services/seed/seedSync'
+import { seedProgressLabel } from '@/services/seed/seedProgress'
 import { useSeedContent } from '@/services/content/seedContent'
 import { cn } from '@/lib/utils'
 import { TaglineHeader } from './TaglineHeader'
@@ -91,17 +92,6 @@ function BoxFace(props: {
   )
 }
 
-function seedProgressLabel(event: { phase: string; chunkId?: string }): string {
-  switch (event.phase) {
-    case 'checking': return 'Checking the seed…'
-    case 'fetching': return `Downloading ${event.chunkId ?? 'notebook'}…`
-    case 'applying': return `Importing ${event.chunkId ?? 'notebook'}…`
-    case 'committed': return `Committed ${event.chunkId ?? 'notebook'}`
-    case 'finalizing': return 'Finalizing checkpoints…'
-    case 'finished': return 'Done'
-    default: return 'Working…'
-  }
-}
 
 export function TourJumpSection() {
   const navigate = useNavigate()

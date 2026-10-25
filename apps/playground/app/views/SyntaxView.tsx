@@ -10,8 +10,8 @@ import { useSeedContent } from '@/services/content/seedContent'
 import { HOME_EVENTS, useTelemetry } from '@/services/telemetry'
 import { useTheme } from '@/contexts/ThemeProvider'
 import { toast } from '@/hooks/use-toast'
-import { EMPTY_WOD_FILES } from '../lib/workoutIndex'
-import { useCanvasRoutes, useFindCanvasPage } from '../canvas/canvasRoutes'
+import { HOME_PAGE, withHomeDocs } from '../canvas/homeSlice'
+import { useCanvasRoutes } from '../canvas/canvasRoutes'
 import { RingTargetsProvider } from '../tour/TourRing'
 import { TourChapterPicker } from '../tour/TourChapterPicker'
 import { TourLearnSection } from '../tour/TourLearnSection'
@@ -23,7 +23,7 @@ import { usePlaygroundRun } from '../hooks/usePlaygroundRun'
 
 export function SyntaxView() {
   const seedFiles = useSeedContent()
-  const wodFiles = seedFiles ?? EMPTY_WOD_FILES
+  const wodFiles = useMemo(() => withHomeDocs(seedFiles ?? {}), [seedFiles])
 
   // Resolved editor theme — same memo as AppContent.
   const { theme } = useTheme()
@@ -44,15 +44,16 @@ export function SyntaxView() {
     return theme === 'dark' ? 'vs-dark' : 'vs'
   }, [theme, isSystemDark])
 
-  // Chapters + quests from the home canvas page; cross-page quest labels.
-  const page = useFindCanvasPage('/')
+  // Chapters + quests come from the same bundle-owned home slice as `/`;
+  // cross-page labels still come from the corpus when it arrives.
   const canvasRoutes = useCanvasRoutes()
-  const chapters = page?.chapters ?? []
-  const quests = page?.quests ?? []
+  const chapters = HOME_PAGE.chapters
+  const quests = HOME_PAGE.quests
   const questLabels = useMemo(() => {
     const labels: Record<string, string> = {}
-    for (const { page: p } of canvasRoutes) {
-      for (const q of p.quests) labels[q.id] = q.label
+    for (const quest of HOME_PAGE.quests) labels[quest.id] = quest.label
+    for (const { page } of canvasRoutes) {
+      for (const quest of page.quests) labels[quest.id] = quest.label
     }
     return labels
   }, [canvasRoutes])

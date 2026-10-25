@@ -55,7 +55,7 @@ function BootGate() {
   if (!ready) {
     return (
       <div role="status" className="flex min-h-dvh items-center justify-center text-muted-foreground">
-        Loading…
+        Opening local library…
       </div>
     );
   }

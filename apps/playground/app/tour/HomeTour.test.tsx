@@ -205,6 +205,7 @@ mock.module('@/hooks/use-toast', () => ({
 }))
 
 import { HomeTour } from './HomeTour'
+import { HomeView } from '../views/HomeView'
 
 // jsdom lacks ResizeObserver; Headless UI's combobox machine touches it when
 // the option list closes after a selection.
@@ -289,6 +290,20 @@ async function editorRun() {
   })
 }
 
+async function renderHomeViewWithoutCorpus() {
+  const result = render(
+    <MemoryRouter>
+      <NuqsAdapter>
+        <HomeView wodFiles={{}} theme="light" />
+      </NuqsAdapter>
+    </MemoryRouter>,
+  )
+  await act(async () => {
+    await Promise.resolve()
+  })
+  return result
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe('HomeTour', () => {
@@ -331,6 +346,15 @@ describe('HomeTour', () => {
   const stickyPane = () => within(screen.getByTestId('tour-sticky-pane'))
   const activeScope = () =>
     within(screen.getByTestId('tour-section-insights').querySelector('[data-scope-active="true"]') as HTMLElement)
+
+  it('renders the baked arrival document when no seeded files exist', async () => {
+    await renderHomeViewWithoutCorpus()
+    expect(screen.queryByText(/Home canvas content not found/)).toBeNull()
+    expect(screen.getByTestId('mock-note-editor')).toHaveProperty(
+      'value',
+      expect.stringContaining('0:03 Count Down'),
+    )
+  })
 
   it('renders the jump section with library and journal exits, no playground exit', async () => {
     await renderHomeTour()

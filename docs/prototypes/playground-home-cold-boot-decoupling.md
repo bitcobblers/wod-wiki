@@ -1,8 +1,8 @@
 # Playground Home Cold Boot — decoupling the home route from the seed pipeline
 
-**Status:** Proposed
+**Status:** Landed — Phases 0–3. `/` is bundle-owned, boot progress is instrumented, and the playground seed excludes only the home route document.
 **Date:** 2026-10-24
-**Related:** `docs/reviews/wod-wiki-ux-regression-retest-2026-10-25.html` (issue #1 — *Cold start takes 34 to 35 seconds with no honest progress*), `docs/prototypes/seed-data-unification.md` (§ Risks & open questions → *First-load network dependency*), `docs/adrs/0002-catalog-source-lifecycle.md`, `apps/playground/app/App.tsx`, `apps/playground/app/main.tsx`, `apps/playground/src/services/seed/seedReadiness.ts`
+**Related:** `docs/adrs/0004-playground-home-cold-boot.md`, `docs/reviews/wod-wiki-ux-regression-retest-2026-10-25.html` (issue #1 — *Cold start takes 34 to 35 seconds with no honest progress*), `docs/prototypes/seed-data-unification.md` (§ Risks & open questions → *First-load network dependency*), `docs/adrs/0002-catalog-source-lifecycle.md`, `apps/playground/app/App.tsx`, `apps/playground/app/main.tsx`, `apps/playground/src/services/seed/seedReadiness.ts`
 
 ## Goal
 
@@ -85,13 +85,15 @@ The slice's file list is derived from the home page itself — the `source:` of 
 
 ### D4 — the corpus stops owning the home route, and keeps running
 
-The seed pipeline is unchanged: fetch → worker import → IndexedDB → corpus read-back → tag index → registries. It becomes strictly background work for the home route. The seeded `markdown/canvas/home/README.md` row stays in the corpus for now and becomes inert for routing; phase 3 removes it from the compiled chunk (the seed compiler needs an exclusion rule, and its parity gate the matching update).
+The seed pipeline is unchanged: fetch → worker import → IndexedDB → corpus read-back → tag index → registries. It is strictly background work for the home route. The compiler's `excludePaths` option removes only `markdown/canvas/home/README.md` from the playground seed; `welcome-1.md` and `sample-script.md` remain seeded for guide consumers, and Storybook keeps the full corpus.
 
-Because the bundle and the seed are compiled from the same `markdown/` tree in the same build (`apps/playground/package.json` build script runs `sync-seed.ts`, then `vite build`), the baked slice and the seeded row cannot disagree in a same-build deployment. A seed republished without an app redeploy can lag the bundle; the bundle wins, and the difference is a content-only change to the home page.
+The slice is compiled from the same `markdown/` tree in every app build, so there is no second authored copy to drift. The seed no longer owns any part of the home route.
 
 ### D5 — the gate that remains reports the truth
 
-Deep links into corpus-backed surfaces (`/guide/*`, `/journal`, `/feeds`, `/catalogs`) still wait for the corpus. That gate keeps the board's prescription, with the labels that already exist (`TourJumpSection.seedProgressLabel`, `TourJumpSection.tsx:94-105`) and the marks the board asked for — `seed:start`, `home:first-paint`, `corpus:ready`, `seed:settled` — echoed onto `document.documentElement.dataset` beside the existing `data-seed-state` / `data-seed-outcome` (`seedReadiness.ts:43-54`).
+Deep links into corpus-backed surfaces (`/guide/*`, `/journal`, `/feeds`, `/catalogs`) still wait for the corpus. The static HTML shell reports `Downloading the app shell…`, storage startup reports `Opening local library…`, and the corpus gate reports the live seed phase and counts through the shared labels in `src/services/seed/seedProgress.ts`. The marks are `seed:start`, `home:first-paint`, `corpus:ready`, and `seed:settled`, echoed onto `document.documentElement.dataset` beside the existing `data-seed-state` / `data-seed-outcome`.
+
+`corpus:ready` fires only when a nonempty corpus snapshot arrives. The initial empty IndexedDB read does not consume the one-shot mark.
 
 ### Boot sequence after the change
 
@@ -110,7 +112,7 @@ sequenceDiagram
     Home-->>Nav: first paint — baked slice (5.2 KB)
     App-->>Seed: startSeedBootstrap (background)
     Seed->>Seed: fetch manifest + 5 chunks
-    Seed->>DB: import 278 rows
+    Seed->>DB: import 277 rows
     Seed-->>App: canvas chunk committed
     App->>DB: read corpus (notes.getAll)
     App->>App: parse canvas pages
@@ -134,21 +136,35 @@ sequenceDiagram
 | `apps/playground/app/canvas/homeSlice.ts` (new) | Baked home page + demo documents |
 | `apps/playground/app/lib/routeView.ts` | New `home` page kind; `/` classified before the canvas branch |
 | `apps/playground/app/lib/routeNav.ts` | `/` returns an empty index with or without a corpus |
-| `apps/playground/app/App.tsx` | Explicit `/` route ahead of the wildcard |
-| `apps/playground/app/views/HomeView.tsx` | Resolve the page from the slice; merge `HOME_DOCS` into `wodFiles` |
-| `apps/playground/app/AppContent.tsx` | Home badge accessory from the baked quests |
+| `apps/playground/app/App.tsx` | Explicit `/` route; corpus gate keyed on the route table and live progress |
+| `apps/playground/app/AppContent.tsx` | Home page dispatch and badge from the baked quests |
+| `apps/playground/app/views/HomeView.tsx` | Resolve the page from the slice; merge `HOME_DOCS`; emit Home first paint |
+| `apps/playground/app/views/SyntaxView.tsx` | Reuse the baked chapters, quests, and demo documents |
 | `apps/playground/app/canvas/canvasRoutes.ts` | The corpus no longer contributes a `/` route |
-| `apps/playground/app/canvas/canvasRoutes.test.ts` | Governance flip (Risks §4) |
-| `apps/playground/src/services/seed/seedReadiness.ts` | Boot marks + phase labels for the remaining gate |
-| `packages/tools/src/seedbuild/*` (phase 3) | Exclude the home rows from the compiled chunk; update the parity gate |
+| `apps/playground/index.html`, `apps/playground/app/main.tsx` | Pre-bundle and storage-start progress phases |
+| `apps/playground/src/services/bootDiagnostics.ts` | One-shot performance marks and document-element diagnostics |
+| `apps/playground/src/services/seed/seedReadiness.ts` | Boot progress stream and seed start/settled marks |
+| `apps/playground/src/services/seed/seedProgress.ts` | Shared human-readable phase labels and record/notebook counts |
+| `apps/playground/src/services/content/seedContent.ts` | Corpus-ready mark only after a nonempty snapshot |
+| `packages/tools/src/seedbuild/compiler.ts`, `scripts/sync-seed.ts` | `excludePaths` filters chunk rows and derived indexes; playground excludes only `markdown/canvas/home/README.md` |
+| `e2e/live-app/cold-boot.e2e.ts` | Desktop and CDP-throttled mobile budgets, background completion, deep-link progress |
 
 ## Acceptance
 
 1. Fresh production profile, empty site data, disabled cache: the home route renders the hero, the editor demo, and the chapter list **without the corpus** — the seeded home page is not required for `/` to exist.
 2. Time-to-usable-Home is measured on desktop unthrottled and on mobile with 4× CPU slowdown and 10 Mbps / 40 ms network. Budget (board issue #1): meaningful progress visible under 1 s; usable Home under 5 s.
-3. The home route renders the same content before and after the corpus lands — no swap, no layout shift. Screenshot comparison at 390×844 and 1440×900.
+3. The home route renders the same content before and after the corpus lands — no swap and no hero layout shift, asserted by a before/after bounding-box comparison and captured screenshots at 375×812 and 1440×900.
 4. The background import still completes: the library surface lists the imported catalogs, corpus-backed routes resolve, and the readiness gate settles (`data-seed-state="ready"`).
 5. The remaining gate (deep link into a corpus route) shows the real phase, and the four boot marks exist.
+
+### Measured production results
+
+Fresh Chromium profiles against `vite preview`; mobile uses 4× CPU slowdown, 10 Mbps / 40 ms, and disabled cache. The e2e test asserts these budgets rather than treating the measurements as a one-off claim.
+
+| Profile | Static boot phase | `home:first-paint` | Budget |
+|---|---:|---:|---|
+| Desktop, unthrottled, 1440×900 | 25.3 ms | 589.9 ms | < 1 s progress; < 5 s Home |
+| Mobile, 375×812, 4× CPU + 10 Mbps / 40 ms | 274.8 ms | 3,119.0 ms | < 1 s progress; < 5 s Home |
 
 ## Tests
 
@@ -157,30 +173,31 @@ sequenceDiagram
 | Slice parse | `app/canvas/homeSlice.test.ts` | the baked page parses; route is `/`; quests and chapters are non-empty |
 | Slice parity | same | every `source:` referenced by the home scroll stages, plus the arrival document, resolves inside `HOME_DOCS` |
 | Route classification | `app/lib/routeView.test.ts` (extend) | `/` classifies as `home` with an empty corpus and with a corpus |
-| Route ownership | `app/canvas/canvasRoutes.test.ts` | the route table contains no `/`; the app has exactly one `/` route |
-| Component | `app/views/HomeView.test.tsx` | renders with `seedFiles === null` |
-| E2E budget | `e2e/` | CDP-throttled fresh profile: time to Home-first-paint and to corpus-ready, asserted against the budget; the background import completes |
-| E2E progress | `e2e/` | the gate label matches the live seed phase |
+| Route ownership | `app/canvas/canvasRoutes.test.ts` + cold-boot e2e | the corpus route table contains no `/`; the explicit app route renders Home with no corpus |
+| Component | `app/tour/HomeTour.test.tsx` | renders the real arrival document with no seeded files |
+| Corpus readiness | `src/services/content/seedContent.test.ts` | an empty pre-import read does not emit `corpus:ready`; a later nonempty snapshot does |
+| E2E budget | `e2e/live-app/cold-boot.e2e.ts` | fresh desktop and CDP-throttled mobile profiles: progress, Home paint, background completion, and a corpus route |
+| E2E progress | `e2e/live-app/cold-boot.e2e.ts` | the deep-link gate label matches the live seed phase |
 
 ## Risks
 
-1. **Content divergence.** The baked slice and a newer published seed home can disagree. Accepted: the slice is compiled from `markdown/` in every build, the corpus row is inert, phase 3 removes it.
-2. **Main-thread jank after the corpus lands.** `hydrateImportedContent` → `getSeedContent()` (`notes.getAll()` over the whole notes store) → `buildCanvasRoutes()` parsing 87 canvas pages all run on the main thread (`seedSync.ts:212-224`, `StorageService.ts:999-1003`, `canvasRoutes.ts:26-38`). On a cold start this fires right after the home page is interactive. Mitigation: defer the corpus hydration past first paint (idle callback), and/or move the canvas parse into the seed worker.
+1. **Slice completeness.** A new home demo document must be added to `HOME_DOCS`; the parity test fails when a scroll-stage or arrival source is missing. There is no second authored copy of the page itself.
+2. **Main-thread jank after the corpus lands.** `hydrateImportedContent` → `getSeedContent()` (`notes.getAll()` over the whole notes store) → `buildCanvasRoutes()` parsing every corpus canvas page all run on the main thread. On a cold start this fires right after the home page is interactive. Mitigation: defer the corpus hydration past first paint (idle callback), and/or move the canvas parse into the seed worker.
 3. **Degraded sections on a cold start.** The Library & Community Feeds strip, the guide footer, and the session-insights sections have no data until the corpus and IndexedDB land. They need honest empty states; the Library card already degrades (`TourJumpSection.tsx:142-152`).
-4. **Governance flip.** `canvasRoutes.test.ts:12-29` asserts that `/` is owned by the canvas home page and must not have a hardcoded React route. That test encodes the decision this document reverses. It is replaced, not deleted: the new governance is "exactly one owner of `/`, and it is the baked home".
+4. **Governance flip.** The old test asserting that `/` had to be corpus-owned is replaced, not deleted: the new governance is "exactly one owner of `/`, and it is the baked home".
 5. **Quest ledger.** Quests are keyed by page route in localStorage (`app/hooks/usePageQuests.ts`), so quest ids survive the switch from the seeded page to the baked page — no progress loss.
 6. **Deep links still wait.** `/guide/*` and other corpus routes keep the corpus dependency; only the home route is decoupled. The board's 5 s budget is a Home budget.
 
 ## Rollout
 
-- **Phase 0 — instrument.** Add the marks; measure the current cold start; keep the numbers as the baseline. The board's rule stands: do not optimize before the marks prove where the time goes.
-- **Phase 1 — bake.** The slice, the `home` page kind, the explicit `/` route, the governance flip.
-- **Phase 2 — honest gate.** Labels and counts for the corpus-dependent routes.
-- **Phase 3 — cleanup.** Drop the home rows from the compiled seed chunk; delete the corpus read path for the home page.
+- **Phase 0 — instrumented.** Boot marks and the measured production baseline are in place.
+- **Phase 1 — landed.** The slice, the `home` page kind, the explicit `/` route, and the governance flip.
+- **Phase 2 — landed.** Labels and counts for corpus-dependent routes, plus the static shell and storage-start phases.
+- **Phase 3 — landed.** The playground seed excludes the home route document; `welcome-1.md` and `sample-script.md` remain seeded for guides.
 
 Phases 1 and 2 are independent; phase 3 follows the corpus change.
 
 ## Follow-ups
 
-- An ADR (`docs/adrs/0004-…`) once this is accepted, recording: the home route is bundle-owned, the corpus owns everything else, and the seed pipeline is background work by contract rather than by accident.
-- `CONTEXT.md` § Persistence & storage — add **Home Slice** (the bundle-owned home content) next to **Seed**, so the two content owners are explicit.
+- Decision recorded in `docs/adrs/0004-playground-home-cold-boot.md`.
+- `CONTEXT.md` § Persistence & storage defines **Home Slice** beside **Seed**, making the two content owners explicit.

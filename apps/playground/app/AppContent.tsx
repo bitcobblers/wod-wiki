@@ -34,6 +34,7 @@ import { useNav } from './nav/NavContext'
 import { useTheme } from '@/contexts/ThemeProvider'
 import { useCanvasRoutes } from './canvas/canvasRoutes'
 import { MarkdownCanvasPage } from './canvas/MarkdownCanvasPage'
+import { HOME_PAGE } from './canvas/homeSlice'
 import { ScrollCanvasPage } from './canvas/ScrollCanvasPage'
 import { FeedDetailPage } from './pages/FeedDetailPage'
 import { FeedItemPage } from './pages/FeedItemPage'
@@ -256,13 +257,9 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     ),
     dashboardView: () => <DashboardViewPage />,
 
+    home: () => <HomeView wodFiles={wodFiles} theme={actualTheme} />,
     canvas: () =>
-      view.canvasPage!.route === '/' ? (
-        <HomeView
-          wodFiles={wodFiles}
-          theme={actualTheme}
-        />
-      ) : view.canvasPage!.scroll ? (
+      view.canvasPage!.scroll ? (
         <ScrollCanvasPage
           page={view.canvasPage!}
           wodFiles={wodFiles}
@@ -321,27 +318,31 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   // list renders at the end of the page (GuideIndexFooter) instead. The
   // mobile drawer keeps the L2 at every breakpoint.
   const canvasRoute = view.page === 'canvas' ? view.canvasPage?.route : undefined
-  const hideDesktopSidebar = canvasRoute === '/' || !!canvasRoute?.startsWith('/guide/')
+  const hideDesktopSidebar = view.page === 'home' || !!canvasRoute?.startsWith('/guide/')
 
-  const canvasTitleAccessory =
-    view.page === 'canvas' && view.canvasPage
-      ? (
-        <>
-          {/* On `/` this badge is the single header control — it tracks
-              only the home page's own quests (qs-arrive / qs-tour-* /
-              qs-edit / qs-run). The cross-page chapter list lives in the
-              tour outro's quest section instead of the header. */}
-          {view.canvasPage.quests.length > 0 && (
-            <ChallengeHeaderBadge
-              pageRoute={view.canvasPage.route}
-              quests={view.canvasPage.quests}
-              challengeSectionMap={getChallengeSectionMap(view.canvasPage)}
-              onScrollToSection={scrollToSection}
-            />
-          )}
-        </>
-      )
-      : undefined
+  const accessoryPage = view.page === 'home'
+    ? HOME_PAGE
+    : view.page === 'canvas'
+      ? view.canvasPage
+      : null
+  const canvasTitleAccessory = accessoryPage
+    ? (
+      <>
+        {/* On `/` this badge is the single header control — it tracks
+            only the home page's own quests (qs-arrive / qs-tour-* /
+            qs-edit / qs-run). The cross-page chapter list lives in the
+            tour outro's quest section instead of the header. */}
+        {accessoryPage.quests.length > 0 && (
+          <ChallengeHeaderBadge
+            pageRoute={accessoryPage.route}
+            quests={accessoryPage.quests}
+            challengeSectionMap={getChallengeSectionMap(accessoryPage)}
+            onScrollToSection={scrollToSection}
+          />
+        )}
+      </>
+    )
+    : undefined
 
   const renderShell = (inner: ReactNode): ReactNode => {
     if (view.shell.wrap === 'bare') return inner

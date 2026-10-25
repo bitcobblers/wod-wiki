@@ -7,13 +7,13 @@
  * sections. See playground/src/tour/HomeTour.tsx for the section-level
  * implementation.
  *
- * Preserved from the markdown-driven home (markdown/canvas/home/README.md):
- *  - quick-start quests (qs-arrive / qs-edit / qs-run) plus scroll quests
- *    (qs-tour-*) fired as each tour stage scrolls into view
- *  - ChallengeHeaderBadge on '/' (mounted by App.tsx) — home quests only
+ * The bundle-owned home slice supplies the quests and arrival document before
+ * the seed corpus is available. Quest identity stays compatible with the old
+ * markdown-driven home (markdown/canvas/home/README.md).
  */
-
-import { useFindCanvasPage } from '../canvas/canvasRoutes'
+import { useEffect, useMemo } from 'react'
+import { markBootMilestone } from '@/services/bootDiagnostics'
+import { HOME_PAGE, withHomeDocs } from '../canvas/homeSlice'
 import { HomeTour } from '../tour/HomeTour'
 import type { WorkoutItem } from '../App'
 
@@ -25,21 +25,16 @@ export interface HomeViewProps {
 }
 
 export function HomeView({ wodFiles, theme }: HomeViewProps) {
-  const page = useFindCanvasPage('/')
-
-  if (!page) {
-    return (
-      <div className="flex items-center justify-center p-20 text-muted-foreground">
-        Home canvas content not found (markdown/canvas/routes/home.md)
-      </div>
-    )
-  }
+  const homeWodFiles = useMemo(() => withHomeDocs(wodFiles), [wodFiles])
+  useEffect(() => {
+    markBootMilestone('homeFirstPaint')
+  }, [])
 
   return (
     <HomeTour
-      wodFiles={wodFiles}
+      wodFiles={homeWodFiles}
       theme={theme}
-      quests={page.quests ?? []}
+      quests={HOME_PAGE.quests}
     />
   )
 }

@@ -1,12 +1,16 @@
 /** seedReadiness gate: opt-in activation, settle transitions, busy retry. */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { act, renderHook } from '@testing-library/react';
 import {
   getSeedReadiness,
+  getSeedSyncProgress,
+  markSeedSyncProgress,
   markSeedSyncSettled,
   markSeedSyncStarted,
   resetSeedReadinessForTest,
+  useSeedSyncProgress,
 } from './seedReadiness';
-import { SEED_CLAIM_TTL_MS } from './seedSync';
+import { SEED_CLAIM_TTL_MS, type SeedSyncProgress } from './seedSync';
 
 function snapshot(): string {
   return getSeedReadiness();
@@ -14,6 +18,40 @@ function snapshot(): string {
 
 describe('seedReadiness', () => {
   beforeEach(() => resetSeedReadinessForTest());
+  it('publishes the current boot phase and clears it on a fresh start', () => {
+    const progress = {
+      sourceId: 'core',
+      sourceLabel: 'Core library',
+      sourceIndex: 1,
+      totalSources: 1,
+      phase: 'checking',
+    } satisfies SeedSyncProgress
+
+    markSeedSyncProgress(progress)
+    expect(getSeedSyncProgress()).toBe(progress)
+
+    markSeedSyncStarted()
+    expect(getSeedSyncProgress()).toBeNull()
+  })
+
+  it('notifies progress subscribers when a fresh start clears an in-flight phase', () => {
+    const { result } = renderHook(() => useSeedSyncProgress())
+    const progress = {
+      sourceId: 'core',
+      sourceLabel: 'Core library',
+      sourceIndex: 1,
+      totalSources: 1,
+      phase: 'checking',
+    } satisfies SeedSyncProgress
+
+    act(() => markSeedSyncStarted())
+    act(() => markSeedSyncProgress(progress))
+    expect(result.current).toBe(progress)
+
+    act(() => markSeedSyncStarted())
+    expect(result.current).toBeNull()
+  })
+
   afterEach(() => resetSeedReadinessForTest());
 
   it('starts idle, which reports as ready (ungated)', () => {

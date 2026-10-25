@@ -331,8 +331,10 @@ for (const viewport of [
           const w = window as unknown as { dataLayer?: unknown[] }
           const layer = w.dataLayer ?? []
           return layer.some((entry) => {
-            if (!Array.isArray(entry) || entry[0] !== 'event' || entry[1] !== 'home:hosted_interest_clicked') return false
-            const payload = entry[2]
+            if (typeof entry !== 'object' || entry === null) return false
+            const values = Array.from(entry as ArrayLike<unknown>)
+            if (values[0] !== 'event' || values[1] !== 'home:hosted_interest_clicked') return false
+            const payload = values[2]
             return typeof payload === 'object' && payload !== null && 'feature' in payload && payload.feature === 'managed-hosting'
           })
         }),
@@ -422,7 +424,7 @@ test('wod wiki university lists guide cards in the on-this-page outline', async 
   const first = cards.first()
   await expect(first.getByRole('link', { name: 'First Workout' })).toBeVisible()
   await expect(first.getByText(/one-line workout/)).toBeVisible()
-  await expect(first.getByRole('img', { name: '' })).toBeVisible()
+  await expect(first.locator('img')).toBeVisible()
 
   // The thumbnail (not a text link) opens the walkthrough lightbox.
   await first.getByTestId('guide-watch').click()

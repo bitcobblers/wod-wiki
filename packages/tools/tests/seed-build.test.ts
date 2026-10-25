@@ -130,6 +130,33 @@ describe('generateSeed', () => {
     }
   });
 
+  it('excludes host-owned markdown from both chunk rows and the derived block index', () => {
+    const tmp = makeTmpCorpus();
+    writeFileSync(join(tmp, 'markdown/canvas/a.md'), '```time\n5 Situps\n```');
+    writeFileSync(join(tmp, 'markdown/canvas/sub/b.md'), '```time\n10 Pushups\n```');
+    try {
+      const markdownDir = join(tmp, 'markdown');
+      const excludePaths = ['markdown/canvas/a.md'];
+      const { manifest, outDir } = generateSeed({
+        markdownDir,
+        corpusRoot: tmp,
+        outDir: join(tmp, 'out'),
+        version: 1,
+        excludePaths,
+      });
+      const canvasRef = manifest.chunks.find((chunk) => chunk.id === 'canvas');
+      if (!canvasRef) throw new Error('canvas chunk missing');
+      const rows = JSON.parse(readFileSync(join(outDir, canvasRef.path), 'utf8')) as Array<{ path: string }>;
+      expect(rows.map((row) => row.path)).toEqual(['markdown/canvas/sub/b.md']);
+
+      const blockRows = buildBlockIndexRows(markdownDir, tmp, excludePaths);
+      expect(blockRows.map((row) => row.sourcePath)).toContain('markdown/canvas/sub/b.md');
+      expect(blockRows.map((row) => row.sourcePath)).not.toContain('markdown/canvas/a.md');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   it('is deterministic: identical corpus → identical chunk bytes, only version advances', () => {
     const tmp = makeTmpCorpus();
     try {

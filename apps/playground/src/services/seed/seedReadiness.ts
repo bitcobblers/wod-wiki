@@ -15,11 +15,12 @@
  * (fast path → 'current') or crashed (this tab imports instead).
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { adoptLegacySeedCheckpoints, defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, subscribeCatalogUpdates, type SeedSyncDeps, type SeedSyncOutcome } from './seedSync';
-import { mainThreadSeedImportStorage } from './seedStorageDefault';
-import { isSeedSubscribed, migrateSeedSubscriptions } from './seedSubscriptions';
 import { SEED_BROADCAST_CHANNEL, seedMetaKey } from '@/types/seed';
 import { subscribeSyncActivity } from '@/services/syncActivity';
+import { markBootMilestone } from '@/services/bootDiagnostics';
+import { adoptLegacySeedCheckpoints, defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, subscribeCatalogUpdates, type SeedSyncDeps, type SeedSyncOutcome, type SeedSyncProgress } from './seedSync';
+import { mainThreadSeedImportStorage } from './seedStorageDefault';
+import { isSeedSubscribed, migrateSeedSubscriptions } from './seedSubscriptions';
 
 export type SeedReadiness = 'preparing' | 'ready' | 'error';
 
@@ -29,6 +30,7 @@ type RetryTimer = ReturnType<typeof setTimeout>;
 type GateState = 'idle' | SeedReadiness;
 
 let state: GateState = 'idle';
+let progress: SeedSyncProgress | null = null;
 const listeners = new Set<() => void>();
 let busyRetryTimer: RetryTimer | null = null;
 let busyChannel: BroadcastChannel | null = null;
@@ -71,10 +73,20 @@ function clearBusyWatch(): void {
   }
 }
 
+/** Called with every progress event from the boot seed sync. */
+export function markSeedSyncProgress(next: SeedSyncProgress): void {
+  progress = next;
+  notify();
+}
+
 /** Called from app bootstrap, before the boot seed sync. */
 export function markSeedSyncStarted(): void {
   clearBusyWatch();
   reflectOutcome(null);
+  if (progress !== null) {
+    progress = null;
+    notify();
+  }
   setState('preparing');
 }
 
@@ -94,7 +106,7 @@ export function markSeedSyncSettled(outcome: SeedSyncOutcome): void {
         };
       }
       busyRetryTimer = setTimeout(() => {
-        void runBootSeedSync().then(markSeedSyncSettled);
+        void runBootSeedSync({ onProgress: markSeedSyncProgress }).then(markSeedSyncSettled);
       }, SEED_CLAIM_TTL_MS);
       break;
     }
@@ -114,6 +126,11 @@ export function getSeedReadiness(): SeedReadiness {
   return state === 'idle' ? 'ready' : state;
 }
 
+/** Non-reactive read of the latest boot progress event. */
+export function getSeedSyncProgress(): SeedSyncProgress | null {
+  return progress;
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -124,10 +141,16 @@ export function useSeedReadiness(): SeedReadiness {
   return useSyncExternalStore(subscribe, getSeedReadiness);
 }
 
+/** Reactive boot-progress surface for the corpus gate. */
+export function useSeedSyncProgress(): SeedSyncProgress | null {
+  return useSyncExternalStore(subscribe, getSeedSyncProgress);
+}
+
 /** Test-only: reset the gate to its 'idle' (ungated) state. */
 export function resetSeedReadinessForTest(): void {
   clearBusyWatch();
   bootstrapPromise = null;
+  progress = null;
   state = 'idle';
   reflectState('idle');
   reflectOutcome(null);
@@ -148,11 +171,18 @@ let bootstrapPromise: Promise<void> | null = null;
  * while the rest of the library keeps importing.
  */
 export function startSeedBootstrap(deps: SeedSyncDeps = {}): Promise<void> {
-  bootstrapPromise ??= runSeedBootstrap(deps);
+  markBootMilestone('seedStart');
+  bootstrapPromise ??= runSeedBootstrap(deps).finally(() => {
+    markBootMilestone('seedSettled');
+  });
   return bootstrapPromise;
 }
 
 async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
+  const onProgress = (event: SeedSyncProgress): void => {
+    markSeedSyncProgress(event);
+    deps.onProgress?.(event);
+  };
   const all = deps.sources ?? defaultSeedSources();
   // Pre-seed-unit per-notebook checkpoints fold into their seed's checkpoint
   // first: the subscription migration below probes seed checkpoints, and the
@@ -171,13 +201,13 @@ async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
   }
   if (!coreMeta || coreMeta.seedVersion <= 0) {
     markSeedSyncStarted();
-    const outcome = await runBootSeedSync({ ...deps, sources: all, onFirstPaint: () => markSeedSyncSettled('imported') });
+    const outcome = await runBootSeedSync({ ...deps, sources: all, onProgress, onFirstPaint: () => markSeedSyncSettled('imported') });
     markSeedSyncSettled(outcome);
     // Every page load owes subscribed catalogs their update check — also
     // when the local core checkpoint was reset but subscriptions survived
     // (the fresh sync just re-created it). Nonblocking; never re-gates.
     if (all.some((s) => s.id !== 'core' && isSeedSubscribed(s.id))) {
-      await runBootSeedSync({ ...deps, sources: all })
+      await runBootSeedSync({ ...deps, sources: all, onProgress })
         .catch((err) => console.error('[seedSync] background boot sync failed', err));
     }
     return;
@@ -186,7 +216,7 @@ async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
   // Returning visitor: the vault is queryable offline from the committed
   // core — feeds keep refreshing in the background; their outcomes only
   // reach sync activity, never the gate (no late 'error' flip, no retry).
-  await runBootSeedSync({ ...deps, sources: all })
+  await runBootSeedSync({ ...deps, sources: all, onProgress })
     .catch((err) => console.error('[seedSync] background boot sync failed', err));
 }
 

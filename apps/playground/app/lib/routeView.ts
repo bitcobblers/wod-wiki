@@ -64,6 +64,7 @@ export type PageKind =
   | 'tags'
   | 'dashboardExplorer'
   | 'dashboardView'
+  | 'home'
   | 'canvas'
   | 'playground'
   | 'workout'
@@ -288,6 +289,7 @@ function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanva
   if (clean === '/settings' || clean.startsWith('/settings/')) return 'settings'
   if (clean === '/tags') return 'tags'
 
+  if (clean === '/') return 'home'
   if (canvasPage) return 'canvas'
   if (flags.isPlaygroundRoute && flags.effectivePlaygroundId) return 'playground'
   if (flags.isNoteByIdRoute && flags.noteById) return 'note'
@@ -298,11 +300,12 @@ function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanva
 
 function deriveShell(page: PageKind, pathname: string, workout: CurrentWorkout): ShellConfig {
   switch (page) {
+    case 'home':
     case 'canvas':
       return {
         wrap: 'canvas',
         title: workout.name,
-        subheader: /^\/(?:c|collections)\//.test(pathname) ? 'filter-collection-workouts' : undefined,
+        subheader: page === 'canvas' && /^\/(?:c|collections)\//.test(pathname) ? 'filter-collection-workouts' : undefined,
         actionsMode: 'collection-readonly',
         withIndex: true,
       }
@@ -323,16 +326,19 @@ export function resolveRouteView(
   deps: RouteViewDeps,
 ): RouteView {
   const flags = detectFlags(pathname, params)
-  if (!deps.canvasPage && !flags.noteById) {
+  // Home is bundle-owned: corpus presence must not change its workout,
+  // classification, shell, or nav.
+  const canvasPage = cleanRoutePath(pathname) === '/' ? null : deps.canvasPage
+  if (!canvasPage && !flags.noteById) {
     const pageSlugMatch = pathname.match(/^\/p\/([^/]+)$/)
     if (pageSlugMatch) {
       flags.isNoteByIdRoute = true
       flags.noteById = decodeURIComponent(pageSlugMatch[1]!)
     }
   }
-  const workout = deriveWorkout(flags, pathname, params, deps.workoutItems, deps.canvasPage)
-  const nav = deriveNav(pathname, deps)
-  const page = derivePage(flags, pathname, deps.canvasPage)
+  const workout = deriveWorkout(flags, pathname, params, deps.workoutItems, canvasPage)
+  const nav = deriveNav(pathname, { ...deps, canvasPage })
+  const page = derivePage(flags, pathname, canvasPage)
   const shell = deriveShell(page, pathname, workout)
-  return { ...flags, canvasPage: deps.canvasPage, workout, nav, page, shell }
+  return { ...flags, canvasPage, workout, nav, page, shell }
 }

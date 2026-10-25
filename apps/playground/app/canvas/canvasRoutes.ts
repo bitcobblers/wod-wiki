@@ -13,6 +13,7 @@
 import { useMemo } from 'react'
 import { parseCanvasMarkdown, type ParsedCanvasPage } from './parseCanvasMarkdown'
 import { findRouteWithCandidatesIn, normalizePathname } from './canvasRouteLookup'
+import { ROUTE_PATTERNS } from '../lib/routes'
 import { useSeedContent, type SeedContentFiles } from '@/services/content/seedContent'
 export { getSectionProse } from './parseCanvasMarkdown'
 export { normalizePathname } from './canvasRouteLookup'
@@ -29,7 +30,10 @@ export function buildCanvasRoutes(files: SeedContentFiles): CanvasRoute[] {
     const canvasMatch = path.match(/^markdown\/canvas\/(.+\.md)$/)
     if (canvasMatch) {
       const page = parseCanvasMarkdown(raw)
-      if (page) canvas.push({ route: page.route, page })
+      // `/` is bundle-owned (homeSlice); every other canvas page remains
+      // corpus-derived. Keeping one route owner also removes the corpus gate
+      // from the home route.
+      if (page && page.route !== ROUTE_PATTERNS.home) canvas.push({ route: page.route, page })
       continue
     }
   }

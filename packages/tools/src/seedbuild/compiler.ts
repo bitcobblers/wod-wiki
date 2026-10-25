@@ -81,6 +81,8 @@ export interface GenerateSeedOptions {
   corpusRoot?: string;
   /** Automatically scaffold markdown files for newly discovered efforts. */
   scaffoldDiscoveredEfforts?: boolean;
+  /** Repo-relative POSIX paths omitted from chunk rows and derived indexes. */
+  excludePaths?: readonly string[];
 }
 
 export interface GenerateSeedResult {
@@ -122,8 +124,11 @@ export function chunkIdFor(relPath: string): string | null {
 }
 
 /** Scan the markdown corpus; returns repo-relative POSIX paths of all .md files. */
-export function collectCorpusMarkdown(markdownDir: string): string[] {
-  return listMarkdownFiles(markdownDir).map((p) => `markdown/${p}`);
+export function collectCorpusMarkdown(markdownDir: string, excludePaths: readonly string[] = []): string[] {
+  const excluded = new Set(excludePaths);
+  return listMarkdownFiles(markdownDir)
+    .map((p) => `markdown/${p}`)
+    .filter((path) => !excluded.has(path));
 }
 
 /** Group markdown corpus paths into chunk groups; throws on paths outside the known corpora. */
@@ -283,9 +288,9 @@ export function compileSeedRow(path: string, content: string, metadata: { routeI
   return { path, content, blocks, blockIndex, blockEfforts: [], blockEquipment: [] };
 }
 
-export function buildBlockIndexRows(markdownDir: string, corpusRoot: string): BlockIndexRow[] {
+export function buildBlockIndexRows(markdownDir: string, corpusRoot: string, excludePaths: readonly string[] = []): BlockIndexRow[] {
   const rows: BlockIndexRow[] = [];
-  for (const path of collectCorpusMarkdown(markdownDir)) {
+  for (const path of collectCorpusMarkdown(markdownDir, excludePaths)) {
     const chunkId = chunkIdFor(path);
     if (!chunkId) continue;
     const content = readFileSync(join(corpusRoot, path), 'utf8');
@@ -399,10 +404,10 @@ export function loadCorpusReferenceCatalog(markdownDir: string): { efforts: IEff
   return { efforts, equipment };
 }
 
-export function discoverUncatalogedEfforts(markdownDir: string, corpusRoot: string): DiscoveredEffort[] {
+export function discoverUncatalogedEfforts(markdownDir: string, corpusRoot: string, excludePaths: readonly string[] = []): DiscoveredEffort[] {
   const catalog = loadCorpusReferenceCatalog(markdownDir);
   const index = createReferenceIndex(catalog);
-  const blocks = buildBlockIndexRows(markdownDir, corpusRoot);
+  const blocks = buildBlockIndexRows(markdownDir, corpusRoot, excludePaths);
   const discovered = new Map<string, { label: string; rawLabels: Set<string> }>();
 
   for (const block of blocks) {
@@ -579,14 +584,14 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
   const webRepositoryUrl = repositoryUrl?.replace(/^git\+/, '').replace(/\.git$/, '');
   const repositoryLink = webRepositoryUrl && URL.canParse(webRepositoryUrl) ? new URL(webRepositoryUrl) : undefined;
   if (options.scaffoldDiscoveredEfforts) {
-    const discovered = discoverUncatalogedEfforts(markdownDir, corpusRoot);
+    const discovered = discoverUncatalogedEfforts(markdownDir, corpusRoot, options.excludePaths);
     if (discovered.length > 0) {
       scaffoldDiscoveredEfforts(discovered, markdownDir);
     }
   }
 
   const tScan = Date.now();
-  const paths = collectCorpusMarkdown(markdownDir);
+  const paths = collectCorpusMarkdown(markdownDir, options.excludePaths);
   const groups = partitionIntoChunks(paths);
   gateDashboards(groups, corpusRoot);
   if (options.templateFile && existsSync(options.templateFile)) {
@@ -597,7 +602,7 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
   passMs.scan = Date.now() - tScan;
 
   const tBlockIndex = Date.now();
-  const blockRows = buildBlockIndexRows(markdownDir, corpusRoot);
+  const blockRows = buildBlockIndexRows(markdownDir, corpusRoot, options.excludePaths);
   passMs.blockIndex = Date.now() - tBlockIndex;
   const tParseGate = Date.now();
   const syntaxProblems = validateWodBlockSyntax(blockRows);

@@ -11,6 +11,7 @@
  */
 import { useEffect, useSyncExternalStore } from 'react';
 import { storageService } from '@/services/storage';
+import { markBootMilestone } from '@/services/bootDiagnostics';
 import { SEED_BROADCAST_CHANNEL } from '@/types/seed';
 import { invalidateCorpusBlocks } from '@/services/content/staticBlockIndex';
 
@@ -36,6 +37,7 @@ export function ensureSeedContent(): Promise<SeedContentFiles> {
   if (!promise) {
     promise = load()
       .then((files) => {
+        if (Object.keys(files).length > 0) markBootMilestone('corpusReady');
         cache = files;
         notify();
         return files;

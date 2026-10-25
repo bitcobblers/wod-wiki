@@ -109,12 +109,13 @@ mock.module('@/repositories/script-loader', () => ({
   getScriptContent: async (_id: string) => undefined,
   getAllScriptIds: async () => [],
 }));
+// Test loading boundary: capture the real module before replacing only its
+// React bindings; static imports cannot express this mock.module ordering.
+const realCanvasRoutes = await import('../app/canvas/canvasRoutes');
 mock.module('../app/canvas/canvasRoutes', () => ({
-  buildCanvasRoutes: () => [],
-  findCanvasPageIn: () => null,
+  ...realCanvasRoutes,
   useCanvasRoutes: () => [],
   useFindCanvasPage: () => null,
-  normalizePathname: (p: string) => p,
 }));
 
 // effort-markdown is glob-free since the efforts flip — the real module's

@@ -37,18 +37,14 @@ function readItemDate(item: WorkoutItem): string | number | undefined {
 export function deriveNav(pathname: string, deps: RouteNavDeps): PageNavLink[] {
   const { canvasPage, workoutItems, recentResults, selectWorkout } = deps
 
-  // 1. Canvas pages (including Home)
+  // The bundle-owned home tour publishes its own L3 outline. Return before
+  // the corpus branch so `/` has the same nav with or without a canvas page.
+  if (pathname === '/') return []
+
+  // 1. Canvas pages
   if (canvasPage) {
     const isCollection = /^\/(?:c|collections)\//.test(pathname)
     const collectionSlug = isCollection ? pathname.split('/').pop() ?? null : null
-
-    if (pathname === '/') {
-      // The home tour owns its L3 outline (HomeTour publishes section links,
-      // incl. the run-transition button). An empty index keeps the shell's
-      // publish-on-mount effect from clobbering it (skip-empty convention,
-      // same as usePageScrollSync).
-      return []
-    }
 
     const links: PageNavLink[] = []
     const isGuidePage = pathname.startsWith('/guide/')

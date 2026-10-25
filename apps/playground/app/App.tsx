@@ -45,8 +45,9 @@ import { WallClockPage } from './pages/WallClockPage'
 import { PlaygroundRedirect } from './pages/PlaygroundRedirect'
 import { useZipProcessor } from './hooks/useZipProcessor'
 import { useJournalZipProcessor } from './hooks/useJournalZipProcessor'
-import { runSeedSync } from '@/services/seed/seedSync'
-import { startSeedBootstrap, useSeedReadiness } from '@/services/seed/seedReadiness'
+import { isSeedImportEnabled, runSeedSync } from '@/services/seed/seedSync'
+import { startSeedBootstrap, useSeedReadiness, useSeedSyncProgress } from '@/services/seed/seedReadiness'
+import { seedProgressDetail, seedProgressLabel } from '@/services/seed/seedProgress'
 import { profileService } from '@/services/storage'
 import { initSeedContentBroadcast, invalidateSeedContent } from '@/services/content/seedContent'
 import { loadTagIndex } from '@/services/tags/tagCatalogue'
@@ -105,16 +106,17 @@ function GlobalState() {
   return null
 }
 
-
-// Root gate while the canvas route table cannot be derived yet: seed still
-// loading → an explicit loading route (any deep link shows it; react-router
-// never logs "No routes matched" during derivation). Seed loaded but the
-// home route still missing → a recoverable error, not an endless spinner.
+// Corpus gate for deep links that have no explicit route yet: while
+// corpus route table is empty, show loading or a recoverable error. Home
+// is explicitly routed below and never passes through this gate.
 function RootUnavailable({ settling }: { settling: boolean }) {
+  const progress = useSeedSyncProgress()
   if (settling) {
+    const detail = seedProgressDetail(progress)
     return (
-      <div role="status" className="flex min-h-dvh items-center justify-center text-muted-foreground">
-        Loading library…
+      <div role="status" className="flex min-h-dvh flex-col items-center justify-center gap-2 text-muted-foreground">
+        <span>{progress ? seedProgressLabel(progress) : 'Loading library…'}</span>
+        {detail && <span className="text-xs" data-testid="boot-progress-detail">{detail}</span>}
       </div>
     )
   }
@@ -122,7 +124,7 @@ function RootUnavailable({ settling }: { settling: boolean }) {
     <div role="alert" className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
       <p className="text-sm font-semibold">The library's routed content failed to load.</p>
       <p className="max-w-md text-xs text-muted-foreground">
-        The seed corpus is missing the root page. Re-running the seed import usually restores it.
+        The seed corpus has not supplied this page. Re-running the seed import usually restores it.
       </p>
       <Button
         variant="outline"
@@ -163,15 +165,20 @@ export function App() {
               <NavProvider tree={navTree}>
                 <ScrollToTop />
                 <Routes>
-                  {/* Unconditional wildcard: pre-seed locations show the
-                      loading/re-seed gate; once the root route exists,
-                      unmatched paths get the 404 view. Explicit routes
-                      outrank the splat. */}
+                  {/* Home is bundle-owned and renders before the corpus.
+                      The wildcard gates only paths still waiting for seeded
+                      routes; once routes exist, unmatched paths 404. */}
+                  <Route path={ROUTE_PATTERNS.home} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route
                     path="*"
                     element={
-                      !canvasRouteList.some(({ route }) => route === ROUTE_PATTERNS.home) ? (
-                        <RootUnavailable settling={seedReadiness === 'preparing'} />
+                      canvasRouteList.length === 0 ? (
+                        <RootUnavailable
+                          settling={
+                            seedReadiness === 'preparing' ||
+                            (isSeedImportEnabled() && seedReadiness !== 'error')
+                          }
+                        />
                       ) : (
                         <NotFoundPage />
                       )

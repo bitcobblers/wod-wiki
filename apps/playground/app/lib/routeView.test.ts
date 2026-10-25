@@ -7,6 +7,7 @@ import { describe, expect, it, mock } from 'bun:test'
 import type { Session } from '@/types/storage'
 import type { Sessions } from '@/components/Editor/types'
 import type { ParsedCanvasPage } from '../canvas/parseCanvasMarkdown'
+import { HOME_PAGE } from '../canvas/homeSlice'
 import {
   resolveRouteView,
   type RouteViewDeps,
@@ -113,6 +114,24 @@ describe('resolveRouteView — named routes', () => {
     const view = resolveRouteView('/feeds', NO_PARAMS, makeDeps())
     expect(view.nav).toEqual([])
     expect(view.canvasPage).toBeNull()
+  })
+})
+
+describe('resolveRouteView — bundle-owned home route', () => {
+  it('classifies / identically before and after the corpus lands', () => {
+    for (const canvasPage of [null, HOME_PAGE]) {
+      const view = resolveRouteView('/', NO_PARAMS, makeDeps({ canvasPage }))
+      expect(view.page).toBe('home')
+      expect(view.canvasPage).toBeNull()
+      expect(view.workout.name).toBe('Home')
+      expect(view.shell).toMatchObject({
+        wrap: 'canvas',
+        title: 'Home',
+        actionsMode: 'collection-readonly',
+        withIndex: true,
+      })
+      expect(view.nav).toEqual([])
+    }
   })
 })
 

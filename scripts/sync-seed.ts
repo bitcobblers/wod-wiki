@@ -47,6 +47,8 @@ interface SeedSourceSpec {
   markdownDir: string;
   outDir: string;
   template: boolean;
+  /** Host-owned content baked into the app bundle instead of the seed. */
+  excludePaths?: readonly string[];
 }
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -65,6 +67,7 @@ const SOURCES: SeedSourceSpec[] = [
     markdownDir: join(ROOT, 'markdown'),
     outDir: join(ROOT, 'apps', 'playground', 'public', 'seed', 'core'),
     template: true,
+    excludePaths: ['markdown/canvas/home/README.md'],
   },
   {
     app: 'storybook',
@@ -91,6 +94,7 @@ for (const spec of SOURCES) {
     corpusRoot: spec.corpusRoot,
     outDir: spec.outDir,
     ...(spec.template ? { templateFile: TEMPLATE_FILE, templateRowPath: TEMPLATE_ROW_PATH } : {}),
+    excludePaths: spec.excludePaths,
   });
 
   const prevChunks = prevManifest?.chunks ?? [];
