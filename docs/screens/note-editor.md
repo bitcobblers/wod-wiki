@@ -35,7 +35,7 @@ Desktop uses the 4-column Stitch general layout.
 - **Icon Rail (56px fixed left):** Global L1 destinations remain pinned.
 - **Context Sidebar (240px left):** Shows the Journal or Library context tree depending on entry origin.
 - **Main Canvas (flexible center):**
-  - **Sticky Header:** Displays note title, subtitle (`/notes/:noteId`), and right-aligned actions.
+  - **Sticky Header:** Displays note title, parent breadcrumb subtitle (e.g. `Journal`), and right-aligned actions (including Copy link).
   - **Actions Group:** Read/Edit segmented toggle, "Add to Today" button, and overflow menu.
   - **Editor Column:** Centered reading and authoring column with margin clearance for line numbers and block gutter widgets.
 - **Right Rail (216px fixed right):** Displays the "On this page" scroll-spy outline derived from headings and runnable blocks.

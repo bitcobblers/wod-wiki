@@ -1,0 +1,1133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wod Wiki UX regression retest review board</title>
+<style>
+  :root {
+    --ink: #17202a;
+    --muted: #5b6672;
+    --line: #d8dee6;
+    --panel: #f6f8fa;
+    --panel-2: #eef2f6;
+    --accent: #0b5cab;
+    --accent-soft: #e7f0fa;
+    --good: #14713d;
+    --good-soft: #e7f4ec;
+    --warn: #8a5a00;
+    --warn-soft: #fdf3df;
+    --bad: #a1272c;
+    --bad-soft: #fbebec;
+    --defer: #4c5560;
+    --defer-soft: #eceff3;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: #fff;
+    color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+  header.masthead {
+    border-bottom: 1px solid var(--line);
+    padding: 28px 0 18px;
+    background: linear-gradient(#fbfcfe, #fff);
+  }
+  header.masthead h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.25; }
+  header.masthead p.sub { margin: 0; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .chip b { font-weight: 650; }
+  nav.toc {
+    position: sticky; top: 0; z-index: 20;
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    padding: 8px 0;
+  }
+  nav.toc .wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  nav.toc a {
+    text-decoration: none; color: var(--accent);
+    border: 1px solid transparent; border-radius: 8px;
+    padding: 4px 10px; font-size: 13.5px;
+  }
+  nav.toc a:hover { background: var(--accent-soft); }
+  main { padding-bottom: 60px; }
+  section { margin-top: 34px; scroll-margin-top: 58px; }
+  h2 {
+    font-size: 20px; margin: 0 0 4px; padding-bottom: 6px;
+    border-bottom: 2px solid var(--panel-2);
+  }
+  h2 .lede { display:block; font-size: 13.5px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  h3 { font-size: 16.5px; margin: 0; }
+  h4 { font-size: 14px; margin: 12px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  p { margin: 8px 0; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere;
+  }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 4px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  tbody tr:nth-child(even) td { background: #fcfdfe; }
+  .card {
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); padding: 14px 16px; margin: 12px 0;
+  }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 12px 0; }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .callout.bad { border-color: var(--bad); background: var(--bad-soft); }
+
+  /* Issue cards */
+  .issue {
+    border: 1px solid var(--line); border-radius: 10px;
+    margin: 14px 0; background: #fff; overflow: hidden;
+  }
+  .issue > .head {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px;
+    padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .issue > .head h3 { flex: 1 1 260px; }
+  .issue .body { padding: 4px 16px 12px; }
+  .tag {
+    display: inline-block; border-radius: 6px; padding: 2px 8px;
+    font-size: 12px; font-weight: 600; border: 1px solid transparent; white-space: nowrap;
+  }
+  .tag.high { background: var(--bad-soft); color: var(--bad); border-color: #eec3c4; }
+  .tag.medium { background: var(--warn-soft); color: var(--warn); border-color: #ecd9ae; }
+  .tag.low { background: var(--panel-2); color: var(--defer); border-color: var(--line); }
+  .tag.fixed { background: var(--good-soft); color: var(--good); border-color: #bfe0cc; }
+  .tag.active { background: var(--accent-soft); color: var(--accent); border-color: #bcd6ef; }
+  .tag.deferred { background: var(--defer-soft); color: var(--defer); border-color: var(--line); }
+  .tag.wave { background: #fff; color: var(--muted); border-color: var(--line); font-weight: 500; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .issue .body dl { display: grid; grid-template-columns: 92px 1fr; gap: 6px 10px; margin: 10px 0 0; }
+  .issue .body dt { font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; padding-top: 2px; }
+  .issue .body dd { margin: 0; }
+  .issue .body dd ul { margin: 0; }
+  .filelist { margin: 2px 0 0; padding-left: 0; list-style: none; }
+  .filelist li { margin: 3px 0; }
+
+  /* Filters */
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 4px; }
+  .filters button {
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    border-radius: 999px; padding: 6px 14px; font-size: 13.5px; cursor: pointer;
+  }
+  .filters button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .filters .count { color: var(--muted); font-size: 13px; margin-left: 4px; }
+  .status-fixed-table, .status-active-hidden { display: none; }
+  body[data-filter="all"] .status-fixed-table { display: block; }
+  body[data-filter="fixed"] .status-fixed-table { display: block; }
+  body[data-filter="active"] .issue[data-status="active"] { display: block; }
+  body[data-filter="fixed"] .issue[data-status="active"], body[data-filter="deferred"] .issue[data-status="active"] { display: none; }
+  body[data-filter="deferred"] .issue[data-status="deferred"] { display: block; }
+
+  .wave {
+    border-left: 4px solid var(--accent); background: var(--panel);
+    border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 14px 0;
+  }
+  .wave h3 { margin-bottom: 6px; }
+  .wave .goal { color: var(--muted); margin-top: -2px; }
+  footer.colophon { border-top: 1px solid var(--line); margin-top: 40px; padding: 18px 0 30px; color: var(--muted); font-size: 13px; }
+  @media print {
+    nav.toc, .filters { display: none; }
+    body { font-size: 12px; }
+    section { break-inside: avoid-page; }
+  }
+  @media (max-width: 640px) {
+    header.masthead h1 { font-size: 21px; }
+    .issue .body dl { grid-template-columns: 1fr; gap: 2px; }
+    .issue .body dt { margin-top: 8px; }
+  }
+</style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/reviews/wod-wiki-ux-regression-retest-2026-10-25.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  html { scroll-padding-top: 80px; color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 80px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: fixed; top: 16px; right: 16px; z-index: 100; padding: 5px; border: 1px solid #cbd5e1; border-radius: 9999px; box-shadow: 0 4px 16px #0f172a26; }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-bar .wb-controls { flex-wrap: nowrap; gap: 3px; }
+  #wb-count { min-width: 20px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 40px; padding: 7px 10px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button { display: inline-flex; align-items: center; justify-content: center; width: 40px; padding: 7px; border-color: transparent; border-radius: 9999px; }
+  #wb-bar button:hover { background: #f1f5f9; }
+  #wb-bar button:disabled { opacity: .4; cursor: default; }
+  #wb-bar button svg, #wb-current-toggle svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #wb-bar #wb-copy, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-bar #wb-copy:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar #wb-copy.wb-copied { background: #15803d; border-color: #15803d; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-status, #wb-storage-warning { position: fixed; top: 70px; right: 16px; z-index: 100; width: min(350px, calc(100% - 32px)); margin: 0; padding: 8px 12px; border-radius: 8px; background: #fff; box-shadow: 0 4px 16px #0f172a26; font-size: 12px; }
+  #wb-storage-warning { top: 112px; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current[hidden], #wb-current-body[hidden], #wb-copy [hidden] { display: none !important; }
+  #wb-current h2 { margin: 0; padding: 0; font-size: 14px; }
+  #wb-current-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 42px !important; padding: 10px 12px !important; border: 0 !important; border-radius: 11px !important; text-align: left; }
+  #wb-current-toggle svg { transition: transform 120ms ease; }
+  #wb-current-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  #wb-current-body { padding: 0 16px 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media (max-width: 480px) { #wb-bar { top: 8px; right: 8px; } #wb-status { top: 62px; right: 8px; } #wb-storage-warning { top: 104px; } #wb-current { right: 8px; bottom: 8px; } }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn, #wb-status, #wb-storage-warning { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body data-filter="all"><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite" aria-label="0 annotations" title="0 annotations">0</strong>
+    <button id="wb-add" type="button" aria-pressed="false" aria-label="Add annotation" title="Add annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation" title="Previous annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation" title="Next annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+    <button id="wb-copy" type="button" disabled aria-label="Copy annotations" title="Copy annotations">
+      <svg id="wb-copy-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg>
+      <svg id="wb-copy-check" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="m5 12 4 4L19 6"/></svg>
+    </button>
+  </div>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+
+<header class="masthead">
+  <div class="wrap">
+    <h1>Wod Wiki UX regression retest review board</h1>
+    <p class="sub">Production retest of 2026-10-25 against v0.44.2158 to 2160, baseline audit of 2026-10-24 (v0.44.2155). This board records agreed decisions, code-checked causes, and the fix plan. Annotate any block to question or refine it.</p>
+    <div class="chips">
+      <span class="chip"><b>Gate:</b> closed</span>
+      <span class="chip"><b>Open defects:</b> 12</span>
+      <span class="chip"><b>Active work cards:</b> 13</span>
+      <span class="chip"><b>Baseline fixed:</b> 7</span>
+      <span class="chip"><b>Deferred:</b> 1 (placeholder video)</span>
+      <span class="chip"><b>Contract:</b> manual Save is byte-for-byte</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Board sections">
+  <div class="wrap">
+    <a href="#verdict">Verdict</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#code-review">Code review corrections</a>
+    <a href="#register">Issue register</a>
+    <a href="#plan">Fix plan</a>
+    <a href="#verification">Verification</a>
+    <a href="#risks">Risks and limits</a>
+  </div>
+</nav>
+
+<main class="wrap" data-whiteboard-document>
+
+  <section id="verdict">
+    <h2 id="wb-h2-baa2c2f75c4d46f8be0b0b7ae68b2350" data-whiteboard-anchor>Executive verdict<span class="lede">Production-ready gate stays closed until all 13 active work cards pass their acceptance tests.</span></h2>
+    <p id="wb-p-a75214eccbc844ae91c66220ba07992a" data-whiteboard-anchor>The retest confirmed real progress: seven baseline issues are fixed, initialization now completes, and the core run, pause, stop, completion, and save flows work on desktop and mobile. But two High defects remain in note persistence and mobile rep capture, and the deepest residual problem, a 34 to 35 second cold start, is still far from the agreed 5-second budget. The gate opens when all 13 active work cards pass: the 12 open defects plus the regression guard for fixed #2.</p>
+    <table>
+      <thead><tr><th id="wb-th-f9f5d07393cf43f7b680c90792dcd61e" data-whiteboard-anchor>Outcome</th><th id="wb-th-3ff9adbef5ff45419ae4de20efced455" data-whiteboard-anchor>Count</th><th id="wb-th-a5cff8096eb243d1a46702d37f26655d" data-whiteboard-anchor>Items</th></tr></thead>
+      <tbody>
+        <tr><td id="wb-td-a4ca479f79b542239c4fc79b985dafcc" data-whiteboard-anchor>Active release-gating fixes</td><td id="wb-td-e24d7ea5e6d740d6a682a4f41ed881ff" data-whiteboard-anchor>12</td><td id="wb-td-16ffea7cae5549319ffe5f2d6cb7ebda" data-whiteboard-anchor>#1, #9, #10, #11, #12, #14, N1, N2, N3, N4, N5, N6</td></tr>
+        <tr><td id="wb-td-99fa50c528a14dea9e89ec836172675f" data-whiteboard-anchor>Fixed this cycle (regression-protect)</td><td id="wb-td-d1ccf803df9a4f688bb907e8317b492b" data-whiteboard-anchor>7</td><td id="wb-td-fe17b016da9b45029f24a41451d4d3ce" data-whiteboard-anchor>#2, #3, #4, #5, #6, #8, #13</td></tr>
+        <tr><td id="wb-td-cf7aa6a4f82042cfa4d3a50ad79feb62" data-whiteboard-anchor>Accepted deferred placeholder</td><td id="wb-td-62c931cbca6a4060b30f40024945fba6" data-whiteboard-anchor>1</td><td id="wb-td-1145799b51ed4c7b9b6b5bcf582243b4" data-whiteboard-anchor>#7 onboarding videos (real content in progress)</td></tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      Code review sharpened three diagnoses before any fix work. N1 is a lost final save racing page unload, not a serializer bug. N2's Nav and Keypad buttons are keyboard-mode toggles that never rendered panels. N4 is fixed-height bands overflowing a 390px-tall landscape surface. The plan below fixes those mechanisms directly.
+    </div>
+    <div class="callout warn">
+      Deliberate workflow change: persistence moves to explicit Save with a dirty-state guard. The report's original "reload and it survives" expectation is superseded by this agreed contract. Unsaved reloads warn instead of guaranteeing durability.
+    </div>
+  </section>
+
+  <section id="decisions">
+    <h2 id="wb-h2-ff7bc10e5d9049768d09eeb3b7ffb117" data-whiteboard-anchor>Decision record<span class="lede">Agreed in review; these values drive acceptance criteria throughout the board.</span></h2>
+    <table>
+      <thead><tr><th id="wb-th-ff0716889ae045f3acfa8821b84ef1cc" data-whiteboard-anchor>Topic</th><th id="wb-th-9efbf8d3764241c785dd607f5075bf9f" data-whiteboard-anchor>Decision</th></tr></thead>
+      <tbody>
+        <tr><td id="wb-td-f9c098a9634845c298ecbb5b32f73580" data-whiteboard-anchor>Release gate</td><td id="wb-td-d19f77c939cf43abade5123a878a1a88" data-whiteboard-anchor>All open defects block release: #1, #9, #10, #11, #12, #14, N1 through N6. #2 is fixed on 2160 and must gain explicit regression protection. #7 is exempt as an accepted placeholder.</td></tr>
+        <tr><td id="wb-td-980f0e100eb841b48581d140b4be2b5a" data-whiteboard-anchor>Note persistence (N1)</td><td id="wb-td-1a4084b7710344fcad014c4200705afa" data-whiteboard-anchor>Byte-for-byte Markdown after explicit Save. Visible Save on desktop and mobile, Cmd/Ctrl+S, dirty/saving/saved/error state, and a warning before reload or navigation with unsaved changes. Applied but unsaved edits need not survive reload.</td></tr>
+        <tr><td id="wb-td-e8fb82acea1248848a54f271db068110" data-whiteboard-anchor>Property drafts (N3)</td><td id="wb-td-778546fd996a4e519702979e27fa0682" data-whiteboard-anchor>Done applies valid values and closes. Close or Escape cancels an unapplied draft. Reload discards unapplied drafts; previously saved properties remain. Opening metadata preserves body scroll.</td></tr>
+        <tr><td id="wb-td-eebc58a9fb714f55a9225e958082c275" data-whiteboard-anchor>Mobile capture (N2)</td><td id="wb-td-3e6c0fdac3b3449ab65f7c1fb5f4f265" data-whiteboard-anchor>Nav and Keypad expand inline, never modal sheets. One panel at a time. Rep entry has Apply; Apply commits and collapses without advancing. Next remains the only advance action. Values below target, above target, and explicit zero must work.</td></tr>
+        <tr><td id="wb-td-3251028d117341758848a235ae74b460" data-whiteboard-anchor>Cold start (#1)</td><td id="wb-td-952aa136e91944e2820d3d840e5b8c6e" data-whiteboard-anchor>Meaningful progress under 1 second, usable Home under 5 seconds on a fresh production profile. Desktop unthrottled; mobile with 4x CPU slowdown, 10 Mbps / 40 ms network, disabled cache. Instrument stages before optimizing.</td></tr>
+        <tr><td id="wb-td-2568d3da48d847c0b51c2a5c35f32a53" data-whiteboard-anchor>Search (#10)</td><td id="wb-td-ed1513a3725148b9a7444218b4ebb8d6" data-whiteboard-anchor>Open plain-text title/body search by default. Keep an explicit "Advanced WQL" action with the existing composer.</td></tr>
+        <tr><td id="wb-td-6f78d16b35ee42958a65f4b73d6659cb" data-whiteboard-anchor>Home first viewport (#12)</td><td id="wb-td-94c74dc4cbaf44a485a89f132b7c67c2" data-whiteboard-anchor>Keep the placeholder video, but surface a labeled "Try the 3-second workout" action in the first mobile viewport and remove the "Keep scrolling" instruction.</td></tr>
+        <tr><td id="wb-td-bdfac98bbdab46fc858b3beff6bfb760" data-whiteboard-anchor>Touch footer (N5)</td><td id="wb-td-edb5c46d56414757a4b4b1ed3d744781" data-whiteboard-anchor>44px minimum targets, mobile-appropriate help, and the key-event diagnostic gated behind debug only.</td></tr>
+        <tr><td id="wb-td-86c652fafef9495cabaf1f7d468f627f" data-whiteboard-anchor>Placeholder media (#7)</td><td id="wb-td-aa5aa4ad754344ee9453532757a33403" data-whiteboard-anchor>Accepted until real videos are ready. When content lands, swap <code>WHY_VIDEO_ID</code> and <code>GUIDE_VIDEO_ID</code>. Not a release blocker.</td></tr>
+        <tr><td id="wb-td-cd7a1aa1626841f0b0d607931023fb1f" data-whiteboard-anchor>Draft copy (#14)</td><td id="wb-td-6d35faad3bc7438daf2e420fcf72ad48" data-whiteboard-anchor>Rewrite the two flagged strings in plain user language. Suggested wording on the #14 card is reviewable via annotations, not silently final.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="code-review">
+    <h2 id="wb-h2-88ce283943c34057ba8c0d67eacee89e" data-whiteboard-anchor>Code review corrections<span class="lede">What reading the source changed about the report's assumptions.</span></h2>
+    <div class="grid2">
+      <div class="card">
+        <h3 id="wb-h3-e16c6707ec2445b8b8d1c3810e1092f9" data-whiteboard-anchor>N1 is a save race, not fence stripping</h3>
+        <p id="wb-p-3412bc1da7a64377acfd0c74adeee0d0" data-whiteboard-anchor>The serializer is byte-preserving (round-trip tests in <code>packages/core/tests/SectionParser.test.ts</code> pass unclosed fences through unchanged). The report's repro types the closing fence as the final action on the last line. That produces no cursor-line change and no blur, so the only persist path is the fire-and-forget page-hide flush in <code>apps/playground/app/hooks/useEditorSave.ts</code>, which races the IndexedDB write. The stored document then ends before the fence, and an unclosed dialect fence yields no runnable block, so Run disappears. Both reported symptoms come from one lost write.</p>
+      </div>
+      <div class="card">
+        <h3 id="wb-h3-fdf7e77c034f4f538e3b1c45af82aad3" data-whiteboard-anchor>N2's buttons were never panel switches</h3>
+        <p id="wb-p-1027cc84f69049b991cc594116c2ce77" data-whiteboard-anchor><code>ClockControlModeToggle</code> in <code>apps/playground/src/clock/ClockCommandBoard.tsx</code> switches keyboard Enter behavior and persists a preference. It renders no panel, so the observed <code>aria-pressed</code> change with nothing appearing is the component working as built. Rep entry exists but opens as a centered fixed modal reached from a different control. The fix makes these real inline toggles on touch hosts.</p>
+      </div>
+      <div class="card">
+        <h3 id="wb-h3-c7cba3e55a664ff5adc577491450ff52" data-whiteboard-anchor>N4 is cqw bands exceeding viewport height</h3>
+        <p id="wb-p-db752a22a96c4a50a94e33bce79e1b86" data-whiteboard-anchor>At 844px wide the runner selects the General surface, whose container-query-sized bands sum past 390px of height. The hero clips top and bottom, taking the exercise label and up-next caption with it. The panel-size context already exposes an <code>isShort</code> flag for exactly this case; the General surface just never consumes it.</p>
+      </div>
+      <div class="card">
+        <h3 id="wb-h3-8a67f323592c4d4baf7ef6ce61b05a69" data-whiteboard-anchor>N6 has a one-class cause</h3>
+        <p id="wb-p-344b561cc3004729b7d187deaef20dab" data-whiteboard-anchor>Every band in the mobile hero is fixed-height except the up-next caption, whose comment claims reserved space but whose markup has no height utility. It collapses at Ready and grows once the runtime starts; the centered hero shifts by about half the delta, the observed 8px. Reserving the caption height should drive the delta to zero.</p>
+      </div>
+      <div class="card">
+        <h3 id="wb-h3-155256c2b5fb424baf57f80a4d30b9eb" data-whiteboard-anchor>#11's warning is correct behavior</h3>
+        <p id="wb-p-c2748f56277e4031810876b047949b77" data-whiteboard-anchor>The welcome sample references "Count Down", and no matching effort exists in the catalog. The reference-resolution system surfaces unknown efforts on purpose. The sample should change to a movement that resolves; adding a fake alias to silence a demo would pollute the catalog.</p>
+      </div>
+      <div class="card">
+        <h3 id="wb-h3-a3c3ac58aabc4a8d8539e5860317d54c" data-whiteboard-anchor>`time` fences are valid</h3>
+        <p id="wb-p-fd7167f7c8d7445ea9d48b2298c80fbb" data-whiteboard-anchor>The report's <code>```time</code> block looked like a possible typo for the <code>wod</code> fence. It is not: the section parser accepts <code>time</code> and <code>log</code> dialects and maps <code>time</code> to a runnable block. No syntax change is needed for N1.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="register">
+    <h2 id="wb-h2-dc4cba47935548e8b0c72f35f70edca8" data-whiteboard-anchor>Issue register<span class="lede">All 20 tracked items. Active cards carry root cause, change, and acceptance. Filter to focus review.</span></h2>
+    <div class="filters" role="group" aria-label="Filter issues">
+      <button type="button" data-filter="all" aria-pressed="true">All (20 tracked)</button>
+      <button type="button" data-filter="active" aria-pressed="false">Work cards (13)</button>
+      <button type="button" data-filter="fixed" aria-pressed="false">Fixed (7)</button>
+      <button type="button" data-filter="deferred" aria-pressed="false">Deferred (1)</button>
+      <span class="count" id="filter-count" aria-live="polite"></span>
+    </div>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag high">High</span><span class="tag wave">Wave 1</span><h3 id="wb-h3-41124bad45b44460ba84c988a91e4377" data-whiteboard-anchor>N1: Reload loses the closing workout fence and Run disappears</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-6be8a92703c64d98b779e50384851aef" data-whiteboard-anchor>Functional. Evidence: 50-latest-note-before-reload.png, 51-latest-note-after-reload.png. Reproduced on 2158 and 2160, twice on 2158.</p>
+        <dl>
+          <dt>Cause</dt><dd>Typing the closing fence on the last line triggers no line-change or blur flush. The page-hide flush is fire-and-forget and races the IndexedDB write, so the tail of the document is lost. An unclosed dialect fence parses as plain code with no runnable block.</dd>
+          <dt>Change</dt><dd>Make Save the explicit persistence contract. Add a visible Save affordance (desktop and mobile), Cmd/Ctrl+S handling, and dirty / saving / saved / error indication. Await the save; warn on reload, close, and SPA navigation while dirty. Keep the raw draft untouched; do not rewrite the serializer or section splicing.</dd>
+          <dt>Files</dt><dd><ul class="filelist">
+            <li id="wb-li-d3854c67e39d47f8bd840b7829e18645" data-whiteboard-anchor><code>apps/playground/app/hooks/useEditorSave.ts</code></li>
+            <li id="wb-li-71efbfa233304474a25f8d64b4d49071" data-whiteboard-anchor><code>apps/playground/app/pages/NoteByIdPage.tsx</code></li>
+            <li id="wb-li-f43defea759e49be92fbaa23cab9a4e7" data-whiteboard-anchor><code>apps/playground/src/components/organisms/editor/NoteEditor.tsx</code></li>
+          </ul></dd>
+          <dt>Acceptance</dt><dd><ul>
+            <li id="wb-li-994273324f8a40048ce67afc0a6a5dc1" data-whiteboard-anchor>Type body plus a complete fenced block, press Save, reload: stored source and editor content are byte-equal, including fences, blank lines, multiple blocks, and property edits.</li>
+            <li id="wb-li-699429a68ed24a4fa62f8097a735e2aa" data-whiteboard-anchor>With unsaved edits, reload and SPA navigation warn; confirming the warning discards intentionally.</li>
+            <li id="wb-li-ea22dc8a0632404a808612efebb01903" data-whiteboard-anchor>After Save, a <code>```time</code> block still shows Run.</li>
+            <li id="wb-li-0454f7dd9ee945c58327c1a879c5330b" data-whiteboard-anchor>Covered at desktop and mobile viewports, hard reload and SPA navigation.</li>
+          </ul></dd>
+          <dt>Tests</dt><dd>Extend <code>apps/playground/app/hooks/useEditorSave.test.ts</code> and <code>e2e/live-app/note-persistence-save-load.e2e.ts</code>; extend <code>e2e/pages/BaseNotePage.ts</code> helpers.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag medium">Medium</span><span class="tag wave">Wave 1</span><h3 id="wb-h3-eaf23908295143b6b31dc2faafd844f8" data-whiteboard-anchor>N3: Property draft cannot be dismissed</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-c1d5b216a6ac49f2b11bc1f5635b6000" data-whiteboard-anchor>UX. Evidence: 52-latest-add-property.png, 56-property-after-escape.png.</p>
+        <dl>
+          <dt>Cause</dt><dd>"Add property" immediately patches an empty <code>property:</code> row into the document, which the commit path persists, so the draft survives reload. The row's key/value editors have Enter and blur commit only; there is no Escape handler, Done, or Close.</dd>
+          <dt>Change</dt><dd>Turn Add property into a true local draft: Done validates and applies the values to the editor, Close and Escape cancel and discard. No empty row is ever written. Opening or closing metadata preserves body scroll. Explicit Save persists applied values, per the N1 contract.</dd>
+          <dt>Files</dt><dd><ul class="filelist"><li id="wb-li-a064c9001a474670ab5c8f6d65573c57" data-whiteboard-anchor><code>packages/ui/src/extensions/frontmatter-preview.ts</code> (property row builder; reuse the tag and metric draft-row cancel patterns already in this file)</li></ul></dd>
+          <dt>Acceptance</dt><dd><ul>
+            <li id="wb-li-19160f4d8a19489f863eb1dc56e4b080" data-whiteboard-anchor>Add property, press Escape: no property row appears in the document or storage.</li>
+            <li id="wb-li-45dc59ae36f348c695e59d3b9285a178" data-whiteboard-anchor>Enter a key and value, press Done: the row appears in the editor; before Save, reload discards it; after Save, it persists.</li>
+            <li id="wb-li-a98f927a032643258245421c321437c4" data-whiteboard-anchor>Body scroll position is unchanged when the panel opens and closes.</li>
+          </ul></dd>
+          <dt>Tests</dt><dd>Extend <code>packages/ui/src/test/frontmatter-preview.test.ts</code> and <code>e2e/live-app/note-editor-navigation.e2e.ts</code>.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag fixed">Fixed on 2160</span><span class="tag wave">Wave 1</span><h3 id="wb-h3-d9bf72c52b4e4af4800c69c956479729" data-whiteboard-anchor>#2: Add property no longer removes the editor (protect with a regression test)</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-8eb116fa6b6b410498d1a8a29bfedd54" data-whiteboard-anchor>Functional. Evidence: 06-property-category.png (2158 defect), 52-latest-add-property.png (fixed).</p>
+        <dl>
+          <dt>Change</dt><dd>No product change. Add an explicit regression: with a property panel open, the body and workout block stay mounted, visible, and editable.</dd>
+          <dt>Acceptance</dt><dd>The new assertion passes on the current build and fails if the panel ever unmounts the editor again.</dd>
+          <dt>Tests</dt><dd>Extend <code>e2e/live-app/note-editor-navigation.e2e.ts</code> alongside the N3 work.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag medium">Medium</span><span class="tag wave">Wave 2</span><h3 id="wb-h3-adf9c42bb42b47f0914c53ffe0b6dd3f" data-whiteboard-anchor>N4: Landscape hides current exercise and up-next</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-2b07bbef1a3947ba891386c7bc56df1d" data-whiteboard-anchor>UX. Evidence: 32-mobile-landscape-timer.png. Do this before N2's inline panels; landscape capture depends on the freed space.</p>
+        <dl>
+          <dt>Cause</dt><dd>The General surface ignores <code>isShort</code>. Its container-query bands sum past 390px, and the hero's overflow clipping removes the label band and squeezes the up-next caption.</dd>
+          <dt>Change</dt><dd>Consume <code>isShort</code> in the General surface and hero: hide secondary top bar and chips, cap the clock to a fixed pixel height, keep current movement, clock, up-next, Pause, and Next visible. Do not add a new tier; the existing flag exists for this exact case.</dd>
+          <dt>Files</dt><dd><ul class="filelist">
+            <li id="wb-li-c09183aa97c141ae8b7a5b35737e50be" data-whiteboard-anchor><code>apps/playground/src/components/organisms/review/TimerSurface.tsx</code></li>
+            <li id="wb-li-90b7d3bc52124ce193db752c823bc647" data-whiteboard-anchor><code>GeneralTimerSurface</code> and <code>TimerCore</code> hero bands</li>
+          </ul></dd>
+          <dt>Acceptance</dt><dd>At 844x390: exercise label and up-next caption are fully inside the surface; clock height fits the remaining chrome; inline capture (after N2) fits without scrolling.</dd>
+          <dt>Tests</dt><dd>Extend <code>e2e/live-app/timer-tiers.e2e.ts</code> with 844x390 and 320x568 legs; unit-test the short-branch layout; re-run the Cast receiver smoke since the receiver shares the General surface.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag high">High</span><span class="tag wave">Wave 2</span><h3 id="wb-h3-3e0c028667fb4f2da87af9b89630eb12" data-whiteboard-anchor>N2: Nav and Keypad show no panel; reps silently default to plan</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-7c8c43a0bc8f40c0ac34a47c971315cf" data-whiteboard-anchor>Functional. Evidence: 53-latest-keypad.png, 54-latest-nav.png, 41-touch-workout-complete.png. Touch emulation and real touch both reproduced.</p>
+        <dl>
+          <dt>Cause</dt><dd>The footer buttons are keyboard Enter-mode toggles, not panel switches; no panel exists behind them. The rep-entry UI opens only via a separate control as a centered modal, and advancing without an entry persists the planned reps.</dd>
+          <dt>Change</dt><dd>Introduce an explicit host variant, <code>touch</code> or <code>remote</code>, passed from the timer body so Cast receivers keep their chrome. On touch: Nav and Keypad become true inline panel toggles (one open at a time); rep entry renders in flow, not as a fixed overlay; Apply commits the entered value via the actuals pipeline and collapses the panel without advancing; Next remains the only advance. Nav shows movement and round buttons. All targets at least 44px.</dd>
+          <dt>Files</dt><dd><ul class="filelist">
+            <li id="wb-li-b44f7aebea9642729c7b1af19aa3b826" data-whiteboard-anchor><code>apps/playground/src/clock/ClockCommandBoard.tsx</code></li>
+            <li id="wb-li-859721f8de9844d785223e4320ca0551" data-whiteboard-anchor><code>apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx</code></li>
+            <li id="wb-li-7a97f794e8514d46a30c9816cd0a2da2" data-whiteboard-anchor><code>apps/playground/src/clock/ClockValueEntry.tsx</code></li>
+            <li id="wb-li-9ce9f0a6ed244c31940c1c1a37b23b66" data-whiteboard-anchor><code>apps/playground/src/services/actuals.ts</code> (existing commit path, unchanged contract)</li>
+          </ul></dd>
+          <dt>Acceptance</dt><dd>At 390x844 during <code>10 Push Ups</code>: Keypad opens an inline panel; entering 7 and applying shows 7 of target 10; Next persists a user rep event of 7, not 10. Explicit 0 and above-target 12 both persist as entered. Only one panel is open at a time. At 320x568 the expanded panel's actions are visible without scrolling. At 844x390 capture works after the N4 compression. Remote/Cast chrome is unchanged.</dd>
+          <dt>Tests</dt><dd>Extend <code>e2e/live-app/clock-command-board.e2e.ts</code> (it already asserts persisted rep events), <code>TestIdContract</code>, and the TimerSurfaces stories with 320 and landscape frames.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag medium">Medium</span><span class="tag wave">Wave 2</span><h3 id="wb-h3-11c4869862df45ae98bdeb663c0feb59" data-whiteboard-anchor>N5: Tiny footer targets and developer diagnostics on touch</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-dc3141f1b0a842b1b7dde7962a589e8e" data-whiteboard-anchor>Accessibility. Evidence: 24-mobile-timer-ready.png, 30-mobile-keys-open.png, 31-small-mobile-timer.png.</p>
+        <dl>
+          <dt>Cause</dt><dd>The legend, mode toggle, and Keys? button are sized and worded for desktop keyboards and render unconditionally on every host.</dd>
+          <dt>Change</dt><dd>Using the same touch/remote variant as N2: on touch, drop the desktop key legend, replace the shortcut line with a concise mobile help affordance, and gate the key-event diagnostic behind a debug setting. Anything that remains gets 44px targets.</dd>
+          <dt>Acceptance</dt><dd>At 390x844 and 320x568: no text smaller than touch scale, all footer controls at least 44px tall, no key/code/location/repeat probe reachable without debug mode. Remote chrome still present under <code>remote</code>.</dd>
+          <dt>Tests</dt><dd>Share the N2 board tests; add an assertion that the diagnostic is absent on touch and present in debug.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag low">Low</span><span class="tag wave">Wave 2</span><h3 id="wb-h3-e0f22f8cf22c40b9806df3826bdb6a66" data-whiteboard-anchor>N6: Clock shifts 8px between Ready and Countdown</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-d1f9f7a53abe4311be6d151f90814b18" data-whiteboard-anchor>Visual. Evidence: 24-mobile-timer-ready.png, 26-mobile-timer-running.png.</p>
+        <dl>
+          <dt>Cause</dt><dd>The up-next caption reserves no height when empty despite its comment claiming it does; the centered hero shifts by half the caption's height.</dd>
+          <dt>Change</dt><dd>Reserve a fixed caption height in both mobile and tv branches. One class change.</dd>
+          <dt>Acceptance</dt><dd>Clock bounding-box y is identical across Ready, Countdown, Paused, and zero states at 390x844 and 320x568 (0px delta, previously ~8px).</dd>
+          <dt>Tests</dt><dd>Add a measurement assertion to the board e2e; screenshot before and after as visual proof.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag high">High residual</span><span class="tag wave">Wave 3</span><h3 id="wb-h3-b851984c2ac847239cce257484d34e90" data-whiteboard-anchor>#1: Cold start takes 34 to 35 seconds with no honest progress</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-6eca37ac66854d2fa7b2f70f9ae9e97c" data-whiteboard-anchor>Functional. Evidence: 02-cold-desktop.png, 49-fresh-mobile-home.png. Initialization now succeeds automatically; the residual is duration and opacity.</p>
+        <dl>
+          <dt>Cause</dt><dd>The seed pipeline already has phases and record counts, and human-readable labels exist for the Settings sync surface, but the boot gate renders only an indeterminate "Loading library…". No timing marks exist anywhere, so the 34-second attribution is unmeasured.</dd>
+          <dt>Change</dt><dd>First surface the existing phase labels and counts at boot. Add performance marks for started, first paint, and settled, echoed onto the document element like the existing seed-state diagnostics. Then profile under the agreed conditions and optimize whatever the marks prove dominant. Do not guess the bottleneck before instrumenting.</dd>
+          <dt>Files</dt><dd><ul class="filelist">
+            <li id="wb-li-ff9d549a2b2d47e8828a5355da60c269" data-whiteboard-anchor><code>apps/playground/src/services/seed/seedReadiness.ts</code></li>
+            <li id="wb-li-5f142bf5e12a4d138f6f1f1c57b9c731" data-whiteboard-anchor><code>apps/playground/app/App.tsx</code> (boot gate UI)</li>
+            <li id="wb-li-fe450fa5622e4268a0730ec3f71fea1c" data-whiteboard-anchor>Reuse labels from <code>apps/playground/app/tour/TourJumpSection.tsx</code></li>
+          </ul></dd>
+          <dt>Design</dt><dd>The home route is decoupled from the corpus in <code>docs/prototypes/playground-home-cold-boot-decoupling.md</code> — <code>/</code> becomes an explicit route whose content is baked into the bundle (8 files, 5,215 bytes) while the seed pipeline keeps running in the background. The board's progress labels and boot marks stay in scope for the routes that still wait on the corpus.</dd>
+          <dt>Acceptance</dt><dd>Fresh production profile, empty site data, disabled cache: meaningful progress visible under 1 second; usable Home under 5 seconds on desktop unthrottled and on mobile with 4x CPU slowdown and 10 Mbps / 40 ms network. The boot label reflects the real current phase.</dd>
+          <dt>Tests</dt><dd>Extend <code>seedReadiness</code> tests for the progress surface; add one CDP-throttled Playwright budget test measuring navigation to ready-state.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag medium">Medium</span><span class="tag wave">Wave 3</span><h3 id="wb-h3-f2f57b51cd044caab340f180f00ec0c0" data-whiteboard-anchor>#9: Seed carousel clips cards and has no navigation</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-7a1f0e5328f84d57a014471a0281fe39" data-whiteboard-anchor>Visual. Evidence: 47-library-feeds-current.png.</p>
+        <dl>
+          <dt>Cause</dt><dd>The mobile seed row is a decorative infinite marquee with hard container edges; clipping is inherent to the component. It exposes no prev/next because it is not a carousel.</dd>
+          <dt>Change</dt><dd>Replace the mobile marquee with a native snap-scroll row plus labeled previous/next buttons that scroll one card, with end states disabled and an accessible position indicator. Keep the desktop marquee only if the desktop retest shows no clipping; convert it too otherwise.</dd>
+          <dt>Files</dt><dd><ul class="filelist"><li id="wb-li-3ef572c2091b425fba958680fd8aecdb" data-whiteboard-anchor><code>apps/playground/app/views/notebook-gallery/MarqueeRow.tsx</code> consumers in <code>TourJumpSection.tsx</code></li></ul></dd>
+          <dt>Acceptance</dt><dd>At 390x844: the first card is fully visible, chevrons scroll exactly one card, ends disable, and no card is bisected at rest. Desktop rechecked.</dd>
+          <dt>Tests</dt><dd>Component test for the scroll row; extend the home e2e at mobile width.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag medium">Medium</span><span class="tag wave">Wave 3</span><h3 id="wb-h3-1d0f385f164d4174ab9ea738c247523b" data-whiteboard-anchor>#10: Global search opens the advanced WQL composer</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-ec9bafef1031489ca2a1183dd152e413" data-whiteboard-anchor>UX. Evidence: 43-search-default.png.</p>
+        <dl>
+          <dt>Cause</dt><dd>The palette shell always mounts the WQL composer; Find mode merely hides parts of it. A stored WQL stream draft can also re-seed the palette in query mode on open.</dd>
+          <dt>Change</dt><dd>Render a plain text input for the default Find mode and mount the composer only when the user explicitly chooses "Advanced WQL". Keep drafts when the user switches intentionally; a stale stream draft must not force advanced mode.</dd>
+          <dt>Files</dt><dd><ul class="filelist">
+            <li id="wb-li-6b9dda858c4543dca28bdfff6c99ce0f" data-whiteboard-anchor><code>apps/playground/src/components/organisms/command-palette/PaletteShell.tsx</code></li>
+            <li id="wb-li-b56985f752bc45c3ac6f6cb21bde82db" data-whiteboard-anchor><code>AppContent.tsx</code> initial-query seeding</li>
+          </ul></dd>
+          <dt>Acceptance</dt><dd>Fresh open shows a plain search input over titles and body with an Advanced WQL action. Opening with a stored stream draft still lands in simple mode. Switching to WQL preserves the working composer.</dd>
+          <dt>Tests</dt><dd>Extend <code>PaletteShell.test.tsx</code>; cover fresh open, WQL toggle, and draft-seeded open.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag medium">Medium</span><span class="tag wave">Wave 3</span><h3 id="wb-h3-9ac182c4ae064f3fa878ddbfd8092ee7" data-whiteboard-anchor>#11: Playground sample ships with a warning</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-262518b7656541d083b4a58c77279d7e" data-whiteboard-anchor>UX. Evidence: 45-playground-new-tab.png.</p>
+        <dl>
+          <dt>Cause</dt><dd>The welcome sample references "Count Down"; no such effort exists. The unknown-effort warning is intentional behavior; the sample content is the defect.</dd>
+          <dt>Change</dt><dd>Change the sample's movement to a label that resolves in the effort catalog while keeping the 3-second demo intent. Do not add a catalog alias just to silence the demo. Rebuild seeds after the markdown change.</dd>
+          <dt>Files</dt><dd><ul class="filelist">
+            <li id="wb-li-4333ae17d55442f5a08f2244e345ccee" data-whiteboard-anchor><code>markdown/canvas/home/welcome-1.md</code></li>
+            <li id="wb-li-074650b92c8b45bda31687745af6a13d" data-whiteboard-anchor><code>scripts/sync-seed.ts</code> (embedded version bump via rebuild)</li>
+          </ul></dd>
+          <dt>Acceptance</dt><dd>A fresh playground tab shows no unknown-reference chip in the sample. The demo still runs and completes in about 3 seconds.</dd>
+          <dt>Tests</dt><dd>Parser fixture asserting zero reference diagnostics for the new line; optional e2e asserting no unknown-ref chip on fresh load.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag medium">Mostly fixed</span><span class="tag wave">Wave 3</span><h3 id="wb-h3-5d996af22dd648d392f847936ad5896f" data-whiteboard-anchor>#12: First mobile viewport lacks a labeled primary action</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-02c525229bc44ae49d003831fbd26a1f" data-whiteboard-anchor>UX. Evidence: 49-fresh-mobile-home.png. Run is present at y≈710 with a 44px target, but icon-only, and the video and "Keep scrolling" dominate.</p>
+        <dl>
+          <dt>Cause</dt><dd>The command bar hides the Run label below the small breakpoint by CSS, and the home composition leads with the full-width pitch video and hint.</dd>
+          <dt>Change</dt><dd>Show a labeled "Try the 3-second workout" action in the first mobile viewport, remove the "Keep scrolling" instruction, and use the existing collapse mechanism to demote the pitch video on small screens if needed. Placeholder video content stays.</dd>
+          <dt>Files</dt><dd><ul class="filelist">
+            <li id="wb-li-00af5fd7b65f424e9238d124beaf66a9" data-whiteboard-anchor><code>apps/playground/src/components/organisms/editor/InlineCommandBar.tsx</code></li>
+            <li id="wb-li-adda78a0354d4b5885e5dbbdcdd42f70" data-whiteboard-anchor><code>apps/playground/app/tour/HomeTour.tsx</code>, <code>TourWhyVideo.tsx</code></li>
+          </ul></dd>
+          <dt>Acceptance</dt><dd>At 390x844 and 320x568: a labeled run action is visible in the first viewport; "Keep scrolling" is gone; the video does not push the action out of view.</dd>
+          <dt>Tests</dt><dd>Extend the home e2e at 375 to 390 width with a first-viewport assertion and screenshot.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="active">
+      <div class="head"><span class="tag low">Low</span><span class="tag wave">Wave 3</span><h3 id="wb-h3-029eda8220a4450082eee783d37a0b13" data-whiteboard-anchor>#14: Draft-quality copy remains</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-db6cb6c2e48840ef920a6308317cc64f" data-whiteboard-anchor>Content. Evidence: 49-fresh-mobile-home.png.</p>
+        <dl>
+          <dt>Change</dt><dd>Rewrite the two flagged strings and keep the outline label in sync. Suggested wording, open for annotation: hero becomes "Turn every round and split into training data you can search." Ownership becomes "Who owns the data? You do." with outline label "Your data, owned by you".</dd>
+          <dt>Files</dt><dd><ul class="filelist">
+            <li id="wb-li-450f00aecf1146f08b64b2af534bc9c4" data-whiteboard-anchor><code>apps/playground/app/tour/TourHero.tsx</code></li>
+            <li id="wb-li-87504d40590c4e3584f869ca483b9a7b" data-whiteboard-anchor><code>apps/playground/app/components/molecules/OfferingTiers.tsx</code></li>
+            <li id="wb-li-d9c3ca8b1daf4b57b4e82ccf81614cd4" data-whiteboard-anchor><code>apps/playground/app/tour/HomeTour.tsx</code> (outline label)</li>
+          </ul></dd>
+          <dt>Acceptance</dt><dd>Neither flagged string appears anywhere in the shipped UI; the replacement copy reads as finished product text.</dd>
+          <dt>Tests</dt><dd>Covered by the #12 home e2e additions; no copy-only unit tests.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="issue" data-status="deferred">
+      <div class="head"><span class="tag deferred">Deferred</span><h3 id="wb-h3-6521ead47c7e4c44971f113606e9732c" data-whiteboard-anchor>#7: Placeholder onboarding video</h3></div>
+      <div class="body">
+        <p class="meta" id="wb-p-a4b3026db29940b9942077298b93f5d5" data-whiteboard-anchor>Content. Evidence: 49-fresh-mobile-home.png. Accepted by product until real videos are ready.</p>
+        <dl>
+          <dt>Future change</dt><dd>When content lands, swap <code>WHY_VIDEO_ID</code> in <code>apps/playground/app/tour/TourWhyVideo.tsx</code> and <code>GUIDE_VIDEO_ID</code> in <code>apps/playground/app/canvas/GuideIndexFooter.tsx</code>. Both are already marked with the upgrade path.</dd>
+        </dl>
+      </div>
+    </article>
+
+    <div class="status-fixed-table">
+      <h3 id="wb-h3-4b62397f17d1476f90ce6bf72008daad" data-whiteboard-anchor>Fixed baseline issues (regression-protect only)</h3>
+      <table>
+        <thead><tr><th id="wb-th-657bdb904b6747e68ee43726e1fd3ded" data-whiteboard-anchor>#</th><th id="wb-th-15f63c2f24c54b769b8c57e9f91c1bfb" data-whiteboard-anchor>Issue</th><th id="wb-th-321d812f373242cba6601daab868ce67" data-whiteboard-anchor>Verified state</th><th id="wb-th-00f8c62efb3f482f973c876e8a28ea33" data-whiteboard-anchor>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td id="wb-td-92c5656c0d84425fb704ddafa919a4a8" data-whiteboard-anchor>#2</td><td id="wb-td-c85cfbdb68dc47e89f51aadcb513c293" data-whiteboard-anchor>Add property removed the editor</td><td id="wb-td-f6995fbde45049a0b6e695a988dcae14" data-whiteboard-anchor>Fixed on 2160; explicit regression planned in Wave 1</td><td id="wb-td-50db3f5064134c1e8eb5b0d67f75e247" data-whiteboard-anchor>06, 52</td></tr>
+          <tr><td id="wb-td-7dde21248b3f40b99251ec76cb432b2b" data-whiteboard-anchor>#3</td><td id="wb-td-a01faf8241f143ce9a226707debe8748" data-whiteboard-anchor>Icon navigation lacked accessible names</td><td id="wb-td-6d2a7c598e784b668e7c1d54c8cd64e0" data-whiteboard-anchor>Primary desktop and mobile controls named; a few secondary dashboard icons remain, non-blocking</td><td id="wb-td-2f61309cde924ef98258ea03f869eefe" data-whiteboard-anchor>02, 23</td></tr>
+          <tr><td id="wb-td-32d26e19b9ed41e79cfd447ebe123ac9" data-whiteboard-anchor>#4</td><td id="wb-td-fab817ac445b4d67a44dd9106c70739a" data-whiteboard-anchor>Mobile subscription targets too small</td><td id="wb-td-3e3eca0fd9f74727833191422994c221" data-whiteboard-anchor>44x44 targets with accessible names</td><td id="wb-td-75de9e62d81a49d2a785d230356a46b7" data-whiteboard-anchor>47</td></tr>
+          <tr><td id="wb-td-399997e11fe94594a548dcc5d0097c9b" data-whiteboard-anchor>#5</td><td id="wb-td-ee9a3f3a041c486281b87c1dc7fe5694" data-whiteboard-anchor>Property inputs lacked labels</td><td id="wb-td-80ac3567ed514b09931793737c70af08" data-whiteboard-anchor>Persistent visible labels, names, and hint IDs</td><td id="wb-td-1e796b9ddd0e4c13ab6157858d7c09be" data-whiteboard-anchor>06, 52</td></tr>
+          <tr><td id="wb-td-fd37811635ef4e69818f6df832efcb64" data-whiteboard-anchor>#6</td><td id="wb-td-cf38fd48a52848129cd6eb49facc0212" data-whiteboard-anchor>External fonts delayed startup</td><td id="wb-td-5a68299e5d25474582ef6d3c1c088c2a" data-whiteboard-anchor>Fonts self-hosted via Fontsource; duration tracked under #1</td><td id="wb-td-1b548dc5f89f419aaeac5b035edaf3a3" data-whiteboard-anchor>Live inspection</td></tr>
+          <tr><td id="wb-td-ecbbc3543139438eb7a26723859587dc" data-whiteboard-anchor>#8</td><td id="wb-td-e758481003cd4f27ad5521aaa08f04b4" data-whiteboard-anchor>Demo did not populate Session Insights</td><td id="wb-td-e9112de7de554d1fa6c7609e74952301" data-whiteboard-anchor>Insights populate after completion</td><td id="wb-td-93bb9dec62d3426bab3ae9a0021b29a8" data-whiteboard-anchor>46</td></tr>
+          <tr><td id="wb-td-b88251673a344f8a9bff927226d54dd0" data-whiteboard-anchor>#13</td><td id="wb-td-6d89d14a42174a938afc33d0cf4c2945" data-whiteboard-anchor>Note header duplicated date and UUID</td><td id="wb-td-7d300c6d0371412fac84d5ce588850f2" data-whiteboard-anchor>Breadcrumbs plus a single date or title</td><td id="wb-td-213052d0e81c4c4f9b3f9f33087d424b" data-whiteboard-anchor>23, 50</td></tr>
+        </tbody>
+      </table>
+      <p class="meta" id="wb-p-4703faf219774d0984bb5876b26e3115" data-whiteboard-anchor>Final retest smoke-checks all seven on the new build; only #2 gains a new automated regression.</p>
+    </div>
+  </section>
+
+  <section id="plan">
+    <h2 id="wb-h2-873e748eb2414cbe8e0e5b548e2bbce2" data-whiteboard-anchor>Fix plan<span class="lede">Four waves. Failing tests land first in each wave; N4 precedes N2; instrumentation precedes optimization.</span></h2>
+
+    <div class="wave">
+      <h3 id="wb-h3-ec0e7229977f40f292084fcb74c3adc1" data-whiteboard-anchor>Wave 1: Note integrity and metadata</h3>
+      <p class="goal" id="wb-p-c5b0ed1e0cf24390b3aa39c1d853b9ef" data-whiteboard-anchor>N1, N3, #2 regression. Exit when saved source round-trips byte-for-byte and property drafts apply or cancel cleanly.</p>
+      <ul>
+        <li id="wb-li-9a431c55f2b0434b8107fb9e5f65a279" data-whiteboard-anchor>Write the failing N1 explicit-save round-trip test (fences, blank lines, multiple blocks, property edits, hard reload and SPA navigation, desktop and mobile) and the #2 editor-stays-mounted regression.</li>
+        <li id="wb-li-c113f17737d94338bfd79005ffcc89da" data-whiteboard-anchor>Implement explicit Save with dirty/saving/saved/error state and unload guards in the note page and save hook.</li>
+        <li id="wb-li-5b1ed9388ad348b5a2adb623b4337c34" data-whiteboard-anchor>Refactor Add property into a real draft with Done/Close/Escape; no empty rows persisted.</li>
+      </ul>
+    </div>
+
+    <div class="wave">
+      <h3 id="wb-h3-63667beab45e40f89e2a883a5a859e1a" data-whiteboard-anchor>Wave 2: Mobile runner</h3>
+      <p class="goal" id="wb-p-886cb4ffd0354bd8a60373c352e8fd2d" data-whiteboard-anchor>N4, then N2, N5, N6. Exit when capture persists real values at all three audit viewports and Cast chrome is untouched.</p>
+      <ul>
+        <li id="wb-li-bc2ed86e48a9458596c9a7c46cfd61e1" data-whiteboard-anchor>Land the N4 short-height compression first; verify at 844x390 and via the receiver smoke test.</li>
+        <li id="wb-li-bce4ba7f83c14bc9b6311f8950ca643a" data-whiteboard-anchor>Add the touch/remote host variant, inline Nav and Keypad panels, in-flow rep entry with Apply, and 44px targets.</li>
+        <li id="wb-li-05c453bfa98e4d769658868c5786dd1e" data-whiteboard-anchor>Reserve the up-next caption height (N6) and hide desktop diagnostics on touch (N5).</li>
+        <li id="wb-li-06f88ede86684836859d095d0efa4aa2" data-whiteboard-anchor>Extend the board e2e with below-target, zero, and above-target captures plus clock-stability measurement.</li>
+      </ul>
+    </div>
+
+    <div class="wave">
+      <h3 id="wb-h3-3e0b25b149d54177bcb6c181410aa6b6" data-whiteboard-anchor>Wave 3: Startup, discovery, and onboarding</h3>
+      <p class="goal" id="wb-p-996661b46f6d4029a58485b4039d97aa" data-whiteboard-anchor>#1, #9, #10, #11, #12, #14. Mostly independent slices; one owner for HomeTour edits at a time.</p>
+      <ul>
+        <li id="wb-li-4144ca2e3c6e400092455eca233235ff" data-whiteboard-anchor>Ship #1 instrumentation and boot progress first; profile, then optimize to the 5-second budget.</li>
+        <li id="wb-li-7df9a004fb87486296c722adc5a263fc" data-whiteboard-anchor>#9 snap-scroll carousel, #10 simple search default, #11 resolvable sample, #12 labeled CTA, #14 copy rewrite.</li>
+        <li id="wb-li-6120a777735b4e3590f6b8b57cb3fb26" data-whiteboard-anchor>#11's markdown change triggers a seed rebuild; coordinate so the seed bump lands once.</li>
+      </ul>
+    </div>
+
+    <div class="wave">
+      <h3 id="wb-h3-a8c1bc4eaee444a4ad08cf533dc9992b" data-whiteboard-anchor>Wave 4: Production retest and gate decision</h3>
+      <p class="goal" id="wb-p-d3e3e329baa145328b835adff0513dcf" data-whiteboard-anchor>Full clean-profile retest on desktop and mobile against the deployed build.</p>
+      <ul>
+        <li id="wb-li-a9723a57fdc44069a065e9e56d3f65fe" data-whiteboard-anchor>Re-run every report flow at 390x844, 320x568, and 844x390.</li>
+        <li id="wb-li-3b59e95b96d44adaae1a40136f02d8f9" data-whiteboard-anchor>Exercise explicit Save, dirty-warning paths, and rep capture below, above, and at zero.</li>
+        <li id="wb-li-148f2f8231894988a84a39d43317e3ca" data-whiteboard-anchor>Smoke all seven fixed baseline items and both deferred placeholders.</li>
+        <li id="wb-li-629daab717b74616be5506b43ec02404" data-whiteboard-anchor>Publish a new versioned report; open the gate only when all 13 active work cards pass.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="verification">
+    <h2 id="wb-h2-4f6db66871124cedb15fa4a0c54cce86" data-whiteboard-anchor>Verification matrix<span class="lede">What each fix must prove. Commands per repo instructions; none of these have run for this planning artifact.</span></h2>
+    <table>
+      <thead><tr><th id="wb-th-1b7a43b924774b7ca19b5569056378fc" data-whiteboard-anchor>Layer</th><th id="wb-th-e794fdcd92bf4320872d1a2a6f4222d6" data-whiteboard-anchor>Covers</th><th id="wb-th-a1272d405ed647119b1ed1795b2c0647" data-whiteboard-anchor>Proof</th></tr></thead>
+      <tbody>
+        <tr><td id="wb-td-861ed7803cca476783a4fcde34feb743" data-whiteboard-anchor>Unit</td><td id="wb-td-ee3a29a21882449a8207f962f2b3c548" data-whiteboard-anchor>N1 save hook, N3 draft rows, N4 short layout, N6 caption, #10 palette modes, #11 reference resolution</td><td id="wb-td-cbc421c4564f48b1af73a9bc3fadf399" data-whiteboard-anchor>Extended co-located test files pass; no new failures</td></tr>
+        <tr><td id="wb-td-1c8239d8a74643a18abf7b4befb5df23" data-whiteboard-anchor>Component / Storybook</td><td id="wb-td-1f82c00ec6984441b6b9e5a4e7600701" data-whiteboard-anchor>Timer surfaces at 320x568, 390x844, 844x390; command board variants</td><td id="wb-td-066b02461bc547c1b22bf8e4b807ccb1" data-whiteboard-anchor>TimerSurfaces stories updated and smoke-tested</td></tr>
+        <tr><td id="wb-td-96b843906803488ba4a0a8c440764d9b" data-whiteboard-anchor>E2E functional</td><td id="wb-td-5876ebed615641218f5a9ec8ab15384e" data-whiteboard-anchor>N1 byte round-trip, #2 mounted editor, N2 rep capture, #9 through #12, #14</td><td id="wb-td-ad142f08bf8e4bd2890e4b56eda28dca" data-whiteboard-anchor>Extended live-app specs pass; stored source asserted from IndexedDB, not just the rendered editor</td></tr>
+        <tr><td id="wb-td-03fd0165590f4126be0f4b2d1c3efaaf" data-whiteboard-anchor>E2E budget</td><td id="wb-td-455a75e5836046a2beb16807f8421c76" data-whiteboard-anchor>#1 cold start</td><td id="wb-td-7953276f53fa4447bd46cd4e961ff75e" data-whiteboard-anchor>CDP-throttled fresh-profile run meets 1s progress and 5s Home</td></tr>
+        <tr><td id="wb-td-6a3c5990b5454066a56a1955923d9bb1" data-whiteboard-anchor>Accessibility</td><td id="wb-td-4202a1e58d5d41318a796fb32465cce2" data-whiteboard-anchor>N5 targets and diagnostics, #3/#4 residuals</td><td id="wb-td-7a17b37ff93648dca85ab21179fd753e" data-whiteboard-anchor>44px minimums asserted; no diagnostic without debug; names present</td></tr>
+        <tr><td id="wb-td-bdfd262730334b699d7daba589132be6" data-whiteboard-anchor>Guards</td><td id="wb-td-ebca30f6e6a14fb189a51fb797763ae2" data-whiteboard-anchor>Cast receiver, remote chrome</td><td id="wb-td-2556449ff4b74d0bb58ebf63bd761eb0" data-whiteboard-anchor>Receiver smoke passes with variant prop in place</td></tr>
+        <tr><td id="wb-td-6e632f46f27042aeb55e8f8e31d3b559" data-whiteboard-anchor>Release</td><td id="wb-td-396a487b7327470db05043387211341b" data-whiteboard-anchor>Everything</td><td id="wb-td-12d17a42f3064188b846e4cad36de6ad" data-whiteboard-anchor><code>bun run test:all</code>, scoped <code>tsc</code>, Storybook smoke, full <code>bun run test:e2e</code> per repo instructions</td></tr>
+      </tbody>
+    </table>
+    <p id="wb-p-0497dbfad4444cc2a02cf5fac818750e" data-whiteboard-anchor>Layout-affecting changes get before and after screenshots at all three audit sizes. Persistence assertions read stored bytes. No claim in this board counts as verified until Wave 4.</p>
+  </section>
+
+  <section id="risks">
+    <h2 id="wb-h2-9becb23651fc4676b430545c1017c822" data-whiteboard-anchor>Risks, limits, and source-report scope<span class="lede">What could slip, and what this retest never claimed.</span></h2>
+    <ul>
+      <li id="wb-li-953f3db3020449f19182547e9aef8810" data-whiteboard-anchor>The 5-second budget may require import or fetch optimization that only profiling can scope; instrumentation lands before any commitment.</li>
+      <li id="wb-li-2809c07d19234473907830ce7512fcef" data-whiteboard-anchor>Manual Save is a deliberate workflow change from today's mostly-invisible flushing; the dirty guard must be loud in review.</li>
+      <li id="wb-li-61d0925abeec4a70aae344b6d15c1477" data-whiteboard-anchor>Inline panels need compact and landscape layouts; 320x568 is the binding constraint and its action buttons must stay visible.</li>
+      <li id="wb-li-9d29ae9b08b54b44ab423f2b8a5b8de6" data-whiteboard-anchor>#14 wording is suggested, not approved; annotate the card to change it.</li>
+      <li id="wb-li-0cb3f05dadb94640ae6540aee7af339a" data-whiteboard-anchor>Real onboarding videos are an external dependency tracked only as the #7 placeholder swap.</li>
+    </ul>
+    <h4 id="wb-h4-78127108b04b48119a7ecc8ef967ecd0" data-whiteboard-anchor>Not covered by the source retest</h4>
+    <p id="wb-p-f9079cdeede4417c9cda653c217d6091" data-whiteboard-anchor>Long real-world workouts, audio, Cast and TV sessions beyond the receiver guard, external sync, export contents, destructive data clearing, full screen-reader and hardware-keyboard walkthroughs, and every timer protocol or metadata type. Deployment advanced from 2158 to 2160 mid-session; version-sensitive verdicts are labeled on each card, and N1 and N2 were reproduced on 2160.</p>
+  </section>
+
+</main>
+
+<footer class="colophon">
+  <div class="wrap">Review board generated from the 2026-10-25 production retest and same-day code reconnaissance. Use the annotation bar to comment on specific blocks; publish exports every comment with its anchor.</div>
+</footer>
+
+<script>
+(function () {
+  var buttons = document.querySelectorAll('.filters button[data-filter]');
+  var count = document.getElementById('filter-count');
+  var activeIds = [];
+  function apply(filter) {
+    document.body.setAttribute('data-filter', filter);
+    buttons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-filter') === filter));
+    });
+    if (filter === 'active') {
+      count.textContent = 'Showing 13 active work cards (12 defects plus the #2 regression guard)';
+    } else if (filter === 'fixed') {
+      count.textContent = 'Showing the fixed baseline table (7 items)';
+    } else if (filter === 'deferred') {
+      count.textContent = 'Showing the deferred placeholder (1 item)';
+    } else {
+      count.textContent = 'Showing all 20 tracked items';
+    }
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.getAttribute('data-filter')); });
+  });
+  document.querySelectorAll('.issue[data-status="active"] h3').forEach(function (h) {
+    activeIds.push((h.textContent || '').trim());
+  });
+  apply('all');
+})();
+</script>
+
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2><button id="wb-current-toggle" type="button" aria-expanded="false" aria-controls="wb-current-body"><span id="wb-current-title"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></h2>
+  <div id="wb-current-body" hidden>
+    <a id="wb-current-source">Source block</a>
+    <p id="wb-current-quote"></p>
+    <p id="wb-current-context"></p>
+    <p id="wb-current-note"></p>
+    <div class="wb-controls">
+      <button id="wb-edit" type="button">Edit</button>
+      <button id="wb-delete" type="button">Delete</button>
+      <button id="wb-hide" type="button">Hide</button>
+    </div>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Copy annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true, copyTimer;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Copy before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Copy before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    const label = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : `, ${active + 1} of ${count}`}`;
+    byId('wb-count').textContent = String(count);
+    byId('wb-count').setAttribute('aria-label', label);
+    byId('wb-count').title = label;
+    for (const id of ['wb-prev', 'wb-next', 'wb-copy']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function setExpanded(value) {
+    byId('wb-current-toggle').setAttribute('aria-expanded', String(value));
+    byId('wb-current-body').hidden = !value;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    setExpanded(false);
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+  byId('wb-current-toggle').addEventListener('click', () => {
+    setExpanded(byId('wb-current-toggle').getAttribute('aria-expanded') !== 'true');
+  });
+
+  function resetCopyButton() {
+    byId('wb-copy').classList.remove('wb-copied');
+    byId('wb-copy').setAttribute('aria-label', 'Copy annotations');
+    byId('wb-copy').title = 'Copy annotations';
+    byId('wb-copy-icon').toggleAttribute('hidden', false);
+    byId('wb-copy-check').toggleAttribute('hidden', true);
+  }
+
+  byId('wb-copy').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    clearTimeout(copyTimer);
+    resetCopyButton();
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy').classList.add('wb-copied');
+      byId('wb-copy').setAttribute('aria-label', 'Annotations copied to clipboard');
+      byId('wb-copy').title = 'Annotations copied to clipboard';
+      byId('wb-copy-icon').toggleAttribute('hidden', true);
+      byId('wb-copy-check').toggleAttribute('hidden', false);
+      byId('wb-status').textContent = 'Annotations copied to clipboard. Drafts are kept.';
+      copyTimer = setTimeout(() => {
+        resetCopyButton();
+        byId('wb-status').textContent = '';
+      }, 3000);
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+      byId('wb-export').showModal();
+      output.focus();
+      output.select();
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>

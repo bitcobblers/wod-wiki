@@ -52,7 +52,7 @@ function UniversalNoteEditorView() {
           {/* Desktop Sticky Header (Hidden on Mobile) */}
           <header className="hidden lg:flex items-center justify-between px-6 py-3 border-b border-border bg-background/80 backdrop-blur sticky top-0 z-10">
             <div>
-              <div className="text-xs font-mono text-muted-foreground">/notes/{note.id.slice(0, 8)}…</div>
+              <div className="text-xs text-muted-foreground hover:underline cursor-pointer">Journal</div>
               <h1 className="text-lg font-bold">{note.title}</h1>
             </div>
             <div className="flex items-center gap-2">

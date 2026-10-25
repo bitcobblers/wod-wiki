@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodeMirror typeahead audit</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #292c33;
+      --muted: #6a655e;
+      --line: #ddd8cf;
+      --paper: #fbfaf7;
+      --card: #ffffff;
+      --soft: #f2efe9;
+      --blue: #5980a8;
+      --blue-soft: rgba(89, 128, 168, .15);
+      --amber: #8a6b23;
+      --amber-soft: #fbf3df;
+      --red: #974b4b;
+      --red-soft: #fbedeb;
+      --green: #42705a;
+      --green-soft: #eaf4ed;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.6 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 56px 0 96px; }
+    header { padding: 0 0 36px; border-bottom: 1px solid var(--line); }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: -.025em; }
+    h1 { max-width: 800px; margin: 12px 0 18px; font-size: clamp(34px, 5vw, 56px); }
+    h2 { margin: 0 0 18px; font-size: 26px; }
+    h3 { margin: 0 0 10px; font-size: 18px; }
+    p { margin: 0 0 14px; }
+    a { color: var(--blue); }
+    code { font-family: var(--mono); font-size: .88em; overflow-wrap: anywhere; }
+    .eyebrow { color: var(--blue); font: 700 12px/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .lede { max-width: 790px; color: var(--muted); font-size: 18px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 24px; color: var(--muted); font-size: 13px; }
+    section { padding: 38px 0; border-bottom: 1px solid var(--line); }
+    .summary-grid, .cards, .visual-grid { display: grid; gap: 16px; }
+    .summary-grid { grid-template-columns: repeat(3, 1fr); margin-top: 28px; }
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .visual-grid { grid-template-columns: minmax(0, 1.05fr) minmax(300px, .95fr); align-items: start; }
+    .card { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+    .card > :last-child { margin-bottom: 0; }
+    .stat { display: block; margin-bottom: 4px; font-size: 30px; font-weight: 750; line-height: 1.1; }
+    .label { color: var(--muted); font-size: 13px; }
+    .verdict { border-left: 4px solid var(--blue); }
+    .critical { border-left: 4px solid var(--red); }
+    .warning { border-left: 4px solid var(--amber); }
+    .good { border-left: 4px solid var(--green); }
+    .pill { display: inline-block; margin-bottom: 10px; padding: 2px 8px; border-radius: 999px; font: 700 11px/1.6 var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+    .p0 { background: var(--red-soft); color: var(--red); }
+    .p1 { background: var(--amber-soft); color: var(--amber); }
+    .p2 { background: var(--soft); color: var(--muted); }
+    .ok { background: var(--green-soft); color: var(--green); }
+    .no { background: var(--red-soft); color: var(--red); }
+    .partial { background: var(--amber-soft); color: var(--amber); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 13px 15px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--soft); color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    td:first-child { min-width: 145px; }
+    ul, ol { margin: 8px 0 0; padding-left: 21px; }
+    li + li { margin-top: 7px; }
+    .path { display: block; margin-top: 9px; color: var(--muted); font: 12px/1.55 var(--mono); overflow-wrap: anywhere; }
+    .callout { margin-top: 18px; padding: 16px 18px; border: 1px solid #d6c69f; border-radius: 12px; background: var(--amber-soft); }
+    .callout > :last-child { margin-bottom: 0; }
+    .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0; }
+    .flow span { padding: 8px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); font: 12px var(--mono); }
+    .flow b { color: var(--muted); font-weight: 400; }
+    .mock-editor { padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: #f7f3ec; }
+    .mock-line { margin-bottom: 12px; font: 13px/1.7 var(--mono); }
+    .caret { display: inline-block; width: 1px; height: 16px; margin-left: 2px; background: var(--ink); vertical-align: -3px; }
+    .mock-menu { width: min(390px, 100%); overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: hsl(38 32% 95%); box-shadow: 0 4px 12px rgba(41, 44, 51, .12); }
+    .mock-menu ul { margin: 0; padding: 4px; list-style: none; }
+    .mock-menu li { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 10px; border-radius: 4px; font: 13px/20px var(--mono); }
+    .mock-menu li + li { margin-top: 2px; }
+    .mock-menu li.active { background: var(--blue-soft); font-weight: 700; }
+    .mock-menu .icon { width: 16px; color: var(--blue); text-align: center; }
+    .mock-menu .detail { margin-left: auto; padding-left: 12px; color: var(--muted); font: 11px/20px Inter, ui-sans-serif, system-ui, sans-serif; }
+    .mock-menu .matched { color: var(--blue); font-weight: 750; }
+    .spec { display: grid; grid-template-columns: 115px 1fr; gap: 8px 14px; margin: 0; font-size: 13px; }
+    .spec dt { color: var(--muted); }
+    .spec dd { margin: 0; }
+    .steps { counter-reset: step; display: grid; gap: 12px; }
+    .step { position: relative; padding: 18px 18px 18px 58px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); counter-increment: step; }
+    .step::before { content: counter(step); position: absolute; top: 18px; left: 18px; display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue); font: 700 12px var(--mono); }
+    .step h3 { font-size: 16px; }
+    .fine { color: var(--muted); font-size: 12px; }
+    @media (max-width: 760px) {
+      main { width: min(100% - 24px, 1120px); padding-top: 32px; }
+      .summary-grid, .cards, .visual-grid { grid-template-columns: 1fr; }
+      th, td { padding: 11px; }
+      .mock-menu .detail { display: none; }
+    }
+    @media print {
+      body { background: white; }
+      main { width: 100%; padding: 0; }
+      section, .card, .step { break-inside: avoid; }
+    }
+  </style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/audits/codemirror-typeahead-audit.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  :root { --wb-bar-height: 112px; }
+  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 16px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #cbd5e1; padding: 10px max(16px, calc((100% - 1032px) / 2)); }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 44px; padding: 8px 12px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button:disabled { opacity: .5; cursor: default; }
+  #wb-bar #wb-publish, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-help, #wb-status, #wb-storage-warning { margin: 4px 0 0; font-size: 12px; }
+  #wb-help { color: #475569; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; padding: 16px; border: 1px solid #b45309; border-radius: 8px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current h2 { margin: 0 0 8px; padding: 0; font-size: 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite">0 annotations</strong>
+    <button id="wb-add" type="button" aria-pressed="false">Add annotation</button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation">Previous</button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation">Next</button>
+    <button id="wb-publish" type="button" disabled>Publish</button>
+  </div>
+  <p id="wb-help">Highlight text to annotate, or click Add annotation then click any block. Drafts stay in this browser. Publish copies them for your agent.</p>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+<main data-whiteboard-document>
+  <header id="audit-header">
+    <div class="eyebrow">Editor systems / audit</div>
+    <h1 id="wb-h1-b8570471341548109149aa2863ef867f" data-whiteboard-anchor>CodeMirror typeahead has strong islands and no shared completion model.</h1>
+    <p class="lede" id="wb-p-1fcdb327ebee4d4699d6fd5911e0c0dc" data-whiteboard-anchor>WQL and frontmatter work well in their own editors. Note fences stop at the opening backticks. The dropdown also has three visual treatments: a custom WQL menu, CodeMirror defaults, and a separate HTML suggestion panel.</p>
+    <div class="meta"><span>24 October 2026</span><span>Source audit, no production changes</span><span>Independent review included</span></div>
+    <div class="summary-grid">
+      <div class="card"><span class="stat">2</span><span class="label">mature providers: WQL and note frontmatter</span></div>
+      <div class="card"><span class="stat">0</span><span class="label">completion providers inside note fence bodies</span></div>
+      <div class="card"><span class="stat">1</span><span class="label">themed CodeMirror tooltip: WqlTextEditor only</span></div>
+    </div>
+  </header>
+
+  <section id="scope">
+    <h2 id="wb-h2-837e541177274f6f9fd595e768ca0bad" data-whiteboard-anchor>Scope and reading of "inline"</h2>
+    <p id="wb-p-6c1961b18f9947849d56cbdc09efb36a" data-whiteboard-anchor>This audit covers CodeMirror editors, fenced-section dispatch, completion sources, accept behavior, tests, and menu styling. It also notes the separate frontmatter-preview combobox where it affects the design.</p>
+    <p id="wb-p-4af2e8e444484265a371243d78e07328" data-whiteboard-anchor><strong>Recommendation:</strong> keep CodeMirror's cursor-anchored popup and make it look like the site's inline menus. Do not put the completion list into document flow. That would move text while the user types and would replace CodeMirror's positioning, keyboard handling, filtering, and accessibility work without gaining anything.</p>
+  </section>
+
+  <section id="architecture">
+    <h2 id="wb-h2-ff422d76d2094e89a68ea84898ed39cc" data-whiteboard-anchor>What exists today</h2>
+    <div class="flow" aria-label="Completion flow">
+      <span>EditorView</span><b>→</b><span>preset or local extensions</span><b>→</b><span>completion source</span><b>→</b><span>CodeMirror tooltip</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th id="wb-th-904143f719384eba91455dde38b509fb" data-whiteboard-anchor>Surface</th><th id="wb-th-5d59c31ebc80459f82c0319d19434487" data-whiteboard-anchor>Configuration</th><th id="wb-th-9e2d449a4d52437aa3c3ec362e5e61e6" data-whiteboard-anchor>Typeahead now</th><th id="wb-th-a4a2792655374e28b50079f10554092a" data-whiteboard-anchor>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td id="wb-td-7a6d6a2f8ba2420ea3a06ba188d56817" data-whiteboard-anchor>Playground NoteEditor</td><td id="wb-td-042f98c4fc9142d2a1a893527e1bad5a" data-whiteboard-anchor>Own EditorView and extension list</td><td id="wb-td-cd71253fbea04d119d5b6c5adb17ac9a" data-whiteboard-anchor>Opening-fence snippets and frontmatter only</td><td id="wb-td-1175ab6102444d21a6992022cb08b706" data-whiteboard-anchor><code>NoteEditor.tsx:261-342, 539-790</code></td></tr>
+          <tr><td id="wb-td-85faa2286568492495aee19a4ad6bfeb" data-whiteboard-anchor>WqlTextEditor</td><td id="wb-td-64248f7d0dbb4d36b24ef3fae96f47aa" data-whiteboard-anchor>Own EditorView, source, keymap, icons, tooltip theme</td><td id="wb-td-6234aabc4f7d4201bd7840e585828a23" data-whiteboard-anchor>Context-aware WQL with catalog values</td><td id="wb-td-60d509a0d8e5437eb21fc6fe16696066" data-whiteboard-anchor><code>WqlTextEditor.tsx:88-270</code></td></tr>
+          <tr><td id="wb-td-32c32def3dc84f00acf52f9c0fc3d53e" data-whiteboard-anchor>CalcLineEditor</td><td id="wb-td-1bfd2b24dd674591b722f68b64c9ef12" data-whiteboard-anchor>Own EditorView and calc provider</td><td id="wb-td-91f00383522c4f6eac2a004cc889da14" data-whiteboard-anchor>Lookups, units, atoms, functions, aggregates</td><td id="wb-td-589b652d29fe4291b6b504b936216234" data-whiteboard-anchor><code>CalcLineEditor.tsx:44-77</code><br><code>calcCompletion.ts:40-127</code></td></tr>
+          <tr><td id="wb-td-37b5aef541ea4ed2b10ad6cc71b62543" data-whiteboard-anchor>LanguageWorkbench</td><td id="wb-td-49078930e5af4ea49dddb1bd8efb23b0" data-whiteboard-anchor>Live consumer of <code>editorPreset()</code></td><td id="wb-td-c819509902bf4499bf1310b75687e587" data-whiteboard-anchor>WQL works standalone; Whiteboard Script has none</td><td id="wb-td-0bd108e4f9ae485f946dd922c178410a" data-whiteboard-anchor><code>LanguageWorkbench.tsx:152, 194-223</code></td></tr>
+          <tr><td id="wb-td-8e359e88da01446494a621d8aa0bd87d" data-whiteboard-anchor>CodeExampleWidget</td><td id="wb-td-716e724bbba0437bb87e79407e58a0d8" data-whiteboard-anchor>Read-only display EditorView</td><td id="wb-td-7b4e78e07f524b0ba736bea26ad6fefd" data-whiteboard-anchor>Not applicable</td><td id="wb-td-cfb4a14423d745609b5d82bcb4a87960" data-whiteboard-anchor><code>CodeExampleWidget.tsx:35</code></td></tr>
+          <tr><td id="wb-td-268a674abf094027b48deea3ab32787b" data-whiteboard-anchor>Frontmatter preview</td><td id="wb-td-086599d7ffdb4d16bf4274ca733a6cc9" data-whiteboard-anchor>HTML combobox, not CodeMirror</td><td id="wb-td-40c2399542c54098a69f06e13762e18c" data-whiteboard-anchor>Property suggestions with separate placement logic</td><td id="wb-td-acf9e2a05e2f46c28b46891de78c99cf" data-whiteboard-anchor><code>frontmatter-suggestions.ts:44-80, 105-232</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine" id="wb-p-bbf0ad017da14fa3a68b5ce906e46e7e" data-whiteboard-anchor><code>editorPreset()</code> is an extension factory, not an EditorView embed point. Its branches determine what LanguageWorkbench and other preset consumers receive.</p>
+  </section>
+
+  <section id="scenario-matrix">
+    <h2 id="wb-h2-d26cf2e4a94c45ecbae3bcaf4d9742f8" data-whiteboard-anchor>Coverage by writing scenario</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th id="wb-th-735259d2dbc6427ebf5065b3b5941d37" data-whiteboard-anchor>Cursor context</th><th id="wb-th-fafac88f01c44a659c25b2132e5844c6" data-whiteboard-anchor>Coverage</th><th id="wb-th-1c38b30cc1bc42298539dde686a75a16" data-whiteboard-anchor>Available result</th></tr></thead>
+        <tbody>
+          <tr><td id="wb-td-3ef1018574d642adb32dc94c3ea9cbb5" data-whiteboard-anchor>Markdown opening fence: one to three backticks</td><td id="wb-td-7e9aa3779f5c49e698204f81e77774b0" data-whiteboard-anchor><span class="pill partial">Partial</span></td><td id="wb-td-c19dde5693334d56905563ff8f6c6e35" data-whiteboard-anchor><code>time</code>, <code>log</code>, <code>query</code>, <code>widget</code> snippets</td></tr>
+          <tr><td id="wb-td-be672f935dd04ae6b02870ce87879723" data-whiteboard-anchor>Leading frontmatter property</td><td id="wb-td-787e9a37b1564eeeac954a204bf13f7e" data-whiteboard-anchor><span class="pill ok">Covered</span></td><td id="wb-td-c2bc2713be7940dd916115a294f3697f" data-whiteboard-anchor>Tag-type keys with <code>key:\n  - </code> scaffold and automatic reopen</td></tr>
+          <tr><td id="wb-td-12b9c4f426e54932900020e5d3e11083" data-whiteboard-anchor>Frontmatter effort, equipment, or known tag value</td><td id="wb-td-4bfce80b6b054261b406b91b3aa82be4" data-whiteboard-anchor><span class="pill ok">Covered</span></td><td id="wb-td-223ebf7472654ac9b828c603e46b5ecf" data-whiteboard-anchor>Catalog slugs and stored tags</td></tr>
+          <tr><td id="wb-td-9744b28730424b2dbb614af346b34ef6" data-whiteboard-anchor><code>```query</code> body in a note</td><td id="wb-td-f95646b18ce14495936bb8030ee5f728" data-whiteboard-anchor><span class="pill no">Missing</span></td><td id="wb-td-30a588668f014f3598e99a4c8be81f6f" data-whiteboard-anchor>No WQL suggestions, despite a complete standalone WQL provider</td></tr>
+          <tr><td id="wb-td-893652014d9e4225931f37962174d44c" data-whiteboard-anchor><code>```time</code> or <code>```log</code> body</td><td id="wb-td-e014a757f69541f2a4c555a8f50abf81" data-whiteboard-anchor><span class="pill no">Missing</span></td><td id="wb-td-6a785578186442d68083f1221159a615" data-whiteboard-anchor>No workout syntax, efforts, units, properties, or snippets</td></tr>
+          <tr><td id="wb-td-a04a4be907eb4d1faae130ddb3e748b1" data-whiteboard-anchor>Standalone WQL</td><td id="wb-td-ce19820cab424c48aae9b170dc2eb637" data-whiteboard-anchor><span class="pill ok">Covered</span></td><td id="wb-td-9513927ecc20455aa62dade058caeaef" data-whiteboard-anchor>Heads, filters, values, pipes, suffixes, dates, windows, snippets</td></tr>
+          <tr><td id="wb-td-1e37eccd50e1437c982e3a0fd5efb4d7" data-whiteboard-anchor>Standalone <code>wod</code>, <code>whiteboard</code>, or <code>time</code> preset</td><td id="wb-td-c404d7767ce1476a8797096f1bba1d5f" data-whiteboard-anchor><span class="pill no">Missing</span></td><td id="wb-td-5dd709b621444e7c9dbfe588c25094bd" data-whiteboard-anchor>Highlighting and linting only</td></tr>
+          <tr><td id="wb-td-a7b5c45c673e4163a9928c6318c2efde" data-whiteboard-anchor>Calc line</td><td id="wb-td-75eb5ab405e94f358375759aabf4becf" data-whiteboard-anchor><span class="pill partial">Partial</span></td><td id="wb-td-d75b72fc9baa4514a582fb489600a81d" data-whiteboard-anchor>Good provider, but default tooltip, default delay, static effort keys, no tests</td></tr>
+          <tr><td id="wb-td-9f031047dca149c3a618d78fbf03bb2a" data-whiteboard-anchor>Ordinary note prose and widget bodies</td><td id="wb-td-0332c770cd0c4a3b86983258f442eabd" data-whiteboard-anchor><span class="pill no">None</span></td><td id="wb-td-91aa842ccd324d77b097e606cf40da01" data-whiteboard-anchor>No word, widget-name, or widget-property completion</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="functional-gaps">
+    <h2 id="wb-h2-e12c7151745449cfa76eb598b3384738" data-whiteboard-anchor>Functional gaps, ordered by user impact</h2>
+    <div class="cards">
+      <article class="card critical">
+        <span class="pill p0">P0 / main authoring gap</span>
+        <h3 id="wb-h3-ed86b5066cb64d11a6bd6fa9c17b29ef" data-whiteboard-anchor>Fence bodies have no language typeahead</h3>
+        <p id="wb-p-e0f595dec8944e639e1f47fb9a85f508" data-whiteboard-anchor>The markdown parser nests languages for highlighting, but <code>wodAutocompletion</code> uses <code>override</code>. That suppresses normal nested-language completion resolution. Its two sources only handle opening fences and frontmatter.</p>
+        <span class="path">packages/ui/src/extensions/whiteboard-autocomplete.ts:45-59, 132-147</span>
+      </article>
+      <article class="card critical">
+        <span class="pill p0">P0 / provider does not exist</span>
+        <h3 id="wb-h3-5cccf74d2c5b4c30bb0b3f36213f3ebd" data-whiteboard-anchor>Whiteboard Script needs a completion provider</h3>
+        <p id="wb-p-d5eeef1831b54b178bd3c1f4558bd57d" data-whiteboard-anchor>This is not a disabled option. <code>whiteboardScript()</code> returns language support without autocomplete, and no Whiteboard Script completion source exists elsewhere.</p>
+        <span class="path">packages/lang/src/parser/whiteboard-script-language.ts:39-41<br>packages/ui/src/extensions/editorPreset.ts:107-117</span>
+      </article>
+      <article class="card warning">
+        <span class="pill p1">P1 / resolver drift</span>
+        <h3 id="wb-h3-f0f614b3a4194899a40efe7dadbf6c90" data-whiteboard-anchor>NoteEditor and the shared preset recognize different fences</h3>
+        <p id="wb-p-496409061c0b49df8134d1ac54c02d7d" data-whiteboard-anchor>The preset maps <code>wql</code> and <code>query</code> to WQL highlighting. NoteEditor's resolver recognizes only <code>time</code> and <code>log</code>. A nested completion dispatcher must use one resolver or the same document will behave differently across editors.</p>
+        <span class="path">apps/playground/src/app/editor/noteEditorServices.ts:378-384<br>packages/ui/src/extensions/editorPreset.ts:31-45</span>
+      </article>
+      <article class="card warning">
+        <span class="pill p1">P1 / editor isolation</span>
+        <h3 id="wb-h3-d57b9d1e08d1471992ecfe26b339292b" data-whiteboard-anchor>Custom sources live in a module-global array</h3>
+        <p id="wb-p-37a2009119d548e0b70bf7759c0705b8" data-whiteboard-anchor>NoteEditor registers a closure that captures component state. A view guard prevents today's cross-editor results, but the registry still couples every editor and awaits sources sequentially. Use a per-state CodeMirror facet or compartment when adding nested providers.</p>
+        <span class="path">packages/ui/src/extensions/whiteboard-autocomplete.ts:116-146<br>NoteEditor.tsx:261-342</span>
+      </article>
+      <article class="card warning">
+        <span class="pill p1">P1 / fence correctness</span>
+        <h3 id="wb-h3-dda5f2e3b0ce4c6d9bb97e691a61d372" data-whiteboard-anchor>Docs and highlighting advertise fences the parser does not run</h3>
+        <p id="wb-p-f97ae7bda20a4aa081a2e3acf249c181" data-whiteboard-anchor>Runtime fence recognition accepts <code>time</code> and <code>log</code>, with an optional sport suffix. Highlighting also accepts <code>wod</code> and <code>whiteboard</code>; dialect docs list more aliases. Do not add completion snippets for those names until their semantics are reconciled.</p>
+        <span class="path">packages/core/src/sections/sectionParser.ts:8-12, 154-173<br>packages/ui/src/extensions/editorPreset.ts:37-45<br>docs/language/dialects.md:12-18</span>
+      </article>
+      <article class="card">
+        <span class="pill p2">P2 / local inconsistencies</span>
+        <h3 id="wb-h3-9e8ca8b8adaf42fa8284fc9b86712844" data-whiteboard-anchor>Calc and fence guards need targeted fixes</h3>
+        <p id="wb-p-b67500b3ff224b6989327624b272b45e" data-whiteboard-anchor>Calc uses CodeMirror's default interaction delay while other custom sources open immediately. Its effort-key list is static. Separately, backtick auto-wrap lacks the markdown-section guard used by fence completion, so it can create nested fences.</p>
+        <span class="path">CalcLineEditor.tsx:51-66<br>calcCompletion.ts:37, 40-127<br>whiteboard-autocomplete.ts:45-78</span>
+      </article>
+    </div>
+  </section>
+
+  <section id="whiteboard-catalog">
+    <h2 id="wb-h2-d555bc7b3f3f4450a5bcc03f437372fb" data-whiteboard-anchor>What Whiteboard Script typeahead should offer</h2>
+    <p id="wb-p-2dc0aa2580de402a84c8dbf7b971386e" data-whiteboard-anchor><code>time</code> and <code>log</code> share the same grammar and dialect stack. One provider can serve both. Their runtime actions differ, not their statement syntax. Sport suffixes such as <code>log:climbing</code> should narrow the vocabulary.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th id="wb-th-686eaebbcbc94038b19cdf6753c4ddb6" data-whiteboard-anchor>Context</th><th id="wb-th-155347037bd9407db263c6f3b29a87f8" data-whiteboard-anchor>Suggestions</th><th id="wb-th-c5d1a52a5a4043b99d22d6b4291ee32c" data-whiteboard-anchor>Source to reuse</th></tr></thead>
+        <tbody>
+          <tr><td id="wb-td-a997cb82e503403ea8fb04c7ef3eae22" data-whiteboard-anchor>Empty statement</td><td id="wb-td-022f48c1bc5042139ec8aa91a28198fb" data-whiteboard-anchor>Workout structures, effort names, round and timer snippets</td><td id="wb-td-dbc0ddd3821b427f807a6df90556f4ef" data-whiteboard-anchor>Reference catalog plus new snippet templates</td></tr>
+          <tr><td id="wb-td-0996d918f62f464fb5c638d5d1422cc7" data-whiteboard-anchor>Structure keyword</td><td id="wb-td-a9bac29b22144d0c85f566406f3448a6" data-whiteboard-anchor><code>AMRAP</code>, <code>EMOM</code>, <code>TABATA</code>, <code>FOR TIME</code>, <code>rest</code></td><td id="wb-td-1acaa1ad3ea84df3b1e22db6ff1e21ce" data-whiteboard-anchor><code>STRUCTURAL_EFFORT_WORDS</code> and dialect keyword tables</td></tr>
+          <tr><td id="wb-td-71de1ef3cead46dcb18d7ad933d50c03" data-whiteboard-anchor>After a number</td><td id="wb-td-25ac519ba4464089ba81d3fc89dbf37d" data-whiteboard-anchor><code>kg</code>, <code>lb</code>, <code>m</code>, <code>km</code>, <code>cal</code>, <code>bw</code>, aliases</td><td id="wb-td-e1d3af6190154499a417c933e63ecb64" data-whiteboard-anchor><code>STANDARD_UNITS</code> and <code>UnitSet</code></td></tr>
+          <tr><td id="wb-td-00bf80c8be8f40ddbe05beaa2aabb7fb" data-whiteboard-anchor>Property position</td><td id="wb-td-5643c2b2a0b34d269007cf5f8b5400de" data-whiteboard-anchor><code>effort</code>, <code>equipment</code>, <code>rpe</code>, <code>rir</code>, <code>intensity</code>, <code>load</code>, <code>volume</code>, <code>work</code>, <code>sound</code></td><td id="wb-td-e7589c91f0c14c898d780b9007408528" data-whiteboard-anchor><code>PROPERTY_KEY_TO_METRIC_TYPE</code> and <code>REFERENCE_PAIR_KEYS</code></td></tr>
+          <tr><td id="wb-td-26f537f4514f434f98157c94263a46ad" data-whiteboard-anchor>Property value or bare effort</td><td id="wb-td-d2391ef9bb164f4b94c993454b683baa" data-whiteboard-anchor>Effort and equipment slugs, tags, sound profiles</td><td id="wb-td-c34bf694530c4ccea4b1901dd581f0de" data-whiteboard-anchor>Existing reference, tag, and sound catalogs</td></tr>
+          <tr><td id="wb-td-6283af9d1bb64fe8a754064a86ab31f3" data-whiteboard-anchor>Template</td><td id="wb-td-75cf6ba00cbd46b593a7f5e13c4fdb3a" data-whiteboard-anchor>Rounds circuit, 5x5, EMOM, AMRAP, Tabata, ladder, choice, superset, collectible</td><td id="wb-td-fc1d7143761e4ff6a7d062f90dbe8bff" data-whiteboard-anchor>New machine-readable snippets based on <code>docs/language/syntax-reference.md:35-102</code></td></tr>
+          <tr><td id="wb-td-e52060372fe74b8397f2f4a7ae28ddb6" data-whiteboard-anchor>Sport dialect</td><td id="wb-td-79744a3d70154f4d9f849d0d51f9cca3" data-whiteboard-anchor>Cardio activities, yoga poses, habit terms, climb grades and send styles</td><td id="wb-td-e4dfe617ac6c4b9baeefcfda7218c657" data-whiteboard-anchor>Export existing dialect tables; add sport-to-options dispatch</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout"><strong>Design constraint:</strong> completion templates must emit text accepted by the Lezer grammar. Keep snippets in a machine-readable module and test their parse result. Do not copy examples into provider code without that check.</div>
+  </section>
+
+  <section id="visual-audit">
+    <h2 id="wb-h2-67f6546ad5014db6952c574232c7f65c" data-whiteboard-anchor>Why the dropdown does not match the site</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th id="wb-th-2890fc141ee749d5b020e9929a16c013" data-whiteboard-anchor>Property</th><th id="wb-th-dda76491429344418e91f748342c630e" data-whiteboard-anchor>WqlTextEditor</th><th id="wb-th-de494d8c2fbe4ac1965732065397a015" data-whiteboard-anchor>Note and Calc</th><th id="wb-th-b16c8d9dd6ef499cab6429dab5d80ed4" data-whiteboard-anchor>Site convention</th></tr></thead>
+        <tbody>
+          <tr><td id="wb-td-46fcd64c825c45aeb6048fca75b5a7a5" data-whiteboard-anchor>Surface</td><td id="wb-td-387b19d7fdff4360826b4cbe6b32e908" data-whiteboard-anchor>Popover tokens</td><td id="wb-td-7fa888c5462e4d84badb3f36880455ab" data-whiteboard-anchor>CodeMirror gray defaults</td><td id="wb-td-7df50ce98d4a4b92a3bd906caa076eee" data-whiteboard-anchor><code>bg-popover</code>, border, <code>shadow-md</code></td></tr>
+          <tr><td id="wb-td-29133969dc8240739391f63538c90d0f" data-whiteboard-anchor>Radius</td><td id="wb-td-42544c18ea8a41f997bf33d56d557cd7" data-whiteboard-anchor>12px container, 8px rows</td><td id="wb-td-53c19783366e48ba988414a1374539e7" data-whiteboard-anchor>CodeMirror defaults</td><td id="wb-td-274b96a1011f4f01943b04947d3d1362" data-whiteboard-anchor><code>--radius-md</code> container, <code>--radius-sm</code> rows</td></tr>
+          <tr><td id="wb-td-c2a275cf9ad843a2b39591f501e11f0d" data-whiteboard-anchor>Active row</td><td id="wb-td-b8eb563a491e48aa859dd80655615898" data-whiteboard-anchor>Accent fill plus a 2px primary stripe</td><td id="wb-td-8e24fbc431f14fac8f6fd3814e737fb1" data-whiteboard-anchor>Bright default blue</td><td id="wb-td-5018f99fab9747bcb081a84a2311de66" data-whiteboard-anchor>Primary at 15% and semibold, matching InlineClauseEditor</td></tr>
+          <tr><td id="wb-td-57cfa86087a54fe5b98a0bf7d8dc31de" data-whiteboard-anchor>Typography</td><td id="wb-td-c5fbebe0716445c8a9a6f1a4e311e1b4" data-whiteboard-anchor>Sans labels</td><td id="wb-td-c3e72a1526ae4c00aa0b4a46a8600aab" data-whiteboard-anchor>CodeMirror default mono sizing</td><td id="wb-td-f5ef69dfa5c74e3590fb2b855b785bf0" data-whiteboard-anchor>Mono labels, muted sans details</td></tr>
+          <tr><td id="wb-td-e9744dd327c4432b91225e6842349f9f" data-whiteboard-anchor>Overflow</td><td id="wb-td-4c23bf45923e483ca6609610300c7fcc" data-whiteboard-anchor><code>45vh</code></td><td id="wb-td-4c407696dacd49539077164dba005e1a" data-whiteboard-anchor>CodeMirror default</td><td id="wb-td-824b917a45874299b9eb6956aecba6ac" data-whiteboard-anchor><code>min(45svh, 20rem)</code>, contained overscroll</td></tr>
+          <tr><td id="wb-td-a62b76e9a38e485b87e0a903244dab67" data-whiteboard-anchor>Touch</td><td id="wb-td-b9b23e6ac030460fa907be7fb21808c5" data-whiteboard-anchor>48px coarse-pointer rows</td><td id="wb-td-4f1c875454a447b18d390623e132bada" data-whiteboard-anchor>No site-specific target sizing</td><td id="wb-td-8314cc946ac049fe9db304b02a90019c" data-whiteboard-anchor>48px coarse-pointer rows</td></tr>
+          <tr><td id="wb-td-7df32afa8c084f46bbeab50f61b38a9e" data-whiteboard-anchor>Stacking</td><td id="wb-td-f2b09d62c11045e2a30e83d4fb3e40ab" data-whiteboard-anchor>CodeMirror default unless overridden</td><td id="wb-td-9495a4ea3bb24f4db138fd6fe33b89cb" data-whiteboard-anchor>CodeMirror default</td><td id="wb-td-c9f3b316266743728417f47eb823fad1" data-whiteboard-anchor>Deliberate layer below dialogs; test editors already inside dialogs</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <span class="path">WqlTextEditor.tsx:241-270 · InlineClauseEditor.tsx:151-216 · packages/ui/src/styles.css</span>
+  </section>
+
+  <section id="dropdown-design">
+    <h2 id="wb-h2-7675515f161248b19eda592794e2bd92" data-whiteboard-anchor>Recommended menu treatment</h2>
+    <div class="visual-grid">
+      <div class="mock-editor" aria-label="Proposed typeahead menu mockup">
+        <div class="mock-line">find:effort{equipment=<span class="caret"></span></div>
+        <div class="mock-menu">
+          <ul>
+            <li class="active" id="wb-li-44502d6ecc854a41a46262fccc8a182c" data-whiteboard-anchor><span class="icon">⌁</span><span>row<span class="matched">er</span></span><span class="detail">equipment</span></li>
+            <li id="wb-li-c006fff7527442f0bc1f7b2e614b035e" data-whiteboard-anchor><span class="icon">⌁</span><span>ski er</span><span class="detail">equipment</span></li>
+            <li id="wb-li-07dbe50169ac460883ce92314af1239f" data-whiteboard-anchor><span class="icon">◇</span><span>bik er</span><span class="detail">equipment</span></li>
+            <li id="wb-li-062ccb739e5d47669a3b7a577c90fdad" data-whiteboard-anchor><span class="icon">#</span><span>bodyweight</span><span class="detail">catalog value</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <h3 id="wb-h3-f553af088a7342b493944f95172e18a2" data-whiteboard-anchor>One shared CodeMirror theme</h3>
+        <dl class="spec">
+          <dt>Container</dt><dd>Popover colors, border, <code>--radius-md</code>, medium shadow, 4px padding</dd>
+          <dt>Rows</dt><dd><code>--radius-sm</code>, 8px by 10px padding, 40px minimum height</dd>
+          <dt>Current</dt><dd><code>hsl(var(--primary) / .15)</code>, semibold, no stripe</dd>
+          <dt>Hover</dt><dd><code>hsl(var(--muted) / .6)</code>; pointer movement updates the same active option</dd>
+          <dt>Labels</dt><dd><code>var(--font-mono)</code>; matched text primary and bold</dd>
+          <dt>Details</dt><dd>12px muted text, right aligned; hide or wrap only where narrow screens require it</dd>
+          <dt>Mobile</dt><dd>48px rows, <code>45svh</code> maximum height, existing viewport width clamp</dd>
+          <dt>Dark mode</dt><dd>No second palette. Use the same semantic tokens</dd>
+        </dl>
+      </div>
+    </div>
+    <p class="fine" id="wb-p-d7e38316e7a34b5f837de47e0a4738c7" data-whiteboard-anchor>The mockup shows visual placement and tokens. CodeMirror should retain ownership of positioning, filtering, ARIA selection, keyboard navigation, and acceptance.</p>
+  </section>
+
+  <section id="implementation-plan">
+    <h2 id="wb-h2-e365d0b8bd8f47f09e3a29af118ca23f" data-whiteboard-anchor>Implementation shape</h2>
+    <div class="steps">
+      <article class="step"><h3 id="wb-h3-58c7b31cd1c94c11b76ce2086d00b2fe" data-whiteboard-anchor>Extract one autocomplete tooltip extension</h3><p id="wb-p-f784facb92da4c1198f8787b8cacc737" data-whiteboard-anchor>Move the WQL tooltip rules into a shared extension under <code>packages/ui/src/extensions/</code>. Replace hardcoded radii and shadow with tokens. Include it in the shared editor preset, WqlTextEditor, and CalcLineEditor. Keep WQL's icon renderer separate.</p></article>
+      <article class="step"><h3 id="wb-h3-82c3a46e7e3c4256abbc3d92d149d5bc" data-whiteboard-anchor>Unify fence resolution and dispatch by cursor section</h3><p id="wb-p-d35eab1452d74ec48ac8432635eed6f1" data-whiteboard-anchor>Use one resolver for <code>time</code>, <code>log</code>, <code>query</code>, and <code>wql</code>. Route a note's query body to the existing WQL source with the same catalog inputs as standalone WQL. Preserve opening-fence and frontmatter sources outside code bodies.</p></article>
+      <article class="step"><h3 id="wb-h3-8830db2763ba481cad35307370805d95" data-whiteboard-anchor>Replace the global source registry with per-editor configuration</h3><p id="wb-p-d8bc28b3dd2b4e139374df6ccba1bb9f" data-whiteboard-anchor>A CodeMirror facet or compartment keeps NoteEditor's captured services inside its own state. This also makes provider order explicit instead of dependent on registration order.</p></article>
+      <article class="step"><h3 id="wb-h3-4124eeb00e6348728fafb2a63244cc7f" data-whiteboard-anchor>Add the Whiteboard Script provider</h3><p id="wb-p-da26a8e44a104f5c82b1c791356c2564" data-whiteboard-anchor>Build syntax-node-aware slots, then attach the same provider to standalone Whiteboard Script and nested time/log bodies. Export existing keyword and unit tables rather than duplicating them. Add snippets only after their parse tests pass.</p></article>
+      <article class="step"><h3 id="wb-h3-df75426906e14f399fc12d0955537c50" data-whiteboard-anchor>Verify the real surfaces</h3><p id="wb-p-69783fdf2fcc4337b2f9d08c3636343a" data-whiteboard-anchor>Add a live note-editor story with open completion menus. Check light and dark mode, desktop and mobile, keyboard and pointer acceptance, long details, scrolling, an editor inside a dialog, and query/time/log bodies.</p></article>
+    </div>
+  </section>
+
+  <section id="tests">
+    <h2 id="wb-h2-71cbc9a0d5bd43358cf59d740d858a67" data-whiteboard-anchor>Test coverage and acceptance gates</h2>
+    <div class="cards">
+      <div class="card good"><span class="pill ok">Keep</span><h3 id="wb-h3-6968246d007647e09617eb3629af3954" data-whiteboard-anchor>WQL and frontmatter behavior</h3><p id="wb-p-b4eeda91efc645898910bb45a5cab8f2" data-whiteboard-anchor>WQL tests cover slots, ranking, catalogs, windows, and quoted insertion. NoteEditor tests cover Tab, Enter, deletion, reopen, and frontmatter boundaries.</p><span class="path">packages/wql/tests/language.test.ts<br>catalogCompletion.test.ts · quotedValueInsert.test.ts<br>NoteEditor.autocomplete.test.tsx</span></div>
+      <div class="card critical"><span class="pill p0">Add</span><h3 id="wb-h3-7f1cc70eeaec492a9e5117ce1eea003c" data-whiteboard-anchor>Uncovered providers and nested contexts</h3><p id="wb-p-838a6e2f53974908844a5d7f3b49ea5f" data-whiteboard-anchor>No test invokes fenceCompletion or calcCompletion. No acceptance test opens typeahead in a note fence. The universal-note-editor story is a static mockup, so it cannot catch tooltip regressions.</p><span class="path">packages/ui/test/extensions.test.ts:139-154<br>apps/storybook/src/Screens.stories.tsx:32-121</span></div>
+    </div>
+    <div class="table-wrap" style="margin-top:16px">
+      <table>
+        <thead><tr><th id="wb-th-2af4f09702f0439690779f7ba1b4264f" data-whiteboard-anchor>Gate</th><th id="wb-th-488dcb63c38f4fc4b3e82b65fad03d50" data-whiteboard-anchor>Observable acceptance</th></tr></thead>
+        <tbody>
+          <tr><td id="wb-td-8d925c27569b45598b3489d14f9a99ff" data-whiteboard-anchor>Nested WQL parity</td><td id="wb-td-359be4e9bb0b44998eaa98caf546c957" data-whiteboard-anchor>The same query prefix returns the same ranked options and insert text in a note fence and standalone editor.</td></tr>
+          <tr><td id="wb-td-55852d38455345bab80a20f2fc01cb86" data-whiteboard-anchor>Whiteboard Script syntax</td><td id="wb-td-d71d759fe7be4daa8c7128e4a15531f2" data-whiteboard-anchor>Options match the cursor's syntax slot; every snippet parses without an error node.</td></tr>
+          <tr><td id="wb-td-571bf123815743b6b9566d21634f0d2b" data-whiteboard-anchor>Section isolation</td><td id="wb-td-b7994b11e7ee44c4a2a9656ea0425b0e" data-whiteboard-anchor>Frontmatter and opening-fence options never leak into code bodies; one note editor cannot query another editor's services.</td></tr>
+          <tr><td id="wb-td-a2016283e4ee421ea0ea11f11ca68762" data-whiteboard-anchor>Keyboard contract</td><td id="wb-td-15e5c5092a06470486a6d34ce01dd0d7" data-whiteboard-anchor>Arrows navigate, Tab/Enter accept according to each host's existing rules, Escape closes first, and IME composition is not disturbed.</td></tr>
+          <tr><td id="wb-td-c587f18bd3a34f329deb59cdea8ffe6b" data-whiteboard-anchor>Visual parity</td><td id="wb-td-b282090be0ed48748e09ce128718dc14" data-whiteboard-anchor>Note, WQL, and Calc use the same tokens and active-row treatment in both themes, with 48px coarse-pointer rows.</td></tr>
+          <tr><td id="wb-td-fcf85e8a2e1b47bfbd74fa12df3fb5e7" data-whiteboard-anchor>Layering and overflow</td><td id="wb-td-97150a39f33f4a2682a4aa711320fdea" data-whiteboard-anchor>The menu stays inside the viewport, scrolls without page chaining, and remains usable in sticky headers and dialogs.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="decision">
+    <h2 id="wb-h2-d8c71d9445ae44f0a92378e65ed1a1cc" data-whiteboard-anchor>Decision</h2>
+    <div class="card verdict">
+      <h3 id="wb-h3-49d0906a61a642b489359e465c140006" data-whiteboard-anchor>Build one completion architecture, not more local sources.</h3>
+      <p id="wb-p-12b0bef9e4dd41b38967b6afb9bc7507" data-whiteboard-anchor>The shortest safe path is a shared tooltip theme, one fence resolver, per-editor provider configuration, and nested dispatch to the existing WQL provider. Whiteboard Script then joins that same path with a new grammar-aware source. Styling alone is a small patch; doing it first still has value because every later provider will inherit the corrected menu.</p>
+    </div>
+  </section>
+
+  <footer style="padding-top:28px">
+    <p class="fine" id="wb-p-c0bc160ec2084141b593b781a4cbcc32" data-whiteboard-anchor>Evidence came from static inspection of the named source and test files, followed by an independent read-only review. No production behavior was changed. Browser verification for this deliverable applies to this report and its annotation controls.</p>
+  </footer>
+</main>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2 id="wb-current-title"></h2>
+  <a id="wb-current-source">Source block</a>
+  <p id="wb-current-quote"></p>
+  <p id="wb-current-context"></p>
+  <p id="wb-current-note"></p>
+  <div class="wb-controls">
+    <button id="wb-edit" type="button">Edit</button>
+    <button id="wb-delete" type="button">Delete</button>
+    <button id="wb-hide" type="button">Hide</button>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Publish annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Publish before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Publish before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    byId('wb-count').textContent = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : ` · ${active + 1}/${count}`}`;
+    for (const id of ['wb-prev', 'wb-next', 'wb-publish']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+
+  byId('wb-publish').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    byId('wb-copy-status').textContent = 'Copying…';
+    byId('wb-export').showModal();
+    output.focus();
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy-status').textContent = 'Copied. Paste into your agent window. Drafts are kept.';
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  new ResizeObserver(() => document.documentElement.style.setProperty('--wb-bar-height', byId('wb-bar').offsetHeight + 'px')).observe(byId('wb-bar'));
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>

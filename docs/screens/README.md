@@ -55,7 +55,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
 ### 1. Universal Note Editor (`/notes/:noteId`)
 - **Host Component:** `NoteByIdPage.tsx`
 - **Page Outline:**
-  - **Sticky Header:** Document title, breadcrumb subtitle (`/notes/:noteId`), Read/Edit mode toggle, responsive overflow actions.
+  - **Sticky Header:** Document title, parent breadcrumb subtitle (`Journal`, collection, or catalog root), Read/Edit mode toggle, responsive overflow actions.
   - **Main Surface:** `NoteEditor` (CodeMirror instance wrapped in `WorkbenchSessionProvider`) rendering prose, runnable blocks, and embedded widgets.
   - **Action Rail:** "Run", "Add to Today", "Share" block buttons.
 - **Data Sources:**
