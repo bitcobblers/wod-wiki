@@ -1,5 +1,6 @@
-import { applySeedChunk, seedPrecedenceRank, type SeedChunkResult, type SeedChunkWrite } from '@bitcobblers/wod-wiki-engine';
+import { applySeedChunk, backfillFeedProvenance, seedPrecedenceRank, type SeedChunkResult, type SeedChunkWrite } from '@bitcobblers/wod-wiki-engine';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
+import { feedIdOfSourceId } from '@bitcobblers/wod-wiki-core';
 import type { SeedMetaRecord } from '@/types/seed';
 import type { IStorage } from '@/services/storage/IStorage';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
@@ -9,6 +10,12 @@ export interface SeedImportStorage {
   getSeedMeta(key: string): Promise<SeedMetaRecord | undefined>;
   putSeedMeta(meta: SeedMetaRecord, expected?: SeedMetaRecord | null): Promise<void>;
   applyChunk(write: SeedChunkWrite): Promise<SeedChunkResult>;
+  /**
+   * Stamp feed provenance on notes imported before the feed stamp existed —
+   * a deterministic, idempotent repair driven by the existing checkpoints.
+   * Returns the number of notes stamped.
+   */
+  backfillFeedProvenance(): Promise<number>;
   /**
    * Delete one seed source's imported rows and its checkpoint row in ONE
    * transaction. Ownership is exact: only note ids recorded in the given
@@ -48,6 +55,9 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
   }
   applyChunk(write: SeedChunkWrite): Promise<SeedChunkResult> {
     return applySeedChunk(this.storageInstance, write);
+  }
+  backfillFeedProvenance(): Promise<number> {
+    return backfillFeedProvenance(this.storageInstance);
   }
   async removeSourceContent(meta: SeedMetaRecord): Promise<number> {
     return await this.storageInstance.transaction(
@@ -142,6 +152,7 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
                     registrySource: 'bundled' as const,
                     ownerNoteId: candidateNote.id,
                     sourceId: cp.sourceId,
+                    feedSourceId: feedIdOfSourceId(cp.sourceId),
                     sourcePath: candidateNote.sourcePath ?? '',
                   });
                   restored = true;

@@ -114,6 +114,7 @@ import {
   notebookSlugFromId,
   toNotebookId,
   type DefaultNotebookSlug,
+  type FeedId,
   type NotebookId,
 } from '@bitcobblers/wod-wiki-core';
 
@@ -123,8 +124,23 @@ export {
   notebookSlugFromId,
   toNotebookId,
   type DefaultNotebookSlug,
+  type FeedId,
   type NotebookId,
 };
+
+/**
+ * The feed that delivered a note — the resolver's feed answer.
+ *
+ * Read from the note's OWN feed stamp (`feedSourceId`), never from the seed
+ * stamps (`seedOrigin`, `seedVersion`, `seedChunkId`): a note that no feed
+ * delivered has no feed, whatever its seed stamps say. A feed id and the
+ * source id of the same registered source agree, so the answer names the
+ * registered feed the note arrived from.
+ */
+export function feedOfItem(item: { feedSourceId?: string | null }): FeedId | undefined {
+  const id = item.feedSourceId;
+  return typeof id === 'string' && id.trim() ? id : undefined;
+}
 
 /**
  * Resolve the canonical `notebook/{slug}` container for any Note or BlockIndexRow.
@@ -148,6 +164,8 @@ export function notebookOfItem(item: {
   type?: string;
   seedOrigin?: string;
   seedChunkId?: string;
+  feedOrigin?: string;
+  feedSourceId?: string;
   sourcePath?: string;
   catalog?: string;
   notebookId?: string;
@@ -201,16 +219,23 @@ export function notebookOfItem(item: {
  *  sourceId) already placed elsewhere. */
 function isJournalRow(item: {
   id?: string; noteId?: string; sourceId?: string; type?: string;
-  seedOrigin?: string; seedChunkId?: string; sourcePath?: string; catalog?: string;
+  seedOrigin?: string; seedChunkId?: string; feedOrigin?: string; feedSourceId?: string;
+  sourcePath?: string; catalog?: string;
 }): boolean {
   const sourceId = item.sourceId;
   if (item.type === 'playground' || item.id?.startsWith('playground/') || item.noteId?.startsWith('playground/')) return false;
   if (sourceId && sourceId !== 'journal' && !NOTE_UUID_RE.test(sourceId) && !/^journal\/\d{4}-\d{2}-\d{2}$/.test(sourceId)) return false;
   // UUID or legacy journal/date lineage still must pass corpus exclusions.
+  // A feed-delivered note is never journal content: the feed stamp says so
+  // on its own, and it agrees with the seed stamp (the importer writes
+  // both). The seed exclusion already covers every imported note, so the
+  // storage projection — which reads columns, not the feed stamp — reaches
+  // the same answer.
   return item.type !== 'dashboard'
     && item.type !== 'effort'
     && item.type !== 'equipment'
     && item.seedOrigin !== 'seed'
+    && item.feedOrigin !== 'feed'
     && item.seedChunkId === undefined
     && !item.catalog
     && !(!!item.sourcePath && item.sourcePath.startsWith('markdown/'));
@@ -280,7 +305,8 @@ export function sourceShape(kind: string): (typeof SOURCE_ID_SHAPES)[string] | u
 export function sourceMatches(
   item: {
     id?: string; noteId?: string; sourceId?: string; type?: string;
-    seedOrigin?: string; seedChunkId?: string; sourcePath?: string; catalog?: string; notebookId?: string;
+    seedOrigin?: string; seedChunkId?: string; feedOrigin?: string; feedSourceId?: string;
+    sourcePath?: string; catalog?: string; notebookId?: string;
     tags?: readonly string[];
   },
   kind: string,

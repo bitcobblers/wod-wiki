@@ -21,6 +21,7 @@ const NOTEBOOK_FIXTURES: NotebookDef[] = [
   {
     id: 'community-crossfit-programming',
     seedId: 'seed-crossfit',
+    feedId: 'seed-crossfit',
     chunkId: 'feed.crossfit-programming',
     label: 'CrossFit Programming',
     category: 'feeds',
@@ -29,6 +30,7 @@ const NOTEBOOK_FIXTURES: NotebookDef[] = [
   {
     id: 'community-crossfit-girls',
     seedId: 'seed-crossfit',
+    feedId: 'seed-crossfit',
     chunkId: 'collection.crossfit-girls',
     label: 'CrossFit Girls',
     category: 'collections',

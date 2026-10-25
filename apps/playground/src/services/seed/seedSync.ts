@@ -17,6 +17,7 @@ import {
   type SeedMetaRecord,
   type SeedPrecedenceTier,
 } from '@/types/seed';
+import { feedIdOfSourceId, type FeedId } from '@bitcobblers/wod-wiki-core';
 import type { SeedImportProgress } from './SeedImporter';
 import { HttpSeedSource } from './HttpSeedSource';
 import type { SeedImportStorage } from './SeedImportStorage';
@@ -63,6 +64,10 @@ export function isSeedImportEnabled(): boolean {
 export type SeedSyncProgress = {
   sourceId: string;
   sourceLabel: string;
+  /** Feed identity — the same source in the feed vocabulary; agrees with `sourceId`. */
+  feedId: FeedId;
+  /** The feed's name — the source's name in the feed vocabulary; agrees with `sourceLabel`. */
+  feedName: string;
   /** One-based position in this run's source list. */
   sourceIndex: number;
   totalSources: number;
@@ -76,7 +81,14 @@ export type SeedSyncProgress = {
 export interface SeedSourceSpec {
   /** Seed identity — namespaces the checkpoint (`seed:<id>`) and broadcasts. */
   id: string;
+  /** Feed identity — the same registered source in the feed vocabulary. It
+   *  agrees with `id`: the feed id resolves the same checkpoint, broadcast,
+   *  and subscription the seed id does. */
+  feedId: FeedId;
   label: string;
+  /** The feed's name — the source's display name in the feed vocabulary.
+   *  It agrees with `label`. */
+  feedName: string;
   source: ISeedSource;
   /** The seed directory this source syncs from (status/link rendering). */
   url: string;
@@ -109,14 +121,18 @@ export function defaultSeedSources(): SeedSourceSpec[] {
   return [
     {
       id: 'core',
+      feedId: feedIdOfSourceId('core'),
       label: 'Core',
+      feedName: 'Core',
       source: new HttpSeedSource(coreUrl),
       url: coreUrl,
       embeddedVersion: EMBEDDED_SEED_VERSIONS['core'] ?? 0,
     },
     ...SEED_SOURCES.map((seed): SeedSourceSpec => ({
       id: seed.id,
+      feedId: seed.feedId,
       label: seed.label,
+      feedName: seed.label,
       source: new HttpSeedSource(seed.url),
       url: seed.url,
       ...(seed.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),
@@ -132,7 +148,9 @@ export function defaultSeedSources(): SeedSourceSpec[] {
     // off the skip-fetch fast path — every sync consults the manifest.
     ...customSeedSources().map((c): SeedSourceSpec => ({
       id: c.id,
+      feedId: feedIdOfSourceId(c.id),
       label: c.label,
+      feedName: c.label,
       source: new HttpSeedSource(c.url),
       url: c.url,
       repositoryUrl: c.repositoryUrl,
@@ -322,6 +340,8 @@ async function runSeedSyncViaWorker(
           ...msg.progress,
           sourceId: msg.sourceId,
           sourceLabel: spec?.label ?? msg.sourceId,
+          feedId: spec?.feedId ?? feedIdOfSourceId(msg.sourceId),
+          feedName: spec?.feedName ?? spec?.label ?? msg.sourceId,
           sourceIndex: sources.indexOf(spec!) + 1,
           totalSources,
         });
@@ -340,7 +360,8 @@ async function runSeedSyncViaWorker(
         applySourceResult(spec, msg.result, deps, updates);
         deps.onProgress?.({
           phase: 'finished', outcome: msg.result.outcome, error: msg.result.error,
-          sourceId: spec.id, sourceLabel: spec.label, sourceIndex: index + 1, totalSources,
+          sourceId: spec.id, sourceLabel: spec.label, feedId: spec.feedId, feedName: spec.feedName,
+          sourceIndex: index + 1, totalSources,
         });
         return;
       }
@@ -536,9 +557,9 @@ async function runSourceSync(
   // `finished` closes every attempted source — after claim release and
   // first-paint hydration: a run is never complete before its commits.
   const finish = (outcome: SeedSyncOutcome, error: string | null = null): void =>
-    onProgress?.({ phase: 'finished', outcome, error, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
+    onProgress?.({ phase: 'finished', outcome, error, sourceId: spec.id, sourceLabel: spec.label, feedId: spec.feedId, feedName: spec.feedName, sourceIndex, totalSources });
 
-  onProgress?.({ phase: 'checking', sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
+  onProgress?.({ phase: 'checking', sourceId: spec.id, sourceLabel: spec.label, feedId: spec.feedId, feedName: spec.feedName, sourceIndex, totalSources });
   const endActivity = report ? beginSyncActivity('download', spec.label) : () => {};
   try {
     // Storage/network/decision core (seedSyncCore) — the same unit the seed
@@ -570,7 +591,7 @@ async function runSourceSync(
             totalChunks: progress.totalChunks,
             phase: progress.phase,
           });
-          onProgress?.({ ...progress, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
+          onProgress?.({ ...progress, sourceId: spec.id, sourceLabel: spec.label, feedId: spec.feedId, feedName: spec.feedName, sourceIndex, totalSources });
         },
         // First paint: as soon as the canvas chunk (home page + canvas
         // routes) is committed, refresh content consumers — the home page
@@ -616,7 +637,13 @@ export interface SeedNotebookStatus {
 
 export interface SeedSourceStatus {
   id: string;
+  /** Feed identity — the same registered source in the feed vocabulary; it
+   *  agrees with `id`. */
+  feedId: FeedId;
   label: string;
+  /** The feed's name — the source's name in the feed vocabulary; it agrees
+   *  with `label`. */
+  feedName: string;
   /** The seed directory this source syncs from. */
   url: string;
   /** Published Git repository link — absent when the source publishes none. */
@@ -799,7 +826,9 @@ export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatu
       const notebooks = seedNotebookStatuses(spec.id, manifest, stored);
       return {
         id: spec.id,
+        feedId: spec.feedId,
         label: spec.label,
+        feedName: spec.feedName,
         url: spec.url,
         ...(repositoryUrl ? { repositoryUrl } : {}),
         ...(spec.description ? { description: spec.description } : {}),
@@ -903,6 +932,20 @@ export async function adoptLegacySeedCheckpoints(deps: Pick<SeedSyncDeps, 'stora
     }
   }
   return adopted;
+}
+
+/**
+ * One-time repair for notes imported before the feed stamp existed: the
+ * import path now records which feed delivered a note, but notes already in
+ * Storage carry only the seed stamps. The checkpoints say which feed
+ * delivered them — the repair reads the checkpoint memberships and stamps
+ * the still-unstamped, seed-delivered notes, without republishing anything
+ * and without touching a note the user owns. Idempotent: a stamped note is
+ * never stamped again. Returns the number of notes stamped.
+ */
+export async function adoptFeedProvenance(deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<number> {
+  const storage = deps.storage ?? mainThreadSeedImportStorage();
+  return await storage.backfillFeedProvenance();
 }
 
 /**

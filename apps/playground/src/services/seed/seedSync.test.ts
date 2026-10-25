@@ -7,8 +7,9 @@ import { CountingSeedSource, InMemorySeedSource } from './InMemorySeedSource';
 import { seedFixture as fixture } from './seedFixture';
 import { adoptLegacyCoreRegistryCheckpoint, adoptLegacySeedCheckpoints, runBootSeedSync, runSeedSync, readSeedCoverage, readSeedStatus, syncSeedSource, SEED_IMPORT_FLAG, isSeedImportEnabled, type SeedSourceSpec, type SeedSyncProgress } from './seedSync';
 import type { ISeedSource } from './ISeedSource';
+import { feedIdOfSourceId } from '@bitcobblers/wod-wiki-core';
 
-function spec(source: ISeedSource, id = 'core', embeddedVersion = 0): SeedSourceSpec { return { source, id, label: id, url: `https://seed.test/${id}/`, embeddedVersion }; }
+function spec(source: ISeedSource, id = 'core', embeddedVersion = 0): SeedSourceSpec { return { source, id, feedId: feedIdOfSourceId(id), label: id, feedName: id, url: `https://seed.test/${id}/`, embeddedVersion }; }
 const source = () => fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
 
 describe('seed sync orchestration', () => {
@@ -137,6 +138,36 @@ describe('seed-level identity', () => {
       'feed.crossfit-programming',
     ]);
     expect(status.sources[0]!.notebooks.every((n) => !n.imported)).toBe(true);
+  });
+});
+
+describe('feed identity in the sync surface', () => {
+  it('reports the feed beside the source, and the two agree', async () => {
+    const storage = new InMemorySeedStorage();
+    const sources = [spec(source(), 'seed-crossfit')];
+    const status = await readSeedStatus({ sources, storage, now: () => 7 });
+    const reported = status.sources[0]!;
+    expect(reported.feedId).toBe(reported.id);
+    expect(reported.feedName).toBe(reported.label);
+    // The checkpoint, the URL, and the precedence are the seed ones.
+    expect(reported.url).toBe('https://seed.test/seed-crossfit/');
+    expect(reported.stored).toBeNull();
+  });
+
+  it('names the feed on every progress event', async () => {
+    const storage = new InMemorySeedStorage();
+    const progress: SeedSyncProgress[] = [];
+    await runSeedSync({
+      sources: [spec(source(), 'community')],
+      storage,
+      isEnabled: () => true,
+      onProgress: (event) => progress.push(event),
+    });
+    expect(progress.length).toBeGreaterThan(0);
+    for (const event of progress) {
+      expect(event.feedId).toBe(event.sourceId);
+      expect(event.feedName).toBe(event.sourceLabel);
+    }
   });
 });
 

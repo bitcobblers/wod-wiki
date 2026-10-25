@@ -1,10 +1,10 @@
-import { mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core';
+import { feedIdOfSourceId, mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core';
 import type { IStorage, IReadWriteStore } from '@bitcobblers/wod-wiki-storage';
 import { userDeletedSeedNoteId } from '@bitcobblers/wod-wiki-storage';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import { extractTypedTags, readFrontmatterMeta } from '../exchange';
-import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_NAMESPACE, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, seedNoteSourceId, seedPrecedenceRank, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
+import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_NAMESPACE, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, feedIdOfMetaKey, seedNoteSourceId, seedPrecedenceRank, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
 import { assertSeedManifest, assertSeedRows } from './validation';
 
 export async function seedNoteId(path: string): Promise<string> {
@@ -98,11 +98,14 @@ async function applyDefinitionChunk<T extends IEffort | IEquipment>(
     return max;
   };
   const projections: T[] = [];
+  // The feed that delivered these definitions — the source's own id in the
+  // feed vocabulary (a feed id and a seed id name the same source).
+  const feedSourceId = feedIdOfSourceId(seedSource);
   for (const [i, row] of rows.entries()) {
     if (!owned.has(ids[i])) continue;
     const parsed = parse(row.content);
     if (!parsed) continue;
-    projections.push({ ...parsed, registrySource: 'bundled' as const, ownerNoteId: ids[i], sourceId: seedSource, sourcePath: row.path });
+    projections.push({ ...parsed, registrySource: 'bundled' as const, ownerNoteId: ids[i], sourceId: seedSource, feedSourceId, sourcePath: row.path });
   }
   const prior = await defStore.getMany(projections.map((p) => p.slug));
   const changed = projections.filter((p, i) => {
@@ -216,6 +219,10 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     const stored = await noteStore.getMany(allIds);
     const existingById = new Map(allIds.map((id, i) => [id, stored[i]]));
     const seedSource = write.meta.key.startsWith('seed:') ? write.meta.key.slice(5) : write.meta.key;
+    // The feed that delivered this chunk — the checkpoint's source in the
+    // feed vocabulary. The feed id and the seed id name the SAME source, so
+    // the feed stamp and the seed stamps describe one import event.
+    const feedSourceId = feedIdOfMetaKey(write.meta.key);
     const incomingRank = seedPrecedenceRank(write.meta.key, write.meta.tier);
     const otherCheckpoints: SeedCheckpointRef[] = [];
     for (const row of await metaStore.getAll()) {
@@ -320,7 +327,7 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
         date = ts;
       }
       const seedCommit = row.commit ?? write.manifest.commit;
-      const note: Note = { ...existing, id, title, rawContent: row.content, sourceRevision, blocks: map, createdAt: write.manifest.version, ...(date === undefined ? {} : { date }), type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note', sourceId, catalog: catalogForChunkId(write.chunkId ?? ''), seedOrigin: 'seed', seedVersion: write.manifest.version, seedChunkId: write.chunkId ?? undefined, sourcePath: row.path, ...(seedCommit ? { seedCommit } : {}) };
+      const note: Note = { ...existing, id, title, rawContent: row.content, sourceRevision, blocks: map, createdAt: write.manifest.version, ...(date === undefined ? {} : { date }), type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note', sourceId, catalog: catalogForChunkId(write.chunkId ?? ''), seedOrigin: 'seed', seedVersion: write.manifest.version, seedChunkId: write.chunkId ?? undefined, feedOrigin: 'feed', feedSourceId, sourcePath: row.path, ...(seedCommit ? { seedCommit } : {}) };
       if (date === undefined) delete note.date;
       if (!equal(note, existing)) changedNotes.push(note);
       const byRange = new Map(Object.values(map).map((b) => [`${b.from}:${b.to}`, b]));
@@ -398,6 +405,99 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     await putChanged(pageLinks, pageNotes, pageNotes.map((p) => p.id));
     await metaStore.put(write.meta);
     return result;
+  });
+}
+
+/** One checkpoint's claim on a note: the feed that delivered it, the chunk
+ *  it came from, and the checkpoint's precedence rank. */
+interface FeedClaim {
+  sourceId: string;
+  chunkId: string;
+  rank: number;
+  key: string;
+}
+
+/**
+ * The feed that owns a note, from the checkpoints that claim it.
+ *
+ * The chunk the note was written from names its feed most precisely; when
+ * no claim carries that chunk, the highest-precedence checkpoint wins, and
+ * the lowest checkpoint key breaks a tie. Deterministic either way: the
+ * same checkpoints always name the same feed.
+ */
+function owningFeed(claims: FeedClaim[], note: Note): FeedClaim {
+  const byChunk = note.seedChunkId ? claims.filter((claim) => claim.chunkId === note.seedChunkId) : [];
+  const pool = byChunk.length > 0 ? byChunk : claims;
+  return [...pool].sort((a, b) => b.rank - a.rank || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))[0]!;
+}
+
+/**
+ * Stamp feed provenance on notes imported before the feed stamp existed.
+ *
+ * The checkpoint metadata is the source of truth: every `seed:<sourceId>`
+ * checkpoint records the notes its chunks delivered, so the feed that
+ * delivered a note is the checkpoint that owns it — no republication and no
+ * read-time derivation from the seed stamps.
+ *
+ * - A note the user owns (`seedOrigin: 'user'`) is never stamped: the
+ *   user's copy stays the user's.
+ * - Content is never rewritten — only the provenance and the revision move.
+ * - The stamp advances the note's revision, because the provenance is part
+ *   of the note: an unchanged revision would let a peer keep its older,
+ *   unstamped copy (equal revisions merge by arrival order, not by
+ *   content).
+ * - A stamped note is never stamped again: the repair is idempotent.
+ *
+ * Returns the number of notes stamped.
+ */
+export async function backfillFeedProvenance(storage: IStorage): Promise<number> {
+  return await storage.transaction(['meta', 'notes', 'block_index'], 'readwrite', async (tx) => {
+    const metaStore = tx.readwrite('meta');
+    const claims = new Map<string, FeedClaim[]>();
+    for (const row of await metaStore.getAll()) {
+      const meta = row as unknown as SeedMetaRecord | undefined;
+      if (!meta || typeof meta.key !== 'string' || !meta.key.startsWith('seed:')) continue;
+      const sourceId = meta.key.slice('seed:'.length);
+      const rank = seedPrecedenceRank(meta.key, meta.tier);
+      for (const [chunkId, chunk] of Object.entries(meta.chunks ?? {})) {
+        for (const noteId of chunk.noteIds ?? []) {
+          const list = claims.get(noteId) ?? [];
+          list.push({ sourceId, chunkId, rank, key: meta.key });
+          claims.set(noteId, list);
+        }
+      }
+    }
+    if (claims.size === 0) return 0;
+    const noteStore = tx.readwrite('notes');
+    const indexStore = tx.readwrite('block_index');
+    const ids = [...claims.keys()];
+    const stored = await noteStore.getMany(ids);
+    const repaired: { id: string; sourceRevision: number }[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i]!;
+      const note = stored[i] as Note | undefined;
+      // Only seed-delivered notes carry a feed, and only an unstamped one
+      // needs the repair.
+      if (!note || note.seedOrigin !== 'seed' || note.feedSourceId) continue;
+      const owner = owningFeed(claims.get(id)!, note);
+      const sourceRevision = note.sourceRevision + 1;
+      const blocks = Object.fromEntries(
+        Object.entries(note.blocks).map(([blockId, block]) => [blockId, { ...block, sourceRevision }]),
+      );
+      await noteStore.put({ ...note, blocks, sourceRevision, feedOrigin: 'feed', feedSourceId: owner.sourceId });
+      repaired.push({ id, sourceRevision });
+    }
+    // The block projections carry the note's revision — keep them in step.
+    if (repaired.length > 0) {
+      const revisions = new Map(repaired.map((entry) => [entry.id, entry.sourceRevision]));
+      const projections = await indexStore.getAllFromIndexMany('by-note', repaired.map((entry) => entry.id));
+      const changed = projections.flatMap((rows) => rows.flatMap((row) => {
+        const revision = revisions.get(row.noteId);
+        return revision !== undefined && row.sourceRevision !== revision ? [{ ...row, sourceRevision: revision }] : [];
+      }));
+      if (changed.length > 0) await indexStore.putMany(changed);
+    }
+    return repaired.length;
   });
 }
 

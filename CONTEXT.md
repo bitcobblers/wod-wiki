@@ -438,9 +438,37 @@ manifest, one version, one import checkpoint, one subscription. It delivers note
 never notes of its own: the notebooks it publishes stay read-only until the user clones
 content into a notebook they own. Effort and equipment definitions arrive the same way,
 as markdown delivered by a feed and imported as notes.
+Identity: a registered feed has ONE id — the source's own id (`SeedSource.id`, the note's
+`feedSourceId`). The seed vocabulary calls that same id the source id, and the import
+checkpoint keys it as `seed:<id>`: the checkpoint key carries the id as its suffix, it is
+not the id itself. The two spellings AGREE for every registered source: a feed id resolves
+the same registry entry, import checkpoint, and subscription the seed id does. The seed
+spelling survives only as the published artifact (a **Seed**) and its per-row provenance
+stamps (`seedOrigin`, `seedVersion`, `seedChunkId`); the feed spelling is the source-side
+one (`feedOrigin`, `feedSourceId`). A note imported before the feed stamp existed is
+repaired from the checkpoints — the checkpoint membership says which feed delivered it —
+without republication, and the repair advances the note's revision so a peer copy at the
+old revision is stale.
 Canonical route `/feed/{slug}`, list route `/feeds`, WQL head `:feed{}`.
 _Avoid_: publisher, repository, subscription, notebook (a feed publishes notebooks; it is
 not one).
+
+**Source Precedence Tier**:
+The rank a source's imported content carries when two sources deliver the same record:
+`core` (the app's own corpus) → `community` (the built-in theme feeds) → `imported` (a
+user-registered feed) → `user` (the user's own copy). A tier is a RANK, never a source:
+it says which delivery wins, not which feed delivered it. The tier vocabulary is
+orthogonal to the feed/seed vocabulary and is not renamed with it (`SeedPrecedenceTier`,
+`SEED_PRECEDENCE_RANK`). Distinct from the metric **Ownership Layer**, which ranks
+metric visibility, and from a **Calculation Seed Record**.
+_Avoid_: seed tier (the tier is not about the seed artifact), feed tier.
+
+**Calculation Seed Record**:
+A built-in calculation declared as a DAG seed record — the calc layer's own use of
+"seed" (`packages/lang/src/analytics/calc/seeds.ts`). It seeds a calculation graph; it
+is neither a **Seed** artifact nor a **Feed** source, and the source→feed rename does
+not touch it.
+_Avoid_: seed (unqualified near the calc layer), feed seed, seed record (unqualified).
 
 **Note**:
 An entry: one piece of authored content inside a notebook — a workout, a dated log, a
@@ -526,7 +554,7 @@ Words the codebase still carries in identifiers but that no longer name a concep
 | seed (source sense) | **feed** | The configured source. "Seed" survives only as the published artifact (manifest + chunks) and its per-row provenance stamps. |
 
 "Seed" has one more unrelated sense that this rename does not touch: the calc layer's
-base calculations (`packages/lang/src/analytics/calc/seeds.ts`).
+base calculations — a **Calculation Seed Record** (`packages/lang/src/analytics/calc/seeds.ts`).
 
 ### Identity & result recording
 

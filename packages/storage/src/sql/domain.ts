@@ -29,7 +29,7 @@ type SourceItem = Parameters<typeof sourceMatches>[0];
 
 function sourceItem(row: Record<string, unknown>): SourceItem {
   const item: SourceItem = {};
-  for (const key of ['id', 'noteId', 'sourceId', 'type', 'seedOrigin', 'seedChunkId', 'sourcePath', 'catalog', 'notebookId'] as const) {
+  for (const key of ['id', 'noteId', 'sourceId', 'type', 'seedOrigin', 'seedChunkId', 'feedOrigin', 'feedSourceId', 'sourcePath', 'catalog', 'notebookId'] as const) {
     const value = row[key];
     if (typeof value === 'string') item[key] = value;
     else if (value != null) throw new StorageError(400, `${key} must be a string`);

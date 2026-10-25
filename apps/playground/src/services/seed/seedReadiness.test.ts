@@ -22,6 +22,8 @@ describe('seedReadiness', () => {
     const progress = {
       sourceId: 'core',
       sourceLabel: 'Core library',
+      feedId: 'core',
+      feedName: 'Core library',
       sourceIndex: 1,
       totalSources: 1,
       phase: 'checking',
@@ -39,6 +41,8 @@ describe('seedReadiness', () => {
     const progress = {
       sourceId: 'core',
       sourceLabel: 'Core library',
+      feedId: 'core',
+      feedName: 'Core library',
       sourceIndex: 1,
       totalSources: 1,
       phase: 'checking',

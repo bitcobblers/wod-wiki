@@ -18,7 +18,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { SEED_BROADCAST_CHANNEL, seedMetaKey } from '@/types/seed';
 import { subscribeSyncActivity } from '@/services/syncActivity';
 import { markBootMilestone } from '@/services/bootDiagnostics';
-import { adoptLegacySeedCheckpoints, defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, subscribeCatalogUpdates, type SeedSyncDeps, type SeedSyncOutcome, type SeedSyncProgress } from './seedSync';
+import { adoptFeedProvenance, adoptLegacySeedCheckpoints, defaultSeedSources, readSeedCoverage, runBootSeedSync, SEED_CLAIM_TTL_MS, subscribeCatalogUpdates, type SeedSyncDeps, type SeedSyncOutcome, type SeedSyncProgress } from './seedSync';
 import { mainThreadSeedImportStorage } from './seedStorageDefault';
 import { isSeedSubscribed, migrateSeedSubscriptions } from './seedSubscriptions';
 
@@ -199,8 +199,16 @@ async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
   } catch {
     coreMeta = undefined; // Provider unreadable — the sync run itself surfaces it.
   }
-  if (!coreMeta || coreMeta.seedVersion <= 0) {
-    markSeedSyncStarted();
+  const fresh = !coreMeta || coreMeta.seedVersion <= 0;
+  if (fresh) markSeedSyncStarted();
+  else markSeedSyncSettled('current');
+  // Notes imported before the feed stamp existed carry only the seed
+  // stamps: the checkpoints say which feed delivered them, so the repair
+  // needs no republication. It runs AFTER the gate decision — the first
+  // paint never waits for it.
+  await adoptFeedProvenance(deps)
+    .catch((err) => console.error('[seedSync] feed provenance repair failed', err));
+  if (fresh) {
     const outcome = await runBootSeedSync({ ...deps, sources: all, onProgress, onFirstPaint: () => markSeedSyncSettled('imported') });
     markSeedSyncSettled(outcome);
     // Every page load owes subscribed catalogs their update check — also
@@ -212,7 +220,6 @@ async function runSeedBootstrap(deps: SeedSyncDeps): Promise<void> {
     }
     return;
   }
-  markSeedSyncSettled('current');
   // Returning visitor: the vault is queryable offline from the committed
   // core — feeds keep refreshing in the background; their outcomes only
   // reach sync activity, never the gate (no late 'error' flip, no retry).

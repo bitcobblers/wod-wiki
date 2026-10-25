@@ -5,11 +5,15 @@
  * (including the predefined default notebooks `notebook/journal`,
  * `notebook/playground`, and `notebook/guides`).
  */
+import type { FeedId } from './feed';
 
 /** Predefined default notebook slugs always present in the application. */
 export const DEFAULT_NOTEBOOK_SLUGS = ['journal', 'playground', 'guides'] as const;
 export type DefaultNotebookSlug = (typeof DEFAULT_NOTEBOOK_SLUGS)[number];
 export type NotebookId = `notebook/${string}`;
+/** Where a notebook comes from. 'seed' = delivered by a feed (the artifact
+ *  vocabulary — the feed that delivers it is named by `feedEntryId`); 'user'
+ *  = the user owns it; 'default' = one of the predefined notebooks. */
 export type NotebookOrigin = 'default' | 'user' | 'seed';
 
 /** Extract the bare slug from a `notebook/{slug}` or `notebook:{slug}` or bare identifier. */
@@ -41,8 +45,13 @@ export interface Notebook {
   description: string;
   icon: string;
   origin: NotebookOrigin;
-  /** Registered seed source entry id where the source is pulled from. */
+  /** Registered seed source entry id where the source is pulled from — the
+   *  source's own id (the seed spelling of the feed identity below). */
   sourceEntryId?: string;
+/** Registered feed entry id — the feed that publishes this notebook, in the
+   *  feed vocabulary. Agrees with `sourceEntryId` for every notebook a
+   *  feed publishes. */
+  feedEntryId?: FeedId;
   /** Seed package id when delivered by a named package slice. */
   packageId?: string;
   /** Seed directory URL where the source is pulled from. */

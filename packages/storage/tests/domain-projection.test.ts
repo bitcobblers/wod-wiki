@@ -44,6 +44,10 @@ const notes: Note[] = [
   note({ id: uuid(14), title: 'Open Prep', notebookId: 'notebook/open-prep', seedOrigin: 'user' }),
   note({ id: uuid(15), title: 'Peaking Squat', tags: ['notebook:mine'], seedOrigin: 'user' }),
   note({ id: uuid(16), title: 'Equipment row', sourceId: 'equipment', seedOrigin: 'seed' }),
+  // A feed-delivered note the user has taken ownership of: the seed stamp
+  // alone would place it in the journal, the feed stamp keeps it out — the
+  // wire and the JS filter must read the same provenance.
+  note({ id: uuid(17), title: 'Feed delivered', seedOrigin: 'user', feedOrigin: 'feed', feedSourceId: 'core' }),
 ];
 
 const SOURCE_KINDS = ['feeds', 'pages', 'guides', 'playground', 'efforts', 'equipment', 'dashboards', 'journal', 'feed', 'page', 'guide'] as const;
@@ -84,8 +88,10 @@ describe('domain source identity — one shared projection', () => {
       const byId = new Map((result!.rows as Note[]).map((n) => [n.id, n]));
       for (const n of notes) {
         expect(byId.get(n.id), n.id).toBeDefined();
-        // Bare page rows (the home page) are the one identity outside every notebook.
-        if (n.sourceId !== 'page') expect(notebookOfItem(n), n.id).toBeDefined();
+        // Bare page rows (the home page) are the one identity outside every
+        // notebook — and so is a feed-delivered note with no corpus identity:
+        // its feed stamp claims no container, only its provenance.
+        if (n.sourceId !== 'page' && !n.feedSourceId) expect(notebookOfItem(n), n.id).toBeDefined();
       }
       // Journal projection: exactly the resolver's journal answer.
       const journal = await server.queryDomain({
@@ -105,6 +111,10 @@ describe('domain source identity — one shared projection', () => {
       }
       // Ordinary journal notes remain.
       expect(journalIds.has(uuid(1))).toBe(true);
+      // The feed stamp alone keeps a feed-delivered note out of the journal
+      // fallback — the wire reads the same provenance the JS filter does.
+      expect(journalIds.has(uuid(17))).toBe(false);
+      expect(sourceMatches(notes.find((n) => n.id === uuid(17))!, 'journal')).toBe(false);
       // The WQL source fence spans the whole domain on both planes —
       // including the equipment identity the hand list used to drop.
       const fence = await server.queryDomain({

@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import {
   addCustomSeedSource,
   builtInSeedSourceIds,
+  CORE_SEED_URL,
   customSeedSources,
+  feedSourceById,
   hiddenSeedSourceIds,
   hideSeedSourceRow,
   listNotebooks,
@@ -14,6 +16,7 @@ import {
   removeCustomSeedSource,
   SEED_SOURCES,
   seedIdForLegacyId,
+  seedSourceById,
   toAbsoluteSeedUrl,
 } from './seedSources';
 
@@ -144,6 +147,70 @@ describe('seeds and their notebooks', () => {
     // Retired checkpoint namespaces never become new sources either.
     const legacy = addCustomSeedSource('seed core', 'https://legacy.example/seed/');
     expect(legacy.id).not.toBe('seed-core');
+  });
+});
+
+describe('feed identity in the registry', () => {
+  it('gives every registered source a feed id that agrees with its seed id', () => {
+    for (const source of listSeedSources()) {
+      expect(source.feedId).toBe(source.id);
+    }
+    expect(SEED_SOURCES.every((source) => source.feedId === source.id)).toBe(true);
+    // The feed id resolves the same entry the seed id resolves.
+    expect(feedSourceById('seed-crossfit')).toBe(seedSourceById('seed-crossfit'));
+    expect(feedSourceById('never-registered')).toBeUndefined();
+  });
+
+  it('names the owning feed of every notebook beside its owning seed', () => {
+    for (const notebook of listNotebooks()) {
+      expect(notebook.feedId).toBe(notebook.seedId);
+    }
+  });
+
+  it('gives a user-registered source a feed id too', () => {
+    const added = addCustomSeedSource('My Library', 'https://example.com/seed/lib');
+    const listed = listSeedSources().find((source) => source.id === added.id);
+    expect(listed?.feedId).toBe(added.id);
+    expect(feedSourceById(added.id)?.url).toBe('https://example.com/seed/lib/');
+  });
+
+  it('resolves the same registered source by either id — built-in, core, and custom', () => {
+    const custom = addCustomSeedSource('My Library', 'https://example.com/seed/lib');
+    for (const id of ['core', 'seed-crossfit', 'yt-dan-john', custom.id]) {
+      const bySeedId = seedSourceById(id);
+      expect(bySeedId, id).toBeDefined();
+      // The feed id and the seed id name one source.
+      expect(feedSourceById(bySeedId!.feedId)?.id, id).toBe(bySeedId!.id);
+      expect(feedSourceById(bySeedId!.feedId)?.url, id).toBe(bySeedId!.url);
+      expect(bySeedId!.feedId).toBe(bySeedId!.id);
+    }
+    // The app's own core feed resolves like any other registered source.
+    expect(seedSourceById('core')?.url).toBe(CORE_SEED_URL);
+    expect(feedSourceById('core')?.url).toBe(CORE_SEED_URL);
+    // The library list stays the library list — core publishes no library
+    // notebook of its own.
+    expect(listSeedSources().map((source) => source.id)).not.toContain('core');
+  });
+
+  it('reads a registry record written before the feed id existed', () => {
+    localStorage.setItem('wodwiki.seedSources', JSON.stringify([
+      { id: 'legacy', label: 'Legacy', url: 'https://legacy.example/seed/' },
+    ]));
+    expect(listSeedSources().find((source) => source.id === 'legacy')?.feedId).toBe('legacy');
+  });
+
+  it('leaves the stored registry entries unchanged — no re-keying, no lost sources', () => {
+    addCustomSeedSource('My Library', 'https://example.com/seed/lib');
+    // The persisted record is exactly what it always was: the feed id lives
+    // on the registry entry, not in the user's storage.
+    expect(JSON.parse(localStorage.getItem('wodwiki.seedSources')!)).toEqual([
+      { id: 'my-library', label: 'My Library', url: 'https://example.com/seed/lib/' },
+    ]);
+    expect(localStorage.getItem('wodwiki.seedSources.hidden')).toBeNull();
+    hideSeedSourceRow('seed-hyrox');
+    expect(JSON.parse(localStorage.getItem('wodwiki.seedSources.hidden')!)).toEqual(['seed-hyrox']);
+    // The registered source survives the hidden-row write.
+    expect(customSeedSources().map((source) => source.id)).toEqual(['my-library']);
   });
 });
 

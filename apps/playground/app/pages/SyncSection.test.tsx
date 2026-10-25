@@ -31,7 +31,9 @@ const mockStatus: SeedStatus = {
   sources: [
     {
       id: 'core',
+      feedId: 'core',
       label: 'Core Guides',
+      feedName: 'Core Guides',
       url: 'https://seed.test/core/',
       autoImport: true,
       notebooks: [
@@ -49,7 +51,9 @@ const mockStatus: SeedStatus = {
     },
     {
       id: 'seed-crossfit',
+      feedId: 'seed-crossfit',
       label: 'CrossFit',
+      feedName: 'CrossFit',
       url: 'https://seed.test/crossfit/',
       autoImport: false,
       notebooks: [

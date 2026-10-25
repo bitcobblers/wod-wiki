@@ -17,6 +17,8 @@ describe('seedProgressLabel', () => {
     const progress = {
       sourceId: 'core',
       sourceLabel: 'Core library',
+      feedId: 'core',
+      feedName: 'Core library',
       sourceIndex: 1,
       totalSources: 1,
       phase: 'applying',
@@ -39,6 +41,8 @@ describe('seedProgressLabel', () => {
     expect(seedProgressDetail({
       sourceId: 'core',
       sourceLabel: 'Core library',
+      feedId: 'core',
+      feedName: 'Core library',
       sourceIndex: 1,
       totalSources: 1,
       phase: 'checking',

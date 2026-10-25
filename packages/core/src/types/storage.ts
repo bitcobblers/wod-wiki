@@ -1,4 +1,5 @@
 import type { StoredOutputStatement } from './results';
+import type { FeedId, FeedOrigin } from './feed';
 import type { TagContribution } from '../models/Tag';
 
 export type NoteBlockKind = 'wod' | 'query' | 'widget' | 'embed';
@@ -46,6 +47,13 @@ export interface Note {
   seedOrigin?: 'seed' | 'user';
   seedVersion?: number;
   seedChunkId?: string;
+  /** Feed provenance — the feed-side twin of `seedOrigin`. 'feed' for a
+   *  note a feed delivered, 'user' for one the user owns. The two agree:
+   *  a feed-delivered note is seed-delivered, and vice versa. */
+  feedOrigin?: FeedOrigin;
+  /** The registered feed that delivered this note (the feed's source id).
+   *  Read from here alone — never from the seed stamps. */
+  feedSourceId?: FeedId;
   /** Authored seed path used for deterministic identity and routing. */
   sourcePath?: string;
   /** Git commit hash in which this note was published or changed. */

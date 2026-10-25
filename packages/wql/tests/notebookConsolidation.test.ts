@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   QueryService,
   parseQuery,
+  feedOfItem,
   notebookOfItem,
   sourceMatches,
   toNotebookId,
@@ -19,6 +20,9 @@ const makeNote = (overrides: Partial<Note> & { id: string }): Note => ({
   createdAt: 1000,
   ...overrides,
 });
+
+const uuid = (n: number): string =>
+  `01950000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
 describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
   it('normalizes canonical notebook/{slug} identifiers including default slugs (journal, playground, guides)', () => {
@@ -123,9 +127,6 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     expect(pluralScopeRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
   });
 
-  const uuid = (n: number): string =>
-    `01950000-0000-7000-8000-${String(n).padStart(12, '0')}`;
-
   it('resolves every corpus family from its corpus path alone (effort, equipment, dashboard, guide, collection, feed)', () => {
     expect(notebookOfItem(makeNote({ id: uuid(1), seedOrigin: 'seed', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' }))).toBe('notebook/efforts');
     expect(notebookOfItem(makeNote({ id: uuid(2), seedOrigin: 'seed', sourcePath: 'markdown/equipment/air-bike.md' }))).toBe('notebook/equipment');
@@ -225,5 +226,36 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     expect(dashboards.notes.map((n) => n.id)).toEqual(['dash-1']);
     const journal = await service.runFind(parseQuery(':note{notebook:journal}') as Parameters<typeof service.runFind>[0]);
     expect(journal.notes.map((n) => n.id)).toEqual([uuid(1)]);
+  });
+});
+
+describe('feed provenance (the resolver reports the delivering feed)', () => {
+  it('reports the delivering feed from the note’s own feed stamp, never from the seed stamps', () => {
+    const imported = makeNote({
+      id: uuid(1),
+      seedOrigin: 'seed',
+      seedChunkId: 'collection.crossfit-games',
+      seedVersion: 3,
+      feedOrigin: 'feed',
+      feedSourceId: 'seed-crossfit',
+    });
+    expect(feedOfItem(imported)).toBe('seed-crossfit');
+    // The feed stamp alone answers — the seed stamps are never consulted.
+    const feedOnly = { feedSourceId: 'seed-crossfit' };
+    expect(feedOfItem(feedOnly)).toBe('seed-crossfit');
+    // Seed stamps alone name no feed.
+    const seedOnly = makeNote({ id: uuid(4), seedOrigin: 'seed', seedChunkId: 'collection.crossfit-games', seedVersion: 3 });
+    expect(feedOfItem(seedOnly)).toBeUndefined();
+    expect(feedOfItem({})).toBeUndefined();
+    expect(feedOfItem({ feedSourceId: '   ' })).toBeUndefined();
+  });
+
+  it('keeps a feed-delivered note out of the journal fallback', () => {
+    const delivered = makeNote({ id: uuid(2), feedOrigin: 'feed', feedSourceId: 'core' });
+    expect(notebookOfItem(delivered)).toBeUndefined();
+    expect(sourceMatches(delivered, 'journal')).toBe(false);
+    // Without the feed stamp the very same shape is journal content.
+    const plain = makeNote({ id: uuid(3) });
+    expect(notebookOfItem(plain)).toBe('notebook/journal');
   });
 });

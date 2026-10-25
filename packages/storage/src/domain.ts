@@ -60,7 +60,7 @@ function isNote(value: unknown): value is Note {
     || typeof value.sourceRevision !== 'number' || value.sourceRevision < 1 || !isObject(value.blocks)
     || !finiteNumbers(value, ['createdAt'])
     || (value.date !== undefined && !finiteNumbers(value, ['date']))
-    || !optionalStrings(value, ['type', 'sourceId', 'catalog', 'notebookId', 'sourcePath', 'seedOrigin', 'seedChunkId'])
+    || !optionalStrings(value, ['type', 'sourceId', 'catalog', 'notebookId', 'sourcePath', 'seedOrigin', 'seedChunkId', 'feedOrigin', 'feedSourceId'])
     || (value.tags !== undefined && (!Array.isArray(value.tags) || !value.tags.every(tag => typeof tag === 'string')))) return false;
   try {
     validateNoteBlocks(value.rawContent, value.blocks as Note['blocks'], value.sourceRevision);

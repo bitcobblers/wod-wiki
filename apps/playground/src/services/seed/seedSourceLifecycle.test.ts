@@ -34,9 +34,10 @@ import {
 } from './seedSubscriptions';
 import { addCustomSeedSource, customSeedSources, hiddenSeedSourceIds } from './seedSources';
 import { resetSyncActivityForTest } from '@/services/syncActivity';
+import { feedIdOfSourceId } from '@bitcobblers/wod-wiki-core';
 
 function spec(source: SeedSourceSpec['source'], id: string, embeddedVersion = 0): SeedSourceSpec {
-  return { source, id, label: id, url: `https://seed.test/${id}/`, embeddedVersion };
+  return { source, id, feedId: feedIdOfSourceId(id), label: id, feedName: id, url: `https://seed.test/${id}/`, embeddedVersion };
 }
 const row = (path: string, content: string) => compileSeedRow(path, content);
 

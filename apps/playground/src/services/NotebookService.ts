@@ -10,7 +10,7 @@
  */
 
 import { v7 as uuidv7 } from 'uuid';
-import type { Note } from '@bitcobblers/wod-wiki-core';
+import { feedIdOfSourceId, type Note } from '@bitcobblers/wod-wiki-core';
 import { slugifyNotebookName, toNotebookId, type Notebook } from '../types/notebook';
 import { LocalStore } from './storage/LocalStore';
 import { remotePrefsMode, metaPrefBackend, metaSetPref } from './storage/metaStore';
@@ -93,6 +93,7 @@ export class NotebookService {
                 icon: '📖',
                 origin: 'default',
                 sourceEntryId: 'core',
+                feedEntryId: feedIdOfSourceId('core'),
                 sourceUrl: CORE_SEED_URL,
                 seedChunkId: 'canvas',
                 createdAt: 0,
@@ -123,6 +124,7 @@ export class NotebookService {
                 icon: notebook.category === 'feeds' ? '📡' : '📚',
                 origin: 'seed',
                 sourceEntryId: notebook.seedId,
+                feedEntryId: notebook.feedId,
                 packageId: notebook.id,
                 sourceUrl: seed?.url,
                 ...(seed?.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),

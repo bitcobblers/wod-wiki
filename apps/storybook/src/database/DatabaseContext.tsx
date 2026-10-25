@@ -21,6 +21,7 @@ import {
 } from '@/services/storage';
 import { rehydrateActiveDatabaseCaches } from '@/services/storage/activeDatabaseCaches';
 import {
+  adoptFeedProvenance,
   adoptLegacyCoreRegistryCheckpoint,
   defaultSeedSources,
   isCoreSeedImported,
@@ -112,6 +113,9 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     setSeed((prev) => ({ ...prev, status: 'running', message: null }));
     try {
       await adoptLegacyCoreRegistryCheckpoint();
+      // Notes imported before the feed stamp existed carry only the seed
+      // stamps — the checkpoints say which feed delivered them.
+      await adoptFeedProvenance();
       const imported = await isCoreSeedImported();
       if (!imported) {
         const outcome = await runBootSeedSync();

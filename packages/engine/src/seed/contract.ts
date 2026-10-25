@@ -1,5 +1,5 @@
 import type { BlockEffort, BlockEquipment, BlockIndexRow, NoteBlock } from '@bitcobblers/wod-wiki-core';
-import { KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+import { KNOWN_SECTION_WIDGETS, feedIdOfSourceId } from '@bitcobblers/wod-wiki-core';
 
 export const SEED_SCHEMA = 9;
 export const SEED_REGISTERED_WIDGETS = KNOWN_SECTION_WIDGETS;
@@ -99,6 +99,17 @@ export const CANVAS_CHUNK_ID = 'canvas';
 export const DASHBOARDS_CHUNK_ID = 'dashboards';
 export const TEMPLATE_CHUNK_ID = 'template';
 export function seedMetaKey(sourceId: string): string { return `seed:${sourceId}`; }
+/**
+ * The feed identifier a checkpoint key names — the key's source id in the
+ * feed vocabulary. The checkpoint key keeps its seed spelling
+ * (`seed:<id>`) and the broadcast channel keeps its own, so a feed's
+ * checkpoint IS the checkpoint its seed id writes: the feed id and the seed
+ * id of the owning source agree.
+ */
+export function feedIdOfMetaKey(metaKey: string): string {
+  const sourceId = metaKey.startsWith('seed:') ? metaKey.slice(5) : metaKey;
+  return feedIdOfSourceId(sourceId);
+}
 export function emptySeedMeta(key: string): SeedMetaRecord {
   return { key, schema: SEED_SCHEMA, seedVersion: 0, builtAt: '', importedAt: 0, chunks: {}, claim: null };
 }

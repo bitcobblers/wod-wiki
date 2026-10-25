@@ -8,6 +8,7 @@
  */
 import { describe, expect, it, beforeEach, spyOn } from 'bun:test';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
+import { feedIdOfSourceId } from '@bitcobblers/wod-wiki-core';
 import { emptySeedMeta, seedMetaKey, SEED_SCHEMA } from '@/types/seed';
 import { InMemorySeedStorage } from './SeedImportStorage';
 import { CountingSeedSource, InMemorySeedSource } from './InMemorySeedSource';
@@ -33,7 +34,7 @@ import {
 } from '@/services/syncActivity';
 
 function spec(source: SeedSourceSpec['source'], id: string, embeddedVersion = 0, autoImport?: boolean): SeedSourceSpec {
-  return { source, id, label: id, url: `https://seed.test/${id}/`, embeddedVersion, ...(autoImport === undefined ? {} : { autoImport }) };
+  return { source, id, feedId: feedIdOfSourceId(id), label: id, feedName: id, url: `https://seed.test/${id}/`, embeddedVersion, ...(autoImport === undefined ? {} : { autoImport }) };
 }
 const row = (path: string, content: string) => compileSeedRow(path, content);
 

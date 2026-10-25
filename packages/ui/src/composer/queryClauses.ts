@@ -109,7 +109,11 @@ export const TARGET_OPTIONS = WQL_FIND_TARGETS.map((t) => ({
 }));
 
 /** Storage scopes — the `source:` filter values (`Where stored`). All
- *  sources means no source filter at all. */
+ *  sources means no source filter at all.
+ *
+ *  The `feeds` value here is a CONTAINER scope (the notes a feed publishes),
+ *  not the feed-source vocabulary: it selects the notes, not the sources.
+ *  Renaming it to the source sense belongs to the contract ticket, not here. */
 export const SOURCE_OPTIONS = WQL_SOURCE_VALUES.map((s) => ({
   value: s,
   label: s.charAt(0).toUpperCase() + s.slice(1),

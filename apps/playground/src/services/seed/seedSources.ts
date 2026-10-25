@@ -12,6 +12,7 @@
  * consulted on every sync. Type-only dependency on seedSync keeps the
  * runtime graph acyclic (seedSync imports this module's values).
  */
+import { feedIdOfSourceId, type FeedId } from '@bitcobblers/wod-wiki-core';
 import type { SeedPrecedenceTier } from '@/types/seed';
 
 /** Shape persisted in localStorage — a seed dir URL serving the standard
@@ -217,6 +218,10 @@ export function hiddenSeedSourceIds(): string[] {
  *  (`seed:<id>`) at one published version. */
 export interface SeedSource {
   id: string;
+  /** Feed identity — the same registered source in the feed vocabulary. It
+   *  AGREES with `id`: a feed id and a seed id name one source, so the feed
+   *  id resolves the same checkpoint, subscription, and registry entry. */
+  feedId: FeedId;
   label: string;
   /** Published seed directory (absolute, trailing slash). */
   url: string;
@@ -237,17 +242,36 @@ export interface NotebookDef {
   id: string;
   /** Owning seed — the import/subscription unit. */
   seedId: string;
+  /** The owning feed — the same source in the feed vocabulary. It agrees
+   *  with `seedId`. */
+  feedId: FeedId;
   chunkId: string;
   label: string;
   category: string;
   description: string;
 }
 
+/**
+ * The app's own feed — the bundled core corpus (canvas pages, the page
+ * template, the effort/equipment/dashboards reference chunks). It is a
+ * registered source like any other: an id, a feed id, and an import
+ * checkpoint (`seed:core`).
+ */
+export const CORE_SEED_SOURCE: SeedSource = {
+  id: 'core',
+  feedId: feedIdOfSourceId('core'),
+  label: 'Core',
+  url: CORE_SEED_URL,
+  description: 'The app\'s own corpus — guides, the page template, and the reference chunks.',
+  tier: 'core',
+};
+
 const SEED_REPO_HOST = 'https://bitcobblers.github.io';
 
 function seedSource(id: string, label: string, name: string, description: string, autoImport = false): SeedSource {
   return {
     id,
+    feedId: feedIdOfSourceId(id),
     label,
     url: `${SEED_REPO_HOST}/${name}/`,
     repositoryUrl: `https://github.com/bitcobblers/${name}`,
@@ -286,7 +310,16 @@ export function builtInSeedUrls(): string[] {
 }
 
 export function seedSourceById(id: string): SeedSource | undefined {
-  return SEED_SOURCES.find((s) => s.id === id);
+  return registeredSources().find((s) => s.id === id);
+}
+
+/**
+ * The registered source with this feed id — the feed-side lookup. A feed id
+ * and a seed id name the same registered source, so this finds the entry
+ * `seedSourceById` finds, including the user-registered ones.
+ */
+export function feedSourceById(feedId: FeedId): SeedSource | undefined {
+  return registeredSources().find((s) => s.feedId === feedId);
 }
 
 function seedById(id: string): SeedSource {
@@ -297,7 +330,7 @@ function seedById(id: string): SeedSource {
 
 function notebook(seedId: string, slug: string, chunkId: string, label: string, category: string, description: string): NotebookDef {
   seedById(seedId);
-  return { id: `community-${slug}`, seedId, chunkId, label, category, description };
+  return { id: `community-${slug}`, seedId, feedId: feedIdOfSourceId(seedId), chunkId, label, category, description };
 }
 
 /**
@@ -347,13 +380,19 @@ export const NOTEBOOKS: NotebookDef[] = [
   notebook('r-workoutroutines', 'workoutroutines-reddit', 'feed.workoutroutines-reddit', 'r/WorkoutRoutines', 'feeds', 'Community workouts from the r/WorkoutRoutines subreddit.'),
 ];
 
-/** Every registered seed source: the built-in repos, then user-registered
- *  libraries (a seed directory on any host). */
-export function listSeedSources(): SeedSource[] {
+/**
+ * Every registered source: the app's own core feed, the built-in theme
+ * feeds, then the user-registered libraries (a seed directory on any host).
+ * The registry entry a source id resolves to — the same set for the seed id
+ * and the feed id, which agree.
+ */
+function registeredSources(): SeedSource[] {
   return [
+    CORE_SEED_SOURCE,
     ...SEED_SOURCES,
     ...customSeedSources().map((c): SeedSource => ({
       id: c.id,
+      feedId: feedIdOfSourceId(c.id),
       label: c.label,
       url: c.url,
       description: `Custom seed synced from ${c.url}`,
@@ -361,6 +400,16 @@ export function listSeedSources(): SeedSource[] {
       ...(c.repositoryUrl ? { repositoryUrl: c.repositoryUrl } : {}),
     })),
   ];
+}
+
+/**
+ * Every registered LIBRARY source: the built-in repos, then user-registered
+ * libraries (a seed directory on any host). The app's own core feed is
+ * registered too (see `seedSourceById`) but is not a library entry — it
+ * publishes no library notebook of its own.
+ */
+export function listSeedSources(): SeedSource[] {
+  return registeredSources().filter((source) => source.id !== CORE_SEED_SOURCE.id);
 }
 
 /** Every notebook the registered seeds publish. A custom seed's contents are
@@ -372,6 +421,7 @@ export function listNotebooks(): NotebookDef[] {
     ...customSeedSources().map((src): NotebookDef => ({
       id: src.id,
       seedId: src.id,
+      feedId: feedIdOfSourceId(src.id),
       chunkId: src.id,
       label: src.label,
       category: 'custom',
