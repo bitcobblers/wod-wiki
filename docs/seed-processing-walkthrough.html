@@ -288,7 +288,7 @@
       </div>
     </div>
     <div class="keep-note"><strong>Good constraint.</strong> Static hosting and local-first storage are not sources of duplication. They are the reason the system works offline and why community publishers need no backend.</div>
-    <p class="source" id="wb-p-b9b68b1f94f3498ead7dbf9310be36b7" data-whiteboard-anchor>Primary entry points: <code>packages/tools/src/seedbuild/compiler.ts</code>, <code>scripts/sync-seed.ts</code>, <code>apps/playground/src/services/seed/seedSync.ts</code>, <code>packages/engine/src/seed/runtime.ts</code>.</p>
+    <p class="source" id="wb-p-b9b68b1f94f3498ead7dbf9310be36b7" data-whiteboard-anchor>Primary entry points: <code>packages/tools/src/seedbuild/compiler.ts</code>, <code>scripts/sync-seed.ts</code>, <code>apps/playground/src/services/feed/feedSync.ts</code>, <code>packages/engine/src/seed/runtime.ts</code>.</p>
   </section>
 
   <section id="sec-build">
@@ -333,7 +333,7 @@
     <h3 id="wb-h3-1a694eaf58c1413e9a0f695fa62e6013" data-whiteboard-anchor>What happened to the old Core Registry?</h3>
     <p id="wb-p-78a6c0304ee14b3baba62e88c59fac3f" data-whiteboard-anchor>The registry entry and its default URL are gone. Existing installations migrate <code>seed:seed-core</code> memberships into <code>seed:core</code>. Migration preserves <code>seedVersion</code> so offline content remains usable, clears <code>builtAt</code> to force revalidation, then blanks the old checkpoint. Storybook runs the same migration before its imported probe.</p>
     <p id="wb-p-df1cb46b835142ed872f88da5d1ef664" data-whiteboard-anchor>The separate <code>wod-wiki-seed-core</code> repository still publishes artifacts even though the apps no longer consume them. Its efforts and equipment have drifted from the main corpus. That repository now needs an explicit retirement or derived-mirror decision.</p>
-    <p class="source" id="wb-p-244c8fe2e31a4710b54235bad7fc989e" data-whiteboard-anchor>Build orchestration: <code>scripts/sync-seed.ts</code>. Stamps: both app Vite configs. Migration: <code>adoptLegacyCoreRegistryCheckpoint()</code> in <code>seedSync.ts</code> and Storybook's <code>DatabaseContext.tsx</code>.</p>
+    <p class="source" id="wb-p-244c8fe2e31a4710b54235bad7fc989e" data-whiteboard-anchor>Build orchestration: <code>scripts/sync-seed.ts</code>. Stamps: both app Vite configs. Migration: <code>adoptLegacyCoreRegistryCheckpoint()</code> in <code>feedSync.ts</code> and Storybook's <code>DatabaseContext.tsx</code>.</p>
   </section>
 
   <section id="sec-artifacts">
@@ -364,7 +364,7 @@
       </tbody>
     </table></div>
     <p id="wb-p-2bb4ed2463ee47aa91a636179ac096dc" data-whiteboard-anchor>A local <code>SeedMetaRecord</code> is separate again. It records the applied source version, chunk hashes, full note membership, precedence tier, and an optional cross-tab claim. Confusing these values leads to bad sync decisions.</p>
-    <p class="source" id="wb-p-380848f6d57f4827a5a82388984c4a64" data-whiteboard-anchor>Contracts: <code>packages/engine/src/seed/contract.ts</code> and <code>packages/tools/src/seedbuild/contract.ts</code>. Generation: <code>compiler.ts</code>. Runtime membership: <code>SeedImporter.ts</code>.</p>
+    <p class="source" id="wb-p-380848f6d57f4827a5a82388984c4a64" data-whiteboard-anchor>Contracts: <code>packages/engine/src/seed/contract.ts</code> and <code>packages/tools/src/seedbuild/contract.ts</code>. Generation: <code>compiler.ts</code>. Runtime membership: <code>FeedImporter.ts</code>.</p>
   </section>
 
   <section id="sec-runtime">
@@ -374,7 +374,7 @@
       <li id="wb-li-e1adf32204b84d23b800ec5caf3ad446" data-whiteboard-anchor><strong>Open storage.</strong> <code>BootGate</code> waits for IndexedDB or the API data plane before rendering the app.</li>
       <li id="wb-li-fb8f0bb8f0ee415885af076d5bef4748" data-whiteboard-anchor><strong>Start bootstrap.</strong> <code>GlobalState</code> initializes broadcasts, profile identity, and <code>startSeedBootstrap()</code>. Legacy checkpoints and subscriptions migrate before the core probe.</li>
       <li id="wb-li-8e55193e70b94c84be4daf983535176b" data-whiteboard-anchor><strong>Fetch core.</strong> With no usable checkpoint, the readiness gate enters <code>preparing</code>. A worker claims the source, fetches its manifest, and chooses import.</li>
-      <li id="wb-li-72ff7c739ac4466da6e86c4b45eed98b" data-whiteboard-anchor><strong>Plan and download.</strong> <code>SeedImporter</code> puts canvas first. It compares local record commits with manifest refs and downloads only missing or changed record JSON. Full chunk download remains the fallback when no record refs exist.</li>
+      <li id="wb-li-72ff7c739ac4466da6e86c4b45eed98b" data-whiteboard-anchor><strong>Plan and download.</strong> <code>FeedImporter</code> puts canvas first. It compares local record commits with manifest refs and downloads only missing or changed record JSON. Full chunk download remains the fallback when no record refs exist.</li>
       <li id="wb-li-e32c14b0adff45ed998163965fcf7790" data-whiteboard-anchor><strong>Commit and ungate.</strong> <code>applySeedChunk()</code> writes rows, projections, history, membership, and checkpoint in one transaction. Canvas commit triggers first-paint hydration and the home route becomes available.</li>
       <li id="wb-li-9268fb0148ae4ed789e9129a26100cd5" data-whiteboard-anchor><strong>Finish in the background.</strong> Other chunks and subscribed update checks continue. Broadcasts and registry refreshes keep other tabs and consumers in sync.</li>
     </ol>
@@ -384,7 +384,7 @@
 
     <h3 id="wb-h3-6f3c9a2d1d2d414ab45f8b55b3856753" data-whiteboard-anchor>Manual actions</h3>
     <ul>
-      <li id="wb-li-ee34375755ec4d6eab02f1d6133e26da" data-whiteboard-anchor><strong>Subscribe or import:</strong> <code>syncSeedSource()</code> fetches and imports, then subscribes unless Import Once explicitly declines that state.</li>
+      <li id="wb-li-ee34375755ec4d6eab02f1d6133e26da" data-whiteboard-anchor><strong>Subscribe or import:</strong> <code>syncFeedSource()</code> fetches and imports, then subscribes unless Import Once explicitly declines that state.</li>
       <li id="wb-li-22aff356ffc64dbb846c2df0d61ce41e" data-whiteboard-anchor><strong>Sync now:</strong> Settings uses a forced sync; background update checks remain non-forced.</li>
       <li id="wb-li-6bda497cc2eb4493b0f5cb7f0c108f9f" data-whiteboard-anchor><strong>Unsubscribe:</strong> exact source-owned rows and the checkpoint are deleted in one transaction. User-owned rows and other checkpoints survive.</li>
       <li id="wb-li-7bda467cdd574d2f80c4a781bec0efe4" data-whiteboard-anchor><strong>Delete source:</strong> unsubscribe, then unregister a custom source or hide a built-in one.</li>
@@ -397,7 +397,7 @@
       <div class="card"><h3 id="wb-h3-705ef42bcc0f43c6bb030bfc1bcd4971" data-whiteboard-anchor>Incremental and background</h3><p id="wb-p-5381ce37931246d6b712ff049620223f" data-whiteboard-anchor>The chunk sequence is resumable rather than atomic. A crash leaves committed chunks for the next run. Cache hydration, content broadcasts, check timestamps, and update notifications happen around those commits.</p></div>
     </div>
     <p id="wb-p-cd06b602a26c4fc89db6f6df1cae30ab" data-whiteboard-anchor>With real IndexedDB, the worker does network, parsing, and writes off the main thread. API storage uses the direct main-thread path. If the worker cannot start, the driver retries through the direct path using the same claims and checkpoints.</p>
-    <p class="source" id="wb-p-b5e3ea8896a240638b292d71701b1e42" data-whiteboard-anchor>Runtime chain: <code>seedReadiness.ts</code> → <code>seedSync.ts</code> → <code>seedSyncCore.ts</code> → <code>SeedImporter.ts</code> → <code>packages/engine/src/seed/runtime.ts</code>. Content hydration continues through <code>seedContent.ts</code> and <code>canvasRoutes.ts</code>.</p>
+    <p class="source" id="wb-p-b5e3ea8896a240638b292d71701b1e42" data-whiteboard-anchor>Runtime chain: <code>seedReadiness.ts</code> → <code>feedSync.ts</code> → <code>seedSyncCore.ts</code> → <code>FeedImporter.ts</code> → <code>packages/engine/src/seed/runtime.ts</code>. Content hydration continues through <code>seedContent.ts</code> and <code>canvasRoutes.ts</code>.</p>
   </section>
 
   <section id="sec-screens">
@@ -481,12 +481,12 @@
         </tr>
         <tr>
           <td id="wb-td-fec40bee4f564b9aa8c10a10a1aadae8" data-whiteboard-anchor><span class="tag act">Act</span> Manifest and checkpoint read twice</td>
-          <td id="wb-td-2f2d2686ac3146e3b36e87b330f5ffa0" data-whiteboard-anchor><code>runSourceSyncCore()</code> fetches and validates the manifest, then <code>SeedImporter.applyAll()</code> fetches it and reads the checkpoint again.</td>
+          <td id="wb-td-2f2d2686ac3146e3b36e87b330f5ffa0" data-whiteboard-anchor><code>runSourceSyncCore()</code> fetches and validates the manifest, then <code>FeedImporter.applyAll()</code> fetches it and reads the checkpoint again.</td>
           <td id="wb-td-ca646efb41ff4eb995dd7707fc432809" data-whiteboard-anchor>Pass the validated manifest and stored checkpoint into <code>applyAll()</code>. Keep a fetch fallback for standalone callers.</td>
         </tr>
         <tr>
           <td id="wb-td-3bb454f8e9bb439890c2b42cb8134741" data-whiteboard-anchor><span class="tag act">Act</span> Three boot drivers</td>
-          <td id="wb-td-2cb38af97ac749fc897078247bb091ea" data-whiteboard-anchor><code>runSeedBootstrap()</code>, <code>runBootSeedSync()</code>, and Storybook <code>ensureCoreSeed()</code> each make checkpoint and migration decisions. The split caused Storybook to need its own migration call.</td>
+          <td id="wb-td-2cb38af97ac749fc897078247bb091ea" data-whiteboard-anchor><code>runSeedBootstrap()</code>, <code>runBootFeedSync()</code>, and Storybook <code>ensureCoreSeed()</code> each make checkpoint and migration decisions. The split caused Storybook to need its own migration call.</td>
           <td id="wb-td-372edf3be1f24b8381ea7bfb7fb51584" data-whiteboard-anchor>Compute one pure boot plan describing sources, mode, and first-paint needs. Let playground and Storybook execute that plan through their own state adapters.</td>
         </tr>
         <tr>
@@ -576,9 +576,9 @@
         <tr><td id="wb-td-1e7c8ff6301f4b88a3346b25d980ac20" data-whiteboard-anchor>Publisher CLI</td><td id="wb-td-52725dc99f5b460aac46d85c2c9048ab" data-whiteboard-anchor><code>packages/tools/src/cli/runner.ts</code>, <code>cli/seed.ts</code>, <code>scaffoldCatalog.ts</code>, <code>publish.ts</code></td></tr>
         <tr><td id="wb-td-1372ff80701646fdbdb5504b51c95e86" data-whiteboard-anchor>App-owned builds</td><td id="wb-td-99ecd74f58a943939e6378e0be51404d" data-whiteboard-anchor><code>scripts/sync-seed.ts</code>, both app Vite configs, both app package scripts</td></tr>
         <tr><td id="wb-td-ee3d27c11b6c4a4d967cb61f8c4c82d6" data-whiteboard-anchor>Deep-link HTML</td><td id="wb-td-cc44cf1cf5f54fbaad141e8f2e2d7305" data-whiteboard-anchor><code>scripts/generate-static-shells.ts</code></td></tr>
-        <tr><td id="wb-td-38ffbe79ed194d84808d73de71471981" data-whiteboard-anchor>Runtime source registry</td><td id="wb-td-0b4b53554b454b1f91701f5b896b8e48" data-whiteboard-anchor><code>apps/playground/src/services/seed/seedSources.ts</code> and <code>seedSubscriptions.ts</code></td></tr>
-        <tr><td id="wb-td-1c82cf5acf954e03acb3bce8fdb564e4" data-whiteboard-anchor>Sync and import</td><td id="wb-td-bd423ed9b334421a910a5dca78aa8d81" data-whiteboard-anchor><code>seedSync.ts</code>, <code>seedSyncCore.ts</code>, <code>seedSync.worker.ts</code>, <code>SeedImporter.ts</code></td></tr>
-        <tr><td id="wb-td-c579ca08f3f645aab29d947359af63a7" data-whiteboard-anchor>Commit and removal</td><td id="wb-td-47f524eae06b4d808ad6e17086b71079" data-whiteboard-anchor><code>packages/engine/src/seed/runtime.ts</code>, <code>SeedImportStorage.ts</code></td></tr>
+        <tr><td id="wb-td-38ffbe79ed194d84808d73de71471981" data-whiteboard-anchor>Runtime source registry</td><td id="wb-td-0b4b53554b454b1f91701f5b896b8e48" data-whiteboard-anchor><code>apps/playground/src/services/feed/feedSources.ts</code> and <code>feedSubscriptions.ts</code></td></tr>
+        <tr><td id="wb-td-1c82cf5acf954e03acb3bce8fdb564e4" data-whiteboard-anchor>Sync and import</td><td id="wb-td-bd423ed9b334421a910a5dca78aa8d81" data-whiteboard-anchor><code>feedSync.ts</code>, <code>seedSyncCore.ts</code>, <code>seedSync.worker.ts</code>, <code>FeedImporter.ts</code></td></tr>
+        <tr><td id="wb-td-c579ca08f3f645aab29d947359af63a7" data-whiteboard-anchor>Commit and removal</td><td id="wb-td-47f524eae06b4d808ad6e17086b71079" data-whiteboard-anchor><code>packages/engine/src/seed/runtime.ts</code>, <code>FeedImportStorage.ts</code></td></tr>
         <tr><td id="wb-td-a1abebcc37ab4a1d9961cb0b354dca38" data-whiteboard-anchor>Readiness and content</td><td id="wb-td-906766dcb7344c65894c232b99bd4b11" data-whiteboard-anchor><code>seedReadiness.ts</code>, <code>seedContent.ts</code>, <code>app/canvas/canvasRoutes.ts</code></td></tr>
         <tr><td id="wb-td-4fc585b0941f4e77abc99a46df6baabf" data-whiteboard-anchor>Screens</td><td id="wb-td-2b07b5de0f144bc1ad5a39bc862a7f9a" data-whiteboard-anchor><code>app/pages</code>, <code>app/tour</code>, <code>app/views</code>, <code>app/nav/SyncActivityUi.tsx</code>, <code>apps/storybook/src/database</code></td></tr>
         <tr><td id="wb-td-7a5b7dcc589d4143b5f37c92f0f5c107" data-whiteboard-anchor>Domain contracts</td><td id="wb-td-c5636cf79853467caffcb2c975180edf" data-whiteboard-anchor><code>docs/adrs/0001-feed-seed-data-contract.md</code>, <code>docs/adrs/0002-feed-lifecycle.md</code></td></tr>

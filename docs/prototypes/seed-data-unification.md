@@ -88,11 +88,11 @@ One interface, real adapters — the seam exists because the implementations gen
 
 | Adapter | Used by |
 |---|---|
-| `HttpSeedSource` — fetches manifest + chunks from `/seed/` | production (static host) |
-| `InMemorySeedSource` — fixtures | unit tests, Storybook |
+| `HttpFeedSource` — fetches manifest + chunks from `/seed/` | production (static host) |
+| `InMemoryFeedSource` — fixtures | unit tests, Storybook |
 | `EmbeddedSeedSource` — a small bootstrap chunk baked into the bundle | first paint / offline fallback (see Open questions) |
 
-`SeedImporter.apply(manifest, chunkLoader)` writes through the existing **Storage** layer in per-chunk transactions:
+`FeedImporter.apply(manifest, chunkLoader)` writes through the existing **Storage** layer in per-chunk transactions:
 
 - Materializes a feed's corpus into Storage as **notebooks** of **notes**: **Notes** (deterministic UUID id from path, title, date, notebook slug) holding byte-faithful markdown in `rawContent` plus the occurrence `blocks` map, initial **BlockRevision** v1 rows for actionable blocks, **Pages** (slug/date anchors via `page_notes`), **Tags** & **NoteTags** (typed via `DEFAULT_TAG_TYPES`), Efforts (`registrySource: 'bundled'`), and current-only `block_index`/`block_efforts` projections. (Schema 9; superseded the retired per-segment rows and separate derived chunks.)
 - **Checkpoint record** in a new `meta` key-value store (V19): `{ seedVersion, importedAt, chunks: { [id]: sha256 } }` — per-chunk resume, same pattern as `field_catalog_meta` backfill state.
@@ -159,13 +159,13 @@ After the cutover this seam has two adapters — IDB (production) and `InMemoryS
 1. **Compiler only** — emit `public/seed/`, ship dark. Parity test vs. globs (file count + per-file sha256).
 2. **Importer only** — V19 `meta` store; import runs behind a flag into the live DB; reads still from globs. Validates ownership rules against real user data.
 3. **Flip reads corpus by corpus**, deleting each loader as it flips. Suggested order, smallest blast radius first: efforts → syntax → dashboards → collections/feeds (+ Query Service `block_index`) → canvas → workoutIndex/page-examples.
-4. **Cleanup** — delete glob loaders, `staticBlockIndex` JSON generation (folded into the compiler), `CompositeEffortRegistry` bundling, `effort-markdown` fs fallback. Storybook switches to `InMemorySeedSource` fixtures.
+4. **Cleanup** — delete glob loaders, `staticBlockIndex` JSON generation (folded into the compiler), `CompositeEffortRegistry` bundling, `effort-markdown` fs fallback. Storybook switches to `InMemoryFeedSource` fixtures.
 
 ## Test strategy
 
 - **Parity**: seed output ≡ glob corpus (counts + content hashes) — fails the build on drift.
 - **Importer** (on `InMemoryStorage`): fresh import; re-import idempotency; newer-version re-import touches only changed chunks; user-edited rows survive; vanished seed rows are deleted only when unmodified; crash-resume from checkpoint.
-- **Version check**: fake `SeedSource` with stale / equal / newer / rolled-back manifests; embedded fast path skips fetch.
+- **Version check**: fake `FeedSource` with stale / equal / newer / rolled-back manifests; embedded fast path skips fetch.
 - **E2E**: first visit imports core; returning cached content remains usable while manifests refresh; each demo imports only its chosen chunk; completion counts reflect committed notes.
 
 ## Risks & open questions

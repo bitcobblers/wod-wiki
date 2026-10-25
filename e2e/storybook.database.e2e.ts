@@ -26,7 +26,7 @@ function storyUrl(storyId: string) {
   return `/iframe.html?id=${storyId}&viewMode=story`;
 }
 
-/** The core seed import is a network round trip; give it room on a cold origin. */
+/** The core feed import is a network round trip; give it room on a cold origin. */
 const SEED_TIMEOUT = 60_000;
 
 async function gotoStory(page: Page, storyId: string) {
@@ -42,7 +42,7 @@ test.describe('database-driven Storybook stories', () => {
     await expect(page.getByTestId('database-active-badge')).toBeVisible();
 
     // The core corpus is auto-populated exactly like the playground app.
-    await expect(page.getByTestId('seed-status')).toContainText(/core corpus imported/i, { timeout: SEED_TIMEOUT });
+    await expect(page.getByTestId('feed-status')).toContainText(/core corpus imported/i, { timeout: SEED_TIMEOUT });
   });
 
   test('a second database can be created and selected', async ({ page }) => {

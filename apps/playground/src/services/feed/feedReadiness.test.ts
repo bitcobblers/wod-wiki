@@ -1,100 +1,96 @@
-/** seedReadiness gate: opt-in activation, settle transitions, busy retry. */
+/** feedReadiness gate: opt-in activation, settle transitions, busy retry. */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { act, renderHook } from '@testing-library/react';
 import {
-  getSeedReadiness,
-  getSeedSyncProgress,
-  markSeedSyncProgress,
-  markSeedSyncSettled,
-  markSeedSyncStarted,
-  resetSeedReadinessForTest,
-  useSeedSyncProgress,
-} from './seedReadiness';
-import { SEED_CLAIM_TTL_MS, type SeedSyncProgress } from './seedSync';
+  getFeedReadiness,
+  getFeedSyncProgress,
+  markFeedSyncProgress,
+  markFeedSyncSettled,
+  markFeedSyncStarted,
+  resetFeedReadinessForTest,
+  useFeedSyncProgress,
+} from './feedReadiness';
+import { SEED_CLAIM_TTL_MS, type FeedSyncProgress } from './feedSync';
 
 function snapshot(): string {
-  return getSeedReadiness();
+  return getFeedReadiness();
 }
 
-describe('seedReadiness', () => {
-  beforeEach(() => resetSeedReadinessForTest());
+describe('feedReadiness', () => {
+  beforeEach(() => resetFeedReadinessForTest());
   it('publishes the current boot phase and clears it on a fresh start', () => {
     const progress = {
       sourceId: 'core',
       sourceLabel: 'Core library',
-      feedId: 'core',
-      feedName: 'Core library',
       sourceIndex: 1,
       totalSources: 1,
       phase: 'checking',
-    } satisfies SeedSyncProgress
+    } satisfies FeedSyncProgress
 
-    markSeedSyncProgress(progress)
-    expect(getSeedSyncProgress()).toBe(progress)
+    markFeedSyncProgress(progress)
+    expect(getFeedSyncProgress()).toBe(progress)
 
-    markSeedSyncStarted()
-    expect(getSeedSyncProgress()).toBeNull()
+    markFeedSyncStarted()
+    expect(getFeedSyncProgress()).toBeNull()
   })
 
   it('notifies progress subscribers when a fresh start clears an in-flight phase', () => {
-    const { result } = renderHook(() => useSeedSyncProgress())
+    const { result } = renderHook(() => useFeedSyncProgress())
     const progress = {
       sourceId: 'core',
       sourceLabel: 'Core library',
-      feedId: 'core',
-      feedName: 'Core library',
       sourceIndex: 1,
       totalSources: 1,
       phase: 'checking',
-    } satisfies SeedSyncProgress
+    } satisfies FeedSyncProgress
 
-    act(() => markSeedSyncStarted())
-    act(() => markSeedSyncProgress(progress))
+    act(() => markFeedSyncStarted())
+    act(() => markFeedSyncProgress(progress))
     expect(result.current).toBe(progress)
 
-    act(() => markSeedSyncStarted())
+    act(() => markFeedSyncStarted())
     expect(result.current).toBeNull()
   })
 
-  afterEach(() => resetSeedReadinessForTest());
+  afterEach(() => resetFeedReadinessForTest());
 
   it('starts idle, which reports as ready (ungated)', () => {
     expect(snapshot()).toBe('ready');
   });
 
   it('preparing once a sync starts; ready on a settled import', () => {
-    markSeedSyncStarted();
+    markFeedSyncStarted();
     expect(snapshot()).toBe('preparing');
-    markSeedSyncSettled('imported');
+    markFeedSyncSettled('imported');
     expect(snapshot()).toBe('ready');
   });
 
   it('ready for current/disabled/server-stale outcomes; error stays error', () => {
-    markSeedSyncStarted();
-    markSeedSyncSettled('current');
+    markFeedSyncStarted();
+    markFeedSyncSettled('current');
     expect(snapshot()).toBe('ready');
 
-    resetSeedReadinessForTest();
-    markSeedSyncStarted();
-    markSeedSyncSettled('disabled');
+    resetFeedReadinessForTest();
+    markFeedSyncStarted();
+    markFeedSyncSettled('disabled');
     expect(snapshot()).toBe('ready');
 
-    resetSeedReadinessForTest();
-    markSeedSyncStarted();
-    markSeedSyncSettled('server-stale');
+    resetFeedReadinessForTest();
+    markFeedSyncStarted();
+    markFeedSyncSettled('server-stale');
     expect(snapshot()).toBe('ready');
 
-    resetSeedReadinessForTest();
-    markSeedSyncStarted();
-    markSeedSyncSettled('error');
+    resetFeedReadinessForTest();
+    markFeedSyncStarted();
+    markFeedSyncSettled('error');
     expect(snapshot()).toBe('error');
   });
 
   it('busy stays preparing, then becomes ready on a later settled attempt', () => {
-    markSeedSyncStarted();
-    markSeedSyncSettled('busy');
+    markFeedSyncStarted();
+    markFeedSyncSettled('busy');
     expect(snapshot()).toBe('preparing');
-    markSeedSyncSettled('imported');
+    markFeedSyncSettled('imported');
     expect(snapshot()).toBe('ready');
   });
 
@@ -109,8 +105,8 @@ describe('seedReadiness', () => {
       return originalSetTimeout(handler, 0);
     }) as typeof setTimeout;
     try {
-      markSeedSyncStarted();
-      markSeedSyncSettled('busy');
+      markFeedSyncStarted();
+      markFeedSyncSettled('busy');
       expect(calls).toEqual([SEED_CLAIM_TTL_MS]);
     } finally {
       globalRef.setTimeout = originalSetTimeout;
@@ -118,12 +114,12 @@ describe('seedReadiness', () => {
   });
 
   it('a fresh start clears a pending busy retry', async () => {
-    markSeedSyncStarted();
-    markSeedSyncSettled('busy');
-    markSeedSyncStarted();
+    markFeedSyncStarted();
+    markFeedSyncSettled('busy');
+    markFeedSyncStarted();
     expect(snapshot()).toBe('preparing');
     // No pending timer may flip this later — settle explicitly.
-    markSeedSyncSettled('imported');
+    markFeedSyncSettled('imported');
     expect(snapshot()).toBe('ready');
   });
 });

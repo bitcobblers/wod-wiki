@@ -1,18 +1,18 @@
 /** Cold-boot milestones, measured once per page load and visible to e2e traces. */
 export const BOOT_MARKS = {
-  seedStart: 'seed:start',
+  feedStart: 'feed:start',
   homeFirstPaint: 'home:first-paint',
   corpusReady: 'corpus:ready',
-  seedSettled: 'seed:settled',
+  feedSettled: 'feed:settled',
 } as const
 
 export type BootMilestone = keyof typeof BOOT_MARKS
 
 const BOOT_DATASETS = {
-  seedStart: 'bootSeedStart',
+  feedStart: 'bootFeedStart',
   homeFirstPaint: 'bootHomeFirstPaint',
   corpusReady: 'bootCorpusReady',
-  seedSettled: 'bootSeedSettled',
+  feedSettled: 'bootFeedSettled',
 } as const satisfies Record<BootMilestone, string>
 
 const recorded = new Set<BootMilestone>()

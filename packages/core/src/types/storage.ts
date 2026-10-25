@@ -44,17 +44,19 @@ export interface Note {
   /** Canonical notebook identifier ('notebook/{slug}', e.g. 'notebook/journal', 'notebook/playground', 'notebook/guides'). */
   notebookId?: string;
   tags?: string[];
+  /** Artifact provenance — which published bundle this note came from.
+   *  Persisted field names; the artifact they describe is a **Seed**. */
   seedOrigin?: 'seed' | 'user';
   seedVersion?: number;
   seedChunkId?: string;
-  /** Feed provenance — the feed-side twin of `seedOrigin`. 'feed' for a
-   *  note a feed delivered, 'user' for one the user owns. The two agree:
-   *  a feed-delivered note is seed-delivered, and vice versa. */
+  /** Feed provenance — 'feed' for a note a feed delivered, 'user' for one the
+   *  user owns. The two agree: a feed-delivered note is seed-delivered, and
+   *  vice versa. */
   feedOrigin?: FeedOrigin;
-  /** The registered feed that delivered this note (the feed's source id).
+  /** The registered feed that delivered this note (the feed's own id).
    *  Read from here alone — never from the seed stamps. */
   feedSourceId?: FeedId;
-  /** Authored seed path used for deterministic identity and routing. */
+  /** Authored corpus path used for deterministic identity and routing. */
   sourcePath?: string;
   /** Git commit hash in which this note was published or changed. */
   seedCommit?: string;

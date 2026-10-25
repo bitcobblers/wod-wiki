@@ -95,7 +95,7 @@ Owner: [Resolve effort linkage and indexable effort metadata](https://github.com
 ### Source evidence
 
 - [IEffort and registry contracts](../../packages/lang/src/effort-registry/types.ts); [effort document format](../../apps/playground/src/repositories/effort-markdown.ts).
-- [Bundled note/projection import](../../apps/playground/src/services/seed/SeedImporter.ts); [user effort editing](../../apps/playground/app/hooks/useEffortContent.ts); [creation and run destination](../../apps/playground/app/pages/EffortDetailPage.tsx).
+- [Bundled note/projection import](../../apps/playground/src/services/feed/FeedImporter.ts); [user effort editing](../../apps/playground/app/hooks/useEffortContent.ts); [creation and run destination](../../apps/playground/app/pages/EffortDetailPage.tsx).
 - [WQL registry adapter](../../apps/playground/src/services/queryService.ts).
 
 ## Map

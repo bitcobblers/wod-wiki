@@ -6,7 +6,7 @@ import { parseFrontmatter } from '@bitcobblers/wod-wiki-wql';
 import { storageService } from '@/services/storage';
 import { getAppEffortRegistry } from '@/services/effortRegistry';
 import { getAppEquipmentRegistry } from '@/services/equipmentRegistry';
-import { SEED_BROADCAST_CHANNEL } from '@/services/seed/seedSync';
+import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
 import { v7 as uuidv7 } from 'uuid';
 import { appWarn } from '@/lib/log';
 import { IndexedDBNotePersistence, type INotePersistence } from '@/services/persistence';

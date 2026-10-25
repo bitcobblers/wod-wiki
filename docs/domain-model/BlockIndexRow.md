@@ -84,7 +84,7 @@ The separate results-to-sessions rename remains in [[Session]]; it does not chan
 ### Source evidence
 
 - [Projection rebuild and delete/re-key](../../apps/playground/src/services/db/IndexedDBService.ts); [corpus index compiler](../../../../wod-wiki-seed/src/compiler.ts).
-- [Seed note identity](../../apps/playground/src/services/seed/SeedImporter.ts); [static note projection](../../apps/playground/src/services/content/staticBlockIndex.ts); [query store wiring](../../apps/playground/src/services/queryService.ts).
+- [Seed note identity](../../apps/playground/src/services/feed/FeedImporter.ts); [static note projection](../../apps/playground/src/services/content/staticBlockIndex.ts); [query store wiring](../../apps/playground/src/services/queryService.ts).
 
 ## Map
 

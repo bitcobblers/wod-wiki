@@ -1,12 +1,12 @@
-import type { SeedSyncProgress } from './seedSync'
+import type { FeedSyncProgress } from './feedSync'
 
-interface SeedProgressLabelEvent {
-  phase: SeedSyncProgress['phase']
+interface FeedProgressLabelEvent {
+  phase: FeedSyncProgress['phase']
   chunkId?: string | null
 }
 
 /** Human-readable label shared by the boot gate and manual seed sync UI. */
-export function seedProgressLabel(event: SeedProgressLabelEvent): string {
+export function feedProgressLabel(event: FeedProgressLabelEvent): string {
   switch (event.phase) {
     case 'checking': return 'Checking the seed…'
     case 'fetching': return `Downloading ${event.chunkId ?? 'notebook'}…`
@@ -22,7 +22,7 @@ export function seedProgressLabel(event: SeedProgressLabelEvent): string {
 }
 
 /** Record/notebook counts for the active import phase, when it has any. */
-export function seedProgressDetail(progress: SeedSyncProgress | null): string | null {
+export function feedProgressDetail(progress: FeedSyncProgress | null): string | null {
   if (!progress || progress.phase === 'checking' || progress.phase === 'finished') return null
   const parts: string[] = []
   if (typeof progress.completedRecords === 'number' && typeof progress.totalRecords === 'number') {

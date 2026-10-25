@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { WOD_DB, noteFixture } from '../helpers/wodwikiDb';
 import { parseDocumentSections } from '../../packages/core/src/sections';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 const ROUTES = {
   journal: {
@@ -176,7 +176,7 @@ test.describe('Workout results widget persistence in live app routes', () => {
     // The canvas home page redirects/renders asynchronously — wait for the
     // app shell so seeding evaluates don't die mid-navigation.
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     await seedWorkoutDbNotesAndResults(page, [ROUTES.journal, ROUTES.playground]);
 

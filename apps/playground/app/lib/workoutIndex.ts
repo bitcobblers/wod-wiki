@@ -39,7 +39,7 @@ function deriveSearchHidden(raw: string): boolean {
   return String(getScalar(parseFrontmatter(raw).meta, 'search') ?? '').toLowerCase() === 'hidden'
 }
 
-/** `YYYY-MM-DD` frontmatter → epoch ms at noon UTC (matches SeedImporter's Note.date).
+/** `YYYY-MM-DD` frontmatter → epoch ms at noon UTC (matches FeedImporter's Note.date).
  *  Impossible calendar days (e.g. 2026-02-30) yield undefined, never NaN. */
 export function deriveDate(raw: string): number | undefined {
   const value = getScalar(parseFrontmatter(raw).meta, 'date')

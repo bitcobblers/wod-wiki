@@ -16,7 +16,7 @@
 
 import { test, expect } from '@playwright/test';
 import { deleteNoteByRouteId, getNoteContentByRouteId, seedJournalNote, seedCompletedSessions, clearResults, getResults } from '../helpers/wodwikiDb';
-import { waitForSeedReady, syncSeed } from '../helpers/seedReadiness';
+import { waitForFeedReady, syncFeed } from '../helpers/feedReadiness';
 
 // ── The collection workout used for dogfooding ─────────────────────────────
 // Any collection with a playable WOD block will do. Crossfit Girls / Fran is
@@ -47,11 +47,11 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
     // A navigation failure fails the test — a silent skip here would hide a
     // broken environment as green.
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     // /c/… and /workout/… read the seed corpus (autoImport:false); sync the
     // CrossFit seed through the real Settings surface once per context
     // instead of depending on leftover browser state.
-    await syncSeed(page, 'seed-crossfit');
+    await syncFeed(page, 'seed-crossfit');
   });
 
   test.afterEach(async ({ page }, testInfo) => {

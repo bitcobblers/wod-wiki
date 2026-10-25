@@ -1,6 +1,6 @@
-/** HttpSeedSource — URL building, no-cache manifest, shape validation, error paths. */
+/** HttpFeedSource — URL building, no-cache manifest, shape validation, error paths. */
 import { describe, expect, it } from 'bun:test';
-import { HttpSeedSource } from './HttpSeedSource';
+import { HttpFeedSource } from './HttpFeedSource';
 import { SEED_SCHEMA } from '@/types/seed';
 
 function fetchJson(body: unknown, status = 200) {
@@ -19,10 +19,10 @@ const manifest = {
   chunks: [{ id: 'canvas', path: 'chunks/canvas.ab12cd34.json', sha256: 'a'.repeat(64), bytes: 10, count: 1 }],
 };
 
-describe('HttpSeedSource', () => {
+describe('HttpFeedSource', () => {
   it('fetches the manifest with cache: no-cache and validates its shape', async () => {
     const { impl, calls } = fetchJson(manifest);
-    const source = new HttpSeedSource('/seed/', impl);
+    const source = new HttpFeedSource('/seed/', impl);
     const result = await source.fetchManifest();
     expect(result.version).toBe(1000);
     expect(calls[0]!.url).toBe('/seed/manifest.json');
@@ -32,25 +32,25 @@ describe('HttpSeedSource', () => {
   it('joins chunk paths onto the base URL and returns validated rows', async () => {
     const rows = [{ path: 'markdown/canvas/a.md', content: '# A' }];
     const { impl, calls } = fetchJson(rows);
-    const source = new HttpSeedSource('/seed/', impl);
+    const source = new HttpFeedSource('/seed/', impl);
     const result = await source.fetchChunk('chunks/canvas.ab12cd34.json');
     expect(result).toEqual(rows);
     expect(calls[0]!.url).toBe('/seed/chunks/canvas.ab12cd34.json');
   });
 
-  it('throws SeedSourceError with status on HTTP failures', async () => {
+  it('throws FeedSourceError with status on HTTP failures', async () => {
     const { impl } = fetchJson({}, 404);
-    const source = new HttpSeedSource('/seed/', impl);
-    await expect(source.fetchManifest()).rejects.toMatchObject({ name: 'SeedSourceError', status: 404 });
+    const source = new HttpFeedSource('/seed/', impl);
+    await expect(source.fetchManifest()).rejects.toMatchObject({ name: 'FeedSourceError', status: 404 });
   });
 
   it('validates manifests loudly; chunk payloads are kind-agnostic', async () => {
-    const badManifest = new HttpSeedSource('/seed/', fetchJson({ hello: 1 }).impl);
+    const badManifest = new HttpFeedSource('/seed/', fetchJson({ hello: 1 }).impl);
     await expect(badManifest.fetchManifest()).rejects.toThrow(/Incompatible seed schema/);
 
     // Row-shape validation happens in the importer, which knows the chunk
     // kind from the manifest; the transport returns the parsed JSON as-is.
-    const oddButLegitimate = new HttpSeedSource('/seed/', fetchJson([{ path: 1 }]).impl);
+    const oddButLegitimate = new HttpFeedSource('/seed/', fetchJson([{ path: 1 }]).impl);
     await expect(oddButLegitimate.fetchChunk('chunks/x.json')).resolves.toEqual([{ path: 1 }]);
   });
 });

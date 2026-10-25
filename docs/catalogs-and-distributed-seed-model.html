@@ -402,7 +402,7 @@
       </tr>
       <tr>
         <td id="td-atomic-swaps" data-whiteboard-anchor><strong>Atomic IndexedDB Transactions</strong></td>
-        <td id="wb-td-c0b778d14e23450f8524546f92969ec8" data-whiteboard-anchor><code>IndexedDBSeedImportStorage.applyChunk</code> executes the note and block index mutations in one transaction per chunk.</td>
+        <td id="wb-td-c0b778d14e23450f8524546f92969ec8" data-whiteboard-anchor><code>IndexedDBFeedImportStorage.applyChunk</code> executes the note and block index mutations in one transaction per chunk.</td>
         <td id="wb-td-d020f175c8a44267bd2f0138bfcda51f" data-whiteboard-anchor>No partial corruption: if network drops mid-sync, the database retains the previous valid checkpoint.</td>
       </tr>
       <tr>
@@ -620,7 +620,7 @@ jobs:
   <h3 id="heading-current-mechanics" data-whiteboard-anchor>Current Sync, Import, and Deletion Mechanics</h3>
   <div class="grid-2">
     <div class="card">
-      <h4 id="heading-sync-import-engine" data-whiteboard-anchor>1. Sync &amp; Import Lifecycle (<code>seedSync.ts</code>)</h4>
+      <h4 id="heading-sync-import-engine" data-whiteboard-anchor>1. Sync &amp; Import Lifecycle (<code>feedSync.ts</code>)</h4>
       <ul>
         <li id="wb-li-b03f985dbccc49e7b3bd99ee7900b629" data-whiteboard-anchor><strong>Manifest Check:</strong> Fetches <code>manifest.json</code> from the origin URL. Verifies <code>schema === SEED_SCHEMA</code>.</li>
         <li id="wb-li-32d7630b1dfd42b092eaf0e545cb4e10" data-whiteboard-anchor><strong>Version Gate:</strong> Checks subscribed sources against the published manifest. Manual Sync imports updates; background checks import only when Auto-sync is enabled, otherwise leaving the update pending.</li>
@@ -630,7 +630,7 @@ jobs:
     </div>
 
     <div class="card">
-      <h4 id="heading-deletion-lifecycle" data-whiteboard-anchor>2. Source removal lifecycle (<code>unsubscribeSeedSource</code>)</h4>
+      <h4 id="heading-deletion-lifecycle" data-whiteboard-anchor>2. Source removal lifecycle (<code>unsubscribeFeedSource</code>)</h4>
       <ul>
         <li id="wb-li-7e0a6290e8e646dfac8d95b2d2a540c4" data-whiteboard-anchor><strong>Target Filter:</strong> Uses exact note IDs from the source checkpoint and requires <code>seedOrigin === 'seed'</code>. Legacy checkpoints use exact chunk stamps, never catalog-substring matching.</li>
         <li id="wb-li-d94f5f536b82424a83b6e2e3be3e5bc8" data-whiteboard-anchor><strong>Atomic removal:</strong> Removes owned notes, attachment and tag links, block indexes, block-effort links, page-note links, and the checkpoint in one storage transaction. A failed removal leaves the subscription unchanged.</li>
@@ -640,7 +640,7 @@ jobs:
     </div>
   </div>
 
-  <p class="note" id="note-current-limitations" data-whiteboard-anchor><strong>Catalog removal:</strong> The <code>/catalogs</code> manager and <code>/settings/sync</code> share <code>unsubscribeSeedSource()</code> and <code>deleteSeedSource()</code>. Both remove only seed-owned notes recorded in that source's checkpoint. Unsubscribe retains the source row; Delete also removes its registration. Athlete-authored notes survive both actions.</p>
+  <p class="note" id="note-current-limitations" data-whiteboard-anchor><strong>Catalog removal:</strong> The <code>/catalogs</code> manager and <code>/settings/sync</code> share <code>unsubscribeFeedSource()</code> and <code>deleteFeedSource()</code>. Both remove only seed-owned notes recorded in that source's checkpoint. Unsubscribe retains the source row; Delete also removes its registration. Athlete-authored notes survive both actions.</p>
 </section>
 
 <section id="section-in-situ-settings">
@@ -801,7 +801,7 @@ jobs:
       </tr>
       <tr>
         <td id="wb-td-0f7e9c6641ed4571b49bcd03ceb6e23b" data-whiteboard-anchor><strong>Auto-sync and lifecycle actions</strong></td>
-        <td id="wb-td-d30f0df236ba4a398ff6c416f9d44f2a" data-whiteboard-anchor>Auto-sync is a per-source switch persisted separately from subscription: on, load-time <code>syncSeedSource(pkg.id, { onProgress })</code> applies updates in the background; off, the source is check-only until the athlete presses Sync; unsubscribed rows never auto-import and expose Subscribe instead. Unsubscribe purges imported content and checkpoints but keeps the source row for re-subscribing; Delete runs <code>removePackageFromLibrary(pkg.id)</code> and removes the source entry. Neither touches user-authored notes.</td>
+        <td id="wb-td-d30f0df236ba4a398ff6c416f9d44f2a" data-whiteboard-anchor>Auto-sync is a per-source switch persisted separately from subscription: on, load-time <code>syncFeedSource(pkg.id, { onProgress })</code> applies updates in the background; off, the source is check-only until the athlete presses Sync; unsubscribed rows never auto-import and expose Subscribe instead. Unsubscribe purges imported content and checkpoints but keeps the source row for re-subscribing; Delete runs <code>removePackageFromLibrary(pkg.id)</code> and removes the source entry. Neither touches user-authored notes.</td>
       </tr>
     </tbody>
   </table>
@@ -1029,7 +1029,7 @@ jobs:
         <td id="wb-td-8ae8ef47af4c4361aa8f9a24f0b3443f" data-whiteboard-anchor>
           <code>apps/playground/app/App.tsx</code><br/>
           <code>apps/playground/app/views/stream/QueriableStreamView.tsx</code><br/>
-          <code>apps/playground/src/services/seed/seedSources.ts</code>
+          <code>apps/playground/src/services/feed/feedSources.ts</code>
         </td>
       </tr>
       <tr>
@@ -1041,7 +1041,7 @@ jobs:
         <td id="wb-td-1bd6f38ab5ab45e28ad2afd92a066a50" data-whiteboard-anchor>
           <code>apps/playground/app/views/stream/QueriableStreamView.tsx</code><br/>
           <code>apps/playground/app/pages/CatalogsManagerDrawer.tsx</code><br/>
-          <code>apps/playground/src/services/seed/seedSync.ts</code>
+          <code>apps/playground/src/services/feed/feedSync.ts</code>
         </td>
       </tr>
       <tr>
@@ -1052,7 +1052,7 @@ jobs:
         </td>
         <td id="wb-td-aa1b2aaad27941ea850b4ffd07d1fa96" data-whiteboard-anchor>
           <code>apps/playground/app/pages/SyncSection.tsx</code><br/>
-          <code>apps/playground/src/services/seed/seedSync.ts</code>
+          <code>apps/playground/src/services/feed/feedSync.ts</code>
         </td>
       </tr>
       <tr>
@@ -1072,7 +1072,7 @@ jobs:
           <strong>Background checks and per-catalog auto-sync:</strong><br/>
           At app/page load, check every consumed subscribed catalog without blocking rendering. Apply updates only where the persisted Auto-sync toggle is enabled; leave other updates for manual Sync. Aggregate all detected updates into one notification that opens catalog management on <code>/catalogs</code>, distinguishing applied updates from pending ones. An unsubscribed source never auto-imports; failures preserve local content.
         </td>
-        <td id="wb-td-351a2605fc664c998a789f6e98d3d35e" data-whiteboard-anchor><code>apps/playground/app/App.tsx</code><br/><code>apps/playground/src/services/seed/seedSync.ts</code><br/><code>apps/playground/src/services/seed/seedSources.ts</code></td>
+        <td id="wb-td-351a2605fc664c998a789f6e98d3d35e" data-whiteboard-anchor><code>apps/playground/app/App.tsx</code><br/><code>apps/playground/src/services/feed/feedSync.ts</code><br/><code>apps/playground/src/services/feed/feedSources.ts</code></td>
       </tr>
     </tbody>
   </table>

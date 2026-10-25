@@ -1,26 +1,26 @@
 /**
- * The seed registry: which seeds exist, what each publishes, and the
- * user-registered custom sources (persisted in localStorage and merged into
- * defaultSeedSources() so every sync path — boot, manual, status — sees
+ * The feed registry: which feeds exist, what each publishes, and the
+ * user-registered custom feeds (persisted in localStorage and merged into
+ * defaultFeedSources() so every sync path — boot, manual, status — sees
  * them).
  *
- * A SEED is the import/subscription unit: one published seed directory, one
+ * A FEED is the import/subscription unit: one published directory, one
  * manifest, one checkpoint, one Subscribe. A NOTEBOOK is a single chunk
- * inside a seed — the library surfaces list them, they are never synced on
- * their own. Custom sources never auto-import at boot (autoImport absent)
+ * inside a feed — the library surfaces list them, they are never synced on
+ * their own. Custom feeds never auto-import at boot (autoImport absent)
  * and carry embeddedVersion 0 — never fast-pathable, the manifest is
- * consulted on every sync. Type-only dependency on seedSync keeps the
- * runtime graph acyclic (seedSync imports this module's values).
+ * consulted on every sync. Type-only dependency on feedSync keeps the
+ * runtime graph acyclic (feedSync imports this module's values).
  */
-import { feedIdOfSourceId, type FeedId } from '@bitcobblers/wod-wiki-core';
+import type { FeedId } from '@bitcobblers/wod-wiki-core';
 import type { SeedPrecedenceTier } from '@/types/seed';
 
-/** Shape persisted in localStorage — a seed dir URL serving the standard
- *  manifest/chunks layout (see HttpSeedSource). */
-export interface CustomSeedSource {
+/** Shape persisted in localStorage — a feed directory URL serving the
+ *  standard manifest/chunks layout (see HttpFeedSource). */
+export interface CustomFeedSource {
   id: string;
   label: string;
-  /** Absolute http(s) URL of the seed dir, trailing slash included. */
+  /** Absolute http(s) URL of the feed directory, trailing slash included. */
   url: string;
   /** Optional published Git repository link (manifest `repositoryUrl`). */
   repositoryUrl?: string;
@@ -30,13 +30,13 @@ const STORAGE_KEY = 'wodwiki.seedSources';
 const HIDDEN_KEY = 'wodwiki.seedSources.hidden';
 
 /**
- * Strict seed-dir URL: absolute http(s), no query/hash, no embedded
+ * Strict feed-directory URL: absolute http(s), no query/hash, no embedded
  * credentials, trailing slash. Returns null when the input is not a usable
- * seed directory URL — every registry membership check and registration
- * flows through this, so `host/seed` and `HTTPS://Host/seed/` are the same
- * source and `https://user@host/` never registers.
+ * feed directory URL — every registry membership check and registration
+ * flows through this, so `host/feed` and `HTTPS://Host/feed/` are the same
+ * feed and `https://user@host/` never registers.
  */
-export function normalizeSeedSourceUrl(url: string): string | null {
+export function normalizeFeedUrl(url: string): string | null {
   const raw = url.trim();
   if (!raw) return null;
   let parsed: URL;
@@ -57,7 +57,7 @@ export function normalizeSeedSourceUrl(url: string): string | null {
 
 /** Published external link: absolute HTTPS, no credentials/query/hash —
  *  rendered as a user-facing href, so it is held to a stricter boundary
- *  than the seed-dir URL itself. */
+ *  than the feed-directory URL itself. */
 export function safeRepositoryUrl(url: string): string | null {
   const raw = url.trim();
   if (!raw) return null;
@@ -71,17 +71,17 @@ export function safeRepositoryUrl(url: string): string | null {
   return parsed.toString();
 }
 
-/** Same-origin seed dir of the bundled core source (HttpSeedSource concatenates file names). */
-export const CORE_SEED_URL = `${import.meta.env.BASE_URL}seed/core/`;
+/** Same-origin directory of the bundled core feed (HttpFeedSource concatenates file names). */
+export const CORE_FEED_URL = `${import.meta.env.BASE_URL}seed/core/`;
 
 /**
- * Same-origin seed dir URL resolved against the document base. The seed sync
- * worker resolves relative URLs against the worker script URL (/assets/), not
+ * Same-origin feed directory URL resolved against the document base. The
+ * feed sync worker resolves relative URLs against the worker script URL (/assets/), not
  * the page — a relative BASE_URL ('./' in static Storybook builds) would 404
  * there. Resolving against the document keeps both on the same directory.
  * Non-DOM environments (tests, SSR) keep the raw URL.
  */
-export function toAbsoluteSeedUrl(url: string, base?: string): string {
+export function toAbsoluteFeedUrl(url: string, base?: string): string {
   if (/^https?:\/\//i.test(url)) return url;
   const resolvedBase = base ?? (typeof document !== 'undefined' ? document.baseURI : undefined);
   if (!resolvedBase) return url;
@@ -92,22 +92,22 @@ export function toAbsoluteSeedUrl(url: string, base?: string): string {
   }
 }
 
-function readAll(): CustomSeedSource[] {
+function readAll(): CustomFeedSource[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap((s): CustomSeedSource[] => {
+    return parsed.flatMap((s): CustomFeedSource[] => {
       if (!s || typeof s !== 'object' ||
-        typeof (s as CustomSeedSource).id !== 'string' ||
-        typeof (s as CustomSeedSource).label !== 'string' ||
-        typeof (s as CustomSeedSource).url !== 'string') return [];
-      const { repositoryUrl } = s as CustomSeedSource;
+        typeof (s as CustomFeedSource).id !== 'string' ||
+        typeof (s as CustomFeedSource).label !== 'string' ||
+        typeof (s as CustomFeedSource).url !== 'string') return [];
+      const { repositoryUrl } = s as CustomFeedSource;
       // Persisted metadata is untrusted input: an invalid external link
       // (e.g. `javascript:`) is dropped, never handed to the UI as href.
       const safeLink = typeof repositoryUrl === 'string' ? safeRepositoryUrl(repositoryUrl) : null;
-      const clean: CustomSeedSource = { id: (s as CustomSeedSource).id, label: (s as CustomSeedSource).label, url: (s as CustomSeedSource).url };
+      const clean: CustomFeedSource = { id: (s as CustomFeedSource).id, label: (s as CustomFeedSource).label, url: (s as CustomFeedSource).url };
       return [safeLink ? { ...clean, repositoryUrl: safeLink } : clean];
     });
   } catch {
@@ -116,7 +116,7 @@ function readAll(): CustomSeedSource[] {
 }
 
 /** Registered custom sources, storage order. */
-export function customSeedSources(): CustomSeedSource[] {
+export function customFeedSources(): CustomFeedSource[] {
   return readAll();
 }
 
@@ -127,26 +127,26 @@ function slugify(text: string): string {
 }
 
 /**
- * Register a community library. The URL must be an absolute http(s) seed
- * directory; it is strictly normalized (see normalizeSeedSourceUrl) and
+ * Register a community library. The URL must be an absolute http(s) feed
+ * directory; it is strictly normalized (see normalizeFeedUrl) and
  * duplicates are rejected on the normalized form. `metadata.repositoryUrl`
  * (the manifest's published Git link) must itself be an absolute http(s)
- * URL. The seed id namespaces the storage checkpoint — renaming later
+ * URL. The feed id namespaces the storage checkpoint — renaming later
  * would orphan the imported content, so the id is fixed at registration.
  */
-export function addCustomSeedSource(label: string, url: string, metadata?: { repositoryUrl?: string }): CustomSeedSource {
-  const normalized = normalizeSeedSourceUrl(url);
+export function addCustomFeedSource(label: string, url: string, metadata?: { repositoryUrl?: string }): CustomFeedSource {
+  const normalized = normalizeFeedUrl(url);
   if (!normalized) {
-    throw new Error('Enter an absolute http(s) URL of a seed directory.');
+    throw new Error('Enter an absolute http(s) URL of a feed directory.');
   }
   const list = readAll();
-  if (list.some((s) => normalizeSeedSourceUrl(s.url) === normalized)) {
+  if (list.some((s) => normalizeFeedUrl(s.url) === normalized)) {
     throw new Error('This source is already registered.');
   }
-  // A seed dir a built-in source already serves (the bundled core, or one of
-  // the split seed repos) is that source — a custom entry beside it would
+  // A directory a built-in feed already serves (the bundled core, or one of
+  // the split corpus repos) is that feed — a custom entry beside it would
   // duplicate its identity and checkpoint.
-  if (builtInSeedUrls().includes(normalized)) {
+  if (builtInFeedUrls().includes(normalized)) {
     throw new Error('This source is already registered.');
   }
   const rawRepositoryUrl = metadata?.repositoryUrl?.trim();
@@ -161,25 +161,25 @@ export function addCustomSeedSource(label: string, url: string, metadata?: { rep
   // Static string-keyed uniqueness table — the source ids already issued,
   // plus the built-in feed ids below (a custom slug collision would hijack
   // a feed's checkpoint namespace, so reserved ids get a suffix instead).
-  const taken: Record<string, true> = { ...RESERVED_SEED_SOURCE_IDS };
+  const taken: Record<string, true> = { ...RESERVED_FEED_SOURCE_IDS };
   for (const s of list) taken[s.id] = true;
   let id = slugify(cleanLabel);
   for (let n = 2; taken[id]; n++) id = `${slugify(cleanLabel)}-${n}`;
-  const entry: CustomSeedSource = { id, label: cleanLabel, url: normalized, ...(repositoryUrl ? { repositoryUrl } : {}) };
+  const entry: CustomFeedSource = { id, label: cleanLabel, url: normalized, ...(repositoryUrl ? { repositoryUrl } : {}) };
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...list, entry]));
   return entry;
 }
 
 /** Unregister a source. The storage checkpoint and imported notes stay —
  *  removing a source only removes it from sync runs and the status list. */
-export function removeCustomSeedSource(id: string): void {
+export function removeCustomFeedSource(id: string): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(readAll().filter(s => s.id !== id)));
 }
 
-/** Built-in seed ids a Delete can hide from the sync/catalog surfaces (core is
- *  protected and never hideable; custom sources leave via the registry). */
-export function builtInSeedSourceIds(): string[] {
-  return SEED_SOURCES.map((s) => s.id);
+/** Built-in feed ids a Delete can hide from the sync/catalog surfaces (core is
+ *  protected and never hideable; custom feeds leave via the registry). */
+export function builtInFeedSourceIds(): string[] {
+  return FEED_SOURCES.map((s) => s.id);
 }
 
 function readHidden(): string[] {
@@ -193,37 +193,36 @@ function readHidden(): string[] {
 
 /** Hide a built-in source row (Delete of a built-in catalog whose config
  *  lives in code, not localStorage). Idempotent; custom ids are ignored. */
-export function hideSeedSourceRow(id: string): void {
-  // A pre-seed-unit notebook id hides the seed that publishes it.
-  const seedId = seedIdForLegacyId(id);
+export function hideFeedSourceRow(id: string): void {
+  // A pre-feed-unit notebook id hides the feed that publishes it.
+  const feedId = feedIdForLegacyId(id);
   const hidden = readHidden();
-  if (builtInSeedSourceIds().includes(seedId) && !hidden.includes(seedId)) {
-    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden, seedId]));
+  if (builtInFeedSourceIds().includes(feedId) && !hidden.includes(feedId)) {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden, feedId]));
   }
 }
 
 /**
- * Built-in ids hidden by an explicit Delete, folded onto the seed unit: a
- * build that synced one notebook at a time (pre-seed-unit) hid a notebook id,
- * which now hides the seed that publishes it — notebooks are no longer
+ * Built-in ids hidden by an explicit Delete, folded onto the feed unit: a
+ * build that synced one notebook at a time (pre-feed-unit) hid a notebook id,
+ * which now hides the feed that publishes it — notebooks are no longer
  * independent sync units, so there is nothing narrower to hide.
  */
-export function hiddenSeedSourceIds(): string[] {
-  return [...new Set(readHidden().map(seedIdForLegacyId))];
+export function hiddenFeedSourceIds(): string[] {
+  return [...new Set(readHidden().map(feedIdForLegacyId))];
 }
 
-/** A seed source: one published seed directory — a `wod build` output hosted
+/** A registered feed: one published directory — a `wod build` output hosted
  *  on a repo's GitHub Pages. This is the SYNC and SUBSCRIPTION unit:
- *  subscribing imports every notebook the seed publishes, in one checkpoint
+ *  subscribing imports every notebook the feed publishes, in one checkpoint
  *  (`seed:<id>`) at one published version. */
-export interface SeedSource {
-  id: string;
-  /** Feed identity — the same registered source in the feed vocabulary. It
-   *  AGREES with `id`: a feed id and a seed id name one source, so the feed
-   *  id resolves the same checkpoint, subscription, and registry entry. */
-  feedId: FeedId;
+export interface FeedSource {
+  /** The feed's id — the registry's single identity for this source. It
+   *  namespaces the import checkpoint (`seed:<id>`), the subscription, and
+   *  the built-in list. */
+  id: FeedId;
   label: string;
-  /** Published seed directory (absolute, trailing slash). */
+  /** Published feed directory (absolute, trailing slash). */
   url: string;
   /** Published Git repository link. */
   repositoryUrl?: string;
@@ -234,16 +233,13 @@ export interface SeedSource {
   tier: SeedPrecedenceTier;
 }
 
-/** One notebook a seed publishes — exactly one manifest chunk
+/** One notebook a feed publishes — exactly one manifest chunk
  *  (`collection.<slug>`, `feed.<slug>`, `efforts`, …). Notebook ids are
  *  permanent: they key note links, the library surfaces, and the legacy
- *  pre-seed-unit checkpoints (`seed:community-<slug>`). */
+ *  pre-feed-unit checkpoints (`seed:community-<slug>`). */
 export interface NotebookDef {
   id: string;
-  /** Owning seed — the import/subscription unit. */
-  seedId: string;
-  /** The owning feed — the same source in the feed vocabulary. It agrees
-   *  with `seedId`. */
+  /** The owning feed — the import/subscription unit. */
   feedId: FeedId;
   chunkId: string;
   label: string;
@@ -254,26 +250,24 @@ export interface NotebookDef {
 /**
  * The app's own feed — the bundled core corpus (canvas pages, the page
  * template, the effort/equipment/dashboards reference chunks). It is a
- * registered source like any other: an id, a feed id, and an import
- * checkpoint (`seed:core`).
+ * registered feed like any other: an id and an import checkpoint
+ * (`seed:core`).
  */
-export const CORE_SEED_SOURCE: SeedSource = {
+export const CORE_FEED_SOURCE: FeedSource = {
   id: 'core',
-  feedId: feedIdOfSourceId('core'),
   label: 'Core',
-  url: CORE_SEED_URL,
+  url: CORE_FEED_URL,
   description: 'The app\'s own corpus — guides, the page template, and the reference chunks.',
   tier: 'core',
 };
 
-const SEED_REPO_HOST = 'https://bitcobblers.github.io';
+const CORPUS_REPO_HOST = 'https://bitcobblers.github.io';
 
-function seedSource(id: string, label: string, name: string, description: string, autoImport = false): SeedSource {
+function feedSource(id: string, label: string, name: string, description: string, autoImport = false): FeedSource {
   return {
     id,
-    feedId: feedIdOfSourceId(id),
     label,
-    url: `${SEED_REPO_HOST}/${name}/`,
+    url: `${CORPUS_REPO_HOST}/${name}/`,
     repositoryUrl: `https://github.com/bitcobblers/${name}`,
     description,
     tier: 'community',
@@ -282,62 +276,57 @@ function seedSource(id: string, label: string, name: string, description: string
 }
 
 /**
- * The built-in seeds: one repo per theme, each publishing its own seed dir to
- * GitHub Pages and syncing as an independent source (own manifest, version,
- * checkpoint, subscription). Repos live under the bitcobblers org
+ * The built-in feeds: one repo per theme, each publishing its own directory
+ * to GitHub Pages and syncing as an independent source (own manifest,
+ * version, checkpoint, subscription). Repos live under the bitcobblers org
  * (transferred from the interim SergeiGolos account; Pages moved with them).
  */
-export const SEED_SOURCES: SeedSource[] = [
-  seedSource('seed-crossfit', 'CrossFit', 'wod-wiki-seed-crossfit', 'CrossFit benchmark collections (Games, Girls, Heroes) and weekly programming.'),
-  seedSource('seed-hyrox', 'HYROX', 'wod-wiki-seed-hyrox', 'HYROX race preparation and simulation workouts.'),
-  seedSource('seed-kettlebell', 'Kettlebell Coaches', 'wod-wiki-seed-kettlebell', 'Kettlebell coach collections and the Dan John 40-Day Program feed.'),
-  seedSource('seed-swimming', 'Swimming', 'wod-wiki-seed-swimming', 'Swimming programs from pre-highschool through college, masters, Olympic, and triathlete.'),
-  seedSource('seed-track', 'Track & Field', 'wod-wiki-seed-track', 'High-school track programs — 400m (Raffensperger) and sprints (Arrowhead).'),
-  seedSource('seed-zombie-fit', 'ZombieFit', 'wod-wiki-seed-zombie-fit', 'The ZombieFit parkour archive — daily WODs since 2009.'),
-  seedSource('seed-golos-method', 'Golos Method', 'wod-wiki-seed-golos-method', 'Daily minimalist strength and conditioning.'),
-  seedSource('yt-dan-john', 'Dan John', 'wod-wiki-youtube-dan-john', 'Dan John kettlebell workouts.'),
-  seedSource('yt-mark-wildman', 'Mark Wildman', 'wod-wiki-youtube-mark-wildman', 'Mark Wildman athletic kettlebell and club training.'),
-  seedSource('yt-strongfirst', 'StrongFirst', 'wod-wiki-youtube-strongfirst', 'StrongFirst hardstyle kettlebell workouts.'),
-  seedSource('yt-the-stone-circle', 'The Stone Circle', 'wod-wiki-youtube-the-stone-circle', 'Sandbag power-endurance and density training.'),
-  seedSource('example-movement', 'Movement Examples', 'wod-wiki-example-movement', 'Unconventional and parkour-style training examples.'),
-  seedSource('example-yoga', 'Yoga Examples', 'wod-wiki-example-yoga', 'Yoga session examples.'),
-  seedSource('r-workoutroutines', 'r/WorkoutRoutines', 'wod-wiki-r-workoutroutines', 'Community feed from the r/WorkoutRoutines subreddit.'),
+export const FEED_SOURCES: FeedSource[] = [
+  feedSource('seed-crossfit', 'CrossFit', 'wod-wiki-seed-crossfit', 'CrossFit benchmark collections (Games, Girls, Heroes) and weekly programming.'),
+  feedSource('seed-hyrox', 'HYROX', 'wod-wiki-seed-hyrox', 'HYROX race preparation and simulation workouts.'),
+  feedSource('seed-kettlebell', 'Kettlebell Coaches', 'wod-wiki-seed-kettlebell', 'Kettlebell coach collections and the Dan John 40-Day Program feed.'),
+  feedSource('seed-swimming', 'Swimming', 'wod-wiki-seed-swimming', 'Swimming programs from pre-highschool through college, masters, Olympic, and triathlete.'),
+  feedSource('seed-track', 'Track & Field', 'wod-wiki-seed-track', 'High-school track programs — 400m (Raffensperger) and sprints (Arrowhead).'),
+  feedSource('seed-zombie-fit', 'ZombieFit', 'wod-wiki-seed-zombie-fit', 'The ZombieFit parkour archive — daily WODs since 2009.'),
+  feedSource('seed-golos-method', 'Golos Method', 'wod-wiki-seed-golos-method', 'Daily minimalist strength and conditioning.'),
+  feedSource('yt-dan-john', 'Dan John', 'wod-wiki-youtube-dan-john', 'Dan John kettlebell workouts.'),
+  feedSource('yt-mark-wildman', 'Mark Wildman', 'wod-wiki-youtube-mark-wildman', 'Mark Wildman athletic kettlebell and club training.'),
+  feedSource('yt-strongfirst', 'StrongFirst', 'wod-wiki-youtube-strongfirst', 'StrongFirst hardstyle kettlebell workouts.'),
+  feedSource('yt-the-stone-circle', 'The Stone Circle', 'wod-wiki-youtube-the-stone-circle', 'Sandbag power-endurance and density training.'),
+  feedSource('example-movement', 'Movement Examples', 'wod-wiki-example-movement', 'Unconventional and parkour-style training examples.'),
+  feedSource('example-yoga', 'Yoga Examples', 'wod-wiki-example-yoga', 'Yoga session examples.'),
+  feedSource('r-workoutroutines', 'r/WorkoutRoutines', 'wod-wiki-r-workoutroutines', 'Community feed from the r/WorkoutRoutines subreddit.'),
 ];
 
-/** Built-in seed directories — a custom source may not shadow one. */
-export function builtInSeedUrls(): string[] {
-  return [CORE_SEED_URL, ...SEED_SOURCES.map((s) => s.url)];
-}
-
-export function seedSourceById(id: string): SeedSource | undefined {
-  return registeredSources().find((s) => s.id === id);
+/** Built-in feed directories — a custom feed may not shadow one. */
+export function builtInFeedUrls(): string[] {
+  return [CORE_FEED_URL, ...FEED_SOURCES.map((s) => s.url)];
 }
 
 /**
- * The registered source with this feed id — the feed-side lookup. A feed id
- * and a seed id name the same registered source, so this finds the entry
- * `seedSourceById` finds, including the user-registered ones.
+ * The registered feed with this id — the registry's single lookup. It finds
+ * the built-in feeds and the user-registered ones alike.
  */
-export function feedSourceById(feedId: FeedId): SeedSource | undefined {
-  return registeredSources().find((s) => s.feedId === feedId);
+export function feedSourceById(feedId: FeedId): FeedSource | undefined {
+  return registeredSources().find((s) => s.id === feedId);
 }
 
-function seedById(id: string): SeedSource {
-  const seed = seedSourceById(id);
-  if (!seed) throw new Error(`unknown seed source: ${id}`);
-  return seed;
+function feedById(id: string): FeedSource {
+  const feed = feedSourceById(id);
+  if (!feed) throw new Error(`unknown feed source: ${id}`);
+  return feed;
 }
 
-function notebook(seedId: string, slug: string, chunkId: string, label: string, category: string, description: string): NotebookDef {
-  seedById(seedId);
-  return { id: `community-${slug}`, seedId, feedId: feedIdOfSourceId(seedId), chunkId, label, category, description };
+function notebook(feedId: string, slug: string, chunkId: string, label: string, category: string, description: string): NotebookDef {
+  feedById(feedId);
+  return { id: `community-${slug}`, feedId, chunkId, label, category, description };
 }
 
 /**
- * Every notebook the built-in seeds publish, one entry per manifest chunk.
+ * Every notebook the built-in feeds publish, one entry per manifest chunk.
  * Notebook ids are permanent (library links, legacy checkpoints); chunk ids
  * mirror the corpus layout (collection.<slug> / feed.<slug>) and never
- * change. Which seed publishes a notebook is a registry entry — the seed is
+ * change. Which feed publishes a notebook is a registry entry — the feed is
  * what imports and subscribes.
  */
 export const NOTEBOOKS: NotebookDef[] = [
@@ -381,21 +370,18 @@ export const NOTEBOOKS: NotebookDef[] = [
 ];
 
 /**
- * Every registered source: the app's own core feed, the built-in theme
- * feeds, then the user-registered libraries (a seed directory on any host).
- * The registry entry a source id resolves to — the same set for the seed id
- * and the feed id, which agree.
+ * Every registered feed: the app's own core feed, the built-in theme
+ * feeds, then the user-registered libraries (a feed directory on any host).
  */
-function registeredSources(): SeedSource[] {
+function registeredSources(): FeedSource[] {
   return [
-    CORE_SEED_SOURCE,
-    ...SEED_SOURCES,
-    ...customSeedSources().map((c): SeedSource => ({
+    CORE_FEED_SOURCE,
+    ...FEED_SOURCES,
+    ...customFeedSources().map((c): FeedSource => ({
       id: c.id,
-      feedId: feedIdOfSourceId(c.id),
       label: c.label,
       url: c.url,
-      description: `Custom seed synced from ${c.url}`,
+      description: `Custom feed synced from ${c.url}`,
       tier: 'imported',
       ...(c.repositoryUrl ? { repositoryUrl: c.repositoryUrl } : {}),
     })),
@@ -403,36 +389,35 @@ function registeredSources(): SeedSource[] {
 }
 
 /**
- * Every registered LIBRARY source: the built-in repos, then user-registered
- * libraries (a seed directory on any host). The app's own core feed is
- * registered too (see `seedSourceById`) but is not a library entry — it
+ * Every registered LIBRARY feed: the built-in repos, then user-registered
+ * libraries (a feed directory on any host). The app's own core feed is
+ * registered too (see `feedSourceById`) but is not a library entry — it
  * publishes no library notebook of its own.
  */
-export function listSeedSources(): SeedSource[] {
-  return registeredSources().filter((source) => source.id !== CORE_SEED_SOURCE.id);
+export function listFeedSources(): FeedSource[] {
+  return registeredSources().filter((source) => source.id !== CORE_FEED_SOURCE.id);
 }
 
-/** Every notebook the registered seeds publish. A custom seed's contents are
+/** Every notebook the registered feeds publish. A custom feed's contents are
  *  unknown until its manifest is read, so it appears as one entry — enough
  *  for the library surfaces to list what it contributes. */
 export function listNotebooks(): NotebookDef[] {
   return [
     ...NOTEBOOKS,
-    ...customSeedSources().map((src): NotebookDef => ({
+    ...customFeedSources().map((src): NotebookDef => ({
       id: src.id,
-      seedId: src.id,
-      feedId: feedIdOfSourceId(src.id),
+      feedId: src.id,
       chunkId: src.id,
       label: src.label,
       category: 'custom',
-      description: `Custom seed synced from ${src.url}`,
+      description: `Custom feed synced from ${src.url}`,
     })),
   ];
 }
 
-/** The notebooks one seed publishes. */
-export function notebooksOfSeed(seedId: string): NotebookDef[] {
-  return listNotebooks().filter((notebook) => notebook.seedId === seedId);
+/** The notebooks one feed publishes. */
+export function notebooksOfFeed(feedId: FeedId): NotebookDef[] {
+  return listNotebooks().filter((notebook) => notebook.feedId === feedId);
 }
 
 export function notebookById(id: string): NotebookDef | undefined {
@@ -440,17 +425,17 @@ export function notebookById(id: string): NotebookDef | undefined {
 }
 
 /**
- * Pre-seed-unit builds synced one notebook at a time: their checkpoints
+ * Pre-feed-unit builds synced one notebook at a time: their checkpoints
  * (`seed:community-<slug>`), subscriptions and hidden rows are keyed by
- * notebook id. Those ids fold onto the seed that publishes the notebook;
- * anything else is already a seed id and passes through.
+ * notebook id. Those ids fold onto the feed that publishes the notebook;
+ * anything else is already a feed id and passes through.
  */
-export function seedIdForLegacyId(id: string): string {
-  return NOTEBOOKS.find((notebook) => notebook.id === id)?.seedId ?? id;
+export function feedIdForLegacyId(id: string): string {
+  return NOTEBOOKS.find((notebook) => notebook.id === id)?.feedId ?? id;
 }
 
-/** A demo seed promoted on the home Community feeds section. */
-export interface DemoSeedSource {
+/** A demo feed promoted on the home Community feeds section. */
+export interface DemoFeedSource {
   id: string;
   label: string;
   url: string;
@@ -458,29 +443,30 @@ export interface DemoSeedSource {
   repositoryUrl: string;
 }
 
-/** The demo seeds the home community-feeds cards try in one click. */
-export function demoSeedSources(): DemoSeedSource[] {
+/** The demo feeds the home community-feeds cards try in one click. */
+export function demoFeedSources(): DemoFeedSource[] {
   return ['seed-crossfit', 'seed-kettlebell'].flatMap((id) => {
-    const seed = seedSourceById(id);
-    if (!seed) return [];
+    const feed = feedSourceById(id);
+    if (!feed) return [];
     return [{
-      id: seed.id,
-      label: seed.label,
-      url: seed.url,
-      description: seed.description ?? '',
-      repositoryUrl: seed.repositoryUrl ?? '',
+      id: feed.id,
+      label: feed.label,
+      url: feed.url,
+      description: feed.description ?? '',
+      repositoryUrl: feed.repositoryUrl ?? '',
     }];
   });
 }
 
-/** Ids owned by the built-ins — addCustomSeedSource must never issue them. */
-const RESERVED_SEED_SOURCE_IDS: Record<string, true> = Object.fromEntries([
+/** Ids owned by the built-ins — addCustomFeedSource must never issue them.
+ *  `seed-core` is the retired remote Core Registry — its id stays reserved
+ *  so it can never be re-registered; its checkpoint migrates into `core`. */
+const RESERVED_FEED_SOURCE_IDS: Record<string, true> = Object.fromEntries([
   ['core', true] as const,
-  // Legacy namespaces: old checkpoint families, never new sources. seed-core
-  // is the retired remote Core Registry — its checkpoint migrates into core.
+  // Legacy namespaces: old checkpoint families, never new feeds.
   ['community', true] as const,
   ['common', true] as const,
   ['seed-core', true] as const,
-  ...SEED_SOURCES.map((seed) => [seed.id, true] as const),
+  ...FEED_SOURCES.map((feed) => [feed.id, true] as const),
   ...NOTEBOOKS.map((notebook) => [notebook.id, true] as const),
 ]);

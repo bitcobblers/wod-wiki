@@ -78,7 +78,7 @@ describe('NotebookService', () => {
       'notebook/playground',
       'notebook/guides',
     ]);
-    expect(defaults.find((n) => n.slug === 'guides')?.sourceEntryId).toBe('core');
+    expect(defaults.find((n) => n.slug === 'guides')?.feedEntryId).toBe('core');
     expect(defaults.find((n) => n.slug === 'guides')?.sourceUrl).toContain('seed/core/');
 
     const created = await service.create('2027 Open Prep', '8-week block', '🔥');
@@ -88,13 +88,13 @@ describe('NotebookService', () => {
     expect(created.origin).toBe('user');
   });
 
-  it('binds seed-delivered notebooks to the registered source entry and URL where the seed is pulled from', () => {
-    const seedNotebooks = service.getSeedNotebooks();
+  it('binds feed-delivered notebooks to the registered feed entry and URL where the feed is pulled from', () => {
+    const seedNotebooks = service.getFeedNotebooks();
     const girls = seedNotebooks.find((n) => n.notebookId === 'notebook/crossfit-girls');
     expect(girls).toBeDefined();
-    expect(girls?.origin).toBe('seed');
+    expect(girls?.origin).toBe('feed');
     // The split corpus binds each notebook to its own repo's seed source.
-    expect(girls?.sourceEntryId).toBe('seed-crossfit');
+    expect(girls?.feedEntryId).toBe('seed-crossfit');
     expect(girls?.packageId).toBe('community-crossfit-girls');
     expect(girls?.sourceUrl).toContain('wod-wiki-seed-crossfit');
   });

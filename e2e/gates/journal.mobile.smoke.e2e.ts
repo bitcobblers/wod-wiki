@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
  * Mobile gate (journal-mobile-375 project): key playground routes render with
@@ -19,7 +19,7 @@ for (const route of ROUTES) {
     // Pre-paint boot (#999) ran before React mounted
     await expect(page.locator('html[data-theme-boot="1"]')).toHaveCount(1);
     // Seed-dependent routes must finish importing before layout is measured.
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await expect(page.getByRole('main').first()).toBeVisible();
 
     const overflow = await page.evaluate(

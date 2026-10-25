@@ -43,7 +43,7 @@ export function WqlLibrarySearchPage() {
   }, []);
 
   // First paint runs the seed query so the page never opens blank. It re-runs
-  // when the active database's content changes (the seed import lands, or the
+  // when the active database's content changes (the feed import lands, or the
   // user switches databases) — otherwise the result would stay empty.
   useEffect(() => { void run(SEED_QUERY); }, [run, dataVersion]);
 

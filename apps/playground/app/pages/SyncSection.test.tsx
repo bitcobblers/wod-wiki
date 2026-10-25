@@ -1,33 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SyncSection } from './SyncSection';
-import type { SeedStatus } from '@/services/seed/seedSync';
+import type { FeedStatus } from '@/services/feed/feedSync';
 
-let subscribedSeeds = new Set<string>();
+let subscribedFeeds = new Set<string>();
 let subscribedNotebooks = new Set<string>();
 let syncedSources: string[] = [];
 
-mock.module('@/services/seed/seedSubscriptions', () => ({
-  isSeedSubscribed: (id: string) => subscribedSeeds.has(id),
-  isNotebookSubscribed: (seedId: string, chunkId: string) =>
-    subscribedSeeds.has(seedId) || subscribedNotebooks.has(`${seedId}#${chunkId}`),
-  setSeedSubscribed: (id: string, val: boolean) => {
-    if (val) subscribedSeeds.add(id);
-    else subscribedSeeds.delete(id);
+mock.module('@/services/feed/feedSubscriptions', () => ({
+  isFeedSubscribed: (id: string) => subscribedFeeds.has(id),
+  isNotebookSubscribed: (feedId: string, chunkId: string) =>
+    subscribedFeeds.has(feedId) || subscribedNotebooks.has(`${feedId}#${chunkId}`),
+  setFeedSubscribed: (id: string, val: boolean) => {
+    if (val) subscribedFeeds.add(id);
+    else subscribedFeeds.delete(id);
     return true;
   },
-  setNotebookSubscribed: (seedId: string, chunkId: string, val: boolean) => {
-    const key = `${seedId}#${chunkId}`;
+  setNotebookSubscribed: (feedId: string, chunkId: string, val: boolean) => {
+    const key = `${feedId}#${chunkId}`;
     if (val) subscribedNotebooks.add(key);
     else subscribedNotebooks.delete(key);
     return true;
   },
-  isSeedAutoSync: () => false,
-  setSeedAutoSync: () => true,
-  subscribeSeedSubscriptions: (cb: () => void) => () => {},
+  isFeedAutoSync: () => false,
+  setFeedAutoSync: () => true,
+  subscribeFeedSubscriptions: (cb: () => void) => () => {},
 }));
 
-const mockStatus: SeedStatus = {
+const mockStatus: FeedStatus = {
   sources: [
     {
       id: 'core',
@@ -73,21 +73,21 @@ const mockStatus: SeedStatus = {
   ],
 };
 
-mock.module('@/services/seed/seedSync', () => ({
-  readSeedStatus: async () => mockStatus,
-  syncSeedSource: async (id: string) => {
+mock.module('@/services/feed/feedSync', () => ({
+  readFeedStatus: async () => mockStatus,
+  syncFeedSource: async (id: string) => {
     syncedSources.push(id);
     return 'imported';
   },
-  runSeedSync: async () => 'imported',
+  runFeedSync: async () => 'imported',
   subscribeCatalogUpdates: () => () => {},
-  unsubscribeSeedSource: async () => ({ deleted: 0 }),
-  deleteSeedSource: async () => ({ deleted: 0 }),
+  unsubscribeFeedSource: async () => ({ deleted: 0 }),
+  deleteFeedSource: async () => ({ deleted: 0 }),
 }));
 
 describe('SyncSection notebook subscriptions and filtering', () => {
   beforeEach(() => {
-    subscribedSeeds = new Set(['core']);
+    subscribedFeeds = new Set(['core']);
     subscribedNotebooks = new Set();
     syncedSources = [];
   });
@@ -100,39 +100,39 @@ describe('SyncSection notebook subscriptions and filtering', () => {
     render(<SyncSection />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('seed-source-core')).toBeTruthy();
+      expect(screen.getByTestId('feed-source-core')).toBeTruthy();
     });
 
     // By default: subscribed only is checked, so seed-crossfit is not in the list
-    expect(screen.queryByTestId('seed-source-seed-crossfit')).toBeNull();
+    expect(screen.queryByTestId('feed-source-seed-crossfit')).toBeNull();
 
     // Uncheck subscribed only -> seed-crossfit becomes visible with its notebooks
     const subToggle = screen.getByTestId('sync-subscribed-only-toggle');
     fireEvent.click(subToggle);
 
     await waitFor(() => {
-      expect(screen.getByTestId('seed-source-seed-crossfit')).toBeTruthy();
+      expect(screen.getByTestId('feed-source-seed-crossfit')).toBeTruthy();
     });
-    expect(screen.getByTestId('seed-notebook-seed-crossfit-collection.crossfit-games')).toBeTruthy();
-    expect(screen.getByTestId('seed-notebook-seed-crossfit-collection.heroes')).toBeTruthy();
+    expect(screen.getByTestId('feed-notebook-seed-crossfit-collection.crossfit-games')).toBeTruthy();
+    expect(screen.getByTestId('feed-notebook-seed-crossfit-collection.heroes')).toBeTruthy();
   });
 
-  it('filters by seed source selector', async () => {
+  it('filters by feed selector', async () => {
     render(<SyncSection />);
 
     // Uncheck subscribed only so both sources are candidates
     fireEvent.click(screen.getByTestId('sync-subscribed-only-toggle'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('seed-source-seed-crossfit')).toBeTruthy();
+      expect(screen.getByTestId('feed-source-seed-crossfit')).toBeTruthy();
     });
 
     // Filter to CrossFit only
-    const select = screen.getByTestId('sync-seed-source-filter');
+    const select = screen.getByTestId('sync-feed-source-filter');
     fireEvent.change(select, { target: { value: 'seed-crossfit' } });
 
-    expect(screen.getByTestId('seed-source-seed-crossfit')).toBeTruthy();
-    expect(screen.queryByTestId('seed-source-core')).toBeNull();
+    expect(screen.getByTestId('feed-source-seed-crossfit')).toBeTruthy();
+    expect(screen.queryByTestId('feed-source-core')).toBeNull();
   });
 
   it('toggles individual notebook subscription and triggers sync', async () => {
@@ -141,10 +141,10 @@ describe('SyncSection notebook subscriptions and filtering', () => {
     fireEvent.click(screen.getByTestId('sync-subscribed-only-toggle'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('seed-notebook-toggle-seed-crossfit-collection.heroes')).toBeTruthy();
+      expect(screen.getByTestId('feed-notebook-toggle-seed-crossfit-collection.heroes')).toBeTruthy();
     });
 
-    const toggleBtn = screen.getByTestId('seed-notebook-toggle-seed-crossfit-collection.heroes');
+    const toggleBtn = screen.getByTestId('feed-notebook-toggle-seed-crossfit-collection.heroes');
     expect(toggleBtn.textContent).toBe('Subscribe');
 
     fireEvent.click(toggleBtn);

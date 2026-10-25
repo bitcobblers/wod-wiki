@@ -113,7 +113,9 @@ export const TARGET_OPTIONS = WQL_FIND_TARGETS.map((t) => ({
  *
  *  The `feeds` value here is a CONTAINER scope (the notes a feed publishes),
  *  not the feed-source vocabulary: it selects the notes, not the sources.
- *  Renaming it to the source sense belongs to the contract ticket, not here. */
+ *  Its spelling stays as it is — it is a WQL vocabulary value shared with
+ *  saved queries and the guide corpus, so renaming it belongs to the query
+ *  vocabulary ticket, not the source→feed rename. */
 export const SOURCE_OPTIONS = WQL_SOURCE_VALUES.map((s) => ({
   value: s,
   label: s.charAt(0).toUpperCase() + s.slice(1),

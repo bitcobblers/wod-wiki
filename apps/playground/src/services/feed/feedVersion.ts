@@ -3,7 +3,7 @@
  * build-injected embedded versions (docs/prototypes/seed-data-unification.md
  * § Version check).
  *
- * `__SEED_VERSIONS__` is a Vite `define` constant stamped from
+ * `__FEED_VERSIONS__` is a Vite `define` constant stamped from
  * `public/seed/<sourceId>/manifest.json` at build time — one entry per seed
  * source. Under bun test (no Vite) the typeof guard yields {} — which is
  * also the pre-first-import state.
@@ -11,10 +11,10 @@
 import type { SeedMetaRecord } from '@/types/seed';
 import { SEED_SCHEMA } from '@/types/seed';
 
-export const EMBEDDED_SEED_VERSIONS: Record<string, number> =
-  typeof __SEED_VERSIONS__ === 'object' && __SEED_VERSIONS__ !== null ? __SEED_VERSIONS__ : {};
+export const EMBEDDED_FEED_VERSIONS: Record<string, number> =
+  typeof __FEED_VERSIONS__ === 'object' && __FEED_VERSIONS__ !== null ? __FEED_VERSIONS__ : {};
 
-export type SeedVersionDecision = 'import' | 'current' | 'server-stale';
+export type FeedVersionDecision = 'import' | 'current' | 'server-stale';
 
 /**
  * Compare a fetched manifest against the stored checkpoint. Versions are
@@ -22,10 +22,10 @@ export type SeedVersionDecision = 'import' | 'current' | 'server-stale';
  * own checkpoint. Never consults `embeddedVersions` — the skip-fetch
  * optimization (stored === embedded → no network) lives in the orchestrator.
  */
-export function decideSeedImport(
+export function decideFeedImport(
   storedVersion: number | undefined,
   remoteVersion: number,
-): SeedVersionDecision {
+): FeedVersionDecision {
   if (storedVersion === undefined || storedVersion <= 0) return 'import';
   if (remoteVersion > storedVersion) return 'import';
   if (remoteVersion === storedVersion) return 'current';
@@ -33,7 +33,7 @@ export function decideSeedImport(
 }
 
 /** Only the current schema and matching embedded version can skip fetching. */
-export function storedSeedIsCurrent(meta: SeedMetaRecord | undefined, embeddedVersion: number): boolean {
+export function storedFeedIsCurrent(meta: SeedMetaRecord | undefined, embeddedVersion: number): boolean {
   if (meta?.schema !== undefined && meta.schema !== SEED_SCHEMA) return false;
   return meta?.seedVersion != null && meta.seedVersion > 0 && meta.seedVersion === embeddedVersion;
 }

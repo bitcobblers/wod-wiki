@@ -111,7 +111,7 @@ These are review targets, **not** a proposed closed enum or new tables.
 | Playground              | A note in the `notebook/playground` container; runnable scratch workflow; result origin/destination belongs to [[Session]], not just the type. |
 | Template                | Creation source for a new note; copies own their edits and retain provenance. The kind retires — `notebook/defaults` holds starter notes. |
 | Syntax                  | Teaching configuration and local examples; see [[Page#Syntax and dashboard composition]].             |
-| Feed-delivered          | A note in a seed-delivered notebook; prose plus query-derived listings.                                 |
+| Feed-delivered          | A note in a feed-delivered notebook; prose plus query-derived listings.                                 |
 | Effort                  | Authored properties plus parsed registry projection; see [[Effort]].                                  |
 | Dashboard               | Existing note configuration plus query presentations; see [[Page#Syntax and dashboard composition]].  |
 
@@ -131,7 +131,7 @@ The earlier results-to-sessions proposal remains separate in [[Session]]; it is 
 ### Source evidence
 
 - [Storage shapes](../../packages/core/src/types/storage.ts); [notebook resolution](../../packages/wql/src/QueryService.ts) (`notebookOfItem`); [content creation and defaults](../../apps/playground/src/services/content/IndexedDBContentProvider.ts).
-- [Seed ownership](../../apps/playground/src/services/seed/SeedImporter.ts); [static-note projection](../../apps/playground/src/services/content/staticBlockIndex.ts).
+- [Seed ownership](../../apps/playground/src/services/feed/FeedImporter.ts); [static-note projection](../../apps/playground/src/services/content/staticBlockIndex.ts).
 
 ## Map
 

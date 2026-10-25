@@ -16,7 +16,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { JournalEntryPage } from '../pages/JournalEntryPage';
 import { seedJournalNote, seedCompletedSessions, clearResults, getResults, WOD_DB } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 import { clearSessions, getSessions } from '../utils/sessionsDb';
 import { TEST_IDS } from '../contracts/TestIdContract';
 
@@ -39,7 +39,7 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     });
     journal = new JournalEntryPage(page);
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
   });
 
   test.afterEach(async ({ page: _page }, testInfo) => {
@@ -234,7 +234,7 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     errors.length = 0;
 
     await page.goto('/guide/protocols', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     // The editor should be present on the syntax page
     const editor = page.locator('.cm-content[contenteditable="true"]:visible').first();

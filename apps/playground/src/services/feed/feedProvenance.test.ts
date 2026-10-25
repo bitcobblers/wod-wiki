@@ -9,12 +9,12 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
-import { feedIdOfSourceId, type Note } from '@bitcobblers/wod-wiki-core';
+import type { Note } from '@bitcobblers/wod-wiki-core';
 import { feedOfItem } from '@bitcobblers/wod-wiki-wql';
 import { SEED_BROADCAST_CHANNEL, SEED_SCHEMA, seedMetaKey } from '@/types/seed';
-import { InMemorySeedStorage } from './SeedImportStorage';
-import { seedFixture as fixture } from './seedFixture';
-import { adoptFeedProvenance, runSeedSync, type SeedSourceSpec } from './seedSync';
+import { InMemoryFeedStorage } from './FeedImportStorage';
+import { feedFixture as fixture } from './feedFixture';
+import { adoptFeedProvenance, runFeedSync, type FeedSourceSpec } from './feedSync';
 
 const WORKOUT = '# A\n\n```time\n10:00 Run\n```';
 
@@ -38,12 +38,10 @@ const EFFORT_DOC = [
   '# Air Squat',
 ].join('\n');
 
-function spec(id: string): SeedSourceSpec {
+function spec(id: string): FeedSourceSpec {
   return {
     id,
-    feedId: feedIdOfSourceId(id),
     label: id,
-    feedName: id,
     url: `https://seed.test/${id}/`,
     embeddedVersion: 0,
     source: fixture([compileSeedRow('markdown/collections/x/a.md', WORKOUT)], 1),
@@ -72,8 +70,8 @@ function beforeFeedStamp(note: Note): Note {
 
 describe('feed provenance on imported notes', () => {
   it('stamps the delivering feed beside the seed provenance, and the two agree', async () => {
-    const storage = new InMemorySeedStorage();
-    const outcome = await runSeedSync({
+    const storage = new InMemoryFeedStorage();
+    const outcome = await runFeedSync({
       sources: [spec('community')],
       storage,
       isEnabled: () => true,
@@ -99,9 +97,9 @@ describe('feed provenance on imported notes', () => {
   });
 
   it('stamps the delivering feed on the bundled definitions too', async () => {
-    const storage = new InMemorySeedStorage();
+    const storage = new InMemoryFeedStorage();
     const source = spec('community');
-    await runSeedSync({
+    await runFeedSync({
       sources: [{ ...source, source: fixture([compileSeedRow('markdown/efforts/air-squat.md', EFFORT_DOC)], 1, 'efforts') }],
       storage,
       isEnabled: () => true,
@@ -109,13 +107,13 @@ describe('feed provenance on imported notes', () => {
 
     const effort = await storage.storageInstance.readonly('efforts').get('air-squat');
     expect(effort).toBeDefined();
+    // One id names the delivering feed; the persisted field keeps its name.
     expect(effort!.sourceId).toBe('community');
-    expect(effort!.feedSourceId).toBe('community');
   });
 
   it('agrees with the checkpoint that imported the note — every imported note', async () => {
-    const storage = new InMemorySeedStorage();
-    await runSeedSync({ sources: [spec('seed-crossfit')], storage, isEnabled: () => true });
+    const storage = new InMemoryFeedStorage();
+    await runFeedSync({ sources: [spec('seed-crossfit')], storage, isEnabled: () => true });
 
     // The checkpoint keeps its seed spelling and its key.
     const checkpoint = await storage.getSeedMeta(seedMetaKey('seed-crossfit'));
@@ -133,9 +131,9 @@ describe('feed provenance on imported notes', () => {
   });
 
   it('keeps the checkpoint, the broadcast channel, and the sync payload unchanged', async () => {
-    const storage = new InMemorySeedStorage();
+    const storage = new InMemoryFeedStorage();
     const messages: unknown[] = [];
-    await runSeedSync({
+    await runFeedSync({
       sources: [spec('community')],
       storage,
       isEnabled: () => true,
@@ -158,9 +156,9 @@ describe('feed provenance on imported notes', () => {
 describe('repairing notes imported before the feed stamp existed', () => {
   /** Import a note, then put it back in its pre-feature shape: the seed
    *  stamps and the content, no feed provenance. */
-  async function importedButUnstamped(): Promise<{ storage: InMemorySeedStorage; note: Note }> {
-    const storage = new InMemorySeedStorage();
-    await runSeedSync({ sources: [spec('community')], storage, isEnabled: () => true });
+  async function importedButUnstamped(): Promise<{ storage: InMemoryFeedStorage; note: Note }> {
+    const storage = new InMemoryFeedStorage();
+    await runFeedSync({ sources: [spec('community')], storage, isEnabled: () => true });
     const imported = (await storage.storageInstance.readonly('notes').getAll())[0]!;
     const legacy = beforeFeedStamp(imported);
     await storage.storageInstance.readwrite('notes').put(legacy);

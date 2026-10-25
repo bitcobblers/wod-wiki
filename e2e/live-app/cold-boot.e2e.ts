@@ -60,9 +60,9 @@ async function expectColdHome(page: Page, screenshotName: string): Promise<void>
   })
 
   // The seed pipeline remains real background work and must still finish.
-  await expect(root).toHaveAttribute('data-boot-seed-settled', /.+/, { timeout: 60_000 })
+  await expect(root).toHaveAttribute('data-boot-feed-settled', /.+/, { timeout: 60_000 })
   await expect(root).toHaveAttribute('data-boot-corpus-ready', /.+/, { timeout: 60_000 })
-  await expect(root).toHaveAttribute('data-seed-state', 'ready', { timeout: 60_000 })
+  await expect(root).toHaveAttribute('data-feed-state', 'ready', { timeout: 60_000 })
   await expect(hero).toBeVisible()
   await expect(editor).toHaveText(arrivalText ?? '')
   await page.screenshot({ path: `e2e/screenshots/${screenshotName}-after-seed.png`, animations: 'disabled' })

@@ -69,7 +69,7 @@ export function DashboardGeneratorPage() {
     return entries;
   }, []);
 
-  // Re-read when the active database's content changes (the seed import
+  // Re-read when the active database's content changes (the feed import
   // landed, or the user switched databases).
   useEffect(() => { void refresh(); }, [refresh, dataVersion]);
 

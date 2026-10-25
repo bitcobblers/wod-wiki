@@ -137,7 +137,7 @@ describe('toEntry — kind discrimination', () => {
 })
 
 describe('toEntry — collection date projection (by {month, year} grouping)', () => {
-  // SeedImporter parses frontmatter `date: YYYY-MM-DD` to noon-UTC epoch ms.
+  // FeedImporter parses frontmatter `date: YYYY-MM-DD` to noon-UTC epoch ms.
   const NOON = Date.parse('2009-12-01T12:00:00Z')
 
   it('projects a seeded collection Note.date onto the entry for date grouping', () => {

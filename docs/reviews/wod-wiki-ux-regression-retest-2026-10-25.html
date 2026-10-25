@@ -456,7 +456,7 @@
           <dt>Cause</dt><dd>The seed pipeline already has phases and record counts, and human-readable labels exist for the Settings sync surface, but the boot gate renders only an indeterminate "Loading library…". No timing marks exist anywhere, so the 34-second attribution is unmeasured.</dd>
           <dt>Change</dt><dd>First surface the existing phase labels and counts at boot. Add performance marks for started, first paint, and settled, echoed onto the document element like the existing seed-state diagnostics. Then profile under the agreed conditions and optimize whatever the marks prove dominant. Do not guess the bottleneck before instrumenting.</dd>
           <dt>Files</dt><dd><ul class="filelist">
-            <li id="wb-li-ff9d549a2b2d47e8828a5355da60c269" data-whiteboard-anchor><code>apps/playground/src/services/seed/seedReadiness.ts</code></li>
+            <li id="wb-li-ff9d549a2b2d47e8828a5355da60c269" data-whiteboard-anchor><code>apps/playground/src/services/feed/feedReadiness.ts</code></li>
             <li id="wb-li-5f142bf5e12a4d138f6f1f1c57b9c731" data-whiteboard-anchor><code>apps/playground/app/App.tsx</code> (boot gate UI)</li>
             <li id="wb-li-fe450fa5622e4268a0730ec3f71fea1c" data-whiteboard-anchor>Reuse labels from <code>apps/playground/app/tour/TourJumpSection.tsx</code></li>
           </ul></dd>

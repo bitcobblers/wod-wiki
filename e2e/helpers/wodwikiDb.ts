@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { parseDocumentSections, reconcileNoteBlocks } from '../../packages/core/src/sections';
 import type { BlockRevision, Note } from '../../packages/core/src/types/storage';
 import { DB_VERSION } from '../../packages/storage/src/schema';
-import { waitForSeedReady } from './seedReadiness';
+import { waitForFeedReady } from './feedReadiness';
 
 export const WOD_DB = 'wodwiki-db';
 
@@ -128,7 +128,7 @@ export async function seedNote(
   page: Page, noteId: string, content: string,
   opts?: { type?: string; title?: string; journalDate?: string; sourceId?: string; sourcePath?: string },
 ): Promise<void> {
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
   const fixture = noteFixture(noteId, content, opts);
   await page.evaluate(async ({ dbName, fixture, journalDate, version }) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {

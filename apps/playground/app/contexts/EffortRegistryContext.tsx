@@ -3,14 +3,14 @@
  *
  * Provides a CompositeEffortRegistry instance to the playground app.
  * Lazy-initializes on first mount and exposes async init state.
- * Re-hydrates when the Seed Import lands a new seed (BroadcastChannel
+ * Re-hydrates when the feed import lands new content (BroadcastChannel
  * 'wodwiki.seed') so bundled efforts appear without a reload.
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { IEffortRegistry, IEffort, EffortRegistrySource } from '@bitcobblers/wod-wiki-lang';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
-import { SEED_BROADCAST_CHANNEL } from '@/services/seed/seedSync';
+import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
 
 interface EffortRegistryContextValue {
   registry: IEffortRegistry;
@@ -32,7 +32,7 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
   const init = useCallback(async () => {
     try {
       // Always re-read: hydration REPLACES the bundled tier and reloads the
-      // user tier, so post-save refreshes and seed broadcasts see new and
+      // user tier, so post-save refreshes and feed broadcasts see new and
       // removed rows alike (a one-shot init would cache stale rows forever).
       await hydrateAppEffortRegistry(registry);
       setStatus(s => ({ isReady: true, error: null, revision: s.revision + 1 }));
@@ -49,7 +49,7 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
     init();
   }, [init]);
 
-  // Seed Import landed a new seed → re-read efforts from Storage.
+  // A feed import landed new content → re-read efforts from Storage.
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
     const channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);

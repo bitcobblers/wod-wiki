@@ -13,7 +13,7 @@ import {
 } from '@bitcobblers/wod-wiki-engine';
 
 export { seedNoteId };
-export interface SeedSourceSummary {
+export interface FeedSourceSummary {
   sourceId: string;
   version: number;
   notes: number;
@@ -24,7 +24,7 @@ export interface SeedSourceSummary {
   deleted: number;
   skippedUserOwned: number;
 }
-export async function importSeedDir(db: CliDb, dir: string, sourceId: string): Promise<SeedSourceSummary> {
+export async function importSeedDir(db: CliDb, dir: string, sourceId: string): Promise<FeedSourceSummary> {
   const fs = nodeFs(), path = nodePath();
   const source = sourceId || path.basename(dir);
   const manifest = assertSeedManifest(JSON.parse(fs.readFileSync(path.resolve(dir, 'manifest.json'), 'utf-8')));
@@ -36,7 +36,7 @@ export async function importSeedDir(db: CliDb, dir: string, sourceId: string): P
   let expected = stored?.schema === SEED_SCHEMA ? stored : undefined;
   let meta = expected ?? emptySeedMeta(key);
   if (manifest.version < meta.seedVersion) throw new Error('Seed manifest is older than stored checkpoint');
-  const summary: SeedSourceSummary = { sourceId: source, version: manifest.version, notes: 0, efforts: 0, equipment: 0, blocks: 0, blockEfforts: 0, deleted: 0, skippedUserOwned: 0 };
+  const summary: FeedSourceSummary = { sourceId: source, version: manifest.version, notes: 0, efforts: 0, equipment: 0, blocks: 0, blockEfforts: 0, deleted: 0, skippedUserOwned: 0 };
   const metadataChanged = manifest.version !== meta.seedVersion || manifest.builtAt !== meta.builtAt;
   const plan = manifest.chunks.filter((c) => metadataChanged || meta.chunks[c.id]?.sha256 !== c.sha256);
   plan.sort((a, b) => Number(b.id === CANVAS_CHUNK_ID) - Number(a.id === CANVAS_CHUNK_ID));

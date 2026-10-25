@@ -22,7 +22,7 @@ export interface DashboardSource {
   slug: string
   title: string
   rawContent: string
-  /** Vault notes are editable; prebuilt seeds render read-only until cloned. */
+  /** Vault notes are editable; prebuilt dashboards render read-only until cloned. */
   editable: boolean
   /** Vault note id — present so edits and the clone target resolve back. */
   noteId?: string

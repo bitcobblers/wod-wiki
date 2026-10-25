@@ -1,12 +1,11 @@
 import { applySeedChunk, backfillFeedProvenance, seedPrecedenceRank, type SeedChunkResult, type SeedChunkWrite } from '@bitcobblers/wod-wiki-engine';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
-import { feedIdOfSourceId } from '@bitcobblers/wod-wiki-core';
 import type { SeedMetaRecord } from '@/types/seed';
 import type { IStorage } from '@/services/storage/IStorage';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
 export type { SeedChunkWrite, SeedChunkResult } from '@bitcobblers/wod-wiki-engine';
 
-export interface SeedImportStorage {
+export interface FeedImportStorage {
   getSeedMeta(key: string): Promise<SeedMetaRecord | undefined>;
   putSeedMeta(meta: SeedMetaRecord, expected?: SeedMetaRecord | null): Promise<void>;
   applyChunk(write: SeedChunkWrite): Promise<SeedChunkResult>;
@@ -17,7 +16,7 @@ export interface SeedImportStorage {
    */
   backfillFeedProvenance(): Promise<number>;
   /**
-   * Delete one seed source's imported rows and its checkpoint row in ONE
+   * Delete one feed's imported rows and its checkpoint row in ONE
    * transaction. Ownership is exact: only note ids recorded in the given
    * checkpoint's chunk memberships (legacy checkpoints: rows stamped with
    * one of its chunk ids) that still carry `seedOrigin: 'seed'`. User notes
@@ -27,11 +26,11 @@ export interface SeedImportStorage {
   removeSourceContent(meta: SeedMetaRecord): Promise<number>;
   getNoteCommits?(noteIds: string[]): Promise<Map<string, string | undefined>>;
 }
-export class IndexedDBSeedImportStorage implements SeedImportStorage {
+export class IndexedDBFeedImportStorage implements FeedImportStorage {
   // The instance is required, never defaulted: '@/services/storage' touches
   // localStorage at module load, so importing it here would make this module
-  // unusable inside the seed-sync Web Worker (seedSync.worker.ts injects its
-  // own IndexedDBStorage). Main-thread callers use mainThreadSeedImportStorage().
+  // unusable inside the feed-sync Web Worker (feedSync.worker.ts injects its
+  // own IndexedDBStorage). Main-thread callers use mainThreadFeedImportStorage().
   constructor(readonly storageInstance: IStorage) {}
   async getSeedMeta(key: string): Promise<SeedMetaRecord | undefined> {
     return await this.storageInstance.readonly('meta').get(key) as SeedMetaRecord | undefined;
@@ -125,7 +124,7 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
           deleted++;
         }
         // Bundled definition projections owned by this source fall back to the
-        // highest remaining seed tier when one declares the same slug, or die
+        // highest remaining tier when one declares the same slug, or die
         // with this source otherwise. Custom (`user`) copies are never touched.
         const defFamilies = [
           { storeName: 'efforts' as const, familyPathPrefix: 'markdown/efforts/', parse: parseEffortFile },
@@ -152,7 +151,7 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
                     registrySource: 'bundled' as const,
                     ownerNoteId: candidateNote.id,
                     sourceId: cp.sourceId,
-                    feedSourceId: feedIdOfSourceId(cp.sourceId),
+                    feedSourceId: cp.sourceId,
                     sourcePath: candidateNote.sourcePath ?? '',
                   });
                   restored = true;
@@ -170,7 +169,7 @@ export class IndexedDBSeedImportStorage implements SeedImportStorage {
     );
   }
 }
-export class InMemorySeedStorage extends IndexedDBSeedImportStorage {
+export class InMemoryFeedStorage extends IndexedDBFeedImportStorage {
   applyCount = 0;
   constructor() { super(new InMemoryStorage()); }
   async applyChunk(write: SeedChunkWrite): Promise<SeedChunkResult> {

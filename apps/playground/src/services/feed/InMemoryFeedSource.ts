@@ -1,11 +1,11 @@
 /**
- * InMemorySeedSource — test/fixture adapter. Serves a manifest and chunks
+ * InMemoryFeedSource — test/fixture adapter. Serves a manifest and chunks
  * from plain objects; no network, no storage.
  */
 import type { SeedManifest } from '@/types/seed';
-import type { ISeedSource, SeedChunkPayload } from './ISeedSource';
+import type { IFeedSource, SeedChunkPayload } from './IFeedSource';
 
-export class InMemorySeedSource implements ISeedSource {
+export class InMemoryFeedSource implements IFeedSource {
   constructor(
     private readonly manifest: SeedManifest,
     private readonly chunks: Record<string, SeedChunkPayload>,
@@ -21,11 +21,11 @@ export class InMemorySeedSource implements ISeedSource {
 }
 
 /** Test spy wrapper — counts chunk fetches so resume/idempotency is observable. */
-export class CountingSeedSource implements ISeedSource {
+export class CountingFeedSource implements IFeedSource {
   fetchChunkCalls: string[] = [];
   fetchManifestCalls = 0;
 
-  constructor(private readonly inner: ISeedSource) {}
+  constructor(private readonly inner: IFeedSource) {}
 
   fetchManifest(): Promise<SeedManifest> {
     this.fetchManifestCalls += 1;

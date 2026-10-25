@@ -8,7 +8,7 @@
  * same corpus through the same compiler without the playground-only template.
  * Every other seed is NOT built here: each content
  * repo publishes its own seed dir to its GitHub Pages (the split corpus in
- * seedSources.ts SEED_SOURCES) and the app syncs it over HTTP at runtime.
+ * feedSources.ts FEED_SOURCES) and the app syncs it over HTTP at runtime.
  * Third-party seed libraries register the same way.
  *
  * The corpus compiles through the engine's seed compiler (the `wod build`
@@ -39,7 +39,7 @@ interface SeedManifestRef {
   chunks: ManifestChunkRef[];
 }
 
-interface SeedSourceSpec {
+interface FeedSourceSpec {
   /** Owning app — disambiguates logs/indexes when several sources share an id. */
   app: 'playground' | 'storybook';
   id: string;
@@ -56,7 +56,7 @@ const TEMPLATE_FILE = join(ROOT, 'apps', 'playground', 'app', 'templates', 'new-
 /** Historical in-repo row path for the template chunk — the runtime derives the template note's id from it; must stay stable. */
 const TEMPLATE_ROW_PATH = 'apps/playground/app/templates/new-playground.md';
 
-const SOURCES: SeedSourceSpec[] = [
+const SOURCES: FeedSourceSpec[] = [
   // Core: this repo's own corpus, versioned by this repo's git. The
   // playground adds its canvas template; Storybook compiles the same corpus
   // without the playground-only template.
@@ -79,7 +79,7 @@ const SOURCES: SeedSourceSpec[] = [
   },
 ];
 
-const results: Array<{ spec: SeedSourceSpec; manifest: SeedManifestRef }> = [];
+const results: Array<{ spec: FeedSourceSpec; manifest: SeedManifestRef }> = [];
 for (const spec of SOURCES) {
   // Previous manifest for the change report (generateSeed wipes OUT_DIR).
   let prevManifest: SeedManifestRef | undefined;
@@ -130,7 +130,7 @@ for (const spec of SOURCES) {
  * app gets its own index next to its own artifacts — there is no shared
  * global index, and duplicate source ids across apps stay unambiguous.
  */
-function writeSeedIndex(app: string, entries: Array<{ spec: SeedSourceSpec; manifest: SeedManifestRef }>): void {
+function writeSeedIndex(app: string, entries: Array<{ spec: FeedSourceSpec; manifest: SeedManifestRef }>): void {
   const escape = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sections = entries.map(({ spec, manifest }) => {
     const bytes = manifest.chunks.reduce((sum, c) => sum + (c.bytes ?? 0), 0);
@@ -169,7 +169,7 @@ ${sections.join('\n')}
 }
 
 // Group by app — each app's /seed/index.html lists only its own sources.
-const byApp = new Map<string, Array<{ spec: SeedSourceSpec; manifest: SeedManifestRef }>>();
+const byApp = new Map<string, Array<{ spec: FeedSourceSpec; manifest: SeedManifestRef }>>();
 for (const entry of results) {
   const group = byApp.get(entry.spec.app) ?? [];
   group.push(entry);

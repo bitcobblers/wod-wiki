@@ -9,7 +9,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { seedNote, WOD_DB } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 const NOTE_ID = 'crossfit-girls/session-routes-probe';
 const CONTENT = '# Session Routes Probe\n\n```time\n5:00 AMRAP\n  5 Push Ups\n```\n';
@@ -40,7 +40,7 @@ test('a running workout survives route changes', async ({ page }) => {
     window.localStorage.setItem('wodwiki.profileInitialized.v1', 'true');
   });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
   await seedNote(page, NOTE_ID, CONTENT, { title: 'Session Routes Probe' });
 
   await page.goto(`/c/${NOTE_ID}`, { waitUntil: 'domcontentloaded' });

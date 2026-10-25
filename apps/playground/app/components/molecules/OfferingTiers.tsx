@@ -318,7 +318,7 @@ export function OfferingTiers() {
           >
             <ul className="mt-1 space-y-1.5">
               <Bullet>Centralized data for a team or gym — one SQLite, Turso, or Postgres backend.</Bullet>
-              <Bullet>Publish your notebooks as a seed with <code className="font-mono text-xs">wod build</code> — every browser subscribes and syncs.</Bullet>
+              <Bullet>Publish your notebooks as a feed with <code className="font-mono text-xs">wod build</code> — every browser subscribes and syncs.</Bullet>
               <Bullet>You run the server — network required, and server admin is on you.</Bullet>
             </ul>
             <div className="mt-auto border-t border-border pt-4">

@@ -1,10 +1,10 @@
 /**
- * seedSync — the boot orchestrator (docs/prototypes/seed-data-unification.md
- * § Version check), multi-seed edition. Ties together per seed source:
+ * feedSync — the boot orchestrator (docs/prototypes/seed-data-unification.md
+ * § Version check), multi-feed edition. Ties together per registered feed:
  * flag gate → skip-fetch fast path → multi-tab claim → manifest fetch →
- * version decision → SeedImporter (canvas chunk first, refreshing content
+ * version decision → FeedImporter (canvas chunk first, refreshing content
  * consumers for first paint) → broadcast. Sources run in registry order —
- * the core seed (playground canvas + template) before community libraries —
+ * the core feed (playground canvas + template) before community libraries —
  * each with an independent checkpoint (`seed:<sourceId>` meta record), so
  * chunk membership and vanished-chunk sweeps never cross sources.
  */
@@ -17,15 +17,15 @@ import {
   type SeedMetaRecord,
   type SeedPrecedenceTier,
 } from '@/types/seed';
-import { feedIdOfSourceId, type FeedId } from '@bitcobblers/wod-wiki-core';
-import type { SeedImportProgress } from './SeedImporter';
-import { HttpSeedSource } from './HttpSeedSource';
-import type { SeedImportStorage } from './SeedImportStorage';
-import { mainThreadSeedImportStorage } from './seedStorageDefault';
-import { assertManifest, type ISeedSource } from './ISeedSource';
-import { EMBEDDED_SEED_VERSIONS } from './seedVersion';
-import { customSeedSources, CORE_SEED_URL, SEED_SOURCES, notebooksOfSeed, hideSeedSourceRow, hiddenSeedSourceIds, removeCustomSeedSource, safeRepositoryUrl, toAbsoluteSeedUrl } from './seedSources';
-import { getSubscribedNotebooks, isNotebookSubscribed, isSeedAutoSync, isSeedSubscribed, setSeedAutoSync, setSeedSubscribed } from './seedSubscriptions';
+import type { FeedId } from '@bitcobblers/wod-wiki-core';
+import type { FeedImportProgress } from './FeedImporter';
+import { HttpFeedSource } from './HttpFeedSource';
+import type { FeedImportStorage } from './FeedImportStorage';
+import { mainThreadFeedImportStorage } from './feedStorageDefault';
+import { assertManifest, type IFeedSource } from './IFeedSource';
+import { EMBEDDED_FEED_VERSIONS } from './feedVersion';
+import { customFeedSources, CORE_FEED_URL, FEED_SOURCES, notebooksOfFeed, hideFeedSourceRow, hiddenFeedSourceIds, removeCustomFeedSource, safeRepositoryUrl, toAbsoluteFeedUrl } from './feedSources';
+import { getSubscribedNotebooks, isNotebookSubscribed, isFeedAutoSync, isFeedSubscribed, setFeedAutoSync, setFeedSubscribed } from './feedSubscriptions';
 import { beginSyncActivity, reportSyncResult, reportSyncError, reportSyncProgress } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
@@ -35,20 +35,20 @@ import { profileService, storageBackend } from '@/services/storage';
 import { getActiveLocalDbName } from '@/services/storage/dataSettings';
 import {
   runSourceSyncCore,
-  type SeedSyncOutcome,
+  type FeedSyncOutcome,
   type SourceSyncCoreResult,
-} from './seedSyncCore';
-import type { SeedWorkerToMain } from './seedSync.worker';
+} from './feedSyncCore';
+import type { FeedWorkerToMain } from './feedSync.worker';
 
 export { SEED_BROADCAST_CHANNEL } from '@/types/seed';
-export { SEED_CLAIM_TTL_MS } from './seedSyncCore';
-export type { SeedSyncOutcome } from './seedSyncCore';
-export const SEED_IMPORT_FLAG = 'wodwiki.seedImport.enabled';
+export { SEED_CLAIM_TTL_MS } from './feedSyncCore';
+export type { FeedSyncOutcome } from './feedSyncCore';
+export const FEED_IMPORT_FLAG = 'wodwiki.seedImport.enabled';
 
 /** Default-on; '0' is the explicit opt-out. */
-export function isSeedImportEnabled(): boolean {
+export function isFeedImportEnabled(): boolean {
   try {
-    return typeof localStorage !== 'undefined' && localStorage.getItem(SEED_IMPORT_FLAG) !== '0';
+    return typeof localStorage !== 'undefined' && localStorage.getItem(FEED_IMPORT_FLAG) !== '0';
   } catch {
     return false;
   }
@@ -61,108 +61,93 @@ export function isSeedImportEnabled(): boolean {
  * claim release and hydration, so the UI can settle its row. Importer
  * phase events carry only successfully committed counts.
  */
-export type SeedSyncProgress = {
-  sourceId: string;
+export type FeedSyncProgress = {
+  /** The registered feed this event belongs to. */
+  sourceId: FeedId;
+  /** The feed's display name. */
   sourceLabel: string;
-  /** Feed identity — the same source in the feed vocabulary; agrees with `sourceId`. */
-  feedId: FeedId;
-  /** The feed's name — the source's name in the feed vocabulary; agrees with `sourceLabel`. */
-  feedName: string;
-  /** One-based position in this run's source list. */
+  /** One-based position in this run's feed list. */
   sourceIndex: number;
   totalSources: number;
 } & (
   | { phase: 'checking' }
-  | SeedImportProgress
-  | { phase: 'finished'; outcome: SeedSyncOutcome; error: string | null }
+  | FeedImportProgress
+  | { phase: 'finished'; outcome: FeedSyncOutcome; error: string | null }
 );
 
-/** One registered seed: transport, identity, and build-stamped version. */
-export interface SeedSourceSpec {
-  /** Seed identity — namespaces the checkpoint (`seed:<id>`) and broadcasts. */
-  id: string;
-  /** Feed identity — the same registered source in the feed vocabulary. It
-   *  agrees with `id`: the feed id resolves the same checkpoint, broadcast,
-   *  and subscription the seed id does. */
-  feedId: FeedId;
+/** One registered feed: transport, identity, and build-stamped version. */
+export interface FeedSourceSpec {
+  /** The feed's id — namespaces the checkpoint (`seed:<id>`) and broadcasts. */
+  id: FeedId;
   label: string;
-  /** The feed's name — the source's display name in the feed vocabulary.
-   *  It agrees with `label`. */
-  feedName: string;
-  source: ISeedSource;
-  /** The seed directory this source syncs from (status/link rendering). */
+  source: IFeedSource;
+  /** The feed directory this source syncs from (status/link rendering). */
   url: string;
   /** Published Git repository link, when the source publishes one. */
   repositoryUrl?: string;
-  /** `__SEED_VERSIONS__[id]` — this bundle's own build of the source's manifest. */
+  /** `__FEED_VERSIONS__[id]` — this bundle's own build of the source's manifest. */
   embeddedVersion: number;
-  /** Boot auto-import gate (default true). Non-auto seeds (user libraries,
+  /** Boot auto-import gate (default true). Non-auto feeds (user libraries,
   *  theme repos) never import on launch — default installs get playground
   *  content only; Subscribe imports them. */
   autoImport?: boolean;
   /** Checkpoint precedence tier — built-in corpus rows rank under user libraries. */
   tier?: SeedPrecedenceTier;
-  /** One-line seed description (status cards). */
+  /** One-line feed description (status cards). */
   description?: string;
 }
 
 /**
- * The default seed sources, in import order. The bundled core seed carries
- * the app's own corpus (this repo's markdown/ — canvas pages, the page
- * template, and the effort/equipment/dashboards reference chunks; first
- * paint, built at build time by scripts/sync-seed.ts). Every other seed is
- * one split content repo publishing to its own GitHub Pages and syncing as
- * an independent source — subscribing imports every notebook it publishes.
- * User-registered libraries (a seed dir on any host) register the same way.
+ * The default feeds, in import order. The bundled core feed carries the
+ * app's own corpus (this repo's markdown/ — canvas pages, the page template,
+ * and the effort/equipment/dashboards reference chunks; first paint, built at
+ * build time by scripts/sync-seed.ts). Every other feed is one split content
+ * repo publishing to its own GitHub Pages and syncing as an independent
+ * source — subscribing imports every notebook it publishes. User-registered
+ * libraries (a feed directory on any host) register the same way.
  */
-export function defaultSeedSources(): SeedSourceSpec[] {
-  const hidden = new Set(hiddenSeedSourceIds());
-  const coreUrl = toAbsoluteSeedUrl(CORE_SEED_URL);
+export function defaultFeedSources(): FeedSourceSpec[] {
+  const hidden = new Set(hiddenFeedSourceIds());
+  const coreUrl = toAbsoluteFeedUrl(CORE_FEED_URL);
   return [
     {
       id: 'core',
-      feedId: feedIdOfSourceId('core'),
       label: 'Core',
-      feedName: 'Core',
-      source: new HttpSeedSource(coreUrl),
+      source: new HttpFeedSource(coreUrl),
       url: coreUrl,
-      embeddedVersion: EMBEDDED_SEED_VERSIONS['core'] ?? 0,
+      embeddedVersion: EMBEDDED_FEED_VERSIONS['core'] ?? 0,
     },
-    ...SEED_SOURCES.map((seed): SeedSourceSpec => ({
-      id: seed.id,
-      feedId: seed.feedId,
-      label: seed.label,
-      feedName: seed.label,
-      source: new HttpSeedSource(seed.url),
-      url: seed.url,
-      ...(seed.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),
+    ...FEED_SOURCES.map((feed): FeedSourceSpec => ({
+      id: feed.id,
+      label: feed.label,
+      source: new HttpFeedSource(feed.url),
+      url: feed.url,
+      ...(feed.repositoryUrl ? { repositoryUrl: feed.repositoryUrl } : {}),
       // Never bundled: embeddedVersion 0 keeps every sync off the skip-fetch
       // fast path — GitHub Pages sends no build-stamp compatibility.
       embeddedVersion: 0,
-      autoImport: seed.autoImport ?? false,
-      tier: seed.tier,
-      ...(seed.description ? { description: seed.description } : {}),
+      autoImport: feed.autoImport ?? false,
+      tier: feed.tier,
+      ...(feed.description ? { description: feed.description } : {}),
     })),
     // User-registered libraries (/settings/sync). Never auto-import; their
     // manifests are not build-stamped, so embeddedVersion 0 keeps them
     // off the skip-fetch fast path — every sync consults the manifest.
-    ...customSeedSources().map((c): SeedSourceSpec => ({
+    ...customFeedSources().map((c): FeedSourceSpec => ({
       id: c.id,
-      feedId: feedIdOfSourceId(c.id),
       label: c.label,
-      feedName: c.label,
-      source: new HttpSeedSource(c.url),
+      source: new HttpFeedSource(c.url),
       url: c.url,
       repositoryUrl: c.repositoryUrl,
-      embeddedVersion: EMBEDDED_SEED_VERSIONS[c.id] ?? 0,
+      embeddedVersion: EMBEDDED_FEED_VERSIONS[c.id] ?? 0,
       autoImport: false,
     })),
   ].filter((spec) => !hidden.has(spec.id));
 }
 
-export interface SeedSyncDeps {
-  sources?: SeedSourceSpec[];
-  storage?: SeedImportStorage;
+export interface FeedSyncDeps {
+  sources?: FeedSourceSpec[];
+  storage?: FeedImportStorage;
   /** Claim owner id; defaults to a fresh random per call. */
   owner?: string;
   now?: () => number;
@@ -203,7 +188,7 @@ export interface SeedSyncDeps {
    */
   subscribe?: boolean;
   /** Live progress stream (Settings → Sync): checking → chunk phases → finished per source. */
-  onProgress?: (progress: SeedSyncProgress) => void;
+  onProgress?: (progress: FeedSyncProgress) => void;
   /**
    * Fires when this source's canvas chunk commits (first paint). The boot
    * orchestrator uses it to ungate the readiness skeleton while the rest
@@ -239,7 +224,7 @@ async function hydrateImportedContent(): Promise<void> {
 }
 
 /** Worst-first aggregation: readiness and toasts only need one verdict. */
-function aggregateOutcomes(outcomes: SeedSyncOutcome[]): SeedSyncOutcome {
+function aggregateOutcomes(outcomes: FeedSyncOutcome[]): FeedSyncOutcome {
   if (outcomes.includes('error')) return 'error';
   if (outcomes.includes('imported')) return 'imported';
   if (outcomes.includes('update-pending')) return 'update-pending';
@@ -250,17 +235,17 @@ function aggregateOutcomes(outcomes: SeedSyncOutcome[]): SeedSyncOutcome {
 
 /** Shared side effects applied to one finished source result (both drivers). */
 function applySourceResult(
-  spec: SeedSourceSpec,
+  spec: FeedSourceSpec,
   result: SourceSyncCoreResult,
-  deps: SeedSyncDeps,
+  deps: FeedSyncDeps,
   updates: Map<string, CatalogSourceUpdate> | undefined,
 ): void {
   const now = deps.now ?? Date.now;
   const broadcast = deps.broadcast ?? defaultBroadcast;
   const report = deps.reportActivity !== false;
-  if (result.manifestChecked) markSeedChecked(spec.id, now());
+  if (result.manifestChecked) markFeedChecked(spec.id, now());
   if (result.outcome === 'error') {
-    const message = result.error ?? 'seed sync failed';
+    const message = result.error ?? 'feed sync failed';
     if (deps.mode === 'background') updates?.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'error' });
     if (report) reportSyncError(message);
     return;
@@ -285,7 +270,7 @@ function workerSupported(): boolean {
 }
 
 /**
- * Run the whole sync inside seedSync.worker: manifest fetches, chunk JSON
+ * Run the whole sync inside feedSync.worker: manifest fetches, chunk JSON
  * parsing, row validation, and IndexedDB writes happen off the main thread.
  * The driver here translates messages back into the side effects the main
  * thread owns (progress, activity, content caches, registries, catalog
@@ -293,34 +278,34 @@ function workerSupported(): boolean {
  * the caller reruns the direct path (idempotent: nothing applied before a
  * startup failure, and checkpoints/claims guard anything partial).
  */
-async function runSeedSyncViaWorker(
-  sources: SeedSourceSpec[],
-  deps: SeedSyncDeps,
+async function runFeedSyncViaWorker(
+  sources: FeedSourceSpec[],
+  deps: FeedSyncDeps,
   owner: string,
-): Promise<SeedSyncOutcome | null> {
-  return await new Promise<SeedSyncOutcome | null>((resolve) => {
+): Promise<FeedSyncOutcome | null> {
+  return await new Promise<FeedSyncOutcome | null>((resolve) => {
     let worker: Worker;
     try {
-      worker = new Worker(new URL('./seedSync.worker.ts', import.meta.url), { type: 'module' });
+      worker = new Worker(new URL('./feedSync.worker.ts', import.meta.url), { type: 'module' });
     } catch (err) {
-      console.warn('[seedSync] seed worker unavailable; running on main thread', err);
+      console.warn('[feedSync] seed worker unavailable; running on main thread', err);
       resolve(null);
       return;
     }
     const updates = deps.mode === 'background' ? new Map<string, CatalogSourceUpdate>() : undefined;
-    const outcomes: SeedSyncOutcome[] = [];
+    const outcomes: FeedSyncOutcome[] = [];
     const totalSources = sources.length;
     let received = false;
-    const settle = (value: SeedSyncOutcome | null): void => {
+    const settle = (value: FeedSyncOutcome | null): void => {
       reportSyncProgress(null);
       worker.terminate();
       resolve(value);
     };
     worker.onerror = (event) => {
-        console.warn('[seedSync] seed worker failed', event.message ?? 'unknown error');
+        console.warn('[feedSync] feed worker failed', event.message ?? 'unknown error');
         settle(received ? aggregateOutcomes(outcomes) : null);
     };
-    worker.onmessage = (event: MessageEvent<SeedWorkerToMain>) => {
+    worker.onmessage = (event: MessageEvent<FeedWorkerToMain>) => {
       received = true;
       const msg = event.data;
       if (msg.type === 'progress') {
@@ -340,8 +325,6 @@ async function runSeedSyncViaWorker(
           ...msg.progress,
           sourceId: msg.sourceId,
           sourceLabel: spec?.label ?? msg.sourceId,
-          feedId: spec?.feedId ?? feedIdOfSourceId(msg.sourceId),
-          feedName: spec?.feedName ?? spec?.label ?? msg.sourceId,
           sourceIndex: sources.indexOf(spec!) + 1,
           totalSources,
         });
@@ -360,7 +343,7 @@ async function runSeedSyncViaWorker(
         applySourceResult(spec, msg.result, deps, updates);
         deps.onProgress?.({
           phase: 'finished', outcome: msg.result.outcome, error: msg.result.error,
-          sourceId: spec.id, sourceLabel: spec.label, feedId: spec.feedId, feedName: spec.feedName,
+          sourceId: spec.id, sourceLabel: spec.label,
           sourceIndex: index + 1, totalSources,
         });
         return;
@@ -382,10 +365,10 @@ async function runSeedSyncViaWorker(
       sources: sources.map((s) => ({
         id: s.id,
         label: s.label,
-        url: toAbsoluteSeedUrl(s.url),
+        url: toAbsoluteFeedUrl(s.url),
         ...(s.tier ? { tier: s.tier } : {}),
         embeddedVersion: s.embeddedVersion,
-        autoSyncOn: isSeedAutoSync(s.id),
+        autoSyncOn: isFeedAutoSync(s.id),
         notebookIds: getSubscribedNotebooks(s.id) ?? undefined,
         granularRecords: true,
       })),
@@ -441,7 +424,7 @@ function clearCatalogSourceUpdate(sourceId: string): void {
 
 const SEED_CHECKS_KEY = 'wodwiki.seedChecks';
 
-function readSeedChecks(): Record<string, number> {
+function readFeedChecks(): Record<string, number> {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(SEED_CHECKS_KEY) ?? 'null');
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
@@ -453,44 +436,44 @@ function readSeedChecks(): Record<string, number> {
   }
 }
 
-function markSeedChecked(id: string, at: number): void {
+function markFeedChecked(id: string, at: number): void {
   try {
-    localStorage.setItem(SEED_CHECKS_KEY, JSON.stringify({ ...readSeedChecks(), [id]: at }));
+    localStorage.setItem(SEED_CHECKS_KEY, JSON.stringify({ ...readFeedChecks(), [id]: at }));
   } catch {
     // Status timestamps are best-effort; a failed write keeps the old value.
   }
 }
 
-function seedCheckedAt(id: string): number | null {
-  return readSeedChecks()[id] ?? null;
+function feedCheckedAt(id: string): number | null {
+  return readFeedChecks()[id] ?? null;
 }
 
-export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
-  const outcomes: SeedSyncOutcome[] = [];
-  const storage = deps.storage ?? mainThreadSeedImportStorage();
+export async function runFeedSync(deps: FeedSyncDeps = {}): Promise<FeedSyncOutcome> {
+  const outcomes: FeedSyncOutcome[] = [];
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   // Background load checks collect per-source update states; the run ends
   // with ONE grouped snapshot — never per-source notifications.
   const updates = deps.mode === 'background' ? new Map<string, CatalogSourceUpdate>() : undefined;
 
-  if (!(deps.isEnabled ?? isSeedImportEnabled)()) return 'disabled';
+  if (!(deps.isEnabled ?? isFeedImportEnabled)()) return 'disabled';
 
 
   const owner = deps.owner ?? `seed-${(deps.now ?? Date.now)()}-${Math.random().toString(36).slice(2, 8)}`;
-  const sources = deps.sources ?? defaultSeedSources();
+  const sources = deps.sources ?? defaultFeedSources();
 
-  // Production runs (boot load check, manual syncs) execute inside the seed
+  // Production runs (boot load check, manual syncs) execute inside the feed
   // worker so manifest fetches, chunk parsing, and imports never block the
   // UI. A null result means the worker is unusable (or injected deps force
   // the main thread, as in tests) — the direct path below reruns it.
   if (!deps.storage && !deps.now && workerSupported()) {
-    const viaWorker = await runSeedSyncViaWorker(sources, deps, owner);
+    const viaWorker = await runFeedSyncViaWorker(sources, deps, owner);
     if (viaWorker) return viaWorker;
   }
 
   for (const [index, spec] of sources.entries()) {
     // A failing source emits its own finished('error'); the run continues.
     const outcome = await runSourceSync(spec, deps, storage, owner, index + 1, sources.length, updates);
-    console.debug(`[seedSync] ${spec.id} outcome: ${outcome}`);
+    console.debug(`[feedSync] ${spec.id} outcome: ${outcome}`);
     outcomes.push(outcome);
   }
   if (updates) publishCatalogUpdates([...updates.values()]);
@@ -498,8 +481,8 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
 }
 
 /**
- * Boot-time seed policy (app bootstrap), layered on runSeedSync:
- *  - fresh browser (no core checkpoint): the core seed only — home ungates
+ * Boot-time feed policy (app bootstrap), layered on runFeedSync:
+ *  - fresh browser (no core checkpoint): the core feed only — home ungates
  *    on the committed canvas chunk while the rest of the library imports;
  *    subscribed community libraries join from the next visit (a fresh
  *    browser has no imported checkpoints to subscribe);
@@ -510,28 +493,28 @@ export async function runSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutc
  *    Sources with auto-sync on apply updates; the rest are check-only and
  *    surface one grouped update snapshot instead of importing.
  */
-export async function runBootSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
-  const all = deps.sources ?? defaultSeedSources();
-  const storage = deps.storage ?? mainThreadSeedImportStorage();
+export async function runBootFeedSync(deps: FeedSyncDeps = {}): Promise<FeedSyncOutcome> {
+  const all = deps.sources ?? defaultFeedSources();
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   // Retired remote Core Registry (seed:seed-core) folds into the local core
   // checkpoint before the boot decision reads it — the fold invalidates core
   // so this very run revalidates the folded records.
   await adoptLegacyCoreRegistryCheckpoint({ storage })
-    .catch((err) => console.warn('[seedSync] core registry migration failed', err));
+    .catch((err) => console.warn('[feedSync] core registry migration failed', err));
   let coreCheckpoint: SeedMetaRecord | undefined;
   try {
     coreCheckpoint = await storage.getSeedMeta(seedMetaKey('core'));
   } catch (err) {
     // Provider unreadable (offline, bad token, malformed config): nothing to
     // probe or import — the Data settings surface owns the error details.
-    console.warn('[seedSync] boot provider probe failed', err);
+    console.warn('[feedSync] boot provider probe failed', err);
     return 'error';
   }
   if (!coreCheckpoint || coreCheckpoint.seedVersion <= 0) {
-    return runSeedSync({ ...deps, sources: all.filter((s) => s.autoImport !== false) });
+    return runFeedSync({ ...deps, sources: all.filter((s) => s.autoImport !== false) });
   }
-  const sources = all.filter((s) => s.id === 'core' || isSeedSubscribed(s.id) || getSubscribedNotebooks(s.id) !== null);
-  return runSeedSync({
+  const sources = all.filter((s) => s.id === 'core' || isFeedSubscribed(s.id) || getSubscribedNotebooks(s.id) !== null);
+  return runFeedSync({
     ...deps,
     sources,
     probeManifests: true,
@@ -541,14 +524,14 @@ export async function runBootSeedSync(deps: SeedSyncDeps = {}): Promise<SeedSync
 }
 
 async function runSourceSync(
-  spec: SeedSourceSpec,
-  deps: SeedSyncDeps,
-  storage: SeedImportStorage,
+  spec: FeedSourceSpec,
+  deps: FeedSyncDeps,
+  storage: FeedImportStorage,
   owner: string,
   sourceIndex: number,
   totalSources: number,
   updates?: Map<string, CatalogSourceUpdate>,
-): Promise<SeedSyncOutcome> {
+): Promise<FeedSyncOutcome> {
   const now = deps.now ?? Date.now;
   const onProgress = deps.onProgress;
   // Background load checks stay silent: no activity entry, no per-source
@@ -556,13 +539,13 @@ async function runSourceSync(
   const report = deps.reportActivity !== false;
   // `finished` closes every attempted source — after claim release and
   // first-paint hydration: a run is never complete before its commits.
-  const finish = (outcome: SeedSyncOutcome, error: string | null = null): void =>
-    onProgress?.({ phase: 'finished', outcome, error, sourceId: spec.id, sourceLabel: spec.label, feedId: spec.feedId, feedName: spec.feedName, sourceIndex, totalSources });
+  const finish = (outcome: FeedSyncOutcome, error: string | null = null): void =>
+    onProgress?.({ phase: 'finished', outcome, error, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
 
-  onProgress?.({ phase: 'checking', sourceId: spec.id, sourceLabel: spec.label, feedId: spec.feedId, feedName: spec.feedName, sourceIndex, totalSources });
+  onProgress?.({ phase: 'checking', sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
   const endActivity = report ? beginSyncActivity('download', spec.label) : () => {};
   try {
-    // Storage/network/decision core (seedSyncCore) — the same unit the seed
+    // Storage/network/decision core (feedSyncCore) — the same unit the feed
     // worker executes; this direct path drives it on the main thread.
     const result = await runSourceSyncCore(
       {
@@ -570,7 +553,7 @@ async function runSourceSync(
         label: spec.label,
         source: spec.source,
         embeddedVersion: spec.embeddedVersion,
-        autoSyncOn: isSeedAutoSync(spec.id),
+        autoSyncOn: isFeedAutoSync(spec.id),
         ...(spec.tier ? { tier: spec.tier } : {}),
         notebookIds: getSubscribedNotebooks(spec.id) ?? undefined,
         granularRecords: true,
@@ -591,7 +574,7 @@ async function runSourceSync(
             totalChunks: progress.totalChunks,
             phase: progress.phase,
           });
-          onProgress?.({ ...progress, sourceId: spec.id, sourceLabel: spec.label, feedId: spec.feedId, feedName: spec.feedName, sourceIndex, totalSources });
+          onProgress?.({ ...progress, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
         },
         // First paint: as soon as the canvas chunk (home page + canvas
         // routes) is committed, refresh content consumers — the home page
@@ -614,16 +597,16 @@ async function runSourceSync(
 
 // ── Status (Settings → Data) ───────────────────────────────────────────────
 
-export interface SeedVersionInfo {
+export interface FeedVersionInfo {
   version: number;
   schema: number;
   builtAt: string;
 }
 
-/** One notebook inside a seed's published manifest — the rows a Subscribe
+/** One notebook inside a feed's published manifest — the rows a Subscribe
  *  brings for it, and whether this device already holds them. */
-export interface SeedNotebookStatus {
-  /** Registry notebook id (the chunk id for a seed we have no registry entry for). */
+export interface FeedNotebookStatus {
+  /** Registry notebook id (the chunk id for a feed we have no registry entry for). */
   id: string;
   label: string;
   chunkId: string;
@@ -635,29 +618,24 @@ export interface SeedNotebookStatus {
   subscribed?: boolean;
 }
 
-export interface SeedSourceStatus {
-  id: string;
-  /** Feed identity — the same registered source in the feed vocabulary; it
-   *  agrees with `id`. */
-  feedId: FeedId;
+export interface FeedSourceStatus {
+  /** The registered feed's id. */
+  id: FeedId;
   label: string;
-  /** The feed's name — the source's name in the feed vocabulary; it agrees
-   *  with `label`. */
-  feedName: string;
-  /** The seed directory this source syncs from. */
+  /** The feed directory this source syncs from. */
   url: string;
   /** Published Git repository link — absent when the source publishes none. */
   repositoryUrl?: string;
-  /** One-line registry description of what the seed delivers. */
+  /** One-line registry description of what the feed delivers. */
   description?: string;
-  /** False for theme/custom seeds — they never import at boot. */
+  /** False for theme/custom feeds — they never import at boot. */
   autoImport: boolean;
-  /** Every notebook this seed publishes, in manifest order. */
-  notebooks: SeedNotebookStatus[];
+  /** Every notebook this feed publishes, in manifest order. */
+  notebooks: FeedNotebookStatus[];
   /** The import checkpoint in Storage — null before the first import. */
-  stored: (SeedVersionInfo & { importedAt: number }) | null;
+  stored: (FeedVersionInfo & { importedAt: number }) | null;
   /** The published manifest — null when unreachable (offline). */
-  remote: SeedVersionInfo | null;
+  remote: FeedVersionInfo | null;
   remoteError: string | null;
   /** Stored checkpoint matches the published manifest. */
   upToDate: boolean;
@@ -672,8 +650,8 @@ export interface SeedSourceStatus {
   autoSync: boolean;
 }
 
-export interface SeedStatus {
-  sources: SeedSourceStatus[];
+export interface FeedStatus {
+  sources: FeedSourceStatus[];
 }
 
 /**
@@ -688,24 +666,24 @@ export interface SeedStatus {
  * source gets an explicit unsubscribed record so the checkpoint-migration
  * on the next load cannot silently subscribe it.
  */
-export async function syncSeedSource(id: string, deps: SeedSyncDeps = {}): Promise<SeedSyncOutcome> {
-  const spec = (deps.sources ?? defaultSeedSources()).find(s => s.id === id);
+export async function syncFeedSource(id: string, deps: FeedSyncDeps = {}): Promise<FeedSyncOutcome> {
+  const spec = (deps.sources ?? defaultFeedSources()).find(s => s.id === id);
   if (!spec) {
-    console.warn(`[seedSync] unknown seed source: ${id}`);
+    console.warn(`[feedSync] unknown feed source: ${id}`);
     return 'error';
   }
-  const outcome = await runSeedSync({ ...deps, sources: [spec] });
+  const outcome = await runFeedSync({ ...deps, sources: [spec] });
   if (outcome === 'imported' || outcome === 'current') {
     if (deps.subscribe === false) {
       // Import Once: pin the explicit choice, but never downgrade a live
       // subscription (the flag only ever guards NEW registrations).
-      if (!isSeedSubscribed(id)) setSeedSubscribed(id, false);
+      if (!isFeedSubscribed(id)) setFeedSubscribed(id, false);
     } else {
       // A manual sync that restored a healthy checkpoint subscribes the
       // library for background refresh — both a fresh import and an
       // already-current library the user explicitly chose. 'busy'/'error'/
       // 'server-stale' never change a persisted choice. (Core: no-op.)
-      setSeedSubscribed(id, true);
+      setFeedSubscribed(id, true);
     }
     // A successful manual sync applied (or confirmed) the remote version —
     // the pending-update marker is stale and the grouped snapshot clears.
@@ -725,13 +703,13 @@ export async function syncSeedSource(id: string, deps: SeedSyncDeps = {}): Promi
  * failures propagate: a swallowed deletion would leave a stale checkpoint
  * that re-imports the removed content on the next sync.
  */
-export async function unsubscribeSeedSource(id: string, deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<{ deleted: number }> {
+export async function unsubscribeFeedSource(id: string, deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<{ deleted: number }> {
   if (id === 'core') return { deleted: 0 };
-  const storage = deps.storage ?? mainThreadSeedImportStorage();
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   const meta = await storage.getSeedMeta(seedMetaKey(id));
   const deleted = meta ? await storage.removeSourceContent(meta) : 0;
-  setSeedSubscribed(id, false);
-  setSeedAutoSync(id, false);
+  setFeedSubscribed(id, false);
+  setFeedAutoSync(id, false);
   clearCatalogSourceUpdate(id);
   invalidateSeedContent();
   const effortRegistry = getAppEffortRegistry();
@@ -745,17 +723,17 @@ export async function unsubscribeSeedSource(id: string, deps: Pick<SeedSyncDeps,
 /**
  * Unsubscribe AND remove the source entry: a custom source leaves the
  * registry; a built-in catalog row is hidden (its config lives in code).
- * Core is protected — deleting the app's own seed is a no-op.
+ * Core is protected — deleting the app's own feed is a no-op.
  */
-export async function deleteSeedSource(id: string, deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<{ deleted: number }> {
+export async function deleteFeedSource(id: string, deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<{ deleted: number }> {
   if (id === 'core') return { deleted: 0 };
-  const result = await unsubscribeSeedSource(id, deps);
-  if (customSeedSources().some((s) => s.id === id)) removeCustomSeedSource(id);
-  else hideSeedSourceRow(id);
+  const result = await unsubscribeFeedSource(id, deps);
+  if (customFeedSources().some((s) => s.id === id)) removeCustomFeedSource(id);
+  else hideFeedSourceRow(id);
   return result;
 }
 
-export interface SeedCoverage {
+export interface FeedCoverage {
   /** At least one boot-auto source (the bundled core) has a checkpoint. */
   coreImported: boolean;
   /** At least one manual library (community / custom) has a checkpoint. */
@@ -767,11 +745,11 @@ export interface SeedCoverage {
  * notice: reads the per-source checkpoints without touching the network —
  * the banner must render instantly and work offline.
  */
-export async function readSeedCoverage(deps: Pick<SeedSyncDeps, 'sources' | 'storage'> = {}): Promise<SeedCoverage> {
-  const storage = deps.storage ?? mainThreadSeedImportStorage();
+export async function readFeedCoverage(deps: Pick<FeedSyncDeps, 'sources' | 'storage'> = {}): Promise<FeedCoverage> {
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   let coreImported = false;
   let libraryImported = false;
-  await Promise.all((deps.sources ?? defaultSeedSources()).map(async (spec) => {
+  await Promise.all((deps.sources ?? defaultFeedSources()).map(async (spec) => {
     try {
       const meta = await storage.getSeedMeta(seedMetaKey(spec.id));
       if (!meta || meta.seedVersion <= 0) return;
@@ -786,11 +764,11 @@ export async function readSeedCoverage(deps: Pick<SeedSyncDeps, 'sources' | 'sto
 
 /**
  * Probe specifically for the bundled core source's checkpoint. Unlike
- * readSeedCoverage (which flips coreImported for ANY non-disabled auto-import
+ * readFeedCoverage (which flips coreImported for ANY non-disabled auto-import
  * source), this accurately gates the initial boot population of the core corpus.
  */
-export async function isCoreSeedImported(deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<boolean> {
-  const storage = deps.storage ?? mainThreadSeedImportStorage();
+export async function isCoreFeedImported(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<boolean> {
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   try {
     const meta = await storage.getSeedMeta(seedMetaKey('core'));
     return (meta?.seedVersion ?? 0) > 0;
@@ -800,35 +778,33 @@ export async function isCoreSeedImported(deps: Pick<SeedSyncDeps, 'storage'> = {
 }
 
 /**
- * Per-source local + remote seed versions for the Settings status card and
+ * Per-source local + remote feed versions for the Settings status card and
  * catalog management. Validates each fetched manifest and records the check
  * time; counts/bytes come from the validated manifest (0 when unreachable).
  */
-export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatus> {
-  const storage = deps.storage ?? mainThreadSeedImportStorage();
+export async function readFeedStatus(deps: FeedSyncDeps = {}): Promise<FeedStatus> {
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   const sources = await Promise.all(
-    (deps.sources ?? defaultSeedSources()).map(async (spec) => {
+    (deps.sources ?? defaultFeedSources()).map(async (spec) => {
       const stored = await storage.getSeedMeta(seedMetaKey(spec.id));
-      let remote: SeedSourceStatus['remote'] = null;
+      let remote: FeedSourceStatus['remote'] = null;
       let remoteError: string | null = null;
       let manifest: SeedManifest | null = null;
       let repositoryUrl = spec.repositoryUrl;
       try {
         manifest = assertManifest(await spec.source.fetchManifest());
         remote = { version: manifest.version, schema: manifest.schema, builtAt: manifest.builtAt };
-        // A seed may publish its repository link only in the manifest —
+        // A feed may publish its repository link only in the manifest —
         // the registry entry is not required to carry it.
         repositoryUrl ??= safeRepositoryUrl(manifest.repositoryUrl ?? '') ?? undefined;
-        markSeedChecked(spec.id, (deps.now ?? Date.now)());
+        markFeedChecked(spec.id, (deps.now ?? Date.now)());
       } catch (err) {
         remoteError = err instanceof Error ? err.message : String(err);
       }
-      const notebooks = seedNotebookStatuses(spec.id, manifest, stored);
+      const notebooks = feedNotebookStatuses(spec.id, manifest, stored);
       return {
         id: spec.id,
-        feedId: spec.feedId,
         label: spec.label,
-        feedName: spec.feedName,
         url: spec.url,
         ...(repositoryUrl ? { repositoryUrl } : {}),
         ...(spec.description ? { description: spec.description } : {}),
@@ -843,42 +819,42 @@ export async function readSeedStatus(deps: SeedSyncDeps = {}): Promise<SeedStatu
           stored != null && remote != null && stored.schema === SEED_SCHEMA && stored.seedVersion === remote.version,
         count: notebooks.reduce((n, notebook) => n + notebook.count, 0),
         bytes: notebooks.reduce((n, notebook) => n + notebook.bytes, 0),
-        checkedAt: seedCheckedAt(spec.id),
-        subscribed: isSeedSubscribed(spec.id),
-        autoSync: isSeedAutoSync(spec.id),
+        checkedAt: feedCheckedAt(spec.id),
+        subscribed: isFeedSubscribed(spec.id),
+        autoSync: isFeedAutoSync(spec.id),
       };
     }),
   );
   return { sources };
 }
 
-/** A seed's notebooks from its published manifest (registry labels where we
+/** A feed's notebooks from its published manifest (registry labels where we
  *  know the chunk), falling back to the registry when it is unreachable. */
-function seedNotebookStatuses(
-  seedId: string,
+function feedNotebookStatuses(
+  feedId: string,
   manifest: SeedManifest | null,
   stored: SeedMetaRecord | undefined,
-): SeedNotebookStatus[] {
+): FeedNotebookStatus[] {
   const byChunkId: Record<string, { id: string; label: string }> = {};
-  for (const notebook of notebooksOfSeed(seedId)) byChunkId[notebook.chunkId] = notebook;
-  const published = (manifest?.chunks ?? []).map((chunk): SeedNotebookStatus => ({
+  for (const notebook of notebooksOfFeed(feedId)) byChunkId[notebook.chunkId] = notebook;
+  const published = (manifest?.chunks ?? []).map((chunk): FeedNotebookStatus => ({
     id: byChunkId[chunk.id]?.id ?? chunk.id,
     label: byChunkId[chunk.id]?.label ?? chunk.id,
     chunkId: chunk.id,
     count: chunk.count,
     bytes: chunk.bytes,
     imported: Boolean(stored?.chunks[chunk.id]),
-    subscribed: isNotebookSubscribed(seedId, chunk.id),
+    subscribed: isNotebookSubscribed(feedId, chunk.id),
   }));
   if (published.length > 0) return published;
-  return notebooksOfSeed(seedId).map((notebook): SeedNotebookStatus => ({
+  return notebooksOfFeed(feedId).map((notebook): FeedNotebookStatus => ({
     id: notebook.id,
     label: notebook.label,
     chunkId: notebook.chunkId,
     count: 0,
     bytes: 0,
     imported: Boolean(stored?.chunks[notebook.chunkId]),
-    subscribed: isNotebookSubscribed(seedId, notebook.chunkId),
+    subscribed: isNotebookSubscribed(feedId, notebook.chunkId),
   }));
 }
 
@@ -893,16 +869,16 @@ function seedNotebookStatuses(
  * records so ownership never lives in two places; runs before the
  * subscription migration, which probes the seed checkpoint.
  */
-export async function adoptLegacySeedCheckpoints(deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<number> {
-  const storage = deps.storage ?? mainThreadSeedImportStorage();
+export async function adoptLegacyFeedCheckpoints(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<number> {
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   let adopted = 0;
-  for (const seed of SEED_SOURCES) {
+  for (const seed of FEED_SOURCES) {
     const metaKey = seedMetaKey(seed.id);
     try {
       const existing = await storage.getSeedMeta(metaKey);
       if (existing && existing.seedVersion > 0) continue;
       const legacy: SeedMetaRecord[] = [];
-      for (const notebook of notebooksOfSeed(seed.id)) {
+      for (const notebook of notebooksOfFeed(seed.id)) {
         if (notebook.id === seed.id) continue;
         const meta = await storage.getSeedMeta(seedMetaKey(notebook.id));
         if (meta && meta.seedVersion > 0) legacy.push(meta);
@@ -928,7 +904,7 @@ export async function adoptLegacySeedCheckpoints(deps: Pick<SeedSyncDeps, 'stora
       }
       adopted += 1;
     } catch (err) {
-      console.warn(`[seedSync] legacy checkpoint adoption failed for ${seed.id}`, err);
+      console.warn(`[feedSync] legacy checkpoint adoption failed for ${seed.id}`, err);
     }
   }
   return adopted;
@@ -943,8 +919,8 @@ export async function adoptLegacySeedCheckpoints(deps: Pick<SeedSyncDeps, 'stora
  * and without touching a note the user owns. Idempotent: a stamped note is
  * never stamped again. Returns the number of notes stamped.
  */
-export async function adoptFeedProvenance(deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<number> {
-  const storage = deps.storage ?? mainThreadSeedImportStorage();
+export async function adoptFeedProvenance(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<number> {
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   return await storage.backfillFeedProvenance();
 }
 
@@ -964,8 +940,8 @@ export async function adoptFeedProvenance(deps: Pick<SeedSyncDeps, 'storage'> = 
  * touched. Idempotent: the legacy record is blanked to the emptySeedMeta
  * shape via the putSeedMeta CAS, so a re-run finds nothing to upgrade.
  */
-export async function adoptLegacyCoreRegistryCheckpoint(deps: Pick<SeedSyncDeps, 'storage'> = {}): Promise<boolean> {
-  const storage = deps.storage ?? mainThreadSeedImportStorage();
+export async function adoptLegacyCoreRegistryCheckpoint(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<boolean> {
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   const legacyKey = seedMetaKey('seed-core');
   const legacy = await storage.getSeedMeta(legacyKey);
   // Older checkpoints may omit chunks; normalize before reading it.

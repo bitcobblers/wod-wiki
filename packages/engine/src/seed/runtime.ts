@@ -1,4 +1,4 @@
-import { feedIdOfSourceId, mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core';
+import { mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core';
 import type { IStorage, IReadWriteStore } from '@bitcobblers/wod-wiki-storage';
 import { userDeletedSeedNoteId } from '@bitcobblers/wod-wiki-storage';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
@@ -98,14 +98,13 @@ async function applyDefinitionChunk<T extends IEffort | IEquipment>(
     return max;
   };
   const projections: T[] = [];
-  // The feed that delivered these definitions — the source's own id in the
-  // feed vocabulary (a feed id and a seed id name the same source).
-  const feedSourceId = feedIdOfSourceId(seedSource);
+  // The feed that delivered these definitions — the source's own id.
+  const feedSourceId = seedSource;
   for (const [i, row] of rows.entries()) {
     if (!owned.has(ids[i])) continue;
     const parsed = parse(row.content);
     if (!parsed) continue;
-    projections.push({ ...parsed, registrySource: 'bundled' as const, ownerNoteId: ids[i], sourceId: seedSource, feedSourceId, sourcePath: row.path });
+    projections.push({ ...parsed, registrySource: 'bundled' as const, ownerNoteId: ids[i], sourceId: feedSourceId, sourcePath: row.path });
   }
   const prior = await defStore.getMany(projections.map((p) => p.slug));
   const changed = projections.filter((p, i) => {

@@ -1,7 +1,7 @@
 ---
 tags: [domain-model]
 store: none (registry + meta checkpoint)
-source: apps/playground/src/services/seed/seedSources.ts
+source: apps/playground/src/services/feed/feedSources.ts
 ---
 
 # Feed
@@ -11,12 +11,12 @@ source: apps/playground/src/services/seed/seedSources.ts
 
 ## Current State (Implemented in Code)
 
-- **Store:** none — a feed is a registry entry plus a checkpoint. The registry is `SEED_SOURCES` in `apps/playground/src/services/seed/seedSources.ts` (built-ins) and the localStorage document `wodwiki.seedSources` (custom sources); the import checkpoint is the `seed:<sourceId>` record in the `meta` store (`packages/engine/src/seed/contract.ts`).
-- **Type source:** `apps/playground/src/services/seed/seedSources.ts` (`SeedSource`), `apps/playground/src/services/seed/seedSync.ts` (`SeedSourceSpec`).
+- **Store:** none — a feed is a registry entry plus a checkpoint. The registry is `FEED_SOURCES` in `apps/playground/src/services/feed/feedSources.ts` (built-ins) and the localStorage document `wodwiki.seedSources` (custom feeds); the import checkpoint is the `seed:<sourceId>` record in the `meta` store (`packages/engine/src/seed/contract.ts`).
+- **Type source:** `apps/playground/src/services/feed/feedSources.ts` (`FeedSource`), `apps/playground/src/services/feed/feedSync.ts` (`FeedSourceSpec`).
 - **One feed = one published directory.** It serves a manifest and content-hashed chunks; the app imports the chunks into Storage and records what it imported under its own checkpoint.
-- **What a feed publishes:** notebooks. `NOTEBOOKS` in `seedSources.ts` lists them — one manifest chunk each (`collection.<slug>` / `feed.<slug>` chunk ids today) — and `notebooksOfSeed(seedId)` is how the library surfaces reach them.
-- **Subscription and auto-sync are separate documents.** The subscription map (`wodwiki.seedSubscriptions`) records what the user opted into; the auto-sync map (`wodwiki.seedAutoSync`) records what may self-apply. Subscribing never implies auto-updating.
-- **Ownership on removal.** Deleting a feed removes only the notes still stamped `seedOrigin === 'seed'`, cascading to their attachments, tag links, block index rows and page links — in one transaction (`apps/playground/src/services/seed/seedSync.ts`).
+- **What a feed publishes:** notebooks. `NOTEBOOKS` in `feedSources.ts` lists them — one manifest chunk each (`collection.<slug>` / `feed.<slug>` chunk ids today) — and `notebooksOfFeed(feedId)` is how the library surfaces reach them.
+- **Subscription and auto-sync are separate documents.** The subscription map (`wodwiki.seedSubscriptions`) records what the user opted into; the auto-sync map (`wodwiki.seedAutoSync`) records what may self-apply. Subscribing never implies auto-updating. Both keys keep their persisted spelling.
+- **Ownership on removal.** Deleting a feed removes only the notes still stamped `seedOrigin === 'seed'`, cascading to their attachments, tag links, block index rows and page links — in one transaction (`apps/playground/src/services/feed/feedSync.ts`).
 
 ### Fields (Current)
 
@@ -24,7 +24,7 @@ source: apps/playground/src/services/seed/seedSources.ts
 |---|---|---|
 | `id` | string | Registry id; namespaces the checkpoint `seed:<id>`, broadcast payloads and storage keys |
 | `label` | string | Display name |
-| `url` | string | Published seed directory (absolute https, no credentials) |
+| `url` | string | Published feed directory (absolute https, no credentials) |
 | `repositoryUrl?` | string | Published source repository |
 | `tier` | `'community' \| 'imported' \| 'user'` | Precedence tier stamped on the checkpoint and its rows |
 
@@ -37,7 +37,7 @@ source: apps/playground/src/services/seed/seedSources.ts
 
 #### Incoming (referenced by)
 
-- [[Note]] — imported rows carry the feed's provenance (`seedOrigin`, `seedChunkId`, `seedVersion`)
+- [[Note]] — imported rows carry the feed's provenance (`feedOrigin`, `feedSourceId`) and the artifact's provenance stamps (`seedOrigin`, `seedChunkId`, `seedVersion`)
 
 ---
 
@@ -64,7 +64,7 @@ The retired spellings resolve as follows: `:feed{}` names a feed, `:notebook{}` 
 
 ## Source evidence
 
-- [Feed registry](../../apps/playground/src/services/seed/seedSources.ts); [subscription + auto-sync maps](../../apps/playground/src/services/seed/seedSubscriptions.ts); [sync lifecycle](../../apps/playground/src/services/seed/seedSync.ts); [seed contract](../../packages/engine/src/seed/contract.ts).
+- [Feed registry](../../apps/playground/src/services/feed/feedSources.ts); [subscription + auto-sync maps](../../apps/playground/src/services/feed/feedSubscriptions.ts); [sync lifecycle](../../apps/playground/src/services/feed/feedSync.ts); [seed contract](../../packages/engine/src/seed/contract.ts).
 
 ## Map
 

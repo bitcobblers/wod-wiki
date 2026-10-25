@@ -65,7 +65,7 @@ fields:
 depends_on: [ManifestChunk]
 lifecycle:
   produced_by: "wod build (packages/tools/src/seedbuild/compiler.ts)"
-  consumed_by: [assertSeedManifest, HttpSeedSource.getMetaKey/manifest fetch, importSeedDir, runSourceSync]
+  consumed_by: [assertSeedManifest, HttpFeedSource.getMetaKey/manifest fetch, importSeedDir, runSourceSync]
   states:
     - published:  "written to dist/manifest.json after assertSeedManifest"
     - validated:  "schema===9, version non-negative int, repositoryUrl https+no-userinfo, per-chunk id/path/sha256 uniqueness"

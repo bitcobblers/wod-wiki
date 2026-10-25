@@ -23,9 +23,9 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '@/components/atoms/primitives/button'
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
-import { useSeedLibraryMissing, useSeedReadiness } from '@/services/seed/seedReadiness'
-import { defaultSeedSources, syncSeedSource, type SeedSyncProgress } from '@/services/seed/seedSync'
-import { isSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
+import { useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
+import { defaultFeedSources, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
+import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { toast } from '@/hooks/use-toast'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
@@ -80,7 +80,7 @@ import type { StreamProfile } from './streamProfile'
 import { splitReadmeQueries, hasReadmeQuery } from './readmeWql'
 import { ReadmeQueryBlock } from './ReadmeQueryBlock'
 import { CanvasProse } from '../../canvas/CanvasProse'
-import { seedNoteId } from '@/services/seed/SeedImporter'
+import { seedNoteId } from '@/services/feed/FeedImporter'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { useSeedContent } from '@/services/content/seedContent'
 
@@ -110,7 +110,7 @@ function BatchingSentinel({
 const STREAM_EXECUTE_DEBOUNCE_MS = 150
 
 /** Inline notice sync label — same phase vocabulary as the Settings sync surface. */
-function seedSyncLabel(event: SeedSyncProgress): string {
+function feedSyncLabel(event: FeedSyncProgress): string {
   switch (event.phase) {
     case 'checking': return `Checking ${event.sourceLabel}…`
     case 'fetching': return `Downloading ${event.chunkId ?? 'library'}…`
@@ -236,25 +236,25 @@ export function QueriableStreamView({
   const location = useLocation()
   // First-run gate: the vault query must not execute until the seed import
   // has settled, or a fresh profile briefly commits a permanent "0 of 0".
-  const seedReadiness = useSeedReadiness()
-  const libraryMissing = useSeedLibraryMissing()
+  const feedReadiness = useFeedReadiness()
+  const libraryMissing = useFeedLibraryMissing()
   // Inline community sync from the core-only notice (the probe above is
   // mount-only, so a successful sync suppresses it via librarySynced).
   const [librarySynced, setLibrarySynced] = useState(false)
-  const [seedSyncRunning, setSeedSyncRunning] = useState(false)
-  const [seedSyncEvent, setSeedSyncEvent] = useState<SeedSyncProgress | null>(null)
-  const [seedSyncError, setSeedSyncError] = useState<string | null>(null)
+  const [feedSyncRunning, setFeedSyncRunning] = useState(false)
+  const [feedSyncEvent, setFeedSyncEvent] = useState<FeedSyncProgress | null>(null)
+  const [feedSyncError, setFeedSyncError] = useState<string | null>(null)
   // Subscribed library sources — the notice's real sync worklist. "Library"
   // means exactly what the coverage probe means by it: a source that does
-  // NOT auto-import (autoImport === false — readSeedCoverage's own rule);
+  // NOT auto-import (autoImport === false — readFeedCoverage's own rule);
   // the bundled core auto-imports at boot and must never satisfy the notice
   // while the community library the page needs is still missing.
   // useSyncExternalStore needs a referentially stable snapshot, so the ids
   // cross as one joined string; splitting is per-render and cheap.
   // Subscribing in the manager drawer updates this live.
-  const subscribedIdsKey = useSyncExternalStore(subscribeSeedSubscriptions, () =>
-    defaultSeedSources()
-      .filter(s => s.autoImport === false && isSeedSubscribed(s.id))
+  const subscribedIdsKey = useSyncExternalStore(subscribeFeedSubscriptions, () =>
+    defaultFeedSources()
+      .filter(s => s.autoImport === false && isFeedSubscribed(s.id))
       .map(s => s.id)
       .join('\n'),
   )
@@ -527,21 +527,21 @@ export function QueriableStreamView({
   }, [])
 
   // Inline sync of the user's SUBSCRIBED library sources from the core-only
-  // notice — the same syncSeedSource path the Settings per-source Sync
+  // notice — the same syncFeedSource path the Settings per-source Sync
   // button uses, with the same outcome vocabulary. With nothing subscribed
   // the button cannot sync an empty worklist, so it becomes the subscribe
   // offer instead of pretending.
   const runLibrarySync = useCallback(async () => {
-    const sources = defaultSeedSources().filter(
+    const sources = defaultFeedSources().filter(
       s => s.autoImport === false && subscribedLibraryIds.includes(s.id),
     )
     if (sources.length === 0) {
       openLibraryManager()
       return
     }
-    setSeedSyncRunning(true)
-    setSeedSyncError(null)
-    setSeedSyncEvent(null)
+    setFeedSyncRunning(true)
+    setFeedSyncError(null)
+    setFeedSyncEvent(null)
     try {
       let imported = 0
       let current = 0
@@ -552,7 +552,7 @@ export function QueriableStreamView({
         // "current" and the up-to-date case stayed silent. A plain sync
         // compares the published version against the stored checkpoint and
         // reports "current" honestly when there is nothing to fetch.
-        const outcome = await syncSeedSource(spec.id, { onProgress: setSeedSyncEvent })
+        const outcome = await syncFeedSource(spec.id, { onProgress: setFeedSyncEvent })
         if (outcome === 'imported') {
           imported += 1
           // Content landed in the active storage: drop the notice and re-run
@@ -571,7 +571,7 @@ export function QueriableStreamView({
           problems.push(`${spec.label}: ${OUTCOME_LABEL[outcome]}`)
         }
       }
-      if (problems.length > 0) setSeedSyncError(problems.join(' — '))
+      if (problems.length > 0) setFeedSyncError(problems.join(' — '))
       if (imported > 0) {
         toast({
           title: imported === sources.length ? 'Libraries synced' : `${imported} of ${sources.length} libraries synced`,
@@ -584,11 +584,11 @@ export function QueriableStreamView({
         })
       }
     } finally {
-      setSeedSyncRunning(false)
+      setFeedSyncRunning(false)
     }
   }, [subscribedLibraryIds, openLibraryManager])
   useEffect(() => {
-    if (seedReadiness === 'preparing') return
+    if (feedReadiness === 'preparing') return
     if (parsed.error) {
       setLoading(false)
       return
@@ -629,7 +629,7 @@ export function QueriableStreamView({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [query, activeEngine, parsed, location.pathname, seedReadiness, savedTick])
+  }, [query, activeEngine, parsed, location.pathname, feedReadiness, savedTick])
 
   // Grouping: the committed run's query `by {}` dimensions win; otherwise
   // the view setting, then the surface's Group-By favorite, then the level
@@ -787,7 +787,7 @@ export function QueriableStreamView({
   // Nothing imported on a seed-library route: the emptiness is the missing
   // corpus, not the query — the empty state points at the import action and
   // never offers search remedies (a "Clear filter" there would lie).
-  const libraryNotImported = profile.seedNotice === true && libraryMissing === true && !librarySynced
+  const libraryNotImported = profile.feedNotice === true && libraryMissing === true && !librarySynced
 
   // Empty state remedies
   const emptyStateRemedies = useMemo(() => {
@@ -869,7 +869,7 @@ export function QueriableStreamView({
 
   // First-run vault gate: skeleton until the seed import settles, then the
   // query effect above runs against the full corpus on this mount.
-  if (seedReadiness === 'preparing') {
+  if (feedReadiness === 'preparing') {
     return (
       <div
         className="bg-card flex flex-col flex-1"
@@ -999,8 +999,8 @@ export function QueriableStreamView({
       {/* Core-only notice: this route's corpus lives in optional seed
           libraries and none has imported yet — the page is a dead end until
           the user syncs. Hidden while the coverage probe is unsettled. */}
-      {profile.seedNotice && libraryMissing && !librarySynced && (
-        <div className="px-4 pt-3 sm:px-6 lg:px-8" data-testid="seed-library-notice">
+      {profile.feedNotice && libraryMissing && !librarySynced && (
+        <div className="px-4 pt-3 sm:px-6 lg:px-8" data-testid="feed-library-notice">
           <div className="rounded-xl border border-border bg-card p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1 space-y-1">
               <p className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -1012,21 +1012,21 @@ export function QueriableStreamView({
                   ? 'The content for this page comes from your subscribed libraries, which have not been imported yet. Sync now to import them — or open Sync settings to add more sources (mirrors, your own libraries).'
                   : 'The content for this page comes from library sources, and none are subscribed yet. Browse the library manager to subscribe — mirrors and your own libraries both work.'}
               </p>
-              {seedSyncEvent && (
-                <div className="space-y-1.5 pt-1" data-testid="seed-library-notice-progress">
+              {feedSyncEvent && (
+                <div className="space-y-1.5 pt-1" data-testid="feed-library-notice-progress">
                   <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
-                    {seedSyncLabel(seedSyncEvent)}
+                    {feedSyncLabel(feedSyncEvent)}
                   </p>
-                  {seedSyncEvent.phase !== 'checking' && seedSyncEvent.phase !== 'finished'
-                    ? <ProgressBar value={seedSyncEvent.completedChunks} max={seedSyncEvent.totalChunks} label="Library import progress" className="max-w-sm" />
-                    : seedSyncRunning
+                  {feedSyncEvent.phase !== 'checking' && feedSyncEvent.phase !== 'finished'
+                    ? <ProgressBar value={feedSyncEvent.completedChunks} max={feedSyncEvent.totalChunks} label="Library import progress" className="max-w-sm" />
+                    : feedSyncRunning
                       ? <progress aria-label="Checking library sources" className="h-2 max-w-sm w-full" />
                       : null}
                 </div>
               )}
-              {(seedSyncError ?? (seedSyncEvent?.phase === 'finished' ? seedSyncEvent.error : null)) && (
-                <p className="text-xs text-destructive" data-testid="seed-library-notice-error">
-                  {seedSyncError ?? (seedSyncEvent?.phase === 'finished' ? seedSyncEvent.error : null)}
+              {(feedSyncError ?? (feedSyncEvent?.phase === 'finished' ? feedSyncEvent.error : null)) && (
+                <p className="text-xs text-destructive" data-testid="feed-library-notice-error">
+                  {feedSyncError ?? (feedSyncEvent?.phase === 'finished' ? feedSyncEvent.error : null)}
                 </p>
               )}
             </div>
@@ -1038,18 +1038,18 @@ export function QueriableStreamView({
               <Button
                 size="sm"
                 onClick={() => void runLibrarySync()}
-                disabled={seedSyncRunning}
-                data-testid="seed-library-notice-sync"
+                disabled={feedSyncRunning}
+                data-testid="feed-library-notice-sync"
                 className="gap-2"
               >
-                <RefreshCw className={`size-3.5 ${seedSyncRunning ? 'animate-spin' : ''}`} />
-                <span>{seedSyncRunning ? 'Syncing…' : subscribedLibraryIds.length > 0 ? 'Sync now' : 'Browse libraries'}</span>
+                <RefreshCw className={`size-3.5 ${feedSyncRunning ? 'animate-spin' : ''}`} />
+                <span>{feedSyncRunning ? 'Syncing…' : subscribedLibraryIds.length > 0 ? 'Sync now' : 'Browse libraries'}</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(ROUTE_PATTERNS.settingsSync)}
-                data-testid="seed-library-notice-settings"
+                data-testid="feed-library-notice-settings"
                 className="gap-2"
               >
                 <Settings2 className="size-3.5" />

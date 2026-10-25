@@ -15,7 +15,7 @@
  */
 
 import { buildGroupings, type Grouping } from '@/repositories/groupings';
-import { seedSourceById, type NotebookDef, type SeedSource } from '@/services/seed/seedSources';
+import { feedSourceById, type NotebookDef, type FeedSource } from '@/services/feed/feedSources';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -24,8 +24,8 @@ export type NotebookKind = 'feed' | 'collection';
 export interface NotebookSummary {
   /** Registry notebook id (e.g. `community-crossfit-programming`). */
   packageId: string;
-  /** Owning seed id — the import/subscription unit; absent for local-only content. */
-  seedId?: string;
+  /** Owning feed id — the import/subscription unit; absent for local-only content. */
+  feedId?: string;
   /** Corpus directory slug (e.g. `crossfit-programming`). */
   slug: string;
   kind: NotebookKind;
@@ -62,8 +62,8 @@ export interface NotebookFilter {
   text?: string;
   /** Restrict to one kind; undefined = all. */
   kind?: NotebookKind;
-  /** Filter by specific seed source ID; undefined = all seed sources. */
-  seedId?: string;
+  /** Filter by specific feed id; undefined = all feeds. */
+  feedId?: string;
   /** Filter by subscribed state: true = subscribed only; false = all. */
   subscribedOnly?: boolean;
 }
@@ -113,11 +113,11 @@ function summarizeGrouping(kind: NotebookKind, grouping: Grouping): NotebookSumm
 /**
  * Merge the registry with the local corpus. Registry notebooks are present
  * even when their chunk has not been imported (installed=false → the card
- * renders a review state; the seed header carries the import action). Local
- * groupings with no registry entry (custom sources synced whole) appear as
+ * renders a review state; the feed header carries the import action). Local
+ * groupings with no registry entry (custom feeds synced whole) appear as
  * Local notebooks.
  */
-export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: Record<string, string> | null, isSubscribed?: (seedId: string, chunkId: string) => boolean): NotebookSummary[] {
+export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: Record<string, string> | null, isSubscribed?: (feedId: string, chunkId: string) => boolean): NotebookSummary[] {
   const local: NotebookSummary[] = [];
   const bySlugKind = new Map<string, Grouping>();
   if (files) {
@@ -134,14 +134,14 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
       const parsed = parseNotebookChunkId(notebook.chunkId);
       if (!parsed) return null;
       const grouping = bySlugKind.get(`${parsed.kind}:${parsed.slug}`);
-      const seed = seedSourceById(notebook.seedId);
+      const feed = feedSourceById(notebook.feedId);
       const dates = (grouping?.items ?? [])
         .map(item => item.date)
         .filter((date): date is string => !!date)
         .sort();
       return {
         packageId: notebook.id,
-        seedId: notebook.seedId,
+        feedId: notebook.feedId,
         chunkId: notebook.chunkId,
         slug: parsed.slug,
         kind: parsed.kind,
@@ -150,8 +150,8 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
         description: notebook.description || grouping?.description,
         image: grouping?.image,
         categories: grouping?.categories ?? [],
-        sourceLabel: seed?.label ?? notebook.seedId,
-        ...(seed?.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),
+        sourceLabel: feed?.label ?? notebook.feedId,
+        ...(feed?.repositoryUrl ? { repositoryUrl: feed.repositoryUrl } : {}),
         href:
           parsed.kind === 'feed'
             ? `/feeds/${encodeURIComponent(parsed.slug)}`
@@ -162,7 +162,7 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
           : {}),
         ...(grouping?.readme !== undefined ? { readme: grouping.readme } : {}),
         installed: !!grouping,
-        subscribed: isSubscribed ? isSubscribed(notebook.seedId, notebook.chunkId) : true,
+        subscribed: isSubscribed ? isSubscribed(notebook.feedId, notebook.chunkId) : true,
       };
     })
     .filter((summary): summary is NotebookSummary => summary !== null);
@@ -171,14 +171,14 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
   return [...registry, ...local.filter(summary => !registryKeys.has(`${summary.kind}:${summary.slug}`))];
 }
 
-// ── Seed grouping ──────────────────────────────────────────────────────────
+// ── Feed grouping ──────────────────────────────────────────────────────────
 
-/** One seed with the notebooks it publishes — the library section's unit:
- *  the seed imports and subscribes as a whole, its notebooks are what a
+/** One feed with the notebooks it publishes — the library section's unit:
+ *  the feed imports and subscribes as a whole, its notebooks are what a
  *  Subscribe brings. */
 export interface NotebookGroup {
-  /** Absent for locally discovered content no registered seed claims. */
-  seed?: SeedSource;
+  /** Absent for locally discovered content no registered feed claims. */
+  feed?: FeedSource;
   label: string;
   description?: string;
   url?: string;
@@ -186,29 +186,29 @@ export interface NotebookGroup {
   notebooks: NotebookSummary[];
 }
 
-/** Group a catalog by the seed that publishes each notebook, registry order
- *  first; locally discovered notebooks (no registry entry) come last. Seeds
+/** Group a catalog by the feed that publishes each notebook, registry order
+ *  first; locally discovered notebooks (no registry entry) come last. Feeds
  *  with nothing left after filtering drop out. */
-export function groupNotebooksBySeed(
+export function groupNotebooksByFeed(
   catalog: readonly NotebookSummary[],
-  seeds: readonly SeedSource[],
+  feeds: readonly FeedSource[],
 ): NotebookGroup[] {
-  const bySeed: Record<string, NotebookSummary[]> = {};
+  const byFeed: Record<string, NotebookSummary[]> = {};
   const local: NotebookSummary[] = [];
   for (const notebook of catalog) {
-    if (notebook.seedId) (bySeed[notebook.seedId] ??= []).push(notebook);
+    if (notebook.feedId) (byFeed[notebook.feedId] ??= []).push(notebook);
     else local.push(notebook);
   }
   const groups: NotebookGroup[] = [];
-  for (const seed of seeds) {
-    const notebooks = bySeed[seed.id];
+  for (const feed of feeds) {
+    const notebooks = byFeed[feed.id];
     if (!notebooks?.length) continue;
     groups.push({
-      seed,
-      label: seed.label,
-      ...(seed.description ? { description: seed.description } : {}),
-      url: seed.url,
-      ...(seed.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),
+      feed,
+      label: feed.label,
+      ...(feed.description ? { description: feed.description } : {}),
+      url: feed.url,
+      ...(feed.repositoryUrl ? { repositoryUrl: feed.repositoryUrl } : {}),
       notebooks,
     });
   }
@@ -216,22 +216,22 @@ export function groupNotebooksBySeed(
   return groups;
 }
 
-// ── Seed cards ─────────────────────────────────────────────────────────────
+// ── Feed cards ─────────────────────────────────────────────────────────────
 
-/** One card in the library section: a SEED — the thing you subscribe to and
+/** One card in the library section: a FEED — the thing you subscribe to and
  *  the thing one Subscribe imports. Its notebooks are what it brings, listed
  *  on the card. */
-export interface SeedSummary {
-  /** Absent for locally discovered content no registered seed claims. */
-  seedId?: string;
-  /** Stable cover identity (the seed id). */
+export interface FeedSummary {
+  /** Absent for locally discovered content no registered feed claims. */
+  feedId?: string;
+  /** Stable cover identity (the feed id). */
   slug: string;
   label: string;
   description?: string;
-  /** Published seed directory. */
+  /** Published feed directory. */
   url?: string;
   repositoryUrl?: string;
-  /** The notebooks this seed publishes, in registry order. */
+  /** The notebooks this feed publishes, in registry order. */
   notebooks: NotebookSummary[];
   /** Rows present locally across its notebooks (0 before an import). */
   itemCount: number;
@@ -240,37 +240,37 @@ export interface SeedSummary {
   subscribed?: boolean;
   /** Newest item date across its notebooks (feeds only). */
   latestDate?: string;
-  /** Where an installed seed leads — the library listing. */
+  /** Where an installed feed leads — the library listing. */
   href: string;
 }
 
-export interface SeedFilter {
-  /** Case-insensitive substring over the seed AND its notebooks. */
+export interface FeedFilter {
+  /** Case-insensitive substring over the feed AND its notebooks. */
   text?: string;
-  /** Restrict to seeds publishing a notebook of this kind; undefined = all. */
+  /** Restrict to feeds publishing a notebook of this kind; undefined = all. */
   kind?: NotebookKind;
-  /** Filter by specific seed source ID; undefined = all seed sources. */
-  seedId?: string;
+  /** Filter by specific feed id; undefined = all feeds. */
+  feedId?: string;
   /** Filter by subscribed state: true = subscribed only; false = all. */
   subscribedOnly?: boolean;
 }
 
-/** Cards for the library section: one per seed, built from the notebook
- *  catalog (a seed with nothing to show drops out). */
-export function buildSeedCatalog(
+/** Cards for the library section: one per feed, built from the notebook
+ *  catalog (a feed with nothing to show drops out). */
+export function buildFeedCatalog(
   notebooks: readonly NotebookDef[],
   files: Record<string, string> | null,
-  seeds: readonly SeedSource[],
-  isSubscribed?: (seedId: string, chunkId: string) => boolean,
-): SeedSummary[] {
-  return groupNotebooksBySeed(buildNotebookCatalog(notebooks, files, isSubscribed), seeds).map((group): SeedSummary => {
+  feeds: readonly FeedSource[],
+  isSubscribed?: (feedId: string, chunkId: string) => boolean,
+): FeedSummary[] {
+  return groupNotebooksByFeed(buildNotebookCatalog(notebooks, files, isSubscribed), feeds).map((group): FeedSummary => {
     const dates = group.notebooks
       .map((notebook) => notebook.latestDate)
       .filter((date): date is string => !!date)
       .sort();
     return {
-      seedId: group.seed?.id,
-      slug: group.seed?.id ?? 'local',
+      feedId: group.feed?.id,
+      slug: group.feed?.id ?? 'local',
       label: group.label,
       ...(group.description ? { description: group.description } : {}),
       ...(group.url ? { url: group.url } : {}),
@@ -285,19 +285,19 @@ export function buildSeedCatalog(
   });
 }
 
-/** Text matches the seed or any of its notebooks; the kind facet keeps seeds
+/** Text matches the feed or any of its notebooks; the kind facet keeps feeds
  *  that publish a notebook of that kind. */
-export function filterSeeds(catalog: readonly SeedSummary[], filter: SeedFilter): SeedSummary[] {
+export function filterFeeds(catalog: readonly FeedSummary[], filter: FeedFilter): FeedSummary[] {
   const text = filter.text?.trim().toLowerCase();
-  return catalog.filter((seed) => {
-    if (filter.seedId && seed.seedId !== filter.seedId) return false;
-    if (filter.kind && !seed.notebooks.some((notebook) => notebook.kind === filter.kind)) return false;
-    if (filter.subscribedOnly && !seed.notebooks.some((notebook) => notebook.subscribed)) return false;
+  return catalog.filter((feed) => {
+    if (filter.feedId && feed.feedId !== filter.feedId) return false;
+    if (filter.kind && !feed.notebooks.some((notebook) => notebook.kind === filter.kind)) return false;
+    if (filter.subscribedOnly && !feed.notebooks.some((notebook) => notebook.subscribed)) return false;
     if (!text) return true;
     return (
-      seed.label.toLowerCase().includes(text) ||
-      (seed.description?.toLowerCase().includes(text) ?? false) ||
-      seed.notebooks.some(
+      feed.label.toLowerCase().includes(text) ||
+      (feed.description?.toLowerCase().includes(text) ?? false) ||
+      feed.notebooks.some(
         (notebook) =>
           notebook.label.toLowerCase().includes(text) ||
           (notebook.description?.toLowerCase().includes(text) ?? false),
@@ -306,7 +306,7 @@ export function filterSeeds(catalog: readonly SeedSummary[], filter: SeedFilter)
   });
 }
 
-export function sortSeeds(catalog: readonly SeedSummary[], sort: NotebookSort): SeedSummary[] {
+export function sortFeeds(catalog: readonly FeedSummary[], sort: NotebookSort): FeedSummary[] {
   const copy = [...catalog];
   switch (sort) {
     case 'name':
@@ -330,7 +330,7 @@ export function sortSeeds(catalog: readonly SeedSummary[], sort: NotebookSort): 
 export function filterNotebooks(catalog: readonly NotebookSummary[], filter: NotebookFilter): NotebookSummary[] {
   const text = filter.text?.trim().toLowerCase();
   return catalog.filter((summary) => {
-    if (filter.seedId && summary.seedId !== filter.seedId) return false;
+    if (filter.feedId && summary.feedId !== filter.feedId) return false;
     if (filter.kind && summary.kind !== filter.kind) return false;
     if (filter.subscribedOnly && !summary.subscribed) return false;
     if (!text) return true;

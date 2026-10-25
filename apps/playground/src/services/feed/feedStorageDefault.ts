@@ -5,8 +5,8 @@
  * worker-safe; the seed-sync worker must never import this file.
  */
 import { storage } from '@/services/storage';
-import { IndexedDBSeedImportStorage } from './SeedImportStorage';
+import { IndexedDBFeedImportStorage } from './FeedImportStorage';
 
-export function mainThreadSeedImportStorage(): IndexedDBSeedImportStorage {
-  return new IndexedDBSeedImportStorage(storage);
+export function mainThreadFeedImportStorage(): IndexedDBFeedImportStorage {
+  return new IndexedDBFeedImportStorage(storage);
 }

@@ -1,20 +1,20 @@
 /**
- * seedSync.worker — off-main-thread seed sync. The boot load check and
+ * feedSync.worker — off-main-thread seed sync. The boot load check and
  * manual syncs run here so manifest fetches, chunk JSON parsing, row
  * validation, and IndexedDB writes never block the UI.
  *
- * The worker owns ONLY the seedSyncCore path (no localStorage, no app
+ * The worker owns ONLY the feedSyncCore path (no localStorage, no app
  * caches — the core module's hard boundary). It opens its own
  * IndexedDBStorage against the same database the tab uses; the driver on
  * the main thread owns every side effect (activity, content caches,
  * registries, catalog-update snapshot, check timestamps).
  */
 import { IndexedDBStorage } from '@bitcobblers/wod-wiki-storage/idb';
-import type { SeedImportProgress } from './SeedImporter';
-import { HttpSeedSource } from './HttpSeedSource';
+import type { FeedImportProgress } from './FeedImporter';
+import { HttpFeedSource } from './HttpFeedSource';
 import type { SeedPrecedenceTier } from '@/types/seed';
-import { IndexedDBSeedImportStorage } from './SeedImportStorage';
-import { runSourceSyncCore, type SeedSyncOutcome, type SourceSyncCoreResult } from './seedSyncCore';
+import { IndexedDBFeedImportStorage } from './FeedImportStorage';
+import { runSourceSyncCore, type FeedSyncOutcome, type SourceSyncCoreResult } from './feedSyncCore';
 
 interface WorkerSourceSpec {
   id: string;
@@ -39,35 +39,35 @@ interface RunMessage {
   sources: WorkerSourceSpec[];
 }
 
-export type SeedWorkerToMain =
-  | { type: 'progress'; sourceId: string; progress: SeedImportProgress }
+export type FeedWorkerToMain =
+  | { type: 'progress'; sourceId: string; progress: FeedImportProgress }
   | { type: 'first-paint'; sourceId: string }
   | { type: 'source-result'; sourceId: string; result: SourceSyncCoreResult }
-  | { type: 'done'; outcomes: SeedSyncOutcome[] };
+  | { type: 'done'; outcomes: FeedSyncOutcome[] };
 
 // DOM lib types `self` as Window; a module worker only needs these two.
 const ctx = self as unknown as {
   onmessage: ((event: MessageEvent<RunMessage>) => void) | null;
-  postMessage: (message: SeedWorkerToMain) => void;
+  postMessage: (message: FeedWorkerToMain) => void;
 };
 
 ctx.onmessage = (event: MessageEvent<RunMessage>): void => {
   if (event.data.type !== 'run') return;
   const msg = event.data;
   void (async (): Promise<void> => {
-    const storage = new IndexedDBSeedImportStorage(new IndexedDBStorage({
+    const storage = new IndexedDBFeedImportStorage(new IndexedDBStorage({
       dbName: msg.dbName,
       // Identity is snapshotted on the main thread at kickoff; rows written
       // here carry the same stamp a main-thread sync would write.
       ...(msg.userId ? { getUserId: (): string => msg.userId as string } : {}),
     }));
-    const outcomes: SeedSyncOutcome[] = [];
+    const outcomes: FeedSyncOutcome[] = [];
     for (const spec of msg.sources) {
       const result = await runSourceSyncCore(
         {
           id: spec.id,
           label: spec.label,
-          source: new HttpSeedSource(spec.url),
+          source: new HttpFeedSource(spec.url),
           embeddedVersion: spec.embeddedVersion,
           autoSyncOn: spec.autoSyncOn,
           ...(spec.tier ? { tier: spec.tier } : {}),

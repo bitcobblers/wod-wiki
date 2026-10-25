@@ -2,17 +2,17 @@
  * useLibraryCatalog — the notebook catalog behind the home gallery, resolved
  * for cast-driven navigation.
  *
- * `[]` until the seed corpus lands; only installed seeds with local rows are
+ * `[]` until the feed corpus lands; only installed feeds with local rows are
  * offered — a couch cannot import a package. Sorted like the gallery default.
  */
 
 import { useMemo } from 'react';
 import { useSeedContent } from '@/services/content/seedContent';
-import { listNotebooks, listSeedSources } from '@/services/seed/seedSources';
+import { listNotebooks, listFeedSources } from '@/services/feed/feedSources';
 import {
-    buildSeedCatalog,
-    filterSeeds,
-    sortSeeds,
+    buildFeedCatalog,
+    filterFeeds,
+    sortFeeds,
 } from '../../app/views/notebook-gallery/notebookGalleryModel';
 import type { RpcLibraryEntry } from '@/services/cast/rpc/RpcMessages';
 
@@ -21,13 +21,13 @@ import type { RpcLibraryEntry } from '@/services/cast/rpc/RpcMessages';
  * Exported for tests; the hook memoizes the live derivation.
  */
 export function toLibraryEntries(files: Record<string, string> | null): RpcLibraryEntry[] {
-    return sortSeeds(filterSeeds(buildSeedCatalog(listNotebooks(), files, listSeedSources()), {}), 'updated')
-        .filter((seed) => seed.installed && seed.itemCount > 0)
-        .map((seed) => ({
-            notebookId: seed.slug,
-            title: seed.label,
-            href: seed.href,
-            itemCount: seed.itemCount,
+    return sortFeeds(filterFeeds(buildFeedCatalog(listNotebooks(), files, listFeedSources()), {}), 'updated')
+        .filter((feed) => feed.installed && feed.itemCount > 0)
+        .map((feed) => ({
+            notebookId: feed.slug,
+            title: feed.label,
+            href: feed.href,
+            itemCount: feed.itemCount,
         }));
 }
 

@@ -18,7 +18,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 375, height: 812 
     await page.goto(`/subscribe?source=${encodeURIComponent(source)}`);
     await expect(page.getByRole('heading', { name: 'Subscribe to Training catalog?' })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem('wodwiki.seedSources'))).toBeNull();
-    const autoSync = page.getByRole('checkbox', { name: 'Auto-sync this seed' });
+    const autoSync = page.getByRole('checkbox', { name: 'Auto-sync this feed' });
     await expect(autoSync).not.toBeChecked();
     await autoSync.check();
     await page.getByRole('button', { name: 'Import & Subscribe', exact: true }).click();
@@ -56,10 +56,10 @@ test('import once leaves the source unsubscribed even when auto-sync was checked
   await page.route(`${source}manifest.json`, route => route.fulfill({ json: manifest }));
   await page.goto(`/subscribe?source=${encodeURIComponent(source)}`);
   await expect(page.getByRole('heading', { name: 'Subscribe to Training catalog?' })).toBeVisible();
-  await page.getByRole('checkbox', { name: 'Auto-sync this seed' }).check();
+  await page.getByRole('checkbox', { name: 'Auto-sync this feed' }).check();
   await page.getByRole('button', { name: 'Import Once', exact: true }).click();
   await expect(page).toHaveURL(/\/catalogs\?manage=1$/);
-  const row = page.getByRole('dialog').getByTestId('seed-source-training-catalog');
+  const row = page.getByRole('dialog').getByTestId('feed-source-training-catalog');
   await expect(row.getByRole('button', { name: 'Subscribe', exact: true })).toBeVisible();
   await expect(row.getByRole('checkbox', { name: /Auto-sync/i })).not.toBeChecked();
   await page.reload();

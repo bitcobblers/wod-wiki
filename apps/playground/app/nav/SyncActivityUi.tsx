@@ -24,7 +24,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { ToastAction } from '@/components/atoms/primitives/toast'
 import { ROUTE_PATTERNS } from '../lib/routes'
-import { getCatalogUpdates, subscribeCatalogUpdates } from '@/services/seed/seedSync'
+import { getCatalogUpdates, subscribeCatalogUpdates } from '@/services/feed/feedSync'
 
 function activityLabel(direction: 'upload' | 'download', count: number, label: string | null, progress?: SyncProgressItem | null): string {
   const noun = direction === 'upload' ? 'Uploading' : 'Downloading'

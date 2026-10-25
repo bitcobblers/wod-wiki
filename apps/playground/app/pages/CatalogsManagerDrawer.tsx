@@ -28,11 +28,11 @@ export function CatalogsManagerDrawer({ open, onOpenChange }: CatalogsManagerDra
         data-testid="catalogs-manager-drawer"
       >
         <DialogHeader>
-          <DialogTitle>Seed Subscriptions &amp; Local Libraries</DialogTitle>
+          <DialogTitle>Feed Subscriptions &amp; Local Libraries</DialogTitle>
           <DialogDescription>
-            Manage the seeds stored in your active data location — compare versions, sync updates,
-            and subscribe, unsubscribe, or delete sources. One Subscribe imports every notebook a
-            seed publishes. Your own notes are never touched.
+            Manage the feeds stored in your active data location — compare versions, sync updates,
+            and subscribe, unsubscribe, or delete feeds. One Subscribe imports every notebook a
+            feed publishes. Your own notes are never touched.
           </DialogDescription>
         </DialogHeader>
         <SyncSection />

@@ -7,7 +7,7 @@ import {
   USAGE_NOTE_TITLE,
 } from '../helpers/seedEquipment';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -32,7 +32,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
       const errors = attachErrorCapture(page);
       await page.setViewportSize(viewport);
       await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-      await waitForSeedReady(page);
+      await waitForFeedReady(page);
       await seedBundledEquipment(page);
       await page.reload({ waitUntil: 'domcontentloaded' });
 
@@ -51,7 +51,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
   test('desktop L2 panel offers New equipment and All Equipment on the list', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/equipment', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     // L2 rows: the landing ("All Equipment") and the create action, sharing
     // the stream panel conventions with Efforts.
@@ -65,7 +65,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
   test('renders bundled equipment as a real note page and clones it preserving the source', async ({ page }) => {
     const errors = attachErrorCapture(page);
     await page.goto('/equipment/dumbbell', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await seedBundledEquipment(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
 
@@ -115,7 +115,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
     const errors = attachErrorCapture(page);
     const slug = `plate-e2e-${Date.now()}`;
     await page.goto('/equipment/new?mode=create', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     const equipment = new EquipmentPage(page);
     // Create uses the same editor layout as edit — no detached textarea page.
@@ -161,7 +161,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
 
     // ── Create: the editor field must be reachable and typable by touch. ──
     await page.goto('/equipment/new?mode=create', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     const equipment = new EquipmentPage(page);
     await equipment.replaceEditorDocument(
@@ -215,7 +215,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
   test('links usage with real titles and related efforts from the canonical indices', async ({ page }) => {
     const errors = attachErrorCapture(page);
     await page.goto('/equipment/dumbbell', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await seedBundledEquipment(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
 
@@ -243,7 +243,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
   test('opens equipment entries on the dedicated route while generic note access survives', async ({ page }) => {
     const errors = attachErrorCapture(page);
     await page.goto('/equipment/dumbbell', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await seedBundledEquipment(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
 
@@ -264,7 +264,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
 
   test('shows a recoverable not-found state for unknown slugs', async ({ page }) => {
     await page.goto('/equipment/nonexistent-gear-12345', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     const equipment = new EquipmentPage(page);
     await expect(equipment.detailNotFound()).toBeVisible();

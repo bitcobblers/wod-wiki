@@ -14,7 +14,7 @@
 
 import { test, expect, Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 import { seedBundledEfforts } from '../helpers/seedEfforts';
 
 const TEST_EFFORT_PREFIX = 'e2e-test';
@@ -55,7 +55,7 @@ test.describe('Efforts Catalog Page', () => {
   test('loads and displays bundled efforts', async ({ page }) => {
     const errors = setupErrorCapture(page);
     await page.goto('/efforts', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     await expect(page.getByTestId('stream-query-bar')).toBeVisible();
     await expect(page.getByRole('main').getByText('Rowing').first()).toBeVisible();
@@ -64,7 +64,7 @@ test.describe('Efforts Catalog Page', () => {
 
   test('shows search and filter controls', async ({ page }) => {
     await page.goto('/efforts', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     await expect(page.getByTestId('stream-query-bar')).toBeVisible();
   });

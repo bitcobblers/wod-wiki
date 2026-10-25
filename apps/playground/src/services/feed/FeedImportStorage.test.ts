@@ -4,14 +4,14 @@ import { IDBFactory } from 'fake-indexeddb';
 import { IndexedDBStorage } from '@/services/storage';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
 import { SEED_SCHEMA, emptySeedMeta, seedMetaKey } from '@/types/seed';
-import { seedNoteId } from './SeedImporter';
-import { IndexedDBSeedImportStorage, type SeedChunkWrite } from './SeedImportStorage';
+import { seedNoteId } from './FeedImporter';
+import { IndexedDBFeedImportStorage, type SeedChunkWrite } from './FeedImportStorage';
 
 const key = seedMetaKey('core');
 const originalIndexedDB = globalThis.indexedDB;
 let idb: IndexedDBStorage;
-let storage: IndexedDBSeedImportStorage;
-beforeEach(() => { globalThis.indexedDB = new IDBFactory(); idb = new IndexedDBStorage(); storage = new IndexedDBSeedImportStorage(idb); });
+let storage: IndexedDBFeedImportStorage;
+beforeEach(() => { globalThis.indexedDB = new IDBFactory(); idb = new IndexedDBStorage(); storage = new IndexedDBFeedImportStorage(idb); });
 afterEach(async () => { await idb.close(); if (originalIndexedDB === undefined) Reflect.deleteProperty(globalThis, 'indexedDB'); else globalThis.indexedDB = originalIndexedDB; });
 
 async function writeFixture(): Promise<SeedChunkWrite> {
@@ -31,7 +31,7 @@ describe('atomic sparse seed storage', () => {
   });
   it('commit failure rolls back source, revisions, projections and checkpoint, then retries', async () => {
     const write = await writeFixture();
-    const failing = new IndexedDBSeedImportStorage({
+    const failing = new IndexedDBFeedImportStorage({
       readonly: idb.readonly.bind(idb), readwrite: idb.readwrite.bind(idb),
       wipe: idb.wipe.bind(idb), close: idb.close.bind(idb),
       transaction: (stores, mode, fn) => idb.transaction(stores, mode, async (tx) => {
@@ -53,7 +53,7 @@ describe('atomic sparse seed storage', () => {
     const noteId = await seedNoteId(write.rows[0].path);
     await idb.readwrite('block_revisions').put({ noteId, blockId: block.id, version: 1, kind: block.kind, rawContent: write.rows[0].content.slice(block.from, block.to), dialect: 'time', savedAt: 0 });
     const original = idb.transaction.bind(idb);
-    const failing = new IndexedDBSeedImportStorage({
+    const failing = new IndexedDBFeedImportStorage({
       readonly: idb.readonly.bind(idb), readwrite: idb.readwrite.bind(idb), wipe: idb.wipe.bind(idb), close: idb.close.bind(idb),
       transaction: (stores, mode, fn) => original(stores, mode, async (tx) => {
         const result = await fn(tx);

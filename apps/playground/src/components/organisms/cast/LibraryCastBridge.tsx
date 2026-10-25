@@ -10,8 +10,8 @@
  * the browser routes to it, and the existing block-selection / timer flow
  * takes over.
  *
- * The catalog mirrors the home gallery exactly: same `buildSeedCatalog`
- * inputs, same default sort. Only installed seeds with local rows are
+ * The catalog mirrors the home gallery exactly: same `buildFeedCatalog`
+ * inputs, same default sort. Only installed feeds with local rows are
  * offered — a couch cannot import a package.
  */
 

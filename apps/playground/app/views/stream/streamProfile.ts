@@ -45,10 +45,10 @@ export interface StreamProfile {
   shelfVisible?: boolean
   /** Optional message displayed when query yields zero results. */
   emptyMessage?: string
-  /** Corpus comes from optional seed libraries — when no manual library has
+  /** Corpus comes from optional feeds — when no manual library has
    *  imported, the view shows a Sync notice (catalogs/feeds dead-end without
    *  one). Efforts/dashboards can opt in later. */
-  seedNotice?: boolean
+  feedNotice?: boolean
   /** Display name for breadcrumbs/crumbs — `routeView.deriveWorkout` reads
    *  it instead of keeping its own route-name map. */
   title?: string
@@ -123,8 +123,8 @@ export const CATALOGS_STREAM_PROFILE: StreamProfile = {
   target: 'note',
   scopeOptions: ['feeds'],
   shelfVisible: false,
-  // Corpus comes from seed libraries — surface the core-only notice.
-  seedNotice: true,
+  // Corpus comes from feeds — surface the core-only notice.
+  feedNotice: true,
   legacy: createContentLegacyConfig('feeds'),
 }
 
@@ -136,8 +136,8 @@ export const FEEDS_STREAM_PROFILE: StreamProfile = {
   target: 'note',
   scopeOptions: ['feeds'],
   emptyMessage: 'No note entries match your search.',
-  // Corpus comes from seed libraries — surface the core-only notice.
-  seedNotice: true,
+  // Corpus comes from feeds — surface the core-only notice.
+  feedNotice: true,
   legacy: createContentLegacyConfig('feeds'),
 }
 

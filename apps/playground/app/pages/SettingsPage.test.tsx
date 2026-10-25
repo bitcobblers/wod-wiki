@@ -41,8 +41,8 @@ mock.module('@/contexts/DebugModeContext', () => ({
     toggleDebugMode: mockToggleDebugMode,
   }),
 }))
-mock.module('@/services/seed/seedSync', () => ({
-  readSeedStatus: async () => ({
+mock.module('@/services/feed/feedSync', () => ({
+  readFeedStatus: async () => ({
     sources: [
       {
         id: 'core',
@@ -60,9 +60,9 @@ mock.module('@/services/seed/seedSync', () => ({
       },
     ],
   }),
-  runSeedSync: async () => 'current',
-  runBootSeedSync: async () => 'current',
-  syncSeedSource: async () => 'current',
+  runFeedSync: async () => 'current',
+  runBootFeedSync: async () => 'current',
+  syncFeedSource: async () => 'current',
 }))
 
 function renderSettings(initialPath = '/settings/appearance') {

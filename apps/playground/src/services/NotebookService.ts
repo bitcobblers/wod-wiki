@@ -10,16 +10,16 @@
  */
 
 import { v7 as uuidv7 } from 'uuid';
-import { feedIdOfSourceId, type Note } from '@bitcobblers/wod-wiki-core';
+import type { Note } from '@bitcobblers/wod-wiki-core';
 import { slugifyNotebookName, toNotebookId, type Notebook } from '../types/notebook';
 import { LocalStore } from './storage/LocalStore';
 import { remotePrefsMode, metaPrefBackend, metaSetPref } from './storage/metaStore';
 import {
-    CORE_SEED_URL,
+    CORE_FEED_URL,
     listNotebooks,
-    listSeedSources,
-} from './seed/seedSources';
-import { isSeedSubscribed } from './seed/seedSubscriptions';
+    listFeedSources,
+} from './feed/feedSources';
+import { isFeedSubscribed } from './feed/feedSubscriptions';
 
 const NOTEBOOKS_KEY = 'notebooks';
 const ACTIVE_KEY = 'active-notebook';
@@ -92,9 +92,8 @@ export class NotebookService {
                 description: 'Built-in Whiteboard Language and WQL guides.',
                 icon: '📖',
                 origin: 'default',
-                sourceEntryId: 'core',
-                feedEntryId: feedIdOfSourceId('core'),
-                sourceUrl: CORE_SEED_URL,
+                feedEntryId: 'core',
+                sourceUrl: CORE_FEED_URL,
                 seedChunkId: 'canvas',
                 createdAt: 0,
                 lastEditedAt: 0,
@@ -104,17 +103,17 @@ export class NotebookService {
 
     /**
      * Seed-delivered notebooks, each bound to the SEED it is published by:
-     * the seed is what a reader subscribes to and syncs (`SeedSource.id` +
+     * the seed is what a reader subscribes to and syncs (`FeedSource.id` +
      * `url`), so `onlySubscribed` follows the seed's subscription.
      */
-    getSeedNotebooks(options?: { onlySubscribed?: boolean }): Notebook[] {
-        const seedsById = new Map(listSeedSources().map((s) => [s.id, s]));
+    getFeedNotebooks(options?: { onlySubscribed?: boolean }): Notebook[] {
+        const seedsById = new Map(listFeedSources().map((s) => [s.id, s]));
         const out: Notebook[] = [];
         for (const notebook of listNotebooks()) {
             if (notebook.category === 'dashboards') continue;
-            if (options?.onlySubscribed && !isSeedSubscribed(notebook.seedId)) continue;
+            if (options?.onlySubscribed && !isFeedSubscribed(notebook.feedId)) continue;
             const slug = notebook.chunkId.replace(/^(?:collection|feed)\./, '');
-            const seed = seedsById.get(notebook.seedId);
+            const seed = seedsById.get(notebook.feedId);
             out.push({
                 id: toNotebookId(slug),
                 slug,
@@ -122,8 +121,7 @@ export class NotebookService {
                 name: notebook.label,
                 description: notebook.description,
                 icon: notebook.category === 'feeds' ? '📡' : '📚',
-                origin: 'seed',
-                sourceEntryId: notebook.seedId,
+                origin: 'feed',
                 feedEntryId: notebook.feedId,
                 packageId: notebook.id,
                 sourceUrl: seed?.url,
@@ -156,7 +154,7 @@ export class NotebookService {
     /** All notebooks across defaults, user-created, and seed-delivered sources. */
     getAllCatalogNotebooks(): Notebook[] {
         const byNotebookId = new Map<string, Notebook>();
-        for (const nb of [...this.getDefaultNotebooks(), ...this.getSeedNotebooks(), ...this.getAll()]) {
+        for (const nb of [...this.getDefaultNotebooks(), ...this.getFeedNotebooks(), ...this.getAll()]) {
             byNotebookId.set(nb.notebookId, nb);
         }
         return [...byNotebookId.values()];

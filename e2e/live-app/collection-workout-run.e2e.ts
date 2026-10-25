@@ -23,7 +23,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { seedNote, WOD_DB } from '../helpers/wodwikiDb';
-import { waitForSeedReady, syncSeed } from '../helpers/seedReadiness';
+import { waitForFeedReady, syncFeed } from '../helpers/feedReadiness';
 import { getSessions } from '../utils/sessionsDb';
 import { installFastClock } from '../utils/fastClock';
 import { TEST_IDS } from '../contracts/TestIdContract';
@@ -125,16 +125,16 @@ test.describe('Collection Workout — run and record', () => {
    * Boot the app and wait for the background seed import to settle before
    * seeding test notes — otherwise the importer's collection chunk overwrites
    * the E2E content and /c/… pages render fallback markdown mid-race. Uses the
-   * shared <html data-seed-state> readiness gate (no console-event waits, no
+   * shared <html data-feed-state> readiness gate (no console-event waits, no
    * silent catch-and-proceed): a failed sync fails the test here.
    */
   async function gotoHomeAfterSeedImport(page: Page): Promise<void> {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     // The /c/ route's bundled markdown comes from the ZombieFit seed
     // (autoImport:false) — sync it through the real Settings surface so the
     // page has content to swap against the seeded E2E override.
-    await syncSeed(page, 'seed-zombie-fit');
+    await syncFeed(page, 'seed-zombie-fit');
   }
 
   test('creates a journal record on start; stopping early saves and displays results', async ({ page }, testInfo) => {

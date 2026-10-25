@@ -1,13 +1,13 @@
 import { assertSeedManifest, assertSeedRows, assertSeedRow, seedNoteId, type SeedChunkResult, type SeedRow } from '@bitcobblers/wod-wiki-engine';
 import { CANVAS_CHUNK_ID, SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord } from '@/types/seed';
-import type { ISeedSource } from './ISeedSource';
-import type { SeedImportStorage } from './SeedImportStorage';
+import type { IFeedSource } from './IFeedSource';
+import type { FeedImportStorage } from './FeedImportStorage';
 export { seedNoteId };
-export interface SeedImportResult extends SeedChunkResult {
+export interface FeedImportResult extends SeedChunkResult {
   status: 'imported' | 'current';
   appliedChunks: number;
 }
-export type SeedImportProgress = SeedChunkResult & {
+export type FeedImportProgress = SeedChunkResult & {
   phase: 'fetching' | 'applying' | 'committed' | 'finalizing';
   chunkId: string | null;
   completedChunks: number;
@@ -16,16 +16,16 @@ export type SeedImportProgress = SeedChunkResult & {
   completedRecords?: number;
   totalRecords?: number;
 };
-export interface SeedImportOptions {
+export interface FeedImportOptions {
   forceAll?: boolean;
   onFirstPaintApplied?: () => void;
-  onProgress?: (progress: SeedImportProgress) => void;
+  onProgress?: (progress: FeedImportProgress) => void;
   notebookIds?: string[];
   granularRecords?: boolean;
 }
-export class SeedImporter {
-  constructor(private readonly storage: SeedImportStorage, private readonly source: ISeedSource, private readonly sourceId: string, private readonly now: () => number = Date.now) {}
-  async applyAll(opts: SeedImportOptions = {}): Promise<SeedImportResult> {
+export class FeedImporter {
+  constructor(private readonly storage: FeedImportStorage, private readonly source: IFeedSource, private readonly sourceId: string, private readonly now: () => number = Date.now) {}
+  async applyAll(opts: FeedImportOptions = {}): Promise<FeedImportResult> {
     const manifest = assertSeedManifest(await this.source.fetchManifest());
     const key = seedMetaKey(this.sourceId);
     const stored = await this.storage.getSeedMeta(key);
@@ -43,10 +43,10 @@ export class SeedImporter {
     });
     plan.sort((a, b) => Number(b.id === CANVAS_CHUNK_ID) - Number(a.id === CANVAS_CHUNK_ID));
     const vanished = Object.keys(meta.chunks).filter((id) => !manifest.chunks.some((c) => c.id === id));
-    const result: SeedImportResult = { status: 'current', appliedChunks: 0, totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
+    const result: FeedImportResult = { status: 'current', appliedChunks: 0, totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
     if (!plan.length && !vanished.length && !metadataChanged) return result;
     result.status = 'imported';
-    const report = (phase: SeedImportProgress['phase'], chunkId: string | null, recordId?: string | null, completedRecords?: number, totalRecords?: number) =>
+    const report = (phase: FeedImportProgress['phase'], chunkId: string | null, recordId?: string | null, completedRecords?: number, totalRecords?: number) =>
       opts.onProgress?.({
         phase,
         chunkId,

@@ -397,7 +397,7 @@
             <td id="wb-td-87ebd1e7feed4cde82b316c65e33aee9" data-whiteboard-anchor>"Only the core seed is imported" notice persists after sync</td>
             <td id="wb-td-3c1e98f43bd04f58b0ef44bce49143a1" data-whiteboard-anchor><span class="tag tag-med">Medium</span></td>
             <td id="wb-td-1255b090ef324d62ab69fe1f7d47b0eb" data-whiteboard-anchor><span class="tag tag-ux">UX</span></td>
-            <td id="wb-td-3240993f1320443f875b46053e65c48c" data-whiteboard-anchor><code>apps/playground/app/views/stream/QueriableStreamView.tsx</code><br/><code>apps/playground/src/services/seed/seedReadiness.ts</code></td>
+            <td id="wb-td-3240993f1320443f875b46053e65c48c" data-whiteboard-anchor><code>apps/playground/app/views/stream/QueriableStreamView.tsx</code><br/><code>apps/playground/src/services/feed/feedReadiness.ts</code></td>
             <td id="wb-td-57e11a0165494324b8c8201a923f420b" data-whiteboard-anchor>Medium</td>
           </tr>
           <tr>
@@ -550,16 +550,16 @@ action: {
       </div>
       <div class="issue-meta">
         <strong>URL:</strong> <code>https://wod.wiki/feeds</code>, <code>https://wod.wiki/catalogs</code> · 
-        <strong>Components:</strong> <code>apps/playground/app/views/stream/QueriableStreamView.tsx:210-213, 422-449, 788</code>, <code>apps/playground/src/services/seed/seedReadiness.ts:187-197</code>
+        <strong>Components:</strong> <code>apps/playground/app/views/stream/QueriableStreamView.tsx:210-213, 422-449, 788</code>, <code>apps/playground/src/services/feed/feedReadiness.ts:187-197</code>
       </div>
       <p id="wb-p-6637fb1ef58d4729be542607019c8c99" data-whiteboard-anchor><strong>Root Cause:</strong> The banner dismissal logic suffers from a dual lack of reactivity:</p>
       <ul>
         <li id="wb-li-6afdf856c3d64ad4aff6a5e98c7d75a5" data-whiteboard-anchor><code>QueriableStreamView.tsx:788</code> gates the banner on <code>profile.seedNotice &amp;&amp; libraryMissing &amp;&amp; !librarySynced</code>.</li>
-        <li id="wb-li-4fbd13882be543aa910d28d758a4e3db" data-whiteboard-anchor><code>libraryMissing</code> is computed via <code>useSeedLibraryMissing()</code>, which calls <code>readSeedCoverage()</code> only once on component mount inside a non-reactive <code>useEffect</code>. When sync runs in the background or finishes from Settings, <code>QueriableStreamView</code> never re-probes coverage.</li>
+        <li id="wb-li-4fbd13882be543aa910d28d758a4e3db" data-whiteboard-anchor><code>libraryMissing</code> is computed via <code>useSeedLibraryMissing()</code>, which calls <code>readFeedCoverage()</code> only once on component mount inside a non-reactive <code>useEffect</code>. When sync runs in the background or finishes from Settings, <code>QueriableStreamView</code> never re-probes coverage.</li>
         <li id="wb-li-b8e0f9e5ef25403784d8fcceb0676a0a" data-whiteboard-anchor><code>librarySynced</code> is a local boolean state that is only set to <code>true</code> if the user triggered sync directly from the button inside that specific banner instance. If synced elsewhere, <code>librarySynced</code> remains <code>false</code> and <code>libraryMissing</code> remains <code>true</code> until a hard refresh.</li>
-        <li id="wb-li-8b55300cbcfa4602b0683247d50682ee" data-whiteboard-anchor>Furthermore, in <code>seedSync.ts:466-481</code>, <code>readSeedCoverage()</code> checks <code>meta.seedVersion &gt; 0</code> for non-autoImport sources. The local checkpoint version was not updated upon successful ingestion, leaving the database state perpetually reporting "Update available".</li>
+        <li id="wb-li-8b55300cbcfa4602b0683247d50682ee" data-whiteboard-anchor>Furthermore, in <code>feedSync.ts:466-481</code>, <code>readFeedCoverage()</code> checks <code>meta.seedVersion &gt; 0</code> for non-autoImport sources. The local checkpoint version was not updated upon successful ingestion, leaving the database state perpetually reporting "Update available".</li>
       </ul>
-      <p id="wb-p-d574c196eb8b435085751f5eb36a9b39" data-whiteboard-anchor><strong>Remediation:</strong> Subscribe <code>useSeedLibraryMissing</code> to sync activity events (via <code>syncActivity.ts</code> or the <code>onSyncComplete</code> callback). When any sync cycle completes, re-evaluate <code>readSeedCoverage()</code> and update state reactively.</p>
+      <p id="wb-p-d574c196eb8b435085751f5eb36a9b39" data-whiteboard-anchor><strong>Remediation:</strong> Subscribe <code>useSeedLibraryMissing</code> to sync activity events (via <code>syncActivity.ts</code> or the <code>onSyncComplete</code> callback). When any sync cycle completes, re-evaluate <code>readFeedCoverage()</code> and update state reactively.</p>
     </div>
 
     <!-- ISSUE 4 -->

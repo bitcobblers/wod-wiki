@@ -45,9 +45,9 @@ import { WallClockPage } from './pages/WallClockPage'
 import { PlaygroundRedirect } from './pages/PlaygroundRedirect'
 import { useZipProcessor } from './hooks/useZipProcessor'
 import { useJournalZipProcessor } from './hooks/useJournalZipProcessor'
-import { isSeedImportEnabled, runSeedSync } from '@/services/seed/seedSync'
-import { startSeedBootstrap, useSeedReadiness, useSeedSyncProgress } from '@/services/seed/seedReadiness'
-import { seedProgressDetail, seedProgressLabel } from '@/services/seed/seedProgress'
+import { isFeedImportEnabled, runFeedSync } from '@/services/feed/feedSync'
+import { startFeedBootstrap, useFeedReadiness, useFeedSyncProgress } from '@/services/feed/feedReadiness'
+import { feedProgressDetail, feedProgressLabel } from '@/services/feed/feedProgress'
 import { profileService } from '@/services/storage'
 import { initSeedContentBroadcast, invalidateSeedContent } from '@/services/content/seedContent'
 import { loadTagIndex } from '@/services/tags/tagCatalogue'
@@ -81,8 +81,8 @@ function ScrollToTop() {
   return null
 }
 
-// Global bootstrap — zip-intake hooks and the default-on seed import
-// (docs/prototypes/seed-data-unification.md); the seed broadcast refreshes
+// Global bootstrap — zip-intake hooks and the default-on feed import
+// (docs/prototypes/seed-data-unification.md); the import broadcast refreshes
 // every seed-content consumer. Opt out with
 // localStorage['wodwiki.seedImport.enabled'] = '0'.
 function GlobalState() {
@@ -97,7 +97,7 @@ function GlobalState() {
     // the core canvas chunk commits; a returning browser ungates
     // immediately and refreshes subscribed feeds in the background.
     initSeedContentBroadcast()
-    void startSeedBootstrap()
+    void startFeedBootstrap()
     // The tag catalogue: every surface that resolves a `#slug` reference
     // (the editor, the parser, the runtime) reads it from one cache, so it
     // is loaded once here — for the whole app, not just the workbench.
@@ -110,12 +110,12 @@ function GlobalState() {
 // corpus route table is empty, show loading or a recoverable error. Home
 // is explicitly routed below and never passes through this gate.
 function RootUnavailable({ settling }: { settling: boolean }) {
-  const progress = useSeedSyncProgress()
+  const progress = useFeedSyncProgress()
   if (settling) {
-    const detail = seedProgressDetail(progress)
+    const detail = feedProgressDetail(progress)
     return (
       <div role="status" className="flex min-h-dvh flex-col items-center justify-center gap-2 text-muted-foreground">
-        <span>{progress ? seedProgressLabel(progress) : 'Loading library…'}</span>
+        <span>{progress ? feedProgressLabel(progress) : 'Loading library…'}</span>
         {detail && <span className="text-xs" data-testid="boot-progress-detail">{detail}</span>}
       </div>
     )
@@ -124,17 +124,17 @@ function RootUnavailable({ settling }: { settling: boolean }) {
     <div role="alert" className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
       <p className="text-sm font-semibold">The library's routed content failed to load.</p>
       <p className="max-w-md text-xs text-muted-foreground">
-        The seed corpus has not supplied this page. Re-running the seed import usually restores it.
+        The feed corpus has not supplied this page. Re-running the feed import usually restores it.
       </p>
       <Button
         variant="outline"
         size="sm"
-        data-testid="root-reseed"
+        data-testid="root-refeed"
         onClick={() => {
-          void runSeedSync().then(() => invalidateSeedContent())
+          void runFeedSync().then(() => invalidateSeedContent())
         }}
       >
-        Re-seed library
+        Re-import library
       </Button>
     </div>
   )
@@ -143,10 +143,10 @@ function RootUnavailable({ settling }: { settling: boolean }) {
 export function App() {
   // Stable ref so AppContent can inject its openSearchPalette callback after mount.
   const searchHandlerRef = useRef<() => void>(() => {})
-  // Canvas routes hydrate from the seeded corpus; the nav tree and the
-  // dynamic <Route> table re-derive when the seed lands or refreshes.
+  // Canvas routes hydrate from the imported corpus; the nav tree and the
+  // dynamic <Route> table re-derive when the feed lands or refreshes.
   const canvasRouteList = useCanvasRoutes()
-  const seedReadiness = useSeedReadiness()
+  const feedReadiness = useFeedReadiness()
   const navTree = useMemo(
     () => buildAppNavTree(() => searchHandlerRef.current(), canvasRouteList),
     [canvasRouteList],
@@ -166,7 +166,7 @@ export function App() {
                 <ScrollToTop />
                 <Routes>
                   {/* Home is bundle-owned and renders before the corpus.
-                      The wildcard gates only paths still waiting for seeded
+                      The wildcard gates only paths still waiting for the imported
                       routes; once routes exist, unmatched paths 404. */}
                   <Route path={ROUTE_PATTERNS.home} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route
@@ -175,8 +175,8 @@ export function App() {
                       canvasRouteList.length === 0 ? (
                         <RootUnavailable
                           settling={
-                            seedReadiness === 'preparing' ||
-                            (isSeedImportEnabled() && seedReadiness !== 'error')
+                            feedReadiness === 'preparing' ||
+                            (isFeedImportEnabled() && feedReadiness !== 'error')
                           }
                         />
                       ) : (

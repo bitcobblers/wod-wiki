@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
 import { seedBundledEfforts } from '../helpers/seedEfforts';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -108,7 +108,7 @@ test.describe('Effort detail', () => {
     const slug = `e2e-effort-${Date.now()}`;
 
     await page.goto('/e/new?mode=create', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     await expect(page.locator('.cm-note-editor')).toBeVisible({ timeout: 15_000 });
     const editor = page.locator('.cm-note-editor .cm-content').first();

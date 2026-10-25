@@ -2,7 +2,7 @@
  * useScriptCollections — React hook for accessing WOD collections
  * derived from the seeded corpus (markdown/collections/), via the
  * seed-content seam. Returns an empty list until the corpus lands; the
- * list refreshes automatically when a new seed is imported.
+ * list refreshes automatically when a new feed is imported.
  */
 import { useMemo, useCallback } from 'react';
 import { useQueryState } from 'nuqs';

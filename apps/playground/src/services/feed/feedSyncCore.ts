@@ -1,30 +1,30 @@
 /**
- * seedSyncCore — the storage/network core of one source's sync: claim →
+ * feedSyncCore — the storage/network core of one source's sync: claim →
  * manifest check → version decision → chunk imports → checkpoint commit.
  *
- * This is the unit the seed-sync Web Worker (seedSync.worker.ts) executes
+ * This is the unit the seed-sync Web Worker (feedSync.worker.ts) executes
  * off the main thread. Hard boundary: NO localStorage, NO app caches, NO
- * UI-adjacent singletons — every dependency is an ISeedSource, a
- * SeedImportStorage, a plain flag, or a callback. Everything environment-specific
+ * UI-adjacent singletons — every dependency is an IFeedSource, a
+ * FeedImportStorage, a plain flag, or a callback. Everything environment-specific
  * (activity reporting, content-cache invalidation, registry hydration,
  * catalog-update snapshotting, check timestamps) happens in the driver
  * that interprets the returned SourceSyncCoreResult.
  */
-import { assertManifest, type ISeedSource } from './ISeedSource';
-import { SeedImporter, type SeedImportProgress } from './SeedImporter';
-import type { SeedImportStorage } from './SeedImportStorage';
-import { decideSeedImport, storedSeedIsCurrent } from './seedVersion';
+import { assertManifest, type IFeedSource } from './IFeedSource';
+import { FeedImporter, type FeedImportProgress } from './FeedImporter';
+import type { FeedImportStorage } from './FeedImportStorage';
+import { decideFeedImport, storedFeedIsCurrent } from './feedVersion';
 import { SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord, type SeedPrecedenceTier } from '@/types/seed';
 
 /** Worst-case sync outcomes, aggregated by the driver (worst-first). */
-export type SeedSyncOutcome = 'disabled' | 'current' | 'busy' | 'imported' | 'server-stale' | 'error' | 'update-pending';
+export type FeedSyncOutcome = 'disabled' | 'current' | 'busy' | 'imported' | 'server-stale' | 'error' | 'update-pending';
 
 /**
  * 'update-pending': a background load check found a newer published
  * manifest for a source whose auto-sync is off — nothing was imported;
  * the update waits for a manual Sync (grouped catalog-updates snapshot).
  */
-export type SeedSyncOutcomeReason = SeedSyncOutcome;
+export type FeedSyncOutcomeReason = FeedSyncOutcome;
 
 /** A claim older than this is assumed abandoned (crashed tab). */
 export const SEED_CLAIM_TTL_MS = 45_000;
@@ -33,8 +33,8 @@ export const SEED_CLAIM_TTL_MS = 45_000;
 export interface SourceSyncCoreInput {
   id: string;
   label: string;
-  source: ISeedSource;
-  /** `__SEED_VERSIONS__[id]` — this bundle's own build of the source's manifest. */
+  source: IFeedSource;
+  /** `__FEED_VERSIONS__[id]` — this bundle's own build of the source's manifest. */
   embeddedVersion: number;
   /** Persisted auto-sync choice — computed by the driver (localStorage is main-thread-only). */
   autoSyncOn: boolean;
@@ -45,7 +45,7 @@ export interface SourceSyncCoreInput {
 }
 
 export interface SourceSyncCoreDeps {
-  storage: SeedImportStorage;
+  storage: FeedImportStorage;
   owner: string;
   now: () => number;
   /** Manual re-sync: skip fast paths and re-apply every chunk. */
@@ -57,13 +57,13 @@ export interface SourceSyncCoreDeps {
 }
 
 export interface SourceSyncCoreCallbacks {
-  onProgress?: (progress: SeedImportProgress) => void;
+  onProgress?: (progress: FeedImportProgress) => void;
   /** The source's canvas chunk committed — first paint can ungate. */
   onFirstPaint?: () => void;
 }
 
 export interface SourceSyncCoreResult {
-  outcome: SeedSyncOutcome;
+  outcome: FeedSyncOutcome;
   error: string | null;
   /** A published manifest was fetched and validated — record the check time. */
   manifestChecked: boolean;
@@ -115,7 +115,7 @@ export async function runSourceSyncCore(
 
     // Skip-fetch fast path: this bundle's own seed is already stored
     // (return-visit background refresh passes probeManifests to bypass).
-    if (!deps.force && !deps.probeManifests && storedSeedIsCurrent(stored, input.embeddedVersion)) {
+    if (!deps.force && !deps.probeManifests && storedFeedIsCurrent(stored, input.embeddedVersion)) {
       result.outcome = 'current';
       return result;
     }
@@ -126,7 +126,7 @@ export async function runSourceSyncCore(
 
     const manifest = assertManifest(await input.source.fetchManifest());
     result.manifestChecked = true;
-    const decision = deps.force ? 'import' : decideSeedImport(stored?.seedVersion, manifest.version);
+    const decision = deps.force ? 'import' : decideFeedImport(stored?.seedVersion, manifest.version);
     if (decision === 'server-stale') {
       result.outcome = 'server-stale';
       return result;
@@ -155,7 +155,7 @@ export async function runSourceSyncCore(
       // addedNotes/updatedNotes are counted inside applySeedChunk's
       // transaction — the commit boundary — so concurrent local edits can
       // never skew them and no extra note reads happen outside the import.
-      const applied = await new SeedImporter(storage, input.source, input.id, now).applyAll({
+      const applied = await new FeedImporter(storage, input.source, input.id, now).applyAll({
         forceAll: deps.force === true,
         onFirstPaintApplied: () => callbacks.onFirstPaint?.(),
         onProgress: callbacks.onProgress,
@@ -180,7 +180,7 @@ export async function runSourceSyncCore(
     }
     return result;
   } catch (err) {
-    console.warn(`[seedSync] ${input.id} seed sync failed`, err);
+    console.warn(`[feedSync] ${input.id} seed sync failed`, err);
     result.outcome = 'error';
     result.error = safeSyncErrorMessage(err);
     return result;

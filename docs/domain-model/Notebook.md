@@ -14,7 +14,7 @@ source: markdown/notebooks/ (canonical corpus layout)
 - **Store:** none — derived. A note names its notebook through the `notes.notebookId` column or a `notebook:` tag; `notebookOfItem` in `packages/wql/src/QueryService.ts` resolves either, plus the source-derived defaults.
 - **Identity:** `notebook/{slug}` (`packages/core/src/types/notebook.ts`); the predefined notebooks are `notebook/journal`, `notebook/playground` and `notebook/guides` (`DEFAULT_NOTEBOOK_SLUGS`).
 - **Type source:** `packages/core/src/types/notebook.ts` (`Notebook` shape — a shape only; no store holds a notebook row).
-- **Seed-delivered notebooks:** one per seed chunk — `NOTEBOOKS` in `apps/playground/src/services/seed/seedSources.ts` maps each chunk id to a notebook slug, label and description.
+- **Feed-delivered notebooks:** one per published chunk — `NOTEBOOKS` in `apps/playground/src/services/feed/feedSources.ts` maps each chunk id to a notebook slug, label and description.
 - **Editability today:** decided per row, not per notebook — `isNoteEditable` (`packages/core/src/types/notebook.ts`) treats `seedOrigin === 'seed'` as read-only.
 - **WQL:** `:notebook{}` / `:notebooks{}` are source-scoped note heads bound to the `feeds` storage scope (`packages/wql/src/vocabulary.ts`); `notebook:<slug>` is the content filter key that pins one notebook.
 - **Routes today:** the notebook list renders at `/catalogs` and a notebook landing at `/c/:slug` (`apps/playground/app/lib/routes.ts`) — legacy paths the canonical vocabulary replaces with `/notebooks` and `/notebook/{slug}`.
@@ -26,7 +26,7 @@ A notebook's content comes from one publisher-side directory under one slug
 
 | Knob | Where | Effect |
 |------|-------|--------|
-| Directory name | `markdown/collections/{dir}/` | The notebook's slug, and its id in the seed registry |
+| Directory name | `markdown/collections/{dir}/` | The notebook's slug, and its id in the feed registry |
 | Member files | `{dir}/{file}.md` | One note per file (except `README.md`) |
 | `README.md` frontmatter `category` | `{dir}/README.md` | The notebook's categories (the only README field parsed) |
 | `README.md` body | `{dir}/README.md` | The notebook's description prose |
@@ -53,8 +53,8 @@ while the concept is a notebook:
 |---|---|---|
 | `notes.notebookId` | `notebook/{string}` | Optional; the canonical container id on the note row |
 | tag `notebook:{slug}` | string | Tag form of the same id (`NOTEBOOK_TAG_PREFIX`) |
-| `origin` (`Notebook`) | `'default' \| 'user' \| 'seed'` | Predefined, user-created, or seed-delivered |
-| `sourceEntryId` (`Notebook`) | string | The registry entry of the feed that publishes the notebook |
+| `origin` (`Notebook`) | `'default' \| 'user' \| 'feed'` | Predefined, user-created, or feed-delivered |
+| `feedEntryId` (`Notebook`) | string | The registry entry of the feed that publishes the notebook |
 | `seedChunkId` (`Notebook`) | string | The seed chunk the notebook was imported from |
 
 ### Relationships (Current)
@@ -66,7 +66,7 @@ while the concept is a notebook:
 
 #### Incoming (referenced by)
 
-- none — a notebook is resolved from its notes and from the seed registry, never joined from a stored row
+- none — a notebook is resolved from its notes and from the feed registry, never joined from a stored row
 
 ---
 
@@ -82,7 +82,7 @@ while the concept is a notebook:
 
 ## Source evidence
 
-- [Notebook types](../../packages/core/src/types/notebook.ts); [notebook resolution](../../packages/wql/src/QueryService.ts) (`notebookOfItem`); [notebook registry](../../apps/playground/src/services/seed/seedSources.ts) (`NOTEBOOKS`); [route table](../../apps/playground/app/lib/routes.ts).
+- [Notebook types](../../packages/core/src/types/notebook.ts); [notebook resolution](../../packages/wql/src/QueryService.ts) (`notebookOfItem`); [notebook registry](../../apps/playground/src/services/feed/feedSources.ts) (`NOTEBOOKS`); [route table](../../apps/playground/app/lib/routes.ts).
 
 ## Map
 

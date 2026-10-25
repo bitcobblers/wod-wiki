@@ -1,70 +1,70 @@
 /**
- * SeedCard — one SEED in the home Library & Community Feeds section.
+ * FeedCard — one FEED in the home Library & Community Feeds section.
  *
- * The seed is the unit a reader subscribes to, so the card is the seed:
- * cover identity (deterministic monogram tile tinted by seed id), the
+ * The feed is the unit a reader subscribes to, so the card is the feed:
+ * cover identity (deterministic monogram tile tinted by feed id), the
  * repository label and description, and — because one Subscribe imports all
- * of them — the notebooks the seed publishes, as chips. Chips deep-link to
+ * of them — the notebooks the feed publishes, as chips. Chips deep-link to
  * their own surface once the notebook is installed; before that the card's
- * one primary action is the seed-wide Import (re-sync and removal live in
+ * one primary action is the feed-wide Import (re-sync and removal live in
  * Settings → Sync).
  */
 import { Link } from 'react-router-dom';
 import { ArrowRight, CloudDownload, Layers, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNotebookDate as formatDate, monogramLetter, monogramTint } from './notebookGalleryModel';
-import type { SeedSummary } from './notebookGalleryModel';
+import type { FeedSummary } from './notebookGalleryModel';
 
 /** Notebooks listed on a card before the rest collapse into a count. */
 const MAX_NOTEBOOK_CHIPS = 4;
 
-export interface SeedCardProps {
-  seed: SeedSummary;
-  /** Root test id — callers pass a stable per-seed id. */
+export interface FeedCardProps {
+  feed: FeedSummary;
+  /** Root test id — callers pass a stable per-feed id. */
   testId?: string;
   /** Extra classes on the root article (e.g. fixed width inside a marquee row). */
   className?: string;
-  /** Import action for seeds whose content is not all present; omit → no button. */
-  onImport?: (seedId: string) => void;
-  /** True while this seed's import is running (spinner). */
+  /** Import action for feeds whose content is not all present; omit → no button. */
+  onImport?: (feedId: string) => void;
+  /** True while this feed's import is running (spinner). */
   importing?: boolean;
-  /** True while another seed's import is running (disable, no spinner). */
+  /** True while another feed's import is running (disable, no spinner). */
   busy?: boolean;
   /** Inline status line from the owning section (progress / error text). */
   status?: { text: string; tone: 'muted' | 'error' };
   /** Toggle an individual notebook subscription */
-  onToggleNotebookSubscription?: (seedId: string, chunkId: string, subscribed: boolean) => void;
+  onToggleNotebookSubscription?: (feedId: string, chunkId: string, subscribed: boolean) => void;
 }
-export function SeedCard({ seed, testId = 'seed-card', className, onImport, importing, busy, status, onToggleNotebookSubscription }: SeedCardProps) {
-  const tint = monogramTint(seed.slug);
+export function FeedCard({ feed, testId = 'feed-card', className, onImport, importing, busy, status, onToggleNotebookSubscription }: FeedCardProps) {
+  const tint = monogramTint(feed.slug);
   const [background, foreground] = tint.split(' ');
-  const updated = formatDate(seed.latestDate);
-  const shown = seed.notebooks.slice(0, MAX_NOTEBOOK_CHIPS);
-  const overflow = seed.notebooks.length - shown.length;
-  const open = seed.installed && seed.seedId ? seed.href : undefined;
-  const coverImage = seed.notebooks.find((notebook) => notebook.image)?.image;
+  const updated = formatDate(feed.latestDate);
+  const shown = feed.notebooks.slice(0, MAX_NOTEBOOK_CHIPS);
+  const overflow = feed.notebooks.length - shown.length;
+  const open = feed.installed && feed.feedId ? feed.href : undefined;
+  const coverImage = feed.notebooks.find((notebook) => notebook.image)?.image;
 
   const meta = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
       <span className="tabular-nums">
-        {seed.notebooks.length} {seed.notebooks.length === 1 ? 'notebook' : 'notebooks'}
+        {feed.notebooks.length} {feed.notebooks.length === 1 ? 'notebook' : 'notebooks'}
       </span>
-      {seed.installed && seed.itemCount > 0 && (
+      {feed.installed && feed.itemCount > 0 && (
         <>
           <span aria-hidden>·</span>
           <span className="tabular-nums">
-            {seed.itemCount} {seed.itemCount === 1 ? 'item' : 'items'}
+            {feed.itemCount} {feed.itemCount === 1 ? 'item' : 'items'}
           </span>
         </>
       )}
-      {seed.installed && updated && (
+      {feed.installed && updated && (
         <>
           <span aria-hidden>·</span>
           <span className="tabular-nums">updated {updated}</span>
         </>
       )}
-      {!seed.installed && <span aria-hidden>·</span>}
-      {!seed.installed && <span>not imported</span>}
+      {!feed.installed && <span aria-hidden>·</span>}
+      {!feed.installed && <span>not imported</span>}
     </div>
   );
 
@@ -76,7 +76,7 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">
           <span className={cn('text-7xl font-black tracking-tighter select-none', foreground)} aria-hidden>
-            {monogramLetter(seed.label)}
+            {monogramLetter(feed.label)}
           </span>
           <Layers className={cn('absolute bottom-4 right-4 size-6 opacity-50', foreground)} aria-hidden />
         </div>
@@ -87,7 +87,7 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
   return (
     <article
       data-testid={testId}
-      data-installed={seed.installed}
+      data-installed={feed.installed}
       className={cn(
         'group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card',
         'transition-colors hover:border-foreground/25 focus-within:border-foreground/25',
@@ -95,7 +95,7 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
       )}
     >
       {open ? (
-        <Link to={open} data-testid={`${testId}-open`} className="block outline-none" aria-label={`Open the library for ${seed.label}`}>
+        <Link to={open} data-testid={`${testId}-open`} className="block outline-none" aria-label={`Open the library for ${feed.label}`}>
           {cover}
         </Link>
       ) : (
@@ -105,23 +105,23 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
       <div className="flex flex-1 flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
           <h3 className="min-w-0 text-sm font-bold leading-snug text-foreground">
-            {open ? <Link to={open} className="transition-colors hover:text-primary">{seed.label}</Link> : seed.label}
+            {open ? <Link to={open} className="transition-colors hover:text-primary">{feed.label}</Link> : feed.label}
           </h3>
           {open ? (
             <Link
               to={open}
               data-testid={`${testId}-cta`}
-              aria-label={`Open the library for ${seed.label}`}
+              aria-label={`Open the library for ${feed.label}`}
               className="flex min-h-11 min-w-11 size-11 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
             >
               <ArrowRight className="size-3.5" aria-hidden />
             </Link>
-          ) : onImport && seed.seedId ? (
+          ) : onImport && feed.feedId ? (
             <button
               type="button"
               data-testid={`${testId}-import`}
               disabled={importing || busy}
-              onClick={() => onImport(seed.seedId!)}
+              onClick={() => onImport(feed.feedId!)}
               className={cn(
                 'flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4',
                 'text-[10px] font-black uppercase tracking-widest',
@@ -131,17 +131,17 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
               )}
             >
               {importing ? <Loader2 className="size-3 animate-spin" aria-hidden /> : <CloudDownload className="size-3" aria-hidden />}
-              {importing ? 'Importing' : 'Import seed'}
+              {importing ? 'Importing' : 'Import feed'}
             </button>
           ) : null}
         </div>
 
-        {seed.description && (
-          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{seed.description}</p>
+        {feed.description && (
+          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{feed.description}</p>
         )}
 
         {/* One Subscribe brings every notebook — say which. */}
-        {seed.notebooks.length > 0 && (
+        {feed.notebooks.length > 0 && (
           <div className="flex flex-wrap gap-2" data-testid={`${testId}-notebooks`}>
             {shown.map((notebook) => (
               <span
@@ -162,13 +162,13 @@ export function SeedCard({ seed, testId = 'seed-card', className, onImport, impo
                   <span>{notebook.label}</span>
                 )}
                 {/* ponytail: -my-3 negative margin keeps pill compact while providing 44px tap target; expand pill fully if touch collision occurs. */}
-                {onToggleNotebookSubscription && seed.seedId && notebook.chunkId && (
+                {onToggleNotebookSubscription && feed.feedId && notebook.chunkId && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      onToggleNotebookSubscription(seed.seedId!, notebook.chunkId!, !notebook.subscribed);
+                      onToggleNotebookSubscription(feed.feedId!, notebook.chunkId!, !notebook.subscribed);
                     }}
                     title={notebook.subscribed ? `Unsubscribe ${notebook.label}` : `Subscribe ${notebook.label}`}
                     aria-label={notebook.subscribed ? `Unsubscribe ${notebook.label}` : `Subscribe ${notebook.label}`}

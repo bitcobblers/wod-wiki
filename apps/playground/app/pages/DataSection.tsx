@@ -2,7 +2,7 @@
  * DataSection — /settings/storage. Local-first storage: notes and results
  * always live in this browser (IndexedDB). Turso Sync is an optional
  * background backup to your own Turso database — enable, update, or disable
- * it below. Content sync (seed sources) lives on /settings/sync.
+ * it below. Content sync (feeds) lives on /settings/sync.
  *
  * Connection rules: the token is stored in this browser's localStorage only,
  * never sent anywhere except the configured Turso API URL. Enabling sync

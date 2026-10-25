@@ -3,7 +3,7 @@
 **Status:** Landed (2026-09-27)
 **Date:** 2026-09-27
 **Corpus:** `markdown/` — 888 files: `collections/` 728, `canvas/` 87, `efforts/` 53, `feeds/` 14, `dashboards/` 6.
-**Related:** `docs/prototypes/seed-data-unification.md`, `apps/playground/src/lib/frontmatter.ts`, `apps/playground/src/services/seed/SeedImporter.ts`
+**Related:** `docs/prototypes/seed-data-unification.md`, `apps/playground/src/lib/frontmatter.ts`, `apps/playground/src/services/feed/FeedImporter.ts`
 
 ---
 
@@ -11,7 +11,7 @@
 
 All workout classification across the codebase is unified under **namespaced typed tags**. The previous three competing classification mechanisms (flat frontmatter `tags:`, frontmatter `category:`, and body pseudo-frontmatter `Type`/`Difficulty`) have been consolidated directly in markdown frontmatter.
 
-The markdown files are the single source of truth. Seed compilation (`scripts/generate-seed.ts`) bundles files byte-faithfully into JSON chunks, and runtime import (`SeedImporter.ts`) extracts typed tags using the native `extractTypedFrontmatterTags` parser.
+The markdown files are the single source of truth. Seed compilation (`scripts/generate-seed.ts`) bundles files byte-faithfully into JSON chunks, and runtime import (`FeedImporter.ts`) extracts typed tags using the native `extractTypedFrontmatterTags` parser.
 
 ---
 
@@ -115,7 +115,7 @@ Composable across multiple pieces of gear per workout:
 ### Storage Layer (`tag_types`, `tags`, `note_tags`)
 
 1. **`tag_types` store** (`TagTypeRecord`):
-   Pre-seeded by `StorageService.DEFAULT_TAG_TYPES` and `SeedImportStorage`:
+   Pre-seeded by `StorageService.DEFAULT_TAG_TYPES` and `FeedImportStorage`:
    - `domain` (#10b981)
    - `format` (#8b5cf6)
    - `equipment` (#3b82f6)
@@ -131,7 +131,7 @@ Composable across multiple pieces of gear per workout:
 
 ### Extraction Pipeline
 
-Both user note saves (`IndexedDBContentProvider.ts`) and seed imports (`SeedImporter.ts`) share the same parser in `apps/playground/src/lib/frontmatter.ts`:
+Both user note saves (`IndexedDBContentProvider.ts`) and seed imports (`FeedImporter.ts`) share the same parser in `apps/playground/src/lib/frontmatter.ts`:
 
 ```ts
 const KNOWN_TAG_TYPES = DEFAULT_TAG_TYPES.map((t) => t.name);
@@ -154,5 +154,5 @@ const tags = extractTypedFrontmatterTags(rawContent, KNOWN_TAG_TYPES);
    - Parsed flat `tags:` and normalized `type:` into canonical typed keys (`domain`, `format`, `equipment`, `quality`, `intent`).
    - Merged `cardio` into `conditioning`.
    - Dropped empty `category:` and `difficulty:` values.
-3. **Seed Importer Cutover (2026-09-27)**: Removed the legacy category-munging code in `SeedImporter.ts` in favor of direct `extractTypedFrontmatterTags()`.
+3. **Seed Importer Cutover (2026-09-27)**: Removed the legacy category-munging code in `FeedImporter.ts` in favor of direct `extractTypedFrontmatterTags()`.
 4. **Seed Compilation (2026-09-27)**: Re-generated seed artifacts under `apps/playground/public/seed/` via `scripts/generate-seed.ts` (78 chunks, 889 files, 9262 KB).

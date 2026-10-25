@@ -422,7 +422,7 @@ describe('collection item dates (frontmatter date → block index)', () => {
       const rows = buildBlockIndexRows(join(tmp, 'markdown'), tmp);
       const dated = rows.filter((r) => r.sourcePath === 'markdown/collections/daily-box-wod/morning-session.md');
       expect(dated.length).toBeGreaterThan(0);
-      // Noon UTC (mirrors SeedImporter's Note.date) — timezone-safe civil day.
+      // Noon UTC (mirrors FeedImporter's Note.date) — timezone-safe civil day.
       for (const row of dated) expect(row.createdAt).toBe(Date.parse('2026-10-16T12:00:00Z'));
     } finally {
       rmSync(tmp, { recursive: true, force: true });

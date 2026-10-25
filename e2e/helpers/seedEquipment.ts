@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { WOD_DB, seedNote } from './wodwikiDb';
-import { waitForSeedReady } from './seedReadiness';
+import { waitForFeedReady } from './feedReadiness';
 
 /**
  * Self-seeded bundled-equipment fixtures for e2e tests.
@@ -97,7 +97,7 @@ const USAGE_NOTE_CONTENT = [
  *  after the app has booted once (schema exists), then reload to rehydrate
  *  the registries. */
 export async function seedBundledEquipment(page: Page): Promise<void> {
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
 
   for (const f of BUNDLED_EQUIPMENT_FIXTURES) {
     const raw = equipmentDocument(f);

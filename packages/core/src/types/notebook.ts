@@ -11,10 +11,10 @@ import type { FeedId } from './feed';
 export const DEFAULT_NOTEBOOK_SLUGS = ['journal', 'playground', 'guides'] as const;
 export type DefaultNotebookSlug = (typeof DEFAULT_NOTEBOOK_SLUGS)[number];
 export type NotebookId = `notebook/${string}`;
-/** Where a notebook comes from. 'seed' = delivered by a feed (the artifact
- *  vocabulary — the feed that delivers it is named by `feedEntryId`); 'user'
- *  = the user owns it; 'default' = one of the predefined notebooks. */
-export type NotebookOrigin = 'default' | 'user' | 'seed';
+/** Where a notebook comes from. 'feed' = delivered by a feed (the feed that
+ *  delivers it is named by `feedEntryId`); 'user' = the user owns it;
+ *  'default' = one of the predefined notebooks. */
+export type NotebookOrigin = 'default' | 'user' | 'feed';
 
 /** Extract the bare slug from a `notebook/{slug}` or `notebook:{slug}` or bare identifier. */
 export function notebookSlugFromId(slugOrId: string): string {
@@ -45,16 +45,11 @@ export interface Notebook {
   description: string;
   icon: string;
   origin: NotebookOrigin;
-  /** Registered seed source entry id where the source is pulled from — the
-   *  source's own id (the seed spelling of the feed identity below). */
-  sourceEntryId?: string;
-/** Registered feed entry id — the feed that publishes this notebook, in the
-   *  feed vocabulary. Agrees with `sourceEntryId` for every notebook a
-   *  feed publishes. */
+  /** Registered feed entry id — the feed that publishes this notebook. */
   feedEntryId?: FeedId;
   /** Seed package id when delivered by a named package slice. */
   packageId?: string;
-  /** Seed directory URL where the source is pulled from. */
+  /** Feed directory URL where the source is pulled from. */
   sourceUrl?: string;
   /** Published Git repository URL when declared by the source entry. */
   repositoryUrl?: string;

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { createClient, type InStatement, type ResultSet } from '@libsql/client';
 import { SqlStorage, libsqlDatabase, type LibsqlClient } from '../../../../../packages/storage/src/sql';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
-import { seedFixture } from './seedFixture';
-import { IndexedDBSeedImportStorage } from './SeedImportStorage';
-import { SeedImporter, seedNoteId } from './SeedImporter';
+import { feedFixture } from './feedFixture';
+import { IndexedDBFeedImportStorage } from './FeedImportStorage';
+import { FeedImporter, seedNoteId } from './FeedImporter';
 
 interface Counters {
   executeCalls: number; batchCalls: number; batchStatements: number;
@@ -57,12 +57,12 @@ const measured: LibsqlClient = {
 };
 const storage = new SqlStorage(libsqlDatabase(measured));
 await storage.ready();
-const importerStorage = new IndexedDBSeedImportStorage(storage);
+const importerStorage = new IndexedDBFeedImportStorage(storage);
 const rows = Array.from({ length: 100 }, (_, i) => compileSeedRow(`markdown/collections/measurement/n${i}.md`, `---\ntags: [strength]\n---\n# Note ${i}\n\n\`\`\`time\n10 Push-ups\n\`\`\`\n`));
 const measurements: Array<{ scenario: string; counters: Counters }> = [];
 async function measure(scenario: string, input: typeof rows, version: number) {
   counters = blank(); armed = true;
-  await new SeedImporter(importerStorage, seedFixture(input, version, 'collection.measurement'), 'measurement').applyAll();
+  await new FeedImporter(importerStorage, feedFixture(input, version, 'collection.measurement'), 'measurement').applyAll();
   armed = false;
   measurements.push({ scenario, counters: { ...counters } });
 }
@@ -83,7 +83,7 @@ try {
   assert.equal(Object.values(note!.blocks)[0].version, 2);
   await measure('Repeated changed manifest converges', changed, 2);
   assert.equal(measurements[3].counters.affectedRows, 0);
-  console.log(JSON.stringify({ method: 'Actual SeedImporter + IndexedDBSeedImportStorage + SqlStorage + instrumented local libsql client. Execute and native transaction.batch calls counted separately. BEGIN/COMMIT/ROLLBACK reported separately. Data statements, SELECTs, returned rows and affected rows counted, not HTTP requests, latency or billing. Initialization and assertions excluded.', fixture: { notes: 100, tag: 'strength', actionablePerNote: 1 }, measurements: measurements.map(({ scenario, counters }) => ({ scenario, ...counters, driverCallsIncludingControl: counters.executeCalls + counters.batchCalls + counters.begins + counters.commits + counters.rollbacks })) }, null, 2));
+  console.log(JSON.stringify({ method: 'Actual FeedImporter + IndexedDBFeedImportStorage + SqlStorage + instrumented local libsql client. Execute and native transaction.batch calls counted separately. BEGIN/COMMIT/ROLLBACK reported separately. Data statements, SELECTs, returned rows and affected rows counted, not HTTP requests, latency or billing. Initialization and assertions excluded.', fixture: { notes: 100, tag: 'strength', actionablePerNote: 1 }, measurements: measurements.map(({ scenario, counters }) => ({ scenario, ...counters, driverCallsIncludingControl: counters.executeCalls + counters.batchCalls + counters.begins + counters.commits + counters.rollbacks })) }, null, 2));
 } finally {
   await storage.close();
 }

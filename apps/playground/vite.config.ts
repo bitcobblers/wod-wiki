@@ -122,7 +122,7 @@ export default defineConfig({
         // wrote (generate runs before vite in both dev and build) — one
         // entry per seed source. Absent sources are not fast-pathable; the
         // runtime then always consults their manifest.
-        __SEED_VERSIONS__: JSON.stringify(seedManifestVersions()),
+        __FEED_VERSIONS__: JSON.stringify(seedManifestVersions()),
     },
     plugins: [react(), receiverRedirectPlugin, seedFilesPlugin],
     resolve: {

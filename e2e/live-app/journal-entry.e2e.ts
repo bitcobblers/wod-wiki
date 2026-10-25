@@ -25,7 +25,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { JournalEntryPage } from '../pages/JournalEntryPage';
 import { seedJournalNote } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 // Stable test dates — far future so they never conflict with real entries
 const DATE_LOAD = '2099-06-01';
@@ -50,7 +50,7 @@ test.describe('Journal Entry — /journal/:date', () => {
 
     // Navigate once to seed IndexedDB access before clearing
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
   });
 
   test.afterEach(() => {
@@ -220,10 +220,10 @@ test.describe('Journal Entry — /journal/:date', () => {
 
     // Verify both identities in the journal stream before and after reload.
     await page.goto('/journal', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await expect(page.getByTestId(`date-group-${today}`)).toBeVisible();
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     const dayGroup = page.getByTestId(`date-group-${today}`);
     await expect(dayGroup).toBeVisible({ timeout: 45_000 });
     await expect(dayGroup).toContainText('2 entries');

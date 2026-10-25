@@ -115,13 +115,10 @@ export interface IEffort {
   equipment?: string[];
   /** Owning note in the content store, when this record is a note projection. */
   ownerNoteId?: string;
-  /** The registered source this record was imported from — the source's own
-   *  id (the seed spelling of the feed identity below). */
+  /** The registered feed that delivered this record — the feed's own id.
+   *  The persisted field name is kept so stored records keep resolving their
+   *  precedence tier. */
   sourceId?: string;
-  /** The registered feed that delivered this record — the feed-side twin of
-   *  `sourceId`. The two agree: a feed id and a seed id name the same
-   *  registered source. */
-  feedSourceId?: string;
   /** Source file path within the originating collection. */
   sourcePath?: string;
   /** Clone-based derivation metadata (user efforts only) */
@@ -197,13 +194,10 @@ export interface IEquipment {
   body?: string;
   /** Owning note in the content store, when this record is a note projection. */
   ownerNoteId?: string;
-  /** The registered source this record was imported from — the source's own
-   *  id (the seed spelling of the feed identity below). */
+  /** The registered feed that delivered this record — the feed's own id.
+   *  The persisted field name is kept so stored records keep resolving their
+   *  precedence tier. */
   sourceId?: string;
-  /** The registered feed that delivered this record — the feed-side twin of
-   *  `sourceId`. The two agree: a feed id and a seed id name the same
-   *  registered source. */
-  feedSourceId?: string;
   /** Source file path within the originating collection. */
   sourcePath?: string;
   /** ISO timestamp */

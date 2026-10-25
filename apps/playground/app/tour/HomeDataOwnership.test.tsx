@@ -9,13 +9,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom'
 
 let nextOutcome: string = 'imported'
-const syncSeedSource = mock(async (id: string) => {
+const syncFeedSource = mock(async (id: string) => {
   void id
   return nextOutcome
 })
 
-mock.module('@/services/seed/seedSync', () => ({
-  syncSeedSource,
+mock.module('@/services/feed/feedSync', () => ({
+  syncFeedSource,
 }))
 
 mock.module('@/services/storage', () => ({
@@ -24,14 +24,14 @@ mock.module('@/services/storage', () => ({
 }))
 
 import { HomeCommunityFeeds, HomeDataOwnership } from './HomeDataOwnership'
-import { isSeedSubscribed, resetSeedSubscriptionsForTest, setSeedSubscribed } from '@/services/seed/seedSubscriptions'
+import { isFeedSubscribed, resetFeedSubscriptionsForTest, setFeedSubscribed } from '@/services/feed/feedSubscriptions'
 
 beforeEach(() => {
   localStorage.clear()
-  // seedSubscriptions caches its map — drop the cache with the storage.
-  resetSeedSubscriptionsForTest()
+  // feedSubscriptions caches its map — drop the cache with the storage.
+  resetFeedSubscriptionsForTest()
   nextOutcome = 'imported'
-  syncSeedSource.mockClear()
+  syncFeedSource.mockClear()
 })
 
 afterEach(cleanup)
@@ -88,7 +88,7 @@ describe('HomeCommunityFeeds', () => {
     await waitFor(() => {
       expect(screen.getByTestId('home-feed-status-seed-kettlebell').textContent).toContain('Synced')
     })
-    expect(isSeedSubscribed('seed-kettlebell')).toBe(true)
+    expect(isFeedSubscribed('seed-kettlebell')).toBe(true)
     expect(screen.getByTestId('home-feed-subscribe-seed-kettlebell').textContent).toBe('Unsubscribe')
   })
 
@@ -103,7 +103,7 @@ describe('HomeCommunityFeeds', () => {
     await waitFor(() => {
       expect(screen.getByTestId('home-feed-status-seed-kettlebell').textContent).toContain('Sync failed')
     })
-    expect(isSeedSubscribed('seed-kettlebell')).toBe(false)
+    expect(isFeedSubscribed('seed-kettlebell')).toBe(false)
     expect(screen.getByTestId('home-feed-subscribe-seed-kettlebell').textContent).toBe('Subscribe')
   })
 
@@ -114,10 +114,10 @@ describe('HomeCommunityFeeds', () => {
       </MemoryRouter>,
     )
     fireEvent.click(screen.getByTestId('home-feed-sync-seed-kettlebell'))
-    await waitFor(() => expect(isSeedSubscribed('seed-kettlebell')).toBe(true))
+    await waitFor(() => expect(isFeedSubscribed('seed-kettlebell')).toBe(true))
 
     fireEvent.click(screen.getByTestId('home-feed-subscribe-seed-kettlebell'))
-    expect(isSeedSubscribed('seed-kettlebell')).toBe(false)
+    expect(isFeedSubscribed('seed-kettlebell')).toBe(false)
     expect(screen.getByTestId('home-feed-subscribe-seed-kettlebell').textContent).toBe('Subscribe')
 
     // Re-render (fresh mount) — the flag stays off with no sync involved.
@@ -127,7 +127,7 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    expect(isSeedSubscribed('seed-kettlebell')).toBe(false)
+    expect(isFeedSubscribed('seed-kettlebell')).toBe(false)
     expect(screen.getByTestId('home-feed-subscribe-seed-kettlebell').textContent).toBe('Subscribe')
   })
 
@@ -137,9 +137,9 @@ describe('HomeCommunityFeeds', () => {
         <HomeCommunityFeeds />
       </MemoryRouter>,
     )
-    expect(isSeedSubscribed('core')).toBe(true)
-    // The core seed has no feed card; the invariant lives in seedSubscriptions.
-    setSeedSubscribed('core', false)
-    expect(isSeedSubscribed('core')).toBe(true)
+    expect(isFeedSubscribed('core')).toBe(true)
+    // The core seed has no feed card; the invariant lives in feedSubscriptions.
+    setFeedSubscribed('core', false)
+    expect(isFeedSubscribed('core')).toBe(true)
   })
 })

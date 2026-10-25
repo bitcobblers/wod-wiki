@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { TEST_IDS } from '../contracts/TestIdContract';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /** Live-app page object for the equipment L1 surfaces: /equipment list,
  *  /equipment/:slug detail, /equipment/new?mode=create. */
@@ -9,20 +9,20 @@ export class EquipmentPage {
 
   async gotoList() {
     await this.page.goto('/equipment', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(this.page);
+    await waitForFeedReady(this.page);
     await this.waitForListLoaded();
   }
 
   async gotoDetail(slug: string) {
     await this.page.goto(`/equipment/${encodeURIComponent(slug)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(this.page);
+    await waitForFeedReady(this.page);
     await this.waitForDetailLoaded();
   }
 
   async gotoCreate(slug?: string) {
     const path = slug ? `/equipment/${encodeURIComponent(slug)}?mode=create` : '/equipment/new?mode=create';
     await this.page.goto(path, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(this.page);
+    await waitForFeedReady(this.page);
     await expect(this.createEditor()).toBeVisible({ timeout: 15_000 });
   }
 

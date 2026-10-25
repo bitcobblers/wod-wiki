@@ -23,21 +23,21 @@ import { rehydrateActiveDatabaseCaches } from '@/services/storage/activeDatabase
 import {
   adoptFeedProvenance,
   adoptLegacyCoreRegistryCheckpoint,
-  defaultSeedSources,
-  isCoreSeedImported,
-  runBootSeedSync,
-  syncSeedSource,
-} from '@/services/seed/seedSync';
+  defaultFeedSources,
+  isCoreFeedImported,
+  runBootFeedSync,
+  syncFeedSource,
+} from '@/services/feed/feedSync';
 
-export type SeedStatus = 'idle' | 'running' | 'imported' | 'error';
+export type FeedStatus = 'idle' | 'running' | 'imported' | 'error';
 
-export interface DatabaseSeedState {
-  status: SeedStatus;
+export interface DatabaseFeedState {
+  status: FeedStatus;
   message: string | null;
   coreImported: boolean;
 }
 
-export interface DatabaseSeedSourceInfo {
+export interface DatabaseFeedSourceInfo {
   id: string;
   label: string;
   description?: string;
@@ -49,19 +49,19 @@ export interface DatabaseContextValue {
   databases: LocalDatabaseInfo[];
   loading: boolean;
   error: string | null;
-  seed: DatabaseSeedState;
-  seedSources: DatabaseSeedSourceInfo[];
+  feed: DatabaseFeedState;
+  feedSources: DatabaseFeedSourceInfo[];
   /**
    * Bumps whenever the active database's CONTENT changes underneath a
-   * reader: after a seed import lands, and after a database switch. Pages
+   * reader: after a feed import lands, and after a database switch. Pages
    * that read the database (search, sessions, dashboards) re-read when it
-   * moves — otherwise a page that mounted before the seed finished would
+   * moves — otherwise a page that mounted before the feed finished would
    * keep showing an empty database.
    */
   dataVersion: number;
   selectDatabase(name: string): Promise<void>;
   createDatabase(name: string): Promise<void>;
-  importSeedSource(id: string): Promise<void>;
+  importFeedSource(id: string): Promise<void>;
   refreshDatabases(): Promise<void>;
 }
 
@@ -78,15 +78,15 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
   const [databases, setDatabases] = useState<LocalDatabaseInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [seed, setSeed] = useState<DatabaseSeedState>({ status: 'idle', message: null, coreImported: false });
+  const [feed, setFeed] = useState<DatabaseFeedState>({ status: 'idle', message: null, coreImported: false });
   // Readers re-read the database when this moves.
   const [dataVersion, setDataVersion] = useState(0);
 
-  // The shared seed registry (bundled core + the built-in catalogs); a
-  // missing flag means boot-auto, mirroring SeedSourceSpec's default.
-  const seedSources = useMemo<DatabaseSeedSourceInfo[]>(
+  // The shared feed registry (bundled core + the built-in catalogs); a
+  // missing flag means boot-auto, mirroring FeedSourceSpec's default.
+  const feedSources = useMemo<DatabaseFeedSourceInfo[]>(
     () =>
-      defaultSeedSources().map((spec) => ({
+      defaultFeedSources().map((spec) => ({
         id: spec.id,
         label: spec.label,
         ...(spec.description ? { description: spec.description } : {}),
@@ -104,36 +104,36 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // The exact boot policy the playground app runs: when the active database
-  // has no core seed checkpoint, runBootSeedSync populates it. A failing
-  // source lands in seed.status/seed.message — never a broken page. The
+  // has no core feed checkpoint, runBootFeedSync populates it. A failing
+  // source lands in feed.status/feed.message — never a broken page. The
   // retired remote Core Registry checkpoint folds into local core BEFORE the
   // imported probe: a returning database whose only import was the old
-  // registry must migrate even when runBootSeedSync is then skipped.
-  const ensureCoreSeed = useCallback(async () => {
-    setSeed((prev) => ({ ...prev, status: 'running', message: null }));
+  // registry must migrate even when runBootFeedSync is then skipped.
+  const ensureCoreFeed = useCallback(async () => {
+    setFeed((prev) => ({ ...prev, status: 'running', message: null }));
     try {
       await adoptLegacyCoreRegistryCheckpoint();
-      // Notes imported before the feed stamp existed carry only the seed
+      // Notes imported before the feed stamp existed carry only the seed-side
       // stamps — the checkpoints say which feed delivered them.
       await adoptFeedProvenance();
-      const imported = await isCoreSeedImported();
+      const imported = await isCoreFeedImported();
       if (!imported) {
-        const outcome = await runBootSeedSync();
-        const refreshed = await isCoreSeedImported();
+        const outcome = await runBootFeedSync();
+        const refreshed = await isCoreFeedImported();
         if (outcome === 'error') {
-          setSeed({ status: 'error', message: 'Seed sync failed — catalogs may be incomplete.', coreImported: refreshed });
+          setFeed({ status: 'error', message: 'Feed sync failed — catalogs may be incomplete.', coreImported: refreshed });
           // The import may still have committed rows before failing.
           setDataVersion((v) => v + 1);
           return;
         }
-        setSeed({ status: 'imported', message: null, coreImported: refreshed });
+        setFeed({ status: 'imported', message: null, coreImported: refreshed });
         // The corpus just landed — readers must re-read.
         setDataVersion((v) => v + 1);
         return;
       }
-      setSeed({ status: 'imported', message: null, coreImported: true });
+      setFeed({ status: 'imported', message: null, coreImported: true });
     } catch (err) {
-      setSeed((prev) => ({ ...prev, status: 'error', message: errorMessage(err) }));
+      setFeed((prev) => ({ ...prev, status: 'error', message: errorMessage(err) }));
     }
   }, []);
 
@@ -149,7 +149,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         const list = await listLocalDatabases();
         if (cancelled) return;
         setDatabases(list);
-        await ensureCoreSeed();
+        await ensureCoreFeed();
       } catch (err) {
         if (!cancelled) setError(errorMessage(err));
       } finally {
@@ -159,13 +159,13 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [ensureCoreSeed]);
+  }, [ensureCoreFeed]);
 
   const selectDatabase = useCallback(
     async (name: string) => {
       setError(null);
       await switchActiveLocalDatabase(name);
-      // The caches derived from the OLD database's rows (seed content, WQL
+      // The caches derived from the OLD database's rows (feed content, WQL
       // page sources, effort/equipment registries) must be rebuilt against
       // the new one.
       await rehydrateActiveDatabaseCaches();
@@ -174,9 +174,9 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       await refreshDatabases();
       // A different database holds different rows — readers must re-read.
       setDataVersion((v) => v + 1);
-      await ensureCoreSeed();
+      await ensureCoreFeed();
     },
-    [ensureCoreSeed, refreshDatabases],
+    [ensureCoreFeed, refreshDatabases],
   );
 
   const createDatabase = useCallback(
@@ -191,20 +191,20 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     [refreshDatabases, selectDatabase],
   );
 
-  const importSeedSource = useCallback(async (id: string) => {
-    setSeed((prev) => ({ ...prev, status: 'running', message: null }));
+  const importFeedSource = useCallback(async (id: string) => {
+    setFeed((prev) => ({ ...prev, status: 'running', message: null }));
     try {
-      const outcome = await syncSeedSource(id);
-      const refreshed = await isCoreSeedImported();
+      const outcome = await syncFeedSource(id);
+      const refreshed = await isCoreFeedImported();
       if (outcome === 'error') {
-        setSeed({ status: 'error', message: `Import of "${id}" failed — see the browser console for details.`, coreImported: refreshed });
+        setFeed({ status: 'error', message: `Import of "${id}" failed — see the browser console for details.`, coreImported: refreshed });
         return;
       }
-      setSeed({ status: 'imported', message: null, coreImported: refreshed });
+      setFeed({ status: 'imported', message: null, coreImported: refreshed });
       // The catalog's rows just landed — readers must re-read.
       setDataVersion((v) => v + 1);
     } catch (err) {
-      setSeed((prev) => ({ ...prev, status: 'error', message: errorMessage(err) }));
+      setFeed((prev) => ({ ...prev, status: 'error', message: errorMessage(err) }));
     }
   }, []);
 
@@ -214,15 +214,15 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       databases,
       loading,
       error,
-      seed,
-      seedSources,
+      feed,
+      feedSources,
       dataVersion,
       selectDatabase,
       createDatabase,
-      importSeedSource,
+      importFeedSource,
       refreshDatabases,
     }),
-    [activeName, databases, loading, error, seed, seedSources, dataVersion, selectDatabase, createDatabase, importSeedSource, refreshDatabases],
+    [activeName, databases, loading, error, feed, feedSources, dataVersion, selectDatabase, createDatabase, importFeedSource, refreshDatabases],
   );
 
   return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;

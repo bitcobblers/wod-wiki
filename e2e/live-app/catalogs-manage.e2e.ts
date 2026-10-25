@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { compileSeedRow, seedNoteIdSync } from '../../packages/tools/src/seedbuild/compiler';
 import { getNoteContentByRouteId, seedNote } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
  * Catalog manager (/catalogs?manage=1) — companion to catalog-subscription
@@ -74,16 +74,16 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
 
     const drawer = page.getByTestId('catalogs-manager-drawer');
     await expect(drawer).toBeVisible();
-    const row = drawer.getByTestId('seed-source-manage-library');
+    const row = drawer.getByTestId('feed-source-manage-library');
     await expect(row.getByText('Manage Library', { exact: true })).toBeVisible();
-    await expect(row.getByTestId('seed-origin-manage-library')).toHaveText(SOURCE_URL);
+    await expect(row.getByTestId('feed-origin-manage-library')).toHaveText(SOURCE_URL);
     // Unsubscribed and never imported → Subscribe is the primary action;
     // auto-sync is unavailable while unsubscribed.
-    await expect(row.getByTestId('seed-subscribe-manage-library')).toBeVisible();
-    await expect(row.getByTestId('seed-autosync-manage-library')).toBeDisabled();
+    await expect(row.getByTestId('feed-subscribe-manage-library')).toBeVisible();
+    await expect(row.getByTestId('feed-autosync-manage-library')).toBeDisabled();
 
     // Native details overflow: published HTML + git links, noopener enforced.
-    const more = row.getByTestId('seed-more-manage-library');
+    const more = row.getByTestId('feed-more-manage-library');
     await more.locator('summary').click();
     const html = row.getByRole('link', { name: `Published HTML: ${SOURCE_URL}` });
     await expect(html).toHaveAttribute('href', SOURCE_URL);
@@ -126,7 +126,7 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
 
     await page.reload();
     await expect(drawer).toBeVisible();
-    await expect(drawer.getByTestId('seed-source-manage-library')).toBeVisible();
+    await expect(drawer.getByTestId('feed-source-manage-library')).toBeVisible();
   });
 
   test('subscribe imports content; auto-sync applies a bump, check-only waits for Sync; unsubscribe retains, delete removes', async ({ page }) => {
@@ -137,53 +137,53 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
 
     await page.goto('/catalogs?manage=1');
     const drawer = page.getByTestId('catalogs-manager-drawer');
-    const row = drawer.getByTestId('seed-source-manage-library');
+    const row = drawer.getByTestId('feed-source-manage-library');
 
     // Subscribe = real import of the served chunk, then subscribed + current.
-    await expect(row.getByTestId('seed-subscribe-manage-library')).toBeEnabled({ timeout: 15_000 });
-    await row.getByTestId('seed-subscribe-manage-library').click();
-    await expect(row.getByTestId('seed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
-    await expect(row.getByTestId('seed-subscribe-manage-library')).toBeHidden();
+    await expect(row.getByTestId('feed-subscribe-manage-library')).toBeEnabled({ timeout: 15_000 });
+    await row.getByTestId('feed-subscribe-manage-library').click();
+    await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
+    await expect(row.getByTestId('feed-subscribe-manage-library')).toBeHidden();
 
     // A user-authored note that must survive every lifecycle action below.
     await seedNote(page, USER_NOTE_PATH, USER_NOTE_BODY);
 
-    const auto = row.getByTestId('seed-autosync-manage-library');
+    const auto = row.getByTestId('feed-autosync-manage-library');
     await expect(auto).toBeEnabled();
 
     // Auto-sync ON: the load-time background check applies the published bump.
     await auto.check();
     version.current = 43;
     await page.reload();
-    await expect(drawer.getByTestId('seed-source-manage-library')).toBeVisible();
-    await expect(row.getByTestId('seed-autosync-manage-library')).toBeChecked();
-    await expect(row.getByTestId('seed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
-    await expect(row.getByTestId('seed-local-version')).toContainText('v43');
-    await expect(row.getByTestId('seed-sync-manage-library')).toBeHidden();
+    await expect(drawer.getByTestId('feed-source-manage-library')).toBeVisible();
+    await expect(row.getByTestId('feed-autosync-manage-library')).toBeChecked();
+    await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
+    await expect(row.getByTestId('feed-local-version')).toContainText('v43');
+    await expect(row.getByTestId('feed-sync-manage-library')).toBeHidden();
 
     // Auto-sync OFF: the bump stays pending until the athlete presses Sync.
     await auto.uncheck();
     version.current = 44;
     await page.reload();
-    await expect(row.getByTestId('seed-autosync-manage-library')).not.toBeChecked();
-    await expect(row.getByTestId('seed-sync-status')).toContainText('Update available', { timeout: 30_000 });
-    await expect(row.getByTestId('seed-sync-manage-library')).toBeVisible();
-    await row.getByTestId('seed-sync-manage-library').click();
-    await expect(row.getByTestId('seed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
-    await expect(row.getByTestId('seed-local-version')).toContainText('v44');
+    await expect(row.getByTestId('feed-autosync-manage-library')).not.toBeChecked();
+    await expect(row.getByTestId('feed-sync-status')).toContainText('Update available', { timeout: 30_000 });
+    await expect(row.getByTestId('feed-sync-manage-library')).toBeVisible();
+    await row.getByTestId('feed-sync-manage-library').click();
+    await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
+    await expect(row.getByTestId('feed-local-version')).toContainText('v44');
 
     // Unsubscribe: imported content removed, the source entry stays.
-    const more = row.getByTestId('seed-more-manage-library');
+    const more = row.getByTestId('feed-more-manage-library');
     await more.locator('summary').click();
-    await row.getByTestId('seed-unsubscribe-manage-library').click();
-    await expect(row.getByTestId('seed-subscribe-manage-library')).toBeVisible({ timeout: 15_000 });
+    await row.getByTestId('feed-unsubscribe-manage-library').click();
+    await expect(row.getByTestId('feed-subscribe-manage-library')).toBeVisible({ timeout: 15_000 });
     await expect(row).toBeVisible();
-    await expect(row.getByTestId('seed-autosync-manage-library')).toBeDisabled();
+    await expect(row.getByTestId('feed-autosync-manage-library')).toBeDisabled();
     expect(await getNoteContentByRouteId(page, SEED_NOTE_PATH)).toBeNull();
     expect(await getNoteContentByRouteId(page, USER_NOTE_PATH)).not.toBeNull();
 
     // Delete: content AND the source entry are removed; user notes remain.
-    const deleteButton = row.getByTestId('seed-delete-manage-library');
+    const deleteButton = row.getByTestId('feed-delete-manage-library');
     if (!(await deleteButton.isVisible())) await more.locator('summary').click();
     await deleteButton.click();
     await expect(row).toHaveCount(0);
@@ -214,12 +214,12 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
       return chunk ? route.fulfill({ contentType: 'application/json', body: chunk.body }) : route.abort();
     });
     await page.goto('/settings/sync');
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     // The seed is the subscription unit: one Subscribe imports BOTH manifest
     // chunks — its notebooks are never synced apart.
-    const row = page.getByTestId('seed-source-seed-crossfit');
-    await row.getByTestId('seed-subscribe-seed-crossfit').click();
-    await expect(row.getByTestId('seed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
+    const row = page.getByTestId('feed-source-seed-crossfit');
+    await row.getByTestId('feed-subscribe-seed-crossfit').click();
+    await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
     expect(await getNoteContentByRouteId(page, seedNoteIdSync(chunks[0].path))).toBe(chunks[0].content);
     expect(await getNoteContentByRouteId(page, seedNoteIdSync(chunks[1].path))).toBe(chunks[1].content);
   });

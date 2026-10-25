@@ -22,7 +22,7 @@ const NOTES: Note[] = [
   { ...makeNote('pg-1', 'playground'), type: 'playground' },
   { ...makeNote('pg-legacy', undefined), id: 'pg-legacy', type: 'playground' },
   { ...makeNote('page-1', 'collection:crossfit-girls'), type: 'page' },
-  // ── Seed corpus shapes (SeedImporter attribution + legacy rows) ──
+  // ── Seed corpus shapes (FeedImporter attribution + legacy rows) ──
   makeNote('seed-effort', 'efforts'),
   { ...makeNote('legacy-effort', undefined), seedOrigin: 'seed', seedChunkId: 'efforts', sourcePath: 'markdown/efforts/fran.md' } as Note,
   // User-edited legacy seed: seedOrigin flipped to 'user', provenance retained.
