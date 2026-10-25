@@ -146,6 +146,21 @@ describe('wqlCompletionSource', () => {
     expect(complete(':note ')).toEqual(['by {}', 'last', 'from', '|']);
   });
 
+  it('suppresses suffixes the parser already has as singletons', () => {
+    // Duplicate 'by' clause → parse conflict.
+    expect(complete(':note by {session} ')).toEqual(['last', 'from', '|']);
+    expect(complete('sum:tis by {session} ')).toEqual(['.rollup()', 'last', 'from']);
+    // Duplicate '.rollup' clause → parse conflict.
+    expect(complete('sum:tis{}.rollup(4w) ')).toEqual(['by {}', 'last', 'from']);
+    // Duplicate 'window' clause (same kind or last↔from) → parse conflict.
+    expect(complete(':note last 4w ')).toEqual(['by {}', '|']);
+    expect(complete(':note from 2026-01-01 to 2026-03-31 ')).toEqual(['by {}', '|']);
+    expect(complete('sum:tis from 2026-01-01 to 2026-03-31 ')).toEqual(['by {}', '.rollup()']);
+    // Mid-typed repeat narrows to nothing instead of re-offering the duplicate.
+    expect(complete(':note by {session} by')).toBeNull();
+    expect(complete('sum:tis{}.rollup(4w) .rollup')).toBeNull();
+  });
+
   it('disambiguates last the aggregator from last the time window', () => {
     // Query start / inside the head word → the aggregator slot.
     expect(complete('las')).toEqual(['last']);

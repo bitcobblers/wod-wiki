@@ -17,6 +17,8 @@ import {
   whiteboardParser,
   whiteboardScriptCompletionSource,
   whiteboardScriptSnippets,
+  UnitRegistry,
+  whiteboardScriptLanguage,
 } from '../../src/index';
 import type { WhiteboardScriptCompletionOptions } from '../../src/index';
 
@@ -40,7 +42,7 @@ async function acceptOption(doc: string, label: string, options: WhiteboardScrip
     state: EditorState.create({
       doc,
       // interactionDelay 0: `acceptCompletion` ignores picks made sooner.
-      extensions: [autocompletion({ override: [whiteboardScriptCompletionSource(options)], interactionDelay: 0 })],
+      extensions: [whiteboardScriptLanguage, autocompletion({ override: [whiteboardScriptCompletionSource(options)], interactionDelay: 0 })],
     }),
     parent: host,
   });
@@ -65,6 +67,35 @@ describe('real completion apply inserts parse-valid text', () => {
       // A bare `$0`/`$1` in the template would reach the document verbatim.
       expect(text, snippet.name).not.toMatch(/\$\d/);
       expect(errorNodes(text), snippet.name).toEqual([]);
+    }
+  });
+
+  it('every offered number continuation applies to a parser-accepted statement', async () => {
+    const options: WhiteboardScriptCompletionOptions = {
+      efforts: () => [{ value: 'Back Squat' }],
+      units: UnitRegistry.standard().extend({ canonical: 'pood', dimension: 'mass', aliases: ['poods'] }),
+    };
+    for (const doc of ['10 ', '@100 ']) {
+      const state = EditorState.create({ doc });
+      const result = await whiteboardScriptCompletionSource(options)(new CompletionContext(state, doc.length, true));
+      expect(result).not.toBeNull();
+      for (const option of result!.options) {
+        const text = await acceptOption(doc, option.label, options);
+        expect(errorNodes(`${text}\n`), `${doc}${option.label}`).toEqual([]);
+      }
+    }
+  });
+
+  it('multiword efforts replace the whole current phrase in choice and compose slots', async () => {
+    const options: WhiteboardScriptCompletionOptions = { efforts: () => [{ value: 'Back Squat' }] };
+    for (const [doc, expected] of [
+      ['10 Back Sq', '10 Back Squat'],
+      ['10 Push Ups | ', '10 Push Ups | Back Squat'],
+      ['+ ', '+ Back Squat'],
+    ] as const) {
+      const text = await acceptOption(doc, 'Back Squat', options);
+      expect(text).toBe(expected);
+      expect(errorNodes(`${text}\n`)).toEqual([]);
     }
   });
 

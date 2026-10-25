@@ -68,10 +68,9 @@ export const WQL_AGGREGATORS: readonly string[] = Object.keys(AGGREGATE_BUILTINS
 /** Units whose dimension matches the given vector (or all, when unknown). */
 export function unitsForDimension(dim: DimVector | undefined): readonly string[] {
   if (!dim) return UNIT_NAMES;
-  const matches = UNIT_NAMES.filter((u) => {
+  return UNIT_NAMES.filter((u) => {
     const def = UNITS[u];
     if (!def) return false;
     return def.dim.every((x, i) => x === dim[i]);
   });
-  return matches.length ? matches : UNIT_NAMES;
 }

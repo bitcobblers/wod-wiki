@@ -3,7 +3,7 @@
  * source over the calc vocabulary. Context-aware:
  *   - inside `lookup(...)` → tables, then fields (and effort keys);
  *   - after `->` → dimension-filtered unit suggestions (using the engine's
- *     inferred vector when the draft line is valid, else all units);
+ *     inferred vector, including the expression before an incomplete arrow);
  *   - after an aggregator `sum:` → stream metric keys;
  *   - otherwise → scope-aware atoms, functions, aggregates, clause keywords.
  */
@@ -34,14 +34,18 @@ export interface CalcCompletionOptions {
   effortKeys?: () => readonly string[];
 }
 
-interface Sugg {
+interface CalcCompletionItem {
   label: string;
-  insert: string;
+  apply: string;
   detail: string;
 }
 
 /** Effort catalog keys suggested in the `lookup("effort", …, …)` key slot. */
 const EFFORT_KEYS = ['effort', 'thruster', 'push-press', 'front-squat', 'wall-ball', 'row', 'run'];
+
+function quotedInsert(value: string, quoteTyped: boolean): string {
+  return `${quoteTyped ? '' : '"'}${value}"`;
+}
 
 export function calcCompletionSource(options: CalcCompletionOptions = {}): (context: CompletionContext) => CompletionResult | null {
   const scope = options.scope ?? 'segment';
@@ -66,10 +70,11 @@ export function calcCompletionSource(options: CalcCompletionOptions = {}): (cont
       // Table slot: `lookup("...` with no comma yet.
       if (!/,/.test(inside) && /^"?[\w.-]*"?$/.test(inside.replace(/"/g, '').trim() || '')) {
         const frag = inside.replace(/"/g, '').trim();
+        const quoteTyped = inside.trimStart().startsWith('"');
         const options = LOOKUP_TABLES.filter((t) => t.name.startsWith(frag))
-          .map((t) => ({ label: t.name, insert: `"${t.name}"`, detail: t.detail }));
+          .map((t) => ({ label: t.name, apply: quotedInsert(t.name, quoteTyped), detail: t.detail }));
         if (options.length) {
-          return { from: context.pos - frag.length, options, validFor: /^[\w.-]*$/ };
+          return { from: context.pos - frag.length, to: context.pos + (context.state.sliceDoc(context.pos, context.pos + 1) === '"' ? 1 : 0), options, validFor: /^[\w.-]*$/ };
         }
       }
       // Field slot (3rd quoted arg): `lookup("T", key, "...`
@@ -77,16 +82,20 @@ export function calcCompletionSource(options: CalcCompletionOptions = {}): (cont
       if (fieldM) {
         const table = /lookup\(\s*"([^"]+)"/.exec(text)?.[1];
         const t = LOOKUP_TABLES.find((x) => x.name === table);
+        const from = context.pos - fieldM[1].length;
+        const quoteTyped = context.state.sliceDoc(from - 1, from) === '"';
         const options = (t?.fields ?? []).filter((f) => f.startsWith(fieldM[1]))
-          .map((f) => ({ label: f, insert: `"${f}"`, detail: `${table} field` }));
-        return { from: context.pos - fieldM[1].length, options, validFor: /^[\w-]*$/ };
+          .map((f) => ({ label: f, apply: quotedInsert(f, quoteTyped), detail: `${table} field` }));
+        return { from, to: context.pos + (context.state.sliceDoc(context.pos, context.pos + 1) === '"' ? 1 : 0), options, validFor: /^[\w-]*$/ };
       }
       // Key slot (2nd arg) for effort.
       const keyM = /lookup\(\s*"(effort)"\s*,\s*"?([\w.-]*)"?$/.exec(text);
       if (keyM) {
         const keys = effortKeyOptions().filter((k) => k.startsWith(keyM[2]));
-        const options = keys.map((k) => ({ label: k, insert: k === 'effort' ? k : `"${k}"`, detail: 'effort key' }));
-        return { from: context.pos - keyM[2].length, options, validFor: /^[\w.-]*$/ };
+        const from = context.pos - keyM[2].length;
+        const quoteTyped = context.state.sliceDoc(from - 1, from) === '"';
+        const options = keys.map((k) => ({ label: k, apply: k === 'effort' ? k : quotedInsert(k, quoteTyped), detail: 'effort key' }));
+        return { from, to: context.pos + (context.state.sliceDoc(context.pos, context.pos + 1) === '"' ? 1 : 0), options, validFor: /^[\w.-]*$/ };
       }
     }
 
@@ -94,7 +103,16 @@ export function calcCompletionSource(options: CalcCompletionOptions = {}): (cont
     const unitM = /->\s*([\w/]*)$/.exec(text);
     if (unitM) {
       const lineText = context.state.doc.lineAt(context.pos).text;
-      const analysis = analyzeCalcLine(lineText, scope);
+      let analysis = analyzeCalcLine(lineText, scope);
+      // A mid-draft (`-> k`) can't compile as a whole ("Unknown output unit"),
+      // losing the dimension; re-infer it from the expression before the arrow.
+      if (!analysis.dim) {
+        const arrowAt = lineText.lastIndexOf('->');
+        if (arrowAt >= 0) {
+          const lhs = analyzeCalcLine(lineText.slice(0, arrowAt), scope);
+          if (lhs.diagnostics.length === 0) analysis = lhs;
+        }
+      }
       const dim = analysis.diagnostics.length === 0 ? analysis.dim : undefined;
       const options = unitsForDimension(dim)
         .filter((u) => u.startsWith(unitM[1]))
@@ -113,25 +131,25 @@ export function calcCompletionSource(options: CalcCompletionOptions = {}): (cont
     }
 
     // ── Generic atom/function/clause context ────────────────────────────
-    const items: Sugg[] = [];
+    const items: CalcCompletionItem[] = [];
     if (scope === 'segment') {
-      items.push(...SEGMENT_ATOMS.map((a) => ({ label: a.name, insert: a.name, detail: a.detail })));
+      items.push(...SEGMENT_ATOMS.map((a) => ({ label: a.name, apply: a.name, detail: a.detail })));
     } else {
-      items.push(...WORKOUT_CONTEXT_ATOMS.map((a) => ({ label: a.name, insert: a.name, detail: a.detail })));
+      items.push(...WORKOUT_CONTEXT_ATOMS.map((a) => ({ label: a.name, apply: a.name, detail: a.detail })));
       if (scope === 'workout') {
         for (const agg of AGGREGATE_NAMES) {
           for (const m of ['reps', 'distance', 'segmentVolume', 'metMinutes', 'elapsed', 'effortRpe']) {
-            items.push({ label: `${agg}(${m})`, insert: `${agg}(${m})`, detail: 'aggregate' });
+            items.push({ label: `${agg}(${m})`, apply: `${agg}(${m})`, detail: 'aggregate' });
           }
         }
-        items.push({ label: 'sum(reps, without: rest)', insert: 'sum(reps, without: rest)', detail: 'exclusion aggregate' });
+        items.push({ label: 'sum(reps, without: rest)', apply: 'sum(reps, without: rest)', detail: 'exclusion aggregate' });
       }
     }
-    items.push(...FUNCTION_NAMES.map((f) => ({ label: `${f}()`, insert: `${f}()`, detail: 'function' })));
-    if (scope === 'store') items.push(...WQL_AGGREGATORS.map((a) => ({ label: `${a}:{}`, insert: `${a}:`, detail: 'WQL atom' })));
-    items.push(...CLAUSE_WORDS.map((c) => ({ label: c, insert: c === 'when' ? 'when ' : c, detail: 'clause' })));
-    items.push({ label: 'estimated', insert: 'estimated', detail: 'variant origin' });
-    items.push({ label: '(library)', insert: '(library)', detail: 'library calc' });
+    items.push(...FUNCTION_NAMES.map((f) => ({ label: `${f}()`, apply: `${f}()`, detail: 'function' })));
+    if (scope === 'store') items.push(...WQL_AGGREGATORS.map((a) => ({ label: `${a}:{}`, apply: `${a}:`, detail: 'WQL atom' })));
+    items.push(...CLAUSE_WORDS.map((c) => ({ label: c, apply: c === 'when' ? 'when ' : c, detail: 'clause' })));
+    items.push({ label: 'estimated', apply: 'estimated', detail: 'variant origin' });
+    items.push({ label: '(library)', apply: '(library)', detail: 'library calc' });
 
     const filtered = items.filter((i) => i.label.startsWith(word.text)).slice(0, 20);
     if (!filtered.length) return null;

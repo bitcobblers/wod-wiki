@@ -57,7 +57,7 @@ describe('NoteEditor nested completion', () => {
     // the live path is covered below. This direct invocation of the editor's
     // own provider chain additionally pins the contract: same state, same
     // facet wiring, first result wins.
-    const time = editor('```time\n10:00 Run\n```', '```time\n10:00 Run'.length);
+    const time = editor('```time\n10:00 \n```', '```time\n10:00 '.length);
     const result = await wodCompletionSource(
       new CompletionContext(time.state, time.state.selection.main.head, true),
     );
@@ -69,8 +69,8 @@ describe('NoteEditor nested completion', () => {
   });
 
   it('offers time-body vocabulary live through startCompletion', async () => {
-    const doc = '```time\n10:00 Run \n```';
-    const view = editor(doc, '```time\n10:00 Run '.length);
+    const doc = '```time\n10:00 \n```';
+    const view = editor(doc, '```time\n10:00 '.length);
     act(() => { startCompletion(view); });
     await waitFor(() => expect(labels(view)).toContain('FOR TIME'));
     // Whiteboard Script only — no WQL, no opening-fence suggestions.

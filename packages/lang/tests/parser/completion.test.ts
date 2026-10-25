@@ -10,6 +10,7 @@ import {
   applyTemplateDefaults,
   whiteboardParser,
 } from '../../src/index';
+import { UnitRegistry } from '../../src/index';
 import type { WhiteboardScriptCompletionOptions } from '../../src/index';
 
 /** Run the standalone-extension completion source at `pos` (default: end of doc). */
@@ -45,6 +46,62 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(await labels('10 Push', options)).toContain('Back Squat');
   });
 
+  it('suppresses a second effort after a completed effort but allows a new statement', async () => {
+    const options: WhiteboardScriptCompletionOptions = {
+      efforts: () => [{ value: 'Back Squat', label: 'Back Squat' }],
+    };
+    expect(await labels('10 Push Ups ', options)).not.toContain('Back Squat');
+    expect(await labels('10 Push Ups\n', options)).toContain('Back Squat');
+  });
+
+  it('keeps effort suggestions in choice and compose slots', async () => {
+    const options: WhiteboardScriptCompletionOptions = {
+      efforts: () => [{ value: 'Back Squat', label: 'Back Squat' }],
+    };
+    expect(await labels('10 Push Ups | ', options)).toContain('Back Squat');
+    expect(await labels('+ ', options)).toContain('Back Squat');
+  });
+
+  it('suppresses additional values after a singleton property but preserves repeated tags', async () => {
+    const options: WhiteboardScriptCompletionOptions = {
+      efforts: () => [{ value: 'Fran' }],
+      tags: () => [{ value: 'classic' }, { value: 'loud' }],
+    };
+    expect(await labels('effort: Fran ', options)).toEqual([]);
+    expect(await labels('sound: #classic #', options)).toContain('classic');
+    expect(await labels('sound: #classic #', options)).toContain('loud');
+  });
+
+  it('does not offer singleton property keys already supplied in the section', async () => {
+    const offered = await labels('effort: Fran\nsound: #classic\nsoun');
+    expect(offered).not.toContain('effort');
+    expect(offered).not.toContain('sound');
+    expect(offered).toContain('equipment');
+    expect(offered).toContain('Circuit');
+  });
+
+  it('uses dialect-extended units and limits resistance quantities to mass', async () => {
+    const units = UnitRegistry.standard().extend({ canonical: 'pood', dimension: 'mass', aliases: ['poods'] });
+    const offered = await labels('10 ', { units });
+    expect(offered).toContain('pood');
+    expect(offered).toContain('poods');
+
+    const resistance = await labels('@100 ', { units });
+    expect(resistance).toContain('kg');
+    expect(resistance).toContain('pood');
+    expect(resistance).not.toContain('km');
+    expect(resistance).not.toContain('cal');
+  });
+
+  it('offers no second unit after a number already has one', async () => {
+    const offered = await labels('10 kg ', {
+      efforts: () => [{ value: 'Back Squat', label: 'Back Squat' }],
+    });
+    expect(offered).not.toContain('lb');
+    expect(offered).not.toContain('kg');
+    expect(offered).toContain('Back Squat');
+  });
+
   it('offers STANDARD_UNITS canonical spellings and aliases after a number', async () => {
     const offered = await labels('100 ');
     expect(offered).toContain('kg');
@@ -52,6 +109,23 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(offered).toContain('mile');
     const kg = offered.indexOf('kg');
     expect(kg).toBeGreaterThanOrEqual(0);
+  });
+
+  it('allows units after compose quantities but not inside action syntax', async () => {
+    expect(await labels('+ 5 ')).toContain('kg');
+    expect(await labels('[10 ')).not.toContain('kg');
+  });
+
+  it('keeps multiword effort completion anchored at the effort phrase', async () => {
+    const state = EditorState.create({
+      doc: '10 Back Sq',
+      extensions: whiteboardScript({ efforts: () => [{ value: 'Back Squat' }] }),
+    });
+    const result = await whiteboardScriptCompletionSource({ efforts: () => [{ value: 'Back Squat' }] })(
+      new CompletionContext(state, state.doc.length, true),
+    );
+    expect(result?.from).toBe('10 '.length);
+    expect(result?.options.map(option => option.label)).toContain('Back Squat');
   });
 
   it('anchors unit options at the partial unit word start', async () => {

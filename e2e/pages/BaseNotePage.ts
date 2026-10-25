@@ -1,5 +1,6 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
+import type { EditorView } from '@codemirror/view';
 
 /**
  * BaseNotePage — shared Page Object for all Note Workspace routes.
@@ -97,6 +98,44 @@ export abstract class BaseNotePage {
   /** Return the editor's current innerText. */
   async editorText(): Promise<string> {
     return this.editor().innerText();
+  }
+
+  private async codeMirrorView() {
+    return this.page.evaluateHandle((): EditorView => {
+      const host = document.querySelector('.cm-note-editor') as
+        | (HTMLElement & { __codemirrorView?: EditorView })
+        | null;
+      if (!host?.__codemirrorView) throw new Error('CodeMirror view was not exposed for test automation');
+      return host.__codemirrorView;
+    });
+  }
+
+  /** Clear a test marker and place the caret at its position. */
+  async replaceEditorMarker(marker: string): Promise<void> {
+    const handle = await this.codeMirrorView();
+    try {
+      await handle.evaluate((view, text) => {
+        const from = view.state.doc.toString().indexOf(text);
+        if (from < 0) throw new Error(`Missing editor marker: ${text}`);
+        view.dispatch({
+          changes: { from, to: from + text.length, insert: '' },
+          selection: { anchor: from },
+        });
+        view.focus();
+      }, marker);
+    } finally {
+      await handle.dispose();
+    }
+  }
+
+  /** Read the exact document, including syntax hidden by decorations. */
+  async editorDoc(): Promise<string> {
+    const handle = await this.codeMirrorView();
+    try {
+      return await handle.evaluate((view) => view.state.doc.toString());
+    } finally {
+      await handle.dispose();
+    }
   }
 
   /** Append text at the end of the editor. */

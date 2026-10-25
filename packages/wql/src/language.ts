@@ -265,10 +265,14 @@ function chained(list: readonly Completion[], suffix: string): Completion[] {
     ...c,
     apply: (view: EditorView, _c: Completion, from: number, to: number) => {
       const text = typeof c.apply === 'string' ? c.apply : c.label;
+      // An apply that already ends in its own separator (`.rollup(`, `last `)
+      // is authoritative — chaining must not double it.
+      const selfTerminated = /\W$/.test(text);
       const present = view.state.sliceDoc(to, to + suffix.length) === suffix;
+      const insert = selfTerminated || present ? text : text + suffix;
       view.dispatch({
-        changes: { from, to, insert: present ? text : text + suffix },
-        selection: { anchor: from + text.length + suffix.length },
+        changes: { from, to: to + (selfTerminated && present ? suffix.length : 0), insert },
+        selection: { anchor: from + insert.length },
         userEvent: 'input.complete',
       });
       startCompletion(view);
@@ -530,14 +534,23 @@ export function wqlCompletionSource(options_: WqlCompletionOptions = {}) {
     if (/\s+to\s+$/i.test(tail)) {
       return finish(context, context.pos, [{ label: '2026-03-31', detail: 'end date (YYYY-MM-DD)', type: 'constant' }], '');
     }
+    // Parser singletons (the wqlSuffix conflict rules): a second `by`/`.rollup`/
+    // window clause (last and from share the one window slot) is a Duplicate-
+    // clause parse error — stop offering it once a complete one is present.
+    const hasBy = /\bby\s*\{[^{}]*\}/.test(tail);
+    const hasRollup = /\.rollup\([^()]*\)/.test(tail);
+    const hasWindow = /\s+last\s+\d+[dw]\b/i.test(tail)
+      || /\s+from\s+\d{4}-\d{2}-\d{2}(?:\s+to\s+\d{4}-\d{2}-\d{2})?\b/i.test(tail);
     const dims = wqlGroupingDimensions(head.target ?? '', head.family);
     const keywords: Completion[] = [
-      { label: 'by {}', apply: 'by ', detail: dims.length ? 'group by dimensions' : `advisory: no grouping dimensions for find:${head.target}`, type: 'keyword' },
-      ...(head.family === 'aggregate'
+      ...(hasBy ? [] : [{ label: 'by {}', apply: 'by ', detail: dims.length ? 'group by dimensions' : `advisory: no grouping dimensions for find:${head.target}`, type: 'keyword' }]),
+      ...(head.family === 'aggregate' && !hasRollup
         ? [{ label: '.rollup()', apply: '.rollup(', detail: 'bucket period', type: 'keyword' as const }]
         : []),
-      { label: 'last', apply: 'last ', detail: 'relative window: last <n>d|w', type: 'keyword' },
-      { label: 'from', apply: 'from ', detail: 'date range: from YYYY-MM-DD [to YYYY-MM-DD]', type: 'keyword' },
+      ...(hasWindow ? [] : [
+        { label: 'last', apply: 'last ', detail: 'relative window: last <n>d|w', type: 'keyword' },
+        { label: 'from', apply: 'from ', detail: 'date range: from YYYY-MM-DD [to YYYY-MM-DD]', type: 'keyword' },
+      ]),
       ...(head.family === 'find' ? [{ label: '|', apply: '| ', detail: 'presentation pipes: order by / select / limit', type: 'keyword' as const }] : []),
     ];
     return finish(context, from, chained(keywords, ' '), typed);

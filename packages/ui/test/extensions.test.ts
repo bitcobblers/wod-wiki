@@ -3,7 +3,7 @@ import { EditorSelection, EditorState, type Transaction } from '@codemirror/stat
 import { CompletionContext } from '@codemirror/autocomplete';
 import { history, undo, redo, isolateHistory, moveLineDown } from '@codemirror/commands';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
-import { whiteboardScriptCompletionSource, whiteboardScriptLanguage } from '@bitcobblers/wod-wiki-lang';
+import { UnitRegistry, whiteboardScriptCompletionSource, whiteboardScriptLanguage } from '@bitcobblers/wod-wiki-lang';
 import { wqlCompletionSource, wqlLanguage } from '@bitcobblers/wod-wiki-wql';
 import {
   editorPreset,
@@ -226,7 +226,7 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
 
   it('nested time and log bodies match the standalone Whiteboard Script source options and ranges', async () => {
     const wbOptions = { efforts: () => [{ value: 'fran', label: 'Fran' }] };
-    const body = '21-15-9 Thrusters ';
+    const body = '21-15-9 ';
     const standalone = await whiteboardScriptCompletionSource(wbOptions)(
       new CompletionContext(EditorState.create({ doc: body, extensions: [whiteboardScriptLanguage] }), body.length, true),
     );
@@ -290,19 +290,19 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     const options: NestedCompletionOptions = { whiteboardScript: {} };
     const at = async (note: string) => {
       const state = EditorState.create({ doc: note, extensions: [sectionField, nestedCompletionOptions.of(options)] });
-      const pos = note.indexOf('Redpoint ') + 'Redpoint '.length;
+      const pos = note.indexOf('Redpoint | ') + 'Redpoint | '.length;
       return (await nestedCompletion(new CompletionContext(state, pos, true)))?.options.map((option) => option.label) ?? [];
     };
 
-    expect(await at('```log:climbing\nRedpoint \n```')).toContain('flash');
-    expect(await at('```log\nRedpoint \n```')).not.toContain('flash');
+    expect(await at('```log:climbing\nRedpoint | \n```')).toContain('flash');
+    expect(await at('```log\nRedpoint | \n```')).not.toContain('flash');
   });
 
   it('keeps nested Whiteboard Script catalog callbacks per editor', async () => {
-    const doc = '```time\n21-15-9 Thrusters \n```';
+    const doc = '```time\n21-15-9 \n```';
     const labels = async (options: NestedCompletionOptions) => {
       const state = EditorState.create({ doc, extensions: [sectionField, nestedCompletionOptions.of(options)] });
-      const pos = doc.indexOf('Thrusters ') + 'Thrusters '.length;
+      const pos = doc.indexOf('21-15-9 ') + '21-15-9 '.length;
       return (await nestedCompletion(new CompletionContext(state, pos, true)))?.options.map((option) => option.label) ?? [];
     };
 
@@ -312,8 +312,21 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     expect(await labels({})).not.toContain('fran');
   });
 
+  it('keeps dialect-extended unit sets inside their own editor configuration', async () => {
+    const doc = '```time\n10 \n```';
+    const labels = async (options: NestedCompletionOptions) => {
+      const state = EditorState.create({ doc, extensions: [sectionField, nestedCompletionOptions.of(options)] });
+      return (await nestedCompletion(new CompletionContext(state, doc.indexOf('10 ') + 3, true)))?.options.map((option) => option.label) ?? [];
+    };
+    const units = UnitRegistry.standard().extend({ canonical: 'pood', dimension: 'mass', aliases: ['poods'] });
+
+    expect(await labels({ whiteboardScript: { units } })).toContain('pood');
+    expect(await labels({ whiteboardScript: {} })).not.toContain('pood');
+    expect(await labels({})).toContain('kg');
+  });
+
   it('keeps fence and nested suggestions inside their own sections', async () => {
-    const doc = '---\ntags: x\n---\n\n# Note\n\n```query\nfind session{effort:fr\n```\n\n```time\n10:00 Run\n```\n';
+    const doc = '---\ntags: x\n---\n\n# Note\n\n```query\nfind session{effort:fr\n```\n\n```time\n10:00 \n```\n';
     const state = EditorState.create({
       doc,
       extensions: [sectionField, wodAutocompletion, nestedCompletionOptions.of({ wql: { effortNames: () => ['fran'] } })],
@@ -330,7 +343,7 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     expect(inQuery).toContain('fran');
     expect(inQuery.every((label) => !label.startsWith('```'))).toBe(true);
     // Time body: Whiteboard Script suggestions only — no WQL, no fences.
-    const inTime = await labels(offset('10:00 Run'));
+    const inTime = await labels(offset('10:00 '));
     expect(inTime).toContain('FOR TIME');
     expect(inTime.every((label) => !label.startsWith('```'))).toBe(true);
     expect(inTime).not.toContain('fran');

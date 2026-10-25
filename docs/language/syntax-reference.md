@@ -106,8 +106,9 @@ The editor offers completions inside ` ```time ` and ` ```log ` fence bodies. Bo
 
 - **Structure templates**: an empty body line suggests parse-valid starters such as `Circuit` — accepting one inserts a complete, indented template (e.g. `(3)` with indented children), never a fragment that fails to parse.
 - **Structure keywords**: after a timer head such as `10:00 `, keywords like `AMRAP`, `EMOM`, `TABATA`, `FOR TIME`, and `Rest` complete the statement.
-- **Units**: after a number, matching units are offered with their dimension as detail (`100 k` → `kg`, detail `mass`); aliases (`kilos`, `lbs`) are offered as their own labels with the same detail.
-- **Property keys**: an empty body line offers the property set — `effort`, `equipment`, `rpe`, `rir`, `intensity`, `load`, `volume`, `work`, `sound`.
+- **Units**: after a number, matching units are offered with their dimension as detail (`100 k` → `kg`, detail `mass`); aliases (`kilos`, `lbs`) are offered as their own labels with the same detail. Resistance quantities marked with `@` offer mass units only. Hosts can supply a dialect-extended `UnitSet`, and a number that already has a unit does not offer another.
+- **Statement slots**: the Lezer tree limits effort and property suggestions to valid continuations of the current line. Completed efforts and singleton property values do not accept duplicate tokens, and singleton property keys already supplied in the section are not offered again. Choice (`|`), compose (`+`), multiword efforts, repeated statements, and stacked tag references remain available where the grammar allows them.
+- **Property keys**: at a property-key prefix, the editor offers unused keys from `effort`, `equipment`, `rpe`, `rir`, `intensity`, `load`, `volume`, `work`, and `sound`.
 - **Host catalogs**: when the host supplies them (movement registry, equipment, note tags), those values join the suggestions for effort names, `equipment`, tags, and `sound:` values.
 
 Markdown outside workout fences is untouched: frontmatter offers only frontmatter property/tag suggestions, prose never offers workout or query terms, and a Markdown line starting with backticks offers the fence names themselves (` ```time `, ` ```query `, …).

@@ -4,6 +4,7 @@ import type { Extension } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
 import { syntaxTree } from '@codemirror/language';
 import { UnitRegistry } from '../metrics/units';
+import type { Dimension, UnitSet } from '../metrics/units';
 import { PROPERTY_KEY_TO_METRIC_TYPE, STRUCTURAL_EFFORT_WORDS } from './semantic-classifier';
 import { CARDIO_ACTIVITY_KEYWORDS } from '../dialects/CardioDialect';
 import { HabitsDialect } from '../dialects/HabitsDialect';
@@ -43,6 +44,8 @@ export interface WhiteboardScriptCompletionOptions {
   sounds?: CompletionValueSource;
   /** Tag index — offered after `#` tag references. */
   tags?: CompletionValueSource;
+  /** Unit set for this section, including dialect extensions. Defaults to the standard registry. */
+  units?: UnitSet;
 }
 
 /** Property keys offered at `Identifier` positions: reference keys + typed metric properties. */
@@ -55,10 +58,14 @@ const STRUCTURE_KEYWORD_DISPLAY: Record<string, string> = {
   rest: 'Rest',
 };
 
-const UNIT_COMPLETIONS: Completion[] = UnitRegistry.standard().toArray().flatMap(def => [
-  { label: def.canonical, detail: def.dimension, type: 'unit', boost: 1 },
-  ...def.aliases.map(alias => ({ label: alias, detail: def.dimension, type: 'unit' })),
-]);
+function unitCompletions(units: UnitSet, dimension?: Dimension): Completion[] {
+  return units.toArray()
+    .filter(def => !dimension || def.dimension === dimension)
+    .flatMap(def => [
+      { label: def.canonical, detail: def.dimension, type: 'unit', boost: 1 },
+      ...def.aliases.map(alias => ({ label: alias, detail: def.dimension, type: 'unit' })),
+    ]);
+}
 
 function titleCase(word: string): string {
   return word.toLowerCase().replace(/(^|[\s])([a-z])/g, (_, lead: string, ch: string) => lead + ch.toUpperCase());
@@ -121,6 +128,56 @@ function dialectWords(sport?: string): Completion[] {
   return vocabulary ? vocabulary() : [];
 }
 
+function ancestor(node: SyntaxNode | null, name: string): SyntaxNode | null {
+  for (let current = node; current; current = current.parent) {
+    if (current.name === name) return current;
+  }
+  return null;
+}
+
+function currentStatement(context: CompletionContext): SyntaxNode | null {
+  const tree = syntaxTree(context.state);
+  const line = context.state.doc.lineAt(context.pos);
+  if (context.pos === line.from) return null;
+  const resolved = tree.resolveInner(context.pos, -1);
+  const statement = ancestor(resolved, 'Block') ?? ancestor(resolved, 'Property');
+  if (statement) return statement;
+  const beforeCursor = tree.resolveInner(context.pos - 1, -1);
+  return ancestor(beforeCursor, 'Block') ?? ancestor(beforeCursor, 'Property');
+}
+
+function suppliedPropertyKeys(context: CompletionContext): ReadonlySet<string> {
+  const keys = new Set<string>();
+  for (const property of syntaxTree(context.state).topNode.getChildren('Property')) {
+    const identifier = property.firstChild;
+    if (identifier?.name === 'Identifier') {
+      keys.add(context.state.doc.sliceString(identifier.from, identifier.to).toLowerCase());
+    }
+  }
+  return keys;
+}
+
+function isUnitFragment(context: CompletionContext, fragment: SyntaxNode, units: UnitSet): boolean {
+  return fragment.firstChild?.name === 'Effort'
+    && units.has(context.state.doc.sliceString(fragment.from, fragment.to));
+}
+
+function trailingEffortRun(
+  context: CompletionContext,
+  statement: SyntaxNode | null,
+  units: UnitSet,
+): SyntaxNode[] {
+  const nodes = statement?.name === 'Block' ? statement.getChildren('Fragment') : [];
+  let end = nodes.length;
+  while (end > 0 && nodes[end - 1].from >= context.pos) end--;
+  let start = end;
+  while (start > 0 && nodes[start - 1].firstChild?.name === 'Effort') start--;
+  const run = nodes.slice(start, end);
+  let firstEffort = 0;
+  while (firstEffort < run.length - 1 && isUnitFragment(context, run[firstEffort], units)) firstEffort++;
+  return run.slice(firstEffort);
+}
+
 function inNode(context: CompletionContext, names: ReadonlySet<string>): boolean {
   for (let node: SyntaxNode | null = syntaxTree(context.state).resolveInner(context.pos, -1); node; node = node.parent) {
     if (names.has(node.name)) return true;
@@ -129,10 +186,6 @@ function inNode(context: CompletionContext, names: ReadonlySet<string>): boolean
 }
 
 const SUPPRESSED_NODES: ReadonlySet<string> = new Set(['Text', 'textComment', 'Heading', 'heading', 'MetricObject']);
-// Actual Lezer node names (grammar): `Timer`, `RoundScheme` (5x5, 3 x 8), and
-// `CollectibleTimer` (`:?`). The lowercase `schemeNumber`/`collectibleTimer`
-// grammar identifiers are inlined tokens and never appear as tree nodes.
-const TIMER_NODES: ReadonlySet<string> = new Set(['Timer', 'RoundScheme', 'CollectibleTimer']);
 
 /**
  * Syntax-aware Whiteboard Script completion source.
@@ -140,7 +193,7 @@ const TIMER_NODES: ReadonlySet<string> = new Set(['Timer', 'RoundScheme', 'Colle
  * Slots (driven by the Lezer tree and line shape, never a global word list):
  * - empty statement → structure snippets, structure keywords, effort catalog, dialect words
  * - effort word → structure keywords, effort catalog, dialect words
- * - after a number → units from `STANDARD_UNITS` (canonical + aliases)
+ * - after a quantity number → configured standard/dialect units (canonical + aliases), mass-only after `@`
  * - `Identifier` line start → property keys (effort, equipment, rpe, rir, intensity, load, volume, work, sound)
  * - `key: value` → catalog values for effort/equipment/sound
  * - after `#` → tag slugs
@@ -151,6 +204,9 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
   const sportWords = dialectWords(options.sport);
   const keywords = structureKeywords();
   const snippets = snippetCompletions();
+  const units = options.units ?? UnitRegistry.standard();
+  const allUnitOptions = unitCompletions(units);
+  const massUnitOptions = unitCompletions(units, 'mass');
 
   return async (context: CompletionContext): Promise<CompletionResult | null> => {
     if (inNode(context, SUPPRESSED_NODES)) return null;
@@ -167,52 +223,57 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
       return { from: pos - word.length, options: toCompletions(await options.tags(), 'tag') };
     }
 
-    // Property value: `key: partial` — effort/equipment/sound resolve against host catalogs.
-    const value = /^[ \t]*([A-Za-z][A-Za-z0-9]*)[ \t]*:[ \t]*([A-Za-z0-9-]*)$/.exec(before);
-    if (value) {
-      const key = value[1].toLowerCase();
-      const partial = value[2];
+    const statement = currentStatement(context);
+    if (statement?.name === 'Property') {
+      const keyNode = statement.firstChild;
+      if (keyNode?.name !== 'Identifier') return null;
+      const key = context.state.doc.sliceString(keyNode.from, keyNode.to).toLowerCase();
+      const value = keyNode.nextSibling;
+      if (value && !value.type.isError && pos > value.to) return null;
       const source = key === 'effort' ? options.efforts
         : key === 'equipment' ? options.equipment
         : key === 'sound' ? options.sounds
         : undefined;
-      if (source) return { from: pos - partial.length, options: toCompletions(await source(), key, true) };
+      if (source) return { from: value && !value.type.isError ? value.from : pos, options: toCompletions(await source(), key, true) };
       return null;
     }
 
     const efforts = options.efforts ? toCompletions(await options.efforts(), 'effort') : [];
+    const effortOptions = [...keywords, ...efforts, ...sportWords];
 
     // Property key: a bare `Identifier` starting the line (grammar's `Identifier
     // colon value`). A fresh word may also begin an effort or snippet, so all
     // statement-start choices stay available while CodeMirror filters the prefix.
     if (/^[ \t]*[A-Za-z][A-Za-z0-9]*$/.test(before)) {
+      const supplied = suppliedPropertyKeys(context);
       return {
         from: pos - before.trimStart().length,
-        options: [...COMPLETION_PROPERTY_KEYS.map(key => ({ label: key, detail: 'property', type: 'property', boost: 5 })), ...snippets, ...keywords, ...efforts, ...sportWords],
+        options: [...COMPLETION_PROPERTY_KEYS.filter(key => !supplied.has(key)).map(key => ({ label: key, detail: 'property', type: 'property', boost: 5 })), ...snippets, ...keywords, ...efforts, ...sportWords],
         validFor: /^[A-Za-z]*$/,
       };
     }
 
-    // Units after a number, alongside effort vocabulary (the word may be a
-    // movement or a unit — CodeMirror filters by prefix). Not inside timers
-    // (`10:00`), round schemes (`5x5`, `3 x 5` — in-tree, or past the trailing
-    // space where the tree has already closed the node), or in-progress
-    // ladders (`21-15`).
-    const unit = /(\d+)([ \t]*)([A-Za-z]*)$/.exec(before);
-    if (unit && !inNode(context, TIMER_NODES)) {
-      const digitStart = before.length - unit[3].length - unit[2].length - unit[1].length;
-      // Character before the number, skipping the space run between the
-      // number and the unit word: a timer `:`, ladder `-`, or group `(` keeps
-      // its slot closed, and `x`/`X` closes it for round schemes (`5x5 kg`,
-      // `3 x 5 kg` lex the trailing number as rounds × reps).
-      const tail = before.slice(0, digitStart).trimEnd().slice(-1);
-      if (tail === '' || !':-(+xX'.includes(tail)) {
-        return {
-          from: pos - unit[3].length,
-          options: [...UNIT_COMPLETIONS, ...keywords, ...efforts, ...sportWords],
-          validFor: /^[A-Za-z]*$/,
-        };
-      }
+    // A quantity is the unit slot only when it is the last complete fragment,
+    // or immediately precedes the effort word being completed. This excludes
+    // timers, round schemes, ladders, actions, and completed unit tokens.
+    const nodes = statement?.name === 'Block' ? statement.getChildren('Fragment') : [];
+    let end = nodes.length;
+    while (end > 0 && nodes[end - 1].from >= pos) end--;
+    const last = nodes[end - 1];
+    const completingWord = last?.firstChild?.name === 'Effort' && last.to === pos;
+    const quantityFragment = completingWord ? nodes[end - 2] : last;
+    const quantity = quantityFragment?.firstChild?.name === 'Quantity' ? quantityFragment.firstChild : null;
+    const incompleteAction = statement?.name === 'Block' && statement.getChildren('Fragment').some(fragment =>
+      fragment.firstChild?.name === 'Action'
+      && fragment.from < (quantity?.from ?? pos)
+      && !context.state.doc.sliceString(fragment.from, fragment.to).includes(':')
+    );
+    if (quantity && !incompleteAction) {
+      return {
+        from: completingWord ? last.from : pos,
+        options: [...(quantity.getChild('AtSign') ? massUnitOptions : allUnitOptions), ...effortOptions],
+        validFor: /^[A-Za-z]*$/,
+      };
     }
 
     // Empty statement: structures, keywords, catalog efforts, dialect words.
@@ -222,12 +283,25 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
 
     // Whitespace after fragments (`10:00 `, `5x5 Back Squat `) — effort slot, no snippet/units.
     if (word.length === 0 && /[ \t]$/.test(before)) {
-      return { from: pos, options: [...keywords, ...efforts, ...sportWords] };
+      const effortRun = trailingEffortRun(context, statement, units);
+      const last = effortRun[effortRun.length - 1];
+      if (last && !isUnitFragment(context, last, units)) return null;
+      return { from: pos, options: effortOptions };
     }
 
-    // Effort word on a line that already carries fragments.
+    // Complete the whole current effort phrase. Earlier Effort nodes can be
+    // words in that phrase, not permission to append another effort.
     if (word.length > 0 && /^[A-Za-z][A-Za-z0-9'-]*$/.test(word)) {
-      return { from: pos - word.length, options: [...keywords, ...efforts, ...sportWords] };
+      const effortRun = trailingEffortRun(context, statement, units);
+      const first = effortRun[0];
+      const last = effortRun[effortRun.length - 1];
+      if (!first || !last || last.to < pos) return null;
+      const typed = context.state.doc.sliceString(first.from, pos).toLowerCase();
+      const compatible = effortOptions.filter(option => {
+        const inserted = typeof option.apply === 'string' ? option.apply : option.label;
+        return inserted.toLowerCase().startsWith(typed);
+      });
+      return { from: first.from, options: compatible, validFor: /^[A-Za-z ]*$/ };
     }
 
     return null;

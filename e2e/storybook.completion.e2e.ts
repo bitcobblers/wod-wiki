@@ -160,6 +160,29 @@ test('time body offers structure, unit, and property completions', async ({ page
   await expect(host.locator('.cm-line', { hasText: /^sound$/ })).toHaveCount(1);
 });
 
+test('time body rejects duplicate efforts and units but keeps choice slots open', async ({ page }) => {
+  await openNoteEditor(page);
+
+  await openBodyLine(page, LINE.timeBodyRest);
+  await page.keyboard.type('10 Push Ups ');
+  await page.keyboard.press('Control+Space');
+  await expect(menu(page)).toBeHidden();
+
+  await openBodyLine(page, LINE.timeBodyRest);
+  await page.keyboard.type('10 Push Ups | ');
+  await page.keyboard.press('Control+Space');
+  await expect(menu(page)).toBeVisible();
+  await expect(menu(page).locator('.cm-completionLabel', { hasText: /^AMRAP$/ })).toHaveCount(1);
+  await page.keyboard.press('Escape');
+
+  await openBodyLine(page, LINE.timeBodyRest);
+  await page.keyboard.type('10 kg ');
+  await page.keyboard.press('Control+Space');
+  await expect(menu(page)).toBeVisible();
+  await expect(menu(page).locator('.cm-completionLabel', { hasText: /^kg$/ })).toHaveCount(0);
+  await expect(menu(page).locator('.cm-completionLabel', { hasText: /^lb$/ })).toHaveCount(0);
+});
+
 // ── Keyboard behavior ────────────────────────────────────────────────────────
 
 test('arrows move the active option and Escape dismisses without inserting', async ({ page }) => {
