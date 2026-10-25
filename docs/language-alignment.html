@@ -76,9 +76,8 @@
 <meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/language-alignment.html">
 <meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
 <style id="wb-styles">
-  :root { --wb-bar-height: 112px; }
-  html { scroll-padding-top: calc(var(--wb-bar-height) + 16px); color-scheme: light; }
-  [data-whiteboard-anchor] { scroll-margin-top: 16px; }
+  html { scroll-padding-top: 80px; color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 80px; }
   .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
   .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
   .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
@@ -87,18 +86,24 @@
   [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
   [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
   #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
-  #wb-bar { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #cbd5e1; padding: 10px max(16px, calc((100% - 1032px) / 2)); }
+  #wb-bar { position: fixed; top: 16px; right: 16px; z-index: 100; padding: 5px; border: 1px solid #cbd5e1; border-radius: 9999px; box-shadow: 0 4px 16px #0f172a26; }
   .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-  #wb-count { margin-right: auto; font-variant-numeric: tabular-nums; }
-  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 44px; padding: 8px 12px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
-  #wb-bar button:disabled { opacity: .5; cursor: default; }
-  #wb-bar #wb-publish, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-bar .wb-controls { flex-wrap: nowrap; gap: 3px; }
+  #wb-count { min-width: 20px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 40px; padding: 7px 10px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button { display: inline-flex; align-items: center; justify-content: center; width: 40px; padding: 7px; border-color: transparent; border-radius: 9999px; }
+  #wb-bar button:hover { background: #f1f5f9; }
+  #wb-bar button:disabled { opacity: .4; cursor: default; }
+  #wb-bar button svg, #wb-current-toggle svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #wb-bar #wb-copy, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-bar #wb-copy:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar #wb-copy.wb-copied { background: #15803d; border-color: #15803d; color: #fff; }
   #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
   #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
   #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
   #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
-  #wb-help, #wb-status, #wb-storage-warning { margin: 4px 0 0; font-size: 12px; }
-  #wb-help { color: #475569; }
+  #wb-status, #wb-storage-warning { position: fixed; top: 70px; right: 16px; z-index: 100; width: min(350px, calc(100% - 32px)); margin: 0; padding: 8px 12px; border-radius: 8px; background: #fff; box-shadow: 0 4px 16px #0f172a26; font-size: 12px; }
+  #wb-storage-warning { top: 112px; }
   #wb-status:empty, #wb-storage-warning:empty { display: none; }
   #wb-storage-warning { color: #92400e; }
   .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
@@ -109,23 +114,31 @@
   .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
   #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
   #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
-  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; padding: 16px; border: 1px solid #b45309; border-radius: 8px; box-shadow: 0 4px 16px #0f172a26; }
-  #wb-current h2 { margin: 0 0 8px; padding: 0; font-size: 16px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current[hidden], #wb-current-body[hidden], #wb-copy [hidden] { display: none !important; }
+  #wb-current h2 { margin: 0; padding: 0; font-size: 14px; }
+  #wb-current-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 42px !important; padding: 10px 12px !important; border: 0 !important; border-radius: 11px !important; text-align: left; }
+  #wb-current-toggle svg { transition: transform 120ms ease; }
+  #wb-current-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  #wb-current-body { padding: 0 16px 16px; }
   #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
   #wb-current a { color: #1d4ed8; }
-  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+  @media (max-width: 480px) { #wb-bar { top: 8px; right: 8px; } #wb-status { top: 62px; right: 8px; } #wb-storage-warning { top: 104px; } #wb-current { right: 8px; bottom: 8px; } }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn, #wb-status, #wb-storage-warning { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
 </style>
 <!-- whiteboard-html:end-style --></head>
 <body><!-- whiteboard-html:bar -->
 <header id="wb-bar" aria-label="Document annotations">
   <div class="wb-controls">
-    <strong id="wb-count" aria-live="polite">0 annotations</strong>
-    <button id="wb-add" type="button" aria-pressed="false">Add annotation</button>
-    <button id="wb-prev" type="button" disabled aria-label="Previous annotation">Previous</button>
-    <button id="wb-next" type="button" disabled aria-label="Next annotation">Next</button>
-    <button id="wb-publish" type="button" disabled>Publish</button>
+    <strong id="wb-count" aria-live="polite" aria-label="0 annotations" title="0 annotations">0</strong>
+    <button id="wb-add" type="button" aria-pressed="false" aria-label="Add annotation" title="Add annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation" title="Previous annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation" title="Next annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+    <button id="wb-copy" type="button" disabled aria-label="Copy annotations" title="Copy annotations">
+      <svg id="wb-copy-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg>
+      <svg id="wb-copy-check" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="m5 12 4 4L19 6"/></svg>
+    </button>
   </div>
-  <p id="wb-help">Highlight text to annotate, or click Add annotation then click any block. Drafts stay in this browser. Publish copies them for your agent.</p>
   <p id="wb-status" role="status"></p>
   <p id="wb-storage-warning" role="status"></p>
 </header>
@@ -133,16 +146,20 @@
 <main data-whiteboard-document="">
 
 <header class="doc">
-  <div class="eyebrow">Language Alignment · Working Proposal</div>
+  <div class="eyebrow">Language Alignment · Resolved Proposal</div>
   <div class="title">Notebook, Feed, Note — one word per concept</div>
-  <div class="subtitle">A vocabulary proposal for the content domain: what a <strong>notebook</strong> is, what a <strong>feed</strong> is, what a <strong>note</strong> is — and which of today's words must retire to make those three unambiguous. Covers three aligned surfaces: the <strong>domain words</strong>, the <strong>URL prefixes</strong>, and the <strong>query language</strong>.</div>
+  <div class="subtitle">A vocabulary proposal for the content domain: what a <strong>notebook</strong> is, what a <strong>feed</strong> is, what a <strong>note</strong> is — and which of today's words must retire to make those three unambiguous. Covers four aligned surfaces: the <strong>domain words</strong>, the <strong>URL prefixes</strong>, the <strong>navigation levels</strong>, and the <strong>query language</strong>.</div>
   <div class="meta">Grounded in: <code>packages/core/src/types/notebook.ts</code> · <code>packages/core/src/types/storage.ts</code> · <code>packages/engine/src/seed/contract.ts</code> · <code>packages/tools/src/seedbuild/compiler.ts</code> · <code>packages/wql/src/QueryService.ts</code> · <code>apps/playground/src/services/seed/seedSources.ts</code> · <code>apps/playground/app/lib/entryMapper.ts</code> · <code>CONTEXT.md</code> · <code>docs/domain-model/</code></div>
 </header>
 
 <div class="callout danger">
   <p id="wb-p-134e95865a214e12961ac2d2d0df4acf" data-whiteboard-anchor><strong>Read this first — the brief and the codebase disagree on one word.</strong></p>
   <p id="wb-p-6d75c6e408a149b08aba43606f9a76ab" data-whiteboard-anchor>The brief asks for <em>notebook</em> (sometimes called "collection or feed"), <em>feed</em> ("today known as seed"), and <em>note</em>. The codebase already uses <code>feed</code> for something else — a <strong>dated</strong> container (<code>feed.&lt;slug&gt;</code> chunks, <code>markdown/feeds/</code>, <code>source:feeds</code>) — while the concept the brief calls "feed" (a configured source of notebooks) is the codebase's <code>seed</code> (<code>SeedSource</code>, <code>SEED_SOURCES</code>, <code>wodwiki.seedSources</code>).</p>
-  <p id="wb-p-8cb57f5e86a24df1abead60d6ec5005d" data-whiteboard-anchor>So <strong>"feed" cannot mean both</strong>. This document resolves it by renaming the codebase's <em>dated container</em> out of the word "feed" and giving "feed" to the source concept, per the brief — and flags the one alternative in §6 (D1) for a decision.</p>
+  <p id="wb-p-8cb57f5e86a24df1abead60d6ec5005d" data-whiteboard-anchor>So <strong>"feed" cannot mean both</strong>. <strong>Resolved (D1, option 1):</strong> this document renames the codebase's <em>dated container</em> out of the word "feed" and gives "feed" to the source concept, per the brief. A dated container becomes a notebook whose notes carry a date.</p>
+</div>
+
+<div class="callout ok">
+  <p id="wb-p-resolved-note" data-whiteboard-anchor><strong>All ten open decisions are now resolved.</strong> The answers are recorded inline at §6 (D1–D10) and applied throughout the document: <strong>feed</strong> = the configured source; <strong>notebook</strong> = the container; <strong>note</strong> = the entry; <strong>page</strong> = a placement (many-to-many with notes); <strong>efforts and equipment</strong> = markdown imported as indexed notes; <strong>templates</strong> = a user-owned <code>notebook/defaults</code> rather than a note kind; and the URL surface becomes spelled-out singulars with <code>/t/</code> as the only single-letter prefix.</p>
 </div>
 
 <h2 id="wb-h2-cc23cd1da822484d958ab904a277c085" data-whiteboard-anchor>1. The proposal in one table</h2>
@@ -191,6 +208,7 @@
       <tr><td id="wb-td-8067af1e175145419320969f55b10379" data-whiteboard-anchor>Source</td><td id="wb-td-6fc05acc23fa4f6987106d760256a666" data-whiteboard-anchor>feed</td><td id="wb-td-212ac44502f645549610baa59847bcf5" data-whiteboard-anchor><code>/feed/{slug}</code></td><td id="wb-td-79b6c05131a44ce79a7f7c0366b646d2" data-whiteboard-anchor><code>/feeds</code></td><td id="wb-td-6a4ed475aa1948e69e952d0db8bbf978" data-whiteboard-anchor><code>:feed{}</code></td></tr>
       <tr><td id="wb-td-7d3cff70b0724106bf1ea304e8836ffc" data-whiteboard-anchor>Entry</td><td id="wb-td-a3ad7a7b1e224502a141b7df1e7966bd" data-whiteboard-anchor>note</td><td id="wb-td-5b0e7585b9de433bb49ae73da40dbb7d" data-whiteboard-anchor><code>/note/{uuid}</code></td><td id="wb-td-d63f4980d5874c36a7271378d66659cc" data-whiteboard-anchor><code>/notes</code></td><td id="wb-td-5628254cfa0e413e9752ec7b88aab535" data-whiteboard-anchor><code>:note{}</code></td></tr>
       <tr><td id="wb-td-617fdf0ac26c4342b71d0d834f3b3a71" data-whiteboard-anchor>Grouping</td><td id="wb-td-a4117413b8074f35869f768205c19a1f" data-whiteboard-anchor>page</td><td id="wb-td-29e8ea5316154bc190c2078e4e1c57dd" data-whiteboard-anchor><code>/page/{slug}</code></td><td id="wb-td-f72f5ffb340941a2a1446b3948aff7a9" data-whiteboard-anchor>—</td><td id="wb-td-1a57b98dbe754e2ab4d04b3911602b62" data-whiteboard-anchor><code>:page{}</code></td></tr>
+      <tr><td id="wb-td-pages-summary" data-whiteboard-anchor>Placement</td><td id="wb-td-pages-summary-word" data-whiteboard-anchor>page</td><td id="wb-td-pages-summary-prefix" data-whiteboard-anchor><code>/page/{slug}</code></td><td id="wb-td-pages-summary-list" data-whiteboard-anchor><code>/pages</code></td><td id="wb-td-pages-summary-wql" data-whiteboard-anchor><code>:page{}</code></td></tr>
       <tr><td id="wb-td-b4a099e2a10446c1a2e2dabeb64b9ca0" data-whiteboard-anchor>Date</td><td id="wb-td-179aaa1cfc7349c7899b428a549d0bc5" data-whiteboard-anchor>journal day</td><td id="wb-td-7808c8e976654caea39af0d0c4a1113c" data-whiteboard-anchor><code>/day/{date}</code></td><td id="wb-td-2a7c4c45616544a39c20d10ea8c240e3" data-whiteboard-anchor><code>/journal</code></td><td id="wb-td-77633a961e8046469c9efa620ce6b215" data-whiteboard-anchor><code>:note{} by {date}</code></td></tr>
       <tr><td id="wb-td-dash-summary" data-whiteboard-anchor>Rendering</td><td id="wb-td-dash-summary-word" data-whiteboard-anchor>dashboard</td><td id="wb-td-dash-summary-prefix" data-whiteboard-anchor><code>/dashboard/{slug}</code></td><td id="wb-td-dash-summary-list" data-whiteboard-anchor><code>/dashboards</code></td><td id="wb-td-dash-summary-wql" data-whiteboard-anchor><code>:dashboard{}</code></td></tr>
       <tr><td id="wb-td-447b7c25dace4039a7048f658e571b52" data-whiteboard-anchor>Definition</td><td id="wb-td-1d3df6bd06684f93857e37524a599a54" data-whiteboard-anchor>effort / equipment</td><td id="wb-td-eb359cc0c504449da670d2e3c21327d7" data-whiteboard-anchor><code>/effort/{slug}</code> · <code>/equipment/{slug}</code></td><td id="wb-td-f1a9c6b526eb4ddc83fd44e4fc9bb611" data-whiteboard-anchor><code>/efforts</code> · <code>/equipment</code></td><td id="wb-td-29b142f60d8d49dbbb39aec365e0067c" data-whiteboard-anchor><code>:effort{}</code> · <code>:equipment{}</code></td></tr>
@@ -207,11 +225,21 @@
 
 notes live in exactly one notebook.
 a notebook may be delivered by a feed, or created by the user (no feed).
-notes carry provenance: which feed delivered them, which version.</pre>
+notes carry provenance: which feed delivered them, which version.
+
+default notebooks (all user-owned, all editable):
+  notebook/journal      the dated training log
+  notebook/playground   scratchpad workouts
+  notebook/defaults     starter notes — any notebook can be cloned from
+  notebook/guides       the authored guide pages (canvas)</pre>
 
 <h2 id="wb-h2-960d2ede97c94c1dbf6673528bdbf32a" data-whiteboard-anchor>2. The four content kinds are all notes</h2>
 
 <p id="wb-p-1db72265f7a44631a513505970fcbec9" data-whiteboard-anchor>The brief says "equipment / guides / efforts are also all notes." The survey confirms the <em>idea</em> is already there in the type system (<code>NoteKind = 'journal' | 'template' | 'playground' | 'feed' | 'dashboard' | 'page'</code> — <span class="cite">packages/core/src/types/storage.ts:30</span>) but the <em>code</em> splits them across separate stores and registries.</p>
+
+<div class="callout ok">
+  <p id="wb-p-editability-rule" data-whiteboard-anchor><strong>The editability rule, settled (D5).</strong> A note is editable when its <em>notebook</em> is user-owned — not when the note carries a particular stamp. Notes in a feed-subscribed notebook are read-only; the <strong>journal, playground and defaults</strong> notebooks are user-owned and therefore editable. This replaces today's per-note <code>seedOrigin</code> test: cloning a note into a user notebook makes it editable by virtue of where it now lives.</p>
+</div>
 
 <table>
   <thead>
@@ -225,7 +253,7 @@ notes carry provenance: which feed delivered them, which version.</pre>
     <tr><td id="wb-td-30fbd52d057845bdaaf9825367defc04" data-whiteboard-anchor><strong>Workouts</strong></td><td id="wb-td-c399acc48ec0415fa4d66ce429b18a6e" data-whiteboard-anchor>14 external feed repos</td><td id="wb-td-864e4d33a579402e90944e24b0e7acdc" data-whiteboard-anchor>No entity — notes with route kind <code>workout</code></td><td id="wb-td-cfb0964a09e146d5bc08792a8e9d23bf" data-whiteboard-anchor>A note (optionally kind <code>workout</code>)</td><td id="wb-td-8183fef377eb4828a5bb2c6814c3aee0" data-whiteboard-anchor>"Workout" is overloaded across five type-level usages today.</td></tr>
     <tr><td id="wb-td-e6b2023892014f969c4bbb6c784dc8ba" data-whiteboard-anchor><strong>Journal</strong></td><td id="wb-td-180795019d0e4b63a2e19e66b1f3d5a2" data-whiteboard-anchor>runtime-created</td><td id="wb-td-4af005e328274cf49564a91d3856c568" data-whiteboard-anchor><code>NoteKind 'journal'</code> + <code>journalDate</code></td><td id="wb-td-f15ad846b8fe43c38207c9948e64320a" data-whiteboard-anchor>A note in notebook <code>notebook/journal</code>, dated</td><td id="wb-td-8eefd0c5cbb04be9999390417e789e54" data-whiteboard-anchor>Date is an attribute of the note, not a container.</td></tr>
     <tr><td id="wb-td-9c0dc46f9cdd4d539a6aaf6626fac897" data-whiteboard-anchor><strong>Playground</strong></td><td id="wb-td-be3e6f74f74d41398233ac09299872cc" data-whiteboard-anchor>runtime-created + template</td><td id="wb-td-bb1576173ad84e9ba0688b31809a6bfa" data-whiteboard-anchor><code>NoteKind 'playground'</code></td><td id="wb-td-fc03a210893046c48c9b7a8d73df7cdc" data-whiteboard-anchor>A note in notebook <code>notebook/playground</code></td><td id="wb-td-fb7f4462f2cd4899b2aba38e2c4fe5cd" data-whiteboard-anchor>The playground <em>page</em> and the playground <em>notebook</em> are different things; name them apart.</td></tr>
-    <tr><td id="wb-td-6810671392274e8d8d97ad6a9b711167" data-whiteboard-anchor><strong>Templates</strong></td><td id="wb-td-76d142bd8a1b4e269ada1547d9f78687" data-whiteboard-anchor><code>apps/playground/app/templates/</code></td><td id="wb-td-207a5943f50746479b15f3a08fbcf00e" data-whiteboard-anchor><code>NoteKind 'template'</code></td><td id="wb-td-0fb9f14929224310843fa166e06a67b3" data-whiteboard-anchor>A note with kind <code>template</code></td><td id="wb-td-db1a8431065b4086978b157637a46f4e" data-whiteboard-anchor>Collides with canvas frontmatter <code>template: canvas</code>.</td></tr>
+    <tr><td id="wb-td-6810671392274e8d8d97ad6a9b711167" data-whiteboard-anchor><strong>Templates</strong></td><td id="wb-td-76d142bd8a1b4e269ada1547d9f78687" data-whiteboard-anchor><code>apps/playground/app/templates/</code></td><td id="wb-td-207a5943f50746479b15f3a08fbcf00e" data-whiteboard-anchor><code>NoteKind 'template'</code> — <strong>retired</strong></td><td id="wb-td-0fb9f14929224310843fa166e06a67b3" data-whiteboard-anchor><strong>No template kind.</strong> The kind retires; a new default notebook <code>notebook/defaults</code> holds the user's starter notes, and <em>any</em> notebook can be cloned from.</td><td id="wb-td-db1a8431065b4086978b157637a46f4e" data-whiteboard-anchor>Removes the third meaning of "template" (canvas frontmatter <code>template: canvas</code> stays, but it is no longer a note kind). <code>notebook/defaults</code> is user-owned and writable — unlike the feed-delivered notebooks.</td></tr>
   </tbody>
 </table>
 
@@ -333,52 +361,50 @@ notes carry provenance: which feed delivered them, which version.</pre>
 <h2 id="wb-h2-503f277c23bd42478178eb362ed59f2b" data-whiteboard-anchor>6. Decisions I need from you</h2>
 
 <div class="q">
-  <p id="wb-p-1683dce78910496fa9a8e81cc47479d3" data-whiteboard-anchor><span class="qid">D1 — The word "feed".</span> The brief says feed = configured source of notebooks, and the codebase's <code>feed.*</code> = dated container. Options:</p>
-  <ol>
-    <li id="wb-li-cc506b9b03f245118bb8863541fc65c8" data-whiteboard-anchor><strong>Recommended — brief wins, dated container is renamed.</strong> "feed" = source; <code>feed.&lt;slug&gt;</code> chunks and <code>markdown/feeds/</code> become dated <em>notebooks</em>; dated-ness becomes a note attribute (<code>note.date</code>), not a container kind.</li>
-    <li id="wb-li-5e6f2e7180b845e587ac0d80f9927509" data-whiteboard-anchor><strong>Keep feed = dated container.</strong> Then the source concept needs another name — "source", "library", or "publisher" — and the brief's "feeds are the configured sources" is inverted.</li>
-    <li id="wb-li-cca22a5aa3b4460eb82d5bbae0224297" data-whiteboard-anchor><strong>Split by tier.</strong> "feed" = source, and the dated container becomes its own noun entirely ("timeline", "program"), distinct from notebook. More vocabulary, one more concept to explain.</li>
-  </ol>
+  <p id="wb-p-1683dce78910496fa9a8e81cc47479d3" data-whiteboard-anchor><span class="qid">D1 — The word "feed".</span> <span class="tag keepnew">RESOLVED — option 1.</span> The brief wins: "feed" = the configured source of notebooks; the dated container is renamed. <code>feed.&lt;slug&gt;</code> chunks and <code>markdown/feeds/</code> become dated <em>notebooks</em>; dated-ness becomes a note attribute (<code>note.date</code>), not a container kind. Every downstream consequence in this document follows from that choice.</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-ead5d30bef2342babb05621c53034a58" data-whiteboard-anchor><span class="qid">D2 — Corpus directory names.</span> Today: <code>markdown/collections/</code> (named) and <code>markdown/feeds/</code> (dated), both compiler corpora; plus <code>canvas/</code>, <code>dashboards/</code>, <code>efforts/</code>, <code>equipment/</code>. Align to <code>markdown/notebooks/</code>? And should <code>markdown/canvas/</code> become <code>markdown/guides/</code> (fixing C10)?</p>
+  <p id="wb-p-ead5d30bef2342babb05621c53034a58" data-whiteboard-anchor><span class="qid">D2 — Corpus directory names.</span> <span class="tag keepnew">RESOLVED — yes to notebooks, canvas stays.</span> <code>markdown/collections/</code> and <code>markdown/feeds/</code> align to <code>markdown/notebooks/</code>. But <code>markdown/canvas/</code> keeps its name — it is the corpus of authored pages, and the canvas is reached by <code>/page/{guide-slug}</code>, where each guide page carries a <code>{guide-*}</code> slug (<code>guide-start</code>, <code>guide-wql</code>, <code>guide-clock</code>, …). <code>markdown/dashboards/</code>, <code>markdown/efforts/</code> and <code>markdown/equipment/</code> keep their names too: they are definition corpora, not notebook corpora (see D4).</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-3af6e79ea5524d70bb7624f78b594d91" data-whiteboard-anchor><span class="qid">D3 — "Page": container or placement?</span> <code>Page</code> today groups notes by date or slug through <code>PageNote</code>, alongside <code>Notebook</code>. Under this proposal a note sits in exactly one notebook, and a page becomes a <em>placement</em> (which date, which page) — not a second container. Confirm, or keep pages as first-class containers (which keeps the two-container ambiguity C7 alive).</p>
+  <p id="wb-p-3af6e79ea5524d70bb7624f78b594d91" data-whiteboard-anchor><span class="qid">D3 — "Page": container or placement?</span> <span class="tag keepnew">RESOLVED — placement.</span> Correct: a note sits in exactly one notebook, and a page becomes a <em>placement</em> (which date, which page) — not a second container. This closes collision C7, the two-container ambiguity: there is one container (notebook) and one placement (page).</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-cf660d375e86422095856318944d47d8" data-whiteboard-anchor><span class="qid">D4 — Efforts and equipment as notes.</span> Confirmed as the intended model (§2), but they are referenced by name from inside workout blocks and have their own registries and stores. Is the target: (a) notes with kinds <code>effort</code>/<code>equipment</code> whose registries become queries over notes, or (b) notes for display, with the registries kept as a separate reference plane? (a) is the clean language; (b) is the cheap migration.</p>
+  <p id="wb-p-cf660d375e86422095856318944d47d8" data-whiteboard-anchor><span class="qid">D4 — Efforts and equipment as notes.</span> <span class="tag keepnew">RESOLVED — markdown in, notes out, index on import.</span> Efforts and equipment are authored as <strong>markdown delivered by a feed</strong> and belong to notebooks. When the index database imports them they generate a <strong>note MD format</strong> used for indexing. A lookup structure must let the user search for efforts, any type of tag, or equipment, and must make those definitions available to <strong>autocomplete</strong> and to the <strong>parser / compiler</strong> to consume. Import and export always work to markdown — markdown is the interchange format. The correct indexing happens at import time.</p>
+  <p id="wb-p-d4-detail" data-whiteboard-anchor>This is the concrete pipeline the model implies: <code>markdown/efforts/snatch.md</code> (in a feed) → imported → a note with kind <code>effort</code> + its parsed <code>IEffort</code> projection → indexed for search, autocomplete, and runtime resolution. The <code>effort</code> and <code>equipment</code> stores remain, but they are <em>projections of notes</em> built at import, not a parallel authoring surface. The existing <code>parseEffortFile</code> / <code>parseEquipmentFile</code> step is the boundary: it already produces the typed record, and the note is the storage form.</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-c2bd467d1d4340ec90883b72c69e10ab" data-whiteboard-anchor><span class="qid">D5 — Does "note" stay user-owned?</span> Today the glossary reserves "note" for user-owned content while the database stores every library row as a note. Under this proposal note = any content unit, and ownership is an attribute (<code>feedId</code> present ⇒ delivered, absent ⇒ authored; editability = "no feedId"). Confirm that wording, or keep "note" strictly for authored content and use a different word for delivered content.</p>
+  <p id="wb-p-c2bd467d1d4340ec90883b72c69e10ab" data-whiteboard-anchor><span class="qid">D5 — Does "note" stay user-owned?</span> <span class="tag keepnew">RESOLVED — note = any content unit; editability follows the notebook.</span> A note is any content unit. The rules: <strong>notes that are part of a feed-subscribed notebook are not editable</strong>; <strong>notebooks the user owns are editable</strong>; and the <strong>journal, playground and defaults notebooks are all user-owned</strong>. Editability therefore derives from the <em>notebook's</em> origin, not from a per-note stamp: a note is editable when its notebook is user-owned.</p>
+  <p id="wb-p-d5-detail" data-whiteboard-anchor>This replaces today's <code>isNoteEditable(note)</code>, which tests a per-note <code>seedOrigin</code> field — one note can be cloned out of a feed notebook into a user notebook, and under the new model that clone is a note in a user-owned notebook, so it becomes editable without needing a new stamp on the note. The check moves up one level: <code>isNoteEditable(note)</code> becomes <code>isNotebookEditable(notebook)</code>, and the clone operation writes the note into the destination notebook rather than rewriting a provenance field.</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-06649705973d446baaed42faee746ee3" data-whiteboard-anchor><span class="qid">D6 — The "playground journal" phrase.</span> Read two ways: (a) <em>the playground and the journal are both notebooks</em> (the brief's grouping), or (b) a single thing named "playground journal" (a journal inside the playground). The codebase has no such combined object: <code>notebook/playground</code> and <code>notebook/journal</code> are separate default notebooks. I have assumed (a) — confirm.</p>
+  <p id="wb-p-06649705973d446baaed42faee746ee3" data-whiteboard-anchor><span class="qid">D6 — The "playground journal" phrase.</span> <span class="tag keepnew">RESOLVED — reading (a), per D5.</span> The playground and the journal are both notebooks — and both are <strong>user-owned</strong> and therefore editable. The phrase does not name a combined object: <code>notebook/playground</code> and <code>notebook/journal</code> are separate default notebooks, joined by the new user-owned <code>notebook/defaults</code> as a third (see §2, templates).</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-d7-url-prefix" data-whiteboard-anchor><span class="qid">D7 — The URL prefixes.</span> §8 proposes <code>/n/</code> notebook, <code>/f/</code> feed, <code>/d/</code> date, <code>/p/</code> page, <code>/effort/</code> effort, <code>/eq/</code> equipment, <code>/t/{type}/{tag}</code> tag. Confirm the set, and confirm the mixed convention: three single letters (<code>n</code>, <code>f</code>, <code>p</code>), one two-letter (<code>eq</code>), one spelled out (<code>effort</code>). The alternative is all-spelled-out (<code>/notebook/</code>, <code>/feed/</code>, <code>/page/</code>) — unambiguous, but it collides with the list routes (<code>/notebooks</code> vs <code>/notebook/</code>) and makes URLs long.</p>
+  <p id="wb-p-d7-url-prefix" data-whiteboard-anchor><span class="qid">D7 — The URL prefixes.</span> <span class="tag keepnew">RESOLVED — long names, except <code>/t/</code> for tags.</span> The spelled-out convention wins for everything: <code>/notebook/{slug}</code>, <code>/feed/{slug}</code>, <code>/note/{uuid}</code>, <code>/page/{slug}</code>, <code>/day/{date}</code>, <code>/dashboard/{slug}</code>, <code>/effort/{slug}</code>, <code>/equipment/{slug}</code>. <strong>Tags stay on the single letter <code>/t/{type}/{tag}</code></strong> — it is short, unambiguous, and no other concept wants <code>t</code>. The collision with the plural list routes is accepted: <code>/notebook/{slug}</code> (one) vs <code>/notebooks</code> (many) differ by the trailing segment, and every list route is a bare plural.</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-d8-dashboard" data-whiteboard-anchor><span class="qid">D8 — Where do dashboards go?</span> <strong>Resolved in this revision:</strong> <code>/d/{slug}</code> stays with dashboards and the date prefix moves to <code>/j/{date}</code>. The dashboard prefix was already in use and already correct, so moving the <em>date</em> prefix is the smaller change and avoids a redirect on a working route. <code>/dashboards</code> remains the dashboard list route, and <code>/dashboard/:slug</code> remains as the longer alias.</p>
+  <p id="wb-p-d8-dashboard" data-whiteboard-anchor><span class="qid">D8 — Where do dashboards go?</span> <span class="tag keepnew">RESOLVED — long name.</span> Per D7's convention: <code>/dashboard/{slug}</code> for one dashboard, <code>/dashboards</code> for the list. <code>/d/{slug}</code> becomes a redirect to <code>/dashboard/{slug}</code>. The date prefix moves to <code>/day/{date}</code> (D8b), which frees <code>/d/</code> entirely rather than leaving two things fighting over it.</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-d8b-journal-prefix" data-whiteboard-anchor><span class="qid">D8b — Is <code>/j/</code> for "journal" or for "date"?</span> The prefix reads as journal-day, which matches the concept today (the journal is the dated notebook). But under §2 the journal is just one notebook among several, and a dated view could plausibly exist for any notebook's notes — not only the journal's. Options: (a) <code>/j/{date}</code> — journal days only; (b) <code>/n/{notebook}/{date}</code> — a date scoped to any notebook, with <code>/j/{date}</code> as a shorthand for the journal notebook; (c) <code>/day/{date}</code> — a generic date prefix, honest about being a time slice rather than a place. (c) is what "date" means on its own; (a) is what the app has today.</p>
+  <p id="wb-p-d8b-journal-prefix" data-whiteboard-anchor><span class="qid">D8b — Is the date prefix for "journal" or for "date"?</span> <span class="tag keepnew">RESOLVED — option (c), <code>/day/{date}</code>.</span> A generic date prefix: honest about being a time slice rather than a place, and it does not privilege the journal over the other notebooks. Under D3 a date is a <em>placement</em>, and placements are reached by <code>/page/</code> — so <code>/page/{date}</code> is the same content addressed as a placement, and <code>/day/{date}</code> is the same content addressed as a time slice. Both work; <code>/day/</code> is canonical because the date is genuinely a slice across notebooks, not a page that belongs to one.</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-d9-page-scope" data-whiteboard-anchor><span class="qid">D9 — How many notes can a page hold?</span> The brief says "the page can be one or more notes". Today a page holds notes through the <code>page_notes</code> junction, and the calendar-page case holds one date's notes. Confirm that a page is a <em>grouping with a slug</em> (so <code>/p/{slug}</code> can list several notes), and that the journal-date case becomes <code>/j/{date}</code> rather than a page. This also decides whether pages keep their own table or become a notebook filter.</p>
+  <p id="wb-p-d9-page-scope" data-whiteboard-anchor><span class="qid">D9 — How many notes can a page hold?</span> <span class="tag keepnew">RESOLVED — many-to-many.</span> A note can belong to <strong>one or more pages</strong>, and a page may hold <strong>one or more notes</strong>. Pages are therefore a genuine N:M placement layer, not a one-note-per-page convenience. This needs an <strong>index of notes</strong> and the ability to <strong>move notes around</strong> — both are required deliverables of the change, not follow-ups.</p>
+  <p id="wb-p-d9-detail" data-whiteboard-anchor>The junction table already exists (<code>page_notes</code>, with <code>position</code> for ordering), so the data shape is right; what is missing is the <em>operation</em>. The migration must deliver: a note index that resolves a note to its pages cheaply (today the lookup runs through <code>PageNote</code> per note, <span class="cite">packages/core/src/types/storage.ts:66-72</span>), and a move operation that detaches a note from one page and attaches it to another while preserving position. Because a note may sit on several pages, "the page of a note" is no longer a single field — <code>Entry.pageId</code> / <code>Entry.pageSlug</code> become a list, and the note's canonical address stays <code>/note/{uuid}</code> regardless of which pages carry it.</p>
 </div>
 
 <div class="q">
-  <p id="wb-p-d10-wql-planes" data-whiteboard-anchor><span class="qid">D10 — How far does WQL go?</span> §9 proposes new heads <code>:feed</code>, <code>:page</code>, <code>:tag</code>, <code>:equipment</code> and new keys <code>feed:</code>, <code>date:</code>, <code>tag:</code>. Two sub-questions: (a) does <code>:notebook{}</code> become the notebook plane (reachable from every notebook, not just feed-delivered ones), or does it stay a scope alias over notes? (b) do <code>/tags</code> and <code>/equipment</code> become true query planes — new target enum entries with their own executors — or stay note-plane projections? A plane is the honest model and the composer supports it; a projection is cheaper and needs no new store seams.</p>
+  <p id="wb-p-d10-wql-planes" data-whiteboard-anchor><span class="qid">D10 — How far does WQL go?</span> <span class="tag keepnew">RESOLVED — yes to both.</span> <strong>(a) Yes</strong> — <code>:notebook{}</code> becomes the notebook plane: reachable from every notebook, not just feed-delivered ones. It stops meaning <code>source:feeds</code> + <code>type:feed</code> and becomes a real container query, with <code>notebook:{slug}</code> narrowing it. <strong>(b) Yes</strong> — <code>/tags</code> and <code>/equipment</code> become true query planes: new target enum entries with their own executors, not note-plane projections. The plane is the honest model, and the composer is already capability-driven, so it advertises each plane's own filters without further work.</p>
 </div>
 
 <h2 id="wb-h2-d2805bf78c4d45c4bef88fd6da3eecaf" data-whiteboard-anchor>7. Migration waves</h2>
@@ -393,10 +419,11 @@ notes carry provenance: which feed delivered them, which version.</pre>
     <tr><td id="wb-td-45299668bd714f3f894a96a4e26e0a83" data-whiteboard-anchor><strong>2</strong></td><td id="wb-td-41bf834d080b48ea82cb7fe09583a2c6" data-whiteboard-anchor>Flip the readers</td><td id="wb-td-7607550dcb994e288b0b7c4accdb559d" data-whiteboard-anchor><code>packages/wql/src/vocabulary.ts</code> (already aliases catalog/collection/feed/notebook to one plane — <span class="cite">packages/wql/src/vocabulary.ts:129-136</span>); <code>packages/wql/src/QueryService.ts</code> <code>sourceMatches</code> fence; <code>packages/storage/src/sql/domain.ts</code> sourceId predicates</td><td id="wb-td-4af89924e8de4ef5b0ba26e2636e68e6" data-whiteboard-anchor>The query layer is the only place that must know all the aliases. Fix it once, centrally, instead of in every consumer.</td></tr>
     <tr><td id="wb-td-013e996b5c734482997f88c1fd6e41f7" data-whiteboard-anchor><strong>3</strong></td><td id="wb-td-59316f0eea714f87b900bdd0187d8885" data-whiteboard-anchor>Flip the writers — storage identity prefixes</td><td id="wb-td-0b6aee2769974d9ba1222c0f1b320157" data-whiteboard-anchor><code>collection:</code> / <code>page:collection:</code> / <code>feed:</code> sourceIds → <code>notebook:</code>; <code>packages/engine/src/seed/runtime.ts</code>; SQL <code>"journal"</code> column → <code>notebook_id</code></td><td id="wb-td-ada488636612484c81827ad619f549f5" data-whiteboard-anchor>Needs a backfill. Doing it after the query layer can read both forms avoids a big-bang migration.</td></tr>
     <tr><td id="wb-td-70ede5e05a0f478d978233c6b10bb2d5" data-whiteboard-anchor><strong>4</strong></td><td id="wb-td-257d8c1537a44d8fb90a70e32f04a844" data-whiteboard-anchor>Flip the seed plane</td><td id="wb-td-1bafbc88add244118ff3b86ed3b92dd5" data-whiteboard-anchor>chunk ids <code>collection.*</code>, <code>feed.*</code> → <code>notebook.*</code>; <code>packages/tools/src/seedbuild/compiler.ts</code>; <code>scripts/sync-seed.ts</code>; manifest <code>notebooks[]</code></td><td id="wb-td-2a2f84066fa94c7b9ff1ee13707a460c" data-whiteboard-anchor>Manifest schema already changes at <code>schema: 9</code>; bumping it here is the natural place.</td></tr>
-    <tr><td id="wb-td-8955caef4a574b28810f0b77487475f3" data-whiteboard-anchor><strong>5</strong></td><td id="wb-td-8af3c77aaec5495585f4d672af1cd8b2" data-whiteboard-anchor>Flip the app surface — routes</td><td id="wb-td-9820007c84ec4df8af8401d457545b1a" data-whiteboard-anchor>add the new prefixes (<code>/n/</code> <code>/f/</code> <code>/j/</code> <code>/effort/</code> <code>/eq/</code> <code>/t/</code>) with redirects from <code>/c/</code>, <code>/feeds/:slug</code>, <code>/journal/:date</code>, <code>/e/</code>, <code>/equipment/:slug</code>; add the list routes <code>/notebooks</code> <code>/notes</code>; <code>NotebookDef.seedId</code> → <code>feedId</code>; nav labels; <code>apps/playground/app/lib/entryMapper.ts</code> branch collapse. <strong><code>/d/:slug</code> (dashboard) does not move.</strong></td><td id="wb-td-ceedb4f78535485c905732883dd467a7" data-whiteboard-anchor>User-visible; do it once the model is stable. <span class="cite">apps/playground/app/lib/routes.ts</span> already carries the redirect matrix — the new shapes slot into it.</td></tr>
+    <tr><td id="wb-td-8955caef4a574b28810f0b77487475f3" data-whiteboard-anchor><strong>5</strong></td><td id="wb-td-8af3c77aaec5495585f4d672af1cd8b2" data-whiteboard-anchor>Flip the app surface — routes</td><td id="wb-td-9820007c84ec4df8af8401d457545b1a" data-whiteboard-anchor>add the new prefixes (<code>/notebook/</code> <code>/feed/</code> <code>/note/</code> <code>/day/</code> <code>/page/</code> <code>/dashboard/</code> <code>/effort/</code> <code>/equipment/</code> <code>/t/</code>) with redirects from <code>/c/</code>, <code>/feeds/:slug</code>, <code>/journal/:date</code>, <code>/notes/:id</code>, <code>/p/*</code>, <code>/d/:slug</code>, <code>/e/</code>; add the list routes <code>/notebooks</code> <code>/notes</code>; <code>NotebookDef.seedId</code> → <code>feedId</code>; nav labels; <code>apps/playground/app/lib/entryMapper.ts</code> branch collapse.</td><td id="wb-td-ceedb4f78535485c905732883dd467a7" data-whiteboard-anchor>User-visible; do it once the model is stable. <span class="cite">apps/playground/app/lib/routes.ts</span> already carries the redirect matrix — the new shapes slot into it.</td></tr>
+    <tr><td id="wb-td-wave5b" data-whiteboard-anchor><strong>5b</strong></td><td id="wb-td-wave5b-change" data-whiteboard-anchor>Pages as a many-to-many placement</td><td id="wb-td-wave5b-touches" data-whiteboard-anchor>note→pages index; a move operation (detach from one page, attach to another, preserving <code>position</code>); <code>Entry.pageId</code>/<code>pageSlug</code> become lists; <code>notebook/defaults</code> created; <code>NoteKind &#39;template&#39;</code> retired; guide pages given <code>{guide-*}</code> slugs</td><td id="wb-td-wave5b-why" data-whiteboard-anchor>D9 and the templates decision. The index and the move operation are the deliverable — without them the many-to-many model is a schema with no affordance.</td></tr>
     <tr><td id="wb-td-wave6-wql" data-whiteboard-anchor><strong>6</strong></td><td id="wb-td-wave6-wql-change" data-whiteboard-anchor>Flip the query language</td><td id="wb-td-wave6-wql-touches" data-whiteboard-anchor>new heads and keys in <code>packages/wql/src/vocabulary.ts</code>; executor arms in <code>packages/wql/src/QueryService.ts</code>; <code>packages/wql/src/capabilities.ts</code> per-target key sets; composer clauses in <code>packages/ui/src/composer/queryClauses.ts</code>; storage predicates in <code>packages/storage/src/sql/domain.ts</code> where push-down is wanted</td><td id="wb-td-wave6-wql-why" data-whiteboard-anchor>The grammar is already open — no parser work. Do this after the readers can resolve both old and new vocabulary, so saved queries keep working.</td></tr>
-    <tr><td id="wb-td-wave7-lists" data-whiteboard-anchor><strong>7</strong></td><td id="wb-td-wave7-lists-change" data-whiteboard-anchor>Make every library list WQL-driven</td><td id="wb-td-wave7-lists-touches" data-whiteboard-anchor><code>apps/playground/app/views/stream/streamProfile.ts</code> (add a profile per route); <code>/tags</code> and <code>/equipment</code> stop rendering hand-rolled lists and render query output instead</td><td id="wb-td-wave7-lists-why" data-whiteboard-anchor>Last, because it depends on the heads and keys from wave 6 existing. This is where the URL language and the query language meet: a row links to the concept's own prefix.</td></tr>
-    <tr><td id="wb-td-97dfee259e584de3bc8ad30b96b4b3a5" data-whiteboard-anchor><strong>8</strong></td><td id="wb-td-fbac49f377024c53b3995adc0a53a401" data-whiteboard-anchor>Delete the old vocabulary</td><td id="wb-td-19c5a15124664af4b5026ddb4637e4cb" data-whiteboard-anchor><code>script-collections.ts</code>, <code>script-feeds.ts</code>, <code>CatalogsManagerDrawer</code>, <code>FeedDetailPage</code>, <code>FeedItemPage</code>, <code>catalogOfItem</code>, <code>NotebookService</code> (localStorage orphan), the <code>catalog:</code> filter key, the retired <code>:catalog</code> heads</td><td id="wb-td-e741b29d293c43799872c93a8741df94" data-whiteboard-anchor>No shims left behind — the repo's own rule is a clean cutover.</td></tr>
+    <tr><td id="wb-td-wave7-lists" data-whiteboard-anchor><strong>7</strong></td><td id="wb-td-wave7-lists-change" data-whiteboard-anchor>Make every library list WQL-driven</td><td id="wb-td-wave7-lists-touches" data-whiteboard-anchor><code>apps/playground/app/views/stream/streamProfile.ts</code> (add a profile per route); <code>/tags</code> and <code>/equipment</code> stop rendering hand-rolled lists and render query output instead; the nav tree (<code>apps/playground/app/nav/appNavTree.ts</code>) is rebuilt from the list routes so L1 labels cannot disagree with the URLs (§9)</td><td id="wb-td-wave7-lists-why" data-whiteboard-anchor>Last, because it depends on the heads and keys from wave 6 existing. This is where the URL language and the query language meet: a row links to the concept's own prefix.</td></tr>
+    <tr><td id="wb-td-97dfee259e584de3bc8ad30b96b4b3a5" data-whiteboard-anchor><strong>8</strong></td><td id="wb-td-fbac49f377024c53b3995adc0a53a401" data-whiteboard-anchor>Delete the old vocabulary</td><td id="wb-td-19c5a15124664af4b5026ddb4637e4cb" data-whiteboard-anchor><code>script-collections.ts</code>, <code>script-feeds.ts</code>, <code>CatalogsManagerDrawer</code>, <code>FeedDetailPage</code>, <code>FeedItemPage</code>, <code>catalogOfItem</code>, <code>NotebookService</code> (localStorage orphan), the <code>catalog:</code> filter key, the retired <code>:catalog</code> heads, <code>NoteKind &#39;template&#39;</code>, the <code>seed</code> field family</td><td id="wb-td-e741b29d293c43799872c93a8741df94" data-whiteboard-anchor>No shims left behind — the repo's own rule is a clean cutover.</td></tr>
   </tbody>
 </table>
 
@@ -406,25 +433,26 @@ notes carry provenance: which feed delivered them, which version.</pre>
 
 <h2 id="wb-h2-51aa971b3a9147afad68cc6aa2078856" data-whiteboard-anchor>8. URL language — the slug-addressable surface</h2>
 
-<p id="wb-p-207c7331c7f24af6b5c6f93829950b06" data-whiteboard-anchor>The vocabulary has a third dimension the first two sections did not cover: <strong>how a thing is addressed</strong>. Today the URL surface encodes four unrelated prefix systems (<code>/c/</code>, <code>/feeds/</code>, <code>/e/</code>, <code>/p/</code>) plus list routes whose paths disagree with the titles they display (<code>/catalogs</code> shows the title "Notebooks", <code>/feeds</code> shows the title "Notes"). One prefix is already right and stays: <code>/d/{slug}</code> renders a dashboard, and a dashboard <em>is</em> a note of kind <code>dashboard</code> rendered as widgets — so <code>d</code> keeps dashboards and the date prefix moves to <code>/j/</code>.</p>
+<p id="wb-p-207c7331c7f24af6b5c6f93829950b06" data-whiteboard-anchor>The vocabulary has a third dimension the first two sections did not cover: <strong>how a thing is addressed</strong>. Today the URL surface encodes four unrelated prefix systems (<code>/c/</code>, <code>/feeds/</code>, <code>/e/</code>, <code>/p/</code>) plus list routes whose paths disagree with the titles they display (<code>/catalogs</code> shows the title "Notebooks", <code>/feeds</code> shows the title "Notes"). The proposal replaces all of them with one spelled-out convention.</p>
 
 <div class="callout warn">
-  <p id="wb-p-5aab1c424a054df584399693232e94bb" data-whiteboard-anchor><strong>The proposal: one prefix per concept, one list route per concept, no collisions.</strong> A single-letter prefix marks a <em>direct rendering</em> — a place you can land and read content. A plural noun marks a <em>library list page</em> — a queryable surface over many things. The two never share a prefix.</p>
+  <p id="wb-p-5aab1c424a054df584399693232e94bb" data-whiteboard-anchor><strong>The proposal: one spelled-out prefix per concept, one list route per concept, no collisions.</strong> A singular prefix marks a <em>direct rendering</em> — a place you can land and read content. A plural noun marks a <em>library list page</em> — a queryable surface over many things. The two never share a prefix. Tags are the one exception: they keep the single letter <code>/t/</code>.</p>
 </div>
 
 <h3 id="wb-h3-f386828286c14a4491c6ffe266afdcc1" data-whiteboard-anchor>8.1 Direct renderings — one prefix per concept</h3>
 
 <table>
-  <thead><tr><th style="width:16%" id="wb-th-dfe2bfad846f47468ee7f04e6f8eca24" data-whiteboard-anchor>Prefix</th><th style="width:16%" id="wb-th-cb2fce6711b1401cbd157724dce453aa" data-whiteboard-anchor>Renders</th><th style="width:26%" id="wb-th-fbde196dfd86435bb5f2d38023c9af40" data-whiteboard-anchor>Addressed by</th><th style="width:22%" id="wb-th-0deaac14a36e46ba9466d9486a2d4b3e" data-whiteboard-anchor>Today</th><th style="width:20%" id="wb-th-947d4230fd9b49a9accba79117211671" data-whiteboard-anchor>Note</th></tr></thead>
+  <thead><tr><th style="width:18%" id="wb-th-dfe2bfad846f47468ee7f04e6f8eca24" data-whiteboard-anchor>Prefix</th><th style="width:16%" id="wb-th-cb2fce6711b1401cbd157724dce453aa" data-whiteboard-anchor>Renders</th><th style="width:24%" id="wb-th-fbde196dfd86435bb5f2d38023c9af40" data-whiteboard-anchor>Addressed by</th><th style="width:20%" id="wb-th-0deaac14a36e46ba9466d9486a2d4b3e" data-whiteboard-anchor>Today</th><th style="width:22%" id="wb-th-947d4230fd9b49a9accba79117211671" data-whiteboard-anchor>Note</th></tr></thead>
   <tbody>
-    <tr><td id="wb-td-6d551c5e287a4c8bb218d7567c2f18e8" data-whiteboard-anchor><code>/n/{notebook-slug}</code></td><td id="wb-td-9e077636276949e4aff2282ac0e51071" data-whiteboard-anchor>A <strong>notebook</strong> — its notes</td><td id="wb-td-bc264a47b37a44beba2ecff737a6cbd8" data-whiteboard-anchor>notebook slug (<code>crossfit-girls</code>)</td><td id="wb-td-997e6e036d1043d386e1afc44f924bce" data-whiteboard-anchor><code>/c/:slug</code></td><td id="wb-td-13535cb289224ab18c24417135a59356" data-whiteboard-anchor><code>/c</code> = "collection" — the retired word.</td></tr>
-    <tr><td id="wb-td-35ee32dc476b425b8145a07833cb4dca" data-whiteboard-anchor><code>/f/{feed-slug}</code></td><td id="wb-td-eef77251b9e24629b52b769b62cf50dd" data-whiteboard-anchor>A <strong>feed</strong> — the notebooks it publishes</td><td id="wb-td-f2ecd587d51e4e508eee53fcdacc184d" data-whiteboard-anchor>feed slug</td><td id="wb-td-a94e5d6be0d8461fa839c89bf761c621" data-whiteboard-anchor><code>/feeds/:feedSlug</code></td><td id="wb-td-560b31ee8d96488790a9957833af2a37" data-whiteboard-anchor>Today <code>/feeds/:slug</code> renders a <em>dated container</em>; under the new vocabulary a dated container is a notebook, and a feed is a source. <strong>Semantics change, not just the prefix.</strong></td></tr>
-    <tr><td id="wb-td-68b2975b9c5643258dcf3253af265478" data-whiteboard-anchor><code>/j/{date-slug}</code></td><td id="wb-td-832c3f1fd0ee4db5bddece496764db58" data-whiteboard-anchor>A <strong>date</strong> — the notes of one day</td><td id="wb-td-7e77f7e0d33f4f71b4635bd9a228dbae" data-whiteboard-anchor><code>YYYY-MM-DD</code></td><td id="wb-td-52e4ad81556d426c814024addefbd7f9" data-whiteboard-anchor><code>/journal/:date</code></td><td id="wb-td-e2ddbf033db245f48012b45b8320a0e1" data-whiteboard-anchor><code>j</code> for <em>journal day</em> — a date is a journal-day view, not a generic date. <code>/d/</code> stays with dashboards (see 8.5).</td></tr>
-    <tr><td id="wb-td-972536dc27534cdea08843a3445979a8" data-whiteboard-anchor><code>/p/{page-slug}</code></td><td id="wb-td-9e7c3a18a6f84b49bed4d718cd93cd20" data-whiteboard-anchor>A <strong>page</strong> — one or more notes, grouped</td><td id="wb-td-89a28c89268e4b85a6b66c2c1e84a0ca" data-whiteboard-anchor>page slug</td><td id="wb-td-6376944f6f704dfb9c1ea099a3aebd0c" data-whiteboard-anchor><code>/p/*</code></td><td id="wb-td-25d44188119a400396a02240c40df5c9" data-whiteboard-anchor>Already correct. A page is the only container that may hold several notes; a notebook holds notes but is not itself a rendering of a set of pages.</td></tr>
-    <tr><td id="wb-td-1d894c795d4946d4bf0ae6359e09f0f5" data-whiteboard-anchor><code>/effort/{effort-slug}</code></td><td id="wb-td-85375a8d861a415793bc31b1abea5602" data-whiteboard-anchor>An <strong>effort</strong> — one movement definition</td><td id="wb-td-3a5bc68c9471450f9d1899556975a269" data-whiteboard-anchor>effort slug</td><td id="wb-td-01d834cafd3a43519e3f63e3c5c07b89" data-whiteboard-anchor><code>/e/:slug</code> (with <code>/effort/:slug</code> redirecting into it)</td><td id="wb-td-b9a58582b5424817a17e55fdcb5c29f7" data-whiteboard-anchor>Spelled out rather than abbreviated: <code>/e</code> is unreadable and ambiguous with <code>/equipment</code>.</td></tr>
-    <tr><td id="wb-td-35a1da35acfc463c81e59e921478a0ba" data-whiteboard-anchor><code>/eq/{slug}</code></td><td id="wb-td-25621d119c1b42e59f4e817d6ee57e4e" data-whiteboard-anchor>An <strong>equipment</strong> — one equipment definition</td><td id="wb-td-91e37491a4b142bda400a3b287302bb3" data-whiteboard-anchor>equipment slug</td><td id="wb-td-5e73c1202cfc4449a59bda2d8dd56ac6" data-whiteboard-anchor><code>/equipment/:slug</code></td><td id="wb-td-17246ffc7a70403aa31c458000c44c9a" data-whiteboard-anchor>Short, and distinct from <code>/effort/</code> by two letters instead of by nothing.</td></tr>
-    <tr><td id="wb-td-6c9065013ff94164af69c32cb3619c6e" data-whiteboard-anchor><code>/t/{tag-type}/{tag}</code></td><td id="wb-td-5ac018bd3d9c4355af0fd44d1f2e7708" data-whiteboard-anchor>A <strong>tag</strong> — one tag within a type</td><td id="wb-td-be5be4959f43468493a4da097e145a73" data-whiteboard-anchor>tag type + tag slug</td><td id="wb-td-cee6e0a1846a4b30a974547bc976cea0" data-whiteboard-anchor><em>none</em></td><td id="wb-td-58e95f4c2c144da0acd657ae3565c161" data-whiteboard-anchor>Two segments because a tag is only unique <em>within</em> a type. Tags are already typed (<code>domain</code>, <code>format</code>, <code>equipment</code>, <code>quality</code>, <code>intent</code>).</td></tr>
-    <tr><td id="wb-td-dash-row" data-whiteboard-anchor><code>/d/{dashboard-slug}</code></td><td id="wb-td-dash-render" data-whiteboard-anchor>A <strong>dashboard</strong> — a note of kind <code>dashboard</code>, rendered as widgets</td><td id="wb-td-dash-addr" data-whiteboard-anchor>dashboard slug</td><td id="wb-td-dash-today" data-whiteboard-anchor><code>/d/:slug</code></td><td id="wb-td-dash-note" data-whiteboard-anchor><strong>Unchanged.</strong> <code>d</code> stays with dashboards — the prefix is already in use and correct, so the date prefix moves instead (to <code>/j/</code>).</td></tr>
+    <tr><td id="wb-td-6d551c5e287a4c8bb218d7567c2f18e8" data-whiteboard-anchor><code>/notebook/{notebook-slug}</code></td><td id="wb-td-9e077636276949e4aff2282ac0e51071" data-whiteboard-anchor>A <strong>notebook</strong> — its notes</td><td id="wb-td-bc264a47b37a44beba2ecff737a6cbd8" data-whiteboard-anchor>notebook slug (<code>crossfit-girls</code>)</td><td id="wb-td-997e6e036d1043d386e1afc44f924bce" data-whiteboard-anchor><code>/c/:slug</code></td><td id="wb-td-13535cb289224ab18c24417135a59356" data-whiteboard-anchor><code>/c</code> = "collection" — the retired word.</td></tr>
+    <tr><td id="wb-td-35ee32dc476b425b8145a07833cb4dca" data-whiteboard-anchor><code>/feed/{feed-slug}</code></td><td id="wb-td-eef77251b9e24629b52b769b62cf50dd" data-whiteboard-anchor>A <strong>feed</strong> — the notebooks it publishes</td><td id="wb-td-f2ecd587d51e4e508eee53fcdacc184d" data-whiteboard-anchor>feed slug</td><td id="wb-td-a94e5d6be0d8461fa839c89bf761c621" data-whiteboard-anchor><code>/feeds/:feedSlug</code></td><td id="wb-td-560b31ee8d96488790a9957833af2a37" data-whiteboard-anchor>Today <code>/feeds/:slug</code> renders a <em>dated container</em>; under the new vocabulary a dated container is a notebook, and a feed is a source. <strong>Semantics change, not just the prefix.</strong></td></tr>
+    <tr><td id="wb-td-note-row" data-whiteboard-anchor><code>/note/{note-uuid}</code></td><td id="wb-td-note-render" data-whiteboard-anchor>A <strong>note</strong> — one piece of content</td><td id="wb-td-note-addr" data-whiteboard-anchor>note UUID</td><td id="wb-td-note-today" data-whiteboard-anchor><code>/notes/:noteId</code></td><td id="wb-td-note-note" data-whiteboard-anchor>Singular for one note, plural <code>/notes</code> for the list — the same singular/plural split the list routes use.</td></tr>
+    <tr><td id="wb-td-68b2975b9c5643258dcf3253af265478" data-whiteboard-anchor><code>/day/{date-slug}</code></td><td id="wb-td-832c3f1fd0ee4db5bddece496764db58" data-whiteboard-anchor>A <strong>date</strong> — the notes of one day</td><td id="wb-td-7e77f7e0d33f4f71b4635bd9a228dbae" data-whiteboard-anchor><code>YYYY-MM-DD</code></td><td id="wb-td-52e4ad81556d426c814024addefbd7f9" data-whiteboard-anchor><code>/journal/:date</code></td><td id="wb-td-e2ddbf033db245f48012b45b8320a0e1" data-whiteboard-anchor>A generic time slice, not a journal-day view (D8b). <code>/page/{date}</code> addresses the same content as a placement.</td></tr>
+    <tr><td id="wb-td-972536dc27534cdea08843a3445979a8" data-whiteboard-anchor><code>/page/{page-slug}</code></td><td id="wb-td-9e7c3a18a6f84b49bed4d718cd93cd20" data-whiteboard-anchor>A <strong>page</strong> — one or more notes, grouped</td><td id="wb-td-89a28c89268e4b85a6b66c2c1e84a0ca" data-whiteboard-anchor>page slug; guide pages use <code>{guide-*}</code> (<code>guide-wql</code>)</td><td id="wb-td-6376944f6f704dfb9c1ea099a3aebd0c" data-whiteboard-anchor><code>/page/*</code></td><td id="wb-td-25d44188119a400396a02240c40df5c9" data-whiteboard-anchor>Placement, not a container (D3): many-to-many with notes (D9).</td></tr>
+    <tr><td id="wb-td-dash-row" data-whiteboard-anchor><code>/dashboard/{dashboard-slug}</code></td><td id="wb-td-dash-render" data-whiteboard-anchor>A <strong>dashboard</strong> — a note of kind <code>dashboard</code>, rendered as widgets</td><td id="wb-td-dash-addr" data-whiteboard-anchor>dashboard slug</td><td id="wb-td-dash-today" data-whiteboard-anchor><code>/d/:slug</code></td><td id="wb-td-dash-note" data-whiteboard-anchor><code>/d/:slug</code> becomes a redirect; <code>/dashboard/{slug}</code> is canonical (D8).</td></tr>
+    <tr><td id="wb-td-1d894c795d4946d4bf0ae6359e09f0f5" data-whiteboard-anchor><code>/effort/{effort-slug}</code></td><td id="wb-td-85375a8d861a415793bc31b1abea5602" data-whiteboard-anchor>An <strong>effort</strong> — one movement definition</td><td id="wb-td-3a5bc68c9471450f9d1899556975a269" data-whiteboard-anchor>effort slug</td><td id="wb-td-01d834cafd3a43519e3f63e3c5c07b89" data-whiteboard-anchor><code>/e/:slug</code> (with <code>/effort/:slug</code> redirecting into it)</td><td id="wb-td-b9a58582b5424817a17e55fdcb5c29f7" data-whiteboard-anchor>Spelled out rather than abbreviated: <code>/e</code> is unreadable and ambiguous with <code>equipment</code>.</td></tr>
+    <tr><td id="wb-td-35a1da35acfc463c81e59e921478a0ba" data-whiteboard-anchor><code>/equipment/{slug}</code></td><td id="wb-td-25621d119c1b42e59f4e817d6ee57e4e" data-whiteboard-anchor>An <strong>equipment</strong> — one equipment definition</td><td id="wb-td-91e37491a4b142bda400a3b287302bb3" data-whiteboard-anchor>equipment slug</td><td id="wb-td-5e73c1202cfc4449a59bda2d8dd56ac6" data-whiteboard-anchor><code>/equipment/:slug</code></td><td id="wb-td-17246ffc7a70403aa31c458000c44c9a" data-whiteboard-anchor>Full word, so it is unambiguous beside <code>/effort/</code>.</td></tr>
+    <tr><td id="wb-td-6c9065013ff94164af69c32cb3619c6e" data-whiteboard-anchor><code>/t/{tag-type}/{tag}</code></td><td id="wb-td-5ac018bd3d9c4355af0fd44d1f2e7708" data-whiteboard-anchor>A <strong>tag</strong> — one tag within a type</td><td id="wb-td-be5be4959f43468493a4da097e145a73" data-whiteboard-anchor>tag type + tag slug</td><td id="wb-td-cee6e0a1846a4b30a974547bc976cea0" data-whiteboard-anchor><em>none</em></td><td id="wb-td-58e95f4c2c144da0acd657ae3565c161" data-whiteboard-anchor><strong>The one single-letter prefix</strong> (D7). Two segments because a tag is only unique <em>within</em> a type.</td></tr>
   </tbody>
 </table>
 
@@ -438,84 +466,144 @@ notes carry provenance: which feed delivered them, which version.</pre>
     <tr><td id="wb-td-d7c5e215103a42b2b78a8ad77834e180" data-whiteboard-anchor><code>/feeds</code></td><td id="wb-td-8460d100a9d64470a7f4eced758b7007" data-whiteboard-anchor>Feeds (sources)</td><td id="wb-td-2e87e130a4734a6e83f40cfa5ba16737" data-whiteboard-anchor><code>:feed{}</code></td><td id="wb-td-a22b4c7384c54eb9be6ffecf56401a5a" data-whiteboard-anchor><code>/feeds</code> = notes, titled "Notes"</td><td id="wb-td-9f8fcc0b3fa3457b8580864818e8560e" data-whiteboard-anchor><span class="tag rename">rename</span></td></tr>
     <tr><td id="wb-td-cf51b6de226d400c859cfaa59d1aab44" data-whiteboard-anchor><code>/notebooks</code></td><td id="wb-td-21a48a95a4724521b7ee652ac251e1f6" data-whiteboard-anchor>Notebooks</td><td id="wb-td-fda662cccd1345f395dd5b98dae35fe9" data-whiteboard-anchor><code>:notebook{}</code></td><td id="wb-td-b20ca9e7a46449a19696a05283e76a43" data-whiteboard-anchor><code>/catalogs</code>, titled "Notebooks"</td><td id="wb-td-990c8a298a9a4adf9edc963c8e97071a" data-whiteboard-anchor><span class="tag rename">rename</span></td></tr>
     <tr><td id="wb-td-3819e3e468ee4e0ebb3d7b0119fbabad" data-whiteboard-anchor><code>/notes</code></td><td id="wb-td-c3e51d66909c4d6d95925f0404d1a67f" data-whiteboard-anchor>Notes (all content)</td><td id="wb-td-36a8260623494f89ad80f2f4e6b9b41d" data-whiteboard-anchor><code>:note{}</code></td><td id="wb-td-a38b89bb81fc495b858f9d682d3e8ce3" data-whiteboard-anchor><em>no list route</em> — <code>/notes/:noteId</code> is a detail route</td><td id="wb-td-4cd4f988c00f43baac9d62bc255745c4" data-whiteboard-anchor><span class="tag keepnew">new</span></td></tr>
+    <tr><td id="wb-td-pages-list-row" data-whiteboard-anchor><code>/pages</code></td><td id="wb-td-pages-list-lists" data-whiteboard-anchor>Pages (placements)</td><td id="wb-td-pages-list-wql" data-whiteboard-anchor><code>:page{}</code></td><td id="wb-td-pages-list-today" data-whiteboard-anchor><em>none</em> — pages are only reachable by slug today</td><td id="wb-td-pages-list-status" data-whiteboard-anchor><span class="tag keepnew">new</span></td></tr>
     <tr><td id="wb-td-8192e3130a484eb5923fbdcdd6b58dc2" data-whiteboard-anchor><code>/efforts</code></td><td id="wb-td-5064bf870718431b8c87518e61150e3f" data-whiteboard-anchor>Efforts</td><td id="wb-td-807d0a81847d42a8b4771680cfdd292b" data-whiteboard-anchor><code>:effort{}</code></td><td id="wb-td-3e92eab09279479a80d9b6d2f8a187d8" data-whiteboard-anchor><code>/efforts</code> — already WQL-capable</td><td id="wb-td-dcf2619a414e4b09ab0fcebed232eaca" data-whiteboard-anchor><span class="tag keep">keep</span></td></tr>
     <tr><td id="wb-td-c7b31e521daf47289f055656cdbe0a50" data-whiteboard-anchor><code>/equipment</code></td><td id="wb-td-2fc6b50e71dc44a7be12e89f3d4f674f" data-whiteboard-anchor>Equipment</td><td id="wb-td-8153b9559e1244efaeec23cd582640a3" data-whiteboard-anchor><code>:equipment{}</code></td><td id="wb-td-0d91dcaeaf4543bbbad0ab1b17eefc01" data-whiteboard-anchor><code>:note{source:equipment}</code> — note plane, not an equipment plane</td><td id="wb-td-52a17fc7dd704107b5d1c34772196e2e" data-whiteboard-anchor><span class="tag keep">keep</span> + new head</td></tr>
     <tr><td id="wb-td-eb3df2bfb20c4fc3a375d8c2b0c06d06" data-whiteboard-anchor><code>/tags</code></td><td id="wb-td-01ef10444bd84689acf976f937186632" data-whiteboard-anchor>Tags (by type)</td><td id="wb-td-219122cb664540199e330d319982a2c5" data-whiteboard-anchor><code>:tag{}</code></td><td id="wb-td-423e1f84e2c1472f8b3365dfb334c2ce" data-whiteboard-anchor><code>/tags</code> — no WQL at all</td><td id="wb-td-a07a103354994d4c827184f3c93e69c8" data-whiteboard-anchor><span class="tag rename">rewrite</span></td></tr>
+    <tr><td id="wb-td-journal-list-row" data-whiteboard-anchor><code>/journal</code></td><td id="wb-td-journal-list-lists" data-whiteboard-anchor>Journal days (the dated notebook's stream)</td><td id="wb-td-journal-list-wql" data-whiteboard-anchor><code>:note{} by {date}</code></td><td id="wb-td-journal-list-today" data-whiteboard-anchor><code>/journal</code> — already WQL-capable</td><td id="wb-td-journal-list-status" data-whiteboard-anchor><span class="tag keep">keep</span></td></tr>
+    <tr><td id="wb-td-dash-list-row" data-whiteboard-anchor><code>/dashboards</code></td><td id="wb-td-dash-list-lists" data-whiteboard-anchor>Dashboards</td><td id="wb-td-dash-list-wql" data-whiteboard-anchor><code>:dashboard{}</code></td><td id="wb-td-dash-list-today" data-whiteboard-anchor><code>/dashboards</code> — already WQL-capable</td><td id="wb-td-dash-list-status" data-whiteboard-anchor><span class="tag keep">keep</span></td></tr>
   </tbody>
 </table>
 
 <div class="callout danger">
-  <p id="wb-p-013062b564344194a792d7930b3a9b86" data-whiteboard-anchor><strong>One route cannot be both a list and a detail.</strong> Today <code>/notes/:noteId</code> is the canonical single-note route; adding <code>/notes</code> as a list is safe because the depths differ. But <code>/feeds</code> is currently <em>both</em> a list route and a namespace (<code>/feeds/:feedSlug</code>). Under the new scheme the namespace moves to <code>/f/</code>, so <code>/feeds</code> becomes unambiguously the feed list. The same applies to <code>/tags</code> (list) vs <code>/t/</code> (detail) and <code>/equipment</code> (list) vs <code>/eq/</code> (detail).</p>
+  <p id="wb-p-013062b564344194a792d7930b3a9b86" data-whiteboard-anchor><strong>One route cannot be both a list and a detail.</strong> Today <code>/notes/:noteId</code> is the canonical single-note route; adding <code>/notes</code> as a list is safe because the depths differ — and with the singular/plural convention the note detail becomes <code>/note/{uuid}</code>. But <code>/feeds</code> is currently <em>both</em> a list route and a namespace (<code>/feeds/:feedSlug</code>). Under the new scheme the namespace moves to <code>/feed/</code>, so <code>/feeds</code> becomes unambiguously the feed list. The same applies to <code>/tags</code> (list) vs <code>/t/</code> (detail), <code>/equipment</code> (list) vs <code>/equipment/</code> (detail), <code>/efforts</code> (list) vs <code>/effort/</code> (detail), and <code>/dashboards</code> (list) vs <code>/dashboard/</code> (detail).</p>
 </div>
 
 <h3 id="wb-h3-9c649f4fb6e343939a75fe98519d3688" data-whiteboard-anchor>8.3 The rule that makes it readable</h3>
 
-<pre style="border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:0.9rem 1rem;overflow:auto;font-size:0.85rem" id="wb-pre-1f4fcdd57e82445f978ba7909042d87b" data-whiteboard-anchor>/n/{notebook}    a notebook — its notes
-/f/{feed}       a feed — the notebooks it publishes
-/j/{date}       a date — the notes of that journal day
-/p/{page}       a page — one or more notes, grouped
-/d/{dashboard}  a dashboard — a note of kind dashboard, as widgets
-/effort/{slug}  an effort — one movement definition
-/eq/{slug}      equipment — one equipment definition
-/t/{type}/{tag} a tag — one tag within a type
+<pre style="border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:0.9rem 1rem;overflow:auto;font-size:0.85rem" id="wb-pre-1f4fcdd57e82445f978ba7909042d87b" data-whiteboard-anchor>/notebook/{slug}    a notebook — its notes
+/feed/{slug}       a feed — the notebooks it publishes
+/note/{uuid}       a note — one piece of content
+/day/{date}        a date — the notes of that day, across notebooks
+/page/{slug}       a page — one or more notes, grouped
+/dashboard/{slug}  a dashboard — a note of kind dashboard, as widgets
+/effort/{slug}     an effort — one movement definition
+/equipment/{slug}  equipment — one equipment definition
+/t/{type}/{tag}    a tag — one tag within a type
 
 /feeds          library list — feeds       ?q= :feed{}
 /notebooks      library list — notebooks   ?q= :notebook{}
 /notes          library list — notes       ?q= :note{}
+/journal        library list — journal days ?q= :note{} by {date}
 /efforts        library list — efforts     ?q= :effort{}
 /equipment      library list — equipment   ?q= :equipment{}
+/pages          library list — pages       ?q= :page{}
 /tags           library list — tags        ?q= :tag{}
 /dashboards     library list — dashboards  ?q= :dashboard{}</pre>
 
-<p id="wb-p-02f6010202a44f87bd6c57af535ef127" data-whiteboard-anchor>Reading a URL tells you the concept, the identifier, and whether you are looking at one thing or many. Today <code>/feeds/dan-john-40-day/2026-01-12/session</code> encodes four concepts in one path (feed, notebook, date, note) with no marker for which is which; under the proposal the same content is <code>/f/dan-john-40-day</code> → <code>/n/dan-john-40-day</code> → <code>/j/2026-01-12</code> → <code>/notes/&lt;uuid&gt;</code>, each a link you can share on its own.</p>
+<p id="wb-p-02f6010202a44f87bd6c57af535ef127" data-whiteboard-anchor>Reading a URL tells you the concept, the identifier, and whether you are looking at one thing or many. Today <code>/feeds/dan-john-40-day/2026-01-12/session</code> encodes four concepts in one path (feed, notebook, date, note) with no marker for which is which; under the proposal the same content is <code>/feed/dan-john-40-day</code> → <code>/notebook/dan-john-40-day</code> → <code>/day/2026-01-12</code> → <code>/note/&lt;uuid&gt;</code>, each a link you can share on its own.</p>
 
 <h3 id="wb-h3-c2720e6b7acc4ceeb98b8f9e8bd0b263" data-whiteboard-anchor>8.4 What happens to today's routes</h3>
 
 <table>
   <thead><tr><th style="width:26%" id="wb-th-f7d2739a521d4ff28cf991654223cf84" data-whiteboard-anchor>Today</th><th style="width:34%" id="wb-th-37f374a6f53a418ab252bcc995765174" data-whiteboard-anchor>Becomes</th><th style="width:40%" id="wb-th-105933e4b6a24b24a7589c4107ab1bc3" data-whiteboard-anchor>Note</th></tr></thead>
   <tbody>
-    <tr><td id="wb-td-d5f745b44c6843fdaa6451e9dba9a4b6" data-whiteboard-anchor><code>/c/:slug</code></td><td id="wb-td-5455c01f83ff46b9ba8b25074652b999" data-whiteboard-anchor><code>/n/:slug</code></td><td id="wb-td-ff55234c49ce49fe867d03b6d3e419d5" data-whiteboard-anchor>Direct 1:1. Redirect, keep the old path alive.</td></tr>
-    <tr><td id="wb-td-fe9faa3ec8f64c0b85e67a399e821150" data-whiteboard-anchor><code>/c/:collection/:workout</code></td><td id="wb-td-cdc22ae968954668844a3450f4d6954b" data-whiteboard-anchor><code>/n/:notebook/:note</code> or <code>/notes/&lt;uuid&gt;</code></td><td id="wb-td-93a39ac1f1e84d69a3c83a0a87025587" data-whiteboard-anchor>Same ambiguity as today (a date target vs a page slug vs a UUID) — resolve it in the redirect by shape, not by guesswork.</td></tr>
-    <tr><td id="wb-td-59961a65ba86443caff2443dcae3a5fb" data-whiteboard-anchor><code>/feeds/:feedSlug</code></td><td id="wb-td-b3794e215302482ea00dbaced69e4b15" data-whiteboard-anchor><code>/f/:feedSlug</code></td><td id="wb-td-86abd3c9b14f4f93872b5eec971b9ed9" data-whiteboard-anchor><strong>Different content.</strong> Today a dated container; tomorrow a source listing its notebooks.</td></tr>
+    <tr><td id="wb-td-d5f745b44c6843fdaa6451e9dba9a4b6" data-whiteboard-anchor><code>/c/:slug</code></td><td id="wb-td-5455c01f83ff46b9ba8b25074652b999" data-whiteboard-anchor><code>/notebook/:slug</code></td><td id="wb-td-ff55234c49ce49fe867d03b6d3e419d5" data-whiteboard-anchor>Direct 1:1. Redirect, keep the old path alive.</td></tr>
+    <tr><td id="wb-td-fe9faa3ec8f64c0b85e67a399e821150" data-whiteboard-anchor><code>/c/:collection/:workout</code></td><td id="wb-td-cdc22ae968954668844a3450f4d6954b" data-whiteboard-anchor><code>/notebook/:notebook/:note</code> or <code>/note/&lt;uuid&gt;</code></td><td id="wb-td-93a39ac1f1e84d69a3c83a0a87025587" data-whiteboard-anchor>Same ambiguity as today (a date target vs a page slug vs a UUID) — resolve it in the redirect by shape, not by guesswork.</td></tr>
+    <tr><td id="wb-td-59961a65ba86443caff2443dcae3a5fb" data-whiteboard-anchor><code>/feeds/:feedSlug</code></td><td id="wb-td-b3794e215302482ea00dbaced69e4b15" data-whiteboard-anchor><code>/feed/:feedSlug</code></td><td id="wb-td-86abd3c9b14f4f93872b5eec971b9ed9" data-whiteboard-anchor><strong>Different content.</strong> Today a dated container; tomorrow a source listing its notebooks.</td></tr>
     <tr><td id="wb-td-7dcfdf6358b54947ba03ba08059ee0a8" data-whiteboard-anchor><code>/feeds/:feedSlug/:date/:item</code></td><td id="wb-td-23ef9657154643c890b0c5c46955c736" data-whiteboard-anchor>drop the multi-segment form</td><td id="wb-td-57736340e1b744838567318ea3073041" data-whiteboard-anchor>Four-segment URLs are the least shareable thing in the app.</td></tr>
-    <tr><td id="wb-td-15b0acaf2c2d40e3b2431ca650798e3c" data-whiteboard-anchor><code>/journal/:date</code></td><td id="wb-td-c6dde1e43b584cb3b7be16e181321dea" data-whiteboard-anchor><code>/j/:date</code></td><td id="wb-td-4b8252dd91704e0a9af85e07b77b419f" data-whiteboard-anchor>Journal becomes a notebook; a journal day becomes its own rendering under <code>j</code>.</td></tr>
-    <tr><td id="wb-td-f6bda683caf745c9baca0fe3c46d7f8e" data-whiteboard-anchor><code>/journal/:identity</code></td><td id="wb-td-8557215e42e44669ba932b5e2db3929e" data-whiteboard-anchor><code>/notes/:noteId</code></td><td id="wb-td-a288d6174c3e436995aa0fab2e3932ac" data-whiteboard-anchor>A journal entry is a note; one canonical note route.</td></tr>
+    <tr><td id="wb-td-15b0acaf2c2d40e3b2431ca650798e3c" data-whiteboard-anchor><code>/journal/:date</code></td><td id="wb-td-c6dde1e43b584cb3b7be16e181321dea" data-whiteboard-anchor><code>/day/:date</code></td><td id="wb-td-4b8252dd91704e0a9af85e07b77b419f" data-whiteboard-anchor>Journal becomes a notebook; a day becomes a time slice across notebooks (D8b).</td></tr>
+    <tr><td id="wb-td-f6bda683caf745c9baca0fe3c46d7f8e" data-whiteboard-anchor><code>/journal/:identity</code></td><td id="wb-td-8557215e42e44669ba932b5e2db3929e" data-whiteboard-anchor><code>/note/:noteId</code></td><td id="wb-td-a288d6174c3e436995aa0fab2e3932ac" data-whiteboard-anchor>A journal entry is a note; one canonical note route.</td></tr>
     <tr><td id="wb-td-0d740e7f4a1d4d118dc4e1eee774da3b" data-whiteboard-anchor><code>/e/:slug</code></td><td id="wb-td-99e6425d08e84fc099bce949e1dab07c" data-whiteboard-anchor><code>/effort/:slug</code></td><td id="wb-td-6e87dfb1d4a6444e8eca375d6bd922f0" data-whiteboard-anchor><code>/effort/:slug</code> redirects into <code>/e/</code> today — the redirect reverses.</td></tr>
-    <tr><td id="wb-td-27902b8c478846bdb883aa7d7912e84d" data-whiteboard-anchor><code>/equipment/:slug</code></td><td id="wb-td-a258fd09b4ce4bfd8bd78f2e67b714ae" data-whiteboard-anchor><code>/eq/:slug</code></td><td id="wb-td-2ce84d9411324bbfad366c79bbaf205a" data-whiteboard-anchor></td></tr>
-    <tr><td id="wb-td-dff52bb678fb49289da2f63e429bc7b6" data-whiteboard-anchor><code>/d/:slug</code> (dashboard)</td><td id="wb-td-70ca3fd876ce4e37a01f6d29c21b2cad" data-whiteboard-anchor><code>/d/:slug</code> — <strong>unchanged</strong></td><td id="wb-td-9df6a542111a4b879d43c603453402c7" data-whiteboard-anchor>The prefix is already correct for a dashboard, so the date prefix moves to <code>/j/</code> instead. <code>/dashboard/:slug</code> remains as the longer alias.</td></tr>
+    <tr><td id="wb-td-27902b8c478846bdb883aa7d7912e84d" data-whiteboard-anchor><code>/equipment/:slug</code></td><td id="wb-td-a258fd09b4ce4bfd8bd78f2e67b714ae" data-whiteboard-anchor><code>/equipment/:slug</code> — <strong>unchanged</strong></td><td id="wb-td-2ce84d9411324bbfad366c79bbaf205a" data-whiteboard-anchor>Already spelled out; only the list/detail split needs restating (<code>/equipment</code> list, <code>/equipment/:slug</code> detail).</td></tr>
+    <tr><td id="wb-td-dff52bb678fb49289da2f63e429bc7b6" data-whiteboard-anchor><code>/d/:slug</code> (dashboard)</td><td id="wb-td-70ca3fd876ce4e37a01f6d29c21b2cad" data-whiteboard-anchor><code>/dashboard/:slug</code></td><td id="wb-td-9df6a542111a4b879d43c603453402c7" data-whiteboard-anchor><code>/d/:slug</code> becomes a redirect; the long name is canonical per D7/D8. The date prefix moves to <code>/day/</code>, so <code>/d/</code> is freed entirely.</td></tr>
     <tr><td id="wb-td-26eda15735df4373824b4da9ab29a910" data-whiteboard-anchor><code>/catalogs</code></td><td id="wb-td-f4c4249901ef49c9b2a364bb7c1bdaea" data-whiteboard-anchor><code>/notebooks</code></td><td id="wb-td-3a9cde4308444686a0ebff09d09fe01a" data-whiteboard-anchor>Already titled "Notebooks" — only the path changes.</td></tr>
     <tr><td id="wb-td-5689db89cc1f4928ae4b5e45c8b45b4f" data-whiteboard-anchor><code>/feeds</code> (list)</td><td id="wb-td-662ab2991e46481a96a7b1122b05547a" data-whiteboard-anchor><code>/notes</code></td><td id="wb-td-c17b81e02da249c0bd368284bb1b5ab9" data-whiteboard-anchor>It is titled "Notes" today and lists notes; it is the feed list only by accident of history.</td></tr>
-    <tr><td id="wb-td-b0426ac9e6444db2a7904156cfa430ee" data-whiteboard-anchor><code>/collections</code>, <code>/feed</code>, <code>/note/:cat/:name</code>, <code>/workout/:cat/:name</code></td><td id="wb-td-a18ef5f0f57e4c9d86b93a0eb483737e" data-whiteboard-anchor>redirects to the above</td><td id="wb-td-0cfae4e692db4f7c92dae55a3dfdd3dd" data-whiteboard-anchor>Already redirecting; re-point them at the new canonical shapes.</td></tr>
+    <tr><td id="wb-td-b0426ac9e6444db2a7904156cfa430ee" data-whiteboard-anchor><code>/collections</code>, <code>/feed</code>, <code>/note/:cat/:name</code>, <code>/workout/:cat/:name</code></td><td id="wb-td-a18ef5f0f57e4c9d86b93a0eb483737e" data-whiteboard-anchor><strong>deleted</strong> — no redirect</td><td id="wb-td-0cfae4e692db4f7c92dae55a3dfdd3dd" data-whiteboard-anchor><strong>No backwards compatibility.</strong> The legacy paths go away rather than redirecting; the canonical shapes are the only shapes. The repo's own rule is a clean cutover with no shims left behind.</td></tr>
   </tbody>
 </table>
 
 <h3 id="wb-h3-prefix-set" data-whiteboard-anchor>8.5 How the prefixes were chosen</h3>
 
-<p id="wb-p-f29aff69391648f9b7bc4958a3fcc69c" data-whiteboard-anchor>Every prefix is one letter of the concept's own word, so the URL teaches the vocabulary instead of adding a lookup table:</p>
+<p id="wb-p-f29aff69391648f9b7bc4958a3fcc69c" data-whiteboard-anchor>Per D7 the convention is <strong>the spelled-out singular of the concept</strong> for a direct rendering, and <strong>the bare plural</strong> for the library list. The URL therefore teaches the vocabulary instead of adding a lookup table — with one exception, tags, which keep the single letter <code>/t/</code>.</p>
 
 <table>
-  <thead><tr><th style="width:14%" id="wb-th-991e0e96fafa43a7ae023297e037357d" data-whiteboard-anchor>Prefix</th><th style="width:16%" id="wb-th-4a5bc56325f9456f91279dfb19c206a0" data-whiteboard-anchor>Word</th><th style="width:20%" id="wb-th-3bc7075928614a409a6d760e52cdeffe" data-whiteboard-anchor>Collision check</th><th style="width:50%" id="wb-th-dedb1eabc7934a69be14294908c20579" data-whiteboard-anchor>Why this one</th></tr></thead>
+  <thead><tr><th style="width:20%" id="wb-th-991e0e96fafa43a7ae023297e037357d" data-whiteboard-anchor>Prefix</th><th style="width:16%" id="wb-th-4a5bc56325f9456f91279dfb19c206a0" data-whiteboard-anchor>Word</th><th style="width:20%" id="wb-th-3bc7075928614a409a6d760e52cdeffe" data-whiteboard-anchor>Collision check</th><th style="width:44%" id="wb-th-dedb1eabc7934a69be14294908c20579" data-whiteboard-anchor>Why this one</th></tr></thead>
   <tbody>
-    <tr><td id="wb-td-4efb4ebd59be435eb599e9854f34bfa4" data-whiteboard-anchor><code>/n/</code></td><td id="wb-td-5e5f9def50714d2eb5dd7c711727c7e8" data-whiteboard-anchor>notebook</td><td id="wb-td-5290820d766644cbbdc013341acabf22" data-whiteboard-anchor>free</td><td id="wb-td-ed417e8e0b134f358d4a487f3b4348ea" data-whiteboard-anchor>First letter of <em>notebook</em>; the container is the thing most worth a short prefix because notebooks nest the most links.</td></tr>
-    <tr><td id="wb-td-feb3b1e602bf410c9125b322b0f86274" data-whiteboard-anchor><code>/f/</code></td><td id="wb-td-81005e56eab84cceb90f428f9078a4fe" data-whiteboard-anchor>feed</td><td id="wb-td-4a5df90c0d9d40f8b7184d3af7adbaf1" data-whiteboard-anchor>free</td><td id="wb-td-e3d53a2dc685430c92db9d349ca6f81d" data-whiteboard-anchor>First letter of <em>feed</em>; the source concept. Disambiguates from <code>/feeds</code> (the list) by case and by depth.</td></tr>
-    <tr><td id="wb-td-8f47b8f6824e4bb09a8caffb1a619b0a" data-whiteboard-anchor><code>/j/</code></td><td id="wb-td-11ccf81360a448b88030a710c1f69d3b" data-whiteboard-anchor>journal day</td><td id="wb-td-7fdf89bea0a84e239e51e35168c5028e" data-whiteboard-anchor>free</td><td id="wb-td-2b2ac957ede44f7cbaad80581178c0bd" data-whiteboard-anchor><strong>Chosen over <code>/d/</code> because <code>/d/</code> is taken by dashboards.</strong> The date view in the app <em>is</em> the journal day, so <code>j</code> is the honest letter. See D8b if dated views should extend beyond the journal.</td></tr>
-    <tr><td id="wb-td-09c2ce255abe4a04992279c4465f9beb" data-whiteboard-anchor><code>/p/</code></td><td id="wb-td-94a7f1604a554e7fb6dc37cfab306bd5" data-whiteboard-anchor>page</td><td id="wb-td-301641ff158f4d45893aca2fbe083e9e" data-whiteboard-anchor>free</td><td id="wb-td-21f3dc17654e484eb0f5ec983913234e" data-whiteboard-anchor>First letter of <em>page</em>; already in use and already correct.</td></tr>
-    <tr><td id="wb-td-6d4c82a6742a4417866d0238755dc494" data-whiteboard-anchor><code>/d/</code></td><td id="wb-td-38b152a268074e10ab30393d33a20663" data-whiteboard-anchor>dashboard</td><td id="wb-td-a1d29aef3987477b871f410c99b95ed0" data-whiteboard-anchor>in use</td><td id="wb-td-c98b33b1b59c4e749e175ae8ad45a583" data-whiteboard-anchor>Keeps its current meaning. Dashboards are notes of kind <code>dashboard</code> rendered as widgets — a rendering of a note, exactly what <code>/d/</code> already does.</td></tr>
-    <tr><td id="wb-td-f8de4cf5ca8e4d70847e45fe99bd5eea" data-whiteboard-anchor><code>/effort/</code></td><td id="wb-td-61694249cfcb4af6970069699397cd85" data-whiteboard-anchor>effort</td><td id="wb-td-6f6d9e6eba914143a35f40cf8dc54094" data-whiteboard-anchor>free</td><td id="wb-td-e9c36ae0d131489b8bacc8e5eb6b9cc7" data-whiteboard-anchor>Spelled out because <code>/e/</code> is one letter away from <code>/eq/</code> and unreadable in isolation. The full word also matches the typed-tag key <code>equipment:</code> and the WQL head <code>:effort</code>.</td></tr>
-    <tr><td id="wb-td-ed9e3926f9ab4d82b1dd923131e3c094" data-whiteboard-anchor><code>/eq/</code></td><td id="wb-td-b82821b1df3d4e5eb0172366c507397d" data-whiteboard-anchor>equipment</td><td id="wb-td-2acef0a6dd5e4039a186106ef3b59274" data-whiteboard-anchor>free</td><td id="wb-td-37c0598d440e4d30813c4fb3e0d29c32" data-whiteboard-anchor>Short, and two letters from <code>effort</code> rather than one — enough separation that a mistyped URL fails visibly.</td></tr>
-    <tr><td id="wb-td-28c94d1cc56f43b094752a643e0a116b" data-whiteboard-anchor><code>/t/</code></td><td id="wb-td-28fd19af5e51456e90df017df7db9a4c" data-whiteboard-anchor>tag</td><td id="wb-td-cb2b22ff35074bb1a894a52532013260" data-whiteboard-anchor>free</td><td id="wb-td-930065763f774e1b9c6cf7347b75a609" data-whiteboard-anchor>First letter of <em>tag</em>; two segments because a tag is only unique within its type.</td></tr>
+    <tr><td id="wb-td-4efb4ebd59be435eb599e9854f34bfa4" data-whiteboard-anchor><code>/notebook/</code></td><td id="wb-td-5e5f9def50714d2eb5dd7c711727c7e8" data-whiteboard-anchor>notebook</td><td id="wb-td-5290820d766644cbbdc013341acabf22" data-whiteboard-anchor>free</td><td id="wb-td-ed417e8e0b134f358d4a487f3b4348ea" data-whiteboard-anchor>The container — the concept most worth naming in full, because notebooks nest the most links.</td></tr>
+    <tr><td id="wb-td-feb3b1e602bf410c9125b322b0f86274" data-whiteboard-anchor><code>/feed/</code></td><td id="wb-td-81005e56eab84cceb90f428f9078a4fe" data-whiteboard-anchor>feed</td><td id="wb-td-4a5df90c0d9d40f8b7184d3af7adbaf1" data-whiteboard-anchor>free</td><td id="wb-td-e3d53a2dc685430c92db9d349ca6f81d" data-whiteboard-anchor>The source concept. Disambiguates from <code>/feeds</code> (the list) by depth.</td></tr>
+    <tr><td id="wb-td-note-prefix-why" data-whiteboard-anchor><code>/note/</code></td><td id="wb-td-note-prefix-word" data-whiteboard-anchor>note</td><td id="wb-td-note-prefix-check" data-whiteboard-anchor>free</td><td id="wb-td-note-prefix-why-td" data-whiteboard-anchor>Singular for one note, plural <code>/notes</code> for the list — same split as every other concept.</td></tr>
+    <tr><td id="wb-td-8f47b8f6824e4bb09a8caffb1a619b0a" data-whiteboard-anchor><code>/day/</code></td><td id="wb-td-11ccf81360a448b88030a710c1f69d3b" data-whiteboard-anchor>date</td><td id="wb-td-7fdf89bea0a84e239e51e35168c5028e" data-whiteboard-anchor>free</td><td id="wb-td-2b2ac957ede44f7cbaad80581178c0bd" data-whiteboard-anchor>A generic time slice, honest about being a slice across notebooks rather than a place (D8b). <code>/page/{date}</code> addresses the same content as a placement.</td></tr>
+    <tr><td id="wb-td-09c2ce255abe4a04992279c4465f9beb" data-whiteboard-anchor><code>/page/</code></td><td id="wb-td-94a7f1604a554e7fb6dc37cfab306bd5" data-whiteboard-anchor>page</td><td id="wb-td-301641ff158f4d45893aca2fbe083e9e" data-whiteboard-anchor>free</td><td id="wb-td-21f3dc17654e484eb0f5ec983913234e" data-whiteboard-anchor>A placement, many-to-many with notes (D3, D9). Guide pages carry a <code>{guide-*}</code> slug.</td></tr>
+    <tr><td id="wb-td-6d4c82a6742a4417866d0238755dc494" data-whiteboard-anchor><code>/dashboard/</code></td><td id="wb-td-38b152a268074e10ab30393d33a20663" data-whiteboard-anchor>dashboard</td><td id="wb-td-a1d29aef3987477b871f410c99b95ed0" data-whiteboard-anchor>free</td><td id="wb-td-c98b33b1b59c4e749e175ae8ad45a583" data-whiteboard-anchor>Spelled out, freeing <code>/d/</code> entirely. A dashboard is a note of kind <code>dashboard</code> rendered as widgets.</td></tr>
+    <tr><td id="wb-td-f8de4cf5ca8e4d70847e45fe99bd5eea" data-whiteboard-anchor><code>/effort/</code></td><td id="wb-td-61694249cfcb4af6970069699397cd85" data-whiteboard-anchor>effort</td><td id="wb-td-6f6d9e6eba914143a35f40cf8dc54094" data-whiteboard-anchor>free</td><td id="wb-td-e9c36ae0d131489b8bacc8e5eb6b9cc7" data-whiteboard-anchor>Spelled out because <code>/e/</code> is one letter away from <code>equipment</code> and unreadable in isolation. The full word also matches the typed-tag key <code>equipment:</code> and the WQL head <code>:effort</code>.</td></tr>
+    <tr><td id="wb-td-ed9e3926f9ab4d82b1dd923131e3c094" data-whiteboard-anchor><code>/equipment/</code></td><td id="wb-td-b82821b1df3d4e5eb0172366c507397d" data-whiteboard-anchor>equipment</td><td id="wb-td-2acef0a6dd5e4039a186106ef3b59274" data-whiteboard-anchor>free</td><td id="wb-td-37c0598d440e4d30813c4fb3e0d29c32" data-whiteboard-anchor>Full word — the list route <code>/equipment</code> and the detail route <code>/equipment/{slug}</code> are the same word at different depths.</td></tr>
+    <tr><td id="wb-td-28c94d1cc56f43b094752a643e0a116b" data-whiteboard-anchor><code>/t/</code></td><td id="wb-td-28fd19af5e51456e90df017df7db9a4c" data-whiteboard-anchor>tag</td><td id="wb-td-cb2b22ff35074bb1a894a52532013260" data-whiteboard-anchor>free</td><td id="wb-td-930065763f774e1b9c6cf7347b75a609" data-whiteboard-anchor><strong>The single-letter exception (D7).</strong> Short, unambiguous, and no other concept wants <code>t</code>. Two segments because a tag is only unique within its type.</td></tr>
   </tbody>
 </table>
 
 <div class="callout">
-  <p id="wb-p-50b4f511a417477791673fcb9ce5d158" data-whiteboard-anchor><strong>The list routes are the plural of the concept; the prefixes are its initial.</strong> <code>/notebooks</code> lists notebooks, <code>/n/</code> opens one. <code>/feeds</code> lists feeds, <code>/f/</code> opens one. No list route and no prefix can be confused, because one is plural and the other is not.</p>
+  <p id="wb-p-50b4f511a417477791673fcb9ce5d158" data-whiteboard-anchor><strong>The list routes are the plural of the concept; the prefixes are its singular.</strong> <code>/notebooks</code> lists notebooks, <code>/notebook/{slug}</code> opens one. <code>/feeds</code> lists feeds, <code>/feed/{slug}</code> opens one. No list route and no prefix can be confused, because one is plural and the other is not.</p>
 </div>
 
-<h2 id="wb-h2-777e133f7e874d8895cd0a85f1418c8c" data-whiteboard-anchor>9. WQL — the query language must carry the same vocabulary</h2>
+<h2 id="wb-h2-l1l2l3" data-whiteboard-anchor>9. Navigation levels — L1 / L2 / L3 by route</h2>
 
-<p id="wb-p-66a4d7d6e1724793a55b59369663c488" data-whiteboard-anchor>If the words align but the query language does not, the alignment is cosmetic: a user who navigates to <code>/n/crossfit-girls</code> must be able to type the query that produced that view. The good news is structural — <strong>WQL's grammar is already open</strong>. Heads and filter keys are lexed as open words and validated semantically against closed enums, so a new head is a vocabulary + executor change, not a grammar rewrite.</p>
+<p id="wb-p-6c7d4a56ba8f4387b6c46ab87604b32f" data-whiteboard-anchor>The sidebar already has three levels: <strong>L1</strong> is a zone in the nav tree, <strong>L2</strong> is a panel or child list inside it, and <strong>L3</strong> is the page index injected at runtime by <code>setL3Items</code> — the headings of whatever document you are reading <span class="cite">apps/playground/app/nav/appNavTree.ts:7-9</span>, <span class="cite">apps/playground/app/hooks/usePageScrollSync.ts:177</span>. The route scheme in §8 has to line up with those three levels, or the nav and the URLs will tell different stories.</p>
 
-<h3 id="wb-h3-9bc54194ca6247c9b1ef6d8c3790fdd3" data-whiteboard-anchor>9.1 What exists today</h3>
+<div class="callout">
+  <p id="wb-p-c4e01481cdf7420aac933d7b8fb6fe94" data-whiteboard-anchor><strong>The rule each level follows.</strong> <strong>L1 = a library list page</strong> — always a bare plural, always queryable. <strong>L2 = one thing</strong> — always a singular prefix plus a slug. <strong>L3 = a place inside that thing</strong> — a note, a section, a heading.</p>
+</div>
+
+<h3 id="wb-h3-a8007e59ecaa430e90e51dd328d38adb" data-whiteboard-anchor>9.1 The level ladder</h3>
+
+<table>
+  <thead><tr><th style="width:10%" id="wb-th-5e45d2b35a3a4b598ad0bb1ae93c70ee" data-whiteboard-anchor>Level</th><th style="width:26%" id="wb-th-0eccf13b46034fe5a47439dfc6ccbfd9" data-whiteboard-anchor>What it is</th><th style="width:32%" id="wb-th-65424d4dd5d34445b657ca5402e53cb1" data-whiteboard-anchor>Route shape</th><th style="width:32%" id="wb-th-9dc37a4a575645cc8d454201fe897e69" data-whiteboard-anchor>Examples</th></tr></thead>
+  <tbody>
+    <tr><td id="wb-td-c97668ff8f604326a8ba4f76e2f05337" data-whiteboard-anchor><strong>L1</strong></td><td id="wb-td-8e340363d474433eb80ef4d2c4e1864c" data-whiteboard-anchor>A zone in the sidebar — a library list page over one concept</td><td id="wb-td-c8e37c92bbc74473ad803bc0d0291541" data-whiteboard-anchor><code>/{plural}</code> (bare plural)</td><td id="wb-td-b4103852308c46798822b5468a413cd5" data-whiteboard-anchor><code>/notebooks</code> · <code>/feeds</code> · <code>/notes</code> · <code>/journal</code> · <code>/efforts</code> · <code>/equipment</code> · <code>/tags</code> · <code>/dashboards</code></td></tr>
+    <tr><td id="wb-td-b1e4446537464acf8c424c34c433b768" data-whiteboard-anchor><strong>L2</strong></td><td id="wb-td-6d1a8ad9262f407e8d902bf1862e8972" data-whiteboard-anchor>One instance of the L1 concept — a direct rendering</td><td id="wb-td-cb5751b39b794a2eb1dfe59e7145188b" data-whiteboard-anchor><code>/{singular}/{slug}</code></td><td id="wb-td-aeca273a8c9d4c3b901a8b1925aabd58" data-whiteboard-anchor><code>/notebook/crossfit-girls</code> · <code>/feed/seed-crossfit</code> · <code>/effort/snatch</code> · <code>/equipment/barbell</code> · <code>/t/domain/running</code> · <code>/dashboard/recovery-readiness</code></td></tr>
+    <tr><td id="wb-td-248578790acf4fc799f7d98d05d6ce0a" data-whiteboard-anchor><strong>L3</strong></td><td id="wb-td-bdb50ba1b4f74a2f96cb665b9601a7da" data-whiteboard-anchor>A place inside the L2 item — a note, a day, a page, a heading</td><td id="wb-td-332be752e6a7472a848a7e1cf9b9c377" data-whiteboard-anchor><code>/note/{uuid}</code> · <code>/day/{date}</code> · <code>/page/{slug}</code> · <code>#anchor</code></td><td id="wb-td-e1178c7f58b148ef92d21ee50abb6e49" data-whiteboard-anchor><code>/note/9f2c…</code> · <code>/day/2026-01-12</code> · <code>/page/guide-wql</code> · a section anchor inside a note</td></tr>
+  </tbody>
+</table>
+
+<h3 id="wb-h3-c2a08a8249264d59b67473fc66ce8873" data-whiteboard-anchor>9.2 The mapping, zone by zone</h3>
+
+<table>
+  <thead><tr><th style="width:16%" id="wb-th-be2f5b8fad4a475197a01e15a0c0dad3" data-whiteboard-anchor>Zone</th><th style="width:22%" id="wb-th-a81d3d4795364cff8800dc7f704ca334" data-whiteboard-anchor>L1 route</th><th style="width:24%" id="wb-th-facbdb6e0e084e95b3c7d686e85f83b3" data-whiteboard-anchor>L2 (one item)</th><th style="width:20%" id="wb-th-8cd6f14509394e01b202fee2e6748301" data-whiteboard-anchor>L3 (inside it)</th><th style="width:18%" id="wb-th-874db127c2194eb8a3c0bb52bf0086da" data-whiteboard-anchor>Today</th></tr></thead>
+  <tbody>
+    <tr><td id="wb-td-f57506e03dea45358775c8e155d70b14" data-whiteboard-anchor><strong>Notebooks</strong></td><td id="wb-td-7d6b6900924c42cd95933e3a002dc6e2" data-whiteboard-anchor><code>/notebooks</code></td><td id="wb-td-defa8b24c5f440629492f953040a03a0" data-whiteboard-anchor><code>/notebook/{slug}</code></td><td id="wb-td-393b99f5286e4b289a428dd7953f1fa4" data-whiteboard-anchor><code>/note/{uuid}</code> of that notebook</td><td id="wb-td-db6cfc34efed4affa6145f57601c0188" data-whiteboard-anchor><code>/catalogs</code> → <code>/c/{slug}</code></td></tr>
+    <tr><td id="wb-td-14d7290bd71e4a018f6173d8b43fe275" data-whiteboard-anchor><strong>Feeds</strong></td><td id="wb-td-9412a2a73a4f412fbbacf12d9084ec11" data-whiteboard-anchor><code>/feeds</code></td><td id="wb-td-be20af7a01e84d87a86c5f124f642f21" data-whiteboard-anchor><code>/feed/{slug}</code></td><td id="wb-td-0d939f4ff1b5481cbae1179b25636a65" data-whiteboard-anchor>the notebooks it publishes → <code>/notebook/{slug}</code></td><td id="wb-td-e5d5f78cc1fd486091027e83b7912098" data-whiteboard-anchor><code>/feeds</code> (listed notes)</td></tr>
+    <tr><td id="wb-td-7bf5207061404a73b7782c4dda159393" data-whiteboard-anchor><strong>Notes</strong></td><td id="wb-td-9a48b55bc60847b0b19256e9e2280cc6" data-whiteboard-anchor><code>/notes</code></td><td id="wb-td-f8c8f01ce7dc410f86995ac47f0746e2" data-whiteboard-anchor><code>/note/{uuid}</code></td><td id="wb-td-70841886f2e248c98d359acf3c040e19" data-whiteboard-anchor>sections within the note</td><td id="wb-td-1d1929b8f433424aaa07575192473397" data-whiteboard-anchor><em>no list route</em></td></tr>
+    <tr><td id="wb-td-7b18d2aaa95a479dadbcec392fb4d542" data-whiteboard-anchor><strong>Journal</strong></td><td id="wb-td-d341afa387d44f5396bab45817816228" data-whiteboard-anchor><code>/journal</code></td><td id="wb-td-dc9850a192e84d2780255875837a9569" data-whiteboard-anchor><code>/day/{date}</code></td><td id="wb-td-b0262e5ea72c4c71b4eb471a37830af5" data-whiteboard-anchor><code>/note/{uuid}</code> of that day</td><td id="wb-td-7d51f356018f4f1db4215c936fb3cacf" data-whiteboard-anchor><code>/journal</code> → <code>/journal/{date}</code></td></tr>
+    <tr><td id="wb-td-ca6292474bb9424589cd1e665e2c4d5f" data-whiteboard-anchor><strong>Pages</strong></td><td id="wb-td-569948ea0efd45408fac19afe9ae8c9b" data-whiteboard-anchor><code>/pages</code></td><td id="wb-td-5970e5d1df504deba1f9eb4f44c04f30" data-whiteboard-anchor><code>/page/{slug}</code></td><td id="wb-td-9d7312bf63c94059a8a1e6b87ce56653" data-whiteboard-anchor>the notes on the page → <code>/note/{uuid}</code></td><td id="wb-td-211858839e3c4a5c8505043941c9364e" data-whiteboard-anchor><code>/p/*</code>, no list route</td></tr>
+    <tr><td id="wb-td-3d4361c2b8ef4785be416ea78dda8059" data-whiteboard-anchor><strong>Dashboards</strong></td><td id="wb-td-4c01fe9bedde4b98a130436fd08f4b1a" data-whiteboard-anchor><code>/dashboards</code></td><td id="wb-td-da07e7cc49d041e9995b4c99d601e86e" data-whiteboard-anchor><code>/dashboard/{slug}</code></td><td id="wb-td-2bcd3d0747b44cfa9077ea2c913d2f90" data-whiteboard-anchor>the widgets in it</td><td id="wb-td-c019c605b23d4dc697fb7a6cd8f0a254" data-whiteboard-anchor><code>/d/{slug}</code></td></tr>
+    <tr><td id="wb-td-7d517fbdaee4474d97e31c0de4a9803e" data-whiteboard-anchor><strong>Efforts</strong></td><td id="wb-td-c831b7e1185843c78616649d45f1a360" data-whiteboard-anchor><code>/efforts</code></td><td id="wb-td-f0c2cf1d7e04437493d9aeaf00e81e17" data-whiteboard-anchor><code>/effort/{slug}</code></td><td id="wb-td-0d5d08b319ad4c97b244bc7b7d51f232" data-whiteboard-anchor>the blocks that use it</td><td id="wb-td-0750490b53fa4e3d9b8348517d2dd9fd" data-whiteboard-anchor><code>/e/{slug}</code></td></tr>
+    <tr><td id="wb-td-547be8c7b655429d86eaebe6d03adc76" data-whiteboard-anchor><strong>Equipment</strong></td><td id="wb-td-c61871d2930645ab8c4fdfd81d0c1dff" data-whiteboard-anchor><code>/equipment</code></td><td id="wb-td-d4ba62543e3d417ebd2fe54325f01244" data-whiteboard-anchor><code>/equipment/{slug}</code></td><td id="wb-td-9545d6105f104a8d90e4422c7595827f" data-whiteboard-anchor>the blocks that use it</td><td id="wb-td-af684b41053a4f97975e6e2f423534c3" data-whiteboard-anchor><code>/equipment/:slug</code></td></tr>
+    <tr><td id="wb-td-320c145b62b04a0b95525568c020b648" data-whiteboard-anchor><strong>Tags</strong></td><td id="wb-td-ce037efdc9234788bfba4a439bb2c98a" data-whiteboard-anchor><code>/tags</code></td><td id="wb-td-74dfe08fc3a34bc49546894f7382561b" data-whiteboard-anchor><code>/t/{type}/{tag}</code></td><td id="wb-td-74f60ffda83d4946aab89d742ead839f" data-whiteboard-anchor>the notes carrying the tag</td><td id="wb-td-d56727da3f3c49dfa223f4831dc8f7f9" data-whiteboard-anchor><em>none</em></td></tr>
+  </tbody>
+</table>
+
+<h3 id="wb-h3-c018795dbcbd4fb6b102f4251e7cb68a" data-whiteboard-anchor>9.3 How the levels behave</h3>
+
+<ul>
+  <li id="wb-li-09236f9f887d44e49004b084577192d0" data-whiteboard-anchor><strong>L1 is always queryable.</strong> Every L1 route is a library list page with a default WQL, a <code>?q=</code> override, and the composer. L1 is where you <em>search</em>; L2 is where you <em>read</em>.</li>
+  <li id="wb-li-82274759858c430ea8f530fbbadbb902" data-whiteboard-anchor><strong>L2 is the shareable unit.</strong> A notebook, a feed, a day, a page, a dashboard, an effort, an equipment, a tag — each is one URL that identifies one thing, and each is the row target when you click through from an L1 list. Per the library-list contract in §9.4, a row in <code>/notebooks</code> links to <code>/notebook/{slug}</code>, a row in <code>/tags</code> links to <code>/t/{type}/{tag}</code>.</li>
+  <li id="wb-li-42736c2ba1eb48b381aa556130964ed7" data-whiteboard-anchor><strong>L3 is per-document.</strong> Today L3 is the injected page index — the headings of the note or page you are reading. It stays that: an L3 entry is never a separate concept, it is a position inside an L2 item. A note's L3 is its sections; a dashboard's L3 is its widgets; a page's L3 is the notes it carries.</li>
+  <li id="wb-li-f0e25c13d3774ba1b4f8e5fd39c3cfa9" data-whiteboard-anchor><strong>Depth tells you the concept.</strong> One segment = L1 (plural list). Two segments = L2 (one thing). Three segments = L3 (a place inside). The only three-segment forms are <code>/note/{uuid}</code>, <code>/day/{date}</code>, <code>/page/{slug}</code> and <code>/t/{type}/{tag}</code> — and the second segment says which.</li>
+</ul>
+
+<div class="callout warn">
+  <p id="wb-p-c405f233a03c48d69aeab5eca36b4c94" data-whiteboard-anchor><strong>Two consequences for the nav tree.</strong> First, the L1 sidebar becomes exactly the set of library list pages — which means <code>/catalogs</code> and <code>/feeds</code> (today one route showing notebooks, one showing notes) become <code>/notebooks</code> and <code>/notes</code>, and a new <code>/feeds</code> L1 zone appears for the sources. Second, <strong>the current L1 zone "Playgrounds" is not a concept</strong> — it is a notebook (<code>notebook/playground</code>). Under this scheme it is a page of the notebooks list, not a sibling zone. The same is true of the Journal zone: the journal is a notebook, so <code>/journal</code> is a <em>notebook view</em> (its days), not a separate concept.</p>
+</div>
+
+<div class="callout">
+  <p id="wb-p-fbace2956f4c472f947bb34367cb2acd" data-whiteboard-anchor><strong>Why this matters for the cutover.</strong> The nav tree and the route table are currently two independent sources of truth — the nav labels <code>/catalogs</code> as "Notebooks" and <code>/feeds</code> as "Notes" while the routes say otherwise. Deriving L1 from the list routes and L2 from the prefix table makes the vocabulary single-sourced: <strong>the sidebar can no longer disagree with the URL</strong>, because the sidebar's labels <em>are</em> the list route names.</p>
+</div>
+
+<h2 id="wb-h2-777e133f7e874d8895cd0a85f1418c8c" data-whiteboard-anchor>10. WQL — the query language must carry the same vocabulary</h2>
+
+<p id="wb-p-66a4d7d6e1724793a55b59369663c488" data-whiteboard-anchor>If the words align but the query language does not, the alignment is cosmetic: a user who navigates to <code>/notebook/crossfit-girls</code> must be able to type the query that produced that view. The good news is structural — <strong>WQL's grammar is already open</strong>. Heads and filter keys are lexed as open words and validated semantically against closed enums, so a new head is a vocabulary + executor change, not a grammar rewrite.</p>
+
+<h3 id="wb-h3-9bc54194ca6247c9b1ef6d8c3790fdd3" data-whiteboard-anchor>10.1 What exists today</h3>
 
 <table>
   <thead><tr><th style="width:26%" id="wb-th-44ddd74a4e9b492590fe19d877ed1830" data-whiteboard-anchor>Surface</th><th style="width:34%" id="wb-th-18da7008189d4d4e86c1fd2a47f99377" data-whiteboard-anchor>Today</th><th style="width:40%" id="wb-th-6fd63d963d0c46c4ae66afc0be034390" data-whiteboard-anchor>Gap</th></tr></thead>
@@ -527,16 +615,16 @@ notes carry provenance: which feed delivered them, which version.</pre>
   </tbody>
 </table>
 
-<h3 id="wb-h3-645acdb3ffb74776aef65dfefe50f76f" data-whiteboard-anchor>9.2 The vocabulary WQL must gain</h3>
+<h3 id="wb-h3-645acdb3ffb74776aef65dfefe50f76f" data-whiteboard-anchor>10.2 The vocabulary WQL must gain</h3>
 
 <table>
   <thead><tr><th style="width:22%" id="wb-th-0e7ef5eb60ee4a52803f35c1966eeab6" data-whiteboard-anchor>Head</th><th style="width:32%" id="wb-th-439cd287e9e4401fa36c140d49f119f2" data-whiteboard-anchor>Meaning</th><th style="width:46%" id="wb-th-89ceb3f0e49e46b9bd533f46b6b5f1d0" data-whiteboard-anchor>Shape of the change</th></tr></thead>
   <tbody>
-    <tr><td id="wb-td-db7f4b52a3454890b202423806c9a0d1" data-whiteboard-anchor><code>:notebook{}</code></td><td id="wb-td-7fbf66305bb14b87a17640af6d3ebfaf" data-whiteboard-anchor>Notes in any notebook</td><td id="wb-td-2166870711b5406695a22b130e828ee6" data-whiteboard-anchor>Today this head means <code>source:feeds</code> + <code>type:feed</code> and takes the catalog path. It must become <em>the notebook plane</em> — including user notebooks and <code>notebook/journal</code>, <code>notebook/playground</code>, <code>notebook/guides</code>, which the current head cannot reach.</td></tr>
+    <tr><td id="wb-td-db7f4b52a3454890b202423806c9a0d1" data-whiteboard-anchor><code>:notebook{}</code></td><td id="wb-td-7fbf66305bb14b87a17640af6d3ebfaf" data-whiteboard-anchor>Notebooks — every notebook, not just feed-delivered ones</td><td id="wb-td-2166870711b5406695a22b130e828ee6" data-whiteboard-anchor><strong>Confirmed (D10a): this becomes the notebook plane.</strong> Today the head means <code>source:feeds</code> + <code>type:feed</code> and takes the catalog path. It must reach user notebooks and <code>notebook/journal</code>, <code>notebook/playground</code>, <code>notebook/defaults</code>, <code>notebook/guides</code> — which the current head cannot. <code>notebook:{slug}</code> narrows it.</td></tr>
     <tr><td id="wb-td-ba5aef494aa64bed8b49af684f6d532b" data-whiteboard-anchor><code>:feed{}</code></td><td id="wb-td-3bd4ab138d514b88a0eb201c9f929061" data-whiteboard-anchor>Feeds</td><td id="wb-td-635cccd883954cf69d7d5c2a2f46454e" data-whiteboard-anchor>Today <code>:feed</code> means <code>source:feeds</code> over notes. Under the new vocabulary a feed is a <em>source</em> — a list of notebooks. This needs a new plane, not a scope alias.</td></tr>
-    <tr><td id="wb-td-88d7c5ee0d4d4388be0c3f533f4e0ff3" data-whiteboard-anchor><code>:page{}</code></td><td id="wb-td-22f6d023f3e540c7baf439a019585bbe" data-whiteboard-anchor>Pages (grouped notes)</td><td id="wb-td-b2c166b6902243e79b96aac92b019908" data-whiteboard-anchor>New. The <code>page</code> <em>filter key</em> already exists on the note plane; a head over pages does not. Note the precedent in reverse: <code>find:page</code> was retired on the grounds that "page-ness is handled by <code>type:</code>" — so reviving a <code>:page</code> head means reviving that decision, or keeping page-ness as a filter only.</td></tr>
-    <tr><td id="wb-td-5caf676f18b84d058e4e4de4c47afb90" data-whiteboard-anchor><code>:tag{}</code></td><td id="wb-td-ad0cf3af4fa4486da7140e9c3f0dff75" data-whiteboard-anchor>Tags</td><td id="wb-td-83dbbcd5f51f4b6c9fb99c75e36581b6" data-whiteboard-anchor>New plane. Tags are stored with a type and a label; the <code>by-type</code> index is the natural read.</td></tr>
-    <tr><td id="wb-td-fd4a6680ccb4417ea88bcc513d9161ef" data-whiteboard-anchor><code>:equipment{}</code></td><td id="wb-td-d17180073ddf41349fab41dd48ff3adb" data-whiteboard-anchor>Equipment notes</td><td id="wb-td-f1a241aa54d1406a8444a130760268e6" data-whiteboard-anchor>New plane. Under §2 equipment is a <em>note kind</em>, so this head returns equipment notes — and, once equipment is a note kind, the same head can also resolve the <code>equipment</code> store as a reference plane. The stores and the <code>block_equipment</code> containment index already exist; what is missing is the query seam, the target enum entry, and the dispatch arm.</td></tr>
+    <tr><td id="wb-td-88d7c5ee0d4d4388be0c3f533f4e0ff3" data-whiteboard-anchor><code>:page{}</code></td><td id="wb-td-22f6d023f3e540c7baf439a019585bbe" data-whiteboard-anchor>Pages (placements)</td><td id="wb-td-b2c166b6902243e79b96aac92b019908" data-whiteboard-anchor>New. The <code>page</code> <em>filter key</em> already exists on the note plane; a head over pages does not. Under D3/D9 a page is a placement with many-to-many notes, so the head lists placements and <code>page:{slug}</code> narrows them.</td></tr>
+    <tr><td id="wb-td-5caf676f18b84d058e4e4de4c47afb90" data-whiteboard-anchor><code>:tag{}</code></td><td id="wb-td-ad0cf3af4fa4486da7140e9c3f0dff75" data-whiteboard-anchor>Tags</td><td id="wb-td-83dbbcd5f51f4b6c9fb99c75e36581b6" data-whiteboard-anchor><strong>A true plane (D10b).</strong> Tags are stored with a type and a label; the <code>by-type</code> index is the natural read. <code>/tags</code> becomes a library list page over this plane, per D4's requirement that any type of tag be searchable.</td></tr>
+    <tr><td id="wb-td-fd4a6680ccb4417ea88bcc513d9161ef" data-whiteboard-anchor><code>:equipment{}</code></td><td id="wb-td-d17180073ddf41349fab41dd48ff3adb" data-whiteboard-anchor>Equipment notes</td><td id="wb-td-f1a241aa54d1406a8444a130760268e6" data-whiteboard-anchor><strong>A true plane (D10b).</strong> Under §2 and D4 equipment is a <em>note kind</em> imported from markdown and indexed on import; this head returns those notes and also serves the reference lookups the parser and compiler need. The stores and the <code>block_equipment</code> containment index already exist; what is missing is the query seam, the target enum entry, and the dispatch arm.</td></tr>
   </tbody>
 </table>
 
@@ -544,19 +632,19 @@ notes carry provenance: which feed delivered them, which version.</pre>
   <p id="wb-p-517772d24c714641bd296998790e7dbf" data-whiteboard-anchor><strong>Grammar impact: zero.</strong> The head rule is <code>Head { colon Word }</code> and the filter rule is <code>Filter { Negate? TagKey colon TagValue }</code> — both open words. A new head needs: an entry in the head vocabulary, a scope or type injection if it is a note-plane alias, or a new target plus a dispatcher arm. A new filter key needs: an executor arm, a capabilities registration (the composer refuses to advertise unregistered keys), a composer clause entry, and — if SQL push-down is wanted — a storage predicate and a domain-read compile step.</p>
 </div>
 
-<h3 id="wb-h3-4977a6b2221e4b6896b30dec323b2282" data-whiteboard-anchor>9.3 The filter keys that must follow the routes</h3>
+<h3 id="wb-h3-4977a6b2221e4b6896b30dec323b2282" data-whiteboard-anchor>10.3 The filter keys that must follow the routes</h3>
 
 <ul>
   <li id="wb-li-673130f3d2174e95ab1359fe6d78a1d7" data-whiteboard-anchor><code>feed:{slug}</code> — notes delivered by a feed. Replaces <code>catalog:</code>, which is a retired word with six unrelated meanings.</li>
   <li id="wb-li-f6b115e198e14dc8aca380ac3e5d7155" data-whiteboard-anchor><code>notebook:{slug}</code> — already exists and stays. Under the new vocabulary it filters on <code>notebook/{slug}</code> with no type injection.</li>
   <li id="wb-li-212df353bdc545108695df37e42d7f97" data-whiteboard-anchor><code>page:{slug}</code> — already exists on the note plane; keep it and make it work on the block plane too.</li>
-  <li id="wb-li-ef6a70b7e85f49db91030a15caa2d08d" data-whiteboard-anchor><code>date:{YYYY-MM-DD}</code> — new. Today dates are expressed by route or by a <code>last 4w</code> window suffix, never as a filter key. The key stays generic even though the route is journal-scoped: a note's date is a property of the note, so <code>date:</code> can filter any notebook's notes, while <code>/j/{date}</code> addresses the journal's day view (D8b).</li>
+  <li id="wb-li-ef6a70b7e85f49db91030a15caa2d08d" data-whiteboard-anchor><code>date:{YYYY-MM-DD}</code> — new. Today dates are expressed by route or by a <code>last 4w</code> window suffix, never as a filter key. The key stays generic even though the route is journal-scoped: a note's date is a property of the note, so <code>date:</code> can filter any notebook's notes, while <code>/day/{date}</code> addresses the time-slice view (D8b).</li>
   <li id="wb-li-520ddccc2878408ea5da9817b22de44d" data-whiteboard-anchor><code>tag:{type}:{slug}</code> — new. The typed-tag executor already resolves <code>(type, label)</code> pairs on the note plane; a general <code>tag:</code> key makes it addressable from any surface, including <code>/t/{type}/{tag}</code>.</li>
   <li id="wb-li-1abd168aebae4adab7481f99ec45ef79" data-whiteboard-anchor><code>equipment:{slug}</code> — exists as a typed tag but should be first-class once equipment is a plane.</li>
   <li id="wb-li-450752a0a86d4be4b39ff7ad3ef45672" data-whiteboard-anchor><code>catalog:</code> — retire. It is the WQL surface's last holdout of the retired vocabulary.</li>
 </ul>
 
-<h3 id="wb-h3-3bad85547bf640a08effced9ba0748f3" data-whiteboard-anchor>9.4 The library-list contract</h3>
+<h3 id="wb-h3-3bad85547bf640a08effced9ba0748f3" data-whiteboard-anchor>10.4 The library-list contract</h3>
 
 <p id="wb-p-d541e2df647d4b6aa62ccf8fe5d766d1" data-whiteboard-anchor>Every list route in §8.2 must satisfy the same contract, or the vocabulary is cosmetic:</p>
 
@@ -565,23 +653,23 @@ notes carry provenance: which feed delivered them, which version.</pre>
   <li id="wb-li-7255ac340d304b9786a721b3134457c4" data-whiteboard-anchor><strong>Render WQL output, not a bespoke list.</strong> The list page renders whatever the query returns. <code>/tags</code> and <code>/equipment</code> today render hand-rolled lists and would have to stop.</li>
   <li id="wb-li-aabbf3308c39458aad0ccba1df062e95" data-whiteboard-anchor><strong>Expose the same filter set.</strong> Every list page's composer offers the filters that apply to its plane. The composer is already capability-driven — the allowed-clause set per target is declared in one place, so a new plane declares its own filters and inherits the rest.</li>
   <li id="wb-li-942c96e2389144009f7011fe7b791a9c" data-whiteboard-anchor><strong>Round-trip.</strong> The query that produced a list is a shareable URL. <code>/notebooks?q=:notebook{notebook:crossfit-girls}</code> must be linkable, and the list must be reproducible from the URL alone.</li>
-  <li id="wb-li-88ff04fa07bf46bd8fd3f3fdfa13ecc6" data-whiteboard-anchor><strong>Link to the concept's own rendering.</strong> A row in <code>/notebooks</code> links to <code>/n/{slug}</code>; a row in <code>/feeds</code> links to <code>/f/{slug}</code>; a row in <code>/tags</code> links to <code>/t/{type}/{tag}</code>. The list and the prefix come from the same vocabulary.</li>
+  <li id="wb-li-88ff04fa07bf46bd8fd3f3fdfa13ecc6" data-whiteboard-anchor><strong>Link to the concept's own rendering.</strong> A row in <code>/notebooks</code> links to <code>/notebook/{slug}</code>; a row in <code>/feeds</code> links to <code>/feed/{slug}</code>; a row in <code>/tags</code> links to <code>/t/{type}/{tag}</code>. The list and the prefix come from the same vocabulary.</li>
 </ol>
 
-<h2 id="wb-h2-e198ff44d7cd4aeaa53042e22b005d3b" data-whiteboard-anchor>10. What this proposal does not touch</h2>
+<h2 id="wb-h2-e198ff44d7cd4aeaa53042e22b005d3b" data-whiteboard-anchor>11. What this proposal does not touch</h2>
 
 <ul>
   <li id="wb-li-7d65767b47ec46a3af3a9c91bc8159a0" data-whiteboard-anchor><strong>Content and execution.</strong> Metrics, blocks, dialects, the runtime stack, and the parser are unaffected — they never spoke these nouns.</li>
   <li id="wb-li-847cba92759745398071bfcf70c50d66" data-whiteboard-anchor><strong>Results and sessions.</strong> <code>Session</code> (the execution log) and <code>EventRecord</code> are a different concept from the note kinds "session"/"post" and are <em>not</em> renamed here. The old entry-kind <code>session</code> retires; the storage entity <code>Session</code> survives.</li>
-  <li id="wb-li-02152071f0b04d3698e0eda84af43863" data-whiteboard-anchor><strong>WQL as a <em>language</em>.</strong> §9 changes its <em>vocabulary</em> — new heads and filter keys — not its grammar or its semantics. The head and filter rules are already open words; the parser, the pipeline model, the aggregator heads, the chart heads, the dataset references, and the cross-store <code>where</code> join are untouched.</li>
-  <li id="wb-li-aed0965e081b4e4cbe5880e64bc36b75" data-whiteboard-anchor><strong>The seed wire format's meaning.</strong> Manifest schema version and chunk contents keep their shape; only their <em>names</em> change.</li>
+  <li id="wb-li-02152071f0b04d3698e0eda84af43863" data-whiteboard-anchor><strong>WQL as a <em>language</em>.</strong> §10 changes its <em>vocabulary</em> — new heads and filter keys — not its grammar or its semantics. The head and filter rules are already open words; the parser, the pipeline model, the aggregator heads, the chart heads, the dataset references, and the cross-store <code>where</code> join are untouched.</li>
+  <li id="wb-li-aed0965e081b4e4cbe5880e64bc36b75" data-whiteboard-anchor><strong>The seed wire format's meaning.</strong> Manifest schema version and chunk contents keep their shape; only their <em>names</em> change. Markdown stays the interchange format in both directions (D4).</li>
   <li id="wb-li-url-not-core" data-whiteboard-anchor><strong>Runtime and result URLs.</strong> <code>/run/:runtimeId</code>, <code>/sessions</code>, <code>/results/:sessionId</code>, and <code>/session/:date</code> address <em>executions</em>, not content. They keep their paths and are outside the content vocabulary — the <code>Session</code> entity survives the entry-kind retirement (§3.3).</li>
   <li id="wb-li-settings-urls" data-whiteboard-anchor><strong>Application and settings URLs.</strong> <code>/settings/*</code>, <code>/subscribe</code>, <code>/load</code>, and <code>/proto/*</code> are application chrome. <code>/subscribe</code> is the one that will want a new name once "seed" retires (it is the feed-subscription surface) — flagged for wave 5, not resolved here.</li>
 </ul>
 
-<h2 id="wb-h2-a613cfc1aeea43cb8119dac3750fe9b9" data-whiteboard-anchor>11. Evidence base</h2>
+<h2 id="wb-h2-a613cfc1aeea43cb8119dac3750fe9b9" data-whiteboard-anchor>12. Evidence base</h2>
 
-<p class="small" id="wb-p-a6950972767c4bccba9ca82b74093f36" data-whiteboard-anchor>Three parallel read-only surveys of the repository, cross-checked against this document's citations:</p>
+<p class="small" id="wb-p-a6950972767c4bccba9ca82b74093f36" data-whiteboard-anchor>Five parallel read-only surveys of the repository, cross-checked against this document's citations:</p>
 <ul>
   <li id="wb-li-da59bd18271746848b4912798de09582" data-whiteboard-anchor><strong>Container survey</strong> — every use of notebook / collection / feed / journal / catalog / canvas / dashboard / page / section / book / playlist as a container term, with the corpus and seed directory shapes.</li>
   <li id="wb-li-0644887286f64647ae4da19ed929abc9" data-whiteboard-anchor><strong>Source survey</strong> — every use of seed / source / registry / library / catalog as a source term, split by whether it means the source list, the import payload, or per-entry provenance.</li>
@@ -595,15 +683,17 @@ notes carry provenance: which feed delivered them, which version.</pre>
 <!-- whiteboard-html:tail -->
 <button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
 <aside id="wb-current" aria-label="Current annotation" hidden>
-  <h2 id="wb-current-title"></h2>
-  <a id="wb-current-source">Source block</a>
-  <p id="wb-current-quote"></p>
-  <p id="wb-current-context"></p>
-  <p id="wb-current-note"></p>
-  <div class="wb-controls">
-    <button id="wb-edit" type="button">Edit</button>
-    <button id="wb-delete" type="button">Delete</button>
-    <button id="wb-hide" type="button">Hide</button>
+  <h2><button id="wb-current-toggle" type="button" aria-expanded="false" aria-controls="wb-current-body"><span id="wb-current-title"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></h2>
+  <div id="wb-current-body" hidden>
+    <a id="wb-current-source">Source block</a>
+    <p id="wb-current-quote"></p>
+    <p id="wb-current-context"></p>
+    <p id="wb-current-note"></p>
+    <div class="wb-controls">
+      <button id="wb-edit" type="button">Edit</button>
+      <button id="wb-delete" type="button">Delete</button>
+      <button id="wb-hide" type="button">Hide</button>
+    </div>
   </div>
 </aside>
 <dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
@@ -619,7 +709,7 @@ notes carry provenance: which feed delivered them, which version.</pre>
   </form>
 </dialog>
 <dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
-  <h2 id="wb-export-title">Publish annotations</h2>
+  <h2 id="wb-export-title">Copy annotations</h2>
   <p id="wb-copy-status" role="status"></p>
   <label for="wb-export-text">Agent feedback</label>
   <textarea id="wb-export-text" rows="12" readonly></textarea>
@@ -638,7 +728,7 @@ notes carry provenance: which feed delivered them, which version.</pre>
   const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
   const editor = byId('wb-editor');
   const floatBtn = byId('wb-float-btn');
-  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true;
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true, copyTimer;
   const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
   const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
 
@@ -730,25 +820,33 @@ notes carry provenance: which feed delivered them, which version.</pre>
     }
   } catch {
     canPersist = false;
-    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Publish before closing.');
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Copy before closing.');
   }
 
   function persist() {
     if (!canPersist) return;
     try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
-    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Publish before closing.'); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Copy before closing.'); }
   }
 
   function updateCount() {
     const count = annotations.length;
-    byId('wb-count').textContent = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : ` · ${active + 1}/${count}`}`;
-    for (const id of ['wb-prev', 'wb-next', 'wb-publish']) byId(id).disabled = count === 0;
+    const label = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : `, ${active + 1} of ${count}`}`;
+    byId('wb-count').textContent = String(count);
+    byId('wb-count').setAttribute('aria-label', label);
+    byId('wb-count').title = label;
+    for (const id of ['wb-prev', 'wb-next', 'wb-copy']) byId(id).disabled = count === 0;
   }
 
   function sourceUrl(anchor) {
     const url = new URL(documentUrl);
     url.hash = anchor;
     return url.href;
+  }
+
+  function setExpanded(value) {
+    byId('wb-current-toggle').setAttribute('aria-expanded', String(value));
+    byId('wb-current-body').hidden = !value;
   }
 
   function showAnnotation(index) {
@@ -783,6 +881,7 @@ notes carry provenance: which feed delivered them, which version.</pre>
     byId('wb-current-context').hidden = !item.context || item.context === item.quote;
     byId('wb-current-note').textContent = item.note;
     byId('wb-current').hidden = false;
+    setExpanded(false);
     updateCount();
   }
 
@@ -969,8 +1068,19 @@ notes carry provenance: which feed delivered them, which version.</pre>
   });
 
   byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+  byId('wb-current-toggle').addEventListener('click', () => {
+    setExpanded(byId('wb-current-toggle').getAttribute('aria-expanded') !== 'true');
+  });
 
-  byId('wb-publish').addEventListener('click', async () => {
+  function resetCopyButton() {
+    byId('wb-copy').classList.remove('wb-copied');
+    byId('wb-copy').setAttribute('aria-label', 'Copy annotations');
+    byId('wb-copy').title = 'Copy annotations';
+    byId('wb-copy-icon').toggleAttribute('hidden', false);
+    byId('wb-copy-check').toggleAttribute('hidden', true);
+  }
+
+  byId('wb-copy').addEventListener('click', async () => {
     const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
     const body = annotations.map((item, index) => {
       const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
@@ -982,22 +1092,31 @@ notes carry provenance: which feed delivered them, which version.</pre>
       return block;
     }).join('');
 
+    clearTimeout(copyTimer);
+    resetCopyButton();
     const output = byId('wb-export-text');
     output.value = heading + body;
-    byId('wb-copy-status').textContent = 'Copying…';
-    byId('wb-export').showModal();
-    output.focus();
-    output.select();
     try {
       await navigator.clipboard.writeText(output.value);
-      byId('wb-copy-status').textContent = 'Copied. Paste into your agent window. Drafts are kept.';
+      byId('wb-copy').classList.add('wb-copied');
+      byId('wb-copy').setAttribute('aria-label', 'Annotations copied to clipboard');
+      byId('wb-copy').title = 'Annotations copied to clipboard';
+      byId('wb-copy-icon').toggleAttribute('hidden', true);
+      byId('wb-copy-check').toggleAttribute('hidden', false);
+      byId('wb-status').textContent = 'Annotations copied to clipboard. Drafts are kept.';
+      copyTimer = setTimeout(() => {
+        resetCopyButton();
+        byId('wb-status').textContent = '';
+      }, 3000);
     } catch {
       byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+      byId('wb-export').showModal();
+      output.focus();
+      output.select();
     }
   });
 
   byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
-  new ResizeObserver(() => document.documentElement.style.setProperty('--wb-bar-height', byId('wb-bar').offsetHeight + 'px')).observe(byId('wb-bar'));
   updateCount();
 })();
 </script>
