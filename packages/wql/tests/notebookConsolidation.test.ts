@@ -3,6 +3,7 @@ import {
   QueryService,
   parseQuery,
   notebookOfItem,
+  sourceMatches,
   toNotebookId,
   notebookSlugFromId,
   isNoteEditable,
@@ -120,5 +121,109 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
 
     const pluralScopeRes = await service.runFind(parseQuery(':note{type:feed,source:notebooks}') as Parameters<typeof service.runFind>[0]);
     expect(pluralScopeRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
+  });
+
+  const uuid = (n: number): string =>
+    `01950000-0000-7000-8000-${String(n).padStart(12, '0')}`;
+
+  it('resolves every corpus family from its corpus path alone (effort, equipment, dashboard, guide, collection, feed)', () => {
+    expect(notebookOfItem(makeNote({ id: uuid(1), seedOrigin: 'seed', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' }))).toBe('notebook/efforts');
+    expect(notebookOfItem(makeNote({ id: uuid(2), seedOrigin: 'seed', sourcePath: 'markdown/equipment/air-bike.md' }))).toBe('notebook/equipment');
+    expect(notebookOfItem(makeNote({ id: uuid(3), seedOrigin: 'seed', sourcePath: 'markdown/dashboards/benchmark-pr-board.md' }))).toBe('notebook/dashboards');
+    expect(notebookOfItem(makeNote({ id: uuid(4), seedOrigin: 'seed', sourcePath: 'markdown/canvas/guide/clock.md' }))).toBe('notebook/guides');
+    expect(notebookOfItem(makeNote({ id: uuid(5), seedOrigin: 'seed', sourcePath: 'markdown/collections/girls/fran.md' }))).toBe('notebook/girls');
+    expect(notebookOfItem(makeNote({ id: uuid(6), seedOrigin: 'seed', sourcePath: 'markdown/feeds/community/2024-01-01/post.md' }))).toBe('notebook/community');
+    // Writer root landings (`collection._root` / `feed._root`): the writer
+    // stamps no catalog, so they claim no notebook from either tier.
+    expect(notebookOfItem(makeNote({ id: uuid(7), seedOrigin: 'seed', sourcePath: 'markdown/collections/README.md' }))).toBeUndefined();
+    expect(notebookOfItem(makeNote({ id: uuid(8), seedOrigin: 'seed', sourcePath: 'markdown/feeds/README.md' }))).toBeUndefined();
+    // Unknown markdown/ paths claim nothing from the corpus tier, and the
+    // journal fallback rejects every markdown/ path (existing predicate).
+    expect(notebookOfItem(makeNote({ id: uuid(9), seedOrigin: 'user', sourcePath: 'markdown/somewhere/else.md' }))).toBeUndefined();
+  });
+
+  it('resolves the source-id corpus identities (efforts, equipment, dashboards, typed dashboards)', () => {
+    expect(notebookOfItem(makeNote({ id: uuid(1), seedOrigin: 'seed', sourceId: 'efforts' }))).toBe('notebook/efforts');
+    expect(notebookOfItem(makeNote({ id: uuid(2), seedOrigin: 'seed', sourceId: 'equipment' }))).toBe('notebook/equipment');
+    expect(notebookOfItem(makeNote({ id: uuid(3), seedOrigin: 'seed', sourceId: 'dashboards' }))).toBe('notebook/dashboards');
+    // Typed sourceless dashboards (post-repair vault rows) land in the same notebook.
+    expect(notebookOfItem(makeNote({ id: uuid(4), seedOrigin: 'user', type: 'dashboard' }))).toBe('notebook/dashboards');
+  });
+
+  it('orders fallbacks: notebookId, then the notebook tag, then the corpus path, then the source-id prefix', () => {
+    const conflicting = {
+      id: uuid(1),
+      seedOrigin: 'seed' as const,
+      sourceId: 'collection:girls/fran',
+      sourcePath: 'markdown/efforts/bodyweight/air-squat.md',
+    };
+    expect(notebookOfItem({ ...conflicting, notebookId: 'notebook/open-prep', tags: ['notebook:mine'] })).toBe('notebook/open-prep');
+    expect(notebookOfItem({ ...conflicting, tags: ['notebook:mine'] })).toBe('notebook/mine');
+    // Corpus path outranks the source-id prefix…
+    expect(notebookOfItem(conflicting)).toBe('notebook/efforts');
+    // …and agrees with it whenever both describe the same corpus note.
+    expect(notebookOfItem({ id: uuid(2), sourceId: 'efforts', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' })).toBe('notebook/efforts');
+    expect(notebookOfItem({ id: uuid(3), sourceId: 'collection:girls/fran', sourcePath: 'markdown/collections/girls/fran.md' })).toBe('notebook/girls');
+    expect(notebookOfItem({ id: uuid(4), sourceId: 'guides:guide/clock', sourcePath: 'markdown/canvas/guide/clock.md' })).toBe('notebook/guides');
+    expect(notebookOfItem({ id: uuid(5), sourceId: 'dashboards', sourcePath: 'markdown/dashboards/benchmark-pr-board.md' })).toBe('notebook/dashboards');
+    expect(notebookOfItem({ id: uuid(6), sourceId: 'collection:_root', sourcePath: 'markdown/collections/README.md' })).toBeUndefined();
+  });
+
+  it('keeps today\'s resolutions stable: journal, playground, feed ids, guides, and the journal predicate', () => {
+    expect(notebookOfItem(makeNote({ id: uuid(1), seedOrigin: 'user' }))).toBe('notebook/journal');
+    expect(notebookOfItem(makeNote({ id: 'playground/legacy-draft', seedOrigin: 'user' }))).toBe('notebook/playground');
+    expect(notebookOfItem(makeNote({ id: uuid(2), seedOrigin: 'seed', sourceId: 'feed:feeds/community/2024-01-01/post' }))).toBe('notebook/community');
+    expect(notebookOfItem(makeNote({ id: uuid(3), seedOrigin: 'seed', sourceId: 'guides:guide/clock' }))).toBe('notebook/guides');
+    // Corpus notes never journal — the corpus path and the sourceId literal
+    // both exclude them from the journal fallback.
+    for (const item of [
+      makeNote({ id: uuid(4), seedOrigin: 'seed', sourceId: 'efforts', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' }),
+      makeNote({ id: uuid(5), seedOrigin: 'seed', sourcePath: 'markdown/equipment/air-bike.md' }),
+      makeNote({ id: uuid(6), seedOrigin: 'user', type: 'dashboard' }),
+    ]) {
+      expect(sourceMatches(item, 'journal')).toBe(false);
+    }
+    expect(sourceMatches(makeNote({ id: uuid(7), seedOrigin: 'user' }), 'journal')).toBe(true);
+  });
+
+  it('keeps the journal predicate resolver-exact: user-notebook notes never journal', () => {
+    // An explicit notebookId and the notebook: tag convention both outrank
+    // the journal fallback — the note resolves to its notebook, never journal.
+    const openPrep = makeNote({ id: uuid(1), seedOrigin: 'user', notebookId: 'notebook/open-prep' });
+    const tagged = makeNote({ id: uuid(2), seedOrigin: 'user', tags: ['notebook:mine'] });
+    expect(notebookOfItem(openPrep)).toBe('notebook/open-prep');
+    expect(notebookOfItem(tagged)).toBe('notebook/mine');
+    expect(sourceMatches(openPrep, 'journal')).toBe(false);
+    expect(sourceMatches(tagged, 'journal')).toBe(false);
+    // Ordinary journal notes remain journal on both answer forms.
+    const plain = makeNote({ id: uuid(3), seedOrigin: 'user' });
+    expect(notebookOfItem(plain)).toBe('notebook/journal');
+    expect(sourceMatches(plain, 'journal')).toBe(true);
+    // The `source:journal` predicate IS the resolver's journal answer.
+    for (const n of [openPrep, tagged, plain]) {
+      expect(sourceMatches(n, 'journal')).toBe(notebookOfItem(n) === 'notebook/journal');
+    }
+  });
+
+  it('surfaces corpus notebooks through the WQL notebook: filter', async () => {
+    const notes: Note[] = [
+      makeNote({ id: 'effort-1', title: 'Air Squat', seedOrigin: 'seed', sourceId: 'efforts', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' }),
+      makeNote({ id: 'dash-1', title: 'PR Board', seedOrigin: 'seed', type: 'dashboard', sourceId: 'dashboards', sourcePath: 'markdown/dashboards/benchmark-pr-board.md' }),
+      makeNote({ id: uuid(1), title: 'Morning Log', seedOrigin: 'user' }),
+    ];
+    const service = new QueryService({
+      noteStore: {
+        getAllNotes: async () => notes,
+        getNoteIdsForTag: async () => new Set<string>(),
+        getNoteTagLabels: async () => [],
+      },
+      blockStore: { getAllBlocks: async () => [] as BlockIndexRow[] },
+    });
+    const efforts = await service.runFind(parseQuery(':note{notebook:efforts}') as Parameters<typeof service.runFind>[0]);
+    expect(efforts.notes.map((n) => n.id)).toEqual(['effort-1']);
+    const dashboards = await service.runFind(parseQuery(':note{notebook:dashboards}') as Parameters<typeof service.runFind>[0]);
+    expect(dashboards.notes.map((n) => n.id)).toEqual(['dash-1']);
+    const journal = await service.runFind(parseQuery(':note{notebook:journal}') as Parameters<typeof service.runFind>[0]);
+    expect(journal.notes.map((n) => n.id)).toEqual([uuid(1)]);
   });
 });

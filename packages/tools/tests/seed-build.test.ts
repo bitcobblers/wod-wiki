@@ -29,7 +29,8 @@ import {
   validateDashboardNote,
   validateWodBlockSyntax,
 } from '../src/seedbuild/compiler';
-import { SEED_SCHEMA, canvasRouteSlug } from '../src/seedbuild/contract';
+import { SEED_SCHEMA, catalogForChunkId, canvasRouteSlug, seedNoteSourceId } from '../src/seedbuild/contract';
+import { catalogOfItem, notebookOfItem } from '@bitcobblers/wod-wiki-wql';
 import { cliMain } from '../src/index';
 
 const sha256 = (data: string | Buffer): string =>
@@ -331,6 +332,42 @@ describe('canvasRouteSlug', () => {
   });
   it('rejects route-bearing files that are not canvas pages', () => {
     expect(canvasRouteSlug('---\nroute: /guide/x\ntitle: "X"\n---\n# X')).toBeNull();
+  });
+});
+
+describe('writer ↔ resolver agreement (ticket 02)', () => {
+  // One representative path per chunk family; content matters only for
+  // canvas (route frontmatter drives the sourceId).
+  const CASES: { path: string; content: string; notebook?: `notebook/${string}`; catalog?: string }[] = [
+    { path: 'markdown/collections/girls/fran.md', content: '# Fran\n', notebook: 'notebook/girls', catalog: 'girls' },
+    { path: 'markdown/collections/girls/README.md', content: '# Girls\n', notebook: 'notebook/girls', catalog: 'girls' },
+    // Root landings: the writer stamps no catalog (chunk `collection._root`
+    // / `feed._root`), so they claim no notebook at all.
+    { path: 'markdown/collections/README.md', content: '# Collections\n' },
+    { path: 'markdown/feeds/README.md', content: '# Feeds\n' },
+    { path: 'markdown/feeds/community/2026-01-02/post.md', content: '# Post\n', notebook: 'notebook/community', catalog: 'community' },
+    { path: 'markdown/canvas/guide/clock.md', content: '---\nroute: /guide/clock\ntemplate: canvas\n---\n# Clock', notebook: 'notebook/guides' },
+    { path: 'markdown/efforts/bodyweight/air-squat.md', content: '# Air Squat\n', notebook: 'notebook/efforts' },
+    { path: 'markdown/dashboards/benchmark-pr-board.md', content: '# PR Board\n', notebook: 'notebook/dashboards' },
+    { path: 'markdown/equipment/air-bike.md', content: '# Air Bike\n', notebook: 'notebook/equipment' },
+  ];
+
+  it('seedNoteSourceId output and the corpus path resolve to the same notebook', () => {
+    for (const c of CASES) {
+      const chunkId = chunkIdFor(c.path);
+      expect(chunkId, c.path).toBeTruthy();
+      const sourceId = seedNoteSourceId(c.path, c.content, chunkId!);
+      expect(sourceId, c.path).toBeTruthy();
+      const stamped = { id: 'seed-note', sourceId, sourcePath: c.path, seedOrigin: 'seed' as const };
+      expect(notebookOfItem(stamped), c.path).toEqual(c.notebook);
+      // Either writer convention alone lands in the same notebook — the
+      // source-id tier and the corpus-path tier never disagree.
+      expect(notebookOfItem({ ...stamped, sourceId: undefined }), c.path).toEqual(c.notebook);
+      expect(notebookOfItem({ ...stamped, sourcePath: undefined }), c.path).toEqual(c.notebook);
+      // The catalog writer and the reader projection agree on EVERY case —
+      // catalog chunks carry the directory id, root landings carry none.
+      expect(catalogForChunkId(chunkId!), c.path).toBe(catalogOfItem(stamped));
+    }
   });
 });
 

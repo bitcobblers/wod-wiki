@@ -13,8 +13,11 @@ import {
   type DomainQueryResult,
 } from '../domain';
 import { isRange, keyFromValue, type KeyDTO, type RangeDTO, type TxOp } from '../wire';
-// The app's own source/catalog semantics — no duplicated matchers.
-import { catalogOfItem, sourceMatches } from '@bitcobblers/wod-wiki-wql';
+// The app's own source/catalog semantics — no duplicated matchers. The
+// sourceId prefixes/exact literals below are built from the SAME shape table
+// the JS `sourceMatches` predicate reads, so the wire and the JS filter are
+// one decision (ticket 02); `journal` is the resolver's materialized answer.
+import { catalogOfItem, sourceMatches, sourceShape, WQL_SOURCE_VALUES } from '@bitcobblers/wod-wiki-wql';
 import { rowsEqual, validateStoredPins } from '../validation';
 import type { BlockRevision, Note, Session } from '../entities';
 
@@ -30,6 +33,13 @@ function sourceItem(row: Record<string, unknown>): SourceItem {
     const value = row[key];
     if (typeof value === 'string') item[key] = value;
     else if (value != null) throw new StorageError(400, `${key} must be a string`);
+  }
+  // Tags are resolver inputs (the `notebook:` convention outranks the
+  // journal fallback) — the projection must see what the resolver sees.
+  const tags = row['tags'];
+  if (tags !== undefined && tags !== null) {
+    if (!Array.isArray(tags) || !tags.every((t) => typeof t === 'string')) throw new StorageError(400, 'tags must be a string array');
+    item.tags = tags as readonly string[];
   }
   return item;
 }
@@ -649,32 +659,28 @@ class Sql {
   }
 }
 
-/** WQL source domain — mirrors WQL_SOURCE_VALUES; the non-shape kinds
- * (dashboards/efforts) are exact sourceId literals, journal is materialized. */
-const SOURCE_ALL_KINDS = ['journal', 'feeds', 'guides', 'playground', 'dashboards', 'efforts'];
+/** WQL source domain — derived from the authoritative WQL_SOURCE_VALUES
+ * (journal leads the fence; the rest ride the shared shape table), so the
+ * SQL sourceFence cannot drift from the JS `source:all` domain. */
+const SOURCE_ALL_KINDS = ['journal', ...WQL_SOURCE_VALUES.filter((k) => k !== 'journal')];
 
+/** SQL projection of one source kind — built from the SAME
+ *  {@link SOURCE_ID_SHAPES} table `sourceMatches` reads (single shared
+ *  projection; never a second prefix decision). Unknown kinds keep the exact
+ *  sourceId literal. `journal` reads the materialized column, which the
+ *  write path computes with `sourceMatches(…, 'journal')` — the resolver's
+ *  documented journal fallback. */
 function sourceKindSql(ctx: Sql, kind: string, sid: string, typeExpr: string | null, journalCol: string): string {
-  switch (kind) {
-    case 'journal':
-      return `(${journalCol} = 1)`;
-    case 'feed':
-    case 'feeds':
-      // Storage identities keep the collection:/page:collection: prefixes.
-      return `(substr(${sid}, 1, 11) = 'collection:' OR substr(${sid}, 1, 16) = 'page:collection:')`;
-    case 'page':
-    case 'pages':
-      return `(${sid} = 'page' OR substr(${sid}, 1, 5) = 'page:' OR substr(${sid}, 1, 7) = 'guides:')`;
-    case 'guide':
-    case 'guides':
-      return `(substr(${sid}, 1, 7) = 'guides:')`;
-    case 'playground':
-      return typeExpr
-        ? `(${sid} = 'playground' OR (${typeExpr} IS NOT NULL AND ${typeExpr} = 'playground'))`
-        : `(${sid} = 'playground')`;
-    default:
-      // Exact sourceId literal; NULL sourceId never equals a value.
-      return `(${sid} = ${ctx.bind(kind)})`;
+  if (kind === 'journal') return `(${journalCol} = 1)`;
+  const shape = sourceShape(kind) ?? { exact: [kind] };
+  const parts: string[] = [];
+  for (const v of shape.exact ?? []) parts.push(`${sid} = ${ctx.bind(v)}`);
+  for (const p of shape.prefixes ?? []) parts.push(`substr(${sid}, 1, ${p.length}) = ${ctx.bind(p)}`);
+  if (shape.legacyType) {
+    // The legacy note-type convention exists only on the note plane.
+    parts.push(typeExpr ? `${typeExpr} = ${ctx.bind(shape.legacyType)}` : 'FALSE');
   }
+  return `(${parts.join(' OR ')})`;
 }
 
 function sourcePredicateSql(ctx: Sql, values: string[], negate: boolean, sid: string, typeExpr: string | null, journalCol: string): string {

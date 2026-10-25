@@ -653,4 +653,50 @@ describe('toEntry — notebook/{slug} identity and application-level editability
     expect(seedWorkout.notebookId).toBe('notebook/crossfit-girls')
     expect(seedWorkout.editable).toBe(false)
   })
+
+  it('carries the resolver notebook for every corpus family — stamped and path-only rows alike', () => {
+    const CASES: Array<{ note: Partial<Note> & { id: string }; kind: EntryKind; notebookId: string }> = [
+      {
+        note: { id: 'effort-1', sourceId: 'efforts', sourcePath: 'markdown/efforts/bodyweight/air-squat.md', seedOrigin: 'seed' },
+        kind: 'effort',
+        notebookId: 'notebook/efforts',
+      },
+      {
+        // Legacy sourceless row addressed by its corpus path only.
+        note: { id: 'effort-2', sourcePath: 'markdown/efforts/running/5k.md', seedOrigin: 'seed' },
+        kind: 'effort',
+        notebookId: 'notebook/efforts',
+      },
+      {
+        note: { id: 'equip-1', sourceId: 'equipment', sourcePath: 'markdown/equipment/air-bike.md', seedOrigin: 'seed' },
+        kind: 'equipment',
+        notebookId: 'notebook/equipment',
+      },
+      {
+        note: { id: 'dash-1', type: 'dashboard', sourceId: 'dashboards', sourcePath: 'markdown/dashboards/benchmark-pr-board.md', seedOrigin: 'seed' },
+        kind: 'dashboard',
+        notebookId: 'notebook/dashboards',
+      },
+      {
+        note: { id: 'dash-2', type: 'dashboard', seedOrigin: 'user' },
+        kind: 'dashboard',
+        notebookId: 'notebook/dashboards',
+      },
+      {
+        note: { id: 'post-1', sourceId: 'feed:feeds/community/2026-01-02/post', sourcePath: 'markdown/feeds/community/2026-01-02/post.md', seedOrigin: 'seed' },
+        kind: 'post',
+        notebookId: 'notebook/community',
+      },
+      {
+        note: { id: 'guide-1', sourceId: 'guides:guide/clock', sourcePath: 'markdown/canvas/guide/clock.md', seedOrigin: 'seed' },
+        kind: 'note',
+        notebookId: 'notebook/guides',
+      },
+    ]
+    for (const c of CASES) {
+      const entry = toEntry(makeNote(c.note))
+      expect(entry.kind, c.note.id).toBe(c.kind)
+      expect(entry.notebookId, c.note.id).toBe(c.notebookId)
+    }
+  })
 })

@@ -87,6 +87,9 @@ const NOTE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /** Extract the catalog directory id from a Note or BlockIndexRow.
  *  Uses explicit `catalog` when present; falls back to parsing `sourceId`
  *  (stripping `collection:`/`feed:` prefixes and `feeds/` path components) or `noteId`.
+ *  Root landings carry no catalog — the writer stamps `collection:_root` /
+ *  `feed._root` chunk rows with an undefined catalog field, and a bare
+ *  single-segment feed remainder is a root-file stem, never a directory.
  *  Exported so host mappers (Entry derivation) carry the exact field the
  *  `catalog:` filter matches — presentation catalogs must not diverge. */
 export function catalogOfItem(item: { id?: string; noteId?: string; sourceId?: string; catalog?: string }): string | undefined {
@@ -96,7 +99,12 @@ export function catalogOfItem(item: { id?: string; noteId?: string; sourceId?: s
   if (!raw) return undefined;
   if (NOTE_UUID_RE.test(raw)) return undefined;
   const clean = raw.startsWith('feeds/') ? raw.slice('feeds/'.length) : raw;
-  if (!isCollectionOrFeed && !clean.includes('/')) return undefined;
+  if (isCollectionOrFeed) {
+    if (clean === '_root') return undefined;
+    if (item.sourceId!.startsWith('feed:') && !clean.includes('/')) return undefined;
+  } else if (!clean.includes('/')) {
+    return undefined;
+  }
   return clean.split('/')[0];
 }
 
@@ -120,8 +128,18 @@ export {
 
 /**
  * Resolve the canonical `notebook/{slug}` container for any Note or BlockIndexRow.
- * Unifies explicit `notebookId`, default notebooks (`notebook/journal`, `notebook/playground`,
- * `notebook/guides`), `notebook:{slug}` tags, and seed catalogs (`notebook/{catalog}`).
+ *
+ * Fallback precedence (first match wins), shared by every consumer — the WQL
+ * query layer, the host entry mapper, and the storage projections:
+ *   1. explicit `notebookId` (user-created notebooks),
+ *   2. the `notebook:{slug}` tag convention (user notebook membership),
+ *   3. the corpus path (`markdown/<family>/…` sourcePath),
+ *   4. the source-id prefix (`collection:`, `feed:`, `guides:`, `playground`,
+ *      and the `efforts`/`equipment`/`dashboards` corpus literals),
+ *   5. the journal fallback.
+ * Tiers 3 and 4 agree for every corpus note: the seed writer
+ * (`seedNoteSourceId`/`chunkIdFor`) derives the sourceId from the same path
+ * the importer stamps as `sourcePath`.
  */
 export function notebookOfItem(item: {
   id?: string;
@@ -146,64 +164,140 @@ export function notebookOfItem(item: {
       }
     }
   }
+  // Corpus path — `markdown/<family>/…` rows written by the seed compiler
+  // (`chunkIdFor` mirrors these family rules). Collections and feeds carry
+  // the catalog in the next segment; a file directly under the directory is
+  // the writer's root landing (`collection._root` / `feed._root`) — the
+  // writer stamps no catalog for it, so it claims no notebook here either.
+  // Canvas guides, efforts, dashboards, and equipment map to their family
+  // notebook.
+  const corpus = /^markdown\/(collections|feeds|canvas|efforts|dashboards|equipment)\/(.+)$/.exec(item.sourcePath ?? '');
+  if (corpus) {
+    const [, family, rest] = corpus;
+    if (family === 'canvas') return 'notebook/guides';
+    if (family !== 'collections' && family !== 'feeds') return toNotebookId(family);
+    const segs = rest.split('/');
+    if (segs.length > 1) return toNotebookId(segs[0]!);
+  }
   if (sourceMatches(item, 'playground')) return 'notebook/playground';
   if (sourceMatches(item, 'guides')) return 'notebook/guides';
+  // Corpus source-id literals and the typed-dashboard convention — same
+  // answers the corpus-path tier produces for writer rows.
+  if (item.sourceId === 'efforts') return 'notebook/efforts';
+  if (item.sourceId === 'equipment') return 'notebook/equipment';
+  if (item.sourceId === 'dashboards' || item.type === 'dashboard') return 'notebook/dashboards';
   const cat = catalogOfItem(item);
   if (cat) return toNotebookId(cat);
-  if (sourceMatches(item, 'journal')) return 'notebook/journal';
+  if (isJournalRow(item)) return 'notebook/journal';
   return undefined;
 }
 
-/** Match a single row against one source filter value. The `journal` kind matches
- *  rows with no sourceId, the literal 'journal', or UUID / journal/date lineage
- *  pointing to the original note. Lineage also passes corpus exclusions below.
- *  The feed / guide kinds match
- *  rows whose sourceId starts with the kind (storage identities keep their
- *  `collection:`/`page:collection:` prefixes — only the query vocabulary
- *  was renamed). A `kind:id` literal matches the
- *  exact id. `playground` matches the playground intake's sourceId convention
+/** The resolver's journal fallback tier — pure shape logic over the row's own
+ *  fields (no prefix, no notebook ownership). {@link notebookOfItem} reaches
+ *  `notebook/journal` only through this predicate, and
+ *  `sourceMatches(…, 'journal')` is expressed through the resolver's final
+ *  answer, so the JS filter and the materialized `journal` column can never
+ *  claim journal for a note an earlier tier (notebookId, tag, corpus,
+ *  sourceId) already placed elsewhere. */
+function isJournalRow(item: {
+  id?: string; noteId?: string; sourceId?: string; type?: string;
+  seedOrigin?: string; seedChunkId?: string; sourcePath?: string; catalog?: string;
+}): boolean {
+  const sourceId = item.sourceId;
+  if (item.type === 'playground' || item.id?.startsWith('playground/') || item.noteId?.startsWith('playground/')) return false;
+  if (sourceId && sourceId !== 'journal' && !NOTE_UUID_RE.test(sourceId) && !/^journal\/\d{4}-\d{2}-\d{2}$/.test(sourceId)) return false;
+  // UUID or legacy journal/date lineage still must pass corpus exclusions.
+  return item.type !== 'dashboard'
+    && item.type !== 'effort'
+    && item.type !== 'equipment'
+    && item.seedOrigin !== 'seed'
+    && item.seedChunkId === undefined
+    && !item.catalog
+    && !(!!item.sourcePath && item.sourcePath.startsWith('markdown/'));
+}
+
+/**
+ * Storage-identity shape per WQL source kind — THE one table of `sourceId`
+ * prefixes and exact literals. The JS residual filter (`sourceMatches`) and
+ * the storage wire's SQL projection (`sourceKindSql` in
+ * @bitcobblers/wod-wiki-storage) both derive from this table, so the two
+ * planes cannot disagree, and the source-id tier of {@link notebookOfItem}
+ * agrees with both by construction. `journal` is absent on purpose: it is
+ * the resolver's fallback decision, materialized as the computed `journal`
+ * column, not a sourceId shape.
+ */
+export const SOURCE_ID_SHAPES: Readonly<Record<string, {
+  /** sourceIds exactly equal to one of these match the kind. */
+  exact?: readonly string[];
+  /** sourceIds starting with one of these match the kind. */
+  prefixes?: readonly string[];
+  /** Legacy rows that predate the sourceId convention match via note `type`. */
+  legacyType?: string;
+}>> = {
+  feeds: { prefixes: ['collection:', 'page:collection:'] },
+  pages: { exact: ['page'], prefixes: ['page:', 'guides:'] },
+  guides: { prefixes: ['guides:'] },
+  playground: { exact: ['playground'], legacyType: 'playground' },
+  efforts: { exact: ['efforts'] },
+  equipment: { exact: ['equipment'] },
+  dashboards: { exact: ['dashboards'] },
+};
+
+/** Query-vocabulary aliases for the shape table kinds. `notebook`/`notebooks`
+ *  deliberately ride the feeds shape — the authored storage scope for
+ *  notebooks keeps its `collection:`/`page:collection:` identities. */
+const SOURCE_SHAPE_ALIASES: Record<string, string> = {
+  feed: 'feeds',
+  page: 'pages',
+  guide: 'guides',
+  notebook: 'feeds',
+  notebooks: 'feeds',
+};
+
+/** The storage-identity shape for a WQL source kind (aliases resolved), or
+ *  undefined for kinds that are not pure sourceId shapes (`journal`, `all`,
+ *  `feed:<slug>` targets, plain sourceId literals). The storage wire's SQL
+ *  projection reads the same accessor. */
+export function sourceShape(kind: string): (typeof SOURCE_ID_SHAPES)[string] | undefined {
+  return SOURCE_ID_SHAPES[SOURCE_SHAPE_ALIASES[kind] ?? kind];
+}
+
+/** Match a single row against one source filter value. The `journal` kind is
+ *  the resolver's own answer: a row journals exactly when
+ *  {@link notebookOfItem} places it in `notebook/journal` — no sourceId
+ *  identity, no corpus path, no notebookId, no `notebook:` tag (see
+ *  {@link isJournalRow} for the fallback's shape exclusions).
+ *  The feed / guide / page / playground / corpus kinds read the shared
+ *  {@link SOURCE_ID_SHAPES} table — the same sourceId prefixes/exact literals
+ *  the storage wire's SQL projection is built from. A `kind:id` literal matches
+ *  the exact id. `playground` matches the playground intake's sourceId convention
  *  and, on the note plane, legacy rows typed 'playground' (playground pages
  *  saved before the sourceId convention existed — their sourceId is absent).
  *  `all` spans exactly the WQL source domain plus sourceless rows — identical
- *  to the source fence. `journal` rejects the rest of the seed corpus: rows
- *  with seed provenance (importer stamps, or surviving seedChunkId /
- *  markdown/ sourcePath / catalog on legacy user-edited rows whose
- *  seedOrigin flipped to 'user') and typed dashboards never journal — a user
- *  journal note carries none of those markers. Exported so host mappers
+ *  to the source fence. Exported so host mappers
  *  classify result rows with the exact predicate the `source:` filter
  *  applies. */
 export function sourceMatches(
   item: {
     id?: string; noteId?: string; sourceId?: string; type?: string;
     seedOrigin?: string; seedChunkId?: string; sourcePath?: string; catalog?: string; notebookId?: string;
+    tags?: readonly string[];
   },
   kind: string,
 ): boolean {
   const sourceId = item.sourceId;
   if (kind === 'all') return !sourceId || WQL_SOURCE_VALUES.some((k) => sourceMatches(item, k));
   if (kind === 'journal') {
-    if (item.type === 'playground' || item.id?.startsWith('playground/') || item.noteId?.startsWith('playground/')) return false;
-    if (sourceId && sourceId !== 'journal' && !NOTE_UUID_RE.test(sourceId) && !/^journal\/\d{4}-\d{2}-\d{2}$/.test(sourceId)) return false;
-    // UUID or legacy journal/date lineage still must pass corpus exclusions.
-    return item.type !== 'dashboard'
-      && item.type !== 'effort'
-      && item.type !== 'equipment'
-      && item.seedOrigin !== 'seed'
-      && item.seedChunkId === undefined
-      && !item.catalog
-      && !(!!item.sourcePath && item.sourcePath.startsWith('markdown/'));
+    // One decision: a row journals exactly when the resolver's fallback
+    // places it in notebook/journal — explicit notebookId, notebook: tags,
+    // corpus paths, and sourceId identities all outrank the fallback.
+    return notebookOfItem(item) === 'notebook/journal';
   }
-  if (kind === 'feed' || kind === 'feeds' || kind === 'notebook' || kind === 'notebooks') {
-    return !!sourceId && (sourceId.startsWith('collection:') || sourceId.startsWith('page:collection:'));
-  }
-  if (kind === 'page' || kind === 'pages') {
-    return !!sourceId && (sourceId === 'page' || sourceId.startsWith('page:') || sourceId.startsWith('guides:'));
-  }
-  if (kind === 'guide' || kind === 'guides') {
-    return !!sourceId && sourceId.startsWith('guides:');
-  }
-  if (kind === 'playground') {
-    return sourceId === 'playground' || item.type === 'playground';
+  const shape = sourceShape(kind);
+  if (shape) {
+    const idHit = !!sourceId
+      && (shape.exact?.includes(sourceId) || shape.prefixes?.some((p) => sourceId.startsWith(p)) === true);
+    return idHit || (!!shape.legacyType && item.type === shape.legacyType);
   }
   if (kind.startsWith('feed:')) {
     // `feed:<slug>` targets one feed's notes; a full `feed:<slug>/<date>/<item>`
