@@ -42,7 +42,8 @@ export type MetricOrigin =
   | 'analyzed'
   | 'analyzed-estimated'
   | 'execution'
-  | 'user-plan';
+  | 'user-plan'
+  | 'diagnostic';
 
 export type Origin = MetricOrigin;
 
@@ -210,6 +211,8 @@ export enum MetricType {
   /** Runtime-layer calculated metric emitted from declarative formulas */
   Calculated = 'calculated',
 
+  /** Skipped-Dependency Diagnostic emitted by the Metric Shake-Out Queue */
+  Diagnostic = 'diagnostic',
   /**
    * **Choice** (Parser) — a pipe-separated OR expression.
    *

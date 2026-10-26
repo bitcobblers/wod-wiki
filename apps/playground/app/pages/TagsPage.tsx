@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { BUILTIN_CALCS, findTagContributionCycles } from '@bitcobblers/wod-wiki-engine';
 import type { Tag, TagContribution, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
 import { Plus, Trash2 } from 'lucide-react';
@@ -25,6 +25,9 @@ import { storageService } from '@/services/storage';
 import { refreshTagIndex } from '@/services/tags/tagCatalogue';
 import { useTagIndex } from '@/hooks/useTagIndex';
 import { hydrateUserCalcs } from '@/stores/userCalcStore';
+import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
+import { buildTagNoteDocument, usePropertyNote } from '../hooks/usePropertyNote';
+import { tagPath } from '../lib/routes';
 
 /** A function a tag can carry, with the grain it runs at. */
 interface FunctionOption {
@@ -44,15 +47,21 @@ const GRAIN_BY_SCOPE: Record<string, string> = {
 const RUNNABLE_SCOPES = new Set(['segment', 'workout']);
 
 export interface TagsPageProps {
+  /** /t/:type — the Tag Category slug when opened on a category route. */
+  initialType?: string;
   /** /t/:type/:tag deep link — the tag label to open on load. */
   initialTag?: string;
 }
 
-export function TagsPage({ initialTag }: TagsPageProps = {}) {
+export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
+  const params = useParams<{ type?: string; tag?: string }>();
   const [searchParams] = useSearchParams();
-  const requestedTag = searchParams.get('tag') ?? initialTag;
+  const activeCategory = (initialType ?? params.type ?? '').trim();
+  const requestedTag = searchParams.get('tag') ?? initialTag ?? params.tag;
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagTypes, setTagTypes] = useState<TagTypeRecord[]>([]);
+  const [effortSlugs, setEffortSlugs] = useState<Array<{ id: string; label: string; type: string }>>([]);
+  const [equipmentSlugs, setEquipmentSlugs] = useState<Array<{ id: string; label: string; type: string }>>([]);
   const [functions, setFunctions] = useState<FunctionOption[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [label, setLabel] = useState('');
@@ -64,14 +73,18 @@ export function TagsPage({ initialTag }: TagsPageProps = {}) {
   const [saved, setSaved] = useState(false);
 
   const load = useCallback(async () => {
-    const [storedTags, storedTypes] = await Promise.all([
+    const [storedTags, storedTypes, storedEfforts, storedEquipment] = await Promise.all([
       storageService.getAllTags(),
       storageService.getAllTagTypes(),
+      storageService.getAllEfforts().catch(() => []),
+      storageService.getAllEquipment().catch(() => []),
     ]);
     // A calc that does not compile must not keep the page from listing tags.
     const hydration = await hydrateUserCalcs().catch(() => ({ defs: [], errors: [] }));
     setTags(storedTags);
     setTagTypes(storedTypes);
+    setEffortSlugs(storedEfforts.map(e => ({ id: e.id || `effort-${e.slug}`, label: e.slug, type: 'effort' })));
+    setEquipmentSlugs(storedEquipment.map(eq => ({ id: eq.id || `equipment-${eq.slug}`, label: eq.slug, type: 'equipment' })));
     const options: FunctionOption[] = BUILTIN_CALCS.filter(calc =>
       RUNNABLE_SCOPES.has(calc.scope),
     ).map(calc => ({
@@ -108,6 +121,32 @@ export function TagsPage({ initialTag }: TagsPageProps = {}) {
   const tagIndex = useTagIndex();
   const cycles = useMemo(() => findTagContributionCycles(tagIndex), [tagIndex]);
 
+  const activeTagType = useMemo(
+    () => tagTypes.find(t => t.name.toLowerCase() === activeCategory.toLowerCase()) ?? null,
+    [tagTypes, activeCategory],
+  );
+  const categoryChildren = useMemo(() => {
+    if (!activeCategory) return [];
+    const norm = activeCategory.toLowerCase();
+    if (norm === 'effort') {
+      return [...effortSlugs, ...tags.filter(t => t.type?.toLowerCase() === 'effort')];
+    }
+    if (norm === 'equipment') {
+      return [...equipmentSlugs, ...tags.filter(t => t.type?.toLowerCase() === 'equipment')];
+    }
+    if (norm === 'tag' || norm === 'general') {
+      return tags.filter(t => !t.type || t.type.toLowerCase() === 'tag' || t.type.toLowerCase() === 'general');
+    }
+    return tags.filter(t => t.type?.toLowerCase() === norm);
+  }, [tags, effortSlugs, equipmentSlugs, activeCategory]);
+
+  const propertyNote = usePropertyNote(
+    selected ? (kind || activeCategory || 'tag') : (activeCategory || undefined),
+    selected ? selected.label : requestedTag || undefined,
+    selected,
+    activeTagType,
+  );
+
   const save = async (): Promise<boolean> => {
     if (!selected) return false;
     const trimmed = label.trim();
@@ -120,12 +159,28 @@ export function TagsPage({ initialTag }: TagsPageProps = {}) {
       setError(`Another tag is already called "${trimmed}".`);
       return false;
     }
-    await storageService.putTag({
+    const updatedTag: Tag = {
       ...selected,
       label: trimmed,
       type: kind || undefined,
       contributions,
-    });
+    };
+    await storageService.putTag(updatedTag);
+    const noteCat = kind || activeCategory || 'tag';
+    const noteId = `t/${noteCat}/${trimmed}`;
+    const bodyPart = propertyNote.document.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trim();
+    const baseDoc = buildTagNoteDocument(updatedTag, noteCat);
+    const syncedDoc = bodyPart
+      ? `${baseDoc.match(/^---\r?\n[\s\S]*?\r?\n---/)?.[0] ?? ''}\n\n${bodyPart}`
+      : baseDoc;
+    await storageService.saveNoteSource({
+      noteId,
+      rawContent: syncedDoc,
+      expectedSourceRevision: propertyNote.sourceRevision,
+      blocks: {},
+      metadata: { title: trimmed, sourceId: 'tags' },
+      createdAt: Date.now(),
+    }).catch(() => undefined);
     await refreshTagIndex();
     await load();
     setError(null);
@@ -251,6 +306,51 @@ export function TagsPage({ initialTag }: TagsPageProps = {}) {
           No tag is selected — open one from the <a className="text-primary hover:underline" href="/tags">tag catalogue</a>.
         </p>
       )}
+      {!selected && activeCategory && (
+        <section className="space-y-4" data-testid="tag-category-property-note">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground">
+              Category: {activeTagType?.label ?? activeCategory}
+            </h2>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              onClick={() => void propertyNote.save()}
+            >
+              Save Category Note
+            </Button>
+          </div>
+          {categoryChildren.length > 0 && (
+            <div className="p-4 rounded-xl border border-border bg-card space-y-2" data-testid="tag-category-children">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Tags in {activeCategory} ({categoryChildren.length})
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {categoryChildren.map(child => (
+                  <a
+                    key={child.id}
+                    href={tagPath(child.type || activeCategory, child.label)}
+                    className="inline-flex items-center rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-mono text-foreground hover:bg-muted"
+                  >
+                    #{child.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+          {propertyNote.document && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <NoteEditor
+                noteId={`t/${activeCategory}`}
+                value={propertyNote.document}
+                onChange={propertyNote.setDocument}
+              />
+            </div>
+          )}
+        </section>
+      )}
 
       {selected && (
         <section className="space-y-3">
@@ -368,6 +468,19 @@ export function TagsPage({ initialTag }: TagsPageProps = {}) {
               )}
             </div>
           </div>
+          {propertyNote.document && (
+            <div className="rounded-xl border border-border bg-card p-4 space-y-2" data-testid="tag-property-note">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Property Note &amp; Dashboard Widgets
+              </h3>
+              <NoteEditor
+                noteId={`t/${kind || activeCategory || 'tag'}/${selected.label}`}
+                value={propertyNote.document}
+                onChange={propertyNote.setDocument}
+                showFrontmatter={false}
+              />
+            </div>
+          )}
         </section>
       )}
     </div>

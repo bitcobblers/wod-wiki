@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-handstand-push-up
 slug: handstand-push-up
 label: Handstand Push-Up
@@ -10,9 +11,8 @@ aliases:
   - "Handstand Push Up"
   - "Handstand Push Ups"
   - "Handstand Pushups"
-baseAttributes:
-  met: 6.0
-  discipline: gymnastics
-  intensityTier: high
+metrics.met: 6.0
+discipline: gymnastics
+intensityTier: high
 registrySource: bundled
 ---

@@ -20,6 +20,7 @@ import type {
   Session,
 } from '@bitcobblers/wod-wiki-core';
 import { fieldRefKey } from '@bitcobblers/wod-wiki-core';
+import { parseFrontmatter } from '@bitcobblers/wod-wiki-wql';
 
 /** Multiset identity of one contribution — unit/value/spelling evidence is
  *  part of the reversal record, so an evidence change is a real delta. */
@@ -131,7 +132,6 @@ export function extractContributionsFromResult(
   });
   return contributions;
 }
-const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
 
 /**
  * Extract the catalog contributions of unified event rows (append /
@@ -162,25 +162,34 @@ export function extractContributionsFromEventRows(
  */
 export function extractContributionsFromNote(note: Note): Array<FieldContribution & { rowId: string }> {
   const raw: unknown = note && typeof note === 'object' && 'rawContent' in note ? note.rawContent : '';
-  const match = FRONTMATTER.exec(typeof raw === 'string' ? raw : '');
-  if (!match) return [];
-  const contributions: FieldContribution[] = [];
-  for (const line of match[1]!.split(/\r?\n/)) {
-    const kv = /^([A-Za-z_][\w -]*):\s*(.*)$/.exec(line.trim());
-    if (!kv) continue;
-    const key = kv[1]!.trim();
-    const rawValue = kv[2]!.trim();
-    // Scalar lines only — nested objects/arrays/block scalars are skipped
-    // by this line parser (structured sources contribute via their own
-    // typed boundaries).
-    if (!rawValue || /^[{[>|]/.test(rawValue)) continue;
+  if (typeof raw !== 'string' || !raw.trimStart().startsWith('---')) return [];
+  const { meta } = parseFrontmatter(raw);
+  const contributions: Array<FieldContribution & { rowId: string }> = [];
+  for (const [rawKey, rawValue] of Object.entries(meta)) {
+    const key = rawKey.trim();
+    if (!key) continue;
+    if (key.startsWith('metrics.') || key.startsWith('summaries.')) {
+      const subKey = key.replace(/^(?:metrics|summaries)\./, '').trim();
+      if (!subKey || subKey === 'effort' || subKey === 'equipment') continue;
+      contributions.push({
+        fieldId: fieldRefKey({ path: subKey, kind: 'number' }),
+        path: subKey,
+        kind: 'number',
+        spelling: subKey,
+        rowId: `fm:${key}`,
+      });
+      continue;
+    }
+    if (Array.isArray(rawValue) || rawValue === '' || rawValue === undefined || rawValue === null) continue;
+    const strValue = String(rawValue).trim();
+    if (!strValue || /^[{[>|]/.test(strValue)) continue;
     const path = key
-      .split(/[\s_-]+/)
+      .split(/[\s._-]+/)
       .map((w, i) => (i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
       .join('');
-    const numeric = /^-?\d+(\.\d+)?$/.test(rawValue);
+    const numeric = typeof rawValue === 'number' || /^-?\d+(\.\d+)?$/.test(strValue);
     const kind = numeric ? 'number' : 'string';
-    const value = numeric ? undefined : rawValue.replace(/^["']|["']$/g, '');
+    const value = numeric ? undefined : strValue.replace(/^["']|["']$/g, '');
     contributions.push({
       fieldId: fieldRefKey({ path, kind: kind as never }),
       path,

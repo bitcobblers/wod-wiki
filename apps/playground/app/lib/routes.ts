@@ -62,7 +62,9 @@ export const ROUTE_PATTERNS = {
   page: '/page/:slug',
   /** /tags — the tag catalogue. */
   tags: '/tags',
-  /** /t/:type/:tag — one tag of one type. */
+  /** /t/:type — one Tag Category Property Note and its child tags list. */
+  tagCategory: '/t/:type',
+  /** /t/:type/:tag — one Tag Property Note of one category. */
   tag: '/t/:type/:tag',
   /** /sessions list, /results/:sessionId detail, /session/:date — the sessions family. */
   sessions: '/sessions',
@@ -198,6 +200,16 @@ export function equipmentPath(slug: string): string {
   return `/equipment/${encodeURIComponent(slug)}`;
 }
 
+/** /t/:type — one Tag Category Property Note. */
+export function tagCategoryPath(type: string): string {
+  return `/t/${encodeURIComponent(type)}`;
+}
+
+/** /t/:type/:tag — one Tag Property Note. */
+export function tagPath(type: string, tag: string): string {
+  return `/t/${encodeURIComponent(type)}/${encodeURIComponent(tag)}`;
+}
+
 /** /dashboards?q=… — the dashboard list / WQL explorer with an optional
  * pre-filled query and range. */
 export function analyticsExplorerPath(options?: { q?: string; weeks?: number }): string {
@@ -308,17 +320,17 @@ export function isNotebookItemPath(pathname: string): boolean {
 
 /** Detect whether a location pathname belongs to the efforts family. */
 export function isEffortsPath(pathname: string): boolean {
-  return pathname === '/efforts' || pathname.startsWith('/effort/');
+  return pathname === '/efforts' || pathname.startsWith('/effort/') || pathname === '/t/effort' || pathname.startsWith('/t/effort/');
 }
 
 /** Detect whether a location pathname belongs to the equipment family (list + detail). */
 export function isEquipmentPath(pathname: string): boolean {
-  return pathname === '/equipment' || pathname.startsWith('/equipment/');
+  return pathname === '/equipment' || pathname.startsWith('/equipment/') || pathname === '/t/equipment' || pathname.startsWith('/t/equipment/');
 }
 
 /** Detect whether a location pathname belongs to the effort family. */
 export function isEffortPath(pathname: string): boolean {
-  return pathname.startsWith('/effort/') || pathname === '/efforts';
+  return pathname.startsWith('/effort/') || pathname === '/efforts' || pathname === '/t/effort' || pathname.startsWith('/t/effort/');
 }
 
 /** Detect whether a location pathname belongs to the ai-first family. */

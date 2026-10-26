@@ -255,16 +255,24 @@ export function parseEffortFile(raw: string): IEffort | null {
   if (equipment.length > 0 && stringListProblems(equipment, 'equipment').length > 0) return null;
 
   const baseAttrs = readNestedSection(innerLines, 'baseAttributes') ?? {};
-  if (metProblem(baseAttrs.met) !== null) return null;
-  const met = baseAttrs.met as number;
+  const metricsAttrs = readNestedSection(innerLines, 'metrics') ?? {};
+  const metCandidate = meta['metrics.met'] ?? metricsAttrs.met ?? baseAttrs.met;
+  if (metProblem(metCandidate) !== null) return null;
+  const met = Number(metCandidate);
 
+  const topDiscipline = getScalar(meta, 'discipline');
   const discipline = parseDiscipline(
-    typeof baseAttrs.discipline === 'string' ? baseAttrs.discipline : undefined,
+    typeof topDiscipline === 'string'
+      ? topDiscipline
+      : typeof baseAttrs.discipline === 'string'
+        ? baseAttrs.discipline
+        : undefined,
   );
-  const intensityTier = baseAttrs.intensityTier;
+  const intensityTier = getScalar(meta, 'intensityTier') ?? getScalar(meta, 'intensity') ?? baseAttrs.intensityTier;
+  const factorCandidate = meta['metrics.disciplineFactor'] ?? metricsAttrs.disciplineFactor ?? baseAttrs.disciplineFactor;
   const disciplineFactor =
-    typeof baseAttrs.disciplineFactor === 'number' && Number.isFinite(baseAttrs.disciplineFactor)
-      ? baseAttrs.disciplineFactor
+    typeof factorCandidate === 'number' && Number.isFinite(factorCandidate)
+      ? factorCandidate
       : undefined;
   const hints = readNestedSection(innerLines, 'hints');
   const derivation = readNestedSection(innerLines, 'derivation');
@@ -380,8 +388,9 @@ export function documentToEffort(doc: string, baseEffort?: IEffort): ParseResult
 
   // Nested canonical shape via the shared section reader.
   const baseAttrs = readNestedSection(innerLines, 'baseAttributes') ?? {};
+  const metricsAttrs = readNestedSection(innerLines, 'metrics') ?? {};
   const baseAttributes: EffortBaseAttributes = {} as EffortBaseAttributes;
-  const metRaw = baseAttrs.met;
+  const metRaw = meta['metrics.met'] ?? metricsAttrs.met ?? baseAttrs.met;
   if (metRaw === undefined) {
     // Only the edit-mode baseEffort fallback may supply MET; absence stays
     // absent on create (never a fabricated zero) and a non-finite fallback
@@ -398,18 +407,26 @@ export function documentToEffort(doc: string, baseEffort?: IEffort): ParseResult
   }
   if (getScalar(meta, 'met') !== undefined) {
     errors.push(
-      "Invalid met placement: 'met' must be nested under baseAttributes (missing baseAttributes.met)",
+      "Invalid met placement: 'met' must be nested under baseAttributes or metrics (missing baseAttributes.met)",
     );
   }
+  const topDiscipline = getScalar(meta, 'discipline');
   const discipline = parseDiscipline(
-    typeof baseAttrs.discipline === 'string' ? baseAttrs.discipline : undefined,
+    typeof topDiscipline === 'string'
+      ? topDiscipline
+      : typeof baseAttrs.discipline === 'string'
+        ? baseAttrs.discipline
+        : undefined,
   );
   if (discipline) baseAttributes.discipline = discipline;
-  if (typeof baseAttrs.disciplineFactor === 'number' && Number.isFinite(baseAttrs.disciplineFactor)) {
-    baseAttributes.disciplineFactor = baseAttrs.disciplineFactor;
+  const factorCandidate = meta['metrics.disciplineFactor'] ?? metricsAttrs.disciplineFactor ?? baseAttrs.disciplineFactor;
+  if (typeof factorCandidate === 'number' && Number.isFinite(factorCandidate)) {
+    baseAttributes.disciplineFactor = factorCandidate;
   }
-  if (baseAttrs.intensityTier) baseAttributes.intensityTier = baseAttrs.intensityTier as IntensityTier;
-
+  const tierCandidate = getScalar(meta, 'intensityTier') ?? getScalar(meta, 'intensity') ?? baseAttrs.intensityTier;
+  if (typeof tierCandidate === 'string' && (tierCandidate === 'low' || tierCandidate === 'moderate' || tierCandidate === 'high')) {
+    baseAttributes.intensityTier = tierCandidate;
+  }
   const hints = readNestedSection(innerLines, 'hints') ?? baseEffort?.hints;
   const derivation = readNestedSection(innerLines, 'derivation');
 
@@ -642,5 +659,188 @@ export function equipmentToDocument(equipment: IEquipment): string {
     lines.push(equipment.body);
   }
 
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Tag & Tag Category Property Note document conversion
+// ---------------------------------------------------------------------------
+
+export interface TagPropertyDocument {
+  id: string;
+  slug: string;
+  label: string;
+  category: string;
+  aliases: string[];
+  metrics: Record<string, string | number | readonly string[]>;
+  summaries: Record<string, string>;
+  tags: string[];
+  functions: string[];
+  body?: string;
+}
+
+export interface TagParseResult {
+  tag: TagPropertyDocument;
+  errors: string[];
+}
+
+export function documentToTag(doc: string, defaultCategory = 'tag'): TagParseResult {
+  const errors: string[] = [];
+  const blockMatch = doc.match(FRONTMATTER_RE);
+  if (!blockMatch) {
+    errors.push('Missing YAML frontmatter delimiters (---)');
+    return {
+      tag: {
+        id: `tag-${uuidv7()}`,
+        slug: '',
+        label: '',
+        category: defaultCategory,
+        aliases: [],
+        metrics: {},
+        summaries: {},
+        tags: [],
+        functions: [],
+      },
+      errors,
+    };
+  }
+  const innerLines = blockMatch[1].split(/\r?\n/);
+  const { meta, body } = parseFrontmatter(doc);
+  const bodyText = body.replace(/^\r?\n+/, '') || undefined;
+
+  const id = String(getScalar(meta, 'id') ?? `tag-${uuidv7()}`);
+  const labelRaw = getScalar(meta, 'label') ?? getScalar(meta, 'slug') ?? '';
+  const label = String(labelRaw).trim();
+  const slug = String(getScalar(meta, 'slug') ?? label);
+  const category = String(getScalar(meta, 'category') ?? getScalar(meta, 'type') ?? defaultCategory).trim() || defaultCategory;
+  const aliases = getListStrict(meta, 'aliases') ?? [];
+  const tags = getListStrict(meta, 'tags') ?? [];
+  const functions = getListStrict(meta, 'functions') ?? [];
+
+  if (!label) errors.push('Missing required field: label');
+
+  const metrics: Record<string, string | number | readonly string[]> = {};
+  const summaries: Record<string, string> = {};
+  const nestedMetrics = readNestedSection(innerLines, 'metrics') ?? {};
+  for (const [k, v] of Object.entries(nestedMetrics)) {
+    if (typeof v === 'number' || typeof v === 'string') metrics[k] = v;
+  }
+  const nestedSummaries = readNestedSection(innerLines, 'summaries') ?? {};
+  for (const [k, v] of Object.entries(nestedSummaries)) {
+    if (typeof v === 'number' || typeof v === 'string') summaries[k] = String(v);
+  }
+  for (const [k, v] of Object.entries(meta)) {
+    if (k.startsWith('metrics.')) {
+      const sub = k.slice('metrics.'.length).trim();
+      if (sub) metrics[sub] = v;
+    } else if (k.startsWith('summaries.')) {
+      const sub = k.slice('summaries.'.length).trim();
+      if (sub && !Array.isArray(v)) summaries[sub] = String(v);
+    }
+  }
+
+  return {
+    tag: {
+      id,
+      slug,
+      label,
+      category,
+      aliases,
+      metrics,
+      summaries,
+      tags,
+      functions,
+      ...(bodyText ? { body: bodyText } : {}),
+    },
+    errors,
+  };
+}
+
+export function tagToDocument(tag: TagPropertyDocument): string {
+  const lines: string[] = ['---'];
+  lines.push(`type: ${quoteYaml(tag.category || 'tag')}`);
+  lines.push(`id: ${tag.id}`);
+  lines.push(`slug: ${quoteYaml(tag.slug || tag.label)}`);
+  lines.push(`label: ${quoteYaml(tag.label)}`);
+  if (tag.aliases.length > 0) {
+    lines.push('aliases:');
+    for (const alias of tag.aliases) lines.push(`  - ${quoteYaml(alias)}`);
+  } else {
+    lines.push('aliases: []');
+  }
+  if (tag.tags.length > 0) {
+    lines.push('tags:');
+    for (const t of tag.tags) lines.push(`  - ${quoteYaml(t)}`);
+  }
+  if (tag.functions.length > 0) {
+    lines.push('functions:');
+    for (const fn of tag.functions) lines.push(`  - ${quoteYaml(fn)}`);
+  }
+  for (const [k, v] of Object.entries(tag.metrics)) {
+    if (Array.isArray(v)) {
+      lines.push(`metrics.${k}:`);
+      for (const item of v) lines.push(`  - ${quoteYaml(item)}`);
+    } else if (typeof v === 'number') {
+      lines.push(`metrics.${k}: ${v}`);
+    } else {
+      lines.push(`metrics.${k}: ${quoteYaml(String(v))}`);
+    }
+  }
+  for (const [k, v] of Object.entries(tag.summaries)) {
+    lines.push(`summaries.${k}: ${quoteYaml(v)}`);
+  }
+  lines.push('---');
+  if (tag.body) {
+    lines.push('');
+    lines.push(tag.body);
+  } else {
+    const filterExpr = tag.category && tag.category !== 'tag' && tag.category !== 'general'
+      ? `${tag.category}:${tag.slug || tag.label}`
+      : `tags:${tag.slug || tag.label}`;
+    lines.push('');
+    lines.push(`# ${tag.label}`);
+    lines.push('');
+    lines.push('```query');
+    lines.push(`find:note{${filterExpr}}`);
+    lines.push('```');
+  }
+  return lines.join('\n');
+}
+
+export interface TagCategoryPropertyDocument {
+  id?: string;
+  name: string;
+  label: string;
+  color?: string;
+  metrics?: Record<string, string | number>;
+  summaries?: Record<string, string>;
+  body?: string;
+}
+
+export function tagCategoryToDocument(category: TagCategoryPropertyDocument): string {
+  const lines: string[] = ['---'];
+  lines.push('type: tag-type');
+  lines.push(`id: ${category.id || `tag-type-${category.name}`}`);
+  lines.push(`slug: ${quoteYaml(category.name)}`);
+  lines.push(`label: ${quoteYaml(category.label)}`);
+  if (category.color) lines.push(`color: ${quoteYaml(category.color)}`);
+  for (const [k, v] of Object.entries(category.metrics ?? {})) {
+    lines.push(`metrics.${k}: ${typeof v === 'number' ? v : quoteYaml(String(v))}`);
+  }
+  for (const [k, v] of Object.entries(category.summaries ?? {})) {
+    lines.push(`summaries.${k}: ${quoteYaml(v)}`);
+  }
+  lines.push('---');
+  if (category.body) {
+    lines.push('');
+    lines.push(category.body);
+  } else {
+    lines.push('');
+    lines.push(`# ${category.label}`);
+    lines.push('');
+    lines.push('```query');
+    lines.push(`:tag{type:${category.name}}`);
+    lines.push('```');
+  }
   return lines.join('\n');
 }

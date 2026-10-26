@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-swimming-sighting
 slug: swimming-sighting
 label: "Swimming sighting"
@@ -9,9 +10,8 @@ aliases:
   - "Sighting Practice"
   - "Sighting Rhythm"
   - "Sighting Swim"
-baseAttributes:
-  met: 6.0
-  discipline: swimming
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: swimming
+intensityTier: moderate
 registrySource: bundled
 ---

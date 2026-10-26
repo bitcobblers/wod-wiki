@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-kettlebell-press
 slug: kettlebell-press
 label: "Kettlebell press"
@@ -7,10 +8,9 @@ aliases:
   - "Press Left"
   - "Press Right"
   - "Single Arm Kettlebell Press"
-baseAttributes:
-  met: 6.0
-  discipline: kettlebell
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: kettlebell
+intensityTier: moderate
 registrySource: bundled
 equipment:
   - kettlebell

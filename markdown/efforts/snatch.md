@@ -1,14 +1,14 @@
 ---
+type: effort
 id: effort-bundled-snatch
 slug: snatch
 label: Snatch
 aliases:
   - dumbbell snatch
   - single-arm dumbbell snatch
-baseAttributes:
-  met: 6.0
-  discipline: weightlifting
-  intensityTier: high
+metrics.met: 6.0
+discipline: strength
+intensityTier: high
 equipment:
   - dumbbell
 registrySource: bundled

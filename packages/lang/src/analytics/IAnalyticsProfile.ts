@@ -4,6 +4,7 @@ import type { IRealtimeProcessor } from './IRealtimeProcessor';
 import type { ISummaryProcessor } from './ISummaryProcessor';
 import type { AnalyticsContext } from './AnalyticsContext';
 import type { CalculationDefinition } from './calc/types';
+import type { PropertyRuleInput } from './calc/shakeOutQueue';
 
 /**
  * Context used to select processors for a given workout.
@@ -45,6 +46,8 @@ export interface AnalyticsProfileContext {
    * profile applies.
    */
   activeTags?: readonly string[];
+  /** Property Note metric/summary rules active for this run or block. */
+  propertySources?: readonly PropertyRuleInput[];
 }
 
 /**

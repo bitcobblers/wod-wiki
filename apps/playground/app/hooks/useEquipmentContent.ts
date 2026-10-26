@@ -21,6 +21,7 @@ import { patchFrontmatterProperty } from '@bitcobblers/wod-wiki-core';
 import { storageService } from '@/services/storage';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { toast } from '@/hooks/use-toast';
+import { patchPropertyCloneSource } from './usePropertyNote';
 
 /** Minimal editable starter document for the create page (`/equipment/new?mode=create`). */
 export function blankEquipmentDocument(slug: string, label?: string): string {
@@ -43,14 +44,7 @@ export function blankEquipmentDocument(slug: string, label?: string): string {
  * so comments, unknown frontmatter fields and the body survive byte-identical.
  */
 function patchCloneSource(raw: string, sourceSlug: string, sourceLabel: string): { raw: string; id: string; slug: string; label: string } {
-  const id = `equipment-user-${crypto.randomUUID()}`;
-  const slug = `${sourceSlug}-custom`;
-  const label = `${sourceLabel} (Custom)`;
-  let next = patchFrontmatterProperty(raw, ['id'], id);
-  next = patchFrontmatterProperty(next, ['slug'], slug);
-  next = patchFrontmatterProperty(next, ['label'], label);
-  next = patchFrontmatterProperty(next, ['registrySource'], 'user');
-  return { raw: next, id, slug, label };
+  return patchPropertyCloneSource('equipment', raw, sourceSlug, sourceLabel);
 }
 
 export interface UseEquipmentContentResult {

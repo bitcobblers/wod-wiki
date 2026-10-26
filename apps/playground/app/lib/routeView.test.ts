@@ -435,10 +435,23 @@ describe('resolveRouteView — canonical direct routes (/notebook, /effort, /das
     expect(item.workout.category).toBe('notebook')
   })
 
-  it('classifies /t/:type/:tag as the tag detail page', () => {
+  it('classifies /t/:type/:tag and /t/:type as tagDetail, and /t/effort/:slug & /t/equipment/:slug as detail pages', () => {
     const view = resolveRouteView('/t/domain/running', NO_PARAMS, makeDeps())
     expect(view.page).toBe('tagDetail')
     expect(view.workout.category).toBe('tags')
+
+    const catView = resolveRouteView('/t/domain', NO_PARAMS, makeDeps())
+    expect(catView.page).toBe('tagDetail')
+
+    const effortTagView = resolveRouteView('/t/effort/thruster', NO_PARAMS, makeDeps())
+    expect(effortTagView.page).toBe('effortDetail')
+    expect(effortTagView.workout.name).toBe('thruster')
+    expect(effortTagView.workout.category).toBe('effort')
+
+    const equipTagView = resolveRouteView('/t/equipment/kettlebell', NO_PARAMS, makeDeps())
+    expect(equipTagView.page).toBe('equipmentDetail')
+    expect(equipTagView.workout.name).toBe('kettlebell')
+    expect(equipTagView.workout.category).toBe('equipment')
   })
 
   it('classifies /page/:slug canvas pages onto the canvas shell', () => {

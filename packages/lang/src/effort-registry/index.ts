@@ -4,6 +4,7 @@ export * from './definition-markdown';
 export * from './EffortResolver';
 export * from './InMemoryEffortRegistry';
 export * from './CompositeEffortRegistry';
+export * from './CompositePropertyRegistry';
 export * from './fuzzyMatch';
 export * from './fixtures';
 export * from './data/bundled-efforts';

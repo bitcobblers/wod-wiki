@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-sled-push
 slug: sled-push
 label: Sled Push
@@ -7,10 +8,9 @@ aliases:
   - prowler push
   - sled drag
   - prowler
-baseAttributes:
-  met: 8.0
-  discipline: strength
-  intensityTier: high
+metrics.met: 8.0
+discipline: strength
+intensityTier: high
 equipment:
   - sled
 registrySource: bundled

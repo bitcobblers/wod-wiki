@@ -164,6 +164,22 @@ export function patchFrontmatterProperty(
 
   const lines: string[] = m[1] === '' ? [] : m[1].split(/\r?\n/);
 
+  // If a single dotted key (`metrics.met`, `summaries.totalWork`) is absent
+  // at top level but its root map (`metrics:`, `summaries:`) exists as a
+  // nested block, walk the split path so nested blocks patch in place.
+  let effectivePath = path;
+  if (
+    path.length === 1 &&
+    path[0].includes('.') &&
+    findProperty(lines, path[0], 0, 0, lines.length) === -1
+  ) {
+    const split = path[0].split('.');
+    const rootIdx = findProperty(lines, split[0], 0, 0, lines.length);
+    if (rootIdx !== -1 && propertyExtent(lines, rootIdx, 0).length > 1) {
+      effectivePath = split;
+    }
+  }
+
   // Walk as deep as the path exists; remember the deepest match and the
   // bounds of its subtree for insertion/removal.
   let searchStart = 0;
@@ -172,9 +188,9 @@ export function patchFrontmatterProperty(
   let foundIdx = -1;
   let foundExtent: number[] = [];
 
-  for (let d = 0; d < path.length; d++) {
+  for (let d = 0; d < effectivePath.length; d++) {
     const indent = d * 2;
-    const idx = findProperty(lines, path[d], indent, searchStart, searchEnd);
+    const idx = findProperty(lines, effectivePath[d], indent, searchStart, searchEnd);
     if (idx === -1) break;
     foundDepth = d;
     foundIdx = idx;
@@ -185,12 +201,12 @@ export function patchFrontmatterProperty(
 
   // ── Removal ────────────────────────────────────────────────────────────
   if (value === null) {
-    if (foundDepth !== path.length - 1) return raw; // property absent → no-op
+    if (foundDepth !== effectivePath.length - 1) return raw; // property absent → no-op
     const doomed = new Set(foundExtent);
     // Drop ancestors left childless by the removal (deepest first).
     for (let d = foundDepth - 1; d >= 0; d--) {
       const indent = d * 2;
-      const idx = findProperty(lines, path[d], indent, 0, lines.length);
+      const idx = findProperty(lines, effectivePath[d], indent, 0, lines.length);
       if (idx === -1 || doomed.has(idx)) break;
       let hasChild = false;
       for (let j = idx + 1; j < lines.length; j++) {
@@ -212,10 +228,10 @@ export function patchFrontmatterProperty(
   let removeCount: number;
   let replacement: string[];
 
-  if (foundDepth === path.length - 1) {
+  if (foundDepth === effectivePath.length - 1) {
     // Existing target: replace exactly its range. Carry a safe inline
     // comment from the old scalar line onto the new one.
-    replacement = propertyLines(foundDepth * 2, path[foundDepth], value);
+    replacement = propertyLines(foundDepth * 2, effectivePath[foundDepth], value);
     if (!isList(value)) {
       const ci = inlineCommentIndex(lines[foundIdx]);
       if (ci !== -1) {
@@ -230,7 +246,7 @@ export function patchFrontmatterProperty(
     // block; otherwise insert at the end of the deepest existing subtree.
     spliceIndex = foundDepth === -1 ? lines.length : searchEnd;
     removeCount = 0;
-    replacement = missingChainLines(path, foundDepth + 1, value, (foundDepth + 1) * 2);
+    replacement = missingChainLines(effectivePath, foundDepth + 1, value, (foundDepth + 1) * 2);
   }
 
   const next = [...lines];

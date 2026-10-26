@@ -43,6 +43,8 @@ export interface CalculationDefinition {
   when?: string;
   whenAst?: ExprNode;
   variants: CalcVariant[];
+  /** Custom statement-level atom dimensions contributed by Property Notes. */
+  customAtoms?: Readonly<Record<string, DimVector>>;
   output?: {
     nodeId: string | string[];
     key?: string;

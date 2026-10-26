@@ -21,14 +21,15 @@ function renderTags(initialTag?: string, route = '/t/general/heavy') {
 /** Mirrors AppContent's tagDetail wiring: the router param is passed through
  *  verbatim — React Router already decodes it once. */
 function TagRouteMirror() {
-    const { tag } = useParams();
-    return <TagsPage key={tag ?? ''} initialTag={tag} />;
+    const { type, tag } = useParams();
+    return <TagsPage key={`${type ?? ''}/${tag ?? ''}`} initialType={type} initialTag={tag} />;
 }
 
 function renderTagRoute(route: string) {
     return render(
         <MemoryRouter initialEntries={[route]}>
             <Routes>
+                <Route path="/t/:type" element={<TagRouteMirror />} />
                 <Route path="/t/:type/:tag" element={<TagRouteMirror />} />
             </Routes>
         </MemoryRouter>
@@ -130,5 +131,17 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
         renderTags(undefined, '/t/general/');
 
         await waitFor(() => expect(screen.getByText(/tag catalogue/)).toBeTruthy(), { timeout: 5000 });
+    });
+
+    it('renders Tag Category Property Note and child tags list at /t/:type', async () => {
+        await storageService.putTagType({ id: 'type-domain', name: 'domain', label: 'Domain', createdAt: 1000 });
+        await storageService.putTag({ id: 'tag-cf', label: 'crossfit', type: 'domain', createdAt: 1001 });
+        await storageService.putTag({ id: 'tag-pk', label: 'parkour', type: 'domain', createdAt: 1002 });
+
+        renderTagRoute('/t/domain');
+
+        await waitFor(() => expect(screen.getByText('Category: Domain')).toBeTruthy(), { timeout: 5000 });
+        await waitFor(() => expect(screen.getByText('#crossfit')).toBeTruthy(), { timeout: 5000 });
+        expect(screen.getByText('#parkour')).toBeTruthy();
     });
 });

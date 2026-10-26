@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-kettlebell-clean
 slug: kettlebell-clean
 label: Kettlebell Clean
@@ -9,10 +10,9 @@ aliases:
   - "Clean Right"
   - "Double Clean"
   - "Double KB Clean"
-baseAttributes:
-  met: 8.0
-  discipline: kettlebell
-  intensityTier: high
+metrics.met: 8.0
+discipline: kettlebell
+intensityTier: high
 equipment:
   - kettlebell
 registrySource: bundled

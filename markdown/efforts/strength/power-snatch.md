@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-power-snatch
 slug: power-snatch
 label: Power Snatch
@@ -7,10 +8,9 @@ aliases:
   - ps
   - hang snatch
   - "Power Snatches"
-baseAttributes:
-  met: 8.0
-  discipline: strength
-  intensityTier: high
+metrics.met: 8.0
+discipline: strength
+intensityTier: high
 equipment:
   - barbell
 registrySource: bundled

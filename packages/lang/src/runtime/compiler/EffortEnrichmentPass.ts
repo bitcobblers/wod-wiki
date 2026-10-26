@@ -36,6 +36,7 @@ import {
   type ReferenceRef,
 } from '@bitcobblers/wod-wiki-core';
 import { IMemoryLocation, MemoryLocation } from '../memory/MemoryLocation';
+import { runMetricShakeOutQueue, type PropertyRuleInput } from '../../analytics/calc/shakeOutQueue';
 
 export interface EffortEnrichmentPassOptions {
   /** Effort resolver for label → definition lookup. */
@@ -46,6 +47,8 @@ export interface EffortEnrichmentPassOptions {
   overwrite?: boolean;
   /** Debug logging enabled (default: false). */
   debug?: boolean;
+  /** Property Note metric/summary rules active for this block. */
+  propertySources?: readonly PropertyRuleInput[];
 }
 
 /**
@@ -68,8 +71,8 @@ export interface EffortEnrichmentPassOptions {
 const logTrace = (message: string): void => console.log(message);
 
 export function applyEffortEnrichment(block: IRuntimeBlock, options: EffortEnrichmentPassOptions): void {
-  const { resolver, references, overwrite = false, debug = false } = options;
-  tryEnrichBlock(block, resolver, references, overwrite, debug);
+  const { resolver, references, overwrite = false, debug = false, propertySources } = options;
+  tryEnrichBlock(block, resolver, references, overwrite, debug, propertySources);
 }
 
 function tryEnrichBlock(
@@ -78,6 +81,7 @@ function tryEnrichBlock(
   references: ReferenceIndex | undefined,
   overwrite: boolean,
   debug: boolean,
+  propertySources?: readonly PropertyRuleInput[],
 ): void {
   // Only enrich exercise blocks and effort blocks
   const normalizedBlockType = block.blockType?.toLowerCase();
@@ -188,6 +192,17 @@ function tryEnrichBlock(
           origin: 'compiler',
         }),
       ], MetricType.Equipment, overwrite);
+    }
+
+    if (propertySources && propertySources.length > 0) {
+      const tracked = block.getAllMemory().find(loc => loc.tag === 'metric:tracked');
+      if (tracked) {
+        runMetricShakeOutQueue(tracked.metrics, {
+          stage: 'plan',
+          sources: propertySources,
+          lastEffortSlug: resolved.slug,
+        });
+      }
     }
   } catch (err) {
     console.error(`[EffortEnrichment] Failed to resolve effort "${label}":`, err);

@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-pull-up
 slug: pull-up
 label: Pull-Up
@@ -14,10 +15,9 @@ aliases:
   - "Pull-ups"
   - "Pullups"
   - "Weighted Pullup"
-baseAttributes:
-  met: 5.0
-  discipline: gymnastics
-  intensityTier: moderate
+metrics.met: 5.0
+discipline: gymnastics
+intensityTier: moderate
 equipment:
   - pull-up-bar
 registrySource: bundled

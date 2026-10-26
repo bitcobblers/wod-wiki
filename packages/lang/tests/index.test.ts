@@ -22,7 +22,6 @@ import {
   createCalcEngine,
   CalcEngine,
   TwoPassEffortResolutionProcess,
-  CalculateBlockProcessor,
 } from '../src/index';
 import { OutputStatement, MetricContainer, MetricType } from '@bitcobblers/wod-wiki-core';
 
@@ -59,7 +58,6 @@ describe('@bitcobblers/wod-wiki-lang exports and pipeline', () => {
     expect(createCalcEngine).toBeDefined();
     expect(CalcEngine).toBeDefined();
     expect(TwoPassEffortResolutionProcess).toBeDefined();
-    expect(CalculateBlockProcessor).toBeDefined();
   });
 
   it('converts output statements to stored output statements', () => {

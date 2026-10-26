@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-push-up
 slug: push-up
 label: Push-Up
@@ -13,9 +14,8 @@ aliases:
   - "Pushups"
   - "Varied Push Ups"
   - "Weighted Pushup"
-baseAttributes:
-  met: 4.0
-  discipline: gymnastics
-  intensityTier: moderate
+metrics.met: 4.0
+discipline: gymnastics
+intensityTier: moderate
 registrySource: bundled
 ---

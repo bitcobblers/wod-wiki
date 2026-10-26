@@ -1555,12 +1555,7 @@ export class QueryService {
         const hasWildcard = filter.values.some(v => v.wildcard);
         notes = notes.filter(n => {
           const fid = feedIdOfItem(n);
-          let hit = false;
-          if (hasWildcard) {
-            hit = fid !== 'local';
-          } else {
-            hit = wanted.has(fid);
-          }
+          const hit = hasWildcard ? fid !== 'local' : wanted.has(fid);
           return filter.negate ? !hit : hit;
         });
       }
@@ -1784,12 +1779,7 @@ export class QueryService {
         const hasWildcard = filter.values.some(v => v.wildcard);
         blocks = blocks.filter(b => {
           const fid = feedIdOfItem(b);
-          let hit = false;
-          if (hasWildcard) {
-            hit = fid !== 'local';
-          } else {
-            hit = wanted.has(fid);
-          }
+          const hit = hasWildcard ? fid !== 'local' : wanted.has(fid);
           return filter.negate ? !hit : hit;
         });
       }

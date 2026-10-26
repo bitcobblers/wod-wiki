@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-dumbbell-snatch
 slug: dumbbell-snatch
 label: Dumbbell Snatch
@@ -7,10 +8,9 @@ aliases:
   - dumbbell snatches
   - single-arm snatch
   - "DB Snatches"
-baseAttributes:
-  met: 8.0
-  discipline: strength
-  intensityTier: high
+metrics.met: 8.0
+discipline: strength
+intensityTier: high
 equipment:
   - dumbbell
 registrySource: bundled

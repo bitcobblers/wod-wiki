@@ -31,3 +31,4 @@ export * from './engine';
 export * from './seeds';
 export * from './factory';
 export * from './diagnostics';
+export * from './shakeOutQueue';

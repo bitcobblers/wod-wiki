@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-double-under
 slug: double-under
 label: Double-Under
@@ -8,10 +9,9 @@ aliases:
   - double unders
   - jump rope du
   - "Double-Unders"
-baseAttributes:
-  met: 12.0
-  discipline: gymnastics
-  intensityTier: high
+metrics.met: 12.0
+discipline: gymnastics
+intensityTier: high
 equipment:
   - jump-rope
 registrySource: bundled

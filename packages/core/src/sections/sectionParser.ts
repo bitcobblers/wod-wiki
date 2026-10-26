@@ -31,7 +31,7 @@ function frontmatterSubtype(properties: Record<string, string>): FrontMatterSubt
   if (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) return 'youtube';
   if (host === 'strava.com' || host.endsWith('.strava.com')) return 'strava';
   if (host === 'amzn.to' || host === 'amazon.com' || host.endsWith('.amazon.com')) return 'amazon';
-  if (['baseAttributes', 'discipline', 'effortType', 'targetRPE', 'equipment', 'aliases', 'derivation'].some(key => key in properties)) return 'effort';
+  if (['baseAttributes', 'metrics.met', 'discipline', 'effortType', 'targetRPE', 'equipment', 'aliases', 'derivation'].some(key => key in properties)) return 'effort';
   if (['slug', 'label', 'registrySource', 'ownerNoteId', 'sourcePath'].some(key => key in properties)) return 'equipment';
   return 'default';
 }
@@ -113,7 +113,7 @@ export function parseDocumentSections(content: string, options: SectionRecogniti
       let close = line + 1;
       while (close < lines.length && lines[close].trim() !== '---' && !/^(`{3,}|~{3,})/.test(lines[close].trim())) close++;
       const inner = lines.slice(line + 1, close);
-      if (lines[close]?.trim() === '---' && inner.some(value => /^[A-Za-z_][\w-]*\s*:/.test(value.trim()))) {
+      if (lines[close]?.trim() === '---' && inner.some(value => /^[A-Za-z_][\w.-]*\s*:/.test(value.trim()))) {
         const section = make('frontmatter', line, close);
         section.contentFrom = offsets[line + 1];
         section.contentTo = offsets[close];

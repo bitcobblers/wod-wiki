@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-lunge
 slug: lunge
 label: Lunge
@@ -17,9 +18,8 @@ aliases:
   - "Lunge Walk Backwards"
   - "Reverse Lunge Walk"
   - "Walking Lunges"
-baseAttributes:
-  met: 4.0
-  discipline: bodyweight
-  intensityTier: moderate
+metrics.met: 4.0
+discipline: bodyweight
+intensityTier: moderate
 registrySource: bundled
 ---

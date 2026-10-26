@@ -1076,12 +1076,36 @@ export class StorageService implements NotePersistenceStorage {
   }
 
   async saveEquipment(equipment: IEquipment): Promise<string> {
-    await this.storage.readwrite('equipment').put(equipment);
+    await this.withTransaction(['equipment', 'page'], async (scoped) => {
+      await scoped.storage.readwrite('equipment').put(equipment);
+      const pages = scoped.storage.readwrite('page');
+      for (const alias of equipment.aliases) {
+        const slug = alias.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        if (!slug) continue;
+        const pageSlug = `eq/${slug}`;
+        const existing = await scoped.storage.readonly('page').getAllFromIndex('by-slug', pageSlug);
+        if (existing.length === 0) {
+          await pages.put({ id: generateId(), slug: pageSlug, title: `${equipment.label} (Alias)`, createdAt: Date.now() });
+        }
+      }
+    });
     return equipment.slug;
   }
 
   async deleteEquipment(slug: string): Promise<void> {
-    await this.storage.readwrite('equipment').delete(slug);
+    await this.withTransaction(['equipment', 'page'], async (scoped) => {
+      const equipment = await scoped.storage.readonly('equipment').get(slug);
+      if (!equipment) return;
+      await scoped.storage.readwrite('equipment').delete(slug);
+      const pages = scoped.storage.readwrite('page');
+      for (const alias of equipment.aliases) {
+        const aliasSlug = alias.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        if (!aliasSlug) continue;
+        for (const page of await scoped.storage.readonly('page').getAllFromIndex('by-slug', `eq/${aliasSlug}`)) {
+          if (page.title === `${equipment.label} (Alias)`) await pages.delete(page.id);
+        }
+      }
+    });
   }
 
   /** Notes whose workout blocks reference the equipment (real titles for context lists). */

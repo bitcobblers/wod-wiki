@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-muscle-up
 slug: muscle-up
 label: Muscle-Up
@@ -10,10 +11,9 @@ aliases:
   - "Bar Muscle Ups"
   - "Muscle Ups"
   - "Ring Muscle Ups"
-baseAttributes:
-  met: 8.0
-  discipline: gymnastics
-  intensityTier: high
+metrics.met: 8.0
+discipline: gymnastics
+intensityTier: high
 equipment:
   - gymnastic-rings
 registrySource: bundled

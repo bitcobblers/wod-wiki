@@ -53,6 +53,7 @@ export class StandardAnalyticsProfile implements IAnalyticsProfile {
                 calcs: context.calcs,
                 tags: context.tags,
                 activeTags: context.activeTags,
+                propertySources: context.propertySources,
             });
             realtime.push(calcEngine);
             summary.push(calcEngine);

@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-clubbell-shield-cast
 slug: clubbell-shield-cast
 label: "Clubbell shield cast"
@@ -8,10 +9,9 @@ aliases:
   - "Shield Cast"
   - "Shield Cast Left"
   - "Shield Cast Right"
-baseAttributes:
-  met: 6.0
-  discipline: strength
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: strength
+intensityTier: moderate
 registrySource: bundled
 equipment:
   - clubs

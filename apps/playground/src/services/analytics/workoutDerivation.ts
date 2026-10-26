@@ -30,17 +30,22 @@
  *     'power', 'pace', 'totalVolume', 'tis', … (CONTEXT.md §Analytics).
  */
 import { createAnalyticsEngineForBlock } from '@bitcobblers/wod-wiki-engine';
-import type { CalculationDefinition } from '@bitcobblers/wod-wiki-engine';
-import { MetricType } from '@bitcobblers/wod-wiki-engine';
-import { OutputStatement, type IOutputStatement } from '@bitcobblers/wod-wiki-engine';
-import { eventsToStoredLogs } from '@bitcobblers/wod-wiki-wql';
+import type { CalculationDefinition, PropertyRuleInput } from '@bitcobblers/wod-wiki-engine';
+import { OutputStatement, type IOutputStatement, type TagIndex } from '@bitcobblers/wod-wiki-engine';
+import {
+  eventsToStoredLogs,
+  normalizeSummaryFacts,
+  resolveCanonicalMetricKey,
+  type SummaryFactIdentity,
+  type SummaryFactSourceOutput,
+} from '@bitcobblers/wod-wiki-wql';
 import type { IEffortResolver } from '@bitcobblers/wod-wiki-lang';
 import {
   toStoredOutputStatement,
   type ScriptBlock,
   type StoredOutputStatement,
 } from '@/components/Editor/types';
-import type { AnalyticsDataPoint, ResultOrigin, EventRecord } from '@/types/storage';
+import type { AnalyticsDataPoint, EventRecord } from '@/types/storage';
 
 export interface DeriveWorkoutOptions {
   /** Block the workout was run from — supplies dialect + statements for the
@@ -50,6 +55,9 @@ export interface DeriveWorkoutOptions {
   userProfile?: { vo2max?: number };
   /** User-authored composed calcs (#880), registered after the built-ins. */
   calcs?: CalculationDefinition[];
+  tags?: TagIndex;
+  activeTags?: readonly string[];
+  propertySources?: readonly PropertyRuleInput[];
 }
 
 /**
@@ -92,6 +100,9 @@ export function deriveWorkoutFromLogs(
     effortResolver: options.effortResolver,
     userProfile: options.userProfile,
     calcs: options.calcs,
+    tags: options.tags,
+    activeTags: options.activeTags,
+    propertySources: options.propertySources,
   });
 
   const derived: StoredOutputStatement[] = [];
@@ -130,154 +141,18 @@ export function replayResultAnalytics(
   return deriveWorkoutFromLogs(eventsToStoredLogs(events), { block, ...options });
 }
 
-/**
- * Map a summary projection name to its Canonical Metric Key — the one key two
- * workouts must share for an aggregate to be compared across them. Same key
- * in fact rows and display. 'Total Volume' → 'totalVolume', 'TIS' → 'tis'.
- */
-export function resolveCanonicalMetricKey(projectionName: string): string {
-  const words = projectionName.trim().split(/[^a-zA-Z0-9]+/).filter(Boolean);
-  return words
-    .map((word, index) =>
-      index === 0 ? word.toLowerCase() : word.charAt(0).toUpperCase() + word.slice(1),
-    )
-    .join('');
-}
-
-// ---------------------------------------------------------------------------
-// Summary fact normalization — logs → persisted AnalyticsDataPoint rows
-// ---------------------------------------------------------------------------
-
-/**
- * Identity of the block a result belongs to, stamped on every fact row.
- */
-export interface SummaryFactIdentity {
-  noteId: string;
-  resultId: string;
-  blockId: string;
-  blockVersion: number;
-  /** Content-stable cross-note join key. */
-  blockContentId?: string;
-  /** Which surface produced the result; trend queries exclude 'playground' by default. */
-  origin?: ResultOrigin;
-  /** FK to the `page` store (copied from the parent note). */
-  pageId?: string;
-  /**
-   * Canonical workout time — Session.createdAt (true workout end).
-   * Every fact row carries it as `timestamp` so time-range queries mean
-   * "when the workout happened", never "when the metric was derived".
-   */
-  workoutTimestamp?: number;
-}
-
-/** Logs shape read by normalizeSummaryFacts (StoredOutputStatement-compatible). */
-export interface SummaryFactSourceOutput {
-  outputType: string;
-  metrics: readonly {
-    type: string;
-    value?: unknown;
-    image?: string;
-    unit?: string;
-    /** Summary-processor payload (effortSlug / effortDiscipline / effortIntensityTier / …). */
-    metadata?: Record<string, unknown>;
-  }[];
-  timeSpan: { started: number; ended?: number };
-}
-
+export {
+  resolveCanonicalMetricKey,
+  normalizeSummaryFacts,
+  type SummaryFactIdentity,
+  type SummaryFactSourceOutput,
+};
 /** Read a string metadata field off the projection value metric, when present. */
 function metadataString(metadata: Record<string, unknown> | undefined, key: string): string | undefined {
   const value = metadata?.[key];
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-/** Group-tag pairs from grouped composed-calc emission, key-sorted. */
-function readGroupTags(metadata: Record<string, unknown> | undefined): Record<string, string> | undefined {
-  const tags = metadata?.groupTags;
-  if (!tags || typeof tags !== 'object') return undefined;
-  const entries = Object.entries(tags as Record<string, unknown>)
-    .filter((pair): pair is [string, string] => typeof pair[1] === 'string' && pair[1].length > 0)
-    .sort(([a], [b]) => (a < b ? -1 : 1));
-  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-}
-
-/**
- * Convert Tier-2 summary outputs (outputType 'analytics') in a statement
- * stream into persisted fact rows — one row per result × Canonical Metric Key.
- *
- * The analytics store holds SUMMARY FACTS ONLY (CONTEXT.md, 2026-07-20):
- * per-segment data (Tier 0 + Tier 1) is not denormalized here — it lives as
- * event rows, the authoritative store for a single workout (V21).
- *
- * These rows exist for cross-workout queries ("compare total volume across my
- * last 30 Fran runs"). If this write fails or is skipped, the workout result
- * remains fully functional.
- *
- * V12: effort identity (effortSlug / discipline / intensityTier) is carried
- * from the summary processor's metadata onto the row, populating the
- * by-effort / by-discipline indexes; `timestamp` is the canonical workout
- * time (identity.workoutTimestamp = Session.createdAt), not the
- * derivation-time stamp the engine puts on the output's timeSpan.
- */
-export function normalizeSummaryFacts(
-  logs: readonly SummaryFactSourceOutput[],
-  identity: SummaryFactIdentity,
-): LegacyFactRow[] {
-  const now = Date.now();
-  const rowsByKey = new Map<string, LegacyFactRow>();
-
-  for (const output of logs) {
-    if (output.outputType !== 'analytics') continue;
-    const label = output.metrics.find(m => m.type === MetricType.Label);
-    const value = output.metrics.find(m => m.type !== MetricType.Label && typeof m.value === 'number');
-    if (!label || !value) continue;
-
-    const projectionName = String(label.value ?? label.image ?? '');
-    if (!projectionName) continue;
-    // Composed calcs carry their Canonical Metric Key explicitly (#878);
-    // legacy projections fall back to name-derived keys during cutover.
-    const metricKey = metadataString(value.metadata, 'canonicalKey') ?? resolveCanonicalMetricKey(projectionName);
-
-    const effortSlug = metadataString(value.metadata, 'effortSlug');
-    const discipline = metadataString(value.metadata, 'effortDiscipline');
-    const intensityTier = metadataString(value.metadata, 'effortIntensityTier');
-    const grade = metadataString(value.metadata, 'grade');
-
-    // Row key = metricKey + sorted group-tag pairs (spec §7.1:
-    // `totalVolume:effort=thruster`). Grouped dims auto-tag; legacy
-    // per-effort projections tag `effort` from their effortSlug metadata.
-    const groupTags = readGroupTags(value.metadata) ?? (effortSlug ? { effort: effortSlug } : undefined);
-    const rowKey = groupTags
-      ? `${metricKey}:${Object.entries(groupTags).map(([k, v]) => `${k}=${v}`).join(':')}`
-      : metricKey;
-
-    rowsByKey.set(rowKey, {
-      id: `${identity.resultId}-${rowKey}-${now}`,
-      noteId: identity.noteId,
-      blockContentId: identity.blockContentId,
-      origin: identity.origin,
-      pageId: identity.pageId,
-      grain: 'summary',
-      blockId: identity.blockId,
-      blockVersion: identity.blockVersion,
-      resultId: identity.resultId,
-      type: metricKey,
-      value: value.value as number,
-      unit: value.unit,
-      label: projectionName,
-      metricKey,
-      metricLabel: projectionName,
-      metricUnit: value.unit,
-      ...(effortSlug ? { effortSlug } : {}),
-      ...(discipline ? { discipline } : {}),
-      ...(intensityTier ? { intensityTier } : {}),
-      ...(grade ? { grade } : {}),
-      timestamp: identity.workoutTimestamp ?? output.timeSpan.started ?? now,
-      createdAt: now,
-    });
-  }
-
-  return Array.from(rowsByKey.values());
-}
 
 /**
  * Normalize ALL metrics from a result's logs — summary facts (Tier 2) PLUS
@@ -296,7 +171,7 @@ export function normalizeSummaryFacts(
 /** Legacy fact-row shape — the pre-V16 analytics store allowed grain
  *  'segment' | 'summary' | 'rollup'. Only the V12/V13 upgrade backfills still
  *  write these rows; V16 deletes the store in the same transaction. */
-export type LegacyFactRow = Omit<AnalyticsDataPoint, 'grain'> & { grain?: 'segment' | 'summary' | 'rollup' };
+export type LegacyFactRow = Omit<AnalyticsDataPoint, 'grain'> & { grain?: 'segment' | 'summary' | 'rollup' | 'event' };
 
 export function normalizeAllMetrics(
   logs: readonly SummaryFactSourceOutput[],

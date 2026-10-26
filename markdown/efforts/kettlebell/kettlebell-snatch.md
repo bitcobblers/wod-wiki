@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-kettlebell-snatch
 slug: kettlebell-snatch
 label: Kettlebell Snatch
@@ -11,10 +12,9 @@ aliases:
   - "KB Snatch Right"
   - "Snatch Left"
   - "Snatch Right"
-baseAttributes:
-  met: 12.0
-  discipline: kettlebell
-  intensityTier: high
+metrics.met: 12.0
+discipline: kettlebell
+intensityTier: high
 equipment:
   - kettlebell
 registrySource: bundled

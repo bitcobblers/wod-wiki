@@ -1,6 +1,6 @@
 import { resolveEntityRank, type IEffort, type IEffortRegistry, type EffortRegistrySource, type EffortStorageAdapter } from './types';
 import { bundledEfforts as defaultBundledEfforts } from './data/bundled-efforts';
-import { normalizeForFuzzy } from './fuzzyMatch';
+import { CompositePropertyRegistry } from './CompositePropertyRegistry';
 
 export interface CompositeEffortRegistryOptions {
   /** Custom bundled efforts to seed the read-only tier (defaults to built-in bundled efforts). */
@@ -9,56 +9,33 @@ export interface CompositeEffortRegistryOptions {
   storage?: EffortStorageAdapter;
 }
 
-/**
- * Composite Effort Registry — Two-Tier Lookup
- *
- * 1. User tier: loaded from storage adapter into memory
- * 2. Bundled tier: shipped as read-only seed
- *
- * Lookup order: user wins over bundled.
- * All lookups are O(1) in-memory after initialization.
- */
-export class CompositeEffortRegistry implements IEffortRegistry {
-  private readonly userEfforts = new Map<string, IEffort>();
-  private readonly bundledEfforts = new Map<string, IEffort>();
-  private initialized = false;
-  private readonly initialBundled?: Iterable<IEffort>;
-  private readonly storage?: EffortStorageAdapter;
+export class CompositeEffortRegistry
+  extends CompositePropertyRegistry<IEffort>
+  implements IEffortRegistry
+{
   constructor(options?: CompositeEffortRegistryOptions) {
-    if (options) {
-      this.initialBundled = options.bundled;
-      this.storage = options.storage;
-    }
+    super({
+      bundled: options?.bundled,
+      storage: options?.storage,
+    });
   }
 
-  /**
-   * Initialize the registry:
-   * 1. Load bundled efforts into memory
-   * 2. Load user efforts from storage adapter into memory
-   *
-   * An explicit `customBundled` REPLACES the bundled tier — passing an empty
-   * set clears it — so a seed source removal never leaves stale bundled
-   * efforts cached. The no-argument call keeps the constructor/default set.
-   * Both tiers rebuild only AFTER a successful adapter load: a failed load
-   * propagates (readiness must never report over stale data), and deleted
-   * custom rows disappear because the user map is cleared too.
-   */
   async loadBundled(customBundled?: Iterable<IEffort>): Promise<void> {
-    this.bundledEfforts.clear();
+    this.bundledItems.clear();
     const source = customBundled ?? this.initialBundled ?? defaultBundledEfforts;
     for (const effort of source) {
-      const prior = this.bundledEfforts.get(effort.slug);
+      const prior = this.bundledItems.get(effort.slug);
       if (!prior || resolveEntityRank(effort) >= resolveEntityRank(prior)) {
-        this.bundledEfforts.set(effort.slug, effort);
+        this.bundledItems.set(effort.slug, effort);
       }
     }
-    this.userEfforts.clear();
+    this.userItems.clear();
     if (this.storage) {
       try {
         const userEfforts = await this.storage.load();
         for (const effort of userEfforts) {
           if (effort.registrySource === 'user') {
-            this.userEfforts.set(effort.slug, effort);
+            this.userItems.set(effort.slug, effort);
           }
         }
       } catch (err) {
@@ -74,45 +51,12 @@ export class CompositeEffortRegistry implements IEffortRegistry {
     return this.initialized;
   }
 
-  resolve(slug: string): IEffort | null {
-    // User wins over bundled
-    return this.userEfforts.get(slug) ?? this.bundledEfforts.get(slug) ?? null;
-  }
-
-  resolveByAlias(label: string): IEffort | null {
-    const normalized = normalizeForFuzzy(label);
-    for (const effort of this.userEfforts.values()) {
-      if (normalizeForFuzzy(effort.label) === normalized) return effort;
-      for (const alias of effort.aliases) {
-        if (normalizeForFuzzy(alias) === normalized) return effort;
-      }
-    }
-    const bundled = Array.from(this.bundledEfforts.values())
-      .filter((effort) => !this.userEfforts.has(effort.slug))
-      .sort((a, b) => resolveEntityRank(b) - resolveEntityRank(a));
-    for (const effort of bundled) {
-      if (normalizeForFuzzy(effort.label) === normalized) return effort;
-      for (const alias of effort.aliases) {
-        if (normalizeForFuzzy(alias) === normalized) return effort;
-      }
-    }
-    return null;
-  }
-
-  list(): readonly IEffort[] {
-    const merged = new Map<string, IEffort>(this.bundledEfforts);
-    for (const [slug, effort] of this.userEfforts) {
-      merged.set(slug, effort);
-    }
-    return Array.from(merged.values());
-  }
-
-  listByOrigin(origin: EffortRegistrySource): readonly IEffort[] {
+  override listByOrigin(origin: EffortRegistrySource): readonly IEffort[] {
     if (origin === 'user') {
-      return Array.from(this.userEfforts.values());
+      return Array.from(this.userItems.values());
     }
     if (origin === 'bundled') {
-      return Array.from(this.bundledEfforts.values());
+      return Array.from(this.bundledItems.values());
     }
     return this.list().filter((e) => e.registrySource === origin);
   }
@@ -124,7 +68,7 @@ export class CompositeEffortRegistry implements IEffortRegistry {
       );
     }
 
-    this.userEfforts.set(effort.slug, effort);
+    this.userItems.set(effort.slug, effort);
 
     if (this.storage) {
       try {
@@ -143,7 +87,7 @@ export class CompositeEffortRegistry implements IEffortRegistry {
       );
     }
 
-    this.userEfforts.delete(slug);
+    this.userItems.delete(slug);
 
     if (this.storage) {
       try {

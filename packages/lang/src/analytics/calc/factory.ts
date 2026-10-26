@@ -13,6 +13,7 @@ import { CalculationRegistry } from './registry';
 import { BUILTIN_CALCS } from './seeds';
 import { createDisciplinesTable, createEffortTable, createProfileTable, createRpeLabelsTable, IProfileSource } from './tables';
 import { CalculationDefinition } from './types';
+import { compilePropertySummaryCalcs, type PropertyRuleInput } from './shakeOutQueue';
 
 export interface CalcStackOptions {
   effortResolver: IEffortResolver;
@@ -25,6 +26,8 @@ export interface CalcStackOptions {
   tags?: TagIndex;
   /** Tags active for the whole run, whatever the segments say. */
   activeTags?: readonly string[];
+  /** Property Note metric/summary rules active for this run or block. */
+  propertySources?: readonly PropertyRuleInput[];
 }
 
 export interface CalcStack {
@@ -42,6 +45,11 @@ export function createCalcStack(options: CalcStackOptions): CalcStack {
   const registry = new CalculationRegistry(lookups);
   for (const def of BUILTIN_CALCS) registry.register(def);
   for (const def of options.calcs ?? []) registry.register(def);
+  if (options.propertySources && options.propertySources.length > 0) {
+    for (const def of compilePropertySummaryCalcs(options.propertySources)) {
+      registry.register(def);
+    }
+  }
   return { lookups, registry };
 }
 
@@ -53,5 +61,6 @@ export function createCalcEngine(dialect: string, options: CalcStackOptions): Ca
     userProfile: options.userProfile,
     tags: options.tags,
     activeTags: options.activeTags,
+    propertySources: options.propertySources,
   });
 }

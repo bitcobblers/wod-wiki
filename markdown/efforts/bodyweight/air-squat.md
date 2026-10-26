@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-air-squat
 slug: air-squat
 label: Air Squat
@@ -8,9 +9,8 @@ aliases:
   - squats
   - "Air Squats"
   - "Deep Knee Air Squats"
-baseAttributes:
-  met: 5.5
-  discipline: bodyweight
-  intensityTier: moderate
+metrics.met: 5.5
+discipline: bodyweight
+intensityTier: moderate
 registrySource: bundled
 ---

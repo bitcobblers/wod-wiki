@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-precision-jump
 slug: precision-jump
 label: "Precision jump"
@@ -29,9 +30,8 @@ aliases:
   - "Tabata Five-Foot Precisions"
   - "Tabata Seven-Foot Precisions"
   - "Tabata Six-Foot Precisions"
-baseAttributes:
-  met: 6.0
-  discipline: bodyweight
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: bodyweight
+intensityTier: moderate
 registrySource: bundled
 ---

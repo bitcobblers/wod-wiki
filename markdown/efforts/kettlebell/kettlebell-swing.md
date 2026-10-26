@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-kettlebell-swing
 slug: kettlebell-swing
 label: Kettlebell Swing
@@ -12,10 +13,9 @@ aliases:
   - "One-Arm KB Swing Left"
   - "One-Arm KB Swing Right"
   - "Two-Hand KB Swing"
-baseAttributes:
-  met: 9.8
-  discipline: kettlebell
-  intensityTier: high
+metrics.met: 9.8
+discipline: kettlebell
+intensityTier: high
 equipment:
   - kettlebell
 registrySource: bundled

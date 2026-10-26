@@ -88,9 +88,54 @@ export const frontmatterVisibility = Facet.define<boolean, boolean>({
   combine: (values) => values[0] ?? true,
 });
 
+export const setFrontmatterDetailed = StateEffect.define<boolean>();
+export const frontmatterDetailed = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setFrontmatterDetailed)) return effect.value;
+    }
+    return value;
+  },
+});
+
+export const setFrontmatterSource = StateEffect.define<boolean>();
+export const frontmatterSource = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    let source = value;
+    for (const effect of tr.effects) {
+      if (effect.is(setFrontmatterSource)) source = effect.value;
+    }
+    if (source && tr.selection) {
+      const section = tr.state.field(sectionField).sections.find((item) => item.type === "frontmatter");
+      if (!section || !tr.state.selection.ranges.some((range) => range.from <= section.to && range.to >= section.from)) {
+        source = false;
+      }
+    }
+    return source;
+  },
+});
+
 const pendingFocus = new WeakMap<EditorView, { kind: "key" | "tag"; key: string }>();
 const widgetCleanup = new WeakMap<HTMLElement, (() => void)[]>();
 let helperId = 0;
+
+const TAG_CATEGORY_SUMMARY_KEYS: Record<string, true> = {
+  tag: true,
+  tags: true,
+  category: true,
+  domain: true,
+  format: true,
+  equipment: true,
+  effort: true,
+  quality: true,
+  intent: true,
+  discipline: true,
+  intensity: true,
+  intensitytier: true,
+  sound: true,
+};
 
 function isTagProperty(key: string): boolean {
   return ["tag", "tags", "category"].includes(key.trim().toLowerCase());
@@ -255,12 +300,19 @@ function patchPropertyInView(
   _sectionId: string,
   path: readonly string[],
   value: string | number | readonly string[] | null,
+  expandDetailed = false,
 ): void {
   if (view.state.readOnly) return;
   const wholeDoc = view.state.doc.toString();
   const next = patchFrontmatterProperty(wholeDoc, path, value);
-  if (next === wholeDoc) return;
-  view.dispatch({ changes: { from: 0, to: wholeDoc.length, insert: next } });
+  if (next === wholeDoc) {
+    if (expandDetailed) view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+    return;
+  }
+  view.dispatch({
+    changes: { from: 0, to: wholeDoc.length, insert: next },
+    ...(expandDetailed ? { effects: setFrontmatterDetailed.of(true) } : {}),
+  });
 }
 
 /** Key rename = write the new key, drop the old one — one dispatch, one undo. */
@@ -293,12 +345,25 @@ function detectDefinitionKind(meta: ParsedFrontmatter['meta']): DefinitionKind {
 }
 
 /** ponytail: tolerant draft reader for display only — swaps to the shared lang parser once it tolerates incomplete drafts; all writes go through patchFrontmatterProperty. */
-function readBaseAttributes(body: string): { met?: string; discipline?: string; intensityTier?: string } {
-  const out: { met?: string; discipline?: string; intensityTier?: string } = {};
+function readBaseAttributes(
+  body: string,
+  meta: ParsedFrontmatter['meta'] = {},
+): { met?: string; discipline?: string; intensityTier?: string; hasBaseBlock?: boolean } {
+  const out: { met?: string; discipline?: string; intensityTier?: string; hasBaseBlock?: boolean } = {};
+  if (meta["metrics.met"] !== undefined && !Array.isArray(meta["metrics.met"])) {
+    out.met = String(meta["metrics.met"]);
+  }
+  if (meta["discipline"] !== undefined && !Array.isArray(meta["discipline"])) {
+    out.discipline = String(meta["discipline"]);
+  }
+  if (meta["intensityTier"] !== undefined && !Array.isArray(meta["intensityTier"])) {
+    out.intensityTier = String(meta["intensityTier"]);
+  }
   let inBase = false;
   for (const line of body.split(/\r?\n/)) {
     if (/^baseAttributes:\s*(#.*)?$/.test(line)) {
       inBase = true;
+      out.hasBaseBlock = true;
       continue;
     }
     if (!inBase) continue;
@@ -464,10 +529,11 @@ function renderEffortValueDiagnostics(
   return box;
 }
 
-const METRIC_DRAFT_KINDS: Record<string, { label: string; path: string; kind: "effort" | "equipment" | "number" }> = {
+const METRIC_DRAFT_KINDS: Record<string, { label: string; path: string; kind: "effort" | "equipment" | "number" | "custom" }> = {
   effort: { label: "Effort", path: "metrics.effort", kind: "effort" },
   equipment: { label: "Equipment", path: "metrics.equipment", kind: "equipment" },
   rpe: { label: "RPE", path: "metrics.rpe", kind: "number" },
+  custom: { label: "Custom / Equation", path: "metrics.", kind: "custom" },
 };
 
 /**
@@ -500,6 +566,8 @@ function createMetricDraftRow(
 
   const valCol = document.createElement("div");
   valCol.className = "flex items-center flex-wrap gap-1.5 px-3 py-1.5 flex-1 min-w-0";
+
+  let customKeyInput: HTMLInputElement | null = null;
   const input = document.createElement("input");
   input.className =
     "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring";
@@ -524,6 +592,10 @@ function createMetricDraftRow(
       else if (spec.kind === "number") {
         const num = Number(raw);
         if (!Number.isNaN(num)) commit([spec.path], num);
+      } else if (spec.kind === "custom") {
+        const keyName = (customKeyInput?.value.trim() || "custom").replace(/^metrics\./i, "");
+        const num = Number(raw);
+        commit([`metrics.${keyName}`], !Number.isNaN(num) && raw !== "" ? num : raw);
       } else commit([spec.path], raw);
     }
     row.remove();
@@ -532,6 +604,32 @@ function createMetricDraftRow(
 
   const attachFor = () => {
     const spec = METRIC_DRAFT_KINDS[select.value];
+    if (spec?.kind === "custom") {
+      if (!customKeyInput) {
+        customKeyInput = document.createElement("input");
+        customKeyInput.className =
+          "flex-none w-32 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring";
+        customKeyInput.placeholder = "Metric key…";
+        customKeyInput.setAttribute("aria-label", "Metric key");
+        customKeyInput.dataset.frontmatterField = "key";
+        customKeyInput.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            settle(false);
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (input.value.trim()) settle(true);
+            else input.focus();
+          }
+        });
+        valCol.insertBefore(customKeyInput, input);
+      }
+      input.placeholder = "Value or equation…";
+    } else if (customKeyInput) {
+      customKeyInput.remove();
+      customKeyInput = null;
+      input.placeholder = "Value…";
+    }
     if (spec && (spec.kind === "effort" || spec.kind === "equipment") && referenceProvider) {
       attachSuggestions(input, view, root, "value", spec.path, [], () => settle(true), spec.kind);
     }
@@ -552,6 +650,7 @@ function createMetricDraftRow(
   });
   input.addEventListener("blur", () => queueMicrotask(() => {
     if (!input.isConnected) return;
+    if (row.contains(document.activeElement)) return;
     settle(input.value.trim().length > 0);
   }));
   select.addEventListener("keydown", (e) => {
@@ -560,6 +659,99 @@ function createMetricDraftRow(
       settle(false);
     }
   });
+
+  return row;
+}
+
+/**
+ * Unpersisted summary-equation draft row (`summaries.<key>: <equation>`).
+ * Commits one property on Enter or blur; Escape or empty blur discards.
+ */
+function createSummaryDraftRow(
+  view: EditorView,
+  commit: (path: readonly string[], value: string) => void,
+): HTMLElement {
+  const row = document.createElement("div");
+  row.className =
+    "flex items-center min-h-[34px] border-b border-dashed border-border last:border-b-0 group hover:bg-muted/10 transition-colors max-[479px]:flex-col max-[479px]:items-stretch";
+  row.setAttribute("data-frontmatter-summary-draft", "true");
+  row.dataset.frontmatterRow = "summary";
+
+  const keyCol = document.createElement("div");
+  keyCol.className =
+    "flex items-center gap-2 px-3 py-1.5 w-36 shrink-0 border-r border-dashed border-border text-muted-foreground max-[479px]:w-auto max-[479px]:border-r-0 max-[479px]:border-b";
+  keyCol.appendChild(createListIcon());
+  const keyInput = document.createElement("input");
+  keyInput.className =
+    "w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring";
+  keyInput.placeholder = "Summary key…";
+  keyInput.setAttribute("aria-label", "Summary key");
+  keyInput.dataset.frontmatterField = "key";
+  keyInput.setAttribute(
+    "aria-describedby",
+    appendFieldHelper(keyCol, "Summary metric name. Press Enter to move to the equation.").id,
+  );
+  keyCol.appendChild(keyInput);
+  row.appendChild(keyCol);
+
+  const valCol = document.createElement("div");
+  valCol.className = "flex items-center flex-wrap gap-1.5 px-3 py-1.5 flex-1 min-w-0";
+  const valInput = document.createElement("input");
+  valInput.className =
+    "flex-1 min-w-[160px] rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring";
+  valInput.placeholder = "Equation (e.g. sum(work))…";
+  valInput.setAttribute("aria-label", "Summary equation");
+  valInput.dataset.frontmatterField = "value";
+  valInput.setAttribute(
+    "aria-describedby",
+    appendFieldHelper(valCol, "Summary equation. Press Enter to apply.").id,
+  );
+  valCol.appendChild(valInput);
+  row.appendChild(valCol);
+
+  let settled = false;
+  const settle = (doCommit: boolean) => {
+    if (settled) return;
+    settled = true;
+    const rawKey = (keyInput.value.trim() || "summary").replace(/^summaries\./i, "");
+    const rawExpr = valInput.value.trim();
+    if (doCommit && rawExpr) {
+      commit([`summaries.${rawKey}`], rawExpr);
+    }
+    row.remove();
+    view.requestMeasure();
+  };
+
+  keyInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      settle(false);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (valInput.value.trim()) settle(true);
+      else valInput.focus();
+    }
+  });
+  valInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      settle(false);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      settle(true);
+    }
+  });
+  const onBlur = () => queueMicrotask(() => {
+    if (!row.isConnected) return;
+    if (row.contains(document.activeElement)) return;
+    settle(valInput.value.trim().length > 0);
+  });
+  keyInput.addEventListener("blur", onBlur);
+  valInput.addEventListener("blur", onBlur);
 
   return row;
 }
@@ -692,23 +884,102 @@ function createCloseIcon(size: "sm" | "md" = "md"): SVGElement {
   return svg;
 }
 
+function isAliasProperty(key: string): boolean {
+  return ["alias", "aliases"].includes(key.trim().toLowerCase());
+}
+
+function createSummaryPill(value: string, hash: boolean): HTMLElement {
+  const pill = document.createElement("span");
+  pill.className = "inline-flex max-w-full items-center rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs text-foreground";
+  const label = document.createElement("span");
+  label.className = "truncate";
+  label.textContent = hash ? `#${value}` : value;
+  pill.appendChild(label);
+  return pill;
+}
+
+function createFrontmatterSummary(
+  entries: [string, unknown][],
+  onShowDetails: () => void,
+): HTMLElement {
+  const summary = document.createElement("div");
+  summary.dataset.frontmatterSummary = "true";
+  summary.className = "divide-y divide-border/60";
+
+  const groups = [
+    { label: "Tags", entries: entries.filter(([key]) => TAG_CATEGORY_SUMMARY_KEYS[key.trim().toLowerCase()] === true), hash: true },
+    { label: "Aliases", entries: entries.filter(([key]) => isAliasProperty(key)), hash: false },
+  ];
+  for (const group of groups) {
+    const values = group.entries.flatMap(([, value]) => parseTagList(value));
+    if (values.length === 0) continue;
+    const row = document.createElement("div");
+    row.className = "flex flex-wrap items-center gap-1.5 px-3 py-2";
+    const label = document.createElement("span");
+    label.className = "mr-1 w-14 shrink-0 text-[11px] font-medium text-muted-foreground";
+    label.textContent = group.label;
+    row.appendChild(label);
+    for (const value of values) row.appendChild(createSummaryPill(value, group.hash));
+    summary.appendChild(row);
+  }
+
+  const hidden = entries.filter(([key]) => TAG_CATEGORY_SUMMARY_KEYS[key.trim().toLowerCase()] !== true && !isAliasProperty(key));
+  const metricCount = hidden.filter(([key]) => {
+    const k = key.trim().toLowerCase();
+    return k.startsWith("metrics.") || k === "metrics";
+  }).length;
+  const summaryCount = hidden.filter(([key]) => {
+    const k = key.trim().toLowerCase();
+    return k.startsWith("summaries.") || k === "summaries";
+  }).length;
+  const details = document.createElement("button");
+  details.type = "button";
+  details.setAttribute("aria-label", "Show property details");
+  details.setAttribute("aria-expanded", "false");
+  details.className = "flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground cursor-pointer";
+  const count = document.createElement("span");
+  count.textContent = `${hidden.length} more ${hidden.length === 1 ? "property" : "properties"}`;
+  details.appendChild(count);
+  if (metricCount > 0) {
+    const metrics = document.createElement("span");
+    metrics.textContent = `· ${metricCount} custom ${metricCount === 1 ? "metric" : "metrics"}`;
+    details.appendChild(metrics);
+  }
+  if (summaryCount > 0) {
+    const summaries = document.createElement("span");
+    summaries.textContent = `· ${summaryCount} ${summaryCount === 1 ? "summary" : "summaries"}`;
+    details.appendChild(summaries);
+  }
+  const disclosure = document.createElement("span");
+  disclosure.className = "ml-auto";
+  disclosure.setAttribute("aria-hidden", "true");
+  disclosure.textContent = "▾";
+  details.appendChild(disclosure);
+  details.addEventListener("click", onShowDetails);
+  summary.appendChild(details);
+  return summary;
+}
+
 export class DefaultFrontmatterWidget extends WidgetType {
   readonly sectionId: string;
   readonly rawContent: string;
   readonly readOnly: boolean;
+  readonly detailed: boolean;
 
-  constructor(sectionId: string, rawContent?: string, readOnly: boolean = false) {
+  constructor(sectionId: string, rawContent?: string, readOnly: boolean = false, detailed: boolean = false) {
     super();
     this.sectionId = sectionId;
     this.rawContent = rawContent ?? "";
     this.readOnly = readOnly;
+    this.detailed = detailed;
   }
 
   eq(other: DefaultFrontmatterWidget): boolean {
     return (
       this.sectionId === other.sectionId &&
       this.rawContent === other.rawContent &&
-      this.readOnly === other.readOnly
+      this.readOnly === other.readOnly &&
+      this.detailed === other.detailed
     );
   }
 
@@ -722,11 +993,26 @@ export class DefaultFrontmatterWidget extends WidgetType {
     root.className = "cm-frontmatter-preview py-2 font-sans select-none";
 
     const heading = document.createElement("div");
-    heading.className = "text-xs font-medium text-muted-foreground mb-1.5 px-0.5";
-    heading.textContent = "Properties";
+    heading.className = "mb-1.5 flex items-center px-0.5 text-xs font-medium text-muted-foreground";
+    const headingLabel = document.createElement("span");
+    headingLabel.textContent = "Properties";
+    heading.appendChild(headingLabel);
+    if (this.detailed) {
+      const summaryButton = document.createElement("button");
+      summaryButton.type = "button";
+      summaryButton.setAttribute("aria-label", "Show property summary");
+      summaryButton.setAttribute("aria-expanded", "true");
+      summaryButton.className = "ml-auto px-1 py-0.5 text-[11px] font-normal hover:text-foreground cursor-pointer";
+      summaryButton.textContent = "Hide details ▴";
+      summaryButton.addEventListener("click", () => {
+        view.dispatch({ effects: setFrontmatterDetailed.of(false) });
+      });
+      heading.appendChild(summaryButton);
+    }
     root.appendChild(heading);
 
     const box = document.createElement("div");
+    box.dataset.frontmatterProperties = "true";
     box.className = "rounded-lg border border-border/80 bg-background/50 text-xs shadow-xs";
     root.appendChild(box);
 
@@ -735,8 +1021,13 @@ export class DefaultFrontmatterWidget extends WidgetType {
     const entries = Object.entries(meta);
     const docKind = detectDefinitionKind(meta);
     const referenceProvider = view.state.facet(frontmatterReferenceIndex)?.() ?? null;
-    const base = docKind === "effort" ? readBaseAttributes(body) : {};
+    const base = docKind === "effort" ? readBaseAttributes(body, meta) : {};
 
+    if (!this.detailed) {
+      box.appendChild(createFrontmatterSummary(entries, () => {
+        view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+      }));
+    } else {
     // The table always carries its Key/Value labels — a field never has to
     // rely on its placeholder to say what it is.
     box.appendChild(createColumnHeader());
@@ -1116,6 +1407,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
     if (docKind === "effort" && !this.readOnly) {
       box.appendChild(this.buildDefinitionRows(view, base));
     }
+    }
 
     if (!this.readOnly) {
       // The app reads `tags` first, then `category` — Add tag follows the
@@ -1125,7 +1417,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
         entries.find(([key]) => isTagProperty(key))?.[0];
 
       const actionsRow = document.createElement("div");
-      actionsRow.className = "mt-2 flex items-center gap-3";
+      actionsRow.className = "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1";
       actionsRow.dataset.frontmatterActions = "true";
 
       const addBtn = document.createElement("button");
@@ -1148,13 +1440,18 @@ export class DefaultFrontmatterWidget extends WidgetType {
           newKey = `property_${count}`;
         }
         pendingFocus.set(view, { kind: "key", key: newKey });
-        patchPropertyInView(view, this.sectionId, [newKey], "");
+        patchPropertyInView(view, this.sectionId, [newKey], "", !this.detailed);
+        const keyField = view.dom.querySelector<HTMLInputElement>(
+          `[data-frontmatter-row="${newKey}"] [data-frontmatter-field="key"]`,
+        );
+        keyField?.focus();
+        keyField?.select();
       });
       actionsRow.appendChild(addBtn);
 
       // Add metric: authors the flat `metrics.*` note defaults (executable
-      // keys — effort/equipment references plus numeric values) through the
-      // same patch path, so note defaults stay in one source document.
+      // keys — effort/equipment references, numeric values, or equations)
+      // through the same patch path, so note defaults stay in one source document.
       {
         const addMetricBtn = document.createElement("button");
         addMetricBtn.type = "button";
@@ -1169,19 +1466,59 @@ export class DefaultFrontmatterWidget extends WidgetType {
         addMetricBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const existing = root.querySelector<HTMLInputElement>("[data-frontmatter-metric-draft] input");
+          if (!this.detailed) {
+            view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+          }
+          const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
+          const activeBox = activeRoot.querySelector<HTMLElement>("[data-frontmatter-properties]") ?? box;
+          const existing = activeRoot.querySelector<HTMLInputElement>("[data-frontmatter-metric-draft] input");
           if (existing) {
             existing.focus();
             return;
           }
-          const draftRow = createMetricDraftRow(view, root, referenceProvider, (path, value) => {
+          const draftRow = createMetricDraftRow(view, activeRoot, referenceProvider, (path, value) => {
             patchPropertyInView(view, this.sectionId, path, value);
           });
-          box.appendChild(draftRow);
+          activeBox.appendChild(draftRow);
           draftRow.querySelector("input")?.focus();
           view.requestMeasure();
         });
         actionsRow.appendChild(addMetricBtn);
+      }
+
+      // Add summary: authors `summaries.*` workout/WQL summary equations.
+      {
+        const addSummaryBtn = document.createElement("button");
+        addSummaryBtn.type = "button";
+        addSummaryBtn.setAttribute("aria-label", "Add summary");
+        addSummaryBtn.setAttribute("data-testid", "editor-add-summary-note");
+        addSummaryBtn.className =
+          "inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-1 py-1 cursor-pointer transition-colors select-none";
+        addSummaryBtn.appendChild(createPlusIcon());
+        const addSummaryLabel = document.createElement("span");
+        addSummaryLabel.textContent = "Add summary";
+        addSummaryBtn.appendChild(addSummaryLabel);
+        addSummaryBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!this.detailed) {
+            view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+          }
+          const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
+          const activeBox = activeRoot.querySelector<HTMLElement>("[data-frontmatter-properties]") ?? box;
+          const existing = activeRoot.querySelector<HTMLInputElement>("[data-frontmatter-summary-draft] input");
+          if (existing) {
+            existing.focus();
+            return;
+          }
+          const draftRow = createSummaryDraftRow(view, (path, value) => {
+            patchPropertyInView(view, this.sectionId, path, value);
+          });
+          activeBox.appendChild(draftRow);
+          draftRow.querySelector<HTMLInputElement>("input")?.focus();
+          view.requestMeasure();
+        });
+        actionsRow.appendChild(addSummaryBtn);
       }
 
       {
@@ -1198,31 +1535,35 @@ export class DefaultFrontmatterWidget extends WidgetType {
         addTagBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
+          if (!this.detailed) {
+            view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+          }
+          const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
+          const activeBox = activeRoot.querySelector<HTMLElement>("[data-frontmatter-properties]") ?? box;
           if (existingTagKey) {
-            const input = Array.from(root.querySelectorAll<HTMLInputElement>(
+            const input = Array.from(activeRoot.querySelectorAll<HTMLInputElement>(
               '[data-frontmatter-field="value"]',
             )).find((element) => element.dataset.frontmatterProperty === existingTagKey);
             input?.focus();
             return;
           }
-          const existingDraft = root.querySelector<HTMLInputElement>("[data-frontmatter-tag-draft] input");
+          const existingDraft = activeRoot.querySelector<HTMLInputElement>("[data-frontmatter-tag-draft] input");
           if (existingDraft) {
             existingDraft.focus();
             return;
           }
           // A note without a tag property gets a `category` one — the
           // tagged-resource classification the app reads back.
-          const draftRow = createTagDraftRow(view, root, "category", (val) => {
+          const draftRow = createTagDraftRow(view, activeRoot, "category", (val) => {
             pendingFocus.set(view, { kind: "tag", key: "category" });
             patchPropertyInView(view, this.sectionId, ["category"], [val]);
           });
-          box.appendChild(draftRow);
+          activeBox.appendChild(draftRow);
           draftRow.querySelector("input")?.focus();
           view.requestMeasure();
         });
         actionsRow.appendChild(addTagBtn);
       }
-
       {
         const editYamlBtn = document.createElement("button");
         editYamlBtn.type = "button";
@@ -1241,7 +1582,11 @@ export class DefaultFrontmatterWidget extends WidgetType {
             currentSections.find((s) => s.id === this.sectionId && s.type === "frontmatter") ||
             currentSections.find((s) => s.type === "frontmatter");
           if (!section) return;
-          view.dispatch({ selection: { anchor: section.contentFrom ?? section.from }, scrollIntoView: true });
+          view.dispatch({
+            selection: { anchor: section.from },
+            effects: setFrontmatterSource.of(true),
+            scrollIntoView: true,
+          });
           view.focus();
         });
         actionsRow.appendChild(editYamlBtn);
@@ -1260,7 +1605,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
    */
   private buildDefinitionRows(
     view: EditorView,
-    base: { met?: string; discipline?: string; intensityTier?: string },
+    base: { met?: string; discipline?: string; intensityTier?: string; hasBaseBlock?: boolean },
   ): HTMLElement {
     const wrap = document.createElement("div");
     wrap.setAttribute("data-frontmatter-definition", "true");
@@ -1274,10 +1619,12 @@ export class DefaultFrontmatterWidget extends WidgetType {
     const commitField = (field: "met" | "discipline" | "intensityTier", raw: string) => {
       if (field === "met") {
         const num = Number(raw);
-        patchPropertyInView(view, this.sectionId, ["baseAttributes", "met"], raw !== "" && !Number.isNaN(num) ? num : null);
+        const path = base.hasBaseBlock ? ["baseAttributes", "met"] : ["metrics.met"];
+        patchPropertyInView(view, this.sectionId, path, raw !== "" && !Number.isNaN(num) ? num : null);
         return;
       }
-      patchPropertyInView(view, this.sectionId, ["baseAttributes", field], raw === "" ? null : raw);
+      const path = base.hasBaseBlock ? ["baseAttributes", field] : [field];
+      patchPropertyInView(view, this.sectionId, path, raw === "" ? null : raw);
     };
 
     const fieldRow = (label: string, child: HTMLElement) => {
@@ -1350,8 +1697,12 @@ export class DefaultFrontmatterWidget extends WidgetType {
 }
 
 class EmptyFrontmatterWidget extends WidgetType {
-  eq(_other: EmptyFrontmatterWidget): boolean {
-    return true;
+  constructor(readonly detailed: boolean = false) {
+    super();
+  }
+
+  eq(other: EmptyFrontmatterWidget): boolean {
+    return this.detailed === other.detailed;
   }
 
   ignoreEvent(): boolean {
@@ -1368,7 +1719,7 @@ class EmptyFrontmatterWidget extends WidgetType {
     root.appendChild(heading);
 
     const actionsRow = document.createElement("div");
-    actionsRow.className = "flex items-center gap-3";
+    actionsRow.className = "flex flex-wrap items-center gap-x-3 gap-y-1";
     actionsRow.dataset.frontmatterActions = "true";
 
     const addBtn = document.createElement("button");
@@ -1385,9 +1736,75 @@ class EmptyFrontmatterWidget extends WidgetType {
       e.preventDefault();
       e.stopPropagation();
       pendingFocus.set(view, { kind: "key", key: "property" });
-      patchPropertyInView(view, "new", ["property"], "");
+      patchPropertyInView(view, "new", ["property"], "", true);
+      const keyField = view.dom.querySelector<HTMLInputElement>(
+        '[data-frontmatter-row="property"] [data-frontmatter-field="key"]',
+      );
+      keyField?.focus();
+      keyField?.select();
     });
     actionsRow.appendChild(addBtn);
+
+    const addMetricBtn = document.createElement("button");
+    addMetricBtn.type = "button";
+    addMetricBtn.setAttribute("aria-label", "Add metric");
+    addMetricBtn.setAttribute("data-testid", "editor-add-metric-note");
+    addMetricBtn.className =
+      "inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-1 py-1 cursor-pointer transition-colors select-none";
+    addMetricBtn.appendChild(createPlusIcon());
+    const addMetricLabel = document.createElement("span");
+    addMetricLabel.textContent = "Add metric";
+    addMetricBtn.appendChild(addMetricLabel);
+    addMetricBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this.detailed) view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+      const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
+      const existing = activeRoot.querySelector<HTMLInputElement>("[data-frontmatter-metric-draft] input");
+      if (existing) {
+        existing.focus();
+        return;
+      }
+      const referenceProvider = view.state.facet(frontmatterReferenceIndex)?.() ?? null;
+      const draftRow = createMetricDraftRow(view, activeRoot, referenceProvider, (path, value) => {
+        patchPropertyInView(view, "new", path, value, true);
+      });
+      activeRoot.appendChild(draftRow);
+      ensureColumnHeader(activeRoot, draftRow);
+      draftRow.querySelector("input")?.focus();
+      view.requestMeasure();
+    });
+    actionsRow.appendChild(addMetricBtn);
+
+    const addSummaryBtn = document.createElement("button");
+    addSummaryBtn.type = "button";
+    addSummaryBtn.setAttribute("aria-label", "Add summary");
+    addSummaryBtn.setAttribute("data-testid", "editor-add-summary-note");
+    addSummaryBtn.className =
+      "inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-1 py-1 cursor-pointer transition-colors select-none";
+    addSummaryBtn.appendChild(createPlusIcon());
+    const addSummaryLabel = document.createElement("span");
+    addSummaryLabel.textContent = "Add summary";
+    addSummaryBtn.appendChild(addSummaryLabel);
+    addSummaryBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this.detailed) view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+      const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
+      const existing = activeRoot.querySelector<HTMLInputElement>("[data-frontmatter-summary-draft] input");
+      if (existing) {
+        existing.focus();
+        return;
+      }
+      const draftRow = createSummaryDraftRow(view, (path, value) => {
+        patchPropertyInView(view, "new", path, value, true);
+      });
+      activeRoot.appendChild(draftRow);
+      ensureColumnHeader(activeRoot, draftRow);
+      draftRow.querySelector("input")?.focus();
+      view.requestMeasure();
+    });
+    actionsRow.appendChild(addSummaryBtn);
 
     const addTagBtn = document.createElement("button");
     addTagBtn.type = "button";
@@ -1402,20 +1819,22 @@ class EmptyFrontmatterWidget extends WidgetType {
     addTagBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const existingDraft = root.querySelector<HTMLInputElement>("[data-frontmatter-tag-draft] input");
+      if (!this.detailed) view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+      const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
+      const existingDraft = activeRoot.querySelector<HTMLInputElement>("[data-frontmatter-tag-draft] input");
       if (existingDraft) {
         existingDraft.focus();
         return;
       }
       // A note without a tag property gets a `category` one — the
       // tagged-resource classification the app reads back.
-      const draftRow = createTagDraftRow(view, root, "category", (val) => {
+      const draftRow = createTagDraftRow(view, activeRoot, "category", (val) => {
         pendingFocus.set(view, { kind: "tag", key: "category" });
-        patchPropertyInView(view, "new", ["category"], [val]);
+        patchPropertyInView(view, "new", ["category"], [val], true);
       });
       // The draft row is a table row too — it gets the same column labels.
-      root.appendChild(draftRow);
-      ensureColumnHeader(root, draftRow);
+      activeRoot.appendChild(draftRow);
+      ensureColumnHeader(activeRoot, draftRow);
       draftRow.querySelector("input")?.focus();
       view.requestMeasure();
     });
@@ -1442,9 +1861,10 @@ function buildFrontmatterDecos(state: EditorState): DecorationSet {
       continue;
     }
 
-    // While the selection intersects the section, reveal the raw YAML so the
-    // source (and its completions) stay editable; the widget returns on exit.
-    const selected = !state.readOnly && state.selection.ranges.some((range) => range.from < section.to && range.to > section.from);
+    const selected = !state.readOnly && (
+      state.field(frontmatterSource) ||
+      state.selection.ranges.some((range) => range.from < section.to && range.to > section.from)
+    );
     if (selected) continue;
 
     const rawContent = state.doc.sliceString(section.from, section.to);
@@ -1452,7 +1872,7 @@ function buildFrontmatterDecos(state: EditorState): DecorationSet {
       section.from,
       section.to,
       Decoration.replace({
-        widget: new DefaultFrontmatterWidget(section.id, rawContent, state.readOnly),
+        widget: new DefaultFrontmatterWidget(section.id, rawContent, state.readOnly, state.field(frontmatterDetailed)),
         block: true,
       }),
     );
@@ -1463,7 +1883,7 @@ function buildFrontmatterDecos(state: EditorState): DecorationSet {
       0,
       0,
       Decoration.widget({
-        widget: new EmptyFrontmatterWidget(),
+        widget: new EmptyFrontmatterWidget(state.field(frontmatterDetailed)),
         side: -1,
         block: true,
       }),
@@ -1478,7 +1898,7 @@ export const frontmatterPreviewField = StateField.define<DecorationSet>({
     return buildFrontmatterDecos(state);
   },
   update(deco, tr) {
-    if (tr.docChanged || tr.reconfigured || tr.selection || tr.effects.some((e) => e.is(referenceIndexReload))) {
+    if (tr.docChanged || tr.reconfigured || tr.selection || tr.effects.some((e) => e.is(referenceIndexReload) || e.is(setFrontmatterDetailed) || e.is(setFrontmatterSource))) {
       return buildFrontmatterDecos(tr.state);
     }
     return deco;
@@ -1491,4 +1911,4 @@ export const frontmatterPreviewField = StateField.define<DecorationSet>({
   ],
 });
 
-export const frontmatterPreview: Extension = [frontmatterPreviewField];
+export const frontmatterPreview: Extension = [frontmatterDetailed, frontmatterSource, frontmatterPreviewField];

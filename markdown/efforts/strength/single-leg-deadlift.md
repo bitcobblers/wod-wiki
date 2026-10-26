@@ -1,11 +1,11 @@
 ---
+type: effort
 id: effort-bundled-single-leg-deadlift
 slug: single-leg-deadlift
 label: "Single leg deadlift"
 aliases: []
-baseAttributes:
-  met: 6.0
-  discipline: strength
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: strength
+intensityTier: moderate
 registrySource: bundled
 ---

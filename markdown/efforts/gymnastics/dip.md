@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-dip
 slug: dip
 label: Dip
@@ -9,10 +10,9 @@ aliases:
   - parallel bar dip
   - "Dip bw"
   - "Ring Dips"
-baseAttributes:
-  met: 4.0
-  discipline: gymnastics
-  intensityTier: moderate
+metrics.met: 4.0
+discipline: gymnastics
+intensityTier: moderate
 equipment:
   - parallettes
 registrySource: bundled

@@ -19,6 +19,7 @@ import { patchFrontmatterProperty } from '@bitcobblers/wod-wiki-core';
 import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 import { storageService } from '@/services/storage';
 import { toast } from '@/hooks/use-toast';
+import { patchPropertyCloneSource } from './usePropertyNote';
 
 /**
  * Patch clone identity into the RAW document — one property range per field,
@@ -27,15 +28,7 @@ import { toast } from '@/hooks/use-toast';
  * document and the committed source in lockstep.
  */
 function patchCloneSource(raw: string, sourceSlug: string, sourceLabel: string): { raw: string; id: string; slug: string; label: string } {
-  const id = `effort-user-${crypto.randomUUID()}`;
-  const slug = `${sourceSlug}-custom`;
-  const label = `${sourceLabel} (Custom)`;
-  let next = patchFrontmatterProperty(raw, ['id'], id);
-  next = patchFrontmatterProperty(next, ['slug'], slug);
-  next = patchFrontmatterProperty(next, ['label'], label);
-  next = patchFrontmatterProperty(next, ['registrySource'], 'user');
-  next = patchFrontmatterProperty(next, ['derivation', 'parentSlug'], sourceSlug);
-  return { raw: next, id, slug, label };
+  return patchPropertyCloneSource('effort', raw, sourceSlug, sourceLabel);
 }
 
 export interface UseEffortContentResult {

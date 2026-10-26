@@ -196,6 +196,68 @@ describe('replayResultAnalytics', () => {
     expect(sessionLoad).toBeDefined();
     expect(sessionLoad!.value).toBe(9);
   });
+
+  it('evaluates stacked Property Note metrics: and summaries: equations on replay', () => {
+    const events = toEventRows([segmentLog()], {
+      noteId: 'n1',
+      resultId: 'r1',
+      blockId: 'wod-2-test',
+      blockVersion: 1,
+      blockContentId: 'bc-test',
+      origin: 'journal',
+      workoutTimestamp: T0 + 60_000,
+    });
+
+    const derived = replayResultAnalytics(BLOCK, events, {
+      propertySources: [
+        {
+          layer: 'equipment',
+          sourceSlug: 'kettlebell',
+          metrics: {
+            resistance: '24 kg',
+            work: 'reps * resistance',
+          },
+          summaries: {
+            totalWork: 'sum(work)',
+          },
+        },
+      ],
+    });
+
+    // Statement carries 21 reps @ 60 kg (parser origin), shadowing equipment's 24 kg -> 21 * 60 = 1260
+    const segment = derived.find((o) => o.outputType === 'segment');
+    expect(segment?.metrics.find((m) => m.type === 'work')?.value).toBe(1260);
+
+    const summaryPoints = normalizeSummaryFacts(derived, { noteId: 'n1', resultId: 'r1' });
+    const totalWorkFact = summaryPoints.find((p) => p.metricKey === 'totalWork');
+    expect(totalWorkFact?.value).toBe(1260);
+
+    // When statement omits resistance, equipment's 24 kg fills in -> 21 * 24 = 504
+    const noLoadSegment: StoredOutputStatement = {
+      ...segmentLog(),
+      metrics: segmentLog().metrics.filter((m) => m.type !== MetricType.Resistance),
+    };
+    const noLoadEvents = toEventRows([noLoadSegment], {
+      noteId: 'n1',
+      resultId: 'r2',
+      blockId: 'wod-2-test',
+      blockVersion: 1,
+      blockContentId: 'bc-test',
+      origin: 'journal',
+      workoutTimestamp: T0 + 60_000,
+    });
+    const derivedDefault = replayResultAnalytics(BLOCK, noLoadEvents, {
+      propertySources: [
+        {
+          layer: 'equipment',
+          sourceSlug: 'kettlebell',
+          metrics: { resistance: '24 kg', work: 'reps * resistance' },
+          summaries: { totalWork: 'sum(work)' },
+        },
+      ],
+    });
+    expect(derivedDefault.find((o) => o.outputType === 'segment')?.metrics.find((m) => m.type === 'work')?.value).toBe(504);
+  });
 });
 
 describe('resolveCanonicalMetricKey', () => {

@@ -16,12 +16,12 @@
  */
 
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
-import { documentToEffort, documentToEquipment } from '@bitcobblers/wod-wiki-lang';
+import type { Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
+import { documentToEffort, documentToEquipment, documentToTag } from '@bitcobblers/wod-wiki-lang';
 import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
 import { storageService } from '@/services/storage';
 
-export type ReferenceKind = 'effort' | 'equipment';
-
+export type ReferenceKind = 'effort' | 'equipment' | 'tag' | 'tag-type';
 export interface CommitReferenceNoteInput {
   kind: ReferenceKind;
   /** Canonical slug — must agree with the document's own `slug` field. */
@@ -37,6 +37,8 @@ export interface CommitReferenceNoteInput {
    * exists, else `effort/<slug>` / `equipment/<slug>` for a fresh note.
    */
   noteId?: string;
+  /** Tag Category when kind === 'tag'. */
+  category?: string;
 }
 
 export interface CommitReferenceNoteResult {
@@ -45,17 +47,105 @@ export interface CommitReferenceNoteResult {
 }
 
 /** Semantic source families (mirrors the seed families, used for by-source reads). */
-const FAMILY_SOURCE: Record<ReferenceKind, string> = { effort: 'efforts', equipment: 'equipment' };
-
+const FAMILY_SOURCE: Record<ReferenceKind, string> = {
+  effort: 'efforts',
+  equipment: 'equipment',
+  tag: 'tags',
+  'tag-type': 'tag_types',
+};
 // Full cascade scope: definition saves touch projection+source+links+alias
 // pages; definition deletion additionally cascades note attachments, tag
 // links and page-note links via deleteNote — every store must be in the
 // enclosing IndexedDB transaction scope or the scoped writes throw.
-const REFERENCE_TX_STORES = ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'page', 'page_notes', 'note_tags', 'attachments'] as const;
-
+const REFERENCE_TX_STORES = [
+  'notes',
+  'block_revisions',
+  'block_index',
+  'block_efforts',
+  'block_equipment',
+  'efforts',
+  'equipment',
+  'page',
+  'page_notes',
+  'note_tags',
+  'tags',
+  'tag_types',
+  'attachments',
+] as const;
 export async function commitReferenceNote(input: CommitReferenceNoteInput): Promise<CommitReferenceNoteResult> {
   // Parse + validate BEFORE any write: an invalid document never touches
   // storage and the draft stays editable.
+  if (input.kind === 'tag') {
+    const parsedTag = documentToTag(input.rawContent, input.category ?? 'tag');
+    if (parsedTag.errors.length > 0) throw new Error(parsedTag.errors.join('\n'));
+    const category = parsedTag.tag.category || input.category || 'tag';
+    const noteId = input.noteId ?? `t/${category}/${input.slug}`;
+    return storageService.withTransaction([...REFERENCE_TX_STORES], async (scoped) => {
+      const contributions: TagContribution[] = [];
+      for (const [mKey, mVal] of Object.entries(parsedTag.tag.metrics)) {
+        if (typeof mVal !== 'string' && typeof mVal !== 'number') continue;
+        const strVal = String(mVal).trim();
+        const qtyMatch = strVal.match(/^([+-]?\d+(?:\.\d+)?)\s*([A-Za-z%/][\w%/.-]*)$/);
+        if (qtyMatch) {
+          contributions.push({ kind: 'metric', type: mKey, value: Number(qtyMatch[1]), unit: qtyMatch[2] });
+        } else {
+          contributions.push({ kind: 'metric', type: mKey, value: mVal });
+        }
+      }
+      for (const tSlug of parsedTag.tag.tags) {
+        contributions.push({ kind: 'tag', slug: tSlug });
+      }
+      for (const fnName of parsedTag.tag.functions) {
+        contributions.push({ kind: 'function', name: fnName });
+      }
+      const tagRow: Tag = {
+        id: parsedTag.tag.id || `tag-${input.slug}`,
+        label: parsedTag.tag.label || input.slug,
+        ...(category !== 'tag' ? { type: category } : {}),
+        contributions,
+        createdAt: Date.now(),
+      };
+      await scoped.putTag(tagRow);
+      const note = await scoped.saveNoteSource({
+        noteId,
+        rawContent: input.rawContent,
+        expectedSourceRevision: input.expectedSourceRevision,
+        blocks: {},
+        metadata: { title: parsedTag.tag.label || input.title, sourceId: FAMILY_SOURCE.tag },
+        createdAt: Date.now(),
+      });
+      return { id: noteId, sourceRevision: note.sourceRevision };
+    });
+  }
+
+  if (input.kind === 'tag-type') {
+    const fm = readFrontmatterMeta(input.rawContent);
+    const name = typeof fm['slug'] === 'string' && fm['slug'].trim() ? fm['slug'].trim() : input.slug;
+    const label = typeof fm['label'] === 'string' && fm['label'].trim() ? fm['label'].trim() : input.title;
+    const color = typeof fm['color'] === 'string' && fm['color'].trim() ? fm['color'].trim() : undefined;
+    const id = typeof fm['id'] === 'string' && fm['id'].trim() ? fm['id'].trim() : `tag-type-${name}`;
+    const noteId = input.noteId ?? `t/${name}`;
+    return storageService.withTransaction([...REFERENCE_TX_STORES], async (scoped) => {
+      const existing = await scoped.getTagType(name);
+      await scoped.putTagType({
+        id: existing?.id ?? id,
+        name,
+        label,
+        ...(color ? { color } : existing?.color ? { color: existing.color } : {}),
+        createdAt: existing?.createdAt ?? Date.now(),
+      });
+      const note = await scoped.saveNoteSource({
+        noteId,
+        rawContent: input.rawContent,
+        expectedSourceRevision: input.expectedSourceRevision,
+        blocks: {},
+        metadata: { title: label, sourceId: FAMILY_SOURCE['tag-type'] },
+        createdAt: Date.now(),
+      });
+      return { id: noteId, sourceRevision: note.sourceRevision };
+    });
+  }
+
   const parsedEffort = input.kind === 'effort' ? documentToEffort(input.rawContent) : undefined;
   const parsedEquipment = input.kind === 'equipment' ? documentToEquipment(input.rawContent) : undefined;
   const parsed = parsedEffort?.effort ?? parsedEquipment?.equipment;
@@ -69,7 +159,6 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
   if (parsed && parsed.slug !== input.slug) errors.push(`Document slug "${parsed.slug}" does not match "${input.slug}"`);
   if (parsed && parsed.label.trim() !== input.title.trim()) errors.push(`Document label "${parsed.label}" does not match title "${input.title}"`);
   if (errors.length > 0) throw new Error(errors.join('\n'));
-
   return storageService.withTransaction([...REFERENCE_TX_STORES], async (scoped) => {
     const prior: IEffort | IEquipment | undefined = input.kind === 'effort'
       ? await scoped.getEffort(input.slug)
@@ -139,6 +228,21 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
 /** Remove a user-owned definition: projection + owning note + derived links in one transaction. */
 export async function deleteReferenceNote(kind: ReferenceKind, slug: string): Promise<void> {
   await storageService.withTransaction([...REFERENCE_TX_STORES], async (scoped) => {
+    if (kind === 'tag-type') {
+      const existing = await scoped.getTagType(slug);
+      if (existing) await scoped.deleteTagType(existing.id);
+      const noteId = `t/${slug}`;
+      if (await scoped.getNote(noteId)) await scoped.deleteNote(noteId);
+      return;
+    }
+    if (kind === 'tag') {
+      const allTags = await scoped.getAllTags();
+      const match = allTags.find((t) => t.label === slug || t.id === slug);
+      if (match) await scoped.deleteTag(match.id);
+      const noteId = `t/${match?.type ?? 'tag'}/${slug}`;
+      if (await scoped.getNote(noteId)) await scoped.deleteNote(noteId);
+      return;
+    }
     const prior: IEffort | IEquipment | undefined = kind === 'effort'
       ? await scoped.getEffort(slug)
       : await scoped.getEquipment(slug);

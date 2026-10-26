@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-swimming-dive-start
 slug: swimming-dive-start
 label: "Swimming dive start"
@@ -12,9 +13,8 @@ aliases:
   - "Dive Sprints"
   - "Dive Start Sprints"
   - "Dive Starts"
-baseAttributes:
-  met: 6.0
-  discipline: swimming
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: swimming
+intensityTier: moderate
 registrySource: bundled
 ---

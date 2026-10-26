@@ -246,7 +246,8 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     equipmentDetail: () => <EquipmentDetailPage />,
     tagDetail: () => (
       <TagsPage
-        key={routeParams.tag ?? ''}
+        key={`${routeParams.type ?? ''}/${routeParams.tag ?? ''}`}
+        initialType={routeParams.type}
         initialTag={routeParams.tag}
       />
     ),

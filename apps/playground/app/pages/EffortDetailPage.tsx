@@ -99,7 +99,8 @@ function EffortResolvedInline({ resolved, effort }: { resolved: ResolvedEffort; 
 /* ── Main page component ──────────────────────────────────────────────────── */
 
 export function EffortDetailPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug: slugParam, tag: tagParam } = useParams<{ slug?: string; tag?: string }>();
+  const slug = slugParam ?? tagParam;
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { theme } = useTheme();

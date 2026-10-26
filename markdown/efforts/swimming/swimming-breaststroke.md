@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-swimming-breaststroke
 slug: swimming-breaststroke
 label: "Swimming breaststroke"
@@ -10,9 +11,8 @@ aliases:
   - "Breaststroke Strength"
   - "Breaststroke Swim"
   - "Breaststroke Timing"
-baseAttributes:
-  met: 6.0
-  discipline: swimming
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: swimming
+intensityTier: moderate
 registrySource: bundled
 ---

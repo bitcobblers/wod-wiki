@@ -34,6 +34,11 @@ export class CalculationRegistry {
     return this.defs.get(id);
   }
 
+  /** Register a custom statement-level metric dimension (e.g. from a Property Note). */
+  registerAtom(name: string, dim: DimVector = DIM_ZERO): void {
+    this.libraryDims.set(name, dim);
+  }
+
   /**
    * Register a calculation. Compiles every node expression and predicate,
    * runs static dimension checking, and (for library calcs) publishes node
@@ -43,6 +48,11 @@ export class CalculationRegistry {
   register(def: CalculationDefinition): void {
     if (def.variants.length === 0) {
       throw new CalcRegistrationError(`Calc ${def.id}: at least one variant is required`);
+    }
+    if (def.customAtoms) {
+      for (const [atom, dim] of Object.entries(def.customAtoms)) {
+        this.libraryDims.set(atom, dim);
+      }
     }
     const env = this.staticEnv();
     if (def.when) def.whenAst = compilePredicate(def.when, def.id, env);

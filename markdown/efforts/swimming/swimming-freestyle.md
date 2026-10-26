@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-swimming-freestyle
 slug: swimming-freestyle
 label: "Swimming freestyle"
@@ -13,9 +14,8 @@ aliases:
   - "Freestyle Speed"
   - "Freestyle Sprint"
   - "Freestyle Swim"
-baseAttributes:
-  met: 6.0
-  discipline: swimming
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: swimming
+intensityTier: moderate
 registrySource: bundled
 ---

@@ -10,6 +10,7 @@ import { bundledEfforts } from '../effort-registry/data/bundled-efforts';
 import type { IEffortResolver } from '../effort-registry/types';
 import type { ReferenceIndex } from '../effort-registry/reference-resolution';
 import type { CalculationDefinition } from './calc/types';
+import type { PropertyRuleInput } from './calc/shakeOutQueue';
 
 export interface CreateAnalyticsEngineResult {
   engine: AnalyticsEngine;
@@ -30,6 +31,8 @@ export interface CreateAnalyticsEngineOptions {
   tags?: TagIndex;
   /** Tags active for the whole run, whatever the segments say. */
   activeTags?: readonly string[];
+  /** Property Note metric/summary rules active for this run or block. */
+  propertySources?: readonly PropertyRuleInput[];
 }
 
 /**
@@ -77,6 +80,7 @@ export function createAnalyticsEngineForBlock(
     calcs: options?.calcs,
     tags: options?.tags,
     activeTags: options?.activeTags,
+    propertySources: options?.propertySources,
   };
 
   const profile = new StandardAnalyticsProfile();

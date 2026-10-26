@@ -53,7 +53,39 @@ function parseMetaLines(lines: string[]): ParsedFrontmatter['meta'] {
         items.push(itemMatch[1].trim());
         i++;
       }
-      meta[key] = items.length > 0 ? items : '';
+      if (items.length > 0) {
+        meta[key] = items;
+      } else if (key === 'metrics' || key === 'summaries') {
+        while (i + 1 < lines.length) {
+          const childLine = lines[i + 1];
+          if (/^\s*(?:#.*)?$/.test(childLine)) {
+            i++;
+            continue;
+          }
+          const childMatch = childLine.match(/^\s{2,}([A-Za-z][\w.-]*)\s*:(.*)$/);
+          if (!childMatch) break;
+          i++;
+          const childKey = `${key}.${childMatch[1]}`;
+          const childRaw = childMatch[2].trim();
+          if (childRaw === '') {
+            const childItems: string[] = [];
+            while (i + 1 < lines.length) {
+              const listMatch = lines[i + 1].match(/^\s{4,}-\s+(.+)$/);
+              if (!listMatch) break;
+              childItems.push(listMatch[1].trim());
+              i++;
+            }
+            meta[childKey] = childItems.length > 0 ? childItems : '';
+          } else {
+            const wasQuoted = /^(['"])(.*)\1$/.test(childRaw);
+            const value = unquote(childRaw);
+            const num = Number(value);
+            meta[childKey] = !wasQuoted && value !== '' && !isNaN(num) ? num : value;
+          }
+        }
+      } else {
+        meta[key] = '';
+      }
     } else {
       const wasQuoted = /^(['"])(.*)\1$/.test(rawVal);
       const value = unquote(rawVal);

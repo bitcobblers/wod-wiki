@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-running-6mph
 slug: running-6-mph
 label: Running (6 mph)
@@ -11,9 +12,8 @@ aliases:
   - "k Run"
   - "Run easy"
   - "Running"
-baseAttributes:
-  met: 9.8
-  discipline: running
-  intensityTier: moderate
+metrics.met: 9.8
+discipline: running
+intensityTier: moderate
 registrySource: bundled
 ---

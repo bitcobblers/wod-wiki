@@ -20,9 +20,52 @@ db: wodwiki-db (v20)
 Some note body here.
 `;
 
+function openDetails(container: HTMLElement): void {
+  container.querySelector<HTMLButtonElement>('button[aria-label="Show property details"]')?.click();
+}
+
 describe('frontmatterPreview extension', () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+  it('loads a compact summary and expands every property in detailed view', () => {
+    const doc = `---
+tags: [strength, intervals]
+aliases: [Conditioning]
+title: Engine Builder
+metrics.effort: air-bike
+---
+# Body
+`;
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({ doc, extensions: [sectionField, frontmatterPreview] }),
+    });
+
+    try {
+      const summary = container.querySelector('[data-frontmatter-summary]');
+      expect(summary?.textContent).toContain('#strength');
+      expect(summary?.textContent).toContain('#intervals');
+      expect(summary?.textContent).toContain('Conditioning');
+      expect(summary?.textContent).toContain('2 more properties');
+      expect(summary?.textContent).toContain('1 custom metric');
+      expect(container.querySelectorAll('[data-frontmatter-field]').length).toBe(0);
+      expect(view.contentDOM.textContent).not.toContain('Engine Builder');
+
+      const details = container.querySelector<HTMLButtonElement>('button[aria-label="Show property details"]');
+      if (!details) throw new Error('Missing property details control');
+      details.click();
+
+      expect(container.querySelector('[data-frontmatter-summary]')).toBeNull();
+      expect(container.querySelector<HTMLInputElement>('[data-frontmatter-row="title"] [data-frontmatter-field="value"]')?.value).toBe('Engine Builder');
+      expect(container.querySelector<HTMLInputElement>('[data-frontmatter-row="metrics.effort"] [data-frontmatter-field="value"]')?.value).toBe('air-bike');
+      expect(container.querySelector('button[aria-label="Show property summary"]')).not.toBeNull();
+    } finally {
+      view.destroy();
+      container.remove();
+    }
   });
   it('hides frontmatter without changing source and restores editable properties on opt-in', async () => {
     const visibility = new Compartment();
@@ -47,6 +90,7 @@ describe('frontmatterPreview extension', () => {
         selection: { anchor: SAMPLE_NOTE.indexOf('# FieldCatalogEntry') },
         effects: visibility.reconfigure(frontmatterVisibility.of(true)),
       });
+      openDetails(container);
       const input = Array.from(container.querySelectorAll('input')).find((item) => item.value === 'field_catalog');
       expect(input).toBeDefined();
       if (!input) throw new Error('Missing property value input');
@@ -77,6 +121,7 @@ describe('frontmatterPreview extension', () => {
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const previewEl = container.querySelector('.cm-frontmatter-preview');
     expect(previewEl).not.toBeNull();
 
@@ -118,6 +163,7 @@ describe('frontmatterPreview extension', () => {
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const removeTagBtn = container.querySelector('button[aria-label="Remove tag domain-model"]') as HTMLButtonElement;
     expect(removeTagBtn).not.toBeNull();
 
@@ -140,6 +186,7 @@ describe('frontmatterPreview extension', () => {
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const tagInput = container.querySelector('input[placeholder*="Add tag"]') as HTMLInputElement;
     expect(tagInput).not.toBeNull();
 
@@ -163,6 +210,7 @@ describe('frontmatterPreview extension', () => {
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const storeInput = Array.from(container.querySelectorAll('input')).find(
       (i) => (i as HTMLInputElement).value === 'field_catalog',
     ) as HTMLInputElement;
@@ -211,6 +259,7 @@ describe('frontmatterPreview extension', () => {
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const delKeyPathBtn = container.querySelector('button[aria-label="Remove property keyPath"]') as HTMLButtonElement;
     expect(delKeyPathBtn).not.toBeNull();
 
@@ -233,9 +282,10 @@ describe('frontmatterPreview extension', () => {
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const previewEl = container.querySelector('.cm-frontmatter-preview');
     expect(previewEl?.querySelectorAll('input').length).toBe(0);
-    expect(previewEl?.querySelectorAll('button').length).toBe(0);
+    expect(previewEl?.querySelectorAll('button:not([aria-label="Show property summary"])').length).toBe(0);
     expect(previewEl?.textContent).toContain('domain-model');
     expect(previewEl?.textContent).toContain('field_catalog');
 
@@ -410,6 +460,7 @@ title: My Workout
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const valueInput = Array.from(container.querySelectorAll('input')).find(
       (i) => i.getAttribute('aria-label') === 'Value for workout',
     ) as HTMLInputElement;
@@ -445,6 +496,7 @@ title: My Workout
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const valueInput = Array.from(container.querySelectorAll('input')).find(
       (i) => i.getAttribute('aria-label') === 'Value for title',
     ) as HTMLInputElement;
@@ -477,6 +529,7 @@ title: My Workout
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const tagInput = container.querySelector('input[aria-label="Value for tags"]') as HTMLInputElement;
     expect(tagInput).not.toBeNull();
     tagInput.value = 'PARKOUR';
@@ -489,7 +542,7 @@ title: My Workout
     container.remove();
   });
 
-  it('reveals raw YAML and focuses inside the section via Edit YAML', () => {
+  it('reveals raw YAML and focuses the opening delimiter via Edit YAML', () => {
     const state = EditorState.create({
       doc: SAMPLE_NOTE,
       extensions: [sectionField, frontmatterPreview],
@@ -505,7 +558,7 @@ title: My Workout
     expect(editBtn).not.toBeNull();
     editBtn.click();
 
-    expect(view.state.selection.main.anchor).toBeGreaterThan(0);
+    expect(view.state.selection.main.anchor).toBe(0);
     expect(container.querySelector('.cm-frontmatter-preview')).toBeNull();
     expect(container.textContent).toContain('tags:');
 
@@ -565,6 +618,7 @@ No frontmatter here.
     document.body.appendChild(editContainer);
     const editView = new EditorView({ state: editState, parent: editContainer });
 
+    openDetails(editContainer);
     const editLink = editContainer.querySelector('a[aria-label="Open source in new tab"]') as HTMLAnchorElement;
     expect(editLink).not.toBeNull();
     expect(editLink.href).toBe('https://example.com/src');
@@ -583,6 +637,7 @@ No frontmatter here.
     document.body.appendChild(roContainer);
     const roView = new EditorView({ state: roState, parent: roContainer });
 
+    openDetails(roContainer);
     const roLink = roContainer.querySelector('a[aria-label="Open source in new tab"]') as HTMLAnchorElement;
     expect(roLink).not.toBeNull();
     expect(roLink.href).toBe('https://example.com/src');
@@ -601,6 +656,7 @@ No frontmatter here.
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
+    openDetails(container);
     const preview = container.querySelector('.cm-frontmatter-preview');
     expect(preview).not.toBeNull();
 
@@ -654,5 +710,71 @@ No frontmatter.
 
     view.destroy();
     container.remove();
+  });
+  it('groups Tag Categories in summary mode and authors custom metrics and summaries', () => {
+    const doc = `---
+tags: [strength]
+domain: [crossfit]
+equipment: [kettlebell]
+aliases: [KB Complex]
+title: Bell Work
+metrics.met: 6
+summaries.totalWork: sum(work)
+---
+# Body
+`;
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({ doc, extensions: [sectionField, frontmatterPreview] }),
+    });
+
+    try {
+      const summary = container.querySelector('[data-frontmatter-summary]');
+      expect(summary?.textContent).toContain('#strength');
+      expect(summary?.textContent).toContain('#crossfit');
+      expect(summary?.textContent).toContain('#kettlebell');
+      expect(summary?.textContent).toContain('KB Complex');
+      expect(summary?.textContent).toContain('3 more properties');
+      expect(summary?.textContent).toContain('1 custom metric');
+      expect(summary?.textContent).toContain('1 summary');
+
+      // Add metric -> Custom / Equation from summary mode auto-expands to detailed mode
+      const addMetricBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Add metric"]');
+      if (!addMetricBtn) throw new Error('Missing Add metric button');
+      addMetricBtn.click();
+      expect(container.querySelector('[data-frontmatter-summary]')).toBeNull();
+
+      const kindSelect = container.querySelector<HTMLSelectElement>('select[aria-label="Metric kind"]');
+      if (!kindSelect) throw new Error('Missing Metric kind select');
+      kindSelect.value = 'custom';
+      kindSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+      const metricKeyInput = container.querySelector<HTMLInputElement>('input[aria-label="Metric key"]');
+      const metricValInput = container.querySelector<HTMLInputElement>('input[aria-label="Metric value"]');
+      if (!metricKeyInput || !metricValInput) throw new Error('Missing custom metric draft inputs');
+      metricKeyInput.value = 'work';
+      metricValInput.value = 'reps * resistance';
+      metricValInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      expect(view.state.doc.toString()).toContain('metrics.work: "reps * resistance"');
+
+      // Add summary authors summaries.<key>
+      const addSummaryBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Add summary"]');
+      if (!addSummaryBtn) throw new Error('Missing Add summary button');
+      addSummaryBtn.click();
+
+      const summaryKeyInput = container.querySelector<HTMLInputElement>('input[aria-label="Summary key"]');
+      const summaryEqInput = container.querySelector<HTMLInputElement>('input[aria-label="Summary equation"]');
+      if (!summaryKeyInput || !summaryEqInput) throw new Error('Missing summary draft inputs');
+      summaryKeyInput.value = 'workRate';
+      summaryEqInput.value = 'sum(work) / convert(sum(elapsed), min)';
+      summaryEqInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+      expect(view.state.doc.toString()).toContain('summaries.workRate: "sum(work) / convert(sum(elapsed), min)"');
+    } finally {
+      view.destroy();
+      container.remove();
+    }
   });
 });

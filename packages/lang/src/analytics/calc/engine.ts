@@ -38,6 +38,8 @@ import { CalculationDefinition, CalcVariant } from './types';
 import { ABSENT, num, str, truthy, Val } from './values';
 import { DIM_ZERO } from './dimensions';
 import { AUTHORITATIVE_CASTS } from './units';
+import { UNITS } from './units';
+import { runMetricShakeOutQueue, type PropertyRuleInput } from './shakeOutQueue';
 
 export interface CalcEngineDeps {
   /** Fence dialect of the block being analyzed; calcs filter on it. */
@@ -52,6 +54,8 @@ export interface CalcEngineDeps {
   tags?: TagIndex;
   /** Tags active for the whole run, whatever the segments say. */
   activeTags?: readonly string[];
+  /** Property Note metric/summary rules active for this run or block. */
+  propertySources?: readonly PropertyRuleInput[];
 }
 
 /** Segment's resolved effort identity for grouping/exclusion. */
@@ -139,6 +143,14 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
     if (output.outputType !== 'segment' || !output.isLeaf) return output;
     const effortData = extractEffortData(output.metrics.rawMetrics);
     if (effortData) this.lastSegmentEffort = effortData.resolved.slug;
+    if (this.deps.propertySources && this.deps.propertySources.length > 0) {
+      runMetricShakeOutQueue(output.metrics, {
+        stage: 'log',
+        sources: this.deps.propertySources,
+        lookups: this.deps.lookups,
+        lastEffortSlug: this.lastSegmentEffort,
+      });
+    }
     const atoms = buildSegmentAtoms(output, this.lastSegmentEffort);
     // Effort identity rides segment annotations as metadata so persisted
     // segment-grain facts (workoutDerivation.normalizeAllMetrics) carry the
@@ -550,7 +562,22 @@ function buildSegmentAtoms(output: IOutputStatement, lastEffortSlug?: string): A
           return str(slug);
         }
         case 'effortLabel': return effortLabel ? str(effortLabel.value as string) : ABSENT;
-        default: return ABSENT;
+        default: {
+          for (let i = raw.length - 1; i >= 0; i--) {
+            const m = raw[i];
+            if (m.type !== name && m.name !== name) continue;
+            const v = numericMetricValue(m);
+            if (v !== undefined) {
+              const unit = embeddedMetricUnit(m) ?? m.unit ?? STREAM_ATOMS[name]?.unit;
+              const dim = (unit && UNITS[unit] ? UNITS[unit].dim : undefined) ?? STREAM_ATOMS[name]?.dim ?? DIM_ZERO;
+              return num(v, dim, unit);
+            }
+            if (typeof m.value === 'string' && m.value) {
+              return str(m.value);
+            }
+          }
+          return ABSENT;
+        }
       }
     },
   };

@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-ski-erg
 slug: ski-erg
 label: Ski Erg
@@ -7,10 +8,9 @@ aliases:
   - skiing
   - ski machine
   - concept2 ski
-baseAttributes:
-  met: 8.0
-  discipline: rowing
-  intensityTier: high
+metrics.met: 8.0
+discipline: rowing
+intensityTier: high
 equipment:
   - ski-erg
 registrySource: bundled

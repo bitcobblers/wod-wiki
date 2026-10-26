@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-plank
 slug: plank
 label: Plank
@@ -9,9 +10,8 @@ aliases:
   - "Front-Lean and Rest"
   - "Hold Raised Push Up Position"
   - "Plank Hold"
-baseAttributes:
-  met: 3.5
-  discipline: bodyweight
-  intensityTier: low
+metrics.met: 3.5
+discipline: bodyweight
+intensityTier: low
 registrySource: bundled
 ---

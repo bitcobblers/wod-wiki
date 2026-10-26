@@ -200,11 +200,17 @@ function deriveWorkout(
   // Detail routes carry their identity in the path — surface the slug as the
   // workout name so the mobile navbar breadcrumb can show it (the page-level
   // header is hidden below lg).
-  if (pathname.startsWith('/effort/')) {
-    return { name: decodeURIComponent(pathname.slice('/effort/'.length).split('/')[0] ?? 'Effort'), content: '', category: 'effort' }
+  if (pathname.startsWith('/effort/') || /^\/t\/effort\/[^/]+/.test(pathname)) {
+    const raw = pathname.startsWith('/t/effort/')
+      ? pathname.slice('/t/effort/'.length)
+      : pathname.slice('/effort/'.length)
+    return { name: decodeURIComponent(raw.split('/')[0] ?? 'Effort'), content: '', category: 'effort' }
   }
-  if (pathname.startsWith('/equipment/')) {
-    return { name: decodeURIComponent(pathname.slice('/equipment/'.length).split('/')[0] ?? 'Equipment'), content: '', category: 'equipment' }
+  if (pathname.startsWith('/equipment/') || /^\/t\/equipment\/[^/]+/.test(pathname)) {
+    const raw = pathname.startsWith('/t/equipment/')
+      ? pathname.slice('/t/equipment/'.length)
+      : pathname.slice('/equipment/'.length)
+    return { name: decodeURIComponent(raw.split('/')[0] ?? 'Equipment'), content: '', category: 'equipment' }
   }
   if (flags.notebookItemMatch) {
     return { name: decodeURIComponent(flags.notebookItemMatch[2]), content: '', category: 'notebook' }
@@ -272,8 +278,8 @@ function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanva
   }
   if (flags.feedDetailMatch) return 'feedDetail'
   if (flags.notebookItemMatch) return 'notebookItem'
-  if (pathname.startsWith('/effort/')) return 'effortDetail'
-  if (pathname.startsWith('/equipment/')) return 'equipmentDetail'
+  if (pathname.startsWith('/effort/') || /^\/t\/effort\/[^/]+/.test(pathname)) return 'effortDetail'
+  if (pathname.startsWith('/equipment/') || /^\/t\/equipment\/[^/]+/.test(pathname)) return 'equipmentDetail'
   if (clean === '/dashboards') return 'dashboardExplorer'
   if (pathname.startsWith('/dashboard/')) return 'dashboardView'
   if (clean === '/settings' || clean.startsWith('/settings/')) return 'settings'

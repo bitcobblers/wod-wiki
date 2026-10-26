@@ -139,6 +139,8 @@ describe('NoteEditor frontmatter raw editing reachability (preview on)', () => {
   it('reveals closed frontmatter for completion while raw editing and restores the widget on exit', async () => {
     const doc = '---\ndomain: climbing\n---\n\nBody text.';
     const view = editor(doc, doc.length, { preview: true });
+    await waitFor(() => expect(document.querySelector('[data-frontmatter-summary]')?.textContent).toContain('#climbing'));
+    act(() => { fireEvent.click(screen.getByLabelText('Show property details')); });
     await waitFor(() => expect(
       within(document.querySelector('[data-frontmatter-row="domain"]') as HTMLElement)
         .getByLabelText('Property key: domain'),

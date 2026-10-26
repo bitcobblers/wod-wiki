@@ -37,7 +37,11 @@ function editor(doc: string, provider = async () => catalog) {
 }
 
 function input(container: HTMLElement, label: string) {
-  const element = Array.from(container.querySelectorAll('input')).find((candidate) => candidate.getAttribute('aria-label') === label);
+  let element = Array.from(container.querySelectorAll('input')).find((candidate) => candidate.getAttribute('aria-label') === label);
+  if (!element) {
+    container.querySelector<HTMLButtonElement>('button[aria-label="Show property details"]')?.click();
+    element = Array.from(container.querySelectorAll('input')).find((candidate) => candidate.getAttribute('aria-label') === label);
+  }
   if (!element) throw new Error(`Missing input ${label}`);
   return element;
 }

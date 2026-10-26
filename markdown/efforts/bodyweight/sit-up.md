@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-sit-up
 slug: sit-up
 label: Sit-Up
@@ -9,9 +10,8 @@ aliases:
   - "Sit Up"
   - "sit-ups"
   - "Situps"
-baseAttributes:
-  met: 3.5
-  discipline: bodyweight
-  intensityTier: low
+metrics.met: 3.5
+discipline: bodyweight
+intensityTier: low
 registrySource: bundled
 ---

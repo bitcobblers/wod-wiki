@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-burpee
 slug: burpee
 label: Burpee
@@ -6,10 +7,9 @@ aliases:
   - burpees
   - chest-to-floor burpee
   - "Max Effort Burpees"
-baseAttributes:
-  met: 10.0
-  discipline: bodyweight
-  intensityTier: high
+metrics.met: 10.0
+discipline: bodyweight
+intensityTier: high
 registrySource: bundled
 ---
 Burpees are a full-body conditioning effort that combine a squat, plank, and jump.

@@ -31,6 +31,7 @@ export const LEGACY_ORIGIN_TO_OWNERSHIP_LAYER: Record<MetricOrigin, MetricOwners
   execution: 'runtime',
   user: 'user-entry',
   collected: 'user-entry',
+  diagnostic: 'runtime',
 };
 
 export interface MetricWithOptionalOwnershipLayer extends IMetric {

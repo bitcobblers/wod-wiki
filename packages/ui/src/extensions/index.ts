@@ -44,7 +44,7 @@ export {
 } from './section-geometry';
 export { previewDecorations } from './preview-decorations';
 export { embedPreviewDecorations } from './embed-preview';
-export { frontmatterPreview, frontmatterPreviewField, frontmatterVisibility, DefaultFrontmatterWidget, frontmatterSuggestions, frontmatterReferenceIndex, referenceIndexReload, type FrontmatterSuggestionCatalog, type FrontmatterCatalogEntry, type FrontmatterReferenceProvider, type FrontmatterReferenceRef, type FrontmatterRefDiagnostic, type FrontmatterReferenceResolution } from './frontmatter-preview';
+export { frontmatterPreview, frontmatterPreviewField, frontmatterVisibility, frontmatterDetailed, setFrontmatterDetailed, frontmatterSource, setFrontmatterSource, DefaultFrontmatterWidget, frontmatterSuggestions, frontmatterReferenceIndex, referenceIndexReload, type FrontmatterSuggestionCatalog, type FrontmatterCatalogEntry, type FrontmatterReferenceProvider, type FrontmatterReferenceRef, type FrontmatterRefDiagnostic, type FrontmatterReferenceResolution } from './frontmatter-preview';
 export { markdownSyntaxHiding } from './markdown-syntax-hiding';
 export { markdownTablePreview } from './markdown-tables';
 export { linkPreview } from './link-preview';

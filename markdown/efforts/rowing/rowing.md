@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-rowing
 slug: rowing
 label: Rowing
@@ -11,10 +12,9 @@ aliases:
   - concept2 row
   - "Long Row"
   - "Row Calories"
-baseAttributes:
-  met: 7.0
-  discipline: rowing
-  intensityTier: high
+metrics.met: 7.0
+discipline: rowing
+intensityTier: high
 equipment:
   - rower
 registrySource: bundled

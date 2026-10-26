@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-running-sprint
 slug: running-sprint
 label: Running (Sprint)
@@ -8,9 +9,8 @@ aliases:
   - max speed run
   - "Power Sprints"
   - "Run hard"
-baseAttributes:
-  met: 14.5
-  discipline: running
-  intensityTier: high
+metrics.met: 14.5
+discipline: running
+intensityTier: high
 registrySource: bundled
 ---

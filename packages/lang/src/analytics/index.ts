@@ -11,14 +11,6 @@ export * from './TwoPassEffortResolutionProcess';
 export * from './AnalyticsContext';
 export * from './effortResolution';
 export * from './extractMetrics';
-export {
-  parseCalculateBlock,
-  evaluateCalculateDefinitions,
-  CalculateBlockProcessor,
-  type CalculateBlockParseResult,
-  type CalculateBlockParseError,
-  type CalculationDefinition as CalculateBlockDefinition,
-} from './calculateBlock';
 export * from './ProjectionResult';
 export * from './calc';
 export * from './rollup/workloadRollup';

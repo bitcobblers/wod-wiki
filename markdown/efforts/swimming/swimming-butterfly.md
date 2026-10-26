@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-swimming-butterfly
 slug: swimming-butterfly
 label: "Swimming butterfly"
@@ -12,9 +13,8 @@ aliases:
   - "Butterfly Strength"
   - "Butterfly Swim"
   - "Single Arm Fly"
-baseAttributes:
-  met: 6.0
-  discipline: swimming
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: swimming
+intensityTier: moderate
 registrySource: bundled
 ---

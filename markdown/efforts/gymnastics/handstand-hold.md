@@ -1,4 +1,5 @@
 ---
+type: effort
 id: effort-bundled-handstand-hold
 slug: handstand-hold
 label: "Handstand hold"
@@ -13,9 +14,8 @@ aliases:
   - "Handstand Hold Against Wall to Failure x3"
   - "Handstand Hold to Failure"
   - "Static Handstand Hold Against Wall till failure"
-baseAttributes:
-  met: 6.0
-  discipline: gymnastics
-  intensityTier: moderate
+metrics.met: 6.0
+discipline: gymnastics
+intensityTier: moderate
 registrySource: bundled
 ---

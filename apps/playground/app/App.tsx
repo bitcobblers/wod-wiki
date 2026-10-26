@@ -246,7 +246,9 @@ export function App() {
                   <Route path={ROUTE_PATTERNS.equipment} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.equipmentSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Tag concept — /tags the catalogue, /t/:type/:tag one tag. */}
+                  {/* Tag concept — /tags the catalogue, /t/:type one Tag Category, /t/:type/:tag one Tag Property Note. */}
                   <Route path={ROUTE_PATTERNS.tags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.tagCategory} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.tag} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Dashboards: /dashboards = list + WQL explorer,
                       /dashboard/:slug = one dashboard by slug or id. */}
