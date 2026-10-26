@@ -218,8 +218,11 @@ export function useNoteEditor(
       parent: host.current,
     });
     viewRef.current = view;
+    const mount = host.current as unknown as { __codemirrorView?: EditorView };
+    mount.__codemirrorView = view;
     cb.current(view.state.doc.toString(), view.state.field(sectionField).sections);
     return () => {
+      delete mount.__codemirrorView;
       view.destroy();
       viewRef.current = null;
     };

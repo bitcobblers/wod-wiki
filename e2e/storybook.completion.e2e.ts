@@ -38,6 +38,21 @@ async function openNoteEditor(page: Page, testId = 'note-editor-host') {
   return host;
 }
 
+interface CodeMirrorTarget {
+  state: {
+    doc: {
+      line: (no: number) => { from: number; to: number };
+    };
+  };
+  dispatch: (tr: { changes?: { from: number; to: number; insert: string }; selection?: { anchor: number } }) => void;
+  focus: () => void;
+}
+
+interface CmDomHost {
+  __codemirrorView?: CodeMirrorTarget;
+  cmTile?: { root?: { view?: CodeMirrorTarget } };
+}
+
 /**
  * Deterministic cursor placement, independent of click-to-position (posAtCoords
  * maps clicks around decorated fence markers unreliably in the live editor):
@@ -52,16 +67,20 @@ async function gotoLine(page: Page, lineNumber: number, host?: Locator) {
   // decorated fence markers. Typing/assertions below stay real keyboard input.
   await (host ?? page.getByTestId('note-editor-host')).locator('.cm-line').first().click();
   await page.evaluate((line) => {
-    return import('/@id/@codemirror/view').then((viewMod) => {
-      const root =
-        document.querySelector('[data-testid="note-editor-host"] .cm-editor') ??
-        document.querySelector('[data-testid="note-dialog-editor"] .cm-editor');
-      const view = root ? viewMod.EditorView.findFromDOM(root) : null;
-      if (!view) throw new Error('note editor view not found');
-      const target = view.state.doc.line(line);
-      view.dispatch({ selection: { anchor: target.to } });
-      view.focus();
-    });
+    const root =
+      document.querySelector('[data-testid="note-editor-host"]') ??
+      document.querySelector('[data-testid="note-dialog-editor"]');
+    const editor = root?.querySelector('.cm-editor') ?? document.querySelector('.cm-editor');
+    const content = editor?.querySelector('.cm-content');
+    // ponytail: fallback to CM6 cmTile DOM cache until all surfaces set __codemirrorView
+    const view =
+      (root as unknown as CmDomHost | null)?.__codemirrorView ??
+      (editor as unknown as CmDomHost | null)?.__codemirrorView ??
+      (content as unknown as CmDomHost | null)?.cmTile?.root?.view;
+    if (!view) throw new Error('note editor view not found');
+    const target = view.state.doc.line(line);
+    view.dispatch({ selection: { anchor: target.to } });
+    view.focus();
   }, lineNumber);
 }
 
@@ -71,19 +90,23 @@ const LINE = { queryBody: 12, wqlBody: 16, timeBodyRest: 23, prose: 8, frontmatt
 async function openBodyLine(page: Page, lineNumber: number, host?: Locator) {
   await gotoLine(page, lineNumber, host);
   await page.evaluate((line) => {
-    return import('/@id/@codemirror/view').then((viewMod) => {
-      const root =
-        document.querySelector('[data-testid="note-editor-host"] .cm-editor') ??
-        document.querySelector('[data-testid="note-dialog-editor"] .cm-editor');
-      const view = root ? viewMod.EditorView.findFromDOM(root) : null;
-      if (!view) throw new Error('note editor view not found');
-      const target = view.state.doc.line(line);
-      view.dispatch({
-        changes: { from: target.from, to: target.to, insert: '' },
-        selection: { anchor: target.from },
-      });
-      view.focus();
+    const root =
+      document.querySelector('[data-testid="note-editor-host"]') ??
+      document.querySelector('[data-testid="note-dialog-editor"]');
+    const editor = root?.querySelector('.cm-editor') ?? document.querySelector('.cm-editor');
+    const content = editor?.querySelector('.cm-content');
+    // ponytail: fallback to CM6 cmTile DOM cache until all surfaces set __codemirrorView
+    const view =
+      (root as unknown as CmDomHost | null)?.__codemirrorView ??
+      (editor as unknown as CmDomHost | null)?.__codemirrorView ??
+      (content as unknown as CmDomHost | null)?.cmTile?.root?.view;
+    if (!view) throw new Error('note editor view not found');
+    const target = view.state.doc.line(line);
+    view.dispatch({
+      changes: { from: target.from, to: target.to, insert: '' },
+      selection: { anchor: target.from },
     });
+    view.focus();
   }, lineNumber);
 }
 

@@ -68,6 +68,8 @@ jobs:
       - name: Set up environment (Bun + caches + chromium)
         uses: ./.github/actions/setup-env
 
+      - name: Build packages
+        run: bun run build:packages
       # S3 sync is immediate but CloudFront may serve the previous build for
       # up to 5 minutes (max-age=300), and invalidation is best-effort. Wait
       # for the CURRENT build: when build-hash is provided, the deployed
