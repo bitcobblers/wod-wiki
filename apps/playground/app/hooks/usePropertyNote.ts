@@ -39,11 +39,13 @@ export function patchPropertyCloneSource(
 
 export function buildTagNoteDocument(tag: Tag, categoryFallback = 'tag'): string {
   const metrics: Record<string, string | number | readonly string[]> = {};
+  const summaries: Record<string, string> = {};
   const tags: string[] = [];
   const functions: string[] = [];
-
   for (const c of tag.contributions ?? []) {
-    if (c.kind === 'metric' && c.type) {
+    if (c.kind === 'metric' && c.type.startsWith('summaries.')) {
+      summaries[c.type.slice('summaries.'.length)] = String(c.value);
+    } else if (c.kind === 'metric' && c.type) {
       metrics[c.type] = c.unit ? `${String(c.value)} ${c.unit}` : typeof c.value === 'boolean' ? String(c.value) : c.value;
     } else if (c.kind === 'tag' && c.slug) {
       tags.push(c.slug);
@@ -59,7 +61,7 @@ export function buildTagNoteDocument(tag: Tag, categoryFallback = 'tag'): string
     category: tag.type || categoryFallback,
     aliases: [],
     metrics,
-    summaries: {},
+    summaries,
     tags,
     functions,
   });

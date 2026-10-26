@@ -93,6 +93,9 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
         }
       }
       for (const tSlug of parsedTag.tag.tags) {
+      for (const [sKey, sExpr] of Object.entries(parsedTag.tag.summaries)) {
+        contributions.push({ kind: 'metric', type: `summaries.${sKey}`, value: sExpr });
+      }
         contributions.push({ kind: 'tag', slug: tSlug });
       }
       for (const fnName of parsedTag.tag.functions) {
