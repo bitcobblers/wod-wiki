@@ -26,6 +26,7 @@ import { onResultSaved } from '@/services/resultRecorder'
 import { useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
 import { subscribeAppEffortRegistry } from '@/services/effortRegistry'
 import { defaultFeedSources, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
+import { listFeedSources } from '@/services/feed/feedSources'
 import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { toast } from '@/hooks/use-toast'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
@@ -313,6 +314,14 @@ export function QueriableStreamView({
     const search = params.toString()
     navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true })
   }, [navigate, location.pathname, location.search])
+  useEffect(() => {
+    if (!feedIntakeParam) return
+    const isKnown = listFeedSources().some((s) => s.id === feedIntakeParam)
+    if (isKnown) {
+      setQuery(`:notebook{feed:${feedIntakeParam},subscribed:true,false}`)
+      dismissFeedIntake()
+    }
+  }, [feedIntakeParam, dismissFeedIntake, setQuery])
   const openLibraryManager = useCallback(() => {
     navigate(ROUTE_PATTERNS.settingsSync)
   }, [navigate])
@@ -1190,9 +1199,9 @@ export function QueriableStreamView({
             onChanged={() => setSavedTick((t) => t + 1)}
             onQueryChange={setQuery}
             onEditNotebook={() => setCreateNotebookOpen(true)}
-            onDeleteNotebook={async (nb) => {
+            onDeleteNotebook={async (id) => {
               try {
-                await notebookService.delete(nb.id)
+                await notebookService.delete(id)
                 setSavedTick((t) => t + 1)
               } catch {
                 // Deletion failed (e.g. reserved slug refused)

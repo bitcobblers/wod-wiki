@@ -24,6 +24,7 @@ import { seedMetaKey, type SeedMetaRecord } from '@/types/seed';
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine';
 
 export interface NotebookLibraryItem {
+  id?: string;
   slug: string;
   notebookId: string;
   chunkId?: string;
@@ -49,8 +50,8 @@ export interface NotebookLibraryBrowserProps {
   refreshKey: number;
   onChanged: () => void;
   onQueryChange: (q: string) => void;
-  onEditNotebook?: (nb: Notebook) => void;
-  onDeleteNotebook?: (nb: Notebook) => void;
+  onEditNotebook?: (nb: NotebookLibraryItem) => void;
+  onDeleteNotebook?: (id: string) => void;
 }
 
 export function NotebookLibraryBrowser({
@@ -109,6 +110,7 @@ export function NotebookLibraryBrowser({
       const isDefault = nb.origin === 'default';
       // user or default notebook
       list.push({
+        id: nb.id,
         slug: nb.slug,
         notebookId: nb.notebookId,
         chunkId: isDefault ? `notebook.${nb.slug}` : undefined,
@@ -547,7 +549,7 @@ export function NotebookLibraryBrowser({
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => onDeleteNotebook?.(item as never)}
+                                  onClick={() => item.id && onDeleteNotebook?.(item.id)}
                                   className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
                                   aria-label={`Delete ${item.label}`}
                                 >
@@ -710,6 +712,7 @@ export function NotebookLibraryBrowser({
                 <th className="p-3">Subscription</th>
                 <th className="p-3">Version</th>
                 <th className="p-3">Workouts</th>
+                <th className="p-3">Updated</th>
                 <th className="p-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -751,6 +754,7 @@ export function NotebookLibraryBrowser({
                       v{item.localVersion ?? '-'} / v{item.remoteVersion ?? 1}
                     </td>
                     <td className="p-3 tabular-nums">{item.itemCount}</td>
+                    <td className="p-3 font-mono text-muted-foreground">{item.updatedAt ?? '-'}</td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         {item.updateAvailable && (

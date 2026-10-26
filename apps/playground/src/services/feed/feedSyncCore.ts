@@ -14,7 +14,7 @@ import { assertManifest, type IFeedSource } from './IFeedSource';
 import { FeedImporter, type FeedImportProgress } from './FeedImporter';
 import type { FeedImportStorage } from './FeedImportStorage';
 import { decideFeedImport, storedFeedIsCurrent } from './feedVersion';
-import { SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord, type SeedPrecedenceTier } from '@/types/seed';
+import { EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord, type SeedPrecedenceTier } from '@/types/seed';
 
 /** Worst-case sync outcomes, aggregated by the driver (worst-first). */
 export type FeedSyncOutcome = 'disabled' | 'current' | 'busy' | 'imported' | 'server-stale' | 'error' | 'update-pending';
@@ -139,7 +139,7 @@ export async function runSourceSyncCore(
       const targetChunks = manifest.chunks.filter((c) => {
         if (input.notebookIds !== undefined && input.notebookIds !== null) {
           if (input.notebookIds.length === 0) return false;
-          if (!input.notebookIds.includes(c.id)) return false;
+          if (!input.notebookIds.includes(c.id) && c.id !== EFFORTS_CHUNK_ID && c.id !== EQUIPMENT_CHUNK_ID) return false;
         }
         return true;
       });
