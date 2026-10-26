@@ -10,9 +10,13 @@ base_branch: auto
 post_create:
   - bun install
 
-# Acceptance gate before merge (per AGENTS.md validation checklist).
-# tsc --noEmit is intentionally NOT a gate: 369 pre-existing errors.
-# e2e/build-storybook are too heavy to run on every merge.
+# Acceptance gate before merge (see docs/development/validation.md — the
+# canonical validation reference).
+# tsc --noEmit is intentionally NOT a gate: pre-existing type errors are
+# tracked in the checked-in baseline compared by `check:playground-types`.
+# Full E2E (`bun run test:e2e`) is a milestone gate, not a per-merge gate:
+# each UI worker already ran targeted preview acceptance
+# (`bun run test:e2e:preview`) as its own done gate before merging.
 pre_merge:
   - bun run test
 

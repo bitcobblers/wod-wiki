@@ -39,13 +39,18 @@ bun install                    # Install dependencies
 bun run test                   # Run unit tests
 bun run test:components        # Run integration tests
 bun run test:all               # Run all tests
-bun run test:markdown        # Markdown fixture compile suite (collections + syntax) — decoupled from test:all
+bun run --cwd apps/playground test:markdown  # Markdown fixture compile suite (collections + syntax) — decoupled from test:all
 bun run storybook              # Start dev server
 bun run build-storybook        # Build (NEVER cancel — may take up to 60 min)
-bun x tsc --noEmit             # Type check
-bun run test:e2e               # Playwright e2e acceptance tests
+bun run check:playground-types # Playground type check vs. checked-in baseline
+bun run lint                   # ESLint (lint:packages / lint:playground / lint:storybook for narrower surfaces)
+bun run test:e2e               # Full Playwright e2e suite (milestone gate)
+bun run test:e2e:preview       # Targeted preview acceptance (UI-worker done gate)
 bun x playwright test --headed # E2E with visible browser (for debugging)
 ```
+
+Validation policies (targeted vs. milestone E2E, preview acceptance gate, ticket
+reports) live in `docs/development/validation.md` — the canonical reference.
 
 ### Code Generation Patterns
 
@@ -75,7 +80,7 @@ When generating code that touches these subsystems, understand their patterns:
 - Do not add custom CSS — use Tailwind utilities
 - Do not skip `dispose()` calls on runtime blocks
 - Do not use `type` when `interface` works for object shapes
-- Do not fix pre-existing TypeScript errors (369 baseline) unrelated to your changes
+- Do not fix pre-existing TypeScript errors unrelated to your changes — they are tracked in the checked-in baseline compared by `bun run check:playground-types`
 - Do not cancel `build-storybook` — it may appear stuck but is working
 
 ### Playwright E2E Acceptance Tests
@@ -87,7 +92,7 @@ Playwright e2e tests are **acceptance gates** — UI/layout/interaction changes 
 2. **Write or update an e2e test** in `e2e/` (suffix: `*.e2e.ts`) that validates the change from the user's perspective.
 3. Reuse page objects from `e2e/pages/` and assertion helpers from `e2e/utils/`.
 4. For layout changes, test both mobile (375×812) and desktop viewports.
-5. Run `bun run test:e2e` and confirm the new test passes.
+5. Run targeted e2e (day-to-day) or `bun run test:e2e` (milestones) and confirm it passes — see the targeted-vs-milestone policy in `docs/development/validation.md`.
 6. Use `page.screenshot()` to capture visual state for debugging.
 
 **When to write e2e tests:**
@@ -120,7 +125,9 @@ This skill covers:
 ### Validation Checklist
 After generating or modifying code:
 1. `bun run test` — no new test failures
-2. `bun x tsc --noEmit` — no new type errors from your changes
+2. `bun run check:playground-types` (playground changes) / `bun x tsc --noEmit` — no new type errors from your changes; pre-existing errors are tracked in the checked-in baseline
 3. `bun run test:storybook` — story smoke + interaction tests pass
-4. `bun run test:e2e` — all e2e acceptance tests pass (for UI/layout changes)
+4. `bun run test:e2e:preview` — targeted preview acceptance passes (UI workers: required done gate); `bun run test:e2e` for milestone runs
 5. `bun run storybook` — Storybook loads and affected stories render
+
+The canonical reference is `docs/development/validation.md` — full command list, E2E policy, and the ticket-report CLI lifecycle.
