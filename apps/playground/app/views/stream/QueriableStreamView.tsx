@@ -24,6 +24,7 @@ import { Button } from '@/components/atoms/primitives/button'
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
 import { useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
+import { subscribeAppEffortRegistry } from '@/services/effortRegistry'
 import { defaultFeedSources, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
 import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { toast } from '@/hooks/use-toast'
@@ -539,6 +540,15 @@ export function QueriableStreamView({
     }
   }, [])
   useEffect(() => onResultSaved(() => setSavedTick((t) => t + 1)), [])
+  // The effort corpus keeps importing after the readiness gate flips (the
+  // gate ungates on first paint; the effort chunk lands later). When the
+  // import commits, the registry singleton re-hydrates — re-run an
+  // effort-plane query so the catalog fills in without a manual re-query.
+  // Only the effort plane listens: other planes never read the registry.
+  useEffect(() => {
+    if (!('target' in parsed) || parsed.target !== 'effort') return
+    return subscribeAppEffortRegistry(() => setSavedTick((t) => t + 1))
+  }, [parsed])
   // A sync that commits records (inline notice run, Settings page, another
   // tab) changes the vault under the mounted query — re-run it so imported
   // entries appear without a refresh. Only `result` bumps (not task

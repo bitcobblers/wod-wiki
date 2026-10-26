@@ -122,12 +122,28 @@ mock.module('../../lib/entrySearch', () => ({
   },
 }))
 
+// The effort-plane stream re-runs its mounted query when the registry
+// re-hydrates (the corpus import lands after the readiness gate flips).
+// Capture subscribers so a test can play the post-import notify.
+const realEffortRegistry = await import('@/services/effortRegistry')
+let effortRegistryListeners: Array<() => void> = []
+mock.module('@/services/effortRegistry', () => ({
+  ...realEffortRegistry,
+  subscribeAppEffortRegistry: (listener: () => void) => {
+    effortRegistryListeners.push(listener)
+    return () => {
+      effortRegistryListeners = effortRegistryListeners.filter((l) => l !== listener)
+    }
+  },
+}))
+
 beforeEach(() => {
   communitySyncOutcome = 'imported'
   coverageMock = { coreImported: true, libraryImported: false }
   seedFilesMock = null
   tokenEntries = []
   toastCalls = []
+  effortRegistryListeners = []
   window.localStorage.clear()
   // The subscriptions module caches its map — drop it so each test starts
   // from the (unsubscribed) cleared localStorage.
@@ -212,6 +228,38 @@ describe('QueriableStreamView component', () => {
     // In stream layout, rows are rendered as LibraryRows
     expect(screen.getAllByTestId('library-row-effort').length).toBe(2)
     expect(screen.queryByTestId('property-table')).toBeNull()
+  })
+
+  it('re-runs an effort query when the effort registry re-hydrates after the initial run', async () => {
+    // The readiness gate flips on first paint while the effort corpus is
+    // still importing: the first committed run sees an empty registry, and
+    // the catalog must fill in when the import's hydration notifies —
+    // without a manual re-query.
+    let queryCalls = 0
+    const engine = new StreamQueryEngine({
+      runFind: mock(async () => ({ parsed: { raw: '', target: 'effort', filters: [] } as unknown as ParsedFindQuery, notes: [], blocks: [], stages: { selected: 0, matched: 0 } })),
+      runFindEffort: mock(async () => ({ parsed: { raw: '', target: 'effort', filters: [] } as unknown as ParsedFindQuery, notes: [], blocks: [], efforts: [], stages: { selected: 0, matched: 0 } })),
+      runRows: mock(async () => ({ parsed: { raw: '', outputType: 'all', filters: [] } as unknown as ParsedRowsQuery, runs: [] })),
+    })
+    engine.query = mock(async () => (++queryCalls === 1 ? [] : sampleEffortEntries))
+
+    render(
+      <MemoryRouter initialEntries={['/efforts']}>
+        <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(queryCalls).toBe(1))
+    expect(screen.queryByText('Back Squat')).toBeNull()
+
+    // The import commits: the registry re-hydrates and notifies subscribers.
+    await act(async () => {
+      for (const listener of effortRegistryListeners) listener()
+      await delay(400) // savedTick re-run debounce (STREAM_EXECUTE_DEBOUNCE_MS)
+    })
+
+    await waitFor(() => expect(screen.getByText('Back Squat')).toBeDefined())
+    expect(screen.getAllByTestId('library-row-effort').length).toBe(2)
   })
 
   it('renders entries in property table layout when settings.layout is rows', async () => {

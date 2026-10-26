@@ -98,7 +98,7 @@ test.describe('Effort detail', () => {
     await efforts.gotoDetail('nonexistent-effort-12345');
 
     await expect(efforts.detailNotFound()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Back to Catalog' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Back to library' })).toBeVisible();
 
     errors.expectClean();
   });

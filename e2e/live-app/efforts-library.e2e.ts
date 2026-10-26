@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
 import { seedBundledEfforts } from '../helpers/seedEfforts';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -32,6 +33,10 @@ test.describe('Efforts catalog — /efforts', () => {
     await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
+    // The reload can orphan the first boot's seed claim (45s TTL): the gate
+    // stays 'preparing' with a 'busy' outcome until the retry converges, and
+    // the stream deliberately does not query while preparing.
+    await waitForFeedReady(page);
     await efforts.waitForCatalogLoaded();
 
     await expect(efforts.catalogSearch()).toBeVisible();
@@ -51,6 +56,7 @@ test.describe('Efforts catalog — /efforts', () => {
     await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForFeedReady(page);
     await efforts.waitForCatalogLoaded();
     await efforts.searchFor('burpee');
 
