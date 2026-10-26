@@ -53,7 +53,7 @@ export function ScrollCanvasPage({
   const scroll = page.scroll!
   const stages = scroll.stages
   const navigate = useNavigate()
-  const isGuide = page.type === 'guide' || page.route.startsWith('/guide')
+  const isGuide = page.type === 'guide' || page.route.startsWith('/page/guide-')
   useScrollTelemetry(isGuide ? page.route : undefined)
 
   // ── Editor document (controlled into the runway) + per-stage sources ──

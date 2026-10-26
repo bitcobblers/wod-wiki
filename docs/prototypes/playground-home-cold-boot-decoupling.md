@@ -2,7 +2,7 @@
 
 **Status:** Landed — Phases 0–3. `/` is bundle-owned, boot progress is instrumented, and the playground seed excludes only the home route document.
 **Date:** 2026-10-24
-**Related:** `docs/adrs/0004-playground-home-cold-boot.md`, `docs/reviews/wod-wiki-ux-regression-retest-2026-10-25.html` (issue #1 — *Cold start takes 34 to 35 seconds with no honest progress*), `docs/prototypes/seed-data-unification.md` (§ Risks & open questions → *First-load network dependency*), `docs/adrs/0002-feed-lifecycle.md`, `apps/playground/app/App.tsx`, `apps/playground/app/main.tsx`, `apps/playground/src/services/seed/seedReadiness.ts`
+**Related:** `docs/adrs/0004-playground-home-cold-boot.md` (which records the 2026-10-25 retest finding — *Cold start takes 34 to 35 seconds with no honest progress*), `docs/prototypes/seed-data-unification.md` (§ Risks & open questions → *First-load network dependency*), `docs/adrs/0002-feed-lifecycle.md`, `apps/playground/app/App.tsx`, `apps/playground/app/main.tsx`, `apps/playground/src/services/feed/feedReadiness.ts`
 
 ## Goal
 
@@ -18,16 +18,16 @@ Two gates, in sequence.
 
 **Gate 1 — storage readiness** (`apps/playground/app/main.tsx:23-61`). `BootGate` awaits `whenStorageReady()` (`src/services/storage/index.ts:138`) before mounting `<App />`: schema-version check, IndexedDB open, default tag-type seeding. Local only, no network; it renders `Loading…` (`main.tsx:53-58`). This gate stays — the home page needs IndexedDB for user data (sessions, notes) even when it does not need the corpus.
 
-**Gate 2 — the corpus gate** (`apps/playground/app/App.tsx:170-178`). `/` has **no route of its own** in the route table. It exists only as a canvas route derived from the seeded corpus (`app/canvas/canvasRoutes.ts:26-48`). Until the corpus lands, the wildcard route renders `RootUnavailable`: `Loading library…` while `seedReadiness === 'preparing'`, otherwise a "Re-seed library" error card (`App.tsx:113-139`).
+**Gate 2 — the corpus gate** (`apps/playground/app/App.tsx:170-178`). `/` has **no route of its own** in the route table. It exists only as a canvas route derived from the seeded corpus (`app/canvas/canvasRoutes.ts:26-48`). Until the corpus lands, the wildcard route renders `RootUnavailable`: `Loading library…` while `feedReadiness === 'preparing'`, otherwise a "Re-import library" error card (`App.tsx:113-139`).
 
 The chain behind gate 2 on a fresh browser:
 
 | # | Step | Where |
 |---|---|---|
-| 1 | `startSeedBootstrap()` — no core checkpoint → gate → `preparing` | `seedReadiness.ts:150-183` |
-| 2 | fetch `manifest.json` + 5 chunks over HTTP | `seedSync.ts:269-345`, `seedSources.ts:74` |
-| 3 | worker parses the chunks, writes 278 rows into IndexedDB | `seedSync.worker.ts`, `SeedImporter.ts` |
-| 4 | canvas chunk commits → `onFirstPaint` → readiness `ready` | `seedSync.ts:331-332`, `seedReadiness.ts:82-110` |
+| 1 | `startFeedBootstrap()` — no core checkpoint → gate → `preparing` | `feedReadiness.ts:150-183` |
+| 2 | fetch `manifest.json` + 5 chunks over HTTP | `feedSync.ts:269-345`, `feedSources.ts:74` |
+| 3 | worker parses the chunks, writes 278 rows into IndexedDB | `feedSync.worker.ts`, `FeedImporter.ts` |
+| 4 | canvas chunk commits → `onFirstPaint` → readiness `ready` | `feedSync.ts:331-332`, `feedReadiness.ts:82-110` |
 | 5 | **main thread** — `getSeedContent()` = `notes.getAll()` over the whole notes store, filtered to seed rows | `StorageService.ts:999-1003` |
 | 6 | **main thread** — `buildCanvasRoutes()` parses every canvas page | `canvasRoutes.ts:26-38`, `parseCanvasMarkdown.ts` |
 | 7 | `/` appears in the route table → the wildcard stops gating | `App.tsx:170-178` |
@@ -91,7 +91,7 @@ The slice is compiled from the same `markdown/` tree in every app build, so ther
 
 ### D5 — the gate that remains reports the truth
 
-Deep links into corpus-backed surfaces (`/guide/*`, `/journal`, `/feeds`, `/catalogs`) still wait for the corpus. The static HTML shell reports `Downloading the app shell…`, storage startup reports `Opening local library…`, and the corpus gate reports the live seed phase and counts through the shared labels in `src/services/seed/seedProgress.ts`. The marks are `seed:start`, `home:first-paint`, `corpus:ready`, and `seed:settled`, echoed onto `document.documentElement.dataset` beside the existing `data-seed-state` / `data-seed-outcome`.
+Deep links into corpus-backed surfaces (`/guide/*`, `/journal`, `/feeds`, `/catalogs`) still wait for the corpus. The static HTML shell reports `Downloading the app shell…`, storage startup reports `Opening local library…`, and the corpus gate reports the live feed phase and counts through the shared labels in `src/services/feed/feedProgress.ts`. The marks are `feed:start`, `home:first-paint`, `corpus:ready`, and `feed:settled`, echoed onto `document.documentElement.dataset` beside the existing `data-feed-state` / `data-feed-outcome`.
 
 `corpus:ready` fires only when a nonempty corpus snapshot arrives. The initial empty IndexedDB read does not consume the one-shot mark.
 
@@ -143,8 +143,8 @@ sequenceDiagram
 | `apps/playground/app/canvas/canvasRoutes.ts` | The corpus no longer contributes a `/` route |
 | `apps/playground/index.html`, `apps/playground/app/main.tsx` | Pre-bundle and storage-start progress phases |
 | `apps/playground/src/services/bootDiagnostics.ts` | One-shot performance marks and document-element diagnostics |
-| `apps/playground/src/services/seed/seedReadiness.ts` | Boot progress stream and seed start/settled marks |
-| `apps/playground/src/services/seed/seedProgress.ts` | Shared human-readable phase labels and record/notebook counts |
+| `apps/playground/src/services/feed/feedReadiness.ts` | Boot progress stream and seed start/settled marks |
+| `apps/playground/src/services/feed/feedProgress.ts` | Shared human-readable phase labels and record/notebook counts |
 | `apps/playground/src/services/content/seedContent.ts` | Corpus-ready mark only after a nonempty snapshot |
 | `packages/tools/src/seedbuild/compiler.ts`, `scripts/sync-seed.ts` | `excludePaths` filters chunk rows and derived indexes; playground excludes only `markdown/canvas/home/README.md` |
 | `e2e/live-app/cold-boot.e2e.ts` | Desktop and CDP-throttled mobile budgets, background completion, deep-link progress |
@@ -154,7 +154,7 @@ sequenceDiagram
 1. Fresh production profile, empty site data, disabled cache: the home route renders the hero, the editor demo, and the chapter list **without the corpus** — the seeded home page is not required for `/` to exist.
 2. Time-to-usable-Home is measured on desktop unthrottled and on mobile with 4× CPU slowdown and 10 Mbps / 40 ms network. Budget (board issue #1): meaningful progress visible under 1 s; usable Home under 5 s.
 3. The home route renders the same content before and after the corpus lands — no swap and no hero layout shift, asserted by a before/after bounding-box comparison and captured screenshots at 375×812 and 1440×900.
-4. The background import still completes: the library surface lists the imported catalogs, corpus-backed routes resolve, and the readiness gate settles (`data-seed-state="ready"`).
+4. The background import still completes: the library surface lists the imported catalogs, corpus-backed routes resolve, and the readiness gate settles (`data-feed-state="ready"`).
 5. The remaining gate (deep link into a corpus route) shows the real phase, and the four boot marks exist.
 
 ### Measured production results

@@ -4,7 +4,7 @@ import { toShortId } from '@/lib/idUtils';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import { storageService } from '@/services/storage';
 import type { StorageService } from '@/services/storage/StorageService';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider } from '@/types/content-provider';
 import type { Attachment, EventRecord, Note, Session, BlockRevision } from '@/types/storage';
 
@@ -45,13 +45,13 @@ export class IndexedDBNotePersistence implements INotePersistence {
     private readonly contentProvider: IContentProvider = new IndexedDBContentProvider(storage),
   ) {}
 
-  async createNote(input: CreateNoteInput): Promise<HistoryEntry> {
+  async createNote(input: CreateNoteInput): Promise<HistoryRecord> {
     await this.contentProvider.persistenceReady;
     const existing = await this.storage.getNote(input.id);
     if (existing) {
       throw new Error(`Note already exists: ${input.id}`);
     }
-    return this.contentProvider.saveEntry({
+    return this.contentProvider.saveRecord({
       id: input.id,
       title: input.title,
       rawContent: input.rawContent,
@@ -64,7 +64,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     });
   }
 
-  async getNote(locator: NoteLocator, options: GetNoteOptions = {}): Promise<HistoryEntry> {
+  async getNote(locator: NoteLocator, options: GetNoteOptions = {}): Promise<HistoryRecord> {
     await this.contentProvider.persistenceReady;
     const note = await this.resolveNote(locator);
     if (!note) {
@@ -74,7 +74,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     const projection = options.projection ?? 'workbench';
     const includeSections = options.includeSections ?? projection !== 'summary';
     const includeAttachments = options.includeAttachments ?? false;
-    const baseEntry = await this.contentProvider.getEntry(note.id);
+    const baseEntry = await this.contentProvider.getRecord(note.id);
     if (!baseEntry) {
       throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
     }
@@ -94,7 +94,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     };
   }
 
-  async listNotes(query: NoteQuery = {}): Promise<HistoryEntry[]> {
+  async listNotes(query: NoteQuery = {}): Promise<HistoryRecord[]> {
     if (query.ids && query.ids.length > 0) {
       const projection = query.projection ?? 'summary';
       return Promise.all(
@@ -110,9 +110,17 @@ export class IndexedDBNotePersistence implements INotePersistence {
       );
     }
 
-    let entries = await this.contentProvider.getEntries(query);
+    let entries = await this.contentProvider.getRecords(query);
     if (query.journalDate) {
-      entries = entries.filter(entry => entry.journalDate === query.journalDate);
+      // A note is on a date page when one of its placements sits on that
+      // date's page — not only when the date is the note's primary one.
+      // The placements list is always present but may be empty; a note with
+      // no placements is not on any page, so the primary-date fallback
+      // applies only when the membership list is non-empty.
+      entries = entries.filter(entry =>
+        entry.placements && entry.placements.length > 0
+          ? entry.placements.some(placement => placement.date === query.journalDate)
+          : entry.journalDate === query.journalDate);
     }
     if (query.kind) {
       entries = entries.filter(entry => entry.type === query.kind);
@@ -138,7 +146,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     return entries;
   }
 
-  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryEntry> {
+  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryRecord> {
     await this.contentProvider.persistenceReady;
     const note = await this.resolveNote(locator);
     if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
@@ -154,13 +162,13 @@ export class IndexedDBNotePersistence implements INotePersistence {
       ['notes', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'block_revisions', 'sessions', 'events', 'attachments', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'],
       async scoped => {
         const provider = new IndexedDBContentProvider(scoped);
-        await provider.updateEntry(note.id, { ...mutation.metadata, rawContent: mutation.rawContent,
+        await provider.updateRecord(note.id, { ...mutation.metadata, rawContent: mutation.rawContent,
           blocks: mutation.blocks, expectedSourceRevision: mutation.expectedSourceRevision,
           results: mutation.workoutResult?.data, blockId: mutation.workoutResult?.blockId,
           blockVersion: mutation.workoutResult?.blockVersion, blockContentId: mutation.workoutResult?.blockContentId,
           origin: mutation.workoutResult?.origin, resultId: mutation.workoutResult?.id });
         if (mutation.rawContent !== undefined && mutation.rawContent !== note.rawContent) {
-          const entry = await provider.getEntry(note.id);
+          const entry = await provider.getRecord(note.id);
           await captureWellnessFacts(note.id, mutation.rawContent, scoped, { targetDate: entry?.targetDate });
         }
         for (const attachment of resolvedAttachments) {
@@ -173,13 +181,13 @@ export class IndexedDBNotePersistence implements INotePersistence {
     return this.getNote(note.id, { includeAttachments: Boolean(mutation.attachments) });
   }
 
-  async saveNote(input: SaveNoteInput): Promise<HistoryEntry> {
+  async saveNote(input: SaveNoteInput): Promise<HistoryRecord> {
     await this.contentProvider.persistenceReady;
     const exists = await this.storage.getNote(input.noteId);
     if (exists) return this.mutateNote(input.noteId, { rawContent: input.rawContent,
       blocks: input.blocks, expectedSourceRevision: input.expectedSourceRevision, metadata: input.metadata });
     if (input.expectedSourceRevision !== 0) throw new NotePersistenceError('STALE_SOURCE', `Note ${input.noteId} no longer exists`);
-    return this.contentProvider.saveEntry({ id: input.noteId, rawContent: input.rawContent,
+    return this.contentProvider.saveRecord({ id: input.noteId, rawContent: input.rawContent,
       blocks: input.blocks, sourceRevision: 0, title: input.metadata?.title ?? 'Workout Note',
       tags: input.metadata?.tags ?? [], targetDate: input.metadata?.targetDate ?? Date.now(),
       journalDate: input.metadata?.journalDate, slug: input.metadata?.slug ?? undefined,
@@ -259,7 +267,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     if (!note) {
       throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
     }
-    await this.contentProvider.deleteEntry(note.id);
+    await this.contentProvider.deleteRecord(note.id);
   }
   async getSessionById(sessionId: string): Promise<Session | undefined> {
     await this.contentProvider.persistenceReady;
@@ -370,7 +378,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     return limitResults(sortNewest(results), options.limit);
   }
 
-  private async selectResults(note: Note, selection: ResultSelection = { mode: 'latest' }): Promise<Partial<HistoryEntry>> {
+  private async selectResults(note: Note, selection: ResultSelection = { mode: 'latest' }): Promise<Partial<HistoryRecord>> {
     const eventsFor = async (session: Session | undefined): Promise<EventRecord[]> => {
       if (!session || !this.storage.getEventsByResult) return [];
       return this.storage.getEventsByResult(session.id);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { INotePersistence } from '@/services/persistence';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type {
   CreateNoteInput,
   GetNoteOptions,
@@ -15,10 +15,10 @@ import { createJournalNotes } from './journalNotes';
 import { createDashboardNotes } from './dashboardNotes';
 
 class MemoryNotePersistence implements Pick<INotePersistence, 'createNote' | 'getNote' | 'listNotes' | 'mutateNote' | 'deleteNote'> {
-  readonly notes = new Map<string, HistoryEntry>();
+  readonly notes = new Map<string, HistoryRecord>();
 
-  async createNote(input: CreateNoteInput): Promise<HistoryEntry> {
-    const entry: HistoryEntry = {
+  async createNote(input: CreateNoteInput): Promise<HistoryRecord> {
+    const entry: HistoryRecord = {
       id: input.id,
       title: input.title,
       rawContent: input.rawContent,
@@ -38,14 +38,14 @@ class MemoryNotePersistence implements Pick<INotePersistence, 'createNote' | 'ge
     return entry;
   }
 
-  async getNote(locator: NoteLocator, _options?: GetNoteOptions): Promise<HistoryEntry> {
+  async getNote(locator: NoteLocator, _options?: GetNoteOptions): Promise<HistoryRecord> {
     const id = typeof locator === 'string' ? locator : locator.id;
     const entry = id ? this.notes.get(id) : undefined;
     if (!entry) throw new Error('not found');
     return entry;
   }
 
-  async listNotes(query: NoteQuery = {}): Promise<HistoryEntry[]> {
+  async listNotes(query: NoteQuery = {}): Promise<HistoryRecord[]> {
     return Array.from(this.notes.values()).filter(
       (note) =>
         (!query.journalDate || note.journalDate === query.journalDate) &&
@@ -53,7 +53,7 @@ class MemoryNotePersistence implements Pick<INotePersistence, 'createNote' | 'ge
     );
   }
 
-  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryEntry> {
+  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryRecord> {
     const current = await this.getNote(locator);
     const next = {
       ...current,

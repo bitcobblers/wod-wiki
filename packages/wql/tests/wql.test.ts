@@ -165,11 +165,11 @@ describe('parseQuery — colon source heads', () => {
     });
     expect(journal.sourceScope).toBeUndefined();
 
-    const feed = _parseQuery(':feed{effort:snatch}');
-    if (!isFindQuery(feed)) throw new Error('expected find query');
-    expect(feed.target).toBe('note');
-    expect(feed.filters).toContainEqual({
-      key: 'source', negate: false, values: [{ value: 'feeds', wildcard: false }],
+    const notebooks = _parseQuery(':notebooks{effort:snatch}');
+    if (!isFindQuery(notebooks)) throw new Error('expected find query');
+    expect(notebooks.target).toBe('note');
+    expect(notebooks.filters).toContainEqual({
+      key: 'source', negate: false, values: [{ value: 'notebooks', wildcard: false }],
     });
   });
 
@@ -292,25 +292,25 @@ describe('parseQuery — colon source heads', () => {
   });
 
   it('rewrites comma-separated bare values into one OR filter', () => {
-    const parsed = _parseQuery(':note{source:journal,feeds} by {date}');
+    const parsed = _parseQuery(':note{source:journal,notebooks} by {date}');
     if (!isFindQuery(parsed)) throw new Error('expected find query');
     expect(parsed.filters).toEqual([
       { key: 'source', negate: false, values: [
         { value: 'journal', wildcard: false },
-        { value: 'feeds', wildcard: false },
+        { value: 'notebooks', wildcard: false },
       ] },
     ]);
     expect(parsed.groupBy).toEqual(['date']);
     // A colon-form after the comma stays a filter boundary.
-    const two = _parseQuery(':note{source:journal,collection:girls}');
+    const two = _parseQuery(':note{source:journal,notebook:girls}');
     if (!isFindQuery(two)) throw new Error('expected find query');
     expect(two.filters).toHaveLength(2);
   });
 
-  it('parses source: with a catalog-prefixed literal id', () => {
-    const parsed = _parseQuery(':note{source:collection:crossfit-girls}');
+  it('parses source: with a notebook-prefixed literal id', () => {
+    const parsed = _parseQuery(':note{source:notebook:crossfit-girls}');
     if (!isFindQuery(parsed)) throw new Error('expected find query');
-    expect(parsed.filters[0].values[0].value).toBe('collection:crossfit-girls');
+    expect(parsed.filters[0].values[0].value).toBe('notebook:crossfit-girls');
   });
 
   it('parses source: combined with another key in the same braces', () => {
@@ -337,15 +337,20 @@ describe('find: retirement and feed scope', () => {
     expect(_parseQuery('find:').error).toContain('retired');
   });
 
-  it('accepts feed source values — scope feeds selects the collection corpus', () => {
-    expect(_parseQuery(':note{source:feed}').error).toBeUndefined();
-    expect(_parseQuery(':note{source:feeds}').error).toBeUndefined();
+  it('accepts the notebooks source value — the notebook corpus scope', () => {
+    expect(_parseQuery(':note{source:notebooks}').error).toBeUndefined();
   });
 
-  it('accepts feed:<id> literal sources — one feed or one feed item', () => {
-    expect(_parseQuery(':note{source:feed:crossfit-programming}').error).toBeUndefined();
-    expect(_parseQuery(':note{source:"feed:crossfit-programming/2026-01-12"}').error).toBeUndefined();
-    expect(_parseQuery(':note{source:"feed:feeds/crossfit-programming/2026-01-12/monday"}').error).toBeUndefined();
+  it('accepts notebook:<id> literal sources — one notebook or one notebook item', () => {
+    expect(_parseQuery(':note{source:notebook:crossfit-programming}').error).toBeUndefined();
+    expect(_parseQuery(':note{source:"notebook:crossfit-programming/2026-01-12"}').error).toBeUndefined();
+  });
+
+  it('retires the feed spellings with a rename hint (ticket 12 — no alias)', () => {
+    for (const src of ['feed', 'feeds', 'feed:crossfit-programming']) {
+      const p = _parseQuery(`:note{source:${src}}`);
+      expect(p.error).toContain('is retired');
+    }
   });
 
   it('keeps guides as an explicit source value', () => {
@@ -624,8 +629,8 @@ describe('suffix conflicts surface as parse errors (C3)', () => {
   });
 
   it('source heads: duplicate scope clauses error', () => {
-    const parsed = _parseQuery(':note{tags:pr} in journal in feeds');
-    expect(parsed.error).toContain("'in journal' conflicts with 'in feeds'");
+    const parsed = _parseQuery(':note{tags:pr} in journal in notebooks');
+    expect(parsed.error).toContain("'in journal' conflicts with 'in notebooks'");
   });
 
   it('valid queries stay error-free across all families', () => {
@@ -774,24 +779,24 @@ describe('de-overload in with compat normalizer (C2)', () => {
   it('rejects unknown source: filter values with clear error', () => {
     const parsed = _parseQuery(':note{source:invalid_scope}');
     expect(parsed.error).toContain('Unknown source "invalid_scope"');
-    expect(parsed.error).toContain('Try: journal, feeds, guides, playground');
+    expect(parsed.error).toContain('Try: journal, notebooks, guides, playground');
   });
 
   it('rejects unknown legacy in <scope> values with clear error', () => {
     const parsed = _parseQuery(':note in invalid_scope');
     expect(parsed.error).toContain('Unknown source "invalid_scope"');
   });
-  it('accepts all canonical source values and catalog prefixes', () => {
-    for (const src of ['journal', 'feeds', 'playground', 'guides', 'feed']) {
+  it('accepts all canonical source values and notebook prefixes', () => {
+    for (const src of ['journal', 'notebooks', 'playground', 'guides']) {
       const p = _parseQuery(`:note{source:${src}}`);
       expect(p.error).toBeUndefined();
     }
-    expect(_parseQuery(':note{source:collection:crossfit-girls}').error).toBeUndefined();
+    expect(_parseQuery(':note{source:notebook:crossfit-girls}').error).toBeUndefined();
   });
 
   it('retires the collections spellings with a rename hint', () => {
     expect(_parseQuery(':note{source:collections}').error).toContain('source:collections is retired');
-    expect(_parseQuery(':note{source:collections}').error).toContain('source:feeds');
+    expect(_parseQuery(':note{source:collections}').error).toContain('source:notebooks');
     expect(_parseQuery(':note{source:collection}').error).toContain('retired');
     expect(_parseQuery(':note in collections').error).toContain('retired');
   });

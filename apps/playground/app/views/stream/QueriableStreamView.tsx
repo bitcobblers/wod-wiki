@@ -23,13 +23,15 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '@/components/atoms/primitives/button'
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
-import { useSeedLibraryMissing, useSeedReadiness } from '@/services/seed/seedReadiness'
-import { defaultSeedSources, syncSeedSource, type SeedSyncProgress } from '@/services/seed/seedSync'
-import { isSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
+import { useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
+import { subscribeAppEffortRegistry } from '@/services/effortRegistry'
+import { defaultFeedSources, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
+import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { toast } from '@/hooks/use-toast'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
-import { notebookService, storageService } from '@/hooks/useBrowserServices'
+import { NotebookList } from '@/components/organisms/notebook/NotebookList'
+import { notebookService } from '@/hooks/useBrowserServices'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
@@ -60,7 +62,7 @@ import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
-import { CatalogsManagerDrawer } from '../../pages/CatalogsManagerDrawer'
+import { NotebookManageDrawer } from '../../pages/NotebookManageDrawer'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
 import { effortPath, ROUTE_PATTERNS } from '../../lib/routes'
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
@@ -80,7 +82,7 @@ import type { StreamProfile } from './streamProfile'
 import { splitReadmeQueries, hasReadmeQuery } from './readmeWql'
 import { ReadmeQueryBlock } from './ReadmeQueryBlock'
 import { CanvasProse } from '../../canvas/CanvasProse'
-import { seedNoteId } from '@/services/seed/SeedImporter'
+import { seedNoteId } from '@/services/feed/FeedImporter'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { useSeedContent } from '@/services/content/seedContent'
 
@@ -110,7 +112,7 @@ function BatchingSentinel({
 const STREAM_EXECUTE_DEBOUNCE_MS = 150
 
 /** Inline notice sync label — same phase vocabulary as the Settings sync surface. */
-function seedSyncLabel(event: SeedSyncProgress): string {
+function feedSyncLabel(event: FeedSyncProgress): string {
   switch (event.phase) {
     case 'checking': return `Checking ${event.sourceLabel}…`
     case 'fetching': return `Downloading ${event.chunkId ?? 'library'}…`
@@ -236,25 +238,25 @@ export function QueriableStreamView({
   const location = useLocation()
   // First-run gate: the vault query must not execute until the seed import
   // has settled, or a fresh profile briefly commits a permanent "0 of 0".
-  const seedReadiness = useSeedReadiness()
-  const libraryMissing = useSeedLibraryMissing()
+  const feedReadiness = useFeedReadiness()
+  const libraryMissing = useFeedLibraryMissing()
   // Inline community sync from the core-only notice (the probe above is
   // mount-only, so a successful sync suppresses it via librarySynced).
   const [librarySynced, setLibrarySynced] = useState(false)
-  const [seedSyncRunning, setSeedSyncRunning] = useState(false)
-  const [seedSyncEvent, setSeedSyncEvent] = useState<SeedSyncProgress | null>(null)
-  const [seedSyncError, setSeedSyncError] = useState<string | null>(null)
+  const [feedSyncRunning, setFeedSyncRunning] = useState(false)
+  const [feedSyncEvent, setFeedSyncEvent] = useState<FeedSyncProgress | null>(null)
+  const [feedSyncError, setFeedSyncError] = useState<string | null>(null)
   // Subscribed library sources — the notice's real sync worklist. "Library"
   // means exactly what the coverage probe means by it: a source that does
-  // NOT auto-import (autoImport === false — readSeedCoverage's own rule);
+  // NOT auto-import (autoImport === false — readFeedCoverage's own rule);
   // the bundled core auto-imports at boot and must never satisfy the notice
   // while the community library the page needs is still missing.
   // useSyncExternalStore needs a referentially stable snapshot, so the ids
   // cross as one joined string; splitting is per-render and cheap.
   // Subscribing in the manager drawer updates this live.
-  const subscribedIdsKey = useSyncExternalStore(subscribeSeedSubscriptions, () =>
-    defaultSeedSources()
-      .filter(s => s.autoImport === false && isSeedSubscribed(s.id))
+  const subscribedIdsKey = useSyncExternalStore(subscribeFeedSubscriptions, () =>
+    defaultFeedSources()
+      .filter(s => s.autoImport === false && isFeedSubscribed(s.id))
       .map(s => s.id)
       .join('\n'),
   )
@@ -300,14 +302,14 @@ export function QueriableStreamView({
   const isMobile = useIsMobile()
   const mobileSlot = useMobileQuerySlot()
 
-  // /catalogs in-situ source management. The grouped update notification and
+  // /notebooks in-situ source management. The grouped update notification and
   // subscription intake deep-link here via ?manage=1; the toolbar button opens
   // it in place. Closing drops ONLY the manage param — the query string (q, …)
   // survives — and replaces the history entry so a modal never stacks history.
-  const isCatalogsRoute = profile.route === '/catalogs'
+  const isNotebooksRoute = profile.route === '/notebooks'
   const manageOpen = useMemo(
-    () => isCatalogsRoute && new URLSearchParams(location.search).get('manage') === '1',
-    [isCatalogsRoute, location.search],
+    () => isNotebooksRoute && new URLSearchParams(location.search).get('manage') === '1',
+    [isNotebooksRoute, location.search],
   )
   const setManageOpen = useCallback((open: boolean) => {
     const params = new URLSearchParams(location.search)
@@ -316,23 +318,23 @@ export function QueriableStreamView({
     const search = params.toString()
     navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: !open })
   }, [navigate, location.pathname, location.search])
-  const catalogsManager = isCatalogsRoute ? (
-    <CatalogsManagerDrawer open={manageOpen} onOpenChange={setManageOpen} />
+  const notebooksManager = isNotebooksRoute ? (
+    <NotebookManageDrawer open={manageOpen} onOpenChange={setManageOpen} />
   ) : null
-  // The subscribe offer's target: /catalogs manages sources in place (the
+  // The subscribe offer's target: /notebooks manages sources in place (the
   // drawer); every other route defers to Sync settings — no drawer there.
   const openLibraryManager = useCallback(() => {
-    if (isCatalogsRoute) setManageOpen(true)
+    if (isNotebooksRoute) setManageOpen(true)
     else navigate(ROUTE_PATTERNS.settingsSync)
-  }, [isCatalogsRoute, setManageOpen, navigate])
+  }, [isNotebooksRoute, setManageOpen, navigate])
   const [createNotebookOpen, setCreateNotebookOpen] = useState(false)
   const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
+    // The landing note (the notebook's stored definition) is part of create().
     const created = await notebookService.create(name, description, icon)
-    await storageService.saveNote(notebookService.createNotebookLandingNote(created))
     setSavedTick(t => t + 1)
     return created
   }, [])
-  const createNotebookDialog = isCatalogsRoute ? (
+  const createNotebookDialog = isNotebooksRoute ? (
     <CreateNotebookDialog
       open={createNotebookOpen}
       onOpenChange={setCreateNotebookOpen}
@@ -343,7 +345,7 @@ export function QueriableStreamView({
   const parsed = useMemo(() => parseQuery(query), [query])
 
   // Playground scope: the canonical filter source:playground (authored as
-  // :playground{...}). In this scope the "Catalog Sessions" shelf would
+  // :playground{...}). In this scope the "Notebook Sessions" shelf would
   // mislabel undated playground entries — they render in the explicit
   // 'Undated' group instead.
   const isPlaygroundScope = useMemo(() => {
@@ -352,15 +354,15 @@ export function QueriableStreamView({
       f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'playground'),
     )
   }, [parsed])
-  const catalogSlug = useMemo(() => {
-    if (profile.catalog) return profile.catalog
-    if (profile.route.startsWith('/c/')) {
+  const notebookStreamSlug = useMemo(() => {
+    if (profile.notebookSlug) return profile.notebookSlug
+    if (profile.route.startsWith('/notebook/')) {
       const slug = profile.route.slice(3)
       if (slug && !slug.includes('/')) return slug
     }
     if (!parsed.error && isFindQuery(parsed)) {
-      const cat = parsed.filters.find(f => (f.key === 'notebook' || f.key === 'catalog') && !f.negate)?.values[0]?.value
-      if (cat) return notebookSlugFromId(cat)
+      const nb = parsed.filters.find(f => f.key === 'notebook' && !f.negate)?.values[0]?.value
+      if (nb) return notebookSlugFromId(nb)
     }
     return undefined
   }, [profile, parsed])
@@ -368,7 +370,7 @@ export function QueriableStreamView({
   const seedFiles = useSeedContent()
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
   // WQL embed links (`[heading](:query)!`) — when any are present they
-  // override the catalog's default feed stream below the readme.
+  // override the notebook's default item stream below the readme.
   const readmeSegments = useMemo(
     () => (readmeContent ? splitReadmeQueries(readmeContent) : []),
     [readmeContent],
@@ -376,11 +378,11 @@ export function QueriableStreamView({
   const readmeOverride = hasReadmeQuery(readmeSegments)
 
   useEffect(() => {
-    if (!catalogSlug) {
+    if (!notebookStreamSlug) {
       setReadmeContent(null)
       return
     }
-    const seedPath = `markdown/collections/${catalogSlug}/README.md`
+    const seedPath = `markdown/notebooks/${notebookStreamSlug}/README.md`
     const raw = seedFiles?.[seedPath]
     if (raw) {
       setReadmeContent(raw.replace(/\{\{workouts\}\}/g, '').trim())
@@ -389,7 +391,7 @@ export function QueriableStreamView({
     let cancelled = false
     void seedNoteId(seedPath).then(async (id) => {
       try {
-        const entry = await contentProvider.getEntry(id)
+        const entry = await contentProvider.getRecord(id)
         if (!cancelled && entry?.rawContent) {
           setReadmeContent(entry.rawContent.replace(/\{\{workouts\}\}/g, '').trim())
         }
@@ -400,7 +402,7 @@ export function QueriableStreamView({
     return () => {
       cancelled = true
     }
-  }, [catalogSlug, seedFiles])
+  }, [notebookStreamSlug, seedFiles])
 
 
   // Feed mode attaches note block info (excerpt + wod content id) via the same
@@ -417,7 +419,7 @@ export function QueriableStreamView({
       entry.kind === 'result' || entry.kind === 'segment'
         ? entry.execution?.noteId
         : entry.kind === 'note'
-          ? entry.sourceItem
+          ? entry.sourceNote
           : entry.id
 
     if (targetNoteId) {
@@ -442,7 +444,7 @@ export function QueriableStreamView({
         }
       }
 
-      // 3. If still no content, fetch all blocks for the note (catalog sessions, feeds, or indexed notes)
+      // 3. If still no content, fetch all blocks for the note (notebook items or indexed notes)
       if (!rawContent && entry.kind !== 'note') {
         const result = await queryService.runFind({
           raw: `:block{note:${targetNoteId}}`,
@@ -510,7 +512,43 @@ export function QueriableStreamView({
   // (stale, flagged by the query error banner), and loading never wedges.
   // A committed result bumps savedTick so the mounted listing re-queries.
   const [savedTick, setSavedTick] = useState(0)
+
+  // Notebook-plane management (ticket 05): the /notebooks list plus the move
+  // targets the stream rows offer (user-owned notebooks only — feed
+  // notebooks are read-only).
+  const [moveNotebookTargets, setMoveNotebookTargets] = useState<Array<{ id: string; name: string; icon: string }>>([])
+  useEffect(() => {
+    let cancelled = false
+    void notebookService.getAllNotebooks().then((all) => {
+      if (cancelled) return
+      setMoveNotebookTargets(all
+        .filter(nb => nb.origin === 'user' || nb.origin === 'default')
+        .filter(nb => nb.slug !== 'guides' && nb.slug !== 'playground')
+        .map(nb => ({ id: nb.notebookId, name: nb.name, icon: nb.icon })))
+    }).catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [savedTick])
+  const handleMoveNotebook = useCallback(async (noteId: string | undefined, notebookId: string) => {
+    if (!noteId) return
+    try {
+      await notebookService.moveNote(noteId, notebookId)
+      setSavedTick(t => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    }
+  }, [])
   useEffect(() => onResultSaved(() => setSavedTick((t) => t + 1)), [])
+  // The effort corpus keeps importing after the readiness gate flips (the
+  // gate ungates on first paint; the effort chunk lands later). When the
+  // import commits, the registry singleton re-hydrates — re-run an
+  // effort-plane query so the catalog fills in without a manual re-query.
+  // Only the effort plane listens: other planes never read the registry.
+  useEffect(() => {
+    if (!('target' in parsed) || parsed.target !== 'effort') return
+    return subscribeAppEffortRegistry(() => setSavedTick((t) => t + 1))
+  }, [parsed])
   // A sync that commits records (inline notice run, Settings page, another
   // tab) changes the vault under the mounted query — re-run it so imported
   // entries appear without a refresh. Only `result` bumps (not task
@@ -527,21 +565,21 @@ export function QueriableStreamView({
   }, [])
 
   // Inline sync of the user's SUBSCRIBED library sources from the core-only
-  // notice — the same syncSeedSource path the Settings per-source Sync
+  // notice — the same syncFeedSource path the Settings per-source Sync
   // button uses, with the same outcome vocabulary. With nothing subscribed
   // the button cannot sync an empty worklist, so it becomes the subscribe
   // offer instead of pretending.
   const runLibrarySync = useCallback(async () => {
-    const sources = defaultSeedSources().filter(
+    const sources = defaultFeedSources().filter(
       s => s.autoImport === false && subscribedLibraryIds.includes(s.id),
     )
     if (sources.length === 0) {
       openLibraryManager()
       return
     }
-    setSeedSyncRunning(true)
-    setSeedSyncError(null)
-    setSeedSyncEvent(null)
+    setFeedSyncRunning(true)
+    setFeedSyncError(null)
+    setFeedSyncEvent(null)
     try {
       let imported = 0
       let current = 0
@@ -552,7 +590,7 @@ export function QueriableStreamView({
         // "current" and the up-to-date case stayed silent. A plain sync
         // compares the published version against the stored checkpoint and
         // reports "current" honestly when there is nothing to fetch.
-        const outcome = await syncSeedSource(spec.id, { onProgress: setSeedSyncEvent })
+        const outcome = await syncFeedSource(spec.id, { onProgress: setFeedSyncEvent })
         if (outcome === 'imported') {
           imported += 1
           // Content landed in the active storage: drop the notice and re-run
@@ -571,7 +609,7 @@ export function QueriableStreamView({
           problems.push(`${spec.label}: ${OUTCOME_LABEL[outcome]}`)
         }
       }
-      if (problems.length > 0) setSeedSyncError(problems.join(' — '))
+      if (problems.length > 0) setFeedSyncError(problems.join(' — '))
       if (imported > 0) {
         toast({
           title: imported === sources.length ? 'Libraries synced' : `${imported} of ${sources.length} libraries synced`,
@@ -584,11 +622,11 @@ export function QueriableStreamView({
         })
       }
     } finally {
-      setSeedSyncRunning(false)
+      setFeedSyncRunning(false)
     }
   }, [subscribedLibraryIds, openLibraryManager])
   useEffect(() => {
-    if (seedReadiness === 'preparing') return
+    if (feedReadiness === 'preparing') return
     if (parsed.error) {
       setLoading(false)
       return
@@ -629,7 +667,7 @@ export function QueriableStreamView({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [query, activeEngine, parsed, location.pathname, seedReadiness, savedTick])
+  }, [query, activeEngine, parsed, location.pathname, feedReadiness, savedTick])
 
   // Grouping: the committed run's query `by {}` dimensions win; otherwise
   // the view setting, then the surface's Group-By favorite, then the level
@@ -787,7 +825,7 @@ export function QueriableStreamView({
   // Nothing imported on a seed-library route: the emptiness is the missing
   // corpus, not the query — the empty state points at the import action and
   // never offers search remedies (a "Clear filter" there would lie).
-  const libraryNotImported = profile.seedNotice === true && libraryMissing === true && !librarySynced
+  const libraryNotImported = profile.feedNotice === true && libraryMissing === true && !librarySynced
 
   // Empty state remedies
   const emptyStateRemedies = useMemo(() => {
@@ -869,7 +907,7 @@ export function QueriableStreamView({
 
   // First-run vault gate: skeleton until the seed import settles, then the
   // query effect above runs against the full corpus on this mount.
-  if (seedReadiness === 'preparing') {
+  if (feedReadiness === 'preparing') {
     return (
       <div
         className="bg-card flex flex-col flex-1"
@@ -877,7 +915,7 @@ export function QueriableStreamView({
         role="status"
         aria-busy="true"
       >
-        {catalogsManager}
+        {notebooksManager}
         {createNotebookDialog}
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
           <div className="w-full max-w-2xl space-y-3" aria-hidden="true">
@@ -893,7 +931,7 @@ export function QueriableStreamView({
 
   return (
     <div className="bg-card flex flex-col flex-1" data-testid="queriable-stream-view">
-      {catalogsManager}
+      {notebooksManager}
       {createNotebookDialog}
       {querySettingsSurface && (
         <QuerySettingsDialog
@@ -921,12 +959,12 @@ export function QueriableStreamView({
                   size="sm"
                   onClick={() => navigate(effortPath('new', undefined, { mode: 'create' }))}
                   className="h-9 px-2.5 text-xs gap-1.5"
-                  data-testid="efforts-catalog-create-btn"
+                  data-testid="efforts-create-btn"
                 >
                   <Plus className="size-3.5" />
                   <span>New</span>
                 </Button>
-              ) : isCatalogsRoute ? (
+              ) : isNotebooksRoute ? (
                 <Button
                   size="sm"
                   onClick={() => setCreateNotebookOpen(true)}
@@ -940,12 +978,12 @@ export function QueriableStreamView({
             }
             label="Stream actions"
           >
-            {isCatalogsRoute && (
+            {isNotebooksRoute && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setManageOpen(true)}
-                data-testid="manage-catalogs-button"
+                data-testid="manage-notebooks-button"
                 className="h-9 gap-1.5 px-2.5 text-xs"
               >
                 <Settings2 className="size-3.5" />
@@ -999,8 +1037,8 @@ export function QueriableStreamView({
       {/* Core-only notice: this route's corpus lives in optional seed
           libraries and none has imported yet — the page is a dead end until
           the user syncs. Hidden while the coverage probe is unsettled. */}
-      {profile.seedNotice && libraryMissing && !librarySynced && (
-        <div className="px-4 pt-3 sm:px-6 lg:px-8" data-testid="seed-library-notice">
+      {profile.feedNotice && libraryMissing && !librarySynced && (
+        <div className="px-4 pt-3 sm:px-6 lg:px-8" data-testid="feed-library-notice">
           <div className="rounded-xl border border-border bg-card p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1 space-y-1">
               <p className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -1012,44 +1050,44 @@ export function QueriableStreamView({
                   ? 'The content for this page comes from your subscribed libraries, which have not been imported yet. Sync now to import them — or open Sync settings to add more sources (mirrors, your own libraries).'
                   : 'The content for this page comes from library sources, and none are subscribed yet. Browse the library manager to subscribe — mirrors and your own libraries both work.'}
               </p>
-              {seedSyncEvent && (
-                <div className="space-y-1.5 pt-1" data-testid="seed-library-notice-progress">
+              {feedSyncEvent && (
+                <div className="space-y-1.5 pt-1" data-testid="feed-library-notice-progress">
                   <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
-                    {seedSyncLabel(seedSyncEvent)}
+                    {feedSyncLabel(feedSyncEvent)}
                   </p>
-                  {seedSyncEvent.phase !== 'checking' && seedSyncEvent.phase !== 'finished'
-                    ? <ProgressBar value={seedSyncEvent.completedChunks} max={seedSyncEvent.totalChunks} label="Library import progress" className="max-w-sm" />
-                    : seedSyncRunning
+                  {feedSyncEvent.phase !== 'checking' && feedSyncEvent.phase !== 'finished'
+                    ? <ProgressBar value={feedSyncEvent.completedChunks} max={feedSyncEvent.totalChunks} label="Library import progress" className="max-w-sm" />
+                    : feedSyncRunning
                       ? <progress aria-label="Checking library sources" className="h-2 max-w-sm w-full" />
                       : null}
                 </div>
               )}
-              {(seedSyncError ?? (seedSyncEvent?.phase === 'finished' ? seedSyncEvent.error : null)) && (
-                <p className="text-xs text-destructive" data-testid="seed-library-notice-error">
-                  {seedSyncError ?? (seedSyncEvent?.phase === 'finished' ? seedSyncEvent.error : null)}
+              {(feedSyncError ?? (feedSyncEvent?.phase === 'finished' ? feedSyncEvent.error : null)) && (
+                <p className="text-xs text-destructive" data-testid="feed-library-notice-error">
+                  {feedSyncError ?? (feedSyncEvent?.phase === 'finished' ? feedSyncEvent.error : null)}
                 </p>
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {/* Primary action follows the worklist: subscribed sources sync
                   inline; none subscribed, it is the subscribe offer routed to
-                  the source manager (drawer on /catalogs, Sync settings
+                  the source manager (drawer on /notebooks, Sync settings
                   elsewhere). Same test id — still the notice's primary. */}
               <Button
                 size="sm"
                 onClick={() => void runLibrarySync()}
-                disabled={seedSyncRunning}
-                data-testid="seed-library-notice-sync"
+                disabled={feedSyncRunning}
+                data-testid="feed-library-notice-sync"
                 className="gap-2"
               >
-                <RefreshCw className={`size-3.5 ${seedSyncRunning ? 'animate-spin' : ''}`} />
-                <span>{seedSyncRunning ? 'Syncing…' : subscribedLibraryIds.length > 0 ? 'Sync now' : 'Browse libraries'}</span>
+                <RefreshCw className={`size-3.5 ${feedSyncRunning ? 'animate-spin' : ''}`} />
+                <span>{feedSyncRunning ? 'Syncing…' : subscribedLibraryIds.length > 0 ? 'Sync now' : 'Browse libraries'}</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(ROUTE_PATTERNS.settingsSync)}
-                data-testid="seed-library-notice-settings"
+                data-testid="feed-library-notice-settings"
                 className="gap-2"
               >
                 <Settings2 className="size-3.5" />
@@ -1113,13 +1151,19 @@ export function QueriableStreamView({
         </div>
       )}
 
-      {/* Read-only view of the collection readme note. WQL embed links
+      {/* Notebook plane: the management list on /notebooks — defaults, the
+          user's own, the feed libraries and the core references. */}
+      {isNotebooksRoute && (
+        <NotebookList refreshKey={savedTick} onChanged={() => setSavedTick(t => t + 1)} />
+      )}
+
+      {/* Read-only view of the notebook readme note. WQL embed links
           (`[heading](:query)!`) inject live query results in place; any
           embed suppresses the default stream below (the override). */}
       {readmeContent && (
         <div
           className="border-b border-border/60 bg-card/20 px-6 py-4"
-          data-testid="collection-readme-note"
+          data-testid="notebook-readme-note"
         >
           {readmeSegments.map((segment, index) =>
             segment.kind === 'markdown' ? (
@@ -1158,6 +1202,9 @@ export function QueriableStreamView({
             stickyOffset={stickyOffset}
             onRunEntry={handleRunEntry}
             onSendToPlayground={handleSendToPlayground}
+            onAddToToday={handleAddToToday}
+            moveNotebookTargets={moveNotebookTargets}
+            onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
           />
         ) : loading && entries.length === 0 ? (
           <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
@@ -1206,6 +1253,8 @@ export function QueriableStreamView({
                               visibleFieldIds={settings.visibleFields}
                               onAddToToday={handleAddToToday}
                               onRunStart={handleRunEntry}
+                              moveNotebookTargets={moveNotebookTargets}
+                              onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.id, notebookId)}
                             />
                           ))}
                         </div>
@@ -1236,6 +1285,8 @@ export function QueriableStreamView({
                           tone={group.isToday ? 'primary' : 'secondary'}
                           onAddToToday={handleAddToToday}
                           onRunStart={handleRunEntry}
+                          moveNotebookTargets={moveNotebookTargets}
+                          onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.id, notebookId)}
                         />
                       ))}
                     </div>

@@ -8,12 +8,8 @@ import { normalizeNoteTitle } from '@/lib/noteTitle';
 import { playgroundContent } from './playgroundContent';
 import { formatDateMedium, formatDateShort } from '@/lib/dateFormat';
 import type { CanvasRoute } from '../canvas/canvasRoutes';
-import type { ScriptCollection } from '@/repositories/script-collections';
-import type { WorkoutItem as IndexWorkoutItem } from '../lib/workoutIndex';
-
-// Re-export the canonical `WorkoutItem` so consumers and the test type-alias
-// (`import('./paletteDataSources').WorkoutItem`) keep resolving to one shape.
-export type WorkoutItem = IndexWorkoutItem;
+import type { ScriptNotebook } from '@/repositories/script-notebooks';
+import type { WorkoutItem } from '../lib/workoutIndex';
 
 // ── Global search ─────────────────────────────────────────────────────────
 
@@ -131,93 +127,62 @@ export function globalSearchSource(
   };
 }
 
-// ── Collection search ──────────────────────────────────────────────────────
-
-/**
- * Lists items within a single collection.
- * Used when drilling into a collection from global search or nav panel.
- */
-export function collectionSource(
-  collectionName: string,
-  items: WorkoutItem[]
-): PaletteDataSource {
-  return {
-    id: `collection:${collectionName}`,
-    label: collectionName,
-    search: async (query) => {
-      const low = query.toLowerCase();
-      return items
-        .filter(
-          item =>
-            item.category === collectionName &&
-            (!low || item.name.toLowerCase().includes(low))
-        )
-        .map(item => ({
-          id: item.id,
-          label: item.name,
-          sublabel: item.category,
-          category: item.category,
-          type: 'workout' as const,
-          payload: item,
-        }));
-    },
-  };
-}
-
 // ── WOD block source (for statement builder) ───────────────────────────────
 
 export type { SegmentType } from '@/components/organisms/command-palette/segmentSources';
 export { segmentSource } from '@/components/organisms/command-palette/segmentSources';
 
-// ── Collection drill-down sources ───────────────────────────────────────────
+// ── Notebook drill-down sources ─────────────────────────────────────────────
 
 /**
- * Lists every WOD collection as a selectable item.
- * Payload: ScriptCollection
+ * Lists every notebook in the seeded corpus as a selectable item.
+ * Payload: ScriptNotebook
  */
-export function collectionListSource(): PaletteDataSource {
+export function notebookListSource(): PaletteDataSource {
   return {
-    id: 'collection-list',
-    label: 'Feeds',
+    id: 'notebook-list',
+    label: 'Notebooks',
     search: async (query) => {
-      const { getScriptCollections } = await import('@/repositories/script-collections');
-      const collections = await getScriptCollections();
+      // Dynamic import by design: the palette loads early — keep the
+      // repository → seed-content → storage chain out of its static graph.
+      const { getScriptNotebooks } = await import('@/repositories/script-notebooks');
+      const notebooks = await getScriptNotebooks();
       const low = query.toLowerCase();
-      return collections
-        .filter(c => !low || c.name.toLowerCase().includes(low) || c.id.toLowerCase().includes(low))
-        .map(c => ({
-          id: c.id,
-          label: c.name,
-          sublabel: `${c.count} workout${c.count !== 1 ? 's' : ''}`,
-          category: 'Feeds',
-          type: 'collection' as const,
-          payload: c,
+      return notebooks
+        .filter(n => !low || n.name.toLowerCase().includes(low) || n.id.toLowerCase().includes(low))
+        .map(n => ({
+          id: n.id,
+          label: n.name,
+          sublabel: `${n.items.length} note${n.items.length !== 1 ? 's' : ''}`,
+          category: 'Notebooks',
+          type: 'notebook' as const,
+          payload: n,
         }));
     },
   };
 }
 
 /**
- * Lists workout items within a single ScriptCollection.
- * Payload: ScriptCollectionItem
+ * Lists notes within a single ScriptNotebook.
+ * Payload: ScriptNotebookItem
  */
-export function collectionItemsSource(collection: ScriptCollection): PaletteDataSource {
+export function notebookItemsSource(notebook: ScriptNotebook): PaletteDataSource {
   return {
-    id: `collection-items:${collection.id}`,
-    label: collection.name,
+    id: `notebook-items:${notebook.id}`,
+    label: notebook.name,
     search: async (query) => {
       const low = query.toLowerCase();
-      return collection.items
+      return notebook.items
         .filter(item =>
           !low ||
           item.name.toLowerCase().includes(low) ||
           item.id.toLowerCase().includes(low)
         )
         .map(item => ({
-          id: item.id,
-          label: item.name,
-          sublabel: collection.name,
-          category: collection.name,
+          id: item.path,
+          label: item.date ? `${item.name} — ${item.date}` : item.name,
+          sublabel: notebook.name,
+          category: notebook.name,
           type: 'workout' as const,
           payload: item,
         }));
@@ -335,7 +300,6 @@ export const CREATE_FROM_SOURCE: PaletteDataSource = {
       { id: 'collection', label: 'Collection', sublabel: 'Drill into a collection → pick a workout → clone a WOD block', category: 'Create from', type: 'action', payload: 'collection' },
       { id: 'feed',       label: 'Feed',       sublabel: 'Pick a recent entry from your feed and clone a WOD block',  category: 'Create from', type: 'action', payload: 'feed' },
       { id: 'history',    label: 'History',    sublabel: 'Copy the full content of a past journal entry',             category: 'Create from', type: 'action', payload: 'history' },
-      { id: 'template',   label: 'Template',   sublabel: 'Coming soon — saved note templates',                          category: 'Create from', type: 'action', payload: 'template' },
     ];
     if (!query) return options;
     const low = query.toLowerCase();

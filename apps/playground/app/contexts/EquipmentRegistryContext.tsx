@@ -3,7 +3,7 @@
  *
  * Provides the app equipment registry (CompositeEquipmentRegistry — bundled
  * seed tier + user tier, both from IndexedDB) to the playground app.
- * Mirrors EffortRegistryContext: async hydration, re-hydration on seed
+ * Mirrors EffortRegistryContext: async hydration, re-hydration on feed
  * broadcasts ('wodwiki.seed') so bundled equipment appears/disappears
  * without a reload.
  */
@@ -11,7 +11,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { IEquipmentRegistry, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { getAppEquipmentRegistry, hydrateAppEquipmentRegistry } from '@/services/equipmentRegistry';
-import { SEED_BROADCAST_CHANNEL } from '@/services/seed/seedSync';
+import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
 
 interface EquipmentRegistryContextValue {
   registry: IEquipmentRegistry;
@@ -49,7 +49,7 @@ export function EquipmentRegistryProvider({ children }: { children: React.ReactN
     init();
   }, [init]);
 
-  // Seed Import landed/removed a seed → re-read equipment from Storage.
+  // A feed import landed/removed content → re-read equipment from Storage.
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
     const channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);

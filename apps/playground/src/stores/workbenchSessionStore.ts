@@ -40,7 +40,7 @@ import type { INotePersistence } from '@/services/persistence';
 import { revertBlock } from '@/components/organisms/editor/BlockHistory';
 import { fileProcessor } from '@/hooks/useBrowserServices';
 import { loadStaticWorkbenchContent } from '@/app/workbench/workbenchProviders';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { Attachment } from '@/types/storage';
 import { sharedCastSessionManager } from '@/services/cast/rpc/CastSessionManager';
 import { getActiveCastTransport } from '@/services/cast/castTransportRegistry';
@@ -124,8 +124,8 @@ export interface WorkbenchSessionState {
 
   // --- Results & History (S1b: migrated from WorkbenchContext) ---
   results: Sessions[];
-  currentEntry: HistoryEntry | null;
-  historyEntries: HistoryEntry[];
+  currentEntry: HistoryRecord | null;
+  historyEntries: HistoryRecord[];
 
   // --- Panel Layout (S1c: migrated from WorkbenchContext) ---
   panelLayouts: Record<string, PanelLayoutState>;
@@ -197,8 +197,8 @@ export interface WorkbenchSessionActions {
   // --- Results & History (S1b) ---
   setResults: (results: Sessions[]) => void;
   resetResults: () => void;
-  setCurrentEntry: (entry: HistoryEntry | null) => void;
-  setHistoryEntries: (entries: HistoryEntry[]) => void;
+  setCurrentEntry: (entry: HistoryRecord | null) => void;
+  setHistoryEntries: (entries: HistoryRecord[]) => void;
 
   // --- Panel Layout (S1c) ---
   setPanelLayouts: (layouts: Record<string, PanelLayoutState>) => void;
@@ -236,15 +236,15 @@ export interface WorkbenchSessionActions {
     resultFromLocationState?: Sessions;
     initialActiveEntryId?: string;
     propInitialContent?: string;
-    onLoaded?: (entry: HistoryEntry) => void;
-  }) => Promise<HistoryEntry | null>;
+    onLoaded?: (entry: HistoryRecord) => void;
+  }) => Promise<HistoryRecord | null>;
   /**
    * Proxy to `INotePersistence.getNote` — surfaces the history seam so
    * components can query a single note (e.g. resultSelection projections
    * for results-by-section) without re-importing the persistence adapter.
    * Throws if `notePersistence` wasn't injected.
    */
-  getNote: (locator: NoteLocator, options?: GetNoteOptions) => Promise<HistoryEntry>;
+  getNote: (locator: NoteLocator, options?: GetNoteOptions) => Promise<HistoryRecord>;
   // --- Active tracking ---
   setActiveSegmentIds: (ids: Set<number>) => void;
   setActiveStatementIds: (ids: Set<number>) => void;
@@ -386,7 +386,7 @@ export interface CreateWorkbenchSessionStoreDeps {
   nowProvider?: INowProvider;
   /** Persistence port — `getNote`, `mutateNote`, etc. */
   notePersistence?: import('@/services/persistence').INotePersistence;
-  /** Content provider port — `updateEntry`, `saveEntry`, `getEntry`, etc. */
+  /** Content provider port — `updateRecord`, `saveRecord`, `getRecord`, etc. */
   provider?: import('@/types/content-provider').IContentProvider;
   /** Navigation port — `react-router` for prod, capture-fn for tests. */
   navigate?: NavigateFn;
@@ -694,7 +694,7 @@ export function createWorkbenchSessionStore(
         resultFromLocationState?: Sessions;
         initialActiveEntryId?: string;
         propInitialContent?: string;
-        onLoaded?: (entry: HistoryEntry) => void;
+        onLoaded?: (entry: HistoryRecord) => void;
       }) => {
         const notePersistence = deps.notePersistence;
         const provider = deps.provider;
@@ -727,7 +727,7 @@ export function createWorkbenchSessionStore(
                   resultSelectionMode: resultSelection.mode,
                   err,
                 });
-                return provider.getEntry(routeId);
+                return provider.getRecord(routeId);
               });
               if (entry) {
                 const next = deriveWorkbenchDocumentState(entry.rawContent, { noteBlocks: entry.blocks, sourceRevision: Math.max(1, entry.sourceRevision ?? 0) });

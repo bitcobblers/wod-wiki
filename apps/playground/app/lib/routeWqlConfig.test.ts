@@ -86,14 +86,15 @@ describe('routeWqlConfig — pure read/write/clear', () => {
     )
     expect(readRouteWqlConfig('/dashboards')).toEqual({ defaultWql: 'rows:all{} last 12w' })
 
-    // The /collections listing renamed to /feeds — overrides saved under the
-    // old surface id still resolve (and their WQL migrates off the retired
-    // grammar).
+    // The /collections listing renamed to /feeds, then /notebooks, and the
+    // old /feeds surface moved to /notes — overrides saved under either
+    // retired surface id still resolve (and their WQL migrates off the
+    // retired grammar onto the notebook plane).
     window.localStorage.setItem(
       getRouteWqlStorageKey('/collections'),
       JSON.stringify({ defaultWql: ':collection{} last 2w', typeOptions: ['collections'] }),
     )
-    expect(readRouteWqlConfig('/feeds')).toEqual({ defaultWql: ':feed{} last 2w', typeOptions: ['feeds'] })
+    expect(readRouteWqlConfig('/notes')).toEqual({ defaultWql: ':notebook{} last 2w', typeOptions: ['notebooks'] })
 
     // The new key always wins when both exist
     window.localStorage.setItem(
@@ -101,6 +102,27 @@ describe('routeWqlConfig — pure read/write/clear', () => {
       JSON.stringify({ defaultWql: 'rows:all{} last 4w' }),
     )
     expect(readRouteWqlConfig('/sessions')).toEqual({ defaultWql: 'rows:all{} last 4w' })
+  })
+
+  it('the new /feeds surface stores under /feeds@2 — old notes defaults never leak into it', async () => {
+    // Pre-ticket the notes list lived at /feeds: defaults saved under the
+    // plain /feeds key migrate to /notes (the old surface's successor)...
+    window.localStorage.setItem(
+      `${ROUTE_WQL_STORAGE_PREFIX}/feeds`,
+      JSON.stringify({ defaultWql: ':feed{} last 2w' }),
+    )
+    expect(readRouteWqlConfig('/notes')).toEqual({ defaultWql: ':notebook{} last 2w' })
+
+    // ...while the new feed-source list at the same public URL starts fresh —
+    // its storage id is versioned so the legacy notes key cannot shape it.
+    expect(readRouteWqlConfig('/feeds')).toEqual({})
+
+    // Its own writes persist under the versioned key and read back; the
+    // legacy key stays untouched for the /notes migration.
+    await writeRouteWqlConfig('/feeds', { defaultWql: ':feed{} last 1w' })
+    expect(window.localStorage.getItem(`${ROUTE_WQL_STORAGE_PREFIX}/feeds@2`)).toContain('last 1w')
+    expect(readRouteWqlConfig('/feeds')).toEqual({ defaultWql: ':notebook{} last 1w' })
+    expect(readRouteWqlConfig('/notes')).toEqual({ defaultWql: ':notebook{} last 2w' })
   })
 
   it('never aliases the other direction — writes land on the new key only', async () => {
@@ -141,43 +163,43 @@ describe('routeWqlConfig — narrow favorites migration (work item 3)', () => {
     expect(readRouteWqlConfig('/feeds')).toEqual({ typeOptions: ['note', 'block', 'effort'] })
   })
 
-  it('migrates the retired collections scope to feeds, preserving order and deduping', () => {
+  it('migrates the retired collections/feeds scopes to notebooks, preserving order and deduping', () => {
     window.localStorage.setItem(
       getRouteWqlStorageKey('/feeds'),
-      JSON.stringify({ typeOptions: ['journal', 'notes', 'collections', 'journal'] }),
+      JSON.stringify({ typeOptions: ['journal', 'notes', 'collections', 'feeds', 'journal'] }),
     )
-    expect(readRouteWqlConfig('/feeds')).toEqual({ typeOptions: ['journal', 'note', 'feeds'] })
+    expect(readRouteWqlConfig('/feeds')).toEqual({ typeOptions: ['journal', 'note', 'notebooks'] })
   })
 
   it('migrates stored default WQL from the retired collections grammar', () => {
     // Hard break on the old spellings: heads, scope filters and type values
-    // rewrite to the feeds forms; storage-identity spellings stay put.
+    // rewrite to the notebook forms; retired source-id prefixes re-address.
     window.localStorage.setItem(
       getRouteWqlStorageKey('/feeds'),
       JSON.stringify({ defaultWql: ':collection{} last 2w' }),
     )
-    expect(readRouteWqlConfig('/feeds')).toEqual({ defaultWql: ':feed{} last 2w' })
+    expect(readRouteWqlConfig('/feeds')).toEqual({ defaultWql: ':notebook{} last 2w' })
 
     window.localStorage.setItem(
       getRouteWqlStorageKey('/catalogs'),
       JSON.stringify({ defaultWql: ':collections{source:collections} by {tag}' }),
     )
-    expect(readRouteWqlConfig('/catalogs')).toEqual({ defaultWql: ':feeds{source:feeds} by {tag}' })
+    expect(readRouteWqlConfig('/catalogs')).toEqual({ defaultWql: ':notebooks{source:notebooks} by {tag}' })
 
     window.localStorage.setItem(
       getRouteWqlStorageKey('/journal'),
       JSON.stringify({ defaultWql: ':note{type:collection}' }),
     )
-    expect(readRouteWqlConfig('/journal')).toEqual({ defaultWql: ':note{type:feed}' })
+    expect(readRouteWqlConfig('/journal')).toEqual({ defaultWql: ':note{type:note}' })
 
-    // Storage identities pass through: `collection:`-prefixed source ids and
-    // `:catalog`/`catalog:` filters are untouched.
+    // The retired `catalog:` filter migrates to `notebook:` (ticket 08) and
+    // retired `collection:`-prefixed source ids re-address to `notebook:`.
     window.localStorage.setItem(
       getRouteWqlStorageKey('/c/fran'),
       JSON.stringify({ defaultWql: ':feed{catalog:fran, source:collection:fran} last 4w' }),
     )
     expect(readRouteWqlConfig('/c/fran')).toEqual({
-      defaultWql: ':feed{catalog:fran, source:collection:fran} last 4w',
+      defaultWql: ':notebook{notebook:fran, source:notebook:fran} last 4w',
     })
   })
 

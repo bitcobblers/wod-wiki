@@ -1,44 +1,38 @@
 import { v7 as uuidv7 } from 'uuid';
-import { formatPlaygroundTimestampId } from '../../lib/playgroundDisplay';
-import type { AttachmentCreateInput, IContentProvider, ContentProviderMode, NoteSaveInput, NoteEntryPatch } from '../../types/content-provider';
-import type { HistoryEntry, EntryQuery, ProviderCapabilities } from '../../types/history';
-import { storageService, type StorageService } from '@/services/storage';
-import type { Attachment, Page, Session } from '../../types/storage';
-import { parseDocumentSections, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
-import { extractTypedFrontmatterTags } from '../../lib/frontmatter';
+import { parseDocumentSections, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS, projectPlacements, resolvePlacements, type PageTarget } from '@bitcobblers/wod-wiki-core';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import type { DomainEntry, DomainPredicate } from '@bitcobblers/wod-wiki-storage';
-import { sessionToPayload } from '../persistence/sessionPayload';
-import { NotePersistenceError } from '../persistence/types';
+import type { DomainDetail, DomainPredicate } from '@bitcobblers/wod-wiki-storage';
 import { localDateKey } from '@/lib/dateFormat';
+import { extractTypedFrontmatterTags } from '@/lib/frontmatter';
+import { formatPlaygroundTimestampId } from '@/lib/playgroundDisplay';
+import { sessionToPayload } from '@/services/persistence/sessionPayload';
+import { NotePersistenceError } from '@/services/persistence/types';
+import { storageService, type StorageService } from '@/services/storage';
+import type { AttachmentCreateInput, IContentProvider, ContentProviderMode, NoteSaveInput, NoteRecordPatch } from '@/types/content-provider';
+import type { HistoryRecord, HistoryQuery, ProviderCapabilities } from '@/types/history';
+import type { Attachment, Page, Session } from '@/types/storage';
 
 const BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
 const MUTATION_STORES = ['notes', 'block_revisions', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'sessions', 'events', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'] as const;
 
-function entryFromDomainRow(row: DomainEntry): HistoryEntry {
-    const pages = new Map(row.pages.map(page => [page.id, page]));
-    let pageId: string | undefined;
-    let journalDate: string | undefined;
-    let slug: string | undefined;
-    for (const link of [...row.links].sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity) || a.createdAt - b.createdAt)) {
-        const page = pages.get(link.pageId);
-        if (!page) continue;
-        pageId ??= page.id;
-        if (page.date) journalDate ??= page.date;
-        if (page.slug && !page.date) slug ??= page.slug;
-    }
+function entryFromDomainRow(row: DomainDetail): HistoryRecord {
+    // Every page the note sits on — the membership itself. The single-page
+    // fields below are deterministic projections of this list.
+    const placements = resolvePlacements(row.links, row.pages);
+    const projection = projectPlacements(placements);
     return {
-        id: row.note.id, title: row.note.title, slug, pageId, journalDate,
+        id: row.note.id, title: row.note.title, slug: projection.pageSlug, pageId: projection.pageId,
+        journalDate: projection.journalDate, placements,
         createdAt: row.note.createdAt, updatedAt: row.note.createdAt,
         targetDate: row.note.date ?? row.note.createdAt,
         rawContent: row.note.rawContent, blocks: row.note.blocks, sourceRevision: row.note.sourceRevision,
         tags: row.tags.map(tag => tag.label), type: row.note.type ?? 'note',
-        sourceId: row.note.sourceId, catalog: row.note.catalog, notebookId: row.note.notebookId,
+        sourceId: row.note.sourceId, notebookId: row.note.notebookId,
         seedOrigin: row.note.seedOrigin, schemaVersion: 1,
     };
 }
 
-function entryDateWindow(query?: EntryQuery): { start: number; end: number } | undefined {
+function entryDateWindow(query?: HistoryQuery): { start: number; end: number } | undefined {
     if (query?.dateRange) return query.dateRange;
     if (query?.daysBack != null) {
         const end = Date.now();
@@ -55,17 +49,17 @@ export class IndexedDBContentProvider implements IContentProvider {
         canWrite: true, canDelete: true, canFilter: true, canMultiSelect: true, supportsHistory: true,
     };
 
-    async getEntries(query?: EntryQuery): Promise<HistoryEntry[]> {
+    async getRecords(query?: HistoryQuery): Promise<HistoryRecord[]> {
         const window = entryDateWindow(query);
         const selection: DomainPredicate[] = [];
         if (window) selection.push({ field: 'date', start: window.start, end: window.end });
         for (const tag of query?.tags ?? []) selection.push({ field: 'tags', values: [tag] });
-        const result = await this.db.queryDomain(selection.length ? { plan: 'entries', selection } : { plan: 'entries' });
-        let entries: HistoryEntry[];
-        if (result?.plan === 'entries') entries = result.rows.map(entryFromDomainRow);
+        const result = await this.db.queryDomain(selection.length ? { plan: 'detail', selection } : { plan: 'detail' });
+        let entries: HistoryRecord[];
+        if (result?.plan === 'detail') entries = result.rows.map(entryFromDomainRow);
         else {
             const candidates = window ? await this.db.getNotesByDateRange(window.start, window.end) : await this.db.getAllNotes();
-            const bundles = await this.db.getEntryBatches(candidates.map(note => note.id));
+            const bundles = await this.db.getDetailBatches(candidates.map(note => note.id));
             entries = [...bundles.values()].map(entryFromDomainRow);
         }
         entries = entries.filter(entry => (!window || entry.targetDate >= window.start && entry.targetDate <= window.end)
@@ -73,7 +67,7 @@ export class IndexedDBContentProvider implements IContentProvider {
         return entries.sort((a, b) => b.targetDate - a.targetDate);
     }
 
-    async getEntry(id: string): Promise<HistoryEntry | null> {
+    async getRecord(id: string): Promise<HistoryRecord | null> {
         // ponytail: fallback to stripped playground prefix and slug before failing; upgrade to unified locator resolver when route models merge.
         const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
         const note = await this.db.getNote(id)
@@ -81,7 +75,7 @@ export class IndexedDBContentProvider implements IContentProvider {
             ?? await this.db.getNoteBySlug(id)
             ?? (rawId !== id ? await this.db.getNoteBySlug(rawId) : undefined);
         if (!note) return null;
-        const bundle = (await this.db.getEntryBatches([note.id])).get(note.id);
+        const bundle = (await this.db.getDetailBatches([note.id])).get(note.id);
         if (!bundle) return null;
         const entry = entryFromDomainRow(bundle);
         const latest = (await this.db.getSessionsForNote(note.id)).sort((a, b) => b.createdAt - a.createdAt)[0];
@@ -94,15 +88,15 @@ export class IndexedDBContentProvider implements IContentProvider {
         return { ...entry, sections, results: latest ? sessionToPayload(latest, await this.db.getEventsByResult(latest.id)) : undefined };
     }
 
-    async cloneEntry(sourceId: string, targetDate?: number): Promise<HistoryEntry> {
-        const source = await this.getEntry(sourceId);
+    async cloneRecord(sourceId: string, targetDate?: number): Promise<HistoryRecord> {
+        const source = await this.getRecord(sourceId);
         if (!source) throw new Error(`Source entry not found: ${sourceId}`);
         const date = targetDate ?? Date.now();
-        return this.saveEntry({ title: source.title, rawContent: source.rawContent, tags: source.tags,
+        return this.saveRecord({ title: source.title, rawContent: source.rawContent, tags: source.tags,
             targetDate: date, journalDate: localDateKey(new Date(date)), type: 'journal', sourceId: source.id });
     }
 
-    async saveEntry(entry: NoteSaveInput): Promise<HistoryEntry> {
+    async saveRecord(entry: NoteSaveInput): Promise<HistoryRecord> {
         const now = Date.now();
         let noteId = entry.id ?? (entry.type === 'playground' ? formatPlaygroundTimestampId(now) : uuidv7());
         if (!entry.id && entry.type === 'playground') {
@@ -125,12 +119,12 @@ export class IndexedDBContentProvider implements IContentProvider {
             await provider.updateRelationships(noteId, { journalDate: entry.journalDate, slug: entry.slug });
             await provider.updateTags(noteId, entry.rawContent, tags);
         });
-        const saved = await this.getEntry(noteId);
+        const saved = await this.getRecord(noteId);
         if (!saved) throw new Error(`Saved note disappeared: ${noteId}`);
         return saved;
     }
 
-    async updateEntry(id: string, patch: NoteEntryPatch): Promise<HistoryEntry> {
+    async updateRecord(id: string, patch: NoteRecordPatch): Promise<HistoryRecord> {
         const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
         const resolved = await this.db.getNote(id)
             ?? (rawId !== id ? await this.db.getNote(rawId) : undefined)
@@ -177,33 +171,122 @@ export class IndexedDBContentProvider implements IContentProvider {
                 }
             }
         });
-        const updated = await this.getEntry(resolved.id);
+        const updated = await this.getRecord(resolved.id);
         if (!updated) throw new Error(`Saved note disappeared: ${resolved.id}`);
         return updated;
     }
 
-    private async updateRelationships(noteId: string, patch: Pick<NoteEntryPatch, 'journalDate' | 'slug'>): Promise<void> {
+    /**
+     * Apply a `journalDate` / `slug` patch to the note's placements.
+     *
+     * Setting a value ATTACHES the note to that page — it never detaches the
+     * note from the pages it is already on (a note may sit on several pages
+     * at once). Clearing a value detaches the note from the pages of that
+     * flavor only; its other placements stay.
+     *
+     * Moving between pages is a separate operation (see
+     * {@link moveRecordPlacement}) — it detaches exactly one source.
+     */
+    private async updateRelationships(noteId: string, patch: Pick<NoteRecordPatch, 'journalDate' | 'slug'>): Promise<void> {
         for (const flavor of ['journalDate', 'slug'] as const) {
             const value = patch[flavor];
             if (value === undefined) continue;
-            let destination: Page | undefined;
-            if (value) {
-                if (flavor === 'journalDate') destination = await this.db.getOrCreatePageForDate(value);
-                else {
-                    destination = await this.db.getPageBySlug(value);
-                    if (!destination) {
-                        destination = { id: uuidv7(), slug: value, title: (await this.db.getNote(noteId))?.title, createdAt: Date.now() };
-                        await this.db.savePage(destination);
-                    }
+            if (!value) {
+                for (const link of await this.db.getNotePages(noteId)) {
+                    const page = await this.db.getPage(link.pageId);
+                    const matches = flavor === 'journalDate' ? !!page?.date : !!page?.slug && !page.date;
+                    if (matches) await this.db.removeNoteFromPage(noteId, link.pageId);
                 }
+                continue;
             }
-            for (const link of await this.db.getNotePages(noteId)) {
-                const page = await this.db.getPage(link.pageId);
-                const matches = flavor === 'journalDate' ? !!page?.date : !!page?.slug && !page.date;
-                if (matches && page?.id !== destination?.id) await this.db.removeNoteFromPage(noteId, link.pageId);
-            }
-            if (destination) await this.db.addNoteToPage(noteId, destination.id);
+            const destination = await this.resolvePage(noteId, flavor, value);
+            await this.db.addNoteToPage(noteId, destination.id);
         }
+    }
+
+    /** The page a placement target addresses — created when it does not exist. */
+    private async resolvePage(noteId: string, flavor: 'journalDate' | 'slug', value: string): Promise<Page> {
+        if (flavor === 'journalDate') return this.db.getOrCreatePageForDate(value);
+        const existing = await this.db.getPageBySlug(value);
+        if (existing) return existing;
+        const page: Page = { id: uuidv7(), slug: value, title: (await this.db.getNote(noteId))?.title, createdAt: Date.now() };
+        await this.db.savePage(page);
+        return page;
+    }
+
+    /** The page a placement target addresses — created when it does not exist. */
+    private async resolveTargetPage(noteId: string, target: PageTarget): Promise<Page> {
+        if (target.date) return this.db.getOrCreatePageForDate(target.date);
+        if (target.slug) return this.resolvePage(noteId, 'slug', target.slug);
+        throw new Error('A placement target needs a date or a slug');
+    }
+
+    async addRecordPlacement(id: string, target: PageTarget): Promise<HistoryRecord> {
+        const noteId = await this.resolvePlacementNoteId(id);
+        const page = await this.resolveTargetPage(noteId, target);
+        await this.db.addNoteToPage(noteId, page.id);
+        const updated = await this.getRecord(noteId);
+        if (!updated) throw new Error(`Saved note disappeared: ${noteId}`);
+        return updated;
+    }
+
+    async removeRecordPlacement(id: string, pageId: string): Promise<HistoryRecord> {
+        const noteId = await this.resolvePlacementNoteId(id);
+        await this.db.removeNoteFromPage(noteId, pageId);
+        const updated = await this.getRecord(noteId);
+        if (!updated) throw new Error(`Saved note disappeared: ${noteId}`);
+        return updated;
+    }
+
+    async moveRecordPlacement(id: string, fromPageId: string, target: PageTarget): Promise<HistoryRecord> {
+        const noteId = await this.resolvePlacementNoteId(id);
+        const page = await this.resolveTargetPage(noteId, target);
+        // The move validates its source INSIDE the storage transaction — a
+        // note that is not on the source page fails with NOTE_NOT_PLACED and
+        // changes nothing.
+        await this.db.moveNoteBetweenPages(noteId, fromPageId, page.id);
+        const updated = await this.getRecord(noteId);
+        if (!updated) throw new Error(`Saved note disappeared: ${noteId}`);
+        return updated;
+    }
+
+    /**
+     * The notes placed on a named page, in the canonical placement order —
+     * the page's own listing. Each entry addresses its own note.
+     */
+    async getPageRecords(slug: string): Promise<HistoryRecord[]> {
+        const page = await this.db.getPageBySlug(slug);
+        if (!page) return [];
+        const placements = await this.db.getPagePlacements(page.id);
+        if (placements.length === 0) return [];
+        const bundles = await this.db.getDetailBatches(placements.map((placement) => placement.noteId));
+        return placements
+            .map((placement) => bundles.get(placement.noteId))
+            .filter((bundle): bundle is DomainDetail => bundle !== undefined)
+            .map(entryFromDomainRow);
+    }
+
+    /**
+     * The stored note id behind a placement operation. Placement resolves
+     * ACTUAL note ids only: a page slug can name several notes, so
+     * resolving one by slug would silently pick an unrelated first note.
+     */
+    private async resolvePlacementNoteId(id: string): Promise<string> {
+        const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
+        const note = await this.db.getNote(id) ?? (rawId !== id ? await this.db.getNote(rawId) : undefined);
+        if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${id}`);
+        return note.id;
+    }
+
+    /** The stored note id behind an entry id — the canonical note route. */
+    private async resolveNoteId(id: string): Promise<string> {
+        const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
+        const note = await this.db.getNote(id)
+            ?? (rawId !== id ? await this.db.getNote(rawId) : undefined)
+            ?? await this.db.getNoteBySlug(id)
+            ?? (rawId !== id ? await this.db.getNoteBySlug(rawId) : undefined);
+        if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${id}`);
+        return note.id;
     }
 
     private async changedManualTags(noteId: string, supplied: string[]): Promise<string[] | undefined> {
@@ -221,7 +304,7 @@ export class IndexedDBContentProvider implements IContentProvider {
         await this.db.setNoteTags(noteId, [...base, ...declared.map(tag => tag.type ? tag : tag.label)]);
     }
 
-    async deleteEntry(id: string): Promise<void> { await this.db.deleteNote(id); }
+    async deleteRecord(id: string): Promise<void> { await this.db.deleteNote(id); }
     async getAttachments(noteId: string): Promise<Attachment[]> { return this.db.getAttachmentsForNote(noteId); }
     async saveAttachment(noteId: string, attachment: AttachmentCreateInput): Promise<Attachment> {
         const full: Attachment = { ...attachment, id: attachment.id ?? uuidv7(), noteId, createdAt: Date.now() };

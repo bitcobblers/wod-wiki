@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
 import { Button } from '@/components/atoms/primitives/button'
-import { notePersistence } from '@/services/persistence'
 import { storageService } from '@/services/storage'
-import { getScriptCollections } from '@/repositories/script-collections'
-import { getScriptFeeds } from '@/repositories/script-feeds'
-import type { ScriptCollection } from '@/repositories/script-collections'
-import type { ScriptFeed } from '@/repositories/script-feeds'
-import type { HistoryEntry } from '@/types/history'
+import { notebookService } from '@/services/NotebookService'
+import { getScriptNotebooks, type ScriptNotebook } from '@/repositories/script-notebooks'
+import type { HistoryRecord } from '@/types/history'
 
 import { formatDateHeader } from '../../../lib/dateFormat'
 import { getTodayDateKey } from '../../../services/dateUtils'
@@ -22,20 +19,26 @@ export interface CreateJournalNoteDialogProps {
   /** Preselected mode; defaults to 'blank'. */
   defaultMode?: StartMode
    /** Called with the created entry after a successful create. */
-   onCreated?: (entry: HistoryEntry) => void
+   onCreated?: (entry: HistoryRecord) => void
  }
 
-type StartMode = 'blank' | 'template' | 'source'
+type StartMode = 'blank' | 'notebook' | 'source'
 
 const START_MODES: { value: StartMode; label: string }[] = [
   { value: 'blank', label: 'Blank' },
-  { value: 'template', label: 'Template' },
+  { value: 'notebook', label: 'Notebook' },
   { value: 'source', label: 'Source' },
 ]
 
+interface NotebookNoteChoice {
+  id: string
+  title: string
+  rawContent: string
+  tags: string[]
+}
+
 interface SourceState {
-  collections: ScriptCollection[]
-  feeds: ScriptFeed[]
+  notebooks: ScriptNotebook[]
   /** Exact Note.sourcePath → note id, from raw storage rows. */
   sourceIdByPath: Record<string, string>
 }
@@ -56,17 +59,17 @@ export function CreateJournalNoteDialog({
   const [creating, setCreating] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const [templates, setTemplates] = useState<HistoryEntry[] | null>(null)
-  const [templatesError, setTemplatesError] = useState<string | null>(null)
+  const [notebookNotes, setNotebookNotes] = useState<NotebookNoteChoice[] | null>(null)
+  const [notebookNotesError, setNotebookNotesError] = useState<string | null>(null)
   const [sources, setSources] = useState<SourceState | null>(null)
   const [sourcesError, setSourcesError] = useState<string | null>(null)
   const templatesReq = useRef(0)
   const sourcesReq = useRef(0)
   const inFlight = useRef(false)
 
-  const [templateId, setTemplateId] = useState('')
+  const [notebookNoteId, setNotebookNoteId] = useState('')
   const [sourceGroupId, setSourceGroupId] = useState('')
-  const [sourceItemPath, setSourceItemPath] = useState('')
+  const [sourceNotePath, setSourceItemPath] = useState('')
 
   // Fresh form (and invalidated lists) on every open.
   useEffect(() => {
@@ -77,26 +80,40 @@ export function CreateJournalNoteDialog({
     setDate(defaultDate && parseJournalDate(defaultDate) ? defaultDate : getTodayDateKey())
     setCreating(false)
     setSubmitError(null)
-    setTemplateId('')
+    setNotebookNoteId('')
     setSourceGroupId('')
     setSourceItemPath('')
-    setTemplates(null)
-    setTemplatesError(null)
+    setNotebookNotes(null)
+    setNotebookNotesError(null)
     setSources(null)
     setSourcesError(null)
   }, [open, defaultDate])
 
-  const loadTemplates = () => {
+  const loadNotebookNotes = () => {
     const token = ++templatesReq.current
-    setTemplates(null)
-    setTemplatesError(null)
-    notePersistence
-      .listNotes({ kind: 'template' })
-      .then(rows => {
-        if (templatesReq.current === token) setTemplates(rows)
+    setNotebookNotes(null)
+    setNotebookNotesError(null)
+    // Starter notes (`notebook/defaults`) plus the user's own notebooks —
+    // any of them can be cloned from. Feed-delivered notebooks stay out
+    // (their content clones through the Source mode instead).
+    Promise.all([storageService.getAllNotes(), notebookService.getAll()])
+      .then(([notes, userNotebooks]) => {
+        if (templatesReq.current !== token) return
+        const userSlugs = new Set(['defaults', ...userNotebooks.map(nb => nb.slug)])
+        setNotebookNotes(notes
+          .filter(n => {
+            const slug = n.notebookId?.startsWith('notebook/') ? n.notebookId.slice('notebook/'.length) : undefined
+            return !!slug && userSlugs.has(slug) && !n.id.startsWith('notebook/')
+          })
+          .map(n => ({
+            id: n.id,
+            title: n.title,
+            rawContent: n.rawContent,
+            tags: n.tags ?? [],
+          })))
       })
       .catch(() => {
-        if (templatesReq.current === token) setTemplatesError('Could not load templates.')
+        if (templatesReq.current === token) setNotebookNotesError('Could not load notebook notes.')
       })
   }
 
@@ -105,57 +122,46 @@ export function CreateJournalNoteDialog({
     setSources(null)
     setSourcesError(null)
     // ponytail: corpus adapters return full markdown per item; lazy per-item load if size demands.
-    Promise.all([getScriptCollections(), getScriptFeeds(), storageService.getAllNotes()])
-      .then(([collections, feeds, notes]) => {
+    Promise.all([getScriptNotebooks(), storageService.getAllNotes()])
+      .then(([notebooks, notes]) => {
         if (sourcesReq.current !== token) return
         const sourceIdByPath: Record<string, string> = {}
         for (const note of notes) {
           if (note.sourcePath) sourceIdByPath[note.sourcePath] = note.id
         }
-        setSources({ collections, feeds, sourceIdByPath })
+        setSources({ notebooks, sourceIdByPath })
       })
       .catch(() => {
-        if (sourcesReq.current === token) setSourcesError('Could not load collections and feeds.')
+        if (sourcesReq.current === token) setSourcesError('Could not load notebooks.')
       })
   }
 
   useEffect(() => {
     if (!open) return
-    if (mode === 'template' && templates === null && !templatesError) loadTemplates()
+    if (mode === 'notebook' && notebookNotes === null && !notebookNotesError) loadNotebookNotes()
     if (mode === 'source' && sources === null && !sourcesError) loadSources()
-  }, [open, mode, templates, templatesError, sources, sourcesError])
+  }, [open, mode, notebookNotes, notebookNotesError, sources, sourcesError])
 
-  const template = useMemo(
-    () => templates?.find(t => t.id === templateId) ?? null,
-    [templates, templateId],
+  const notebookNote = useMemo(
+    () => notebookNotes?.find(t => t.id === notebookNoteId) ?? null,
+    [notebookNotes, notebookNoteId],
   )
 
-  const activeGroup = useMemo<{ kind: 'collection' | 'feed'; group: ScriptCollection | ScriptFeed } | null>(() => {
+  const activeGroup = useMemo<{ group: ScriptNotebook } | null>(() => {
     if (!sources || !sourceGroupId) return null
-    const sep = sourceGroupId.indexOf(':')
-    if (sep < 0) return null
-    const kind = sourceGroupId.slice(0, sep)
-    const id = sourceGroupId.slice(sep + 1)
-    if (kind === 'collection') {
-      const group = sources.collections.find(c => c.id === id)
-      return group ? { kind: 'collection', group } : null
-    }
-    if (kind === 'feed') {
-      const group = sources.feeds.find(f => f.id === id)
-      return group ? { kind: 'feed', group } : null
-    }
-    return null
+    const group = sources.notebooks.find(n => n.id === sourceGroupId)
+    return group ? { group } : null
   }, [sources, sourceGroupId])
 
   // path is the stable unique key (feed filenames repeat across dates).
   const activeItem = activeGroup
-    ? activeGroup.group.items.find(i => i.path === sourceItemPath) ?? null
+    ? activeGroup.group.items.find(i => i.path === sourceNotePath) ?? null
     : null
 
   const dateParsed = parseJournalDate(date)
   const dateInvalid = date !== '' && !dateParsed
   const fallbackTitle = `Journal — ${formatDateHeader(dateParsed?.dateKey ?? getTodayDateKey())}`
-  const needsSelection = mode === 'template' ? template === null : mode === 'source' ? activeItem === null : false
+  const needsSelection = mode === 'notebook' ? notebookNote === null : mode === 'source' ? activeItem === null : false
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -163,13 +169,16 @@ export function CreateJournalNoteDialog({
     if (!parsed || inFlight.current || needsSelection) return
 
     let input: CreateJournalNoteInput
-    if (mode === 'template' && template) {
+    if (mode === 'notebook' && notebookNote) {
+      // Clone: the journal note keeps `sourceId` lineage to the notebook
+      // note it was cloned from (the feed identity when cloned from a
+      // feed-delivered notebook).
       input = {
         journalDate: parsed.dateKey,
-        title: title.trim() || template.title || fallbackTitle,
-        rawContent: template.rawContent,
-        tags: template.tags,
-        sourceId: template.id,
+        title: title.trim() || notebookNote.title || fallbackTitle,
+        rawContent: notebookNote.rawContent,
+        tags: notebookNote.tags,
+        sourceId: notebookNote.id,
         type: 'journal',
       }
     } else if (mode === 'source' && activeItem && activeGroup && sources) {
@@ -252,34 +261,34 @@ export function CreateJournalNoteDialog({
           ))}
         </div>
 
-        {mode === 'template' && (
+        {mode === 'notebook' && (
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="journal-create-template" className="text-sm font-medium">
-              Template
+            <label htmlFor="journal-create-notebook-note" className="text-sm font-medium">
+              Notebook note
             </label>
-            {templatesError ? (
+            {notebookNotesError ? (
               <div className="flex min-h-11 items-center justify-between gap-2">
-                <p className="text-sm text-destructive">{templatesError}</p>
-                <Button type="button" variant="ghost" size="sm" onClick={loadTemplates}>
+                <p className="text-sm text-destructive">{notebookNotesError}</p>
+                <Button type="button" variant="ghost" size="sm" onClick={loadNotebookNotes}>
                   Retry
                 </Button>
               </div>
-            ) : templates === null ? (
-              <p className="flex min-h-11 items-center text-sm text-muted-foreground">Loading templates…</p>
-            ) : templates.length === 0 ? (
+            ) : notebookNotes === null ? (
+              <p className="flex min-h-11 items-center text-sm text-muted-foreground">Loading notebook notes…</p>
+            ) : notebookNotes.length === 0 ? (
               <p className="flex min-h-11 items-center text-sm text-muted-foreground">
-                No templates available. Choose Blank or Source.
+                No starter notes yet. Choose Blank or Source.
               </p>
             ) : (
               <select
-                id="journal-create-template"
-                value={templateId}
-                onChange={e => setTemplateId(e.target.value)}
+                id="journal-create-notebook-note"
+                value={notebookNoteId}
+                onChange={e => setNotebookNoteId(e.target.value)}
                 disabled={creating}
                 className={fieldClass}
               >
-                <option value="">Choose a template…</option>
-                {templates.map(t => (
+                <option value="">Choose a note to clone…</option>
+                {notebookNotes.map(t => (
                   <option key={t.id} value={t.id}>
                     {t.title || t.id}
                   </option>
@@ -302,7 +311,7 @@ export function CreateJournalNoteDialog({
               <>
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="journal-create-source-group" className="text-sm font-medium">
-                    Feed
+                    Notebook
                   </label>
                   <select
                     id="journal-create-source-group"
@@ -315,22 +324,13 @@ export function CreateJournalNoteDialog({
                     className={fieldClass}
                   >
                     <option value="">
-                      {sources === null ? 'Loading…' : 'Choose a feed…'}
+                      {sources === null ? 'Loading…' : 'Choose a notebook…'}
                     </option>
-                    {sources && sources.collections.length > 0 && (
-                      <optgroup label="Feeds">
-                        {sources.collections.map(c => (
-                          <option key={c.id} value={`collection:${c.id}`}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {sources && sources.feeds.length > 0 && (
-                      <optgroup label="Feeds">
-                        {sources.feeds.map(f => (
-                          <option key={f.id} value={`feed:${f.id}`}>
-                            {f.name}
+                    {sources && sources.notebooks.length > 0 && (
+                      <optgroup label="Notebooks">
+                        {sources.notebooks.map(n => (
+                          <option key={n.id} value={n.id}>
+                            {n.name}
                           </option>
                         ))}
                       </optgroup>
@@ -339,21 +339,21 @@ export function CreateJournalNoteDialog({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="journal-create-source-item" className="text-sm font-medium">
-                    Item
+                    Note
                   </label>
                   <select
                     id="journal-create-source-item"
-                    value={sourceItemPath}
+                    value={sourceNotePath}
                     onChange={e => setSourceItemPath(e.target.value)}
                     disabled={!activeGroup || creating}
                     className={fieldClass}
                   >
                     <option value="">
-                      {activeGroup ? 'Choose an item…' : 'Choose a feed first'}
+                      {activeGroup ? 'Choose a note…' : 'Choose a notebook first'}
                     </option>
                     {activeGroup?.group.items.map(item => (
                       <option key={item.path} value={item.path}>
-                        {'feedDate' in item ? `${item.name} — ${item.feedDate}` : item.name}
+                        {item.date ? `${item.name} — ${item.date}` : item.name}
                       </option>
                     ))}
                   </select>

@@ -24,15 +24,15 @@ afterEach(() => {
 });
 
 describe('TourLearnSection', () => {
-  it('links Lesson 1 to /guide/start', () => {
+  it('links Lesson 1 to /page/guide-start', () => {
     renderSection();
     const link = screen.getByRole('link', { name: /Start Lesson 1/ });
-    expect(link.getAttribute('href')).toBe('/guide/start');
+    expect(link.getAttribute('href')).toBe('/page/guide-start');
   });
 
   it('links Cheat sheet to the start reference anchor', () => {
     renderSection();
     const link = screen.getByRole('link', { name: /Cheat sheet/ });
-    expect(link.getAttribute('href')).toBe('/guide/start?h=reference');
+    expect(link.getAttribute('href')).toBe('/page/guide-start?h=reference');
   });
 });

@@ -14,10 +14,9 @@ import {
   SEED_NAMESPACE,
   SEED_SCHEMA,
   SEED_REGISTERED_WIDGETS,
-  TEMPLATE_CHUNK_ID,
   canvasRouteSlug,
   seedNoteSourceId,
-  catalogForChunkId,
+  notebookSlugForChunkId,
   type ManifestChunk,
   type NotebookIndex,
   type SeedManifest,
@@ -33,7 +32,7 @@ import { assertSeedManifest } from './validation';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync, execSync } from 'node:child_process';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 
 // BlockEffort/BlockIndexRow row types come from @bitcobblers/wod-wiki-storage
 // (type-only import — chunk rows are plain JSON applied structurally by the
@@ -61,15 +60,6 @@ export interface ChunkGroup {
 export interface GenerateSeedOptions {
   /** The corpus directory (`markdown/`). Defaults to `<corpusRoot>/markdown`. */
   markdownDir?: string;
-  /** Optional playground template file — the host passes its own; standalone builds omit the `template` chunk. */
-  templateFile?: string;
-  /**
-   * Row path recorded for the template chunk (the runtime derives the
-   * template note's id from it, so it must stay stable across builds). The
-   * host pins its historical in-repo path; defaults to the path relative to
-   * `corpusRoot`.
-   */
-  templateRowPath?: string;
   /** Output directory. Defaults to `<corpusRoot>/dist`. */
   outDir?: string;
   /**
@@ -114,10 +104,8 @@ export function chunkIdFor(relPath: string): string | null {
     case 'efforts':
     case 'equipment':
       return corpus;
-    case 'collections':
-      return parts.length === 3 ? `collection._root` : `collection.${slug}`;
-    case 'feeds':
-      return parts.length === 3 ? `feed._root` : `feed.${slug}`;
+    case 'notebooks':
+      return parts.length === 3 ? `notebook._root` : `notebook.${slug}`;
     default:
       return null;
   }
@@ -139,7 +127,7 @@ export function partitionIntoChunks(paths: string[]): ChunkGroup[] {
     if (id === null) {
       throw new Error(
         `[generate-seed] Parity failure: '${p}' is not part of any known corpus ` +
-        `(canvas | dashboards | efforts | equipment | collections | feeds). ` +
+        `(canvas | dashboards | efforts | equipment | notebooks). ` +
         `Extend chunkIdFor() if this is a new corpus.`,
       );
     }
@@ -203,7 +191,7 @@ function gateDashboards(groups: ChunkGroup[], corpusRoot: string): void {
 // ── Block index derivation ────────────────────────────────────────────────
 
 
-/** Created-at from the corpus repo's git history (collections/guides), 0 fallback when unknown. */
+/** Created-at from the corpus repo's git history (notebooks/guides), 0 fallback when unknown. */
 function getFileCreatedAt(file: string, repoRoot: string): number {
   try {
     const out = execSync(`git log -1 --format=%ct -- '${file}'`, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -265,8 +253,8 @@ export function frontmatterDateToCreatedAt(raw: string, path: string): number | 
   return ts;
 }
 
-/** Created-at timestamp for a feed entry's date key (`yyyy-mm-dd` from the path). */
-export function feedDateToCreatedAt(dateKey: string): number {
+/** Created-at timestamp for a dated notebook item's date key (`yyyy-mm-dd` from the path). */
+export function dateKeyToCreatedAt(dateKey: string): number {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return 0;
   const ts = Date.parse(`${dateKey}T00:00:00Z`);
   return Number.isNaN(ts) ? 0 : ts;
@@ -296,14 +284,14 @@ export function buildBlockIndexRows(markdownDir: string, corpusRoot: string, exc
     const content = readFileSync(join(corpusRoot, path), 'utf8');
     const parts = path.split('/');
     const stem = (parts.at(-1) ?? '').replace(/\.md$/, '');
-    const catalog = parts[2];
-    const routeId = chunkId === 'canvas' ? canvasRouteSlug(content) ?? undefined : chunkId.startsWith('collection.') ? (stem.toLowerCase() === 'readme' ? catalog : `${catalog}/${stem}`) : chunkId.startsWith('feed.') ? parts.slice(1).join('/').replace(/\.md$/, '') : undefined;
+    const slug = parts[2];
+    const routeId = chunkId === 'canvas' ? canvasRouteSlug(content) ?? undefined : chunkId.startsWith('notebook.') ? (stem.toLowerCase() === 'readme' ? slug : parts.slice(2).join('/').replace(/\.md$/, '')) : undefined;
     const sourceId = seedNoteSourceId(path, content, chunkId);
-    // Authored frontmatter date wins regardless of filename/directory; undated
-    // feeds keep their historical path-date placement, everything else falls
-    // back to the corpus repo's git history.
+    // Authored frontmatter date wins regardless of filename/directory; dated
+    // notebooks keep their historical path-date placement, everything else
+    // falls back to the corpus repo's git history.
     const createdAt = frontmatterDateToCreatedAt(content, path)
-      ?? (chunkId.startsWith('feed.') ? feedDateToCreatedAt(parts.at(-2) ?? '') : getFileCreatedAt(path, corpusRoot));
+      ?? (chunkId.startsWith('notebook.') && /^\d{4}-\d{2}-\d{2}$/.test(parts.at(-2) ?? '') ? dateKeyToCreatedAt(parts.at(-2) ?? '') : getFileCreatedAt(path, corpusRoot));
     rows.push(...compileSeedRow(path, content, { routeId, sourceId, createdAt }).blockIndex);
   }
   return rows;
@@ -594,11 +582,6 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
   const paths = collectCorpusMarkdown(markdownDir, options.excludePaths);
   const groups = partitionIntoChunks(paths);
   gateDashboards(groups, corpusRoot);
-  if (options.templateFile && existsSync(options.templateFile)) {
-    const templateRowPath = options.templateRowPath
-      ?? relative(corpusRoot, options.templateFile).split('\\').join('/');
-    groups.push({ id: TEMPLATE_CHUNK_ID, files: [templateRowPath] });
-  }
   passMs.scan = Date.now() - tScan;
 
   const tBlockIndex = Date.now();
@@ -642,13 +625,10 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
 
   const tWrite = Date.now();
   for (const { id, files } of groups) {
-    // The template chunk's row path is the host-pinned historical identity,
-    // not a path inside this repo — read it from the template file itself.
-    const templateSource = id === TEMPLATE_CHUNK_ID ? options.templateFile : undefined;
     const records: SeedRecordRef[] = [];
     const rows: SeedRow[] = files.map((p) => {
-      const raw = readFileSync(templateSource ?? join(corpusRoot, p), 'utf8');
-      const content = id === TEMPLATE_CHUNK_ID ? raw.replace(/\$CURSOR/g, '') : raw;
+      const raw = readFileSync(join(corpusRoot, p), 'utf8');
+      const content = raw;
       const compiled = compileSeedRow(p, content);
       compiled.blockIndex = blocksByPath.get(p) ?? compiled.blockIndex;
       compiled.blockEfforts = effortsByPath.get(p) ?? [];
@@ -693,7 +673,7 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     const notebookIndex: NotebookIndex = {
       notebookId: id,
       label: fileToDisplayName(id.split('.').at(-1) ?? id),
-      category: catalogForChunkId(id),
+      category: notebookSlugForChunkId(id),
       indexPath: notebookIndexPath,
       commit: records.find((r) => r.commit)?.commit ?? gitVersion.commit,
       count: rows.length,

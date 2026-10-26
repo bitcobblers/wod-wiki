@@ -5,7 +5,7 @@
  * Asserts:
  *   1. Every library listing page has a surface — including /equipment,
  *      which the retired global settings page never listed.
- *   2. A detail route (/c/:slug, /session/:date, /results/:id) has NO
+ *   2. A detail route (/notebook/:slug, /session/:date, /results/:id) has NO
  *      surface — its defaults stay in code, so the keyspace does not grow
  *      one entry per item.
  *   3. The two non-library surfaces — the Metric Explorer and the ⌘/ palette
@@ -24,10 +24,13 @@ describe('queryConfigSurfaces — registry', () => {
   it('covers every library listing page', () => {
     for (const id of [
       '/journal',
+      '/notes',
+      '/notebooks',
       '/feeds',
-      '/catalogs',
+      '/pages',
       '/efforts',
       '/equipment',
+      '/tags',
       '/sessions',
       '/playgrounds',
     ]) {
@@ -39,20 +42,27 @@ describe('queryConfigSurfaces — registry', () => {
     for (const surface of QUERY_CONFIG_SURFACES) {
       if (surface.id === '/dashboards' || surface.id === PALETTE_ROUTE_ID) continue
       expect(surface.profile).toBeDefined()
-      expect(surface.scopeChoices?.length).toBeGreaterThan(0)
+      // /tags queries the tag plane — a catalogue with no storage scope, so
+      // it offers no Where-stored favorites (its composer exposes exactly the
+      // plane's filters instead).
+      if (surface.id === '/tags') {
+        expect(surface.scopeChoices).toBeUndefined()
+      } else {
+        expect(surface.scopeChoices?.length).toBeGreaterThan(0)
+      }
       expect(surface.shortcuts).toBe(true)
     }
   })
 
   it('has no surface for a detail route — one config per item would scatter the keyspace', () => {
-    expect(queryConfigSurface('/c/girls')).toBeUndefined()
+    expect(queryConfigSurface('/notebook/girls')).toBeUndefined()
     expect(queryConfigSurface('/session/2026-01-01')).toBeUndefined()
     expect(queryConfigSurface('/results/res-1')).toBeUndefined()
   })
 
   it('has no surface for a page that owns no query', () => {
     expect(queryConfigSurface('/settings/appearance')).toBeUndefined()
-    expect(queryConfigSurface('/guide/start')).toBeUndefined()
+    expect(queryConfigSurface('/page/guide-start')).toBeUndefined()
   })
 
   it('gives the Metric Explorer an explicit system default and no profile', () => {

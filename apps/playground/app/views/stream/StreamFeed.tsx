@@ -27,6 +27,7 @@ import {
   FileTextIcon,
   PencilLineIcon,
   PlayIcon,
+  Plus,
   Activity,
   Trophy,
   Layers,
@@ -36,36 +37,36 @@ import {
   Wrench,
   FlaskConical,
   BookOpen,
+  Tag as TagIcon,
 } from 'lucide-react'
 import type { Entry } from '../../lib/entryMapper'
 import { formatDuration } from '../../lib/entryMapper'
 import type { StreamGroup } from '../../lib/entryGrouping'
-import { entryOpenHref, entryIsPlayground, entryCollectionFeedHref } from '../../lib/entryActions'
+import { entryOpenHref, entryIsPlayground, entryNotebookHref, entryCanAddToToday } from '../../lib/entryActions'
 import { entryCanRun } from '../../lib/entryRun'
+import { MoveToNotebookMenu } from '../library/LibraryRow'
 import type { BatchedItems } from '../../hooks/useBatchedItems'
 
 const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
   note: FileTextIcon,
-  session: Rss,
-  post: FileTextIcon,
   effort: Dumbbell,
   result: Trophy,
   segment: Layers,
   event: Activity,
   dashboard: LayoutDashboard,
   equipment: Wrench,
+  tag: TagIcon,
 }
 
 const KIND_LABEL: Record<Entry['kind'], string> = {
   note: 'Note',
-  session: 'Session',
-  post: 'Post',
   effort: 'Effort',
   result: 'Result',
   segment: 'Segment',
   event: 'Event',
   dashboard: 'Dashboard',
   equipment: 'Equipment',
+  tag: 'Tag',
 }
 
 /** Collapsed preview height: enough to read the workout's shape (schema,
@@ -145,13 +146,19 @@ export interface StreamFeedProps {
   /** Send a non-playground entry's content to the playground (intake persists
    *  before navigating). Omitted → the action is not offered. */
   onSendToPlayground?: (entry: Entry) => void
+  /** Clone the entry onto today's journal date (same handler as Cards). */
+  onAddToToday?: (entry: Entry) => void
+  /** User-owned notebooks a note can move into (feed notebooks are read-only
+   *  and excluded by the caller). Omitted → the move action is not offered. */
+  moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
+  onMoveNotebook?: (entry: Entry, notebookId: string) => void
   /** Viewport `top` for the sticky section header — the live bottom of the
    *  page's sticky boundary (StickyPageHeader on desktop, navbar on mobile),
    *  measured via useStickyBoundaryOffset in the caller. */
   stickyOffset: number
 }
 
-export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, stickyOffset }: StreamFeedProps) {
+export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAddToToday, moveNotebookTargets, onMoveNotebook, stickyOffset }: StreamFeedProps) {
   return (
     <div className="flex-1 divide-y divide-border/40" data-testid="stream-feed">
       {groups.map(group => (
@@ -171,20 +178,31 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, stic
             {group.entries.map(entry => {
               // Same note-flavor rule as LibraryRow: guides/playground notes
               // carry their own icon/label inside the plain `note` kind.
-              const noteCatalog = entry.kind === 'note' ? entry.sourceCatalog : undefined
+              const noteCatalog = entry.kind === 'note' ? entry.sourceNotebook : undefined
+              const isNotebookNote = !!noteCatalog && noteCatalog !== 'journal' && noteCatalog !== 'playground' && noteCatalog !== 'guides'
               const Icon =
                 noteCatalog === 'playground' ? FlaskConical
                 : noteCatalog === 'guides' ? BookOpen
+                : isNotebookNote ? Rss
                 : KIND_ICON[entry.kind]
               const kindLabel =
                 noteCatalog === 'playground' ? 'Playground'
                 : noteCatalog === 'guides' ? 'Guide'
+                : isNotebookNote ? 'Notebook'
                 : KIND_LABEL[entry.kind]
               const openHref = entryOpenHref(entry)
-              const feedHref = entryCollectionFeedHref(entry)
-              const sendToPlayground =
-                !entryIsPlayground(entry) &&
-                (entry.kind === 'note' || entry.kind === 'session' || entry.kind === 'post')
+              const notebookHref = entryNotebookHref(entry)
+              const sendToPlayground = !entryIsPlayground(entry) && entry.kind === 'note'
+              const canAdd = entryCanAddToToday(entry) && !!onAddToToday
+              // Same rule as the cards/table RowActions: a note in a user-owned
+              // notebook can move between user-owned notebooks; journal notes
+              // stay put, feed-delivered notebooks are read-only.
+              const moveTargets = moveNotebookTargets?.filter((target) => target.id !== entry.notebookId) ?? []
+              const moveable = !!onMoveNotebook
+                && entry.kind === 'note'
+                && !!entry.notebookId
+                && entry.notebookId !== 'notebook/journal'
+                && moveTargets.length > 0
 
               return (
                 <article key={entry.id} data-testid="stream-feed-item" className="px-6 py-4">
@@ -217,11 +235,11 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, stic
                           data-testid="stream-feed-open"
                           className="inline-flex min-h-[44px] items-center rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
                         >
-                          {feedHref ? 'Details' : 'Open'}
+                          {notebookHref ? 'Details' : 'Open'}
                         </Link>
-                        {feedHref && (
+                        {notebookHref && (
                           <Link
-                            to={feedHref}
+                            to={notebookHref}
                             data-testid="stream-feed-collection-feed"
                             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors"
                           >
@@ -250,6 +268,26 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, stic
                             <PencilLineIcon className="size-3" />
                             Playground
                           </button>
+                        )}
+                        {canAdd && (
+                          <button
+                            type="button"
+                            onClick={() => onAddToToday?.(entry)}
+                            data-testid="stream-feed-add"
+                            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
+                          >
+                            <Plus className="size-3" />
+                            Add
+                          </button>
+                        )}
+                        {moveable && (
+                          <MoveToNotebookMenu
+                            targets={moveTargets}
+                            triggerTestId="stream-feed-move"
+                            itemTestIdPrefix="stream-feed-move-"
+                            triggerClassName="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
+                            onMove={(notebookId) => onMoveNotebook?.(entry, notebookId)}
+                          />
                         )}
                       </div>
                     </div>

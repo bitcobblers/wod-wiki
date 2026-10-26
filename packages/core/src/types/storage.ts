@@ -1,4 +1,5 @@
 import type { StoredOutputStatement } from './results';
+import type { FeedId, FeedOrigin } from './feed';
 import type { TagContribution } from '../models/Tag';
 
 export type NoteBlockKind = 'wod' | 'query' | 'widget' | 'embed';
@@ -27,7 +28,7 @@ export interface BlockRevision {
 // ---------------------------------------------------------------------------
 // Note — root container
 // ---------------------------------------------------------------------------
-export type NoteKind = 'journal' | 'template' | 'playground' | 'feed' | 'dashboard' | 'page' | (string & {});
+export type NoteKind = 'journal' | 'playground' | 'dashboard' | 'page' | 'note' | (string & {});
 
 export interface Note {
   id: string; // UUID — canonical storage identity
@@ -39,14 +40,22 @@ export interface Note {
   createdAt: number; // Creation timestamp
   type?: NoteKind;
   sourceId?: string;
-  catalog?: string;
   /** Canonical notebook identifier ('notebook/{slug}', e.g. 'notebook/journal', 'notebook/playground', 'notebook/guides'). */
   notebookId?: string;
   tags?: string[];
+  /** Artifact provenance — which published bundle this note came from.
+   *  Persisted field names; the artifact they describe is a **Seed**. */
   seedOrigin?: 'seed' | 'user';
   seedVersion?: number;
   seedChunkId?: string;
-  /** Authored seed path used for deterministic identity and routing. */
+  /** Feed provenance — 'feed' for a note a feed delivered, 'user' for one the
+   *  user owns. The two agree: a feed-delivered note is seed-delivered, and
+   *  vice versa. */
+  feedOrigin?: FeedOrigin;
+  /** The registered feed that delivered this note (the feed's own id).
+   *  Read from here alone — never from the seed stamps. */
+  feedSourceId?: FeedId;
+  /** Authored corpus path used for deterministic identity and routing. */
   sourcePath?: string;
   /** Git commit hash in which this note was published or changed. */
   seedCommit?: string;
@@ -77,7 +86,7 @@ export interface PageNote {
 // ---------------------------------------------------------------------------
 // Tag / NoteTag — normalized note tagging
 // ---------------------------------------------------------------------------
-export type TagType = 'template' | 'playground' | 'qualification' | 'notebook' | 'general' | (string & {});
+export type TagType = 'playground' | 'qualification' | 'notebook' | 'general' | (string & {});
 
 export interface TagTypeRecord {
   id: string;

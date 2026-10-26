@@ -20,7 +20,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { seedNote } from '../helpers/wodwikiDb';
 import { seedBundledEfforts } from '../helpers/seedEfforts';
 import { seedBundledEquipment } from '../helpers/seedEquipment';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 const NOTE_ID = `ref-metrics-e2e`;
 const BASE_DOC = [
@@ -45,11 +45,11 @@ const UNKNOWN_DOC = BASE_DOC.replace('metrics.effort: burpee', 'metrics.effort: 
 /** Boot the app once, seed the catalogs, rehydrate the registries. */
 async function bootWithCatalogs(page: Page): Promise<void> {
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
   await seedBundledEfforts(page);
   await seedBundledEquipment(page);
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
 }
 
 async function openNote(page: Page, doc: string): Promise<string> {

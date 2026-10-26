@@ -14,37 +14,57 @@ import {
 } from '@/components/atoms/Dialog';
 import { Button } from '@/components/atoms/primitives/button';
 import { cn } from '@/lib/utils';
-import { NotebookService } from '@/hooks/useBrowserServices';
 import type { Notebook } from '@/types/notebook';
 
-const ICONS = NotebookService.ICONS;
+/** Icon choices the notebook picker offers. */
+const ICONS = ['📓', '🏋️', '🔥', '💪', '⭐', '🎯', '🏃', '🧘', '🥊', '🚴'];
 
 interface CreateNotebookDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     /** Failure returns null and leaves the draft open. */
     onCreate: (name: string, description: string, icon: string) => Promise<Notebook | null>;
+    /** Edit mode: the notebook being renamed/redescribed/re-iconed, and the
+     *  save callback (same null-on-failure contract as onCreate). */
+    notebook?: Notebook | null;
+    onSave?: (notebook: Notebook, name: string, description: string, icon: string) => Promise<Notebook | null>;
 }
 
 export const CreateNotebookDialog: React.FC<CreateNotebookDialogProps> = ({
     open,
     onOpenChange,
     onCreate,
+    notebook,
+    onSave,
 }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [selectedIcon, setSelectedIcon] = useState('📓');
     const [saving, setSaving] = useState(false);
+    const editing = !!notebook;
 
-    const handleCreate = async () => {
+    // Fresh fields from the notebook on every open.
+    React.useEffect(() => {
+        if (!open) return;
+        setName(notebook?.name ?? '');
+        setDescription(notebook?.description ?? '');
+        setSelectedIcon(notebook?.icon ?? '📓');
+    }, [open, notebook]);
+
+    const handleSubmit = async () => {
         if (!name.trim() || saving) return;
         setSaving(true);
         try {
-            const nb = await onCreate(name.trim(), description.trim(), selectedIcon);
-            if (!nb) return;
-            setName('');
-            setDescription('');
-            setSelectedIcon('📓');
+            const trimmed = name.trim();
+            const next = editing && notebook && onSave
+                ? await onSave(notebook, trimmed, description.trim(), selectedIcon)
+                : await onCreate(trimmed, description.trim(), selectedIcon);
+            if (!next) return;
+            if (!editing) {
+                setName('');
+                setDescription('');
+                setSelectedIcon('📓');
+            }
             onOpenChange(false);
         } finally {
             setSaving(false);
@@ -54,7 +74,7 @@ export const CreateNotebookDialog: React.FC<CreateNotebookDialogProps> = ({
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey && name.trim()) {
             e.preventDefault();
-            void handleCreate();
+            void handleSubmit();
         }
     };
 
@@ -62,9 +82,9 @@ export const CreateNotebookDialog: React.FC<CreateNotebookDialogProps> = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="bg-popover text-popover-foreground border border-border">
                 <DialogHeader>
-                    <DialogTitle className="text-foreground">Create Notebook</DialogTitle>
+                    <DialogTitle className="text-foreground">{editing ? 'Edit Notebook' : 'Create Notebook'}</DialogTitle>
                     <DialogDescription>
-                        Organize your sessions into collections.
+                        {editing ? 'Rename, describe or re-icon this notebook.' : 'Organize your sessions into collections.'}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -148,10 +168,10 @@ export const CreateNotebookDialog: React.FC<CreateNotebookDialogProps> = ({
                         <Button
                             variant="default"
                             size="sm"
-                            onClick={() => void handleCreate()}
+                            onClick={() => void handleSubmit()}
                             disabled={!name.trim() || saving}
                         >
-                            {saving ? 'Creating…' : 'Create'}
+                            {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
                         </Button>
                     </div>
                 </div>

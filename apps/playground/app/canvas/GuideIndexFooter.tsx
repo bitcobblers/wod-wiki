@@ -48,7 +48,7 @@ export function GuideIndexFooter({ variant = 'index' }: { variant?: 'index' | 'u
   const descriptions = useMemo(() => {
     const map = new Map<string, string>()
     for (const r of routes) {
-      if (r.route.startsWith('/collections') || r.page.frontmatter?.type !== 'guide') continue
+      if (r.route.startsWith('/notebook') || r.page.frontmatter?.type !== 'guide') continue
       const d = r.page.frontmatter?.description
       if (d) map.set(`guide-${r.route}`, String(d))
     }

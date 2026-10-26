@@ -39,7 +39,7 @@ $$\text{Note} \xrightarrow{1:N} \text{Block} \xrightarrow{N:M \text{ (via } \tex
 
 ## 2. Storage Schema: The `block_efforts` Store
 
-Add a new object store `block_efforts` to `IndexedDBStorage.ts`, `InMemoryStorage.ts`, and `SeedImportStorage.ts`:
+Add a new object store `block_efforts` to `IndexedDBStorage.ts`, `InMemoryStorage.ts`, and `FeedImportStorage.ts`:
 
 ```ts
 export interface BlockEffort {
@@ -156,7 +156,7 @@ For bundled corpus files (`markdown/collections/**`, `markdown/feeds/**`), the s
    ```
 2. **Chunk Emission**:
    Emits `public/seed/chunks/block-efforts.<n>.<sha256-8>.json` (partitioned alongside `block-index`).
-3. **Importer (`SeedImporter.ts`)**:
+3. **Importer (`FeedImporter.ts`)**:
    When reading `block-efforts` chunks, writes rows directly into `block_efforts` in the same transaction as `block_index`.
 
 ---
@@ -319,7 +319,7 @@ graph TD
 ### Step 2: Save Seam & Compiler
 - Update `StorageService.rebuildBlockIndexForNote` to extract efforts from `segment.rawContent` and write `block_efforts` in the same transaction.
 - Update `scripts/generate-seed.ts` to emit `block-efforts.<n>.json` chunks.
-- Update `SeedImportStorage.ts` and `SeedImporter.ts` to apply `block-efforts` chunks.
+- Update `FeedImportStorage.ts` and `FeedImporter.ts` to apply `block-efforts` chunks.
 
 ### Step 3: WQL Engine
 - Add canonical keys to `vocabulary.ts` in `packages/wql`.

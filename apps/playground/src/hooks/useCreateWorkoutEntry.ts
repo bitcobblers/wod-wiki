@@ -10,7 +10,7 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { planPath } from '@/lib/routes';
 import type { IContentProvider } from '../types/content-provider';
-import type { HistoryEntry } from '../types/history';
+import type { HistoryRecord } from '../types/history';
 import type { UseHistorySelectionReturn } from './useHistorySelection';
 
 import { toNotebookTag } from '../types/notebook';
@@ -18,7 +18,7 @@ import { toNotebookTag } from '../types/notebook';
 interface UseCreateWorkoutEntryOptions {
   provider: IContentProvider;
   historySelection: UseHistorySelectionReturn | null;
-  setHistoryEntries: (entries: HistoryEntry[]) => void;
+  setHistoryEntries: (entries: HistoryRecord[]) => void;
   setContent: (content: string) => void;
 }
 
@@ -51,7 +51,7 @@ export function useCreateWorkoutEntry({
       }
 
       // Create new entry with default content
-      const newEntry = await provider.saveEntry({
+      const newEntry = await provider.saveRecord({
         title: 'New Workout',
         rawContent: DEFAULT_WORKOUT_CONTENT,
         targetDate: targetDate?.getTime() || Date.now(),
@@ -59,7 +59,7 @@ export function useCreateWorkoutEntry({
       });
 
       // Fetch all entries to refresh the list
-      const allEntries = await provider.getEntries();
+      const allEntries = await provider.getRecords();
       setHistoryEntries(allEntries);
 
       // Select the new entry (triggers single-select mode)

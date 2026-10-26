@@ -69,7 +69,7 @@ describe('searchEntries — :block (#855, #861)', () => {
     // Executor order is presentation order — no local re-sort.
     expect(entries[0]!.block?.blockId).toBe('seg-0')
     for (const entry of entries) {
-      expect(entry.kind).toBe('post')
+      expect(entry.kind).toBe('note')
       expect(entry.block?.dataType).toBe('wod')
       // Parent identity preserved for Open / Add-to-today.
       expect(entry.id).toMatch(/^feeds\/feed-a\//)
@@ -241,6 +241,42 @@ describe('StreamQueryEngine — effort plane (:effort)', () => {
     expect(entries).toHaveLength(1)
     expect(entries[0]!.kind).toBe('effort')
   })
+
+  it('maps note-plane results to effort entries (definitions are notes)', async () => {
+    // The QueryService resolves matched projections to their owning
+    // definition notes; the stream classifies them as effort entries.
+    const effortNote: Note = {
+      id: 'note-back-squat',
+      title: 'Back Squat',
+      createdAt: 1,
+      rawContent: '---\nslug: back-squat\n---\n\nBack squat description.',
+      sourceRevision: 1,
+      blocks: {},
+      sourceId: 'efforts',
+      sourcePath: 'markdown/efforts/strength/back-squat.md',
+      seedOrigin: 'seed',
+    }
+    const orphanEffort: IEffort = { ...effortSample, id: 'eff-2', slug: 'front-squat', label: 'Front Squat' }
+    runFindEffortImpl = async parsed => ({
+      parsed,
+      notes: [effortNote],
+      blocks: [],
+      efforts: [{ ...effortSample, ownerNoteId: 'note-back-squat' }, orphanEffort],
+      stages: { selected: 2, matched: 2 },
+    })
+
+    const engine = new StreamQueryEngine()
+    const entries = await engine.query(':effort in all')
+    expect(entries).toHaveLength(2)
+    // Note-backed projection → the definition note, classified as an effort.
+    expect(entries[0]!.kind).toBe('effort')
+    expect(entries[0]!.id).toBe('note-back-squat')
+    expect(entries[0]!.effort?.slug).toBe('back-squat')
+    expect(entryOpenHref(entries[0]!)).toBe('/effort/back-squat')
+    // Legacy projection without an owner note → the registry row.
+    expect(entries[1]!.kind).toBe('effort')
+    expect(entries[1]!.title).toBe('Front Squat')
+  })
 })
 
 describe('StreamQueryEngine — telemetry plane (rows:)', () => {
@@ -395,7 +431,7 @@ describe('StreamQueryEngine — tabular rows plane (:segment / :event, #1042)', 
     expect(entries[0]!.id).toBe('row-1')
     expect(entries[0]!.date).toBe('2026-08-15')
     expect(entries[0]!.title).toBe('Thruster')
-    expect(entries[0]!.sourceItem).toBe('res-42')
+    expect(entries[0]!.sourceNote).toBe('res-42')
     expect(entries[1]!.id).toBe('row-2')
     expect(entries[1]!.title).toBe('Segment 2')
   })
@@ -457,8 +493,8 @@ describe('StreamQueryEngine — named page navigation', () => {
       for (const query of [':note in all', ':block in all']) {
         const entries = await engine.query(query)
         expect(entries[0]?.pageId).toBe('calendar-uuid')
-        expect(entryOpenHref(entries[0]!)).toBe(query.startsWith(':block') ? '/p/workout-plan#seg-0' : '/p/workout-plan')
-        expect(entries[0]?.noteId).toBe(note.id)
+        expect(entryOpenHref(entries[0]!)).toBe(query.startsWith(':block') ? '/page/workout-plan#seg-0' : '/page/workout-plan')
+        expect(entries[0]?.id).toBe(note.id)
       }
     } finally {
       resetStorageForTesting()

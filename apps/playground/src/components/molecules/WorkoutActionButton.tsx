@@ -11,6 +11,7 @@ import {
 } from '@/components/atoms/primitives/dropdown-menu';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import { cn } from '@/lib/utils';
+import { isJournalEntry } from '@/types/notebook';
 import type { IContentProvider } from '@/types/content-provider';
 
 export interface WorkoutActionButtonProps {
@@ -71,10 +72,10 @@ export const WorkoutActionButton: React.FC<WorkoutActionButtonProps> = ({
         const loadEntryDates = async () => {
             setLoading(true);
             try {
-                const entries = await provider.getEntries();
+                const entries = await provider.getRecords();
                 const dates = new Set(
                     entries
-                        .filter(e => e.type !== 'template')
+                        .filter(isJournalEntry)
                         .map(e => new Date(e.targetDate).toISOString().split('T')[0])
                 );
                 setEntryDates(dates);

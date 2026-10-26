@@ -13,8 +13,7 @@ WQL queries discover notes, sessions, and emitted workout statements, then reduc
 | Head | Selected records |
 |---|---|
 | `:journal{}` | Journal notebook notes (`notebook/journal`) |
-| `:notebook{}` / `:notebooks{}` | Notebooks (seed-delivered and user-created) |
-| `:feeds{}` | Notebook workout notes |
+| `:notebook{}` / `:notebooks{}` | The notebook plane — notes from every notebook (journal, playground, `defaults`, user-created, feed-delivered); narrow with `notebook:<slug>` |
 | `:playground{}` | Playground notebook notes (`notebook/playground`) |
 | `:note{}` / `:notes{}` | Whole Notes across all notebooks |
 | `:effort{}` | Movement registry entries |
@@ -24,7 +23,7 @@ WQL queries discover notes, sessions, and emitted workout statements, then reduc
 
 `:segment` and `:event` read the same `EventRecord` store. Debug queries include system, compiler, load, completion, and other emitted statement types, including statements without numeric metrics. Finalized summary records are not emitted debug statements.
 
-The scoped note heads restrict the storage source or notebook. `:note{notebook:guides}` (or `:note{source:guides}`) selects guides (`notebook/guides`); `:note{notebook:crossfit-girls}` selects notes in `notebook/crossfit-girls`. `source:` accepts `journal`, `notebooks` (`feeds`), `guides`, `playground`, `dashboards`, `efforts`, and `equipment`, plus explicit storage identities such as `notebook/<slug>`, `collection:crossfit-girls`, and `feed:<id>`.
+The scoped note heads restrict the storage source or notebook. `:note{notebook:guides}` (or `:note{source:guides}`) selects guides (`notebook/guides`); `:note{notebook:crossfit-girls}` selects notes in `notebook/crossfit-girls`; `:notebook{notebook:journal}` narrows the notebook plane to the journal. `source:` accepts `journal`, `notebooks`, `guides`, `playground`, `dashboards`, `efforts`, and `equipment`, plus the explicit storage identity `notebook/<slug>` (`source:notebook(s)` is retired — the notebook plane is reached through the `:notebook` head and the `notebook:` filter key).
 
 ```wql
 :note{tags:benchmark}
@@ -112,7 +111,7 @@ Filters are comma-separated `key:value` clauses inside braces. Values within one
 :note{text:"snatch | clean"}
 ```
 
-Common keys include `effort`, `discipline`, `intensity`, `origin`, `tags`, `source`, `text`, `type`, `notebook` (alias `catalog`), `result`, `block`, and `note`. Typed note tags include `domain`, `format`, `equipment`, `quality`, and `intent`. `plane:` narrows session outputs. Registered custom dimensions are queryable on numeric facts and segment/event tables.
+Common keys include `effort`, `discipline`, `intensity`, `origin`, `tags`, `source`, `text`, `type`, `notebook`, `result`, `block`, and `note`. Typed note tags include `domain`, `format`, `equipment`, `quality`, and `intent`. `plane:` narrows session outputs. Registered custom dimensions are queryable on numeric facts and segment/event tables.
 
 Filter support depends on the target. Unsupported filters and presentation clauses produce advisories. For example, note queries do not implement movement-registry discipline filters; use `:effort{discipline:strength}` or a note tag instead.
 
@@ -131,7 +130,7 @@ Row presentation pipes remain supported:
 
 ```wql
 :segment{effort:snatch} in lb last 2w | select resistance in lb,effort | order by resistance desc | limit 5 offset 2
-:feeds{} | order by title | offset 20
+:notebooks{} | order by title | offset 20
 ```
 
 Segment/event tables apply selection, ordering, and pagination. Notes, blocks, and efforts apply ordering and pagination. Sessions apply pagination and retain completion-time ordering.
@@ -154,7 +153,7 @@ Fence spelling does not change behavior: `query` and `wql` bodies complete ident
 ## Removed syntax
 
 - `find:<target>` is retired. Use `:<target>`.
-- `source:collections` is retired. Use `source:feeds`.
+- `:collection{…}` / `:collections{…}` / `:feed{…}` / `:feeds{…}` and `source:collections` / `source:feeds` are retired (ticket 12) — the collection/feed corpus is the notebook plane; use `:notebook{…}` / `:notebooks{…}` and `source:notebooks`, or pin one notebook with `notebook:<slug>`. Stored queries in the retired grammar rewrite on read.
 - `rows:all`, `rows:segment`, and `rows:event` are retired. Use `:session`, `:segment`, or `:event`; use `plane:` for session narrowing.
 - `:page` is not a source head. Use note filters and the parent Page relationship.
 - `source:page`, `source:pages`, and `source:all` are retired.

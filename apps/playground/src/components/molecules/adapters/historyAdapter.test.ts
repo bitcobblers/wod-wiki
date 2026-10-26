@@ -3,12 +3,11 @@ import { describe, expect, it } from 'bun:test';
 import {
   BeakerIcon,
   BookOpenIcon,
-  DocumentDuplicateIcon,
 } from '@heroicons/react/24/outline';
 import { historyEntryToListItem } from './historyAdapter';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 
-const baseEntry: HistoryEntry = {
+const baseEntry: HistoryRecord = {
   id: 'entry-1',
   title: '',
   createdAt: new Date('2026-04-27T14:30:22.481Z').getTime(),
@@ -58,15 +57,6 @@ describe('historyEntryToListItem', () => {
     expect(iconType(item)).toBe(BookOpenIcon);
   });
 
-  it('uses a template icon for template entries', () => {
-    const item = historyEntryToListItem({
-      ...baseEntry,
-      type: 'template',
-    });
-
-    expect(iconType(item)).toBe(DocumentDuplicateIcon);
-  });
-
   it('preserves short and long custom titles regardless of type', () => {
     const shortTitle = 'Fran';
     const longTitle = 'Very Long Workout Title That Requires Text Truncation When Displayed in Lists';
@@ -81,10 +71,10 @@ describe('historyEntryToListItem', () => {
 
     const itemLong = historyEntryToListItem({
       ...baseEntry,
-      type: 'template',
+      type: 'note',
       title: longTitle,
     });
     expect(itemLong.label).toBe(longTitle);
-    expect(iconType(itemLong)).toBe(DocumentDuplicateIcon);
+    expect(iconType(itemLong)).toBe(BookOpenIcon);
   });
 });

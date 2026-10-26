@@ -80,7 +80,7 @@ const WQL_GRAMMAR_PLACEHOLDER = 'agg:metric{filters} by {dims} .rollup(period)';
  * that can derive a records query truthfully. Effort/discipline/intensity
  * are fact-row tags, not note fields; carrying them into a find would
  * silently not filter. */
-const NOTE_FILTER_KEYS = new Set(['tags', 'catalog', 'text', 'type', 'has']);
+const NOTE_FILTER_KEYS = new Set(['tags', 'notebook', 'text', 'type', 'has']);
 
 /** The find query's scope label — folded into the `source:` filter (C2). */
 function sourceFilterLabel(filters: TagFilter[]): string | null {

@@ -4,7 +4,7 @@
  * The LibraryRow consumes this; the test seam is the URL.
  */
 import { describe, it, expect } from 'bun:test'
-import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryIsPlayground, entryCollectionFeedHref } from './entryActions'
+import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryIsPlayground, entryNotebookHref } from './entryActions'
 import { toEntry } from './entryMapper'
 import type { Entry } from './entryMapper'
 import type { Note } from '@/types/storage'
@@ -12,9 +12,9 @@ import type { Note } from '@/types/storage'
 function makeEntry(overrides: Partial<Entry> = {}): Entry {
   return {
     id: 'crossfit-girls/fran',
-    kind: 'session',
-    sourceCatalog: 'crossfit-girls',
-    sourceItem: 'fran',
+    kind: 'note',
+    sourceNotebook: 'journal',
+    sourceNote: 'crossfit-girls/fran',
     title: 'Fran',
     date: null,
     ...overrides,
@@ -26,8 +26,8 @@ describe('entryOpenHref', () => {
     expect(entryOpenHref(makeEntry({
       id: 'uuid-1',
       kind: 'note',
-      sourceCatalog: 'playground',
-      sourceItem: 'fran-experiment',
+      sourceNotebook: 'playground',
+      sourceNote: 'fran-experiment',
       sourceId: 'playground',
       date: null,
     }))).toBe('/playground/fran-experiment')
@@ -37,130 +37,133 @@ describe('entryOpenHref', () => {
     expect(entryOpenHref(makeEntry({
       id: 'guide/syntax/basics',
       kind: 'note',
-      sourceCatalog: 'guides',
-      sourceItem: 'guide/syntax/basics',
+      sourceNotebook: 'guides',
+      sourceNote: 'guide/syntax/basics',
       sourceId: 'guides:guide/syntax/basics',
       pageSlug: 'syntax/basics',
       date: null,
-    }))).toBe('/p/syntax/basics')
+    }))).toBe('/page/syntax/basics')
   })
 
   it('routes a Note to the canonical single-note editor', () => {
     expect(entryOpenHref(makeEntry({
       id: 'note-uuid-1',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: 'note-uuid-1',
+      sourceNotebook: 'journal',
+      sourceNote: 'note-uuid-1',
       date: '2026-07-15',
-    }))).toBe('/notes/note-uuid-1')
+    }))).toBe('/note/note-uuid-1')
   })
 
   it('routes a page note to its /p page render', () => {
     expect(entryOpenHref(makeEntry({
       id: 'guide/syntax/basics',
       kind: 'note',
-      sourceCatalog: 'guides',
-      sourceItem: '/guide/syntax/basics',
+      sourceNotebook: 'guides',
+      sourceNote: '/guide/syntax/basics',
       pageSlug: 'syntax/basics',
-    }))).toBe('/p/syntax/basics')
+    }))).toBe('/page/syntax/basics')
   })
 
   it('opens named pages at pageSlug and never routes a UUID pageId', () => {
     expect(entryOpenHref(makeEntry({
       id: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
+      sourceNotebook: 'journal',
+      sourceNote: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
       pageId: '1d2e3f4a-5b6c-4d8e-9f0a-1b2c3d4e5f6b',
       pageSlug: 'library-slug-smoke',
       date: null,
-    }))).toBe('/p/library-slug-smoke')
+    }))).toBe('/page/library-slug-smoke')
 
     // Slug-less note: /notes/<uuid>, even with a hydrated UUID pageId present
     expect(entryOpenHref(makeEntry({
       id: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
+      sourceNotebook: 'journal',
+      sourceNote: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
       pageId: '1d2e3f4a-5b6c-4d8e-9f0a-1b2c3d4e5f6b',
       date: null,
-    }))).toBe('/notes/0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e')
+    }))).toBe('/note/0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e')
   })
 
   it('encodes slug segments individually', () => {
     expect(entryOpenHref(makeEntry({
       id: 'n-1',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: 'n-1',
+      sourceNotebook: 'journal',
+      sourceNote: 'n-1',
       pageSlug: 'my page',
       date: null,
-    }))).toBe('/p/my%20page')
+    }))).toBe('/page/my%20page')
   })
 
   it('routes dashboard corpus notes to /d/<slug> by sourcePath', () => {
     expect(entryOpenHref(makeEntry({
       id: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
+      sourceNotebook: 'journal',
+      sourceNote: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
       sourcePath: 'markdown/dashboards/strength-blocks.md',
       date: null,
-    }))).toBe('/d/strength-blocks')
+    }))).toBe('/dashboard/strength-blocks')
   })
 
   it('routes effort corpus notes to /e/<slug> by sourcePath', () => {
     expect(entryOpenHref(makeEntry({
       id: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
+      sourceNotebook: 'journal',
+      sourceNote: '0b9b7e57-0e1a-4b9e-9b1e-3f2a4d5c6b7e',
       sourcePath: 'markdown/efforts/gymnastics/muscle-up.md',
       date: null,
-    }))).toBe('/e/muscle-up')
+    }))).toBe('/effort/muscle-up')
   })
 
   it('appends the block anchor to the open href', () => {
     expect(entryOpenHref(makeEntry({
-      kind: 'session',
-      sourceCatalog: 'crossfit-girls',
-      sourceItem: 'fran',
+      kind: 'note',
+      sourceNotebook: 'crossfit-girls',
+      sourceNote: 'fran',
+      sourceId: 'notebook:crossfit-girls/fran',
       block: { blockId: 'sec 1', dataType: 'wod', preview: [] },
-    }))).toBe('/c/crossfit-girls/fran#sec%201')
+    }))).toBe('/notebook/crossfit-girls/fran#sec%201')
     expect(entryOpenHref(makeEntry({
       id: 'n-1',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: 'n-1',
+      sourceNotebook: 'journal',
+      sourceNote: 'n-1',
       pageSlug: 'workout-plan',
       date: null,
       block: { blockId: 'seg-0', dataType: 'wod', preview: [] },
-    }))).toBe('/p/workout-plan#seg-0')
+    }))).toBe('/page/workout-plan#seg-0')
   })
 
-  it('routes a Session to the /c page-slug editor', () => {
+  it('routes a notebook item note to its /notebook deep-link', () => {
     expect(entryOpenHref(makeEntry({
       id: 'crossfit-girls/fran',
-      kind: 'session',
-      sourceCatalog: 'crossfit-girls',
-      sourceItem: 'fran',
-    }))).toBe('/c/crossfit-girls/fran')
+      kind: 'note',
+      sourceId: 'notebook:crossfit-girls/fran',
+      sourceNotebook: 'crossfit-girls',
+      sourceNote: 'fran',
+    }))).toBe('/notebook/crossfit-girls/fran')
   })
 
-  it('routes a collection page Session to the /c collection landing', () => {
+  it('routes a notebook landing note to the /notebook landing', () => {
     expect(entryOpenHref(makeEntry({
       id: 'crossfit-girls',
-      kind: 'session',
-      sourceCatalog: 'crossfit-girls',
-      sourceItem: '',
-    }))).toBe('/c/crossfit-girls')
+      kind: 'note',
+      sourceId: 'notebook:crossfit-girls',
+      sourceNotebook: 'crossfit-girls',
+      sourceNote: '',
+    }))).toBe('/notebook/crossfit-girls')
   })
 
   it('routes an Effort to the /e slug editor', () => {
     expect(entryOpenHref(makeEntry({
       id: 'grace',
       kind: 'effort',
-    }))).toBe('/e/grace')
+    }))).toBe('/effort/grace')
   })
 
   it('routes an Effort by its registry slug when the id is not a slug', () => {
@@ -168,7 +171,7 @@ describe('entryOpenHref', () => {
       id: 'eff-uuid-1',
       kind: 'effort',
       effort: { slug: 'clean-and-jerk', label: 'Clean & Jerk' },
-    }))).toBe('/e/clean-and-jerk')
+    }))).toBe('/effort/clean-and-jerk')
   })
 
   it('routes Equipment entries to the dedicated /equipment/<slug> route', () => {
@@ -176,8 +179,8 @@ describe('entryOpenHref', () => {
     expect(entryOpenHref(makeEntry({
       id: 'dumbbell',
       kind: 'equipment',
-      sourceCatalog: 'equipment',
-      sourceItem: 'dumbbell',
+      sourceNotebook: 'equipment',
+      sourceNote: 'dumbbell',
     }))).toBe('/equipment/dumbbell')
 
     // Custom (vault) equipment note keyed by composite id: strip the family
@@ -185,49 +188,84 @@ describe('entryOpenHref', () => {
     expect(entryOpenHref(makeEntry({
       id: 'equipment/kettlebell',
       kind: 'equipment',
-      sourceCatalog: 'equipment',
-      sourceItem: 'equipment/kettlebell',
+      sourceNotebook: 'equipment',
+      sourceNote: 'equipment/kettlebell',
     }))).toBe('/equipment/kettlebell')
 
     // Unidentifiable slug falls back to the canonical note editor.
     expect(entryOpenHref(makeEntry({
       id: '0c9e6f2e-1111-4222-8333-444455556666',
       kind: 'equipment',
-      sourceCatalog: 'equipment',
-      sourceItem: '0c9e6f2e-1111-4222-8333-444455556666',
-    }))).toBe('/notes/0c9e6f2e-1111-4222-8333-444455556666')
+      sourceNotebook: 'equipment',
+      sourceNote: '0c9e6f2e-1111-4222-8333-444455556666',
+    }))).toBe('/note/0c9e6f2e-1111-4222-8333-444455556666')
   })
 
-  it('routes a Post to the feed-item deep-link (catalog/date/item)', () => {
+  it('routes Tag rows to the /t/:type/:tag direct route', () => {
     expect(entryOpenHref(makeEntry({
-      id: 'feeds/crossfit-programming/2026-01-12/monday',
-      kind: 'post',
-      sourceCatalog: 'crossfit-programming',
-      sourceItem: 'monday',
+      id: 'tag/domain/running',
+      kind: 'tag',
+      sourceNotebook: 'tags',
+      sourceNote: 'running',
+    }))).toBe('/t/domain/running')
+
+    // A row with no parseable identity degrades to the general type.
+    expect(entryOpenHref(makeEntry({
+      id: 'tag-1',
+      kind: 'tag',
+      sourceNotebook: 'tags',
+      sourceNote: 'heavy',
+    }))).toBe('/t/general/heavy')
+  })
+
+  it('encodes the tag type and label as individual URI components', () => {
+    const href = (id: string) =>
+      entryOpenHref(makeEntry({ id, kind: 'tag', sourceNotebook: 'tags', sourceNote: id.slice(id.indexOf('/') + 1) }))
+
+    // '/' must escape (encodePath would preserve it) so the whole label is
+    // one :tag segment; '%' escapes so a round-trip decode cannot throw;
+    // spaces and Unicode pass through untouched by double decoding.
+    expect(href('tag/general/a/b')).toBe('/t/general/a%2Fb')
+    expect(href('tag/general/50%')).toBe('/t/general/50%25')
+    expect(href('tag/general/e2e heavy')).toBe('/t/general/e2e%20heavy')
+    expect(href('tag/general/själv')).toBe('/t/general/sj%C3%A4lv')
+    // The type segment gets the same treatment.
+    expect(href('tag/do main/x')).toBe('/t/do%20main/x')
+  })
+
+  it('routes a dated notebook post to the dated item deep-link (slug/date/item)', () => {
+    expect(entryOpenHref(makeEntry({
+      id: 'crossfit-programming/2026-01-12/monday',
+      kind: 'note',
+      sourceId: 'notebook:crossfit-programming/2026-01-12/monday',
+      sourceNotebook: 'crossfit-programming',
+      sourceNote: '2026-01-12/monday',
       date: '2026-01-12',
-    }))).toBe('/feeds/crossfit-programming/2026-01-12/monday')
+    }))).toBe('/notebook/crossfit-programming/2026-01-12/monday')
   })
 })
 
-describe('entryCollectionFeedHref', () => {
-  it('routes a collection page Session to the /feeds route with collection filter', () => {
+describe('entryNotebookHref', () => {
+  it('routes a notebook landing note to the /notebooks route with notebook filter', () => {
     const entry = makeEntry({
       id: 'crossfit-girls',
-      kind: 'session',
-      sourceCatalog: 'crossfit-girls',
-      sourceItem: '',
+      kind: 'note',
+      sourceId: 'notebook:crossfit-girls',
+      sourceNotebook: 'crossfit-girls',
+      sourceNote: '',
     })
-    expect(entryCollectionFeedHref(entry)).toBe('/feeds?q=%3Anotebook%7Bnotebook%3Acrossfit-girls%7D')
+    expect(entryNotebookHref(entry)).toBe('/notebooks?q=%3Anotebook%7Bnotebook%3Acrossfit-girls%7D')
   })
 
-  it('returns null for regular workouts', () => {
+  it('returns null for notebook items (only landings link the notebook)', () => {
     const entry = makeEntry({
       id: 'crossfit-girls/fran',
-      kind: 'session',
-      sourceCatalog: 'crossfit-girls',
-      sourceItem: 'fran',
+      kind: 'note',
+      sourceId: 'notebook:crossfit-girls/fran',
+      sourceNotebook: 'crossfit-girls',
+      sourceNote: 'fran',
     })
-    expect(entryCollectionFeedHref(entry)).toBeNull()
+    expect(entryNotebookHref(entry)).toBeNull()
   })
 })
 
@@ -248,12 +286,8 @@ describe('entryCanAddToToday', () => {
     expect(entryCanAddToToday(makeEntry({ kind: 'note' }))).toBe(true)
   })
 
-  it('returns true for a Post', () => {
-    expect(entryCanAddToToday(makeEntry({ kind: 'post' }))).toBe(true)
-  })
-
-  it('returns false for a Session (undated, cannot be added to a journal date)', () => {
-    expect(entryCanAddToToday(makeEntry({ kind: 'session' }))).toBe(false)
+  it('returns true for a dated notebook post note', () => {
+    expect(entryCanAddToToday(makeEntry({ kind: 'note', sourceId: 'notebook:x/2026-01-12/monday' }))).toBe(true)
   })
   it('returns true for a Result with an associated noteId', () => {
     expect(entryCanAddToToday(makeEntry({
@@ -282,51 +316,51 @@ describe('toEntry → entryOpenHref seam (slug routing regressions)', () => {
   const note = (overrides: Partial<Note> & { slug?: string; pageId?: string }): Note =>
     ({ id: UUID, title: 't', createdAt: 0, type: 'note', ...overrides } as Note)
 
-  it('routes a UUID-keyed collection member by its sourceId, not the UUID', () => {
-    expect(entryOpenHref(toEntry(note({ sourceId: 'collection:crossfit-girls/fran' })))).toBe('/c/crossfit-girls/fran')
+  it('routes a UUID-keyed notebook member by its sourceId, not the UUID', () => {
+    expect(entryOpenHref(toEntry(note({ sourceId: 'notebook:crossfit-girls/fran' })))).toBe('/notebook/crossfit-girls/fran')
   })
 
-  it('routes a sourcePath-only imported member to the named collection editor', () => {
+  it('routes a sourcePath-only imported member to the named notebook editor', () => {
     expect(entryOpenHref(toEntry(note({
       sourceId: undefined,
-      sourcePath: 'markdown/collections/girls/fran.md',
-    })))).toBe('/c/girls/fran')
+      sourcePath: 'markdown/notebooks/girls/fran.md',
+    })))).toBe('/notebook/girls/fran')
   })
 
-  it('routes a UUID landing to the collection root and links its feed filter', () => {
-    const entry = toEntry(note({ sourceId: 'page:collection:crossfit-girls', type: 'feed' }))
-    expect(entryOpenHref(entry)).toBe('/c/crossfit-girls')
-    expect(entryCollectionFeedHref(entry)).toBe('/feeds?q=%3Anotebook%7Bnotebook%3Acrossfit-girls%7D')
+  it('routes a UUID landing to the notebook root and links its notebook filter', () => {
+    const entry = toEntry(note({ sourceId: 'notebook:crossfit-girls' }))
+    expect(entryOpenHref(entry)).toBe('/notebook/crossfit-girls')
+    expect(entryNotebookHref(entry)).toBe('/notebooks?q=%3Anotebook%7Bnotebook%3Acrossfit-girls%7D')
   })
 
-  it('routes a feed item by route segments, never the UUID id', () => {
+  it('routes a dated notebook item by route segments, never the UUID id', () => {
     expect(entryOpenHref(toEntry(note({
-      sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday',
-    })))).toBe('/feeds/crossfit-programming/2026-01-12/monday')
+      sourceId: 'notebook:crossfit-programming/2026-01-12/monday',
+    })))).toBe('/notebook/crossfit-programming/2026-01-12/monday')
   })
 
   it('routes a guide by its declared sourceId route', () => {
-    expect(entryOpenHref(toEntry(note({ sourceId: 'guides:guide/clock' })))).toBe('/p/clock')
+    expect(entryOpenHref(toEntry(note({ sourceId: 'guides:page/guide-clock' })))).toBe('/page/guide-clock')
   })
 
   it('routes a named page by pageSlug and a slug-less note to /notes/<uuid>', () => {
-    expect(entryOpenHref(toEntry(note({ slug: 'library-slug-smoke', pageId: '1d2e3f4a-5b6c-4d8e-9f0a-1b2c3d4e5f6b' })))).toBe('/p/library-slug-smoke')
-    expect(entryOpenHref(toEntry(note({ pageId: '1d2e3f4a-5b6c-4d8e-9f0a-1b2c3d4e5f6b' })))).toBe(`/notes/${UUID}`)
+    expect(entryOpenHref(toEntry(note({ slug: 'library-slug-smoke', pageId: '1d2e3f4a-5b6c-4d8e-9f0a-1b2c3d4e5f6b' })))).toBe('/page/library-slug-smoke')
+    expect(entryOpenHref(toEntry(note({ pageId: '1d2e3f4a-5b6c-4d8e-9f0a-1b2c3d4e5f6b' })))).toBe(`/note/${UUID}`)
   })
 
   it('anchors a block hit within its parent note route', () => {
-    const entry = toEntry(note({ sourceId: 'collection:crossfit-girls/fran' }))
-    expect(entryOpenHref({ ...entry, block: { blockId: 'sec-1', dataType: 'wod', preview: [] } })).toBe('/c/crossfit-girls/fran#sec-1')
+    const entry = toEntry(note({ sourceId: 'notebook:crossfit-girls/fran' }))
+    expect(entryOpenHref({ ...entry, block: { blockId: 'sec-1', dataType: 'wod', preview: [] } })).toBe('/notebook/crossfit-girls/fran#sec-1')
   })
 })
 
 describe('entryIsPlayground', () => {
-  it('returns true for a playground-sourced Note (sourceCatalog playground)', () => {
+  it('returns true for a playground-sourced Note (sourceNotebook playground)', () => {
     expect(entryIsPlayground(makeEntry({
       id: 'uuid-1',
       kind: 'note',
-      sourceCatalog: 'playground',
-      sourceItem: 'fran-experiment',
+      sourceNotebook: 'playground',
+      sourceNote: 'fran-experiment',
       sourceId: 'playground',
     }))).toBe(true)
   })
@@ -335,8 +369,8 @@ describe('entryIsPlayground', () => {
     expect(entryIsPlayground(makeEntry({ sourceId: 'playground' }))).toBe(true)
   })
 
-  it('returns false for journal and catalog entries', () => {
-    expect(entryIsPlayground(makeEntry({ kind: 'note', sourceCatalog: 'journal' }))).toBe(false)
-    expect(entryIsPlayground(makeEntry({ sourceId: 'collection:crossfit-girls' }))).toBe(false)
+  it('returns false for journal and notebook entries', () => {
+    expect(entryIsPlayground(makeEntry({ kind: 'note', sourceNotebook: 'journal' }))).toBe(false)
+    expect(entryIsPlayground(makeEntry({ sourceId: 'notebook:crossfit-girls' }))).toBe(false)
   })
 })

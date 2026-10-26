@@ -21,15 +21,7 @@ import {
   PlanRedirect,
   TrackerRedirect,
   ReviewRedirect,
-  NotePlaygroundRedirect,
-  WorkoutRedirect,
-  CollectionItemRedirect,
-  CollectionsRedirect,
-  EffortRedirect,
-  ResultsRedirect,
   SegmentsRedirect,
-  DashboardLandingRedirect,
-  ExplorerRedirect,
 } from './lib/routeRedirects'
 import { DocumentTitleSync } from './lib/DocumentTitleSync'
 import { PlaygroundLandingPage } from './pages/PlaygroundLandingPage'
@@ -45,9 +37,9 @@ import { WallClockPage } from './pages/WallClockPage'
 import { PlaygroundRedirect } from './pages/PlaygroundRedirect'
 import { useZipProcessor } from './hooks/useZipProcessor'
 import { useJournalZipProcessor } from './hooks/useJournalZipProcessor'
-import { isSeedImportEnabled, runSeedSync } from '@/services/seed/seedSync'
-import { startSeedBootstrap, useSeedReadiness, useSeedSyncProgress } from '@/services/seed/seedReadiness'
-import { seedProgressDetail, seedProgressLabel } from '@/services/seed/seedProgress'
+import { isFeedImportEnabled, runFeedSync } from '@/services/feed/feedSync'
+import { startFeedBootstrap, useFeedReadiness, useFeedSyncProgress } from '@/services/feed/feedReadiness'
+import { feedProgressDetail, feedProgressLabel } from '@/services/feed/feedProgress'
 import { profileService } from '@/services/storage'
 import { initSeedContentBroadcast, invalidateSeedContent } from '@/services/content/seedContent'
 import { loadTagIndex } from '@/services/tags/tagCatalogue'
@@ -81,8 +73,8 @@ function ScrollToTop() {
   return null
 }
 
-// Global bootstrap — zip-intake hooks and the default-on seed import
-// (docs/prototypes/seed-data-unification.md); the seed broadcast refreshes
+// Global bootstrap — zip-intake hooks and the default-on feed import
+// (docs/prototypes/seed-data-unification.md); the import broadcast refreshes
 // every seed-content consumer. Opt out with
 // localStorage['wodwiki.seedImport.enabled'] = '0'.
 function GlobalState() {
@@ -97,7 +89,7 @@ function GlobalState() {
     // the core canvas chunk commits; a returning browser ungates
     // immediately and refreshes subscribed feeds in the background.
     initSeedContentBroadcast()
-    void startSeedBootstrap()
+    void startFeedBootstrap()
     // The tag catalogue: every surface that resolves a `#slug` reference
     // (the editor, the parser, the runtime) reads it from one cache, so it
     // is loaded once here — for the whole app, not just the workbench.
@@ -110,12 +102,12 @@ function GlobalState() {
 // corpus route table is empty, show loading or a recoverable error. Home
 // is explicitly routed below and never passes through this gate.
 function RootUnavailable({ settling }: { settling: boolean }) {
-  const progress = useSeedSyncProgress()
+  const progress = useFeedSyncProgress()
   if (settling) {
-    const detail = seedProgressDetail(progress)
+    const detail = feedProgressDetail(progress)
     return (
       <div role="status" className="flex min-h-dvh flex-col items-center justify-center gap-2 text-muted-foreground">
-        <span>{progress ? seedProgressLabel(progress) : 'Loading library…'}</span>
+        <span>{progress ? feedProgressLabel(progress) : 'Loading library…'}</span>
         {detail && <span className="text-xs" data-testid="boot-progress-detail">{detail}</span>}
       </div>
     )
@@ -124,17 +116,17 @@ function RootUnavailable({ settling }: { settling: boolean }) {
     <div role="alert" className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
       <p className="text-sm font-semibold">The library's routed content failed to load.</p>
       <p className="max-w-md text-xs text-muted-foreground">
-        The seed corpus has not supplied this page. Re-running the seed import usually restores it.
+        The feed corpus has not supplied this page. Re-running the feed import usually restores it.
       </p>
       <Button
         variant="outline"
         size="sm"
-        data-testid="root-reseed"
+        data-testid="root-refeed"
         onClick={() => {
-          void runSeedSync().then(() => invalidateSeedContent())
+          void runFeedSync().then(() => invalidateSeedContent())
         }}
       >
-        Re-seed library
+        Re-import library
       </Button>
     </div>
   )
@@ -143,10 +135,10 @@ function RootUnavailable({ settling }: { settling: boolean }) {
 export function App() {
   // Stable ref so AppContent can inject its openSearchPalette callback after mount.
   const searchHandlerRef = useRef<() => void>(() => {})
-  // Canvas routes hydrate from the seeded corpus; the nav tree and the
-  // dynamic <Route> table re-derive when the seed lands or refreshes.
+  // Canvas routes hydrate from the imported corpus; the nav tree and the
+  // dynamic <Route> table re-derive when the feed lands or refreshes.
   const canvasRouteList = useCanvasRoutes()
-  const seedReadiness = useSeedReadiness()
+  const feedReadiness = useFeedReadiness()
   const navTree = useMemo(
     () => buildAppNavTree(() => searchHandlerRef.current(), canvasRouteList),
     [canvasRouteList],
@@ -166,7 +158,7 @@ export function App() {
                 <ScrollToTop />
                 <Routes>
                   {/* Home is bundle-owned and renders before the corpus.
-                      The wildcard gates only paths still waiting for seeded
+                      The wildcard gates only paths still waiting for the imported
                       routes; once routes exist, unmatched paths 404. */}
                   <Route path={ROUTE_PATTERNS.home} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route
@@ -175,8 +167,8 @@ export function App() {
                       canvasRouteList.length === 0 ? (
                         <RootUnavailable
                           settling={
-                            seedReadiness === 'preparing' ||
-                            (isSeedImportEnabled() && seedReadiness !== 'error')
+                            feedReadiness === 'preparing' ||
+                            (isFeedImportEnabled() && feedReadiness !== 'error')
                           }
                         />
                       ) : (
@@ -205,43 +197,39 @@ export function App() {
                   <Route path="/settings/library/calcs" element={<div className="p-6"><CalcAuthoringPanel /></div>} />
                   <Route path="/legacy" element={<PlaygroundLandingPage />} />
                   <Route path="/syntax" element={<SyntaxView />} />
-                  <Route path="/chapters/basics" element={<Navigate to="/guide/start" replace />} />
-                  <Route path="/chapters/sequences" element={<Navigate to="/guide/start" replace />} />
-                  <Route path="/chapters/protocols" element={<Navigate to="/guide/protocols" replace />} />
-                  <Route path="/challenge" element={<Navigate to="/" replace />} />
+                  {/* Retired corpus landing paths (/chapters/*, /challenge,
+                      /getting-started) — no redirect left behind (ticket 09). */}
                   <Route path={ROUTE_PATTERNS.plan} element={<PlanRedirect />} />
+                  {/* Feed concept — /feeds the library, /feed/:slug one source. */}
                   <Route path={ROUTE_PATTERNS.feeds} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.feed} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.feedDetail} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.feedItem} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.catalogs} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  {/* Notebook concept — /notebooks the library, /notebook/:slug
+                      one notebook, a deeper target a member (note UUID, date,
+                      dated item). */}
+                  <Route path={ROUTE_PATTERNS.notebooks} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.notebook} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.notebookTarget} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.notebookItem} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.subscribe} element={<SubscribePage />} />
-                  {/* Bare /collections redirects to the renamed /feeds listing. */}
-                  <Route path={ROUTE_PATTERNS.collections} element={<CollectionsRedirect />} />
-                  {/* /collections item paths redirect into the /c prefix (note UUIDs → /notes/:noteId). */}
-                  <Route path="/collections/:slug" element={<CollectionItemRedirect />} />
-                  <Route path="/collections/:slug/:target" element={<CollectionItemRedirect />} />
-                  <Route path={ROUTE_PATTERNS.collection} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.collectionTarget} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  {/* Page concept — /pages the library, /page/:slug one page. */}
+                  <Route path={ROUTE_PATTERNS.pages} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.page} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.load} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><LoadZipPage /></Suspense>} />
                   <Route path={ROUTE_PATTERNS.loadJournal} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
                   <Route path={ROUTE_PATTERNS.loadJournalDate} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
                   <Route path={ROUTE_PATTERNS.playgroundRoot} element={<PlaygroundRedirect />} />
                   <Route path={ROUTE_PATTERNS.playground} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.playgrounds} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.notePlaygroundAlias} element={<NotePlaygroundRedirect />} />
+                  {/* Note concept — /notes the library, /note/:noteId one note. */}
+                  <Route path={ROUTE_PATTERNS.notes} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.note} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.journalNote} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.journalEntry} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.noteById} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  {/* Journal concept — /journal the library, /day/:date one day. */}
                   <Route path={ROUTE_PATTERNS.journal} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.pages} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.day} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.run} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><WallClockPage /></Suspense>} />
                   <Route path={ROUTE_PATTERNS.tracker} element={<TrackerRedirect />} />
                   {/* Sessions — /sessions lists execution telemetry;
-                      /results/:sessionId is the canonical detail (#946, Ticket 005).
-                      Bare /results* deep links redirect into the family. */}
-                  <Route path="/results" element={<ResultsRedirect />} />
+                      /results/:sessionId is the canonical detail (#946, Ticket 005). */}
                   <Route path="/results/segments" element={<SegmentsRedirect />} />
                   <Route path={ROUTE_PATTERNS.sessionDetail} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.sessions} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
@@ -251,23 +239,19 @@ export function App() {
                   <Route path="/note/:noteId/review" element={<ReviewRedirect />} />
                   <Route path="/note/:noteId/review/:sectionId" element={<ReviewRedirect />} />
                   <Route path="/note/:noteId/review/:sectionId/:resultId" element={<ReviewRedirect />} />
-                  <Route path="/workout/:category/:name" element={<WorkoutRedirect />} />
+                  {/* Effort concept — /efforts the library, /effort/:slug one effort. */}
                   <Route path={ROUTE_PATTERNS.efforts} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.effort} element={<EffortRedirect />} />
-                  <Route path={ROUTE_PATTERNS.effortSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.effort} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Equipment — list is the note stream; detail/create are note pages. */}
                   <Route path={ROUTE_PATTERNS.equipment} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.tags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.equipmentSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Dashboards: /dashboards = list + WQL explorer, /dashboard/:slug = a
-                      saved dashboard by id, /d/:slug = by page slug. Legacy
-                      /dashboard and /analytics/* redirect here. */}
-                  <Route path={ROUTE_PATTERNS.dashboard} element={<DashboardLandingRedirect />} />
+                  {/* Tag concept — /tags the catalogue, /t/:type/:tag one tag. */}
+                  <Route path={ROUTE_PATTERNS.tags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.tag} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  {/* Dashboards: /dashboards = list + WQL explorer,
+                      /dashboard/:slug = one dashboard by slug or id. */}
                   <Route path={ROUTE_PATTERNS.dashboards} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.dashboardView} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.dashboardSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.analytics} element={<Navigate to="/dashboards" replace />} />
-                  <Route path={ROUTE_PATTERNS.analyticsExplorer} element={<ExplorerRedirect />} />
                   {canvasRouteList.map(({ route }) => (
                     <Route
                       key={route}

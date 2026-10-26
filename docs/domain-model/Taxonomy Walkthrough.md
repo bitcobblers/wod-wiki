@@ -169,7 +169,7 @@ Fill in each cell with the desired default, such as **Read**, **Edit**, or **Not
 
 ## Q4 — Collection-page membership (was #1031, closed stale)
 
-**Context:** The original ticket asked WQL versus `pageId`; the `pageId` foreign key was removed in `e5f64a3` and replaced by the `PageNote` V22 junction table (`{ id, pageId, noteId, position?, createdAt }`), wired into `IndexedDBContentProvider`, `SeedImporter`, and `StorageService`. The database is at `DB_VERSION = 22`.
+**Context:** The original ticket asked WQL versus `pageId`; the `pageId` foreign key was removed in `e5f64a3` and replaced by the `PageNote` V22 junction table (`{ id, pageId, noteId, position?, createdAt }`), wired into `IndexedDBContentProvider`, `FeedImporter`, and `StorageService`. The database is at `DB_VERSION = 22`.
 
 ### Q4a. Membership rule
 

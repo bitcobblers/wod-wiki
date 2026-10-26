@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { QueryService, type EffortQueryStore, type IEffort } from '../src/QueryService';
+import type { Note } from '@bitcobblers/wod-wiki-core';
+import { QueryService, type EffortQueryStore, type IEffort, type NoteQueryStore } from '../src/QueryService';
 import { parseQuery, isFindQuery, type ParsedFindQuery } from '../src/wql';
 
 function makeEffort(overrides: Partial<IEffort> = {}): IEffort {
@@ -96,5 +97,71 @@ describe(':effort queries', () => {
     parsed.filters[0]!.negate = true;
     const result = await makeService().runFind(parsed);
     expect(result.efforts?.map(e => e.slug)).toEqual(['push-up']);
+  });
+});
+
+describe(':effort queries — the note plane', () => {
+  function makeNote(id: string, title: string): Note {
+    return { id, title, createdAt: 1, rawContent: `---\nslug: ${id}\n---\n`, sourceRevision: 1, blocks: {} };
+  }
+
+  // Projections of notes: each matched effort resolves to its owning note.
+  const notedEfforts: IEffort[] = [
+    makeEffort({ id: 'e-1', slug: 'push-up', label: 'Push-Up', ownerNoteId: 'note-1', baseAttributes: { met: 3.8, discipline: 'strength', intensityTier: 'moderate' } }),
+    makeEffort({ id: 'e-2', slug: 'fran', label: 'Fran', aliases: [], ownerNoteId: 'note-2', baseAttributes: { met: 11.5, discipline: 'gymnastics', intensityTier: 'high' } }),
+    // Registry orphan: no owning note — definitions live in the note index,
+    // so it never surfaces as a result note.
+    makeEffort({ id: 'e-3', slug: 'ghost', label: 'Ghost', aliases: [], baseAttributes: { met: 5.0, intensityTier: 'high' } }),
+  ];
+  const notes: Note[] = [makeNote('note-1', 'Push-Up'), makeNote('note-2', 'Fran')];
+
+  function makeNotedService(noteStore: Partial<NoteQueryStore>): QueryService {
+    const effortStore: EffortQueryStore = { getAllEfforts: async () => notedEfforts };
+    return new QueryService(
+      {
+        getEventsByTimeRange: async () => [],
+        getEventsByResult: async () => [],
+        getEventsForNote: async () => [],
+        getEventsByContent: async () => [],
+        scanAll: async () => [],
+        appendEvents: async () => {},
+        finalizeSummaries: async () => {},
+        deleteEvents: async () => {},
+      },
+      { getAllNotes: async () => notes, getNoteIdsForTag: async () => new Set<string>(), getNoteTagLabels: async () => [], ...noteStore },
+      { getAllBlocks: async () => [] },
+      effortStore,
+    );
+  }
+
+  it('returns the owning definition notes, not just registry rows', async () => {
+    const result = await makeNotedService({}).runFind(find(':effort in all'));
+    expect(result.efforts).toHaveLength(3);
+    expect(result.notes.map(n => n.id)).toEqual(['note-1', 'note-2']);
+    expect(result.stages.matched).toBe(3);
+  });
+
+  it('filters on the registry plane and resolves results on the note plane', async () => {
+    const result = await makeNotedService({}).runFind(find(':effort{intensity:high} in all'));
+    expect(result.efforts?.map(e => e.slug).sort()).toEqual(['fran', 'ghost']);
+    expect(result.notes.map(n => n.id)).toEqual(['note-2']);
+  });
+
+  it('hydrates owner notes through getNotesByIds when available', async () => {
+    const calls: string[][] = [];
+    const service = makeNotedService({
+      getNotesByIds: async (ids) => {
+        calls.push([...ids]);
+        return notes.filter(n => ids.includes(n.id));
+      },
+    });
+    const result = await service.runFind(find(':effort{effort:push-up} in all'));
+    expect(calls).toEqual([['note-1']]);
+    expect(result.notes.map(n => n.title)).toEqual(['Push-Up']);
+  });
+
+  it('falls back to getAllNotes when getNotesByIds is unavailable', async () => {
+    const result = await makeNotedService({ getNotesByIds: undefined }).runFind(find(':effort in all'));
+    expect(result.notes.map(n => n.id)).toEqual(['note-1', 'note-2']);
   });
 });

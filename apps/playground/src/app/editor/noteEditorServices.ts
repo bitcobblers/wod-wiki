@@ -6,7 +6,7 @@ import { parseFrontmatter } from '@bitcobblers/wod-wiki-wql';
 import { storageService } from '@/services/storage';
 import { getAppEffortRegistry } from '@/services/effortRegistry';
 import { getAppEquipmentRegistry } from '@/services/equipmentRegistry';
-import { SEED_BROADCAST_CHANNEL } from '@/services/seed/seedSync';
+import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
 import { v7 as uuidv7 } from 'uuid';
 import { appWarn } from '@/lib/log';
 import { IndexedDBNotePersistence, type INotePersistence } from '@/services/persistence';
@@ -21,6 +21,10 @@ export function createFrontmatterSuggestions(): Extension {
       storageService.getAllTags(),
       loadReferenceCatalog(),
     ]);
+    // The tag record's type is the /t/:type/:tag route segment — refreshed
+    // with every suggestion build, so reference links name the real type
+    // (falling back to 'general' only before the first load).
+    tagTypesByLabel = new Map(tags.map(tag => [tag.label, tag.type ?? 'general']));
     return {
       types: types.map((type) => type.name),
       tags,
@@ -48,14 +52,20 @@ let providerCache: {
 /** Route href for an existing effort/equipment page via the app's entry actions. */
 function referenceOpenHref(kind: 'effort' | 'equipment', slug: string, label: string): string {
   const entry: Entry = kind === 'effort'
-    ? { id: slug, kind: 'effort', sourceCatalog: 'efforts', sourceItem: slug, title: label, date: null, effort: { slug, label } }
-    : { id: slug, kind: 'equipment', sourceCatalog: 'equipment', sourceItem: slug, title: label, date: null };
+    ? { id: slug, kind: 'effort', sourceNotebook: 'efforts', sourceNote: slug, title: label, date: null, effort: { slug, label } }
+    : { id: slug, kind: 'equipment', sourceNotebook: 'equipment', sourceNote: slug, title: label, date: null };
   return entryOpenHref(entry);
 }
 
-/** Route href for a tag — the catalogue page, opened on that tag. */
+/** Label → type cache, refreshed by every frontmatter-suggestion build. */
+let tagTypesByLabel: Map<string, string> | undefined;
+
+/** Route href for a tag — its own direct route, `/t/:type/:tag`. The type
+ *  segment comes from the hydrated tag record; until the first load the
+ *  link names 'general' (the editor resolves the tag by label either way). */
 function tagOpenHref(slug: string): string {
-  return `/tags?tag=${encodeURIComponent(slug)}`;
+  const type = tagTypesByLabel?.get(slug) ?? 'general';
+  return `/t/${encodeURIComponent(type)}/${encodeURIComponent(slug)}`;
 }
 
 function buildProvider(index: ReferenceIndex): FrontmatterReferenceProvider {
@@ -65,7 +75,7 @@ function buildProvider(index: ReferenceIndex): FrontmatterReferenceProvider {
     resolveEquipment: (slugOrAlias) => index.resolveEquipment(slugOrAlias),
     openHref: (kind, slug) => (kind === 'tag' ? tagOpenHref(slug) : referenceOpenHref(kind, slug, slug)),
     createHref: (kind) => (kind === 'effort'
-      ? '/e/new?mode=create'
+      ? '/effort/new?mode=create'
       : kind === 'equipment'
         ? '/equipment/new?mode=create'
         : '/tags'),

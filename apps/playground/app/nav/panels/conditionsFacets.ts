@@ -296,7 +296,7 @@ export function setTextCondition(query: string, value: string): string {
 export function setSourceScopeValue(query: string, scope: string | null): string {
   const parsed = parseQuery(query)
   if (parsed.error || !isFindQuery(parsed)) return query
-  // Scoped heads (`:feed{source:feeds}`) make the parser emit the
+  // Scoped heads (`:notebooks{source:notebooks}`) make the parser emit the
   // head scope AND the authored filter — identical positive duplicates that
   // AND to the same result. Collapse them first (lossless) so the targeted
   // replacement hits the one real scope slot; distinct user-authored
@@ -309,7 +309,8 @@ export function setSourceScopeValue(query: string, scope: string | null): string
     seen.add(key)
     return true
   })
-  const head = WQL_SOURCE_HEADS.find(h => query.startsWith(`:${h}`))
+  // Longest prefix wins — ':notebooks…' must not match ':note'.
+  const head = WQL_SOURCE_HEADS.filter(h => query.startsWith(`:${h}`)).sort((a, b) => b.length - a.length)[0]
   const headScope = head ? WQL_SOURCE_HEAD_SCOPES[head] : undefined
   if (!scope) {
     // Clear the head-authored slot only: drop the injected positive whose
@@ -326,7 +327,7 @@ export function setSourceScopeValue(query: string, scope: string | null): string
     })
     return serialize({ ...parsed, sourceScope: undefined, filters })
   }
-  const scopeHead = scope === 'journal' ? ':journal' : scope === 'feeds' ? ':notebook' : scope === 'playground' ? ':playground' : `:note{source:${scope}}`
+  const scopeHead = scope === 'journal' ? ':journal' : scope === 'notebooks' ? ':notebooks' : scope === 'playground' ? ':playground' : `:note{source:${scope}}`
   const authored = parseQuery(scopeHead.startsWith(':note') ? scopeHead : `${scopeHead}{}`)
   if (authored.error || !isFindQuery(authored) || !authored.filters.length) return query
   const firstPositive = normalized.findIndex(f => f.key === 'source' && !f.negate)
@@ -418,13 +419,9 @@ export function facetOptions(target: string, key: string, ctx: FacetContext): Fa
 
   for (const entry of ctx.entries) {
     switch (`${target}:${key}`) {
-      case 'note:catalog':
-      case 'block:catalog':
-        if (entry.catalog) bump(entry.catalog)
-        break
       case 'note:notebook':
       case 'block:notebook':
-        if (entry.notebookId || entry.catalog) bump(entry.notebookId ?? entry.catalog!)
+        if (entry.notebookId || entry.sourceNotebook) bump(entry.notebookId ?? entry.sourceNotebook)
         break
       case 'note:type':
         if (entry.noteType) bump(entry.noteType)
@@ -483,12 +480,12 @@ export function facetOptions(target: string, key: string, ctx: FacetContext): Fa
         // they are not among the five stream routes; add row-value facets
         // (metric/unit/tag columns) when a table route needs them.
         if (tagKey) {
-          const rows = ctx.tagMembership!.get(entry.catalog ?? entry.noteId ?? entry.id) ?? ctx.tagMembership!.get(entry.noteId ?? entry.id) ?? []
+          const rows = ctx.tagMembership!.get(entry.sourceNotebook ?? entry.id) ?? ctx.tagMembership!.get(entry.id) ?? []
           for (const row of rows) {
             if (tagKey === 'tags' || row.type === tagKey) bump(row.label)
           }
         } else if (effortNoteKey) {
-          const slugs = ctx.effortMembership!.get(entry.catalog ?? entry.noteId ?? entry.id) ?? ctx.effortMembership!.get(entry.noteId ?? entry.id) ?? []
+          const slugs = ctx.effortMembership!.get(entry.sourceNotebook ?? entry.id) ?? ctx.effortMembership!.get(entry.id) ?? []
           for (const slug of slugs) bump(slug)
         }
     }
@@ -498,7 +495,7 @@ export function facetOptions(target: string, key: string, ctx: FacetContext): Fa
     return WQL_SOURCE_VALUES.map(value => ({
       value,
       count: ctx.entries.filter(entry =>
-        sourceMatches({ id: entry.noteId ?? entry.id, sourceId: entry.sourceId, type: entry.noteType }, value),
+        sourceMatches({ id: entry.id, sourceId: entry.sourceId, type: entry.noteType }, value),
       ).length,
     })).filter(option => option.count > 0)
   }
@@ -508,14 +505,14 @@ export function facetOptions(target: string, key: string, ctx: FacetContext): Fa
     return WQL_SOURCE_VALUES.map(value => ({
       value,
       count: ctx.entries.filter(entry =>
-        sourceMatches({ id: entry.id, noteId: entry.noteId, sourceId: entry.sourceId, type: undefined }, value),
+        sourceMatches({ id: entry.id, sourceId: entry.sourceId, type: undefined }, value),
       ).length,
     })).filter(option => option.count > 0)
   }
   if ((target === 'note' || target === 'block') && key === 'note') {
     // Identifier facet: one row per result note, labelled with its title.
     for (const entry of ctx.entries) {
-      bump(entry.noteId ?? entry.id, entry.title)
+      bump(entry.id, entry.title)
     }
   }
   // Corpus vocabulary for the membership-backed keys — the empty criteria

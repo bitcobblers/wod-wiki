@@ -4,8 +4,8 @@
 **Date:** 2026-10-16
 **Vocabulary:** the publisher is a **feed**; the artifacts it publishes are the feed's
 **seed** (manifest + chunks); the container its rows materialize into is a **notebook**.
-The wire identifiers recorded below keep their pre-rename spellings until the
-feed-contract ticket lands — this ADR records the contract, not the vocabulary.
+Every notebook chunk id is `notebook.<slug>` (the retired `collection.<slug>` /
+`feed.<slug>` spellings were deleted in the vocabulary cutover).
 
 ## Context
 
@@ -30,9 +30,8 @@ A seed publication is a directory containing exactly:
 - `manifest.json` — one `SeedManifest` (validated by `assertSeedManifest`).
 - `chunks/<id>.<sha256-8>.json` — an array of `SeedRow`, one chunk per
   `ChunkGroup` (`chunkIdFor`). Each published notebook gets one chunk
-  (`collection.<slug>` / `feed.<slug>` — the chunk-id spelling is
-  unchanged by this rename); the reserved chunk ids
-  are `canvas`, `dashboards`, `efforts`, `equipment`, `template`.
+  (`notebook.<slug>`); the reserved chunk ids
+  are `canvas`, `dashboards`, `efforts`, `equipment`.
 
 Identity is deterministic: `seedNoteId(path)` maps a row path to a v5 UUID,
 so re-importing unchanged content preserves the owning note. When multiple
@@ -65,7 +64,7 @@ fields:
 depends_on: [ManifestChunk]
 lifecycle:
   produced_by: "wod build (packages/tools/src/seedbuild/compiler.ts)"
-  consumed_by: [assertSeedManifest, HttpSeedSource.getMetaKey/manifest fetch, importSeedDir, runSourceSync]
+  consumed_by: [assertSeedManifest, HttpFeedSource.getMetaKey/manifest fetch, importSeedDir, runSourceSync]
   states:
     - published:  "written to dist/manifest.json after assertSeedManifest"
     - validated:  "schema===9, version non-negative int, repositoryUrl https+no-userinfo, per-chunk id/path/sha256 uniqueness"
@@ -76,7 +75,7 @@ lifecycle:
 model: ManifestChunk
 source: packages/engine/src/seed/contract.ts
 fields:
-  id:     { type: string, rule: "non-empty, unique; reserved: canvas|dashboards|efforts|equipment|template|collection.*|feed.*" }
+  id:     { type: string, rule: "non-empty, unique; reserved: canvas|dashboards|efforts|equipment|notebook.*" }
   path:   { type: string, rule: "matches ^chunks/[a-zA-Z0-9._-]+\\.json$, unique" }
   sha256: { type: string, rule: "64-hex, unique; sha8 of it appears in the filename" }
   bytes:  { type: number, min: 0 }
@@ -127,7 +126,7 @@ fields:
   noteTitle:       { type: string }
   createdAt:       { type: number, note: "frontmatter date (noon UTC) > feed path date (midnight UTC) > git mtime; 0 fallback" }
   isStatic:        { type: boolean, const: true }
-  sourceId:        { type: string, rule: "guides:<route>|dashboards|efforts|equipment|playground|collection:<cat>[/<stem>]|feed:feeds/<under>" }
+  sourceId:        { type: string, rule: "guides:<route>|dashboards|efforts|equipment|playground|notebook:<slug>[/<item>]" }
   sourcePath:      { type: string, rule: "=== row.path" }
   routeId:         { type: string? }
 depends_on: [Note]
@@ -152,7 +151,6 @@ fields:
   createdAt:     { type: number, rule: "manifest.version (git commit count), not a timestamp" }
   type:          { type: NoteKind? }
   sourceId:      { type: string? }
-  catalog:       { type: string?, rule: "catalogForChunkId(chunkId)", note: "field name unchanged by the vocabulary rename; the value is the notebook's directory slug" }
   tags:          { type: string[]? }
   seedOrigin:    { type: "'seed'|'user'" }
   seedVersion:   { type: number? }

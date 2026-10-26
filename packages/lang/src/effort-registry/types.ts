@@ -15,12 +15,12 @@ export type EffortRegistrySource = 'bundled' | 'user' | 'synthetic-unresolved';
 export const EFFORT_REGISTRY_ORIGINS = ['bundled', 'user'] as const;
 
 /**
- * Precedence tiers for resolving collisions across seed catalogs and local edits.
+ * Precedence tiers for resolving collisions across seed sources and local edits.
  * Order: core (0) < community (1) < imported (2) < user (3).
  */
-export type CatalogPrecedenceTier = 'core' | 'community' | 'imported' | 'user';
+export type SeedPrecedenceTier = 'core' | 'community' | 'imported' | 'user';
 
-export const CATALOG_PRECEDENCE_RANK: Readonly<Record<CatalogPrecedenceTier, number>> = {
+export const SEED_PRECEDENCE_RANK: Readonly<Record<SeedPrecedenceTier, number>> = {
   core: 0,
   community: 1,
   imported: 2,
@@ -28,7 +28,7 @@ export const CATALOG_PRECEDENCE_RANK: Readonly<Record<CatalogPrecedenceTier, num
 };
 
 /** Resolve the precedence tier for a seed source id or checkpoint key (`seed:<id>`). */
-export function resolveSourceTier(sourceIdOrMetaKey?: string | null, explicitTier?: CatalogPrecedenceTier): CatalogPrecedenceTier {
+export function resolveSourceTier(sourceIdOrMetaKey?: string | null, explicitTier?: SeedPrecedenceTier): SeedPrecedenceTier {
   if (explicitTier) return explicitTier;
   if (!sourceIdOrMetaKey) return 'core';
   if (sourceIdOrMetaKey === 'user') return 'user';
@@ -38,18 +38,18 @@ export function resolveSourceTier(sourceIdOrMetaKey?: string | null, explicitTie
   return 'imported';
 }
 
-export function resolveSourceRank(sourceIdOrMetaKey?: string | null, explicitTier?: CatalogPrecedenceTier): number {
-  return CATALOG_PRECEDENCE_RANK[resolveSourceTier(sourceIdOrMetaKey, explicitTier)];
+export function resolveSourceRank(sourceIdOrMetaKey?: string | null, explicitTier?: SeedPrecedenceTier): number {
+  return SEED_PRECEDENCE_RANK[resolveSourceTier(sourceIdOrMetaKey, explicitTier)];
 }
 
 /** Resolve the precedence tier of an effort/equipment definition record. */
-export function resolveEntityTier(entity: { registrySource?: string; sourceId?: string | null }): CatalogPrecedenceTier {
+export function resolveEntityTier(entity: { registrySource?: string; sourceId?: string | null }): SeedPrecedenceTier {
   if (entity.registrySource === 'user') return 'user';
   return resolveSourceTier(entity.sourceId);
 }
 
 export function resolveEntityRank(entity: { registrySource?: string; sourceId?: string | null }): number {
-  return CATALOG_PRECEDENCE_RANK[resolveEntityTier(entity)];
+  return SEED_PRECEDENCE_RANK[resolveEntityTier(entity)];
 }
 
 /** Deduplicate definition entities by slug, retaining the highest-precedence record per slug. */
@@ -115,9 +115,11 @@ export interface IEffort {
   equipment?: string[];
   /** Owning note in the content store, when this record is a note projection. */
   ownerNoteId?: string;
-  /** Seed/source collection this record was imported from. */
+  /** The registered feed that delivered this record — the feed's own id.
+   *  The persisted field name is kept so stored records keep resolving their
+   *  precedence tier. */
   sourceId?: string;
-  /** Source file path within the originating collection. */
+  /** Source file path within the originating seed corpus. */
   sourcePath?: string;
   /** Clone-based derivation metadata (user efforts only) */
   derivation?: EffortDerivation;
@@ -192,9 +194,11 @@ export interface IEquipment {
   body?: string;
   /** Owning note in the content store, when this record is a note projection. */
   ownerNoteId?: string;
-  /** Seed/source collection this record was imported from. */
+  /** The registered feed that delivered this record — the feed's own id.
+   *  The persisted field name is kept so stored records keep resolving their
+   *  precedence tier. */
   sourceId?: string;
-  /** Source file path within the originating collection. */
+  /** Source file path within the originating seed corpus. */
   sourcePath?: string;
   /** ISO timestamp */
   createdAt?: string;

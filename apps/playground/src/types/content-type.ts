@@ -10,11 +10,11 @@
  * See docs/design/content-types-architecture.md §5.1 for the original spec.
  */
 
-export type ContentSource = 'playground' | 'journal' | 'collection' | 'feed'
+export type ContentSource = 'playground' | 'journal' | 'notebook'
 
 export type PageMode =
   | 'playground'
-  | 'collection-readonly'
+  | 'notebook-readonly'
   | 'journal-history'
   | 'journal-active'
   | 'journal-plan'
@@ -34,7 +34,7 @@ export function derivePageMode(
   targetDate?: Date | string,
 ): PageMode {
   if (source === 'playground') return 'playground'
-  if (source === 'collection' || source === 'feed') return 'collection-readonly'
+  if (source === 'notebook') return 'notebook-readonly'
 
   // Journal — compare target date to today (midnight-normalised)
   const today = new Date()

@@ -13,8 +13,8 @@ afterEach(() => {
     {
       id: 'eff-1',
       kind: 'effort',
-      sourceCatalog: 'canonical',
-      sourceItem: 'back-squat',
+      sourceNotebook: 'canonical',
+      sourceNote: 'back-squat',
       title: 'Back Squat',
       date: null,
       effort: {
@@ -29,8 +29,8 @@ afterEach(() => {
     {
       id: 'eff-2',
       kind: 'effort',
-      sourceCatalog: 'canonical',
-      sourceItem: 'pull-up',
+      sourceNotebook: 'canonical',
+      sourceNote: 'pull-up',
       title: 'Pull-up',
       date: null,
       effort: {
@@ -155,8 +155,8 @@ afterEach(() => {
       {
         id: 'seg-1',
         kind: 'segment',
-        sourceCatalog: 'results',
-        sourceItem: 'seg-1',
+        sourceNotebook: 'results',
+        sourceNote: 'seg-1',
         title: 'Round 1',
         date: '2026-08-15',
         execution: {
@@ -178,7 +178,7 @@ afterEach(() => {
 
     const effortLink = screen.getByTestId('property-table-effort-link')
     expect(effortLink).toBeDefined()
-    expect(effortLink.getAttribute('href')).toBe('/e/thruster')
+    expect(effortLink.getAttribute('href')).toBe('/effort/thruster')
 
     fireEvent.click(effortLink)
     expect(handleRowClick).not.toHaveBeenCalled()

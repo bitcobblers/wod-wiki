@@ -15,7 +15,7 @@
 
 ### Services & Processors
 - `useJournalZipProcessor` (`apps/playground/app/hooks/useJournalZipProcessor.ts`). Decompresses and imports archived journal entries.
-- `runSeedSync` (`apps/playground/src/services/seed/seedSync.ts`). Syncs seed corpus files to IndexedDB.
+- `runFeedSync` (`apps/playground/src/services/feed/feedSync.ts`). Syncs the feed corpus files to IndexedDB.
 - `resetUserData` (`apps/playground/app/services/resetUserData.ts`). Clears client-side database stores.
 
 ---

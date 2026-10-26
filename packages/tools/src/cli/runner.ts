@@ -42,9 +42,9 @@ import { runDbCommand, type DbAdminDeps } from './dbAdmin';
 // Type-only: erased at build time, keeps the Bun-only server module out of the
 // browser/Node import graph (runCliServer itself is lazily imported).
 import type { CliServerOptions } from './server';
-import { persistNote, startRun, persistRun, persistSessionBundle, persistEffort, persistEquipment, persistTypedTags } from './persist';
+import { persistNote, startRun, persistRun, persistSessionBundle, persistDefinitionNote, persistTypedTags } from './persist';
 import { defaultSeedDirs, importSeedDir } from './seed';
-import { publishCatalogSeed } from './publish';
+import { publishNotebookSeed } from './publish';
 import {
   composeNoteMarkdown,
   csvToEquipmentLabels,
@@ -56,7 +56,6 @@ import {
   extractTypedTags,
   sessionToCsv,
 } from '@bitcobblers/wod-wiki-engine';
-import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import {
   formatParseOutput,
   formatExecutionOutput,
@@ -78,7 +77,7 @@ export function cliNoteSource(source: string, label: string, sport?: string): st
 }
 
 export interface CliParsedArgs {
-  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'export' | 'import' | 'publish' | 'build' | 'seed' | 'reset' | 'init' | 'db' | 'server' | 'serve' | 'playground' | 'init-catalog' | 'skills' | 'help' | 'version';
+  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'export' | 'import' | 'publish' | 'build' | 'seed' | 'reset' | 'init' | 'db' | 'server' | 'serve' | 'playground' | 'init-feed' | 'skills' | 'help' | 'version';
   target?: string;
   /** Second positional: the id (download) or file (import) after the kind. */
   target2?: string;
@@ -130,8 +129,6 @@ export interface CliParsedArgs {
   sources: string[];
   /** `wod build`: scaffold markdown stubs for newly discovered efforts. */
   scaffold?: boolean;
-  /** `wod build`: extra template markdown file compiled as the `template` chunk. */
-  template?: string;
   /** `wod build`: content repo root (alias for the positional directory). */
   dir?: string;
 }
@@ -293,12 +290,6 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     } else if (arg === '--force') {
       result.force = true;
       i++;
-    } else if (arg === '--template') {
-      result.template = args[++i];
-      i++;
-    } else if (arg.startsWith('--template=')) {
-      result.template = arg.slice('--template='.length);
-      i++;
     } else if (arg === '--out') {
       result.output = args[++i];
       i++;
@@ -319,7 +310,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       if (Number.isSafeInteger(v) && v >= 0) result.seedVersion = v;
       i++;
     } else if (!result.subcommand) {
-      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'export' || arg === 'import' || arg === 'publish' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'db' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'init-catalog' || arg === 'skills' || arg === 'help' || arg === 'version') {
+      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'export' || arg === 'import' || arg === 'publish' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'db' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'init-feed' || arg === 'skills' || arg === 'help' || arg === 'version') {
         result.subcommand = arg;
       } else {
         result.target = arg;
@@ -393,10 +384,10 @@ USAGE:
   wod export <note|playground|session|effort|equipment> <id> [options]
   wod download <note|playground|session|effort|equipment> <id> [options]
   wod import <note|playground|session|effort|equipment> <file> [options]
-  wod publish [catalog] [options]
+  wod publish [feed] [options]
   wod build [dir] [options]
-  wod init-catalog <name>
-                      Scaffold a new catalog repository (package.json, example
+  wod init-feed <name>
+                      Scaffold a new feed repository (package.json, example
                       collection, GitHub Actions Pages workflow). Refuses an
                       existing destination.
   wod skills <list | install> [options]
@@ -489,10 +480,10 @@ SUBCOMMANDS:
                      Upsert an effort registry row from corpus-style markdown.
   import equipment <file>
                      Create/upgrade equipment tags (CSV, one label per row).
-  publish [catalog]   Publish catalog notes from the database into a configured
+  publish [feed]      Publish feed notes from the database into a configured
                      seed directory (manifest.json, chunks/, report.html)
                      compatible with 'wod seed --source <dir>'. Override target
-                     with -o/--out/--output (defaults to ./dist/seed/<catalog>).
+                     with -o/--out/--output (defaults to ./dist/seed/<feed>).
   build [dir]         Compile a seed corpus: validate every .md under
                      <dir>/markdown (parity gate + dashboard format gate) and
                      write manifest.json + content-hashed chunks/ +
@@ -503,8 +494,6 @@ SUBCOMMANDS:
 BUILD OPTIONS (for 'build'):
   --scaffold          Also scaffold markdown/efforts/discovered/*.md stubs for
                       workout effort labels missing from the registry.
-  --template <file>   Compile an extra markdown file as the 'template' chunk
-                      (the host's playground intake template).
 
 INPUT SOURCING (for 'query'; without these, the database is queried):
   -c, --corpus <path> Load historical corpus dataset from a versioned JSON file
@@ -685,21 +674,21 @@ export async function cliMain(
 
   // 2. Dispatch subcommands
   try {
-    if (parsed.subcommand === 'init-catalog') {
+    if (parsed.subcommand === 'init-feed') {
       if (!parsed.target) {
-        writeErr('[wod init-catalog] Error: Missing catalog name (a single new directory name)');
+        writeErr('[wod init-feed] Error: Missing feed name (a single new directory name)');
         return 1;
       }
       // Browser-boundary: dynamic import keeps node:fs usage out of the browser graph.
-      const { scaffoldCatalog } = await import('./scaffoldCatalog');
+      const { scaffoldFeed } = await import('./scaffoldFeed');
       try {
-        const result = scaffoldCatalog(parsed.target);
-        writeOut(`[wod init-catalog] Created ${result.dir} (${result.files.length} files)`);
+        const result = scaffoldFeed(parsed.target);
+        writeOut(`[wod init-feed] Created ${result.dir} (${result.files.length} files)`);
         writeOut(`Next: cd ${parsed.target} && bun install && bunx wod build . --output dist`);
         writeOut(`Agents: wod skills install --dir ${parsed.target}  (Whiteboard Script extraction rules → .agents/skills/)`);
         return 0;
       } catch (error) {
-        writeErr(`[wod init-catalog] ${(error as Error).message}`);
+        writeErr(`[wod init-feed] ${(error as Error).message}`);
         return 1;
       }
     }
@@ -707,7 +696,7 @@ export async function cliMain(
     if (parsed.subcommand === 'skills') {
       const action = parsed.target ?? 'list';
       // Dynamic import: skills.ts touches node:fs, which must stay out of the
-      // browser bundle graph (same reason as ./scaffoldCatalog above).
+      // browser bundle graph (same reason as ./scaffoldFeed above).
       const { bundledSkillsRoot, installSkills, listBundledSkills } = await import('./skills');
       try {
         if (action === 'list') {
@@ -1036,30 +1025,22 @@ export async function cliMain(
         return 0;
       }
       if (kind === 'effort') {
-        const effort = parseEffortFile(fs.readFileSync(file, 'utf-8'));
-        if (!effort) {
-          writeErr(`[wod import] Unparseable effort file (need frontmatter id/slug/label + numeric baseAttributes.met): ${file}`);
-          return 1;
-        }
+        const source = fs.readFileSync(file, 'utf-8');
         const db = await openCliDb(cliDb());
         try {
-          await persistEffort(db, { ...effort, registrySource: 'user' });
-          writeOut(`[wod import] effort ${effort.slug} — ${effort.label} → ${db.path}`);
+          const result = await persistDefinitionNote(db, 'effort', source);
+          writeOut(`[wod import] effort ${result.slug}${result.createdNote ? '' : ' (updated)'} — note ${result.noteId} → ${db.path}`);
         } finally {
           await db.close();
         }
         return 0;
       }
       if (kind === 'equipment' && /\.md$/i.test(file)) {
-        const equipment = parseEquipmentFile(fs.readFileSync(file, 'utf-8'));
-        if (!equipment) {
-          writeErr(`[wod import] Unparseable equipment file (need frontmatter type: equipment + id/slug/label): ${file}`);
-          return 1;
-        }
+        const source = fs.readFileSync(file, 'utf-8');
         const db = await openCliDb(cliDb());
         try {
-          await persistEquipment(db, { ...equipment, registrySource: 'user' });
-          writeOut(`[wod import] equipment ${equipment.slug} — ${equipment.label} → ${db.path}`);
+          const result = await persistDefinitionNote(db, 'equipment', source);
+          writeOut(`[wod import] equipment ${result.slug}${result.createdNote ? '' : ' (updated)'} — note ${result.noteId} → ${db.path}`);
         } finally {
           await db.close();
         }
@@ -1095,19 +1076,19 @@ export async function cliMain(
 
     if (parsed.subcommand === 'publish') {
       const isDir = (s?: string) => Boolean(s && (s.startsWith('.') || s.startsWith('/') || s.includes('/') || s.includes('\\')));
-      const catalog = isDir(parsed.target) ? undefined : parsed.target;
+      const notebook = isDir(parsed.target) ? undefined : parsed.target;
       const targetDir = isDir(parsed.target) ? parsed.target : parsed.target2;
-      const outDir = parsed.output ?? targetDir ?? (catalog ? `./dist/seed/${catalog}` : './dist/seed');
+      const outDir = parsed.output ?? targetDir ?? (notebook ? `./dist/seed/${notebook}` : './dist/seed');
 
       const db = await openCliDb(cliDb());
       try {
-        const result = await publishCatalogSeed(db, {
-          catalog,
+        const result = await publishNotebookSeed(db, {
+          notebook,
           outDir,
           version: parsed.seedVersion,
         });
         writeOut(
-          `[wod publish] published ${result.catalogs.join(', ')} (${result.totalNotes} notes) ` +
+          `[wod publish] published ${result.notebooks.join(', ')} (${result.totalNotes} notes) ` +
           `→ ${result.outDir} (manifest schema v${result.manifest.schema}, version ${result.manifest.version})`,
         );
       } finally {
@@ -1129,7 +1110,6 @@ export async function cliMain(
         const result = generateSeed({
           corpusRoot: root,
           ...(parsed.output ? { outDir: nodePath().resolve(cwd, parsed.output) } : {}),
-          ...(parsed.template ? { templateFile: nodePath().resolve(cwd, parsed.template) } : {}),
           scaffoldDiscoveredEfforts: parsed.scaffold === true,
         });
         const kb = (n: number): string => `${(n / 1024).toFixed(0)} KB`;

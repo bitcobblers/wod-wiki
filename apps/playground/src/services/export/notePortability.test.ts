@@ -2,13 +2,13 @@ import { describe, it, expect } from 'bun:test';
 import { noteToMarkdown } from './NoteMarkdownSerializer';
 import { parseMarkdownToEntry } from './NoteMarkdownDeserializer';
 import { frozenNow } from '@bitcobblers/wod-wiki-engine';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 
 /**
  * Round-trip test for the note portability surface.
  *
- * Exports a HistoryEntry to markdown via `noteToMarkdown`, then parses it back
+ * Exports a HistoryRecord to markdown via `noteToMarkdown`, then parses it back
  * via `parseMarkdownToEntry`. The round-trip MUST preserve the fields a user
  * relies on for note identity and chronological order:
  *
@@ -25,7 +25,7 @@ describe('notePortability round-trip', () => {
     const ts = fixedDate.getTime();
     const clock = frozenNow(fixedDate);
 
-    const baseEntry = (overrides: Partial<HistoryEntry> = {}): HistoryEntry => ({
+    const baseEntry = (overrides: Partial<HistoryRecord> = {}): HistoryRecord => ({
         id: 'roundtrip-1',
         title: 'Round Trip Entry',
         createdAt: ts,

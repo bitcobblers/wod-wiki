@@ -10,13 +10,17 @@ describe('wqlStreamHref', () => {
     expect(wqlStreamHref(':session{}')).toBe(`/sessions?q=${encodeURIComponent(':session{}')}`)
   })
 
-  it('routes a single catalog or notebook filter to the /c/:slug landing', () => {
-    expect(wqlStreamHref(':feed{catalog:crossfit-girls}')).toBe(`/c/crossfit-girls?q=${encodeURIComponent(':feed{catalog:crossfit-girls}')}`)
-    expect(wqlStreamHref(':note{notebook:crossfit-girls}')).toBe(`/c/crossfit-girls?q=${encodeURIComponent(':note{notebook:crossfit-girls}')}`)
+  it('routes a single notebook filter to the /notebook/:slug landing', () => {
+    expect(wqlStreamHref(':notebooks{notebook:crossfit-girls}')).toBe(`/notebook/crossfit-girls?q=${encodeURIComponent(':notebooks{notebook:crossfit-girls}')}`)
+    expect(wqlStreamHref(':note{notebook:crossfit-girls}')).toBe(`/notebook/crossfit-girls?q=${encodeURIComponent(':note{notebook:crossfit-girls}')}`)
   })
 
-  it('routes unscoped feed queries to /feeds', () => {
-    expect(wqlStreamHref(':feed{}')).toBe(`/feeds?q=${encodeURIComponent(':feed{}')}`)
+  it('routes unscoped corpus queries to /notes', () => {
+    expect(wqlStreamHref(':note{}')).toBe(`/notes?q=${encodeURIComponent(':note{}')}`)
+  })
+
+  it('routes the notebook plane to /notebooks', () => {
+    expect(wqlStreamHref(':notebook{}')).toBe(`/notebooks?q=${encodeURIComponent(':notebook{}')}`)
   })
 
   it('routes :journal and :playground scoped note heads', () => {
@@ -25,8 +29,8 @@ describe('wqlStreamHref', () => {
   })
 
   it('encodes grouped queries (spaces survive markdown link parsing only when percent-encoded)', () => {
-    const href = wqlStreamHref(':feed{catalog:a} by {date}')
-    expect(href).toBe(`/c/a?q=${encodeURIComponent(':feed{catalog:a} by {date}')}`)
+    const href = wqlStreamHref(':notebooks{notebook:a} by {date}')
+    expect(href).toBe(`/notebook/a?q=${encodeURIComponent(':notebooks{notebook:a} by {date}')}`)
   })
 
   it('returns null for non-queries, invalid WQL, and empty text', () => {

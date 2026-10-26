@@ -16,7 +16,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { JournalEntryPage } from '../pages/JournalEntryPage';
 import { seedJournalNote, seedCompletedSessions, clearResults, getResults, WOD_DB } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 import { clearSessions, getSessions } from '../utils/sessionsDb';
 import { TEST_IDS } from '../contracts/TestIdContract';
 
@@ -39,7 +39,7 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     });
     journal = new JournalEntryPage(page);
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
   });
 
   test.afterEach(async ({ page: _page }, testInfo) => {
@@ -233,14 +233,13 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     // This test verifies no such errors surface during normal static page navigation.
     errors.length = 0;
 
-    await page.goto('/guide/protocols', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await page.goto('/page/guide-protocols', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
 
-    // The editor should be present on the syntax page
-    const editor = page.locator('.cm-content[contenteditable="true"]:visible').first();
-    await expect(editor).toBeAttached({ timeout: 10_000 });
-    // Just focus the editor — no keyboard input that might trigger navigation
-    await editor.focus().catch(() => {});
+    // The guide renders as a read-only canvas page (prose headings, no
+    // editable surface) — assert the page resolved, then let any async
+    // NOTE_NOT_FOUND errors surface in the grace window.
+    await expect(page.getByRole('heading', { name: 'Timers & Protocols' }).first()).toBeVisible({ timeout: 10_000 });
     // Deliberate grace window for async NOTE_NOT_FOUND errors to surface.
     await page.waitForTimeout(500);
 
@@ -268,7 +267,7 @@ test.describe('Note Persistence — save / load / workout flow', () => {
   async function startOverlayRun(page: Page, seed = true): Promise<void> {
     if (seed) {
       await seedJournalNote(page, NOTE_DATE, `# Overlay Run\n\n${OVERLAY_WOD}\n`);
-      await page.goto(`/notes/${encodeURIComponent(NOTE_ID)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+      await page.goto(`/note/${encodeURIComponent(NOTE_ID)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     }
     const runControl = page.locator('[data-testid="editor-start-workout"]').first();
     await expect(runControl).toBeAttached({ timeout: 15_000 });

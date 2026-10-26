@@ -22,6 +22,7 @@ import {
   WQL_EFFORT_FILTER_KEYS,
   WQL_FIND_TARGETS,
   WQL_FUNCTION_HEADS,
+  WQL_NOTE_HEAD_ALIASES,
   WQL_SOURCE_HEADS,
   WQL_SOURCE_HEAD_SCOPES,
   WQL_SOURCE_VALUES,
@@ -559,34 +560,36 @@ export function normalizeWql(raw: string): { query: string; advisories: string[]
   return { query: text, advisories };
 }
 
-/** Validate source: filter values against canonical sources and catalog literals (C2). */
+/** Validate source: filter values against canonical sources and id-scoped
+ *  literals (C2). */
 function validateSourceFilter(filters: TagFilter[]): string | undefined {
   for (const f of filters) {
     if (f.key !== 'source') continue;
     for (const v of f.values) {
       const val = v.value;
       if (val === 'page' || val === 'pages') {
-        return `source:${val} is retired — page-ness is handled by type: (e.g. type:feed or source:guides).`;
+        return `source:${val} is retired — page-ness is handled by type:page or source:guides.`;
       }
       if (val === 'all') {
         return `source:all is retired — omit the source: filter to query all sources.`;
       }
-      if (val === 'collection' || val === 'collections') {
-        return `source:${val} is retired — collections were renamed to feeds; use source:feeds or :feed{}.`;
+      if (val === 'notebook') {
+        return `source:notebook is retired — :notebook{} is the notebook plane (every notebook); narrow it with the notebook: filter, e.g. :notebook{notebook:journal}.`;
+      }
+      if (val === 'feed' || val === 'feeds' || val.startsWith('feed:')) {
+        return `source:${val} is retired — the feed corpus is the notebook plane; use source:notebooks or notebook:<slug>.`;
+      }
+      if (val === 'collection' || val === 'collections' || val.startsWith('collection:')) {
+        return `source:${val} is retired — collections are notebooks; use source:notebooks or notebook:<slug>.`;
       }
       if (
         (WQL_SOURCE_VALUES as readonly string[]).includes(val) ||
-        val === 'feed' ||
-        val === 'notebook' ||
-        val === 'notebooks' ||
-        val.startsWith('collection:') ||
-        val.startsWith('feed:') ||
         val.startsWith('notebook:') ||
         val.startsWith('notebook/')
       ) {
         continue;
       }
-      return `Unknown source "${val}". Try: ${WQL_SOURCE_VALUES.join(', ')} (or collection:<id>, feed:<id>)`;
+      return `Unknown source "${val}". Try: ${WQL_SOURCE_VALUES.join(', ')} (or notebook:<slug>)`;
     }
   }
   return undefined;
@@ -669,9 +672,9 @@ function extractFilters(query: SyntaxNode, text: string): TagFilter[] {
       // Each Value is `Word(:Word)?Star?` or a quoted phrase `"..."` per the
       // grammar. Slice its source text; a quoted node (#867) carries its
       // surrounding quotes (stripped here), a word value strips a trailing
-      // wildcard — the colon stays in the value when the grammar accepts a
-      // catalog-id style literal like `collection:crossfit-girls` for the
-      // `source:` filter.
+      // wildcard — the colon stays in the value when the grammar accepts an
+      // id-style literal like `notebook:crossfit-girls` for the `source:`
+      // filter.
       const raw = text.slice(valueChild.from, valueChild.to);
       const quoted = valueChild.getChild(terms.Quoted) !== null;
       let value = quoted ? raw.slice(1, -1) : raw;
@@ -920,11 +923,7 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
     // (they intersect any explicit source:/type: — plain AND).
     result.target = 'note';
   } else {
-    result.target = headName === 'notes' ? 'note' : headName;
-    if (result.target === 'page') {
-      result.error = 'find:page is retired — page-ness is handled by type: (e.g. :note{source:guides} or type:feed).';
-      return result;
-    }
+    result.target = (WQL_NOTE_HEAD_ALIASES as readonly string[]).includes(headName) ? 'note' : headName;
     // C7: closed target enum — unknown targets error at parse instead of
     // silently returning empty at runtime.
     if (!(WQL_FIND_TARGETS as readonly string[]).includes(result.target)) {
@@ -949,13 +948,6 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
       negate: false,
       values: [{ value: scope, wildcard: false }],
     });
-    if (headName === 'catalog' || headName === 'catalogs' || headName === 'notebook' || headName === 'notebooks') {
-      result.filters.push({
-        key: 'type',
-        negate: false,
-        values: [{ value: 'feed', wildcard: false }],
-      });
-    }
   }
   // Colon heads treat a trailing non-unit `in <word>` as the legacy scope
   // clause (the suffix layer files it under display-unit for non-find text).

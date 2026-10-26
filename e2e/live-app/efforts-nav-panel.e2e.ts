@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
 import { seedBundledEfforts } from '../helpers/seedEfforts';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -30,6 +31,7 @@ test.describe('Efforts nav panel', () => {
     await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForFeedReady(page);
     await efforts.waitForCatalogLoaded();
 
     await efforts.applyQuery(':effort{discipline:kettlebell}');
@@ -59,6 +61,7 @@ test.describe('Efforts nav panel', () => {
     });
 
     await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForFeedReady(page);
     await efforts.waitForCatalogLoaded();
     await efforts.applyQuery(':effort{origin:user}');
 

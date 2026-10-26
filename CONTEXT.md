@@ -138,7 +138,7 @@ block-revision appends, pinned-session capture, cascade delete,
 analytics write) — they do not embed engine specifics.
 _Avoid_: data layer, store (overloaded).
 **Seed**:
-The published artifact a **feed** serves: an immutable, timestamped compilation of one content corpus into versioned files a static host serves and the app imports into Storage (`wodwiki-db`; import seam — `docs/prototypes/seed-data-unification.md`). A seed is a payload, not a source — the source is the **feed** that publishes it. Seeds are the only path bundled content takes into Storage. **Multi-feed**: each feed (the playground's own **core** feed — this repo's `markdown/` corpus: canvas pages, the page template, and the effort/equipment/dashboards reference chunks, compiled from this repo; the **community** feeds — notebooks from the sibling `wod-wiki-seed` repo; future third-party libraries) compiles via the seed repo's compiler (`scripts/sync-seed.ts`, run by the playground build) into `public/seed/<sourceId>/` (schema 9): a manifest + content-hashed chunks of whole-note rows carrying `{ path, content, blocks, blockIndex, blockEfforts }` — source, occurrence map and sparse projections travel together; unchanged refreshes write nothing of precomputed `BlockIndexRow[]` corpus rows. Each feed has an independent import checkpoint (`seed:<sourceId>` meta record) and git version, so version decisions and vanished-chunk sweeps never cross feeds. Seed provenance (`'seed' | 'user'`) decides whether the Seed Import may overwrite or delete a row — user edits always win. After the import, **every runtime content read loads from Storage**: canvas routes, notebooks, dashboards, guide snippets, and view-source go through the seed-content seam (`apps/playground/src/services/content/seedContent.ts`), and the Query Service reads one `block_index` store (user + corpus rows; the generated `static-block-index.json` predecessor is retired).
+The published artifact a **feed** serves: an immutable, timestamped compilation of one content corpus into versioned files a static host serves and the app imports into Storage (`wodwiki-db`; import seam — `docs/prototypes/seed-data-unification.md`). A seed is a payload, not a source — the source is the **feed** that publishes it. The seed spelling is retained deliberately, as a documented exception, in three places only. First, the persisted wire values and state: the checkpoint keys (`seed:<id>`), the localStorage keys (`wodwiki.seedSources`, `wodwiki.seedSources.hidden`, `wodwiki.seedSubscriptions`, `wodwiki.seedAutoSync`, `wodwiki.seedImport.enabled`), the broadcast channel (`wodwiki.seed`) and its payload kinds (`seed-imported`, `seed-removed`), the note stamps (`seedOrigin`, `seedVersion`, `seedChunkId`, `seedCommit`), and the artifact schema and manifest (`SEED_SCHEMA`, `SeedManifest`, `SeedRow`, schema 9). Renaming those would orphan existing checkpoints, subscriptions, and imported rows. Second, the module paths and build commands that name the artifact they produce: `packages/engine/src/seed/`, `packages/tools/src/seedbuild/`, `scripts/sync-seed.ts`, the published corpus path `public/seed/<sourceId>/`, and the artifact/content seam `apps/playground/src/services/content/seedContent.ts` — the app-side read over imported seed content, not a source registry API. Third, the artifact-side vocabulary of the import contract itself — the chunk/manifest/row types and their accessors (`SeedChunkWrite`, `SeedChunkResult`, `applySeedChunk`, `seedNoteId`, `seedMetaKey`, `SeedMetaRecord`) — because they describe the seed a feed delivers, not the feed that delivers it. The retired `seed-core` source id stays reserved so it keeps resolving for checkpoint migration and is never re-issued. Seeds are the only path bundled content takes into Storage. **Multi-feed**: each feed (the playground's own **core** feed — this repo's `markdown/` corpus: canvas pages, the page template, and the effort/equipment/dashboards reference chunks, compiled from this repo; the **community** feeds — notebooks from the sibling `wod-wiki-seed` repo; future third-party libraries) compiles via the seed repo's compiler (`scripts/sync-seed.ts`, run by the playground build) into `public/seed/<sourceId>/` (schema 9): a manifest + content-hashed chunks of whole-note rows carrying `{ path, content, blocks, blockIndex, blockEfforts }` — source, occurrence map and sparse projections travel together; unchanged refreshes write nothing of precomputed `BlockIndexRow[]` corpus rows. Each feed has an independent import checkpoint (`seed:<sourceId>` meta record) and git version, so version decisions and vanished-chunk sweeps never cross feeds. Seed provenance (`'seed' | 'user'`) decides whether the Seed Import may overwrite or delete a row — user edits always win. After the import, **every runtime content read loads from Storage**: canvas routes, notebooks, dashboards, guide snippets, and view-source go through the seed-content seam (`apps/playground/src/services/content/seedContent.ts`), and the Query Service reads one `block_index` store (user + corpus rows; the generated `static-block-index.json` predecessor is retired).
 _Avoid_: bundle, corpus dump, static index (the generated `static-block-index.json` predecessor), feed (the source, not the artifact).
 **Home Slice**:
 The bundle-owned subset of the playground's canvas content needed to render `/` before any Seed import: `HOME_PAGE` plus `HOME_DOCS`, compiled from `markdown/` through `app/canvas/homeSlice.ts`. It is the only bundled-content read that does not pass through Storage; all other bundled content still follows the Seed path.
@@ -274,7 +274,7 @@ execution time — control changes write back to the note's frontmatter when the
 note is editable. A block body is one line: the WQL query plus optional
 `/`-separated positional parameters (e.g. a goal target). One document, two
 presentations: inline (bare charts beneath their visible markdown) and the
-`/analytics/dashboard` route (composed cards). The ` ```dashboard ` fence from
+`/dashboard/{slug}` route (composed cards). The ` ```dashboard ` fence from
 #801 is retired — stale blocks degrade to generic code.
 _Avoid_: dashboard block, widget YAML, dashboard schema.
 **Rollup Fact**:
@@ -438,9 +438,37 @@ manifest, one version, one import checkpoint, one subscription. It delivers note
 never notes of its own: the notebooks it publishes stay read-only until the user clones
 content into a notebook they own. Effort and equipment definitions arrive the same way,
 as markdown delivered by a feed and imported as notes.
+Identity: a registered feed has ONE id — the source's own id (`FeedSource.id`, the
+notebook's `feedEntryId`, the note's `feedSourceId`). The import checkpoint keys that
+same id as `seed:<id>`: the checkpoint key carries the id as its suffix, it is not the id
+itself. A feed id therefore resolves the same registry entry, import checkpoint, and
+subscription, and there is no second source id to keep in step. The seed spelling
+survives only as the published artifact (a **Seed**), its per-row provenance stamps
+(`seedOrigin`, `seedVersion`, `seedChunkId`), and the checkpoint key prefix; the feed
+spelling is the source-side one (`feedOrigin`, `feedSourceId`, `feedEntryId`). A note imported before the feed stamp existed is
+repaired from the checkpoints — the checkpoint membership says which feed delivered it —
+without republication, and the repair advances the note's revision so a peer copy at the
+old revision is stale.
 Canonical route `/feed/{slug}`, list route `/feeds`, WQL head `:feed{}`.
 _Avoid_: publisher, repository, subscription, notebook (a feed publishes notebooks; it is
 not one).
+
+**Source Precedence Tier**:
+The rank a source's imported content carries when two sources deliver the same record:
+`core` (the app's own corpus) → `community` (the built-in theme feeds) → `imported` (a
+user-registered feed) → `user` (the user's own copy). A tier is a RANK, never a source:
+it says which delivery wins, not which feed delivered it. The tier vocabulary is
+orthogonal to the feed/seed vocabulary and is not renamed with it (`SeedPrecedenceTier`,
+`SEED_PRECEDENCE_RANK`). Distinct from the metric **Ownership Layer**, which ranks
+metric visibility, and from a **Calculation Seed Record**.
+_Avoid_: seed tier (the tier is not about the seed artifact), feed tier.
+
+**Calculation Seed Record**:
+A built-in calculation declared as a DAG seed record — the calc layer's own use of
+"seed" (`packages/lang/src/analytics/calc/seeds.ts`). It seeds a calculation graph; it
+is neither a **Seed** artifact nor a **Feed** source, and the source→feed rename does
+not touch it.
+_Avoid_: seed (unqualified near the calc layer), feed seed, seed record (unqualified).
 
 **Note**:
 An entry: one piece of authored content inside a notebook — a workout, a dated log, a
@@ -495,9 +523,8 @@ _Avoid_: temporary workout, demo result, scratch copy (implies disposable data).
 
 ### Canonical vocabulary
 
-One word per concept. These are the canonical names; the paths the app serves today are
-recorded in the domain-model docs' Current State sections and move when the route ticket
-lands.
+One word per concept. These are the canonical names; the paths below are the canonical
+route scheme the app serves (ticket 09 — the old aliases were removed, not redirected).
 
 | Concept | Route | List route | WQL head | Storage |
 |---|---|---|---|---|
@@ -518,7 +545,7 @@ Words the codebase still carries in identifiers but that no longer name a concep
 | Retired word | Replaced by | Note |
 |---|---|---|
 | collection | **notebook** | The container's older name. The publisher corpus directories `markdown/collections/` and `markdown/feeds/` become `markdown/notebooks/`. |
-| catalog | **notebook** | The container's older name, and the name of the `/catalogs` route and the `catalog:` filter key. Unrelated senses keep their names: the **Field Catalog** inventory and the **Unit Registry** catalogue are not containers. |
+| catalog | **notebook** | The container's older name, and the name of the retired `/catalogs` route and the legacy `catalog:` filter key. Unrelated senses keep their names: the **Field Catalog** inventory and the **Unit Registry** catalogue are not containers. |
 | entry | **note** | A list row is a note, not a thing of its own. |
 | session | **note** | The catalog item kind (a named workout) folds into note kinds. The execution-log **Session** — a recorded run — keeps the name; it is a different concept. |
 | post | **note** | The dated catalog item kind folds into note kinds; the date is an attribute of the note. |
@@ -526,7 +553,7 @@ Words the codebase still carries in identifiers but that no longer name a concep
 | seed (source sense) | **feed** | The configured source. "Seed" survives only as the published artifact (manifest + chunks) and its per-row provenance stamps. |
 
 "Seed" has one more unrelated sense that this rename does not touch: the calc layer's
-base calculations (`packages/lang/src/analytics/calc/seeds.ts`).
+base calculations — a **Calculation Seed Record** (`packages/lang/src/analytics/calc/seeds.ts`).
 
 ### Identity & result recording
 
@@ -555,7 +582,7 @@ Presentation changes preserve WQL, ordering, and grouping; scrolling never silen
 _Avoid_: feed source (the source, not a presentation).
 
 **Grouping**:
-A publisher-side markdown directory of workout items under one slug — today `markdown/collections/{slug}/` or `markdown/feeds/{slug}/`, canonically `markdown/notebooks/{slug}/`. It is a corpus-layout term, not an app concept: the app sees the notebooks a **feed** publishes, never the directory behind them. The public adapters (`script-collections.ts`, `script-feeds.ts`) own item shape and sort order; the grouping builder owns file discovery and display-name derivation.
+A publisher-side markdown directory of workout items under one slug — today `markdown/collections/{slug}/` or `markdown/feeds/{slug}/`, canonically `markdown/notebooks/{slug}/`. It is a corpus-layout term, not an app concept: the app sees the notebooks a **feed** publishes, never the directory behind them. The public adapter (`script-notebooks.ts`) and the grouping builder (`groupings.ts`) own file discovery, item shape, sort order, and display-name derivation.
 _Avoid_: loader, bundle directory, notebook (the app-side container).
 
 **Result Recorder**:
@@ -564,11 +591,11 @@ _Avoid_: result service, result saver (too generic).
 `src/services/resultRecorder.ts`.
 
 **WQL Composer Panel**:
-The composer's control surface for a content query. It combines a source-scope control (one of the storage scopes in `WQL_SOURCE_VALUES` — `journal`, `feeds`, `guides`, `playground`, `dashboards`, `efforts`, `equipment`), a free-text input that emits `{text:<q>}` substring filter, and a Datadog-style time-range selector (presets `last 1d / 3d / 1w / 2w / 4w / 12w / 26w / 52w` plus a **Custom** range). An `+ Add filter` menu emits the content filter chips of the plane — `notebook:`, `tags:`, `effort:`, `discipline:`. The panel renders a live preview of the resulting WQL string. The hand-edited raw composer is a separate, debug-gated field; when visible (under `useDebugMode()`), it round-trips with the panel state — the WQL string is parsed back into the controls on every edit, and any control edit re-emits the string. Distinct from the Analytics Explorer's existing `parseQuery` editor — the panel is content-query-only.
+The composer's control surface for a content query. It combines a source-scope control (one of the storage scopes in `WQL_SOURCE_VALUES` — `journal`, `notebooks`, `guides`, `playground`, `dashboards`, `efforts`, `equipment`), a free-text input that emits `{text:<q>}` substring filter, and a Datadog-style time-range selector (presets `last 1d / 3d / 1w / 2w / 4w / 12w / 26w / 52w` plus a **Custom** range). An `+ Add filter` menu emits the content filter chips of the plane — `notebook:`, `tags:`, `effort:`, `discipline:`. The panel renders a live preview of the resulting WQL string. The hand-edited raw composer is a separate, debug-gated field; when visible (under `useDebugMode()`), it round-trips with the panel state — the WQL string is parsed back into the controls on every edit, and any control edit re-emits the string. Distinct from the Analytics Explorer's existing `parseQuery` editor — the panel is content-query-only.
 _Avoid_: search box, query input, filter bar.
 
 **WQL Source Filter**:
-The `source:` filter key in content-discovery WQL (e.g. `find:block{!source:feeds} in all`). Values are the storage scopes (`WQL_SOURCE_VALUES` in `packages/wql/src/vocabulary.ts`) plus the id-scoped forms `notebook:<slug>` (one notebook) and `feed:<slug>` (one feed's notes). Maps onto the `sourceId` field on **Note** and **BlockIndexRow** rows; negation (`!source:feeds`) excludes that scope from the result set. Distinct from `in <scope>`, which picks a *primary* scope; the source filter is a *fine-grained* inclusion/exclusion layered on top. The two compose: e.g. `find:block{!source:feeds} in journal` means "look in journal, then drop everything that is not journal-owned". Wired through `QueryService.runFind` and `runFindBlock`. The `catalog:` filter key is the retired spelling of `notebook:`; the `collection:` / `feed:` prefixes still ride on the stored `sourceId` values.
+The `source:` filter key in content-discovery WQL (e.g. `find:block{!source:notebooks} in all`). Values are the storage scopes (`WQL_SOURCE_VALUES` in `packages/wql/src/vocabulary.ts`) plus the id-scoped form `notebook:<slug>` (one notebook). Maps onto the `sourceId` field on **Note** and **BlockIndexRow** rows; negation (`!source:notebooks`) excludes that scope from the result set. Distinct from `in <scope>`, which picks a *primary* scope; the source filter is a *fine-grained* inclusion/exclusion layered on top. The two compose: e.g. `find:block{!source:notebooks} in journal` means "look in journal, then drop everything that is not journal-owned". Wired through `QueryService.runFind` and `runFindBlock`. The `catalog:` filter key is the retired spelling of `notebook:`; the `collection:` / `feed:` prefixes still ride on the stored `sourceId` values.
 _Avoid_: catalog filter (use `notebook:`), tag-source.
 
 **WQL Time Range Parameter**:

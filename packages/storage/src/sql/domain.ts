@@ -13,8 +13,11 @@ import {
   type DomainQueryResult,
 } from '../domain';
 import { isRange, keyFromValue, type KeyDTO, type RangeDTO, type TxOp } from '../wire';
-// The app's own source/catalog semantics — no duplicated matchers.
-import { catalogOfItem, sourceMatches } from '@bitcobblers/wod-wiki-wql';
+// The app's own source/catalog semantics — no duplicated matchers. The
+// sourceId prefixes/exact literals below are built from the SAME shape table
+// the JS `sourceMatches` predicate reads, so the wire and the JS filter are
+// one decision (ticket 02); `journal` is the resolver's materialized answer.
+import { hasLegacyIdentity, migrateLegacyRow, sourceMatches, sourceShape, WQL_SOURCE_VALUES } from '@bitcobblers/wod-wiki-wql';
 import { rowsEqual, validateStoredPins } from '../validation';
 import type { BlockRevision, Note, Session } from '../entities';
 
@@ -24,12 +27,19 @@ const PROJECTION_GUARD_KEY = 'domain_projection';
 
 type SourceItem = Parameters<typeof sourceMatches>[0];
 
-function sourceItem(row: Record<string, unknown>): SourceItem {
+function sourceNote(row: Record<string, unknown>): SourceItem {
   const item: SourceItem = {};
-  for (const key of ['id', 'noteId', 'sourceId', 'type', 'seedOrigin', 'seedChunkId', 'sourcePath', 'catalog', 'notebookId'] as const) {
+  for (const key of ['id', 'noteId', 'sourceId', 'type', 'seedOrigin', 'seedChunkId', 'feedOrigin', 'feedSourceId', 'sourcePath', 'notebookId'] as const) {
     const value = row[key];
     if (typeof value === 'string') item[key] = value;
     else if (value != null) throw new StorageError(400, `${key} must be a string`);
+  }
+  // Tags are resolver inputs (the `notebook:` convention outranks the
+  // journal fallback) — the projection must see what the resolver sees.
+  const tags = row['tags'];
+  if (tags !== undefined && tags !== null) {
+    if (!Array.isArray(tags) || !tags.every((t) => typeof t === 'string')) throw new StorageError(400, 'tags must be a string array');
+    item.tags = tags as readonly string[];
   }
   return item;
 }
@@ -47,11 +57,11 @@ function ensureDdl(db: Database): Promise<void> {
   const n = db.dialect === 'postgres' ? ' DOUBLE PRECISION' : '';
   const t = db.dialect === 'postgres' ? ' TEXT COLLATE "C"' : ' TEXT';
   const ddl = [
-    `CREATE TABLE IF NOT EXISTS "domain_note" ("note_id"${t} PRIMARY KEY NOT NULL, "note_type"${t}, "catalog"${t}, "source_id"${t}, "source_path"${t}, "title"${t} NOT NULL, "title_search"${t} NOT NULL, "created_at"${n} NOT NULL, "date"${n}, "text_search"${t} NOT NULL, "journal"${n} NOT NULL, "payload"${t} NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS "domain_note" ("note_id"${t} PRIMARY KEY NOT NULL, "note_type"${t}, "source_id"${t}, "source_path"${t}, "title"${t} NOT NULL, "title_search"${t} NOT NULL, "created_at"${n} NOT NULL, "date"${n}, "text_search"${t} NOT NULL, "journal"${n} NOT NULL, "payload"${t} NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS "idx_domain_note_date" ON "domain_note" ("date", "note_id")`,
     `CREATE INDEX IF NOT EXISTS "idx_domain_note_created" ON "domain_note" ("created_at", "note_id")`,
     `CREATE INDEX IF NOT EXISTS "idx_domain_note_source_path" ON "domain_note" ("source_path")`,
-    `CREATE TABLE IF NOT EXISTS "query_block" ("occurrence_id"${t} PRIMARY KEY NOT NULL, "source_note_id"${t}, "parent_note_id"${t}, "content_id"${t}, "section_key"${t}, "ordinal"${n}, "data_type"${t}, "source_id"${t}, "source_path"${t}, "catalog"${t}, "effective_date"${n} NOT NULL, "created_at"${n} NOT NULL, "note_title"${t}, "normalized_text"${t} NOT NULL, "journal"${n} NOT NULL, "payload"${t} NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS "query_block" ("occurrence_id"${t} PRIMARY KEY NOT NULL, "source_note_id"${t}, "parent_note_id"${t}, "content_id"${t}, "section_key"${t}, "ordinal"${n} NOT NULL, "data_type"${t}, "source_id"${t}, "source_path"${t}, "effective_date"${n} NOT NULL, "created_at"${n} NOT NULL, "note_title"${t}, "normalized_text"${t} NOT NULL, "journal"${n} NOT NULL, "payload"${t} NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS "idx_query_block_type" ON "query_block" ("data_type", "effective_date", "occurrence_id")`,
     `CREATE INDEX IF NOT EXISTS "idx_query_block_parent" ON "query_block" ("parent_note_id", "ordinal")`,
     `CREATE INDEX IF NOT EXISTS "idx_query_block_content" ON "query_block" ("content_id")`,
@@ -64,8 +74,8 @@ function ensureDdl(db: Database): Promise<void> {
 }
 
 
-const DOMAIN_NOTE_COLS = ['note_id','note_type','catalog','source_id','source_path','title','title_search','created_at','date','text_search','journal','payload'] as const;
-const QUERY_BLOCK_COLS = ['occurrence_id','source_note_id','parent_note_id','content_id','section_key','ordinal','data_type','source_id','source_path','catalog','effective_date','created_at','note_title','normalized_text','journal','payload'] as const;
+const DOMAIN_NOTE_COLS = ['note_id','note_type','source_id','source_path','title','title_search','created_at','date','text_search','journal','payload'] as const;
+const QUERY_BLOCK_COLS = ['occurrence_id','source_note_id','parent_note_id','content_id','section_key','ordinal','data_type','source_id','source_path','effective_date','created_at','note_title','normalized_text','journal','payload'] as const;
 
 const conflictUpdate = (table: string, cols: readonly string[], keys: readonly string[]): string =>
   `ON CONFLICT (${keys.map((k) => `"${k}"`).join(', ')}) DO UPDATE SET ` +
@@ -77,11 +87,10 @@ const conflictUpdate = (table: string, cols: readonly string[], keys: readonly s
 function domainNoteRow(note: Record<string, unknown>): SqlValue[] | undefined {
   const id = text(note.id);
   if (!id) return undefined;
-  const source = sourceItem(note);
+  const source = sourceNote(note);
   return [
     id,
     T(note.type),
-    T(catalogOfItem(source)),
     T(note.sourceId),
     T(note.sourcePath),
     T(note.title) ?? '',
@@ -104,7 +113,7 @@ async function upsertDomainNotes(conn: SqlConnection, notes: Record<string, unkn
 function queryBlockRow(block: Record<string, unknown>, parent: NoteIdentity | undefined): SqlValue[] | undefined {
   const id = text(block.id);
   if (!id) return undefined;
-  const source = sourceItem(block);
+  const source = sourceNote(block);
   const createdAt = N(block.createdAt);
   const effective = parent ? (parent.date ?? parent.created_at) : createdAt;
   return [
@@ -117,7 +126,6 @@ function queryBlockRow(block: Record<string, unknown>, parent: NoteIdentity | un
     T(block.dataType),
     T(block.sourceId),
     T(block.sourcePath),
-    T(catalogOfItem(source)),
     effective,
     createdAt,
     parent?.note.title ?? T(block.noteTitle),
@@ -339,11 +347,25 @@ export async function rebuildProjections(conn: SqlConnection): Promise<void> {
     `CREATE TABLE IF NOT EXISTS "${SCHEMA_TABLE}" ("key" TEXT PRIMARY KEY, "value" TEXT NOT NULL)`,
   );
   for (const t of TABLES) await conn.exec(`DELETE FROM "${t}"`);
-  const notes = await conn.query(`SELECT "data" FROM "notes"`);
-  const noteObjs = notes.map((row) => decodeRowJson<Record<string, unknown>>(String(row.data)));
+  // The notebook-vocabulary migration (ticket 12) folds retired
+  // collection/feed identities on the store rows themselves before they are
+  // projected — the projection derives journal/source columns from these
+  // identities, so it must never see a legacy row.
+  const notes = await conn.query(`SELECT "k0", "data" FROM "notes"`);
+  const noteObjs = notes.map((row) => migrateLegacyRow(decodeRowJson<Record<string, unknown>>(String(row.data))));
+  for (let i = 0; i < notes.length; i++) {
+    if (hasLegacyIdentity(decodeRowJson<Record<string, unknown>>(String(notes[i]!.data)))) {
+      await conn.exec(`UPDATE "notes" SET "data" = ? WHERE "k0" = ?`, [encodeRowJson(noteObjs[i]!), String(notes[i]!.k0)]);
+    }
+  }
   await upsertDomainNotes(conn, noteObjs);
-  const blocks = await conn.query(`SELECT "data" FROM "block_index"`);
-  const blockObjs = blocks.map((row) => decodeRowJson<Record<string, unknown>>(String(row.data)));
+  const blocks = await conn.query(`SELECT "k0", "data" FROM "block_index"`);
+  const blockObjs = blocks.map((row) => migrateLegacyRow(decodeRowJson<Record<string, unknown>>(String(row.data))));
+  for (let i = 0; i < blocks.length; i++) {
+    if (hasLegacyIdentity(decodeRowJson<Record<string, unknown>>(String(blocks[i]!.data)))) {
+      await conn.exec(`UPDATE "block_index" SET "data" = ? WHERE "k0" = ?`, [encodeRowJson(blockObjs[i]!), String(blocks[i]!.k0)]);
+    }
+  }
   // domain_note was just rebuilt from exactly these notes — parent identity
   // resolves in memory instead of one query per block.
   const index = indexNoteIdentities(noteObjs);
@@ -475,9 +497,9 @@ const MAX_VALUES = 64;
 const MAX_VALUE_LEN = 256;
 const MAX_ORDER = 4;
 
-type Plan = 'notes' | 'blocks' | 'entries';
+type Plan = 'notes' | 'blocks' | 'detail';
 
-const listFields = ['id', 'noteId', 'type', 'catalog', 'source', 'tags', 'effort'] as const;
+const listFields = ['id', 'noteId', 'type', 'source', 'tags', 'effort'] as const;
 
 const onlyKeys = (obj: Record<string, unknown>, allowed: string[]): boolean =>
   Object.keys(obj).every((k) => allowed.includes(k));
@@ -515,6 +537,15 @@ function parsePredicate(v: unknown, plan: Plan): DomainPredicate {
     }
     return { field, values: strArray(obj.values, `predicate ${field}.values`), ...(negate ? { negate } : {}) } as DomainPredicate;
   }
+  if (field === 'typedTag') {
+    if (!onlyKeys(obj, ['field', 'tagType', 'values', 'negate'])) {
+      throw bad('predicate typedTag accepts only field/tagType/values/negate');
+    }
+    if (typeof obj.tagType !== 'string' || obj.tagType.length < 1 || obj.tagType.length > MAX_VALUE_LEN) {
+      throw bad(`predicate typedTag.tagType must be 1..=${MAX_VALUE_LEN} chars`);
+    }
+    return { field: 'typedTag', tagType: obj.tagType, values: strArray(obj.values, 'predicate typedTag.values'), ...(negate ? { negate } : {}) };
+  }
   if (field === 'text') {
     if (!onlyKeys(obj, ['field', 'value']) || negate) throw bad('predicate text accepts only {field, value}');
     if (typeof obj.value !== 'string' || obj.value.length < 1 || obj.value.length > MAX_VALUE_LEN) {
@@ -547,9 +578,9 @@ function parsePredicate(v: unknown, plan: Plan): DomainPredicate {
   }
   if (field === 'defaultNotes') {
     if (plan === 'blocks') throw bad('predicate defaultNotes does not apply to the blocks plan');
-    if (!onlyKeys(obj, ['field', 'feeds'])) throw bad('predicate defaultNotes accepts only {field, feeds}');
-    if (typeof obj.feeds !== 'boolean') throw bad('predicate defaultNotes.feeds must be boolean');
-    return { field: 'defaultNotes', feeds: obj.feeds };
+    if (!onlyKeys(obj, ['field', 'nonPages'])) throw bad('predicate defaultNotes accepts only {field, nonPages}');
+    if (typeof obj.nonPages !== 'boolean') throw bad('predicate defaultNotes.nonPages must be boolean');
+    return { field: 'defaultNotes', nonPages: obj.nonPages };
   }
   throw bad(`unknown predicate field: ${field}`);
 }
@@ -588,8 +619,8 @@ function parseQuery(body: unknown): ParsedQuery {
   if (body === null || typeof body !== 'object' || Array.isArray(body)) throw bad('body must be a DomainQuery object');
   const obj = body as Record<string, unknown>;
   const plan = obj.plan;
-  if (plan !== 'notes' && plan !== 'blocks' && plan !== 'entries') {
-    throw bad('body.plan must be notes | blocks | entries');
+  if (plan !== 'notes' && plan !== 'blocks' && plan !== 'detail') {
+    throw bad('body.plan must be notes | blocks | detail');
   }
   for (const k of Object.keys(obj)) {
     if (!['plan', 'selection', 'filters', 'order', 'offset', 'limit'].includes(k)) {
@@ -649,32 +680,28 @@ class Sql {
   }
 }
 
-/** WQL source domain — mirrors WQL_SOURCE_VALUES; the non-shape kinds
- * (dashboards/efforts) are exact sourceId literals, journal is materialized. */
-const SOURCE_ALL_KINDS = ['journal', 'feeds', 'guides', 'playground', 'dashboards', 'efforts'];
+/** WQL source domain — derived from the authoritative WQL_SOURCE_VALUES
+ * (journal leads the fence; the rest ride the shared shape table), so the
+ * SQL sourceFence cannot drift from the JS `source:all` domain. */
+const SOURCE_ALL_KINDS = ['journal', ...WQL_SOURCE_VALUES.filter((k) => k !== 'journal')];
 
+/** SQL projection of one source kind — built from the SAME
+ *  {@link SOURCE_ID_SHAPES} table `sourceMatches` reads (single shared
+ *  projection; never a second prefix decision). Unknown kinds keep the exact
+ *  sourceId literal. `journal` reads the materialized column, which the
+ *  write path computes with `sourceMatches(…, 'journal')` — the resolver's
+ *  documented journal fallback. */
 function sourceKindSql(ctx: Sql, kind: string, sid: string, typeExpr: string | null, journalCol: string): string {
-  switch (kind) {
-    case 'journal':
-      return `(${journalCol} = 1)`;
-    case 'feed':
-    case 'feeds':
-      // Storage identities keep the collection:/page:collection: prefixes.
-      return `(substr(${sid}, 1, 11) = 'collection:' OR substr(${sid}, 1, 16) = 'page:collection:')`;
-    case 'page':
-    case 'pages':
-      return `(${sid} = 'page' OR substr(${sid}, 1, 5) = 'page:' OR substr(${sid}, 1, 7) = 'guides:')`;
-    case 'guide':
-    case 'guides':
-      return `(substr(${sid}, 1, 7) = 'guides:')`;
-    case 'playground':
-      return typeExpr
-        ? `(${sid} = 'playground' OR (${typeExpr} IS NOT NULL AND ${typeExpr} = 'playground'))`
-        : `(${sid} = 'playground')`;
-    default:
-      // Exact sourceId literal; NULL sourceId never equals a value.
-      return `(${sid} = ${ctx.bind(kind)})`;
+  if (kind === 'journal') return `(${journalCol} = 1)`;
+  const shape = sourceShape(kind) ?? { exact: [kind] };
+  const parts: string[] = [];
+  for (const v of shape.exact ?? []) parts.push(`${sid} = ${ctx.bind(v)}`);
+  for (const p of shape.prefixes ?? []) parts.push(`substr(${sid}, 1, ${p.length}) = ${ctx.bind(p)}`);
+  if (shape.legacyType) {
+    // The legacy note-type convention exists only on the note plane.
+    parts.push(typeExpr ? `${typeExpr} = ${ctx.bind(shape.legacyType)}` : 'FALSE');
   }
+  return `(${parts.join(' OR ')})`;
 }
 
 function sourcePredicateSql(ctx: Sql, values: string[], negate: boolean, sid: string, typeExpr: string | null, journalCol: string): string {
@@ -691,7 +718,6 @@ function predicateSql(ctx: Sql, p: DomainPredicate, plan: Plan): string {
   const sid = blocks ? 'q."source_id"' : 'n."source_id"';
   const typeExpr = blocks ? null : 'n."note_type"';
   const typeCol = blocks ? 'q."data_type"' : 'n."note_type"';
-  const catalogCol = blocks ? 'q."catalog"' : 'n."catalog"';
   const journalCol = blocks ? 'q."journal"' : 'n."journal"';
   const noteId = blocks ? 'q."source_note_id"' : 'n."note_id"';
   switch (p.field) {
@@ -701,8 +727,6 @@ function predicateSql(ctx: Sql, p: DomainPredicate, plan: Plan): string {
       return wrap(p.negate === true, ctx.inList(noteId, p.values));
     case 'type':
       return wrap(p.negate === true, ctx.inList(typeCol, p.values));
-    case 'catalog':
-      return wrap(p.negate === true, ctx.inList(catalogCol, p.values));
     case 'source':
       return sourcePredicateSql(ctx, p.values, p.negate === true, sid, typeExpr, journalCol);
     case 'tags':
@@ -711,6 +735,15 @@ function predicateSql(ctx: Sql, p: DomainPredicate, plan: Plan): string {
         p.negate === true,
         `EXISTS (SELECT 1 FROM "note_tags" nt JOIN "tags" t ON t."k0" = nt."i_by_tag_0" ` +
           `WHERE nt."i_by_note_0" = ${noteId} AND t."i_by_label_0" IN (${p.values.map((v) => ctx.bind(v)).join(', ')}))`,
+      );
+    case 'typedTag':
+      // Typed-tag narrow (ticket 08) — joins on the tags by-type index so a
+      // type+label pair resolves in SQL instead of residual JS.
+      return wrap(
+        p.negate === true,
+        `EXISTS (SELECT 1 FROM "note_tags" nt JOIN "tags" t ON t."k0" = nt."i_by_tag_0" ` +
+          `WHERE nt."i_by_note_0" = ${noteId} AND t."i_by_type_0" = ${ctx.bind(p.tagType)} ` +
+          `AND t."i_by_label_0" IN (${p.values.map((v) => ctx.bind(v)).join(', ')}))`,
       );
     case 'effort':
       return wrap(
@@ -738,7 +771,7 @@ function predicateSql(ctx: Sql, p: DomainPredicate, plan: Plan): string {
       return `(${sid} IS NULL OR ${sid} = '' OR ${all})`;
     }
     case 'defaultNotes':
-      return p.feeds
+      return p.nonPages
         ? `(n."note_type" IS NULL OR n."note_type" <> 'page')`
         : `(n."note_type" = 'note' OR (substr(COALESCE(n."source_id", ''), 1, 5) <> 'page:' ` +
             `AND substr(COALESCE(n."source_id", ''), 1, 7) <> 'guides:' ` +
@@ -813,7 +846,7 @@ async function execute(conn: SqlConnection, q: ParsedQuery, pg: boolean): Promis
   const ordering = orderSql(q.order, plan);
   const paging = pagingSql(q, pg);
 
-  if (plan !== 'entries') {
+  if (plan !== 'detail') {
     const pageSql = `SELECT "payload" FROM ${table}${fullWhere} ORDER BY ${ordering}${paging}`;
     const rows: unknown[] = (await conn.query(pageSql, allParams)).map((r) => decodeRowJson(String(r.payload)));
     const result = { projectionVersion: DOMAIN_PROJECTION_VERSION, selectedCount, matchedCount, plan, rows };

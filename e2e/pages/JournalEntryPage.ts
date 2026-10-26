@@ -20,7 +20,7 @@ export class JournalEntryPage extends BaseNotePage {
   // ── Navigation ────────────────────────────────────────────────────────────
 
   url(date: string) {
-    return `/journal/${date}`;
+    return `/day/${date}`;
   }
 
   async goto(date: string) {

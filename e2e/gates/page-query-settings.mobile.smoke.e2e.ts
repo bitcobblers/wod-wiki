@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
  * Mobile gate (journal-mobile-375 project): the per-page query settings
@@ -11,7 +11,7 @@ import { waitForSeedReady } from '../helpers/seedReadiness';
 
 test('the query settings sheet fits 375px without horizontal overflow', async ({ page }) => {
   await page.goto('/journal', { waitUntil: 'domcontentloaded' });
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
   await expect(page.getByRole('main').first()).toBeVisible();
 
   // The page options drawer carries the trigger on phones.

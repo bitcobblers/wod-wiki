@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
  * Per-page query settings — a surface's own query configuration, edited
@@ -64,7 +64,7 @@ async function composerText(page: Page): Promise<string> {
 test.describe('Page query settings — library surfaces', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(JOURNAL, { waitUntil: 'domcontentloaded' });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     // Start from a clean slate so a stored override from an earlier test
     // cannot leak into the next one.
     await page.evaluate(() => {
@@ -73,16 +73,17 @@ test.describe('Page query settings — library surfaces', () => {
         .forEach((k) => localStorage.removeItem(k));
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
   });
 
   test('the options surface carries a Query settings entry that opens the page editor', async ({ page }) => {
     await openQuerySettings(page);
 
     await expect(page.getByRole('heading', { name: 'Journal query settings' })).toBeVisible();
-    // The system default is shown read-only beside the editable value.
+    // The system default is shown read-only beside the editable value — the
+    // copyable note-plane form (`:note{…} by {date}`), not a scoped head.
     await expect(
-      page.getByTestId('query-settings-panel').getByText(':journal{} last 4w'),
+      page.getByTestId('query-settings-panel').getByText(':note{notebook:journal} by {date} last 4w'),
     ).toBeVisible();
   });
 
@@ -97,7 +98,7 @@ test.describe('Page query settings — library surfaces', () => {
     await closeQuerySettings(page);
 
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await expect.poll(() => composerText(page)).toContain('52w');
   });
 
@@ -112,6 +113,10 @@ test.describe('Page query settings — library surfaces', () => {
   test('the Group-By favorites drive the arrangement dimension', async ({ page }) => {
     await openQuerySettings(page);
 
+    // A query grouping beats a stored favorite (the query leg wins), so make
+    // the landing bare — the journal default carries `by {date}` in the
+    // query itself — then store the favorite.
+    await page.getByTestId('query-settings-wql').fill(':journal{}');
     await page.getByTestId('query-settings-group-custom').click();
     await page.getByTestId('query-settings-group-add-week').click();
     await page.getByTestId('query-settings-save').click();
@@ -138,7 +143,7 @@ test.describe('Page query settings — library surfaces', () => {
     await expect(page.getByTestId('query-settings-wql')).toHaveValue('');
     await closeQuerySettings(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await expect.poll(() => composerText(page)).not.toContain('52w');
   });
 

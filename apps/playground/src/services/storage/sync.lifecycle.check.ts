@@ -220,14 +220,14 @@ try {
   assert.equal(await fresh.readonly('meta').get('seed:core'), undefined);
   await freshEngine.stop();
 
-  const seedPath = 'markdown/collections/deleted.md';
+  const seedPath = 'markdown/notebooks/deleted.md';
   const seedId = await seedNoteId(seedPath);
   const seedWrite = {
-    chunkId: 'collection.test',
+    chunkId: 'notebook.test',
     expectedMeta: undefined,
     rows: [{ path: seedPath, content: '# Deleted seed', blocks: {}, blockIndex: [], blockEfforts: [], blockEquipment: [] }],
     manifest: { schema: SEED_SCHEMA, version: 1, builtAt: new Date(0).toISOString(), chunks: [] },
-    meta: { ...emptySeedMeta('seed:deletion-check'), chunks: { 'collection.test': { sha256: 'a'.repeat(64), noteIds: [seedId] } } },
+    meta: { ...emptySeedMeta('seed:deletion-check'), chunks: { 'notebook.test': { sha256: 'a'.repeat(64), noteIds: [seedId] } } },
   };
   await applySeedChunk(policyLocal, seedWrite);
   await new StorageService(policyLocal).deleteNote(seedId);

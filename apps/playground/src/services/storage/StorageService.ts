@@ -13,12 +13,13 @@ import type {
   Tag,
   TagTypeRecord,
 } from '@/types/storage';
+import { orderPlacements, resolvePlacements, type NotePlacement } from '@bitcobblers/wod-wiki-core';
 import { parseScript, extractStatementRefs, createReferenceIndex, type ReferenceResolutionDefaults } from '@bitcobblers/wod-wiki-lang';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
 import { parseDocumentSections, validateNoteBlocks, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS, MetricType } from '@bitcobblers/wod-wiki-core';
 import { rowsEqual, userDeletedSeedKey } from '@bitcobblers/wod-wiki-storage';
-import type { DomainEntry, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
+import type { DomainDetail, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
 import type { IStorage, IStorageTransaction, StoreName } from './IStorage';
 import { NotePersistenceError, type NotePersistenceStorage, type SaveNoteInput } from '../persistence/types';
 const NOTE_BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
@@ -147,7 +148,10 @@ export class StorageService implements NotePersistenceStorage {
     for (const candidate of candidateSlugs) {
       const pages = await this.storage.readonly('page').getAllFromIndex('by-slug', candidate);
       for (const page of pages) {
-        const links = await this.getPageNotes(page.id);
+        // A page may hold several notes — the junction is many-to-many — so
+        // the note a slug resolves to is the one whose placement on that page
+        // comes first in the canonical placement order.
+        const links = orderPlacements(await this.getPageNotes(page.id));
         for (const link of links) {
           const note = await this.getNote(link.noteId);
           if (note) return note;
@@ -200,19 +204,19 @@ export class StorageService implements NotePersistenceStorage {
   }
 
   /** Hydrate note metadata through one remote plan or one local transaction. */
-  async getEntryBatches(noteIds: readonly string[]): Promise<Map<string, DomainEntry>> {
-    const out = new Map<string, DomainEntry>();
+  async getDetailBatches(noteIds: readonly string[]): Promise<Map<string, DomainDetail>> {
+    const out = new Map<string, DomainDetail>();
     if (noteIds.length === 0) return out;
     if (this.storage.queryDomain) {
       const ids = [...new Set(noteIds)];
-      const remote: DomainEntry[] = [];
+      const remote: DomainDetail[] = [];
       let remoteComplete = true;
       for (let i = 0; i < ids.length && remoteComplete; i += DOMAIN_ID_CHUNK) {
         const res = await this.storage.queryDomain({
-          plan: 'entries',
+          plan: 'detail',
           selection: [{ field: 'id', values: ids.slice(i, i + DOMAIN_ID_CHUNK) }],
         });
-        if (res && res.plan === 'entries') remote.push(...res.rows);
+        if (res && res.plan === 'detail') remote.push(...res.rows);
         else remoteComplete = false;
       }
       if (remoteComplete) {
@@ -358,27 +362,128 @@ export class StorageService implements NotePersistenceStorage {
     return this.storage.readonly('page_notes').getAllFromIndex('by-note', noteId);
   }
 
-  async addNoteToPage(noteId: string, pageId: string, position?: number): Promise<string> {
-    const existing = await this.storage.readonly('page_notes')
-      .getAllFromIndex('by-page-note', [pageId, noteId]);
-    if (existing.length > 0) return existing[0].id;
-    const id = generateId();
-    await this.storage.readwrite('page_notes').put({
-      id,
-      pageId,
-      noteId,
-      position,
-      createdAt: Date.now(),
-    });
-    return id;
+  /**
+   * Indexed note→placements lookup. The `by-note` index resolves the note's
+   * junction rows; only the pages those rows name are read — a lookup never
+   * scans every page. Rows are returned in the canonical placement order.
+   */
+  async getNotePlacements(noteId: string): Promise<NotePlacement[]> {
+    const links = await this.getNotePages(noteId);
+    if (links.length === 0) return [];
+    const pages: Page[] = [];
+    for (const pageId of new Set(links.map((link) => link.pageId))) {
+      const page = await this.getPage(pageId);
+      if (page) pages.push(page);
+    }
+    return resolvePlacements(links, pages);
   }
 
-  async removeNoteFromPage(noteId: string, pageId: string): Promise<void> {
+  /** The one junction row for a (page, note) pair — the `by-page-note` index. */
+  async getPageNote(pageId: string, noteId: string): Promise<PageNote | undefined> {
     const existing = await this.storage.readonly('page_notes')
       .getAllFromIndex('by-page-note', [pageId, noteId]);
-    for (const link of existing) {
-      await this.storage.readwrite('page_notes').delete(link.id);
+    return existing[0];
+  }
+
+  /**
+   * The notes placed on a page, in the canonical placement order — the page's
+   * own listing. Reads the page's junction rows through the `by-page` index.
+   */
+  async getPagePlacements(pageId: string): Promise<NotePlacement[]> {
+    const links = orderPlacements(await this.getPageNotes(pageId));
+    if (links.length === 0) return [];
+    const page = await this.getPage(pageId);
+    return page ? resolvePlacements(links, [page]) : [];
+  }
+
+  /**
+   * Place a note on a page. The placement is appended by default — an
+   * explicit position one past the maximum explicit position among the
+   * page's rows and the note's rows — so the canonical order stays
+   * deterministic even when rows tie on createdAt. The positions of the
+   * page's other placements are left untouched. Attaching never detaches:
+   * the note keeps its other pages.
+   */
+  async addNoteToPage(noteId: string, pageId: string, position?: number): Promise<string> {
+    return this.withTransaction(['page_notes'], async (scoped) => {
+      const existing = await scoped.getPageNote(pageId, noteId);
+      if (existing) return existing.id;
+      const id = generateId();
+      await scoped.storage.readwrite('page_notes').put({
+        id,
+        pageId,
+        noteId,
+        position: position ?? (await scoped.nextAppendPosition(pageId, noteId)),
+        createdAt: Date.now(),
+      });
+      return id;
+    });
+  }
+
+  /**
+   * The append ordinal for a new placement: one past the maximum explicit
+   * position among the page's rows and the note's rows. Scoped to the
+   * enclosing transaction. Rows without a position are legacy rows — they
+   * never set the maximum, but the explicit position keeps a new row from
+   * tie-breaking on createdAt (and the random id) against either ordering.
+   */
+  private async nextAppendPosition(pageId: string, noteId: string): Promise<number> {
+    const rows = [
+      ...(await this.getPageNotes(pageId)),
+      ...(await this.getNotePages(noteId)),
+    ];
+    let max = -1;
+    for (const row of rows) {
+      if (typeof row.position === 'number' && row.position > max) max = row.position;
     }
+    return max + 1;
+  }
+
+  /** Detach a note from one page. The note, its source and its results stay. */
+  async removeNoteFromPage(noteId: string, pageId: string): Promise<void> {
+    await this.withTransaction(['page_notes'], async (scoped) => {
+      const existing = await scoped.getPageNote(pageId, noteId);
+      if (existing) await scoped.storage.readwrite('page_notes').delete(existing.id);
+    });
+  }
+
+  /**
+   * Move a note from one page to another in a single transaction: the source
+   * placement is detached and the destination placement is attached — either
+   * fails, neither happens. The destination placement is appended unless an
+   * explicit position is given; the other placements of both pages keep
+   * their positions.
+   *
+   * The source placement is validated INSIDE the transaction: a move of a
+   * note that is not on the source page fails with
+   * {@link NotePersistenceError} `NOTE_NOT_PLACED` and changes nothing.
+   */
+  async moveNoteBetweenPages(
+    noteId: string,
+    fromPageId: string,
+    toPageId: string,
+    position?: number,
+  ): Promise<void> {
+    await this.withTransaction(['page_notes'], async (scoped) => {
+      const source = await scoped.getPageNote(fromPageId, noteId);
+      if (!source) {
+        throw new NotePersistenceError(
+          'NOTE_NOT_PLACED',
+          `Note ${noteId} is not placed on page ${fromPageId}`,
+        );
+      }
+      await scoped.storage.readwrite('page_notes').delete(source.id);
+      const destination = await scoped.getPageNote(toPageId, noteId);
+      if (!destination) {
+        await scoped.storage.readwrite('page_notes').put({
+          id: generateId(),
+          pageId: toPageId,
+          noteId,
+          position: position ?? (await scoped.nextAppendPosition(toPageId, noteId)),
+          createdAt: Date.now(),
+        });
+      }
+    });
   }
 
   async getOrCreatePageForDate(date: string): Promise<Page> {
@@ -818,17 +923,17 @@ export class StorageService implements NotePersistenceStorage {
 
   async countBlockIndexInDomain(): Promise<number> {
     const store = this.storage.readonly('block_index');
-    const [total, indexed, empty, collections, pageCollections, guides, playground, journal] = await Promise.all([
+    const [total, indexed, empty, notebooks, pages, guides, playground, journal] = await Promise.all([
       store.count(),
       store.countFromIndex('by-source'),
       store.countFromIndex('by-source', ''),
-      store.countFromIndex('by-source', IDBKeyRange.bound('collection:', 'collection;', false, true)),
-      store.countFromIndex('by-source', IDBKeyRange.bound('page:collection:', 'page:collection;', false, true)),
+      store.countFromIndex('by-source', IDBKeyRange.bound('notebook:', 'notebook;', false, true)),
+      store.countFromIndex('by-source', IDBKeyRange.bound('page:', 'page;', false, true)),
       store.countFromIndex('by-source', IDBKeyRange.bound('guides:', 'guides;', false, true)),
       store.countFromIndex('by-source', 'playground'),
       store.getAllFromIndex('by-source', 'journal'),
     ]);
-    return total - indexed + empty + collections + pageCollections + guides + playground
+    return total - indexed + empty + notebooks + pages + guides + playground
       + journal.filter(row => !row.id.startsWith('pg-') && !row.noteId.startsWith('pg-')).length;
   }
 

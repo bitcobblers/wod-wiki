@@ -16,7 +16,7 @@ interface CanvasProsePanelProps {
   editorWidth?: string
   contentSections: CanvasSection[]
   isCollection: boolean
-  collectionSlug: string | null
+  notebookSlug: string | null
   workoutItems: WorkoutItem[] | undefined
   handleSelectWorkout: (item: WorkoutItem) => void
   activeSectionId: string | null
@@ -50,7 +50,7 @@ interface RenderSectionArgs {
   chapters?: Chapter[]
   challengeQuests?: Array<Quest & { isCompleted: boolean }>
   isCollection: boolean
-  collectionSlug: string | null
+  notebookSlug: string | null
   workoutItems: WorkoutItem[] | undefined
   handleSelectWorkout: (item: WorkoutItem) => void
   onScrollToSection?: (sectionId: string) => void
@@ -76,7 +76,7 @@ const renderSection = (
     chapters={args.chapters}
     challengeQuests={args.challengeQuests}
     isCollection={args.isCollection}
-    collectionSlug={args.collectionSlug}
+    notebookSlug={args.notebookSlug}
     workoutItems={args.workoutItems}
     handleSelectWorkout={args.handleSelectWorkout}
     onScrollToSection={args.onScrollToSection}
@@ -91,7 +91,7 @@ export const CanvasProsePanel: React.FC<CanvasProsePanelProps> = ({
   editorWidth = '50%',
   contentSections,
   isCollection,
-  collectionSlug,
+  notebookSlug,
   workoutItems,
   handleSelectWorkout,
   activeSectionId,
@@ -126,7 +126,7 @@ export const CanvasProsePanel: React.FC<CanvasProsePanelProps> = ({
     chapters,
     challengeQuests,
     isCollection,
-    collectionSlug,
+    notebookSlug,
     workoutItems,
     handleSelectWorkout,
     onScrollToSection,
@@ -137,11 +137,11 @@ export const CanvasProsePanel: React.FC<CanvasProsePanelProps> = ({
     ? { width: `calc(100% - ${editorWidth})`, flexBasis: `calc(100% - ${editorWidth})`, maxWidth: `calc(100% - ${editorWidth})` }
     : {}
 
-  const collectionList = isCollection && collectionSlug && workoutItems ? (
-    <div id="collection-workouts" className="border-b border-border/50 bg-card">
+  const collectionList = isCollection && notebookSlug && workoutItems ? (
+    <div id="notebook-workouts" className="border-b border-border/50 bg-card">
       <div className="w-full mx-auto">
         <CollectionWorkoutsList
-          category={collectionSlug ?? ''}
+          category={notebookSlug ?? ''}
           workoutItems={workoutItems ?? []}
           onSelect={handleSelectWorkout}
           showSearch={false}

@@ -19,50 +19,50 @@ describe('StaticContentProvider', () => {
     expect(provider.capabilities.supportsHistory).toBe(true);
   });
 
-  it('getEntries should return a single entry', async () => {
+  it('getRecords should return a single entry', async () => {
     const provider = new StaticContentProvider(content);
-    const entries = await provider.getEntries();
+    const entries = await provider.getRecords();
     expect(entries).toHaveLength(1);
     expect(entries[0].id).toBe('static');
     expect(entries[0].rawContent).toBe(content);
     expect(entries[0].schemaVersion).toBe(1);
   });
 
-  it('getEntry should return entry for id "static"', async () => {
+  it('getRecord should return entry for id "static"', async () => {
     const provider = new StaticContentProvider(content);
-    const entry = await provider.getEntry('static');
+    const entry = await provider.getRecord('static');
     expect(entry).not.toBeNull();
     expect(entry!.rawContent).toBe(content);
   });
 
-  it('getEntry should return the singleton entry for any id', async () => {
+  it('getRecord should return the singleton entry for any id', async () => {
     const provider = new StaticContentProvider(content);
-    const entry = await provider.getEntry('unknown-id');
+    const entry = await provider.getRecord('unknown-id');
     expect(entry).not.toBeNull();
     expect(entry!.id).toBe('static');
   });
 
-  it('saveEntry should update the singleton entry', async () => {
+  it('saveRecord should update the singleton entry', async () => {
     const provider = new StaticContentProvider(content);
-    const original = await provider.getEntry('static');
-    const saved = await provider.saveEntry({ title: 'X', rawContent: 'new content', tags: [], targetDate: 1, sourceRevision: original!.sourceRevision });
+    const original = await provider.getRecord('static');
+    const saved = await provider.saveRecord({ title: 'X', rawContent: 'new content', tags: [], targetDate: 1, sourceRevision: original!.sourceRevision });
     expect(saved.id).toBe('static');
     expect(saved.rawContent).toBe('new content');
-    const fetched = await provider.getEntry('static');
+    const fetched = await provider.getRecord('static');
     expect(fetched!.rawContent).toBe('new content');
   });
 
-  it('updateEntry should patch the singleton entry', async () => {
+  it('updateRecord should patch the singleton entry', async () => {
     const provider = new StaticContentProvider(content);
-    const updated = await provider.updateEntry('static', { title: 'New' });
+    const updated = await provider.updateRecord('static', { title: 'New' });
     expect(updated.title).toBe('New');
     expect(updated.rawContent).toBe(content);
   });
 
-  it('deleteEntry should be a no-op', async () => {
+  it('deleteRecord should be a no-op', async () => {
     const provider = new StaticContentProvider(content);
-    await provider.deleteEntry('static');
-    const entry = await provider.getEntry('static');
+    await provider.deleteRecord('static');
+    const entry = await provider.getRecord('static');
     expect(entry).not.toBeNull();
   });
 
@@ -82,7 +82,7 @@ describe('StaticContentProvider', () => {
     expect(started.revision.rawContent).toContain('12:00');
     expect((await persistence.getBlockHistory(saved.id, blockId)).map(row => row.version)).toEqual([1, 2]);
 
-    await expect(provider.saveEntry({ title: 'Stale', rawContent: content, tags: [], targetDate: 1,
+    await expect(provider.saveRecord({ title: 'Stale', rawContent: content, tags: [], targetDate: 1,
       sourceRevision: saved.sourceRevision })).rejects.toMatchObject({ code: 'STALE_SOURCE' });
   });
 });

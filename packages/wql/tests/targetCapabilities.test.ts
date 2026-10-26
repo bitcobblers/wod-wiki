@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseQuery, type ParsedFindQuery } from '../src/wql';
+import { allowedFilterTypesForTarget, wqlFilterKeys } from '../src/capabilities';
+import { WQL_TYPED_TAG_KEYS } from '../src/vocabulary';
 import { QueryService, type EventStore, type NoteQueryStore } from '../src/QueryService';
 import type { Note } from '@bitcobblers/wod-wiki-core';
 
@@ -69,5 +71,32 @@ describe('consumer regression: unsupported filters change nothing but the adviso
     const advisories = filtered.parsed.advisories?.join(' ') ?? '';
     expect(advisories).toContain('discipline');
     expect(advisories).toContain(':effort');
+  });
+});
+
+describe('container-plane capability sets (ticket 08)', () => {
+  it('notebook advertises the note plane’s member-criteria keys — never silently ignored', () => {
+    const notebook = wqlFilterKeys('notebook', 'find');
+    for (const key of ['text', 'notebook', 'tags', 'effort', 'type', 'source', 'page', 'note', ...WQL_TYPED_TAG_KEYS]) {
+      expect(notebook, key).toContain(key);
+    }
+    expect(notebook).toEqual(wqlFilterKeys('note', 'find'));
+  });
+
+  it('page/tag/equipment do not advertise groupby — their executors return flat rows', () => {
+    for (const target of ['page', 'tag', 'equipment']) {
+      expect([...allowedFilterTypesForTarget(target, 'find')], target).not.toContain('groupby');
+    }
+    // Grouping stays advertised on the note plane — the notebook head
+    // delegates there, so `:notebook{} by {tag}` groups like `:note`.
+    expect([...allowedFilterTypesForTarget('note', 'find')]).toContain('groupby');
+  });
+
+  it('container planes disclose unsupported keys instead of ignoring them', () => {
+    expect(parseQuery(':page{tags:pr}').advisories?.join(' ') ?? '').toContain('tags');
+    expect(parseQuery(':equipment{effort:fran}').advisories?.join(' ') ?? '').toContain('effort');
+    // Both tag spellings are real label filters on the tag plane — applied,
+    // not disclosed as ignored.
+    expect(parseQuery(':tag{tags:pr}').advisories).toBeUndefined();
   });
 });

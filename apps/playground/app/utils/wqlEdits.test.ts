@@ -17,7 +17,7 @@ describe('scopeOfQuery', () => {
   it('reads the canonical Where-stored scope from the source filter', () => {
     expect(scopeOfQuery(':note last 2w')).toBeNull();
     expect(scopeOfQuery(':note{source:journal}')).toBe('journal');
-    expect(scopeOfQuery(':note{source:feeds,tags:pr} last 2w')).toBe('feeds');
+    expect(scopeOfQuery(':note{source:notebooks,tags:pr} last 2w')).toBe('notebooks');
     expect(scopeOfQuery(':note{source:playground} last 4w')).toBe('playground');
     expect(scopeOfQuery(':block{source:journal}')).toBe('journal');
   });
@@ -39,18 +39,18 @@ describe('setScopeFilter', () => {
   });
 
   it('replaces the first source occurrence in place and preserves every other clause', () => {
-    expect(setScopeFilter(':note{source:guides,tags:pr} by {tag} last 8w', 'feeds')).toBe(
-      ':note{source:feeds,tags:pr} by {tag} last 8w',    );
+    expect(setScopeFilter(':note{source:guides,tags:pr} by {tag} last 8w', 'notebooks')).toBe(
+      ':note{source:notebooks,tags:pr} by {tag} last 8w',    );
   });
 
   it('does not merge or drop a second source occurrence', () => {
-    expect(setScopeFilter(':note{source:journal,text:"fran",source:guides}', 'feeds')).toBe(
-      ':note{source:feeds,text:fran,source:guides}',    );
+    expect(setScopeFilter(':note{source:journal,text:"fran",source:guides}', 'notebooks')).toBe(
+      ':note{source:notebooks,text:fran,source:guides}',    );
   });
 
-  it('emits the canonical source:feeds scope — never source:page or type:collection', () => {
-    const next = setScopeFilter(':note{tags:pr} last 2w', 'feeds');
-    expect(next).toBe(':note{tags:pr,source:feeds} last 2w');
+  it('emits the canonical source:notebooks scope — never source:page', () => {
+    const next = setScopeFilter(':note{tags:pr} last 2w', 'notebooks');
+    expect(next).toBe(':note{tags:pr,source:notebooks} last 2w');
     expect(next).not.toContain('source:page');
     expect(next).not.toContain('type:collection');
   });
@@ -73,8 +73,8 @@ describe('setScopeFilter', () => {
   });
 
   it('edits block scopes like note scopes', () => {
-    expect(setScopeFilter(':block{text:"cindy"}', 'feeds')).toBe(
-      ':block{text:cindy,source:feeds}',
+    expect(setScopeFilter(':block{text:"cindy"}', 'notebooks')).toBe(
+      ':block{text:cindy,source:notebooks}',
     );
   });
 

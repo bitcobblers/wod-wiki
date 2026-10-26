@@ -1,10 +1,10 @@
 /**
- * Catalog / Organisms / WqlComposer
+ * Forms / Organisms / WqlComposer
  *
  * Renders the shared WqlComposer organism exported from @bitcobblers/wod-wiki-ui.
  *
  * Shared omni command bar (option A cutover) — clause chips with
- * placeholder guidance, one shared searchable picker, add-filter catalog, and a
+ * placeholder guidance, one shared searchable picker, add-filter picker, and a
  * where-join editor composing a WQL query. Arrows move through rendered
  * options, Enter selects an explicitly active option, Escape dismisses one
  * level; Tab accepts an active text completion, otherwise moves real focus. Run/Apply/Save actions consume the

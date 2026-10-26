@@ -9,20 +9,20 @@ import {
 } from './fieldProjection'
 
 describe('fieldProjection - getEntityLevel', () => {
-  it('identifies note and post kinds as note level', () => {
+  it('identifies the note kind as note level (sessions and posts folded into note)', () => {
     const noteEntry: Entry = {
       id: 'n1',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: 'n1',
+      sourceNotebook: 'journal',
+      sourceNote: 'n1',
       title: 'Daily Log',
       date: '2026-09-02',
     }
     const postEntry: Entry = {
       id: 'p1',
-      kind: 'post',
-      sourceCatalog: 'feeds',
-      sourceItem: 'p1',
+      kind: 'note',
+      sourceNotebook: 'feeds',
+      sourceNote: 'p1',
       title: 'Feed Post',
       date: '2026-09-02',
     }
@@ -30,24 +30,12 @@ describe('fieldProjection - getEntityLevel', () => {
     expect(getEntityLevel(postEntry)).toBe('note')
   })
 
-  it('identifies session kind as session level', () => {
-    const sessionEntry: Entry = {
-      id: 's1',
-      kind: 'session',
-      sourceCatalog: 'crossfit-girls',
-      sourceItem: 'fran',
-      title: 'Fran',
-      date: null,
-    }
-    expect(getEntityLevel(sessionEntry)).toBe('session')
-  })
-
   it('identifies result kind as result level', () => {
     const resultEntry: Entry = {
       id: 'r1',
       kind: 'result',
-      sourceCatalog: 'results',
-      sourceItem: 'r1',
+      sourceNotebook: 'results',
+      sourceNote: 'r1',
       title: 'Murph Session',
       date: '2026-09-02',
     }
@@ -58,16 +46,16 @@ describe('fieldProjection - getEntityLevel', () => {
     const segmentEntry: Entry = {
       id: 'seg-1',
       kind: 'segment',
-      sourceCatalog: 'results',
-      sourceItem: 'seg-1',
+      sourceNotebook: 'results',
+      sourceNote: 'seg-1',
       title: 'Round 1',
       date: '2026-09-02',
     }
     const eventEntry: Entry = {
       id: 'ev-1',
       kind: 'event',
-      sourceCatalog: 'results',
-      sourceItem: 'ev-1',
+      sourceNotebook: 'results',
+      sourceNote: 'ev-1',
       title: 'Split 1',
       date: '2026-09-02',
     }
@@ -79,8 +67,8 @@ describe('fieldProjection - getEntityLevel', () => {
     const effortEntry: Entry = {
       id: 'back-squat',
       kind: 'effort',
-      sourceCatalog: 'community',
-      sourceItem: 'back-squat',
+      sourceNotebook: 'community',
+      sourceNote: 'back-squat',
       title: 'Back Squat',
       date: null,
     }
@@ -92,7 +80,7 @@ describe('fieldProjection - field registries per entity level (Ticket 002 requir
   it('defines the required available fields for Note level', () => {
     const fields = getFieldsForLevel('note')
     const fieldIds = fields.map(f => f.id)
-    expect(fieldIds).toEqual(['title', 'tags', 'excerpt', 'catalog', 'date'])
+    expect(fieldIds).toEqual(['title', 'tags', 'excerpt', 'sourceNotebook', 'date'])
   })
 
   it('defines the required available fields for Session level', () => {
@@ -137,8 +125,8 @@ describe('fieldProjection - value extraction and formatting', () => {
     const entry: Entry = {
       id: 'note-1',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: 'note-1',
+      sourceNotebook: 'journal',
+      sourceNote: 'note-1',
       title: 'Morning Training',
       date: '2026-09-02',
       tags: ['strength', 'conditioning'],
@@ -153,16 +141,16 @@ describe('fieldProjection - value extraction and formatting', () => {
     expect(projected.title).toBe('Morning Training')
     expect(projected.tags).toBe('strength, conditioning')
     expect(projected.excerpt).toBe('5 rounds for time: 10 pull-ups 20 push-ups')
-    expect(projected.catalog).toBe('journal')
+    expect(projected.sourceNotebook).toBe('journal')
     expect(projected.date).toBe('2026-09-02')
   })
 
   it('extracts session level fields from an entry', () => {
     const entry: Entry = {
       id: 'crossfit-girls/fran',
-      kind: 'session',
-      sourceCatalog: 'crossfit-girls',
-      sourceItem: 'fran',
+      kind: 'note',
+      sourceNotebook: 'crossfit-girls',
+      sourceNote: 'fran',
       title: 'Fran',
       date: null,
       subtitle: 'For Time',
@@ -189,8 +177,8 @@ describe('fieldProjection - value extraction and formatting', () => {
     const entry: Entry = {
       id: 'res-101',
       kind: 'result',
-      sourceCatalog: 'results',
-      sourceItem: 'res-101',
+      sourceNotebook: 'results',
+      sourceNote: 'res-101',
       title: 'Murph Session',
       date: '2026-09-02',
       execution: {
@@ -215,8 +203,8 @@ describe('fieldProjection - value extraction and formatting', () => {
     const entry: Entry = {
       id: 'res-101:seg-2',
       kind: 'segment',
-      sourceCatalog: 'results',
-      sourceItem: 'res-101:seg-2',
+      sourceNotebook: 'results',
+      sourceNote: 'res-101:seg-2',
       title: 'Round 2',
       date: '2026-09-02',
       execution: {
@@ -241,8 +229,8 @@ describe('fieldProjection - value extraction and formatting', () => {
     const entry: Entry = {
       id: 'clean-and-jerk',
       kind: 'effort',
-      sourceCatalog: 'canonical',
-      sourceItem: 'clean-and-jerk',
+      sourceNotebook: 'canonical',
+      sourceNote: 'clean-and-jerk',
       title: 'Clean & Jerk',
       date: null,
       effort: {
@@ -268,8 +256,8 @@ describe('fieldProjection - value extraction and formatting', () => {
     const entry: Entry = {
       id: 'back-squat',
       kind: 'effort',
-      sourceCatalog: 'canonical',
-      sourceItem: 'back-squat',
+      sourceNotebook: 'canonical',
+      sourceNote: 'back-squat',
       title: 'Back Squat',
       date: null,
       effort: {

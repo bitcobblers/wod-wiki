@@ -6,25 +6,26 @@
  * Swapping to a different provider (e.g., API-backed) = one-line change at the app root.
  */
 
-import type { HistoryEntry, EntryQuery, ProviderCapabilities } from './history';
+import type { HistoryRecord, HistoryQuery, ProviderCapabilities } from './history';
 import type { Attachment, ResultOrigin, NoteBlock } from './storage';
+import type { PageTarget } from '@bitcobblers/wod-wiki-core';
 import type { StorageService } from '@/services/storage/StorageService';
 
 export type AttachmentCreateInput = Omit<Attachment, 'id' | 'noteId' | 'createdAt'> & { id?: string };
 
 /**
- * Input to `saveEntry`. The identity/timestamp fields are optional: present
+ * Input to `saveRecord`. The identity/timestamp fields are optional: present
  * when re-importing an exported note (so the round-trip preserves them and
  * overwrites the original instead of duplicating), absent on the normal create
  * path (the provider mints fresh values).
  */
-export type NoteSaveInput = Omit<HistoryEntry, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'> & {
+export type NoteSaveInput = Omit<HistoryRecord, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'> & {
     id?: string;
     createdAt?: number;
     updatedAt?: number;
 };
 
-export type NoteEntryPatch = Partial<Pick<HistoryEntry, 'rawContent' | 'results' | 'tags' | 'notes' | 'title' | 'targetDate' | 'type'>> & {
+export type NoteRecordPatch = Partial<Pick<HistoryRecord, 'rawContent' | 'results' | 'tags' | 'notes' | 'title' | 'targetDate' | 'type'>> & {
   journalDate?: string | null;
   sourceId?: string | null;
   slug?: string | null;
@@ -56,8 +57,8 @@ export interface IContentProvider {
   readonly persistenceReady?: Promise<unknown>;
 
   // Read (always async)
-  getEntries(query?: EntryQuery): Promise<HistoryEntry[]>;
-  getEntry(id: string): Promise<HistoryEntry | null>;
+  getRecords(query?: HistoryQuery): Promise<HistoryRecord[]>;
+  getRecord(id: string): Promise<HistoryRecord | null>;
 
 
   /**
@@ -66,8 +67,8 @@ export interface IContentProvider {
    * re-imported note overwrites its original instead of duplicating. When
    * absent (the normal create path), the provider mints fresh values.
    */
-  saveEntry(entry: NoteSaveInput): Promise<HistoryEntry>;
-  cloneEntry(sourceId: string, targetDate?: number): Promise<HistoryEntry>;
+  saveRecord(entry: NoteSaveInput): Promise<HistoryRecord>;
+  cloneRecord(sourceId: string, targetDate?: number): Promise<HistoryRecord>;
   /**
    * Relationship patch semantics (V22 journal model):
    * - `targetDate` syncs the note's domain date (`Note.date`).
@@ -78,8 +79,28 @@ export interface IContentProvider {
    *   needed) — it never renames a shared page; `null` unlinks named-page
    *   membership only.
    */
-  updateEntry(id: string, patch: NoteEntryPatch): Promise<HistoryEntry>;
-  deleteEntry(id: string): Promise<void>;
+  updateRecord(id: string, patch: NoteRecordPatch): Promise<HistoryRecord>;
+  deleteRecord(id: string): Promise<void>;
+
+  // Placement — a note may sit on several pages at once. The operations
+  // below change membership only: the note, its source, its results and its
+  // canonical route are untouched by every one of them.
+  //
+  // - `addRecordPlacement` attaches the note to a page; it never detaches it
+  //   from the pages it is already on.
+  // - `removeRecordPlacement` detaches the note from one page.
+  // - `moveRecordPlacement` detaches from one page and attaches to another
+  //   in a single transaction — either both happen or neither does.
+  addRecordPlacement(id: string, target: PageTarget): Promise<HistoryRecord>;
+  removeRecordPlacement(id: string, pageId: string): Promise<HistoryRecord>;
+  moveRecordPlacement(id: string, fromPageId: string, target: PageTarget): Promise<HistoryRecord>;
+  /**
+   * The notes placed on the named page for `slug`, in canonical placement
+   * order — the page's own listing. Empty when the page does not exist or
+   * holds no notes. Every returned entry addresses its own note
+   * (/notes/:noteId), never another note's page.
+   */
+  getPageRecords(slug: string): Promise<HistoryRecord[]>;
 
   // Attachments
   getAttachments(noteId: string): Promise<Attachment[]>;

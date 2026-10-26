@@ -10,25 +10,25 @@
  * the browser routes to it, and the existing block-selection / timer flow
  * takes over.
  *
- * The catalog mirrors the home gallery exactly: same `buildSeedCatalog`
- * inputs, same default sort. Only installed seeds with local rows are
+ * The list mirrors the home gallery exactly: same `buildFeedCatalog`
+ * inputs, same default sort. Only installed feeds with local rows are
  * offered — a couch cannot import a package.
  */
 
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCastTransport } from '@/contexts/CastTransportContext';
-import { useLibraryCatalog } from '@/hooks/useLibraryCatalog';
+import { useLibraryList } from '@/hooks/useLibraryList';
 import { parseOpenNotebookPayload } from '@/hooks/useCastSignaling';
 import type { RpcLibraryState, RpcMessage } from '@/services/cast/rpc/RpcMessages';
 
 export const LibraryCastBridge: React.FC = () => {
     const castTransport = useCastTransport();
     const navigate = useNavigate();
-    const entries = useLibraryCatalog();
+    const entries = useLibraryList();
 
-    // Fingerprint of the last pushed catalog — avoids redundant sends, and
-    // resets on disconnect so a reconnect re-pushes the current catalog.
+    // Fingerprint of the last pushed list — avoids redundant sends, and
+    // resets on disconnect so a reconnect re-pushes the current list.
     const lastFingerprintRef = useRef('');
 
     useEffect(() => {

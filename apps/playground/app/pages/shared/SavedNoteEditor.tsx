@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NoteEditor, type EditorIdentitySnapshot, type NoteEditorProps } from '@/components/organisms/editor/NoteEditor';
 import { BlockHistory, revertBlock } from '@/components/organisms/editor/BlockHistory';
 import { notePersistence } from '@/services/persistence';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { useEditorSave } from '../../hooks/useEditorSave';
 import { captureRun, type CapturedRun } from '@/services/runCapture';
 import type { ScriptBlock } from '@/components/Editor/types';
 
 export interface SavedNoteEditorProps extends Omit<NoteEditorProps, 'value' | 'onChange' | 'noteBlocks' | 'sourceRevision'> {
-  entry: HistoryEntry;
+  entry: HistoryRecord;
   onChange: (rawContent: string) => void;
   registerRun?: (start: ((block: ScriptBlock, resultId: string) => Promise<CapturedRun>) | null) => void;
 }

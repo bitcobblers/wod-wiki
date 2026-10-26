@@ -1,7 +1,7 @@
 ---
 search: hidden
 template: canvas
-route: /guide/start
+route: /page/guide-start
 type: guide
 title: "First Workout"
 description: "Write your first one-line workout, press Run, and watch the clock — then add reps, load, and captures."
@@ -73,7 +73,7 @@ A workout lives inside a fenced code block. Two fence tags matter:
 ```
 ````
 
-Everything else in this chapter goes *inside* the fence. There is no `wod`/`plan` fence — the runtime affords `time` and `log` (with `:sport` suffixes, [Sessions](/guide/sessions?h=intent)); in-note analytics use [```query](/guide/wql).
+Everything else in this chapter goes *inside* the fence. There is no `wod`/`plan` fence — the runtime affords `time` and `log` (with `:sport` suffixes, [Sessions](/page/guide-sessions?h=intent)); in-note analytics use [```query](/page/guide-wql).
 
 ## Three rules {#first-workout}
 
@@ -117,7 +117,7 @@ Loads and distances attach directly to movement lines; the runtime records them 
 | `5 Back Squat 100kg` | kilograms work exactly the same |
 | `Run 400m` | 400 m distance |
 | `10 miles` | bare distances work too |
-| `5 Deadlifts ?lb` | load unknown — the clock prompts for the actual weight ([Capture](/guide/metrics?h=capture)) |
+| `5 Deadlifts ?lb` | load unknown — the clock prompts for the actual weight ([Capture](/page/guide-metrics?h=capture)) |
 | `5 Back Squat 225lb hard` | a plain-language effort word rides along |
 
 ## Instructions and asides {#actions-comments}
@@ -153,9 +153,9 @@ Everything you create lives in one place, addressed one way:
 | **Journal** | your dated training notebook (`notebook/journal`) | `notebook:journal` (or `source:journal`); promotion target |
 | **Playground** | experiment notebook (`notebook/playground`) | `notebook:playground` (or `source:playground`) |
 | **Notebook** | user-created or seed-delivered notebook (`notebook/{slug}`) | `notebook:<slug>` (`source:notebooks`); seed notebooks clone into writable notebooks |
-| **Dashboard** | a note with `dashboard: true`; its query blocks render as widgets | [Dashboards](/guide/dashboards) |
+| **Dashboard** | a note with `dashboard: true`; its query blocks render as widgets | [Dashboards](/page/guide-dashboards) |
 
-**`notebook:` & `source:` scope** — every note belongs to a `notebook/{slug}` container (`notebook/journal`, `notebook/playground`, `notebook/guides`, or a custom/seed notebook like `notebook/crossfit-girls`). Filter by `notebook:<slug>` or `source:` (`journal`, `notebooks`, `guides`, `playground`, `dashboards`, `efforts`, `equipment`). Omitting both searches all of them ([WQL sources](/guide/wql?h=sources)).
+**`notebook:` & `source:` scope** — every note belongs to a `notebook/{slug}` container (`notebook/journal`, `notebook/playground`, `notebook/guides`, or a custom/seed notebook like `notebook/crossfit-girls`). Filter by `notebook:<slug>` or `source:` (`journal`, `notebooks`, `guides`, `playground`, `dashboards`, `efforts`, `equipment`). Omitting both searches all of them ([WQL sources](/page/guide-wql?h=sources)).
 
 **Session vs template vs sample vs revert.** A **session** is immutable recorded facts from one run. A **template** is read-only source content — the examples on these pages; running one copies it into your own snapshot, it never mutates. A **sample dataset** is the badged fallback you see before you have facts of your own. **Revert** discards view state only — it never deletes saved sessions.
 
@@ -169,7 +169,7 @@ This is the homepage's edit-me note — already loaded in the panel — and the 
   *:30 Rest
 ```
 
-**Run** — press **Run**: the clock counts three rounds of 10 swings with a required 30-second rest between them; each `Next` locks the elapsed time as a split. **Observe** — when the workout completes, the review grid shows 30 total swings at 24 kg — the raw material for [Metrics](/guide/metrics). Running saves a snapshot named from this page and section; every chapter shares the one run contract — none defines its own.
+**Run** — press **Run**: the clock counts three rounds of 10 swings with a required 30-second rest between them; each `Next` locks the elapsed time as a split. **Observe** — when the workout completes, the review grid shows 30 total swings at 24 kg — the raw material for [Metrics](/page/guide-metrics). Running saves a snapshot named from this page and section; every chapter shares the one run contract — none defines its own.
 
 ```button
 label:  Run
@@ -195,9 +195,9 @@ One table, the whole line grammar. Chapters 2–3 expand each row.
 | `:?` | collect-the-actual prompt (`5:00 Run :?`) |
 | `(3)` / `(3 Rounds)` / `(5 Sets)` | repeat the indented block |
 | `(21-15-9)` | rep scheme — one round per value |
-| `(Warmup)` or `// Warmup` | named section ([Structure](/guide/structure?h=named-sections)) |
-| `20:00 AMRAP` / `(10) :60 EMOM` / `(8)` + `:20`/`:10` | protocols ([Timers & Protocols](/guide/protocols?h=amrap)) |
-| `{"rpe": 8}` | inline custom metric ([Metrics](/guide/metrics?h=custom-metrics)) |
+| `(Warmup)` or `// Warmup` | named section ([Structure](/page/guide-structure?h=named-sections)) |
+| `20:00 AMRAP` / `(10) :60 EMOM` / `(8)` + `:20`/`:10` | protocols ([Timers & Protocols](/page/guide-protocols?h=amrap)) |
+| `{"rpe": 8}` | inline custom metric ([Metrics](/page/guide-metrics?h=custom-metrics)) |
 | `[Setup Barbell]` / `// note` | cue card / comment |
 | `hard`, `easy` | effort words |
 

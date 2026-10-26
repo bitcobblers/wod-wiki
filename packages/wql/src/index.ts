@@ -50,6 +50,7 @@ export * from './derivation';
 // 8. Stores & QueryService
 export * from './stores';
 export * from './QueryService';
+export * from './notebookVocabulary';
 
 // 9. Dashboard Model, Parser, Scaffold & Frontmatter
 export * from './dashboard';

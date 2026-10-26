@@ -1,12 +1,12 @@
 import React from 'react';
-import { Lock, LayoutTemplate } from 'lucide-react';
-import { HistoryEntry } from '../../types/history';
+import { Lock } from 'lucide-react';
+import { HistoryRecord } from '../../types/history';
 import { cn } from '../../lib/utils';
 import { CloneDateDropdown } from '@/components/molecules/CloneDateDropdown';
 import type { IContentProvider } from '@/types/content-provider';
 
 interface NoteActionsProps {
-    entry: HistoryEntry | null;
+    entry: HistoryRecord | null;
     onClone: (targetDate?: number) => void;
     className?: string;
     showLabel?: boolean;
@@ -25,18 +25,10 @@ export const NoteActions: React.FC<NoteActionsProps> = ({
 }) => {
     if (!entry) return null;
 
-    const isTemplate = entry.type === 'template';
     const isClosed = entry.type === 'note' && isPastDate(entry.targetDate);
 
     return (
         <div className={cn("flex items-center gap-2", className)}>
-            {isTemplate && !showLabel && (
-                <div className="flex items-center gap-2 mr-2 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
-                    <LayoutTemplate className="h-3 w-3" />
-                    <span>Template</span>
-                </div>
-            )}
-
             {isClosed && (
                 <div className="flex items-center gap-2 mr-2 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded text-xs font-medium">
                     <Lock className="h-3 w-3" />
@@ -49,7 +41,7 @@ export const NoteActions: React.FC<NoteActionsProps> = ({
                 provider={provider}
                 variant={showLabel ? 'button' : 'icon'}
                 showLabel={!!showLabel}
-                label="Use Template"
+                label="Clone"
                 title="Clone to date..."
                 className={cn(
                     variant === 'primary' && 'bg-primary text-primary-foreground hover:bg-primary/90',

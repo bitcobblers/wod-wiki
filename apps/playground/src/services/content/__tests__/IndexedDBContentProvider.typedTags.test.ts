@@ -44,7 +44,7 @@ Thrusters
 Pull-ups
 `;
 
-    const entry = await provider.saveEntry({
+    const entry = await provider.saveRecord({
       title: 'Fran',
       rawContent,
       targetDate: Date.now(),
@@ -74,7 +74,7 @@ Thrusters
 Pull-ups
 `;
 
-    await provider.updateEntry(entry.id, {
+    await provider.updateRecord(entry.id, {
       rawContent: updatedContent,
       expectedSourceRevision: entry.sourceRevision,
     });

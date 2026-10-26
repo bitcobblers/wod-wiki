@@ -1,7 +1,7 @@
 /**
  * LibraryCastBridge.test.tsx — the cast-and-walk-away round trip, headless.
  *
- * Sender side: the bridge pushes the catalog when a session connects and
+ * Sender side: the bridge pushes the library list when a session connects and
  * routes the browser when the receiver picks an entry. Hostile payloads
  * (absolute URLs) must be dropped at the bridge, never handed to the router.
  */
@@ -10,7 +10,7 @@ import { describe, expect, it } from 'bun:test';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { LibraryCastBridge } from './LibraryCastBridge';
-import { toLibraryEntries } from '@/hooks/useLibraryCatalog';
+import { toLibraryEntries } from '@/hooks/useLibraryList';
 import { FakeRpcTransport } from '@/testing/transport/FakeRpcTransport';
 import { CastTransportProvider } from '@/contexts/CastTransportContext';
 import type { RpcMessage } from '@/services/cast/rpc/RpcMessages';
@@ -44,7 +44,7 @@ async function connectedBridge(): Promise<FakeRpcTransport> {
 }
 
 describe('LibraryCastBridge', () => {
-    it('pushes the library catalog when the session connects', async () => {
+    it('pushes the library list when the session connects', async () => {
         const transport = await connectedBridge();
         const push = transport.filter('rpc-library-state')[0];
         expect(Array.isArray(push.entries)).toBe(true);

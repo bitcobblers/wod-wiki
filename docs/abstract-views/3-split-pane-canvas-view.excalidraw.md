@@ -22,7 +22,7 @@ Key architectural responsibilities include:
 On desktop displays (≥1024px), the view splits the screen into complementary halves:
 
 1. **Global Icon Rail (L1, 56px)** & **Context Sidebar (L2, 240px)**:
-   - Provides chapter-by-chapter table of contents, collection groupings, and fast navigation.
+   - Provides chapter-by-chapter table of contents, notebook groupings, and fast navigation.
 2. **Sticky Page Header (`StickyPageHeader.tsx`)**:
    - **Page Title & Subtitle**: Guide name and chapter progression counter.
    - **Quest Badge**: `ChallengeHeaderBadge` indicating active quest completion percentage; clicking smooth-scrolls directly to the current quest block.
@@ -82,10 +82,10 @@ The table below specifies how each concrete route implements the abstract **Spli
 
 | Typed View | Route Pattern | Content Focus | Left Panel / Under Runway | Right Panel / Sticky Window | Primary Action |
 |---|---|---|---|---|---|
-| **Interactive Syntax Guide** | `/guide/start`, `/guide/protocols` | Syntax training & language dialect tutorial | Chapter explanations, grammar callouts, interactive quest challenges | Live CodeMirror runner, validation indicator, *Run* & *Reset* | *Run Code* (validates challenge & advances quest) |
-| **Analytics Tutorial** | `/guide/wql`, `/ai-first` | WQL query language & aggregation training | Analytical concept narrative, dataset schema docs | Live WQL query editor with instant chart preview frame | *Execute Query* (generates live timeseries/bar chart) |
-| **Collection Landing** | `/collections/:slug` | Curated workout set showcase & dispatch | Collection README markdown, category badges, author attribution | Interactive `CollectionWorkoutsList` + CodeMirror workout preview | *Schedule* / *Add to Today* / *Run* selected workout |
-| **Scroll Quest Runway** | `/p/:slug`, `ScrollCanvasPage` | Step-by-step sequential tutorial runway | Staged tutorial cards (`TourSectionRunway`) | Pinned typewriter runner with auto-advancing challenge steps | *Next Challenge* / *Complete Quest* |
+| **Interactive Syntax Guide** | `/page/guide-start`, `/page/guide-protocols` | Syntax training & language dialect tutorial | Chapter explanations, grammar callouts, interactive quest challenges | Live CodeMirror runner, validation indicator, *Run* & *Reset* | *Run Code* (validates challenge & advances quest) |
+| **Analytics Tutorial** | `/page/guide-wql`, `/ai-first` | WQL query language & aggregation training | Analytical concept narrative, dataset schema docs | Live WQL query editor with instant chart preview frame | *Execute Query* (generates live timeseries/bar chart) |
+| **Collection Landing** | `/notebook/:slug` | Curated workout set showcase & dispatch | Collection README markdown, category badges, author attribution | Interactive `CollectionWorkoutsList` + CodeMirror workout preview | *Schedule* / *Add to Today* / *Run* selected workout |
+| **Scroll Quest Runway** | `/page/:slug`, `ScrollCanvasPage` | Step-by-step sequential tutorial runway | Staged tutorial cards (`TourSectionRunway`) | Pinned typewriter runner with auto-advancing challenge steps | *Next Challenge* / *Complete Quest* |
 
 
 # Excalidraw Data

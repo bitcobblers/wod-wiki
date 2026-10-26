@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'bun:test';
 import { noteToMarkdown } from './NoteMarkdownSerializer';
 import { frozenNow } from '@bitcobblers/wod-wiki-engine';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 
 describe('noteToMarkdown', () => {
     const fixedDate = new Date('2025-06-01T12:00:00.000Z');
     const clock = frozenNow(fixedDate);
     const ts = fixedDate.getTime();
 
-    const baseEntry = (overrides: Partial<HistoryEntry> = {}): HistoryEntry => ({
+    const baseEntry = (overrides: Partial<HistoryRecord> = {}): HistoryRecord => ({
         id: 'entry-1',
         title: 'Test Entry',
         createdAt: ts,

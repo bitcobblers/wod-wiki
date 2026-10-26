@@ -78,7 +78,7 @@ THE single stored record for workout data (renamed from `UnifiedEventRecord`). G
 - Preserve source identity and provenance through note deletion/re-key or projection rebuild. Runtime output type `segment` is not a new [[BlockRevision]] kind.
 - Do not create another page-membership projection here. Existing `pageId` semantics follow [[Page#Recommended composition contract]]; query-derived membership does not rewrite events.
 
-**Feedback case:** a workout note appears in a second collection or switches to read presentation. Its recorded facts must remain attached to the original run, not be duplicated or reassigned because presentation changed. See [[Session#Typed-note composition recommendations]].
+**Feedback case:** a workout note appears in a second notebook or switches to read presentation. Its recorded facts must remain attached to the original run, not be duplicated or reassigned because presentation changed. See [[Session#Typed-note composition recommendations]].
 
 These are review proposals; the session-renaming proposal below is independent and remains unimplemented.
 

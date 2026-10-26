@@ -35,11 +35,11 @@ Run the homepage control, saved-duration and dashboard regressions with `bun run
 
 ## 1. PLAN — Author & Structure Work
 
-* **Universal Note Editor (`/notes/:noteId`, `/playground/:id`)**:
+* **Universal Note Editor (`/note/:noteId`, `/playground/:id`)**:
   - Live CodeMirror 6 markdown editor with syntax highlighting, inline button decorations, and real-time linting.
   - Side companion panel for frontmatter metadata, embed previews (YouTube, Strava), and typed tags typeahead chips.
   - Quick-run launcher for any fenced ` ```time ` workout block.
-* **Collections Library (`/collections`, `/c/:slug`)**:
+* **Notebooks Library (`/notebooks`, `/notebook/:slug`)**:
   - Curated workout libraries and historical programs (e.g. CrossFit Girls, Steve Cotter Kettlebell, Swim WODs).
   - Inspect workouts, clone them to your personal journal, or launch directly on the clock.
 * **Effort Movement Catalog (`/efforts`, `/effort/:slug`)**:
@@ -48,7 +48,7 @@ Run the homepage control, saved-duration and dashboard regressions with `bun run
 
 ### Journal notes
 
-Use the `+` in the L1 rail or mobile navigation to create a journal note. Choose a date and start blank, from a stored template, or from a collection or feed item. Creation opens the new note in edit mode. Each note has its own identity and content; notes on the same date share one calendar page at `/journal/YYYY-MM-DD`.
+Use the `+` in the L1 rail or mobile navigation to create a journal note. Choose a date and start blank, from a stored template, or from a notebook item. Creation opens the new note in edit mode. Each note has its own identity and content; notes on the same date share one calendar page at `/day/YYYY-MM-DD`.
 
 Date pages also offer **New note**, including on empty dates. Open a note's title to reach its individual editor. **Note relationships** changes or clears its calendar date, named-page link, or source note without changing its identity. Changing a named-page link does not rename the shared page or move other notes.
 
@@ -81,13 +81,13 @@ Workout metrics refresh on the current line as it changes. Movement names are pa
 
 ## 3. ANALYZE — Review & Query
 
-* **Session Detail (`/sessions/:sessionId`)**:
+* **Session Detail (`/session/:sessionId`)**:
   - Breakdown of round splits, completed reps, and total elapsed duration.
   - Tabular output statement view and derived session load.
-* **Journal History (`/journal`, `/journal/:date`)**:
-  - Calendar stream grouping workouts onto daily date pages (`/journal/YYYY-MM-DD`).
+* **Journal History (`/journal`, `/day/:date`)**:
+  - Calendar stream grouping workouts onto daily date pages (`/day/YYYY-MM-DD`).
   - Powered by the `page_notes` junction table.
-* **Composed Dashboards (`/dashboard`, `/dashboard/:slug`)**:
+* **Composed Dashboards (`/dashboards`, `/dashboard/:slug`)**:
   - Visual charts (timeseries, bar, toplist, summary cards) powered by embedded WQL queries.
   - Real-time filtering by effort, discipline, or custom tag dimensions.
 * **Tags (`/tags`)**:

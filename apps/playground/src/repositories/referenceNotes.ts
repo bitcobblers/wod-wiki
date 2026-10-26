@@ -143,7 +143,7 @@ export async function deleteReferenceNote(kind: ReferenceKind, slug: string): Pr
       ? await scoped.getEffort(slug)
       : await scoped.getEquipment(slug);
     // Only user rows are removable here; bundled projections belong to
-    // their seed source and are managed by seed import/removal.
+    // their feed and are managed by feed import/removal.
     if (prior?.registrySource !== 'user') throw new Error(`"${slug}" is not user-owned ${kind}`);
     if (kind === 'effort') await scoped.deleteEffort(slug);
     else await scoped.deleteEquipment(slug);

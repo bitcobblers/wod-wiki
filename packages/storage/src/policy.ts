@@ -1,5 +1,6 @@
 /**
- * Shared user-scope sync policy (versioned-databases-backups-review §3.4).
+ * Shared user-scope sync policy (the backup/restore contract in
+ * docs/architecture/interfaces.md).
  *
  * ONE ownership classification governs outbox journals, bootstrap
  * snapshots, the schema32 outbox cutover and cross-schema conversions. Rows

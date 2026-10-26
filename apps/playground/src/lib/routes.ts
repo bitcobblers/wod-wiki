@@ -17,15 +17,14 @@ export function planPath(noteId: string): string {
 
 /**
  * Deep link to the Metric Explorer with a pre-filled WQL query and optional
- * range. The host app must mount `/analytics/explorer` (the playground does;
- * see docs/adr/app-route-view.md and issue #729).
+ * range. The explorer lives at /dashboards (ticket 09 URL scheme).
  */
 export function analyticsExplorerPath(options?: { q?: string; weeks?: number }): string {
   const params = new URLSearchParams();
   if (options?.q) params.set('q', options.q);
   if (options?.weeks) params.set('weeks', String(options.weeks));
   const qs = params.toString();
-  return `/analytics/explorer${qs ? `?${qs}` : ''}`;
+  return `/dashboards${qs ? `?${qs}` : ''}`;
 }
 
 /** Build a fully-qualified hash path for the track view */

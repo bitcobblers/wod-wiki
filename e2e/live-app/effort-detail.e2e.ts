@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
 import { seedBundledEfforts } from '../helpers/seedEfforts';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 function attachErrorCapture(page: Page) {
   const pageErrors: string[] = [];
@@ -73,7 +73,7 @@ test.describe('Effort detail', () => {
     await seedBundledEfforts(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.cloneButton().click();
-    await expect(page).toHaveURL(/\/e\/burpee-custom$/);
+    await expect(page).toHaveURL(/\/effort\/burpee-custom$/);
     await expect(efforts.detailSource()).toContainText('Custom');
 
     const label = efforts.frontmatterProperties().getByLabel('Value for label');
@@ -98,7 +98,7 @@ test.describe('Effort detail', () => {
     await efforts.gotoDetail('nonexistent-effort-12345');
 
     await expect(efforts.detailNotFound()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Back to Catalog' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Back to library' })).toBeVisible();
 
     errors.expectClean();
   });
@@ -107,17 +107,25 @@ test.describe('Effort detail', () => {
     const errors = attachErrorCapture(page);
     const slug = `e2e-effort-${Date.now()}`;
 
-    await page.goto('/e/new?mode=create', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto('/effort/new?mode=create', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
 
-    await expect(page.locator('.cm-note-editor')).toBeVisible({ timeout: 15_000 });
-    const editor = page.locator('.cm-note-editor .cm-content').first();
+    // The create layout opens on the properties panel; the raw document
+    // editor mounts via the panel's 'Edit YAML' action.
+    await page.getByRole('button', { name: 'Edit YAML' }).click();
+    const editor = page.locator('.cm-content').first();
+    await expect(editor).toContainText('registrySource', { timeout: 10_000 });
     await editor.click();
     await page.keyboard.press('ControlOrMeta+a');
-    await page.keyboard.insertText(customEffortDocument(slug, 'E2E Created Effort', 'Created through the note editor.'));
+    // Paste (not keystroke injection): the editor auto-indents and
+    // auto-closes brackets on typed input, which corrupts a raw YAML
+    // frontmatter document; a paste inserts the text verbatim.
+    await page.evaluate((text) => navigator.clipboard.writeText(text), customEffortDocument(slug, 'E2E Created Effort', 'Created through the note editor.'));
+    await page.keyboard.press('ControlOrMeta+v');
 
     await page.getByTestId('effort-create-btn').click();
-    await expect(page).toHaveURL(new RegExp(`/e/${slug}$`), { timeout: 15_000 });
+    await expect(page).toHaveURL(new RegExp(`/effort/${slug}$`), { timeout: 15_000 });
     const efforts = new EffortsPage(page);
     await expect(efforts.detailLabel()).toHaveText('E2E Created Effort');
     await expect(efforts.detailSource()).toContainText('Custom');

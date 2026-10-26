@@ -13,7 +13,7 @@
  *   journal-history   → share, schedule
  *   journal-active    → play, share, schedule
  *   journal-plan      → open-in-playground, share, schedule
- *   collection-readonly (feed + collection) → play, open-in-playground, share, schedule
+ *   notebook-readonly (corpus notebook) → play, open-in-playground, share, schedule
  *
  * Per-block gating (#891/#894): for ```log blocks, InlineCommandBar swaps the
  * `log` command (emitted when `onLog` is supplied) in place of `play` and drops
@@ -60,7 +60,7 @@ export function useScriptBlockCommands(
       handlers.onPlay &&
       (mode === 'playground' ||
         mode === 'journal-active' ||
-        mode === 'collection-readonly')
+        mode === 'notebook-readonly')
     ) {
       cmds.push({
         id: 'play',
@@ -79,7 +79,7 @@ export function useScriptBlockCommands(
       handlers.onLog &&
       (mode === 'playground' ||
         mode === 'journal-active' ||
-        mode === 'collection-readonly')
+        mode === 'notebook-readonly')
     ) {
       cmds.push({
         id: 'log',
@@ -93,7 +93,7 @@ export function useScriptBlockCommands(
     // ── open-in-playground ────────────────────────────────────────────────
     if (
       handlers.onOpenInPlayground &&
-      (mode === 'journal-plan' || mode === 'collection-readonly')
+      (mode === 'journal-plan' || mode === 'notebook-readonly')
     ) {
       cmds.push({
         id: 'open-in-playground',

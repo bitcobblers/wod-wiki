@@ -14,10 +14,10 @@ import { Plus } from 'lucide-react';
 import { parseQuery, serialize } from '@bitcobblers/wod-wiki-engine';
 import { cn } from '@/lib/utils';
 import type { NavPanelProps } from '../navTypes';
-import { useDashboardCatalog } from '../../hooks/useDashboards';
+import { useDashboardList } from '../../hooks/useDashboards';
 import { dashboardNotes } from '../../services/dashboardNotes';
 import { parseFrontmatter } from '@/lib/frontmatter';
-import { analyticsExplorerPath, dashboardPath, dashboardViewPath } from '../../lib/routes';
+import { analyticsExplorerPath, dashboardsPath, dashboardViewPath } from '../../lib/routes';
 import { EXAMPLE_QUERIES } from '@/utils/analytics/explorerQueries';
 import { useCloseNavigationDrawer } from '../NavigationDrawerContext';
 
@@ -34,7 +34,7 @@ export function DashboardsNavPanel(_props: NavPanelProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const closeDrawer = useCloseNavigationDrawer();
-  const { items, loading } = useDashboardCatalog();
+  const { items, loading } = useDashboardList();
   const [creating, setCreating] = useState(false);
 
   const handleNew = async () => {
@@ -58,7 +58,7 @@ export function DashboardsNavPanel(_props: NavPanelProps) {
         label="Explorer"
         active={onExplorer}
         onClick={() => {
-          navigate(dashboardPath());
+          navigate(dashboardsPath());
           closeDrawer();
         }}
       />
@@ -97,7 +97,7 @@ export function DashboardsNavPanel(_props: NavPanelProps) {
                 key={d.slug}
                 label={d.title}
                 badge={d.editable ? undefined : 'prebuilt'}
-                active={location.pathname === `/dashboard/${d.slug}` || location.pathname === `/d/${d.slug}`}
+                active={location.pathname === `/dashboard/${d.slug}`}
                 onClick={() => {
                   navigate(dashboardViewPath(d.slug));
                   closeDrawer();

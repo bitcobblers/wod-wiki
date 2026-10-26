@@ -17,7 +17,7 @@ import {
     CANONICAL_BLOCK_TYPES,
     blockTypesFromBlocks,
     canonicalSuggestionItems,
-    catalogIdsFromBlocks,
+    notebookSlugsFromBlocks,
     getSuggestionBinding,
     mergeSuggestionItems,
     mergeTagSuggestions,
@@ -26,7 +26,7 @@ import {
 import { EFFORT_DISCIPLINES, INTENSITY_TIERS, type IEffort } from '@bitcobblers/wod-wiki-lang';
 import { storageService } from '@/services/storage';
 import { getAppEffortRegistry } from '@/services/effortRegistry';
-import { getScriptCollections } from '@/repositories/script-collections';
+import { getScriptNotebooks } from '@/repositories/script-notebooks';
 let corpusBlocksPromise: Promise<BlockIndexRow[]> | null = null;
 let staticTagIndexPromise: Promise<Map<string, Set<string>>> | null = null;
 
@@ -71,12 +71,12 @@ export function loadStaticTagIndex(): Promise<Map<string, Set<string>>> {
         staticTagIndexPromise = storageService.getAllNotes().then(async (notes) => {
             const index = staticTagIndexFromNotes(notes.filter(note => note.seedOrigin === 'seed'));
             try {
-                const collections = await getScriptCollections();
-                for (const col of collections) {
-                    for (const cat of col.categories) {
+                const notebooks = await getScriptNotebooks();
+                for (const notebook of notebooks) {
+                    for (const cat of notebook.categories) {
                         const set = index.get(cat);
-                        if (set) set.add(col.id);
-                        else index.set(cat, new Set([col.id]));
+                        if (set) set.add(notebook.id);
+                        else index.set(cat, new Set([notebook.id]));
                     }
                 }
             } catch {
@@ -172,22 +172,11 @@ setSuggestionBinding('type', {
     emptyText: 'No indexed block types yet',
 });
 
-setSuggestionBinding('catalog', {
-    load: async () => {
-        const blocks = await loadCorpusBlocks();
-        const catalogIds = catalogIdsFromBlocks(blocks);
-        return catalogIds.map((id) => ({ value: id, label: id }));
-    },
-    cache: 'static',
-    open: false,
-    emptyText: 'No notebooks in the static corpus',
-});
-
 setSuggestionBinding('notebook', {
     load: async () => {
         const blocks = await loadCorpusBlocks();
-        const catalogIds = catalogIdsFromBlocks(blocks);
-        return catalogIds.map((id) => ({ value: id, label: id }));
+        const slugs = notebookSlugsFromBlocks(blocks);
+        return slugs.map((id) => ({ value: id, label: id }));
     },
     cache: 'static',
     open: false,

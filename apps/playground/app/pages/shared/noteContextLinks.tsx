@@ -15,35 +15,34 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { storageService } from '@/services/storage'
 import type { BlockEffort, BlockIndexRow, Note } from '@/types/storage'
-import type { HistoryEntry } from '@/types/history'
+import type { HistoryRecord } from '@/types/history'
 import { parseNoteId } from '@/lib/noteIdentity'
 import { noteRefToPath } from '../../lib/noteIdentity'
 import { useNav } from '../../nav/NavContext'
 import type { MenuSpec } from '../../nav/menuModel'
 import {
-  collectionPath,
+  notebookPath,
   effortPath,
   effortsPath,
   equipmentPath,
-  feedDetailPath,
-  journalDatePath,
-  noteByIdPath,
+  dayPath,
+  notePath,
   pagePath,
   playgroundsPath,
   ROUTE_PATTERNS,
-  workoutPath,
+  notebookItemPath,
 } from '../../lib/routes'
 import { playgroundRouteName } from '../../lib/entryMapper'
 
 /**
  * Routable path for a STORED note id. Composite ids keep their family route
- * (cat/name → /c/…, effort/<slug> → /e/…, journal/<date> → /journal/…);
+ * (cat/name → /notebook/…, effort/<slug> → /effort/…, journal/<date> → /day/…);
  * bare ids (UUIDs — journal copies, V8 playground notes) have no family
- * route and open in the canonical editor /notes/:id, never the `/` fallback.
+ * route and open in the canonical editor /note/:id, never the `/` fallback.
  */
 export function noteLinkPath(noteId: string): string {
   const ref = parseNoteId(noteId)
-  if (ref.kind === 'workout' && !ref.category) return noteByIdPath(noteId)
+  if (ref.kind === 'workout' && !ref.category) return notePath(noteId)
   return noteRefToPath(ref)
 }
 
@@ -68,10 +67,12 @@ const MAX_RELATED = 8
 
 // ── Source-aware ownership ───────────────────────────────────────────────────
 
-export type NoteZone = 'journal' | 'feeds' | 'playgrounds' | 'efforts' | 'equipment' | null
+/** L1 zone ids that exist in the nav tree. The journal and playgrounds
+ * views live inside the notebooks zone, so their notes light 'notebooks'. */
+export type NoteZone = 'notebooks' | 'feeds' | 'efforts' | 'equipment' | null
 
 export interface NoteOwnership {
-  /** L1 zone id to light on the canonical /notes route (guarded against the tree). */
+  /** L1 zone id to light on the canonical /note/:id route (guarded against the tree). */
   zone: NoteZone
   /** Owning-list link ("Up") derived from the note's source; null when unknown. */
   up: ContextNoteLink | null
@@ -84,7 +85,7 @@ export interface NoteOwnership {
  * stored conventions (entryMapper): `type` when present, then the composite-id
  * grammar (journal/:date, playground/:name, effort/:slug, feeds/…, cat/name).
  */
-export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceId' | 'journalDate' | 'slug' | 'pageId'>): NoteOwnership {
+export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'sourceId' | 'journalDate' | 'slug' | 'pageId'>): NoteOwnership {
   const id = entry.id
   const isPlayground = entry.type === 'playground' || entry.sourceId === 'playground' || id.startsWith('playground/')
   const ref = parseNoteId(id)
@@ -92,15 +93,17 @@ export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceI
   if (entry.type === 'journal' || entry.journalDate || (!isPlayground && ref.kind === 'journal')) {
     const date = entry.journalDate ?? (ref.kind === 'journal' ? ref.id : undefined)
     return {
-      zone: 'journal',
-      up: date ? { id: date, title: 'Journal', to: journalDatePath(date) } : null,
+      // The journal is a view within the notebooks zone (ticket 10).
+      zone: 'notebooks',
+      up: date ? { id: date, title: 'Journal', to: dayPath(date) } : null,
       stamps: [id],
     }
   }
   if (isPlayground || ref.kind === 'playground') {
     const name = playgroundRouteName({ id })
     return {
-      zone: 'playgrounds',
+      // The playground is a view within the notebooks zone (ticket 10).
+      zone: 'notebooks',
       up: { id: 'playgrounds', title: 'Playgrounds', to: playgroundsPath() },
       stamps: [`/playground/${name}`],
     }
@@ -120,28 +123,26 @@ export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceI
         stamps: [equipmentPath(ref.id)],
       }
     }
-    if (ref.category === 'feeds') {
-      // Feed runs stamp the ITEM path (`/feeds/<slug>/<date>/<item>`) going
-      // forward (feed-level `/feeds/<slug>` stamps predate item attribution
-      // and only ever match the feed listing page, never this item).
-      const [, feedSlug, feedDate, feedItem] = id.split('/')
+    if (ref.category === 'notebook') {
+      // Corpus notebook members carry `notebook/<slug>` composite ids; the
+      // date-scoped item identity lives in the sourceId, not the id.
       return {
-        zone: 'feeds',
-        up: feedSlug ? { id: feedSlug, title: feedSlug, to: feedDetailPath(feedSlug) } : null,
-        stamps: feedSlug && feedDate && feedItem ? [`/feeds/${feedSlug}/${feedDate}/${feedItem}`] : [],
+        zone: 'notebooks',
+        up: ref.id ? { id: ref.id, title: ref.id, to: notebookPath(ref.id) } : null,
+        stamps: [],
       }
     }
     if (ref.category) {
       return {
-        zone: 'feeds',
-        up: { id: ref.category, title: ref.category, to: collectionPath(ref.category) },
-        stamps: [workoutPath(ref.category, ref.id)],
+        zone: 'notebooks',
+        up: { id: ref.category, title: ref.category, to: notebookPath(ref.category) },
+        stamps: [notebookItemPath(ref.category, ref.id)],
       }
     }
   }
   if (entry.type === 'page' && (entry.pageId ?? entry.slug)) {
     const slug = entry.pageId ?? entry.slug!
-    return { zone: null, up: { id: slug, title: `/p/${slug}`, to: pagePath(slug) }, stamps: [] }
+    return { zone: null, up: { id: slug, title: `/page/${slug}`, to: pagePath(slug) }, stamps: [] }
   }
   return { zone: null, up: null, stamps: [] }
 }

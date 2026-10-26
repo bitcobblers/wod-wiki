@@ -2,8 +2,9 @@
  * streamProfile — profile contract and presets for QueriableStreamView (Ticket 003).
  *
  * Encapsulates the routing, default WQL query, entity level, and presentation
- * metadata for each unified stream route (/journal, /feeds, /catalogs,
- * /efforts, /sessions, /results/:sessionId).
+ * metadata for each unified stream route (/journal, /notes, /notebooks,
+ * /feeds, /pages, /efforts, /equipment, /tags, /sessions, /playgrounds,
+ * /results/:sessionId).
  */
 import type { EntityLevel } from '../../lib/fieldProjection'
 import type { LayoutMode } from '../../lib/viewSettingsStorage'
@@ -17,7 +18,7 @@ export function cleanRoutePath(route: string): string {
 }
 
 export interface StreamProfile {
-  /** Route path matching this stream (e.g. '/journal', '/collections'). */
+  /** Route path matching this stream (e.g. '/journal', '/notebooks'). */
   route: string
   /** Default canonical WQL query loaded when no query param is present. */
   defaultWql: string
@@ -45,15 +46,15 @@ export interface StreamProfile {
   shelfVisible?: boolean
   /** Optional message displayed when query yields zero results. */
   emptyMessage?: string
-  /** Corpus comes from optional seed libraries — when no manual library has
-   *  imported, the view shows a Sync notice (catalogs/feeds dead-end without
+  /** Corpus comes from optional subscribed feeds — when none has been
+   *  imported, the view shows a Sync notice (the corpus dead-ends without
    *  one). Efforts/dashboards can opt in later. */
-  seedNotice?: boolean
+  feedNotice?: boolean
   /** Display name for breadcrumbs/crumbs — `routeView.deriveWorkout` reads
    *  it instead of keeping its own route-name map. */
   title?: string
-  /** Specific catalog identifier when scoped to a collection catalog. */
-  catalog?: string
+  /** Specific notebook slug when scoped to one notebook's stream. */
+  notebookSlug?: string
   /** Preferred initial layout mode (defaults to level standard if omitted). */
   defaultLayout?: LayoutMode
   /** Legacy parameter and salvage configuration for URL migration. */
@@ -75,8 +76,8 @@ export function createContentLegacyConfig(defaultSource?: string): StreamProfile
       if (hasTriState) {
         const visible: string[] = []
         if ((search.get('note') ?? 'include') !== 'hide') visible.push('journal')
-        if ((search.get('session') ?? 'include') !== 'hide') visible.push('feeds')
-        // `post` mapped to the feeds storage scope — excised from WQL, so it
+        if ((search.get('session') ?? 'include') !== 'hide') visible.push('notebooks')
+        // `post` mapped to the notebooks storage scope — excised from WQL, so it
         // no longer narrows the migrated query.
         if (visible.length === 1) {
           sourceFilter = `source:${visible[0]}`
@@ -96,7 +97,7 @@ export function createContentLegacyConfig(defaultSource?: string): StreamProfile
       let head = ':note'
       const otherFilters = [textClause, tagsClause].filter(Boolean)
       if (sourceFilter === 'source:journal') head = ':journal'
-      else if (sourceFilter === 'source:feeds') head = ':notebook'
+      else if (sourceFilter === 'source:notebooks') head = ':notebooks'
       else if (sourceFilter === 'source:playground') head = ':playground'
       else if (sourceFilter) otherFilters.unshift(sourceFilter)
       const braces = otherFilters.length ? `{${otherFilters.join(',')}}` : ''
@@ -108,37 +109,67 @@ export function createContentLegacyConfig(defaultSource?: string): StreamProfile
 export const JOURNAL_STREAM_PROFILE: StreamProfile = {
   route: '/journal',
   title: 'Journal',
-  defaultWql: ':journal{} last 4w',
+  // The journal landing is a plain note-plane query anyone can copy: the
+  // journal notebook narrowed with `notebook:journal`, grouped by date in
+  // the query itself (a copied URL reproduces the same list — the grouping
+  // rides the query, never a view setting).
+  defaultWql: ':note{notebook:journal} by {date} last 4w',
   level: 'note',
   target: 'note',
   scopeOptions: ['journal'],
   legacy: createContentLegacyConfig('journal'),
 }
 
-export const CATALOGS_STREAM_PROFILE: StreamProfile = {
-  route: '/catalogs',
+export const NOTEBOOKS_STREAM_PROFILE: StreamProfile = {
+  route: '/notebooks',
   title: 'Notebooks',
+  // The notebook plane (ticket 08) — notes from every notebook, grouped by
+  // tag; the source picker narrows to corpus-delivered notebooks.
   defaultWql: ':notebook{} by {tag}',
   level: 'session',
   target: 'note',
-  scopeOptions: ['feeds'],
+  scopeOptions: ['notebooks'],
   shelfVisible: false,
-  // Corpus comes from seed libraries — surface the core-only notice.
-  seedNotice: true,
-  legacy: createContentLegacyConfig('feeds'),
+  // Corpus comes from subscribed feeds — surface the core-only notice.
+  feedNotice: true,
+  legacy: createContentLegacyConfig('notebooks'),
+}
+
+export const NOTES_STREAM_PROFILE: StreamProfile = {
+  route: '/notes',
+  title: 'Notes',
+  defaultWql: ':note{}',
+  level: 'note',
+  target: 'note',
+  scopeOptions: ['journal', 'notebooks'],
+  emptyMessage: 'No note entries match your search.',
+  legacy: createContentLegacyConfig('notebooks'),
 }
 
 export const FEEDS_STREAM_PROFILE: StreamProfile = {
   route: '/feeds',
-  title: 'Notes',
-  defaultWql: ':notebook{}',
+  title: 'Feeds',
+  // Feeds are the sources — the feed-delivered notebook plane.
+  defaultWql: ':notebook{source:notebooks}',
+  level: 'session',
+  target: 'notebook',
+  scopeOptions: ['notebooks'],
+  shelfVisible: false,
+  defaultLayout: 'cards',
+  emptyMessage: 'No feeds match your search.',
+  // Corpus comes from feeds — surface the core-only notice.
+  feedNotice: true,
+  legacy: createContentLegacyConfig('notebooks'),
+}
+
+export const PAGES_STREAM_PROFILE: StreamProfile = {
+  route: '/pages',
+  title: 'Pages',
+  defaultWql: ':page{}',
   level: 'note',
-  target: 'note',
-  scopeOptions: ['feeds'],
-  emptyMessage: 'No note entries match your search.',
-  // Corpus comes from seed libraries — surface the core-only notice.
-  seedNotice: true,
-  legacy: createContentLegacyConfig('feeds'),
+  target: 'page',
+  scopeOptions: [],
+  emptyMessage: 'No pages match your search.',
 }
 
 export const EFFORTS_STREAM_PROFILE: StreamProfile = {
@@ -155,11 +186,24 @@ export const EFFORTS_STREAM_PROFILE: StreamProfile = {
 export const EQUIPMENT_STREAM_PROFILE: StreamProfile = {
   route: '/equipment',
   title: 'Equipment',
-  defaultWql: ':note{source:equipment}',
+  defaultWql: ':equipment{}',
   level: 'note',
-  target: 'note',
+  target: 'equipment',
   scopeOptions: ['equipment'],
   emptyMessage: 'No equipment matches your search.',
+}
+
+export const TAGS_STREAM_PROFILE: StreamProfile = {
+  route: '/tags',
+  title: 'Tags',
+  // The tag plane (ticket 08) — every tag as one row; the composer offers
+  // exactly the plane's filters (tag:, type:, text:, contributes:) and a
+  // contribution is never offered as a label filter.
+  defaultWql: ':tag{}',
+  level: 'note',
+  target: 'tag',
+  scopeOptions: [],
+  emptyMessage: 'No tags match your search.',
 }
 
 export const SESSIONS_STREAM_PROFILE: StreamProfile = {
@@ -206,30 +250,32 @@ export function createResultDetailProfile(resultId: string): StreamProfile {
     emptyMessage: `No segment records found for result ${resultId}.`,
   }
 }
-/** /c/:slug — collection stream profile for a catalog */
-export function createCollectionCatalogProfile(catalogSlug: string): StreamProfile {
+/** /notebook/:slug — stream profile for one notebook */
+export function createNotebookProfile(notebookSlug: string): StreamProfile {
   return {
-    route: `/c/${catalogSlug}`,
-    title: toDisplayName(catalogSlug),
-    defaultWql: `:note{notebook:${catalogSlug}} by {date}`,
+    route: `/notebook/${notebookSlug}`,
+    title: toDisplayName(notebookSlug),
+    defaultWql: `:note{notebook:${notebookSlug}} by {date}`,
     level: 'session',
     target: 'note',
-    scopeOptions: ['feeds'],
+    scopeOptions: ['notebooks'],
     shelfVisible: false,
     defaultLayout: 'cards',
-    catalog: catalogSlug,
-    legacy: createContentLegacyConfig('feeds'),
+    notebookSlug: notebookSlug,
+    legacy: createContentLegacyConfig('notebooks'),
   }
 }
 
 
 const PROFILES_BY_ROUTE: Record<string, StreamProfile> = {
   '/journal': JOURNAL_STREAM_PROFILE,
-  '/catalogs': CATALOGS_STREAM_PROFILE,
+  '/notebooks': NOTEBOOKS_STREAM_PROFILE,
+  '/notes': NOTES_STREAM_PROFILE,
   '/feeds': FEEDS_STREAM_PROFILE,
-  '/feed': FEEDS_STREAM_PROFILE,
+  '/pages': PAGES_STREAM_PROFILE,
   '/efforts': EFFORTS_STREAM_PROFILE,
   '/equipment': EQUIPMENT_STREAM_PROFILE,
+  '/tags': TAGS_STREAM_PROFILE,
   '/sessions': SESSIONS_STREAM_PROFILE,
   '/playgrounds': PLAYGROUNDS_STREAM_PROFILE,
 }
@@ -252,10 +298,10 @@ export function getStreamProfile(route: string): StreamProfile | undefined {
       return createSessionDateProfile(date)
     }
   }
-  if (clean.startsWith('/c/')) {
-    const slug = clean.slice('/c/'.length)
+  if (clean.startsWith('/notebook/')) {
+    const slug = clean.slice('/notebook/'.length)
     if (slug && !slug.includes('/')) {
-      return createCollectionCatalogProfile(slug)
+      return createNotebookProfile(slug)
     }
   }
 
@@ -275,8 +321,8 @@ export function resolveStreamProfile(route: string): StreamProfile {
 export function streamRouteTitle(pathname: string): string | undefined {
   const exact = PROFILES_BY_ROUTE[cleanRoutePath(pathname)]?.title
   if (exact) return exact
-  if (cleanRoutePath(pathname).startsWith('/c/')) {
-    const slug = cleanRoutePath(pathname).slice('/c/'.length)
+  if (cleanRoutePath(pathname).startsWith('/notebook/')) {
+    const slug = cleanRoutePath(pathname).slice('/notebook/'.length)
     if (slug && !slug.includes('/')) {
       return toDisplayName(slug)
     }
@@ -287,8 +333,9 @@ export function streamRouteTitle(pathname: string): string | undefined {
 /**
  * Stream-surface membership — the single registry `routeView` consults when
  * classifying a pathname as a list surface. Covers every profile route plus
- * the dynamic detail/date routes; legacy bare `/results*` paths classify too
- * (the router redirects them, but this function stays pure on the pathname).
+ * the dynamic detail/date routes (/notebook/:slug, /session/:date,
+ * /results/:sessionId). Retired bare paths (/results, /results/segments)
+ * are not streams — the router redirects or 404s them before a page renders.
  */
 export function isStreamRoute(pathname: string): boolean {
   const clean = cleanRoutePath(pathname)
@@ -296,9 +343,8 @@ export function isStreamRoute(pathname: string): boolean {
 
   if (clean.startsWith('/results/')) return clean.slice('/results/'.length) !== ''
   if (clean.startsWith('/session/')) return clean.slice('/session/'.length) !== ''
-  if (clean === '/results' || clean === '/results/segments') return true
-  if (clean.startsWith('/c/')) {
-    const slug = clean.slice('/c/'.length)
+  if (clean.startsWith('/notebook/')) {
+    const slug = clean.slice('/notebook/'.length)
     return Boolean(slug && !slug.includes('/'))
   }
 

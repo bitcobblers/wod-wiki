@@ -1,5 +1,5 @@
 import { type INowProvider, wallClockNow } from '@bitcobblers/wod-wiki-engine';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { validateNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import type { NoteBlock } from '@/types/storage';
 
@@ -10,14 +10,14 @@ import type { NoteBlock } from '@/types/storage';
  * storage layer mints fresh values. This is what makes the export → import
  * round-trip preserve note identity instead of creating duplicates.
  */
-export type ParsedNoteEntry = Omit<HistoryEntry, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'> & {
+export type ParsedNoteEntry = Omit<HistoryRecord, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'> & {
     id?: string;
     createdAt?: number;
     updatedAt?: number;
 };
 
 /**
- * Parse exported-markdown back into a (partial) HistoryEntry.
+ * Parse exported-markdown back into a (partial) HistoryRecord.
  *
  * Time is read exclusively through `clock` (an `INowProvider`) — never via
  * `Date.now()` directly — so the import path is deterministic under a frozen
@@ -110,7 +110,7 @@ export function parseMarkdownToEntry(
 }
 
 /**
- * Create a (partial) HistoryEntry from arbitrary markdown. Exported-format
+ * Create a (partial) HistoryRecord from arbitrary markdown. Exported-format
  * markdown round-trips through {@link parseMarkdownToEntry}; plain markdown
  * gets a minimal entry whose `targetDate` is the clock's current time.
  *

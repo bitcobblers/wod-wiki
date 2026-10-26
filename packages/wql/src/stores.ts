@@ -8,6 +8,9 @@
  */
 
 import type { BlockIndexRow, Note, EventRecord, Page, PageNote } from '@bitcobblers/wod-wiki-core';
+import type { IEffort } from '@bitcobblers/wod-wiki-lang';
+
+export type { IEffort };
 
 /**
  * Store surface for the unified event table — every workout-data read the
@@ -76,15 +79,19 @@ export interface NoteQueryStore {
  * ORs; `negate` excludes any row matching any value.
  */
 export type WqlDomainPredicate =
-  | { field: 'id' | 'noteId' | 'type' | 'catalog' | 'source' | 'tags' | 'effort'; values: string[]; negate?: boolean }
+  | { field: 'id' | 'noteId' | 'type' | 'source' | 'tags' | 'effort'; values: string[]; negate?: boolean }
+  /** Typed-tag narrow — notes carrying a tag of this type and one of these
+   *  labels (pushes down through the tags by-type index). Mirror of the
+   *  storage wire's typedTag predicate (ticket 08). */
+  | { field: 'typedTag'; tagType: string; values: string[]; negate?: boolean }
   | { field: 'text'; value: string }
   | { field: 'date'; start: number; end: number; endExclusive?: boolean }
   | { field: 'page'; value: boolean }
-  /** The :note default page-exclusion stage (notes plan only). `feeds`
-   *  = an authored feed source clause rides along: true drops literal
+  /** The :note default page-exclusion stage (notes plan only). `nonPages`
+   *  = an authored notebook source clause rides along: true drops literal
    *  type 'page' rows; false drops isPage rows (page-like kinds or page:/
    *  guides: source prefixes on non-note kinds). */
-  | { field: 'defaultNotes'; feeds: boolean }
+  | { field: 'defaultNotes'; nonPages: boolean }
   | { field: 'sourceFence' };
 
 /** Server order clause — structural mirror of the storage wire's
@@ -119,21 +126,8 @@ export interface BlockQueryStore {
   }): Promise<WqlDomainReadResult | undefined>;
 }
 
-/** Pure effort model interface for `:effort` queries. */
-export interface IEffort {
-  id: string;
-  slug: string;
-  label: string;
-  aliases: string[];
-  baseAttributes: {
-    met?: number;
-    discipline?: string;
-    intensityTier?: string;
-    [key: string]: unknown;
-  };
-  registrySource?: 'bundled' | 'user' | string;
-  [key: string]: unknown;
-}
+/** Effort definition records for `:effort` queries — the language package's
+ *  IEffort (single authoritative definition; re-exported above). */
 export interface EffortQueryStore {
   getAllEfforts(): Promise<IEffort[]>;
 }
@@ -164,15 +158,23 @@ export interface QueryServiceStores {
   effortStore?: EffortQueryStore;
   /** Serves exercise containment rows (`block_efforts` store). */
   blockEffortsStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
-  /** Serves tag records (`tags` store). */
-  tagsStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
+  /** Serves tag records (`tags` store). `getAll` backs the `:tag{}` plane;
+   *  absent → the plane resolves to no rows. */
+  tagsStore?: {
+    getAllFromIndex(index: string, key: string): Promise<any[]>;
+    getAll?(): Promise<any[]>;
+  };
   /** Serves note-tag junction rows (`note_tags` store). */
   noteTagsStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
   /** Canonical page_notes junction reads for container resolution — a
-   *  note's parent Page wins over a standalone Note container. */
+   *  note's parent Page wins over a standalone Note container. The two
+   *  getAll* seams back the `:page{}` placement plane; absent → the plane
+   *  resolves to no rows. */
   pageStore?: {
     getNotePages(noteId: string): Promise<PageNote[]>;
     getPage(pageId: string): Promise<Page | undefined>;
+    getAllPages?(): Promise<Page[]>;
+    getAllLinks?(): Promise<PageNote[]>;
   };
   /** Batched relation reads for the hydration paths (containers, run
    *  tags) — one bundle per distinct note id instead of a page/tag read

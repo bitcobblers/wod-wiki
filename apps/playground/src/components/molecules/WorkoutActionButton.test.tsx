@@ -185,12 +185,12 @@ describe('WorkoutActionButton', () => {
     it('loads entry dates from provider when dropdown opens', async () => {
       let callCount = 0;
       const mockProvider: IContentProvider = {
-        getEntries: async () => {
+        getRecords: async () => {
           callCount++;
           return [
             { type: 'workout', targetDate: '2024-01-10T00:00:00Z' },
             { type: 'workout', targetDate: '2024-01-15T00:00:00Z' },
-            { type: 'template', targetDate: '2024-01-20T00:00:00Z' },
+            { type: 'note', notebookId: 'notebook/defaults', targetDate: '2024-01-20T00:00:00Z' },
           ];
         },
       } as unknown as IContentProvider;
@@ -220,7 +220,7 @@ describe('WorkoutActionButton', () => {
     it('shows loading state while loading entry dates', async () => {
       let resolveLoading: (() => void) | undefined;
       const mockProvider: IContentProvider = {
-        getEntries: () =>
+        getRecords: () =>
           new Promise(resolve => {
             resolveLoading = () => resolve([]);
           }),
@@ -254,7 +254,7 @@ describe('WorkoutActionButton', () => {
 
     it('handles provider errors gracefully', async () => {
       const mockProvider: IContentProvider = {
-        getEntries: async () => {
+        getRecords: async () => {
           throw new Error('Provider error');
         },
       } as unknown as IContentProvider;

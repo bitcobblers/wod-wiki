@@ -2,11 +2,10 @@
  * Canvas Routes — derived from the seeded corpus
  * (docs/prototypes/seed-data-unification.md § Module 3).
  *
- * Canvas pages (markdown/canvas/**) and collection READMEs (one level deep,
- * markdown/collections/<dir>/README.md) are parsed from the seed-content file
+ * Canvas pages (markdown/canvas/**) are parsed from the corpus content file
  * map into typed CanvasRoute objects. The derivation is pure; the
- * `useCanvasRoutes()` hook binds it to the reactive seed-content snapshot,
- * so routes appear once the seed lands and refresh when a newer seed is
+ * `useCanvasRoutes()` hook binds it to the reactive corpus snapshot,
+ * so routes appear once the corpus lands and refresh when a newer feed is
  * imported (BroadcastChannel('wodwiki.seed')).
  */
 
@@ -23,7 +22,7 @@ export interface CanvasRoute {
   page: ParsedCanvasPage
 }
 
-/** Pure derivation over the seeded corpus (canvas pages + collection READMEs). */
+/** Pure derivation over the seeded corpus (canvas pages). */
 export function buildCanvasRoutes(files: SeedContentFiles): CanvasRoute[] {
   const canvas: CanvasRoute[] = []
   for (const [path, raw] of Object.entries(files)) {

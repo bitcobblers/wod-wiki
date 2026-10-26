@@ -50,9 +50,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
   },
   define: {
-    // Build stamp for defaultSeedSources' embeddedVersion (shared
+    // Build stamp for defaultFeedSources' embeddedVersion (shared
     // seedVersion.ts) — read from Storybook's own generated manifests.
-    __SEED_VERSIONS__: JSON.stringify(seedManifestVersions()),
+    __FEED_VERSIONS__: JSON.stringify(seedManifestVersions()),
   },
   plugins: [
     react(),

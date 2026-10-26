@@ -60,7 +60,7 @@ or `{ type: 'call', handler }`. Scrolls go through
 | Writer | File | Page kinds | Content |
 |---|---|---|---|
 | `useNotePageNav` | `app/pages/shared/useNotePageNav.ts` | note pages | Document headings + ```` ```time ```` blocks (Run affordance) + ```` ```log ```` blocks (display-only, result badges) extracted from the editor document |
-| `deriveNav` + `usePageScrollSync`/`AppContent` | `app/lib/routeView.ts`, `app/hooks/usePageScrollSync.ts`, `app/App.tsx` | canvas pages | Sections (level > 1) + `Workout N` entries per ```` ```time/```log ```` fence (skipped on `/guide/*`) + collection workout links |
+| `deriveNav` + `usePageScrollSync`/`AppContent` | `app/lib/routeView.ts`, `app/hooks/usePageScrollSync.ts`, `app/App.tsx` | canvas pages | Sections (level > 1) + `Workout N` entries per ```` ```time/```log ```` fence (skipped on `/page/guide-*`) + notebook workout links |
 | `QueriableStreamView` | `app/views/stream/QueriableStreamView.tsx` | stream pages | Dynamic group headers from `groupEntriesByDimension` — dim = WQL `by {…}` → view-setting `groupBy` → page default |
 | `deriveNav('/journal')` | `app/lib/routeView.ts` | `/journal` only | Top-10 distinct session dates (pre-load placeholder; superseded by stream groups once entries resolve) |
 
@@ -74,7 +74,7 @@ or `{ type: 'call', handler }`. Scrolls go through
 |---|---|---|---|
 | `/library` | date | `date-group-YYYY-MM-DD` | |
 | `/journal` | date | `date-group-YYYY-MM-DD` | overlaps with deriveNav top-10 dates until entries load |
-| `/collections` | date | `date-group-*` | |
+| `/notebooks` | date | `date-group-*` | |
 | `/feeds`, `/feed` | date | `date-group-*` | |
 | `/efforts` | discipline | `group-discipline-<slug>` | undated entries → `Undated` bucket under date dims |
 | `/results`, `/results/*` | date | `date-group-*` | |
@@ -88,8 +88,8 @@ composer wins; otherwise per-route View Settings **Group By**
 | Route | Content |
 |---|---|
 | `/` (Home) | markdown sections (level > 1) + `Workout N` per time/log fence |
-| `/guide/*` (8 consolidated chapters) | sections only (workout fences skipped on guide pages) |
-| `/collections/:slug` | sections + `Explore` + one link per collection workout (`onRun` → open editor) |
+| `/page/guide-*` (8 consolidated chapters) | sections only (workout fences skipped on guide pages) |
+| `/notebook/:slug` | sections + `Explore` + one link per notebook workout (`onRun` → open editor) |
 
 ### Note pages — `useNotePageNav` document index
 
@@ -98,16 +98,16 @@ composer wins; otherwise per-route View Settings **Group By**
 | `/playground/:id` | `PlaygroundNotePage` | headings + time blocks (Run) + log blocks |
 | `/workout/:id` | `WorkoutEditorPage` | same |
 | `/effort/:id` | `EffortDetailPage` | same + results-by-version badges |
-| `/feeds/:slug/:date/:item` | `FeedItemPage` | same |
+| `/feed/:slug/:date/:item` | `FeedItemPage` | same |
 
 ### No L3 today (empty section)
 
 | Route | PageKind | Gap? |
 |---|---|---|
-| `/journal/:identity` | `journalEntry` (`JournalDatePage`) | ✏️ date page shows multiple notes; no per-note index |
-| `/feeds/:feedSlug` | `feedDetail` | ✏️ date-keyed content, no index |
-| `/dashboard`, `/dashboard/:id` | dashboard pages | ✏️ |
-| `/analytics/explorer` | analyticsExplorer | ✏️ |
+| `/day/:date` | `journalEntry` (`JournalDatePage`) | ✏️ date page shows multiple notes; no per-note index |
+| `/feed/:slug` | `feedDetail` | ✏️ date-keyed content, no index |
+| `/dashboards`, `/dashboard/:slug` | dashboard pages | ✏️ |
+| `/dashboards` explorer | dashboardExplorer | ✏️ |
 | `/settings/*` | settings | intentionally none |
 
 ---
@@ -136,7 +136,7 @@ mirrors the structural anchors of whatever is rendered.
 - Cap on links shown (long date lists)? Collapse by month/year? ✏️
 - Should clicking a date group deep-link (`?s=` / hash) for shareability? ✏️
 
-### 4.3 Journal date page (`/journal/:identity`)
+### 4.3 Journal date page (`/day/:date`)
 
 - Currently no L3. Candidates: per-note anchors (time of day / note title),
   per-workout-block entries with Run, or nothing (page is one editor doc). ✏️

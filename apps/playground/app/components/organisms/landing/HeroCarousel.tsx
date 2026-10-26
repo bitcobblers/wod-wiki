@@ -39,10 +39,10 @@ export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
   },
   {
     src: '/images/hero/journal.png',
-    alt: 'Unified Library listing journal notes, Catalog sessions, and dated posts',
+    alt: 'Unified Library listing journal notes, notebook workouts, and dated entries',
     eyebrow: 'Library',
-    title: 'Browse Notes, Sessions, and Posts in one Library.',
-    caption: 'Your dated journal entries and preloaded Catalog benchmarks live in one unified surface. Search, filter by source, or clone to today’s entry.',
+    title: 'Browse Journal and Notebook notes in one Library.',
+    caption: 'Your dated journal notes and preloaded notebook benchmarks live in one unified surface. Search, filter by source, or clone to today’s note.',
   },
   {
     src: '/images/hero/results.png',

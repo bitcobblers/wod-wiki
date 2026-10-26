@@ -42,21 +42,13 @@ export function findRouteIn<T>(
 }
 
 /**
- * Candidate keys a pathname may resolve to, absorbing the rebranded route
- * prefixes (#link-crosswalk): `/p/<slug>` addresses a canvas page by its slug
- * (the declared route minus the leading slash and optional `guide/` prefix).
- * The declared route itself always wins first.
+ * Candidate keys a pathname may resolve to. Under the ticket-09 scheme the
+ * canvas page's declared route IS its address (guides declare
+ * `/page/guide-*`), so the only candidate is the normalized pathname itself.
+ * The retired `/p/<slug>` alias no longer resolves.
  */
 export function lookupCandidates(pathname: string): string[] {
-  const normalized = normalizePathname(pathname)
-  const candidates = [normalized]
-  const pMatch = normalized.match(/^\/p\/(.+)$/)
-  if (pMatch) {
-    const splat = pMatch[1]!
-    candidates.push(`/${splat}`)
-    candidates.push(`/guide/${splat}`)
-  }
-  return candidates
+  return [normalizePathname(pathname)]
 }
 
 /** First route whose key matches any lookup candidate of the pathname. */

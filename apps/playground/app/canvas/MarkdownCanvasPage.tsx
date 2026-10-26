@@ -42,7 +42,7 @@ import type { ScriptBlock } from '@/components/Editor/types'
 import type { WorkoutItem } from '../App'
 import { executeNavAction, pipelineStepToNavAction, type NavActionDeps } from '../nav/navTypes'
 import { useStickyBoundaryOffset } from '@/panels/page-shells'
-import { workoutPath } from '../lib/routes'
+import { notebookItemPath } from '../lib/routes'
 export interface MarkdownCanvasPageProps {
   page: ParsedCanvasPage
   wodFiles: Record<string, string>
@@ -80,18 +80,18 @@ export function MarkdownCanvasPage({
   const navigate = useNavigate()
   const location = useLocation()
   const { sections, route, chapters } = page
-  const isPageSlug = location.pathname.startsWith('/p/') || route.startsWith('/p/')
+  const isPageSlug = location.pathname.startsWith('/page/') || route.startsWith('/page/')
   const canvasNoteId = useMemo(() => getCanvasNoteId(route), [route])
-  const isGuide = page.type === 'guide' || route.startsWith('/guide')
+  const isGuide = page.type === 'guide' || route.startsWith('/page/guide-')
   useScrollTelemetry(isGuide ? route : undefined)
 
-  const isCollection = route.startsWith('/collections/') || route.startsWith('/c/')
+  const isCollection = route.startsWith('/notebook/')
   // Live syntax guides render their content sections as grouped parallax
   // runways (GuideRunwayGroups over the shared RunwayShell). Collections and
   // every other canvas page keep the original flowing layout.
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const isGuideRunway = isGuide && !isCollection && !reducedMotion
-  const collectionSlug = isCollection ? (route.split('/').pop() ?? null) : null
+  const notebookSlug = isCollection ? (route.split('/').pop() ?? null) : null
 
   const handleSelectWorkout = useCallback(
     (item: WorkoutItem) => {
@@ -99,7 +99,7 @@ export function MarkdownCanvasPage({
         onSelect(item)
         return
       }
-      navigate(workoutPath(item.category, item.name))
+      navigate(notebookItemPath(item.category, item.name))
     },
     [navigate, onSelect],
   )
@@ -303,7 +303,7 @@ export function MarkdownCanvasPage({
 
   // NavActionDeps
   const [headingParam, setHeadingParam] = useQueryState('h', { history: 'replace', shallow: true })
-  const [collectionQuery] = useQueryState('q', { defaultValue: '', shallow: true })
+  const [notebookQuery] = useQueryState('q', { defaultValue: '', shallow: true })
 
   const deps = useMemo<NavActionDeps>(() => ({
     navigate: (to: string, opts?: { replace?: boolean }) => navigate(to, { replace: opts?.replace }),
@@ -389,23 +389,23 @@ export function MarkdownCanvasPage({
 
   // Collection query scroll
   // Collection query scroll
-  const previousCollectionQueryRef = useRef(collectionQuery)
+  const previousCollectionQueryRef = useRef(notebookQuery)
   useEffect(() => {
     if (!isCollection) {
-      previousCollectionQueryRef.current = collectionQuery
+      previousCollectionQueryRef.current = notebookQuery
       return
     }
-    const nextQuery = collectionQuery.trim()
+    const nextQuery = notebookQuery.trim()
     const previousQuery = previousCollectionQueryRef.current.trim()
     if (nextQuery && nextQuery !== previousQuery) {
-      const listElement = document.getElementById('collection-workouts')
+      const listElement = document.getElementById('notebook-workouts')
       if (listElement) {
         const top = listElement.getBoundingClientRect().top + window.scrollY - stickyViewportOffset - 8
         window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
       }
     }
-    previousCollectionQueryRef.current = collectionQuery
-  }, [collectionQuery, isCollection, stickyViewportOffset])
+    previousCollectionQueryRef.current = notebookQuery
+  }, [notebookQuery, isCollection, stickyViewportOffset])
 
   // Panel actions ready
   const onPanelActionsReadyRef = useRef(onPanelActionsReady)
@@ -600,7 +600,7 @@ export function MarkdownCanvasPage({
           <CanvasProsePanel
             contentSections={contentSections}
             isCollection={isCollection}
-            collectionSlug={collectionSlug}
+            notebookSlug={notebookSlug}
             workoutItems={workoutItems}
             handleSelectWorkout={handleSelectWorkout}
             activeSectionId={activeSectionId}

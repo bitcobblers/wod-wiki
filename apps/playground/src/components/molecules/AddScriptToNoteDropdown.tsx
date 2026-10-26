@@ -3,6 +3,7 @@ import { Plus, Calendar, FilePlus, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { planPath } from '@/lib/routes';
 import { toShortId } from '@/lib/idUtils';
+import { isJournalEntry } from '@/types/notebook';
 import {
     DropdownMenu,
     DropdownMenuTrigger,
@@ -14,7 +15,7 @@ import {
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import type { ScriptBlock } from '@/components/Editor/types';
 import type { IContentProvider } from '@/types/content-provider';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { cn } from '@/lib/utils';
 import { formatDateWeekdayShort } from '@/lib/dateFormat';
 
@@ -44,7 +45,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
     onAddSuccess,
     className,
 }) => {
-    const [allEntries, setAllEntries] = useState<HistoryEntry[]>([]);
+    const [allEntries, setAllEntries] = useState<HistoryRecord[]>([]);
     const [loading, setLoading] = useState(false);
     const [open, setOpen] = useState(false);
     const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
@@ -57,7 +58,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
         const loadEntries = async () => {
             setLoading(true);
             try {
-                const entries = await provider.getEntries();
+                const entries = await provider.getRecords();
                 setAllEntries(entries);
             } catch (err) {
                 console.error('Failed to load entries:', err);
@@ -73,7 +74,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
     const entryDates = useMemo(() => {
         return new Set(
             allEntries
-                .filter(e => e.type !== 'template')
+                .filter(isJournalEntry)
                 .map(e => toDateKey(new Date(e.targetDate)))
         );
     }, [allEntries]);
@@ -81,7 +82,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
     // Filter notes for the selected date
     const notesForDate = useMemo(() => {
         return allEntries.filter(e => {
-            if (e.type === 'template') return false;
+            if (!isJournalEntry(e)) return false;
             return isSameDay(new Date(e.targetDate), selectedDate);
         }).sort((a, b) => a.targetDate - b.targetDate);
     }, [allEntries, selectedDate]);
@@ -94,7 +95,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
         if (!provider) return;
 
         try {
-            const note = await provider.getEntry(noteId);
+            const note = await provider.getRecord(noteId);
             if (!note) return;
 
             const fenceTag = scriptBlock.sport
@@ -103,7 +104,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
             const blockText = `\n\n\`\`\`${fenceTag}\n${scriptBlock.content.trim()}\n\`\`\``;
             const newContent = note.rawContent.trim() + blockText;
 
-            await provider.updateEntry(noteId, { rawContent: newContent });
+            await provider.updateRecord(noteId, { rawContent: newContent });
             onAddSuccess?.(noteId);
             setOpen(false);
 
@@ -126,7 +127,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
                 ? `${scriptBlock.dialect || 'time'}:${scriptBlock.sport}`
                 : scriptBlock.dialect || 'time';
             const blockText = `\`\`\`${fenceTag}\n${scriptBlock.content.trim()}\n\`\`\``;
-            const newEntry = await provider.saveEntry({
+            const newEntry = await provider.saveRecord({
                 title: 'New Workout',
                 rawContent: `# New Workout\n\n${blockText}`,
                 targetDate: targetDate.getTime(),

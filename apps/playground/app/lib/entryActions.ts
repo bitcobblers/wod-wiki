@@ -3,14 +3,16 @@
  * Open / Compare row action should navigate to. The LibraryRow consumes
  * these; the test seam is the URL the row would visit on click.
  *
- * URL shapes (target scheme — see docs/link-crosswalk.md):
- *   Open  Note         → /notes/:noteId (named pages → /p/:pageSlug)
- *   Open  Session      → /c/:cat/:page-slug
- *   Open  Post         → /feeds/:feedSlug/:date/:item (transitional)
- *   Open  Effort       → /e/:slug
+ * URL shapes (ticket 09 — one spelled-out prefix per concept):
+ *   Open  Note         → /note/:noteId (named pages → /page/:pageSlug);
+ *                        notebook members keep their corpus routes —
+ *                        notebook items → /notebook/:slug[/:item],
+ *                        feed posts → /notebook/:slug/:date/:item
+ *   Open  Effort       → /effort/:slug
  *   Open  Equipment    → /equipment/:slug
+ *   Open  Tag          → /t/:type/:tag
  *   Open  Result       → /results/:sessionId
- *   Open  Dashboard    → /d/:slug (corpus) or /notes/:noteId (vault)
+ *   Open  Dashboard    → /dashboard/:slug (corpus) or /note/:noteId (vault)
  *   Compare (any)      → /dashboards?q=:blockContentId
  *
  * Run is NOT a URL: WallClockPage only consumes pendingRuntimes, so the Run
@@ -22,7 +24,8 @@
  * (`entryCanAddToToday`) so the LibraryRow can render the button.
  */
 import type { Entry } from './entryMapper'
-import { noteByIdPath, sessionDetailPath, analyticsExplorerPath } from './routes'
+import { tagRowSegments } from './entryMapper'
+import { notePath, sessionDetailPath, analyticsExplorerPath } from './routes'
 
 /** Per-path-segment encoding — slashes stay separators. */
 function encodePath(path: string): string {
@@ -32,8 +35,8 @@ function encodePath(path: string): string {
 /** Open: the Entry's deep-link per its kind; block Entries anchor to their
  *  section within the parent note (#855 — honored wherever the target
  *  surface exposes section DOM ids; degrades to the plain note elsewhere).
- *  Named pages open at /p/<pageSlug>; plain notes open in the canonical
- *  editor /notes/<uuid>. Route identity comes from sourceId/sourcePath —
+ *  Named pages open at /page/<pageSlug>; plain notes open in the canonical
+ *  editor /note/<uuid>. Route identity comes from sourceId/sourcePath —
  *  never a UUID pageId or note title. */
 export function entryOpenHref(entry: Entry): string {
   const href = (() => {
@@ -41,58 +44,70 @@ export function entryOpenHref(entry: Entry): string {
       case 'note': {
         // Guide notes render at their declared sourceId route; the pageSlug
         // lookup in canvasRouteLookup resolves it.
-        if (entry.sourceCatalog === 'guides') {
-          return entry.pageSlug ? `/p/${encodePath(entry.pageSlug)}` : `/${encodePath(entry.sourceItem.replace(/^\//, ''))}`
+        if (entry.sourceNotebook === 'guides') {
+          return entry.pageSlug ? `/page/${encodePath(entry.pageSlug)}` : `/${encodePath(entry.sourceNote.replace(/^\//, ''))}`
         }
         // Playground entries open in the playground editor.
-        if (entry.sourceCatalog === 'playground') {
-          return `/playground/${encodeURIComponent(entry.sourceItem)}`
+        if (entry.sourceNotebook === 'playground') {
+          return `/playground/${encodeURIComponent(entry.sourceNote)}`
         }
         // Known corpus surfaces route by sourcePath, never by note UUID:
-        //   markdown/dashboards/<slug>.md            → /d/<slug>
-        //   markdown/efforts/<discipline>/<slug>.md  → /e/<slug>
+        //   markdown/dashboards/<slug>.md            → /dashboard/<slug>
+        //   markdown/efforts/<discipline>/<slug>.md  → /effort/<slug>
         const dash = /^markdown\/dashboards\/(.+)\.md$/.exec(entry.sourcePath ?? '')
-        if (dash?.[1]) return `/d/${encodePath(dash[1])}`
+        if (dash?.[1]) return `/dashboard/${encodePath(dash[1])}`
         const effort = /^markdown\/efforts\/[^/]+\/(.+)\.md$/.exec(entry.sourcePath ?? '')
-        if (effort?.[1]) return `/e/${encodePath(effort[1])}`
+        if (effort?.[1]) return `/effort/${encodePath(effort[1])}`
+        // Notebook members (ticket 05) — corpus notes and dated posts keep
+        // their notebook routes; identity comes from sourceId/sourcePath,
+        // never a UUID.
+        const sid = entry.sourceId ?? ''
+        const spath = entry.sourcePath ?? ''
+        if (sid.startsWith('notebook:') || spath.startsWith('markdown/notebooks/')) {
+          return !entry.sourceNote
+            ? `/notebook/${encodeURIComponent(entry.sourceNotebook)}`
+            : `/notebook/${encodeURIComponent(entry.sourceNotebook)}/${encodePath(entry.sourceNote)}`
+        }
         // Named pages open at their slug; everything else in the canonical
         // single-note editor.
-        if (entry.pageSlug) return `/p/${encodePath(entry.pageSlug)}`
-        return noteByIdPath(entry.id)
+        if (entry.pageSlug) return `/page/${encodePath(entry.pageSlug)}`
+        return notePath(entry.id)
       }
-      case 'session':
-        if (!entry.sourceItem) {
-          return `/c/${encodeURIComponent(entry.sourceCatalog)}`
-        }
-        return `/c/${encodeURIComponent(entry.sourceCatalog)}/${encodeURIComponent(entry.sourceItem)}`
       case 'dashboard':
-        // Corpus dashboards route by page slug (/d/<slug>); vault dashboards
-        // with no corpus path fall back to the canonical note editor.
-        return entry.sourceCatalog === 'dashboards' && entry.sourceItem
-          ? `/d/${encodePath(entry.sourceItem)}`
-          : noteByIdPath(entry.id)
+        // Corpus dashboards route by page slug (/dashboard/<slug>); vault
+        // dashboards with no corpus path fall back to the canonical note editor.
+        return entry.sourceNotebook === 'dashboards' && entry.sourceNote
+          ? `/dashboard/${encodePath(entry.sourceNote)}`
+          : notePath(entry.id)
       case 'equipment': {
         // Dedicated equipment route; the same note stays reachable through
         // the canonical note editor for non-equipment contexts.
-        const raw = entry.sourceItem ?? entry.id
+        const raw = entry.sourceNote ?? entry.id
         const slug = raw.startsWith('equipment/') ? raw.slice('equipment/'.length) : raw
         const isNoteId = /^(?:uuid-|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)/i.test(slug)
-        return slug && !isNoteId ? `/equipment/${encodePath(slug)}` : noteByIdPath(entry.id)
+        return slug && !isNoteId ? `/equipment/${encodePath(slug)}` : notePath(entry.id)
       }
-      case 'post': {
-        const date = entry.date ?? ''
-        return `/feeds/${encodeURIComponent(entry.sourceCatalog)}/${encodeURIComponent(date)}/${encodeURIComponent(entry.sourceItem)}`
+      case 'tag': {
+        // The tag's own direct route — /t/:type/:tag (identity from the
+        // tag/{type}/{label} row id, never a note UUID). Type and label are
+        // encoded as individual URI components: encodeURIComponent also
+        // escapes '/', so a slash-containing label survives as one segment
+        // (matches the editor's reference links — encodePath would not).
+        const segments = tagRowSegments(entry)
+        const type = segments?.type ?? 'general'
+        const label = segments?.label ?? entry.sourceNote ?? entry.id
+        return `/t/${encodeURIComponent(type)}/${encodeURIComponent(label)}`
       }
       case 'effort':
-        return `/e/${encodeURIComponent(entry.effort?.slug ?? entry.id)}`
+        return `/effort/${encodeURIComponent(entry.effort?.slug ?? entry.id)}`
       case 'result':
         return sessionDetailPath(entry.id)
       case 'segment':
       case 'event':
         // Table-plane rows (:segment/:event) carry no execution
-        // payload — their session identity lives in sourceItem (__resultId).
+        // payload — their session identity lives in sourceNote (__resultId).
         return sessionDetailPath(
-          entry.execution?.resultId ?? (entry.sourceCatalog === 'results' ? entry.sourceItem : entry.id),
+          entry.execution?.resultId ?? (entry.sourceNotebook === 'results' ? entry.sourceNote : entry.id),
         )
       default:
         return '/'
@@ -104,13 +119,14 @@ export function entryOpenHref(entry: Entry): string {
 /** True when the entry already lives in the playground (Open is the playground
  *  action — the feed's "Playground" action targets non-playground content). */
 export function entryIsPlayground(entry: Entry): boolean {
-  return entry.sourceCatalog === 'playground' || entry.sourceId === 'playground'
+  return entry.sourceNotebook === 'playground' || entry.sourceId === 'playground'
 }
 
-/** Feed deep link for collection definition entries. */
-export function entryCollectionFeedHref(entry: Entry): string | null {
-  if (entry.kind === 'session' && !entry.sourceItem) {
-    return `/feeds?q=${encodeURIComponent(`:notebook{notebook:${entry.sourceCatalog}}`)}`
+/** Notebook deep link for notebook landing entries — a note with no item
+ * is a notebook landing (every kind fills sourceNote except landings). */
+export function entryNotebookHref(entry: Entry): string | null {
+  if (entry.kind === 'note' && !entry.sourceNote) {
+    return `/notebooks?q=${encodeURIComponent(`:notebook{notebook:${entry.sourceNotebook}}`)}`
   }
   return null
 }
@@ -122,9 +138,10 @@ export function entryCompareHref(entry: Entry): string | null {
   return analyticsExplorerPath({ q: entry.blockContentId })
 }
 
-/** Add to today: Note + Post (per spec), and Result + Segment when associated with a noteId. */
+/** Add to today: any note (journal, notebook member, dated post), and
+ *  Result + Segment when associated with a noteId. */
 export function entryCanAddToToday(entry: Entry): boolean {
-  if (entry.kind === 'note' || entry.kind === 'post') return true
+  if (entry.kind === 'note') return true
   if ((entry.kind === 'result' || entry.kind === 'segment') && !!entry.execution?.noteId) {
     return true
   }

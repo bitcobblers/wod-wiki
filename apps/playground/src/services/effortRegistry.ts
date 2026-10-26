@@ -11,6 +11,13 @@ import { indexedDBEffortStorage } from './db/IndexedDBEffortStorage';
  *   - user tier: clones/edits persisted through the storage adapter
  *     (`registrySource: 'user'`, `-custom` slugs).
  *
+ * The typed projection store is the SINGLE read index for hydration: every
+ * writer (seed import, app commit, CLI import, delete) puts a definition's
+ * note and its projection rows in ONE transaction, so the projection is the
+ * note index's typed form — never an independently maintained source.
+ * Hydration reads only the projection; it never parses notes, and a note
+ * whose projection is gone does not resurrect here.
+ *
  * Hydration is async because the store read is; construct synchronously,
  * then `hydrateAppEffortRegistry` before declaring readiness.
  */

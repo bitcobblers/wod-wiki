@@ -2,9 +2,11 @@ import { formatPlaygroundTimestampLabel } from '@/lib/playgroundDisplay';
 import { getScriptContent } from '@/repositories/script-loader';
 import { appWarn } from '@/lib/log';
 import type { IContentProvider } from '@/types/content-provider';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 
-export function createTemplateEntry(id: string, content: string): HistoryEntry {
+/** Synthesizes the display entry for a corpus-backed workbench route with no
+ *  stored note yet — an ordinary (read-only) note, not a stored row. */
+export function createTemplateEntry(id: string, content: string): HistoryRecord {
   const titleMatch = content.match(/^#\s+(.+)$/m);
   const title = titleMatch ? titleMatch[1].trim() : id;
   const now = Date.now();
@@ -13,7 +15,7 @@ export function createTemplateEntry(id: string, content: string): HistoryEntry {
     id,
     title,
     rawContent: content,
-    type: 'template',
+    type: 'note',
     tags: [],
     createdAt: now,
     updatedAt: now,
@@ -24,11 +26,11 @@ export function createTemplateEntry(id: string, content: string): HistoryEntry {
 
 export async function loadWorkbenchDisplayEntry(
   routeId: string,
-  provider: Pick<IContentProvider, 'mode' | 'getEntry'>,
-): Promise<HistoryEntry | null> {
+  provider: Pick<IContentProvider, 'mode' | 'getRecord'>,
+): Promise<HistoryRecord | null> {
   if (provider.mode === 'history') {
     try {
-      const entry = await provider.getEntry(routeId);
+      const entry = await provider.getRecord(routeId);
       if (entry) {
         return entry;
       }
@@ -43,7 +45,7 @@ export async function loadWorkbenchDisplayEntry(
 }
 
 export function getWorkbenchDocumentTitle(
-  currentEntry: HistoryEntry | null,
+  currentEntry: HistoryRecord | null,
   routeId?: string,
 ): string {
   if (currentEntry?.title) {

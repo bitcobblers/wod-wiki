@@ -12,9 +12,9 @@ import { AlertCircle, CheckCircle2, Cloud, CloudDownload, Database, RefreshCw, S
 import { Button } from '@/components/atoms/primitives/button'
 import { cn } from '@/lib/utils'
 import { readDataSettings, storageBackend } from '@/services/storage'
-import { demoSeedSources, type DemoSeedSource } from '@/services/seed/seedSources'
-import { syncSeedSource, type SeedSyncOutcome, type SeedSyncProgress } from '@/services/seed/seedSync'
-import { isSeedSubscribed, setSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
+import { demoFeedSources, type DemoFeedSource } from '@/services/feed/feedSources'
+import { syncFeedSource, type FeedSyncOutcome, type FeedSyncProgress } from '@/services/feed/feedSync'
+import { isFeedSubscribed, setFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 
 // ── Data ownership ────────────────────────────────────────────────────────────
 
@@ -121,18 +121,19 @@ export function HomeDataOwnership() {
 
 // ── Community feeds ───────────────────────────────────────────────────────────
 
-const OUTCOME_STATUS: Record<SeedSyncOutcome, string> = {
+const OUTCOME_STATUS: Record<FeedSyncOutcome, string> = {
   imported: 'Synced — new content imported',
   current: 'Up to date',
   'server-stale': 'Up to date (published version is older)',
   busy: 'Another tab is syncing — try again shortly',
-  disabled: 'Seed import is disabled',
+  disabled: 'Feed import is disabled',
   error: 'Sync failed',
+  'update-pending': 'An update is waiting — sync to apply it',
 }
 
-function progressText(event: SeedSyncProgress): string {
+function progressText(event: FeedSyncProgress): string {
   switch (event.phase) {
-    case 'checking': return 'Checking source…'
+    case 'checking': return 'Checking feed…'
     case 'fetching': return `Downloading ${event.chunkId}…`
     case 'applying': return `Importing ${event.chunkId}…`
     case 'committed': return `Committed ${event.chunkId}`
@@ -142,33 +143,33 @@ function progressText(event: SeedSyncProgress): string {
 }
 
 /** A manual sync subscribes only after a successful commit. */
-function outcomeSubscribes(outcome: SeedSyncOutcome): boolean {
+function outcomeSubscribes(outcome: FeedSyncOutcome): boolean {
   return outcome === 'imported' || outcome === 'current' || outcome === 'server-stale'
 }
 
-function FeedCard({ feed }: { feed: DemoSeedSource }) {
-  const [subscribed, setSubscribed] = useState(() => isSeedSubscribed(feed.id))
+function FeedCard({ feed }: { feed: DemoFeedSource }) {
+  const [subscribed, setSubscribed] = useState(() => isFeedSubscribed(feed.id))
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
 
-  useEffect(() => subscribeSeedSubscriptions(() => {
-    setSubscribed(isSeedSubscribed(feed.id))
+  useEffect(() => subscribeFeedSubscriptions(() => {
+    setSubscribed(isFeedSubscribed(feed.id))
   }), [feed.id])
 
   const handleSync = async () => {
     setBusy(true)
     setFailed(false)
-    setStatus('Checking source…')
+    setStatus('Checking feed…')
     try {
-      const outcome = await syncSeedSource(feed.id, {
+      const outcome = await syncFeedSource(feed.id, {
         onProgress: event => setStatus(progressText(event)),
       })
       const ok = outcomeSubscribes(outcome)
       setStatus(OUTCOME_STATUS[outcome])
       setFailed(!ok)
       // Subscribe only after a successful commit — never before, never on error.
-      if (ok && !isSeedSubscribed(feed.id)) setSeedSubscribed(feed.id, true)
+      if (ok && !isFeedSubscribed(feed.id)) setFeedSubscribed(feed.id, true)
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err))
       setFailed(true)
@@ -212,7 +213,7 @@ function FeedCard({ feed }: { feed: DemoSeedSource }) {
         </Button>
         <button
           type="button"
-          onClick={() => setSeedSubscribed(feed.id, !subscribed)}
+          onClick={() => setFeedSubscribed(feed.id, !subscribed)}
           disabled={busy}
           data-testid={`home-feed-subscribe-${feed.id}`}
           className={cn(
@@ -241,7 +242,7 @@ function FeedCard({ feed }: { feed: DemoSeedSource }) {
 }
 
 export function HomeCommunityFeeds() {
-  const feeds = demoSeedSources()
+  const feeds = demoFeedSources()
   return (
     <section className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8" aria-labelledby="home-community-feeds-heading">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -250,16 +251,16 @@ export function HomeCommunityFeeds() {
             Community feeds
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            A seed is a markdown repository compiled into a versioned manifest with{' '}
+            A feed is a markdown repository compiled into a versioned manifest with{' '}
             <code className="font-mono text-xs">wod build</code> (this repo publishes its own with{' '}
             <code className="font-mono text-xs">bun run generate:seed</code>) and hosted anywhere —
-            each seed repo publishes to its own GitHub Pages. Subscribe to a seed and the app syncs
-            every notebook it publishes at launch; the two seeds below are demos you can try right now.
+            each feed repo publishes to its own GitHub Pages. Subscribe to a feed and the app syncs
+            every notebook it publishes at launch; the two feeds below are demos you can try right now.
           </p>
         </div>
         <div className="flex items-center gap-4 text-sm font-medium">
-          <Link to="/settings/sync" className="text-primary hover:underline">Manage sources →</Link>
-          <Link to="/catalogs" className="text-primary hover:underline">Catalog →</Link>
+          <Link to="/settings/sync" className="text-primary hover:underline">Manage feeds →</Link>
+          <Link to="/notebooks" className="text-primary hover:underline">Catalog →</Link>
         </div>
       </div>
 

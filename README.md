@@ -231,7 +231,7 @@ A workout is plain Markdown; WOD Wiki interprets fenced ` ```time ` (and ` ```lo
   :30 Rest
 ```
 
-Dialects recognize keywords like `EMOM`, `AMRAP`, `FOR TIME`, `TABATA`, `STRENGTH`, `RUN/ROW/BIKE/SWIM` and tag blocks accordingly. Full reference: [`docs/language/syntax-reference.md`](./docs/language/syntax-reference.md). Sample workout libraries live in the sibling [`wod-wiki-seed`](../wod-wiki-seed) repo (`markdown/collections/` there).
+Dialects recognize keywords like `EMOM`, `AMRAP`, `FOR TIME`, `TABATA`, `STRENGTH`, `RUN/ROW/BIKE/SWIM` and tag blocks accordingly. Full reference: [`docs/language/syntax-reference.md`](./docs/language/syntax-reference.md). Sample workout libraries live in the sibling [`wod-wiki-seed`](../wod-wiki-seed) repo (`markdown/notebooks/` there).
 
 ---
 
@@ -240,10 +240,10 @@ Dialects recognize keywords like `EMOM`, `AMRAP`, `FOR TIME`, `TABATA`, `STRENGT
 The app is a continuous loop. The same metric flows through every phase.
 
 ### 1. PLAN — author & choose the work
-- **Editor** (`/notes/:noteId`, `/playground/:id`) — write Markdown + `wod` blocks with live syntax checking, suggestions, and typed frontmatter tags.
-- **Collections** (`/collections`) — browse workout libraries; pick one to run.
+- **Editor** (`/note/:noteId`, `/playground/:id`) — write Markdown + `wod` blocks with live syntax checking, suggestions, and typed frontmatter tags.
+- **Collections** (`/notebooks`) — browse workout libraries; pick one to run.
 - **Efforts** (`/efforts`, `/effort/:slug`) — exercise definitions (MET, discipline, intensity tier) that power analytics and autocomplete.
-- **Feeds** (`/feeds`) — date-indexed streams of workouts.
+- **Feeds** (`/feeds`) — configured feed sources and subscribed libraries.
 
 ### 2. TRACK — execute on the clock
 - **Clock / Run** (`/run/:runtimeId`) — JIT-compiled blocks run on the runtime clock: timers count, rounds advance, sound cues fire, and you log actual reps/load/RPE. Each segment emits statements recorded directly as `EventRecord` rows.

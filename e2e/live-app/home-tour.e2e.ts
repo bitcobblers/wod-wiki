@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test'
-import { syncSeed, waitForSeedReady } from '../helpers/seedReadiness'
+import { syncFeed, waitForFeedReady } from '../helpers/feedReadiness'
 import { TEST_IDS } from '../contracts/TestIdContract'
 import { getSessions } from '../utils/sessionsDb'
 
@@ -43,7 +43,7 @@ for (const viewport of [
       const errors: string[] = []
       page.on('pageerror', error => errors.push(error.message))
       await page.goto('/', { waitUntil: 'domcontentloaded' })
-      await waitForSeedReady(page)
+      await waitForFeedReady(page)
       await expect(page.getByTestId('sync-activity-indicators')).toHaveCount(0)
       // Sync-complete notifications publish a beat after the indicators
       // clear; dismiss the stack through its close buttons only once it
@@ -164,7 +164,7 @@ for (const viewport of [
 test('editor run records results and glides the dashboards into view', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
   await page.goto('/', { waitUntil: 'domcontentloaded' })
-  await waitForSeedReady(page)
+  await waitForFeedReady(page)
   const previousSessions = new Set((await getSessions(page)).map(session => session.id))
   // The run button lives in the live-preview editor below the video pitch.
   await page.getByTestId('tour-section-editor').getByRole('button', { name: 'Run', exact: true }).click()
@@ -236,7 +236,7 @@ test.describe('library & community feeds gallery', () => {
 
   test('seed cards browse, filter, and sort before any import', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    await waitForSeedReady(page)
+    await waitForFeedReady(page)
 
     const section = page.getByTestId('tour-jump-section')
     await section.scrollIntoViewIfNeeded()
@@ -254,43 +254,46 @@ test.describe('library & community feeds gallery', () => {
     const copies = section.locator('[data-marquee-copy="0"]')
 
     // Alphabetical before any import: CrossFit leads row A.
-    const crossfit = firstCopy.getByTestId('seed-card-seed-crossfit')
+    const crossfit = firstCopy.getByTestId('feed-card-seed-crossfit')
     await expect(crossfit).toBeVisible()
-    await expect(crossfit.getByTestId('seed-card-seed-crossfit-import')).toBeVisible()
+    await expect(crossfit.getByTestId('feed-card-seed-crossfit-import')).toBeVisible()
     // The card says what one Subscribe brings: its notebooks.
     for (const notebook of [
       'community-crossfit-programming',
       'community-crossfit-girls',
       'community-crossfit-heroes',
     ]) {
-      await expect(crossfit.getByTestId(`seed-card-seed-crossfit-notebook-${notebook}`)).toBeVisible()
+      await expect(crossfit.getByTestId(`feed-card-seed-crossfit-notebook-${notebook}`)).toBeVisible()
     }
 
     // Search matches the seed AND the notebooks it publishes.
     await section.getByTestId('package-search-input').fill('heroes')
-    await expect(copies.getByTestId('seed-card-seed-crossfit')).toBeVisible()
-    await expect(copies.getByTestId('seed-card-seed-swimming')).toHaveCount(0)
+    await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
+    await expect(copies.getByTestId('feed-card-seed-swimming')).toHaveCount(0)
     await section.getByTestId('package-search-input').fill('kettlebell zebras')
-    await expect(copies.getByTestId('seed-card-seed-crossfit')).toHaveCount(0)
+    await expect(copies.getByTestId('feed-card-seed-crossfit')).toHaveCount(0)
     await section.getByTestId('package-search-input').fill('')
-    await expect(copies.getByTestId('seed-card-seed-crossfit')).toBeVisible()
+    await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
 
-    // Kind facets keep the seeds publishing a notebook of that kind.
-    await section.getByTestId('package-kind-collection').click()
-    await expect(copies.getByTestId('seed-card-seed-crossfit')).toBeVisible()
-    await expect(copies.getByTestId('seed-card-r-workoutroutines')).toHaveCount(0)
-    await section.getByTestId('package-kind-collection').click()
+    // Feed facets keep only the seeds published by that source — the
+    // canonical facet now that collection/feed kinds collapsed into
+    // notebooks (one Subscribe imports every notebook a feed publishes).
+    await section.getByTestId('filter-feed-source').selectOption('seed-crossfit')
+    await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
+    await expect(copies.getByTestId('feed-card-r-workoutroutines')).toHaveCount(0)
+    await section.getByTestId('filter-feed-source').selectOption('')
+    await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
 
     // Sort by name keeps CrossFit leading.
     await section.getByTestId('package-sort-name').click()
-    await expect(section.getByTestId('jump-row-a').locator('[data-marquee-copy="0"] article[data-testid^="seed-card-"]').first())
-      .toHaveAttribute('data-testid', 'seed-card-seed-crossfit')
+    await expect(section.getByTestId('jump-row-a').locator('[data-marquee-copy="0"] article[data-testid^="feed-card-"]').first())
+      .toHaveAttribute('data-testid', 'feed-card-seed-crossfit')
   })
 
   test('mobile slides the same cards in one alternating row', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 })
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    await waitForSeedReady(page)
+    await waitForFeedReady(page)
 
     const section = page.getByTestId('tour-jump-section')
     await section.scrollIntoViewIfNeeded()
@@ -298,8 +301,8 @@ test.describe('library & community feeds gallery', () => {
     await expect(section.getByTestId('jump-row-a')).toHaveCount(0)
     await expect(section.getByTestId('jump-row-b')).toHaveCount(0)
     const firstCopy = section.getByTestId('jump-row-mobile').locator('[data-marquee-copy="0"]')
-    await expect(firstCopy.getByTestId('seed-card-seed-crossfit')).toBeVisible()
-    await expect(firstCopy.getByTestId('seed-card-seed-crossfit-notebook-community-crossfit-games')).toBeVisible()
+    await expect(firstCopy.getByTestId('feed-card-seed-crossfit')).toBeVisible()
+    await expect(firstCopy.getByTestId('feed-card-seed-crossfit-notebook-community-crossfit-games')).toBeVisible()
   })
 })
 
@@ -363,10 +366,10 @@ test('dashboard carousel slides across the two seeded boards', async ({ page }) 
   test.setTimeout(180_000)
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('/', { waitUntil: 'domcontentloaded' })
-  await waitForSeedReady(page)
+  await waitForFeedReady(page)
   // The seeded boards ship with the syncable seed corpus — the bundled core
   // carries only the canvas/efforts/equipment markdown.
-  await syncSeed(page, 'seed-crossfit')
+  await syncFeed(page, 'seed-crossfit')
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   // The app's own startup import rewrites the canvas routes when it lands
   // (the page view remounts); let the sync settle before driving the
@@ -408,7 +411,7 @@ test('wod wiki university lists guide cards in the on-this-page outline', async 
   test.setTimeout(120_000)
   await page.setViewportSize({ width: 1600, height: 1000 })
   await page.goto('/', { waitUntil: 'domcontentloaded' })
-  await waitForSeedReady(page)
+  await waitForFeedReady(page)
 
   // The right-rail "On this page" outline carries the section and glides to it.
   const tocEntry = page.getByRole('button', { name: 'Wod Wiki University' })

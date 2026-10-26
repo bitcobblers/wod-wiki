@@ -11,8 +11,6 @@ import { parseQuery, type AnyParsedQuery } from '@bitcobblers/wod-wiki-engine'
 import { CONTENT_GROUPING_DIMENSIONS } from '@bitcobblers/wod-wiki-ui'
 import { sortGroupBuckets } from './groupByOptions'
 
-export const UNDATED_KEY = '(undated)'
-
 export interface StreamGroup {
   /** DOM id and scroll target, e.g. "date-group-2026-09-04" or "group-discipline-strength" */
   id: string
@@ -24,18 +22,6 @@ export interface StreamGroup {
   isToday?: boolean
   /** Entries in this group */
   entries: Entry[]
-}
-
-/** Legacy signature kept for existing callers and tests */
-export function groupEntriesByDate(entries: Entry[]): [string, Entry[]][] {
-  const map = new Map<string, Entry[]>()
-  for (const e of entries) {
-    const k = e.date ?? UNDATED_KEY
-    const arr = map.get(k)
-    if (arr) arr.push(e)
-    else map.set(k, [e])
-  }
-  return Array.from(map.entries())
 }
 
 /** Parse the ordered grouping dimensions from a WQL query string or a
@@ -110,8 +96,8 @@ function groupByDimension(
       // Playground notes carry no journal date — createdAt IS their stream
       // date, so `by {date}` groups stay meaningful. ponytail: playground-only
       // fallback; widen to other sources when one needs dated undated grouping.
-      const key = e.date ?? (e.sourceCatalog === 'playground' && e.createdAt && e.createdAt > 946684800000 ? new Date(e.createdAt).toISOString().slice(0, 10) : null)
-      if (options?.shelfVisible && (e.kind === 'session' || key == null)) {
+      const key = e.date ?? (e.sourceNotebook === 'playground' && e.createdAt && e.createdAt > 946684800000 ? new Date(e.createdAt).toISOString().slice(0, 10) : null)
+      if (options?.shelfVisible && (key == null || (e.kind === 'note' && !e.sourceNote))) {
         undatedShelf.push(e)
       } else if (key) {
         const arr = map.get(key)
@@ -129,7 +115,7 @@ function groupByDimension(
       groups.push({
         id: 'group-shelf',
         key: 'shelf',
-        label: 'Catalog Sessions',
+        label: 'Notebook Sessions',
         entries: undatedShelf,
       })
     }
@@ -327,7 +313,7 @@ function groupByDimension(
   if (dim === 'source' || dim === 'notebook') {
     const map = new Map<string, Entry[]>()
     for (const e of entries) {
-      const source = e.sourceCatalog || 'Other'
+      const source = e.sourceNotebook || 'Other'
       const label = source.charAt(0).toUpperCase() + source.slice(1)
       const arr = map.get(label)
       if (arr) arr.push(e)

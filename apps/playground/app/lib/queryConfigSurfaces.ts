@@ -14,19 +14,22 @@
  * Metric Explorer and the ⌘/ palette — carry an explicit system default
  * instead, because they have no stream profile of their own.
  *
- * Detail surfaces are deliberately absent: `/c/:slug`, `/session/:date` and
- * `/results/:id` resolve a profile per item, so a config key per item would
- * scatter the keyspace with one-off overrides. They keep their in-code
- * defaults; their families are configured here instead.
+ * Detail surfaces are deliberately absent: `/notebook/:slug`,
+ * `/session/:date` and `/results/:id` resolve a profile per item, so a config
+ * key per item would scatter the keyspace with one-off overrides. They keep
+ * their in-code defaults; their families are configured here instead.
  */
 import {
-  CATALOGS_STREAM_PROFILE,
   EFFORTS_STREAM_PROFILE,
   EQUIPMENT_STREAM_PROFILE,
   FEEDS_STREAM_PROFILE,
   JOURNAL_STREAM_PROFILE,
+  NOTEBOOKS_STREAM_PROFILE,
+  NOTES_STREAM_PROFILE,
+  PAGES_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
   SESSIONS_STREAM_PROFILE,
+  TAGS_STREAM_PROFILE,
   type StreamProfile,
 } from '../views/stream/streamProfile'
 import { PALETTE_ROUTE_ID } from './routeWqlConfig'
@@ -57,16 +60,30 @@ const LIBRARY_SURFACES: QueryConfigSurface[] = [
     shortcuts: true,
   },
   {
-    id: FEEDS_STREAM_PROFILE.route,
+    id: NOTES_STREAM_PROFILE.route,
     label: 'Notes',
+    profile: NOTES_STREAM_PROFILE,
+    scopeChoices: SOURCE_OPTIONS,
+    shortcuts: true,
+  },
+  {
+    id: NOTEBOOKS_STREAM_PROFILE.route,
+    label: 'Notebooks',
+    profile: NOTEBOOKS_STREAM_PROFILE,
+    scopeChoices: SOURCE_OPTIONS,
+    shortcuts: true,
+  },
+  {
+    id: FEEDS_STREAM_PROFILE.route,
+    label: 'Feeds',
     profile: FEEDS_STREAM_PROFILE,
     scopeChoices: SOURCE_OPTIONS,
     shortcuts: true,
   },
   {
-    id: CATALOGS_STREAM_PROFILE.route,
-    label: 'Notebooks',
-    profile: CATALOGS_STREAM_PROFILE,
+    id: PAGES_STREAM_PROFILE.route,
+    label: 'Pages',
+    profile: PAGES_STREAM_PROFILE,
     scopeChoices: SOURCE_OPTIONS,
     shortcuts: true,
   },
@@ -82,6 +99,12 @@ const LIBRARY_SURFACES: QueryConfigSurface[] = [
     label: 'Equipment',
     profile: EQUIPMENT_STREAM_PROFILE,
     scopeChoices: SOURCE_OPTIONS,
+    shortcuts: true,
+  },
+  {
+    id: TAGS_STREAM_PROFILE.route,
+    label: 'Tags',
+    profile: TAGS_STREAM_PROFILE,
     shortcuts: true,
   },
   {

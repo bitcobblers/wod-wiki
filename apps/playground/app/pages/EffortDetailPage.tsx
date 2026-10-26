@@ -38,7 +38,7 @@ import { canGoBack } from './shared/pageUtils';
 import { useScriptBlockCommands } from '../hooks/useScriptBlockCommands';
 import { useEffortRegistry } from '../contexts/EffortRegistryContext';
 import { EffortResolver, addAliasToEffort, type IEffort, type ResolvedEffort } from '@bitcobblers/wod-wiki-lang';
-import { effortsPath, parseEffortRouteOptions, effortPath, journalEntryPath } from '../lib/routes';
+import { effortsPath, parseEffortRouteOptions, effortPath, dayPath } from '../lib/routes';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/atoms/primitives/toast';
 import { TEST_IDS } from '@/testing/contracts/TestIdContract';
@@ -257,12 +257,12 @@ export function EffortDetailPage() {
         wodContent: block.content,
         date,
       });
-      navigate(journalEntryPath(dateKey));
+      navigate(dayPath(dateKey));
       toast({
         title: 'Scheduled',
         description: `Added to journal for ${dateKey}`,
         action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(dateKey))}>
+          <ToastAction altText="Open journal" onClick={() => navigate(dayPath(dateKey))}>
             Open
           </ToastAction>
         ),
@@ -284,7 +284,7 @@ export function EffortDetailPage() {
   // copies stamped with /e/<slug> + workouts whose scripts use this effort.
   const ownerNoteId = effort?.ownerNoteId ?? `effort/${slug}`;
   const ownership = useMemo(
-    () => slug ? noteOwnership({ id: ownerNoteId, type: 'collection' }) : null,
+    () => slug ? noteOwnership({ id: ownerNoteId, type: 'note' }) : null,
     [slug, ownerNoteId],
   );
   const contextData = useNoteContextLinks({
@@ -294,7 +294,7 @@ export function EffortDetailPage() {
   });
 
   // ── WOD block commands ───────────────────────────────────────────────────
-  const commands = useScriptBlockCommands('collection-readonly', {
+  const commands = useScriptBlockCommands('notebook-readonly', {
     onPlay: handleStartWorkout,
     onShare: shareBlock,
     onSchedule: setPendingScheduleBlock,
@@ -399,7 +399,7 @@ export function EffortDetailPage() {
           <p className="text-sm text-destructive">{error}</p>
         </div>
         <Button variant="outline" onClick={() => navigate(effortsPath())}>
-          Back to Catalog
+          Back to library
         </Button>
       </div>
     );
@@ -436,7 +436,7 @@ export function EffortDetailPage() {
               Link as Alias
             </Button>
             <Button variant="outline" onClick={() => navigate(effortsPath())}>
-              Back to Catalog
+              Back to library
             </Button>
           </div>
         ) : (

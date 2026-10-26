@@ -40,16 +40,11 @@ export function resolveSource(dslPath: string, wodFiles: Record<string, string>)
     logical = 'markdown/canvas/' + dslPath.replace(/^wods\/examples\//, '')
   } else if (dslPath.startsWith('wods/')) {
     logical = 'markdown/canvas/' + dslPath.replace(/^wods\//, '')
-  } else if (dslPath.startsWith('collections/')) {
-    logical = 'markdown/collections/' + dslPath.replace(/^collections\//, '')
   } else if (dslPath.startsWith('canvas/')) {
     logical = 'markdown/canvas/' + dslPath.replace(/^canvas\//, '')
   } else {
     const canvasHit = read('markdown/canvas/' + dslPath)
     if (canvasHit !== null) return canvasHit
-
-    const collectionsHit = read('markdown/collections/' + dslPath)
-    if (collectionsHit !== null) return collectionsHit
 
     logical = 'markdown/' + dslPath
   }

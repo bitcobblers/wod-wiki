@@ -18,10 +18,8 @@ import {
   type BlockQueryStore,
   type EffortQueryStore,
   type EventStore,
+  type IEffort,
 } from '@bitcobblers/wod-wiki-engine';
-// wql's own IEffort — the engine umbrella re-exports lang's IEffort under the
-// same name, and the two differ on baseAttributes' index signature (0.6.36).
-import type { IEffort } from '@bitcobblers/wod-wiki-wql';
 import {
   PageSourceRegistry,
   captureContext,
@@ -53,7 +51,7 @@ export const indexedDbEventStore: EventStore = {
 
 export const indexedDbNoteStore: NoteQueryStore = {
   getAllNotes: () => storageService.getAllNotes(),
-  getNotesByIds: async (ids) => [...(await storageService.getEntryBatches(ids)).values()].map(bundle => bundle.note),
+  getNotesByIds: async (ids) => [...(await storageService.getDetailBatches(ids)).values()].map(bundle => bundle.note),
   getNoteIdsForTag: async (label: string) =>
     new Set((await storageService.getNotesForTag(label)).map((n) => n.id)),
   getNoteTagLabels: async (noteId: string) =>
@@ -80,7 +78,9 @@ export const indexedDbBlockStore: BlockQueryStore = {
 
 /**
  * Production effort store: the CompositeEffortRegistry (bundled + user,
- * IndexedDB-backed), lazily constructed on first query.
+ * IndexedDB-backed), lazily constructed on first query. The registry rows
+ * are projections of definition notes — one authoritative IEffort shape
+ * (lang), re-exported by both engine and wql.
  */
 export class RegistryEffortStore implements EffortQueryStore {
   async getAllEfforts(): Promise<IEffort[]> {
@@ -88,7 +88,7 @@ export class RegistryEffortStore implements EffortQueryStore {
     if (!registry.isInitialized()) {
       await hydrateAppEffortRegistry(registry);
     }
-    return [...registry.list()] as unknown as IEffort[]; // lang's IEffort.baseAttributes lacks the index signature wql's IEffort declares (engine-internal inconsistency, 0.6.36)
+    return [...registry.list()];
   }
 }
 
@@ -299,6 +299,8 @@ export function createQueryService(): QueryService {
     },
     tagsStore: {
       getAllFromIndex: (index, key) => storageService.getAllFromIndex('tags', index, key),
+      // The :tag{} plane lists every tag record (labels + contributions).
+      getAll: () => storageService.getAllTags(),
     },
     noteTagsStore: {
       getAllFromIndex: (index, key) => storageService.getAllFromIndex('note_tags', index, key),
@@ -307,9 +309,12 @@ export function createQueryService(): QueryService {
     pageStore: {
       getNotePages: (noteId) => storageService.getNotePages(noteId),
       getPage: (pageId) => storageService.getPage(pageId),
+      // Whole-plane reads backing the :page{} placement plane.
+      getAllPages: () => storageService.getAllPages(),
+      getAllLinks: () => storageService.getAllPageNotes(),
     },
     relationStore: {
-      getBatches: (noteIds) => storageService.getEntryBatches(noteIds),
+      getBatches: (noteIds) => storageService.getDetailBatches(noteIds),
     },
     // Named page-source datasets — @session projects live at query time;
     // everything else reads the populated registry. No database roundtrip.

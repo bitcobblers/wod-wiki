@@ -13,7 +13,7 @@ export class EffortsPage {
   }
 
   async gotoDetail(slug: string) {
-    await gotoFeedSurface(this.page, `/e/${encodeURIComponent(slug)}`);
+    await gotoFeedSurface(this.page, `/effort/${encodeURIComponent(slug)}`);
     await this.waitForDetailLoaded();
   }
 
@@ -26,7 +26,7 @@ export class EffortsPage {
   }
 
   createCustomButton(): Locator {
-    return this.page.getByTestId(TEST_IDS.EFFORTS_CATALOG_CREATE_BTN);
+    return this.page.getByTestId(TEST_IDS.EFFORTS_CREATE_BTN);
   }
 
   emptyState(): Locator {
@@ -147,7 +147,7 @@ export class EffortsPage {
 
   async clickEffortRow(slug: string) {
     await this.effortRow(slug).click();
-    await this.page.waitForURL(/\/e\//, { timeout: 10_000 });
+    await this.page.waitForURL(/\/effort\//, { timeout: 10_000 });
   }
 
   /** Replace the catalog WQL query in the header composer and apply it. */

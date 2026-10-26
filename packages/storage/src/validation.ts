@@ -33,9 +33,18 @@ export function validateStorageRow(store: StoreName, value: unknown): void {
       || 'segments' in row || 'segmentIds' in row
       || (row.date !== undefined && (typeof row.date !== 'number' || !Number.isFinite(row.date)))
       || (row.seedOrigin !== undefined && row.seedOrigin !== 'seed' && row.seedOrigin !== 'user')
+      || (row.feedOrigin !== undefined && row.feedOrigin !== 'feed' && row.feedOrigin !== 'user')
+      // Feed provenance and seed provenance describe the same import: a
+      // feed-delivered note carries the seed provenance it arrived with,
+      // and the two kinds never contradict each other. A seed-delivered
+      // note with NO feed stamp is the pre-migration state and stays valid
+      // until the backfill repairs it.
+      || (row.feedOrigin === 'feed' && (row.seedOrigin === undefined || typeof row.feedSourceId !== 'string' || row.feedSourceId.length === 0))
+      || (row.feedOrigin === 'user' && row.seedOrigin === 'seed')
+      || (row.feedSourceId !== undefined && row.feedOrigin !== 'feed')
       || (row.seedVersion !== undefined && !(typeof row.seedVersion === 'number' && Number.isSafeInteger(row.seedVersion) && row.seedVersion >= 0))
       || (row.tags !== undefined && (!Array.isArray(row.tags) || !row.tags.every(tag => typeof tag === 'string')))
-      || ['type', 'sourceId', 'sourcePath', 'catalog', 'notebookId', 'seedChunkId'].some(field => row[field] !== undefined && typeof row[field] !== 'string')) {
+      || ['type', 'sourceId', 'sourcePath', 'notebookId', 'seedChunkId', 'feedSourceId'].some(field => row[field] !== undefined && typeof row[field] !== 'string')) {
       throw new StorageError(400, 'invalid whole Note', 'invalid_note_blocks');
     }
     try { validateNoteBlocks(row.rawContent, record(row.blocks) as Note['blocks'], row.sourceRevision as number); }

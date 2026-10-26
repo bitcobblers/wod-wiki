@@ -24,7 +24,7 @@ mock.module('../services/dateUtils', () => ({
 }));
 
 mock.module('../lib/routes', () => ({
-  noteByIdPath: mock((id) => `/notes/${id}`),
+  notePath: mock((id) => `/notes/${id}`),
   ROUTE_PATTERNS: {
     journal: '/journal',
   },

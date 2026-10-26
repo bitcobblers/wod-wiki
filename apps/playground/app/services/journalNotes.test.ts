@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { CreateNoteInput, GetNoteOptions, NoteLocator, NoteMutation, NoteQuery } from '@/services/persistence/types';
 import type { INotePersistence } from '@/services/persistence';
 import { createJournalNotes } from './journalNotes';
@@ -10,10 +10,10 @@ import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
 import { duplicateWidget, moveWidget, updateWidget } from '@bitcobblers/wod-wiki-wql';
 
 class MemoryNotePersistence implements Pick<INotePersistence, 'createNote' | 'getNote' | 'listNotes' | 'mutateNote' | 'deleteNote'> {
-  readonly notes = new Map<string, HistoryEntry>();
+  readonly notes = new Map<string, HistoryRecord>();
 
-  async createNote(input: CreateNoteInput): Promise<HistoryEntry> {
-    const entry: HistoryEntry = {
+  async createNote(input: CreateNoteInput): Promise<HistoryRecord> {
+    const entry: HistoryRecord = {
       id: input.id,
       title: input.title,
       rawContent: input.rawContent,
@@ -33,21 +33,21 @@ class MemoryNotePersistence implements Pick<INotePersistence, 'createNote' | 'ge
     return entry;
   }
 
-  async getNote(locator: NoteLocator, _options?: GetNoteOptions): Promise<HistoryEntry> {
+  async getNote(locator: NoteLocator, _options?: GetNoteOptions): Promise<HistoryRecord> {
     const id = typeof locator === 'string' ? locator : locator.id;
     const entry = id ? this.notes.get(id) : undefined;
     if (!entry) throw new Error('not found');
     return entry;
   }
 
-  async listNotes(query: NoteQuery = {}): Promise<HistoryEntry[]> {
+  async listNotes(query: NoteQuery = {}): Promise<HistoryRecord[]> {
     return Array.from(this.notes.values()).filter(note =>
       (!query.journalDate || note.journalDate === query.journalDate) &&
       (!query.kind || note.type === query.kind),
     );
   }
 
-  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryEntry> {
+  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryRecord> {
     const current = await this.getNote(locator);
     if (mutation.expectedSourceRevision !== undefined && mutation.expectedSourceRevision !== current.sourceRevision) throw new Error('stale source');
     const next = {
@@ -204,5 +204,107 @@ describe('Journal Notes', () => {
     const prose = await journal.update(updated, updated.rawContent.replace('dashboard: true', 'dashboard: true\ntitle: Changed'));
     expect(Object.keys(prose.blocks!)).toEqual(Object.keys(updated.blocks!));
     expect(await persistence.getNoteBlockHistory(saved.id)).toHaveLength(4);
+  });
+
+  describe('moveToDate', () => {
+    it('calls the atomic move operation with the primary date placement as source', async () => {
+      const persistence = new MemoryNotePersistence();
+      await persistence.createNote({ id: 'n1', title: 'A', rawContent: 'x', targetDate: 1, journalDate: '2026-10-15' });
+      persistence.notes.get('n1')!.placements = [
+        { pageId: 'cal-1', noteId: 'n1', date: '2026-10-15', createdAt: 1 },
+        { pageId: 'named-1', noteId: 'n1', slug: 'gym', createdAt: 2 },
+      ];
+      const calls: unknown[] = [];
+      const journal = createJournalNotes({
+        persistence,
+        moveRecordPlacement: (...args) => { calls.push(['move', ...args]); return Promise.resolve(persistence.notes.get('n1')!); },
+        addRecordPlacement: (...args) => { calls.push(['add', ...args]); return Promise.resolve(persistence.notes.get('n1')!); },
+      });
+
+      await journal.moveToDate('n1', '2026-10-16');
+
+      expect(calls).toEqual([['move', 'n1', 'cal-1', { date: '2026-10-16' }]]);
+    });
+
+    it('attaches when the note has no calendar placement yet', async () => {
+      const persistence = new MemoryNotePersistence();
+      await persistence.createNote({ id: 'n1', title: 'A', rawContent: 'x', targetDate: 1 });
+      const calls: unknown[] = [];
+      const journal = createJournalNotes({
+        persistence,
+        moveRecordPlacement: (...args) => { calls.push(['move', ...args]); return Promise.resolve(persistence.notes.get('n1')!); },
+        addRecordPlacement: (...args) => { calls.push(['add', ...args]); return Promise.resolve(persistence.notes.get('n1')!); },
+      });
+
+      await journal.moveToDate('n1', '2026-10-16');
+
+      expect(calls).toEqual([['add', 'n1', { date: '2026-10-16' }]]);
+    });
+
+    it('moves the date placement only — other placements survive, and an added second date never collapses the first', async () => {
+      const storage = new StorageService(new InMemoryStorage());
+      const persistence = new IndexedDBNotePersistence(storage, new IndexedDBContentProvider(storage));
+      const provider = new IndexedDBContentProvider(storage);
+      const journal = createJournalNotes({
+        persistence,
+        moveRecordPlacement: (noteId, fromPageId, target) => provider.moveRecordPlacement(noteId, fromPageId, target),
+        addRecordPlacement: (noteId, target) => provider.addRecordPlacement(noteId, target),
+      });
+      const saved = await persistence.createNote({ id: 'move-note', title: 'A', rawContent: 'x', targetDate: 1 });
+
+      await provider.addRecordPlacement(saved.id, { date: '2026-10-15' });
+      await provider.addRecordPlacement(saved.id, { slug: 'gym' });
+
+      // A move detaches exactly one source page — the old date — and keeps
+      // every other placement.
+      await journal.moveToDate(saved.id, '2026-10-16');
+      let entry = await provider.getRecord(saved.id);
+      expect(entry?.placements?.map((placement) => placement.date ?? placement.slug).sort())
+        .toEqual(['2026-10-16', 'gym']);
+
+      // Additive: a second date attaches without detaching the first…
+      await provider.addRecordPlacement(saved.id, { date: '2026-10-18' });
+      // …and the next move preserves both the named page and that second date.
+      await journal.moveToDate(saved.id, '2026-10-17');
+      entry = await provider.getRecord(saved.id);
+      expect(entry?.placements?.map((placement) => placement.date ?? placement.slug).sort())
+        .toEqual(['2026-10-17', '2026-10-18', 'gym']);
+    });
+
+    it('keeps the primary date deterministic when every placement ties on createdAt', async () => {
+      // Regression: unpositioned rows tie on createdAt, and the random
+      // junction id then decides the canonical order — a move could detach
+      // the newer second date instead of the original primary. Explicit
+      // append positions make the order structural, not temporal.
+      const realNow = Date.now;
+      Date.now = () => 1_720_828_800_000;
+      try {
+        const storage = new StorageService(new InMemoryStorage());
+        const persistence = new IndexedDBNotePersistence(storage, new IndexedDBContentProvider(storage));
+        const provider = new IndexedDBContentProvider(storage);
+        const journal = createJournalNotes({
+          persistence,
+          moveRecordPlacement: (noteId, fromPageId, target) => provider.moveRecordPlacement(noteId, fromPageId, target),
+          addRecordPlacement: (noteId, target) => provider.addRecordPlacement(noteId, target),
+        });
+        const saved = await persistence.createNote({ id: 'frozen-note', title: 'A', rawContent: 'x', targetDate: 1 });
+
+        await provider.addRecordPlacement(saved.id, { date: '2026-10-15' });
+        await provider.addRecordPlacement(saved.id, { slug: 'gym' });
+        await journal.moveToDate(saved.id, '2026-10-16');
+        await provider.addRecordPlacement(saved.id, { date: '2026-10-18' });
+        await journal.moveToDate(saved.id, '2026-10-17');
+        // …and once more, to pin repeated add/move cycles: the move detaches
+        // the earliest surviving date (2026-10-18), never the just-added one.
+        await provider.addRecordPlacement(saved.id, { date: '2026-10-19' });
+        await journal.moveToDate(saved.id, '2026-10-20');
+
+        const entry = await provider.getRecord(saved.id);
+        expect(entry?.placements?.map((placement) => placement.date ?? placement.slug).sort())
+          .toEqual(['2026-10-17', '2026-10-19', '2026-10-20', 'gym']);
+      } finally {
+        Date.now = realNow;
+      }
+    });
   });
 });

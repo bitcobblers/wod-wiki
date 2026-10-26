@@ -27,7 +27,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { EditorView } from '@codemirror/view';
 import { seedJournalNote } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 const DATE = '2099-08-04';
 
@@ -117,14 +117,14 @@ test('note editor: opens focused and editable, arrows walk visual rows, Home no-
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
   // The boot seed sync builds the app's DB schema; seeding against a
   // half-booted origin races the import (#1066).
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
   await seedJournalNote(page, DATE, CONTENT);
 
   // The date page opens the note editor inline and editable (the Read/Edit
   // toggles are retired on this surface) and must self-focus .cm-content —
   // the focus contract under test. Clicking into the content would mask it.
-  await page.goto(`/journal/${DATE}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-  await waitForSeedReady(page);
+  await page.goto(`/day/${DATE}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+  await waitForFeedReady(page);
   // Measure focus, not mount latency: editor must be attached first. The
   // self-focus contract is source-backed (NoteEditor focuses on open when
   // editable — its readonly→editable effect calls view.focus()).

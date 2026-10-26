@@ -62,7 +62,7 @@ Proposed behavior for feedback; shared mode policy is in [[Page#Mode and write d
 - A page move, query listing or mode switch must not redirect attachment ownership. Preserve existing relationships and handle save errors without discarding captured data.
 - Do not infer authorization from note type, a tag or a rendered Run button; the host supplies the supported destination.
 
-**Feedback case:** capture HR data while running a bundled workout from a collection page. Which personal note/result owns the data, and what happens if saving fails? The seed source and another displayed note must remain untouched.
+**Feedback case:** capture HR data while running a bundled workout from a notebook page. Which personal note/result owns the data, and what happens if saving fails? The seed source and another displayed note must remain untouched.
 
 The session-renaming proposal below is separate; typed-note composition does not require it.
 

@@ -23,6 +23,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { WQL_FIND_TARGETS, WQL_SOURCE_VALUES } from '@bitcobblers/wod-wiki-engine'
 import type { StreamProfile } from '../views/stream/streamProfile'
+import { migrateLegacyCatalogFilter } from './legacyWql'
 import { LocalStore } from '@/services/storage/LocalStore'
 import { remotePrefsMode, metaDeletePrefs, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
 import {
@@ -75,18 +76,20 @@ export { GROUP_BY_DIMENSIONS, GROUP_BY_DIMENSION_IDS } from './groupByOptions'
 /**
  * Narrow one-time id migration for persisted favorites (work item 3): the old
  * plural-noun type vocabulary maps onto canonical singular targets, and the
- * retired `collections` storage scope maps onto `feeds` (collections→feeds
- * rename; storage identities keep their `collection:` prefixes).
+ * retired `collections`/`feeds` storage scopes map onto `notebooks`
+ * (collections→feeds→notebooks rename chain).
  */
 const LEGACY_TYPE_OPTION_IDS: Record<string, string> = {
   notes: 'note',
   blocks: 'block',
   efforts: 'effort',
-  collections: 'feeds',
+  collections: 'notebooks',
+  feeds: 'notebooks',
 }
 
 function getRouteWqlStorageId(routeId: string): string {
-  return routeId.startsWith('/') ? routeId : `/${routeId}`
+  const id = routeId.startsWith('/') ? routeId : `/${routeId}`
+  return STORAGE_ID_OVERRIDES[id] ?? id
 }
 
 export function getRouteWqlStorageKey(routeId: string): string {
@@ -128,36 +131,69 @@ function migrateFavoriteIds(
 }
 
 /**
- * Storage keys that moved during the route rebrand (#link-crosswalk):
- * overrides saved under the old surface id still resolve under the new one.
- * The new key always wins when both exist.
+ * Storage keys that moved during the ticket-09 route scheme: overrides saved
+ * under the retired surface id still resolve under the canonical one, so a
+ * route rename never loses the user's query settings. The new key always
+ * wins when both exist.
+ *
+ *   /notebooks ← /catalogs   (the notebooks list was /catalogs)
+ *   /notes     ← /feeds      (the notes list was the old /feeds surface; the
+ *                            new /feeds surface is the feed sources, a new
+ *                            key with no legacy of its own)
+ *   /sessions  ← /results    (earlier rebrand — kept so those settings survive)
+ *   /dashboards ← /dashboard (earlier rebrand — kept so those settings survive)
  */
 const LEGACY_STORAGE_ALIASES: Record<string, string> = {
+  '/notebooks': '/catalogs',
+  '/notes': '/feeds',
   '/sessions': '/results',
   '/dashboards': '/dashboard',
-  '/feeds': '/collections',
+}
+
+/** Two-rename chains: `/notes` inherited the old `/feeds` surface, which
+ *  itself inherited `/collections` — a key that old resolves after both
+ *  hops (mirrors routeWqlConfig's second hop). */
+const LEGACY_STORAGE_SECOND_HOP: Record<string, string> = {
+  '/notes': '/collections',
+}
+
+/** Internal storage-id overrides. The feed-source list keeps the public
+ *  `/feeds` URL but stores under a versioned key: settings saved under the
+ *  retired notes-list `/feeds` surface migrate to `/notes` and must never
+ *  leak into the new feed defaults. */
+const STORAGE_ID_OVERRIDES: Record<string, string> = {
+  '/feeds': '/feeds@2',
 }
 
 /**
- * One-time hard-break migration for the collections→feeds rename: stored
- * default WQL written in the retired grammar rewrites to the feeds forms.
- * The `:collection`/`:collections` heads become `:feed`/`:feeds`,
- * `source:collections` becomes `source:feeds`, `type:collection` becomes
- * `type:feed`. Storage-identity spellings pass through untouched — a
- * `collection:`-prefixed source id keeps its prefix (`:collection:` is
- * never followed by a head boundary), and `:catalog`/`catalog:` stay.
+ * One-time hard-break migration for the collections→feeds→notebooks rename
+ * chain: stored default WQL written in the retired grammar rewrites to the
+ * notebook forms. The `:collection`/`:collections`/`:feed`/`:feeds` heads
+ * become `:notebook`/`:notebooks`, `source:collections`/`source:feeds`
+ * become `source:notebooks`, the retired note kinds `type:feed`/
+ * `type:collection` fold into `type:note` (a note in a notebook is one
+ * kind). The `catalog:` filter becomes `notebook:` (ticket 08 — the catalog
+ * plane is the notebook plane). Storage-identity spellings pass through
+ * untouched — a `collection:`-prefixed source id keeps its prefix
+ * (`:collection:` is never followed by a head boundary).
  */
 function migrateLegacyStoredWql(wql: string): string {
-  return wql
-    .replace(/^:(collections?)(?![\w:])/, (head) => (head === ':collections' ? ':feeds' : ':feed'))
-    .replace(/(^|[{,\s])source:collections(?![\w:])/g, '$1source:feeds')
-    .replace(/(^|[{,\s])type:collection(?![\w:])/g, '$1type:feed')
+  return migrateLegacyCatalogFilter(wql)
+    .replace(/^:(collections?|feeds?)(?![\w:])/, (head) =>
+      (head === ':collections' || head === ':feeds' ? ':notebooks' : ':notebook'))
+    .replace(/(^|[{,\s])source:(collections|feeds)(?![\w:])/g, '$1source:notebooks')
+    .replace(/(^|[{,\s])source:collection:/g, '$1source:notebook:')
+    .replace(/(^|[{,\s])type:(feed|collection)(?![\w:])/g, '$1type:note')
 }
+export { migrateLegacyStoredWql }
 
 export function readRouteWqlConfig(routeId: string, store: LocalStore = routeWqlStore): RouteWqlConfig {
   const id = getRouteWqlStorageId(routeId)
   const legacyId = LEGACY_STORAGE_ALIASES[id]
-  const parsed = store.get<Partial<RouteWqlConfig>>(id, { alias: legacyId })
+  let parsed = store.get<Partial<RouteWqlConfig>>(id, { alias: legacyId })
+  if (parsed == null && legacyId) {
+    parsed = store.get<Partial<RouteWqlConfig>>(legacyId, { alias: LEGACY_STORAGE_SECOND_HOP[id] })
+  }
   if (!parsed) return {}
   const typeOptions = sanitizeStringArray(parsed.typeOptions)
   const groupByOptions = sanitizeStringArray(parsed.groupByOptions)

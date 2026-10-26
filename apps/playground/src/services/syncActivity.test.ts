@@ -90,7 +90,7 @@ describe('syncActivity', () => {
     reportSyncProgress({
       sourceId: 'feed-1',
       sourceLabel: 'Feed One',
-      chunkId: 'collection.heroes',
+      chunkId: 'notebook.heroes',
       recordId: 'rec-1',
       completedRecords: 2,
       totalRecords: 10,
@@ -98,7 +98,7 @@ describe('syncActivity', () => {
     })
     expect(getSyncActivity().activeProgress).toMatchObject({
       sourceId: 'feed-1',
-      chunkId: 'collection.heroes',
+      chunkId: 'notebook.heroes',
       completedRecords: 2,
       totalRecords: 10,
       phase: 'fetching',

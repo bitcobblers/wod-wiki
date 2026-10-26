@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { parseDocumentSections, reconcileNoteBlocks } from '../../packages/core/src/sections';
 import type { BlockRevision, Note } from '../../packages/core/src/types/storage';
 import { DB_VERSION } from '../../packages/storage/src/schema';
-import { waitForSeedReady } from './seedReadiness';
+import { waitForFeedReady } from './feedReadiness';
 
 export const WOD_DB = 'wodwiki-db';
 
@@ -128,7 +128,7 @@ export async function seedNote(
   page: Page, noteId: string, content: string,
   opts?: { type?: string; title?: string; journalDate?: string; sourceId?: string; sourcePath?: string },
 ): Promise<void> {
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
   const fixture = noteFixture(noteId, content, opts);
   await page.evaluate(async ({ dbName, fixture, journalDate, version }) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -277,4 +277,50 @@ export async function getNoteContentByRouteId(page: Page, routeId: string): Prom
       });
     } finally { db.close(); }
   }, { dbName: WOD_DB, routeId });
+}
+
+/** One placement of a note — the resolved form of a `page_notes` row. */
+export interface NotePlacementRow {
+  pageId: string;
+  date?: string;
+  slug?: string;
+  position?: number;
+}
+
+/**
+ * The pages a note is placed on, read straight from the `page_notes`
+ * junction — the membership itself, not the single-page projection.
+ */
+export async function getNotePlacements(page: Page, noteId: string): Promise<NotePlacementRow[]> {
+  return page.evaluate(async ({ dbName, noteId }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(dbName);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      const { promise, resolve, reject } = Promise.withResolvers<NotePlacementRow[]>();
+      const tx = db.transaction(['page_notes', 'page'], 'readonly');
+      const links = tx.objectStore('page_notes').index('by-note').getAll(noteId);
+      links.onsuccess = () => {
+        const rows: NotePlacementRow[] = [];
+        const pages = tx.objectStore('page');
+        let pending = links.result.length;
+        if (pending === 0) return resolve(rows);
+        for (const link of links.result) {
+          const req = pages.get(link.pageId);
+          req.onsuccess = () => {
+            const page = req.result;
+            if (page) {
+              rows.push({ pageId: link.pageId, date: page.date, slug: page.slug, position: link.position });
+            }
+            if (--pending === 0) resolve(rows);
+          };
+        }
+      };
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+      return promise;
+    } finally { db.close(); }
+  }, { dbName: WOD_DB, noteId });
 }

@@ -12,7 +12,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { seedJournalNote } from '../helpers/wodwikiDb';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 import { JournalEntryPage } from '../pages/JournalEntryPage';
 
 const DATE = '2099-09-09';
@@ -45,7 +45,7 @@ function overlaps(a: Box | null, b: Box | null): boolean {
 
 async function openProperties(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
   await seedJournalNote(page, DATE, CONTENT);
 
   const journal = new JournalEntryPage(page);
@@ -114,7 +114,7 @@ for (const viewport of [
 
 test('Add tag classifies the note with a category property', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
   await seedJournalNote(page, DATE, CONTENT);
 
   const journal = new JournalEntryPage(page);

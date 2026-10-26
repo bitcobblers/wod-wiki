@@ -54,7 +54,7 @@ role: relationship-table
 - Target the actual owning Note ID. [[Page]] and [[Effort]] are not automatically taggable through this row without a corresponding note identity.
 - Note deletion/re-key must preserve or remove classification consistently. The current UUID re-key transaction omits `note_tags`; [[BlockIndexRow#Recommended projection contract]] records the related derived-store gap.
 
-**Feedback case:** an effort gains an explicit owning note and appears in a tagged collection. Its tags target that note; renaming its lookup slug must not orphan them. Recommended linkage is owned by [[Effort#Linkage questions and proposed answers]].
+**Feedback case:** an effort gains an explicit owning note and appears in a tagged notebook. Its tags target that note; renaming its lookup slug must not orphan them. Recommended linkage is owned by [[Effort#Linkage questions and proposed answers]].
 
 These are review proposals, not implemented changes. The earlier idea of tagging sessions directly remains separate; typed-note composition does not require a polymorphic junction.
 

@@ -24,7 +24,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { ToastAction } from '@/components/atoms/primitives/toast'
 import { ROUTE_PATTERNS } from '../lib/routes'
-import { getCatalogUpdates, subscribeCatalogUpdates } from '@/services/seed/seedSync'
+import { getFeedUpdates, subscribeFeedUpdates } from '@/services/feed/feedSync'
 
 function activityLabel(direction: 'upload' | 'download', count: number, label: string | null, progress?: SyncProgressItem | null): string {
   const noun = direction === 'upload' ? 'Uploading' : 'Downloading'
@@ -86,7 +86,7 @@ export function SyncActivityIndicators() {
 // many times the observer remounts (StrictMode, route changes).
 let lastSeenResultId = 0
 let lastSeenError: string | null = null
-let lastSeenCatalogUpdateId = 0
+let lastSeenFeedUpdateId = 0
 
 function notifyResult(result: NonNullable<SyncActivitySnapshot['result']>, navigate: (to: string) => void): void {
   const parts: string[] = []
@@ -98,7 +98,7 @@ function notifyResult(result: NonNullable<SyncActivitySnapshot['result']>, navig
       ? `${parts.join(', ')} — feeds can be refreshed anytime.`
       : 'Nothing new — feeds can be refreshed anytime.',
     action: (
-      <ToastAction altText="Open notebooks" onClick={() => navigate('/catalogs')}>
+      <ToastAction altText="Open notebooks" onClick={() => navigate('/notebooks')}>
         Open notebooks
       </ToastAction>
     ),
@@ -109,18 +109,18 @@ export function SyncActivityNotifier() {
   const navigate = useNavigate()
   useEffect(() => {
     const check = () => {
-      const snapshot = getCatalogUpdates()
-      if (!snapshot || snapshot.id <= lastSeenCatalogUpdateId) return
-      lastSeenCatalogUpdateId = snapshot.id
+      const snapshot = getFeedUpdates()
+      if (!snapshot || snapshot.id <= lastSeenFeedUpdateId) return
+      lastSeenFeedUpdateId = snapshot.id
       if (!snapshot.updates.length) return
       toast({
         title: 'Notebook updates',
         description: snapshot.updates.map(update => `${update.label}: ${update.state === 'updated' ? 'updated' : update.state === 'error' ? 'sync failed' : 'update available'}`).join('; '),
-        action: <ToastAction altText="Manage notebook updates" onClick={() => navigate(`${ROUTE_PATTERNS.catalogs}?manage=1`)}>Review updates</ToastAction>,
+        action: <ToastAction altText="Manage notebook updates" onClick={() => navigate(`${ROUTE_PATTERNS.notebooks}?manage=1`)}>Review updates</ToastAction>,
       })
     }
     check()
-    return subscribeCatalogUpdates(check)
+    return subscribeFeedUpdates(check)
   }, [navigate])
   useEffect(() => {
     const check = (activity: SyncActivitySnapshot) => {

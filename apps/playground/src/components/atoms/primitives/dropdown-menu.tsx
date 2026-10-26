@@ -192,6 +192,10 @@ export const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenu
       left: 0,
       width: 0,
     })
+    // Consumers that leave `side` at its default get automatic collision
+    // flipping; an explicit side is respected as-is.
+    const autoFlip = side === "bottom"
+    const [flipped, setFlipped] = React.useState(false)
 
     // Calculate position from trigger element
     React.useEffect(() => {
@@ -203,7 +207,15 @@ export const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenu
         left: rect.left,
         width: rect.width,
       })
+      setFlipped(false)
     }, [isOpen, triggerRef])
+
+    // Flip upward when the menu would overflow the viewport bottom.
+    React.useLayoutEffect(() => {
+      if (!isOpen || !autoFlip || !contentRef.current) return
+      const rect = contentRef.current.getBoundingClientRect()
+      setFlipped(position.top + rect.height > window.innerHeight)
+    }, [isOpen, autoFlip, position.top])
 
     // Focus first item when opened
     React.useEffect(() => {
@@ -283,7 +295,7 @@ export const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenu
       zIndex: 9999,
     }
 
-    if (side === "top") {
+    if (side === "top" || flipped) {
       posStyle.bottom = position.bottom
     } else {
       posStyle.top = position.top

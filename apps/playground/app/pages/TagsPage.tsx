@@ -1,10 +1,14 @@
 /**
- * TagsPage — /tags.
+ * TagsPage — the tag editor at /t/:type/:tag (one tag's direct route).
  *
  * A tag is a named bundle a script can reference with `#slug`. This page
- * is where those bundles are written: what each tag contributes (metrics
- * with typed values and units, other tags, and functions), and which kind it
- * is.
+ * is where those bundles are written: what the requested tag contributes
+ * (metrics with typed values and units, other tags, and functions), and
+ * which kind it is. Creating a new tag is offered here too.
+ *
+ * The catalogue of tags itself is a list surface like every other:
+ * /tags renders the tag plane's query output (`:tag{}`), one row per tag,
+ * each row linking here. This page is deliberately not a list.
  *
  * A tag's slug is its label — that is what a script writes. The catalogue
  * holds one namespace, so a user-defined tag layers over a seeded tag of
@@ -39,9 +43,14 @@ const GRAIN_BY_SCOPE: Record<string, string> = {
  */
 const RUNNABLE_SCOPES = new Set(['segment', 'workout']);
 
-export function TagsPage() {
+export interface TagsPageProps {
+  /** /t/:type/:tag deep link — the tag label to open on load. */
+  initialTag?: string;
+}
+
+export function TagsPage({ initialTag }: TagsPageProps = {}) {
   const [searchParams] = useSearchParams();
-  const requestedTag = searchParams.get('tag');
+  const requestedTag = searchParams.get('tag') ?? initialTag;
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagTypes, setTagTypes] = useState<TagTypeRecord[]>([]);
   const [functions, setFunctions] = useState<FunctionOption[]>([]);
@@ -51,8 +60,6 @@ export function TagsPage() {
   const [contributions, setContributions] = useState<TagContribution[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [newKind, setNewKind] = useState('');
-  const [search, setSearch] = useState('');
-  const [kindFilter, setKindFilter] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -168,15 +175,6 @@ export function TagsPage() {
     setContributions(current => current.filter((_, i) => i !== index));
   };
 
-  const visibleTags = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return tags.filter(tag => {
-      if (needle && !tag.label.toLowerCase().includes(needle)) return false;
-      if (kindFilter && (tag.type ?? '') !== kindFilter) return false;
-      return true;
-    });
-  }, [tags, search, kindFilter]);
-
   // The kinds a tag can have: the registered types, plus the kinds the tags
   // actually use (a kind can be written without being registered).
   const kindOptions = useMemo(() => {
@@ -248,55 +246,11 @@ export function TagsPage() {
         </div>
       </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-foreground">Tags</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              aria-label="Filter tags"
-              className="h-8 w-44 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
-              placeholder="Filter by name…"
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-            />
-            <select
-              aria-label="Filter by kind"
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
-              value={kindFilter}
-              onChange={event => setKindFilter(event.target.value)}
-            >
-              <option value="">All kinds</option>
-              {kindOptions.map(name => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {tags.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">No tags yet.</p>
-        ) : visibleTags.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">No tags match the filter.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {visibleTags.map(tag => (
-              <button
-                key={tag.id}
-                type="button"
-                onClick={() => setSelectedId(tag.id)}
-                className={
-                  tag.id === selectedId
-                    ? 'px-2.5 py-1 rounded-md border border-primary bg-primary/10 font-mono text-xs text-foreground'
-                    : 'px-2.5 py-1 rounded-md border border-border bg-card font-mono text-xs text-muted-foreground hover:text-foreground'
-                }
-              >
-                {tag.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
+      {!selected && tags.length > 0 && (
+        <p className="text-xs text-muted-foreground italic">
+          No tag is selected — open one from the <a className="text-primary hover:underline" href="/tags">tag catalogue</a>.
+        </p>
+      )}
 
       {selected && (
         <section className="space-y-3">

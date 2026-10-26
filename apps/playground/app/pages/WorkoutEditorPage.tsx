@@ -1,5 +1,5 @@
 /**
- * WorkoutEditorPage — /collections/:collection/:workout
+ * WorkoutEditorPage — /notebook/:slug/:item
  *
  * Wrapper that loads workout content via IndexedDB (or falls back to the
  * bundled MD file). Keeps ScriptBlock IDs stable across page loads so results
@@ -22,7 +22,7 @@ import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
 import { usePlaygroundContent } from '../hooks/usePlaygroundContent'
 import { pageId } from '../services/playgroundContent'
 import { pendingRuntimes } from '../runtimeStore'
-import { journalEntryPath, noteByIdPath, runPath, workoutPath, journalEntryAutoStartPath } from '../lib/routes'
+import { dayPath, notePath, runPath, notebookItemPath, dayAutoStartPath } from '../lib/routes'
 import { createJournalNoteFromWorkout } from '../services/journalWorkout'
 import { PageActions } from './shared/PageActions'
 import { useNotePageNav } from './shared/useNotePageNav'
@@ -37,7 +37,7 @@ import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from '@/components/atoms/primitives/button'
 import {
   INLINE_RUNTIME_CATEGORIES,
-  NON_COLLECTION_CATEGORIES,
+  NOTEBOOK_EXCLUDED_CATEGORIES,
 } from './shared/pageUtils'
 
 export interface WorkoutEditorPageProps {
@@ -72,21 +72,21 @@ export function WorkoutEditorPage({
   onViewCreated,
 }: WorkoutEditorPageProps) {
   const usePopup = runMode ? runMode === 'inline' : INLINE_RUNTIME_CATEGORIES.has(category)
-  const isCollection = !NON_COLLECTION_CATEGORIES.has(category)
+  const isNotebookItem = !NOTEBOOK_EXCLUDED_CATEGORIES[category]
   const noteId = pageId(category, name)
   const navigate = useNavigate()
   // seedOnMount: collections are read-only bundled content — viewing one
   // must not create an undated ghost note in the library (#856). Journal
   // categories keep the seed (navigate-to-today creates the day's note).
-  const { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange, onLineChange, onBlur, flush, committedSourceRevision } = usePlaygroundContent({ category, name, mdContent, seedOnMount: !isCollection })
+  const { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange, onLineChange, onBlur, flush, committedSourceRevision } = usePlaygroundContent({ category, name, mdContent, seedOnMount: !isNotebookItem })
   const sourceNote = useMemo(() => {
-    if (!isCollection) return null
+    if (!isNotebookItem) return null
 
     return {
       label: `${category}-${name}`,
-      path: workoutPath(category, name),
+      path: notebookItemPath(category, name),
     }
-  }, [category, isCollection, name])
+  }, [category, isNotebookItem, name])
 
   const [pendingScheduleBlock, setPendingScheduleBlock] = useState<ScriptBlock | null>(null)
 
@@ -118,7 +118,7 @@ export function WorkoutEditorPage({
         const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
         if (!occurrence) throw new Error('The saved journal workout is unavailable.');
         pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id })
-        navigate(journalEntryAutoStartPath(journalNote.journalDate ?? '', runtimeId))
+        navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId))
       } catch (error) {
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
@@ -149,8 +149,8 @@ export function WorkoutEditorPage({
         })
         return
       }
-      navigate(journalEntryPath(journalDate))
-      const journalRoute = journalEntryPath(journalDate)
+      navigate(dayPath(journalDate))
+      const journalRoute = dayPath(journalDate)
       toast({
         title: `Added to ${dateLabel}`,
         description: `"${name}" was added to your journal.`,
@@ -165,7 +165,7 @@ export function WorkoutEditorPage({
     [name, category, sourceNote, navigate],
   )
 
-  const commands = useScriptBlockCommands('collection-readonly', {
+  const commands = useScriptBlockCommands('notebook-readonly', {
     onPlay: handleStartWorkout,
     onShare: shareBlock,
     onAddToToday: hidePlanningCommands ? undefined : (block) => handleScheduleBlock(block, new Date()),
@@ -175,19 +175,19 @@ export function WorkoutEditorPage({
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([])
   const handleEditNote = useCallback(() => {
-    navigate(noteByIdPath(noteId))
+    navigate(notePath(noteId))
   }, [navigate, noteId])
   const index = useNotePageNav({
     content,
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
-    onEditNote: isCollection ? handleEditNote : undefined,
+    onEditNote: isNotebookItem ? handleEditNote : undefined,
   })
   // Contextual links (efforts in script, sibling workouts sharing blocks,
-  // journal copies) — only for real collection items, not journal/syntax ids.
+  // journal copies) — only for real notebook items, not journal/syntax ids.
   const ownership = useMemo(
-    () => (isCollection ? noteOwnership({ id: noteId, type: 'feed' }) : null),
-    [isCollection, noteId],
+    () => (isNotebookItem ? noteOwnership({ id: noteId, type: 'note' }) : null),
+    [isNotebookItem, noteId],
   )
   const contextData = useNoteContextLinks({
     noteId,
@@ -195,7 +195,7 @@ export function WorkoutEditorPage({
   })
   const headerActions = (
     <ResponsiveActions>
-      <PageActions mode="collection-readonly" currentWorkout={{ name: noteId, content }} index={index} />
+      <PageActions mode="notebook-readonly" currentWorkout={{ name: noteId, content }} index={index} />
     </ResponsiveActions>
   )
 

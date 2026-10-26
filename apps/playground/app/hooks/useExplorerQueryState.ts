@@ -1,6 +1,6 @@
 /**
  * useExplorerQueryState — URL ↔ WqlComposer query state for the Analytics
- * Explorer route (`/analytics/explorer`, issue #839), with a run-on-submit
+ * Explorer route (`/dashboards`, issue #839), with a run-on-submit
  * split on top of the #833 library pattern. String-state rework for
  * wayfinder ticket 013: the draft IS the `?q=` text — no salvage parser,
  * no lossiness; the composer handles pill-expressibility itself.

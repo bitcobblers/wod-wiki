@@ -203,3 +203,7 @@ apps/playground/dist-api/
 .questions/history/
 # Ticket validation reports (scripts/ticket-report.mjs)
 .scratch/
+# Whiteboard review documents (docs written with the whiteboard-html skill).
+# Working artifacts — annotatable offline HTML plus their JSON build specs.
+# Local only; never committed.
+.whiteboards/

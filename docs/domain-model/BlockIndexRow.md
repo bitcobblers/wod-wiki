@@ -62,7 +62,7 @@ Disposable, current-only content-search projection for WQL `find:block`. The not
 
 ### Recommended projection contract
 
-- Keep `block_index` derived and rebuildable from authoritative content, never independently edited by a widget or collection page.
+- Keep `block_index` derived and rebuildable from authoritative content, never independently edited by a widget or corpus page.
 - Use canonical note ownership for joins while preserving external locators for Library/deep links. Define corpus-to-note reconciliation before asserting that `find:note`, `find:block` and results all join through the same identity.
 - Delete/re-key the owning note and reconcile its derived rows together. Current `deleteNote` omits `block_index`; legacy UUID re-key also omits tag/field stores. These are source-level gaps, not a runtime-tested stale-search report.
 - Keep content comparison distinct from occurrence/version identity. Do not introduce a second universal content-hash store merely to draw a shared link; the cross-path identity issue belongs in [[BlockRevision]].
@@ -75,7 +75,7 @@ Supports [[Note#Wayfinder questions and proposed answers]], [[BlockRevision]] an
 
 - **Can one corpus item safely join to its note?** Proposed answer: resolve the locator to canonical note ownership, keeping the locator as routing data. The reconciliation/backfill and existing result-reference handling remain open.
 - **What happens on delete/re-key?** Proposed answer: no searchable orphan or lost classification contribution after a successful operation; choose transaction or explicit rebuild/recovery semantics when implementing.
-- **Do queries need new indexes?** Not by assumption. Current query wiring reads the block index; measure a representative collection before adding caching, pagination or indexes.
+- **Do queries need new indexes?** Not by assumption. Current query wiring reads the block index; measure a representative corpus before adding caching, pagination or indexes.
 
 **Feedback case:** delete a user note, or refresh the same bundled item. A content search must not show an orphan, duplicate owner or broken detail link. Two identical workouts can share history without becoming the same editable occurrence.
 
@@ -84,7 +84,7 @@ The separate results-to-sessions rename remains in [[Session]]; it does not chan
 ### Source evidence
 
 - [Projection rebuild and delete/re-key](../../apps/playground/src/services/db/IndexedDBService.ts); [corpus index compiler](../../../../wod-wiki-seed/src/compiler.ts).
-- [Seed note identity](../../apps/playground/src/services/seed/SeedImporter.ts); [static note projection](../../apps/playground/src/services/content/staticBlockIndex.ts); [query store wiring](../../apps/playground/src/services/queryService.ts).
+- [Seed note identity](../../apps/playground/src/services/feed/FeedImporter.ts); [static note projection](../../apps/playground/src/services/content/staticBlockIndex.ts); [query store wiring](../../apps/playground/src/services/queryService.ts).
 
 ## Map
 

@@ -43,11 +43,11 @@ export function deriveNav(pathname: string, deps: RouteNavDeps): PageNavLink[] {
 
   // 1. Canvas pages
   if (canvasPage) {
-    const isCollection = /^\/(?:c|collections)\//.test(pathname)
-    const collectionSlug = isCollection ? pathname.split('/').pop() ?? null : null
+    const isNotebook = /^\/notebook\//.test(pathname)
+    const notebookSlug = isNotebook ? pathname.split('/').pop() ?? null : null
 
     const links: PageNavLink[] = []
-    const isGuidePage = pathname.startsWith('/guide/')
+    const isGuidePage = pathname.startsWith('/page/guide-')
     canvasPage.sections
       .filter(s => s.level > 1)
       .forEach(s => {
@@ -76,12 +76,12 @@ export function deriveNav(pathname: string, deps: RouteNavDeps): PageNavLink[] {
 
       })
 
-    if (isCollection && collectionSlug) {
-      links.push({ id: 'collection-workouts', label: 'Explore', type: 'heading' as const })
-      const collectionItems = workoutItems.filter(
-        item => item.category === collectionSlug && item.name.toLowerCase() !== 'readme',
+    if (isNotebook && notebookSlug) {
+      links.push({ id: 'notebook-workouts', label: 'Explore', type: 'heading' as const })
+      const notebookItems = workoutItems.filter(
+        item => item.category === notebookSlug && item.name.toLowerCase() !== 'readme',
       )
-      collectionItems.forEach(item => {
+      notebookItems.forEach(item => {
         links.push({
           id: `workout-${item.id}`,
           label: item.name,

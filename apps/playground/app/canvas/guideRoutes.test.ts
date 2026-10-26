@@ -14,14 +14,14 @@ import { parseCanvasMarkdown, type ParsedCanvasPage } from './parseCanvasMarkdow
 const GUIDE_DIR = new URL('../../../../markdown/canvas/guide/', import.meta.url)
 
 const EXPECTED_ROUTES = [
-  '/guide/start',
-  '/guide/protocols',
-  '/guide/structure',
-  '/guide/metrics',
-  '/guide/clock',
-  '/guide/wql',
-  '/guide/dashboards',
-  '/guide/sessions',
+  '/page/guide-start',
+  '/page/guide-protocols',
+  '/page/guide-structure',
+  '/page/guide-metrics',
+  '/page/guide-clock',
+  '/page/guide-wql',
+  '/page/guide-dashboards',
+  '/page/guide-sessions',
 ] as const
 
 /** The retired routed learning pages (deleted in the 2026-10 cutover). */

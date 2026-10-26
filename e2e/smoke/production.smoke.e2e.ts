@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { appBaseURL } from '../utils/url-helpers';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 import { seedNote } from '../helpers/wodwikiDb';
 
 /** Pageerror noise filter — production loads third-party/analytics/extension scripts. */
@@ -17,7 +17,7 @@ async function probeRoute(page: Page, path: string): Promise<void> {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(path, { waitUntil: 'domcontentloaded' });
-  await waitForSeedReady(page);
+  await waitForFeedReady(page);
   await expect(page.locator('main, [role="main"]').first()).toBeVisible();
   expect(errors.filter(isCriticalError)).toHaveLength(0);
 }
@@ -41,9 +41,9 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
   test('can navigate to journal page', async ({ page }) => {
     // Navigate to today's journal entry
     const today = new Date().toISOString().split('T')[0];
-    await page.goto(`/journal/${today}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`/day/${today}`, { waitUntil: 'domcontentloaded' });
 
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     // Date-page contract (JournalDatePage always renders this action once the
     // route settles): the page's own New note control, plus the inline editor
     // when the date already has a note.
@@ -104,11 +104,11 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
     // content repo and is not bundled with the app; seed the note this smoke
     // run exercises straight into IndexedDB.
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await seedNote(page, 'crossfit-girls/fran', '# Fran\n\n```time\n0:05 AMRAP\n  5 Thrusters\n  5 Pull Ups\n```\n', { title: 'Fran' });
 
-    await page.goto('/collections/crossfit-girls/fran', { waitUntil: 'domcontentloaded' });
-    await waitForSeedReady(page);
+    await page.goto('/notebook/crossfit-girls/fran', { waitUntil: 'domcontentloaded' });
+    await waitForFeedReady(page);
     await expect(page.locator('main').first()).toContainText('Fran');
 
     // Start the workout: DOM click (block overlay decorations intercept
@@ -131,7 +131,7 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
   test('/analytics/explorer deep link cold-loads and renders (#909)', async ({ page }) => {
     const deepLink = '/analytics/explorer?q=' + encodeURIComponent('sum:totalVolume{}');
     await page.goto(deepLink, { waitUntil: 'domcontentloaded' });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     // The SPA fallback restores the deep link and the explorer mounts.
     await expect(page.getByText('Metric Explorer').first()).toBeVisible({ timeout: 5000 });

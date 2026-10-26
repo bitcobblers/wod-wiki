@@ -60,24 +60,24 @@ export const SCREEN_TITLES: Record<TourScreen, string> = {
  * `chapter` blocks in markdown/canvas/canvas home README and the guide pages.
  */
 export const CHAPTER_GUIDE_ROUTES: Record<string, string> = {
-  start: '/guide/start',
-  protocols: '/guide/protocols',
-  structure: '/guide/structure',
-  metrics: '/guide/metrics',
-  clock: '/guide/clock',
-  wql: '/guide/wql',
-  dashboards: '/guide/dashboards',
-  sessions: '/guide/sessions',
+  start: '/page/guide-start',
+  protocols: '/page/guide-protocols',
+  structure: '/page/guide-structure',
+  metrics: '/page/guide-metrics',
+  clock: '/page/guide-clock',
+  wql: '/page/guide-wql',
+  dashboards: '/page/guide-dashboards',
+  sessions: '/page/guide-sessions',
   // Home-page chapter ids (markdown/canvas/home/README.md `chapter` blocks)
   // predate the consolidated routes; aliasing keeps quest/progress identity
   // stable while still landing each chapter on its guide page.
-  basics: '/guide/start',
-  'custom-metrics': '/guide/metrics',
-  dialects: '/guide/sessions#intent',
-  complex: '/guide/sessions#full-session',
+  basics: '/page/guide-start',
+  'custom-metrics': '/page/guide-metrics',
+  dialects: '/page/guide-sessions#intent',
+  complex: '/page/guide-sessions#full-session',
 }
 
 /** Entry chapter — the map's fallback for an unknown chapter id. */
-export const CHAPTER_GUIDE_DEFAULT_ROUTE = '/guide/start'
+export const CHAPTER_GUIDE_DEFAULT_ROUTE = '/page/guide-start'
 
 

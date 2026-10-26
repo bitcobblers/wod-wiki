@@ -3,8 +3,7 @@
  *
  * Namespaced `{ key, value }` rows in the shared `meta` store through the
  * existing `storage` singleton: user calcs (`user-calc:*`), telemetry
- * (`telemetry:*`), notebooks (`wodwiki:notebooks`, `wodwiki:active-notebook`),
- * route WQL defaults + shortcuts (`wodwiki.routeWql.v1*`,
+ * (`telemetry:*`), route WQL defaults + shortcuts (`wodwiki.routeWql.v1*`,
  * `wodwiki.routeWqlShortcuts.v1*`). Device-local in browser builds — even
  * with a Turso backup configured, browser identity/preferences stay local
  * (remotePrefsMode is API-only under the local-first cutover): theme, audio,
@@ -17,10 +16,11 @@ import { storage, storageBackend } from './index';
 export const remotePrefsMode: boolean = storageBackend === 'api';
 
 /** Prefix namespaces hydrated into the pref cache (the vocabulary of remote
- *  pref rows in API builds). */
+ *  pref rows in API builds). The former notebook rows
+ *  (`wodwiki:notebooks`, `wodwiki:active-notebook`) retired with the
+ *  localStorage registry — notebooks live in the notes store (ticket 05). */
 export const PREF_NAMESPACES = ['wodwiki.routeWql.v1', 'wodwiki.routeWqlShortcuts.v1', 'wodwiki.soundProfiles.v1'];
-/** Exact notebook rows (kept narrow — no blanket `wodwiki:` capture). */
-export const PREF_KEYS = ['wodwiki:notebooks', 'wodwiki:active-notebook'];
+export const PREF_KEYS: string[] = [];
 
 // Hydrated raw-JSON view of the remote pref rows: read backend for
 // LocalStore consumers in remote mode. Filled by hydrateMetaPrefs (before

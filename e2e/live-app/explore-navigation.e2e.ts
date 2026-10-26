@@ -16,8 +16,9 @@ test.describe('Explore navigation', () => {
     await page.goto('/dashboard/e2e-nav-dashboard', { waitUntil: 'domcontentloaded' })
 
     const navigation = page.getByRole('navigation').first()
-    // Dashboard is the active L1; the explorer + dashboard slots live in L2.
-    await expect(navigation.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible()
+    // Dashboards is the active L1 (label derived from the /dashboards route);
+    // the explorer + dashboard slots live in L2.
+    await expect(navigation.getByRole('button', { name: 'Dashboards', exact: true })).toBeVisible()
     const explore = navigation.getByRole('button', { name: 'Explorer', exact: true })
     await expect(explore).toBeVisible()
     // Dashboard slots are exposed in L2: the vault dashboard row plus the
@@ -34,7 +35,7 @@ test.describe('Explore navigation', () => {
   })
 
   test('loads without a parse error and runs an example from the L2 panel', async ({ page }) => {
-    await page.goto('/analytics/explorer', { waitUntil: 'domcontentloaded' })
+    await page.goto('/dashboards', { waitUntil: 'domcontentloaded' })
 
     // The default draft is valid — no first-visit parse error (#897).
     await expect(page.getByText(/Cannot parse/)).toHaveCount(0)

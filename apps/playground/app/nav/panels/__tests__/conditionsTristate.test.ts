@@ -29,7 +29,7 @@ const structural = (q: ParsedFindQuery) =>
   JSON.stringify({ groupBy: q.groupBy, window: q.window, pipes: q.pipes })
 
 // `by {}` + window + presentation pipes — every edit below must keep all three.
-const BASE = serialize(findOf(':feed{} by {tag} last 4w | order by date desc | limit 10'))
+const BASE = serialize(findOf(':notebooks{} by {tag} last 4w | order by date desc | limit 10'))
 
 describe('setFacetValueState include→exclude→off', () => {
   it('round-trips one value with structural clauses intact', () => {

@@ -12,15 +12,15 @@ import { BarChart3, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
 import { analyticsExplorerPath } from '@/lib/routes';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 
 export interface AnalyzePanelProps {
   /** Selected entries for comparative analysis */
-  selectedEntries: HistoryEntry[];
+  selectedEntries: HistoryRecord[];
 }
 
 /** The pre-filled comparison query: per-note volume, OR-ed across the selection. */
-export function buildComparisonQuery(entries: HistoryEntry[]): string {
+export function buildComparisonQuery(entries: HistoryRecord[]): string {
   const notes = entries.map(e => e.id).join('|');
   return `sum:totalVolume{note:${notes}} by {note}`;
 }

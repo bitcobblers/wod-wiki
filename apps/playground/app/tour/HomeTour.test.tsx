@@ -125,10 +125,10 @@ mock.module('../hooks/useQuickStartAutoComplete', () => ({
 
 // The jump section's Library exit reads real IndexedDB coverage, which is
 // empty in tests and would disable the card — pin a populated library.
-import * as seedSyncModule from '@/services/seed/seedSync'
-mock.module('@/services/seed/seedSync', () => ({
-  ...seedSyncModule,
-  readSeedCoverage: async () => ({ coreImported: true, libraryImported: true }),
+import * as feedSyncModule from '@/services/feed/feedSync'
+mock.module('@/services/feed/feedSync', () => ({
+  ...feedSyncModule,
+  readFeedCoverage: async () => ({ coreImported: true, libraryImported: true }),
 }))
 
 mock.module('../hooks/useCompletionChallenge', () => ({
@@ -362,7 +362,7 @@ describe('HomeTour', () => {
     expect(jump).toBeTruthy()
 
     const libraryLink = within(jump).getByTestId('jump-library')
-    expect(libraryLink.getAttribute('href')).toBe('/catalogs')
+    expect(libraryLink.getAttribute('href')).toBe('/notebooks')
 
     expect(within(jump).getByTestId('jump-new-note')).toBeTruthy()
     expect(within(jump).queryByTestId('jump-playgrounds')).toBeNull()

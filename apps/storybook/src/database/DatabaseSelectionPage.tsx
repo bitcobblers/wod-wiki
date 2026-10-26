@@ -10,11 +10,11 @@ export function DatabaseSelectionPage() {
     databases,
     loading,
     error,
-    seed,
-    seedSources,
+    feed,
+    feedSources,
     selectDatabase,
     createDatabase,
-    importSeedSource,
+    importFeedSource,
     refreshDatabases,
   } = useDatabase();
   const [newName, setNewName] = useState('');
@@ -50,14 +50,14 @@ export function DatabaseSelectionPage() {
     }
   }
 
-  const seedStatusText =
-    seed.status === 'running'
-      ? 'Importing seed…'
-      : seed.status === 'idle'
+  const feedStatusText =
+    feed.status === 'running'
+      ? 'Importing feed…'
+      : feed.status === 'idle'
         ? 'Not checked yet'
-        : seed.status === 'error'
-          ? 'Seed sync failed'
-          : seed.coreImported
+        : feed.status === 'error'
+          ? 'Feed sync failed'
+          : feed.coreImported
             ? 'Core corpus imported'
             : 'Core corpus not imported';
 
@@ -167,24 +167,24 @@ export function DatabaseSelectionPage() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Core seed</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Core feed</h2>
         <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm">
-          <span data-testid="seed-status" className={seed.status === 'error' ? 'text-destructive' : 'text-foreground'}>
-            {seedStatusText}
+          <span data-testid="feed-status" className={feed.status === 'error' ? 'text-destructive' : 'text-foreground'}>
+            {feedStatusText}
           </span>
-          {seed.status === 'running' && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
+          {feed.status === 'running' && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
         </div>
-        {seed.message && (
+        {feed.message && (
           <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {seed.message}
+            {feed.message}
           </p>
         )}
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Catalogs</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Feeds</h2>
         <ul className="space-y-2">
-          {seedSources.map((source) => (
+          {feedSources.map((source) => (
             <li
               key={source.id}
               className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3"
@@ -202,9 +202,9 @@ export function DatabaseSelectionPage() {
               </div>
               <button
                 type="button"
-                data-testid={`seed-import-${source.id}`}
-                onClick={() => void importSeedSource(source.id)}
-                disabled={seed.status === 'running' || busy}
+                data-testid={`feed-import-${source.id}`}
+                onClick={() => void importFeedSource(source.id)}
+                disabled={feed.status === 'running' || busy}
                 className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs text-primary hover:bg-card disabled:opacity-50"
               >
                 Import

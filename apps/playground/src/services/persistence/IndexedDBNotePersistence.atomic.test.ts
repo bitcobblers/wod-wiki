@@ -21,7 +21,7 @@ for (const backend of ['memory', 'indexeddb'] as const) {
       const service = new StorageService(storage);
       const provider = new IndexedDBContentProvider(service);
       const persistence = new IndexedDBNotePersistence(service, provider);
-      const entry = await provider.saveEntry({ id: 'n', title: 'Workout', rawContent: SOURCE, tags: ['manual'], targetDate: 1 });
+      const entry = await provider.saveRecord({ id: 'n', title: 'Workout', rawContent: SOURCE, tags: ['manual'], targetDate: 1 });
       const blockId = Object.keys(entry.blocks!)[0]!;
       return { storage, service, provider, persistence, entry, blockId };
     }
@@ -49,7 +49,7 @@ for (const backend of ['memory', 'indexeddb'] as const) {
     it('rejects stale drafts and rolls back source, revisions and projections', async () => {
       const { storage, service, provider, persistence, entry } = await setup();
       try {
-        await provider.updateEntry(entry.id, { rawContent: SOURCE.replace('10 Pushups', '20 Pushups'), blocks: entry.blocks,
+        await provider.updateRecord(entry.id, { rawContent: SOURCE.replace('10 Pushups', '20 Pushups'), blocks: entry.blocks,
           expectedSourceRevision: entry.sourceRevision });
         const before = await service.getNote(entry.id);
         // fake-indexeddb stalls a write tx when a standalone notes read AND a
@@ -60,7 +60,7 @@ for (const backend of ['memory', 'indexeddb'] as const) {
         await expect(persistence.saveNote({ noteId: entry.id, rawContent: SOURCE,
           blocks: entry.blocks!, expectedSourceRevision: entry.sourceRevision! })).rejects.toMatchObject({ code: 'STALE_SOURCE' });
         // In-transaction stale guard at its owning boundary. (The equivalent
-        // provider.updateEntry path also rejects; through fake-indexeddb its
+        // provider.updateRecord path also rejects; through fake-indexeddb its
         // 12-store abort after two prior standalone reads stalls the harness
         // — scheduler artifact, not production behavior.)
         await expect(service.saveNoteSource({ noteId: entry.id, rawContent: before!.rawContent,
@@ -118,16 +118,16 @@ for (const backend of ['memory', 'indexeddb'] as const) {
           wipe: () => storage.wipe(), close: () => storage.close() };
         const observedService = new StorageService(observed);
         const provider = new IndexedDBContentProvider(observedService);
-        await provider.updateEntry(entry.id, { rawContent: entry.rawContent, blocks: entry.blocks, expectedSourceRevision: entry.sourceRevision, tags: entry.tags });
+        await provider.updateRecord(entry.id, { rawContent: entry.rawContent, blocks: entry.blocks, expectedSourceRevision: entry.sourceRevision, tags: entry.tags });
         expect(writes).toBe(0);
-        await provider.saveEntry({ ...entry, sourceRevision: entry.sourceRevision });
+        await provider.saveRecord({ ...entry, sourceRevision: entry.sourceRevision });
         expect(writes).toBe(0);
         const wrong = reconcileNoteBlocks(SOURCE, { sourceRevision: 1 });
         Object.values(wrong)[0]!.from++;
         await expect(service.saveNoteSource({ noteId: entry.id, rawContent: SOURCE, blocks: wrong, expectedSourceRevision: 1 })).rejects.toThrow();
         expect((await service.getNote(entry.id))?.sourceRevision).toBe(1);
         const inflated = Object.fromEntries(Object.entries(entry.blocks!).map(([id, block]) => [id, { ...block, version: 999 }]));
-        const saved = await provider.updateEntry(entry.id, { rawContent: SOURCE, blocks: inflated, expectedSourceRevision: 1 });
+        const saved = await provider.updateRecord(entry.id, { rawContent: SOURCE, blocks: inflated, expectedSourceRevision: 1 });
         expect(Object.values(saved.blocks!)[0]?.version).toBe(1);
         expect(writes).toBe(0);
       } finally { await storage.close(); }
@@ -138,15 +138,15 @@ for (const backend of ['memory', 'indexeddb'] as const) {
       try {
         const rawContent = SOURCE + '\n```time\n10 Pushups\n```';
         const blocks = reconcileNoteBlocks(rawContent, { sourceRevision: 1, blocks: entry.blocks });
-        const duplicated = await provider.updateEntry(entry.id, { rawContent, blocks, expectedSourceRevision: 1 });
+        const duplicated = await provider.updateRecord(entry.id, { rawContent, blocks, expectedSourceRevision: 1 });
         const copyId = Object.keys(duplicated.blocks!).find(id => id !== blockId)!;
-        const edited = await provider.updateEntry(entry.id, { rawContent: rawContent.replace('10 Pushups', '20 Pushups'),
+        const edited = await provider.updateRecord(entry.id, { rawContent: rawContent.replace('10 Pushups', '20 Pushups'),
           blocks: duplicated.blocks, expectedSourceRevision: duplicated.sourceRevision });
         expect(edited.blocks?.[blockId]?.version).toBe(2);
         expect(edited.blocks?.[copyId]?.version).toBe(1);
         const history = await service.getNoteBlockHistory(entry.id);
         const unsaved = Object.fromEntries(Object.entries(edited.blocks!).map(([id, block]) => [id, { ...block, version: block.version + 5 }]));
-        const unchanged = await provider.updateEntry(entry.id, { rawContent: edited.rawContent, blocks: unsaved,
+        const unchanged = await provider.updateRecord(entry.id, { rawContent: edited.rawContent, blocks: unsaved,
           expectedSourceRevision: edited.sourceRevision });
         expect(unchanged.blocks).toEqual(edited.blocks);
         expect(unchanged.sourceRevision).toBe(edited.sourceRevision);
@@ -158,16 +158,16 @@ for (const backend of ['memory', 'indexeddb'] as const) {
       const { storage, service, provider, entry, blockId } = await setup();
       try {
         const source = SOURCE.replace('10 Pushups', '20 Pushups');
-        const v2 = await provider.updateEntry(entry.id, { rawContent: source, blocks: entry.blocks, expectedSourceRevision: 1 });
-        const v3 = await provider.updateEntry(entry.id, { rawContent: SOURCE, blocks: v2.blocks, expectedSourceRevision: 2 });
+        const v2 = await provider.updateRecord(entry.id, { rawContent: source, blocks: entry.blocks, expectedSourceRevision: 1 });
+        const v3 = await provider.updateRecord(entry.id, { rawContent: SOURCE, blocks: v2.blocks, expectedSourceRevision: 2 });
         expect(v3.blocks?.[blockId]?.version).toBe(3);
         expect((await service.getBlockHistory(entry.id, blockId)).map(row => [row.version, row.rawContent]))
           .toEqual([[1, '```time\n10 Pushups\n```'], [2, '```time\n20 Pushups\n```'], [3, '```time\n10 Pushups\n```']]);
-        const removed = await provider.updateEntry(entry.id, { rawContent: '# Removed\n', blocks: {}, expectedSourceRevision: 3 });
+        const removed = await provider.updateRecord(entry.id, { rawContent: '# Removed\n', blocks: {}, expectedSourceRevision: 3 });
         expect(await service.getNoteBlockHistory(entry.id)).toHaveLength(3);
         expect(await service.getBlockIndexByNote(entry.id)).toEqual([]);
         expect(await service.getAllFromIndex('block_efforts', 'by-note', entry.id)).toEqual([]);
-        const restored = await provider.updateEntry(entry.id, { rawContent: source, blocks: entry.blocks,
+        const restored = await provider.updateRecord(entry.id, { rawContent: source, blocks: entry.blocks,
           expectedSourceRevision: removed.sourceRevision });
         expect(restored.blocks?.[blockId]?.version).toBe(4);
         expect(await service.getSessionsForNote(entry.id)).toEqual([]);
@@ -185,7 +185,7 @@ for (const backend of ['memory', 'indexeddb'] as const) {
         const prefix = '# Introductory prose\n\n';
         const blocks = Object.fromEntries(Object.entries(entry.blocks!).map(([id, block]) => [id,
           { ...block, from: block.from + prefix.length, to: block.to + prefix.length }]));
-        const moved = await provider.updateEntry(entry.id, { rawContent: prefix + SOURCE, blocks, expectedSourceRevision: 1 });
+        const moved = await provider.updateRecord(entry.id, { rawContent: prefix + SOURCE, blocks, expectedSourceRevision: 1 });
         expect(Object.keys(moved.blocks!)).toEqual(Object.keys(entry.blocks!));
         expect(await service.getNoteBlockHistory(entry.id)).toEqual(history);
         expect(await service.getAllFromIndex('block_efforts', 'by-note', entry.id)).toEqual(efforts);

@@ -325,7 +325,7 @@ export interface RpcLibraryEntry {
 }
 
 /**
- * Library catalog (browser → receiver).
+ * Library list (browser → receiver).
  *
  * Pushed by the sender on session connect and whenever the local corpus
  * changes. The receiver renders it whenever the workbench has nothing

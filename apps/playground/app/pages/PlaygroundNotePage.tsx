@@ -31,7 +31,7 @@ import { usePlaygroundContent } from '../hooks/usePlaygroundContent'
 import { pageId } from '../services/playgroundContent'
 import { storageService } from '@/services/storage'
 import { pendingRuntimes } from '../runtimeStore'
-import { journalEntryPath, noteByIdPath, runPath } from '../lib/routes'
+import { dayPath, notePath, runPath } from '../lib/routes'
 import { PageActions } from './shared/PageActions'
 import { useNotePageNav } from './shared/useNotePageNav'
 import {
@@ -159,7 +159,7 @@ export function PlaygroundNotePage({
           title: 'Added to journal',
           description: journalNote.journalDate === today ? "Added to today's journal" : `Added to ${journalNote.journalDate}`,
           action: (
-            <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(journalNote.journalDate ?? today))}>
+            <ToastAction altText="Open journal" onClick={() => navigate(dayPath(journalNote.journalDate ?? today))}>
               Open
             </ToastAction>
           ),
@@ -190,12 +190,12 @@ export function PlaygroundNotePage({
           title: 'Moved to journal',
           description: `This playground now lives on ${dateKey}.`,
           action: (
-            <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(dateKey))}>
+            <ToastAction altText="Open journal" onClick={() => navigate(dayPath(dateKey))}>
               Open
             </ToastAction>
           ),
         })
-        navigate(noteByIdPath(runtimeNoteId))
+        navigate(notePath(runtimeNoteId))
       } catch {
         toast({ title: 'Error', description: 'Could not move to journal', variant: 'destructive' })
       }
@@ -218,12 +218,12 @@ export function PlaygroundNotePage({
           wodContent: block.content,
           date: date,
         })
-        navigate(journalEntryPath(dateKey))
+        navigate(dayPath(dateKey))
         toast({
           title: 'Scheduled',
           description: `Added to journal for ${dateKey}`,
           action: (
-            <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(dateKey))}>
+            <ToastAction altText="Open journal" onClick={() => navigate(dayPath(dateKey))}>
               Open
             </ToastAction>
           ),

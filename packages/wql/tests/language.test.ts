@@ -49,7 +49,15 @@ describe('wqlCompletionSource', () => {
     expect(complete(':note{')).toEqual([...wqlFilterKeys('note', 'find')]);
     expect(complete(':note{')).not.toContain('discipline');
     // partially typed target resolves through the unique prefix.
-    expect(complete(':no{')).toEqual([...wqlFilterKeys('note', 'find')]);
+    expect(complete(':sess{')).toEqual([...wqlFilterKeys('session', 'find')]);
+    // ':no' is ambiguous now — note and notebook are distinct planes, so
+    // the union of both planes' keys is offered.
+    expect(complete(':no{')).toContain('effort');
+    expect(complete(':no{')).toContain('contributes');
+    // The plane heads offer their own plane's keys.
+    expect(complete(':tag{')).toEqual([...wqlFilterKeys('tag', 'find')]);
+    expect(complete(':equipment{')).toEqual([...wqlFilterKeys('equipment', 'find')]);
+    expect(complete(':page{')).toEqual([...wqlFilterKeys('page', 'find')]);
     // aggregate heads keep the full fact-key list.
     expect(complete('sum:tis{')).toEqual([...wqlFilterKeys('', 'aggregate')]);
   });
@@ -203,7 +211,7 @@ describe('wqlCompletionSource', () => {
   });
 
   it('completes per-target pipe columns, directions, units and limit', () => {
-    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog', 'notebookId']);
+    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'notebookId']);
     expect(complete(':note | order by title ')).toEqual(['asc', 'desc']);
     expect(complete(':segment | select ')).toContain('date');
     expect(complete(':segment | select distance ')).toEqual(['kg', 'lb']);
@@ -280,7 +288,7 @@ describe('wqlCompletionSource — colon heads', () => {
   it('offers head names after the colon, narrowed by prefix', () => {
     expect(complete(':')).toEqual([
       'sum', 'avg', 'min', 'max', 'count', 'last', 'delta',
-      'note', 'notes', 'block', 'effort', 'session', 'segment', 'event', 'journal', 'notebook', 'notebooks', 'feed', 'feeds', 'catalog', 'catalogs', 'playground', 'dashboard',
+      'note', 'notes', 'block', 'effort', 'session', 'segment', 'event', 'journal', 'notebook', 'notebooks', 'playground', 'page', 'tag', 'equipment', 'dashboard',
       'timeseries', 'bar', 'table', 'donut', 'toplist', 'value',
       '@session', '@today',
     ]);
@@ -302,7 +310,7 @@ describe('wqlCompletionSource — colon heads', () => {
   });
 
   it('carries target awareness into pipes after a colon head', () => {
-    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog', 'notebookId']);
+    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'notebookId']);
     expect(complete(':segment | select ')).toContain('date');
   });
 });

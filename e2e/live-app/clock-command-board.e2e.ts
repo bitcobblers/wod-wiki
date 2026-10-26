@@ -16,7 +16,7 @@
  *     explicit keypad Enter starts the workout.
  *
  * Durable post-run corrections and the receiver path have their own owners
- * (collection-workout-run spec / cast e2e).
+ * (notebook-workout-run spec / cast e2e).
  */
 
 import { test, expect, type Page } from '@playwright/test';

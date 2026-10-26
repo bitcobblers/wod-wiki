@@ -29,7 +29,8 @@ import {
   validateDashboardNote,
   validateWodBlockSyntax,
 } from '../src/seedbuild/compiler';
-import { SEED_SCHEMA, canvasRouteSlug } from '../src/seedbuild/contract';
+import { SEED_SCHEMA, notebookSlugForChunkId, canvasRouteSlug, seedNoteSourceId } from '../src/seedbuild/contract';
+import { notebookOfItem } from '@bitcobblers/wod-wiki-wql';
 import { cliMain } from '../src/index';
 
 const sha256 = (data: string | Buffer): string =>
@@ -40,13 +41,13 @@ describe('chunkIdFor partition rules', () => {
     expect(chunkIdFor('markdown/canvas/syntax/x.md')).toBe('canvas');
     expect(chunkIdFor('markdown/dashboards/a.md')).toBe('dashboards');
     expect(chunkIdFor('markdown/efforts/e.md')).toBe('efforts');
-    expect(chunkIdFor('markdown/collections/girls/fran.md')).toBe('collection.girls');
-    expect(chunkIdFor('markdown/feeds/programming/2026-01.md')).toBe('feed.programming');
+    expect(chunkIdFor('markdown/notebooks/girls/fran.md')).toBe('notebook.girls');
+    expect(chunkIdFor('markdown/notebooks/programming/2026-01.md')).toBe('notebook.programming');
   });
 
-  it('routes top-level collection/feed files to the _root chunk', () => {
-    expect(chunkIdFor('markdown/collections/README.md')).toBe('collection._root');
-    expect(chunkIdFor('markdown/feeds/README.md')).toBe('feed._root');
+  it('routes top-level notebook files to the _root chunk', () => {
+    expect(chunkIdFor('markdown/notebooks/README.md')).toBe('notebook._root');
+    expect(chunkIdFor('markdown/notebooks/README.md')).toBe('notebook._root');
   });
 
   it('rejects unknown corpora, bare markdown files, and non-markdown trees', () => {
@@ -98,7 +99,6 @@ describe('generateSeed', () => {
     try {
       const { manifest, outDir } = generateSeed({
         markdownDir: join(tmp, 'markdown'),
-        templateFile: join(tmp, 'template.md'),
         outDir: join(tmp, 'out'),
         corpusRoot: tmp,
         version: 12345,
@@ -106,8 +106,10 @@ describe('generateSeed', () => {
 
       expect(manifest.schema).toBe(SEED_SCHEMA);
       expect(manifest.version).toBe(12345);
+      // No template chunk — starter notes live in the app's
+      // notebook/defaults (ticket 05), not in the seed.
       expect(manifest.chunks.map((c) => c.id)).toEqual([
-        'canvas', 'collection.cat1', 'feed.f', 'template',
+        'canvas', 'notebook.cat1',
       ]);
 
       for (const c of manifest.chunks) {
@@ -162,7 +164,6 @@ describe('generateSeed', () => {
     try {
       const opts = {
         markdownDir: join(tmp, 'markdown'),
-        templateFile: join(tmp, 'template.md'),
         outDir: join(tmp, 'out'),
         corpusRoot: tmp,
       };
@@ -196,14 +197,14 @@ describe('generateSeed', () => {
       expect(manifest.notebooks).toBeDefined();
       expect(manifest.notebooks!.length).toBeGreaterThan(0);
 
-      const cat1Nb = manifest.notebooks!.find((n) => n.notebookId === 'collection.cat1');
+      const cat1Nb = manifest.notebooks!.find((n) => n.notebookId === 'notebook.cat1');
       expect(cat1Nb).toBeDefined();
       expect(cat1Nb!.count).toBe(1);
       expect(cat1Nb!.records.length).toBe(1);
 
       const recordRef = cat1Nb!.records[0];
-      expect(recordRef.path).toBe('markdown/collections/cat1/c.md');
-      expect(recordRef.recordPath).toBe('markdown/collections/cat1/c.json');
+      expect(recordRef.path).toBe('markdown/notebooks/cat1/c.md');
+      expect(recordRef.recordPath).toBe('markdown/notebooks/cat1/c.json');
       expect(recordRef.uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(recordRef.sha256).toMatch(/^[0-9a-f]{64}$/);
 
@@ -211,16 +212,16 @@ describe('generateSeed', () => {
       const recordJsonPath = join(outDir, recordRef.recordPath);
       expect(existsSync(recordJsonPath)).toBe(true);
       const parsedRecord = JSON.parse(readFileSync(recordJsonPath, 'utf8'));
-      expect(parsedRecord.path).toBe('markdown/collections/cat1/c.md');
+      expect(parsedRecord.path).toBe('markdown/notebooks/cat1/c.md');
       expect(parsedRecord.content).toBe('# C');
       expect(parsedRecord.uuid).toBe(recordRef.uuid);
 
       // Verify individual notebook index was written in outDir
-      expect(cat1Nb!.indexPath).toBe('indexes/notebooks/collection.cat1.json');
+      expect(cat1Nb!.indexPath).toBe('indexes/notebooks/notebook.cat1.json');
       const indexJsonPath = join(outDir, cat1Nb!.indexPath!);
       expect(existsSync(indexJsonPath)).toBe(true);
       const parsedIndex = JSON.parse(readFileSync(indexJsonPath, 'utf8'));
-      expect(parsedIndex.notebookId).toBe('collection.cat1');
+      expect(parsedIndex.notebookId).toBe('notebook.cat1');
       expect(parsedIndex.records.length).toBe(1);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
@@ -231,7 +232,7 @@ describe('generateSeed', () => {
 describe('sparse seed occurrences', () => {
   it('preserves exact UTF-16 slices and deterministic distinct duplicates', () => {
     const source = '# 🏋️\r\n\r\n```time\r\n10 Push-ups\r\n```\r\n\r\n```time\r\n10 Push-ups\r\n```\r\n';
-    const a = compileSeedRow('markdown/collections/test/a.md', source);
+    const a = compileSeedRow('markdown/notebooks/test/a.md', source);
     const b = compileSeedRow(a.path, source);
     expect(a).toEqual(b);
     expect(Object.keys(a.blocks)).toHaveLength(2);
@@ -271,9 +272,9 @@ describe('dashboard gate (#906)', () => {
 describe('block syntax gate', () => {
   function makeCorpus(script: string): string {
     const tmp = mkdtempSync(join(tmpdir(), 'seed-syntax-gate-'));
-    mkdirSync(join(tmp, 'markdown/collections/workout'), { recursive: true });
+    mkdirSync(join(tmp, 'markdown/notebooks/workout'), { recursive: true });
     writeFileSync(
-      join(tmp, 'markdown/collections/workout/day1.md'),
+      join(tmp, 'markdown/notebooks/workout/day1.md'),
       `# Day 1\n\n\`\`\`time\n${script}\n\`\`\`\n`,
     );
     return tmp;
@@ -297,7 +298,7 @@ describe('block syntax gate', () => {
     try {
       expect(() =>
         generateSeed({ markdownDir: join(tmp, 'markdown'), outDir: join(tmp, 'out'), corpusRoot: tmp, version: 1 }),
-      ).toThrow(/block syntax gate failed[\s\S]*markdown\/collections\/workout\/day1\.md:1/);
+      ).toThrow(/block syntax gate failed[\s\S]*markdown\/notebooks\/workout\/day1\.md:1/);
       expect(existsSync(join(tmp, 'out'))).toBe(false);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
@@ -307,9 +308,9 @@ describe('block syntax gate', () => {
   it('accepts dialect-fenced blocks whose key: value lines the dialect stack owns', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'seed-syntax-dialect-'));
     try {
-      mkdirSync(join(tmp, 'markdown/collections/climb'), { recursive: true });
+      mkdirSync(join(tmp, 'markdown/notebooks/climb'), { recursive: true });
       writeFileSync(
-        join(tmp, 'markdown/collections/climb/day1.md'),
+        join(tmp, 'markdown/notebooks/climb/day1.md'),
         '# Day 1\n\n```log:climbing\ndate: 2026-05-20\nlocation: Red Rock Canyon\ndiscipline: sport\n```\n',
       );
       const rows = buildBlockIndexRows(join(tmp, 'markdown'), tmp);
@@ -331,6 +332,41 @@ describe('canvasRouteSlug', () => {
   });
   it('rejects route-bearing files that are not canvas pages', () => {
     expect(canvasRouteSlug('---\nroute: /guide/x\ntitle: "X"\n---\n# X')).toBeNull();
+  });
+});
+
+describe('writer ↔ resolver agreement (ticket 02)', () => {
+  // One representative path per chunk family; content matters only for
+  // canvas (route frontmatter drives the sourceId).
+  const CASES: { path: string; content: string; notebook?: `notebook/${string}`; slug?: string }[] = [
+    { path: 'markdown/notebooks/girls/fran.md', content: '# Fran\n', notebook: 'notebook/girls', slug: 'girls' },
+    { path: 'markdown/notebooks/girls/README.md', content: '# Girls\n', notebook: 'notebook/girls', slug: 'girls' },
+    // Root landings: the writer stamps no slug (chunk `notebook._root`),
+    // so they claim no notebook at all.
+    { path: 'markdown/notebooks/README.md', content: '# Notebooks\n' },
+    { path: 'markdown/notebooks/community/2026-01-02/post.md', content: '# Post\n', notebook: 'notebook/community', slug: 'community' },
+    { path: 'markdown/canvas/guide/clock.md', content: '---\nroute: /guide/clock\ntemplate: canvas\n---\n# Clock', notebook: 'notebook/guides' },
+    { path: 'markdown/efforts/bodyweight/air-squat.md', content: '# Air Squat\n', notebook: 'notebook/efforts' },
+    { path: 'markdown/dashboards/benchmark-pr-board.md', content: '# PR Board\n', notebook: 'notebook/dashboards' },
+    { path: 'markdown/equipment/air-bike.md', content: '# Air Bike\n', notebook: 'notebook/equipment' },
+  ];
+
+  it('seedNoteSourceId output and the corpus path resolve to the same notebook', () => {
+    for (const c of CASES) {
+      const chunkId = chunkIdFor(c.path);
+      expect(chunkId, c.path).toBeTruthy();
+      const sourceId = seedNoteSourceId(c.path, c.content, chunkId!);
+      expect(sourceId, c.path).toBeTruthy();
+      const stamped = { id: 'seed-note', sourceId, sourcePath: c.path, seedOrigin: 'seed' as const };
+      expect(notebookOfItem(stamped), c.path).toEqual(c.notebook);
+      // Either writer convention alone lands in the same notebook — the
+      // source-id tier and the corpus-path tier never disagree.
+      expect(notebookOfItem({ ...stamped, sourceId: undefined }), c.path).toEqual(c.notebook);
+      expect(notebookOfItem({ ...stamped, sourcePath: undefined }), c.path).toEqual(c.notebook);
+      // The chunk-id writer and the reader projection agree on EVERY case —
+      // notebook chunks carry the slug, root landings carry none.
+      expect(notebookSlugForChunkId(chunkId!), c.path).toBe(c.slug);
+    }
   });
 });
 
@@ -369,13 +405,13 @@ describe('buildBlockIndexRows — guides (canvas corpus)', () => {
 describe('collection item dates (frontmatter date → block index)', () => {
   function makeDatedCorpus(collectionFm: string, feedFm = ''): string {
     const tmp = mkdtempSync(join(tmpdir(), 'seed-dates-'));
-    mkdirSync(join(tmp, 'markdown/collections/daily-box-wod'), { recursive: true });
-    mkdirSync(join(tmp, 'markdown/feeds/box/2026-01-12'), { recursive: true });
+    mkdirSync(join(tmp, 'markdown/notebooks/daily-box-wod'), { recursive: true });
+    mkdirSync(join(tmp, 'markdown/notebooks/box/2026-01-12'), { recursive: true });
     writeFileSync(
-      join(tmp, 'markdown/collections/daily-box-wod/morning-session.md'),
+      join(tmp, 'markdown/notebooks/daily-box-wod/morning-session.md'),
       `${collectionFm}# Morning session\n\n\`\`\`time\n10 Push-ups\n\`\`\`\n`,
     );
-    writeFileSync(join(tmp, 'markdown/feeds/box/2026-01-12/session.md'), `${feedFm}# Session\n\n\`\`\`time\n10 Push-ups\n\`\`\`\n`);
+    writeFileSync(join(tmp, 'markdown/notebooks/box/2026-01-12/session.md'), `${feedFm}# Session\n\n\`\`\`time\n10 Push-ups\n\`\`\`\n`);
     return tmp;
   }
 
@@ -383,9 +419,9 @@ describe('collection item dates (frontmatter date → block index)', () => {
     const tmp = makeDatedCorpus('---\ntitle: Morning session\ndate: 2026-10-16\n---\n');
     try {
       const rows = buildBlockIndexRows(join(tmp, 'markdown'), tmp);
-      const dated = rows.filter((r) => r.sourcePath === 'markdown/collections/daily-box-wod/morning-session.md');
+      const dated = rows.filter((r) => r.sourcePath === 'markdown/notebooks/daily-box-wod/morning-session.md');
       expect(dated.length).toBeGreaterThan(0);
-      // Noon UTC (mirrors SeedImporter's Note.date) — timezone-safe civil day.
+      // Noon UTC (mirrors FeedImporter's Note.date) — timezone-safe civil day.
       for (const row of dated) expect(row.createdAt).toBe(Date.parse('2026-10-16T12:00:00Z'));
     } finally {
       rmSync(tmp, { recursive: true, force: true });
@@ -406,7 +442,7 @@ describe('collection item dates (frontmatter date → block index)', () => {
     const undated = makeDatedCorpus('');
     try {
       const rows = buildBlockIndexRows(join(undated, 'markdown'), undated);
-      const feed = rows.find((r) => r.sourcePath === 'markdown/feeds/box/2026-01-12/session.md');
+      const feed = rows.find((r) => r.sourcePath === 'markdown/notebooks/box/2026-01-12/session.md');
       expect(feed!.createdAt).toBe(Date.parse('2026-01-12T00:00:00Z'));
     } finally {
       rmSync(undated, { recursive: true, force: true });
@@ -414,7 +450,7 @@ describe('collection item dates (frontmatter date → block index)', () => {
     const dated = makeDatedCorpus('', '---\ndate: 2026-03-05\n---\n');
     try {
       const rows = buildBlockIndexRows(join(dated, 'markdown'), dated);
-      const feed = rows.find((r) => r.sourcePath === 'markdown/feeds/box/2026-01-12/session.md');
+      const feed = rows.find((r) => r.sourcePath === 'markdown/notebooks/box/2026-01-12/session.md');
       expect(feed!.createdAt).toBe(Date.parse('2026-03-05T12:00:00Z'));
     } finally {
       rmSync(dated, { recursive: true, force: true });
@@ -426,7 +462,7 @@ describe('discoverUncatalogedEfforts & scaffoldDiscoveredEfforts', () => {
   function makeCorpusWithNewEffort(): string {
     const tmp = mkdtempSync(join(tmpdir(), 'seed-effort-discovery-'));
     mkdirSync(join(tmp, 'markdown/efforts/strength'), { recursive: true });
-    mkdirSync(join(tmp, 'markdown/collections/workout'), { recursive: true });
+    mkdirSync(join(tmp, 'markdown/notebooks/workout'), { recursive: true });
 
     // Existing effort
     writeFileSync(
@@ -436,7 +472,7 @@ describe('discoverUncatalogedEfforts & scaffoldDiscoveredEfforts', () => {
 
     // Workout with an existing effort alias (pullups) and a brand new effort (zercher-squat)
     writeFileSync(
-      join(tmp, 'markdown/collections/workout/day1.md'),
+      join(tmp, 'markdown/notebooks/workout/day1.md'),
       '# Day 1\n\n```time\n10 Pullups\n5 Zercher Squat 60kg\n```\n',
     );
     return tmp;
@@ -493,7 +529,7 @@ describe('wod build (CLI)', () => {
       });
       expect(code).toBe(0);
       expect(stdout).toContain(`[wod build] schema v${SEED_SCHEMA} version`);
-      expect(stdout).toContain('collection.cat1');
+      expect(stdout).toContain('notebook.cat1');
       expect(existsSync(join(tmp, 'cli-out', 'manifest.json'))).toBe(true);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
@@ -537,13 +573,10 @@ describe('wod build (CLI)', () => {
 function makeTmpCorpus(): string {
   const tmp = mkdtempSync(join(tmpdir(), 'seed-test-'));
   mkdirSync(join(tmp, 'markdown/canvas/sub'), { recursive: true });
-  mkdirSync(join(tmp, 'markdown/collections/cat1'), { recursive: true });
-  mkdirSync(join(tmp, 'markdown/feeds/f'), { recursive: true });
+  mkdirSync(join(tmp, 'markdown/notebooks/cat1'), { recursive: true });
   writeFileSync(join(tmp, 'markdown/canvas/a.md'), '# A');
   writeFileSync(join(tmp, 'markdown/canvas/sub/b.md'), '# B');
-  writeFileSync(join(tmp, 'markdown/collections/cat1/c.md'), '# C');
-  writeFileSync(join(tmp, 'markdown/feeds/f/d.md'), '# D');
-  writeFileSync(join(tmp, 'template.md'), 'new page: {{title}}');
+  writeFileSync(join(tmp, 'markdown/notebooks/cat1/c.md'), '# C');
   return tmp;
 }
 

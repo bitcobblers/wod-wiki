@@ -3,10 +3,12 @@ import { useLocation } from 'react-router-dom'
 import { trackPageView } from './telemetry-gtag'
 
 /**
- * route, leaving leaf routes such as /effort/, /e/:slug and /playground/:id
- * alone so their own effects can set a dynamic title. Section titles use
- * prefix matching on purpose: deep routes (/journal/:date, /feeds/:slug)
- * belong to their section, which a profile-exact lookup cannot express.
+ * Route → document title. The title names the concept the path addresses —
+ * the path and the title always agree (ticket 09). Leaf routes that set their
+ * own dynamic title (/effort/:slug, /equipment/:slug, /playground/:id) are
+ * left alone so their own effects can win. Section titles use prefix
+ * matching on purpose: deep routes (/day/:date, /feed/:slug, /notebook/:slug)
+ * belong to their concept.
  */
 export function DocumentTitleSync() {
   const location = useLocation()
@@ -16,24 +18,26 @@ export function DocumentTitleSync() {
 
     if (
       !pathname.startsWith('/effort/')
-      && !pathname.startsWith('/e/')
       && !pathname.startsWith('/playground/')
       // /equipment/:slug sets its own dynamic title (EquipmentDetailPage),
       // like the effort leaf routes; the bare list keeps the section title.
       && !pathname.startsWith('/equipment/')
     ) {
       let title = 'Wod.Wiki'
-      if (pathname.startsWith('/journal')) title = 'Wod.Wiki - Journal'
-      else if (pathname.startsWith('/catalogs')) title = 'Wod.Wiki - Notebooks'
-      else if (pathname.startsWith('/feeds') || pathname.startsWith('/feed')) title = 'Wod.Wiki - Notes'
-      else if (pathname.startsWith('/collections') || pathname.startsWith('/c/')) title = 'Wod.Wiki - Notes'
+      if (pathname.startsWith('/day/')) title = 'Wod.Wiki - Day'
+      else if (pathname.startsWith('/journal')) title = 'Wod.Wiki - Journal'
+      else if (pathname.startsWith('/notebooks') || pathname.startsWith('/notebook/')) title = 'Wod.Wiki - Notebooks'
+      else if (pathname === '/notes') title = 'Wod.Wiki - Notes'
+      else if (pathname.startsWith('/note/')) title = 'Wod.Wiki - Note'
+      else if (pathname.startsWith('/pages') || pathname.startsWith('/page/')) title = 'Wod.Wiki - Pages'
+      else if (pathname.startsWith('/tags') || pathname.startsWith('/t/')) title = 'Wod.Wiki - Tags'
+      else if (pathname === '/feeds') title = 'Wod.Wiki - Feeds'
+      else if (pathname.startsWith('/feed/')) title = 'Wod.Wiki - Feed'
       else if (pathname.startsWith('/efforts')) title = 'Wod.Wiki - Efforts'
       else if (pathname.startsWith('/equipment')) title = 'Wod.Wiki - Equipment'
-      else if (pathname.startsWith('/sessions') || pathname.startsWith('/session/') || pathname.startsWith('/results')) title = 'Wod.Wiki - Sessions'
-      else if (pathname.startsWith('/dashboards') || pathname === '/dashboard' || pathname.startsWith('/dashboard/') || pathname.startsWith('/d/')) title = 'Wod.Wiki - Dashboards'
+      else if (pathname.startsWith('/sessions') || pathname.startsWith('/session/')) title = 'Wod.Wiki - Sessions'
+      else if (pathname.startsWith('/dashboards') || pathname.startsWith('/dashboard/')) title = 'Wod.Wiki - Dashboards'
       else if (pathname.startsWith('/playgrounds')) title = 'Wod.Wiki - Playgrounds'
-      else if (pathname.startsWith('/syntax')) title = 'Wod.Wiki - Syntax'
-      else if (pathname.startsWith('/analytics')) title = 'Wod.Wiki - Analytics'
       document.title = title
     }
 

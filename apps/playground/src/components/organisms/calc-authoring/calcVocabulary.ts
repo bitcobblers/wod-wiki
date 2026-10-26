@@ -53,7 +53,7 @@ export const AGGREGATE_NAMES: readonly string[] = Object.keys(AGGREGATE_BUILTINS
 
 /** Lookup tables exposed by the registry adapters. */
 export const LOOKUP_TABLES: readonly { name: string; detail: string; fields: readonly string[] }[] = [
-  { name: 'effort', detail: 'effort catalog', fields: ['met', 'disciplineFactor', 'discipline', 'intensityTier', 'resolvedFrom'] },
+  { name: 'effort', detail: 'effort library', fields: ['met', 'disciplineFactor', 'discipline', 'intensityTier', 'resolvedFrom'] },
   { name: 'rpe-labels', detail: 'effort label → RPE', fields: ['rpe'] },
   { name: 'profile', detail: 'user profile', fields: ['vo2max'] },
   { name: 'disciplines', detail: 'canonical disciplines', fields: ['disciplineFactor'] },

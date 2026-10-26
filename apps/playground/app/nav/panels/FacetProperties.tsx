@@ -32,7 +32,7 @@ import type { Location } from 'react-router-dom'
 import clsx from 'clsx'
 import { CheckSquare, MinusSquare, Plus, Square, SquarePen } from 'lucide-react'
 
-import { isFindQuery, parseQuery, WQL_TYPED_TAG_KEYS, type ParsedFindQuery } from '@bitcobblers/wod-wiki-wql'
+import { isFindQuery, notebookSlugOfSourceId, parseQuery, WQL_TYPED_TAG_KEYS, type ParsedFindQuery } from '@bitcobblers/wod-wiki-wql'
 import { wqlFilterKeys } from '@bitcobblers/wod-wiki-wql'
 import { getClauseMeta } from '@bitcobblers/wod-wiki-ui'
 
@@ -69,9 +69,9 @@ const EMPTY_ENTRIES: Entry[] = []
 const urlQuery = (loc: Location): string => new URLSearchParams(loc.search).get('q') ?? ''
 
 /** Corpus tag membership over the canonical plane: the note_tags junction
- * answers per-note lookups (UUID ids carry no path stem), and each note's
- * `catalog` family aggregates its member notes' rows so `tags:` facets
- * resolve on collection/feed results too. */
+ * answers per-note lookups (UUID ids carry no path stem), and each corpus
+ * note's notebook aggregates its member notes' rows so `tags:` facets
+ * resolve on notebook results too. */
 async function loadTagMembership(): Promise<TagMembership> {
   const [byNote, allNotes] = await Promise.all([
     storageService.getNoteTagLabelsBatch(),
@@ -79,14 +79,15 @@ async function loadTagMembership(): Promise<TagMembership> {
   ])
   for (const note of allNotes) {
     const labels = byNote.get(note.id)
-    if (!note.catalog || !labels?.length) continue
-    const rows = byNote.get(note.catalog)
+    const slug = notebookSlugOfSourceId(note.sourceId)
+    if (!slug || !labels?.length) continue
+    const rows = byNote.get(slug)
     if (rows) {
       for (const row of labels) {
         if (!rows.some(r => r.label === row.label)) rows.push(row)
       }
     } else {
-      byNote.set(note.catalog, labels.map(({ label, type }) => ({ label, type })))
+      byNote.set(slug, labels.map(({ label, type }) => ({ label, type })))
     }
   }
   return byNote
@@ -139,7 +140,7 @@ export function FacetProperties({ profile }: { profile: StreamProfile }) {
   const facetEntries = entries ?? (pending ? committed!.entries : EMPTY_ENTRIES)
 
   // Result identity is never offered as a facet catalog: on a target's own
-  // plane (note — journal/collection/playground heads parse to target
+  // plane (note — journal/notebooks/playground heads parse to target
   // 'note' + an injected source scope — and effort) the identity key would
   // list every result row as a filter value. A query that explicitly
   // authors the identity key keeps its section so rows stay removable.
@@ -231,7 +232,7 @@ function identifierLabels(target: string, key: string, entries: Entry[]): Map<st
     if (id && !labels.has(id)) labels.set(id, title)
   }
   if ((target === 'note' || target === 'block') && key === 'note') {
-    for (const entry of entries) bump(entry.noteId ?? entry.id, entry.title)
+    for (const entry of entries) bump(entry.id, entry.title)
   }
   if (target === 'session') {
     for (const entry of entries) {
@@ -355,7 +356,7 @@ function ConditionSection({
     || a.label.localeCompare(b.label),
   )
 
-  const isJournalRoute = location.pathname.startsWith('/journal')
+  const isJournalRoute = location.pathname.startsWith('/journal') || location.pathname.startsWith('/day')
   const visibleRows = (config.hideZero || entryKey === 'effort' || (isJournalRoute && (entryKey === 'tags' || (WQL_TYPED_TAG_KEYS as readonly string[]).includes(entryKey))))
     ? rows.filter(row => (row.count !== null && row.count > 0) || row.state !== 'off')
     : rows

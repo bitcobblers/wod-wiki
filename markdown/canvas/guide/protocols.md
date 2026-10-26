@@ -1,7 +1,7 @@
 ---
 search: hidden
 template: canvas
-route: /guide/protocols
+route: /page/guide-protocols
 type: guide
 title: "Timers & Protocols"
 description: "Countdowns, countups, AMRAP, EMOM, Tabata, and required rest — every timer modifier in the engine."
@@ -94,7 +94,7 @@ pipeline:
   *:30 Rest
 ```
 
-The shared example's rest is non-skippable: the clock waits the full 30 seconds before round 2. A plain `1:00 Rest` (no `*`) can be skipped; `^5:00 Rest` counts up instead of down. What the clock does with rest — pause, skip, sound — is the [Clock chapter](/guide/clock?h=pause-skip).
+The shared example's rest is non-skippable: the clock waits the full 30 seconds before round 2. A plain `1:00 Rest` (no `*`) can be skipped; `^5:00 Rest` counts up instead of down. What the clock does with rest — pause, skip, sound — is the [Clock chapter](/page/guide-clock?h=pause-skip).
 
 ## AMRAP {#amrap}
 
@@ -193,7 +193,7 @@ Pair a timed work interval with a distance target, then recover:
   *1:00 Rest
 ```
 
-Each round is 400 m against the clock, then mandatory recovery. Distance is just a measure on the line — everything from [First Workout](/guide/start?h=measurements) composes with timers.
+Each round is 400 m against the clock, then mandatory recovery. Distance is just a measure on the line — everything from [First Workout](/page/guide-start?h=measurements) composes with timers.
 
 ## Try it {#try-it}
 

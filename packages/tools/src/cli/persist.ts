@@ -12,7 +12,7 @@ import type {
 } from '@bitcobblers/wod-wiki-storage';
 import { rowsEqual as sameRow } from '@bitcobblers/wod-wiki-storage';
 import type { ExecutionLog } from '@bitcobblers/wod-wiki-engine';
-import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
+import { extractNoteIdentity, extractTypedTags } from '@bitcobblers/wod-wiki-engine';
 import { MetricType, type EventRecord } from '@bitcobblers/wod-wiki-core';
 import {
   blockContentId,
@@ -21,9 +21,9 @@ import {
   reconcileNoteBlocks,
   validateNoteBlocks,
 } from '@bitcobblers/wod-wiki-core';
-import { parseScript, extractStatementRefs, createReferenceIndex, bundledEfforts, type IEffort, type IEquipment } from '@bitcobblers/wod-wiki-lang';
+import { parseScript, extractStatementRefs, createReferenceIndex, bundledEfforts, parseEffortFile, parseEquipmentFile, type IEffort, type IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import { loadSql, randomId, stableNoteId, uuid5, CLI_UUID_NAMESPACE, type CliDb } from './db';
+import { randomId, stableNoteId, uuid5, CLI_UUID_NAMESPACE, type CliDb } from './db';
 
 const registeredWidgets = KNOWN_SECTION_WIDGETS;
 const saveStores = ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'tags', 'note_tags', 'sessions'] as const;
@@ -110,11 +110,6 @@ async function saveSource(
       sourceRevision++;
       for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
     }
-    const fm = readFrontmatterMeta(options.source);
-    const catalog =
-      (typeof fm['catalog'] === 'string' && fm['catalog'].trim()) ||
-      (typeof fm['collection'] === 'string' && fm['collection'].trim()) ||
-      existing?.catalog;
     const note: Note = {
       ...existing,
       id: noteId,
@@ -125,7 +120,6 @@ async function saveSource(
       rawContent: options.source,
       sourceRevision,
       blocks,
-      ...(catalog ? { catalog } : {}),
     };
     const priorRows = await tx.readonly('block_index').getAllFromIndex('by-note', noteId);
     const priorEfforts = await tx.readonly('block_efforts').getAllFromIndex('by-note', noteId);
@@ -156,7 +150,6 @@ async function saveSource(
         dataType: block.kind, sourceRevision, from: block.from, to: block.to, position,
         rawContent, noteTitle: note.title, createdAt: prior?.createdAt ?? now,
         blockContentId: fingerprint,
-        ...(catalog ? { catalog } : {}),
         ...(note.sourceId ? { sourceId: note.sourceId } : {}),
       });
       if (block.kind === 'wod') {
@@ -332,17 +325,73 @@ export async function persistSessionBundle(db: CliDb, session: Session, events: 
   return { events: events.length };
 }
 
-export async function persistEffort(db: CliDb, effort: Record<string, unknown>): Promise<void> {
-  const sql = await loadSql();
-  await db.db.transaction(async (tx) => {
-    await sql.putRow(tx, sql.storeDefinition('efforts'), effort);
-  });
+/** Definition import result — the note identity the document landed on. */
+export interface PersistDefinitionResult {
+  slug: string;
+  noteId: string;
+  /** True when no note existed at the resolved identity before this import. */
+  createdNote: boolean;
 }
 
-export async function persistEquipment(db: CliDb, equipment: Record<string, unknown>): Promise<void> {
-  const sql = await loadSql();
-  await db.db.transaction(async (tx) => {
-    await sql.putRow(tx, sql.storeDefinition('equipment'), equipment);
+/**
+ * Import an effort/equipment definition document (canonical markdown):
+ * the NOTE is the storage form, the registry row its projection. ONE
+ * storage transaction commits both, so a definition is never half-imported
+ * (note without projection or the reverse). Identity: a stamped
+ * `wod-note-id` wins, then the prior projection's owning note, then the
+ * deterministic `effort/<slug>` / `equipment/<slug>` home — so
+ * `wod export` → `wod import` round-trips to the same note.
+ */
+export async function persistDefinitionNote(db: CliDb, kind: 'effort' | 'equipment', source: string): Promise<PersistDefinitionResult> {
+  const parsed = kind === 'effort' ? parseEffortFile(source) : parseEquipmentFile(source);
+  if (!parsed) {
+    throw new Error(kind === 'effort'
+      ? '[wod import] Unparseable effort file (need frontmatter id/slug/label + numeric baseAttributes.met)'
+      : '[wod import] Unparseable equipment file (need frontmatter type: equipment + id/slug/label)');
+  }
+  const family = kind === 'effort' ? 'efforts' : 'equipment';
+  const prior = (await db.storage.readonly(family).get(parsed.slug)) as
+    | { ownerNoteId?: string; registrySource?: 'bundled' | 'user'; createdAt?: string }
+    | undefined;
+  const stamped = extractNoteIdentity(source)?.noteId;
+  const noteId = stamped ?? prior?.ownerNoteId ?? `${kind}/${parsed.slug}`;
+  const now = Date.now();
+  return db.storage.transaction(['notes', family, 'tags', 'note_tags'], 'readwrite', async (tx) => {
+    const previous = (await tx.readonly('notes').get(noteId)) as Note | undefined;
+    const sourceRevision = (previous?.sourceRevision ?? 0) + (previous?.rawContent === source ? 0 : 1);
+    const blocks = reconcileNoteBlocks(source, { sourceRevision, registeredWidgets, blocks: previous?.blocks });
+    validateNoteBlocks(source, blocks, sourceRevision, { registeredWidgets });
+    const note: Note = {
+      ...previous,
+      id: noteId,
+      title: parsed.label,
+      type: previous?.type ?? 'note',
+      createdAt: previous?.createdAt ?? now,
+      rawContent: source,
+      sourceRevision,
+      blocks,
+      sourceId: family,
+      sourcePath: noteId,
+    };
+    await tx.readwrite('notes').put(note);
+    // ponytail: definitions carry no fenced blocks, so no block_revisions /
+    // block_index rows are written here; add when definition docs grow
+    // script blocks.
+    const isoNow = new Date(now).toISOString();
+    await tx.readwrite(family).put({
+      ...parsed,
+      registrySource: prior?.registrySource ?? 'user',
+      ownerNoteId: noteId,
+      sourceId: family,
+      sourcePath: noteId,
+      createdAt: prior?.createdAt ?? isoNow,
+      updatedAt: isoNow,
+    });
+    // Materialize the definition's tag frontmatter through the same path as
+    // note import, so typed tags are searchable/autocomplete-resolvable via
+    // the tag graph — not just stored verbatim in the note.
+    await saveTags(tx, noteId, extractTypedTags(source), now);
+    return { slug: parsed.slug, noteId, createdNote: !previous };
   });
 }
 

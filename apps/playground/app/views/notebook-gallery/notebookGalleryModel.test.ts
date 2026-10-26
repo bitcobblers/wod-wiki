@@ -4,34 +4,34 @@
 import { describe, it, expect } from 'bun:test';
 import {
   buildNotebookCatalog,
-  buildSeedCatalog,
+  buildFeedCatalog,
   filterNotebooks,
-  filterSeeds,
-  groupNotebooksBySeed,
+  filterFeeds,
+  groupNotebooksByFeed,
   sortNotebooks,
-  sortSeeds,
+  sortFeeds,
   parseNotebookChunkId,
   monogramTint,
   monogramLetter,
   MONOGRAM_TINTS,
 } from './notebookGalleryModel';
-import { SEED_SOURCES, type NotebookDef } from '@/services/seed/seedSources';
+import { FEED_SOURCES, type NotebookDef } from '@/services/feed/feedSources';
 
 const NOTEBOOK_FIXTURES: NotebookDef[] = [
   {
     id: 'community-crossfit-programming',
-    seedId: 'seed-crossfit',
-    chunkId: 'feed.crossfit-programming',
+    feedId: 'seed-crossfit',
+    chunkId: 'notebook.crossfit-programming',
     label: 'CrossFit Programming',
-    category: 'feeds',
+    category: 'programs',
     description: 'Weekly CrossFit programming.',
   },
   {
     id: 'community-crossfit-girls',
-    seedId: 'seed-crossfit',
-    chunkId: 'collection.crossfit-girls',
+    feedId: 'seed-crossfit',
+    chunkId: 'notebook.crossfit-girls',
     label: 'CrossFit Girls',
-    category: 'collections',
+    category: 'workouts',
     description: 'Classic benchmark workouts.',
   },
 ];
@@ -48,41 +48,48 @@ category:
 A weekly CrossFit program with daily workouts.
 `;
 
-function feedFiles(root: string, slug: string): Record<string, string> {
+function feedFiles(slug: string): Record<string, string> {
   return {
-    [`markdown/feeds/${slug}/README.md`]: FEED_README,
-    [`markdown/feeds/${slug}/2026-10-05/monday.md`]: '# Monday\n```wod\n5x5 back squat\n```\n',
-    [`markdown/feeds/${slug}/2026-10-03/friday.md`]: '# Friday\n```wod\nFran\n```\n',
+    [`markdown/notebooks/${slug}/README.md`]: FEED_README,
+    [`markdown/notebooks/${slug}/2026-10-05/monday.md`]: '# Monday\n```wod\n5x5 back squat\n```\n',
+    [`markdown/notebooks/${slug}/2026-10-03/friday.md`]: '# Friday\n```wod\nFran\n```\n',
   };
 }
 
 describe('parseNotebookChunkId', () => {
-  it('parses feed and collection chunk ids', () => {
-    expect(parseNotebookChunkId('feed.crossfit-programming')).toEqual({ kind: 'feed', slug: 'crossfit-programming' });
-    expect(parseNotebookChunkId('collection.crossfit-girls')).toEqual({ kind: 'collection', slug: 'crossfit-girls' });
+  it('parses notebook chunk ids to their notebook slug', () => {
+    expect(parseNotebookChunkId('notebook.crossfit-programming')).toEqual({ slug: 'crossfit-programming' });
+    expect(parseNotebookChunkId('notebook.crossfit-girls')).toEqual({ slug: 'crossfit-girls' });
   });
 
   it('rejects non-notebook chunk ids', () => {
     expect(parseNotebookChunkId('dashboards')).toBeNull();
-    expect(parseNotebookChunkId('feed')).toBeNull();
+    expect(parseNotebookChunkId('feed.crossfit-girls')).toBeNull();
+    expect(parseNotebookChunkId('collection.crossfit-girls')).toBeNull();
   });
 });
 
 describe('buildNotebookCatalog', () => {
   it('lists registry packages even without local corpus, marked not installed', () => {
     const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
-    expect(catalog).toHaveLength(2); // both crossfit notebooks
+    // both crossfit notebooks plus the three app-owned core notebooks
+    expect(catalog).toHaveLength(5);
+    expect(catalog.slice(-3).map(n => n.slug)).toEqual(['efforts', 'equipment', 'dashboards']);
+    expect(catalog[2]!.installed).toBe(false);
+    expect(catalog[2]!.itemCount).toBe(0);
+    expect(catalog[2]!.sourceLabel).toBe('Core');
+    expect(catalog[2]!.href).toBe('/efforts');
     const feed = catalog.find(n => n.slug === 'crossfit-programming')!;
     expect(feed.installed).toBe(false);
     expect(feed.itemCount).toBe(0);
     expect(feed.description).toBe('Weekly CrossFit programming.');
-    expect(feed.href).toBe('/feeds/crossfit-programming');
+    expect(feed.href).toBe('/notebook/crossfit-programming');
     const collection = catalog.find(n => n.slug === 'crossfit-girls')!;
-    expect(collection.href).toBe('/collections/crossfit-girls');
+    expect(collection.href).toBe('/notebook/crossfit-girls');
   });
 
   it('enriches installed packages with local stats, categories, cover and dates', () => {
-    const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'crossfit-programming'));
+    const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('crossfit-programming'));
     const feed = catalog.find(n => n.slug === 'crossfit-programming')!;
     expect(feed.installed).toBe(true);
     expect(feed.itemCount).toBe(2);
@@ -97,9 +104,9 @@ describe('buildNotebookCatalog', () => {
 
   it('includes local-only groupings (custom sources) as Local notebooks', () => {
     const files = {
-      ...feedFiles('feeds', 'my-garage-gym'),
-      'markdown/collections/custom-strength/README.md': '# Custom\n\nHome-brew strength collection.\n',
-      'markdown/collections/custom-strength/squat-day.md': '# Squat Day\n',
+      ...feedFiles('my-garage-gym'),
+      'markdown/notebooks/custom-strength/README.md': '# Custom\n\nHome-brew strength collection.\n',
+      'markdown/notebooks/custom-strength/squat-day.md': '# Squat Day\n',
     };
     const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, files);
     const local = catalog.find(n => n.slug === 'custom-strength')!;
@@ -110,39 +117,33 @@ describe('buildNotebookCatalog', () => {
   });
 });
 
-describe('groupNotebooksBySeed', () => {
-  it('groups notebooks under the seed that publishes them, registry order', () => {
+describe('groupNotebooksByFeed', () => {
+  it('groups notebooks under the feed that publishes them, registry order', () => {
     const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
-    const groups = groupNotebooksBySeed(catalog, SEED_SOURCES);
-    expect(groups.map(group => group.seed?.id)).toEqual(['seed-crossfit']);
+    const groups = groupNotebooksByFeed(catalog, FEED_SOURCES);
+    expect(groups.map(group => group.feed?.id)).toEqual(['seed-crossfit', undefined]);
     expect(groups[0]!.label).toBe('CrossFit');
     expect(groups[0]!.repositoryUrl).toContain('wod-wiki-seed-crossfit');
     expect(groups[0]!.notebooks.map(n => n.packageId))
       .toEqual(['community-crossfit-programming', 'community-crossfit-girls']);
+    // The app-owned core notebooks ride the Local group here — no passed
+    // feed claims them (the core feed is not a library entry).
+    expect(groups[1]!.notebooks.map(n => n.slug)).toEqual(['efforts', 'equipment', 'dashboards']);
     // The card's source line names the seed, not a package source.
     expect(catalog[0]!.sourceLabel).toBe('CrossFit');
   });
 
-  it('drops seeds with nothing left after filtering, and keeps local content last', () => {
-    const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
-    const feedsOnly = groupNotebooksBySeed(filterNotebooks(catalog, { kind: 'feed' }), SEED_SOURCES);
-    expect(feedsOnly[0]!.notebooks.map(n => n.packageId)).toEqual(['community-crossfit-programming']);
-
-    const withLocal = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'my-garage-gym'));
-    const groups = groupNotebooksBySeed(withLocal, SEED_SOURCES);
+  it('keeps local content and the core notebooks in the trailing Local group', () => {
+    const withLocal = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('my-garage-gym'));
+    const groups = groupNotebooksByFeed(withLocal, FEED_SOURCES);
     expect(groups.at(-1)!.label).toBe('Local');
-    expect(groups.at(-1)!.seed).toBeUndefined();
-    expect(groups.at(-1)!.notebooks.map(n => n.slug)).toEqual(['my-garage-gym']);
+    expect(groups.at(-1)!.feed).toBeUndefined();
+    expect(groups.at(-1)!.notebooks.map(n => n.slug)).toEqual(['my-garage-gym', 'efforts', 'equipment', 'dashboards']);
   });
 });
 
 describe('filterNotebooks', () => {
   const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
-
-  it('filters by kind', () => {
-    expect(filterNotebooks(catalog, { kind: 'feed' }).every(n => n.kind === 'feed')).toBe(true);
-    expect(filterNotebooks(catalog, { kind: 'collection' })).toHaveLength(1);
-  });
 
   it('matches text over label and description, case-insensitively', () => {
     expect(filterNotebooks(catalog, { text: 'crossfit' })).toHaveLength(2);
@@ -153,24 +154,24 @@ describe('filterNotebooks', () => {
 
 describe('sortNotebooks', () => {
   it('updated puts dated notebooks first, newest first, undated last by name', () => {
-    const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'crossfit-programming'));
+    const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('crossfit-programming'));
     const sorted = sortNotebooks(catalog, 'updated');
     expect(sorted[0]!.slug).toBe('crossfit-programming');
     expect(sorted[1]!.slug).toBe('crossfit-girls');
   });
 
   it('name sorts alphabetically and size sorts by item count', () => {
-    const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'crossfit-programming'));
-    expect(sortNotebooks(catalog, 'name').map(n => n.label)).toEqual(['CrossFit Girls', 'CrossFit Programming']);
+    const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('crossfit-programming'));
+    expect(sortNotebooks(catalog, 'name').slice(0, 2).map(n => n.label)).toEqual(['CrossFit Girls', 'CrossFit Programming']);
     expect(sortNotebooks(catalog, 'size')[0]!.slug).toBe('crossfit-programming');
   });
 });
 
-describe('buildSeedCatalog', () => {
+describe('buildFeedCatalog', () => {
   it('builds one card per seed, holding its notebooks and local totals', () => {
-    const catalog = buildSeedCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'crossfit-programming'), SEED_SOURCES);
-    expect(catalog.map(card => card.seedId)).toEqual(['seed-crossfit']);
-    expect(catalog[0]).toMatchObject({ label: 'CrossFit', slug: 'seed-crossfit', itemCount: 2, href: '/catalogs' });
+    const catalog = buildFeedCatalog(NOTEBOOK_FIXTURES, feedFiles('crossfit-programming'), FEED_SOURCES);
+    expect(catalog.map(card => card.feedId)).toEqual(['seed-crossfit']);
+    expect(catalog[0]).toMatchObject({ label: 'CrossFit', slug: 'seed-crossfit', itemCount: 2, href: '/notebooks' });
     expect(catalog[0]!.notebooks.map(n => n.packageId))
       .toEqual(['community-crossfit-programming', 'community-crossfit-girls']);
     expect(catalog[0]!.latestDate).toBe('2026-10-05');
@@ -180,50 +181,50 @@ describe('buildSeedCatalog', () => {
 
   it('marks a seed installed only when every notebook it publishes is present', () => {
     const files = {
-      ...feedFiles('feeds', 'crossfit-programming'),
-      'markdown/collections/crossfit-girls/README.md': '# CrossFit Girls\n',
+      ...feedFiles('crossfit-programming'),
+      'markdown/notebooks/crossfit-girls/README.md': '# CrossFit Girls\n',
     };
-    const catalog = buildSeedCatalog(NOTEBOOK_FIXTURES, files, SEED_SOURCES);
+    const catalog = buildFeedCatalog(NOTEBOOK_FIXTURES, files, FEED_SOURCES);
     expect(catalog[0]!.installed).toBe(true);
   });
 
   it('keeps locally discovered content as a Local card', () => {
-    const catalog = buildSeedCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'my-garage-gym'), SEED_SOURCES);
+    const catalog = buildFeedCatalog(NOTEBOOK_FIXTURES, feedFiles('my-garage-gym'), FEED_SOURCES);
     const local = catalog.at(-1)!;
-    expect(local.seedId).toBeUndefined();
+    expect(local.feedId).toBeUndefined();
     expect(local.label).toBe('Local');
-    expect(local.notebooks.map(notebook => notebook.slug)).toEqual(['my-garage-gym']);
+    expect(local.notebooks.map(notebook => notebook.slug)).toEqual(['my-garage-gym', 'efforts', 'equipment', 'dashboards']);
   });
 });
 
-describe('filterSeeds / sortSeeds', () => {
-  const catalog = buildSeedCatalog(NOTEBOOK_FIXTURES, null, SEED_SOURCES);
+describe('filterFeeds / sortFeeds', () => {
+  const catalog = buildFeedCatalog(NOTEBOOK_FIXTURES, null, FEED_SOURCES);
 
   it('matches the seed copy and the notebooks it publishes', () => {
-    expect(filterSeeds(catalog, { text: 'crossfit' })).toHaveLength(1);
-    expect(filterSeeds(catalog, { text: 'BENCHMARK' })).toHaveLength(1);
-    expect(filterSeeds(catalog, { text: 'zzz-nothing' })).toHaveLength(0);
-    expect(filterSeeds(catalog, { kind: 'collection' })).toHaveLength(1);
-    expect(filterSeeds(catalog, { kind: 'feed' })).toHaveLength(1);
+    expect(filterFeeds(catalog, { text: 'crossfit' })).toHaveLength(1);
+    expect(filterFeeds(catalog, { text: 'BENCHMARK' })).toHaveLength(1);
+    expect(filterFeeds(catalog, { text: 'zzz-nothing' })).toHaveLength(0);
   });
 
-  it('filters seeds by seedId and subscribedOnly', () => {
-    const isSubscribed = (seedId: string, chunkId: string) => chunkId === 'feed.crossfit-programming';
-    const subCatalog = buildSeedCatalog(NOTEBOOK_FIXTURES, null, SEED_SOURCES, isSubscribed);
-    expect(filterSeeds(subCatalog, { seedId: 'seed-crossfit' })).toHaveLength(1);
-    expect(filterSeeds(subCatalog, { seedId: 'other-seed' })).toHaveLength(0);
-    expect(filterSeeds(subCatalog, { subscribedOnly: true })).toHaveLength(1);
+  it('filters feeds by feedId and subscribedOnly', () => {
+    const isSubscribed = (feedId: string, chunkId: string) => chunkId === 'notebook.crossfit-programming';
+    const subCatalog = buildFeedCatalog(NOTEBOOK_FIXTURES, null, FEED_SOURCES, isSubscribed);
+    expect(filterFeeds(subCatalog, { feedId: 'seed-crossfit' })).toHaveLength(1);
+    expect(filterFeeds(subCatalog, { feedId: 'other-seed' })).toHaveLength(0);
+    // The Local card (core notebooks delivered with the app) is always subscribed.
+    expect(filterFeeds(subCatalog, { subscribedOnly: true })).toHaveLength(2);
 
-    const noneSubscribed = buildSeedCatalog(NOTEBOOK_FIXTURES, null, SEED_SOURCES, () => false);
-    expect(filterSeeds(noneSubscribed, { subscribedOnly: true })).toHaveLength(0);
-    expect(filterSeeds(noneSubscribed, { subscribedOnly: false })).toHaveLength(1);
+    const noneSubscribed = buildFeedCatalog(NOTEBOOK_FIXTURES, null, FEED_SOURCES, () => false);
+    expect(filterFeeds(noneSubscribed, { subscribedOnly: true })).toHaveLength(1);
+    expect(filterFeeds(noneSubscribed, { subscribedOnly: false })).toHaveLength(2);
   });
 
   it('sorts by name and by local size', () => {
-    const withLocal = buildSeedCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'my-garage-gym'), SEED_SOURCES);
-    expect(sortSeeds(withLocal, 'name').map(seed => seed.label)).toEqual(['CrossFit', 'Local']);
-    // Only the local feed has rows here, so it leads on size.
-    expect(sortSeeds(withLocal, 'size').map(seed => seed.label)).toEqual(['Local', 'CrossFit']);
+    const withLocal = buildFeedCatalog(NOTEBOOK_FIXTURES, feedFiles('my-garage-gym'), FEED_SOURCES);
+    expect(sortFeeds(withLocal, 'name').map(seed => seed.label)).toEqual(['CrossFit', 'Local']);
+    // The local group out-counts the registry card here (its rows + the
+    // core notebooks), so it leads on size.
+    expect(sortFeeds(withLocal, 'size').map(seed => seed.label)).toEqual(['Local', 'CrossFit']);
   });
 });
 

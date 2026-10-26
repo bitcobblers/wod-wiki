@@ -1,5 +1,5 @@
 /**
- * Parser fixture catalog driver (spec: wayfinder test-validation-harness
+ * Parser fixture notebook driver (spec: wayfinder test-validation-harness
  * asset 001). Discovers `tests/fixtures/parser/*.md` — one file = one test,
  * zero TS changes to add a case — parses the script through `parseScript`
  * with the fixture's options, and compares positionally against the

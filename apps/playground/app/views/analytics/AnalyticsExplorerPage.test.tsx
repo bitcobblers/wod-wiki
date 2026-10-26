@@ -42,8 +42,7 @@ const FEED_NOTE = {
   title: 'StrongLifts 5×5',
   createdAt: Date.parse('2026-07-01T10:00:00Z'),
   type: 'note',
-  sourceId: 'feed:stronglifts',
-  catalog: 'stronglifts',
+  sourceId: 'notebook:stronglifts',
 } as unknown as FindQueryResult['notes'][number];
 
 // Page runs carry { rangeStart, rangeEnd, preferredUnit } options; the
@@ -211,7 +210,7 @@ describe('AnalyticsExplorerPage', () => {
 
     // The shared entry pipeline renders the same grouped rows as the Library.
     await waitFor(() => expect(screen.getByTestId('library-group-count').textContent).toBe('1'));
-    expect(screen.getByTestId('library-row-post').textContent).toContain('StrongLifts 5×5');
+    expect(screen.getByTestId('library-row-note').textContent).toContain('StrongLifts 5×5');
   });
 
   it('Save seeds the composer with the exact current draft — no reconstruction', async () => {
@@ -302,7 +301,7 @@ describe('AnalyticsExplorerPage', () => {
         expect(parsed.window).toEqual({ kind: 'relative', size: 16, unit: 'w' });
       }
     });
-    await waitFor(() => expect(screen.getByTestId('library-row-post').textContent).toContain('StrongLifts 5×5'));
+    await waitFor(() => expect(screen.getByTestId('library-row-note').textContent).toContain('StrongLifts 5×5'));
   });
 
   it('keeps range and units in the options menu; examples are not duplicated on the page', async () => {

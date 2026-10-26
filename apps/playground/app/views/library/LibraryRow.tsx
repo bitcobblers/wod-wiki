@@ -7,9 +7,10 @@
  * in the Library page, not the row.
  */
 import { useNavigate, Link } from 'react-router-dom'
-import { FileTextIcon, CalendarIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen } from 'lucide-react'
+import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon } from 'lucide-react'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/atoms/primitives/dropdown-menu'
 import type { Entry } from '../../lib/entryMapper'
-import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryCollectionFeedHref } from '../../lib/entryActions'
+import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryNotebookHref } from '../../lib/entryActions'
 import { entryCanRun } from '../../lib/entryRun'
 import { effortPath } from '../../lib/routes'
 
@@ -37,42 +38,47 @@ export interface LibraryRowProps {
    * `entryCanRun(entry)` is true.
    */
   onRunStart?: (entry: Entry) => void
+  /**
+   * Notebook move (ticket 05): the user-owned notebooks a note can move
+   * into, and the handler. The row renders the move dropdown only when both
+   * are present and the entry is a note living in a user-owned notebook
+   * (`notebookId` set — feed-delivered notebooks are read-only).
+   */
+  moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
+  onMoveNotebook?: (entry: Entry, notebookId: string) => void
 }
 
 const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
   note: FileTextIcon,
-  session: Rss,
-  post: CalendarIcon,
   effort: Dumbbell,
   result: Trophy,
   segment: Layers,
   event: Activity,
   dashboard: LayoutDashboard,
   equipment: Wrench,
+  tag: TagIcon,
 }
 
 const KIND_LABEL: Record<Entry['kind'], string> = {
   note: 'Note',
-  session: 'Session',
-  post: 'Post',
   effort: 'Effort',
   result: 'Result',
   segment: 'Segment',
   event: 'Event',
   dashboard: 'Dashboard',
   equipment: 'Equipment',
+  tag: 'Tag',
 }
 
 const KIND_TONE: Record<Entry['kind'], string> = {
   note: 'bg-primary/10 text-primary group-hover:bg-primary/20',
-  session: 'bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20',
-  post: 'bg-violet-500/10 text-violet-600 group-hover:bg-violet-500/20',
   effort: 'bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500/20',
   result: 'bg-sky-500/10 text-sky-600 group-hover:bg-sky-500/20',
   segment: 'bg-indigo-500/10 text-indigo-600 group-hover:bg-indigo-500/20',
   event: 'bg-indigo-500/10 text-indigo-600 group-hover:bg-indigo-500/20',
   dashboard: 'bg-cyan-500/10 text-cyan-600 group-hover:bg-cyan-500/20',
   equipment: 'bg-orange-500/10 text-orange-600 group-hover:bg-orange-500/20',
+  tag: 'bg-violet-500/10 text-violet-600 group-hover:bg-violet-500/20',
 }
 
 export function LibraryRow({
@@ -84,29 +90,37 @@ export function LibraryRow({
   tone = 'secondary',
   onAddToToday,
   onRunStart,
+  moveNotebookTargets,
+  onMoveNotebook,
 }: LibraryRowProps) {
   const navigate = useNavigate()
-  // Annotation 4 — plain `note` kind conflates journal/guide/playground by
-  // design; All-view rows pick the icon/label by the entry's source so each
-  // note kind shows its own type. Distinct kinds (dashboard/effort/…)
-  // resolve through the records directly.
-  const noteCatalog = entry.kind === 'note' ? entry.sourceCatalog : undefined
+  // Annotation 4 — plain `note` kind conflates journal/guide/playground and
+  // feed-delivered notebook notes by design; All-view rows pick the
+  // icon/label by the entry's source so each note flavor shows its own type.
+  // Distinct kinds (dashboard/effort/…) resolve through the records directly.
+  const noteCatalog = entry.kind === 'note' ? entry.sourceNotebook : undefined
+  const isNotebookNote = !!noteCatalog && noteCatalog !== 'journal' && noteCatalog !== 'playground' && noteCatalog !== 'guides'
   const Icon =
     noteCatalog === 'playground' ? FlaskConical
     : noteCatalog === 'guides' ? BookOpen
+    : isNotebookNote ? Rss
     : KIND_ICON[entry.kind]
   const kindLabel =
     noteCatalog === 'playground' ? 'Playground'
     : noteCatalog === 'guides' ? 'Guide'
+    : isNotebookNote ? 'Notebook'
     : KIND_LABEL[entry.kind]
+  const kindTone = isNotebookNote
+    ? 'bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20'
+    : KIND_TONE[entry.kind]
   const isPrimary = tone === 'primary'
-  const feedHref = entryCollectionFeedHref(entry)
+  const notebookHref = entryNotebookHref(entry)
   const openHref = entryOpenHref(entry)
   const visibleSet = visibleFieldIds ? new Set(visibleFieldIds) : null
   const showDate = !visibleSet || visibleSet.has('date')
   const showSubtitle =
     !visibleSet ||
-    visibleSet.has('catalog') ||
+    visibleSet.has('sourceNotebook') ||
     visibleSet.has('protocol') ||
     visibleSet.has('elapsedTime') ||
     visibleSet.has('splitDuration') ||
@@ -131,7 +145,7 @@ export function LibraryRow({
       data-testid={`library-row-${entry.kind}`}
     >
       {leading}
-      <div className={`flex-shrink-0 size-9 rounded-xl flex items-center justify-center transition-colors ${KIND_TONE[entry.kind]}`}>
+      <div className={`flex-shrink-0 size-9 rounded-xl flex items-center justify-center transition-colors ${kindTone}`}>
         <Icon className="size-4" />
       </div>
       <div className="flex-1 min-w-0">
@@ -162,18 +176,18 @@ export function LibraryRow({
               {entry.detail ?? entry.execution.effortSlug}
             </Link>
           )}
-          {feedHref && (
+          {notebookHref && (
             <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
               <Link
                 to={openHref}
                 data-testid="library-row-details-link"
                 className="text-[9px] font-bold tracking-wide text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border rounded-full px-2 py-0.5 transition-colors"
-                title="View catalog details"
+                title="View notebook details"
               >
                 Details
               </Link>
               <Link
-                to={feedHref}
+                to={notebookHref}
                 data-testid="library-row-feed-link"
                 className="text-[9px] font-bold tracking-wide text-primary/80 hover:text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-full px-2 py-0.5 transition-colors"
                 title="View feed"
@@ -203,7 +217,15 @@ export function LibraryRow({
           {dateLabel}
         </span>
       )}
-      {actions ?? <RowActions entry={entry} onAddToToday={onAddToToday} onRunStart={onRunStart} />}
+      {actions ?? (
+        <RowActions
+          entry={entry}
+          onAddToToday={onAddToToday}
+          onRunStart={onRunStart}
+          moveNotebookTargets={moveNotebookTargets}
+          onMoveNotebook={onMoveNotebook}
+        />
+      )}
     </div>
   )
 }
@@ -212,22 +234,33 @@ interface RowActionsProps {
   entry: Entry
   onAddToToday?: (entry: Entry) => void
   onRunStart?: (entry: Entry) => void
+  moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
+  onMoveNotebook?: (entry: Entry, notebookId: string) => void
 }
 
-function RowActions({ entry, onAddToToday, onRunStart }: RowActionsProps) {
+function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook }: RowActionsProps) {
   const navigate = useNavigate()
   const compareHref = entryCompareHref(entry)
-  const feedHref = entryCollectionFeedHref(entry)
+  const notebookHref = entryNotebookHref(entry)
   const canAdd = entryCanAddToToday(entry) && !!onAddToToday
   const canRun = entryCanRun(entry) && !!onRunStart
+  // A note in a user-owned notebook can move between user-owned notebooks
+  // (feed-delivered notebooks are read-only; move targets already exclude
+  // them). Journal notes stay put — the journal is their notebook.
+  const moveable = !!onMoveNotebook
+    && entry.kind === 'note'
+    && !!entry.notebookId
+    && entry.notebookId !== 'notebook/journal'
+    && !!moveNotebookTargets?.length
+  const targets = moveNotebookTargets?.filter((target) => target.id !== entry.notebookId) ?? []
 
   return (
     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-      <ActionButton title={feedHref ? "Details" : "Open"} testId="action-open" onClick={() => navigate(entryOpenHref(entry))}>
+      <ActionButton title={notebookHref ? "Details" : "Open"} testId="action-open" onClick={() => navigate(entryOpenHref(entry))}>
         <PlayIcon className="size-3.5" />
       </ActionButton>
-      {feedHref && (
-        <ActionButton title="Feed" testId="action-feed" onClick={() => navigate(feedHref)}>
+      {notebookHref && (
+        <ActionButton title="Notebook" testId="action-notebook" onClick={() => navigate(notebookHref)}>
           <Rss className="size-3.5" />
         </ActionButton>
       )}
@@ -241,12 +274,73 @@ function RowActions({ entry, onAddToToday, onRunStart }: RowActionsProps) {
           <PlayIcon className="size-3.5" />
         </ActionButton>
       )}
+      {moveable && targets.length > 0 && (
+        <MoveToNotebookMenu
+          targets={targets}
+          triggerTestId="action-move"
+          itemTestIdPrefix="action-move-"
+          triggerClassName="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          onMove={(notebookId) => onMoveNotebook?.(entry, notebookId)}
+        />
+      )}
       {compareHref && (
         <ActionButton title="Compare" testId="action-compare" onClick={() => navigate(compareHref)}>
           <BarChart3Icon className="size-3.5" />
         </ActionButton>
       )}
     </div>
+  )
+}
+
+export interface MoveNotebookTarget {
+  id: string
+  name: string
+  icon: string
+}
+
+/** The move-to-notebook dropdown shared by the cards/table row actions and
+ *  the feed layout (ticket 05): one menu, two trigger styles (icon button vs
+ *  feed chip) via testid/class props. */
+export function MoveToNotebookMenu({
+  targets,
+  triggerTestId,
+  itemTestIdPrefix,
+  triggerClassName,
+  onMove,
+}: {
+  targets: ReadonlyArray<MoveNotebookTarget>
+  triggerTestId: string
+  itemTestIdPrefix: string
+  triggerClassName: string
+  onMove: (notebookId: string) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          title="Move to notebook"
+          data-testid={triggerTestId}
+          className={triggerClassName}
+        >
+          <FolderInput className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Move to notebook</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {targets.map((target) => (
+          <DropdownMenuItem
+            key={target.id}
+            data-testid={`${itemTestIdPrefix}${target.id}`}
+            onClick={() => onMove(target.id)}
+          >
+            <span className="w-5 text-center">{target.icon}</span>
+            <span className="flex-1 truncate">{target.name}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

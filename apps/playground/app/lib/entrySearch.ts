@@ -25,7 +25,7 @@ import {
   type FindQueryResult,
   type RowsQueryResult,
 } from '@bitcobblers/wod-wiki-engine';
-import { blockContentId, parseDocumentSections, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { blockContentId, parseDocumentSections, projectPlacements, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   toEntry,
   blockToEntry,
@@ -57,8 +57,8 @@ function tableRowToEntry(row: Record<string, unknown>, target: 'segment' | 'even
   return {
     id: rowId ?? resultId ?? `${target}:${index}`,
     kind: target,
-    sourceCatalog: 'results',
-    sourceItem: resultId ?? rowId ?? `${target}:${index}`,
+    sourceNotebook: 'results',
+    sourceNote: resultId ?? rowId ?? `${target}:${index}`,
     title: effort ? formatEffortName(effort) : `${target === 'segment' ? 'Segment' : 'Event'} ${index + 1}`,
     date: typeof row.date === 'string' ? row.date : null,
     subtitle: fields.length > 0 ? fields.join(' • ') : undefined,
@@ -136,8 +136,8 @@ export class StreamQueryEngine {
     return next;
   }
 
-  /** One batched relation read per run (storageService.getEntryBatches —
-   *  local one-transaction bundles, remote ids chunked at the entries
+  /** One batched relation read per run (storageService.getDetailBatches —
+   *  local one-transaction bundles, remote ids chunked at the detail
    *  plan's 64-value limit; empty id set → no read). Journal page links
    *  and pages always hydrate; `withNoteFields` also fills blank titles
    *  (block-derived notes) and junction tags from the SAME bundle. A bundle
@@ -145,35 +145,29 @@ export class StreamQueryEngine {
    *  re-fetched per note; ids absent from the notes store stay untagged
    *  and untitled (fail-closed). */
   private async hydrateEntries(entries: Entry[], withNoteFields: boolean): Promise<void> {
-    const parentNoteId = (entry: Entry) => entry.noteId ?? entry.id;
     const bundleIds = new Set<string>();
     for (const entry of entries) {
-      if (entry.sourceCatalog === 'journal') bundleIds.add(parentNoteId(entry));
+      if (entry.sourceNotebook === 'journal') bundleIds.add(entry.id);
       if (withNoteFields && (!entry.title || !entry.tags || entry.tags.length === 0)) {
-        bundleIds.add(parentNoteId(entry));
+        bundleIds.add(entry.id);
       }
     }
     if (bundleIds.size === 0) return;
-    const bundles = await storageService.getEntryBatches([...bundleIds]);
+    const bundles = await storageService.getDetailBatches([...bundleIds]);
     for (const entry of entries) {
-      if (entry.sourceCatalog !== 'journal') continue;
-      const bundle = bundles.get(parentNoteId(entry));
-      const links = [...(bundle?.links ?? [])].sort(
-        (a, b) => (a.position ?? Infinity) - (b.position ?? Infinity) || a.createdAt - b.createdAt,
-      );
-      for (const link of links) {
-        const page = bundle?.pages.find((p) => p.id === link.pageId);
-        if (!page) continue;
-        entry.pageId ??= page.id;
-        if (!page.date && page.slug) {
-          entry.pageSlug = page.slug;
-          break;
-        }
-      }
+      if (entry.sourceNotebook !== 'journal') continue;
+      const bundle = bundles.get(entry.id);
+      // Every page the note sits on; the single-page fields below are the
+      // deterministic primary projections of that list.
+      const placements = resolvePlacements(bundle?.links ?? [], bundle?.pages ?? []);
+      entry.placements = placements;
+      const projection = projectPlacements(placements);
+      entry.pageId ??= projection.pageId;
+      if (projection.pageSlug) entry.pageSlug = projection.pageSlug;
     }
     if (!withNoteFields) return;
     for (const entry of entries) {
-      const bundle = bundles.get(parentNoteId(entry));
+      const bundle = bundles.get(entry.id);
       if (!entry.title && bundle?.note.title) entry.title = bundle.note.title;
       if (bundle && bundle.tags.length > 0) {
         if (!entry.tags || entry.tags.length === 0) {
@@ -191,12 +185,20 @@ export class StreamQueryEngine {
 
     // 1. Content and Effort Discovery Planes
     if (isFindQuery(parsed)) {
-      // :effort — queries the effort registry via runFindEffort
+      // :effort — the note plane is the result plane: matched projections
+      // resolve to their owning definition notes (entryMapper classifies
+      // them as effort entries). Projections the note plane did not resolve
+      // (legacy rows without an owner note) fall back to the registry row.
       if (parsed.target === 'effort') {
         const result = this.service.runFindEffort
           ? await this.service.runFindEffort(parsed)
           : await this.service.runFind(parsed);
-        const entries = (result.efforts ?? []).map(effortToEntry);
+        const noteById = new Map(result.notes.map(note => [note.id, note]));
+        const entries = (result.efforts ?? []).map(effort =>
+          effort.ownerNoteId && noteById.has(effort.ownerNoteId)
+            ? toEntry(noteById.get(effort.ownerNoteId)!)
+            : effortToEntry(effort),
+        );
         emitStages(onStages, result.stages, entries);
         return entries;
       }

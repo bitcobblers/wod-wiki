@@ -11,25 +11,32 @@ import { pendingRuntimes } from '../../runtimeStore'
 import { InMemoryStorage, setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import {
-  CATALOGS_STREAM_PROFILE,
+  NOTEBOOKS_STREAM_PROFILE,
   EFFORTS_STREAM_PROFILE,
   FEEDS_STREAM_PROFILE,
   JOURNAL_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
   SESSIONS_STREAM_PROFILE,
   createResultDetailProfile,
-  createCollectionCatalogProfile,
+  createNotebookProfile,
 } from './streamProfile'
 import { journalNotes } from '../../services/journalNotes'
-import { resetSeedSubscriptionsForTest, setSeedSubscribed } from '@/services/seed/seedSubscriptions'
+import { resetFeedSubscriptionsForTest, setFeedSubscribed } from '@/services/feed/feedSubscriptions'
 import { NavContext, initialNavState, type StreamNavControls } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 
-// The notice's inline sync goes through syncSeedSource; the coverage probe
-// must report "no manual library" so seedNotice routes render the banner.
+/** Test sleep — flush macrotasks inside act() scopes. */
+function delay(ms: number): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>()
+  setTimeout(resolve, ms)
+  return promise
+}
+
+// The notice's inline sync goes through syncFeedSource; the coverage probe
+// must report "no manual library" so feedNotice routes render the banner.
 let communitySyncOutcome: 'imported' | 'current' | 'error' | 'busy' = 'imported'
 let coverageMock: { coreImported: boolean; libraryImported: boolean } = { coreImported: true, libraryImported: false }
-const syncSeedSourceMock = mock(
+const syncFeedSourceMock = mock(
   async (id: string, deps?: { force?: boolean; onProgress?: (event: Record<string, unknown>) => void }) => {
     deps?.onProgress?.({ sourceId: id, sourceLabel: 'Community', sourceIndex: 1, totalSources: 1, phase: 'checking' })
     deps?.onProgress?.({
@@ -45,21 +52,21 @@ const syncSeedSourceMock = mock(
   },
 )
 
-// defaultSeedSources stays REAL. Static import cannot work: it would bind
+// defaultFeedSources stays REAL. Static import cannot work: it would bind
 // the mock.module replacement below. Top-level dynamic import placed BEFORE
 // the mock.module call resolves the real module (same load-boundary
 // exception as the seedContent/entrySearch mocks): the notice's sync
 // worklist is the registry filtered by subscription, and tests drive
-// subscriptions through the real seedSubscriptions store.
-const realSeedSync = await import('@/services/seed/seedSync')
+// subscriptions through the real feedSubscriptions store.
+const realSeedSync = await import('@/services/feed/feedSync')
 
 // Radix overlays crash under this bun+jsdom setup (cross-realm Event
 // objects — see tests/unit-setup.ts), so the drawer and toaster are asserted
 // at their seams: the URL param drives the drawer, and toast() payloads are
 // what the app's Toaster would display.
-mock.module('../../pages/CatalogsManagerDrawer', () => ({
-  CatalogsManagerDrawer: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="catalogs-manager-drawer-open" /> : null,
+mock.module('../../pages/NotebookManageDrawer', () => ({
+  NotebookManageDrawer: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="notebook-manage-drawer-open" /> : null,
 }))
 
 const realUseToast = await import('@/hooks/use-toast')
@@ -71,24 +78,24 @@ mock.module('@/hooks/use-toast', () => ({
   },
 }))
 
-mock.module('@/services/seed/seedSync', () => ({
+mock.module('@/services/feed/feedSync', () => ({
   SEED_BROADCAST_CHANNEL: 'wodwiki-seed',
   SEED_CLAIM_TTL_MS: 45_000,
   // Real probe resolves past a fake-indexeddb transaction (a macrotask); a
   // bare microtask here would settle outside act and spam act warnings.
-  readSeedCoverage: () => {
+  readFeedCoverage: () => {
     const { promise, resolve } = Promise.withResolvers<{ coreImported: boolean; libraryImported: boolean }>()
     setTimeout(() => resolve(coverageMock), 0)
     return promise
   },
-  runBootSeedSync: async () => 'current' as const,
-  syncSeedSource: (...args: [string, { force?: boolean; onProgress?: (event: Record<string, unknown>) => void }?]) =>
-    syncSeedSourceMock(...args),
-  defaultSeedSources: realSeedSync.defaultSeedSources,
+  runBootFeedSync: async () => 'current' as const,
+  syncFeedSource: (...args: [string, { force?: boolean; onProgress?: (event: Record<string, unknown>) => void }?]) =>
+    syncFeedSourceMock(...args),
+  defaultFeedSources: realSeedSync.defaultFeedSources,
   // The subscribe offer opens the manager drawer, which mounts SyncSection —
   // an empty registry is enough for it to render.
-  readSeedStatus: async () => ({ sources: [] }),
-  subscribeCatalogUpdates: () => () => {},
+  readFeedStatus: async () => ({ sources: [] }),
+  subscribeFeedUpdates: () => () => {},
 }))
 
 // Collection READMEs read through useSeedContent; tests drive the readme by
@@ -115,16 +122,32 @@ mock.module('../../lib/entrySearch', () => ({
   },
 }))
 
+// The effort-plane stream re-runs its mounted query when the registry
+// re-hydrates (the corpus import lands after the readiness gate flips).
+// Capture subscribers so a test can play the post-import notify.
+const realEffortRegistry = await import('@/services/effortRegistry')
+let effortRegistryListeners: Array<() => void> = []
+mock.module('@/services/effortRegistry', () => ({
+  ...realEffortRegistry,
+  subscribeAppEffortRegistry: (listener: () => void) => {
+    effortRegistryListeners.push(listener)
+    return () => {
+      effortRegistryListeners = effortRegistryListeners.filter((l) => l !== listener)
+    }
+  },
+}))
+
 beforeEach(() => {
   communitySyncOutcome = 'imported'
   coverageMock = { coreImported: true, libraryImported: false }
   seedFilesMock = null
   tokenEntries = []
   toastCalls = []
+  effortRegistryListeners = []
   window.localStorage.clear()
   // The subscriptions module caches its map — drop it so each test starts
   // from the (unsubscribed) cleared localStorage.
-  resetSeedSubscriptionsForTest()
+  resetFeedSubscriptionsForTest()
 })
 
 afterEach(() => {
@@ -137,8 +160,8 @@ describe('QueriableStreamView component', () => {
     {
       id: 'back-squat',
       kind: 'effort',
-      sourceCatalog: 'canonical',
-      sourceItem: 'back-squat',
+      sourceNotebook: 'canonical',
+      sourceNote: 'back-squat',
       title: 'Back Squat',
       date: null,
       effort: {
@@ -152,8 +175,8 @@ describe('QueriableStreamView component', () => {
     {
       id: 'pull-up',
       kind: 'effort',
-      sourceCatalog: 'canonical',
-      sourceItem: 'pull-up',
+      sourceNotebook: 'canonical',
+      sourceNote: 'pull-up',
       title: 'Pull-up',
       date: null,
       effort: {
@@ -205,6 +228,38 @@ describe('QueriableStreamView component', () => {
     // In stream layout, rows are rendered as LibraryRows
     expect(screen.getAllByTestId('library-row-effort').length).toBe(2)
     expect(screen.queryByTestId('property-table')).toBeNull()
+  })
+
+  it('re-runs an effort query when the effort registry re-hydrates after the initial run', async () => {
+    // The readiness gate flips on first paint while the effort corpus is
+    // still importing: the first committed run sees an empty registry, and
+    // the catalog must fill in when the import's hydration notifies —
+    // without a manual re-query.
+    let queryCalls = 0
+    const engine = new StreamQueryEngine({
+      runFind: mock(async () => ({ parsed: { raw: '', target: 'effort', filters: [] } as unknown as ParsedFindQuery, notes: [], blocks: [], stages: { selected: 0, matched: 0 } })),
+      runFindEffort: mock(async () => ({ parsed: { raw: '', target: 'effort', filters: [] } as unknown as ParsedFindQuery, notes: [], blocks: [], efforts: [], stages: { selected: 0, matched: 0 } })),
+      runRows: mock(async () => ({ parsed: { raw: '', outputType: 'all', filters: [] } as unknown as ParsedRowsQuery, runs: [] })),
+    })
+    engine.query = mock(async () => (++queryCalls === 1 ? [] : sampleEffortEntries))
+
+    render(
+      <MemoryRouter initialEntries={['/efforts']}>
+        <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(queryCalls).toBe(1))
+    expect(screen.queryByText('Back Squat')).toBeNull()
+
+    // The import commits: the registry re-hydrates and notifies subscribers.
+    await act(async () => {
+      for (const listener of effortRegistryListeners) listener()
+      await delay(400) // savedTick re-run debounce (STREAM_EXECUTE_DEBOUNCE_MS)
+    })
+
+    await waitFor(() => expect(screen.getByText('Back Squat')).toBeDefined())
+    expect(screen.getAllByTestId('library-row-effort').length).toBe(2)
   })
 
   it('renders entries in property table layout when settings.layout is rows', async () => {
@@ -305,8 +360,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'res-42:0',
         kind: 'segment',
-        sourceCatalog: 'results',
-        sourceItem: 'res-42',
+        sourceNotebook: 'results',
+        sourceNote: 'res-42',
         title: 'Session Result',
         date: '2026-06-01',
         segment: {
@@ -339,8 +394,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'res-42',
         kind: 'result',
-        sourceCatalog: 'results',
-        sourceItem: 'res-42',
+        sourceNotebook: 'results',
+        sourceNote: 'res-42',
         title: 'Fran Workout',
         date: '2026-06-01',
         execution: {
@@ -389,8 +444,8 @@ describe('QueriableStreamView component', () => {
         {
           id: 'res-42',
           kind: 'result',
-          sourceCatalog: 'results',
-          sourceItem: 'res-42',
+          sourceNotebook: 'results',
+          sourceNote: 'res-42',
           title: 'Fran Workout',
           date: '2026-06-01',
           execution: {
@@ -433,8 +488,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'note-1',
         kind: 'note',
-        sourceCatalog: 'canonical',
-        sourceItem: 'item-1',
+        sourceNotebook: 'canonical',
+        sourceNote: 'item-1',
         title: 'Workout 1',
         date: '2026-09-04',
         effort: { slug: 'fran', label: 'Fran', discipline: 'gymnastics' },
@@ -442,8 +497,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'note-2',
         kind: 'note',
-        sourceCatalog: 'canonical',
-        sourceItem: 'item-2',
+        sourceNotebook: 'canonical',
+        sourceNote: 'item-2',
         title: 'Workout 2',
         date: '2026-08-15',
         effort: { slug: 'grace', label: 'Grace', discipline: 'strength' },
@@ -590,13 +645,13 @@ describe('QueriableStreamView component', () => {
     expect(openLink.getAttribute('href')).toBe('/playground/uuid-1')
 
     // Playground scope: the note has no journal date, so grouping falls back
-    // to createdAt — a real date group, never the "Catalog Sessions" shelf,
+    // to createdAt — a real date group, never the "Notebook Sessions" shelf,
     // never the "Undated" bucket. Asserted BEFORE the Run click — Run
     // navigates to /run/:id, which drops ?q and resets the composer to the
     // profile default (in-app the view unmounts on that navigation).
     expect(screen.getByTestId('stream-feed-group-2023-11-14')).toBeDefined()
     expect(screen.queryByText('Undated')).toBeNull()
-    expect(screen.queryByText('Catalog Sessions')).toBeNull()
+    expect(screen.queryByText('Notebook Sessions')).toBeNull()
 
     // Run stages a pending runtime (what WallClockPage consumes) — retaining
     // the entry's Note UUID with playground origin/returnTo — then navigates.
@@ -614,6 +669,85 @@ describe('QueriableStreamView component', () => {
     pendingRuntimes.clear()
     } finally {
       pendingRuntimes.clear()
+      resetStorageForTesting()
+      await memory.close()
+    }
+  })
+
+  it('feed layout moves a note between user notebooks via the shared move menu', async () => {
+    writeViewSettings('/playgrounds', {
+      level: 'note',
+      layout: 'feed',
+      visibleFields: ['title', 'excerpt', 'date'],
+    })
+
+    const memory = new InMemoryStorage()
+    setStorageForTesting(memory)
+    try {
+    // A user notebook target + a note living in the defaults notebook.
+    await storageService.saveNote({
+      id: 'notebook/trip-2026',
+      notebookId: 'notebook/trip-2026',
+      title: 'Trip 2026',
+      rawContent: '',
+      blocks: {},
+      sourceRevision: 1,
+      createdAt: 1,
+      type: 'note',
+      seedOrigin: 'user',
+    } as Note)
+    const note: Note = {
+      id: 'user-note-1',
+      title: 'My Workout',
+      createdAt: 1_700_000_000_000,
+      type: 'note',
+      seedOrigin: 'user',
+      notebookId: 'notebook/defaults',
+      rawContent: '# My Workout\n',
+      sourceRevision: 1,
+      blocks: {},
+    }
+    // The row the feed renders AND the row moveNote reads — one note.
+    await storageService.saveNote({ ...note } as Note)
+    const engine = new StreamQueryEngine({
+      service: {
+        runFind: mock(async () => ({
+          parsed: { raw: '', target: 'note', filters: [] } as unknown as ParsedFindQuery,
+          notes: [note],
+          blocks: [],
+          stages: { selected: 1, matched: 1 },
+        })),
+      },
+    })
+
+    render(
+      <MemoryRouter initialEntries={[`/playgrounds?q=${encodeURIComponent(':notebook{notebook:defaults}')}`]}>
+        <QueriableStreamView profile={PLAYGROUNDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-feed')).toBeDefined()
+    }, { timeout: 5000 })
+
+    // The feed row exposes the real move control (and Add-to-today), then
+    // moving through it lands the note in the target notebook in storage.
+    // The move is async and re-renders on completion — flush it inside act.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('stream-feed-move'))
+      await delay(30)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('stream-feed-move-notebook/trip-2026'))
+      for (let i = 0; i < 100; i++) {
+        if ((await storageService.getNote('user-note-1'))?.notebookId === 'notebook/trip-2026') break
+        await delay(10)
+      }
+      await delay(50)
+    })
+    expect((await storageService.getNote('user-note-1'))?.notebookId).toBe('notebook/trip-2026')
+    expect(screen.getByTestId('stream-feed-add')).toBeDefined()
+    } finally {
       resetStorageForTesting()
       await memory.close()
     }
@@ -664,8 +798,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'note-1',
         kind: 'note',
-        sourceCatalog: 'canonical',
-        sourceItem: 'item-1',
+        sourceNotebook: 'canonical',
+        sourceNote: 'item-1',
         title: 'Workout 1',
         date: '2026-09-04',
         tags: ['strength'],
@@ -676,7 +810,10 @@ describe('QueriableStreamView component', () => {
 
     render(
       <MemoryRouter initialEntries={['/journal']}>
-        <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
+        <QueriableStreamView
+          profile={{ ...JOURNAL_STREAM_PROFILE, defaultWql: ':journal{}' }}
+          queryEngine={engine}
+        />
       </MemoryRouter>,
     )
 
@@ -710,12 +847,12 @@ describe('QueriableStreamView component', () => {
     try {
       const catalogEntry: Entry = {
         id: 'crossfit-girls/grace',
-        kind: 'session',
-        sourceCatalog: 'crossfit-girls',
-        sourceItem: 'grace',
+        kind: 'note',
+        sourceNotebook: 'crossfit-girls',
+        sourceNote: 'grace',
         title: 'Grace',
         date: null,
-        sourceId: 'collection:crossfit-girls',
+        sourceId: 'notebook:crossfit-girls/grace',
       }
       const engine = createMockEngine([catalogEntry])
 
@@ -742,7 +879,7 @@ describe('QueriableStreamView component', () => {
     }
   })
 
-  it('shows the sync notice on seedNotice routes when no manual library has imported', async () => {
+  it('shows the sync notice on feedNotice routes when no manual library has imported', async () => {
     const engine = createMockEngine([])
     // jsdom has no IndexedDB: the coverage probe cannot find an imported
     // library — the honest answer is "missing", so the notice must render.
@@ -752,22 +889,22 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    const notice = await waitFor(() => screen.getByTestId('seed-library-notice'))
+    const notice = await waitFor(() => screen.getByTestId('feed-library-notice'))
     expect(notice.textContent).toContain('Only the core seed is imported')
-    expect(screen.getByTestId('seed-library-notice-sync')).toBeDefined()
-    expect(screen.getByTestId('seed-library-notice-settings')).toBeDefined()
+    expect(screen.getByTestId('feed-library-notice-sync')).toBeDefined()
+    expect(screen.getByTestId('feed-library-notice-settings')).toBeDefined()
   })
 
   it('with nothing subscribed, the notice routes the primary action to the source manager instead of syncing', async () => {
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/catalogs']}>
+      <MemoryRouter initialEntries={['/notebooks']}>
         <LocationProbe />
-        <QueriableStreamView profile={CATALOGS_STREAM_PROFILE} queryEngine={engine} />
+        <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
     )
 
-    const primary = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    const primary = await waitFor(() => screen.getByTestId('feed-library-notice-sync'))
     expect(primary.textContent).toContain('Browse libraries')
     await act(async () => {
       fireEvent.click(primary)
@@ -777,9 +914,9 @@ describe('QueriableStreamView component', () => {
     // worklist that does not exist.
     await waitFor(() => {
       expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('manage=1')
-      expect(screen.getByTestId('catalogs-manager-drawer-open')).toBeDefined()
+      expect(screen.getByTestId('notebook-manage-drawer-open')).toBeDefined()
     })
-    expect(syncSeedSourceMock).not.toHaveBeenCalled()
+    expect(syncFeedSourceMock).not.toHaveBeenCalled()
   })
 
   it('with nothing subscribed on /feeds, the subscribe offer routes to Sync settings', async () => {
@@ -791,21 +928,21 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    const primary = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    const primary = await waitFor(() => screen.getByTestId('feed-library-notice-sync'))
     await act(async () => {
       fireEvent.click(primary)
     })
 
-    // No drawer outside /catalogs — the Sync settings route is the manager.
+    // No drawer on the feeds surface — the Sync settings route is the manager.
     await waitFor(() => {
       expect(screen.getByTestId('location-probe').getAttribute('data-path')).toBe('/settings/sync')
     })
-    expect(syncSeedSourceMock).not.toHaveBeenCalled()
+    expect(syncFeedSourceMock).not.toHaveBeenCalled()
   })
 
   it('a subscribed source that is already current shows an up-to-date confirmation', async () => {
     communitySyncOutcome = 'current'
-    setSeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('seed-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -813,20 +950,20 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    const syncButton = await waitFor(() => screen.getByTestId('feed-library-notice-sync'))
     expect(syncButton.textContent).toContain('Sync now')
     await act(async () => {
       fireEvent.click(syncButton)
     })
 
-    expect(syncSeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.anything())
+    expect(syncFeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.anything())
     await waitFor(() => {
       expect(toastCalls.some(t => t.title === 'Everything is up to date')).toBe(true)
     })
   })
 
   it('syncs the subscribed libraries inline and drops the notice on success', async () => {
-    setSeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('seed-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -834,14 +971,14 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    const syncButton = await waitFor(() => screen.getByTestId('feed-library-notice-sync'))
     await act(async () => {
       fireEvent.click(syncButton)
     })
 
-    expect(syncSeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.anything())
+    expect(syncFeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.anything())
     await waitFor(() => {
-      expect(screen.queryByTestId('seed-library-notice')).toBeNull()
+      expect(screen.queryByTestId('feed-library-notice')).toBeNull()
     })
   })
 
@@ -850,7 +987,7 @@ describe('QueriableStreamView component', () => {
     // check), so the executor could never report "current" and the
     // up-to-date case stayed silent — the dead-button bug.
     communitySyncOutcome = 'current'
-    setSeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('seed-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -858,19 +995,19 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    const syncButton = await waitFor(() => screen.getByTestId('feed-library-notice-sync'))
     await act(async () => {
       fireEvent.click(syncButton)
     })
 
-    expect(syncSeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.not.objectContaining({ force: true }))
+    expect(syncFeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.not.objectContaining({ force: true }))
   })
 
   it('never syncs the auto-importing core as a library', async () => {
     // The bundled core auto-imports at boot and is not a "library" by the
     // coverage probe's own rule — syncing it must not satisfy the notice
     // while the community library the page needs is still missing.
-    setSeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('seed-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -878,19 +1015,19 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    const syncButton = await waitFor(() => screen.getByTestId('feed-library-notice-sync'))
     await act(async () => {
       fireEvent.click(syncButton)
     })
 
-    const syncedIds = syncSeedSourceMock.mock.calls.map(([id]) => id)
+    const syncedIds = syncFeedSourceMock.mock.calls.map(([id]) => id)
     expect(syncedIds).not.toContain('core')
     expect(syncedIds).toContain('seed-crossfit')
   })
 
   it('keeps the notice and shows a visible error when the inline sync fails', async () => {
     communitySyncOutcome = 'error'
-    setSeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('seed-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -898,14 +1035,14 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    const syncButton = await waitFor(() => screen.getByTestId('seed-library-notice-sync'))
+    const syncButton = await waitFor(() => screen.getByTestId('feed-library-notice-sync'))
     await act(async () => {
       fireEvent.click(syncButton)
     })
 
-    const error = await waitFor(() => screen.getByTestId('seed-library-notice-error'))
+    const error = await waitFor(() => screen.getByTestId('feed-library-notice-error'))
     expect(error.textContent).toContain('Sync failed')
-    expect(screen.getByTestId('seed-library-notice')).toBeDefined()
+    expect(screen.getByTestId('feed-library-notice')).toBeDefined()
   })
 
   it('empty state on an unimported library route names the missing corpus, not the search', async () => {
@@ -921,7 +1058,7 @@ describe('QueriableStreamView component', () => {
     // /catalogs) — a hardcoded "notebooks" would misname the Notes page.
     // The library-coverage probe settles on a macrotask, so the empty state
     // first paints with the pre-settle copy: wait for the settled one.
-    await waitFor(() => expect(empty.textContent).toContain('No notes are imported yet.'))
+    await waitFor(() => expect(empty.textContent).toContain('No feeds are imported yet.'))
     expect(empty.textContent).not.toContain('match your search')
     // Exactly one remedy — the import/subscribe action. No search remedies:
     // the parser-injected scope/type filters are not the user's, so there
@@ -931,11 +1068,11 @@ describe('QueriableStreamView component', () => {
     expect(buttons[0]!.textContent).toContain('Browse libraries')
   })
 
-  it('empty state on /catalogs names notebooks as the missing corpus', async () => {
+  it('empty state on /notebooks names notebooks as the missing corpus', async () => {
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/catalogs']}>
-        <QueriableStreamView profile={CATALOGS_STREAM_PROFILE} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebooks']}>
+        <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
     )
 
@@ -952,7 +1089,7 @@ describe('QueriableStreamView component', () => {
     coverageMock = { coreImported: true, libraryImported: true }
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={[`/feeds?q=${encodeURIComponent(':notebook{text:foo}')}`]}>
+      <MemoryRouter initialEntries={[`/feeds?q=${encodeURIComponent(':notebooks{text:foo}')}`]}>
         <LocationProbe />
         <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
@@ -962,34 +1099,34 @@ describe('QueriableStreamView component', () => {
     // The corpus IS imported here (coverageMock above), so the emptiness is
     // the query's doing — but the probe settles on a macrotask, so wait for
     // the settled copy before reading it.
-    await waitFor(() => expect(empty.textContent).toContain('No note entries match your search.'))
+    await waitFor(() => expect(empty.textContent).toContain('No feeds match your search.'))
     const clear = within(empty).getByRole('button', { name: 'Clear filter' })
     fireEvent.click(clear)
 
-    // The authored text clause is gone; the notebook head's scope and plane
-    // type survive as explicit filters (serializer emits plain `:note`). The
+    // The authored text clause is gone; the notebooks head's storage scope
+    // survives as an explicit filter (serializer emits plain `:note`). The
     // URL `q` is the committed query's home — the composer input keeps its
     // own draft.
     await waitFor(() => {
-      expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain(encodeURIComponent(':note{source:feeds,type:feed}'))
+      expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain(encodeURIComponent(':note{source:notebooks}'))
     })
     await waitFor(() => {
       expect(within(screen.getByTestId('stream-empty-state')).queryByRole('button', { name: 'Clear filter' })).toBeNull()
     })
   })
 
-  it('catalog readme [heading](:query)! embeds inject results and suppress the default stream', async () => {
+  it('notebook readme [heading](:query)! embeds inject results and suppress the default stream', async () => {
     seedFilesMock = {
-      'markdown/collections/testcat/README.md':
-        'About this catalog.\n\n[Recent entries](:feed{catalog:testcat})!\n\nMore copy after.',
+      'markdown/notebooks/testcat/README.md':
+        'About this notebook.\n\n[Recent entries](:feed{catalog:testcat})!\n\nMore copy after.',
     }
     tokenEntries = [
-      { id: 'injected-1', kind: 'note', sourceCatalog: 'testcat', sourceItem: 'injected-1', title: 'Injected Entry', date: null },
+      { id: 'injected-1', kind: 'note', sourceNotebook: 'testcat', sourceNote: 'injected-1', title: 'Injected Entry', date: null },
     ]
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/c/testcat']}>
-        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebook/testcat']}>
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
       </MemoryRouter>,
     )
 
@@ -997,21 +1134,21 @@ describe('QueriableStreamView component', () => {
     expect(block.textContent).toContain('Injected Entry')
     // The embed link text becomes the block heading.
     expect(screen.getByTestId('readme-query-heading').textContent).toBe('Recent entries')
-    expect(screen.getByTestId('collection-readme-note').textContent).toContain('About this catalog.')
-    expect(screen.getByTestId('collection-readme-note').textContent).toContain('More copy after.')
+    expect(screen.getByTestId('notebook-readme-note').textContent).toContain('About this notebook.')
+    expect(screen.getByTestId('notebook-readme-note').textContent).toContain('More copy after.')
     // The override replaces the default feed stream below the readme.
     expect(screen.queryByTestId('stream-empty-state')).toBeNull()
   })
 
   it('embed with an empty heading renders no heading element', async () => {
-    seedFilesMock = { 'markdown/collections/testcat/README.md': '[](:feed{catalog:testcat})!' }
+    seedFilesMock = { 'markdown/notebooks/testcat/README.md': '[](:feed{catalog:testcat})!' }
     tokenEntries = [
-      { id: 'injected-2', kind: 'note', sourceCatalog: 'testcat', sourceItem: 'injected-2', title: 'Injected Entry', date: null },
+      { id: 'injected-2', kind: 'note', sourceNotebook: 'testcat', sourceNote: 'injected-2', title: 'Injected Entry', date: null },
     ]
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/c/testcat']}>
-        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebook/testcat']}>
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
       </MemoryRouter>,
     )
 
@@ -1020,31 +1157,31 @@ describe('QueriableStreamView component', () => {
   })
 
   it('bang-less WQL links in the readme stay navigation links and keep the default stream', async () => {
-    seedFilesMock = { 'markdown/collections/testcat/README.md': 'Browse [all feeds](:feed{catalog:testcat}).' }
+    seedFilesMock = { 'markdown/notebooks/testcat/README.md': 'Browse [all feeds](:feed{catalog:testcat}).' }
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/c/testcat']}>
-        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebook/testcat']}>
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
       </MemoryRouter>,
     )
 
-    await waitFor(() => screen.getByTestId('collection-readme-note'), { timeout: 5000 })
+    await waitFor(() => screen.getByTestId('notebook-readme-note'), { timeout: 5000 })
     const link = screen.getByRole('link', { name: 'all feeds' })
-    expect(link.getAttribute('href')).toBe(`/c/testcat?q=${encodeURIComponent(':feed{catalog:testcat}')}`)
+    expect(link.getAttribute('href')).toBe(`/notebook/testcat?q=${encodeURIComponent(':notebook{notebook:testcat}')}`)
     expect(screen.queryByTestId('readme-query-block')).toBeNull()
     expect(screen.getByTestId('stream-empty-state')).toBeDefined()
   })
 
-  it('catalog page keeps the default stream when the readme has no query tokens', async () => {
-    seedFilesMock = { 'markdown/collections/testcat/README.md': 'Plain readme, no tokens.' }
+  it('notebook page keeps the default stream when the readme has no query tokens', async () => {
+    seedFilesMock = { 'markdown/notebooks/testcat/README.md': 'Plain readme, no tokens.' }
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/c/testcat']}>
-        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebook/testcat']}>
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
       </MemoryRouter>,
     )
 
-    await waitFor(() => screen.getByTestId('collection-readme-note'), { timeout: 5000 })
+    await waitFor(() => screen.getByTestId('notebook-readme-note'), { timeout: 5000 })
     expect(screen.getByTestId('stream-empty-state')).toBeDefined()
     expect(screen.queryByTestId('readme-query-block')).toBeNull()
   })
@@ -1057,7 +1194,7 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.queryByTestId('seed-library-notice')).toBeNull()
+    expect(screen.queryByTestId('feed-library-notice')).toBeNull()
   })
 })
 
@@ -1093,8 +1230,8 @@ const DATED_NOTE_ENTRIES: Entry[] = [
   {
     id: 'note-1',
     kind: 'note',
-    sourceCatalog: 'canonical',
-    sourceItem: 'item-1',
+    sourceNotebook: 'canonical',
+    sourceNote: 'item-1',
     title: 'Workout 1',
     date: '2026-09-04',
     tags: ['strength'],
@@ -1102,8 +1239,8 @@ const DATED_NOTE_ENTRIES: Entry[] = [
   {
     id: 'note-2',
     kind: 'note',
-    sourceCatalog: 'canonical',
-    sourceItem: 'item-2',
+    sourceNotebook: 'canonical',
+    sourceNote: 'item-2',
     title: 'Workout 2',
     date: '2026-08-15',
     tags: ['strength'],
@@ -1133,7 +1270,9 @@ describe('QueriableStreamView — query truth and retained state', () => {
     const status = screen.getByTestId('stream-query-status').textContent ?? ''
     expect(status).toContain(':note')
     expect(status).toContain('1 applied')
-    expect(status).toContain('by date (level)')
+    // The journal default groups by date in the query itself — a copied URL
+    // reproduces the same list, grouping included (ticket 11).
+    expect(status).toContain('by date (query)')
     expect(screen.queryByText('Invalid query — showing previous results')).toBeNull()
   })
 
@@ -1242,12 +1381,12 @@ describe('QueriableStreamView — query truth and retained state', () => {
     expect(state.isOpen).toBe(true)
     expect(state.request?.wql?.initialQuery).toBe(authored)
   })
-  it('renders with collection catalog profile and default cards layout', async () => {
-    const profile = createCollectionCatalogProfile('dan-john')
+  it('renders with the notebook stream profile and default cards layout', async () => {
+    const profile = createNotebookProfile('dan-john')
     const { engine } = stubEngine(() => DATED_NOTE_ENTRIES)
 
     render(
-      <MemoryRouter initialEntries={['/c/dan-john']}>
+      <MemoryRouter initialEntries={['/notebook/dan-john']}>
         <QueriableStreamView profile={profile} queryEngine={engine} />
       </MemoryRouter>,
     )

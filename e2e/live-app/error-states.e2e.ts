@@ -120,11 +120,11 @@ test.describe('Error-Path Resilience', () => {
 
   // ── 3. Malformed routes ───────────────────────────────────────────────────
 
-  test('/journal/not-a-date redirects to a handled state', async ({ page }) => {
+  test('/journal/not-a-date is a retired path — the alias redirect is gone, it 404s', async ({ page }) => {
     await page.goto('/journal/not-a-date', { waitUntil: 'domcontentloaded', timeout: 15_000 });
-    // resolveJournalRoute classifies a non-date, non-UUID segment as a
-    // slug-alias; resolution fails → JournalAliasRedirect falls back to /journal.
-    await page.waitForURL(/\/journal\/?$/, { timeout: 10_000 });
+    // Ticket 09 retired the journal alias redirect matrix: the only journal
+    // routes are the /journal list and /day/:date. A stray segment 404s.
+    await expect(page.getByRole('heading', { name: /not found/i })).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('#root')).not.toBeEmpty();
     expect(errors).toEqual([]);
   });

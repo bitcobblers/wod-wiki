@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
  * Mobile gate (journal-mobile-375 project): key playground routes render with
@@ -10,7 +10,7 @@ import { waitForSeedReady } from '../helpers/seedReadiness';
  * broken at phone width get added here by their fix tickets — not before.
  */
 
-const ROUTES = ['/', '/journal', '/catalogs', '/efforts', '/analytics/explorer', '/playground/hello-world'];
+const ROUTES = ['/', '/journal', '/notebooks', '/efforts', '/dashboards', '/playground/hello-world'];
 
 for (const route of ROUTES) {
   test(`no horizontal overflow at 375px on ${route}`, async ({ page }) => {
@@ -19,7 +19,7 @@ for (const route of ROUTES) {
     // Pre-paint boot (#999) ran before React mounted
     await expect(page.locator('html[data-theme-boot="1"]')).toHaveCount(1);
     // Seed-dependent routes must finish importing before layout is measured.
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await expect(page.getByRole('main').first()).toBeVisible();
 
     const overflow = await page.evaluate(

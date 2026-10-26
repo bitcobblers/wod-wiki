@@ -304,14 +304,14 @@ function AnalyticsChart({
 
 /**
  * Canonical page link for a matched note — the parent Page wins over the
- * standalone note (slug pages → /p/:slug, journal date pages →
- * /journal/:date); undefined lets the caller's resolver answer.
+ * standalone note (slug pages → /page/:slug, journal date pages →
+ * /day/:date); undefined lets the caller's resolver answer.
  */
 function containerPageHref(container: NoteContainer | undefined): string | undefined {
   if (!container || container.kind !== 'page') return undefined;
   const { slug, date } = container as { slug?: string; date?: string };
-  if (slug) return `/p/${encodeURIComponent(slug)}`;
-  if (date) return `/journal/${encodeURIComponent(date)}`;
+  if (slug) return `/page/${encodeURIComponent(slug)}`;
+  if (date) return `/day/${encodeURIComponent(date)}`;
   return undefined;
 }
 

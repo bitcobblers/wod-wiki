@@ -14,7 +14,7 @@
 
 import { test, expect, Page } from '@playwright/test';
 import { EffortsPage } from '../pages/EffortsPage';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 import { seedBundledEfforts } from '../helpers/seedEfforts';
 
 const TEST_EFFORT_PREFIX = 'e2e-test';
@@ -55,7 +55,7 @@ test.describe('Efforts Catalog Page', () => {
   test('loads and displays bundled efforts', async ({ page }) => {
     const errors = setupErrorCapture(page);
     await page.goto('/efforts', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     await expect(page.getByTestId('stream-query-bar')).toBeVisible();
     await expect(page.getByRole('main').getByText('Rowing').first()).toBeVisible();
@@ -64,7 +64,7 @@ test.describe('Efforts Catalog Page', () => {
 
   test('shows search and filter controls', async ({ page }) => {
     await page.goto('/efforts', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
 
     await expect(page.getByTestId('stream-query-bar')).toBeVisible();
   });
@@ -105,7 +105,7 @@ test.describe('Efforts Catalog Page', () => {
     await efforts.gotoCatalog();
 
     await page.getByRole('main').getByRole('button', { name: /Rowing/ }).first().click();
-    await page.waitForURL(/\/e\/rowing/, { timeout: 5_000 });
+    await page.waitForURL(/\/effort\/rowing/, { timeout: 5_000 });
     await expect(efforts.detailLabel()).toHaveText('Rowing');
   });
 });
@@ -167,8 +167,8 @@ test.describe('Effort Detail Page', () => {
     // add input — not a joined text value. Seeded rowing aliases: row, rower,
     // rowing machine, erg, ergometer, concept2 row, "Long Row", "Row
     // Calories"; every chip links to the canonical Rowing page.
-    const aliases = efforts.frontmatterProperties().getByLabel('Add to aliases').locator('..');
-    await expect(aliases.getByLabel('Add to aliases')).toBeVisible();
+    const aliases = efforts.frontmatterProperties().getByLabel('Value for aliases').locator('..');
+    await expect(aliases.getByLabel('Value for aliases')).toBeVisible();
     await expect(aliases.getByRole('button', { name: 'Remove row', exact: true })).toBeVisible();
     await expect(aliases.getByRole('button', { name: 'Remove rower', exact: true })).toBeVisible();
     await expect(aliases.getByRole('button', { name: 'Remove concept2 row', exact: true })).toBeVisible();
@@ -178,7 +178,7 @@ test.describe('Effort Detail Page', () => {
 
 // ── Clone Effort ─────────────────────────────────────────────────────────────
 // (The retired create-custom effort fixme lived here; the supported flow is
-// covered by efforts-catalog.e2e.ts "opens create-custom flow from the
+// covered by efforts create-custom coverage: "opens create-custom flow from the
 // catalog CTA and creates the effort" against the notebook editor form.)
 
 test.describe('Clone Effort', () => {

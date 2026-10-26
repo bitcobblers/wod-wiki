@@ -771,10 +771,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     if (value !== identity.rawContent) {
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: value },
-        ...(noteBlocks ? { effects: sectionRestore.of({ rawContent: value, blocks: noteBlocks, sourceRevision }) } : {}),
+        // Unsaved fallbacks carry revision 0 with blocks stamped at 1 — the
+        // restore validation requires a matching stamp (Math.max, as init).
+        ...(noteBlocks ? { effects: sectionRestore.of({ rawContent: value, blocks: noteBlocks, sourceRevision: Math.max(1, sourceRevision) }) } : {}),
       });
     } else if (noteBlocks && sourceRevision !== identity.sourceRevision) {
-      view.dispatch({ effects: sectionSaved.of({ blocks: noteBlocks, sourceRevision }) });
+      view.dispatch({ effects: sectionSaved.of({ blocks: noteBlocks, sourceRevision: Math.max(1, sourceRevision) }) });
     }
   }, [value, noteBlocks, sourceRevision]);
 

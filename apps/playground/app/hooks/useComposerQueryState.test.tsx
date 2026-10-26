@@ -111,7 +111,7 @@ describe('useComposerQueryState', () => {
 
   it('never writes an unparseable draft to the URL', async () => {
     renderAt(['/journal'])
-    act(() => captured.setQuery(':note{source:feeds} backproof'))
+    act(() => captured.setQuery(':note{source:collection} backproof'))
     expect(qParam()).toBe('')
     act(() => captured.setQuery(':note{tags:strength}'))
     await waitFor(() => expect(qParam()).toBe(':note{tags:strength}'))

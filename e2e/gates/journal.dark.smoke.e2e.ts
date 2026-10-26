@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
  * Dark-theme gate (journal-dark project): key playground routes boot with the
@@ -8,7 +8,7 @@ import { waitForSeedReady } from '../helpers/seedReadiness';
  * on mount and toggles the class on documentElement).
  */
 
-const ROUTES = ['/', '/journal', '/catalogs', '/efforts', '/analytics/explorer', '/playground/hello-world'];
+const ROUTES = ['/', '/journal', '/notebooks', '/efforts', '/dashboards', '/playground/hello-world'];
 
 for (const route of ROUTES) {
   test(`dark theme applies on ${route}`, async ({ page }) => {
@@ -20,7 +20,7 @@ for (const route of ROUTES) {
     await expect(page.locator('html[data-theme-boot="1"]')).toHaveCount(1);
     await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/, { timeout: 20_000 });
     // Seed-dependent routes must finish importing before theme is checked.
-    await waitForSeedReady(page);
+    await waitForFeedReady(page);
     await expect(page.getByRole('main').first()).toBeVisible();
   });
 }

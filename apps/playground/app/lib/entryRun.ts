@@ -19,20 +19,20 @@ import { v7 as uuidv7 } from 'uuid'
 import type { NavigateFunction } from 'react-router-dom'
 import type { ScriptBlock } from '@/components/Editor/types'
 import { pendingRuntimes } from '../runtimeStore'
-import { runPath, journalEntryAutoStartPath } from './routes'
+import { runPath, dayAutoStartPath } from './routes'
 import { journalNotes } from '../services/journalNotes'
 import { createJournalNoteFromWorkout } from '../services/journalWorkout'
 import { extractScriptBlocks } from '../services/paletteDataSources'
 import type { Entry } from './entryMapper'
 import { entryOpenHref, entryIsPlayground } from './entryActions'
 
-/** Run is offered for content entries — notes (journal included, when a real
- *  wod block exists), catalog sessions, and feed posts. Whether a runnable
- *  block actually resolves is determined at click time (startEntryRun
- *  surfaces a visible error when none exists). */
+/** Run is offered for content entries — any note (journal, catalog item,
+ *  feed post; a notebook landing runs nothing). Whether a runnable block
+ *  actually resolves is determined at click time (startEntryRun surfaces a
+ *  visible error when none exists). */
 export function entryCanRun(entry: Entry): boolean {
-  if (entry.kind === 'session' && !entry.sourceItem) return false
-  return entry.kind === 'note' || entry.kind === 'session' || entry.kind === 'post'
+  if (entry.kind === 'note' && !entry.sourceNote) return false
+  return entry.kind === 'note'
 }
 
 /** Resolve the wod script for the entry — companion payload first, then the
@@ -92,7 +92,7 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction): P
   // Catalog adoption (existing behavior): the run lands in today's journal.
   const journalNote = await createJournalNoteFromWorkout({
     workoutName: entry.title,
-    category: entry.sourceCatalog,
+    category: entry.sourceNotebook,
     sourceNoteLabel: entry.subtitle ?? entry.title,
     sourceNotePath: entryOpenHref(entry),
     wodContent: content,
@@ -100,5 +100,5 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction): P
   const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
   if (!occurrence) throw new Error('The saved journal workout is unavailable.');
   pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id })
-  navigate(journalEntryAutoStartPath(journalNote.journalDate ?? '', runtimeId))
+  navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId))
 }

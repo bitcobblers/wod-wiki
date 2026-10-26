@@ -244,7 +244,7 @@ Computes performance metrics across workouts filtered by note metadata or exerci
 ## 6. Implementation Roadmap
 
 1. **`block_efforts` Table & Compiler**:
-   - Add `block_efforts` store to `IndexedDBStorage.ts` and `SeedImportStorage.ts`.
+   - Add `block_efforts` store to `IndexedDBStorage.ts` and `FeedImportStorage.ts`.
    - Update `scripts/generate-seed.ts` to emit precomputed `block-efforts.<n>.json` chunks.
    - Update `IndexedDBContentProvider.ts` to sync `block_efforts` on note edit/save.
 2. **WQL Grammar & Vocabulary Update**:

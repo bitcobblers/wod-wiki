@@ -83,7 +83,7 @@ describe('current visible draft actions', () => {
     const { rerender } = render(<WqlComposer query=':note' onQueryChange={change} />);
     fireEvent.change(screen.getByLabelText('Search text or WQL'), { target: { value: 'snatch' } });
     change.mockClear();
-    rerender(<WqlComposer query=":block{source:feeds}" onQueryChange={change} />);
+    rerender(<WqlComposer query=":block{source:notebooks}" onQueryChange={change} />);
     expect(screen.getByLabelText('Search text or WQL').getAttribute('value')).toBe('');
     expect(screen.getByTestId('token-slot-value-target').textContent).toBe('block');
     expect(change).not.toHaveBeenCalled();
@@ -91,10 +91,10 @@ describe('current visible draft actions', () => {
 
   it('returning to an echoed checkpoint clears pending text', () => {
     const change = vi.fn();
-    const { rerender } = render(<WqlComposer query=":note{source:feeds}" onQueryChange={change} />);
+    const { rerender } = render(<WqlComposer query=":note{source:notebooks}" onQueryChange={change} />);
     fireEvent.change(screen.getByLabelText('Search text or WQL'), { target: { value: 'fresh' } });
     rerender(<WqlComposer query={change.mock.calls.at(-1)![0]} onQueryChange={change} />);
-    rerender(<WqlComposer query=":note{source:feeds}" onQueryChange={change} />);
+    rerender(<WqlComposer query=":note{source:notebooks}" onQueryChange={change} />);
     expect(screen.getByLabelText('Search text or WQL').getAttribute('value')).toBe('');
     expect(screen.queryByTestId('token-slot-text')).toBeNull();
   });
@@ -163,7 +163,7 @@ describe('current visible draft actions', () => {
     fireEvent.click(screen.getByTestId('token-slot-source'));
     const options = screen.getAllByRole('option');
     expect(options[0].textContent).toContain('Guides');
-    expect(screen.getByRole('option', { name: /Feeds/ })).toBeDefined();
+    expect(screen.getByRole('option', { name: /Notebooks/ })).toBeDefined();
     expect(screen.getByRole('option', { name: /Journal/ }).getAttribute('aria-selected')).toBe('true');
   });
 

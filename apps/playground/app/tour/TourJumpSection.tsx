@@ -1,20 +1,20 @@
 /**
  * TourJumpSection.tsx — "Library & Community Feeds": direct exits + the
- * seed gallery.
+ * feed gallery.
  *
  * The unit is the SEED: one published Markdown repository (its own Pages
- * build, its own manifest and version). A seed publishes one or more
+ * build, its own manifest and version). A feed publishes one or more
  * NOTEBOOKS (chunks) and one Subscribe imports all of them — so each group
- * renders its seed's header (what it delivers, where it publishes) over its
+ * renders its feed's header (what it delivers, where it publishes) over its
  * notebook cards. Cards carry the identity (declared `image:` or a
  * deterministic monogram), curated one-line description, category chips and
  * live stats once imported; installed notebooks deep-link to their detail
  * surface.
  *
- * Controls: text search (label + description), kind facets (Feeds /
- * Collections), and three sort orders (Updated / Name / Size) — they filter
- * notebooks, and a seed with nothing left drops out. The Library exit stays
- * disabled until at least one seed has been synced; re-sync and removal live
+ * Controls: text search (label + description) and three sort orders
+ * (Updated / Name / Size) — they filter notebooks, and a feed with nothing
+ * left drops out. The Library exit stays
+ * disabled until at least one feed has been synced; re-sync and removal live
  * in Settings → Sync.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -29,29 +29,24 @@ import {
 } from 'lucide-react'
 import { telemetry, HOME_EVENTS } from '@/services/telemetry'
 import { journalNotes } from '../services/journalNotes'
-import { noteByIdPath } from '../lib/routes'
+import { notePath } from '../lib/routes'
 import { getTodayDateKey } from '../services/dateUtils'
-import { listNotebooks, listSeedSources } from '@/services/seed/seedSources'
-import { isNotebookSubscribed, setNotebookSubscribed, setSeedSubscribed, subscribeSeedSubscriptions } from '@/services/seed/seedSubscriptions'
-import { syncSeedSource, readSeedCoverage } from '@/services/seed/seedSync'
-import { seedProgressLabel } from '@/services/seed/seedProgress'
+import { listNotebooks, listFeedSources } from '@/services/feed/feedSources'
+import { isNotebookSubscribed, setNotebookSubscribed, setFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
+import { syncFeedSource, readFeedCoverage } from '@/services/feed/feedSync'
+import { feedProgressLabel } from '@/services/feed/feedProgress'
 import { useSeedContent } from '@/services/content/seedContent'
 import { cn } from '@/lib/utils'
 import { TaglineHeader } from './TaglineHeader'
-import { SeedCard } from '../views/notebook-gallery/SeedCard'
+import { FeedCard } from '../views/notebook-gallery/FeedCard'
 import { MarqueeRow } from '../views/notebook-gallery/MarqueeRow'
 import {
-  buildSeedCatalog,
-  filterSeeds,
-  sortSeeds,
+  buildFeedCatalog,
+  filterFeeds,
+  sortFeeds,
 } from '../views/notebook-gallery/notebookGalleryModel'
-import type { NotebookKind, NotebookSort } from '../views/notebook-gallery/notebookGalleryModel'
+import type { NotebookSort } from '../views/notebook-gallery/notebookGalleryModel'
 import { useMediaQuery } from '../hooks/useMediaQuery'
-
-const KIND_OPTIONS: { value: NotebookKind; label: string }[] = [
-  { value: 'feed', label: 'Feeds' },
-  { value: 'collection', label: 'Collections' },
-]
 
 const SORT_OPTIONS: { value: NotebookSort; label: string }[] = [
   { value: 'updated', label: 'Updated' },
@@ -96,29 +91,28 @@ function BoxFace(props: {
 export function TourJumpSection() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [kind, setKind] = useState<NotebookKind | undefined>()
   const [sort, setSort] = useState<NotebookSort>('updated')
-  const [importingSeedId, setImportingSeedId] = useState<string | null>(null)
+  const [importingFeedId, setImportingFeedId] = useState<string | null>(null)
   const [statuses, setStatuses] = useState<Record<string, { text: string; tone: 'muted' | 'error' }>>({})
   const [subscribedOnly, setSubscribedOnly] = useState(false)
-  const [selectedSeedId, setSelectedSeedId] = useState<string | undefined>()
+  const [selectedFeedId, setSelectedFeedId] = useState<string | undefined>()
   const [subTick, setSubTick] = useState(0)
 
   useEffect(() => {
-    return subscribeSeedSubscriptions(() => setSubTick((t) => t + 1))
+    return subscribeFeedSubscriptions(() => setSubTick((t) => t + 1))
   }, [])
 
-  const anyBusy = importingSeedId !== null
+  const anyBusy = importingFeedId !== null
   const files = useSeedContent()
   const isDesktop = useMediaQuery('(min-width: 1024px)')
-  // ponytail: seeds and their notebooks come from the registry; upgrade to dynamic remote manifest discovery when an index catalog is published.
+  // ponytail: feeds and their notebooks come from the registry; upgrade to dynamic remote manifest discovery when an index catalog is published.
   const catalog = useMemo(
-    () => buildSeedCatalog(listNotebooks(), files, listSeedSources(), (seedId, chunkId) => isNotebookSubscribed(seedId, chunkId)),
+    () => buildFeedCatalog(listNotebooks(), files, listFeedSources(), (feedId, chunkId) => isNotebookSubscribed(feedId, chunkId)),
     [files, subTick],
   )
   const visible = useMemo(
-    () => sortSeeds(filterSeeds(catalog, { text: search, kind, seedId: selectedSeedId, subscribedOnly }), sort),
-    [catalog, search, kind, sort, selectedSeedId, subscribedOnly],
+    () => sortFeeds(filterFeeds(catalog, { text: search, feedId: selectedFeedId, subscribedOnly }), sort),
+    [catalog, search, sort, selectedFeedId, subscribedOnly],
   )
   // Two rows sliding opposite ways on desktop: split the catalog in half.
   const half = Math.ceil(visible.length / 2)
@@ -136,33 +130,33 @@ export function TourJumpSection() {
   useEffect(() => {
     let cancelled = false
     const check = () => {
-      readSeedCoverage()
+      readFeedCoverage()
         .then(coverage => { if (!cancelled) setLibraryHasContent(coverage.libraryImported) })
         .catch(() => { /* storage unavailable — leave the card enabled */ })
     }
     check()
-    const unsubscribe = subscribeSeedSubscriptions(check)
+    const unsubscribe = subscribeFeedSubscriptions(check)
     return () => { cancelled = true; unsubscribe() }
   }, [anyBusy])
 
-  /** Import = subscribe the SEED: every notebook it publishes, one checkpoint. */
-  const handleImport = useCallback(async (seedId: string) => {
-    if (importingSeedId) return
-    setImportingSeedId(seedId)
+  /** Import = subscribe the FEED: every notebook it publishes, one checkpoint. */
+  const handleImport = useCallback(async (feedId: string) => {
+    if (importingFeedId) return
+    setImportingFeedId(feedId)
     const setStatus = (status: { text: string; tone: 'muted' | 'error' }) =>
-      setStatuses(prev => ({ ...prev, [seedId]: status }))
-    setStatus({ text: 'Checking the seed…', tone: 'muted' })
+      setStatuses(prev => ({ ...prev, [feedId]: status }))
+    setStatus({ text: 'Checking the feed…', tone: 'muted' })
     try {
-      const outcome = await syncSeedSource(seedId, {
-        onProgress: (e) => setStatus({ text: seedProgressLabel(e), tone: 'muted' }),
+      const outcome = await syncFeedSource(feedId, {
+        onProgress: (e) => setStatus({ text: feedProgressLabel(e), tone: 'muted' }),
       })
       if (outcome === 'imported' || outcome === 'current') {
-        const persisted = setSeedSubscribed(seedId, true)
+        const persisted = setFeedSubscribed(feedId, true)
         setStatus({
           text: !persisted
             ? 'Subscribed for this session only — browser storage is unavailable.'
             : outcome === 'imported'
-              ? 'Imported — this seed is available offline.'
+              ? 'Imported — this feed is available offline.'
               : 'Already up to date.',
           tone: 'muted',
         })
@@ -179,14 +173,14 @@ export function TourJumpSection() {
     } catch (err) {
       setStatus({ text: err instanceof Error ? err.message : String(err), tone: 'error' })
     } finally {
-      setImportingSeedId(null)
+      setImportingFeedId(null)
     }
-  }, [importingSeedId])
+  }, [importingFeedId])
 
-  const handleToggleNotebook = useCallback(async (seedId: string, chunkId: string, sub: boolean) => {
-    setNotebookSubscribed(seedId, chunkId, sub)
+  const handleToggleNotebook = useCallback(async (feedId: string, chunkId: string, sub: boolean) => {
+    setNotebookSubscribed(feedId, chunkId, sub)
     if (sub) {
-      void syncSeedSource(seedId, { force: false })
+      void syncFeedSource(feedId, { force: false })
     }
   }, [])
 
@@ -198,10 +192,10 @@ export function TourJumpSection() {
       rawContent: '',
     })
     telemetry.record(HOME_EVENTS.noteCreated)
-    navigate(noteByIdPath(note.id))
+    navigate(notePath(note.id))
   }, [navigate])
 
-  const hasFilters = Boolean(search.trim()) || kind !== undefined
+  const hasFilters = Boolean(search.trim())
 
   return (
     <section
@@ -216,7 +210,7 @@ export function TourJumpSection() {
         accentText="Community Feeds"
         after=""
         accent=""
-        blurb="Subscribe to a seed — one Markdown repository compiled with npx wod build into a versioned manifest, served from its own GitHub Pages. One Subscribe imports every notebook the seed publishes; browse the seeds below, notebooks and all."
+        blurb="Subscribe to a feed — one Markdown repository compiled with npx wod build into a versioned manifest, served from its own GitHub Pages. One Subscribe imports every notebook the feed publishes; browse the feeds below, notebooks and all."
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
@@ -228,8 +222,8 @@ export function TourJumpSection() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search seeds…"
-              aria-label="Search seeds"
+              placeholder="Search feeds…"
+              aria-label="Search feeds"
               data-testid="package-search-input"
               className="h-11 w-full rounded-full border border-border bg-background pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none transition-colors focus:border-primary/50"
             />
@@ -245,29 +239,6 @@ export function TourJumpSection() {
             )}
           </label>
 
-          <div className="flex items-center gap-1.5" role="group" aria-label="Filter by kind">
-            {KIND_OPTIONS.map(option => {
-              const active = kind === option.value
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={active}
-                  data-testid={`package-kind-${option.value}`}
-                  onClick={() => setKind(active ? undefined : option.value)}
-                  className={cn(
-                    'inline-flex min-h-11 items-center justify-center rounded-full border px-4 text-[10px] font-black uppercase tracking-widest transition-colors',
-                    active
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-foreground/25 hover:text-foreground',
-                  )}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
-
           {/* Subscribed only toggle */}
           <label className="flex min-h-11 items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground px-2">
             <input
@@ -280,21 +251,21 @@ export function TourJumpSection() {
             <span className="text-[10px] font-black uppercase tracking-widest">Subscribed only</span>
           </label>
 
-          {/* Seed source selector */}
+          {/* Feed selector */}
           <select
-            value={selectedSeedId ?? ''}
-            onChange={(e) => setSelectedSeedId(e.target.value ? e.target.value : undefined)}
-            aria-label="Filter by seed source"
-            data-testid="filter-seed-source"
+            value={selectedFeedId ?? ''}
+            onChange={(e) => setSelectedFeedId(e.target.value ? e.target.value : undefined)}
+            aria-label="Filter by feed"
+            data-testid="filter-feed-source"
             className="min-h-11 h-11 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50"
           >
-            <option value="">All seeds</option>
-            {listSeedSources().map((s) => (
+            <option value="">All feeds</option>
+            {listFeedSources().map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
             ))}
           </select>
 
-          <div className="ml-auto flex items-center gap-1.5" role="group" aria-label="Sort seeds">
+          <div className="ml-auto flex items-center gap-1.5" role="group" aria-label="Sort feeds">
             {SORT_OPTIONS.map(option => {
               const active = sort === option.value
               return (
@@ -321,7 +292,7 @@ export function TourJumpSection() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* Library — disabled until a feed has been synced */}
             {libraryHasContent ? (
-              <Link to="/catalogs" onClick={handleLibrary} data-testid="jump-library" className={EXIT_CARD_BASE}>
+              <Link to="/notebooks" onClick={handleLibrary} data-testid="jump-library" className={EXIT_CARD_BASE}>
                 <BoxFace
                   icon={Library}
                   title="Library"
@@ -364,34 +335,34 @@ export function TourJumpSection() {
         {visible.length > 0 ? (
           isDesktop ? (
             <>
-              {/* Two rows sliding in opposite ways — one card per seed. */}
+              {/* Two rows sliding in opposite ways — one card per feed. */}
               <MarqueeRow direction="left" testId="jump-row-a">
-                {rowA.map(seed => (
-                  <SeedCard
-                    key={seed.seedId ?? seed.slug}
-                    seed={seed}
-                    testId={`seed-card-${seed.seedId ?? seed.slug}`}
+                {rowA.map(feed => (
+                  <FeedCard
+                    key={feed.feedId ?? feed.slug}
+                    feed={feed}
+                    testId={`feed-card-${feed.feedId ?? feed.slug}`}
                     className="w-[290px] sm:w-[320px] shrink-0"
                     onImport={handleImport}
-                    importing={!!seed.seedId && importingSeedId === seed.seedId}
+                    importing={!!feed.feedId && importingFeedId === feed.feedId}
                     busy={anyBusy}
-                    status={seed.seedId ? statuses[seed.seedId] : undefined}
+                    status={feed.feedId ? statuses[feed.feedId] : undefined}
                     onToggleNotebookSubscription={handleToggleNotebook}
                   />
                 ))}
               </MarqueeRow>
               {rowB.length > 0 && (
                 <MarqueeRow direction="right" testId="jump-row-b" className="mt-4">
-                  {rowB.map(seed => (
-                    <SeedCard
-                      key={seed.seedId ?? seed.slug}
-                      seed={seed}
-                      testId={`seed-card-${seed.seedId ?? seed.slug}`}
+                  {rowB.map(feed => (
+                    <FeedCard
+                      key={feed.feedId ?? feed.slug}
+                      feed={feed}
+                      testId={`feed-card-${feed.feedId ?? feed.slug}`}
                       className="w-[290px] sm:w-[320px] shrink-0"
                       onImport={handleImport}
-                      importing={!!seed.seedId && importingSeedId === seed.seedId}
+                      importing={!!feed.feedId && importingFeedId === feed.feedId}
                       busy={anyBusy}
-                      status={seed.seedId ? statuses[seed.seedId] : undefined}
+                      status={feed.feedId ? statuses[feed.feedId] : undefined}
                       onToggleNotebookSubscription={handleToggleNotebook}
                     />
                   ))}
@@ -401,16 +372,16 @@ export function TourJumpSection() {
           ) : (
             /* One row, sliding out and back — the mobile alternating-sides effect. */
             <MarqueeRow direction="alternate" testId="jump-row-mobile">
-              {visible.map(seed => (
-                <SeedCard
-                  key={seed.seedId ?? seed.slug}
-                  seed={seed}
-                  testId={`seed-card-${seed.seedId ?? seed.slug}`}
+              {visible.map(feed => (
+                <FeedCard
+                  key={feed.feedId ?? feed.slug}
+                  feed={feed}
+                  testId={`feed-card-${feed.feedId ?? feed.slug}`}
                   className="w-[290px] shrink-0"
                   onImport={handleImport}
-                  importing={!!seed.seedId && importingSeedId === seed.seedId}
+                  importing={!!feed.feedId && importingFeedId === feed.feedId}
                   busy={anyBusy}
-                  status={seed.seedId ? statuses[seed.seedId] : undefined}
+                  status={feed.feedId ? statuses[feed.feedId] : undefined}
                   onToggleNotebookSubscription={handleToggleNotebook}
                 />
               ))}
@@ -422,13 +393,13 @@ export function TourJumpSection() {
               data-testid="jump-empty"
               className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border p-10 text-center"
             >
-              <p className="text-sm font-bold text-muted-foreground">No seeds match your search.</p>
+              <p className="text-sm font-bold text-muted-foreground">No feeds match your search.</p>
               <p className="mt-1 text-xs text-muted-foreground/70">Try a different term or clear the filters.</p>
               {hasFilters && (
                 <button
                   type="button"
                   data-testid="jump-clear-filters"
-                  onClick={() => { setSearch(''); setKind(undefined); setSelectedSeedId(undefined); setSubscribedOnly(false) }}
+                  onClick={() => { setSearch(''); setSelectedFeedId(undefined); setSubscribedOnly(false) }}
                   className="mt-3 h-8 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
                 >
                   Clear filters

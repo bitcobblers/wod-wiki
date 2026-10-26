@@ -10,7 +10,7 @@
 
 import type { INotePersistence } from '@/services/persistence';
 import { notePersistence } from '@/services/persistence';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { parseFrontmatter, serializeFrontmatter } from '@/lib/frontmatter';
 import { buildDashboardScaffold, DEFAULT_DASHBOARD_TITLE } from '@bitcobblers/wod-wiki-wql';
 
@@ -22,10 +22,10 @@ export interface DashboardNotesDependencies {
 }
 
 export interface DashboardNotes {
-  createDashboard(title?: string): Promise<HistoryEntry>;
+  createDashboard(title?: string): Promise<HistoryRecord>;
   /** Clone a prebuilt seed into the vault as an editable dashboard note,
    *  stamping its slug so it stays route-addressable at /dashboard/:slug. */
-  cloneDashboard(slug: string, seedRawContent: string, title?: string): Promise<HistoryEntry>;
+  cloneDashboard(slug: string, seedRawContent: string, title?: string): Promise<HistoryRecord>;
 }
 
 export function createDashboardNotes({ persistence, journal }: DashboardNotesDependencies): DashboardNotes {

@@ -67,7 +67,7 @@ export function SessionExplorerPage() {
   }, []);
 
   // Re-read when the active database's content changes (a run was stored, the
-  // seed import landed, or the user switched databases).
+  // feed import landed, or the user switched databases).
   useEffect(() => { void load(); }, [load, dataVersion]);
 
   const select = useCallback(async (session: Session) => {

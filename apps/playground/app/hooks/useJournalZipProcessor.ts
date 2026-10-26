@@ -6,7 +6,7 @@
  * 2. Decode zip via existing decodeZip()
  * 3. If no date param → uses today
  * 4. If date param provided → validates via parseJournalDate()
- * 5. If date is today or future → creates journal entry and redirects to /journal/:dateKey
+ * 5. If date is today or future → creates journal entry and redirects to /day/:dateKey
  * 6. If date is past → sets pending-confirmation state (caller shows backdate modal)
  * 7. If zip is missing or invalid → redirects to /journal with error toast
  *
@@ -19,7 +19,7 @@ import { useQueryState } from 'nuqs';
 import { decodeZip } from '../services/decodeZip';
 import { parseJournalDate } from '../services/parseJournalDate';
 import { getTodayDateKey, isDateInPast } from '../services/dateUtils';
-import { noteByIdPath, ROUTE_PATTERNS } from '../lib/routes';
+import { notePath, ROUTE_PATTERNS } from '../lib/routes';
 import { journalNotes } from '../services/journalNotes';
 import { toast } from '@/hooks/use-toast';
 
@@ -164,7 +164,7 @@ export function useJournalZipProcessor(): JournalZipProcessorState {
 
         if (!cancelled) {
           setState({ state: 'success', content, dateKey });
-          navigate(noteByIdPath(note.id), { replace: true });
+          navigate(notePath(note.id), { replace: true });
         }
       } catch (err) {
         console.error('Failed to create journal entry:', err);

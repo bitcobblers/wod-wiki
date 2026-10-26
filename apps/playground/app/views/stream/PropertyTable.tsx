@@ -7,7 +7,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import type { Entry } from '../../lib/entryMapper'
-import { entryOpenHref, entryCollectionFeedHref } from '../../lib/entryActions'
+import { entryOpenHref, entryNotebookHref } from '../../lib/entryActions'
 import { effortPath } from '../../lib/routes'
 import {
   type EntityLevel,
@@ -162,7 +162,7 @@ export function PropertyTable({
         </thead>
         <tbody className="divide-y divide-border/60">
           {sortedEntries.map(entry => {
-            const feedHref = entryCollectionFeedHref(entry)
+            const notebookHref = entryNotebookHref(entry)
             const openHref = entryOpenHref(entry)
             return (
             <tr
@@ -210,7 +210,7 @@ export function PropertyTable({
                         <span className="font-medium text-foreground group-hover:text-primary transition-colors">
                           {formatted}
                         </span>
-                        {feedHref && (
+                        {notebookHref && (
                           <div className="flex items-center gap-1.5 ml-auto" onClick={e => e.stopPropagation()}>
                             <Link
                               to={openHref}
@@ -221,7 +221,7 @@ export function PropertyTable({
                               Details
                             </Link>
                             <Link
-                              to={feedHref}
+                              to={notebookHref}
                               data-testid="property-table-feed-link"
                               className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors"
                               title="View feed"

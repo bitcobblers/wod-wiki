@@ -14,7 +14,7 @@ if (!parsedHomePage) {
   throw new Error('The baked home page must remain a valid canvas document')
 }
 
-/** The bundle-owned home page, available before the seed corpus is imported. */
+/** The bundle-owned home page, available before the feed corpus is imported. */
 export const HOME_PAGE: ParsedCanvasPage = parsedHomePage
 
 /** Raw corpus-shaped documents referenced by the home page and its chapters. */

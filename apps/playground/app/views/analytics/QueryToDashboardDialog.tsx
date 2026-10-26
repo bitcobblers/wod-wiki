@@ -19,7 +19,7 @@ import { appendWidget, type WidgetSpec } from '@bitcobblers/wod-wiki-wql'
 import { dashboardSlug, DEFAULT_DASHBOARD_TITLE } from '@bitcobblers/wod-wiki-wql'
 import { journalNotes } from '../../services/journalNotes'
 import { dashboardNotes } from '../../services/dashboardNotes'
-import { useDashboardCatalog } from '../../hooks/useDashboards'
+import { useDashboardList } from '../../hooks/useDashboards'
 import { dashboardViewPath } from '../../lib/routes'
 import {
   WidgetComposerDialog,
@@ -63,7 +63,7 @@ function SaveFlow({
   preferredUnit,
 }: QueryToDashboardDialogProps) {
   const navigate = useNavigate()
-  const { items, loading } = useDashboardCatalog()
+  const { items, loading } = useDashboardList()
   const editable = items.filter((d) => d.editable)
   const [destination, setDestination] = useState<string>(
     editable[0]?.slug ?? NEW_DASHBOARD,

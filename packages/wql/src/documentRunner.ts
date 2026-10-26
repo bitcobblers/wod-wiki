@@ -18,6 +18,7 @@
 import type { QueryWindow, PipelineSink } from './wql';
 import type { Note, BlockIndexRow } from '@bitcobblers/wod-wiki-core';
 import type { TabularResult, RowsRun, NoteContainer } from './QueryService';
+import type { NotePlacement } from '@bitcobblers/wod-wiki-core';
 import { parseDocument, type ParsedDocument, type QueryDocument, type DocumentAssignment } from './document';
 
 // ── Formula evaluation ──────────────────────────────────────────────────
@@ -175,6 +176,8 @@ export interface DocumentOutput {
     efforts?: unknown[];
     /** Highest-container page/note links keyed by note id. */
     containers?: Record<string, NoteContainer>;
+    /** Every page a matched note is placed on, keyed by note id. */
+    placements?: Record<string, NotePlacement[]>;
     /** Session run cards (find:session / session-source pipelines). */
     runs?: RowsRun[];
     /** Terminal chart sink of a pipeline output (renderer dispatch). */
@@ -195,6 +198,7 @@ export interface FamilyRunPayload {
     blocks?: BlockIndexRow[];
     efforts?: unknown[];
     containers?: Record<string, NoteContainer>;
+    placements?: Record<string, NotePlacement[]>;
     runs?: RowsRun[];
     unit?: string;
     chart?: PipelineSink;
@@ -259,6 +263,7 @@ export class QueryDocumentRunner {
                         ...(findRun.blocks ? { blocks: findRun.blocks } : {}),
                         ...(findRun.efforts ? { efforts: findRun.efforts } : {}),
                         ...(findRun.containers ? { containers: findRun.containers } : {}),
+                        ...(findRun.placements ? { placements: findRun.placements } : {}),
                         ...(findRun.runs ? { runs: findRun.runs } : {}),
                         ...(findRun.table ? { table: findRun.table } : {}),
                         ...(findRun.unit ? { unit: findRun.unit } : {}),
@@ -294,6 +299,7 @@ export class QueryDocumentRunner {
                         ...(pipelineRun.blocks ? { blocks: pipelineRun.blocks } : {}),
                         ...(pipelineRun.efforts ? { efforts: pipelineRun.efforts } : {}),
                         ...(pipelineRun.containers ? { containers: pipelineRun.containers } : {}),
+                        ...(pipelineRun.placements ? { placements: pipelineRun.placements } : {}),
                         ...(pipelineRun.runs ? { runs: pipelineRun.runs } : {}),
                         ...(pipelineRun.unit ? { unit: pipelineRun.unit } : {}),
                         ...(pipelineRun.chart ? { chart: pipelineRun.chart } : {}),

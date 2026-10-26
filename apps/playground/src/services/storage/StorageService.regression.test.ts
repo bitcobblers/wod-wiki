@@ -5,7 +5,7 @@ import { IDBFactory } from 'fake-indexeddb';
 
 import { IndexedDBStorage, InMemoryStorage, StorageService } from './index';
 import type { IStorage } from './IStorage';
-import { DOMAIN_PROJECTION_VERSION, DB_VERSION, type DomainEntry, userDeletedSeedKey } from '@bitcobblers/wod-wiki-storage';
+import { DOMAIN_PROJECTION_VERSION, DB_VERSION, type DomainDetail, userDeletedSeedKey } from '@bitcobblers/wod-wiki-storage';
 import { applySeedChunk, seedNoteId } from '../../../../../packages/engine/src/seed/runtime';
 import { emptySeedMeta, SEED_SCHEMA } from '../../../../../packages/engine/src/seed/contract';
 import type { BlockIndexRow, EventRecord, Note, Session } from '@/types/storage';
@@ -169,19 +169,19 @@ describe('StorageService live Note deletion', () => {
   it('deleting an edited seed note writes a tombstone so re-import cannot resurrect it', async () => {
     const storage = new InMemoryStorage();
     const service = new StorageService(storage);
-    const seedPath = 'markdown/collections/edited.md';
+    const seedPath = 'markdown/notebooks/edited.md';
     const seedId = await seedNoteId(seedPath);
     const seedWrite = {
-      chunkId: 'collection.edited',
+      chunkId: 'notebook.edited',
       rows: [{ path: seedPath, content: '# Edited seed', blocks: {}, blockIndex: [], blockEfforts: [], blockEquipment: [] }],
       manifest: { schema: SEED_SCHEMA, version: 1, builtAt: new Date(0).toISOString(), chunks: [] },
       expectedMeta: undefined,
-      meta: { ...emptySeedMeta('seed:edited-deletion'), chunks: { 'collection.edited': { sha256: 'a'.repeat(64), noteIds: [seedId] } } },
+      meta: { ...emptySeedMeta('seed:edited-deletion'), chunks: { 'notebook.edited': { sha256: 'a'.repeat(64), noteIds: [seedId] } } },
     };
     await applySeedChunk(storage, seedWrite);
     // Editing flips ownership to 'user' but retains seedChunkId/sourcePath.
     const edited = await service.getNote(seedId);
-    expect(edited?.seedChunkId).toBe('collection.edited');
+    expect(edited?.seedChunkId).toBe('notebook.edited');
     expect(edited?.sourcePath).toBe(seedPath);
     await service.saveNote({ ...edited!, seedOrigin: 'user', title: 'My edited seed' });
 
@@ -218,7 +218,7 @@ describe('StorageService note date candidates', () => {
     const service = new StorageService(new InMemoryStorage());
     await service.saveNote(makeNote({ id: 'n1', rawContent: 'Exact\r\n' }));
     await service.setNoteTags('n1', ['tag-y']);
-    const batches = await service.getEntryBatches(['n1', 'missing']);
+    const batches = await service.getDetailBatches(['n1', 'missing']);
     expect(batches.get('n1')?.note.rawContent).toBe('Exact\r\n');
     expect(batches.get('n1')?.tags.map(tag => tag.label)).toEqual(['tag-y']);
     expect(batches.has('missing')).toBe(false);
@@ -295,12 +295,12 @@ describe('countBlockIndexInDomain — local sourceFence parity', () => {
       makeBlock({ id: 'plain:s:1' }),
       makeBlock({ id: 'es:s:1', sourceId: '' }),
       // vocabulary source families pass
-      makeBlock({ id: 'c:s:1', sourceId: 'collection:girls' }),
+      makeBlock({ id: 'c:s:1', sourceId: 'notebook:girls' }),
       // collection pg: pg exclusion belongs to the journal branch only
-      makeBlock({ id: 'pgc:s:1', noteId: 'pg-note', sourceId: 'collection:girls' }),
+      makeBlock({ id: 'pgc:s:1', noteId: 'pg-note', sourceId: 'notebook:girls' }),
       // pg-* primary key with a vocabulary sourceId stays reachable
-      makeBlock({ id: 'pg-x:sec-1:1', noteId: 'pg-x', sourceId: 'collection:girls' }),
-      makeBlock({ id: 'pc:s:1', sourceId: 'page:collection:girls' }),
+      makeBlock({ id: 'pg-x:sec-1:1', noteId: 'pg-x', sourceId: 'notebook:girls' }),
+      makeBlock({ id: 'pc:s:1', sourceId: 'page:girls' }),
       makeBlock({ id: 'g:s:1', sourceId: 'guides:basics' }),
       makeBlock({ id: 'pl:s:1', sourceId: 'playground', noteId: 'playground/x' }),
       // explicit journal: pg id/noteId are excluded by the journal branch
@@ -309,19 +309,21 @@ describe('countBlockIndexInDomain — local sourceFence parity', () => {
       // excised / unknown families drop
       makeBlock({ id: 'f:s:1', sourceId: 'feed:dir/2024-01-01/file' }),
       makeBlock({ id: 'u:s:1', sourceId: 'unknown-source' }),
-      // 'page:' alone is NOT a vocabulary kind (only page:collection: passes)
+      // 'page:' alone is a vocabulary prefix — any page identity passes
       makeBlock({ id: 'po:s:1', sourceId: 'page:other' }),
-      // bare 'collection' without the colon does not match the prefix
+      // bare 'collection' without the colon does not match any prefix
       makeBlock({ id: 'cb:s:1', sourceId: 'collection' }),
       // unicode suffix inside a passing family
-      makeBlock({ id: 'uni:s:1', sourceId: 'collection:café-ünïcode' }),
+      makeBlock({ id: 'uni:s:1', sourceId: 'notebook:café-ünïcode' }),
       // lexicographic edge just past the ':' prefix — not a prefix match
-      makeBlock({ id: 'semi:s:1', sourceId: 'collection;' }),
+      makeBlock({ id: 'semi:s:1', sourceId: 'notebook;' }),
     ];
     for (const row of rows) await storage.readwrite('block_index').put(row);
 
     const count = await service.countBlockIndexInDomain();
-    expect(count).toBe(11);
+    // sourceless 3 + notebook: 4 + page: 2 + guides 1 + playground 1
+    // + journal (non-pg) 1 = 12; retired collection:/feed: families drop.
+    expect(count).toBe(12);
   });
 });
 
@@ -353,9 +355,9 @@ describe('incompatible IndexedDB', () => {
   });
 });
 
-describe('getEntryBatches — remote/local bundle chooser', () => {
+describe('getDetailBatches — remote/local bundle chooser', () => {
   /** Remote backend stand-in: entries-plan responses only. */
-  function fakeRemote(entries: DomainEntry[]): {
+  function fakeRemote(entries: DomainDetail[]): {
     storage: IStorage;
     chunks: string[][];
     localFallbacks: number;
@@ -372,7 +374,7 @@ describe('getEntryBatches — remote/local bundle chooser', () => {
       wipe: async () => {},
       close: async () => {},
       queryDomain: async (query) => {
-        if (query.plan !== 'entries') throw new Error('expected entries plan');
+        if (query.plan !== 'detail') throw new Error('expected detail plan');
         const ids = query.selection?.find((p) => 'values' in p && p.field === 'id');
         if (!ids || !('values' in ids)) throw new Error('expected id selection');
         chunks.push([...ids.values]);
@@ -381,7 +383,7 @@ describe('getEntryBatches — remote/local bundle chooser', () => {
           projectionVersion: DOMAIN_PROJECTION_VERSION,
           selectedCount: entries.length,
           matchedCount: entries.length,
-          plan: 'entries',
+          plan: 'detail',
           rows: entries.filter((e) => wanted.has(e.note.id)),
         };
       },
@@ -389,7 +391,7 @@ describe('getEntryBatches — remote/local bundle chooser', () => {
     return { storage, chunks, localFallbacks };
   }
 
-  const entry = (id: string): DomainEntry => ({
+  const entry = (id: string): DomainDetail => ({
     note: makeNote({ id }),
     tags: [{ id: `t-${id}`, label: `${id}-tag`, createdAt: T0 }],
     links: [],
@@ -399,7 +401,7 @@ describe('getEntryBatches — remote/local bundle chooser', () => {
   it('chunks deduped ids at the 64-value parser limit and merges remote rows (>64 results valid)', async () => {
     const ids = Array.from({ length: 130 }, (_, i) => `note-${i}`);
     const remote = fakeRemote([...ids.map(entry), entry('note-0') /* duplicate id ignored */]);
-    const out = await new StorageService(remote.storage).getEntryBatches(['note-0', ...ids, 'note-0']);
+    const out = await new StorageService(remote.storage).getDetailBatches(['note-0', ...ids, 'note-0']);
     // 130 distinct ids → 64 + 64 + 2, deduped before chunking.
     expect(remote.chunks.map((c) => c.length)).toEqual([64, 64, 2]);
     expect(remote.localFallbacks).toBe(0);
@@ -410,9 +412,9 @@ describe('getEntryBatches — remote/local bundle chooser', () => {
   it('reads nothing for empty input and reports missing ids by absence (fail-closed)', async () => {
     const remote = fakeRemote([entry('exists')]);
     const service = new StorageService(remote.storage);
-    expect((await service.getEntryBatches([])).size).toBe(0);
+    expect((await service.getDetailBatches([])).size).toBe(0);
     expect(remote.chunks).toEqual([]);
-    const out = await service.getEntryBatches(['exists', 'missing']);
+    const out = await service.getDetailBatches(['exists', 'missing']);
     expect(out.has('exists')).toBe(true);
     expect(out.has('missing')).toBe(false);
     expect(remote.chunks).toEqual([['exists', 'missing']]);
@@ -429,6 +431,6 @@ describe('getEntryBatches — remote/local bundle chooser', () => {
     };
     // 409 → undefined → falls through to the local path, which this probe
     // rejects: the fallthrough itself is what the rejection proves.
-    await expect(new StorageService(failing).getEntryBatches(['x'])).rejects.toThrow('local path');
+    await expect(new StorageService(failing).getDetailBatches(['x'])).rejects.toThrow('local path');
   });
 });

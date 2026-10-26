@@ -15,8 +15,8 @@ function entry(id: string, overrides: Partial<Entry> = {}): Entry {
   return {
     id,
     kind: 'note',
-    sourceCatalog: 'journal',
-    sourceItem: id,
+    sourceNotebook: 'journal',
+    sourceNote: id,
     title: id,
     date: null,
     ...overrides,
@@ -26,10 +26,10 @@ function entry(id: string, overrides: Partial<Entry> = {}): Entry {
 describe('groupEntriesByDimension — source', () => {
   it('buckets entries by source plane with capitalized labels', () => {
     const groups = groupEntriesByDimension([
-      entry('a', { sourceCatalog: 'journal' }),
-      entry('b', { sourceCatalog: 'playground' }),
-      entry('c', { sourceCatalog: 'playground' }),
-      entry('d', { sourceCatalog: 'crossfit-girls' }),
+      entry('a', { sourceNotebook: 'journal' }),
+      entry('b', { sourceNotebook: 'playground' }),
+      entry('c', { sourceNotebook: 'playground' }),
+      entry('d', { sourceNotebook: 'crossfit-girls' }),
     ], 'source')
 
     expect(groups.map(g => g.label)).toEqual(['Crossfit-girls', 'Journal', 'Playground'])
@@ -39,7 +39,7 @@ describe('groupEntriesByDimension — source', () => {
   })
 
   it('falls back to Other when an entry carries no source catalog', () => {
-    const groups = groupEntriesByDimension([entry('x', { sourceCatalog: undefined })], 'source')
+    const groups = groupEntriesByDimension([entry('x', { sourceNotebook: undefined })], 'source')
     expect(groups).toHaveLength(1)
     expect(groups[0]!.label).toBe('Other')
   })
@@ -47,9 +47,9 @@ describe('groupEntriesByDimension — source', () => {
 
 describe('groupEntriesByDimension — ordered dimensions', () => {
   const dated = [
-    entry('a', { date: '2026-09-04', sourceCatalog: 'journal' }),
-    entry('b', { date: '2026-09-04', sourceCatalog: 'playground' }),
-    entry('c', { date: '2026-08-15', sourceCatalog: 'journal' }),
+    entry('a', { date: '2026-09-04', sourceNotebook: 'journal' }),
+    entry('b', { date: '2026-09-04', sourceNotebook: 'playground' }),
+    entry('c', { date: '2026-08-15', sourceNotebook: 'journal' }),
   ]
 
   it('sub-divides each parent group by the following dimension, in order', () => {
@@ -107,9 +107,9 @@ describe('groupEntriesByDimension — property dimensions (typed tags)', () => {
 describe('groupEntriesByDimension — date (playground createdAt fallback)', () => {
   it('groups playground notes by createdAt when no journal date exists', () => {
     const groups = groupEntriesByDimension([
-      entry('p1', { sourceCatalog: 'playground', createdAt: Date.UTC(2026, 9, 8) }),
-      entry('p2', { sourceCatalog: 'playground', createdAt: Date.UTC(2026, 9, 8) }),
-      entry('p3', { sourceCatalog: 'playground', createdAt: Date.UTC(2026, 9, 7) }),
+      entry('p1', { sourceNotebook: 'playground', createdAt: Date.UTC(2026, 9, 8) }),
+      entry('p2', { sourceNotebook: 'playground', createdAt: Date.UTC(2026, 9, 8) }),
+      entry('p3', { sourceNotebook: 'playground', createdAt: Date.UTC(2026, 9, 7) }),
     ], 'date')
 
     const keys = groups.map(g => g.key)
@@ -119,15 +119,15 @@ describe('groupEntriesByDimension — date (playground createdAt fallback)', () 
 
   it('groups playground notes with small sentinel createdAt under Undated', () => {
     const groups = groupEntriesByDimension([
-      entry('p-sentinel', { sourceCatalog: 'playground', createdAt: 2829 }),
+      entry('p-sentinel', { sourceNotebook: 'playground', createdAt: 2829 }),
     ], 'date')
     expect(groups.map(g => g.label)).toEqual(['Undated'])
   })
 
   it('keeps undated collection sessions on the shelf while playgrounds date-group', () => {
     const groups = groupEntriesByDimension([
-      entry('c1', { kind: 'session', sourceCatalog: 'crossfit-girls', date: null }),
-      entry('p1', { sourceCatalog: 'playground', createdAt: Date.UTC(2026, 9, 8) }),
+      entry('c1', { kind: 'note', sourceNotebook: 'crossfit-girls', date: null }),
+      entry('p1', { sourceNotebook: 'playground', createdAt: Date.UTC(2026, 9, 8) }),
     ], 'date', { shelfVisible: true })
 
     expect(groups[1]!.key).toBe('2026-10-08')
@@ -136,7 +136,7 @@ describe('groupEntriesByDimension — date (playground createdAt fallback)', () 
 
   it('leaves non-playground undated entries in the Undated bucket', () => {
     const groups = groupEntriesByDimension([
-      entry('n1', { sourceCatalog: 'journal', date: null }),
+      entry('n1', { sourceNotebook: 'journal', date: null }),
     ], 'date')
 
     expect(groups.map(g => g.key)).toEqual(['undated'])

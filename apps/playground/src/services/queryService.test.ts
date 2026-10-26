@@ -15,8 +15,8 @@ const body = '```time\n21 Thrusters\n```';
 const query = '```query\n:note{text:recovery}\n```';
 const FRAN: Note = {
   id: '0f0e0d0c-0b0a-4998-8765-4321fedcba98', title: 'Fran', createdAt: 0, type: 'note',
-  sourceId: 'collection:crossfit-girls/fran', catalog: 'crossfit-girls',
-  sourcePath: 'collections/crossfit-girls/fran.md', seedOrigin: 'seed',
+  sourceId: 'notebook:crossfit-girls/fran',
+  sourcePath: 'markdown/notebooks/crossfit-girls/fran.md', seedOrigin: 'seed',
   rawContent: `${body}\n\n${query}`, sourceRevision: 1,
   blocks: {
     w1: { id: 'w1', kind: 'wod', version: 1, sourceRevision: 1, from: 0, to: body.length, dialect: 'time' },
@@ -26,7 +26,7 @@ const FRAN: Note = {
 const DAY_01: Note = {
   id: '1a2b3c4d-5e6f-4a1b-8c9d-0e1f2a3b4c5d', title: 'Day 01',
   createdAt: Date.parse('2026-01-12T12:00:00Z'), type: 'note',
-  sourceId: 'feed:feeds/dan-john/2026-01-12/day-01', catalog: 'dan-john', seedOrigin: 'seed',
+  sourceId: 'notebook:dan-john/2026-01-12/day-01', seedOrigin: 'seed',
   rawContent: 'Prose-only recovery café observations.', sourceRevision: 1, blocks: {},
 };
 beforeAll(async () => {
@@ -55,7 +55,7 @@ describe('queryService sparse corpus', () => {
     expect((await service().runFind(parseFindQuery(':block{type:wod,type:wod}'))).blocks.map(row => row.blockId)).toEqual(['w1']);
   });
   it('discovers canonical imported Notes in feed scope', async () => {
-    expect((await queryService.runFind(parseFindQuery(':note in feeds'))).notes.map(note => note.id)).toEqual([FRAN.id]);
+    expect((await queryService.runFind(parseFindQuery(':note in notebooks'))).notes.map(note => note.id)).toEqual([FRAN.id, DAY_01.id]);
     expect(parseQuery(':note in collections').error).toBeDefined();
   });
   it('searches complete prose-only Note bodies', async () => {

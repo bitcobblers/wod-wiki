@@ -133,7 +133,7 @@ function RoutesSection() {
       <div>
         <h3 className="text-lg font-medium">Route Review</h3>
         <p className="text-sm text-muted-foreground">
-          All page routes (`/p/:slug`, `/c/:slug`, `/journal/:date`) currently registered in storage.
+          All page routes (`/page/:slug`, `/notebook/:slug`, `/day/:date`) currently registered in storage.
         </p>
       </div>
 
