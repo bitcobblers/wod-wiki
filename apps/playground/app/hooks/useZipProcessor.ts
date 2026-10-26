@@ -32,7 +32,7 @@ export function useZipProcessor() {
   const [zipParam] = useQueryState('zip');
   const [zParam] = useQueryState('z');
   const [byParam] = useQueryState('by');
-  // Spawn provenance: /load?zip=…&src=/c/<cat>/<name> (openBlockInPlayground)
+  // Spawn provenance: /load?zip=…&src=/notebook/<cat>/<name> (openBlockInPlayground)
   // stamps the source page path onto the created playground note.
   const [srcParam] = useQueryState('src');
 

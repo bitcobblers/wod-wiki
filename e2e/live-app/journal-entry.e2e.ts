@@ -190,7 +190,7 @@ test.describe('Journal Entry — /journal/:date', () => {
     await journal.clearStoredEntry(today);
     await journal.clearStoredEntry(today);
     await seedJournalNote(page, today, `# ${uniqueTitle}\n`, { title: uniqueTitle });
-    await page.goto(`/notes/${encodeURIComponent(`journal/${today}`)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await page.goto(`/note/${encodeURIComponent(`journal/${today}`)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
 
     // Wait for the note action pills after content restore.
     await openPageAction(page, 'Note placements');
@@ -199,7 +199,7 @@ test.describe('Journal Entry — /journal/:date', () => {
     // this page", not the lineage submit.
     await page.getByRole('button', { name: 'Place on this page' }).click();
     await expect(page.getByRole('dialog')).toBeHidden();
-    await expect(page.locator(`a[href="/p/${originalSlug}"]`)).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(`a[href="/page/${originalSlug}"]`)).toBeVisible({ timeout: 30_000 });
 
     // …then clone: the dialog must NOT inherit the original's slug.
     await openPageAction(page, 'Clone');
@@ -211,14 +211,14 @@ test.describe('Journal Entry — /journal/:date', () => {
 
     // Lands on the clone's UUID page: different id, own /p/ link, lineage
     // backlink to the original, and never the original's link.
-    await page.waitForURL(/\/notes\/[0-9a-f-]{36}/, { timeout: 15_000 });
+    await page.waitForURL(/\/note\/[0-9a-f-]{36}/, { timeout: 15_000 });
     expect(new URL(page.url()).pathname).not.toContain(encodeURIComponent(`journal/${today}`));
-    await expect(page.locator(`a[href="/p/${cloneSlug}"]`)).toBeVisible();
-    await expect(page.locator(`a[href="/p/${originalSlug}"]`)).toHaveCount(0);
+    await expect(page.locator(`a[href="/page/${cloneSlug}"]`)).toBeVisible();
+    await expect(page.locator(`a[href="/page/${originalSlug}"]`)).toHaveCount(0);
     await expect(page.getByText('Cloned from')).toBeVisible();
 
     // The journal day page lists both notes on the shared date.
-    await page.goto(`/journal/${today}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await page.goto(`/day/${today}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await expect(page.getByText('2 notes', { exact: true })).toBeVisible({ timeout: 45_000 });
 
     // Verify both identities in the journal stream before and after reload.

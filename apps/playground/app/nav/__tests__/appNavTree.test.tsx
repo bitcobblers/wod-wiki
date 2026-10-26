@@ -30,8 +30,10 @@ describe('appNavTree - Flattened listing zones', () => {
     expect(l1).toEqual([
       'home',
       'journal',
-      'catalogs',
+      'notebooks',
+      'notes',
       'feeds',
+      'pages',
       'playgrounds',
       'dashboards',
       'efforts',
@@ -48,13 +50,18 @@ describe('appNavTree - Flattened listing zones', () => {
     const tree = buildAppNavTree(() => {})
     const feeds = tree.find(item => item.id === 'feeds')!
 
-    // The listing itself is /feeds (the renamed collections surface); the
-    // /c/:slug catalog landing and item routes light the same zone.
+    // The listing is /feeds; feed detail and feed item routes light the same zone.
     expect(feeds.isActive!(mockLocation('/feeds'))).toBe(true)
     expect(feeds.isActive!(mockLocation('/feed/routines'))).toBe(true)
-    expect(feeds.isActive!(mockLocation('/c/dan-john'))).toBe(true)
+    expect(feeds.isActive!(mockLocation('/notebook/dan-john'))).toBe(false)
     expect(feeds.isActive!(mockLocation('/journal'))).toBe(false)
     expect(feeds.isActive!(mockLocation('/playgrounds'))).toBe(false)
+
+    // Notebooks is its own zone: notebook landings and item routes light it.
+    const notebooks = tree.find(item => item.id === 'notebooks')!
+    expect(notebooks.isActive!(mockLocation('/notebooks'))).toBe(true)
+    expect(notebooks.isActive!(mockLocation('/notebook/dan-john'))).toBe(true)
+    expect(notebooks.isActive!(mockLocation('/feeds'))).toBe(false)
 
     const journal = tree.find(item => item.id === 'journal')!
     const playgrounds = tree.find(item => item.id === 'playgrounds')!
@@ -95,8 +102,8 @@ describe('appNavTree - Flattened listing zones', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getAllByText('All notes').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Notebook crosswalk').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('All feeds').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Notebook crosswalk')).toBeNull()
   })
 })
 
@@ -122,7 +129,6 @@ describe('appNavTree - Efforts navigation', () => {
 
     expect(efforts.isActive!(mockLocation('/efforts'))).toBe(true)
     expect(efforts.isActive!(mockLocation('/effort/push-up'))).toBe(true)
-    expect(efforts.isActive!(mockLocation('/e/push-up'))).toBe(true)
     expect(efforts.isActive!(mockLocation('/journal'))).toBe(false)
   })
 })
@@ -320,11 +326,11 @@ describe('appNavTree - L2 notable buttons and Catalogs', () => {
   it('renders top notable button and flattened guide links in Home L2', () => {
     const dummyRoutes = [
       {
-        route: '/guide/start',
+        route: '/page/guide-start',
         page: { frontmatter: { type: 'guide' }, sections: [{ heading: 'Getting Started' }] } as unknown as CanvasRoute['page'],
       },
       {
-        route: '/guide/wql',
+        route: '/page/guide-wql',
         page: { frontmatter: { type: 'guide' }, sections: [{ heading: 'WQL Basics' }] } as unknown as CanvasRoute['page'],
       },
     ]
@@ -335,15 +341,15 @@ describe('appNavTree - L2 notable buttons and Catalogs', () => {
     expect(home.children?.[0]?.label).toBe('New journal entry')
     // Guide items are flattened directly under Home (no guide-group accordion)
     expect(home.children?.find(i => i.id === 'guide-group')).toBeUndefined()
-    expect(home.children?.find(i => i.id === 'guide-/guide/start')).toBeDefined()
+    expect(home.children?.find(i => i.id === 'guide-/page/guide-start')).toBeDefined()
   })
 
-  it('defines Catalogs on L1 above Feeds doing :catalog search', () => {
+  it('defines Notebooks on L1 above Notes routed to /notebooks', () => {
     const tree = buildAppNavTree(() => {})
-    const catalogs = tree.find(i => i.id === 'catalogs')!
-    expect(catalogs).toBeDefined()
-    expect(catalogs.label).toBe('Notebooks')
-    expect(catalogs.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.catalogs })
+    const notebooks = tree.find(i => i.id === 'notebooks')!
+    expect(notebooks).toBeDefined()
+    expect(notebooks.label).toBe('Notebooks')
+    expect(notebooks.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.notebooks })
   })
 
   it('renders notable create button on Journal, Feeds, Playgrounds, Efforts L2 panels', () => {
@@ -369,9 +375,6 @@ describe('appNavTree - L2 notable buttons and Catalogs', () => {
         </NavProvider>
       </MemoryRouter>,
     )
-    expect(screen.getByTestId('collections-create-note')).toBeDefined()
-    expect(screen.getByText('New note')).toBeDefined()
-    expect(screen.getByText('Notebook crosswalk')).toBeDefined()
     cleanup()
 
     render(

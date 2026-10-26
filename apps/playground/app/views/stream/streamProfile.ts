@@ -2,8 +2,8 @@
  * streamProfile — profile contract and presets for QueriableStreamView (Ticket 003).
  *
  * Encapsulates the routing, default WQL query, entity level, and presentation
- * metadata for each unified stream route (/journal, /feeds, /catalogs,
- * /efforts, /sessions, /results/:sessionId).
+ * metadata for each unified stream route (/journal, /notes, /notebooks,
+ * /feeds, /pages, /efforts, /equipment, /sessions, /results/:sessionId).
  */
 import type { EntityLevel } from '../../lib/fieldProjection'
 import type { LayoutMode } from '../../lib/viewSettingsStorage'
@@ -17,7 +17,7 @@ export function cleanRoutePath(route: string): string {
 }
 
 export interface StreamProfile {
-  /** Route path matching this stream (e.g. '/journal', '/collections'). */
+  /** Route path matching this stream (e.g. '/journal', '/notebooks'). */
   route: string
   /** Default canonical WQL query loaded when no query param is present. */
   defaultWql: string
@@ -115,8 +115,8 @@ export const JOURNAL_STREAM_PROFILE: StreamProfile = {
   legacy: createContentLegacyConfig('journal'),
 }
 
-export const CATALOGS_STREAM_PROFILE: StreamProfile = {
-  route: '/catalogs',
+export const NOTEBOOKS_STREAM_PROFILE: StreamProfile = {
+  route: '/notebooks',
   title: 'Notebooks',
   // The notebook plane (ticket 08) — notes from every notebook, grouped by
   // tag; the source picker narrows to feed-delivered notebooks (the
@@ -131,17 +131,41 @@ export const CATALOGS_STREAM_PROFILE: StreamProfile = {
   legacy: createContentLegacyConfig('feeds'),
 }
 
-export const FEEDS_STREAM_PROFILE: StreamProfile = {
-  route: '/feeds',
+export const NOTES_STREAM_PROFILE: StreamProfile = {
+  route: '/notes',
   title: 'Notes',
-  defaultWql: ':feeds{}',
+  defaultWql: ':note{}',
   level: 'note',
   target: 'note',
-  scopeOptions: ['feeds'],
+  scopeOptions: ['journal', 'feeds'],
   emptyMessage: 'No note entries match your search.',
+  legacy: createContentLegacyConfig('feeds'),
+}
+
+export const FEEDS_STREAM_PROFILE: StreamProfile = {
+  route: '/feeds',
+  title: 'Feeds',
+  // Feeds are the sources — the feed-delivered notebook plane.
+  defaultWql: ':notebook{source:feeds}',
+  level: 'session',
+  target: 'notebook',
+  scopeOptions: ['feeds'],
+  shelfVisible: false,
+  defaultLayout: 'cards',
+  emptyMessage: 'No feeds match your search.',
   // Corpus comes from feeds — surface the core-only notice.
   feedNotice: true,
   legacy: createContentLegacyConfig('feeds'),
+}
+
+export const PAGES_STREAM_PROFILE: StreamProfile = {
+  route: '/pages',
+  title: 'Pages',
+  defaultWql: ':page{}',
+  level: 'note',
+  target: 'page',
+  scopeOptions: [],
+  emptyMessage: 'No pages match your search.',
 }
 
 export const EFFORTS_STREAM_PROFILE: StreamProfile = {
@@ -209,10 +233,10 @@ export function createResultDetailProfile(resultId: string): StreamProfile {
     emptyMessage: `No segment records found for result ${resultId}.`,
   }
 }
-/** /c/:slug — collection stream profile for a catalog */
-export function createCollectionCatalogProfile(catalogSlug: string): StreamProfile {
+/** /notebook/:slug — stream profile for one notebook */
+export function createNotebookProfile(catalogSlug: string): StreamProfile {
   return {
-    route: `/c/${catalogSlug}`,
+    route: `/notebook/${catalogSlug}`,
     title: toDisplayName(catalogSlug),
     defaultWql: `:note{notebook:${catalogSlug}} by {date}`,
     level: 'session',
@@ -228,9 +252,10 @@ export function createCollectionCatalogProfile(catalogSlug: string): StreamProfi
 
 const PROFILES_BY_ROUTE: Record<string, StreamProfile> = {
   '/journal': JOURNAL_STREAM_PROFILE,
-  '/catalogs': CATALOGS_STREAM_PROFILE,
+  '/notebooks': NOTEBOOKS_STREAM_PROFILE,
+  '/notes': NOTES_STREAM_PROFILE,
   '/feeds': FEEDS_STREAM_PROFILE,
-  '/feed': FEEDS_STREAM_PROFILE,
+  '/pages': PAGES_STREAM_PROFILE,
   '/efforts': EFFORTS_STREAM_PROFILE,
   '/equipment': EQUIPMENT_STREAM_PROFILE,
   '/sessions': SESSIONS_STREAM_PROFILE,
@@ -255,10 +280,10 @@ export function getStreamProfile(route: string): StreamProfile | undefined {
       return createSessionDateProfile(date)
     }
   }
-  if (clean.startsWith('/c/')) {
-    const slug = clean.slice('/c/'.length)
+  if (clean.startsWith('/notebook/')) {
+    const slug = clean.slice('/notebook/'.length)
     if (slug && !slug.includes('/')) {
-      return createCollectionCatalogProfile(slug)
+      return createNotebookProfile(slug)
     }
   }
 
@@ -278,8 +303,8 @@ export function resolveStreamProfile(route: string): StreamProfile {
 export function streamRouteTitle(pathname: string): string | undefined {
   const exact = PROFILES_BY_ROUTE[cleanRoutePath(pathname)]?.title
   if (exact) return exact
-  if (cleanRoutePath(pathname).startsWith('/c/')) {
-    const slug = cleanRoutePath(pathname).slice('/c/'.length)
+  if (cleanRoutePath(pathname).startsWith('/notebook/')) {
+    const slug = cleanRoutePath(pathname).slice('/notebook/'.length)
     if (slug && !slug.includes('/')) {
       return toDisplayName(slug)
     }
@@ -290,8 +315,9 @@ export function streamRouteTitle(pathname: string): string | undefined {
 /**
  * Stream-surface membership — the single registry `routeView` consults when
  * classifying a pathname as a list surface. Covers every profile route plus
- * the dynamic detail/date routes; legacy bare `/results*` paths classify too
- * (the router redirects them, but this function stays pure on the pathname).
+ * the dynamic detail/date routes (/notebook/:slug, /session/:date,
+ * /results/:sessionId). Retired bare paths (/results, /results/segments)
+ * are not streams — the router redirects or 404s them before a page renders.
  */
 export function isStreamRoute(pathname: string): boolean {
   const clean = cleanRoutePath(pathname)
@@ -299,9 +325,8 @@ export function isStreamRoute(pathname: string): boolean {
 
   if (clean.startsWith('/results/')) return clean.slice('/results/'.length) !== ''
   if (clean.startsWith('/session/')) return clean.slice('/session/'.length) !== ''
-  if (clean === '/results' || clean === '/results/segments') return true
-  if (clean.startsWith('/c/')) {
-    const slug = clean.slice('/c/'.length)
+  if (clean.startsWith('/notebook/')) {
+    const slug = clean.slice('/notebook/'.length)
     return Boolean(slug && !slug.includes('/'))
   }
 

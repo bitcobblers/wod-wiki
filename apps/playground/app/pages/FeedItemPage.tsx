@@ -1,5 +1,5 @@
 /**
- * FeedItemPage — /feeds/:feedSlug/:feedDate/:feedItem
+ * FeedItemPage — /feed/:slug/:feedDate/:feedItem
  *
  * Renders a single feed workout in the JournalPageShell.
  * Content is read-only at source (build-time), but local edits are
@@ -25,7 +25,7 @@ import { useSeedContent } from '@/services/content/seedContent';
 import { usePlaygroundContent } from '../hooks/usePlaygroundContent';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
 import { pendingRuntimes } from '../runtimeStore';
-import { runPath, journalEntryAutoStartPath, journalEntryPath } from '../lib/routes';
+import { runPath, dayAutoStartPath, dayPath } from '../lib/routes';
 import { useNotePageNav } from './shared/useNotePageNav';
 import {
   NoteContextNav,
@@ -89,13 +89,13 @@ export function FeedItemPage({
           workoutName: item?.name ?? feedItem,
           category: feedSlug,
           sourceNoteLabel: feed?.name,
-          sourceNotePath: `/feeds/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
+          sourceNotePath: `/feed/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
           wodContent: block.content,
         });
         const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
         if (!occurrence) throw new Error('The saved journal workout is unavailable.');
         pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id });
-        navigate(journalEntryAutoStartPath(journalNote.journalDate ?? '', runtimeId));
+        navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId));
       } catch (error) {
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
@@ -109,7 +109,7 @@ export function FeedItemPage({
         workoutName: item?.name ?? feedItem,
         category: feedSlug,
         sourceNoteLabel: feed?.name,
-        sourceNotePath: `/feeds/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
+        sourceNotePath: `/feed/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
         wodContent: block.content,
       });
       const today = localDateKey(new Date());
@@ -117,7 +117,7 @@ export function FeedItemPage({
         title: 'Added to journal',
         description: journalNote.journalDate === today ? `Added to today's journal` : `Added to ${journalNote.journalDate}`,
         action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(journalNote.journalDate ?? today))}>
+          <ToastAction altText="Open journal" onClick={() => navigate(dayPath(journalNote.journalDate ?? today))}>
             Open
           </ToastAction>
         ),
@@ -139,16 +139,16 @@ export function FeedItemPage({
         workoutName: item?.name ?? feedItem,
         category: feedSlug,
         sourceNoteLabel: feed?.name,
-        sourceNotePath: `/feeds/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
+        sourceNotePath: `/feed/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
         wodContent: block.content,
         date: date,
       });
-      navigate(journalEntryPath(dateKey));
+      navigate(dayPath(dateKey));
       toast({
         title: 'Scheduled',
         description: `Added to journal for ${dateKey}`,
         action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(dateKey))}>
+          <ToastAction altText="Open journal" onClick={() => navigate(dayPath(dateKey))}>
             Open
           </ToastAction>
         ),

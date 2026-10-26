@@ -10,14 +10,13 @@ test.describe('Live App Click Handler Navigation', () => {
     test(`collection workout detail page renders editor on ${viewport.name}`, async ({ page }, testInfo) => {
       await page.setViewportSize(viewport.size);
 
-      // Navigate directly to a known collection workout detail route.
-      // The bare /collections listing redirects to /feeds (collections→feeds
-      // rename); the /collections/... item aliases still land on the /c view.
-      await page.goto('/collections/crossfit-girls/fran', { waitUntil: 'domcontentloaded' });
+      // Navigate directly to a known collection workout detail route —
+      // the canonical /notebook/:slug/:item path.
+      await page.goto('/notebook/crossfit-girls/fran', { waitUntil: 'domcontentloaded' });
 
       // The workout editor mounts its CodeMirror content area.
       await expect(page.locator('.cm-content').first()).toBeAttached({ timeout: 15_000 });
-      await expect(page).toHaveURL(/\/(?:collections|c)\/crossfit-girls\/fran(?:\?.*)?$/);
+      await expect(page).toHaveURL(/\/notebook\/crossfit-girls\/fran(?:\?.*)?$/);
 
       await page.screenshot({
         path: testInfo.outputPath(`dead-click-collections-workout-${viewport.name}.png`),
@@ -33,7 +32,7 @@ test.describe('Live App Click Handler Navigation', () => {
       const today = new Date();
       const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-      await page.goto(`/journal/${todayKey}`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`/day/${todayKey}`, { waitUntil: 'domcontentloaded' });
 
       // The page should load and show the app shell (sidebar or content area).
       await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });

@@ -362,7 +362,7 @@ describe('HomeTour', () => {
     expect(jump).toBeTruthy()
 
     const libraryLink = within(jump).getByTestId('jump-library')
-    expect(libraryLink.getAttribute('href')).toBe('/catalogs')
+    expect(libraryLink.getAttribute('href')).toBe('/notebooks')
 
     expect(within(jump).getByTestId('jump-new-note')).toBeTruthy()
     expect(within(jump).queryByTestId('jump-playgrounds')).toBeNull()

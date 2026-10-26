@@ -1,7 +1,7 @@
 ---
 search: hidden
 template: canvas
-route: /guide/sessions
+route: /page/guide-sessions
 type: guide
 title: "Dialects & Complex Sessions"
 description: "Time vs log fences, sport dialects like climbing, and full nested sessions in one note."
@@ -65,7 +65,7 @@ A fence tells WOD Wiki what a block **is**, while the line grammar stays the sam
 
 | Fence | Intent | Behavior |
 |---|---|---|
-| ```` ```time ```` | a session to **run** — the workout of the day, or tomorrow's plan | runnable with the clock ([the Clock](/guide/clock?h=run-next)) |
+| ```` ```time ```` | a session to **run** — the workout of the day, or tomorrow's plan | runnable with the clock ([the Clock](/page/guide-clock?h=run-next)) |
 | ```` ```log ```` | a **record** of what happened — performed work, notes, subjective effort | preserved as-is; no timer expectations |
 | ```` ```log:climbing ```` | a log in a **sport dialect** — climbing signals (grades, send types, attempts, high points) become explicit metrics | same `log` semantics + the climbing dialect |
 
@@ -75,7 +75,7 @@ The suffix is a sport name or dialect id — `climbing` maps to the `climb` dial
 
 ## Full session {#full-session}
 
-The four-section session is already in the panel — warmup → strength → conditioning → cool-down ([section labeling](/guide/structure?h=named-sections)):
+The four-section session is already in the panel — warmup → strength → conditioning → cool-down ([section labeling](/page/guide-structure?h=named-sections)):
 
 ```time
 // Warmup
@@ -203,7 +203,7 @@ rpe: 7
 // Bar speed slowed on set 3.
 ```
 
-With the climbing suffix, plain text becomes structured signals — grades, send types, attempt counts, high points, and discipline stay readable as Markdown but queryable via `grade`, `calc.sends`, and friends ([finger-strength board](/guide/dashboards?h=seeded-boards)):
+With the climbing suffix, plain text becomes structured signals — grades, send types, attempt counts, high points, and discipline stay readable as Markdown but queryable via `grade`, `calc.sends`, and friends ([finger-strength board](/page/guide-dashboards?h=seeded-boards)):
 
 ```log
 Night session. Sent Midnight Lightning V8, 3 attempts. High point on the 5.12a proj.
@@ -211,7 +211,7 @@ Night session. Sent Midnight Lightning V8, 3 attempts. High point on the 5.12a p
 
 ## Try it {#try-it}
 
-The full session is back in the panel (the first **Try it** above restores the fence flavors any time). Run it end to end — four sections, required rest, an AMRAP window, a cooldown — then open [your dashboard](/guide/dashboards?h=seeded-boards) and find the session in this week's volume. **Observe** — per-section splits and the AMRAP round counter in the review grid. Runs save under the shared run contract, like every chapter.
+The full session is back in the panel (the first **Try it** above restores the fence flavors any time). Run it end to end — four sections, required rest, an AMRAP window, a cooldown — then open [your dashboard](/page/guide-dashboards?h=seeded-boards) and find the session in this week's volume. **Observe** — per-section splits and the AMRAP round counter in the review grid. Runs save under the shared run contract, like every chapter.
 
 ```button
 label:  Run

@@ -123,7 +123,7 @@ test('note editor: opens focused and editable, arrows walk visual rows, Home no-
   // The date page opens the note editor inline and editable (the Read/Edit
   // toggles are retired on this surface) and must self-focus .cm-content —
   // the focus contract under test. Clicking into the content would mask it.
-  await page.goto(`/journal/${DATE}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+  await page.goto(`/day/${DATE}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
   await waitForFeedReady(page);
   // Measure focus, not mount latency: editor must be attached first. The
   // self-focus contract is source-backed (NoteEditor focuses on open when

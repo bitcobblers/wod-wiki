@@ -65,7 +65,7 @@ function buildProvider(index: ReferenceIndex): FrontmatterReferenceProvider {
     resolveEquipment: (slugOrAlias) => index.resolveEquipment(slugOrAlias),
     openHref: (kind, slug) => (kind === 'tag' ? tagOpenHref(slug) : referenceOpenHref(kind, slug, slug)),
     createHref: (kind) => (kind === 'effort'
-      ? '/e/new?mode=create'
+      ? '/effort/new?mode=create'
       : kind === 'equipment'
         ? '/equipment/new?mode=create'
         : '/tags'),

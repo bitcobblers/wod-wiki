@@ -1,7 +1,7 @@
 ---
 search: hidden
 template: canvas
-route: /guide/wql
+route: /page/guide-wql
 type: guide
 title: "Query Your Training (WQL)"
 description: "The workout query language — aggregates, filters, rollups, and pipes to shape your training data."
@@ -25,7 +25,7 @@ width:   50%
 sum:totalVolume{discipline:strength} by {week} last 6w
 ```
 
-Three surfaces use the same language: the **Library** (zero-syntax tri-state browsing), the **Explorer** (`/dashboards` workbench), and **in-note ```query blocks** — the one this chapter focuses on, which [dashboards](/guide/dashboards) compose.
+Three surfaces use the same language: the **Library** (zero-syntax tri-state browsing), the **Explorer** (`/dashboards` workbench), and **in-note ```query blocks** — the one this chapter focuses on, which [dashboards](/page/guide-dashboards) compose.
 
 ## The two planes {#planes}
 
@@ -67,9 +67,9 @@ pipeline:
 
 - Tier-2 aggregates: `totalVolume`, `totalReps`, `totalDistance`, `tis`, `sessionLoad`
 - Metric families: `reps`, `distance`, `resistance`, `elapsed`, `power`, `pace`
-- Calculated: the [`calc.*` list](/guide/metrics?h=calculated) (`calc.acwr`, `calc.e1rm`, `calc.readiness`, …)
+- Calculated: the [`calc.*` list](/page/guide-metrics?h=calculated) (`calc.acwr`, `calc.e1rm`, `calc.readiness`, …)
 
-`avg:session-rpe{}` works too — [captured metrics](/guide/metrics?h=session-rpe) are facts like any other.
+`avg:session-rpe{}` works too — [captured metrics](/page/guide-metrics?h=session-rpe) are facts like any other.
 
 ```button
 label:  Try it: Session RPE
@@ -78,7 +78,7 @@ pipeline:
   - set-source: wql-presets/session-rpe.md
 ```
 
-**Dimensions** — time buckets `day`, `week`, `session`, `round`; metadata `effort`, `discipline`, `intensity`, `grade`; and any [custom property you authored](/guide/metrics?h=custom-metrics) (`by {coach}`).
+**Dimensions** — time buckets `day`, `week`, `session`, `round`; metadata `effort`, `discipline`, `intensity`, `grade`; and any [custom property you authored](/page/guide-metrics?h=custom-metrics) (`by {coach}`).
 
 ### Filters {#filters}
 
@@ -189,7 +189,7 @@ Content queries can end with pipes — `| select … | order by … | limit … 
 
 ## Try it {#try-it}
 
-**Run** — after running the kettlebell note a few times this week ([First Workout](/guide/start?h=try-it)), edit the sandbox query above: change `by {week}` to `by {effort}`, or swap `{discipline:strength}` for `{!discipline:recovery}` — results re-run as you type. **Observe** — sample fallbacks are always badged and never written as your results; this chapter only reads what runs saved. For the interactive workbench, open the [Explorer on the dashboards page](/dashboards).
+**Run** — after running the kettlebell note a few times this week ([First Workout](/page/guide-start?h=try-it)), edit the sandbox query above: change `by {week}` to `by {effort}`, or swap `{discipline:strength}` for `{!discipline:recovery}` — results re-run as you type. **Observe** — sample fallbacks are always badged and never written as your results; this chapter only reads what runs saved. For the interactive workbench, open the [Explorer on the dashboards page](/dashboards).
 
 ```button
 label:  Open the Explorer →

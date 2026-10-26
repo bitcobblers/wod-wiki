@@ -1,10 +1,10 @@
 # Learning Collection — Design Review & Page Map
 
-> **Status: SHIPPED (2026-10).** The eight chapters in this directory are the production guide: each carries `template: canvas` + `route: /guide/<slug>` frontmatter and renders as a live canvas page. The six editor chapters (start, protocols, structure, metrics, clock, sessions) have the sticky workout editor, chapter/quest gameplay, and Run; **wql and dashboards are sandbox chapters** — no workout editor or quests, but the sticky panel holds a live, editable ```query sandbox (wql: preset query tabs; dashboards: the real seeded boards loaded with live widgets). The old 18 routed learning pages (`syntax/*` hubs and routed chapters, `behaviors/*`, `analytics/*`) were deleted in the same cutover — §7 is the migration map that was applied, with no redirects left behind.
+> **Status: SHIPPED (2026-10).** The eight chapters in this directory are the production guide: each carries `template: canvas` + `route: /page/guide-<slug>` frontmatter and renders as a live canvas page. The six editor chapters (start, protocols, structure, metrics, clock, sessions) have the sticky workout editor, chapter/quest gameplay, and Run; **wql and dashboards are sandbox chapters** — no workout editor or quests, but the sticky panel holds a live, editable ```query sandbox (wql: preset query tabs; dashboards: the real seeded boards loaded with live widgets). The old 18 routed learning pages (`syntax/*` hubs and routed chapters, `behaviors/*`, `analytics/*`) were deleted in the same cutover — §7 is the migration map that was applied, with no redirects left behind.
 >
 > Shipped vs contract, precisely: **§3.1–§3.3 (fresh note per Run, record exactly once including Stop, reset snapshots) are implemented in the canvas runtime and exercised for real** (first Run/Stop verified inline on a guide page). **§3.4–§5 (stage-driven run, sticky stage flow, reduced-motion runways) remain the homepage-rebuild contract** — these guide pages use the standard canvas sticky panel, not the stage machine. §1's counts and fixtures table are the **pre-cutover inventory** (historical: 18 routed learning pages then; today this directory's 8).
 
-**The shared example.** Every chapter from [First Workout](/guide/start) through Dashboards reuses one workout, `markdown/canvas/home/sample-script.md` verbatim:
+**The shared example.** Every chapter from [First Workout](/page/guide-start) through Dashboards reuses one workout, `markdown/canvas/home/sample-script.md` verbatim:
 
 ```time
 (3)
@@ -26,30 +26,30 @@ You edit it, run it, watch what the clock records (Metrics), query the records (
 
 | Topic | Duplicates | Resolution |
 |---|---|---|
-| Calculated metrics ×3 | syntax/calculated-metrics.md (section document), custom-metrics-5.md (section custom-metrics), custom-and-calculated-metrics.md (section advanced) | one [Calculated](/guide/metrics?h=calculated) section in metrics.md |
+| Calculated metrics ×3 | syntax/calculated-metrics.md (section document), custom-metrics-5.md (section custom-metrics), custom-and-calculated-metrics.md (section advanced) | one [Calculated](/page/guide-metrics?h=calculated) section in metrics.md |
 | AMRAP ×2 | protocols-1.md `20:00 (AMRAP)` vs classic-amrap.md `20:00 AMRAP` | keep the caption-blessed canonical `20:00 AMRAP` |
 | EMOM ×4 | protocols-2 `10:00 (EMOM)`, protocols-5 implicit, basic-emom `(10) :60 EMOM`, alternating/longer/custom variants | keep canonical `(10) :60 EMOM` + longer-interval + alternating branches |
-| Actions ×2 | supplemental-1 vs actions-comments | merged into [start.md#actions-comments](/guide/start?h=actions-comments) |
-| Rest ×2 | supplemental-2 vs timers-4 (both `*:30 Rest`) | merged into [protocols.md#required-rest](/guide/protocols?h=required-rest) |
+| Actions ×2 | supplemental-1 vs actions-comments | merged into [start.md#actions-comments](/page/guide-start?h=actions-comments) |
+| Rest ×2 | supplemental-2 vs timers-4 (both `*:30 Rest`) | merged into [protocols.md#required-rest](/page/guide-protocols?h=required-rest) |
 | Comments ×2 | supplemental-3 vs actions-comments | merged into start.md |
-| Unknown loads ×2 | supplemental-4 vs metrics-5 (`?lb`) | merged into [metrics.md#capture](/guide/metrics?h=capture) |
-| Cheatsheets ×2 | /guide/syntax/cheatsheet + /guide/analytics/cheatsheet | **no separate cheat-sheet page** — compact reference tables fold into [start.md#reference](/guide/start?h=reference) and [wql.md](/guide/wql?h=aggregate); 8 pages max |
-| Idioms tables | behaviors/README vs timers.md vs rounds.md (near row-for-row) | behaviors/README absorbed into [clock.md#run-next](/guide/clock?h=run-next) |
+| Unknown loads ×2 | supplemental-4 vs metrics-5 (`?lb`) | merged into [metrics.md#capture](/page/guide-metrics?h=capture) |
+| Cheatsheets ×2 | /guide/syntax/cheatsheet + /guide/analytics/cheatsheet | **no separate cheat-sheet page** — compact reference tables fold into [start.md#reference](/page/guide-start?h=reference) and [wql.md](/page/guide-wql?h=aggregate); 8 pages max |
+| Idioms tables | behaviors/README vs timers.md vs rounds.md (near row-for-row) | behaviors/README absorbed into [clock.md#run-next](/page/guide-clock?h=run-next) |
 | Prototype copies | root tour-redesign.prototype.html ≡ apps/playground copy | out of scope for markdown (IntegratedPrototype's); noted for cleanup |
 
 **Contradictions — resolved or flagged.** Ground truth = `packages/lang` parser/runtime + `packages/wql` vocabulary (verified in source, not from docs).
 
 | # | Docs say | Source says | Resolution in this collection |
 |---|---|---|---|
-| 1 | "wrap your workout in a `wod` block"; dialects page implies ```` ```wod ````/```` ```plan ````/```` ```climb ```` fences | runtime affords `time` (run) and `log` (record) fences only; dialect fixtures themselves use ```` ```time ````/```` ```log:climbing ```` | teach `time`/`log`/`log:climbing`; `wod`/`plan`/`climb` kept as *intent* vocabulary, flagged **needs validation** ([sessions.md#intent](/guide/sessions?h=intent)) |
+| 1 | "wrap your workout in a `wod` block"; dialects page implies ```` ```wod ````/```` ```plan ````/```` ```climb ```` fences | runtime affords `time` (run) and `log` (record) fences only; dialect fixtures themselves use ```` ```time ````/```` ```log:climbing ```` | teach `time`/`log`/`log:climbing`; `wod`/`plan`/`climb` kept as *intent* vocabulary, flagged **needs validation** ([sessions.md#intent](/page/guide-sessions?h=intent)) |
 | 2 | home caption + prototypes: "```` ```wql ```` for queries"; cookbook shows ```wql copy blocks | real in-note fence is ```` ```query ````; no ```wql handling exists | use ```query everywhere; cookbook's ```wql snippet blocks flagged **needs validation** |
 | 3 | analytics/README + anatomy document `source:all` | parser hard-errors: "source:all is retired — omit the source: filter" | omitting `source:` **is** the all-sources default; never write `source:all` |
 | 4 | filters.md teaches singular `source:collection`/`source:feed` | every note belongs to `notebook/{slug}`; `notebook:<id>` pins a notebook and `WQL_SOURCE_VALUES` provides storage scopes | teach `notebook:<id>` and `notebook/{slug}`; `source:collection:<id>` remains a legacy storage-identity literal |
-| 5 | structure.md caption: name groups `(Warmup)`; named-groups/mixed-sections fixtures use `// Warmup` | classifier emits a labeled group node for `(Warmup)` (`RoundsMetric(label)`); `//` is a text comment — different mechanisms, both legal | both documented with the difference ([structure.md#named-sections](/guide/structure?h=named-sections)) |
-| 6 | `:?` placement: timers-3 prefixes (`:? Max Effort`), capture/cheatsheet append (`5:00 Run :?`) | `:?` is a standalone collectible-duration token; both positions parse | append taught as the convention; prefix noted as equally legal ([metrics.md#capture](/guide/metrics?h=capture)) |
-| 7 | behaviors/timers.md: movement without duration counts up; timers-5.md: "no timer — stopwatch mode" | `DurationMetric.direction`: value 0/undefined/collectible → **up** | same behavior, two descriptions: a bare movement runs a count-up stopwatch ([clock.md](/guide/clock)) |
-| 8 | capture.md queries `avg:wod.rpe by {week}` | no `wod.rpe` key exists anywhere; session RPE is typed metric `session-rpe` | corrected to `avg:session-rpe{} by {week}` ([metrics.md#session-rpe](/guide/metrics?h=session-rpe)) |
-| 9 | anatomy.md lists `metMinutes` as a base metric | vocabulary registers it as `calc.metMinutes` (engine-published) | listed under calculated metrics ([metrics.md#calculated](/guide/metrics?h=calculated)) |
+| 5 | structure.md caption: name groups `(Warmup)`; named-groups/mixed-sections fixtures use `// Warmup` | classifier emits a labeled group node for `(Warmup)` (`RoundsMetric(label)`); `//` is a text comment — different mechanisms, both legal | both documented with the difference ([structure.md#named-sections](/page/guide-structure?h=named-sections)) |
+| 6 | `:?` placement: timers-3 prefixes (`:? Max Effort`), capture/cheatsheet append (`5:00 Run :?`) | `:?` is a standalone collectible-duration token; both positions parse | append taught as the convention; prefix noted as equally legal ([metrics.md#capture](/page/guide-metrics?h=capture)) |
+| 7 | behaviors/timers.md: movement without duration counts up; timers-5.md: "no timer — stopwatch mode" | `DurationMetric.direction`: value 0/undefined/collectible → **up** | same behavior, two descriptions: a bare movement runs a count-up stopwatch ([clock.md](/page/guide-clock)) |
+| 8 | capture.md queries `avg:wod.rpe by {week}` | no `wod.rpe` key exists anywhere; session RPE is typed metric `session-rpe` | corrected to `avg:session-rpe{} by {week}` ([metrics.md#session-rpe](/page/guide-metrics?h=session-rpe)) |
+| 9 | anatomy.md lists `metMinutes` as a base metric | vocabulary registers it as `calc.metMinutes` (engine-published) | listed under calculated metrics ([metrics.md#calculated](/page/guide-metrics?h=calculated)) |
 | 10 | prototypes use `{tag:benchmark}`, `{intensity:zone4}`, `since:2026-01-01` | real keys: `tags:`; intensity tiers `low|moderate|high`; windows `last <n>d|w` / `from … to …` | corrected vocabulary shipped in wql.md; IntegratedPrototype notified |
 | 11 | behaviors/README idiom `AMRAP 10` (label-first) | fixtures only show duration-first `20:00 AMRAP` (canonical per caption) | duration-first everywhere; label-first order flagged **needs validation** |
 | 12 | home/README still carries a retired 720vh ```scroll:chapters spec; HomeView error cites nonexistent routes/home.md | dead plumbing | out of scope here — flagged for the homepage rebuild owner |
@@ -63,20 +63,20 @@ You edit it, run it, watch what the clock records (Metrics), query the records (
 
 | # | File | Proposed title | Sticky stages | Absorbs |
 |---|---|---|---|---|
-| 1 | [start.md](/guide/start) | First Workout | editor → runtime | basics.md, syntax/README hub, core syntax tab pages, the printable cheat sheet |
-| 2 | [protocols.md](/guide/protocols) | Timers & Protocols | editor → runtime | protocols.md, all timer/protocol tab pages, the timer half of behaviors/timers.md |
-| 3 | [structure.md](/guide/structure) | Structure & Rounds | editor → runtime | structure.md, group tab pages, behaviors/rounds.md |
-| 4 | [metrics.md](/guide/metrics) | Metrics: Planned, Recorded, Calculated | editor → runtime (results focus) | custom-metrics.md, metric/calculated tab pages, behaviors/capture.md |
-| 5 | [clock.md](/guide/clock) | Run, Track & Capture (the Clock) | editor → runtime (runtime is the subject) | behaviors/README.md, the runtime halves of timers.md/capture.md |
-| 6 | [wql.md](/guide/wql) | Query Your Training (WQL) | editor → WQL table (data focus) | analytics/README, anatomy, filters, joins |
-| 7 | [dashboards.md](/guide/dashboards) | Dashboards & Cookbook | WQL table → dashboard (data focus) | analytics/cookbook, the query-block half of analytics/cheatsheet, the 6 seeded boards |
-| 8 | [sessions.md](/guide/sessions) | Dialects & Complex Sessions | editor → runtime | dialects.md, complex.md, dialect/complex tab pages |
+| 1 | [start.md](/page/guide-start) | First Workout | editor → runtime | basics.md, syntax/README hub, core syntax tab pages, the printable cheat sheet |
+| 2 | [protocols.md](/page/guide-protocols) | Timers & Protocols | editor → runtime | protocols.md, all timer/protocol tab pages, the timer half of behaviors/timers.md |
+| 3 | [structure.md](/page/guide-structure) | Structure & Rounds | editor → runtime | structure.md, group tab pages, behaviors/rounds.md |
+| 4 | [metrics.md](/page/guide-metrics) | Metrics: Planned, Recorded, Calculated | editor → runtime (results focus) | custom-metrics.md, metric/calculated tab pages, behaviors/capture.md |
+| 5 | [clock.md](/page/guide-clock) | Run, Track & Capture (the Clock) | editor → runtime (runtime is the subject) | behaviors/README.md, the runtime halves of timers.md/capture.md |
+| 6 | [wql.md](/page/guide-wql) | Query Your Training (WQL) | editor → WQL table (data focus) | analytics/README, anatomy, filters, joins |
+| 7 | [dashboards.md](/page/guide-dashboards) | Dashboards & Cookbook | WQL table → dashboard (data focus) | analytics/cookbook, the query-block half of analytics/cheatsheet, the 6 seeded boards |
+| 8 | [sessions.md](/page/guide-sessions) | Dialects & Complex Sessions | editor → runtime | dialects.md, complex.md, dialect/complex tab pages |
 
 The stages column is mirrored verbatim in each page's chapter banner. Chapters 1–3 and 8 **run and save**; chapter 5 documents the runtime itself; chapters 4, 6, 7 focus on **reading the data** runs produce. No chapter defines its own result policy — every run saves under the one contract in [§3](#run-contract).
 
 ### Common page model
 
-Every chapter uses the same skeleton: `# Title`, chapter banner (chapter number, **Sticky stages** line, replaced routes, homepage placements), the teaching sections with their existing anchors, exactly one `## Try it {#try-it}`, and a one-line chapter footer (`**Next:** … · [Overview](/guide/start)`). A Try it block has three labeled parts — **Run** (what to paste/press), **Observe** (what the runtime should show), **Result query** where the chapter reads data — and any caption buttons reuse existing action labels only (`Run`, preset names, `Cast`); no invented controls, no duplicated nav prose.
+Every chapter uses the same skeleton: `# Title`, chapter banner (chapter number, **Sticky stages** line, replaced routes, homepage placements), the teaching sections with their existing anchors, exactly one `## Try it {#try-it}`, and a one-line chapter footer (`**Next:** … · [Overview](/page/guide-start)`). A Try it block has three labeled parts — **Run** (what to paste/press), **Observe** (what the runtime should show), **Result query** where the chapter reads data — and any caption buttons reuse existing action labels only (`Run`, preset names, `Cast`); no invented controls, no duplicated nav prose.
 
 Entry and deep-link anchors (used by the homepage and the prototype's learn links):
 
@@ -213,24 +213,24 @@ Concrete migration map for the 18 currently routed learning pages. Slugs follow 
 
 | Old location (routed file) | New target |
 |---|---|
-| `syntax/README.md` (hub) | [start.md](/guide/start) header + [sessions.md#intent](/guide/sessions?h=intent) |
-| `syntax/basics.md` | [start.md#first-workout](/guide/start?h=first-workout) |
-| `syntax/protocols.md` | [protocols.md#countdown-countup](/guide/protocols?h=countdown-countup) |
-| `syntax/structure.md` | [structure.md#rounds](/guide/structure?h=rounds) |
-| `syntax/custom-metrics.md` | [metrics.md#planned-vs-recorded](/guide/metrics?h=planned-vs-recorded) |
-| `syntax/dialects.md` | [sessions.md#intent](/guide/sessions?h=intent) |
-| `syntax/complex.md` | [sessions.md#full-session](/guide/sessions?h=full-session) |
-| `syntax/cheatsheet.md` | [start.md#reference](/guide/start?h=reference) — **cheatsheet #1 absorbed** |
-| `behaviors/README.md` | [clock.md#run-next](/guide/clock?h=run-next) |
-| `behaviors/timers.md` | [protocols.md](/guide/protocols) (syntax forms) + [clock.md#pause-skip](/guide/clock?h=pause-skip) (runtime) |
-| `behaviors/rounds.md` | [structure.md#rep-schemes](/guide/structure?h=rep-schemes) + [clock.md#run-next](/guide/clock?h=run-next) |
-| `behaviors/capture.md` | [metrics.md#capture](/guide/metrics?h=capture) + [clock.md#capture-prompts](/guide/clock?h=capture-prompts) |
-| `analytics/README.md` | [wql.md#planes](/guide/wql?h=planes) |
-| `analytics/anatomy.md` | [wql.md#aggregate](/guide/wql?h=aggregate) |
-| `analytics/filters.md` | [wql.md#filters](/guide/wql?h=filters) · [#sources](/guide/wql?h=sources) · [#windows](/guide/wql?h=windows) |
-| `analytics/joins.md` | [wql.md#joins](/guide/wql?h=joins) |
-| `analytics/cookbook.md` | [dashboards.md#cookbook](/guide/dashboards?h=cookbook) |
-| `analytics/cheatsheet.md` | [wql.md#aggregate](/guide/wql?h=aggregate) tables + [dashboards.md#widgets](/guide/dashboards?h=widgets) — **cheatsheet #2 absorbed** |
+| `syntax/README.md` (hub) | [start.md](/page/guide-start) header + [sessions.md#intent](/page/guide-sessions?h=intent) |
+| `syntax/basics.md` | [start.md#first-workout](/page/guide-start?h=first-workout) |
+| `syntax/protocols.md` | [protocols.md#countdown-countup](/page/guide-protocols?h=countdown-countup) |
+| `syntax/structure.md` | [structure.md#rounds](/page/guide-structure?h=rounds) |
+| `syntax/custom-metrics.md` | [metrics.md#planned-vs-recorded](/page/guide-metrics?h=planned-vs-recorded) |
+| `syntax/dialects.md` | [sessions.md#intent](/page/guide-sessions?h=intent) |
+| `syntax/complex.md` | [sessions.md#full-session](/page/guide-sessions?h=full-session) |
+| `syntax/cheatsheet.md` | [start.md#reference](/page/guide-start?h=reference) — **cheatsheet #1 absorbed** |
+| `behaviors/README.md` | [clock.md#run-next](/page/guide-clock?h=run-next) |
+| `behaviors/timers.md` | [protocols.md](/page/guide-protocols) (syntax forms) + [clock.md#pause-skip](/page/guide-clock?h=pause-skip) (runtime) |
+| `behaviors/rounds.md` | [structure.md#rep-schemes](/page/guide-structure?h=rep-schemes) + [clock.md#run-next](/page/guide-clock?h=run-next) |
+| `behaviors/capture.md` | [metrics.md#capture](/page/guide-metrics?h=capture) + [clock.md#capture-prompts](/page/guide-clock?h=capture-prompts) |
+| `analytics/README.md` | [wql.md#planes](/page/guide-wql?h=planes) |
+| `analytics/anatomy.md` | [wql.md#aggregate](/page/guide-wql?h=aggregate) |
+| `analytics/filters.md` | [wql.md#filters](/page/guide-wql?h=filters) · [#sources](/page/guide-wql?h=sources) · [#windows](/page/guide-wql?h=windows) |
+| `analytics/joins.md` | [wql.md#joins](/page/guide-wql?h=joins) |
+| `analytics/cookbook.md` | [dashboards.md#cookbook](/page/guide-dashboards?h=cookbook) |
+| `analytics/cheatsheet.md` | [wql.md#aggregate](/page/guide-wql?h=aggregate) tables + [dashboards.md#widgets](/page/guide-dashboards?h=widgets) — **cheatsheet #2 absorbed** |
 
 The 65 non-routed tab-page fixtures follow their routed parents (their unique content is already merged — §8). `canvas/home/README.md` (homepage) and `canvas/ai-first/README.md` stay product pages, out of the collection.
 

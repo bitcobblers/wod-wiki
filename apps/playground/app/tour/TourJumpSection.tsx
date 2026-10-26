@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import { telemetry, HOME_EVENTS } from '@/services/telemetry'
 import { journalNotes } from '../services/journalNotes'
-import { noteByIdPath } from '../lib/routes'
+import { notePath } from '../lib/routes'
 import { getTodayDateKey } from '../services/dateUtils'
 import { listNotebooks, listFeedSources } from '@/services/feed/feedSources'
 import { isNotebookSubscribed, setNotebookSubscribed, setFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
@@ -192,7 +192,7 @@ export function TourJumpSection() {
       rawContent: '',
     })
     telemetry.record(HOME_EVENTS.noteCreated)
-    navigate(noteByIdPath(note.id))
+    navigate(notePath(note.id))
   }, [navigate])
 
   const hasFilters = Boolean(search.trim())
@@ -292,7 +292,7 @@ export function TourJumpSection() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* Library — disabled until a feed has been synced */}
             {libraryHasContent ? (
-              <Link to="/catalogs" onClick={handleLibrary} data-testid="jump-library" className={EXIT_CARD_BASE}>
+              <Link to="/notebooks" onClick={handleLibrary} data-testid="jump-library" className={EXIT_CARD_BASE}>
                 <BoxFace
                   icon={Library}
                   title="Library"

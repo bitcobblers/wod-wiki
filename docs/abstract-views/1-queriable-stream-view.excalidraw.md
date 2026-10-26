@@ -91,9 +91,9 @@ The table below specifies how each concrete route implements the abstract `Queri
 
 | Typed View | Route Pattern | StreamProfile Key | Default WQL Query | Primary Data Source | Specific Header / Mobile Actions | Layout Defaults |
 |---|---|---|---|---|---|---|
-| **Journal Stream** | `/journal` | `JOURNAL_STREAM_PROFILE` | `find:note{source:journal} last 4w` | `notes`, `page` (IndexedDB) | View Settings; tap opens `/journal/:date` | Chronological date-grouped feed (`StreamFeed`) |
+| **Journal Stream** | `/journal` | `JOURNAL_STREAM_PROFILE` | `find:note{source:journal} last 4w` | `notes`, `page` (IndexedDB) | View Settings; tap opens `/day/:date` | Chronological date-grouped feed (`StreamFeed`) |
 | **Library Catalog** | `/library` | `LIBRARY_STREAM_PROFILE` | `find:note last 2w` | `notes`, `blockIndex` | View Settings; Undated shelf; Multi-select compare | Compact rows with hover action stack (Open/Add/Run) |
-| **Notebooks Listing** | `/catalogs` | `CATALOGS_STREAM_PROFILE` | `:notebook{} by {tag}` | `markdown/collections/` + seed notes | Sync notice when no library imported; tap opens `/c/:slug` | Tag-grouped card grid |
+| **Notebooks Listing** | `/notebooks` | `NOTEBOOKS_STREAM_PROFILE` | `:notebook{} by {tag}` | `markdown/collections/` + seed notes | Sync notice when no library imported; tap opens `/notebook/:slug` | Tag-grouped card grid |
 | **Efforts Registry** | `/efforts` | `EFFORTS_STREAM_PROFILE` | `find:effort` | `efforts` store + `useEffortRegistry` | **Primary "+ New Effort"** button (Dock FAB on mobile) | Property table showing MET, discipline, aliases |
 | **Notes Stream** | `/feeds` | `FEEDS_STREAM_PROFILE` | `:notebook{}` | seed library notes (`collection:` storage identities) | Sync notice when no library imported; "Add to Journal" per card | Note cards |
 | **Execution History** | `/results` | `RESULTS_STREAM_PROFILE` | `rows:all{} last 4w` | `sessions` & `events` stores | Time window selector, metric toggles; tap opens session | Log table with duration, rounds, reps, pace |

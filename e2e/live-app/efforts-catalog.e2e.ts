@@ -74,7 +74,7 @@ test.describe('Efforts catalog — /efforts', () => {
     await efforts.gotoCatalog();
     await efforts.clickEffortRow('burpee');
 
-    await expect(page).toHaveURL(/\/e\/burpee$/);
+    await expect(page).toHaveURL(/\/effort\/burpee$/);
     await expect(efforts.detailLabel()).toHaveText('Burpee');
 
     errors.expectClean();
@@ -91,7 +91,7 @@ test.describe('Efforts catalog — /efforts', () => {
     // Create mode opens the notebook editor pre-filled with an effort
     // document (stable id + user registrySource); the user fills the
     // properties panel and commits with "Create Effort".
-    await expect(page).toHaveURL(/\/e\/new\?mode=create$/);
+    await expect(page).toHaveURL(/\/effort\/new\?mode=create$/);
     const properties = page.locator('[data-testid="effort-create-editor"] .cm-frontmatter-preview');
     await expect(properties).toBeVisible();
     await properties.getByLabel('Value for slug').fill(slug);
@@ -112,7 +112,7 @@ test.describe('Efforts catalog — /efforts', () => {
     await expect(properties.getByLabel('Value for slug')).toHaveValue(slug);
     await page.getByRole('button', { name: 'Create Effort' }).click();
 
-    await expect(page).toHaveURL(new RegExp(`/e/${slug}$`), { timeout: 15_000 });
+    await expect(page).toHaveURL(new RegExp(`/effort/${slug}$`), { timeout: 15_000 });
     await expect(efforts.detailLabel()).toHaveText('E2E Create Flow');
     await expect(efforts.detailSource()).toContainText('Custom');
 

@@ -87,7 +87,8 @@ const LEGACY_TYPE_OPTION_IDS: Record<string, string> = {
 }
 
 function getRouteWqlStorageId(routeId: string): string {
-  return routeId.startsWith('/') ? routeId : `/${routeId}`
+  const id = routeId.startsWith('/') ? routeId : `/${routeId}`
+  return STORAGE_ID_OVERRIDES[id] ?? id
 }
 
 export function getRouteWqlStorageKey(routeId: string): string {
@@ -129,14 +130,38 @@ function migrateFavoriteIds(
 }
 
 /**
- * Storage keys that moved during the route rebrand (#link-crosswalk):
- * overrides saved under the old surface id still resolve under the new one.
- * The new key always wins when both exist.
+ * Storage keys that moved during the ticket-09 route scheme: overrides saved
+ * under the retired surface id still resolve under the canonical one, so a
+ * route rename never loses the user's query settings. The new key always
+ * wins when both exist.
+ *
+ *   /notebooks ← /catalogs   (the notebooks list was /catalogs)
+ *   /notes     ← /feeds      (the notes list was the old /feeds surface; the
+ *                            new /feeds surface is the feed sources, a new
+ *                            key with no legacy of its own)
+ *   /sessions  ← /results    (earlier rebrand — kept so those settings survive)
+ *   /dashboards ← /dashboard (earlier rebrand — kept so those settings survive)
  */
 const LEGACY_STORAGE_ALIASES: Record<string, string> = {
+  '/notebooks': '/catalogs',
+  '/notes': '/feeds',
   '/sessions': '/results',
   '/dashboards': '/dashboard',
-  '/feeds': '/collections',
+}
+
+/** Two-rename chains: `/notes` inherited the old `/feeds` surface, which
+ *  itself inherited `/collections` — a key that old resolves after both
+ *  hops (mirrors routeWqlConfig's second hop). */
+const LEGACY_STORAGE_SECOND_HOP: Record<string, string> = {
+  '/notes': '/collections',
+}
+
+/** Internal storage-id overrides. The feed-source list keeps the public
+ *  `/feeds` URL but stores under a versioned key: settings saved under the
+ *  retired notes-list `/feeds` surface migrate to `/notes` and must never
+ *  leak into the new feed defaults. */
+const STORAGE_ID_OVERRIDES: Record<string, string> = {
+  '/feeds': '/feeds@2',
 }
 
 /**
@@ -160,7 +185,10 @@ function migrateLegacyStoredWql(wql: string): string {
 export function readRouteWqlConfig(routeId: string, store: LocalStore = routeWqlStore): RouteWqlConfig {
   const id = getRouteWqlStorageId(routeId)
   const legacyId = LEGACY_STORAGE_ALIASES[id]
-  const parsed = store.get<Partial<RouteWqlConfig>>(id, { alias: legacyId })
+  let parsed = store.get<Partial<RouteWqlConfig>>(id, { alias: legacyId })
+  if (parsed == null && legacyId) {
+    parsed = store.get<Partial<RouteWqlConfig>>(legacyId, { alias: LEGACY_STORAGE_SECOND_HOP[id] })
+  }
   if (!parsed) return {}
   const typeOptions = sanitizeStringArray(parsed.typeOptions)
   const groupByOptions = sanitizeStringArray(parsed.groupByOptions)

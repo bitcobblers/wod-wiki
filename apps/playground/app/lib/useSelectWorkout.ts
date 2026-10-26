@@ -6,7 +6,7 @@
  */
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ROUTE_PATTERNS, workoutPath } from './routes'
+import { ROUTE_PATTERNS, notebookItemPath } from './routes'
 import type { SelectWorkoutItem } from './routeView'
 
 export function useSelectWorkout(): (item: SelectWorkoutItem) => void {
@@ -16,7 +16,7 @@ export function useSelectWorkout(): (item: SelectWorkoutItem) => void {
       if (item.name === 'Home') {
         navigate(ROUTE_PATTERNS.home)
       } else {
-        navigate(workoutPath(item.category ?? 'General', item.name))
+        navigate(notebookItemPath(item.category ?? 'General', item.name))
       }
     },
     [navigate],

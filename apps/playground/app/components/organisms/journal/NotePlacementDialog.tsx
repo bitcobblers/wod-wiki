@@ -43,7 +43,7 @@ const fieldClass =
 /** A placement as the dialog shows it: a date page or a named page. */
 function placementLabel(placement: NotePlacement): string {
   if (placement.date) return placement.date
-  return `/p/${placement.slug ?? placement.pageId}`
+  return `/page/${placement.slug ?? placement.pageId}`
 }
 
 export function NotePlacementDialog({
@@ -338,7 +338,7 @@ export function NotePlacementDialog({
             disabled={saving}
           />
           <p className="text-xs text-muted-foreground">
-            The /p/&lt;slug&gt; page to place the note on, or to move it to. Typing an
+            The /page/&lt;slug&gt; page to place the note on, or to move it to. Typing an
             existing page&apos;s slug shares that page with its notes — it does not
             create a unique copy.
           </p>

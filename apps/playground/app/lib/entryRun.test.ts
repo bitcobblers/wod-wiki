@@ -103,7 +103,7 @@ describe('startEntryRun — catalog adoption', () => {
     expect(pendingRuntimes.size).toBe(1)
     const [runtimeId, pending] = [...pendingRuntimes.entries()][0]!
     expect(pending?.noteId).toBe('journal-note-1')
-    expect(calls).toEqual([`/journal/2026-09-05?autoStart=${runtimeId}`])
+    expect(calls).toEqual([`/day/2026-09-05?autoStart=${runtimeId}`])
   })
 
   it('falls back to resolving the note and extracting its first time fence', async () => {

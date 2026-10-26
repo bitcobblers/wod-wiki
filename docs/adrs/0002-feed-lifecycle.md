@@ -48,7 +48,7 @@ nonblocking background pass on each load (`probeManifests: true` bypasses
 the skip-fetch fast path). Auto-sync ON applies the update; auto-sync OFF
 records a `pending` entry in one grouped `CatalogUpdatesSnapshot`
 surfaced as a single notification with a "Review updates" action to
-`/catalogs?manage=1` (the current notebooks route).
+`/notebooks?manage=1` (the current notebooks route).
 
 **Exact ownership**: deletion uses the checkpoint's recorded `noteIds`
 and only removes notes still stamped `seedOrigin === 'seed'`, cascading
@@ -152,7 +152,7 @@ shape: "{ snapshotId, sources: [{ id, state: 'pending'|'updated'|'error' }] }"
 depends_on: [FeedSourceSpec, FeedAutoSyncMap]
 lifecycle:
   produced_by: "runFeedSync in background mode — exactly one snapshot per run, published at run end"
-  consumed_by: "SyncActivityUi toasts once per snapshotId; 'Review updates' → /catalogs?manage=1"
+  consumed_by: "SyncActivityUi toasts once per snapshotId; 'Review updates' → /notebooks?manage=1"
   cleared_by: "manual sync of a source drops its entry; empty list clears the notification"
 ```
 

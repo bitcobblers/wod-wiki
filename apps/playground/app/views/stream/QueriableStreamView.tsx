@@ -301,11 +301,11 @@ export function QueriableStreamView({
   const isMobile = useIsMobile()
   const mobileSlot = useMobileQuerySlot()
 
-  // /catalogs in-situ source management. The grouped update notification and
+  // /notebooks in-situ source management. The grouped update notification and
   // subscription intake deep-link here via ?manage=1; the toolbar button opens
   // it in place. Closing drops ONLY the manage param — the query string (q, …)
   // survives — and replaces the history entry so a modal never stacks history.
-  const isCatalogsRoute = profile.route === '/catalogs'
+  const isCatalogsRoute = profile.route === '/notebooks'
   const manageOpen = useMemo(
     () => isCatalogsRoute && new URLSearchParams(location.search).get('manage') === '1',
     [isCatalogsRoute, location.search],
@@ -320,7 +320,7 @@ export function QueriableStreamView({
   const catalogsManager = isCatalogsRoute ? (
     <CatalogsManagerDrawer open={manageOpen} onOpenChange={setManageOpen} />
   ) : null
-  // The subscribe offer's target: /catalogs manages sources in place (the
+  // The subscribe offer's target: /notebooks manages sources in place (the
   // drawer); every other route defers to Sync settings — no drawer there.
   const openLibraryManager = useCallback(() => {
     if (isCatalogsRoute) setManageOpen(true)
@@ -355,7 +355,7 @@ export function QueriableStreamView({
   }, [parsed])
   const catalogSlug = useMemo(() => {
     if (profile.catalog) return profile.catalog
-    if (profile.route.startsWith('/c/')) {
+    if (profile.route.startsWith('/notebook/')) {
       const slug = profile.route.slice(3)
       if (slug && !slug.includes('/')) return slug
     }
@@ -512,7 +512,7 @@ export function QueriableStreamView({
   // A committed result bumps savedTick so the mounted listing re-queries.
   const [savedTick, setSavedTick] = useState(0)
 
-  // Notebook-plane management (ticket 05): the /catalogs list plus the move
+  // Notebook-plane management (ticket 05): the /notebooks list plus the move
   // targets the stream rows offer (user-owned notebooks only — feed
   // notebooks are read-only).
   const [moveNotebookTargets, setMoveNotebookTargets] = useState<Array<{ id: string; name: string; icon: string }>>([])
@@ -1061,7 +1061,7 @@ export function QueriableStreamView({
             <div className="flex items-center gap-2 shrink-0">
               {/* Primary action follows the worklist: subscribed sources sync
                   inline; none subscribed, it is the subscribe offer routed to
-                  the source manager (drawer on /catalogs, Sync settings
+                  the source manager (drawer on /notebooks, Sync settings
                   elsewhere). Same test id — still the notice's primary. */}
               <Button
                 size="sm"
@@ -1141,7 +1141,7 @@ export function QueriableStreamView({
         </div>
       )}
 
-      {/* Notebook plane: the management list on /catalogs — defaults, the
+      {/* Notebook plane: the management list on /notebooks — defaults, the
           user's own, the feed libraries and the core references. */}
       {isCatalogsRoute && (
         <NotebookList refreshKey={savedTick} onChanged={() => setSavedTick(t => t + 1)} />

@@ -2,8 +2,10 @@ import { describe, it, expect } from 'bun:test'
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine'
 import {
   JOURNAL_STREAM_PROFILE,
-  CATALOGS_STREAM_PROFILE,
+  NOTEBOOKS_STREAM_PROFILE,
+  NOTES_STREAM_PROFILE,
   FEEDS_STREAM_PROFILE,
+  PAGES_STREAM_PROFILE,
   EFFORTS_STREAM_PROFILE,
   SESSIONS_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
@@ -16,8 +18,10 @@ describe('streamProfile', () => {
   it('every stream default WQL parses — requested defaults are executable', () => {
     for (const profile of [
       JOURNAL_STREAM_PROFILE,
-      CATALOGS_STREAM_PROFILE,
+      NOTEBOOKS_STREAM_PROFILE,
+      NOTES_STREAM_PROFILE,
       FEEDS_STREAM_PROFILE,
+      PAGES_STREAM_PROFILE,
       EFFORTS_STREAM_PROFILE,
       SESSIONS_STREAM_PROFILE,
       PLAYGROUNDS_STREAM_PROFILE,
@@ -29,19 +33,22 @@ describe('streamProfile', () => {
 
   it('carries a display title per stream surface — deriveWorkout reads these', () => {
     expect(JOURNAL_STREAM_PROFILE.title).toBe('Journal')
-    expect(FEEDS_STREAM_PROFILE.title).toBe('Notes')
-    expect(CATALOGS_STREAM_PROFILE.title).toBe('Notebooks')
+    expect(NOTES_STREAM_PROFILE.title).toBe('Notes')
+    expect(NOTEBOOKS_STREAM_PROFILE.title).toBe('Notebooks')
+    expect(FEEDS_STREAM_PROFILE.title).toBe('Feeds')
+    expect(PAGES_STREAM_PROFILE.title).toBe('Pages')
     expect(EFFORTS_STREAM_PROFILE.title).toBe('Efforts')
     expect(SESSIONS_STREAM_PROFILE.title).toBe('Sessions')
     expect(PLAYGROUNDS_STREAM_PROFILE.title).toBe('Playgrounds')
   })
 
   it('owns stream-surface membership — isStreamRoute is the single registry', () => {
-    // every profile route is a stream surface (bare /collections is a
-    // redirect route now — the listing resolves under /feeds)
+    // every profile route is a stream surface
     expect(isStreamRoute('/journal')).toBe(true)
+    expect(isStreamRoute('/notes')).toBe(true)
+    expect(isStreamRoute('/notebooks')).toBe(true)
     expect(isStreamRoute('/feeds')).toBe(true)
-    expect(isStreamRoute('/catalogs')).toBe(true)
+    expect(isStreamRoute('/pages')).toBe(true)
     expect(isStreamRoute('/efforts')).toBe(true)
     expect(isStreamRoute('/sessions')).toBe(true)
     expect(isStreamRoute('/playgrounds')).toBe(true)
@@ -50,25 +57,26 @@ describe('streamProfile', () => {
     // dynamic stream routes
     expect(isStreamRoute('/results/res-42')).toBe(true)
     expect(isStreamRoute('/session/2026-09-17')).toBe(true)
-    expect(isStreamRoute('/c/dan-john')).toBe(true)
-    expect(isStreamRoute('/c/dan-john/fran')).toBe(false)
-    // legacy bare results paths classify too (pure function; router redirects them)
-    expect(isStreamRoute('/results')).toBe(true)
-    expect(isStreamRoute('/results/segments')).toBe(true)
+    expect(isStreamRoute('/notebook/dan-john')).toBe(true)
+    expect(isStreamRoute('/notebook/dan-john/fran')).toBe(false)
+    // retired bare results paths are not streams — the router 404s them
+    expect(isStreamRoute('/results')).toBe(false)
     // /sessions/:id is retired — only the bare list remains
     expect(isStreamRoute('/sessions/res-42')).toBe(false)
     // non-stream routes stay out
     expect(isStreamRoute('/settings/appearance')).toBe(false)
     expect(isStreamRoute('/playground/abc')).toBe(false)
-    expect(isStreamRoute('/notes/some-id')).toBe(false)
+    expect(isStreamRoute('/note/some-id')).toBe(false)
     expect(isStreamRoute('/dashboard')).toBe(false)
   })
 
   it('resolves stream profile by route using getStreamProfile and resolveStreamProfile', () => {
     expect(getStreamProfile('/journal')?.route).toBe('/journal')
     expect(getStreamProfile('/journal/')?.route).toBe('/journal')
-    expect(getStreamProfile('/catalogs')?.route).toBe('/catalogs')
+    expect(getStreamProfile('/notebooks')?.route).toBe('/notebooks')
+    expect(getStreamProfile('/notes')?.route).toBe('/notes')
     expect(getStreamProfile('/feeds')?.route).toBe('/feeds')
+    expect(getStreamProfile('/pages')?.route).toBe('/pages')
     expect(getStreamProfile('/efforts')?.route).toBe('/efforts')
     expect(getStreamProfile('/sessions')?.route).toBe('/sessions')
     expect(getStreamProfile('/playgrounds')?.route).toBe('/playgrounds')
@@ -79,10 +87,10 @@ describe('streamProfile', () => {
     // the generic fallback is the conservative journal surface
     expect(resolveStreamProfile('/unknown')).toBe(JOURNAL_STREAM_PROFILE)
   })
-  it('dynamically resolves the collection stream profile for /c/:catalogSlug', () => {
-    const profile = getStreamProfile('/c/dan-john')
+  it('dynamically resolves the notebook stream profile for /notebook/:slug', () => {
+    const profile = getStreamProfile('/notebook/dan-john')
     expect(profile).toBeDefined()
-    expect(profile?.route).toBe('/c/dan-john')
+    expect(profile?.route).toBe('/notebook/dan-john')
     expect(profile?.title).toBe('Dan John')
     expect(profile?.defaultWql).toBe(':note{notebook:dan-john} by {date}')
     expect(profile?.catalog).toBe('dan-john')
@@ -148,11 +156,11 @@ describe('streamProfile', () => {
   })
 })
 
-describe('CATALOGS_STREAM_PROFILE default query (ticket 08)', () => {
+describe('NOTEBOOKS_STREAM_PROFILE default query (ticket 08)', () => {
   it('defaults to notes from every notebook grouped by tag', () => {
-    expect(CATALOGS_STREAM_PROFILE.defaultWql).toBe(':notebook{} by {tag}')
-    expect(CATALOGS_STREAM_PROFILE.target).toBe('note')
-    const parsed = parseQuery(CATALOGS_STREAM_PROFILE.defaultWql)
+    expect(NOTEBOOKS_STREAM_PROFILE.defaultWql).toBe(':notebook{} by {tag}')
+    expect(NOTEBOOKS_STREAM_PROFILE.target).toBe('note')
+    const parsed = parseQuery(NOTEBOOKS_STREAM_PROFILE.defaultWql)
     expect(parsed.error).toBeUndefined()
     // The grouping dimension the stream view consumes.
     expect(isFindQuery(parsed) && parsed.groupBy).toEqual(['tag'])
@@ -170,7 +178,7 @@ describe('CATALOGS_STREAM_PROFILE default query (ticket 08)', () => {
       noteStore: { getAllNotes: async () => notes, getNoteIdsForTag: async () => new Set() },
       blockStore: { getAllBlocks: async () => [] },
     } as never)
-    const result = await service.runFind(parseQuery(CATALOGS_STREAM_PROFILE.defaultWql) as never)
+    const result = await service.runFind(parseQuery(NOTEBOOKS_STREAM_PROFILE.defaultWql) as never)
     // Notes from every notebook, tagged so the stream view can group them —
     // never synthetic notebook/container rows.
     expect(result.notes.map((n) => n.id).sort()).toEqual(['crossfit-girls/fran', 'journal/2026-10-26', 'pg-1'])

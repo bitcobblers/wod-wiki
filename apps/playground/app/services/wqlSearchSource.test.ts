@@ -349,7 +349,7 @@ describe('navigatePaletteResult', () => {
       { id: 'entry:girl-wods/fran', label: 'Fran', type: 'entry', payload: entry },
       to => visited.push(to),
     )
-    expect(visited).toEqual(['/c/girl-wods/fran'])
+    expect(visited).toEqual(['/notebook/girl-wods/fran'])
   })
 
   it('ignores item types the global palette does not produce', () => {

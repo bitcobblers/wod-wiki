@@ -130,7 +130,7 @@ describe('LibraryRow — field projection adaptation', () => {
 
     const effortLink = screen.getByTestId('library-row-effort-link')
     expect(effortLink).toBeDefined()
-    expect(effortLink.getAttribute('href')).toBe('/e/thruster')
+    expect(effortLink.getAttribute('href')).toBe('/effort/thruster')
 
     let stopped = false
     const event = new MouseEvent('click', { bubbles: true, cancelable: true })

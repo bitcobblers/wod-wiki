@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { JournalPageShell } from '@/panels/page-shells'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
-import { noteByIdPath } from '../lib/routes'
+import { notePath } from '../lib/routes'
 import { formatDateKey } from '../services/dateUtils'
 import { useNav } from '../nav/NavContext'
 import type { NavItemL3 } from '../nav/navTypes'
@@ -53,7 +53,7 @@ export function entryDateKey(entry: Pick<HistoryEntry, 'targetDate'>): string {
 }
 
 /**
- * /collections/:slug/:date — a date-scoped, journal-style view of one
+ * /notebook/:slug/:date — a date-scoped, journal-style view of one
  * collection: every collection note dated `:date`, listed and linked to its
  * single-note route, grouped by tag with an L3 group index.
  *
@@ -122,7 +122,7 @@ export function CollectionDatePage({ slug, date }: CollectionDatePageProps) {
                   {group.entries.map((entry) => (
                     <li key={entry.id}>
                       <Link
-                        to={noteByIdPath(entry.id)}
+                        to={notePath(entry.id)}
                         className="flex flex-col gap-0.5 px-4 py-3 hover:bg-muted/50"
                       >
                         <span className="font-medium">{entry.title}</span>

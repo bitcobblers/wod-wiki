@@ -34,7 +34,7 @@ test.describe('Explore navigation', () => {
   })
 
   test('loads without a parse error and runs an example from the L2 panel', async ({ page }) => {
-    await page.goto('/analytics/explorer', { waitUntil: 'domcontentloaded' })
+    await page.goto('/dashboards', { waitUntil: 'domcontentloaded' })
 
     // The default draft is valid — no first-visit parse error (#897).
     await expect(page.getByText(/Cannot parse/)).toHaveCount(0)

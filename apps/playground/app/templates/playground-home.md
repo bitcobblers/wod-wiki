@@ -57,9 +57,9 @@ This `wod` block is live code. The `(3)` creates a 3-round circuit. The movement
 
 WOD Wiki is organized into collections, guides, and your own personal logs.
 
-- 🎓 [**Getting Started**](/getting-started) — Master the basics of the syntax in 5 minutes.
-- 🗂️ [**Workout Collections**](/collections) — Explore benchmark libraries like *Dan John's Big 21*.
-- 📋 [**Syntax Reference**](/syntax) — A deep dive into protocols, metrics, and timers.
+- 🎓 [**Getting Started**](/page/guide-start) — Master the basics of the syntax in 5 minutes.
+- 🗂️ [**All Notes**](/notes) — Explore benchmark libraries like *Dan John's Big 21*.
+- 📋 [**Syntax Reference**](/page/guide-protocols) — A deep dive into protocols, metrics, and timers.
 - 📓 [**Training Journal**](/journal) — Your history of completed sessions and results.
 
 ---

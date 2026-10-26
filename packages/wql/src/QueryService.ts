@@ -611,7 +611,7 @@ export interface FindQueryResult {
 }
 
 /** Highest-container link for a matched note (parent Page wins). `slug` and
- *  `date` route app URLs (/p/:slug, /journal/:date). Core Page has no type —
+ *  `date` route app URLs (/page/:slug, /day/:date). Core Page has no type —
  *  the parent is never classified by the note's kind. */
 export type NoteContainer =
   | { kind: 'page'; id: string; slug?: string; date?: string }

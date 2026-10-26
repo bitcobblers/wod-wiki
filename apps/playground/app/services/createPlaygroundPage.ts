@@ -89,7 +89,7 @@ function slugifyReuseKey(reuseKey: string): string {
 /** Creation options for a fresh playground page. */
 export interface CreatePlaygroundPageOptions {
   /**
-   * Provenance: the app path the page was spawned from (e.g. `/c/girls/fran`
+   * Provenance: the app path the page was spawned from (e.g. `/notebook/girls/fran`
    * via "Open in Playground"). Stored as the note's sourceId so the
    * provenance chip and journal-copy backlinks resolve; classification is
    * unaffected (`type: 'playground'` keeps the note in the

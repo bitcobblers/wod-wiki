@@ -6,7 +6,7 @@
  */
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import type { MutableRefObject, ReactNode } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import { SidebarLayout } from '@/templates/SidebarLayout'
 import { Navbar } from '@/components/organisms/layout/Navbar'
 import { NavSidebar } from './nav/NavSidebar'
@@ -19,7 +19,7 @@ import { usePaletteStore } from '@/components/organisms/command-palette/palette-
 import { PaletteShell } from '@/components/organisms/command-palette/PaletteShell'
 import { canvasRouteSource, constructSource } from './services/paletteDataSources'
 import { CreateJournalNoteDialog } from './components/organisms/journal/CreateJournalNoteDialog'
-import { noteByIdPath } from './lib/routes'
+import { notePath } from './lib/routes'
 import type { HistoryEntry } from '@/types/history'
 import {
   wqlSearchSource,
@@ -48,7 +48,7 @@ import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc'
 import { CanvasPage } from '@/panels/page-shells'
 import { ChallengeHeaderBadge } from './components/molecules/ChallengeHeaderBadge'
 import { getChallengeSectionMap } from './canvas/parseCanvasMarkdown'
-import { JournalPage } from './pages/JournalPage'
+import { JournalDatePage } from './pages/JournalDatePage'
 import { PlaygroundNotePage } from './pages/PlaygroundNotePage'
 import { WorkoutEditorPage } from './pages/WorkoutEditorPage'
 import { EffortDetailPage } from './pages/EffortDetailPage'
@@ -70,6 +70,7 @@ import { SessionSource } from '@/components/organisms/review/SessionSource';
 export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefObject<() => void> }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const routeParams = useParams()
 
   const { theme } = useTheme()
 
@@ -94,12 +95,12 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     setJournalCreateOpen(true)
   }, [])
   const journalCreateDate = useMemo(
-    () => /^\/journal\/(\d{4}-\d{2}-\d{2})\/?$/.exec(location.pathname)?.[1],
+    () => /^\/day\/(\d{4}-\d{2}-\d{2})\/?$/.exec(location.pathname)?.[1],
     [location.pathname],
   )
   const handleJournalNoteCreated = useCallback(
     (entry: HistoryEntry) => {
-      navigate(`${noteByIdPath(entry.id)}?edit=1`)
+      navigate(`${notePath(entry.id)}?edit=1`)
     },
     [navigate],
   )
@@ -245,12 +246,12 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     effortDetail: () => <EffortDetailPage />,
     equipmentDetail: () => <EquipmentDetailPage />,
     tags: () => <TagsPage />,
-    analyticsExplorer: () => (
-      <AnalyticsExplorerPage
-        actions={<PageActions mode="collection-readonly" currentWorkout={currentWorkout} index={[]} />}
+    tagDetail: () => (
+      <TagsPage
+        key={routeParams.tag ?? ''}
+        initialTag={routeParams.tag ? decodeURIComponent(routeParams.tag) : undefined}
       />
     ),
-
     dashboardExplorer: () => (
       <AnalyticsExplorerPage
         actions={<PageActions mode="collection-readonly" currentWorkout={currentWorkout} index={[]} />}
@@ -282,14 +283,14 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     playground: () => (
       <PlaygroundNotePage key={view.effectivePlaygroundId} theme={actualTheme} onViewCreated={handleViewCreated} onScrollToSection={scrollToSection} onSearch={openSearchPalette} />
     ),
-    journalEntry: () => (
-      <JournalPage key={view.journalEntryId} theme={actualTheme} onViewCreated={handleViewCreated} onScrollToSection={scrollToSection} onSearch={openSearchPalette} />
+    day: () => (
+      <JournalDatePage key={view.day} journalDate={view.day!} theme={actualTheme} onViewCreated={handleViewCreated} />
     ),
     note: () =>
       view.namedPageSlug ? (
         <NamedPagePage key={view.namedPageSlug} slug={view.namedPageSlug} />
       ) : (
-        <NoteByIdPage key={view.noteById} noteId={view.noteById!} theme={actualTheme} />
+        <NoteByIdPage key={view.note} noteId={view.note!} theme={actualTheme} />
       ),
     collectionDate: () => (
       <CollectionDatePage key={`${view.collectionDate!.slug}/${view.collectionDate!.date}`} slug={view.collectionDate!.slug} date={view.collectionDate!.date} theme={actualTheme} />
@@ -322,7 +323,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   // list renders at the end of the page (GuideIndexFooter) instead. The
   // mobile drawer keeps the L2 at every breakpoint.
   const canvasRoute = view.page === 'canvas' ? view.canvasPage?.route : undefined
-  const hideDesktopSidebar = view.page === 'home' || !!canvasRoute?.startsWith('/guide/')
+  const hideDesktopSidebar = view.page === 'home' || !!canvasRoute?.startsWith('/page/guide-')
 
   const accessoryPage = view.page === 'home'
     ? HOME_PAGE

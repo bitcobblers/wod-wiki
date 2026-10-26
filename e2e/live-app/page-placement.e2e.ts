@@ -10,7 +10,7 @@
  *  - the note then appears in both pages' listings,
  *  - removing a placement detaches only that page,
  *  - moving a placement detaches the source and attaches the destination,
- *  - the note's canonical route (/notes/<id>) survives every placement
+ *  - the note's canonical route (/note/<id>) survives every placement
  *    change — placement never clones, deletes or re-addresses the note.
  *
  * The membership is read straight from the `page_notes` junction (the
@@ -25,7 +25,7 @@ const DATE = '2099-09-10';
 const OTHER_DATE = '2099-09-11';
 const NAMED_SLUG = 'placement-e2e-page';
 const NOTE_ID = `journal/${DATE}`;
-const NOTE_PATH = `/notes/${encodeURIComponent(NOTE_ID)}`;
+const NOTE_PATH = `/note/${encodeURIComponent(NOTE_ID)}`;
 const CONTENT = '# Placement E2E\n\n```time\n10 Pushups\n```';
 
 /** Open the note's placement dialog from the canonical note route. */
@@ -77,7 +77,7 @@ test.describe('Page placement — many-to-many', () => {
     const rows = await placements(page);
     expect(rows.map((row) => row.date).sort()).toEqual([DATE, OTHER_DATE]);
 
-    await page.goto(`/journal/${OTHER_DATE}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await page.goto(`/day/${OTHER_DATE}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
   await waitForFeedReady(page);
     await expect(page.getByRole('link', { name: 'Placement E2E' }).first()).toBeVisible();
   });
@@ -136,10 +136,10 @@ test.describe('Page placement — many-to-many', () => {
   });
 });
 
-test.describe('Named-page listing — /p/:slug', () => {
+test.describe('Named-page listing — /page/:slug', () => {
   const SECOND_DATE = '2099-09-12';
   const SECOND_NOTE_ID = `journal/${SECOND_DATE}`;
-  const SECOND_NOTE_PATH = `/notes/${encodeURIComponent(SECOND_NOTE_ID)}`;
+  const SECOND_NOTE_PATH = `/note/${encodeURIComponent(SECOND_NOTE_ID)}`;
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
@@ -153,7 +153,7 @@ test.describe('Named-page listing — /p/:slug', () => {
     await seedJournalNote(page, SECOND_DATE, '# Placement E2E Two\n\nSecond note body.', { title: 'Placement E2E Two' });
     // Both notes share the named page.
     for (const noteId of [NOTE_ID, SECOND_NOTE_ID]) {
-      await page.goto(`/notes/${encodeURIComponent(noteId)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+      await page.goto(`/note/${encodeURIComponent(noteId)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
       await waitForFeedReady(page);
       await page.getByRole('button', { name: 'Note placements' }).click();
       await page.getByLabel('Named page').fill(NAMED_SLUG);
@@ -163,7 +163,7 @@ test.describe('Named-page listing — /p/:slug', () => {
   });
 
   test('lists both notes in placement order and each opens its own note', async ({ page }) => {
-    await page.goto(`/p/${NAMED_SLUG}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await page.goto(`/page/${NAMED_SLUG}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
   await waitForFeedReady(page);
 
     // Both notes are visible on the page's own listing.
@@ -175,7 +175,7 @@ test.describe('Named-page listing — /p/:slug', () => {
     await expect(page).toHaveURL(NOTE_PATH);
     await expect(page.getByText('First note body.')).toBeVisible();
 
-    await page.goto(`/p/${NAMED_SLUG}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await page.goto(`/page/${NAMED_SLUG}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
   await waitForFeedReady(page);
     await page.getByRole('link', { name: /Placement E2E Two/ }).click();
     await expect(page).toHaveURL(SECOND_NOTE_PATH);

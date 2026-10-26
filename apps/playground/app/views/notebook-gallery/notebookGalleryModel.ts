@@ -93,7 +93,7 @@ function summarizeGrouping(root: 'feed' | 'collection', grouping: Grouping): Not
     image: grouping.image,
     categories: grouping.categories,
     sourceLabel: 'Local',
-    href: root === 'feed' ? `/feeds/${encodeURIComponent(grouping.id)}` : `/collections/${encodeURIComponent(grouping.id)}`,
+    href: root === 'feed' ? `/feed/${encodeURIComponent(grouping.id)}` : `/notebook/${encodeURIComponent(grouping.id)}`,
     itemCount: grouping.items.length,
     ...(dates.length > 0
       ? { latestDate: dates[dates.length - 1], firstDate: dates[0] }
@@ -147,8 +147,8 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
         ...(feed?.repositoryUrl ? { repositoryUrl: feed.repositoryUrl } : {}),
         href:
           notebook.chunkId.startsWith('feed.')
-            ? `/feeds/${encodeURIComponent(parsed.slug)}`
-            : `/collections/${encodeURIComponent(parsed.slug)}`,
+            ? `/feed/${encodeURIComponent(parsed.slug)}`
+            : `/notebook/${encodeURIComponent(parsed.slug)}`,
         itemCount: grouping?.items.length ?? 0,
         ...(dates.length > 0
           ? { latestDate: dates[dates.length - 1], firstDate: dates[0] }
@@ -308,7 +308,7 @@ export function buildFeedCatalog(
       installed: group.notebooks.every((notebook) => notebook.installed),
       subscribed: group.notebooks.some((notebook) => notebook.subscribed),
       ...(dates.length > 0 ? { latestDate: dates[dates.length - 1] } : {}),
-      href: '/catalogs',
+      href: '/notebooks',
     };
   });
 }

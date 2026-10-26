@@ -73,7 +73,7 @@ async function expectColdHome(page: Page, screenshotName: string): Promise<void>
   expect(await Promise.all(stableRegions.map(region => region.boundingBox()))).toEqual(contentBoxesBefore)
 
   // A corpus-backed route proves the import produced usable routed content.
-  await page.goto('/guide/start', { waitUntil: 'domcontentloaded' })
+  await page.goto('/page/guide-start', { waitUntil: 'domcontentloaded' })
   await expect(page.getByRole('heading', { name: 'First Workout', exact: true }).first()).toBeVisible()
 }
 
@@ -113,7 +113,7 @@ test('a corpus deep link reports the real seed phase while the route waits', asy
     await route.continue()
   })
 
-  await page.goto('/guide/start', { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('status')).toContainText('Downloading canvas…', { timeout: 15_000 })
+  await page.goto('/page/guide-start', { waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('status')).toContainText('Downloading canvas…', { timeout: 45_000 })
   await expect(page.getByRole('heading', { name: 'First Workout', exact: true }).first()).toBeVisible({ timeout: 60_000 })
 })

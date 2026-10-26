@@ -86,7 +86,7 @@ The table below specifies how each concrete runtime surface implements the abstr
 |---|---|---|---|---|---|
 | **Full-Screen Wall Clock** | `/run/:runtimeId` | Fullscreen (Bypasses Shell) | Standalone immersive tracking for workouts | Touch, Keyboard, Remote Cast | Persists to `sessions` & `events`; redirects to origin note |
 | **Inline Block Runner** | Embedded in `NoteEditor` | Embedded inside CodeMirror block | In-situ execution preview without navigating away | Document inline play button | Ephemeral local state; optional logging |
-| **Fullscreen Date Timer** | `/journal/:date?autoStart=` | Overlay inside Journal Date Shell | Auto-initiating workout tracker directly on date view | URL auto-start param | Logs session and immediately updates daily summary |
+| **Fullscreen Date Timer** | `/day/:date?autoStart=` | Overlay inside Journal Date Shell | Auto-initiating workout tracker directly on date view | URL auto-start param | Logs session and immediately updates daily summary |
 | **Chromecast Receiver** | `/receiver` | Dedicated TV Receiver Shell | Mirroring HUD display to external monitors | BroadcastChannel RPC | Passive display; records nothing independently |
 
 

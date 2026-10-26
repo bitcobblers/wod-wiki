@@ -149,12 +149,12 @@ test.describe('Collection Workout — run and record', () => {
     // IDB-first load swaps bundled markdown for the override after mount,
     // and Play must hit the post-swap DOM. (Workout names must not look
     // like dates — /c/:slug/:date is the date-scoped collection view.)
-    await page.goto(`/c/${STOP_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`/notebook/${STOP_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.cm-content')).toContainText('10:00 AMRAP', { timeout: 15_000 });
     await clickPlayOnBlock(page, '10:00 AMRAP');
 
     // A new record (journal note for today) is created and the runtime opens.
-    await page.waitForURL(new RegExp(`/journal/${today}`), { timeout: 15_000 });
+    await page.waitForURL(new RegExp(`/day/${today}`), { timeout: 15_000 });
     // The clone carries the workout itself; the heading wording (slug vs
     // display title) is presentation, not the persistence contract.
     await expect(page.locator('.cm-content')).toContainText('10:00 AMRAP', { timeout: 15_000 });
@@ -215,11 +215,11 @@ test.describe('Collection Workout — run and record', () => {
     await seedNote(page, COMPLETE_NOTE_ID, COMPLETE_CONTENT, { title: 'E2E Complete Run' });
     await deleteNoteAndResults(page, await findNoteIdByTitle(page, 'e2e-complete-run'));
 
-    await page.goto(`/c/${COMPLETE_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`/notebook/${COMPLETE_NOTE_ID}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.cm-content')).toContainText('0:03 AMRAP', { timeout: 15_000 });
     await clickPlayOnBlock(page, '0:03 AMRAP');
 
-    await page.waitForURL(new RegExp(`/journal/${today}`), { timeout: 15_000 });
+    await page.waitForURL(new RegExp(`/day/${today}`), { timeout: 15_000 });
     const noteUuid = await findNoteIdByTitle(page, 'e2e-complete-run');
     expect(noteUuid, 'Play must create a journal note for today').toBeTruthy();
 

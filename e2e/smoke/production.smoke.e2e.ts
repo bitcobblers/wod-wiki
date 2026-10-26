@@ -41,7 +41,7 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
   test('can navigate to journal page', async ({ page }) => {
     // Navigate to today's journal entry
     const today = new Date().toISOString().split('T')[0];
-    await page.goto(`/journal/${today}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`/day/${today}`, { waitUntil: 'domcontentloaded' });
 
     await waitForFeedReady(page);
     // Date-page contract (JournalDatePage always renders this action once the
@@ -107,7 +107,7 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
     await waitForFeedReady(page);
     await seedNote(page, 'crossfit-girls/fran', '# Fran\n\n```time\n0:05 AMRAP\n  5 Thrusters\n  5 Pull Ups\n```\n', { title: 'Fran' });
 
-    await page.goto('/collections/crossfit-girls/fran', { waitUntil: 'domcontentloaded' });
+    await page.goto('/notebook/crossfit-girls/fran', { waitUntil: 'domcontentloaded' });
     await waitForFeedReady(page);
     await expect(page.locator('main').first()).toContainText('Fran');
 

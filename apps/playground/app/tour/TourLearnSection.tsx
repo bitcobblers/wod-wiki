@@ -47,14 +47,14 @@ export function LearnProgressOverview({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            to="/guide/start"
+            to="/page/guide-start"
             onClick={handleLesson}
             className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Start Lesson 1
           </Link>
           <Link
-            to="/guide/start?h=reference"
+            to="/page/guide-start?h=reference"
             onClick={handleCheatsheet}
             className="text-sm font-semibold text-primary underline-offset-2 hover:underline"
           >

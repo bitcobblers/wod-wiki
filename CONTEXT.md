@@ -274,7 +274,7 @@ execution time — control changes write back to the note's frontmatter when the
 note is editable. A block body is one line: the WQL query plus optional
 `/`-separated positional parameters (e.g. a goal target). One document, two
 presentations: inline (bare charts beneath their visible markdown) and the
-`/analytics/dashboard` route (composed cards). The ` ```dashboard ` fence from
+`/dashboard/{slug}` route (composed cards). The ` ```dashboard ` fence from
 #801 is retired — stale blocks degrade to generic code.
 _Avoid_: dashboard block, widget YAML, dashboard schema.
 **Rollup Fact**:
@@ -523,9 +523,8 @@ _Avoid_: temporary workout, demo result, scratch copy (implies disposable data).
 
 ### Canonical vocabulary
 
-One word per concept. These are the canonical names; the paths the app serves today are
-recorded in the domain-model docs' Current State sections and move when the route ticket
-lands.
+One word per concept. These are the canonical names; the paths below are the canonical
+route scheme the app serves (ticket 09 — the old aliases were removed, not redirected).
 
 | Concept | Route | List route | WQL head | Storage |
 |---|---|---|---|---|
@@ -546,7 +545,7 @@ Words the codebase still carries in identifiers but that no longer name a concep
 | Retired word | Replaced by | Note |
 |---|---|---|
 | collection | **notebook** | The container's older name. The publisher corpus directories `markdown/collections/` and `markdown/feeds/` become `markdown/notebooks/`. |
-| catalog | **notebook** | The container's older name, and the name of the `/catalogs` route and the `catalog:` filter key. Unrelated senses keep their names: the **Field Catalog** inventory and the **Unit Registry** catalogue are not containers. |
+| catalog | **notebook** | The container's older name, and the name of the retired `/catalogs` route and the legacy `catalog:` filter key. Unrelated senses keep their names: the **Field Catalog** inventory and the **Unit Registry** catalogue are not containers. |
 | entry | **note** | A list row is a note, not a thing of its own. |
 | session | **note** | The catalog item kind (a named workout) folds into note kinds. The execution-log **Session** — a recorded run — keeps the name; it is a different concept. |
 | post | **note** | The dated catalog item kind folds into note kinds; the date is an attribute of the note. |

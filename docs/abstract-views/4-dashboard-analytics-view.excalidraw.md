@@ -96,7 +96,7 @@ The table below specifies how each concrete route implements the abstract **Dash
 
 | Typed View | Route Pattern | Host Component | Data Document Format | Primary Mode / Purpose | Key Desktop Actions | Mobile Dock Relocation |
 |---|---|---|---|---|---|---|
-| **Dashboard View Page** | `/dashboard/:slug`, `/d/:slug` | `DashboardViewPage.tsx` | Markdown Note with `dashboard: true` & ```query``` fences | Multi-card dashboard grid for long-term tracking | + Add Widget, Edit Layout, Time Window, Unit Toggle | FAB: + Widget; ⋮ Sheet: Time Filter, Units, Export |
+| **Dashboard View Page** | `/dashboard/:slug` | `DashboardViewPage.tsx` | Markdown Note with `dashboard: true` & ```query``` fences | Multi-card dashboard grid for long-term tracking | + Add Widget, Edit Layout, Time Window, Unit Toggle | FAB: + Widget; ⋮ Sheet: Time Filter, Units, Export |
 | **Analytics Explorer** | `/dashboard` | `AnalyticsExplorerPage.tsx` | Ephemeral WQL input + Catalog Backfill | Ad-hoc query authoring, AST inspection & experimentation | Execute Query, Save to Dashboard, Inspect Pipeline | FAB: Execute; Bottom Accordion: AST & Raw Facts |
 | **Home Analytics Section** | `/` (Tour Section) | `HomeAnalyticsSection.tsx` | Curated showcase query set | App walkthrough demonstration of analytical power | Sample data toggle, interactive chart scrubbers | Integrated into sequential vertical mobile tour stack |
 

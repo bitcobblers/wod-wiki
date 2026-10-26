@@ -350,8 +350,9 @@ function toEntryBase(note: Note): Entry {
   }
 
   // Guide (canvas-corpus) note: sourceId `guides:<declared-route>` — the
-  // /p/ slug (pageSlug) is the declared route minus the leading slash and
-  // optional guide/ prefix; sourceItem stays the declared path.
+  // /page/ slug (pageSlug) is the declared route minus the leading slash and
+  // the page/ prefix (guides declare /page/guide-*); sourceItem stays the
+  // declared path.
   if (note.sourceId?.startsWith('guides:')) {
     const declared = note.sourceId.slice('guides:'.length) || id
     return {
@@ -361,7 +362,7 @@ function toEntryBase(note: Note): Entry {
       sourceItem: declared,
       sourceId: note.sourceId,
       sourcePath: note.sourcePath,
-      pageSlug: namedSlug(declared.replace(/^\//, '').replace(/^guide\//, '')),
+      pageSlug: namedSlug(declared.replace(/^\//, '').replace(/^page\//, '')),
       title,
       date: null,
       createdAt: note.createdAt,

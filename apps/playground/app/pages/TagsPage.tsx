@@ -39,9 +39,14 @@ const GRAIN_BY_SCOPE: Record<string, string> = {
  */
 const RUNNABLE_SCOPES = new Set(['segment', 'workout']);
 
-export function TagsPage() {
+export interface TagsPageProps {
+  /** /t/:type/:tag deep link — the tag label to open on load. */
+  initialTag?: string;
+}
+
+export function TagsPage({ initialTag }: TagsPageProps = {}) {
   const [searchParams] = useSearchParams();
-  const requestedTag = searchParams.get('tag');
+  const requestedTag = searchParams.get('tag') ?? initialTag;
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagTypes, setTagTypes] = useState<TagTypeRecord[]>([]);
   const [functions, setFunctions] = useState<FunctionOption[]>([]);

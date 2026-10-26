@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test'
 import { noteOwnership } from './shared/noteContextLinks'
-import { noteByIdPath } from '../lib/routes'
+import { notePath } from '../lib/routes'
 
 describe('NoteByIdPage header logic', () => {
   it('resolves Journal breadcrumb for journal entries', () => {
@@ -12,13 +12,13 @@ describe('NoteByIdPage header logic', () => {
     expect(ownership.up).toEqual({
       id: '2026-10-24',
       title: 'Journal',
-      to: '/journal/2026-10-24/',
+      to: '/day/2026-10-24',
     })
   })
 
   it('formats canonical note path for copy action', () => {
-    expect(noteByIdPath('01a16c20-5c42-7536-a0a4-744369be4e4a')).toBe(
-      '/notes/01a16c20-5c42-7536-a0a4-744369be4e4a',
+    expect(notePath('01a16c20-5c42-7536-a0a4-744369be4e4a')).toBe(
+      '/note/01a16c20-5c42-7536-a0a4-744369be4e4a',
     )
   })
 

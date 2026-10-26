@@ -1,6 +1,7 @@
 /**
- * ConditionsNavPanel — the shared L2 panel for the five stream routes
- * (/journal /collections /playgrounds /efforts /sessions).
+ * ConditionsNavPanel — the shared L2 panel for the stream zones
+ * (/journal /notebooks /notes /feeds /pages /playgrounds /efforts
+ * /equipment /sessions).
  *
  * Chrome rows (create action, landing row, Custom row with save/clear,
  * saved shortcuts, page actions) plus the {@link FacetProperties}

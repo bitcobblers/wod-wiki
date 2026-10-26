@@ -42,18 +42,18 @@ describe('canvas route normalization (#1005)', () => {
     expect(findRouteIn(routes, '/guide/missing')).toBeNull()
   })
 
-  it('resolves /p/<slug> aliases to declared guide and collection pages', () => {
-    const basics = { route: '/guide/syntax/basics', page: { route: '/guide/syntax/basics' } }
-    const readme = { route: '/c/dan-john', page: { route: '/c/dan-john' } }
+  it('resolves declared /page and /notebook routes directly; retired /p aliases do not resolve', () => {
+    const basics = { route: '/page/guide-syntax/basics', page: { route: '/page/guide-syntax/basics' } }
+    const readme = { route: '/notebook/dan-john', page: { route: '/notebook/dan-john' } }
     const routes = [basics, readme]
 
-    // slug = declared route minus the leading slash and optional guide/ prefix
-    expect(findRouteWithCandidatesIn(routes, '/p/syntax/basics')).toBe(basics.page)
-    expect(findRouteWithCandidatesIn(routes, '/p/guide/syntax/basics')).toBe(basics.page)
-    // collection READMEs are declared at the /c prefix and resolve directly
-    expect(findRouteWithCandidatesIn(routes, '/c/dan-john')).toBe(readme.page)
-    // declared routes still win directly, unknown paths stay null
-    expect(findRouteWithCandidatesIn(routes, '/guide/syntax/basics')).toBe(basics.page)
-    expect(findRouteWithCandidatesIn(routes, '/p/missing')).toBeNull()
+    // Guides declare the page prefix in frontmatter — the declared route resolves directly.
+    expect(findRouteWithCandidatesIn(routes, '/page/guide-syntax/basics')).toBe(basics.page)
+    // notebook READMEs declare the notebook prefix and resolve directly
+    expect(findRouteWithCandidatesIn(routes, '/notebook/dan-john')).toBe(readme.page)
+    // retired page aliases no longer resolve
+    expect(findRouteWithCandidatesIn(routes, '/p/syntax/basics')).toBeNull()
+    // unknown paths stay null
+    expect(findRouteWithCandidatesIn(routes, '/page/missing')).toBeNull()
   })
 })

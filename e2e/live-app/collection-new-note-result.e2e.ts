@@ -21,7 +21,7 @@ import { waitForFeedReady, syncFeed } from '../helpers/feedReadiness';
 // ── The collection workout used for dogfooding ─────────────────────────────
 // Any collection with a playable WOD block will do. Crossfit Girls / Fran is
 // the most visible in the demo and reliably parses.
-const COLLECTION_WORKOUT_URL = '/workout/crossfit-girls/fran';
+const COLLECTION_WORKOUT_URL = '/notebook/crossfit-girls/fran';
 
 // ── IDB helpers ────────────────────────────────────────────────────────────
 
@@ -101,7 +101,7 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
     await playButton.click();
 
     // Should navigate to /journal/YYYY-MM-DD (with optional ?autoStart=...)
-    await expect(page).toHaveURL(new RegExp(`/journal/${dateKey}`), { timeout: 8_000 });
+    await expect(page).toHaveURL(new RegExp(`/day/${dateKey}`), { timeout: 8_000 });
 
     await page.screenshot({ path: testInfo.outputPath('collection-02-journal-with-timer.png') });
 
@@ -131,7 +131,7 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
     await clearResults(page, fullNoteId);
     await seedJournalNote(page, dateKey, '# Fran\n\n```time\n21 Thrusters\n```\n');
 
-    await page.goto(`/journal/${dateKey}`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+    await page.goto(`/day/${dateKey}`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
     // Page-loaded signal: the date page shell mounts its editor or empty state.
     await expect(
       page.locator('.cm-content[contenteditable="true"], h1').first(),
@@ -144,7 +144,7 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
 
     // Navigate away and back — result must survive
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 });
-    await page.goto(`/journal/${dateKey}`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+    await page.goto(`/day/${dateKey}`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
     // Page-loaded signal: the date page shell mounts its editor or empty state.
     await expect(
       page.locator('.cm-content[contenteditable="true"], h1').first(),
@@ -171,7 +171,7 @@ test.describe('Collection → New Journal Note → Result Persistence', () => {
     errors.length = 0;
     await clearResults(page, fullNoteId);
 
-    await page.goto(`/journal/${dateKey}`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+    await page.goto(`/day/${dateKey}`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
     // Deliberate grace window: allow any async NOTE_NOT_FOUND to surface
     // before asserting a clean error log.
     await page.waitForTimeout(1000);

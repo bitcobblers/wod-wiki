@@ -16,8 +16,11 @@ test.describe('Tag Types — /settings/tags', () => {
   });
 
   test('lists the kinds the app offers', async ({ page }) => {
-    await expect(page.getByText('Equipment', { exact: true })).toBeVisible();
-    await expect(page.getByText('Discipline', { exact: true })).toBeVisible();
+    // Scope to the section — the nav rail and its tooltip also carry
+    // an exact 'Equipment' text.
+    const section = page.locator('section');
+    await expect(section.getByText('Equipment', { exact: true })).toBeVisible();
+    await expect(section.getByText('Discipline', { exact: true })).toBeVisible();
   });
 
   test('points at the Tags page for the tags themselves', async ({ page }) => {

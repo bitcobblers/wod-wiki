@@ -1,5 +1,5 @@
 /**
- * FeedDetailPage — /feeds/:feedSlug
+ * FeedDetailPage — /feed/:slug
  *
  * Single-feed view. Same pattern as the other feed surfaces:
  * explicit dateKeys from feed data only, no infinite scroll, no empty rows.
@@ -12,7 +12,7 @@ import { useSeedContent } from '@/services/content/seedContent';
 import { playgroundContent } from '../services/playgroundContent';
 import { localDateKey } from '@/lib/dateFormat';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
-import { journalEntryPath } from '../lib/routes';
+import { dayPath } from '../lib/routes';
 import { useFeedsQueryState } from '../hooks/useFeedsQueryState';
 import { FeedFeed, type FeedItem, type JournalEntrySummary } from '../views/FeedFeed';
 import { toast } from '@/hooks/use-toast';
@@ -100,7 +100,7 @@ export function FeedDetailPage({ feedSlug }: FeedDetailPageProps) {
         workoutName: item.name,
         category: item.feedId,
         sourceNoteLabel: item.feedName,
-        sourceNotePath: `/feeds/${encodeURIComponent(item.feedId)}/${item.feedDate}/${encodeURIComponent(item.id)}`,
+        sourceNotePath: `/feed/${encodeURIComponent(item.feedId)}/${item.feedDate}/${encodeURIComponent(item.id)}`,
         wodContent: item.content,
         wrapInWod: false,
       });
@@ -109,7 +109,7 @@ export function FeedDetailPage({ feedSlug }: FeedDetailPageProps) {
         title: 'Added to journal',
         description: journalNote.journalDate === today ? `Added to today's journal` : `Added to ${journalNote.journalDate}`,
         action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(journalNote.journalDate ?? today))}>
+          <ToastAction altText="Open journal" onClick={() => navigate(dayPath(journalNote.journalDate ?? today))}>
             Open
           </ToastAction>
         ),
@@ -120,11 +120,11 @@ export function FeedDetailPage({ feedSlug }: FeedDetailPageProps) {
   }, [navigate]);
 
   const handleSelectItem = useCallback((item: FeedItem) => {
-    navigate(`/feeds/${encodeURIComponent(item.feedId)}/${item.feedDate}/${encodeURIComponent(item.id)}`);
+    navigate(`/feed/${encodeURIComponent(item.feedId)}/${item.feedDate}/${encodeURIComponent(item.id)}`);
   }, [navigate]);
 
   const handleOpenEntry = useCallback((key: string) => {
-    navigate(`/journal/${key}`);
+    navigate(`/day/${key}`);
   }, [navigate]);
 
   // ── Render ────────────────────────────────────────────────────────────────

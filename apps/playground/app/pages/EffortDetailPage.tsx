@@ -38,7 +38,7 @@ import { canGoBack } from './shared/pageUtils';
 import { useScriptBlockCommands } from '../hooks/useScriptBlockCommands';
 import { useEffortRegistry } from '../contexts/EffortRegistryContext';
 import { EffortResolver, addAliasToEffort, type IEffort, type ResolvedEffort } from '@bitcobblers/wod-wiki-lang';
-import { effortsPath, parseEffortRouteOptions, effortPath, journalEntryPath } from '../lib/routes';
+import { effortsPath, parseEffortRouteOptions, effortPath, dayPath } from '../lib/routes';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/atoms/primitives/toast';
 import { TEST_IDS } from '@/testing/contracts/TestIdContract';
@@ -257,12 +257,12 @@ export function EffortDetailPage() {
         wodContent: block.content,
         date,
       });
-      navigate(journalEntryPath(dateKey));
+      navigate(dayPath(dateKey));
       toast({
         title: 'Scheduled',
         description: `Added to journal for ${dateKey}`,
         action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(journalEntryPath(dateKey))}>
+          <ToastAction altText="Open journal" onClick={() => navigate(dayPath(dateKey))}>
             Open
           </ToastAction>
         ),

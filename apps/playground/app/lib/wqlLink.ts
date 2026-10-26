@@ -32,6 +32,14 @@ export function wqlStreamHref(rawQuery: string): string | null {
     case 'segment':
     case 'event':
       return `/sessions${q}`
+    case 'notebook':
+      return `/notebooks${q}`
+    case 'page':
+      return `/pages${q}`
+    case 'tag':
+      return `/tags${q}`
+    case 'equipment':
+      return `/equipment${q}`
     case 'note':
     case 'block': {
       // Scoped note heads parse to target 'note' plus injected filters
@@ -41,14 +49,14 @@ export function wqlStreamHref(rawQuery: string): string | null {
         const slug = notebookSlugFromId(notebookFilter)
         if (slug === 'journal') return `/journal${q}`
         if (slug === 'playground') return `/playgrounds${q}`
-        return `/c/${encodeURIComponent(slug)}${q}`
+        return `/notebook/${encodeURIComponent(slug)}${q}`
       }
       const source = singleValue(parsed.filters, 'source')
       if (source === 'journal') return `/journal${q}`
       if (source === 'playground') return `/playgrounds${q}`
-      if (source === 'feeds' || source === 'notebooks' || source === 'notebook' || source === 'guides') return `/feeds${q}`
+      if (source === 'feeds' || source === 'notebooks' || source === 'notebook' || source === 'guides') return `/notes${q}`
       if (singleValue(parsed.filters, 'type') === 'dashboard') return `/dashboards${q}`
-      return `/journal${q}`
+      return `/notes${q}`
     }
     default:
       return null

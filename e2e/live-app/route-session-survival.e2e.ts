@@ -43,7 +43,7 @@ test('a running workout survives route changes', async ({ page }) => {
   await waitForFeedReady(page);
   await seedNote(page, NOTE_ID, CONTENT, { title: 'Session Routes Probe' });
 
-  await page.goto(`/c/${NOTE_ID}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/notebook/${NOTE_ID}`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.cm-content')).toContainText('5:00', { timeout: 15_000 });
   await page.locator('.cm-content').getByText('5:00').first().click();
   const play = page.locator('button[aria-label="Play"]').first();
@@ -52,15 +52,15 @@ test('a running workout survives route changes', async ({ page }) => {
 
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  await page.waitForURL(new RegExp(`/journal/${todayKey}`), { timeout: 15_000 });
+  await page.waitForURL(new RegExp(`/day/${todayKey}`), { timeout: 15_000 });
   const stop = page.getByRole('button', { name: 'Stop Session', exact: true }).first();
   await expect(stop).toBeVisible({ timeout: 15_000 });
 
   // Navigate away (client-side route change) and come back.
   await page.goBack();
-  await expect(page).toHaveURL(new RegExp(`/c/${NOTE_ID}`), { timeout: 15_000 });
+  await expect(page).toHaveURL(new RegExp(`/notebook/${NOTE_ID}`), { timeout: 15_000 });
   await page.goForward();
-  await expect(page).toHaveURL(new RegExp(`/journal/${todayKey}`), { timeout: 15_000 });
+  await expect(page).toHaveURL(new RegExp(`/day/${todayKey}`), { timeout: 15_000 });
 
   // The run must still be alive — the clock kept running while parked.
   await expect(page.getByRole('button', { name: 'Stop Session', exact: true }).first()).toBeVisible({ timeout: 15_000 });

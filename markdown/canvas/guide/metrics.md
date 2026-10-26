@@ -1,7 +1,7 @@
 ---
 search: hidden
 template: canvas
-route: /guide/metrics
+route: /page/guide-metrics
 type: guide
 title: "Metrics: Planned, Recorded, Calculated"
 description: "Planned, recorded, and calculated metrics, custom inline values, and capture prompts for what you don't know yet."
@@ -68,7 +68,7 @@ The running example makes the split concrete:
   *:30 Rest
 ```
 
-Planned: 3 rounds, 10 reps, 24 kg, 30 s rest. After running it, the recorded facts (30 swings at 24 kg) derive **720 kg of total volume** — computed from records, never asserted. That number is what [WQL](/guide/wql?h=aggregate) queries later.
+Planned: 3 rounds, 10 reps, 24 kg, 30 s rest. After running it, the recorded facts (30 swings at 24 kg) derive **720 kg of total volume** — computed from records, never asserted. That number is what [WQL](/page/guide-wql?h=aggregate) queries later.
 
 ## Inline custom metrics {#custom-metrics}
 
@@ -113,7 +113,7 @@ Unknown values become **collectible** placeholders — the plan stays honest, an
 | `5km Run :?` | distance is prescribed, so `:?` collects the **time taken** |
 | `:? Max Effort Pushups` | a bare `:?` mounts a count-up timer whose elapsed is recorded on completion — the prefix form parses the same |
 
-The collectible rule: a value that is **prescribed** is written literally; a value that is the **outcome** gets the `?` placeholder — a time-prescribed run collects distance with `?m`, a distance-prescribed run collects time with `:?`. What the clock does when a prompt fires is the [Clock chapter](/guide/clock?h=capture-prompts).
+The collectible rule: a value that is **prescribed** is written literally; a value that is the **outcome** gets the `?` placeholder — a time-prescribed run collects distance with `?m`, a distance-prescribed run collects time with `:?`. What the clock does when a prompt fires is the [Clock chapter](/page/guide-clock?h=capture-prompts).
 
 Captured loads feed trendlines, estimated 1RMs, and PR detection across sessions.
 
@@ -180,7 +180,7 @@ No invented prerequisites: each formula states what it needs. `calc.readiness`, 
 
 ## Try it {#try-it}
 
-The kettlebell example is already in the panel — run it, then open the review grid: reps and load should come from the plan, splits and elapsed from the clock, and `totalVolume` should appear as a derived summary. Add `{"rpe": 7}` to a line and re-run — the custom metric should appear in the grid. **Result query** — the same run answers `sum:totalVolume{effort:kettlebell-swings} last 6w` in [WQL](/guide/wql?h=aggregate). This chapter reads what runs record; saving follows the shared run contract — no separate result policy.
+The kettlebell example is already in the panel — run it, then open the review grid: reps and load should come from the plan, splits and elapsed from the clock, and `totalVolume` should appear as a derived summary. Add `{"rpe": 7}` to a line and re-run — the custom metric should appear in the grid. **Result query** — the same run answers `sum:totalVolume{effort:kettlebell-swings} last 6w` in [WQL](/page/guide-wql?h=aggregate). This chapter reads what runs record; saving follows the shared run contract — no separate result policy.
 
 ```button
 label:  Run

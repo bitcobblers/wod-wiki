@@ -1,86 +1,18 @@
 /**
- * Legacy-alias redirect components — one component per retired path family,
- * mounted directly in the App route table. Pure re-addressing lives here;
- * route patterns, URL builders, and the resolveRedirect matrix stay in
- * ./routes.
+ * Redirect components for the few path families that still re-address —
+ * mounted directly in the App route table. The ticket-09 URL scheme removed
+ * the legacy-alias redirect matrix (and its components) entirely: retired
+ * concept paths (/c/*, /collections, /catalogs, /p/*, /e/*, /d/*,
+ * /notes/:noteId, /journal/:identity, /feed, /dashboard, /analytics*)
+ * 404 instead of redirecting. URL builders live in ./routes.
  */
 import { Navigate, useParams, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { isNoteUuid } from './journalRoute'
-import {
-  collectionPath,
-  effortPath,
-  noteByIdPath,
-  playgroundPath,
-  runPath,
-  sessionDetailPath,
-  workoutPath,
-} from './routes'
-
-// ---------------------------------------------------------------------------
-// Legacy-alias redirect components
-// ---------------------------------------------------------------------------
-
-// Legacy-alias redirect components
-
-/** Redirect /note/playground/:name → /playground/:name */
-export function NotePlaygroundRedirect(): ReactNode {
-  const { name } = useParams<{ name: string }>()
-  return <Navigate to={playgroundPath(name!)} replace />
-}
-
-/** Redirect /workout/:category/:name → /c/:category/:name */
-export function WorkoutRedirect(): ReactNode {
-  const { category, name } = useParams<{ category: string; name: string }>()
-  return <Navigate to={workoutPath(category!, name!)} replace />
-}
-
-/**
- * Redirect the /collections item family to the /c prefix. A note-UUID target
- * opens the canonical single-note editor; date and page-slug targets keep
- * their scoped collection view under /c.
- */
-export function CollectionItemRedirect(): ReactNode {
-  const { slug, target } = useParams<{ slug: string; target: string }>()
-  const { search } = useLocation()
-  if (target == null) {
-    return <Navigate to={{ pathname: collectionPath(slug!), search }} replace />
-  }
-  if (isNoteUuid(decodeURIComponent(target))) {
-    return <Navigate to={{ pathname: noteByIdPath(decodeURIComponent(target)), search }} replace />
-  }
-  return <Navigate to={{ pathname: workoutPath(slug!, decodeURIComponent(target)), search }} replace />
-}
-
-/** Redirect the bare /collections listing → /feeds (the renamed listing).
- *  Item paths keep their own {@link CollectionItemRedirect} routes. */
-export function CollectionsRedirect(): ReactNode {
-  const { search } = useLocation()
-  return <Navigate to={{ pathname: '/feeds', search }} replace />
-}
-
-/** Redirect /effort/:slug → /e/:slug */
-export function EffortRedirect(): ReactNode {
-  const { slug } = useParams<{ slug: string }>()
-  return <Navigate to={effortPath(slug!)} replace />
-}
-
-/** Redirect the bare /results list to /sessions — the sessions list is the
- *  canonical listing; /results/:sessionId is the canonical detail. */
-export function ResultsRedirect(): ReactNode {
-  const { search } = useLocation()
-  return <Navigate to={{ pathname: '/sessions', search }} replace />
-}
+import { runPath, sessionDetailPath } from './routes'
 
 /** Redirect /results/segments → /sessions with the segments query pre-filled. */
 export function SegmentsRedirect(): ReactNode {
   return <Navigate to={`/sessions?q=${encodeURIComponent(':segment{} last 8w')}`} replace />
-}
-
-/** Redirect /dashboard → /dashboards, preserving any ?q=/?weeks= deep link. */
-export function DashboardLandingRedirect(): ReactNode {
-  const { search } = useLocation()
-  return <Navigate to={{ pathname: '/dashboards', search }} replace />
 }
 
 /** Redirect /tracker/:runtimeId → /run/:runtimeId */
@@ -114,22 +46,10 @@ export function ReviewRedirect(): ReactNode {
   return <Navigate to="/sessions" replace />
 }
 
-/** Redirect /getting-started → / (retired: content folded into home) */
-export function GettingStartedRedirect(): ReactNode {
-  return <Navigate to="/" replace />
-}
-
 /** Redirect /plan → /journal?mode=plan, preserving any caller-supplied query string. */
 export function PlanRedirect(): ReactNode {
   const search = useLocation().search
   // The plan-mode param is appended last; any caller `?zip=...` is preserved.
   const suffix = search && search.startsWith('?') ? `${search}&mode=plan` : '?mode=plan'
   return <Navigate to={`/journal${suffix}`} replace />
-}
-
-/** Redirect /analytics/explorer → /dashboards, preserving the shareable ?q=
- *  (and ?weeks=) query string. The WQL explorer lives on the dashboards list. */
-export function ExplorerRedirect(): ReactNode {
-  const { search } = useLocation()
-  return <Navigate to={{ pathname: '/dashboards', search }} replace />
 }

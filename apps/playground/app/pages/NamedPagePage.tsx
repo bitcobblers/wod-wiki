@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
-import { noteByIdPath } from '../lib/routes'
+import { notePath } from '../lib/routes'
 import type { HistoryEntry } from '@/types/history'
 
 const contentProvider = new IndexedDBContentProvider()
 
 export interface NamedPagePageProps {
-  /** The /p/:slug route slug — the named page being listed. */
+  /** The /page/:slug route slug — the named page being listed. */
   slug: string
 }
 
 /**
- * /p/:slug — a named page's own listing. Shows every note placed on the
+ * /page/:slug — a named page's own listing. Shows every note placed on the
  * page in canonical placement order; each note opens at its own canonical
- * route (/notes/:noteId), never at another note's page. Canvas routes keep
+ * route (/note/:noteId), never at another note's page. Canvas routes keep
  * precedence — this page renders only when no canvas page claims the slug.
  */
 export function NamedPagePage({ slug }: NamedPagePageProps) {
@@ -39,7 +39,7 @@ export function NamedPagePage({ slug }: NamedPagePageProps) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">/{slug}</h1>
+        <h1 className="text-2xl font-semibold">/page/{slug}</h1>
         <p className="text-sm text-muted-foreground">
           {entries === null
             ? 'Loading…'
@@ -53,11 +53,11 @@ export function NamedPagePage({ slug }: NamedPagePageProps) {
           {entries.map((entry) => (
             <li key={entry.id}>
               <Link
-                to={noteByIdPath(entry.id)}
+                to={notePath(entry.id)}
                 className="block rounded-md border border-border px-3 py-2 hover:bg-muted"
               >
                 <span className="text-sm font-medium">{entry.title || 'Untitled'}</span>
-                <span className="ml-2 font-mono text-xs text-muted-foreground">/notes/{entry.id}</span>
+                <span className="ml-2 font-mono text-xs text-muted-foreground">/note/{entry.id}</span>
               </Link>
             </li>
           ))}

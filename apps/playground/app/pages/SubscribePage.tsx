@@ -22,7 +22,7 @@ export function SubscribePage() {
     let active = true
     const source = new URLSearchParams(location.search).get('source')
     if (!source) {
-      navigate(ROUTE_PATTERNS.catalogs, { replace: true })
+      navigate(ROUTE_PATTERNS.notebooks, { replace: true })
       return
     }
     setIntake({ kind: 'loading' })
@@ -58,7 +58,7 @@ export function SubscribePage() {
         const subscriptionSaved = setFeedSubscribed(source.id, true)
         if (!preferenceSaved || !subscriptionSaved) throw new Error('Content imported, but subscription preferences could not be saved. Browser storage is unavailable; these choices last this session only.')
       }
-      navigate(`${ROUTE_PATTERNS.catalogs}?manage=1`, { replace: true })
+      navigate(`${ROUTE_PATTERNS.notebooks}?manage=1`, { replace: true })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Feed import failed. Your existing content was kept.')
     } finally {
@@ -94,7 +94,7 @@ export function SubscribePage() {
         </div>
       </>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <Button variant="ghost" disabled={busy} onClick={() => navigate(ROUTE_PATTERNS.catalogs, { replace: true })}>Decline &amp; Dismiss</Button>
+      <Button variant="ghost" disabled={busy} onClick={() => navigate(ROUTE_PATTERNS.notebooks, { replace: true })}>Decline &amp; Dismiss</Button>
     </main>
   )
 }

@@ -1,7 +1,7 @@
 ---
 search: hidden
 template: canvas
-route: /guide/clock
+route: /page/guide-clock
 type: guide
 title: "Run, Track & Capture (the Clock)"
 description: "Run the clock, advance with Next, pause, skip optional rest, and capture times mid-workout."
@@ -67,7 +67,7 @@ Three behavior families cover every line:
 | **Rounds** | repeats, names, walks a rep scheme | `(21-15-9)` | three rounds with descending reps |
 | **Capture** | asks for actuals | `225lb ?lb`, `:?` | prompt when reached or finished |
 
-**Run** starts the current block; **Next** advances it and locks the elapsed time as a **split** — every click records where you are. Timers choose their strategy from the line ([chapter 2](/guide/protocols?h=countdown-countup)): duration → countdown, `^` or no duration → count-up stopwatch, `EMOM`/work-rest pair → interval, the word `Rest` → rest cue.
+**Run** starts the current block; **Next** advances it and locks the elapsed time as a **split** — every click records where you are. Timers choose their strategy from the line ([chapter 2](/page/guide-protocols?h=countdown-countup)): duration → countdown, `^` or no duration → count-up stopwatch, `EMOM`/work-rest pair → interval, the word `Rest` → rest cue.
 
 ## Pause, skip, and sound {#pause-skip}
 

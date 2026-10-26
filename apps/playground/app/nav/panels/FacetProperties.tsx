@@ -355,7 +355,7 @@ function ConditionSection({
     || a.label.localeCompare(b.label),
   )
 
-  const isJournalRoute = location.pathname.startsWith('/journal')
+  const isJournalRoute = location.pathname.startsWith('/journal') || location.pathname.startsWith('/day')
   const visibleRows = (config.hideZero || entryKey === 'effort' || (isJournalRoute && (entryKey === 'tags' || (WQL_TYPED_TAG_KEYS as readonly string[]).includes(entryKey))))
     ? rows.filter(row => (row.count !== null && row.count > 0) || row.state !== 'off')
     : rows

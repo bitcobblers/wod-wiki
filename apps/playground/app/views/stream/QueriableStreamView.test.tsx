@@ -11,14 +11,14 @@ import { pendingRuntimes } from '../../runtimeStore'
 import { InMemoryStorage, setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import {
-  CATALOGS_STREAM_PROFILE,
+  NOTEBOOKS_STREAM_PROFILE,
   EFFORTS_STREAM_PROFILE,
   FEEDS_STREAM_PROFILE,
   JOURNAL_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
   SESSIONS_STREAM_PROFILE,
   createResultDetailProfile,
-  createCollectionCatalogProfile,
+  createNotebookProfile,
 } from './streamProfile'
 import { journalNotes } from '../../services/journalNotes'
 import { resetFeedSubscriptionsForTest, setFeedSubscribed } from '@/services/feed/feedSubscriptions'
@@ -673,7 +673,7 @@ describe('QueriableStreamView component', () => {
     })
 
     render(
-      <MemoryRouter initialEntries={[`/catalogs?q=${encodeURIComponent(':notebook{notebook:defaults}')}`]}>
+      <MemoryRouter initialEntries={[`/playgrounds?q=${encodeURIComponent(':notebook{notebook:defaults}')}`]}>
         <QueriableStreamView profile={PLAYGROUNDS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
     )
@@ -847,9 +847,9 @@ describe('QueriableStreamView component', () => {
   it('with nothing subscribed, the notice routes the primary action to the source manager instead of syncing', async () => {
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/catalogs']}>
+      <MemoryRouter initialEntries={['/notebooks']}>
         <LocationProbe />
-        <QueriableStreamView profile={CATALOGS_STREAM_PROFILE} queryEngine={engine} />
+        <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
     )
 
@@ -882,7 +882,7 @@ describe('QueriableStreamView component', () => {
       fireEvent.click(primary)
     })
 
-    // No drawer outside /catalogs — the Sync settings route is the manager.
+    // No drawer on the feeds surface — the Sync settings route is the manager.
     await waitFor(() => {
       expect(screen.getByTestId('location-probe').getAttribute('data-path')).toBe('/settings/sync')
     })
@@ -1007,7 +1007,7 @@ describe('QueriableStreamView component', () => {
     // /catalogs) — a hardcoded "notebooks" would misname the Notes page.
     // The library-coverage probe settles on a macrotask, so the empty state
     // first paints with the pre-settle copy: wait for the settled one.
-    await waitFor(() => expect(empty.textContent).toContain('No notes are imported yet.'))
+    await waitFor(() => expect(empty.textContent).toContain('No feeds are imported yet.'))
     expect(empty.textContent).not.toContain('match your search')
     // Exactly one remedy — the import/subscribe action. No search remedies:
     // the parser-injected scope/type filters are not the user's, so there
@@ -1017,11 +1017,11 @@ describe('QueriableStreamView component', () => {
     expect(buttons[0]!.textContent).toContain('Browse libraries')
   })
 
-  it('empty state on /catalogs names notebooks as the missing corpus', async () => {
+  it('empty state on /notebooks names notebooks as the missing corpus', async () => {
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/catalogs']}>
-        <QueriableStreamView profile={CATALOGS_STREAM_PROFILE} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebooks']}>
+        <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
     )
 
@@ -1048,7 +1048,7 @@ describe('QueriableStreamView component', () => {
     // The corpus IS imported here (coverageMock above), so the emptiness is
     // the query's doing — but the probe settles on a macrotask, so wait for
     // the settled copy before reading it.
-    await waitFor(() => expect(empty.textContent).toContain('No note entries match your search.'))
+    await waitFor(() => expect(empty.textContent).toContain('No feeds match your search.'))
     const clear = within(empty).getByRole('button', { name: 'Clear filter' })
     fireEvent.click(clear)
 
@@ -1074,8 +1074,8 @@ describe('QueriableStreamView component', () => {
     ]
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/c/testcat']}>
-        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebook/testcat']}>
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
       </MemoryRouter>,
     )
 
@@ -1096,8 +1096,8 @@ describe('QueriableStreamView component', () => {
     ]
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/c/testcat']}>
-        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebook/testcat']}>
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
       </MemoryRouter>,
     )
 
@@ -1109,14 +1109,14 @@ describe('QueriableStreamView component', () => {
     seedFilesMock = { 'markdown/collections/testcat/README.md': 'Browse [all feeds](:feed{catalog:testcat}).' }
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/c/testcat']}>
-        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebook/testcat']}>
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
       </MemoryRouter>,
     )
 
     await waitFor(() => screen.getByTestId('collection-readme-note'), { timeout: 5000 })
     const link = screen.getByRole('link', { name: 'all feeds' })
-    expect(link.getAttribute('href')).toBe(`/c/testcat?q=${encodeURIComponent(':feed{catalog:testcat}')}`)
+    expect(link.getAttribute('href')).toBe(`/notebook/testcat?q=${encodeURIComponent(':feed{catalog:testcat}')}`)
     expect(screen.queryByTestId('readme-query-block')).toBeNull()
     expect(screen.getByTestId('stream-empty-state')).toBeDefined()
   })
@@ -1125,8 +1125,8 @@ describe('QueriableStreamView component', () => {
     seedFilesMock = { 'markdown/collections/testcat/README.md': 'Plain readme, no tokens.' }
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={['/c/testcat']}>
-        <QueriableStreamView profile={createCollectionCatalogProfile('testcat')} queryEngine={engine} />
+      <MemoryRouter initialEntries={['/notebook/testcat']}>
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
       </MemoryRouter>,
     )
 
@@ -1329,11 +1329,11 @@ describe('QueriableStreamView — query truth and retained state', () => {
     expect(state.request?.wql?.initialQuery).toBe(authored)
   })
   it('renders with collection catalog profile and default cards layout', async () => {
-    const profile = createCollectionCatalogProfile('dan-john')
+    const profile = createNotebookProfile('dan-john')
     const { engine } = stubEngine(() => DATED_NOTE_ENTRIES)
 
     render(
-      <MemoryRouter initialEntries={['/c/dan-john']}>
+      <MemoryRouter initialEntries={['/notebook/dan-john']}>
         <QueriableStreamView profile={profile} queryEngine={engine} />
       </MemoryRouter>,
     )

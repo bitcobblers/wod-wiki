@@ -42,7 +42,7 @@ import type { ScriptBlock } from '@/components/Editor/types'
 import type { WorkoutItem } from '../App'
 import { executeNavAction, pipelineStepToNavAction, type NavActionDeps } from '../nav/navTypes'
 import { useStickyBoundaryOffset } from '@/panels/page-shells'
-import { workoutPath } from '../lib/routes'
+import { notebookItemPath } from '../lib/routes'
 export interface MarkdownCanvasPageProps {
   page: ParsedCanvasPage
   wodFiles: Record<string, string>
@@ -80,12 +80,12 @@ export function MarkdownCanvasPage({
   const navigate = useNavigate()
   const location = useLocation()
   const { sections, route, chapters } = page
-  const isPageSlug = location.pathname.startsWith('/p/') || route.startsWith('/p/')
+  const isPageSlug = location.pathname.startsWith('/page/') || route.startsWith('/page/')
   const canvasNoteId = useMemo(() => getCanvasNoteId(route), [route])
-  const isGuide = page.type === 'guide' || route.startsWith('/guide')
+  const isGuide = page.type === 'guide' || route.startsWith('/page/guide-')
   useScrollTelemetry(isGuide ? route : undefined)
 
-  const isCollection = route.startsWith('/collections/') || route.startsWith('/c/')
+  const isCollection = route.startsWith('/notebook/')
   // Live syntax guides render their content sections as grouped parallax
   // runways (GuideRunwayGroups over the shared RunwayShell). Collections and
   // every other canvas page keep the original flowing layout.
@@ -99,7 +99,7 @@ export function MarkdownCanvasPage({
         onSelect(item)
         return
       }
-      navigate(workoutPath(item.category, item.name))
+      navigate(notebookItemPath(item.category, item.name))
     },
     [navigate, onSelect],
   )

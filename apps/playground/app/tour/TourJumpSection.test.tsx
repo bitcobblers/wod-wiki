@@ -172,10 +172,10 @@ describe('TourJumpSection', () => {
     })
     expect(screen.getByText('0 feeds synchronized')).toBeTruthy()
 
-    // Import any seed → the card becomes a live /catalogs link again.
+    // Import any seed → the card becomes a live /notebooks link again.
     fireEvent.click(screen.getByTestId(`feed-card-${SEEDS[0].id}-import`))
     await waitFor(() => {
-      expect(screen.getByTestId('jump-library').getAttribute('href')).toBe('/catalogs')
+      expect(screen.getByTestId('jump-library').getAttribute('href')).toBe('/notebooks')
     })
   })
 

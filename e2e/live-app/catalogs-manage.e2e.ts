@@ -5,7 +5,7 @@ import { getNoteContentByRouteId, seedNote } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
- * Catalog manager (/catalogs?manage=1) — companion to catalog-subscription
+ * Catalog manager (/notebooks?manage=1) — companion to catalog-subscription
  * .e2e.ts (intake). This file owns manager behavior: the ?manage=1 deep link,
  * the toolbar/dock "Manage Catalogs" entry, per-source identity + published
  * links, auto-sync toggle persistence, auto-sync vs check-only updates, and
@@ -67,13 +67,21 @@ async function seedSource(page: Page, version: { current: number }): Promise<voi
   await page.context().route(`${SOURCE_URL}${CHUNK_PATH}`, route => route.fulfill({ json: rows }));
 }
 
-test.describe('Catalog manager — /catalogs?manage=1', () => {
+/** The drawer defaults to subscribed-only; these fixtures register an
+ *  unsubscribed source, so widen the filter before expecting its row. */
+async function showAllSources(drawer: import('@playwright/test').Locator) {
+  const subscribedOnly = drawer.getByRole('checkbox', { name: 'Subscribed only' });
+  await subscribedOnly.setChecked(false);
+}
+
+test.describe('Catalog manager — /notebooks?manage=1', () => {
   test('deep link opens the manager with identity and published links; closing keeps other params', async ({ page }) => {
     await seedSource(page, { current: 42 });
-    await page.goto('/catalogs?manage=1&q=:notebook');
+    await page.goto('/notebooks?manage=1&q=:notebook');
 
     const drawer = page.getByTestId('catalogs-manager-drawer');
     await expect(drawer).toBeVisible();
+    await showAllSources(drawer);
     const row = drawer.getByTestId('feed-source-manage-library');
     await expect(row.getByText('Manage Library', { exact: true })).toBeVisible();
     await expect(row.getByTestId('feed-origin-manage-library')).toHaveText(SOURCE_URL);
@@ -96,36 +104,38 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     // percent-encode the q value's colon).
     await page.keyboard.press('Escape');
     await expect(drawer).toBeHidden();
-    await expect(page).toHaveURL(/\/catalogs\?q=(:|%3A)notebook$/i);
+    await expect(page).toHaveURL(/\/notebooks\?q=(:|%3A)notebook$/i);
   });
 
   test('desktop toolbar opens the manager in place', async ({ page }) => {
     await seedSource(page, { current: 42 });
-    await page.goto('/catalogs');
+    await page.goto('/notebooks');
     await expect(page.getByTestId('manage-catalogs-button')).toBeVisible();
     await page.getByTestId('manage-catalogs-button').click();
     const drawer = page.getByTestId('catalogs-manager-drawer');
     await expect(drawer).toBeVisible();
-    await expect(page).toHaveURL(/\/catalogs\?manage=1$/);
+    await expect(page).toHaveURL(/\/notebooks\?manage=1$/);
     await drawer.getByRole('button', { name: 'Close' }).click();
     await expect(drawer).toBeHidden();
-    await expect(page).toHaveURL(/\/catalogs$/);
+    await expect(page).toHaveURL(/\/notebooks$/);
   });
 
   test('mobile: manage stays reachable via the actions dock; the deep link survives reload', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await seedSource(page, { current: 42 });
-    await page.goto('/catalogs');
+    await page.goto('/notebooks');
 
     await page.getByTestId('actions-overflow').click();
     const sheet = page.getByRole('dialog', { name: 'Stream actions' });
     await sheet.getByTestId('manage-catalogs-button').click();
     const drawer = page.getByTestId('catalogs-manager-drawer');
     await expect(drawer).toBeVisible();
-    await expect(page).toHaveURL(/\/catalogs\?manage=1$/);
+    await expect(page).toHaveURL(/\/notebooks\?manage=1$/);
 
+    await showAllSources(drawer);
     await page.reload();
     await expect(drawer).toBeVisible();
+    await showAllSources(drawer);
     await expect(drawer.getByTestId('feed-source-manage-library')).toBeVisible();
   });
 
@@ -135,8 +145,16 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     await seedSource(page, version);
     await page.on('dialog', dialog => void dialog.accept());
 
-    await page.goto('/catalogs?manage=1');
+    await page.goto('/notebooks?manage=1');
+
+    // A user-authored note that must survive every lifecycle action below.
+    // Seed it before the subscribe/reload churn — a failed remote re-check
+    // can mark the boot feed outcome 'error', and seedNote's readiness gate
+    // hard-fails on that state even though the notes store is unaffected.
+    await seedNote(page, USER_NOTE_PATH, USER_NOTE_BODY);
+
     const drawer = page.getByTestId('catalogs-manager-drawer');
+    await showAllSources(drawer);
     const row = drawer.getByTestId('feed-source-manage-library');
 
     // Subscribe = real import of the served chunk, then subscribed + current.
@@ -144,9 +162,6 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     await row.getByTestId('feed-subscribe-manage-library').click();
     await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
     await expect(row.getByTestId('feed-subscribe-manage-library')).toBeHidden();
-
-    // A user-authored note that must survive every lifecycle action below.
-    await seedNote(page, USER_NOTE_PATH, USER_NOTE_BODY);
 
     const auto = row.getByTestId('feed-autosync-manage-library');
     await expect(auto).toBeEnabled();
@@ -176,9 +191,15 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     const more = row.getByTestId('feed-more-manage-library');
     await more.locator('summary').click();
     await row.getByTestId('feed-unsubscribe-manage-library').click();
-    await expect(row.getByTestId('feed-subscribe-manage-library')).toBeVisible({ timeout: 15_000 });
+    // The drawer can remount on the status refresh and reset the
+    // subscribed-only filter — re-widen it inside the retry loop.
+    await expect(async () => {
+      const subscribedOnly = drawer.getByRole('checkbox', { name: 'Subscribed only' });
+      if (await subscribedOnly.isChecked()) await subscribedOnly.setChecked(false);
+      await expect(row.getByTestId('feed-subscribe-manage-library')).toBeVisible({ timeout: 2_000 });
+      await expect(row.getByTestId('feed-autosync-manage-library')).toBeDisabled({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
     await expect(row).toBeVisible();
-    await expect(row.getByTestId('feed-autosync-manage-library')).toBeDisabled();
     expect(await getNoteContentByRouteId(page, SEED_NOTE_PATH)).toBeNull();
     expect(await getNoteContentByRouteId(page, USER_NOTE_PATH)).not.toBeNull();
 
@@ -215,6 +236,10 @@ test.describe('Catalog manager — /catalogs?manage=1', () => {
     });
     await page.goto('/settings/sync');
     await waitForFeedReady(page);
+    // The source registers unsubscribed; the section defaults to
+    // subscribed-only, so widen the filter before expecting its row.
+    const subscribedOnly = page.getByRole('checkbox', { name: 'Subscribed only' });
+    await subscribedOnly.setChecked(false);
     // The seed is the subscription unit: one Subscribe imports BOTH manifest
     // chunks — its notebooks are never synced apart.
     const row = page.getByTestId('feed-source-seed-crossfit');

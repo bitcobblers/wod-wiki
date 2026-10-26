@@ -76,9 +76,12 @@ describe('routeWqlShortcuts — built-in library-group links', () => {
       { id: ALL_SHORTCUT_ID, label: 'All entries', icon: 'calendar', wql: '' },
     ])
     expect(builtinShortcuts('/feeds')).toEqual([
+      { id: ALL_SHORTCUT_ID, label: 'All feeds', icon: 'rss', wql: '' },
+    ])
+    expect(builtinShortcuts('/notes')).toEqual([
       { id: ALL_SHORTCUT_ID, label: 'All notes', icon: 'rss', wql: '' },
     ])
-    expect(builtinShortcuts('/catalogs')).toEqual([
+    expect(builtinShortcuts('/notebooks')).toEqual([
       { id: ALL_SHORTCUT_ID, label: 'All notebooks', icon: 'library', wql: '' },
     ])
   })
@@ -86,7 +89,7 @@ describe('routeWqlShortcuts — built-in library-group links', () => {
   it('gives every built-in landing icon a rendering in the icon vocabulary', () => {
     // A built-in icon outside SHORTCUT_ICONS renders as `undefined` — the
     // shortcut list would blank the page. Every landing icon must resolve.
-    for (const route of ['/journal', '/feeds', '/catalogs', '/playgrounds', '/efforts', '/equipment', '/sessions']) {
+    for (const route of ['/journal', '/notes', '/notebooks', '/feeds', '/playgrounds', '/efforts', '/equipment', '/sessions']) {
       const icon = builtinShortcuts(route)[0]!.icon
       expect(SHORTCUT_ICONS[icon]).toBeDefined()
     }
@@ -157,12 +160,28 @@ describe('routeWqlShortcuts — validation on read', () => {
   it('drops unsafe route-action targets — not paths or protocol-relative off-site navigations', () => {
     const backend = new InMemoryBackend()
     const store = storeOn(backend)
-    store.set('/feeds', [
+    store.set('/journal', [
       { id: 'a', label: 'Protocol-relative', icon: 'rss', wql: '', to: '//evil.example' },
       { id: 'b', label: 'Not a path', icon: 'rss', wql: '', to: 'https://evil.example' },
-      { id: 'c', label: 'Feeds ok', icon: 'rss', wql: '', to: '/feeds' },
+      { id: 'c', label: 'Path ok', icon: 'rss', wql: '', to: '/journal' },
     ])
-    expect(readRouteShortcuts('/feeds', store).map(s => s.id)).toEqual(['c'])
+    expect(readRouteShortcuts('/journal', store).map(s => s.id)).toEqual(['c'])
+  })
+
+  it('the new /feeds surface stores under /feeds@2 — old notes lists never leak', async () => {
+    const backend = new InMemoryBackend()
+    const store = storeOn(backend)
+    // A shortcut list saved under the retired notes-list /feeds key migrates
+    // to /notes...
+    store.set('/feeds', [{ id: 'n', label: 'Old notes row', icon: 'rss', wql: ':feed{}' }])
+    expect(readRouteShortcuts('/notes', store).map(s => s.id)).toEqual(['n'])
+
+    // ...while the feed-source list at the same public URL starts fresh and
+    // persists under the versioned key.
+    expect(readRouteShortcuts('/feeds', store)).toEqual([])
+    await writeRouteShortcuts('/feeds', [{ id: 'f', label: 'Feed row', icon: 'rss', wql: ':feed{}' }], store)
+    expect(readRouteShortcuts('/feeds', store).map(s => s.id)).toEqual(['f'])
+    expect(readRouteShortcuts('/notes', store).map(s => s.id)).toEqual(['n'])
   })
 
   it('a non-array or unparseable payload reads as empty, never throws', () => {

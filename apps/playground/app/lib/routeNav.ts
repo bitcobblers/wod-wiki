@@ -43,11 +43,11 @@ export function deriveNav(pathname: string, deps: RouteNavDeps): PageNavLink[] {
 
   // 1. Canvas pages
   if (canvasPage) {
-    const isCollection = /^\/(?:c|collections)\//.test(pathname)
+    const isCollection = /^\/notebook\//.test(pathname)
     const collectionSlug = isCollection ? pathname.split('/').pop() ?? null : null
 
     const links: PageNavLink[] = []
-    const isGuidePage = pathname.startsWith('/guide/')
+    const isGuidePage = pathname.startsWith('/page/guide-')
     canvasPage.sections
       .filter(s => s.level > 1)
       .forEach(s => {

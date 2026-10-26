@@ -96,8 +96,10 @@ export function defaultLandingShortcut(label: string, icon: string): WqlShortcut
 
 const LANDING_LABELS: Record<string, string> = {
   '/journal': 'All entries',
-  '/catalogs': 'All notebooks',
-  '/feeds': 'All notes',
+  '/notebooks': 'All notebooks',
+  '/notes': 'All notes',
+  '/feeds': 'All feeds',
+  '/pages': 'All pages',
   '/playgrounds': 'All playgrounds',
   '/efforts': 'All Efforts',
   '/equipment': 'All Equipment',
@@ -106,8 +108,10 @@ const LANDING_LABELS: Record<string, string> = {
 
 const LANDING_ICONS: Record<string, string> = {
   '/journal': 'calendar',
-  '/catalogs': 'library',
+  '/notebooks': 'library',
+  '/notes': 'rss',
   '/feeds': 'rss',
+  '/pages': 'clipboard-list',
   '/playgrounds': 'flask-conical',
   '/efforts': 'dumbbell',
   '/equipment': 'wrench',
@@ -122,6 +126,29 @@ export function builtinShortcuts(routeId: string): WqlShortcut[] {
 
 function normalizeRouteId(routeId: string): string {
   return routeId.startsWith('/') ? routeId : `/${routeId}`
+}
+
+/** Storage keys that moved in the ticket-09 route scheme — saved shortcut
+ * lists resolve under the canonical route id (new key wins when both
+ * exist), mirroring routeWqlConfig's LEGACY_STORAGE_ALIASES. */
+const LEGACY_SHORTCUT_ROUTE_ALIASES: Record<string, string> = {
+  '/notebooks': '/catalogs',
+  '/notes': '/feeds',
+}
+
+/** Internal storage-id overrides. The feed-source list keeps the public
+ *  `/feeds` URL but stores under a versioned key: shortcut lists saved
+ *  under the retired notes-list `/feeds` surface migrate to `/notes` and
+ *  must never leak into the new feed defaults (mirrors routeWqlConfig's
+ *  STORAGE_ID_OVERRIDES). */
+const STORAGE_ID_OVERRIDES: Record<string, string> = {
+  '/feeds': '/feeds@2',
+}
+
+/** Map a public route to its shortcut storage id (versioned overrides applied). */
+function storageRouteId(routeId: string): string {
+  const id = normalizeRouteId(routeId)
+  return STORAGE_ID_OVERRIDES[id] ?? id
 }
 
 /** Shape-level sanitize: non-object rows and unknown shapes (bad label/icon,
@@ -155,7 +182,8 @@ function sanitizeShortcuts(value: unknown): WqlShortcut[] {
 }
 
 export function readRouteShortcuts(routeId: string, store: LocalStore = routeShortcutsStore): WqlShortcut[] {
-  return sanitizeShortcuts(store.get(normalizeRouteId(routeId)))
+  const id = storageRouteId(routeId)
+  return sanitizeShortcuts(store.get(id, { alias: LEGACY_SHORTCUT_ROUTE_ALIASES[id] }))
 }
 
 /**
@@ -166,8 +194,9 @@ export function readRouteShortcuts(routeId: string, store: LocalStore = routeSho
  * dialog upsert, Settings) can ever drop the default All link.
  */
 export function resolveRouteShortcuts(routeId: string, store: LocalStore = routeShortcutsStore): WqlShortcut[] {
-  const id = normalizeRouteId(routeId)
-  if (store.getRaw(id) != null) {
+  const id = storageRouteId(routeId)
+  const legacyId = LEGACY_SHORTCUT_ROUTE_ALIASES[id]
+  if (store.getRaw(id) != null || (legacyId != null && store.getRaw(legacyId) != null)) {
     const stored = readRouteShortcuts(routeId, store)
     if (stored.some(s => s.id === ALL_SHORTCUT_ID)) return stored
     return [builtinShortcuts(routeId)[0]!, ...stored]
@@ -186,7 +215,7 @@ export async function writeRouteShortcuts(
   shortcuts: readonly WqlShortcut[],
   store: LocalStore = routeShortcutsStore,
 ): Promise<boolean> {
-  const id = normalizeRouteId(routeId)
+  const id = storageRouteId(routeId)
   const clean = sanitizeShortcuts(shortcuts)
   if (remotePrefsMode) {
     try {
@@ -208,11 +237,13 @@ export async function writeRouteShortcuts(
  *  throws on a failed server delete (no silent local-only reset); local
  *  mode keeps the browser-backend semantics. */
 export async function resetRouteShortcuts(routeId: string, store: LocalStore = routeShortcutsStore): Promise<void> {
-  const id = normalizeRouteId(routeId)
+  const id = storageRouteId(routeId)
+  const legacyId = LEGACY_SHORTCUT_ROUTE_ALIASES[id]
   if (remotePrefsMode) {
     await metaSetPref(store.qualify(id), null)
+    if (legacyId) await metaSetPref(store.qualify(legacyId), null)
   } else {
-    store.remove(id)
+    store.remove(id, legacyId)
   }
   notifyRouteShortcuts()
 }

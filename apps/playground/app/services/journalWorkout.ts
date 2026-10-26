@@ -23,7 +23,7 @@ export async function createJournalNoteFromWorkout({
   wrapInWod = true,
 }: CreateJournalNoteFromWorkoutOptions): Promise<HistoryEntry> {
   const journalDate = formatDateKey(date ?? new Date());
-  const resolvedSourcePath = sourceNotePath?.trim() || `/collections/${encodeURIComponent(category)}`;
+  const resolvedSourcePath = sourceNotePath?.trim() || `/notebook/${encodeURIComponent(category)}`;
   const lines = [
     `# ${workoutName}`,
     '',

@@ -1,7 +1,7 @@
 ---
 search: hidden
 template: canvas
-route: /guide/dashboards
+route: /page/guide-dashboards
 type: guide
 title: "Dashboards & Cookbook"
 description: "Dashboards are notes with query widgets — frontmatter tokens, widget fences, and the composer."
@@ -73,7 +73,7 @@ The fence tag carries type and grid span (`query:<type>[-<1..4>|-full]`); a bare
 | ```query:toplist | ranked rows |
 | ```query:goal-rings / ```query:zone-distribution | progress rings / zone split |
 
-The block body is **one WQL line** — everything from [the WQL chapter](/guide/wql?h=aggregate) works, including tokens:
+The block body is **one WQL line** — everything from [the WQL chapter](/page/guide-wql?h=aggregate) works, including tokens:
 
 ```query
 sum:sessionLoad{intensity:$intensity} by {week}
@@ -87,7 +87,7 @@ sleep: 7.5h
 hrv: 62
 ```
 
-Capture those daily and boards like Recovery Readiness light up ([what feeds `calc.readiness`](/guide/metrics?h=calculated)).
+Capture those daily and boards like Recovery Readiness light up ([what feeds `calc.readiness`](/page/guide-metrics?h=calculated)).
 
 ## Compose, inspect, clone {#composer}
 
@@ -109,7 +109,7 @@ Copy-paste queries (paste into a ```query block, or straight into the Explorer):
 | Find benchmark notes | `:note{effort:fran,source:notebooks}` |
 | This week's swings volume | `sum:totalVolume{effort:kettlebell-swings} last 6w` |
 
-The shared kettlebell note feeds the last row — [run it](/guide/start?h=try-it), and it appears among the sample rows.
+The shared kettlebell note feeds the last row — [run it](/page/guide-start?h=try-it), and it appears among the sample rows.
 
 ## Seeded boards {#seeded-boards}
 

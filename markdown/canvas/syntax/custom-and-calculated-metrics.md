@@ -81,6 +81,6 @@ Notes:
 
 ## Example fixtures
 
-- [Custom Metrics Example](/guide/metrics?h=custom-metrics)
+- [Custom Metrics Example](/page/guide-metrics?h=custom-metrics)
 - [Calculated Metrics Example](./calculated-metrics.md)
 - [Core Syntax](../../../docs/language/syntax-reference.md)

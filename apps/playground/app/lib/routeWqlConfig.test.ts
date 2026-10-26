@@ -86,14 +86,14 @@ describe('routeWqlConfig — pure read/write/clear', () => {
     )
     expect(readRouteWqlConfig('/dashboards')).toEqual({ defaultWql: 'rows:all{} last 12w' })
 
-    // The /collections listing renamed to /feeds — overrides saved under the
-    // old surface id still resolve (and their WQL migrates off the retired
-    // grammar).
+    // The /collections listing renamed to /feeds, then the old /feeds
+    // surface moved to /notes — overrides saved under either retired surface
+    // id still resolve (and their WQL migrates off the retired grammar).
     window.localStorage.setItem(
       getRouteWqlStorageKey('/collections'),
       JSON.stringify({ defaultWql: ':collection{} last 2w', typeOptions: ['collections'] }),
     )
-    expect(readRouteWqlConfig('/feeds')).toEqual({ defaultWql: ':feed{} last 2w', typeOptions: ['feeds'] })
+    expect(readRouteWqlConfig('/notes')).toEqual({ defaultWql: ':feed{} last 2w', typeOptions: ['feeds'] })
 
     // The new key always wins when both exist
     window.localStorage.setItem(
@@ -101,6 +101,27 @@ describe('routeWqlConfig — pure read/write/clear', () => {
       JSON.stringify({ defaultWql: 'rows:all{} last 4w' }),
     )
     expect(readRouteWqlConfig('/sessions')).toEqual({ defaultWql: 'rows:all{} last 4w' })
+  })
+
+  it('the new /feeds surface stores under /feeds@2 — old notes defaults never leak into it', async () => {
+    // Pre-ticket the notes list lived at /feeds: defaults saved under the
+    // plain /feeds key migrate to /notes (the old surface's successor)...
+    window.localStorage.setItem(
+      `${ROUTE_WQL_STORAGE_PREFIX}/feeds`,
+      JSON.stringify({ defaultWql: ':feed{} last 2w' }),
+    )
+    expect(readRouteWqlConfig('/notes')).toEqual({ defaultWql: ':feed{} last 2w' })
+
+    // ...while the new feed-source list at the same public URL starts fresh —
+    // its storage id is versioned so the legacy notes key cannot shape it.
+    expect(readRouteWqlConfig('/feeds')).toEqual({})
+
+    // Its own writes persist under the versioned key and read back; the
+    // legacy key stays untouched for the /notes migration.
+    await writeRouteWqlConfig('/feeds', { defaultWql: ':feed{} last 1w' })
+    expect(window.localStorage.getItem(`${ROUTE_WQL_STORAGE_PREFIX}/feeds@2`)).toContain('last 1w')
+    expect(readRouteWqlConfig('/feeds')).toEqual({ defaultWql: ':feed{} last 1w' })
+    expect(readRouteWqlConfig('/notes')).toEqual({ defaultWql: ':feed{} last 2w' })
   })
 
   it('never aliases the other direction — writes land on the new key only', async () => {

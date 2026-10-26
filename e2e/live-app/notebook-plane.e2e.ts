@@ -10,7 +10,7 @@ import { waitForFeedReady } from '../helpers/feedReadiness';
  *    (never synthetic container rows) and `notebook:<slug>` narrows those
  *    notes — negation narrows the same shape; an empty user notebook yields
  *    no rows, no fake container,
- *  - the /catalogs management list (the NotebookService surface) shows the
+ *  - the /notebooks management list (the NotebookService surface) shows the
  *    always-present notebooks (defaults + the app-owned core references)
  *    plus feed libraries, and user notebooks support create / rename /
  *    delete,
@@ -66,14 +66,14 @@ test.describe('Notebook plane', () => {
     // localStorage (default cards) — pin it before every load.
     await page.addInitScript(() => {
       window.localStorage.setItem(
-        'wodwiki.viewSettings.v1/catalogs',
+        'wodwiki.viewSettings.v1/notebooks',
         JSON.stringify({ level: 'note', layout: 'feed', visibleFields: ['title', 'excerpt', 'date'] }),
       );
     });
   });
 
   test('the management list shows the always-present notebooks and user CRUD works', async ({ page }) => {
-    await page.goto('/catalogs');
+    await page.goto('/notebooks');
     await waitForFeedReady(page);
 
     const list = page.getByTestId('notebook-list');
@@ -108,43 +108,43 @@ test.describe('Notebook plane', () => {
   test('the notebook plane returns notes from every notebook and narrows by slug', async ({ page }) => {
     // The retired type:feed gate is gone — the defaults notebook holds the
     // starter note and the plane reaches it with a plain notebook: filter.
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
     await waitForFeedReady(page);
     const rows = page.getByTestId('stream-feed-item');
     await expect(rows.first()).toBeVisible();
     await expect(rows.first()).toContainText('My Workout');
 
     // A different notebook does not leak in.
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:playground}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:playground}')}`);
     await expect(page.getByText('My Workout')).toHaveCount(0);
 
     // Bare `:notebook{}` is the inclusive note plane: notes from EVERY
     // notebook, never synthetic container rows.
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{}')}`);
     await waitForFeedReady(page);
     const all = page.getByTestId('stream-feed-item');
     await expect(all.first()).toBeVisible();
     await expect(all.filter({ hasText: 'My Workout' }).first()).toBeVisible();
 
     // Negation narrows the same note shape — defaults notes drop out.
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{!notebook:defaults}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{!notebook:defaults}')}`);
     await waitForFeedReady(page);
     await expect(page.getByText('My Workout')).toHaveCount(0);
 
-    // A fresh user notebook (created from the plain /catalogs surface —
+    // A fresh user notebook (created from the plain /notebooks surface —
     // the management controls live there) narrows to its real notes. A new
     // notebook ships one landing note, so the plane answers with exactly
     // that note row — never a synthetic container row.
-    await page.goto('/catalogs');
+    await page.goto('/notebooks');
     await waitForFeedReady(page);
     await createNotebook(page, 'Trip 2026');
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:trip-2026}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:trip-2026}')}`);
     await waitForFeedReady(page);
     await expect(page.getByTestId('stream-feed-item')).toHaveCount(1);
   });
 
   test('a note moves into a user-owned notebook and clones into the journal', async ({ page }) => {
-    await page.goto('/catalogs');
+    await page.goto('/notebooks');
     await waitForFeedReady(page);
     await createNotebook(page, 'Trip 2026');
     await createNotebook(page, 'Trip 2027');
@@ -155,13 +155,13 @@ test.describe('Notebook plane', () => {
     // lands — gate on the row leaving the source listing before navigating.
     // A goto straight after the menu click races the uncommitted move, and
     // the target page's one-shot stream query then renders pre-move state.
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
     await waitForFeedReady(page);
     const row = page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first();
     await row.getByTestId('stream-feed-move').click();
     await page.getByTestId('stream-feed-move-notebook/trip-2026').click();
     await expect(page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' })).toHaveCount(0, { timeout: 15_000 });
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:trip-2026}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:trip-2026}')}`);
     await waitForFeedReady(page);
     await expect(page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first()).toBeVisible();
 
@@ -171,16 +171,16 @@ test.describe('Notebook plane', () => {
     await movedRow.getByTestId('stream-feed-move').click();
     await page.getByTestId('stream-feed-move-notebook/trip-2027').click();
     await expect(page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' })).toHaveCount(0, { timeout: 15_000 });
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:trip-2027}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:trip-2027}')}`);
     await waitForFeedReady(page);
     await expect(page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first()).toBeVisible();
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:trip-2026}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:trip-2026}')}`);
     await waitForFeedReady(page);
     await expect(page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' })).toHaveCount(0);
 
     // Clone into the journal: Add-to-today copies the note onto today's
     // journal (the handler stays on-page; the journal page shows the clone).
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:trip-2027}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:trip-2027}')}`);
     await waitForFeedReady(page);
     const finalRow = page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first();
     await finalRow.getByTestId('stream-feed-add').click();
@@ -202,7 +202,7 @@ test.describe('Notebook plane', () => {
 
   test('editability follows notebook ownership', async ({ page }) => {
     // A user-owned note (the starter note in defaults) opens editable.
-    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
     await waitForFeedReady(page);
     const row = page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first();
     await row.getByTestId('stream-feed-open').click();
@@ -214,7 +214,7 @@ test.describe('Notebook plane', () => {
       title: 'Delivered Session',
       sourceId: 'collection:notebook-demo/feed-note',
     });
-    await page.goto('/notes/feed-note-ro');
+    await page.goto('/note/feed-note-ro');
     await waitForFeedReady(page);
     await expect(page.locator('.cm-content[contenteditable="false"]').first()).toBeVisible();
   });

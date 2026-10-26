@@ -68,6 +68,42 @@ describe('viewSettingsStorage — pure read/write/reset', () => {
     expect(readViewSettings('/sessions', 'result').layout).toBe('cards')
   })
 
+  it('migrates the retired notes-list /feeds and /collections keys to /notes', () => {
+    // First hop: the /feeds surface (notes list) is /notes' predecessor.
+    window.localStorage.setItem(
+      `${VIEW_SETTINGS_STORAGE_PREFIX}/feeds`,
+      JSON.stringify({ level: 'note', layout: 'rows', visibleFields: ['title'] }),
+    )
+    expect(readViewSettings('/notes', 'note').layout).toBe('rows')
+
+    // Second hop: an older /collections key surfaces only when /feeds is absent.
+    window.localStorage.setItem(
+      `${VIEW_SETTINGS_STORAGE_PREFIX}/collections`,
+      JSON.stringify({ level: 'note', layout: 'feed', visibleFields: ['title'] }),
+    )
+    const backend = new InMemoryBackend()
+    const store = new LocalStore(VIEW_SETTINGS_STORAGE_PREFIX, backend)
+    backend.setItem(`${VIEW_SETTINGS_STORAGE_PREFIX}/collections`, JSON.stringify({ level: 'note', layout: 'feed', visibleFields: ['title'] }))
+    expect(readViewSettings('/notes', 'note', store).layout).toBe('feed')
+  })
+
+  it('the new /feeds surface stores under /feeds@2 — legacy note settings never leak', () => {
+    // A user's old /feeds (notes list) rows layout must not shape the new
+    // feed-source list at the same public URL.
+    window.localStorage.setItem(
+      `${VIEW_SETTINGS_STORAGE_PREFIX}/feeds`,
+      JSON.stringify({ level: 'note', layout: 'rows', visibleFields: ['title'] }),
+    )
+    expect(readViewSettings('/feeds', 'note').layout).toBe('cards')
+
+    // Its own writes land on the versioned key; the legacy key stays intact
+    // for the /notes migration.
+    writeViewSettings('/feeds', { level: 'note', layout: 'feed', visibleFields: ['title'] })
+    expect(window.localStorage.getItem(`${VIEW_SETTINGS_STORAGE_PREFIX}/feeds@2`)).not.toBeNull()
+    expect(readViewSettings('/feeds', 'note').layout).toBe('feed')
+    expect(readViewSettings('/notes', 'note').layout).toBe('rows')
+  })
+
   it('persists groupBy across reload', () => {
     writeViewSettings('/journal', {
       level: 'note',

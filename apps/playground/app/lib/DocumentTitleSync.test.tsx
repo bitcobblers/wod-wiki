@@ -16,7 +16,7 @@ function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]} initialIndex={0}>
       <DocumentTitleSync />
-      <NavigateButton to="/journal/2026-01-01">Go Journal</NavigateButton>
+      <NavigateButton to="/day/2026-01-01">Go Day</NavigateButton>
       <NavigateButton to="/effort/push-up">Go Effort</NavigateButton>
       <NavigateButton to="/playground/abc">Go Playground</NavigateButton>
     </MemoryRouter>,
@@ -34,24 +34,43 @@ describe('DocumentTitleSync', () => {
     expect(document.title).toBe('Wod.Wiki')
   })
 
-  it('sets the base title for /journal deep detail routes (Journal is the legacy page)', () => {
-    renderAt('/journal/2026-05-12')
+  it('sets the base title for /journal deep detail routes', () => {
+    renderAt('/journal')
     expect(document.title).toBe('Wod.Wiki - Journal')
   })
 
-  it('sets the base title for /feeds deep detail routes', () => {
-    renderAt('/feeds/daily-wod')
-    expect(document.title).toBe('Wod.Wiki - Notes')
+  it('sets the base title for /day/:date routes — the title names the Day concept', () => {
+    renderAt('/day/2026-05-12')
+    expect(document.title).toBe('Wod.Wiki - Day')
   })
 
-  it('sets the base title for /collections deep detail routes', () => {
-    renderAt('/collections/cardio')
-    expect(document.title).toBe('Wod.Wiki - Notes')
+  it('sets the base title for /feed deep detail routes — the title names the Feed concept', () => {
+    renderAt('/feed/daily-wod')
+    expect(document.title).toBe('Wod.Wiki - Feed')
   })
 
-  it('derives rebranded stream titles from the profile registry', () => {
-    renderAt('/c/dan-john')
+  it('sets the base title for /notebook deep detail routes', () => {
+    renderAt('/notebook/cardio')
+    expect(document.title).toBe('Wod.Wiki - Notebooks')
+  })
+
+  it('sets the base title for /note deep detail routes', () => {
+    renderAt('/note/550e8400-e29b-41d4-a716-446655440000')
+    expect(document.title).toBe('Wod.Wiki - Note')
+  })
+
+  it('derives stream titles from the profile registry', () => {
+    renderAt('/notebooks')
+    expect(document.title).toBe('Wod.Wiki - Notebooks')
+
+    renderAt('/notes')
     expect(document.title).toBe('Wod.Wiki - Notes')
+
+    renderAt('/feeds')
+    expect(document.title).toBe('Wod.Wiki - Feeds')
+
+    renderAt('/pages')
+    expect(document.title).toBe('Wod.Wiki - Pages')
 
     renderAt('/sessions')
     expect(document.title).toBe('Wod.Wiki - Sessions')
@@ -65,7 +84,7 @@ describe('DocumentTitleSync', () => {
     renderAt('/dashboards')
     expect(document.title).toBe('Wod.Wiki - Dashboards')
 
-    renderAt('/d/strength-trends')
+    renderAt('/dashboard/strength-trends')
     expect(document.title).toBe('Wod.Wiki - Dashboards')
   })
 
@@ -74,14 +93,14 @@ describe('DocumentTitleSync', () => {
     expect(document.title).toBe('Wod.Wiki - Efforts')
   })
 
-  it('sets the base title for analytics routes', () => {
-    renderAt('/analytics')
-    expect(document.title).toBe('Wod.Wiki - Analytics')
+  it('sets the base title for the tags routes', () => {
+    renderAt('/tags')
+    expect(document.title).toBe('Wod.Wiki - Tags')
 
     cleanup()
     document.title = 'Test Setup Title'
-    renderAt('/analytics/dashboard')
-    expect(document.title).toBe('Wod.Wiki - Analytics')
+    renderAt('/t/domain/running')
+    expect(document.title).toBe('Wod.Wiki - Tags')
   })
 
   it('does not override the title for /effort/:slug', () => {
@@ -95,19 +114,19 @@ describe('DocumentTitleSync', () => {
   })
 
   it('updates title on navigation and leaves exempt routes unchanged', () => {
-    const { unmount: u1 } = renderAt('/catalogs')
+    const { unmount: u1 } = renderAt('/notebooks')
     expect(document.title).toBe('Wod.Wiki - Notebooks')
     u1()
 
-    const { unmount: u2 } = renderAt('/journal/2026-01-01')
-    expect(document.title).toBe('Wod.Wiki - Journal')
+    const { unmount: u2 } = renderAt('/day/2026-01-01')
+    expect(document.title).toBe('Wod.Wiki - Day')
     u2()
 
     const { unmount: u3 } = renderAt('/effort/push-up')
-    expect(document.title).toBe('Wod.Wiki - Journal')
+    expect(document.title).toBe('Wod.Wiki - Day')
     u3()
 
     renderAt('/playground/abc')
-    expect(document.title).toBe('Wod.Wiki - Journal')
+    expect(document.title).toBe('Wod.Wiki - Day')
   })
 })

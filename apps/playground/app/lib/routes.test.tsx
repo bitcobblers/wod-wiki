@@ -14,7 +14,7 @@ mock.module('react-router-dom', () => ({
   useNavigate: () => (to: string, options?: { replace?: boolean }) => {
     navigateCalls.push({ to, options })
   },
-  Navigate: ({ to, replace }: { to: string; replace?: boolean }) => {
+  Navigate: ({ to, replace }: { to: string | { pathname: string; search?: string }; replace?: boolean }) => {
     lastNavigateTo = typeof to === 'string' ? to : `${to.pathname}${to.search ?? ''}`
     lastNavigateReplace = replace
     return <div data-testid="navigate" />
@@ -24,31 +24,32 @@ mock.module('react-router-dom', () => ({
 // ── Import pure functions first (no react-router-dom dependency) ──────────
 import {
   ROUTE_PATTERNS,
-  resolveRedirect,
-  ROUTE_REDIRECTS,
   playgroundPath,
-  journalEntryPath,
-  noteByIdPath,
-  journalEntryAutoStartPath,
-  workoutPath,
-  collectionPath,
-  collectionDatePath,
+  dayPath,
+  notePath,
+  dayAutoStartPath,
+  notebookItemPath,
+  notebookPath,
+  notebookDatePath,
   sessionsPath,
   sessionDetailPath,
   sessionDatePath,
   pagePath,
-  dashboardPath,
-  dashboardSlugPath,
+  dashboardsPath,
+  dashboardViewPath,
   playgroundsPath,
   runPath,
   settingsPath,
   buildPlaygroundLoadUrl,
-  feedDetailPath,
+  feedPath,
   feedItemPath,
+  matchFeedItem,
+  matchFeedDetail,
   isPlaygroundNotePath,
-  isJournalEntryPath,
+  isDayPath,
   isTrackerPath,
-  isCollectionWorkoutPath,
+  isNotebookItemPath,
+  isEffortsPath,
   effortPath,
   equipmentPath,
   isEquipmentPath,
@@ -60,6 +61,7 @@ let redirectComponents: typeof import('./routeRedirects') | null = null
 
 beforeEach(async () => {
   mockParams = {}
+  mockLocation = { pathname: '/', search: '' }
   lastNavigateTo = null
   lastNavigateReplace = undefined
   navigateCalls.length = 0
@@ -71,123 +73,30 @@ beforeEach(async () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 1. Redirect matrix (ROUTE_REDIRECTS + resolveRedirect)
+// 1. Retired paths (ticket 09 — no redirect matrix, no aliases)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('resolveRedirect', () => {
-  it('redirects /note/playground/:name → /playground/:name', () => {
-    expect(resolveRedirect('/note/playground/hello-world')).toBe(
-      '/playground/hello-world',
-    )
+describe('retired legacy paths', () => {
+  it('no redirect matrix exists in the route module', () => {
+    const routesModule = require('./routes') as Record<string, unknown>
+    expect(routesModule.resolveRedirect).toBeUndefined()
+    expect(routesModule.ROUTE_REDIRECTS).toBeUndefined()
   })
 
-  it('redirects /workout/:category/:name → /c/:category/:name', () => {
-    expect(resolveRedirect('/workout/dan-john/simple-strength')).toBe(
-      '/c/dan-john/simple-strength',
-    )
-  })
-
-  it('redirects /getting-started → /', () => {
-    expect(resolveRedirect('/getting-started')).toBe('/')
-  })
-
-  it('redirects /chapters/basics → /guide/start', () => {
-    expect(resolveRedirect('/chapters/basics')).toBe('/guide/start')
-  })
-
-  it('redirects /chapters/sequences → /guide/start', () => {
-    expect(resolveRedirect('/chapters/sequences')).toBe('/guide/start')
-  })
-
-  it('redirects /chapters/protocols → /guide/protocols', () => {
-    expect(resolveRedirect('/chapters/protocols')).toBe('/guide/protocols')
-  })
-
-  it('redirects /challenge → /', () => {
-    expect(resolveRedirect('/challenge')).toBe('/')
-  })
-
-  it('returns null for the retired /syntax namespace (guide lives at /guide/*)', () => {
-    expect(resolveRedirect('/syntax')).toBeNull()
-    expect(resolveRedirect('/syntax/basics')).toBeNull()
-  })
-
-  it('redirects /note/:category/:name → /c/:category/:name', () => {
-    expect(resolveRedirect('/note/dan-john/simple-strength')).toBe('/c/dan-john/simple-strength')
-    // the playground alias keeps priority
-    expect(resolveRedirect('/note/playground/my-note')).toBe('/playground/my-note')
-  })
-
-  it('redirects /tracker/:runtimeId → /run/:runtimeId', () => {
-    expect(resolveRedirect('/tracker/abc-123')).toBe('/run/abc-123')
-  })
-
-  it('redirects /plan → /journal?mode=plan (unified journal list)', () => {
-    expect(resolveRedirect('/plan')).toBe('/journal?mode=plan')
-    // /plan?zip=… callers (e.g. feed → plan pre-fill) preserve caller intent
-    // via the PlanRedirect component, not the matrix entry.
-  })
-
-  it('returns null for already-canonical paths', () => {
-    expect(resolveRedirect('/playground/my-note')).toBeNull()
-    expect(resolveRedirect('/journal/2026-05-19')).toBeNull()
-    expect(resolveRedirect('/collections/dan-john/simple-strength')).toBeNull()
-    expect(resolveRedirect('/guide/getting-started')).toBeNull()
-    expect(resolveRedirect('/guide/start')).toBeNull()
-    expect(resolveRedirect('/run/abc-123')).toBeNull()
-    expect(resolveRedirect('/review/abc-123')).toBeNull()
-  })
-
-  it('returns null for unknown paths', () => {
-    expect(resolveRedirect('/unknown-path')).toBeNull()
-    expect(resolveRedirect('/foo/bar/baz')).toBeNull()
-    expect(resolveRedirect('')).toBeNull()
-  })
-
-  it('handles URL-encoded characters in legacy paths', () => {
-    expect(resolveRedirect('/note/playground/hello%20world')).toBe(
-      '/playground/hello%20world',
-    )
-    expect(resolveRedirect('/workout/cat%201/name%202')).toBe(
-      '/c/cat%201/name%202',
-    )
-  })
-
-  it('redirects /feed to /feeds', () => {
-    expect(resolveRedirect('/feed')).toBe('/feeds')
-    expect(resolveRedirect('/feed/')).toBe('/feeds')
-  })
-
-  it('does not partially match substrings', () => {
-    expect(resolveRedirect('/prefix/getting-started')).toBeNull()
-    expect(resolveRedirect('/tracker')).toBeNull()
-    expect(resolveRedirect('/note/playground')).toBeNull()
-  })
-})
-
-describe('ROUTE_REDIRECTS structure', () => {
-  it('every rule has a match function and a to function', () => {
-    for (const rule of ROUTE_REDIRECTS) {
-      expect(typeof rule.match).toBe('function')
-      expect(typeof rule.to).toBe('function')
+  it('the route table carries no retired patterns', () => {
+    const patterns = Object.values(ROUTE_PATTERNS) as string[]
+    for (const retired of [
+      '/catalogs', '/collections', '/c/:slug', '/p/*', '/e/:slug', '/d/:slug',
+      '/notes/:noteId', '/note/:category/:name', '/journal/:identity',
+      '/feed', '/dashboard', '/analytics', '/analytics/explorer',
+    ]) {
+      expect(patterns).not.toContain(retired)
     }
-  })
-
-  it('match returns false for non-matching paths', () => {
-    for (const rule of ROUTE_REDIRECTS) {
-      expect(rule.match('/totally-unrelated-path')).toBe(false)
-    }
-  })
-
-  it('match returns a params object for matching paths', () => {
-    const params = ROUTE_REDIRECTS[0]!.match('/note/playground/test')
-    expect(params).not.toBe(false)
-    expect(params).toEqual({ name: 'test' })
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 2. Path builders
+// 2. Path builders — one canonical builder per concept
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('path builders', () => {
@@ -195,34 +104,32 @@ describe('path builders', () => {
     expect(playgroundPath('hello world')).toBe('/playground/hello%20world')
   })
 
-  it('journalEntryPath encodes the id', () => {
-    expect(journalEntryPath('2026-05-19')).toBe('/journal/2026-05-19')
+  it('dayPath builds the canonical day route', () => {
+    expect(dayPath('2026-05-19')).toBe('/day/2026-05-19')
   })
 
-  it('journalNotePath is retired — note selection opens the canonical editor', () => {
-    // journalNotePath was removed; /journal/:date?note= and /journal/:date/:noteId
-    // redirect to the canonical single-note editor.
-    expect(noteByIdPath('abc-123')).toBe('/notes/abc-123')
+  it('notePath builds the canonical single-note route', () => {
+    expect(notePath('abc-123')).toBe('/note/abc-123')
   })
 
-  it('journalEntryAutoStartPath appends query param', () => {
-    expect(journalEntryAutoStartPath('2026-05-19', 'run-42')).toBe(
-      '/journal/2026-05-19?autoStart=run-42',
+  it('dayAutoStartPath appends the autoStart query param', () => {
+    expect(dayAutoStartPath('2026-05-19', 'run-42')).toBe(
+      '/day/2026-05-19?autoStart=run-42',
     )
   })
 
-  it('workoutPath encodes collection and page slug under the /c prefix', () => {
-    expect(workoutPath('dan john', 'simple strength')).toBe(
-      '/c/dan%20john/simple%20strength',
+  it('notebookItemPath addresses a notebook item', () => {
+    expect(notebookItemPath('dan john', 'simple strength')).toBe(
+      '/notebook/dan%20john/simple%20strength',
     )
   })
 
-  it('collectionPath lands the collection under the /c prefix', () => {
-    expect(collectionPath('dan-john')).toBe('/c/dan-john')
+  it('notebookPath lands the notebook landing', () => {
+    expect(notebookPath('dan-john')).toBe('/notebook/dan-john')
   })
 
-  it('collectionDatePath scopes a collection to a date under the /c prefix', () => {
-    expect(collectionDatePath('dan-john', '2026-09-17')).toBe('/c/dan-john/2026-09-17')
+  it('notebookDatePath scopes a notebook to a date', () => {
+    expect(notebookDatePath('dan-john', '2026-09-17')).toBe('/notebook/dan-john/2026-09-17')
   })
 
   it('sessionsPath, sessionDetailPath and sessionDatePath build the sessions family', () => {
@@ -232,21 +139,21 @@ describe('path builders', () => {
   })
 
   it('pagePath builds the generic page render route', () => {
-    expect(pagePath('syntax/basics')).toBe('/p/syntax/basics')
+    expect(pagePath('guide-start')).toBe('/page/guide-start')
   })
 
-  it('dashboardPath lands the dashboards list and dashboardSlugPath the /d view', () => {
-    expect(dashboardPath()).toBe('/dashboards')
-    expect(dashboardSlugPath('strength-trends')).toBe('/d/strength-trends')
+  it('dashboardsPath lands the dashboards list and dashboardViewPath one dashboard', () => {
+    expect(dashboardsPath()).toBe('/dashboards')
+    expect(dashboardViewPath('strength-trends')).toBe('/dashboard/strength-trends')
   })
 
   it('playgroundsPath builds the playground list route', () => {
     expect(playgroundsPath()).toBe('/playgrounds')
   })
 
-  it('effortPath builds under the /e prefix, preserving modifiers', () => {
-    expect(effortPath('grace')).toBe('/e/grace')
-    expect(effortPath('grace', { weight: '60' })).toBe('/e/grace?weight=60')
+  it('effortPath builds under the /effort prefix, preserving modifiers', () => {
+    expect(effortPath('grace')).toBe('/effort/grace')
+    expect(effortPath('grace', { weight: '60' })).toBe('/effort/grace?weight=60')
   })
 
   it('analyticsExplorerPath points deep links at /dashboards', () => {
@@ -267,18 +174,14 @@ describe('path builders', () => {
     expect(buildPlaygroundLoadUrl({ zip: 'abc 123' })).toBe('/load?zip=abc%20123')
   })
 
-  it('feedDetailPath encodes slug', () => {
-    expect(feedDetailPath('my feed')).toBe('/feeds/my%20feed')
+  it('feedPath encodes slug', () => {
+    expect(feedPath('my feed')).toBe('/feed/my%20feed')
   })
 
   it('feedItemPath encodes all three segments', () => {
     expect(feedItemPath('my feed', '2026-05-19', 'item 1')).toBe(
-      '/feeds/my%20feed/2026-05-19/item%201',
+      '/feed/my%20feed/2026-05-19/item%201',
     )
-  })
-
-  it('collectionPath lands the collection under the /c prefix', () => {
-    expect(collectionPath('dan-john')).toBe('/c/dan-john')
   })
 })
 
@@ -287,20 +190,20 @@ describe('path builders', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('route family helpers', () => {
-  it('isPlaygroundNotePath detects canonical and alias paths', () => {
+  it('isPlaygroundNotePath detects the playground note family', () => {
     expect(isPlaygroundNotePath('/playground/my-note')).toBe(true)
-    expect(isPlaygroundNotePath('/note/playground/my-note')).toBe(true)
+    expect(isPlaygroundNotePath('/note/playground/my-note')).toBe(false)
     expect(isPlaygroundNotePath('/playground')).toBe(false)
-    expect(isPlaygroundNotePath('/journal/my-note')).toBe(false)
+    expect(isPlaygroundNotePath('/day/2026-05-19')).toBe(false)
     expect(isPlaygroundNotePath('/')).toBe(false)
   })
 
-  it('isJournalEntryPath detects /journal/:id but not /journal index', () => {
-    expect(isJournalEntryPath('/journal/2026-05-19')).toBe(true)
-    expect(isJournalEntryPath('/journal/abc')).toBe(true)
-    expect(isJournalEntryPath('/journal')).toBe(false)
-  expect(isJournalEntryPath('/journal/')).toBe(false)
-    expect(isJournalEntryPath('/playground/note')).toBe(false)
+  it('isDayPath detects /day/:date', () => {
+    expect(isDayPath('/day/2026-05-19')).toBe(true)
+    expect(isDayPath('/day/abc')).toBe(true)
+    expect(isDayPath('/day')).toBe(false)
+    expect(isDayPath('/journal')).toBe(false)
+    expect(isDayPath('/journal/2026-05-19')).toBe(false)
   })
 
   it('isTrackerPath detects /tracker and /run', () => {
@@ -310,75 +213,36 @@ describe('route family helpers', () => {
     expect(isTrackerPath('/run')).toBe(false)
   })
 
-  it('isCollectionWorkoutPath detects /collections/:c/:w', () => {
-    expect(isCollectionWorkoutPath('/collections/dan-john/simple')).toBe(true)
-    expect(isCollectionWorkoutPath('/collections/dan-john')).toBe(false)
-    expect(isCollectionWorkoutPath('/collections')).toBe(false)
-    expect(isCollectionWorkoutPath('/collections/a/')).toBe(false)
-    expect(isCollectionWorkoutPath('/playground/note')).toBe(false)
+  it('isNotebookItemPath detects /notebook/:slug/:item', () => {
+    expect(isNotebookItemPath('/notebook/dan-john/simple')).toBe(true)
+    expect(isNotebookItemPath('/notebook/dan-john')).toBe(false)
+    expect(isNotebookItemPath('/notebooks')).toBe(false)
+    expect(isNotebookItemPath('/notebook/a/')).toBe(false)
+    expect(isNotebookItemPath('/playground/note')).toBe(false)
+  })
+
+  it('isEffortsPath detects the efforts family on the canonical prefix only', () => {
+    expect(isEffortsPath('/efforts')).toBe(true)
+    expect(isEffortsPath('/effort/grace')).toBe(true)
+    expect(isEffortsPath('/e/grace')).toBe(false)
+  })
+
+  it('matchFeedItem captures the three /feed segments', () => {
+    expect(matchFeedItem('/feed/my-feed/2026-05-19/item-1')).toEqual(['my-feed', '2026-05-19', 'item-1'])
+    expect(matchFeedItem('/feed/my-feed')).toBeNull()
+    expect(matchFeedItem('/feeds/my-feed/2026-05-19/item-1')).toBeNull()
+  })
+
+  it('matchFeedDetail captures the /feed slug but not feed items', () => {
+    expect(matchFeedDetail('/feed/my-feed')).toBe('my-feed')
+    expect(matchFeedDetail('/feed/my-feed/2026-05-19/item-1')).toBeNull()
+    expect(matchFeedDetail('/feeds')).toBeNull()
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 4. Redirect components
+// 4. Redirect components (the surviving non-matrix redirects)
 // ═══════════════════════════════════════════════════════════════════════════
-
-describe('NotePlaygroundRedirect', () => {
-  it('renders Navigate to /playground/:name with replace', async () => {
-    mockParams = { name: 'my-playground' }
-    const { NotePlaygroundRedirect } = redirectComponents!
-    render(<NotePlaygroundRedirect />)
-
-    expect(lastNavigateTo).toBe('/playground/my-playground')
-    expect(lastNavigateReplace).toBe(true)
-    expect(screen.getByTestId('navigate')).toBeDefined()
-  })
-
-  it('handles encoded names', async () => {
-    mockParams = { name: 'hello world' }
-    const { NotePlaygroundRedirect } = redirectComponents!
-    render(<NotePlaygroundRedirect />)
-
-    expect(lastNavigateTo).toBe('/playground/hello%20world')
-  })
-})
-
-describe('WorkoutRedirect', () => {
-  it('renders Navigate to /c/:category/:name with replace', async () => {
-    mockParams = { category: 'dan-john', name: 'simple-strength' }
-    const { WorkoutRedirect } = redirectComponents!
-    render(<WorkoutRedirect />)
-
-    expect(lastNavigateTo).toBe('/c/dan-john/simple-strength')
-    expect(lastNavigateReplace).toBe(true)
-  })
-})
-
-describe('CollectionItemRedirect', () => {
-  it('routes a page-slug target to the /c collection editor', async () => {
-    mockParams = { slug: 'dan-john', target: 'simple-strength' }
-    const { CollectionItemRedirect } = redirectComponents!
-    render(<CollectionItemRedirect />)
-
-    expect(lastNavigateTo).toBe('/c/dan-john/simple-strength')
-  })
-
-  it('routes a note-UUID target to the canonical single-note editor', async () => {
-    mockParams = { slug: 'dan-john', target: '550e8400-e29b-41d4-a716-446655440000' }
-    const { CollectionItemRedirect } = redirectComponents!
-    render(<CollectionItemRedirect />)
-
-    expect(lastNavigateTo).toBe('/notes/550e8400-e29b-41d4-a716-446655440000')
-  })
-
-  it('routes a slug-only landing to /c/:slug', async () => {
-    mockParams = { slug: 'dan-john' }
-    const { CollectionItemRedirect } = redirectComponents!
-    render(<CollectionItemRedirect />)
-
-    expect(lastNavigateTo).toBe('/c/dan-john')
-  })
-})
 
 describe('TrackerRedirect', () => {
   it('renders Navigate to /run/:runtimeId with replace', async () => {
@@ -391,12 +255,34 @@ describe('TrackerRedirect', () => {
   })
 })
 
-describe('GettingStartedRedirect', () => {
-  it('renders Navigate to / with replace', async () => {
-    const { GettingStartedRedirect } = redirectComponents!
-    render(<GettingStartedRedirect />)
+describe('SegmentsRedirect', () => {
+  it('renders Navigate to /sessions with the segments query pre-filled', async () => {
+    const { SegmentsRedirect } = redirectComponents!
+    render(<SegmentsRedirect />)
 
-    expect(lastNavigateTo).toBe('/')
+    expect(lastNavigateTo).toBe(`/sessions?q=${encodeURIComponent(':segment{} last 8w')}`)
+    expect(lastNavigateReplace).toBe(true)
+  })
+})
+
+describe('PlanRedirect', () => {
+  it('renders Navigate to /journal?mode=plan', async () => {
+    mockLocation = { pathname: '/plan', search: '' }
+    const { PlanRedirect } = redirectComponents!
+    render(<PlanRedirect />)
+
+    expect(lastNavigateTo).toBe('/journal?mode=plan')
+    expect(lastNavigateReplace).toBe(true)
+  })
+})
+
+describe('ReviewRedirect', () => {
+  it('renders Navigate to /results/:resultId when a result scope is present', async () => {
+    mockParams = { noteId: 'n1', sectionId: 's1', resultId: 'res-9' }
+    const { ReviewRedirect } = redirectComponents!
+    render(<ReviewRedirect />)
+
+    expect(lastNavigateTo).toBe('/results/res-9')
     expect(lastNavigateReplace).toBe(true)
   })
 })
@@ -433,36 +319,42 @@ describe('NotFoundPage', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('ROUTE_PATTERNS', () => {
-  it('declares all canonical route families', () => {
+  it('declares all canonical route families — one library list + one direct route per concept', () => {
+    // Library lists (one segment).
+    expect(ROUTE_PATTERNS.notebooks).toBe('/notebooks')
+    expect(ROUTE_PATTERNS.notes).toBe('/notes')
+    expect(ROUTE_PATTERNS.journal).toBe('/journal')
+    expect(ROUTE_PATTERNS.pages).toBe('/pages')
+    expect(ROUTE_PATTERNS.tags).toBe('/tags')
+    expect(ROUTE_PATTERNS.feeds).toBe('/feeds')
+    expect(ROUTE_PATTERNS.efforts).toBe('/efforts')
+    expect(ROUTE_PATTERNS.equipment).toBe('/equipment')
+    expect(ROUTE_PATTERNS.dashboards).toBe('/dashboards')
+    // Direct routes (deeper).
+    expect(ROUTE_PATTERNS.notebook).toBe('/notebook/:slug')
+    expect(ROUTE_PATTERNS.note).toBe('/note/:noteId')
+    expect(ROUTE_PATTERNS.day).toBe('/day/:date')
+    expect(ROUTE_PATTERNS.page).toBe('/page/:slug')
+    expect(ROUTE_PATTERNS.tag).toBe('/t/:type/:tag')
+    expect(ROUTE_PATTERNS.feed).toBe('/feed/:slug')
+    expect(ROUTE_PATTERNS.feedItem).toBe('/feed/:slug/:feedDate/:feedItem')
+    expect(ROUTE_PATTERNS.effort).toBe('/effort/:slug')
+    expect(ROUTE_PATTERNS.equipmentSlug).toBe('/equipment/:slug')
+    expect(ROUTE_PATTERNS.dashboardView).toBe('/dashboard/:slug')
+    // Untouched families.
     expect(ROUTE_PATTERNS.home).toBe('/')
     expect(ROUTE_PATTERNS.playgroundRoot).toBe('/playground')
     expect(ROUTE_PATTERNS.playground).toBe('/playground/:id')
-    expect(ROUTE_PATTERNS.notePlaygroundAlias).toBe('/note/playground/:name')
-    expect(ROUTE_PATTERNS.note).toBe('/note/:category/:name')
-    expect(ROUTE_PATTERNS.journal).toBe('/journal')
-    expect(ROUTE_PATTERNS.journalEntry).toBe('/journal/:identity')
-    expect(ROUTE_PATTERNS.journalNote).toBe('/journal/:date/:uuid')
     expect(ROUTE_PATTERNS.plan).toBe('/plan')
-    expect(ROUTE_PATTERNS.feeds).toBe('/feeds')
-    expect(ROUTE_PATTERNS.feed).toBe('/feed')
-    expect(ROUTE_PATTERNS.feedDetail).toBe('/feeds/:feedSlug')
-    expect(ROUTE_PATTERNS.feedItem).toBe('/feeds/:feedSlug/:feedDate/:feedItem')
-    expect(ROUTE_PATTERNS.catalogs).toBe('/catalogs')
-    expect(ROUTE_PATTERNS.collections).toBe('/collections')
-    expect(ROUTE_PATTERNS.collectionDetail).toBe('/collections/:slug')
-    expect(ROUTE_PATTERNS.collectionWorkout).toBe('/collections/:collection/:workout')
     expect(ROUTE_PATTERNS.tracker).toBe('/tracker/:runtimeId')
     expect(ROUTE_PATTERNS.run).toBe('/run/:runtimeId')
     expect(ROUTE_PATTERNS.load).toBe('/load')
     expect(ROUTE_PATTERNS.loadJournal).toBe('/load/journal')
     expect(ROUTE_PATTERNS.loadJournalDate).toBe('/load/journal/:date')
     // Equipment L1 family — list stream + detail/create note pages.
-    expect(ROUTE_PATTERNS.equipment).toBe('/equipment')
-    expect(ROUTE_PATTERNS.equipmentSlug).toBe('/equipment/:slug')
     expect(equipmentPath('dumbbell')).toBe('/equipment/dumbbell')
     expect(isEquipmentPath('/equipment')).toBe(true)
     expect(isEquipmentPath('/equipment/dumbbell')).toBe(true)
     expect(isEquipmentPath('/efforts')).toBe(false)
-    expect(isEquipmentPath('/e/dumbbell')).toBe(false)
   })
 })

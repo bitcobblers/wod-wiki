@@ -82,9 +82,9 @@ describe('buildNotebookCatalog', () => {
     expect(feed.installed).toBe(false);
     expect(feed.itemCount).toBe(0);
     expect(feed.description).toBe('Weekly CrossFit programming.');
-    expect(feed.href).toBe('/feeds/crossfit-programming');
+    expect(feed.href).toBe('/feed/crossfit-programming');
     const collection = catalog.find(n => n.slug === 'crossfit-girls')!;
-    expect(collection.href).toBe('/collections/crossfit-girls');
+    expect(collection.href).toBe('/notebook/crossfit-girls');
   });
 
   it('enriches installed packages with local stats, categories, cover and dates', () => {
@@ -170,7 +170,7 @@ describe('buildFeedCatalog', () => {
   it('builds one card per seed, holding its notebooks and local totals', () => {
     const catalog = buildFeedCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'crossfit-programming'), FEED_SOURCES);
     expect(catalog.map(card => card.feedId)).toEqual(['seed-crossfit']);
-    expect(catalog[0]).toMatchObject({ label: 'CrossFit', slug: 'seed-crossfit', itemCount: 2, href: '/catalogs' });
+    expect(catalog[0]).toMatchObject({ label: 'CrossFit', slug: 'seed-crossfit', itemCount: 2, href: '/notebooks' });
     expect(catalog[0]!.notebooks.map(n => n.packageId))
       .toEqual(['community-crossfit-programming', 'community-crossfit-girls']);
     expect(catalog[0]!.latestDate).toBe('2026-10-05');

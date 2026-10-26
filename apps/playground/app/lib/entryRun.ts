@@ -19,7 +19,7 @@ import { v7 as uuidv7 } from 'uuid'
 import type { NavigateFunction } from 'react-router-dom'
 import type { ScriptBlock } from '@/components/Editor/types'
 import { pendingRuntimes } from '../runtimeStore'
-import { runPath, journalEntryAutoStartPath } from './routes'
+import { runPath, dayAutoStartPath } from './routes'
 import { journalNotes } from '../services/journalNotes'
 import { createJournalNoteFromWorkout } from '../services/journalWorkout'
 import { extractScriptBlocks } from '../services/paletteDataSources'
@@ -100,5 +100,5 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction): P
   const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
   if (!occurrence) throw new Error('The saved journal workout is unavailable.');
   pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id })
-  navigate(journalEntryAutoStartPath(journalNote.journalDate ?? '', runtimeId))
+  navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId))
 }

@@ -63,7 +63,7 @@ export const NotebookList: React.FC<NotebookListProps> = ({ refreshKey, onChange
                             <span aria-hidden className="text-base">{notebook.icon}</span>
                             <div className="min-w-0 flex-1">
                                 <Link
-                                    to={`/c/${encodeURIComponent(notebook.slug)}`}
+                                    to={`/notebook/${encodeURIComponent(notebook.slug)}`}
                                     className="text-sm font-medium text-foreground hover:text-primary truncate block"
                                 >
                                     {notebook.name}

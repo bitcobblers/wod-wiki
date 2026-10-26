@@ -8,7 +8,7 @@ import { waitForFeedReady } from '../helpers/feedReadiness';
  * on mount and toggles the class on documentElement).
  */
 
-const ROUTES = ['/', '/journal', '/catalogs', '/efforts', '/analytics/explorer', '/playground/hello-world'];
+const ROUTES = ['/', '/journal', '/notebooks', '/efforts', '/dashboards', '/playground/hello-world'];
 
 for (const route of ROUTES) {
   test(`dark theme applies on ${route}`, async ({ page }) => {

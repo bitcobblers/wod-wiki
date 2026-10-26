@@ -15,7 +15,7 @@ import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentPro
 import { storageService } from '@/services/storage'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { refreshPageSources } from '@/services/queryService'
-import { journalDatePath, noteByIdPath, pagePath, runPath } from '../lib/routes'
+import { dayPath, notePath, pagePath, runPath } from '../lib/routes'
 import { notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable } from '@bitcobblers/wod-wiki-core'
 import { NotePlacementDialog, type NotePlacementMode } from '../components/organisms/journal/NotePlacementDialog'
@@ -56,7 +56,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const committedRevisionRef = useRef(0);
   const draftRef = useRef<EditorIdentitySnapshot | null>(null);
   const flushRef = useRef<() => Promise<void>>(async () => {});
-  const isReadOnly = location.pathname.startsWith('/p/')
+  const isReadOnly = location.pathname.startsWith('/page/')
     || (entry !== null && !isNoteEditable(entry, notebookOriginOfItem(entry)))
   const [saveError, setSaveError] = useState<{ noteId: string; message: string } | null>(null)
   const [placement, setPlacement] = useState<NotePlacementMode | null>(null)
@@ -162,7 +162,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
         const runtimeId = uuidv7();
         const captured = await captureRun({ noteId: entry.id, rawContent: snapshot.rawContent, blocks: snapshot.blocks, expectedSourceRevision: committedRevisionRef.current }, block, runtimeId);
         committedRevisionRef.current = captured.note.sourceRevision;
-        pendingRuntimes.set(runtimeId, { block: captured.block, noteId: entry.id, captured, returnTo: noteByIdPath(entry.id) });
+        pendingRuntimes.set(runtimeId, { block: captured.block, noteId: entry.id, captured, returnTo: notePath(entry.id) });
         navigate(runPath(runtimeId));
       } catch (error) {
         setSaveError({ noteId, message: `Workout not started. ${error instanceof Error ? error.message : String(error)} Your draft is kept.` });
@@ -251,7 +251,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           type="button"
           className={actionPill}
           onClick={handleCopyLink}
-          title={noteByIdPath(entry.id)}
+          title={notePath(entry.id)}
           aria-label="Copy link"
         >
           {copied ? <Check className="size-3.5 text-emerald-500" aria-hidden="true" /> : <Link2 className="size-3.5" aria-hidden="true" />}
@@ -278,7 +278,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
               {((entry.journalDate && entry.journalDate !== entry.title) || entry.slug || entry.sourceId) && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   {entry.journalDate && entry.journalDate !== entry.title && (
-                    <Link to={journalDatePath(entry.journalDate)} className="underline-offset-2 hover:underline">
+                    <Link to={dayPath(entry.journalDate)} className="underline-offset-2 hover:underline">
                       {entry.journalDate}
                     </Link>
                   )}
@@ -291,7 +291,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                     <span>
                       Cloned from{' '}
                       {sourceEntry ? (
-                        <Link to={noteByIdPath(sourceEntry.id)} className="underline-offset-2 hover:underline">
+                        <Link to={notePath(sourceEntry.id)} className="underline-offset-2 hover:underline">
                           {sourceEntry.title || sourceEntry.id}
                         </Link>
                       ) : (
@@ -367,7 +367,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   : prev,
               )
             }
-            onCloned={(created) => navigate(`${noteByIdPath(created.id)}?edit=1`)}
+            onCloned={(created) => navigate(`${notePath(created.id)}?edit=1`)}
           />
         )}
       </WorkbenchSessionProvider>

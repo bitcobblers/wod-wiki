@@ -14,7 +14,7 @@ export class EffortsPage {
   }
 
   async gotoDetail(slug: string) {
-    await this.page.goto(`/e/${encodeURIComponent(slug)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await this.page.goto(`/effort/${encodeURIComponent(slug)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(this.page);
     await this.waitForDetailLoaded();
   }
@@ -149,7 +149,7 @@ export class EffortsPage {
 
   async clickEffortRow(slug: string) {
     await this.effortRow(slug).click();
-    await this.page.waitForURL(/\/e\//, { timeout: 10_000 });
+    await this.page.waitForURL(/\/effort\//, { timeout: 10_000 });
   }
 
   /** Replace the catalog WQL query in the header composer and apply it. */

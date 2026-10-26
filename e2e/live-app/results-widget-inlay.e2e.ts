@@ -5,7 +5,7 @@ import { waitForFeedReady } from '../helpers/feedReadiness';
 
 const ROUTES = {
   journal: {
-    path: '/journal/2099-09-01',
+    path: '/day/2099-09-01',
     noteId: 'journal/2099-09-01',
     title: 'Journal Result Widget Regression',
     screenshot: 'e2e/screenshots/results-widget-journal-after-reload.png',

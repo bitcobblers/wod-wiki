@@ -21,29 +21,29 @@ import { noteRefToPath } from '../../lib/noteIdentity'
 import { useNav } from '../../nav/NavContext'
 import type { MenuSpec } from '../../nav/menuModel'
 import {
-  collectionPath,
+  notebookPath,
   effortPath,
   effortsPath,
   equipmentPath,
-  feedDetailPath,
-  journalDatePath,
-  noteByIdPath,
+  feedPath,
+  dayPath,
+  notePath,
   pagePath,
   playgroundsPath,
   ROUTE_PATTERNS,
-  workoutPath,
+  notebookItemPath,
 } from '../../lib/routes'
 import { playgroundRouteName } from '../../lib/entryMapper'
 
 /**
  * Routable path for a STORED note id. Composite ids keep their family route
- * (cat/name → /c/…, effort/<slug> → /e/…, journal/<date> → /journal/…);
+ * (cat/name → /notebook/…, effort/<slug> → /effort/…, journal/<date> → /day/…);
  * bare ids (UUIDs — journal copies, V8 playground notes) have no family
- * route and open in the canonical editor /notes/:id, never the `/` fallback.
+ * route and open in the canonical editor /note/:id, never the `/` fallback.
  */
 export function noteLinkPath(noteId: string): string {
   const ref = parseNoteId(noteId)
-  if (ref.kind === 'workout' && !ref.category) return noteByIdPath(noteId)
+  if (ref.kind === 'workout' && !ref.category) return notePath(noteId)
   return noteRefToPath(ref)
 }
 
@@ -93,7 +93,7 @@ export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceI
     const date = entry.journalDate ?? (ref.kind === 'journal' ? ref.id : undefined)
     return {
       zone: 'journal',
-      up: date ? { id: date, title: 'Journal', to: journalDatePath(date) } : null,
+      up: date ? { id: date, title: 'Journal', to: dayPath(date) } : null,
       stamps: [id],
     }
   }
@@ -127,21 +127,21 @@ export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceI
       const [, feedSlug, feedDate, feedItem] = id.split('/')
       return {
         zone: 'feeds',
-        up: feedSlug ? { id: feedSlug, title: feedSlug, to: feedDetailPath(feedSlug) } : null,
-        stamps: feedSlug && feedDate && feedItem ? [`/feeds/${feedSlug}/${feedDate}/${feedItem}`] : [],
+        up: feedSlug ? { id: feedSlug, title: feedSlug, to: feedPath(feedSlug) } : null,
+        stamps: feedSlug && feedDate && feedItem ? [`/feed/${feedSlug}/${feedDate}/${feedItem}`] : [],
       }
     }
     if (ref.category) {
       return {
         zone: 'feeds',
-        up: { id: ref.category, title: ref.category, to: collectionPath(ref.category) },
-        stamps: [workoutPath(ref.category, ref.id)],
+        up: { id: ref.category, title: ref.category, to: notebookPath(ref.category) },
+        stamps: [notebookItemPath(ref.category, ref.id)],
       }
     }
   }
   if (entry.type === 'page' && (entry.pageId ?? entry.slug)) {
     const slug = entry.pageId ?? entry.slug!
-    return { zone: null, up: { id: slug, title: `/p/${slug}`, to: pagePath(slug) }, stamps: [] }
+    return { zone: null, up: { id: slug, title: `/page/${slug}`, to: pagePath(slug) }, stamps: [] }
   }
   return { zone: null, up: null, stamps: [] }
 }

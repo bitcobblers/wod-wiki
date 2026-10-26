@@ -10,7 +10,7 @@ import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer';
 import { useSearchParams, Link, Navigate, useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { v7 as uuidv7 } from 'uuid';
-import { journalDatePath, noteByIdPath, runPath } from '../lib/routes';
+import { dayPath, notePath, runPath } from '../lib/routes';
 import { formatDateKey } from '../services/dateUtils';
 import { CreateJournalNoteDialog } from '../components/organisms/journal/CreateJournalNoteDialog';
 import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes, takeParkedRun } from '../runtimeStore';
@@ -223,7 +223,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       if (!start) throw new Error('The saved note editor is unavailable.');
       const runtimeId = uuidv7();
       const captured = await start(block, runtimeId);
-      pendingRuntimes.set(runtimeId, { noteId, block: captured.block, captured, returnTo: journalDatePath(journalDate) });
+      pendingRuntimes.set(runtimeId, { noteId, block: captured.block, captured, returnTo: dayPath(journalDate) });
       navigate(runPath(runtimeId));
     } catch (error) { setRunError(error instanceof Error ? error.message : String(error)); }
   }, [journalDate, navigate]);
@@ -279,16 +279,15 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   if (!notes) return <div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>;
 
-  // Legacy deep links: /journal/:date?note=<uuid> now opens the canonical
-  // single-note editor (#link-crosswalk).
+  // Deep links: /day/:date?note=<uuid> opens the canonical single-note editor.
   if (selectedNoteId) {
-    return <Navigate to={noteByIdPath(selectedNoteId)} replace />;
+    return <Navigate to={notePath(selectedNoteId)} replace />;
   }
 
 
   const handleCreated = (created: HistoryEntry) => {
     journalNotes.listByDate(journalDate).then(setNotes).catch(() => {});
-    navigate(noteByIdPath(created.id));
+    navigate(notePath(created.id));
   };
 
   return (
@@ -319,11 +318,11 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
             </button>
             {prevNext && (
               <span className="flex items-center gap-2">
-                <Link to={journalDatePath(prevNext.prev)} aria-label="Previous day" className="hover:bg-accent hover:text-foreground rounded-pill border border-border px-2 py-0.5 transition-colors">
+                <Link to={dayPath(prevNext.prev)} aria-label="Previous day" className="hover:bg-accent hover:text-foreground rounded-pill border border-border px-2 py-0.5 transition-colors">
                   ‹ {prevNext.prev}
                 </Link>
                 <span className="font-semibold text-foreground">{journalDate}</span>
-                <Link to={journalDatePath(prevNext.next)} aria-label="Next day" className="hover:bg-accent hover:text-foreground rounded-pill border border-border px-2 py-0.5 transition-colors">
+                <Link to={dayPath(prevNext.next)} aria-label="Next day" className="hover:bg-accent hover:text-foreground rounded-pill border border-border px-2 py-0.5 transition-colors">
                   {prevNext.next} ›
                 </Link>
               </span>
@@ -334,7 +333,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
               {notes.map((note) => (
                 <Link
                   key={note.id}
-                  to={noteByIdPath(note.id)}
+                  to={notePath(note.id)}
                   className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted"
                 >
                   {note.title}
@@ -354,7 +353,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
             <div className="space-y-2">
               <div className="flex items-center justify-between border-b border-border/40 pb-2">
                 <Link
-                  to={noteByIdPath(notes[0].id)}
+                  to={notePath(notes[0].id)}
                   className="text-sm font-semibold hover:underline text-foreground"
                   aria-label={`Open note page for ${notes[0].title || 'untitled note'}`}
                 >
@@ -380,7 +379,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
                 <div key={note.id} id={`note-${note.id}`} className="rounded-lg border border-border/60 p-4 space-y-2">
                   <div className="flex items-center justify-between border-b border-border/40 pb-2">
                     <Link
-                      to={noteByIdPath(note.id)}
+                      to={notePath(note.id)}
                       className="text-sm font-semibold hover:underline text-foreground"
                     >
                       {note.title || `Note ${index + 1}`}

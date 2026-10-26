@@ -31,19 +31,41 @@ export interface ViewSettings {
 
 export const VIEW_SETTINGS_STORAGE_PREFIX = 'wodwiki.viewSettings.v1'
 
-/** Storage keys that moved during the route rebrand (#link-crosswalk):
- *  view settings saved under the old surface id still resolve under the
- *  new one. The current key always wins when both exist. */
+/** Storage keys that moved during the ticket-09 route scheme: view settings
+ *  saved under the retired surface id still resolve under the canonical one.
+ *  The current key always wins when both exist. */
 const LEGACY_ROUTE_ALIASES: Record<string, string> = {
+  '/notebooks': '/catalogs',
+  '/notes': '/feeds',
   '/sessions': '/results',
-  '/feeds': '/collections',
+  '/dashboards': '/dashboard',
+}
+
+/** Two-rename chains: `/notes` inherited the old `/feeds` surface, which
+ *  itself inherited `/collections` — a key that old resolves after both
+ *  hops (mirrors routeWqlConfig's second hop). */
+const LEGACY_ROUTE_SECOND_HOP: Record<string, string> = {
+  '/notes': '/collections',
+}
+
+/** Internal storage-id overrides. The feed-source list keeps the public
+ *  `/feeds` URL but stores under a versioned key: settings saved under the
+ *  retired notes-list `/feeds` surface migrate to `/notes` and must never
+ *  leak into the new feed defaults. */
+const STORAGE_ID_OVERRIDES: Record<string, string> = {
+  '/feeds': '/feeds@2',
+}
+
+/** Map a public route to its storage key id (versioned overrides applied). */
+function storageRouteId(route: string): string {
+  const cleanRoute = route.startsWith('/') ? route : `/${route}`
+  return STORAGE_ID_OVERRIDES[cleanRoute] ?? cleanRoute
 }
 
 export const viewSettingsStore = new LocalStore(VIEW_SETTINGS_STORAGE_PREFIX)
 
 export function getRouteStorageKey(route: string): string {
-  const cleanRoute = route.startsWith('/') ? route : `/${route}`
-  return viewSettingsStore.qualify(cleanRoute)
+  return viewSettingsStore.qualify(storageRouteId(route))
 }
 
 export function getDefaultViewSettings(level: EntityLevel, defaultLayout?: LayoutMode): ViewSettings {
@@ -57,9 +79,12 @@ export function getDefaultViewSettings(level: EntityLevel, defaultLayout?: Layou
 
 export function readViewSettings(route: string, level: EntityLevel, store: LocalStore = viewSettingsStore, defaultLayout?: LayoutMode): ViewSettings {
   const defaults = getDefaultViewSettings(level, defaultLayout)
-  const cleanRoute = route.startsWith('/') ? route : `/${route}`
+  const cleanRoute = storageRouteId(route)
   const legacyRoute = LEGACY_ROUTE_ALIASES[cleanRoute]
-  const parsed = store.get<Partial<ViewSettings>>(cleanRoute, { alias: legacyRoute })
+  let parsed = store.get<Partial<ViewSettings>>(cleanRoute, { alias: legacyRoute })
+  if (parsed == null && legacyRoute) {
+    parsed = store.get<Partial<ViewSettings>>(legacyRoute, { alias: LEGACY_ROUTE_SECOND_HOP[cleanRoute] })
+  }
   if (!parsed) return defaults
   const rawLayout = typeof parsed.layout === 'string' ? parsed.layout : ''
     const layout: LayoutMode =
@@ -83,7 +108,7 @@ export function readViewSettings(route: string, level: EntityLevel, store: Local
 }
 
 export function writeViewSettings(route: string, settings: ViewSettings, store: LocalStore = viewSettingsStore): void {
-  const cleanRoute = route.startsWith('/') ? route : `/${route}`
+  const cleanRoute = storageRouteId(route)
   store.set(cleanRoute, {
     level: settings.level,
     layout: settings.layout,
@@ -93,7 +118,7 @@ export function writeViewSettings(route: string, settings: ViewSettings, store: 
 }
 
 export function resetViewSettings(route: string, level: EntityLevel, store: LocalStore = viewSettingsStore): ViewSettings {
-  const cleanRoute = route.startsWith('/') ? route : `/${route}`
+  const cleanRoute = storageRouteId(route)
   const legacyRoute = LEGACY_ROUTE_ALIASES[cleanRoute]
   store.remove(cleanRoute, legacyRoute)
   return getDefaultViewSettings(level)

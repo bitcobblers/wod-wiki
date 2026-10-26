@@ -1,9 +1,9 @@
 /**
- * CatalogsManagerDrawer — the /catalogs "Manage Catalogs" dialog. Wraps the
+ * CatalogsManagerDrawer — the /notebooks "Manage Catalogs" dialog. Wraps the
  * /settings/sync SyncSection in the app's standard Dialog so sources can be
  * inspected, synced, unsubscribed, and deleted in place — no context switch.
  * Grouped update notifications and subscription intake deep-link here via
- * /catalogs?manage=1.
+ * /notebooks?manage=1.
  */
 
 import {

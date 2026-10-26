@@ -8,7 +8,7 @@
  * Implementation (complete): the derivations moved verbatim out of
  * `AppContent`'s two `useMemo` bodies; AppContent dispatches pages through the
  * `renderInner: Record<PageKind, …>` record. The RouteFlags block is retained
- * because pages still read their URL params (noteById, collectionDate,
+ * because pages still read their URL params (note, collectionDate,
  * feedItemMatch) from the view. See docs/adr/app-route-view.md.
  */
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown'
@@ -23,19 +23,16 @@ import {
 } from './routes'
 import { cleanRoutePath, isStreamRoute, streamRouteTitle } from '../views/stream/streamProfile'
 import { deriveNav } from './routeNav'
-import { resolveJournalRoute, isNoteUuid } from './journalRoute'
+import { resolveDayRoute, isNoteUuid } from './dayRoute'
 import { parseJournalDate } from '../services/parseJournalDate'
 import { PLAYGROUND_CONTENT } from '@/constants/defaultContent'
-
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 /** URL params captured by the matched `<Route>` (always optional from the router). */
 export interface RouteViewParams {
-  category?: string
-  name?: string
-  collection?: string
-  workout?: string
+  slug?: string
+  target?: string
   id?: string
 }
 
@@ -60,17 +57,17 @@ export type PageKind =
   | 'feedItem'
   | 'effortDetail'
   | 'equipmentDetail'
-  | 'analyticsExplorer'
+  | 'tagDetail'
   | 'tags'
   | 'dashboardExplorer'
   | 'dashboardView'
   | 'home'
   | 'canvas'
   | 'playground'
-  | 'workout'
-  | 'journalEntry'
+  | 'day'
   | 'note'
   | 'collectionDate'
+  | 'workout'
   | 'library'
   | 'settings'
 /** How the page is wrapped — the `<CanvasPage>` shell vs bare. */
@@ -100,19 +97,20 @@ export interface RouteViewDeps {
 }
 
 /** Classification flags — consumed by AppContent when hydrating page props
- *  (noteById, collectionDate, feedItemMatch). */
+ *  (note, collectionDate, feedItemMatch). */
 export interface RouteFlags {
   isPlaygroundRoute: boolean
   effectivePlaygroundId: string | undefined
-  isJournalEntryRoute: boolean
-  journalEntryId: string | undefined
-  /** /notes/:noteId — the canonical single-note route. */
-  isNoteByIdRoute: boolean
-  noteById: string | undefined
-  /** /p/:slug — a named page with no canvas route match: the page's own
+  /** /day/:date — one day across notebooks. */
+  isDayRoute: boolean
+  day: string | undefined
+  /** /note/:noteId — the canonical single-note route. */
+  isNoteRoute: boolean
+  note: string | undefined
+  /** /page/:slug — a named page with no canvas route match: the page's own
    *  listing, not a single note. Canvas routes keep precedence. */
   namedPageSlug: string | undefined
-  /** /collections/:slug/:date — a date-scoped, journal-style collection view. */
+  /** /notebook/:slug/:date — a date-scoped, journal-style notebook view. */
   collectionDate: { slug: string; date: string } | null
   feedItemMatch: [string, string, string] | null
   feedDetailMatch: string | null
@@ -134,37 +132,27 @@ export interface RouteView extends RouteFlags {
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function detectFlags(pathname: string, params: RouteViewParams): RouteFlags {
-  const { name: urlName, id: playgroundId } = params
-  const isPlaygroundRoute = isPlaygroundNotePath(pathname)
-  const effectivePlaygroundId =
-    playgroundId || (pathname.startsWith('/note/playground/') ? urlName : undefined)
-  const journalRoute = resolveJournalRoute(pathname)
-  const isJournalEntryRoute = !['index', 'invalid'].includes(journalRoute.kind)
-  const journalEntryId = journalRoute.kind === 'date'
-    ? journalRoute.journalDate
-    : journalRoute.kind === 'note' || journalRoute.kind === 'uuid-alias'
-      ? journalRoute.noteId
-      : journalRoute.kind === 'slug-alias'
-        ? journalRoute.slug
-        : undefined
+  const dayRoute = resolveDayRoute(pathname)
+  const isDayRoute = dayRoute.kind === 'date'
+  const day = dayRoute.kind === 'date' ? dayRoute.date : undefined
   const feedItemMatch = matchFeedItem(pathname)
   const feedDetailMatch = feedItemMatch ? null : matchFeedDetail(pathname)
 
-  const noteByIdMatch = pathname.match(/^\/(?:notes|note)\/([^/]+)$/)
-  const isNoteByIdRoute = noteByIdMatch != null
-  const noteById = noteByIdMatch ? decodeURIComponent(noteByIdMatch[1]!) : undefined
+  const noteMatch = pathname.match(/^\/note\/([^/]+)$/)
+  const isNoteRoute = noteMatch != null
+  const note = noteMatch ? decodeURIComponent(noteMatch[1]!) : undefined
 
-  // /c/:slug/:target (and legacy /collections/…) — a UUID targets one note
-  // (same single-note page as /notes/:noteId), a date scopes the collection to
-  // a journal-style day; anything else stays a page-slug workout name.
+  // /notebook/:slug/:target — a UUID targets one note (same single-note page
+  // as /note/:noteId), a date scopes the notebook to a journal-style day;
+  // anything else stays a page-slug item name.
   let collectionDate: { slug: string; date: string } | null = null
-  const collectionMatch = pathname.match(/^\/(?:c|collections)\/([^/]+)\/([^/]+)$/)
-  if (collectionMatch) {
-    const slug = decodeURIComponent(collectionMatch[1]!)
-    const target = decodeURIComponent(collectionMatch[2]!)
+  const notebookMatch = pathname.match(/^\/notebook\/([^/]+)\/([^/]+)$/)
+  if (notebookMatch) {
+    const slug = decodeURIComponent(notebookMatch[1]!)
+    const target = decodeURIComponent(notebookMatch[2]!)
     if (isNoteUuid(target)) {
-      if (!isNoteByIdRoute) {
-        return { isPlaygroundRoute, effectivePlaygroundId, isJournalEntryRoute, journalEntryId, isNoteByIdRoute: true, noteById: target, namedPageSlug: undefined, collectionDate: null, feedItemMatch, feedDetailMatch }
+      if (!isNoteRoute) {
+        return { isPlaygroundRoute: isPlaygroundNotePath(pathname), effectivePlaygroundId: params.id, isDayRoute, day, isNoteRoute: true, note: target, namedPageSlug: undefined, collectionDate: null, feedItemMatch, feedDetailMatch }
       }
     } else {
       const parsed = parseJournalDate(target)
@@ -174,22 +162,30 @@ function detectFlags(pathname: string, params: RouteViewParams): RouteFlags {
     }
   }
 
-  return { isPlaygroundRoute, effectivePlaygroundId, isJournalEntryRoute, journalEntryId, isNoteByIdRoute, noteById, namedPageSlug: undefined, collectionDate, feedItemMatch, feedDetailMatch }
+  return {
+    isPlaygroundRoute: isPlaygroundNotePath(pathname),
+    effectivePlaygroundId: params.id,
+    isDayRoute,
+    day,
+    isNoteRoute,
+    note,
+    namedPageSlug: undefined,
+    collectionDate,
+    feedItemMatch,
+    feedDetailMatch,
+  }
 }
 
 function deriveWorkout(
   flags: RouteFlags,
   pathname: string,
-  params: RouteViewParams,
   workoutItems: WorkoutItem[],
   canvasPage: ParsedCanvasPage | null,
 ): CurrentWorkout {
-  const { category: urlCategory, name: urlName, collection: urlCollection, workout: urlWorkout } = params
-
   if (flags.isPlaygroundRoute) {
     return { name: 'Playground', content: '', category: 'playground' }
   }
-  if (flags.isNoteByIdRoute && flags.noteById) {
+  if (flags.isNoteRoute && flags.note) {
     return { name: 'Note', content: '', category: 'note' }
   }
   if (flags.namedPageSlug) {
@@ -198,15 +194,14 @@ function deriveWorkout(
   if (flags.collectionDate) {
     return { name: flags.collectionDate.date, content: '', category: flags.collectionDate.slug }
   }
-  if (flags.isJournalEntryRoute && flags.journalEntryId) {
-    return { name: flags.journalEntryId, content: '', category: 'journal' }
+  if (flags.isDayRoute && flags.day) {
+    return { name: flags.day, content: '', category: 'journal' }
   }
   // Detail routes carry their identity in the path — surface the slug as the
   // workout name so the mobile navbar breadcrumb can show it (the page-level
   // header is hidden below lg).
-  if (pathname.startsWith('/effort/') || pathname.startsWith('/e/')) {
-    const prefix = pathname.startsWith('/e/') ? '/e/' : '/effort/'
-    return { name: decodeURIComponent(pathname.slice(prefix.length).split('/')[0] ?? 'Effort'), content: '', category: 'effort' }
+  if (pathname.startsWith('/effort/')) {
+    return { name: decodeURIComponent(pathname.slice('/effort/'.length).split('/')[0] ?? 'Effort'), content: '', category: 'effort' }
   }
   if (pathname.startsWith('/equipment/')) {
     return { name: decodeURIComponent(pathname.slice('/equipment/'.length).split('/')[0] ?? 'Equipment'), content: '', category: 'equipment' }
@@ -217,14 +212,11 @@ function deriveWorkout(
   if (flags.feedDetailMatch) {
     return { name: decodeURIComponent(flags.feedDetailMatch), content: '', category: 'feed' }
   }
-  if (cleanRoutePath(pathname) === '/tags') {
+  if (cleanRoutePath(pathname) === '/tags' || pathname.startsWith('/t/')) {
     return { name: 'Tags', content: '', category: 'tags' }
   }
-  if (pathname.startsWith('/dashboard/') || pathname.startsWith('/d/')) {
-    const segment = pathname.startsWith('/d/')
-      ? pathname.slice('/d/'.length)
-      : pathname.split('/')[2]
-    return { name: decodeURIComponent(segment ?? 'Dashboard'), content: '', category: 'dashboard' }
+  if (pathname.startsWith('/dashboard/')) {
+    return { name: decodeURIComponent(pathname.split('/')[2] ?? 'Dashboard'), content: '', category: 'dashboard' }
   }
   if (pathname.startsWith('/session/')) {
     return { name: decodeURIComponent(pathname.split('/')[2] ?? 'Sessions'), content: '', category: 'sessions' }
@@ -236,14 +228,7 @@ function deriveWorkout(
   // Named routes without params
   const named: Record<string, string> = {
     '/': 'Home',
-    // Bare /results keeps its legacy classification name (the router
-    // redirects the bare path to the /sessions list)
-    '/results': 'Results',
-    '/results/segments': 'Segments',
-    '/dashboard': 'Dashboards',
     '/dashboards': 'Dashboards',
-    '/analytics/dashboard': 'Analytics Dashboard',
-    '/analytics/explorer': 'Metric Explorer',
   }
   const cleanPath = cleanRoutePath(pathname)
   // Stream surfaces take their name from the profile registry — one source of
@@ -260,22 +245,22 @@ function deriveWorkout(
     return { name: 'Settings', content: PLAYGROUND_CONTENT, category: 'Settings' }
   }
 
-  const effectiveName = urlWorkout || urlName
-  if (!effectiveName) {
-    return { name: 'Home', content: PLAYGROUND_CONTENT, category: 'General' }
+  // Notebook item editor: identity from the last two path segments.
+  const notebookItem = pathname.match(/^\/notebook\/([^/]+)\/([^/]+)$/)
+  if (notebookItem) {
+    const name = decodeURIComponent(notebookItem[2]!)
+    const category = decodeURIComponent(notebookItem[1]!)
+    const found = workoutItems.find(item => item.name === name && item.category === category)
+    // The corpus index only covers bundled content; notes stored in IndexedDB
+    // (user content, synced libraries) resolve by pageId(category, name) — the
+    // URL-declared category must survive the fallback or the IDB-first load
+    // looks up the wrong page and renders the default notebook.
+    return found
+      ? { name: found.name, content: found.content, category: found.category }
+      : { name, content: PLAYGROUND_CONTENT, category }
   }
-  const name = decodeURIComponent(effectiveName)
-  const category = (urlCollection || urlCategory)
-    ? decodeURIComponent(urlCollection || urlCategory!)
-    : 'General'
-  const found = workoutItems.find(item => item.name === name && item.category === category)
-  // The corpus index only covers bundled content; notes stored in IndexedDB
-  // (user content, synced libraries) resolve by pageId(category, name) — the
-  // URL-declared category must survive the fallback or the IDB-first load
-  // looks up the wrong page and renders the default notebook.
-  return found
-    ? { name: found.name, content: found.content, category: found.category }
-    : { name, content: PLAYGROUND_CONTENT, category }
+
+  return { name: 'Home', content: PLAYGROUND_CONTENT, category: 'General' }
 }
 
 function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanvasPage | null): PageKind {
@@ -287,22 +272,23 @@ function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanva
   }
   if (flags.feedDetailMatch) return 'feedDetail'
   if (flags.feedItemMatch) return 'feedItem'
-  if (pathname.startsWith('/effort/') || pathname.startsWith('/e/')) return 'effortDetail'
+  if (pathname.startsWith('/effort/')) return 'effortDetail'
   if (pathname.startsWith('/equipment/')) return 'equipmentDetail'
-  if (pathname === '/analytics/explorer') return 'analyticsExplorer'
-  if (pathname === '/dashboard' || pathname === '/dashboards') return 'dashboardExplorer'
-  if (pathname.startsWith('/dashboard/') || pathname.startsWith('/d/')) return 'dashboardView'
+  if (clean === '/dashboards') return 'dashboardExplorer'
+  if (pathname.startsWith('/dashboard/')) return 'dashboardView'
   if (clean === '/settings' || clean.startsWith('/settings/')) return 'settings'
   if (clean === '/tags') return 'tags'
+  if (pathname.startsWith('/t/')) return 'tagDetail'
 
   if (clean === '/') return 'home'
   if (canvasPage) return 'canvas'
   if (flags.isPlaygroundRoute && flags.effectivePlaygroundId) return 'playground'
-  if (flags.isNoteByIdRoute && flags.noteById) return 'note'
+  if (flags.isNoteRoute && flags.note) return 'note'
   if (flags.namedPageSlug) return 'note'
   if (flags.collectionDate) return 'collectionDate'
-  if (flags.isJournalEntryRoute && flags.journalEntryId) return 'journalEntry'
-  return 'workout'
+  if (flags.isDayRoute && flags.day) return 'day'
+  if (/^\/notebook\/[^/]+\/[^/]+$/.test(pathname)) return 'workout'
+  return 'note'
 }
 
 function deriveShell(page: PageKind, pathname: string, workout: CurrentWorkout): ShellConfig {
@@ -312,7 +298,10 @@ function deriveShell(page: PageKind, pathname: string, workout: CurrentWorkout):
       return {
         wrap: 'canvas',
         title: workout.name,
-        subheader: page === 'canvas' && /^\/(?:c|collections)\//.test(pathname) ? 'filter-collection-workouts' : undefined,
+        // Canvas pages under the notebook prefix render the collection
+        // filter strip — the rebranded continuation of the pre-ticket
+        // /collections/:slug canvas landing.
+        subheader: page === 'canvas' && /^\/notebook\//.test(pathname) ? 'filter-collection-workouts' : undefined,
         actionsMode: 'collection-readonly',
         withIndex: true,
       }
@@ -336,13 +325,13 @@ export function resolveRouteView(
   // Home is bundle-owned: corpus presence must not change its workout,
   // classification, shell, or nav.
   const canvasPage = cleanRoutePath(pathname) === '/' ? null : deps.canvasPage
-  if (!canvasPage && !flags.noteById) {
-    const pageSlugMatch = pathname.match(/^\/p\/([^/]+)$/)
+  if (!canvasPage && !flags.note) {
+    const pageSlugMatch = pathname.match(/^\/page\/([^/]+)$/)
     if (pageSlugMatch) {
       flags.namedPageSlug = decodeURIComponent(pageSlugMatch[1]!)
     }
   }
-  const workout = deriveWorkout(flags, pathname, params, deps.workoutItems, canvasPage)
+  const workout = deriveWorkout(flags, pathname, deps.workoutItems, canvasPage)
   const nav = deriveNav(pathname, { ...deps, canvasPage })
   const page = derivePage(flags, pathname, canvasPage)
   const shell = deriveShell(page, pathname, workout)

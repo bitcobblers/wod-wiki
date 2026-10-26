@@ -22,10 +22,12 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 375, height: 812 
     await expect(autoSync).not.toBeChecked();
     await autoSync.check();
     await page.getByRole('button', { name: 'Import & Subscribe', exact: true }).click();
-    await expect(page).toHaveURL(/\/catalogs\?manage=1$/);
+    await expect(page).toHaveURL(/\/notebooks\?manage=1$/);
     const manager = page.getByRole('dialog');
     await expect(manager).toBeVisible();
-    await expect(manager.getByText('Training catalog', { exact: true })).toBeVisible();
+    // Scope to the source row — the drawer's feed-source filter <select>
+    // also carries an 'Training catalog' <option>.
+    await expect(manager.getByTestId('feed-source-training-catalog').getByText('Training catalog', { exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByRole('dialog').getByRole('checkbox', { name: /Auto-sync.*Training catalog|Training catalog.*Auto-sync/i })).toBeChecked();
@@ -46,7 +48,7 @@ test('dismissal replaces the intake history entry without registering a source',
   await page.goto(`/subscribe?source=${encodeURIComponent(source)}`);
   await expect(page.getByRole('heading', { name: 'Subscribe to Training catalog?' })).toBeVisible();
   await page.getByRole('button', { name: 'Decline & Dismiss' }).click();
-  await expect(page).toHaveURL(/\/catalogs$/);
+  await expect(page).toHaveURL(/\/notebooks$/);
   expect(await page.evaluate(() => localStorage.getItem('wodwiki.seedSources'))).toBeNull();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Subscribe to Training catalog?' })).toHaveCount(0);
@@ -58,13 +60,27 @@ test('import once leaves the source unsubscribed even when auto-sync was checked
   await expect(page.getByRole('heading', { name: 'Subscribe to Training catalog?' })).toBeVisible();
   await page.getByRole('checkbox', { name: 'Auto-sync this feed' }).check();
   await page.getByRole('button', { name: 'Import Once', exact: true }).click();
-  await expect(page).toHaveURL(/\/catalogs\?manage=1$/);
-  const row = page.getByRole('dialog').getByTestId('feed-source-training-catalog');
-  await expect(row.getByRole('button', { name: 'Subscribe', exact: true })).toBeVisible();
-  await expect(row.getByRole('checkbox', { name: /Auto-sync/i })).not.toBeChecked();
+  await expect(page).toHaveURL(/\/notebooks\?manage=1$/);
+  // The manager defaults to subscribed-only; the imported-once source is
+  // unsubscribed, so widen the filter before expecting its Subscribe action.
+  // The drawer can remount once the import settles and reset the filter, so
+  // re-apply the widening inside a retry loop.
+  const dialog = page.getByRole('dialog');
+  await expect(async () => {
+    const subscribedOnly = dialog.getByRole('checkbox', { name: 'Subscribed only' });
+    if (await subscribedOnly.isChecked()) await subscribedOnly.setChecked(false);
+    const row = dialog.getByTestId('feed-source-training-catalog');
+    await expect(row.getByRole('button', { name: 'Subscribe', exact: true })).toBeVisible({ timeout: 2_000 });
+    await expect(row.getByRole('checkbox', { name: /Auto-sync/i })).not.toBeChecked({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await page.reload();
-  await expect(row.getByRole('button', { name: 'Subscribe', exact: true })).toBeVisible();
-  await expect(row.getByRole('checkbox', { name: /Auto-sync/i })).not.toBeChecked();
+  const reloadedRow = page.getByRole('dialog').getByTestId('feed-source-training-catalog');
+  await expect(async () => {
+    const subscribedOnly = dialog.getByRole('checkbox', { name: 'Subscribed only' });
+    if (await subscribedOnly.isChecked()) await subscribedOnly.setChecked(false);
+    await expect(reloadedRow.getByRole('button', { name: 'Subscribe', exact: true })).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(reloadedRow.getByRole('checkbox', { name: /Auto-sync/i })).not.toBeChecked();
 });
 
 test('an incompatible manifest cannot offer an import or register a source', async ({ page }) => {

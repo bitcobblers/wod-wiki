@@ -10,7 +10,7 @@ import { waitForFeedReady } from '../helpers/feedReadiness';
  * broken at phone width get added here by their fix tickets — not before.
  */
 
-const ROUTES = ['/', '/journal', '/catalogs', '/efforts', '/analytics/explorer', '/playground/hello-world'];
+const ROUTES = ['/', '/journal', '/notebooks', '/efforts', '/dashboards', '/playground/hello-world'];
 
 for (const route of ROUTES) {
   test(`no horizontal overflow at 375px on ${route}`, async ({ page }) => {

@@ -1,7 +1,7 @@
 ---
 search: hidden
 template: canvas
-route: /guide/structure
+route: /page/guide-structure
 type: guide
 title: "Structure & Rounds"
 description: "Rounds, sets, ladders, and rep schemes — indentation is the nesting mechanism, one thing per line."
@@ -126,7 +126,7 @@ The compiler derives totals — nothing is guessed or manually logged:
 | `(21-15-9) Thruster` | 21 + 15 + 9 = 45 thrusters |
 | `(5) (3) 5 Deadlift` | 5 × 3 × 5 = 75 deadlifts |
 
-These planned totals feed the review grid, and — combined with what the clock records — become the [recorded facts](/guide/metrics?h=planned-vs-recorded) that WQL aggregates.
+These planned totals feed the review grid, and — combined with what the clock records — become the [recorded facts](/page/guide-metrics?h=planned-vs-recorded) that WQL aggregates.
 
 ## Named sections {#named-sections}
 
@@ -161,7 +161,7 @@ Two legal ways to label a section of a session:
   5:00 Walk
 ```
 
-Chain named groups to describe a full training session in one note; sections run sequentially and don't need to repeat to be useful. Use `(Label)` when you want a first-class group the runtime knows about; use `// Label` for pure organization. Full sessions like this one are [composed in the last chapter](/guide/sessions?h=full-session).
+Chain named groups to describe a full training session in one note; sections run sequentially and don't need to repeat to be useful. Use `(Label)` when you want a first-class group the runtime knows about; use `// Label` for pure organization. Full sessions like this one are [composed in the last chapter](/page/guide-sessions?h=full-session).
 
 ## Try it {#try-it}
 

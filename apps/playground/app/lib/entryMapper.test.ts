@@ -101,18 +101,18 @@ describe('toEntry — guide entries', () => {
     expect(entry.date).toBeNull()
   })
 
-  it('derives the page slug — the /p route — from the declared sourceId route, never the note id', () => {
+  it('derives the page slug — the /page route — from the declared sourceId route, never the note id', () => {
     const entry = toEntry(makeNote({
       id: 'guide/syntax/basics',
-      sourceId: 'guides:guide/syntax/basics',
+      sourceId: 'guides:page/guide-syntax/basics',
     }))
-    expect(entry.sourceItem).toBe('guide/syntax/basics')
-    expect(entry.pageSlug).toBe('syntax/basics')
+    expect(entry.sourceItem).toBe('page/guide-syntax/basics')
+    expect(entry.pageSlug).toBe('guide-syntax/basics')
 
     // UUID-keyed guide notes route from sourceId too
-    const uuidEntry = toEntry(makeNote({ id: 'uuid-guide', sourceId: 'guides:guide/clock' }))
-    expect(uuidEntry.sourceItem).toBe('guide/clock')
-    expect(uuidEntry.pageSlug).toBe('clock')
+    const uuidEntry = toEntry(makeNote({ id: 'uuid-guide', sourceId: 'guides:page/guide-clock' }))
+    expect(uuidEntry.sourceItem).toBe('page/guide-clock')
+    expect(uuidEntry.pageSlug).toBe('guide-clock')
 
     // Non-guide notes have no page render target
     expect(toEntry(makeNote({ id: 'uuid-1' })).pageSlug).toBeUndefined()
@@ -162,27 +162,27 @@ describe('toEntry — seeded kinds stay out of journal (All-view inclusion)', ()
     const entry = toEntry(makeNote({ id: 'uuid-dash', type: 'dashboard', sourceId: 'dashboards', sourcePath: 'markdown/dashboards/hero.md' }))
     expect(entry.kind).toBe<EntryKind>('dashboard')
     expect(entry.sourceCatalog).toBe('dashboards')
-    expect(entryOpenHref(entry)).toBe('/d/hero')
+    expect(entryOpenHref(entry)).toBe('/dashboard/hero')
   })
 
   it('classifies a legacy sourceless dashboard seed by corpus path', () => {
     const entry = toEntry(makeNote({ id: 'uuid-legacy', sourcePath: 'markdown/dashboards/strength-trends.md' }))
     expect(entry.kind).toBe<EntryKind>('dashboard')
-    expect(entryOpenHref(entry)).toBe('/d/strength-trends')
+    expect(entryOpenHref(entry)).toBe('/dashboard/strength-trends')
   })
 
   it('classifies an effort note (sourceId efforts) as Effort, opening at /e/<slug>', () => {
     const entry = toEntry(makeNote({ id: 'uuid-effort', sourceId: 'efforts', sourcePath: 'markdown/efforts/strength/back-squat.md' }))
     expect(entry.kind).toBe<EntryKind>('effort')
     expect(entry.effort?.slug).toBe('back-squat')
-    expect(entryOpenHref(entry)).toBe('/e/back-squat')
+    expect(entryOpenHref(entry)).toBe('/effort/back-squat')
   })
 
   it('classifies an equipment note as Equipment, opening in the canonical note editor', () => {
     const entry = toEntry(makeNote({ id: 'uuid-gear', sourceId: 'equipment' }))
     expect(entry.kind).toBe<EntryKind>('equipment')
     expect(entry.sourceCatalog).toBe('equipment')
-    expect(entryOpenHref(entry)).toBe('/notes/uuid-gear')
+    expect(entryOpenHref(entry)).toBe('/note/uuid-gear')
   })
 
   it('none of the seeded kinds masquerade as journal entries', () => {

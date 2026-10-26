@@ -259,7 +259,7 @@ export function HomeCommunityFeeds() {
         </div>
         <div className="flex items-center gap-4 text-sm font-medium">
           <Link to="/settings/sync" className="text-primary hover:underline">Manage feeds →</Link>
-          <Link to="/catalogs" className="text-primary hover:underline">Catalog →</Link>
+          <Link to="/notebooks" className="text-primary hover:underline">Catalog →</Link>
         </div>
       </div>
 

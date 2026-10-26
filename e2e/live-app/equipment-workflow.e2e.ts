@@ -227,7 +227,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
     const relatedEffort = equipment.contextLink('Dumbbell Snatch');
     await expect(relatedEffort).toBeVisible();
     await relatedEffort.click();
-    await expect(page).toHaveURL(/\/e\/dumbbell-snatch$/);
+    await expect(page).toHaveURL(/\/effort\/dumbbell-snatch$/);
 
     // Usage: the consumer workout note by its real title.
     await page.goBack();
@@ -235,7 +235,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
     const usage = equipment.contextLink(USAGE_NOTE_TITLE);
     await expect(usage).toBeVisible();
     await usage.click();
-    await expect(page).toHaveURL(/\/c\/equipment-e2e-gym\/dumbbell-day$/);
+    await expect(page).toHaveURL(/\/notebook\/equipment-e2e-gym\/dumbbell-day$/);
 
     errors.expectClean();
   });
@@ -255,7 +255,7 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
     await expect(equipment.detailLabel()).toHaveText('Dumbbell');
 
     // The same source note stays reachable through the canonical note editor.
-    await page.goto(`/notes/${encodeURIComponent('equipment/dumbbell')}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`/note/${encodeURIComponent('equipment/dumbbell')}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.cm-note-editor').first()).toBeVisible();
     await expect(page.locator('.cm-content').first()).toContainText('handheld free weight');
 

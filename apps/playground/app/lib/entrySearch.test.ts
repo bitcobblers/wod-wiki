@@ -272,7 +272,7 @@ describe('StreamQueryEngine — effort plane (:effort)', () => {
     expect(entries[0]!.kind).toBe('effort')
     expect(entries[0]!.id).toBe('note-back-squat')
     expect(entries[0]!.effort?.slug).toBe('back-squat')
-    expect(entryOpenHref(entries[0]!)).toBe('/e/back-squat')
+    expect(entryOpenHref(entries[0]!)).toBe('/effort/back-squat')
     // Legacy projection without an owner note → the registry row.
     expect(entries[1]!.kind).toBe('effort')
     expect(entries[1]!.title).toBe('Front Squat')
@@ -493,7 +493,7 @@ describe('StreamQueryEngine — named page navigation', () => {
       for (const query of [':note in all', ':block in all']) {
         const entries = await engine.query(query)
         expect(entries[0]?.pageId).toBe('calendar-uuid')
-        expect(entryOpenHref(entries[0]!)).toBe(query.startsWith(':block') ? '/p/workout-plan#seg-0' : '/p/workout-plan')
+        expect(entryOpenHref(entries[0]!)).toBe(query.startsWith(':block') ? '/page/workout-plan#seg-0' : '/page/workout-plan')
         expect(entries[0]?.noteId).toBe(note.id)
       }
     } finally {

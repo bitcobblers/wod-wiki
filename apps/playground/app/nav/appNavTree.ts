@@ -5,15 +5,14 @@
  * component via useSetNavL3() or AppContent's setL3Items() call.
  *
  * Structure:
- *   L1: Home, Journal, Feeds, Playgrounds, Dashboard, Efforts, Sessions,
- *       Settings (catalog landing + item routes light Feeds; /catalogs is
- *       its own zone)
+ *   L1: Home, Journal, Notebooks, Notes, Feeds, Pages, Playgrounds,
+ *       Dashboard, Efforts, Equipment, Sessions, Tags, Settings
  *   L2 of Home:        the consolidated Guide chapters (markdown/canvas/guide/**;
  *                      the old syntax/behaviors/analytics pillars are folded in)
- *   L2 of the five stream routes (Journal/Feeds/Playgrounds/Efforts/
- *                      Sessions): the shared ConditionsNavPanel — current-result
- *                      `{}` condition accordion plus grouping presets over the
- *                      CURRENT query; Feeds rides under Collections
+ *   L2 of the stream routes (Journal/Notebooks/Notes/Feeds/Pages/
+ *                      Playgrounds/Efforts/Equipment/Sessions): the shared
+ *                      ConditionsNavPanel — current-result `{}` condition
+ *                      accordion plus grouping presets over the CURRENT query
  *   L2 of Dashboards:  dynamic panel (vault/runtime data)
  *   Search has moved out of the L1 sidebar and into the top app-bar.
  *
@@ -23,10 +22,10 @@
  */
 
 import { HomeIcon, CodeBracketIcon } from '@heroicons/react/20/solid'
-import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, Layers, Tag, Library, Plus, CalendarPlus, UserRound, Database, CloudDownload, Wrench, Volume2 } from 'lucide-react'
+import { ChartBarIcon, Dumbbell, Rss, Calendar, Settings, Paintbrush, Sliders, FlaskConical, ClipboardList, File, Layers, Tag, Library, Plus, CalendarPlus, UserRound, Database, CloudDownload, Wrench, Volume2 } from 'lucide-react'
 import type { NavItem } from './navTypes'
 import type { Location } from 'react-router-dom'
-import { JOURNAL_STREAM_PROFILE, CATALOGS_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PLAYGROUNDS_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
+import { JOURNAL_STREAM_PROFILE, NOTEBOOKS_STREAM_PROFILE, NOTES_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PAGES_STREAM_PROFILE, PLAYGROUNDS_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
 import { ROUTE_PATTERNS, isEffortsPath, isEquipmentPath } from '../lib/routes'
 
 import { DashboardsNavPanel } from './panels/DashboardsNavPanel'
@@ -41,21 +40,21 @@ import { BUY_ME_A_COFFEE_URL, BuyMeACoffeeIcon } from '../components/atoms/BuyMe
 // chapters — markdown/canvas/guide/**; the old syntax/behaviors/analytics
 // pillars were folded into these eight routes).
 const guideOrder: Record<string, number> = {
-  '/guide/start': 0,
-  '/guide/protocols': 1,
-  '/guide/structure': 2,
-  '/guide/metrics': 3,
-  '/guide/clock': 4,
-  '/guide/wql': 5,
-  '/guide/dashboards': 6,
-  '/guide/sessions': 7,
+  '/page/guide-start': 0,
+  '/page/guide-protocols': 1,
+  '/page/guide-structure': 2,
+  '/page/guide-metrics': 3,
+  '/page/guide-clock': 4,
+  '/page/guide-wql': 5,
+  '/page/guide-dashboards': 6,
+  '/page/guide-sessions': 7,
 }
 
 /** Guide chapters as NavItems — the Home L2 list and the end-of-page
  * GuideIndexFooter both render this, so the two stay in sync. */
 export function guideChildrenFrom(routes: CanvasRoute[]): NavItem[] {
   return routes
-    .filter(r => !r.route.startsWith('/collections'))
+    .filter(r => !r.route.startsWith('/notebook'))
     .filter(r => r.page.frontmatter?.type === 'guide')
     .sort((a, b) => (guideOrder[a.route] ?? 99) - (guideOrder[b.route] ?? 99))
     .map(r => ({
@@ -86,9 +85,8 @@ function buildHomeChildren(routes: CanvasRoute[]): NavItem[] {
 // ─── Listing zones (flattened Library) ────────────────────────────────────────
 
 /**
- * Journal / Feeds / Playgrounds are top-level L1 rows — the old Library
- * wrapper is gone (catalog landing + item routes light the Feeds zone;
- * /catalogs keeps its own zone). Each zone's L2 is the shared
+ * The library concepts are top-level L1 rows — one zone per concept, each on
+ * its own canonical list route. Every zone's L2 is the shared
  * ConditionsNavPanel; there are no static preset children to keep in sync.
  */
 interface ListingZoneSpec {
@@ -148,14 +146,6 @@ function listingZone(spec: ListingZoneSpec): NavItem {
   }
 }
 
-const catalogCrosswalkChild: NavItem = {
-  id: 'collections-catalog-crosswalk',
-  label: 'Notebook crosswalk',
-  level: 2,
-  icon: Library,
-  action: { type: 'route', to: ROUTE_PATTERNS.catalogs },
-  isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.catalogs,
-}
 const listingZones: ListingZoneSpec[] = [
   {
     id: 'journal',
@@ -164,7 +154,7 @@ const listingZones: ListingZoneSpec[] = [
     icon: Calendar,
     route: ROUTE_PATTERNS.journal,
     profile: JOURNAL_STREAM_PROFILE,
-    familyActive: (loc: Location) => startsWithAny(loc.pathname, '/journal'),
+    familyActive: (loc: Location) => startsWithAny(loc.pathname, '/journal', '/day'),
     extraChildren: [allNotesChild],
     createAction: {
       label: 'New journal entry',
@@ -177,31 +167,56 @@ const listingZones: ListingZoneSpec[] = [
     },
   },
   {
-    id: 'catalogs',
+    id: 'notebooks',
     label: 'Notebooks',
     landingLabel: 'All notebooks',
     icon: Library,
-    route: ROUTE_PATTERNS.catalogs,
-    profile: CATALOGS_STREAM_PROFILE,
-    familyActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.catalogs,
+    route: ROUTE_PATTERNS.notebooks,
+    profile: NOTEBOOKS_STREAM_PROFILE,
+    familyActive: (loc: Location) => startsWithAny(loc.pathname, '/notebooks', '/notebook'),
   },
   {
-    id: 'feeds',
+    id: 'notes',
     label: 'Notes',
     landingLabel: 'All notes',
     icon: Rss,
-    route: ROUTE_PATTERNS.feeds,
-    profile: FEEDS_STREAM_PROFILE,
+    route: ROUTE_PATTERNS.notes,
+    profile: NOTES_STREAM_PROFILE,
+    // '/note/…' without '/notebook…' — one note is the notes concept too.
     familyActive: (loc: Location) =>
-      startsWithAny(loc.pathname, '/feeds', '/feed', '/c') &&
-      loc.pathname !== ROUTE_PATTERNS.catalogs,
-    extraChildren: [catalogCrosswalkChild],
+      loc.pathname === '/notes'
+      || (loc.pathname.startsWith('/note/') && !loc.pathname.startsWith('/notebook')),
     createAction: {
       label: 'New note',
-      testId: 'collections-create-note',
+      testId: 'notes-create-note',
       onClick: ({ openCreateJournal, navigate }) => {
         if (openCreateJournal) openCreateJournal({ mode: 'source' })
-        else navigate('/feeds?create=1&mode=source')
+        else navigate('/notes?create=1&mode=source')
+      },
+    },
+  },
+  {
+    id: 'feeds',
+    label: 'Feeds',
+    landingLabel: 'All feeds',
+    icon: Rss,
+    route: ROUTE_PATTERNS.feeds,
+    profile: FEEDS_STREAM_PROFILE,
+    familyActive: (loc: Location) => startsWithAny(loc.pathname, '/feeds', '/feed'),
+  },
+  {
+    id: 'pages',
+    label: 'Pages',
+    landingLabel: 'All pages',
+    icon: File,
+    route: ROUTE_PATTERNS.pages,
+    profile: PAGES_STREAM_PROFILE,
+    familyActive: (loc: Location) => startsWithAny(loc.pathname, '/pages', '/page'),
+    createAction: {
+      label: 'New page',
+      testId: 'pages-create-page',
+      onClick: ({ navigate }) => {
+        navigate('/page/new?mode=create')
       },
     },
   },
@@ -242,7 +257,7 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       isActive: (loc) =>
         loc.pathname === '/' ||
         loc.pathname === '' ||
-        loc.pathname.startsWith('/guide/') ||
+        loc.pathname.startsWith('/page/guide-') ||
         loc.pathname.startsWith('/canvas') ||
         loc.pathname === ROUTE_PATTERNS.home ||
         loc.pathname === ROUTE_PATTERNS.aiFirst ||
@@ -258,7 +273,7 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       level: 1,
       icon: ChartBarIcon,
       action: { type: 'route', to: ROUTE_PATTERNS.dashboards },
-      isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.dashboards || loc.pathname === '/dashboard' || loc.pathname.startsWith('/dashboard/') || loc.pathname.startsWith('/d/'),
+      isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.dashboards || loc.pathname.startsWith('/dashboard/'),
       // The L2 list (Explorer + vault-created + prebuilts, plus a New
       // dashboard action) is dynamic — vault dashboards are runtime data —
       // so it lives in the panel, not static children.
@@ -283,7 +298,7 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
           label: 'New effort',
           testId: 'efforts-create-effort',
           onClick: ({ navigate }) => {
-            navigate('/e/new?mode=create')
+            navigate('/effort/new?mode=create')
           },
         },
       }),
@@ -341,7 +356,7 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       level: 1,
       icon: Tag,
       action: { type: 'route', to: ROUTE_PATTERNS.tags },
-      isActive: (loc: Location) => loc.pathname.startsWith('/tags'),
+      isActive: (loc: Location) => loc.pathname.startsWith('/tags') || loc.pathname.startsWith('/t/'),
     },
     {
       id: 'settings',

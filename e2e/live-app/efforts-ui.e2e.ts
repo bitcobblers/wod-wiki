@@ -105,7 +105,7 @@ test.describe('Efforts Catalog Page', () => {
     await efforts.gotoCatalog();
 
     await page.getByRole('main').getByRole('button', { name: /Rowing/ }).first().click();
-    await page.waitForURL(/\/e\/rowing/, { timeout: 5_000 });
+    await page.waitForURL(/\/effort\/rowing/, { timeout: 5_000 });
     await expect(efforts.detailLabel()).toHaveText('Rowing');
   });
 });
@@ -167,8 +167,8 @@ test.describe('Effort Detail Page', () => {
     // add input — not a joined text value. Seeded rowing aliases: row, rower,
     // rowing machine, erg, ergometer, concept2 row, "Long Row", "Row
     // Calories"; every chip links to the canonical Rowing page.
-    const aliases = efforts.frontmatterProperties().getByLabel('Add to aliases').locator('..');
-    await expect(aliases.getByLabel('Add to aliases')).toBeVisible();
+    const aliases = efforts.frontmatterProperties().getByLabel('Value for aliases').locator('..');
+    await expect(aliases.getByLabel('Value for aliases')).toBeVisible();
     await expect(aliases.getByRole('button', { name: 'Remove row', exact: true })).toBeVisible();
     await expect(aliases.getByRole('button', { name: 'Remove rower', exact: true })).toBeVisible();
     await expect(aliases.getByRole('button', { name: 'Remove concept2 row', exact: true })).toBeVisible();

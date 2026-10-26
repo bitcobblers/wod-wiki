@@ -38,11 +38,11 @@ link rules: [../link-crosswalk.md](../link-crosswalk.md) and
 
 5. **Storage ids and route slugs stay separate.** `Entry.id` and `noteId`
    retain the owning note identity. `pageId` is the Page UUID; `pageSlug`
-   addresses named pages at `/p/:slug`. Search resolves named membership
+   addresses named pages at `/page/:slug`. Search resolves named membership
    through `page_notes`, skipping calendar pages. Plain notes fall back to
-   `/notes/:noteId`. Collection routes use declared `sourceId` or imported
-   `sourcePath`, not UUIDs: `/c/:catalog` for landings and
-   `/c/:catalog/:item` for workouts. Block results preserve section anchors.
+   `/note/:noteId`. Collection routes use declared `sourceId` or imported
+   `sourcePath`, not UUIDs: `/notebook/:catalog` for landings and
+   `/notebook/:catalog/:item` for workouts. Block results preserve section anchors.
 
 6. **Redirect components, not scattered literals.** Each retired path family
    has one Navigate component in `lib/routeRedirects.tsx`, mounted in the App

@@ -178,7 +178,7 @@ afterEach(() => {
 
     const effortLink = screen.getByTestId('property-table-effort-link')
     expect(effortLink).toBeDefined()
-    expect(effortLink.getAttribute('href')).toBe('/e/thruster')
+    expect(effortLink.getAttribute('href')).toBe('/effort/thruster')
 
     fireEvent.click(effortLink)
     expect(handleRowClick).not.toHaveBeenCalled()

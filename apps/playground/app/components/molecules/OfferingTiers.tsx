@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, CheckCircle2, Cloud, HardDrive, Server } from 'lucide-react'
 import { resetUserData } from '../../services/resetUserData'
-import { ROUTE_PATTERNS, noteByIdPath } from '../../lib/routes'
+import { ROUTE_PATTERNS, notePath } from '../../lib/routes'
 import { getTodayDateKey } from '../../services/dateUtils'
 import { journalNotes } from '../../services/journalNotes'
 import { telemetry, HOME_EVENTS } from '@/services/telemetry'
@@ -237,7 +237,7 @@ export function OfferingTiers() {
     const today = getTodayDateKey()
     const note = await journalNotes.create({ journalDate: today, title: today, rawContent: '' })
     telemetry.record(HOME_EVENTS.noteCreated)
-    navigate(noteByIdPath(note.id))
+    navigate(notePath(note.id))
   }
 
   const playgroundBadge =

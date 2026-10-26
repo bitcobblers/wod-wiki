@@ -40,7 +40,7 @@ describe('CanvasProse WQL links', () => {
     );
   });
 
-  it('decodes percent-encoded spaces and routes a single catalog filter to the /c/:slug landing', () => {
+  it('decodes percent-encoded spaces and routes a single catalog filter to the /notebook/:slug landing', () => {
     render(
       <MemoryRouter>
         <CanvasProse prose={'Browse [the girls](:feed{catalog:girls}%20by%20{tag}).'} />
@@ -49,7 +49,7 @@ describe('CanvasProse WQL links', () => {
 
     const link = screen.getByRole('link', { name: 'the girls' });
     expect(link.getAttribute('href')).toBe(
-      `/c/girls?q=${encodeURIComponent(':feed{catalog:girls} by {tag}')}`,
+      `/notebook/girls?q=${encodeURIComponent(':feed{catalog:girls} by {tag}')}`,
     );
   });
 
