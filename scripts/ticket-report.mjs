@@ -20,7 +20,12 @@ function fail(msg) {
 }
 
 function git(cwd, args) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  try {
+    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  } catch (error) {
+    const detail = error.stderr?.toString().trim() || error.message;
+    fail(`git ${args.join(' ')} failed: ${detail}`);
+  }
 }
 
 // Main checkout = first entry of `git worktree list --porcelain`, regardless
@@ -110,10 +115,13 @@ function copyLogs(mainRoot, slug, logs) {
   const copied = [];
   for (const log of logs) {
     assertFile('--log', log);
-    const dest = path.join(dir, path.basename(log));
-    const finalDest = fs.existsSync(dest)
-      ? path.join(dir, `${copied.length}-${path.basename(log)}`)
-      : dest;
+    const base = path.basename(log);
+    let finalDest = path.join(dir, base);
+    let collision = 0;
+    while (fs.existsSync(finalDest)) {
+      collision += 1;
+      finalDest = path.join(dir, `${collision}-${base}`);
+    }
     fs.copyFileSync(log, finalDest);
     copied.push(path.relative(reportDir(mainRoot, slug), finalDest));
   }
@@ -130,7 +138,7 @@ function cmdInit(mainRoot, cwd, flags) {
   saveReport(mainRoot, ticket, {
     schemaVersion: SCHEMA_VERSION,
     ticket,
-    baseSha: base,
+    baseSha: git(cwd, ['rev-parse', base]),
     headSha: headSha(cwd),
     changedFiles: changedFiles(cwd, base),
     behavioralAcceptance: [],

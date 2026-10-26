@@ -89,6 +89,16 @@ describe('compareDiagnostics', () => {
     expect(result.resolvedCount).toBe(1)
     expect(result.resolved[0].key).toContain('apps/playground/app/other.ts|TS2307|')
   })
+  it('treats identical diagnostics from different worktree roots as equal', () => {
+    const diagnostic = (root) =>
+      parseTscDiagnostics(
+        `apps/playground/app/widget.ts(1,1): error TS2322: Type 'import("${root}/packages/lang/dist/index").ExecutionStatus' is not assignable to type 'ExecutionStatus'.`,
+      )
+    const baseline = toDiagnosticCounts(diagnostic('/repo/wod-wiki__worktrees/validation-types'))
+    const current = toDiagnosticCounts(diagnostic('/repo/wod-wiki__worktrees/validation-integration'))
+    expect(compareDiagnostics(current, baseline).newCount).toBe(0)
+  })
+
 })
 
 describe('main (CLI behavior)', () => {

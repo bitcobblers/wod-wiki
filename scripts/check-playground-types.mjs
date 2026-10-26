@@ -80,11 +80,16 @@ function relativePath(file) {
   return isAbsolute(file) ? relative(REPO_ROOT, file) : file
 }
 
+/** Strip absolute checkout prefixes embedded in TypeScript type messages. */
+export function normalizeDiagnosticMessage(message) {
+  return message.replace(/(?:[A-Za-z]:[\\/])?\/(?:[^\s'\")]+[\\/])*?(?=(?:packages|apps)[\\/])/g, '')
+}
+
 /** Multiset of diagnostics: `${file}|${code}|${message}` -> count. */
 export function toDiagnosticCounts(diagnostics) {
   const counts = {}
   for (const d of diagnostics) {
-    const key = `${d.file}|${d.code}|${d.message}`
+    const key = `${d.file}|${d.code}|${normalizeDiagnosticMessage(d.message)}`
     counts[key] = (counts[key] ?? 0) + 1
   }
   return counts

@@ -33,24 +33,10 @@ When making changes to shared conventions (commands, architecture, patterns), up
 ### Package Manager
 Use **bun** exclusively. Never suggest `npm`, `yarn`, or `pnpm` commands. Refer to `AGENTS.md` for the exact command syntax.
 
-### Quick Reference Commands
-```bash
-bun install                    # Install dependencies
-bun run test                   # Run unit tests
-bun run test:components        # Run integration tests
-bun run test:all               # Run all tests
-bun run --cwd apps/playground test:markdown  # Markdown fixture compile suite (collections + syntax) — decoupled from test:all
-bun run storybook              # Start dev server
-bun run build-storybook        # Build (NEVER cancel — may take up to 60 min)
-bun run check:playground-types # Playground type check vs. checked-in baseline
-bun run lint                   # ESLint (lint:packages / lint:playground / lint:storybook for narrower surfaces)
-bun run test:e2e               # Full Playwright e2e suite (milestone gate)
-bun run test:e2e:preview       # Targeted preview acceptance (UI-worker done gate)
-bun x playwright test --headed # E2E with visible browser (for debugging)
-```
+### Validation
 
-Validation policies (targeted vs. milestone E2E, preview acceptance gate, ticket
-reports) live in `docs/development/validation.md` — the canonical reference.
+Read `docs/development/validation.md`, the canonical command and acceptance
+reference, before changing code.
 
 ### Code Generation Patterns
 
@@ -123,11 +109,6 @@ This skill covers:
 - Flakiness prevention rules
 
 ### Validation Checklist
-After generating or modifying code:
-1. `bun run test` — no new test failures
-2. `bun run check:playground-types` (playground changes) / `bun x tsc --noEmit` — no new type errors from your changes; pre-existing errors are tracked in the checked-in baseline
-3. `bun run test:storybook` — story smoke + interaction tests pass
-4. `bun run test:e2e:preview` — targeted preview acceptance passes (UI workers: required done gate); `bun run test:e2e` for milestone runs
-5. `bun run storybook` — Storybook loads and affected stories render
 
-The canonical reference is `docs/development/validation.md` — full command list, E2E policy, and the ticket-report CLI lifecycle.
+Follow `docs/development/validation.md` for the current checks, targeted preview
+acceptance, and ticket-report lifecycle.

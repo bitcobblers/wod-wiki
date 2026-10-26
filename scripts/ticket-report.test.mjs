@@ -85,6 +85,12 @@ describe('path selection and init', () => {
     expect(res.code).toBe(0);
     expect(fs.existsSync(reportFile('wod-2'))).toBe(true);
   });
+  it('resolves a symbolic base ref to its commit SHA', () => {
+    const res = run(['init', '--ticket', 'wod-ref', '--base', 'main']);
+    expect(res.code).toBe(0);
+    expect(readReport('wod-ref').baseSha).toBe(git(mainRoot, ['rev-parse', 'main']));
+  });
+
 });
 
 describe('accept / test / known', () => {
@@ -135,6 +141,22 @@ describe('accept / test / known', () => {
     expect(fs.readFileSync(path.join(ticketDir, 'logs', 'vitest.log'), 'utf8')).toBe('failure output\n');
     expect(readReport('wod-1').focusedTests[0].logs).toEqual(['logs/vitest.log']);
   });
+  it('keeps every log when names and generated suffixes collide', () => {
+    const log = path.join(tmp, 'vitest.log');
+    fs.writeFileSync(log, 'new output\n');
+    const ticketDir = path.join(mainRoot, '.scratch', 'ticket-reports', 'wod-1');
+    fs.mkdirSync(path.join(ticketDir, 'logs'), { recursive: true });
+    fs.writeFileSync(path.join(ticketDir, 'logs', 'vitest.log'), 'old output\n');
+    fs.writeFileSync(path.join(ticketDir, 'logs', '0-vitest.log'), 'older output\n');
+    const args = ['test', '--ticket', 'wod-1', '--kind', 'focused', '--command', 'x', '--passed', '0', '--failed', '0', '--log', log];
+    expect(run(args).code).toBe(0);
+    expect(run(args).code).toBe(0);
+    const entries = readReport('wod-1').focusedTests;
+    expect(entries[0].logs).toEqual(['logs/1-vitest.log']);
+    expect(entries[1].logs).toEqual(['logs/2-vitest.log']);
+    expect(fs.readFileSync(path.join(ticketDir, 'logs', '0-vitest.log'), 'utf8')).toBe('older output\n');
+  });
+
 
   it('appends pre-existing failures without failing', () => {
     const res = run(['known', '--ticket', 'wod-1', '--text', '4 module failures pre-exist on main']);
@@ -200,6 +222,13 @@ describe('validation errors', () => {
     expect(log.code).toBe(1);
     expect(log.stderr).toContain('does not exist');
   });
+  it('includes git stderr when the base ref is invalid', () => {
+    const res = run(['init', '--ticket', 'wod-1', '--base', 'definitely-not-a-ref']);
+    expect(res.code).toBe(1);
+    expect(res.stderr).toContain('git rev-parse definitely-not-a-ref failed');
+    expect(res.stderr).toContain('definitely-not-a-ref');
+  });
+
 
   it('rejects malformed commands, bad kinds, duplicates, and unknown tickets', () => {
     run(['init', '--ticket', 'wod-1', '--base', globalThis.__base]);
