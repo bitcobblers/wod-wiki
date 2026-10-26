@@ -17,8 +17,9 @@
  *    re-entering the editor section resets it to that arrival document.
  *  - quick-start quests (qs-arrive / qs-edit / qs-run) plus the insights
  *    scroll quest (qs-tour-analytics) and the run-started quest
- *    (qs-tour-timer, marked by any real run).
- *  - ChallengeHeaderBadge on '/' (mounted by App.tsx) — home quests only
+ *    (qs-tour-timer, marked by any real run). The Syntax Challenges
+ *    header badge is guides-only; home quests surface here and in the
+ *    tour outro instead.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'

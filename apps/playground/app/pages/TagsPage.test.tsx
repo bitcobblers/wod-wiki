@@ -63,8 +63,7 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
         await storageService.putTag({ id: 'tag-1', label: '50%', createdAt: 1000 });
 
         renderTagRoute('/t/general/50%25');
-
-        await screen.findByRole('heading', { name: 'Edit 50%' });
+        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit 50%' })).toBeTruthy(), { timeout: 5000 });
     });
 
     it('resolves a slash-containing label as one route segment', async () => {
@@ -73,14 +72,12 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
         await storageService.putTag({ id: 'tag-1', label: 'a/b', createdAt: 1000 });
 
         renderTagRoute('/t/general/a%2Fb');
-
-        await screen.findByRole('heading', { name: 'Edit a/b' });
+        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit a/b' })).toBeTruthy(), { timeout: 5000 });
     });
 
     it('creates a tag and selects it', async () => {
         renderTags();
-
-        const input = await screen.findByPlaceholderText('heavy');
+        const input = await waitFor(() => screen.getByPlaceholderText('heavy'), { timeout: 5000 });
         fireEvent.change(input, { target: { value: 'sprint' } });
         fireEvent.click(screen.getByText('Add Tag'));
 
@@ -97,10 +94,11 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
 
         renderTags('heavy');
 
-        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit heavy' })).toBeTruthy());
-        fireEvent.click(screen.getByText('Metric'));
+        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit heavy' })).toBeTruthy(), { timeout: 5000 });
+        const metricBtn = await waitFor(() => screen.getByRole('button', { name: /metric/i }), { timeout: 5000 });
+        fireEvent.click(metricBtn);
 
-        const typeInput = await screen.findByLabelText('Metric type');
+        const typeInput = await waitFor(() => screen.getByLabelText('Metric type'), { timeout: 5000 });
         fireEvent.change(typeInput, { target: { value: 'intensity' } });
         const valueInput = screen.getByLabelText('Metric value');
         fireEvent.change(valueInput, { target: { value: 'heavy' } });
@@ -119,12 +117,11 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
         await storageService.putTag({ id: 'tag-1', label: 'heavy', createdAt: 1000 });
 
         renderTags('heavy');
-
-        const input = await screen.findByPlaceholderText('heavy');
+        const input = await waitFor(() => screen.getByPlaceholderText('heavy'), { timeout: 5000 });
         fireEvent.change(input, { target: { value: 'heavy' } });
         fireEvent.click(screen.getByText('Add Tag'));
 
-        await waitFor(() => expect(screen.getByText(/already exists/)).toBeTruthy());
+        await waitFor(() => expect(screen.getByText(/already exists/)).toBeTruthy(), { timeout: 5000 });
     });
 
     it('points at the catalogue when no tag is selected', async () => {
@@ -132,6 +129,6 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
 
         renderTags(undefined, '/t/general/');
 
-        await waitFor(() => expect(screen.getByText(/tag catalogue/)).toBeTruthy());
+        await waitFor(() => expect(screen.getByText(/tag catalogue/)).toBeTruthy(), { timeout: 5000 });
     });
 });

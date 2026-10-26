@@ -34,7 +34,6 @@ import { useNav } from './nav/NavContext'
 import { useTheme } from '@/contexts/ThemeProvider'
 import { useCanvasRoutes } from './canvas/canvasRoutes'
 import { MarkdownCanvasPage } from './canvas/MarkdownCanvasPage'
-import { HOME_PAGE } from './canvas/homeSlice'
 import { ScrollCanvasPage } from './canvas/ScrollCanvasPage'
 import { FeedDetailPage } from './pages/FeedDetailPage'
 import { NotebookItemPage } from './pages/NotebookItemPage'
@@ -324,18 +323,12 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   const canvasRoute = view.page === 'canvas' ? view.canvasPage?.route : undefined
   const hideDesktopSidebar = view.page === 'home' || !!canvasRoute?.startsWith('/page/guide-')
 
-  const accessoryPage = view.page === 'home'
-    ? HOME_PAGE
-    : view.page === 'canvas'
-      ? view.canvasPage
-      : null
+  // Guides only: the home page doesn't mount the Syntax Challenges badge —
+  // its quests drive the tour and the outro chapter list instead.
+  const accessoryPage = view.page === 'canvas' ? view.canvasPage : null
   const canvasTitleAccessory = accessoryPage
     ? (
       <>
-        {/* On `/` this badge is the single header control — it tracks
-            only the home page's own quests (qs-arrive / qs-tour-* /
-            qs-edit / qs-run). The cross-page chapter list lives in the
-            tour outro's quest section instead of the header. */}
         {accessoryPage.quests.length > 0 && (
           <ChallengeHeaderBadge
             pageRoute={accessoryPage.route}
