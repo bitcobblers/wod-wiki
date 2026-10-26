@@ -299,6 +299,8 @@ export function createQueryService(): QueryService {
     },
     tagsStore: {
       getAllFromIndex: (index, key) => storageService.getAllFromIndex('tags', index, key),
+      // The :tag{} plane lists every tag record (labels + contributions).
+      getAll: () => storageService.getAllTags(),
     },
     noteTagsStore: {
       getAllFromIndex: (index, key) => storageService.getAllFromIndex('note_tags', index, key),
@@ -307,6 +309,9 @@ export function createQueryService(): QueryService {
     pageStore: {
       getNotePages: (noteId) => storageService.getNotePages(noteId),
       getPage: (pageId) => storageService.getPage(pageId),
+      // Whole-plane reads backing the :page{} placement plane.
+      getAllPages: () => storageService.getAllPages(),
+      getAllLinks: () => storageService.getAllPageNotes(),
     },
     relationStore: {
       getBatches: (noteIds) => storageService.getEntryBatches(noteIds),

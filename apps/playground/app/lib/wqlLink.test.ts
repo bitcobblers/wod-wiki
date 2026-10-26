@@ -10,8 +10,8 @@ describe('wqlStreamHref', () => {
     expect(wqlStreamHref(':session{}')).toBe(`/sessions?q=${encodeURIComponent(':session{}')}`)
   })
 
-  it('routes a single catalog or notebook filter to the /c/:slug landing', () => {
-    expect(wqlStreamHref(':feed{catalog:crossfit-girls}')).toBe(`/c/crossfit-girls?q=${encodeURIComponent(':feed{catalog:crossfit-girls}')}`)
+  it('routes a single notebook filter to the /c/:slug landing', () => {
+    expect(wqlStreamHref(':feeds{notebook:crossfit-girls}')).toBe(`/c/crossfit-girls?q=${encodeURIComponent(':feeds{notebook:crossfit-girls}')}`)
     expect(wqlStreamHref(':note{notebook:crossfit-girls}')).toBe(`/c/crossfit-girls?q=${encodeURIComponent(':note{notebook:crossfit-girls}')}`)
   })
 
@@ -25,8 +25,8 @@ describe('wqlStreamHref', () => {
   })
 
   it('encodes grouped queries (spaces survive markdown link parsing only when percent-encoded)', () => {
-    const href = wqlStreamHref(':feed{catalog:a} by {date}')
-    expect(href).toBe(`/c/a?q=${encodeURIComponent(':feed{catalog:a} by {date}')}`)
+    const href = wqlStreamHref(':feeds{notebook:a} by {date}')
+    expect(href).toBe(`/c/a?q=${encodeURIComponent(':feeds{notebook:a} by {date}')}`)
   })
 
   it('returns null for non-queries, invalid WQL, and empty text', () => {

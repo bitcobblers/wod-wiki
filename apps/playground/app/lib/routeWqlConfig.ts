@@ -23,6 +23,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { WQL_FIND_TARGETS, WQL_SOURCE_VALUES } from '@bitcobblers/wod-wiki-engine'
 import type { StreamProfile } from '../views/stream/streamProfile'
+import { migrateLegacyCatalogFilter } from './legacyWql'
 import { LocalStore } from '@/services/storage/LocalStore'
 import { remotePrefsMode, metaDeletePrefs, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
 import {
@@ -143,12 +144,14 @@ const LEGACY_STORAGE_ALIASES: Record<string, string> = {
  * default WQL written in the retired grammar rewrites to the feeds forms.
  * The `:collection`/`:collections` heads become `:feed`/`:feeds`,
  * `source:collections` becomes `source:feeds`, `type:collection` becomes
- * `type:feed`. Storage-identity spellings pass through untouched — a
- * `collection:`-prefixed source id keeps its prefix (`:collection:` is
- * never followed by a head boundary), and `:catalog`/`catalog:` stay.
+ * `type:feed`. The `catalog:` filter becomes `notebook:` (ticket 08 — the
+ * catalog plane is the feed-notebook plane); `:catalog` heads still parse
+ * mid-flight and need no text migration. Storage-identity spellings pass
+ * through untouched — a `collection:`-prefixed source id keeps its prefix
+ * (`:collection:` is never followed by a head boundary).
  */
 function migrateLegacyStoredWql(wql: string): string {
-  return wql
+  return migrateLegacyCatalogFilter(wql)
     .replace(/^:(collections?)(?![\w:])/, (head) => (head === ':collections' ? ':feeds' : ':feed'))
     .replace(/(^|[{,\s])source:collections(?![\w:])/g, '$1source:feeds')
     .replace(/(^|[{,\s])type:collection(?![\w:])/g, '$1type:feed')

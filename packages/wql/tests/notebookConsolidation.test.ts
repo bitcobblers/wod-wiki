@@ -140,26 +140,30 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     const notesHeadRes = await service.runFind(parseQuery(':notes{notebook:open-prep}') as Parameters<typeof service.runFind>[0]);
     expect(notesHeadRes.notes.map((n) => n.id)).toEqual(['user-nb-1']);
 
+    // The notebook head is the inclusive note plane (ticket 05): bare it
+    // returns every notebook's notes — never synthetic container rows — and
+    // notebook:{slug} narrows the same note shape (the /notebooks/:slug view).
     const notebookHeadRes = await service.runFind(parseQuery(':notebook{notebook:crossfit-girls}') as Parameters<typeof service.runFind>[0]);
     expect(notebookHeadRes.notes.map((n) => n.id)).toEqual(['fran-id']);
 
-    // The notebook head is the inclusive notebook plane: every notebook's
-    // notes — journal, playground, guides, feed-delivered, user notebooks —
-    // never a per-notebook listing (that is :catalog's job).
     const notebooksPlaneRes = await service.runFind(parseQuery(':notebook{}') as Parameters<typeof service.runFind>[0]);
-    expect(notebooksPlaneRes.notes.map((n) => n.id).sort()).toEqual(
-      ['01950000-0000-7000-8000-000000000001', 'fran-id', 'g-1', 'pg-1', 'user-nb-1'],
-    );
+    expect(notebooksPlaneRes.notes.map((n) => n.id).sort()).toEqual([
+      '01950000-0000-7000-8000-000000000001',
+      'fran-id',
+      'g-1',
+      'pg-1',
+      'user-nb-1',
+    ]);
 
     // The retired plural storage scope is a parse error — the notebook plane
     // is reached through the :notebook head, not source:notebooks.
     expect(parseQuery(':note{type:feed,source:notebooks}').error).toContain('source:notebooks is retired');
     expect(parseQuery(':note{source:notebook}').error).toContain('source:notebook is retired');
 
-    // :feed/:catalog keep their feed-catalog semantics — the listing of
-    // feed-delivered notebooks (one row per catalog, synthesized landings).
+    // :catalog keeps its feed-catalog semantics via the deprecated-head
+    // mapping — the notebook plane narrowed to feed-delivered NOTES.
     const catalogListingRes = await service.runFind(parseQuery(':catalog{}') as Parameters<typeof service.runFind>[0]);
-    expect(catalogListingRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
+    expect(catalogListingRes.notes.map((n) => n.id)).toEqual(['fran-id']);
   });
 
   it('resolves every corpus family from its corpus path alone (effort, equipment, dashboard, guide, collection, feed)', () => {

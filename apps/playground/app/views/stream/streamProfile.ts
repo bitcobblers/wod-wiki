@@ -118,6 +118,9 @@ export const JOURNAL_STREAM_PROFILE: StreamProfile = {
 export const CATALOGS_STREAM_PROFILE: StreamProfile = {
   route: '/catalogs',
   title: 'Notebooks',
+  // The notebook plane (ticket 08) — notes from every notebook, grouped by
+  // tag; the source picker narrows to feed-delivered notebooks (the
+  // retired catalog plane).
   defaultWql: ':notebook{} by {tag}',
   level: 'session',
   target: 'note',
@@ -155,9 +158,9 @@ export const EFFORTS_STREAM_PROFILE: StreamProfile = {
 export const EQUIPMENT_STREAM_PROFILE: StreamProfile = {
   route: '/equipment',
   title: 'Equipment',
-  defaultWql: ':note{source:equipment}',
+  defaultWql: ':equipment{}',
   level: 'note',
-  target: 'note',
+  target: 'equipment',
   scopeOptions: ['equipment'],
   emptyMessage: 'No equipment matches your search.',
 }

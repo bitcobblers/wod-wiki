@@ -5,6 +5,10 @@ export const DOMAIN_PROJECTION_VERSION = 2;
 
 export type DomainPredicate =
   | { field: 'id' | 'noteId' | 'type' | 'catalog' | 'source' | 'tags' | 'effort'; values: string[]; negate?: boolean }
+  /** Typed-tag narrow (ticket 08): notes carrying a tag of the named TYPE
+   *  and one of the labels — pushes down through the tags `by-type` index
+   *  instead of resolving label-only like the `tags` field. */
+  | { field: 'typedTag'; tagType: string; values: string[]; negate?: boolean }
   | { field: 'text'; value: string }
   | { field: 'date'; start: number; end: number; endExclusive?: boolean }
   | { field: 'page'; value: boolean }

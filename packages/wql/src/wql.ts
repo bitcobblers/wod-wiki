@@ -19,6 +19,7 @@ import {
   WQL_AGGREGATORS,
   WQL_CHART_HEADS,
   WQL_CONTENT_ONLY_KEYS,
+  WQL_DEPRECATED_HEAD_TARGETS,
   WQL_EFFORT_FILTER_KEYS,
   WQL_FIND_TARGETS,
   WQL_FUNCTION_HEADS,
@@ -917,16 +918,17 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
 
   const scope = WQL_SOURCE_HEAD_SCOPES[headName];
   const typeScope = WQL_TYPE_HEADS[headName];
+  const deprecated = WQL_DEPRECATED_HEAD_TARGETS[headName];
   if (scope || typeScope) {
     // Scoped note head: the head IS the scope, injected as authored filters
     // (they intersect any explicit source:/type: — plain AND).
     result.target = 'note';
+  } else if (deprecated) {
+    // Mid-flight catalog/collection heads (ticket 08) — the catalog plane IS
+    // the feed-notebook plane; final head removal is ticket 12.
+    result.target = deprecated.target;
   } else {
     result.target = (WQL_NOTE_HEAD_ALIASES as readonly string[]).includes(headName) ? 'note' : headName;
-    if (result.target === 'page') {
-      result.error = 'find:page is retired — page-ness is handled by type: (e.g. :note{source:guides} or type:feed).';
-      return result;
-    }
     // C7: closed target enum — unknown targets error at parse instead of
     // silently returning empty at runtime.
     if (!(WQL_FIND_TARGETS as readonly string[]).includes(result.target)) {
@@ -951,13 +953,16 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
       negate: false,
       values: [{ value: scope, wildcard: false }],
     });
-    if (headName === 'catalog' || headName === 'catalogs') {
+  }
+  if (deprecated) {
+    if (deprecated.scope) {
       result.filters.push({
-        key: 'type',
+        key: 'source',
         negate: false,
-        values: [{ value: 'feed', wildcard: false }],
+        values: [{ value: deprecated.scope, wildcard: false }],
       });
     }
+    advisories.push(`:${headName} is deprecated — use :${deprecated.target}${deprecated.scope ? `{source:${deprecated.scope}}` : '{}'}.`);
   }
   // Colon heads treat a trailing non-unit `in <word>` as the legacy scope
   // clause (the suffix layer files it under display-unit for non-find text).

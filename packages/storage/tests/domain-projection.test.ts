@@ -141,3 +141,43 @@ describe('domain source identity — one shared projection', () => {
     }
   });
 });
+
+describe('typed-tag predicate — SQL pushdown through the tags by-type index (ticket 08)', () => {
+  it('resolves type+label pairs in SQL, honors negation, and ignores label-only matches', async () => {
+    const db = libsqlDatabase(createClient({ url: ':memory:' }));
+    const server = new SqlStorage(db);
+    const tagRow = (id: string, label: string, type?: string) => ({ id, label, type, createdAt: 1000 });
+    const link = (id: string, noteId: string, tagId: string) => ({ id, noteId, tagId, createdAt: 1000 });
+    await server.transaction(['notes', 'tags', 'note_tags'], 'readwrite', async (tx) => {
+      await tx.readwrite('notes').put(note({ id: uuid(21), title: 'Kettlebell note', tags: ['kettlebell'] }));
+      await tx.readwrite('notes').put(note({ id: uuid(22), title: 'Timed note', tags: ['kettlebell', 'for-time'] }));
+      await tx.readwrite('notes').put(note({ id: uuid(23), title: 'Plain note' }));
+      await tx.readwrite('tags').put(tagRow('tag-k', 'kettlebell', 'equipment'));
+      await tx.readwrite('tags').put(tagRow('tag-f', 'for-time'));
+      await tx.readwrite('note_tags').put(link('nt-1', uuid(21), 'tag-k'));
+      await tx.readwrite('note_tags').put(link('nt-2', uuid(22), 'tag-f'));
+    });
+    try {
+      // The label `kettlebell` alone is not enough — the TYPE must match.
+      const typed = await server.queryDomain({
+        plan: 'notes',
+        filters: [{ field: 'typedTag', tagType: 'equipment', values: ['kettlebell'] }],
+      });
+      expect(typed?.rows.map((n) => (n as Note).id)).toEqual([uuid(21)]);
+      // Negation excludes the typed-tag carriers.
+      const negated = await server.queryDomain({
+        plan: 'notes',
+        filters: [{ field: 'typedTag', tagType: 'equipment', values: ['kettlebell'], negate: true }],
+      });
+      expect(negated?.rows.map((n) => (n as Note).id).sort()).toEqual([uuid(22), uuid(23)]);
+      // An unknown label narrows to nothing.
+      const unknown = await server.queryDomain({
+        plan: 'notes',
+        filters: [{ field: 'typedTag', tagType: 'equipment', values: ['snorkel'] }],
+      });
+      expect(unknown?.rows).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  });
+});

@@ -170,14 +170,14 @@ describe('routeWqlConfig — narrow favorites migration (work item 3)', () => {
     )
     expect(readRouteWqlConfig('/journal')).toEqual({ defaultWql: ':note{type:feed}' })
 
-    // Storage identities pass through: `collection:`-prefixed source ids and
-    // `:catalog`/`catalog:` filters are untouched.
+    // Storage identities pass through (`collection:`-prefixed source ids);
+    // the retired `catalog:` filter migrates to `notebook:` (ticket 08).
     window.localStorage.setItem(
       getRouteWqlStorageKey('/c/fran'),
       JSON.stringify({ defaultWql: ':feed{catalog:fran, source:collection:fran} last 4w' }),
     )
     expect(readRouteWqlConfig('/c/fran')).toEqual({
-      defaultWql: ':feed{catalog:fran, source:collection:fran} last 4w',
+      defaultWql: ':feed{notebook:fran, source:collection:fran} last 4w',
     })
   })
 

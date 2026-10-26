@@ -115,9 +115,9 @@ Every note belongs to a canonical `notebook/{slug}` container — including the 
 
 Filter by notebook with `notebook:<slug>` (or `notebook:notebook/<slug>`), or by storage scope with `source:`:
 
-`journal` (your journal notes) · `feeds` / `notebooks` (notebook notes) · `guides` · `playground` (plus `dashboards`, `efforts`, `equipment`)
+`journal` (your journal notes) · `feeds` (notebook notes) · `guides` · `playground` (plus `dashboards`, `efforts`, `equipment`)
 
-Omitting `source:` and `notebook:` searches **all** notes — there is no `source:all` (the parser refuses it). Pin one notebook with `notebook:crossfit-girls` (or legacy `catalog:crossfit-girls`).
+Omitting `source:` and `notebook:` searches **all** notes — there is no `source:all` (the parser refuses it). Pin one notebook with `notebook:crossfit-girls`.
 
 Journal scope includes user-created clones whose `sourceId` points to the original note UUID or legacy `journal/YYYY-MM-DD` ID. Only user-created notes (`seedOrigin !== 'seed'`) are editable; seed-delivered notebook notes are read-only and can be cloned into your writable notebooks.
 
@@ -144,7 +144,7 @@ Content queries can require a numeric threshold computed over each result's link
 :note{tags:pr,notebook:journal} last 8w where sum:totalVolume{} > 5000
 ```
 
-Keep only journal notes tagged `pr` whose total volume exceeds 5,000 kg. Joins are supported on `:note` and `:block`; other targets report an advisory and ignore the clause. Joins lean on the **Block Content Id** — a content hash of each workout block, stable across reorders and preserved when you clone a catalog benchmark into your journal, so history aggregates across every note where that workout lives.
+Keep only journal notes tagged `pr` whose total volume exceeds 5,000 kg. Joins are supported on `:note` and `:block`; other targets report an advisory and ignore the clause. Joins lean on the **Block Content Id** — a content hash of each workout block, stable across reorders and preserved when you clone a feed-delivered benchmark into your journal, so history aggregates across every note where that workout lives.
 
 ## Content queries {#content}
 
@@ -156,10 +156,17 @@ pipeline:
 ```
 
 ```query
-:block{text:fran,source:notebooks}
+:block{text:fran,notebook:crossfit-girls}
 ```
 
-Targets: `:note` / `:notes` (whole notes), `:notebook` / `:notebooks` (notebooks), `:block` (addressable fenced blocks), `:effort` (registry entries, filterable by `effort`, `discipline`, `intensity`, `origin`, `text`), plus the advanced `:session`, `:segment`, `:event` for recorded results and raw rows. Content-only keys (`type`, `text`, `has`, `source`, `catalog`, `notebook`) are category errors on aggregates.
+Targets: `:note` / `:notes` (whole notes), `:block` (addressable fenced blocks), `:effort` (registry entries, filterable by `effort`, `discipline`, `intensity`, `origin`, `text`), plus the advanced `:session`, `:segment`, `:event` for recorded results and raw rows — and four container planes that speak the app's own vocabulary:
+
+- `:notebook{}` returns the **notes** of every notebook — journal, playground, defaults, user-created, feed-delivered — never a synthetic container list. `notebook:crossfit-girls` narrows to that notebook's notes (the same query behind the notebook page); `!notebook:` excludes one; `source:feeds` narrows to feed-delivered notes. Container criteria narrow members: `:notebook{notebook:crossfit-girls, tags:benchmark}` keeps only matching notes.
+- `:page{}` lists **placements** — notes placed on dated or named pages; `page:2026-10-24` or `page:back-log` narrows by the page, `notebook:` by its notebook.
+- `:tag{}` lists tags — filter by label (`tag:kettlebell`), record type (`type:equipment`), or what a tag contributes (`contributes:metric`, `contributes:tag:mobility`, `contributes:function:calc.e1rm`). A contribution is never offered as a label filter.
+- `:equipment{}` lists equipment notes — the equipment library plane; narrow with `equipment:kettlebell` or any tag filter (`tags:benchmark`).
+
+Content-only keys (`type`, `text`, `source`, `notebook`, `page`, `tag`, `contributes`, `equipment`) are category errors on aggregates.
 
 The search palette's FIND mode matches note titles and bodies within its selected scope and time window. Type plain text or a quoted phrase such as `"workout in the park"`; clearing the text restores the scope. WQL mode retains diagnostics for malformed queries. Freeform CONTAINS rows have no count badge; the results total reports matches.
 

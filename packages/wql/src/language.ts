@@ -32,6 +32,7 @@ import {
   WQL_ROLLUP_PERIODS,
   WQL_SOURCE_HEADS,
   WQL_NOTE_HEAD_ALIASES,
+  WQL_DEPRECATED_HEAD_TARGETS,
   WQL_SOURCE_HEAD_SCOPES,
   WQL_TYPE_HEADS,
   WQL_SOURCE_VALUES,
@@ -334,6 +335,8 @@ function resolveColonHead(name: string): Head {
   if ((WQL_CHART_HEADS as readonly string[]).includes(n)) return { family: 'find' };
   const headTarget = (head: string): string => {
     if ((WQL_NOTE_HEAD_ALIASES as readonly string[]).includes(head)) return 'note';
+    const deprecated = WQL_DEPRECATED_HEAD_TARGETS[head];
+    if (deprecated) return deprecated.target;
     const scoped = (WQL_SOURCE_HEAD_SCOPES as Readonly<Record<string, string>>)[head]
       || (WQL_TYPE_HEADS as Readonly<Record<string, string>>)[head];
     return scoped ? 'note' : head;

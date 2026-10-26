@@ -19,7 +19,7 @@
  * Fully inverted dependencies: zero IndexedDB/storage module-level imports.
  */
 
-import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, Page, PageNote, NotePlacement } from '@bitcobblers/wod-wiki-core';
+import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, Page, PageNote, NotePlacement, Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
 import { normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   parseQuery,
@@ -441,6 +441,13 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
     if (filter.key === 'page') {
       // A page filter (any polarity) is applied in JS.
       residual = true;
+      continue;
+    }
+    if (plane === 'note' && (WQL_TYPED_TAG_KEYS as readonly string[]).includes(filter.key) && literal) {
+      // Typed-tag narrow (ticket 08) — the wire's typedTag arm joins the
+      // tags by-type index, exactly the JS stage's (type, label) resolution.
+      // Note plane only: runFindBlock never applies typed tags in JS.
+      compiled.push({ field: 'typedTag', tagType: filter.key, values });
       continue;
     }
     if (filter.key === 'text' && literal) {
@@ -1010,6 +1017,9 @@ export class QueryService {
   private readonly pageStore?: {
     getNotePages(noteId: string): Promise<PageNote[]>;
     getPage(pageId: string): Promise<Page | undefined>;
+    /** Whole-plane reads backing `:page{}` (the placement plane). */
+    getAllPages?(): Promise<Page[]>;
+    getAllLinks?(): Promise<PageNote[]>;
   };
   private readonly relationStore?: {
     getBatches(noteIds: readonly string[]): Promise<Map<string, NoteRelationBundle>>;
@@ -1023,7 +1033,7 @@ export class QueryService {
   private blockEffortsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
     getAllFromIndex: async () => [],
   };
-  private tagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private tagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]>; getAll?(): Promise<any[]> } = {
     getAllFromIndex: async () => [],
   };
   private noteTagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
@@ -1431,12 +1441,17 @@ export class QueryService {
     if (parsed.target === 'segment' || parsed.target === 'event') {
       return this.runFindTable(parsed, options);
     }
-    const isCatalogHead = parsed.target === 'note'
-      && parsed.filters.some(f => f.key === 'type' && !f.negate && f.values.some(v => v.value === 'feed'))
-      && (parsed.filters.some(f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feed' || v.value === 'feeds'))
-          || parsed.sourceScope?.includes('feeds'));
-    if (isCatalogHead) {
-      return this.runFindCatalog(parsed, options, await this.noteStore.getAllNotes());
+    if (parsed.target === 'notebook') {
+      return this.runFindNotebook(parsed, options);
+    }
+    if (parsed.target === 'page') {
+      return this.runFindPage(parsed, options);
+    }
+    if (parsed.target === 'tag') {
+      return this.runFindTag(parsed, options);
+    }
+    if (parsed.target === 'equipment') {
+      return this.runFindEquipment(parsed, options);
     }
     // Domain candidate read: selection (source clauses + the explicit source
     // fence) narrows before the wire's selectedCount; compiled positive
@@ -1465,14 +1480,14 @@ export class QueryService {
     // Handles general 'tags' plus dynamic typed tags (domain, format, equipment, quality, intent)
     // and exercise containment ('effort').
     for (const filter of parsed.filters) {
-      if (filter.key === 'tags' && !filter.negate) {
+      if (isTagLabelKey(filter.key) && !filter.negate) {
         const matchingIds = new Set<string>();
         for (const v of filter.values) {
           const ids = await this.noteStore.getNoteIdsForTag(v.value);
           ids.forEach(id => matchingIds.add(id));
         }
         notes = notes.filter(n => matchingIds.has(n.id));
-      } else if (filter.key === 'tags' && filter.negate) {
+      } else if (isTagLabelKey(filter.key) && filter.negate) {
         for (const v of filter.values) {
           const ids = await this.noteStore.getNoteIdsForTag(v.value);
           notes = notes.filter(n => !ids.has(n.id));
@@ -1735,7 +1750,7 @@ export class QueryService {
 
     // Tags filter — matches if the parent note has the tag
     for (const filter of parsed.filters) {
-      if (filter.key === 'tags' && !filter.negate) {
+      if (isTagLabelKey(filter.key) && !filter.negate) {
         const matchingNoteIds = new Set<string>();
         for (const v of filter.values) {
           const ids = await this.noteStore.getNoteIdsForTag(v.value);
@@ -2513,143 +2528,254 @@ export class QueryService {
   }
 
   /**
-   * Find catalogs: identifies catalogs whose member notes (or catalog landing
-   * notes) match the authored criteria (effort, tags, text, typed tags, etc.).
+   * Execute a :notebook query (ticket 08) — the notebook plane is a NOTE
+   * plane (ticket 05 semantics preserved): bare `:notebook{}` returns the
+   * notes of every notebook — journal, playground, defaults, user-created,
+   * feed-delivered. `notebook:{slug}` narrows to members of those
+   * notebooks and `!notebook:` excludes them; the result shape never
+   * changes with polarity, and container criteria (tags:, effort:, typed
+   * tags, text:) narrow the members exactly like the note plane — this
+   * delegates to it. The notebook CONTAINER listing (the /catalogs
+   * management surface) is the app's NotebookService model, not WQL rows.
    */
-  private async runFindCatalog(parsed: ParsedFindQuery, options: FindOptions, allNotes: Note[]): Promise<FindQueryResult> {
+  async runFindNotebook(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {
+    return this.runFind({ ...parsed, target: 'note' }, options);
+  }
+
+  /**
+   * Execute a :page query (ticket 08) — the placement plane. Results are
+   * the placed notes; `placements` carries every page each note sits on
+   * (many-to-many) and `containers` the primary projection. `page:{slug}`
+   * (or a `YYYY-MM-DD` date, or a page id) narrows the placements.
+   */
+  async runFindPage(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {
+    const empty: FindQueryResult = { parsed, notes: [], blocks: [], stages: { selected: 0, matched: 0 } };
+    if (!this.pageStore?.getAllPages || !this.pageStore?.getAllLinks) return empty;
     const ctx = runContext(options);
-    const feedNotes = allNotes.filter(n => sourceMatches(n, 'feeds') || (n.catalog && !n.sourceId));
+    const [pages, links] = await Promise.all([this.pageStore.getAllPages(), this.pageStore.getAllLinks()]);
+    let placements = resolvePlacements(links, pages);
+    const selected = new Set(placements.map((p) => p.noteId)).size;
 
-    let catalogNotes = feedNotes.filter(n => n.type === 'feed' || n.sourceId?.startsWith('page:collection:'));
-    const existingCatIds = new Set(catalogNotes.map(n => catalogOfItem(n) ?? n.id));
-    for (const n of feedNotes) {
-      const cat = catalogOfItem(n);
-      if (cat && !existingCatIds.has(cat)) {
-        catalogNotes.push({
-          id: cat,
-          title: cat,
-          type: 'feed',
-          sourceId: `page:collection:${cat}`,
-          catalog: cat,
-          createdAt: n.createdAt ?? 0,
-          rawContent: '', sourceRevision: 1, blocks: {},
-        });
-        existingCatIds.add(cat);
-      }
-    }
-
-    const membersByCat = new Map<string, Note[]>();
-    for (const catNote of catalogNotes) {
-      const catId = catalogOfItem(catNote) ?? catNote.id;
-      membersByCat.set(catId, [catNote]);
-    }
-    for (const n of feedNotes) {
-      const catId = catalogOfItem(n);
-      if (catId) {
-        const list = membersByCat.get(catId);
-        if (list) {
-          if (!list.includes(n)) list.push(n);
-        } else {
-          membersByCat.set(catId, [n]);
-        }
-      }
-    }
-
-    const criteriaFilters = parsed.filters.filter(f =>
-      !(f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feeds' || v.value === 'feed')) &&
-      !(f.key === 'type' && !f.negate && f.values.some(v => v.value === 'feed'))
-    );
-
-    let matchingCatalogs = [...catalogNotes];
-
-    for (const filter of criteriaFilters) {
-      if (filter.key === 'catalog' || filter.key === 'notebook') {
-        const wanted = new Set(filter.values.map(v => notebookSlugFromId(v.value)));
-        matchingCatalogs = matchingCatalogs.filter(c => {
-          const catId = notebookSlugFromId(catalogOfItem(c) ?? c.id);
-          const hit = wanted.has(catId);
-          return filter.negate ? !hit : hit;
-        });
-      } else if (filter.key === 'effort') {
-        const matchingIds = new Set<string>();
-        for (const v of filter.values) {
-          const ids = await this.getNoteIdsForEffort(v.value);
-          ids.forEach(id => matchingIds.add(id));
-        }
-        matchingCatalogs = matchingCatalogs.filter(c => {
-          const catId = catalogOfItem(c) ?? c.id;
-          const members = membersByCat.get(catId) ?? [];
-          const hit = members.some(m => matchingIds.has(m.id));
-          return filter.negate ? !hit : hit;
-        });
-      } else if (filter.key === 'tags') {
-        const matchingIds = new Set<string>();
-        for (const v of filter.values) {
-          const ids = await this.noteStore.getNoteIdsForTag(v.value);
-          ids.forEach(id => matchingIds.add(id));
-        }
-        matchingCatalogs = matchingCatalogs.filter(c => {
-          const catId = catalogOfItem(c) ?? c.id;
-          const members = membersByCat.get(catId) ?? [];
-          const hit = members.some(m => matchingIds.has(m.id) || (m.tags && filter.values.some(v => m.tags!.includes(v.value))));
-          return filter.negate ? !hit : hit;
-        });
-      } else if (WQL_TYPED_TAG_KEYS.includes(filter.key as WqlTypedTagKey)) {
-        const matchingIds = new Set<string>();
-        for (const v of filter.values) {
-          const ids = await this.getNoteIdsForTypedTag(filter.key, v.value);
-          ids.forEach(id => matchingIds.add(id));
-        }
-        matchingCatalogs = matchingCatalogs.filter(c => {
-          const catId = catalogOfItem(c) ?? c.id;
-          const members = membersByCat.get(catId) ?? [];
-          const hit = members.some(m => matchingIds.has(m.id));
-          return filter.negate ? !hit : hit;
-        });
-      } else if (filter.key === 'text') {
-        const search = filter.values.map(v => v.value).join(' ').toLowerCase();
-        matchingCatalogs = matchingCatalogs.filter(c => {
-          const catId = catalogOfItem(c) ?? c.id;
-          const members = membersByCat.get(catId) ?? [];
-          const hit = members.some(m => m.title.toLowerCase().includes(search) || m.rawContent.toLowerCase().includes(search));
-          return filter.negate ? !hit : hit;
-        });
-      } else if (filter.key === 'note') {
-        const wanted = new Set(filter.values.map(v => v.value));
-        matchingCatalogs = matchingCatalogs.filter(c => {
-          const catId = catalogOfItem(c) ?? c.id;
-          const members = membersByCat.get(catId) ?? [];
-          const hit = members.some(m => wanted.has(m.id));
-          return filter.negate ? !hit : hit;
-        });
-      }
-    }
-
-    if (parsed.window || options.range) {
-      matchingCatalogs = matchingCatalogs.filter(c => {
-        const catId = catalogOfItem(c) ?? c.id;
-        const members = membersByCat.get(catId) ?? [];
-        return members.some(m => effectiveTimeWindow(m.date ?? m.createdAt, parsed.window, options.range, ctx));
+    for (const filter of parsed.filters) {
+      if (filter.key !== 'page') continue;
+      const wanted = new Set(filter.values.map((v) => v.value));
+      placements = placements.filter((p) => {
+        const hit = wanted.has(p.pageId) || (p.slug !== undefined && wanted.has(p.slug)) || (p.date !== undefined && wanted.has(p.date));
+        return filter.negate ? !hit : hit;
       });
     }
 
-    if (parsed.pipes?.order) {
-      for (const order of [...parsed.pipes.order].reverse()) {
-        const dir = order.dir === 'desc' ? -1 : 1;
-        matchingCatalogs = [...matchingCatalogs].sort((a, b) => {
-          const av = (a as unknown as Record<string, unknown>)[order.col] ?? '';
-          const bv = (b as unknown as Record<string, unknown>)[order.col] ?? '';
-          if (av === bv) return 0;
-          return ((av as string | number) > (bv as string | number) ? 1 : -1) * dir;
+    const placedIds = [...new Set(placements.map((p) => p.noteId))];
+    let notes = this.noteStore.getNotesByIds
+      ? await this.noteStore.getNotesByIds(placedIds)
+      : (await this.noteStore.getAllNotes()).filter((n) => placedIds.includes(n.id));
+    for (const filter of parsed.filters) {
+      if (filter.key === 'note') {
+        const wanted = new Set(filter.values.map((v) => v.value));
+        notes = notes.filter((n) => (filter.negate ? !wanted.has(n.id) : wanted.has(n.id)));
+      }
+    }
+    for (const filter of parsed.filters) {
+      if (filter.key === 'text') {
+        const search = filter.values.map((v) => v.value).join(' ').toLowerCase();
+        notes = notes.filter((n) => {
+          const hit = n.title.toLowerCase().includes(search) || n.rawContent.toLowerCase().includes(search);
+          return filter.negate ? !hit : hit;
         });
       }
     }
+    notes = applyNotebookFilter(notes, parsed.filters);
+    if (parsed.window || options.range) {
+      notes = notes.filter((n) => effectiveTimeWindow(n.date ?? n.createdAt, parsed.window, options.range, ctx));
+    }
+    notes = applyOrderAndPage(notes, parsed);
 
+    const survived = new Set(notes.map((n) => n.id));
+    const byNote = new Map<string, NotePlacement[]>();
+    for (const p of placements) {
+      if (!survived.has(p.noteId)) continue;
+      const list = byNote.get(p.noteId);
+      if (list) list.push(p);
+      else byNote.set(p.noteId, [p]);
+    }
+    const containers: Record<string, NoteContainer> = {};
+    for (const note of notes) {
+      const primary = byNote.get(note.id)?.[0];
+      containers[note.id] = primary
+        ? { kind: 'page', id: primary.pageId, ...(primary.slug ? { slug: primary.slug } : {}), ...(primary.date ? { date: primary.date } : {}) }
+        : { kind: 'note', id: note.id };
+    }
     return {
       parsed,
-      notes: matchingCatalogs,
+      notes,
       blocks: [],
-      stages: { selected: catalogNotes.length, matched: matchingCatalogs.length },
+      containers,
+      placements: Object.fromEntries(byNote),
+      stages: { selected, matched: notes.length },
     };
   }
+
+  /**
+   * Execute a :tag query (ticket 08) — the tag plane. Every tag record
+   * surfaces as one synthetic note row, so results are notes end to end.
+   * `tag:{label}` narrows; `type:` narrows by the tag's configured type;
+   * `contributes:` narrows by what a tag contributes (`metric`,
+   * `metric:<type>`, `tag:<slug>`, `function:<name>`) — a contribution is
+   * exposed here, never as a `tags:` label filter. The synthetic row's body
+   * summarizes the contributions so `text:` reaches them too.
+   */
+  async runFindTag(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {
+    const ctx = runContext(options);
+    const tags = (this.tagsStore.getAll ? await this.tagsStore.getAll() : []) as Tag[];
+    const selected = tags.length;
+    let matched = tags;
+    for (const filter of parsed.filters) {
+      if (isTagLabelKey(filter.key)) {
+        const wanted = new Set(filter.values.map((v) => v.value.toLowerCase()));
+        matched = matched.filter((t) => {
+          const hit = typeof t.label === 'string' && wanted.has(t.label.toLowerCase());
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'type') {
+        const wanted = new Set(filter.values.map((v) => v.value));
+        matched = matched.filter((t) => {
+          const hit = t.type !== undefined && wanted.has(t.type);
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'contributes') {
+        matched = matched.filter((t) => {
+          const hit = (t.contributions ?? []).some((c) =>
+            filter.values.some((v) => tagContributionMatches(c, v.value)));
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'text') {
+        const search = filter.values.map((v) => v.value).join(' ').toLowerCase();
+        matched = matched.filter((t) => (filter.negate !== `${t.label ?? ''} ${tagContributionSummary(t)}`.toLowerCase().includes(search)));
+      }
+    }
+    let rows: Note[] = matched.map((t) => ({
+      id: `tag/${typeof t.type === 'string' && t.type ? t.type : 'general'}/${t.label}`,
+      title: t.label,
+      type: 'tag',
+      tagType: typeof t.type === 'string' ? t.type : undefined,
+      contributions: t.contributions ?? [],
+      createdAt: typeof t.createdAt === 'number' ? t.createdAt : 0,
+      content: tagContributionSummary(t),
+      rawContent: tagContributionSummary(t),
+      sourceRevision: 1,
+      blocks: {},
+    } as Note));
+    if (parsed.window || options.range) {
+      rows = rows.filter((r) => effectiveTimeWindow(r.createdAt, parsed.window, options.range, ctx));
+    }
+    rows = applyOrderAndPage(rows, parsed);
+    return { parsed, notes: rows, blocks: [], stages: { selected, matched: rows.length } };
+  }
+
+  /**
+   * Execute an :equipment query (ticket 08) — the equipment plane. Results
+   * are the equipment notes (the equipment notebook's members, typed
+   * 'equipment' rows included). `equipment:{label}` narrows by the
+   * equipment typed tag ("every equipment note tagged kettlebell" is
+   * `:equipment{equipment:kettlebell}`); `tags:` and `text:` narrow like
+   * the note plane.
+   */
+  async runFindEquipment(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {
+    const allNotes = await this.noteStore.getAllNotes();
+    const ctx = runContext(options);
+    let notes = allNotes.filter((n) => notebookOfItem(n) === 'notebook/equipment' || n.type === 'equipment' || sourceMatches(n, 'equipment'));
+    const selected = notes.length;
+    for (const filter of parsed.filters) {
+      if (filter.key === 'equipment') {
+        const matchingIds = new Set<string>();
+        for (const v of filter.values) {
+          (await this.getNoteIdsForTypedTag('equipment', v.value)).forEach((id) => matchingIds.add(id));
+        }
+        notes = notes.filter((n) => (filter.negate ? !matchingIds.has(n.id) : matchingIds.has(n.id)));
+      } else if (isTagLabelKey(filter.key) && !filter.negate) {
+        const matchingIds = new Set<string>();
+        for (const v of filter.values) {
+          (await this.noteStore.getNoteIdsForTag(v.value)).forEach((id) => matchingIds.add(id));
+        }
+        notes = notes.filter((n) => matchingIds.has(n.id));
+      } else if (isTagLabelKey(filter.key) && filter.negate) {
+        for (const v of filter.values) {
+          const ids = await this.noteStore.getNoteIdsForTag(v.value);
+          notes = notes.filter((n) => !ids.has(n.id));
+        }
+      }
+    }
+    for (const filter of parsed.filters) {
+      if (filter.key === 'text') {
+        const search = filter.values.map((v) => v.value).join(' ').toLowerCase();
+        notes = notes.filter((n) => {
+          const hit = n.title.toLowerCase().includes(search) || n.rawContent.toLowerCase().includes(search);
+          return filter.negate ? !hit : hit;
+        });
+      }
+    }
+    notes = applyNotebookFilter(notes, parsed.filters);
+    if (parsed.window || options.range) {
+      notes = notes.filter((n) => effectiveTimeWindow(n.date ?? n.createdAt, parsed.window, options.range, ctx));
+    }
+    notes = applyOrderAndPage(notes, parsed);
+    return { parsed, notes, blocks: [], stages: { selected, matched: notes.length } };
+  }
+}
+
+/**
+ * Shared `| order by` + `| limit/offset` tail for the container-plane
+ * executors (page/tag/equipment — :notebook delegates to the note plane).
+ * Server-paged reads do not exist on these planes — every slice happens
+ * here, over the complete match.
+ */
+function applyOrderAndPage<T>(rows: T[], parsed: ParsedFindQuery): T[] {
+  let out = rows;
+  if (parsed.pipes?.order) {
+    for (const order of [...parsed.pipes.order].reverse()) {
+      const dir = order.dir === 'desc' ? -1 : 1;
+      out = [...out].sort((a, b) => {
+        const av = (a as unknown as Record<string, unknown>)[order.col] ?? '';
+        const bv = (b as unknown as Record<string, unknown>)[order.col] ?? '';
+        if (av === bv) return 0;
+        return ((av as string | number) > (bv as string | number) ? 1 : -1) * dir;
+      });
+    }
+  }
+  const pipes = parsed.pipes;
+  if (pipes && (pipes.limit !== undefined || (pipes.offset ?? 0) > 0)) {
+    const offset = pipes.offset ?? 0;
+    out = pipes.limit !== undefined ? out.slice(offset, offset + pipes.limit) : out.slice(offset);
+  }
+  return out;
+}
+
+/** Both spellings name the tag-label filter — the canonical AST key `tags:`
+ *  and the singular `tag:` the vocabulary also accepts. Capabilities admit
+ *  either (supportsWqlFilterKey maps one onto the other), so every executor
+ *  must apply both; a registered filter is never silently dropped. */
+function isTagLabelKey(key: string): boolean {
+  return key === 'tags' || key === 'tag';
+}
+
+/** One `contributes:` value against one tag contribution — `metric`,
+ *  `metric:<type>`, `tag:<slug>`, `function:<name>`. */
+function tagContributionMatches(contribution: TagContribution, value: string): boolean {
+  const sep = value.indexOf(':');
+  const kind = sep === -1 ? value : value.slice(0, sep);
+  const qualifier = sep === -1 ? '' : value.slice(sep + 1);
+  if (contribution.kind !== kind) return false;
+  if (!qualifier) return true;
+  if (contribution.kind === 'metric') return contribution.type === qualifier;
+  if (contribution.kind === 'tag') return contribution.slug === qualifier;
+  return contribution.name === qualifier;
+}
+
+/** Human-readable contribution summary — the synthetic tag row's body. */
+function tagContributionSummary(tag: Pick<Tag, 'contributions'>): string {
+  const parts = (tag.contributions ?? []).map((c) =>
+    c.kind === 'metric' ? `metric ${c.type}`
+      : c.kind === 'tag' ? `tag ${c.slug}`
+        : `function ${c.name}`);
+  return parts.length ? `contributes ${parts.join(', ')}` : '';
 }

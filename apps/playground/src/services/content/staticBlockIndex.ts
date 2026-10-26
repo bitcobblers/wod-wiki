@@ -172,17 +172,6 @@ setSuggestionBinding('type', {
     emptyText: 'No indexed block types yet',
 });
 
-setSuggestionBinding('catalog', {
-    load: async () => {
-        const blocks = await loadCorpusBlocks();
-        const catalogIds = catalogIdsFromBlocks(blocks);
-        return catalogIds.map((id) => ({ value: id, label: id }));
-    },
-    cache: 'static',
-    open: false,
-    emptyText: 'No notebooks in the static corpus',
-});
-
 setSuggestionBinding('notebook', {
     load: async () => {
         const blocks = await loadCorpusBlocks();

@@ -44,8 +44,11 @@ export type WqlTagKey = (typeof WQL_TAG_KEYS)[number];
 
 /** Content-plane keys — meaningful only on find:/rows:. On an aggregate
  *  they are a category error (a fact row has no note text or source);
- *  every other non-structural key is a candidate custom dimension. */
-export const WQL_CONTENT_ONLY_KEYS = ['type', 'text', 'has', 'source', 'catalog', 'notebook'] as const;
+ *  every other non-structural key is a candidate custom dimension.
+ *  `catalog:` is retired (ticket 08 — the notebook plane and the
+ *  `notebook:` filter replace it) and `has:` was removed from the
+ *  declared vocabulary: it had no executor and the composer withheld it. */
+export const WQL_CONTENT_ONLY_KEYS = ['type', 'text', 'source', 'notebook', 'contributes'] as const;
 
 /** Filter keys the effort registry can resolve (runFindEffort) — anything
  *  else on find:effort is ignored and reported as an advisory. */
@@ -101,8 +104,11 @@ export type WqlIntensityTier = (typeof WQL_INTENSITY_TIERS)[number];
 export const WQL_GRAINS = ['summary', 'event'] as const;
 export type WqlGrain = (typeof WQL_GRAINS)[number];
 
-/** Content-discovery query targets (find:<target>). */
-export const WQL_FIND_TARGETS = ['note', 'block', 'effort', 'session', 'segment', 'event'] as const;
+/** Content-discovery query targets (find:<target>). The four container
+ *  planes (ticket 08) are first-class targets: `:notebook{}` lists the
+ *  notebook containers, `:page{}` the page placements, `:tag{}` the tags,
+ *  `:equipment{}` the equipment notes — the latter two resolve to notes. */
+export const WQL_FIND_TARGETS = ['note', 'block', 'effort', 'session', 'segment', 'event', 'notebook', 'page', 'tag', 'equipment'] as const;
 export type WqlFindTarget = (typeof WQL_FIND_TARGETS)[number];
 
 /** Canonical source filter values: the allowed storage locations (the
@@ -114,33 +120,45 @@ export const WQL_SOURCE_VALUES = ['journal', 'feeds', 'guides', 'playground', 'd
 export type WqlSourceValue = (typeof WQL_SOURCE_VALUES)[number];
 
 /** Colon source heads — the unprefixed `:<head>` names. Find targets map
- *  1:1 to the content planes; journal/feed(s)/catalog(s)/playground are
- *  source-scoped note heads (they parse to target 'note' plus an injected
- *  `source:` filter). */
+ *  1:1 to the content planes; journal/feed(s)/playground are source-scoped
+ *  note heads (they parse to target 'note' plus an injected `source:`
+ *  filter). `:notebook{}` / `:page{}` / `:tag{}` / `:equipment{}` are the
+ *  container planes (targets of their own name). `:notebook{}` stays a NOTE
+ *  plane (ticket 05): it returns every notebook's notes, delegating to the
+ *  note executor. `catalog`/`catalogs`/`collection`/`collections` stay
+ *  mid-flight (final removal is ticket 12): they parse to the notebook
+ *  plane scoped to feed-delivered notebooks. */
 export const WQL_SOURCE_HEADS = [
   'note', 'notes', 'block', 'effort', 'session', 'segment', 'event',
-  'journal', 'notebook', 'notebooks', 'feed', 'feeds', 'catalog', 'catalogs', 'playground',
+  'journal', 'notebook', 'notebooks', 'feed', 'feeds', 'playground',
+  'page', 'tag', 'equipment',
+  'catalog', 'catalogs', 'collection', 'collections',
   'dashboard',
 ] as const;
 export type WqlSourceHead = (typeof WQL_SOURCE_HEADS)[number];
 
-/** Storage scope a source-scoped note head binds (undefined = plain target).
- *  `notebook`/`notebooks` are NOT here: they are plain note-head aliases
- *  (ticket 05) — the notebook plane is every notebook (journal, playground,
- *  defaults, user-created, feed-delivered), narrowed with the `notebook:`
- *  filter key, not a feeds source scope. */
+/** Storage scope a source-scoped note head binds (undefined = plain target). */
 export const WQL_SOURCE_HEAD_SCOPES: Readonly<Record<string, WqlSourceValue>> = {
   journal: 'journal',
   feed: 'feeds',
   feeds: 'feeds',
-  catalog: 'feeds',
-  catalogs: 'feeds',
   playground: 'playground',
 };
 
 /** Note-head aliases — `:<head>` parses to target 'note' with NO injected
  *  scope (the note plane is inclusive; authored filters narrow it). */
-export const WQL_NOTE_HEAD_ALIASES = ['notes', 'notebook', 'notebooks'] as const;
+export const WQL_NOTE_HEAD_ALIASES = ['notes'] as const;
+
+/** Deprecated container heads — mid-flight mapping to the new vocabulary
+ *  (ticket 08; the heads themselves are removed in ticket 12). The retired
+ *  catalog plane IS the feed-notebook plane: `:catalog{}` ≡
+ *  `:notebook{source:feeds}`, and `catalog:<id>` ≡ `notebook:<id>`. */
+export const WQL_DEPRECATED_HEAD_TARGETS: Readonly<Record<string, { target: string; scope?: WqlSourceValue }>> = {
+  catalog: { target: 'notebook', scope: 'feeds' },
+  catalogs: { target: 'notebook', scope: 'feeds' },
+  collection: { target: 'notebook', scope: 'feeds' },
+  collections: { target: 'notebook', scope: 'feeds' },
+};
 
 /** Type-alias note heads — `:<head>` parses to target 'note' plus an injected
  *  `type:` filter (no storage scope, so the head never narrows by source).
@@ -179,8 +197,11 @@ export type WqlStandardDataset = (typeof WQL_STANDARD_DATASETS)[number];
 export const WQL_RESULT_PLANES = KNOWN_OUTPUT_TYPES;
 export type WqlResultPlane = (typeof WQL_RESULT_PLANES)[number];
 
-/** Content-specific filter keys (beyond the analytics tag keys). */
-export const WQL_CONTENT_FILTER_KEYS = ['type', 'text', 'has', 'source', 'catalog', 'notebook', ...WQL_TAG_KEYS] as const;
+/** Content-specific filter keys (beyond the analytics tag keys). `catalog:`
+ *  and `has:` are gone (ticket 08): `catalog:` → `notebook:`, `has:` had no
+ *  executor. `contributes:` is the tag plane's contribution filter — a
+ *  contribution is never a `tags:` label filter. */
+export const WQL_CONTENT_FILTER_KEYS = ['type', 'text', 'source', 'notebook', 'page', 'contributes', ...WQL_TAG_KEYS] as const;
 export type WqlContentFilterKey = (typeof WQL_CONTENT_FILTER_KEYS)[number];
 
 /**
@@ -192,7 +213,7 @@ export type WqlContentFilterKey = (typeof WQL_CONTENT_FILTER_KEYS)[number];
  * deliberately absent — it needs new grammar/engine semantics and is
  * deferred to its own ticket.
  */
-export const WQL_SOURCES = ['note', 'block', 'effort', 'session', 'segment', 'event'] as const;
+export const WQL_SOURCES = ['note', 'block', 'effort', 'session', 'segment', 'event', 'notebook', 'page', 'tag', 'equipment'] as const;
 export type WqlSource = (typeof WQL_SOURCES)[number];
 
 /** Rollup periods the aggregate grammar accepts (wql.ts: N > 1, unit d|w). */

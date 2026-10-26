@@ -92,12 +92,6 @@ const builtinBindings: Record<string, SuggestionBinding> = {
     open: false,
     emptyText: 'No disciplines available',
   },
-  catalog: {
-    load: async () => [],
-    cache: 'static',
-    open: false,
-    emptyText: 'No catalogs in the static corpus',
-  },
   notebook: {
     load: async () => [],
     cache: 'static',
@@ -115,6 +109,14 @@ const builtinBindings: Record<string, SuggestionBinding> = {
     cache: 'static',
     open: false,
     emptyText: 'No indexed block types yet',
+  },
+  // Tag-plane contribution kinds (ticket 08) — an open slot: qualifiers like
+  // `metric:rpe` or `function:calc.e1rm` are typed, never listed as labels.
+  contributes: {
+    load: async () => canonicalSuggestionItems(['metric', 'tag', 'function']),
+    cache: 'static',
+    open: true,
+    emptyText: 'metric, tag, or function',
   },
 };
 

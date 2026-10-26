@@ -3,14 +3,17 @@ import { seedNote } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
- * The notebook plane (ticket 05) — user-level behavior over real storage:
+ * The notebook plane (tickets 05 + 08) — user-level behavior over real
+ * storage:
  *
- *  - the plane query `:notebook{}` reaches every notebook and `notebook:<slug>`
- *    narrows it (the defaults notebook's starter note is reachable, with no
- *    `type:feed` gate),
- *  - the /catalogs management list shows the always-present notebooks
- *    (defaults + the app-owned core references) plus feed libraries, and user
- *    notebooks support create / rename / delete,
+ *  - the plane query `:notebook{}` returns the NOTES of every notebook
+ *    (never synthetic container rows) and `notebook:<slug>` narrows those
+ *    notes — negation narrows the same shape; an empty user notebook yields
+ *    no rows, no fake container,
+ *  - the /catalogs management list (the NotebookService surface) shows the
+ *    always-present notebooks (defaults + the app-owned core references)
+ *    plus feed libraries, and user notebooks support create / rename /
+ *    delete,
  *  - a note moves between user-owned notebooks through the row action,
  *  - a notebook note clones into the journal (Add to today keeps lineage),
  *  - editability follows notebook ownership: a user-owned note opens an
@@ -102,7 +105,7 @@ test.describe('Notebook plane', () => {
     await expect(page.getByTestId('notebook-list')).not.toContainText('Trip 2027');
   });
 
-  test('the notebook plane reaches the defaults notebook and narrows by slug', async ({ page }) => {
+  test('the notebook plane returns notes from every notebook and narrows by slug', async ({ page }) => {
     // The retired type:feed gate is gone — the defaults notebook holds the
     // starter note and the plane reaches it with a plain notebook: filter.
     await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
@@ -114,6 +117,30 @@ test.describe('Notebook plane', () => {
     // A different notebook does not leak in.
     await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:playground}')}`);
     await expect(page.getByText('My Workout')).toHaveCount(0);
+
+    // Bare `:notebook{}` is the inclusive note plane: notes from EVERY
+    // notebook, never synthetic container rows.
+    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{}')}`);
+    await waitForFeedReady(page);
+    const all = page.getByTestId('stream-feed-item');
+    await expect(all.first()).toBeVisible();
+    await expect(all.filter({ hasText: 'My Workout' }).first()).toBeVisible();
+
+    // Negation narrows the same note shape — defaults notes drop out.
+    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{!notebook:defaults}')}`);
+    await waitForFeedReady(page);
+    await expect(page.getByText('My Workout')).toHaveCount(0);
+
+    // A fresh user notebook (created from the plain /catalogs surface —
+    // the management controls live there) narrows to its real notes. A new
+    // notebook ships one landing note, so the plane answers with exactly
+    // that note row — never a synthetic container row.
+    await page.goto('/catalogs');
+    await waitForFeedReady(page);
+    await createNotebook(page, 'Trip 2026');
+    await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:trip-2026}')}`);
+    await waitForFeedReady(page);
+    await expect(page.getByTestId('stream-feed-item')).toHaveCount(1);
   });
 
   test('a note moves into a user-owned notebook and clones into the journal', async ({ page }) => {
@@ -161,10 +188,14 @@ test.describe('Notebook plane', () => {
     await page.goto('/journal');
     await waitForFeedReady(page);
     // The default `last 4w` window ends at the captured instant, and the
-    // journal date stamp is local midnight — in the evening the stamp can
-    // land past the window end (pre-existing add-to-today/date-key skew,
-    // outside this ticket). The clone is proven on the unwindowed journal.
-    await page.getByRole('button', { name: /Remove time window/ }).click();
+    // journal date stamp is local midnight — depending on the time of day
+    // the stamp can land inside or past the window (pre-existing add-to-
+    // today/date-key skew, outside this ticket). 'Remove time window' is an
+    // empty-state remedy: it only renders when the windowed stream is empty.
+    // Click it when offered; when the clone lands inside the window it is
+    // already visible.
+    const removeWindow = page.getByRole('button', { name: /Remove time window/ });
+    if (await removeWindow.isVisible().catch(() => false)) await removeWindow.click();
     // The journal page renders its own entry cards (not stream-feed-item rows).
     await expect(page.locator('main')).toContainText('My Workout');
   });

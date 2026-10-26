@@ -24,8 +24,8 @@ import { WQL_INTENSITY_TIERS } from '@bitcobblers/wod-wiki-wql';
  *  `groupby` OR their values in the engine (value lists join with `|`). */
 export const MULTI_VALUE_TYPES: Record<string, true> = {
   tag: true,
-  catalog: true,
   notebook: true,
+  contributes: true,
   effort: true,
   domain: true,
   format: true,

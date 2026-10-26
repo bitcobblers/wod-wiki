@@ -6,10 +6,11 @@
  * of a link.
  *
  * Markdown link destinations cannot contain spaces, so grouped queries are
- * percent-encoded by the author (`:feed{catalog:a}%20by%20{date}`); callers
- * decodeURIComponent before passing the query here.
+ * percent-encoded by the author (`:feeds{notebook:a}%20by%20{date}`);
+ * callers decodeURIComponent before passing the query here.
  */
 import { parseQuery, isFindQuery, notebookSlugFromId } from '@bitcobblers/wod-wiki-engine'
+import { migrateLegacyCatalogFilter } from './legacyWql'
 
 function singleValue(filters: { key: string; negate: boolean; values: { value: string }[] }[], key: string): string | null {
   const filter = filters.find(f => f.key === key && !f.negate)
@@ -19,7 +20,9 @@ function singleValue(filters: { key: string; negate: boolean; values: { value: s
 export function wqlStreamHref(rawQuery: string): string | null {
   const query = rawQuery.trim()
   if (!query.startsWith(':')) return null
-  const parsed = parseQuery(query)
+  // Legacy `catalog:` filters still route to their notebook landing — the
+  // migration decides the target; the original text rides the query param.
+  const parsed = parseQuery(migrateLegacyCatalogFilter(query))
   if (parsed.error || !isFindQuery(parsed)) return null
   const q = `?q=${encodeURIComponent(query)}`
   switch (parsed.target) {
@@ -33,9 +36,9 @@ export function wqlStreamHref(rawQuery: string): string | null {
     case 'block': {
       // Scoped note heads parse to target 'note' plus injected filters
       // (`:feed{…}` → source:feeds, `:journal{…}` → source:journal).
-      const notebookOrCatalog = singleValue(parsed.filters, 'notebook') ?? singleValue(parsed.filters, 'catalog')
-      if (notebookOrCatalog) {
-        const slug = notebookSlugFromId(notebookOrCatalog)
+      const notebookFilter = singleValue(parsed.filters, 'notebook')
+      if (notebookFilter) {
+        const slug = notebookSlugFromId(notebookFilter)
         if (slug === 'journal') return `/journal${q}`
         if (slug === 'playground') return `/playgrounds${q}`
         return `/c/${encodeURIComponent(slug)}${q}`

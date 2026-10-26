@@ -30,12 +30,25 @@ const AGGREGATE_TYPES: ReadonlySet<string> = new Set([
   'time', 'groupby', 'rollup', 'unit', 'where', 'agg', 'metric',
 ]);
 const TARGET_TYPES: Readonly<Record<string, ReadonlySet<string>>> = {
-  note: new Set(['text', 'catalog', 'notebook', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where']),
-  block: new Set(['text', 'catalog', 'notebook', 'tag', 'effort', 'type', 'source', 'note', 'time', 'groupby', 'where']),
+  // The notebook plane IS the note plane (its executor delegates), so both
+  // advertise the same member-criteria keys — container criteria (tags:,
+  // effort:, typed tags, text:) narrow notebook results, never ignored.
+  notebook: new Set(['text', 'notebook', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where']),
+  note: new Set(['text', 'notebook', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where']),
+  block: new Set(['text', 'notebook', 'tag', 'effort', 'type', 'source', 'note', 'time', 'groupby', 'where']),
   effort: new Set([...WQL_EFFORT_FILTER_KEYS, 'groupby']),
   session: new Set(['result', 'block', 'note', 'plane', 'time', 'groupby']),
   segment: new Set([...TABLE_KEYS, 'time', 'groupby', 'unit']),
   event: new Set([...TABLE_KEYS, 'time', 'groupby', 'unit']),
+  // Container planes (ticket 08). `:notebook{}` delegates to the note plane
+  // (see the notebook entry above); `:page{}` lists the page placements;
+  // `:tag{}` the tags (results are notes); `:equipment{}` the equipment
+  // notes. The tag plane's `contributes:` filter matches what a tag
+  // contributes — never offered as a `tags:` label filter. These executors
+  // return flat rows (no `by {}` grouping), so groupby stays unadvertised.
+  page: new Set(['page', 'notebook', 'text', 'note', 'time']),
+  tag: new Set(['tag', 'type', 'text', 'contributes', 'time']),
+  equipment: new Set(['equipment', 'tags', 'text', 'notebook', 'time']),
 };
 /** Empty fallback keeps the exported ReadonlySet contract for unknown targets. */
 const EMPTY_TYPES: ReadonlySet<string> = new Set();

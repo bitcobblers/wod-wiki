@@ -525,6 +525,15 @@ function parsePredicate(v: unknown, plan: Plan): DomainPredicate {
     }
     return { field, values: strArray(obj.values, `predicate ${field}.values`), ...(negate ? { negate } : {}) } as DomainPredicate;
   }
+  if (field === 'typedTag') {
+    if (!onlyKeys(obj, ['field', 'tagType', 'values', 'negate'])) {
+      throw bad('predicate typedTag accepts only field/tagType/values/negate');
+    }
+    if (typeof obj.tagType !== 'string' || obj.tagType.length < 1 || obj.tagType.length > MAX_VALUE_LEN) {
+      throw bad(`predicate typedTag.tagType must be 1..=${MAX_VALUE_LEN} chars`);
+    }
+    return { field: 'typedTag', tagType: obj.tagType, values: strArray(obj.values, 'predicate typedTag.values'), ...(negate ? { negate } : {}) };
+  }
   if (field === 'text') {
     if (!onlyKeys(obj, ['field', 'value']) || negate) throw bad('predicate text accepts only {field, value}');
     if (typeof obj.value !== 'string' || obj.value.length < 1 || obj.value.length > MAX_VALUE_LEN) {
@@ -717,6 +726,15 @@ function predicateSql(ctx: Sql, p: DomainPredicate, plan: Plan): string {
         p.negate === true,
         `EXISTS (SELECT 1 FROM "note_tags" nt JOIN "tags" t ON t."k0" = nt."i_by_tag_0" ` +
           `WHERE nt."i_by_note_0" = ${noteId} AND t."i_by_label_0" IN (${p.values.map((v) => ctx.bind(v)).join(', ')}))`,
+      );
+    case 'typedTag':
+      // Typed-tag narrow (ticket 08) — joins on the tags by-type index so a
+      // type+label pair resolves in SQL instead of residual JS.
+      return wrap(
+        p.negate === true,
+        `EXISTS (SELECT 1 FROM "note_tags" nt JOIN "tags" t ON t."k0" = nt."i_by_tag_0" ` +
+          `WHERE nt."i_by_note_0" = ${noteId} AND t."i_by_type_0" = ${ctx.bind(p.tagType)} ` +
+          `AND t."i_by_label_0" IN (${p.values.map((v) => ctx.bind(v)).join(', ')}))`,
       );
     case 'effort':
       return wrap(

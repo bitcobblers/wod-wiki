@@ -147,3 +147,33 @@ describe('streamProfile', () => {
     expect(effortsLegacy.salvageQ?.(':effort', new URLSearchParams())).toBeNull()
   })
 })
+
+describe('CATALOGS_STREAM_PROFILE default query (ticket 08)', () => {
+  it('defaults to notes from every notebook grouped by tag', () => {
+    expect(CATALOGS_STREAM_PROFILE.defaultWql).toBe(':notebook{} by {tag}')
+    expect(CATALOGS_STREAM_PROFILE.target).toBe('note')
+    const parsed = parseQuery(CATALOGS_STREAM_PROFILE.defaultWql)
+    expect(parsed.error).toBeUndefined()
+    // The grouping dimension the stream view consumes.
+    expect(isFindQuery(parsed) && parsed.groupBy).toEqual(['tag'])
+  })
+
+  it('the default query runs against the notebook plane and returns notes', async () => {
+    const { QueryService } = await import('@bitcobblers/wod-wiki-engine')
+    const notes = [
+      { id: 'journal/2026-10-26', title: 'Morning', seedOrigin: 'user', sourceId: 'journal', tags: ['benchmark'], createdAt: 1, rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'crossfit-girls/fran', title: 'Fran', seedOrigin: 'seed', sourceId: 'collection:crossfit-girls/fran', tags: ['benchmark'], createdAt: 2, rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'pg-1', title: 'Draft', seedOrigin: 'user', sourceId: 'playground', tags: ['emom'], createdAt: 3, rawContent: '', sourceRevision: 1, blocks: {} },
+    ]
+    const service = new QueryService({
+      eventStore: { getEventsByTimeRange: async () => [], getEventsByResult: async () => [] },
+      noteStore: { getAllNotes: async () => notes, getNoteIdsForTag: async () => new Set() },
+      blockStore: { getAllBlocks: async () => [] },
+    } as never)
+    const result = await service.runFind(parseQuery(CATALOGS_STREAM_PROFILE.defaultWql) as never)
+    // Notes from every notebook, tagged so the stream view can group them —
+    // never synthetic notebook/container rows.
+    expect(result.notes.map((n) => n.id).sort()).toEqual(['crossfit-girls/fran', 'journal/2026-10-26', 'pg-1'])
+    expect(result.notes.every((n) => !n.id.startsWith('notebook/'))).toBe(true)
+  })
+})

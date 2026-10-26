@@ -40,9 +40,9 @@ export type ClauseType =
   | 'target'
   | 'source'
   | 'text'
-  | 'catalog'
   | 'notebook'
   | 'tag'
+  | 'contributes'
   | 'effort'
   | 'domain'
   | 'format'
@@ -105,6 +105,10 @@ export const TARGET_OPTIONS = WQL_FIND_TARGETS.map((t) => ({
     session: 'Find completed workout sessions',
     segment: 'Cross-workout segment table',
     event: 'Telemetry events table',
+    notebook: 'Find notebooks — every notebook, narrowed with notebook:',
+    page: 'Find page placements — notes placed on pages, narrowed with page:',
+    tag: 'Find tags — labels, types, and what they contribute',
+    equipment: 'Find equipment notes — narrowed with equipment: or tags:',
   }[t],
 }));
 
@@ -197,9 +201,9 @@ export const CLAUSE_META: Record<ClauseType, ClauseMeta> = {
   target:    { label: 'Find',       inputType: 'select',   placeholder: 'note, block, effort…',        placeholderText: ': [target]',             icon: '🎯', description: 'What to find — singular', prefix: ':' },
   source:    { label: 'Where stored', inputType: 'select', placeholder: 'journal, notebooks…',      placeholderText: 'source: [scope]',        icon: '🌐', description: 'Storage scope — all sources means no scope', prefix: 'source:' },
   text:      { label: 'Contains',   inputType: 'freetext', placeholder: 'Text query...',              placeholderText: 'text: [query]',           icon: '🔍', description: 'Raw text substring search', prefix: 'text:' },
-  catalog:   { label: 'Catalog',    inputType: 'select',   placeholder: 'crossfit-games, hyrox...',    placeholderText: 'catalog: [directory-id]', icon: '📓', description: 'Filter by catalog directory id, e.g. crossfit-games', prefix: 'catalog:' },
   notebook:  { label: 'Notebook',   inputType: 'select',   placeholder: 'Pick notebook...',           placeholderText: 'notebook: [id]',         icon: '📓', description: 'Filter by canonical notebook container id, e.g. notebook/journal, notebook/playground, notebook/guides', prefix: 'notebook:' },
   tag:       { label: 'Tag',        inputType: 'select',   placeholder: 'Pick tag...',                placeholderText: 'tags: [tag]',            icon: '🏷', description: 'Filter by note/workout tags', prefix: 'tags:' },
+  contributes: { label: 'Contributes', inputType: 'select', placeholder: 'metric, tag, function…',    placeholderText: 'contributes: [kind]',    icon: '❇', description: 'On :tag — what a tag contributes (metric, tag:<slug>, function:<name>) — never a label filter', prefix: 'contributes:' },
   effort:    { label: 'Effort',     inputType: 'select',   placeholder: 'Pick effort...',             placeholderText: 'effort: [movement]',     icon: '💪', description: 'Filter by movement/workout', prefix: 'effort:' },
   domain:    { label: 'Domain',     inputType: 'select',   placeholder: 'crossfit, parkour, swimming…',placeholderText: 'domain: [discipline]',   icon: '🌐', description: 'Filter by sport/training domain', prefix: 'domain:' },
   format:    { label: 'Format',     inputType: 'select',   placeholder: 'for-time, amrap, emom…',      placeholderText: 'format: [shape]',        icon: '⏱', description: 'Filter by session time structure', prefix: 'format:' },
@@ -220,7 +224,7 @@ export const CLAUSE_META: Record<ClauseType, ClauseMeta> = {
   result:    { label: 'Session',    inputType: 'freetext', placeholder: 'result id…',                  placeholderText: 'result: [id]',            icon: '🏁', description: 'Scope to one workout session', prefix: 'result:' },
   block:     { label: 'Block',      inputType: 'freetext', placeholder: 'block content id…',           placeholderText: 'block: [contentId]',      icon: '🧱', description: 'Scope to all versions of a block', prefix: 'block:' },
   note:      { label: 'Note',       inputType: 'freetext', placeholder: 'note id…',                    placeholderText: 'note: [id]',              icon: '📓', description: 'Scope to one note', prefix: 'note:' },
-  page:      { label: 'Page',       inputType: 'select',   placeholder: 'true, false…',                placeholderText: 'page: [true|false]',      icon: '📄', description: 'Notes that are (or are not) pages', prefix: 'page:' },
+  page:      { label: 'Page',       inputType: 'select',   placeholder: 'slug, date, true…',           placeholderText: 'page: [slug|date]',       icon: '📄', description: 'On :page — the page slug or YYYY-MM-DD date; on :note — page-ness (true/false)', prefix: 'page:' },
   plane:     { label: 'Output Plane',inputType: 'select',   placeholder: 'segment, load, event…',       placeholderText: 'plane: [type]',           icon: '📋', description: 'Output-statement plane on :session', prefix: 'plane:' },
   pipes:     { label: 'Pipes',      inputType: 'freetext', placeholder: '| order by date | limit 10',  placeholderText: '| select | order | limit', icon: '⇥', description: 'Presentation pipes — select/order/limit/offset' },
 };

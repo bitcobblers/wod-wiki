@@ -56,7 +56,7 @@ The guide is user-facing content and is rewritten by the WQL ticket, not here. T
 |---|---|
 | `markdown/canvas/guide/README.md` | the `source:collection` / `source:feed` literals (line 47) and the `source:notebooks` scope value (line 179) |
 | `markdown/canvas/guide/start.md` | the `source:notebooks` scope value (lines 155, 158) |
-| `markdown/canvas/guide/wql.md` | the `feeds` / `notebooks` scope values (line 118), the legacy `catalog:` filter literal (line 120), and `catalog` among the content-only keys (line 162) |
+| `markdown/canvas/guide/wql.md` | **rewritten (ticket 08)** — the `catalog:` filter literal and the `catalog` content-only key are gone; the chapter now teaches the `:notebook{}` / `:page{}` / `:tag{}` / `:equipment{}` planes alongside `:note` |
 | `markdown/canvas/guide/dashboards.md` | the `:note{effort:fran,source:notebooks}` example (line 109) |
 | `markdown/canvas/wql-presets/content-fran.md` | the `:block{text:fran,source:notebooks}` preset (line 4) |
 

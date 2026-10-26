@@ -9,25 +9,32 @@ describe('splitReadmeQueries', () => {
   })
 
   it('extracts a bang link as an embed with its label as the heading', () => {
-    const segments = splitReadmeQueries('Intro.\n\n[Recent WODs](:feed{catalog:crossfit-girls} by {tag})!\n\nOutro.')
+    const segments = splitReadmeQueries('Intro.\n\n[Recent WODs](:feeds{notebook:crossfit-girls} by {tag})!\n\nOutro.')
     expect(segments).toEqual([
       { kind: 'markdown', text: 'Intro.\n\n' },
-      { kind: 'query', query: ':feed{catalog:crossfit-girls} by {tag}', heading: 'Recent WODs' },
+      { kind: 'query', query: ':feeds{notebook:crossfit-girls} by {tag}', heading: 'Recent WODs' },
       { kind: 'markdown', text: '\n\nOutro.' },
     ])
   })
 
   it('decodes percent-encoded spaces in the destination', () => {
-    const segments = splitReadmeQueries('[Girls](:feed{catalog:girls}%20by%20{date})!')
+    const segments = splitReadmeQueries('[Girls](:feeds{notebook:girls}%20by%20{date})!')
     expect(segments).toEqual([
-      { kind: 'query', query: ':feed{catalog:girls} by {date}', heading: 'Girls' },
+      { kind: 'query', query: ':feeds{notebook:girls} by {date}', heading: 'Girls' },
+    ])
+  })
+
+  it('migrates a legacy catalog: filter to notebook: (ticket 08)', () => {
+    const segments = splitReadmeQueries('[Recent](:feed{catalog:crossfit-girls} by {tag})!')
+    expect(segments).toEqual([
+      { kind: 'query', query: ':feed{notebook:crossfit-girls} by {tag}', heading: 'Recent' },
     ])
   })
 
   it('supports an empty heading and multiple embeds on one page', () => {
-    const segments = splitReadmeQueries('[](:feed{catalog:a})!\nmid\n[](:effort{discipline:strength})!')
+    const segments = splitReadmeQueries('[](:feeds{notebook:a})!\nmid\n[](:effort{discipline:strength})!')
     expect(segments).toEqual([
-      { kind: 'query', query: ':feed{catalog:a}', heading: '' },
+      { kind: 'query', query: ':feeds{notebook:a}', heading: '' },
       { kind: 'markdown', text: '\nmid\n' },
       { kind: 'query', query: ':effort{discipline:strength}', heading: '' },
     ])
@@ -44,11 +51,11 @@ describe('splitReadmeQueries', () => {
   })
 
   it('keeps the markdown between two embeds', () => {
-    const segments = splitReadmeQueries('[](:feed{catalog:a})!\n[](:feed{catalog:b})!')
+    const segments = splitReadmeQueries('[](:feeds{notebook:a})!\n[](:feeds{notebook:b})!')
     expect(segments).toEqual([
-      { kind: 'query', query: ':feed{catalog:a}', heading: '' },
+      { kind: 'query', query: ':feeds{notebook:a}', heading: '' },
       { kind: 'markdown', text: '\n' },
-      { kind: 'query', query: ':feed{catalog:b}', heading: '' },
+      { kind: 'query', query: ':feeds{notebook:b}', heading: '' },
     ])
   })
 })

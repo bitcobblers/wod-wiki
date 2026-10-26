@@ -163,9 +163,21 @@ describe('source: filter — runFind (Note[])', () => {
     expect(parsed.error).toBeUndefined();
   });
 
-  it(':page fails to parse with a hint', () => {
+  it(':page parses to the placement plane (ticket 08)', async () => {
     const parsed = parseQuery(':page');
-    expect(parsed.error).toBeTruthy();
+    expect(parsed.error).toBeUndefined();
+    expect(parsed).toMatchObject({ family: 'find', target: 'page' });
+    const service = new QueryService({
+      noteStore: { getAllNotes: async () => NOTES, getNoteIdsForTag: async () => new Set<string>(), getNoteTagLabels: async () => [] },
+      blockStore: { getAllBlocks: async () => BLOCKS },
+      pageStore: {
+        getAllPages: async () => [{ id: '2026-10-24', slug: '2026-10-24', date: '2026-10-24', createdAt: TS }],
+        getAllLinks: async () => [{ id: 'l1', pageId: '2026-10-24', noteId: 'jrnl-1', position: 0, createdAt: TS }],
+      },
+    });
+    const result = await service.runFind(parsed as ParsedFindQuery);
+    expect(result.notes.map(n => n.id)).toEqual(['jrnl-1']);
+    expect(result.containers['jrnl-1']).toMatchObject({ kind: 'page', slug: '2026-10-24' });
   });
 
   it(':note{type:page} targets notes with type page', async () => {
