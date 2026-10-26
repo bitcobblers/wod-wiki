@@ -60,7 +60,6 @@ function beforeFeedStamp(note: Note): Note {
     createdAt: note.createdAt,
     type: note.type,
     sourceId: note.sourceId,
-    catalog: note.catalog,
     seedOrigin: note.seedOrigin,
     seedVersion: note.seedVersion,
     seedChunkId: note.seedChunkId,

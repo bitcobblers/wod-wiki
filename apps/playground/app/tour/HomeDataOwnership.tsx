@@ -128,6 +128,7 @@ const OUTCOME_STATUS: Record<FeedSyncOutcome, string> = {
   busy: 'Another tab is syncing — try again shortly',
   disabled: 'Feed import is disabled',
   error: 'Sync failed',
+  'update-pending': 'An update is waiting — sync to apply it',
 }
 
 function progressText(event: FeedSyncProgress): string {

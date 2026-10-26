@@ -152,6 +152,9 @@ class FakeContentProvider implements IContentProvider {
     if (!entry) throw new Error(`clone failed: ${id} not found`);
     return entry;
   }
+  async getPageRecords(_slug: string): Promise<HistoryRecord[]> {
+    return [];
+  }
   async saveAttachment(
     _noteId: string,
     _attachment: AttachmentCreateInput,

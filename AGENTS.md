@@ -279,6 +279,11 @@ stories/                # Storybook stories
 
 ## Validation Requirements
 
+> Canonical reference: [`docs/development/validation.md`](docs/development/validation.md) — single
+> source of truth for validation commands, the targeted-vs-milestone E2E policy, the UI-worker
+> preview acceptance gate, and the ticket-report CLI lifecycle. The checklist below is the
+> quick version; the doc has the details.
+
 After making changes, always validate:
 
 1. **Unit Test Regression**:
@@ -385,8 +390,8 @@ e2e/
 
 - **Playwright Browser Download**: `bun run setup` may fail downloading Chromium browsers (expected)
 - **Cast/TV hardware testing**: read `docs/cast-tv-testing.md` before testing against Laboratory TV — adb/DevTools recipes, DHCP drift, zombie-session and console-propagation gotchas
-- **TypeScript Errors**: 369 TypeScript errors exist in the codebase - only fix errors related to your changes
-- **No ESLint**: Code style enforced through TypeScript and manual review
+- **Pre-existing TypeScript errors**: tracked in the checked-in baseline that `bun run check:playground-types` compares against — only fix errors related to your changes (see `docs/development/validation.md`)
+- **ESLint**: enforced via `bun run lint` (plus `lint:packages` / `lint:playground` / `lint:storybook` for narrower surfaces)
 - **Build Times**: NEVER cancel builds - `bun run build-storybook` may take up to 60 minutes
 - **Stale dev servers hold the ports**: several long-lived `vite` processes keep :5173/:5174 from earlier sessions. A stale server answers with an outdated public-dir snapshot — the seed manifest 404s, the SPA shell is served instead, and the app reports "Seed sync settled with outcome error". Check `ss -ltnp | grep 5173` before debugging seed sync, and run the dev server on a free port.
 - **Seed corpora are built per app**: `scripts/sync-seed.ts` emits `apps/playground/public/seed/core` and `apps/storybook/public/seed/core` (identical — the shared `markdown/` corpus; starter notes live in the app's `notebook/defaults`, not in the seed). Playground's Vite config serves `/seed/*` per request because its public-dir listing otherwise becomes stale after regeneration; Storybook serves its own `public/seed` through `staticDirs`.

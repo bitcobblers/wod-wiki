@@ -4,6 +4,7 @@ import { InMemoryStorage } from '../../storage/InMemoryStorage';
 import { StorageService } from '../../storage/StorageService';
 import type { Note } from '@/types/storage';
 import type { DomainDetail, DomainQuery } from '@bitcobblers/wod-wiki-storage';
+import { DOMAIN_PROJECTION_VERSION } from '@bitcobblers/wod-wiki-storage';
 
 const T0 = Date.UTC(2026, 5, 1);
 const T1 = Date.UTC(2026, 5, 2);
@@ -42,7 +43,7 @@ describe('whole Note list reads', () => {
     const plans: DomainQuery[] = [];
     service.queryDomain = async query => {
       plans.push(query);
-      return { plan: 'detail', rows: [row], selectedCount: 1, matchedCount: 1, projectionVersion: 2 };
+      return { plan: 'detail', rows: [row], selectedCount: 1, matchedCount: 1, projectionVersion: DOMAIN_PROJECTION_VERSION };
     };
     service.getAllNotes = async () => { throw new Error('Unexpected fallback'); };
     const entries = await new IndexedDBContentProvider(service).getRecords({ tags: ['remote-tag'] });

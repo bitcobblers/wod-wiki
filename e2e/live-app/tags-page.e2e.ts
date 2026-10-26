@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { waitForFeedReady } from '../helpers/feedReadiness';
+import { gotoFeedSurface, waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
  * Tags — /tags is a query surface like every other list route, and
@@ -20,15 +20,11 @@ const VISIBLE_COMPOSER = '[data-testid="wql-composer-root"]:visible';
 
 async function deleteTagIfPresent(page: Page): Promise<void> {
   // Start from a clean slate so a tag from a previous run cannot leak in.
-  await page.goto(`/tags?q=${encodeURIComponent(`:tag{tag:${TAG_NAME}}`)}`, {
-    waitUntil: 'domcontentloaded',
-    timeout: 20_000,
-  });
-  // /tags is a seed-gated surface like every other list route (#1066): let
-  // the boot seed sync settle before touching rows. Waiting here also means
-  // the import completes before the next navigation instead of stranding
-  // its claim mid-flight.
-  await waitForFeedReady(page);
+  // /tags is a feed-gated surface like every other list route (#1066):
+  // gotoFeedSurface settles the boot feed sync before touching rows, so the
+  // import completes before the next navigation instead of stranding its
+  // claim mid-flight.
+  await gotoFeedSurface(page, `/tags?q=${encodeURIComponent(`:tag{tag:${TAG_NAME}}`)}`);
   const row = page.getByTestId('library-row-tag').filter({ hasText: TAG_NAME });
   if ((await row.count()) > 0) {
     await page.goto(`/t/general/${TAG_NAME}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
@@ -49,8 +45,7 @@ test.describe('Tags — /tags query surface', () => {
     await page.getByRole('button', { name: /Add Tag/i }).click();
     await expect(page.getByRole('heading', { name: `Edit ${TAG_NAME}` })).toBeVisible();
 
-    await page.goto('/tags', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForFeedReady(page);
+    await gotoFeedSurface(page, '/tags');
 
     // The composer carries the plane's default query.
     await expect(page.locator(VISIBLE_COMPOSER)).toContainText(':tag{}');
@@ -72,8 +67,7 @@ test.describe('Tags — /tags query surface', () => {
     await expect(page.getByRole('heading', { name: `Edit ${TAG_NAME}` })).toBeVisible();
 
     const q = `:tag{tag:${TAG_NAME}}`;
-    await page.goto(`/tags?q=${encodeURIComponent(q)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForFeedReady(page);
+    await gotoFeedSurface(page, `/tags?q=${encodeURIComponent(q)}`);
 
     // The override beat the default: the composer shows the override and
     // the URL keeps it verbatim.
@@ -100,11 +94,7 @@ test.describe('Tags — /tags query surface', () => {
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Saved')).toBeVisible();
 
-    await page.goto(`/tags?q=${encodeURIComponent(`:tag{tag:${TAG_NAME}}`)}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 20_000,
-    });
-    await waitForFeedReady(page);
+    await gotoFeedSurface(page, `/tags?q=${encodeURIComponent(`:tag{tag:${TAG_NAME}}`)}`);
     const row = page.getByTestId('library-row-tag').filter({ hasText: TAG_NAME });
     await expect(row).toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText('contributes metric intensity');

@@ -39,7 +39,7 @@ interface CanvasSectionProps {
   chapters?: Chapter[]
   challengeQuests?: Array<Quest & { isCompleted: boolean }>
   isCollection?: boolean
-  collectionSlug?: string | null
+  notebookSlug?: string | null
   workoutItems?: WorkoutItem[]
   handleSelectWorkout?: (item: WorkoutItem) => void
   /** Called when an inline challenge asks to scroll to its section. */
@@ -67,7 +67,7 @@ export const CanvasSection: React.FC<CanvasSectionProps> = ({
   chapters = [],
   challengeQuests = [],
   isCollection = false,
-  collectionSlug = null,
+  notebookSlug = null,
   workoutItems = [],
   handleSelectWorkout,
   onScrollToSection,
@@ -311,7 +311,7 @@ export const CanvasSection: React.FC<CanvasSectionProps> = ({
               )
             }
             if (chunk.widget === 'workouts-list') {
-              if (isCollection && collectionSlug && handleSelectWorkout) {
+              if (isCollection && notebookSlug && handleSelectWorkout) {
                 // The wrapper is the `notebook-workouts` nav anchor — render it
                 // even when this collection has no items, so the L3 "Explore"
                 // link never targets a missing id (the list shows its own empty state).
@@ -323,7 +323,7 @@ export const CanvasSection: React.FC<CanvasSectionProps> = ({
                   >
                     <div className="w-full mx-auto">
                       <CollectionWorkoutsList
-                        category={collectionSlug}
+                        category={notebookSlug}
                         workoutItems={workoutItems}
                         onSelect={handleSelectWorkout}
                         showSearch={false}
