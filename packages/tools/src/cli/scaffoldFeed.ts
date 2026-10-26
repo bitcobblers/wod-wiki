@@ -1,9 +1,9 @@
 /**
  * `wod init-feed <name>` — scaffold a ready-to-publish WOD Wiki feed
- * repository skeleton (docs/catalogs-and-distributed-seed-model.html §repo-creation,
- * roadmap Phase 4): a markdown notebooks example, package.json, GitHub Actions
- * Pages workflow, README. Creates a new directory only; refuses an existing
- * destination without touching it.
+ * repository skeleton (the publisher-repository contract in
+ * docs/adrs/0001-feed-seed-data-contract.md): a markdown notebooks example,
+ * package.json, GitHub Actions Pages workflow, README. Creates a new
+ * directory only; refuses an existing destination without touching it.
  *
  * Lazily imported by cli/runner.ts (dynamic import), so static node:fs/node:path
  * imports stay out of browser bundles.

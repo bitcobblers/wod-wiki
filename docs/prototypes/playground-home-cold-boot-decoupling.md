@@ -2,7 +2,7 @@
 
 **Status:** Landed — Phases 0–3. `/` is bundle-owned, boot progress is instrumented, and the playground seed excludes only the home route document.
 **Date:** 2026-10-24
-**Related:** `docs/adrs/0004-playground-home-cold-boot.md`, `docs/reviews/wod-wiki-ux-regression-retest-2026-10-25.html` (issue #1 — *Cold start takes 34 to 35 seconds with no honest progress*), `docs/prototypes/seed-data-unification.md` (§ Risks & open questions → *First-load network dependency*), `docs/adrs/0002-feed-lifecycle.md`, `apps/playground/app/App.tsx`, `apps/playground/app/main.tsx`, `apps/playground/src/services/feed/feedReadiness.ts`
+**Related:** `docs/adrs/0004-playground-home-cold-boot.md` (which records the 2026-10-25 retest finding — *Cold start takes 34 to 35 seconds with no honest progress*), `docs/prototypes/seed-data-unification.md` (§ Risks & open questions → *First-load network dependency*), `docs/adrs/0002-feed-lifecycle.md`, `apps/playground/app/App.tsx`, `apps/playground/app/main.tsx`, `apps/playground/src/services/feed/feedReadiness.ts`
 
 ## Goal
 

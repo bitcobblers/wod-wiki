@@ -1,7 +1,7 @@
 /**
  * restoreService — the browser side of explicit isolated restore.
  *
- * Flow (docs/prototypes/versioned-databases-backups-review.html §3.3):
+ * Flow (the remote-restore contract in docs/architecture/interfaces.md):
  * pair a provisioned target → probe its canonical schema/lifecycle → export
  * unsent edits (credential-free) → restoreNow() replays the remote into a
  * UNIQUE, empty local IndexedDB (old DB + old settings untouched) → only
