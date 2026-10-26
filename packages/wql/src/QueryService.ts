@@ -19,8 +19,8 @@
  * Fully inverted dependencies: zero IndexedDB/storage module-level imports.
  */
 
-import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, Page, PageNote } from '@bitcobblers/wod-wiki-core';
-import { normalizeFieldComponent, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, Page, PageNote, NotePlacement } from '@bitcobblers/wod-wiki-core';
+import { normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   parseQuery,
   isFindQuery,
@@ -575,6 +575,11 @@ export interface FindQueryResult {
    *  page_notes junction links one, else the standalone Note. Present only
    *  when a pageStore is injected and notes were matched. */
   containers?: Record<string, NoteContainer>;
+  /** Every page a matched note is placed on, keyed by note id — the
+   *  many-to-many membership itself. `containers` is the deterministic
+   *  primary projection of this map. Present only when a pageStore or
+   *  relationStore is injected and notes were matched. */
+  placements?: Record<string, NotePlacement[]>;
   stages: { selected: number; matched: number };
 }
 
@@ -605,6 +610,8 @@ export interface PipelineResult {
   runs?: RowsRun[];
   /** Highest container per note id (see FindQueryResult.containers). */
   containers?: Record<string, NoteContainer>;
+  /** Every page a matched note is placed on (see FindQueryResult.placements). */
+  placements?: Record<string, NotePlacement[]>;
   unit?: string;
   chart?: PipelineSink;
   error?: string;
@@ -1548,35 +1555,44 @@ export class QueryService {
       notes = pipes.limit !== undefined ? notes.slice(offset, offset + pipes.limit) : notes.slice(offset);
     }
 
+    const relations = notes.length && (this.pageStore || this.relationStore)
+      ? await this.containersAndPlacements(notes)
+      : undefined;
     return {
       parsed,
       notes,
       blocks: [],
-      ...(notes.length && (this.pageStore || this.relationStore)
-        ? { containers: await this.containersForNotes(notes) }
-        : {}),
+      ...(relations ? { containers: relations.containers, placements: relations.placements } : {}),
       stages: { selected: selectedCount, matched: notes.length },
     };
   }
 
-  /** Highest container per note id: the parent Page from the canonical
-   *  page_notes junction (first link by position) wins; a note with no page
-   *  link stays a standalone Note container. Batched when a relationStore
-   *  is injected — one bundle read per run instead of a link/page read per
-   *  matched note. */
-  private async containersForNotes(notes: Note[]): Promise<Record<string, NoteContainer>> {
+  /** The container projection and the full placement set per note id.
+   *
+   *  The container is the parent Page from the canonical page_notes junction
+   *  (the primary placement wins); a note with no page link stays a
+   *  standalone Note container. Batched when a relationStore is injected —
+   *  one bundle read per run instead of a link/page read per matched note.
+   *
+   *  The same read resolves EVERY page the note is placed on: the junction
+   *  is many-to-many, so the container is a projection of that set, not the
+   *  set itself. */
+  private async containersAndPlacements(notes: Note[]): Promise<{
+    containers: Record<string, NoteContainer>;
+    placements: Record<string, NotePlacement[]>;
+  }> {
     const containers: Record<string, NoteContainer> = {};
+    const placements: Record<string, NotePlacement[]> = {};
     const bundles = this.relationStore
       ? await this.relationStore.getBatches([...new Set(notes.map((n) => n.id))])
       : undefined;
     const pageCache = new Map<string, Page | undefined>();
     for (const note of notes) {
-      let page: Page | undefined;
       let bundle: NoteRelationBundle | undefined;
+      let resolved: NotePlacement[];
       if (bundles) {
         bundle = bundles.get(note.id);
-        const [first] = [...(bundle?.links ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-        page = first ? bundle!.pages.find((p) => p.id === first.pageId) : undefined;
+        resolved = resolvePlacements(bundle?.links ?? [], bundle?.pages ?? []);
         // Inline the bundle's junction tags on notes without authored tags —
         // downstream Entry mapping hydrates from this same read (no-tag
         // stays a valid final state; inline tags are never overwritten).
@@ -1585,21 +1601,27 @@ export class QueryService {
         }
       } else {
         const links = await this.pageStore!.getNotePages(note.id);
-        if (links.length > 0) {
-          const [first] = [...links].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-          if (!pageCache.has(first!.pageId)) {
-            pageCache.set(first!.pageId, await this.pageStore!.getPage(first!.pageId));
+        const pages: Page[] = [];
+        for (const link of links) {
+          if (!pageCache.has(link.pageId)) {
+            pageCache.set(link.pageId, await this.pageStore!.getPage(link.pageId));
           }
-          page = pageCache.get(first!.pageId);
+          const page = pageCache.get(link.pageId);
+          if (page) pages.push(page);
         }
+        resolved = resolvePlacements(links, pages);
       }
-      // Resolved parent page wins; a dangling link (page absent from the
-      // bundle/store) stays fail-closed as a standalone Note container.
-      containers[note.id] = page
-        ? { kind: 'page', id: page.id, ...(page.slug ? { slug: page.slug } : {}), ...(page.date ? { date: page.date } : {}) }
+      placements[note.id] = resolved;
+      // The primary placement is the container; a note with no placement
+      // (or only dangling ones) stays fail-closed as a standalone Note.
+      // The container names ONE page — the primary one — so its slug and
+      // date are that page's own.
+      const primary = resolved[0];
+      containers[note.id] = primary
+        ? { kind: 'page', id: primary.pageId, ...(primary.slug ? { slug: primary.slug } : {}), ...(primary.date ? { date: primary.date } : {}) }
         : { kind: 'note', id: note.id };
     }
-    return containers;
+    return { containers, placements };
   }
 
   private async hydrateBlocks(rows: BlockIndexRow[]): Promise<BlockIndexRow[]> {
@@ -1961,6 +1983,7 @@ export class QueryService {
           ...(content.runs?.length ? { runs: content.runs } : {}),
           ...(content.table ? { table: content.table } : {}),
           ...(content.containers ? { containers: content.containers } : {}),
+          ...(content.placements ? { placements: content.placements } : {}),
           ...(parsed.sink ? { chart: parsed.sink } : {}),
         };
       }

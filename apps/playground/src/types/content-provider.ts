@@ -8,6 +8,7 @@
 
 import type { HistoryEntry, EntryQuery, ProviderCapabilities } from './history';
 import type { Attachment, ResultOrigin, NoteBlock } from './storage';
+import type { PageTarget } from '@bitcobblers/wod-wiki-core';
 import type { StorageService } from '@/services/storage/StorageService';
 
 export type AttachmentCreateInput = Omit<Attachment, 'id' | 'noteId' | 'createdAt'> & { id?: string };
@@ -80,6 +81,26 @@ export interface IContentProvider {
    */
   updateEntry(id: string, patch: NoteEntryPatch): Promise<HistoryEntry>;
   deleteEntry(id: string): Promise<void>;
+
+  // Placement — a note may sit on several pages at once. The operations
+  // below change membership only: the note, its source, its results and its
+  // canonical route are untouched by every one of them.
+  //
+  // - `addEntryPlacement` attaches the note to a page; it never detaches it
+  //   from the pages it is already on.
+  // - `removeEntryPlacement` detaches the note from one page.
+  // - `moveEntryPlacement` detaches from one page and attaches to another
+  //   in a single transaction — either both happen or neither does.
+  addEntryPlacement(id: string, target: PageTarget): Promise<HistoryEntry>;
+  removeEntryPlacement(id: string, pageId: string): Promise<HistoryEntry>;
+  moveEntryPlacement(id: string, fromPageId: string, target: PageTarget): Promise<HistoryEntry>;
+  /**
+   * The notes placed on the named page for `slug`, in canonical placement
+   * order — the page's own listing. Empty when the page does not exist or
+   * holds no notes. Every returned entry addresses its own note
+   * (/notes/:noteId), never another note's page.
+   */
+  getPageEntries(slug: string): Promise<HistoryEntry[]>;
 
   // Attachments
   getAttachments(noteId: string): Promise<Attachment[]>;

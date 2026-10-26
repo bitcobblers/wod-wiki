@@ -239,7 +239,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
       <ResponsiveActions label="Note actions">
         <button type="button" className={actionPill} onClick={() => setPlacement('relationships')}>
           <CalendarDays className="size-3.5" aria-hidden="true" />
-          Note relationships
+          Note placements
         </button>
         <button type="button" className={actionPill} onClick={() => setPlacement('clone')}>
           <Copy className="size-3.5" aria-hidden="true" />
@@ -355,7 +355,13 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             onSaved={(updated) =>
               setEntry((prev) =>
                 prev && prev.id === updated.id
-                  ? { ...prev, journalDate: updated.journalDate, slug: updated.slug, sourceId: updated.sourceId }
+                  ? {
+                      ...prev,
+                      journalDate: updated.journalDate,
+                      slug: updated.slug,
+                      sourceId: updated.sourceId,
+                      placements: updated.placements,
+                    }
                   : prev,
               )
             }

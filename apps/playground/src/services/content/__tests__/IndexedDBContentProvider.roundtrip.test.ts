@@ -30,18 +30,23 @@ describe('whole Note source roundtrip', () => {
     expect(await service.getNoteBlockHistory(saved.id)).toEqual([]);
   });
 
-  it('moves placements without affecting sibling Notes, source or history', async () => {
+  it('adds placements without affecting sibling Notes, source or history', async () => {
     const service = new StorageService(new InMemoryStorage());
     const provider = new IndexedDBContentProvider(service);
     const source = '```time\n10 Pushups\n```\n';
     const a = await provider.saveEntry({ title: 'A', rawContent: source, tags: ['manual'], targetDate: 1, journalDate: '2026-10-15', slug: 'gym' });
     const b = await provider.saveEntry({ title: 'B', rawContent: 'Prose', tags: [], targetDate: 1, journalDate: '2026-10-15', slug: 'gym' });
     const history = await service.getNoteBlockHistory(a.id);
+    // A journalDate/slug patch ATTACHES — it never detaches the note from
+    // the pages it is already on, so the primary projections stay the
+    // first-created placements while the new pages join the membership.
     const moved = await provider.updateEntry(a.id, { journalDate: '2026-10-16', slug: 'travel', type: 'journal', sourceId: null });
     expect(moved.rawContent).toBe(source);
     expect(moved.blocks).toEqual(a.blocks);
-    expect(moved.journalDate).toBe('2026-10-16');
-    expect(moved.slug).toBe('travel');
+    expect(moved.journalDate).toBe('2026-10-15');
+    expect(moved.slug).toBe('gym');
+    expect(moved.placements?.map((placement) => placement.date ?? placement.slug).sort())
+      .toEqual(['2026-10-15', '2026-10-16', 'gym', 'travel']);
     expect(await service.getNoteBlockHistory(a.id)).toEqual(history);
     expect((await provider.getEntry(b.id))?.slug).toBe('gym');
     expect((await provider.getEntry(b.id))?.journalDate).toBe('2026-10-15');

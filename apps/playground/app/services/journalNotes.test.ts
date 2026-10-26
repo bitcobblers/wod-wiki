@@ -205,4 +205,70 @@ describe('Journal Notes', () => {
     expect(Object.keys(prose.blocks!)).toEqual(Object.keys(updated.blocks!));
     expect(await persistence.getNoteBlockHistory(saved.id)).toHaveLength(4);
   });
+
+  describe('moveToDate', () => {
+    it('calls the atomic move operation with the primary date placement as source', async () => {
+      const persistence = new MemoryNotePersistence();
+      await persistence.createNote({ id: 'n1', title: 'A', rawContent: 'x', targetDate: 1, journalDate: '2026-10-15' });
+      persistence.notes.get('n1')!.placements = [
+        { pageId: 'cal-1', noteId: 'n1', date: '2026-10-15', createdAt: 1 },
+        { pageId: 'named-1', noteId: 'n1', slug: 'gym', createdAt: 2 },
+      ];
+      const calls: unknown[] = [];
+      const journal = createJournalNotes({
+        persistence,
+        moveEntryPlacement: (...args) => { calls.push(['move', ...args]); return Promise.resolve(persistence.notes.get('n1')!); },
+        addEntryPlacement: (...args) => { calls.push(['add', ...args]); return Promise.resolve(persistence.notes.get('n1')!); },
+      });
+
+      await journal.moveToDate('n1', '2026-10-16');
+
+      expect(calls).toEqual([['move', 'n1', 'cal-1', { date: '2026-10-16' }]]);
+    });
+
+    it('attaches when the note has no calendar placement yet', async () => {
+      const persistence = new MemoryNotePersistence();
+      await persistence.createNote({ id: 'n1', title: 'A', rawContent: 'x', targetDate: 1 });
+      const calls: unknown[] = [];
+      const journal = createJournalNotes({
+        persistence,
+        moveEntryPlacement: (...args) => { calls.push(['move', ...args]); return Promise.resolve(persistence.notes.get('n1')!); },
+        addEntryPlacement: (...args) => { calls.push(['add', ...args]); return Promise.resolve(persistence.notes.get('n1')!); },
+      });
+
+      await journal.moveToDate('n1', '2026-10-16');
+
+      expect(calls).toEqual([['add', 'n1', { date: '2026-10-16' }]]);
+    });
+
+    it('moves the date placement only — other placements survive, and an added second date never collapses the first', async () => {
+      const storage = new StorageService(new InMemoryStorage());
+      const persistence = new IndexedDBNotePersistence(storage, new IndexedDBContentProvider(storage));
+      const provider = new IndexedDBContentProvider(storage);
+      const journal = createJournalNotes({
+        persistence,
+        moveEntryPlacement: (noteId, fromPageId, target) => provider.moveEntryPlacement(noteId, fromPageId, target),
+        addEntryPlacement: (noteId, target) => provider.addEntryPlacement(noteId, target),
+      });
+      const saved = await persistence.createNote({ id: 'move-note', title: 'A', rawContent: 'x', targetDate: 1 });
+
+      await provider.addEntryPlacement(saved.id, { date: '2026-10-15' });
+      await provider.addEntryPlacement(saved.id, { slug: 'gym' });
+
+      // A move detaches exactly one source page — the old date — and keeps
+      // every other placement.
+      await journal.moveToDate(saved.id, '2026-10-16');
+      let entry = await provider.getEntry(saved.id);
+      expect(entry?.placements?.map((placement) => placement.date ?? placement.slug).sort())
+        .toEqual(['2026-10-16', 'gym']);
+
+      // Additive: a second date attaches without detaching the first…
+      await provider.addEntryPlacement(saved.id, { date: '2026-10-18' });
+      // …and the next move preserves both the named page and that second date.
+      await journal.moveToDate(saved.id, '2026-10-17');
+      entry = await provider.getEntry(saved.id);
+      expect(entry?.placements?.map((placement) => placement.date ?? placement.slug).sort())
+        .toEqual(['2026-10-17', '2026-10-18', 'gym']);
+    });
+  });
 });

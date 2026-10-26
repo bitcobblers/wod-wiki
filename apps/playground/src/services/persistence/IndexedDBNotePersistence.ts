@@ -112,7 +112,15 @@ export class IndexedDBNotePersistence implements INotePersistence {
 
     let entries = await this.contentProvider.getEntries(query);
     if (query.journalDate) {
-      entries = entries.filter(entry => entry.journalDate === query.journalDate);
+      // A note is on a date page when one of its placements sits on that
+      // date's page — not only when the date is the note's primary one.
+      // The placements list is always present but may be empty; a note with
+      // no placements is not on any page, so the primary-date fallback
+      // applies only when the membership list is non-empty.
+      entries = entries.filter(entry =>
+        entry.placements && entry.placements.length > 0
+          ? entry.placements.some(placement => placement.date === query.journalDate)
+          : entry.journalDate === query.journalDate);
     }
     if (query.kind) {
       entries = entries.filter(entry => entry.type === query.kind);

@@ -55,6 +55,7 @@ import { EffortDetailPage } from './pages/EffortDetailPage'
 import { EquipmentDetailPage } from './pages/EquipmentDetailPage'
 import { TagsPage } from './pages/TagsPage'
 import { NoteByIdPage } from './pages/NoteByIdPage'
+import { NamedPagePage } from './pages/NamedPagePage'
 import { CollectionDatePage } from './pages/CollectionDatePage'
 import { AnalyticsExplorerPage } from './views/analytics/AnalyticsExplorerPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -284,9 +285,12 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     journalEntry: () => (
       <JournalPage key={view.journalEntryId} theme={actualTheme} onViewCreated={handleViewCreated} onScrollToSection={scrollToSection} onSearch={openSearchPalette} />
     ),
-    note: () => (
-      <NoteByIdPage key={view.noteById} noteId={view.noteById!} theme={actualTheme} />
-    ),
+    note: () =>
+      view.namedPageSlug ? (
+        <NamedPagePage key={view.namedPageSlug} slug={view.namedPageSlug} />
+      ) : (
+        <NoteByIdPage key={view.noteById} noteId={view.noteById!} theme={actualTheme} />
+      ),
     collectionDate: () => (
       <CollectionDatePage key={`${view.collectionDate!.slug}/${view.collectionDate!.date}`} slug={view.collectionDate!.slug} date={view.collectionDate!.date} theme={actualTheme} />
     ),

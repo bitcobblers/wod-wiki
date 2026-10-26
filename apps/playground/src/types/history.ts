@@ -13,6 +13,7 @@
 
 
 import type { Sessions, Section } from '../components/Editor/types';
+import type { NotePlacement } from '@bitcobblers/wod-wiki-core';
 import type { Attachment, NoteKind, NoteBlock, Session } from './storage';
 
 export type { Sessions, Section };
@@ -26,7 +27,11 @@ export interface HistoryEntry {
   createdAt: number;                   // Unix ms — immutable
   updatedAt: number;                   // Unix ms — bumped on edit
   targetDate: number;                  // Unix ms — primary date for view/sorting
-  journalDate?: string;                // Logical local day for journal grouping (YYYY-MM-DD) — derived from the page store (V11)
+  journalDate?: string;                // Logical local day for journal grouping (YYYY-MM-DD) — a projection of the note's placements (the first calendar placement in canonical order)
+  /** Every page the note is placed on, in canonical placement order. The
+   *  note's membership is this list — `journalDate`, `pageId` and `slug`
+   *  below are deterministic projections of it, not the membership itself. */
+  placements?: NotePlacement[]
 
   // Source
   rawContent: string;                  // Original markdown

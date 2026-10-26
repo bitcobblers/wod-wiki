@@ -25,7 +25,7 @@ import {
   type FindQueryResult,
   type RowsQueryResult,
 } from '@bitcobblers/wod-wiki-engine';
-import { blockContentId, parseDocumentSections, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { blockContentId, parseDocumentSections, projectPlacements, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   toEntry,
   blockToEntry,
@@ -158,18 +158,13 @@ export class StreamQueryEngine {
     for (const entry of entries) {
       if (entry.sourceCatalog !== 'journal') continue;
       const bundle = bundles.get(parentNoteId(entry));
-      const links = [...(bundle?.links ?? [])].sort(
-        (a, b) => (a.position ?? Infinity) - (b.position ?? Infinity) || a.createdAt - b.createdAt,
-      );
-      for (const link of links) {
-        const page = bundle?.pages.find((p) => p.id === link.pageId);
-        if (!page) continue;
-        entry.pageId ??= page.id;
-        if (!page.date && page.slug) {
-          entry.pageSlug = page.slug;
-          break;
-        }
-      }
+      // Every page the note sits on; the single-page fields below are the
+      // deterministic primary projections of that list.
+      const placements = resolvePlacements(bundle?.links ?? [], bundle?.pages ?? []);
+      entry.placements = placements;
+      const projection = projectPlacements(placements);
+      entry.pageId ??= projection.pageId;
+      if (projection.pageSlug) entry.pageSlug = projection.pageSlug;
     }
     if (!withNoteFields) return;
     for (const entry of entries) {

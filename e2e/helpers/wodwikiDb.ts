@@ -278,3 +278,49 @@ export async function getNoteContentByRouteId(page: Page, routeId: string): Prom
     } finally { db.close(); }
   }, { dbName: WOD_DB, routeId });
 }
+
+/** One placement of a note — the resolved form of a `page_notes` row. */
+export interface NotePlacementRow {
+  pageId: string;
+  date?: string;
+  slug?: string;
+  position?: number;
+}
+
+/**
+ * The pages a note is placed on, read straight from the `page_notes`
+ * junction — the membership itself, not the single-page projection.
+ */
+export async function getNotePlacements(page: Page, noteId: string): Promise<NotePlacementRow[]> {
+  return page.evaluate(async ({ dbName, noteId }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(dbName);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      const { promise, resolve, reject } = Promise.withResolvers<NotePlacementRow[]>();
+      const tx = db.transaction(['page_notes', 'page'], 'readonly');
+      const links = tx.objectStore('page_notes').index('by-note').getAll(noteId);
+      links.onsuccess = () => {
+        const rows: NotePlacementRow[] = [];
+        const pages = tx.objectStore('page');
+        let pending = links.result.length;
+        if (pending === 0) return resolve(rows);
+        for (const link of links.result) {
+          const req = pages.get(link.pageId);
+          req.onsuccess = () => {
+            const page = req.result;
+            if (page) {
+              rows.push({ pageId: link.pageId, date: page.date, slug: page.slug, position: link.position });
+            }
+            if (--pending === 0) resolve(rows);
+          };
+        }
+      };
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+      return promise;
+    } finally { db.close(); }
+  }, { dbName: WOD_DB, noteId });
+}

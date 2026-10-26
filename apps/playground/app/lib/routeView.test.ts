@@ -423,10 +423,11 @@ describe('resolveRouteView — target-scheme routes (/c, /e, /sessions, /d, /p, 
     expect(view.page).toBe('canvas')
     expect(view.shell.wrap).toBe('canvas')
   })
-  it('classifies /p/:slug non-canvas pages as a single-note page by slug', () => {
+  it('classifies /p/:slug non-canvas pages as the named-page listing', () => {
     const view = resolveRouteView('/p/my-custom-note', NO_PARAMS, makeDeps({ canvasPage: null }))
     expect(view.page).toBe('note')
-    expect(view.isNoteByIdRoute).toBe(true)
-    expect(view.noteById).toBe('my-custom-note')
+    expect(view.isNoteByIdRoute).toBe(false)
+    expect(view.noteById).toBeUndefined()
+    expect(view.namedPageSlug).toBe('my-custom-note')
   })
 })

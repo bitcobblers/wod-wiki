@@ -13,6 +13,7 @@ import type {
   Tag,
   TagTypeRecord,
 } from '@/types/storage';
+import { orderPlacements, resolvePlacements, type NotePlacement } from '@bitcobblers/wod-wiki-core';
 import { parseScript, extractStatementRefs, createReferenceIndex, type ReferenceResolutionDefaults } from '@bitcobblers/wod-wiki-lang';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
@@ -147,7 +148,10 @@ export class StorageService implements NotePersistenceStorage {
     for (const candidate of candidateSlugs) {
       const pages = await this.storage.readonly('page').getAllFromIndex('by-slug', candidate);
       for (const page of pages) {
-        const links = await this.getPageNotes(page.id);
+        // A page may hold several notes — the junction is many-to-many — so
+        // the note a slug resolves to is the one whose placement on that page
+        // comes first in the canonical placement order.
+        const links = orderPlacements(await this.getPageNotes(page.id));
         for (const link of links) {
           const note = await this.getNote(link.noteId);
           if (note) return note;
@@ -358,27 +362,107 @@ export class StorageService implements NotePersistenceStorage {
     return this.storage.readonly('page_notes').getAllFromIndex('by-note', noteId);
   }
 
-  async addNoteToPage(noteId: string, pageId: string, position?: number): Promise<string> {
-    const existing = await this.storage.readonly('page_notes')
-      .getAllFromIndex('by-page-note', [pageId, noteId]);
-    if (existing.length > 0) return existing[0].id;
-    const id = generateId();
-    await this.storage.readwrite('page_notes').put({
-      id,
-      pageId,
-      noteId,
-      position,
-      createdAt: Date.now(),
-    });
-    return id;
+  /**
+   * Indexed note→placements lookup. The `by-note` index resolves the note's
+   * junction rows; only the pages those rows name are read — a lookup never
+   * scans every page. Rows are returned in the canonical placement order.
+   */
+  async getNotePlacements(noteId: string): Promise<NotePlacement[]> {
+    const links = await this.getNotePages(noteId);
+    if (links.length === 0) return [];
+    const pages: Page[] = [];
+    for (const pageId of new Set(links.map((link) => link.pageId))) {
+      const page = await this.getPage(pageId);
+      if (page) pages.push(page);
+    }
+    return resolvePlacements(links, pages);
   }
 
-  async removeNoteFromPage(noteId: string, pageId: string): Promise<void> {
+  /** The one junction row for a (page, note) pair — the `by-page-note` index. */
+  async getPageNote(pageId: string, noteId: string): Promise<PageNote | undefined> {
     const existing = await this.storage.readonly('page_notes')
       .getAllFromIndex('by-page-note', [pageId, noteId]);
-    for (const link of existing) {
-      await this.storage.readwrite('page_notes').delete(link.id);
-    }
+    return existing[0];
+  }
+
+  /**
+   * The notes placed on a page, in the canonical placement order — the page's
+   * own listing. Reads the page's junction rows through the `by-page` index.
+   */
+  async getPagePlacements(pageId: string): Promise<NotePlacement[]> {
+    const links = orderPlacements(await this.getPageNotes(pageId));
+    if (links.length === 0) return [];
+    const page = await this.getPage(pageId);
+    return page ? resolvePlacements(links, [page]) : [];
+  }
+
+  /**
+   * Place a note on a page. The placement is appended by default — no
+   * position is written, so it orders after every positioned row of that
+   * page — and the positions of the page's other placements are left
+   * untouched. Attaching never detaches: the note keeps its other pages.
+   */
+  async addNoteToPage(noteId: string, pageId: string, position?: number): Promise<string> {
+    return this.withTransaction(['page_notes'], async (scoped) => {
+      const existing = await scoped.getPageNote(pageId, noteId);
+      if (existing) return existing.id;
+      const id = generateId();
+      await scoped.storage.readwrite('page_notes').put({
+        id,
+        pageId,
+        noteId,
+        position,
+        createdAt: Date.now(),
+      });
+      return id;
+    });
+  }
+
+  /** Detach a note from one page. The note, its source and its results stay. */
+  async removeNoteFromPage(noteId: string, pageId: string): Promise<void> {
+    await this.withTransaction(['page_notes'], async (scoped) => {
+      const existing = await scoped.getPageNote(pageId, noteId);
+      if (existing) await scoped.storage.readwrite('page_notes').delete(existing.id);
+    });
+  }
+
+  /**
+   * Move a note from one page to another in a single transaction: the source
+   * placement is detached and the destination placement is attached — either
+   * fails, neither happens. The destination placement is appended unless an
+   * explicit position is given; the other placements of both pages keep
+   * their positions.
+   *
+   * The source placement is validated INSIDE the transaction: a move of a
+   * note that is not on the source page fails with
+   * {@link NotePersistenceError} `NOTE_NOT_PLACED` and changes nothing.
+   */
+  async moveNoteBetweenPages(
+    noteId: string,
+    fromPageId: string,
+    toPageId: string,
+    position?: number,
+  ): Promise<void> {
+    await this.withTransaction(['page_notes'], async (scoped) => {
+      const source = await scoped.getPageNote(fromPageId, noteId);
+      if (!source) {
+        throw new NotePersistenceError(
+          'NOTE_NOT_PLACED',
+          `Note ${noteId} is not placed on page ${fromPageId}`,
+        );
+      }
+      await scoped.storage.readwrite('page_notes').delete(source.id);
+      const destination = await scoped.getPageNote(toPageId, noteId);
+      if (!destination) {
+        await scoped.storage.readwrite('page_notes').put({
+          id: generateId(),
+          pageId: toPageId,
+          noteId,
+          position,
+          createdAt: Date.now(),
+        });
+      }
+    });
   }
 
   async getOrCreatePageForDate(date: string): Promise<Page> {

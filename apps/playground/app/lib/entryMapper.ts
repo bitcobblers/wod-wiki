@@ -11,6 +11,7 @@
 import type { BlockIndexRow, Note } from '@/types/storage'
 import type { IEffort, RowsRun, RowsQueryResult } from '@bitcobblers/wod-wiki-wql'
 import { catalogOfItem, isNoteEditable, notebookOfItem } from '@bitcobblers/wod-wiki-wql'
+import type { NotePlacement } from '@bitcobblers/wod-wiki-core'
 import { formatDateKey } from '../services/dateUtils'
 import { parseNoteId } from '@/lib/noteIdentity'
 
@@ -89,6 +90,11 @@ export interface Entry {
   /** Named Page.slug — the /p/:slug route slug. Sources: projected note
    *  slug fields at map time, page_notes hydration in entrySearch. */
   pageSlug?: string
+  /** Every page the note is placed on, in canonical placement order —
+   *  hydrated from the `page_notes` junction in entrySearch. `pageId` and
+   *  `pageSlug` above are the deterministic primary projections of this
+   *  list, never the membership itself. */
+  placements?: NotePlacement[]
   /** Original Note.sourcePath (e.g. `markdown/collections/girls/fran.md`) —
    *  route data for corpus surfaces (dashboards/efforts/feeds), never a title. */
   sourcePath?: string

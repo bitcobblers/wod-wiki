@@ -4,7 +4,7 @@ import type { AttachmentCreateInput, IContentProvider, ContentProviderMode, Note
 import type { HistoryEntry, EntryQuery, ProviderCapabilities } from '../../types/history';
 import { storageService, type StorageService } from '@/services/storage';
 import type { Attachment, Page, Session } from '../../types/storage';
-import { parseDocumentSections, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+import { parseDocumentSections, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS, projectPlacements, resolvePlacements, type PageTarget } from '@bitcobblers/wod-wiki-core';
 import { extractTypedFrontmatterTags } from '../../lib/frontmatter';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import type { DomainEntry, DomainPredicate } from '@bitcobblers/wod-wiki-storage';
@@ -16,19 +16,13 @@ const BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
 const MUTATION_STORES = ['notes', 'block_revisions', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'sessions', 'events', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'] as const;
 
 function entryFromDomainRow(row: DomainEntry): HistoryEntry {
-    const pages = new Map(row.pages.map(page => [page.id, page]));
-    let pageId: string | undefined;
-    let journalDate: string | undefined;
-    let slug: string | undefined;
-    for (const link of [...row.links].sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity) || a.createdAt - b.createdAt)) {
-        const page = pages.get(link.pageId);
-        if (!page) continue;
-        pageId ??= page.id;
-        if (page.date) journalDate ??= page.date;
-        if (page.slug && !page.date) slug ??= page.slug;
-    }
+    // Every page the note sits on — the membership itself. The single-page
+    // fields below are deterministic projections of this list.
+    const placements = resolvePlacements(row.links, row.pages);
+    const projection = projectPlacements(placements);
     return {
-        id: row.note.id, title: row.note.title, slug, pageId, journalDate,
+        id: row.note.id, title: row.note.title, slug: projection.pageSlug, pageId: projection.pageId,
+        journalDate: projection.journalDate, placements,
         createdAt: row.note.createdAt, updatedAt: row.note.createdAt,
         targetDate: row.note.date ?? row.note.createdAt,
         rawContent: row.note.rawContent, blocks: row.note.blocks, sourceRevision: row.note.sourceRevision,
@@ -182,28 +176,117 @@ export class IndexedDBContentProvider implements IContentProvider {
         return updated;
     }
 
+    /**
+     * Apply a `journalDate` / `slug` patch to the note's placements.
+     *
+     * Setting a value ATTACHES the note to that page — it never detaches the
+     * note from the pages it is already on (a note may sit on several pages
+     * at once). Clearing a value detaches the note from the pages of that
+     * flavor only; its other placements stay.
+     *
+     * Moving between pages is a separate operation (see
+     * {@link moveEntryPlacement}) — it detaches exactly one source.
+     */
     private async updateRelationships(noteId: string, patch: Pick<NoteEntryPatch, 'journalDate' | 'slug'>): Promise<void> {
         for (const flavor of ['journalDate', 'slug'] as const) {
             const value = patch[flavor];
             if (value === undefined) continue;
-            let destination: Page | undefined;
-            if (value) {
-                if (flavor === 'journalDate') destination = await this.db.getOrCreatePageForDate(value);
-                else {
-                    destination = await this.db.getPageBySlug(value);
-                    if (!destination) {
-                        destination = { id: uuidv7(), slug: value, title: (await this.db.getNote(noteId))?.title, createdAt: Date.now() };
-                        await this.db.savePage(destination);
-                    }
+            if (!value) {
+                for (const link of await this.db.getNotePages(noteId)) {
+                    const page = await this.db.getPage(link.pageId);
+                    const matches = flavor === 'journalDate' ? !!page?.date : !!page?.slug && !page.date;
+                    if (matches) await this.db.removeNoteFromPage(noteId, link.pageId);
                 }
+                continue;
             }
-            for (const link of await this.db.getNotePages(noteId)) {
-                const page = await this.db.getPage(link.pageId);
-                const matches = flavor === 'journalDate' ? !!page?.date : !!page?.slug && !page.date;
-                if (matches && page?.id !== destination?.id) await this.db.removeNoteFromPage(noteId, link.pageId);
-            }
-            if (destination) await this.db.addNoteToPage(noteId, destination.id);
+            const destination = await this.resolvePage(noteId, flavor, value);
+            await this.db.addNoteToPage(noteId, destination.id);
         }
+    }
+
+    /** The page a placement target addresses — created when it does not exist. */
+    private async resolvePage(noteId: string, flavor: 'journalDate' | 'slug', value: string): Promise<Page> {
+        if (flavor === 'journalDate') return this.db.getOrCreatePageForDate(value);
+        const existing = await this.db.getPageBySlug(value);
+        if (existing) return existing;
+        const page: Page = { id: uuidv7(), slug: value, title: (await this.db.getNote(noteId))?.title, createdAt: Date.now() };
+        await this.db.savePage(page);
+        return page;
+    }
+
+    /** The page a placement target addresses — created when it does not exist. */
+    private async resolveTargetPage(noteId: string, target: PageTarget): Promise<Page> {
+        if (target.date) return this.db.getOrCreatePageForDate(target.date);
+        if (target.slug) return this.resolvePage(noteId, 'slug', target.slug);
+        throw new Error('A placement target needs a date or a slug');
+    }
+
+    async addEntryPlacement(id: string, target: PageTarget): Promise<HistoryEntry> {
+        const noteId = await this.resolvePlacementNoteId(id);
+        const page = await this.resolveTargetPage(noteId, target);
+        await this.db.addNoteToPage(noteId, page.id);
+        const updated = await this.getEntry(noteId);
+        if (!updated) throw new Error(`Saved note disappeared: ${noteId}`);
+        return updated;
+    }
+
+    async removeEntryPlacement(id: string, pageId: string): Promise<HistoryEntry> {
+        const noteId = await this.resolvePlacementNoteId(id);
+        await this.db.removeNoteFromPage(noteId, pageId);
+        const updated = await this.getEntry(noteId);
+        if (!updated) throw new Error(`Saved note disappeared: ${noteId}`);
+        return updated;
+    }
+
+    async moveEntryPlacement(id: string, fromPageId: string, target: PageTarget): Promise<HistoryEntry> {
+        const noteId = await this.resolvePlacementNoteId(id);
+        const page = await this.resolveTargetPage(noteId, target);
+        // The move validates its source INSIDE the storage transaction — a
+        // note that is not on the source page fails with NOTE_NOT_PLACED and
+        // changes nothing.
+        await this.db.moveNoteBetweenPages(noteId, fromPageId, page.id);
+        const updated = await this.getEntry(noteId);
+        if (!updated) throw new Error(`Saved note disappeared: ${noteId}`);
+        return updated;
+    }
+
+    /**
+     * The notes placed on a named page, in the canonical placement order —
+     * the page's own listing. Each entry addresses its own note.
+     */
+    async getPageEntries(slug: string): Promise<HistoryEntry[]> {
+        const page = await this.db.getPageBySlug(slug);
+        if (!page) return [];
+        const placements = await this.db.getPagePlacements(page.id);
+        if (placements.length === 0) return [];
+        const bundles = await this.db.getEntryBatches(placements.map((placement) => placement.noteId));
+        return placements
+            .map((placement) => bundles.get(placement.noteId))
+            .filter((bundle): bundle is DomainEntry => bundle !== undefined)
+            .map(entryFromDomainRow);
+    }
+
+    /**
+     * The stored note id behind a placement operation. Placement resolves
+     * ACTUAL note ids only: a page slug can name several notes, so
+     * resolving one by slug would silently pick an unrelated first note.
+     */
+    private async resolvePlacementNoteId(id: string): Promise<string> {
+        const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
+        const note = await this.db.getNote(id) ?? (rawId !== id ? await this.db.getNote(rawId) : undefined);
+        if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${id}`);
+        return note.id;
+    }
+
+    /** The stored note id behind an entry id — the canonical note route. */
+    private async resolveNoteId(id: string): Promise<string> {
+        const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
+        const note = await this.db.getNote(id)
+            ?? (rawId !== id ? await this.db.getNote(rawId) : undefined)
+            ?? await this.db.getNoteBySlug(id)
+            ?? (rawId !== id ? await this.db.getNoteBySlug(rawId) : undefined);
+        if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${id}`);
+        return note.id;
     }
 
     private async changedManualTags(noteId: string, supplied: string[]): Promise<string[] | undefined> {

@@ -142,6 +142,7 @@ export interface NoteMutation {
 
 export type NotePersistenceErrorCode =
   | 'NOTE_NOT_FOUND'
+  | 'NOTE_NOT_PLACED'
   | 'RESULT_NOT_FOUND'
   | 'RESULT_NOTE_MISMATCH'
   | 'BLOCK_REVISION_NOT_FOUND'

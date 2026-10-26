@@ -193,9 +193,12 @@ test.describe('Journal Entry — /journal/:date', () => {
     await page.goto(`/notes/${encodeURIComponent(`journal/${today}`)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
 
     // Wait for the note action pills after content restore.
-    await openPageAction(page, 'Note relationships');
+    await openPageAction(page, 'Note placements');
     await page.locator('#note-placement-slug').fill(originalSlug);
-    await page.locator('button[form="note-placement-form"]').click();
+    // Placement is its own operation — the slug field applies via "Place on
+    // this page", not the lineage submit.
+    await page.getByRole('button', { name: 'Place on this page' }).click();
+    await expect(page.getByRole('dialog')).toBeHidden();
     await expect(page.locator(`a[href="/p/${originalSlug}"]`)).toBeVisible({ timeout: 30_000 });
 
     // …then clone: the dialog must NOT inherit the original's slug.

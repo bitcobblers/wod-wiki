@@ -8,7 +8,7 @@ db: wodwiki-db (v32)
 # Page
 
 > [!info] Review status
-> Current State describes the stored Page; Future State describes the placement model and the recommended page composition for feedback. No new fields, mode rules or ticket resolutions are implemented here. See [[todo#Datatype review guide]].
+> Current State describes the stored Page including the implemented many-to-many placement model (junction membership, add/remove/move operations, and the `/p/:slug` named-page listing). Future State describes the recommended page composition contract for feedback. See [[todo#Datatype review guide]].
 
 ## Current State (Implemented in Code)
 
@@ -26,9 +26,15 @@ The stored Page is a placement record for notes, not a content-bearing `Note` ro
 
 Notes associate with Pages via the [[PageNote]] junction table (`page_notes`). `Page` has no body text, segments, or tags of its own; authored workout logic lives strictly in [[Note]]. A note belongs to one [[Notebook]] — the container that decides where it lives and whether it is editable — while the pages it is attached to decide only where it is *displayed*.
 
-Library note and block results resolve named routes from `Page.slug` through `page_notes`. `Entry.pageId` retains one Page UUID and `Entry.pageSlug` supplies `/p/:slug`. Membership ordering uses position, then creation time, and skips calendar pages when choosing a named route. Notes without a named page open at `/notes/:noteId`; result recording keeps that note's UUID.
+A page is a **placement**, and the placement relation is many-to-many in both directions: a note may sit on several pages at once (a calendar day *and* a named page, or several named pages), and a page may hold notes from one or many notebooks. The junction row is the only membership record — a note carries no page reference of its own.
 
-The junction table is already many-to-many, but the placement model is not finished: the content provider detaches a note from every other page of the same flavor when it attaches it to a destination (`apps/playground/src/services/content/IndexedDBContentProvider.ts`), so in practice a note sits on at most one date page plus one named page. There is no note→pages index and no move operation; both are deliverables of the target model below.
+The junction carries an indexed note→pages lookup (`by-note`), so resolving where a note is placed never scans the page store. Adding a placement attaches the note to another page **without detaching it** from the pages it is already on; removing detaches one page; moving detaches from the source and attaches at the destination in a single transaction. None of the three clones, deletes or re-addresses the note — its canonical route (`/notes/:noteId`) is unchanged by placement.
+
+**Primary projection rule.** A note on several pages keeps every placement. Where a single page must be named — the `pageId`/`pageSlug`/`journalDate` fields on an entry, the link an Open action follows — the **canonical placement order** decides: explicit `position` first (smaller first, a row without one last), then creation time, then the row id. The first placement in that order is the primary one; `journalDate` names the first calendar placement and `pageSlug` the first named placement.
+
+Library note and block results resolve named routes from `Page.slug` through `page_notes`. `Entry.placements` carries every page the note sits on; `Entry.pageId` and `Entry.pageSlug` are the deterministic primary projections of that list. Journal date listings and named-page listings filter by placements, so a note appears in every page it is placed on. Notes without a named page open at `/notes/:noteId`; result recording keeps that note's UUID.
+
+The named-page route `/p/:slug` renders the page's own listing: every note placed on the page, in canonical placement order, each linking to its own canonical route (`/notes/:noteId`) — never to another note's page. Canvas routes keep precedence: a seeded canvas page claiming the slug renders as canvas, and the listing only renders when no canvas route matches. An unknown or empty page lists no notes.
 
 ### Fields (Current)
 
@@ -66,7 +72,7 @@ None.
 A page is a **placement**, never a second container. The resolved target:
 
 - A note belongs to exactly one [[Notebook]] and is placed on many pages; a page holds notes from one or many notebooks. Pages carry no content of their own — the content is always a note's.
-- **Deliverables:** a note→pages index (so a note can be asked where it is placed) and a move operation (detach from one page, attach to another, preserving position). Without them the many-to-many junction is not usable.
+- **Delivered:** a note→pages index (the `by-note` junction index) so a note can be asked where it is placed, and add/remove/move operations over placements (add without detaching, remove one page, move = detach + attach in one transaction, preserving position).
 - The legacy single `pageId` on child rows is not re-copied anywhere; existing copies need a defined update policy when a note moves.
 - Keep journal `Page.date` separate from content creation/import time. Displaying a note on a date does not rewrite its source history.
 - Canonical routes: `/page/{slug}` for one page and `/pages` for the list; a date slice is `/day/{date}`, which addresses the same content as a placement.

@@ -31,6 +31,11 @@ export class MockContentProvider extends IndexedDBContentProvider {
     return super.getEntries(query);
   }
 
+  override async getPageEntries(slug: string): Promise<HistoryEntry[]> {
+    await this.persistenceReady;
+    return super.getPageEntries(slug);
+  }
+
   override async getEntry(id: string): Promise<HistoryEntry | null> {
     await this.persistenceReady;
     return super.getEntry(id);

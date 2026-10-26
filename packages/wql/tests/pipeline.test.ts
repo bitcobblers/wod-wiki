@@ -385,4 +385,40 @@ describe('containers — junction-based, parent Page wins', () => {
     expect(notes.find(n => n.id === 'n-tagged')!.tags).toEqual(['authored']);
     expect(notes.find(n => n.id === 'n-loose')!.tags).toBeUndefined();
   });
+
+  it('placements returns every page a note sits on — several per note — while the container names the primary one', async () => {
+    const parsed = parseQuery(':journal{}');
+    if (parsed.family !== 'find') throw new Error('expected find query');
+    const notes: Note[] = [
+      { id: 'n-multi', title: 'Multi', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'n-loose', title: 'Standalone', createdAt: T0, type: 'note', rawContent: '', sourceRevision: 1, blocks: {} },
+    ];
+    const result = await new QueryService({
+      noteStore: { getAllNotes: async () => notes, getNoteIdsForTag: async () => new Set<string>(), getNoteTagLabels: async () => [] },
+      relationStore: {
+        getBatches: async () => new Map([
+          ['n-multi', {
+            tags: [],
+            links: [
+              { id: 'pn1', pageId: 'p1', noteId: 'n-multi', position: 1, createdAt: T0 },
+              { id: 'pn2', pageId: 'p2', noteId: 'n-multi', position: 2, createdAt: T0 },
+            ],
+            pages: [
+              { id: 'p1', slug: 'snatches', createdAt: T0 },
+              { id: 'p2', date: '2026-09-07', createdAt: T0 },
+            ],
+          }],
+          ['n-loose', { tags: [], links: [], pages: [] }],
+        ]),
+      },
+    }).runFind(parsed);
+    // The full membership: both pages, in canonical (position) order.
+    expect(result.placements?.['n-multi']?.map((placement) => placement.pageId)).toEqual(['p1', 'p2']);
+    // The container is the deterministic primary projection of that list.
+    expect(result.containers).toEqual({
+      'n-multi': { kind: 'page', id: 'p1', slug: 'snatches' },
+      'n-loose': { kind: 'note', id: 'n-loose' },
+    });
+    expect(result.placements?.['n-loose']).toEqual([]);
+  });
 });

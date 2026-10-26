@@ -134,8 +134,23 @@ class FakeContentProvider implements IContentProvider {
     if (!existing) throw new Error(`clone failed: ${sourceId} not found`);
     return { ...existing, id: `${sourceId}-clone` };
   }
-  async deleteEntry(_id: string): Promise<void> {
+  async deleteEntry(id: string): Promise<void> {
     /* no-op */
+  }
+  async addEntryPlacement(id: string): Promise<HistoryEntry> {
+    const entry = this.entries.get(id);
+    if (!entry) throw new Error(`clone failed: ${id} not found`);
+    return entry;
+  }
+  async removeEntryPlacement(id: string): Promise<HistoryEntry> {
+    const entry = this.entries.get(id);
+    if (!entry) throw new Error(`clone failed: ${id} not found`);
+    return entry;
+  }
+  async moveEntryPlacement(id: string): Promise<HistoryEntry> {
+    const entry = this.entries.get(id);
+    if (!entry) throw new Error(`clone failed: ${id} not found`);
+    return entry;
   }
   async saveAttachment(
     _noteId: string,
