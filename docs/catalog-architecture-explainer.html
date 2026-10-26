@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WOD Wiki - Catalog Architecture Explainer</title>
+<title>WOD Wiki - Feed Architecture Explainer</title>
 <style>
   :root {
     --paper:#ffffff; --ink:#1a1d21; --muted:#5b6470; --border:#d8dee6;
@@ -102,15 +102,15 @@
 </header>
 <!-- whiteboard-html:end-bar -->
 <header>
-  <h1>Catalog Architecture Explainer</h1>
-  <p>How distributed workout catalogs are authored, published, subscribed, imported, updated, and removed &mdash; end to end, with the exact storage keys and invariants.</p>
+  <h1>Feed Architecture Explainer</h1>
+  <p>How distributed workout feeds are authored, published, subscribed, imported, updated, and removed &mdash; end to end, with the exact storage keys and invariants.</p>
   <p><span class="badge">ADR-0001</span><span class="badge">ADR-0002</span> Canonical model definitions: <code>docs/adrs/0001-feed-seed-data-contract.md</code> and <code>docs/adrs/0002-feed-lifecycle.md</code>.</p>
 </header>
 <main data-whiteboard-document>
 
 <section id="sec-at-a-glance">
   <h2 id="wb-h2-b50d0c081dbd4fe79dfca7a20fd283c0" data-whiteboard-anchor>1. The System at a Glance</h2>
-  <p id="wb-p-bad7d0ec4d06456d8e11e24f91014230" data-whiteboard-anchor>The catalog system has two sides that only ever touch through two static files: a <strong>manifest</strong> and a set of immutable <strong>chunks</strong>. There is no API, no server, no dynamic anything &mdash; a catalog is a directory of JSON served by any static host (GitHub Pages is the reference flow).</p>
+  <p id="wb-p-bad7d0ec4d06456d8e11e24f91014230" data-whiteboard-anchor>The feed system has two sides that only ever touch through two static files: a <strong>manifest</strong> and a set of immutable <strong>chunks</strong>. There is no API, no server, no dynamic anything &mdash; a feed publication is a directory of JSON served by any static host (GitHub Pages is the reference flow).</p>
   <svg class="flow" viewBox="0 0 960 300" role="img" aria-label="Publisher to consumer pipeline">
     <defs>
       <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -144,7 +144,7 @@
     <rect x="700" y="196" width="240" height="36" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
     <text x="820" y="219" font-size="11" text-anchor="middle" fill="var(--ink)">IndexedDB (wodwiki-db) notes / block_index / &#8230;</text>
     <rect x="700" y="248" width="240" height="36" rx="6" fill="var(--surface)" stroke="var(--border)"></rect>
-    <text x="820" y="271" font-size="11" text-anchor="middle" fill="var(--ink)">WQL QueryService &#8594; stream, collection, feed views</text>
+    <text x="820" y="271" font-size="11" text-anchor="middle" fill="var(--ink)">WQL QueryService &#8594; stream and notebook views</text>
     <line x1="580" y1="144" x2="698" y2="110" stroke="var(--muted)" marker-end="url(#arr)"></line>
     <line x1="820" y1="76" x2="820" y2="90" stroke="var(--muted)" marker-end="url(#arr)"></line>
     <line x1="820" y1="128" x2="820" y2="142" stroke="var(--muted)" marker-end="url(#arr)"></line>
@@ -159,13 +159,13 @@
 <section id="sec-publisher">
   <h2 id="wb-h2-e476b0cc8dde4f0688c0cc15855a7a45" data-whiteboard-anchor>2. Publisher Side: Markdown to Published Seed</h2>
 
-  <h3 id="pub-scaffold" data-whiteboard-anchor>2.1 Scaffolding a catalog repository</h3>
-  <p id="wb-p-950ee0a251184c2080c48ddad178e3c3" data-whiteboard-anchor><code>wod init-catalog &lt;name&gt;</code> (<code>packages/tools/src/cli/scaffoldCatalog.ts</code>) generates a publish-ready repository: a <code>markdown/collections/&lt;name&gt;/</code> corpus with README + one workout per file, a <code>package.json</code> (whose <code>name</code>, <code>description</code>, and <code>repository</code> fields become manifest metadata), and a GitHub Actions workflow that runs <code>bunx wod build . --output dist</code> and publishes <code>dist/</code> to Pages. The destination directory must not already exist &mdash; the command refuses to overwrite.</p>
+  <h3 id="pub-scaffold" data-whiteboard-anchor>2.1 Scaffolding a feed repository</h3>
+  <p id="wb-p-950ee0a251184c2080c48ddad178e3c3" data-whiteboard-anchor><code>wod init-feed &lt;name&gt;</code> (<code>packages/tools/src/cli/scaffoldFeed.ts</code>) generates a publish-ready repository: a <code>markdown/notebooks/&lt;name&gt;/</code> corpus with README + one workout per file, a <code>package.json</code> (whose <code>name</code>, <code>description</code>, and <code>repository</code> fields become manifest metadata), and a GitHub Actions workflow that runs <code>bunx wod build . --output dist</code> and publishes <code>dist/</code> to Pages. The destination directory must not already exist &mdash; the command refuses to overwrite.</p>
 
   <h3 id="pub-build" data-whiteboard-anchor>2.2 The <code>wod build</code> pipeline</h3>
   <table>
     <tr><th id="wb-th-c4cbf769583a4a56ab4ea3e45923767d" data-whiteboard-anchor>Stage</th><th id="wb-th-01a912e528314e3a8a2670aeb02985ec" data-whiteboard-anchor>What it does</th></tr>
-    <tr><td id="wb-td-6b4700a567e24939b3d229dfbd177fd5" data-whiteboard-anchor>Scan + partition</td><td id="wb-td-6482e1f90bbc4d4dba02a4b378b073cd" data-whiteboard-anchor>Every <code>markdown/**/*.md</code> file is assigned a chunk by <code>chunkIdFor(relPath)</code>: <code>collections/&lt;dir&gt;</code> &#8594; <code>collection.&lt;slug&gt;</code>, <code>feeds/&lt;dir&gt;</code> &#8594; <code>feed.&lt;slug&gt;</code>, plus reserved chunks <code>canvas</code>, <code>dashboards</code>, <code>efforts</code>, <code>template</code>. An unrecognized path is a hard parity failure, never a silent drop.</td></tr>
+    <tr><td id="wb-td-6b4700a567e24939b3d229dfbd177fd5" data-whiteboard-anchor>Scan + partition</td><td id="wb-td-6482e1f90bbc4d4dba02a4b378b073cd" data-whiteboard-anchor>Every <code>markdown/**/*.md</code> file is assigned a chunk by <code>chunkIdFor(relPath)</code>: <code>notebooks/&lt;dir&gt;</code> &#8594; <code>notebook.&lt;slug&gt;</code>, plus reserved chunks <code>canvas</code>, <code>dashboards</code>, <code>efforts</code>, <code>equipment</code>. An unrecognized path is a hard parity failure, never a silent drop.</td></tr>
     <tr><td id="wb-td-516a00cae4ab4e90acaf882914dc7d0e" data-whiteboard-anchor>Gates</td><td id="wb-td-638bd3a9704e4145b64d43606c8fe49a" data-whiteboard-anchor>Dashboard gate (&#8805;3 widgets, known widget types, WQL must parse, <code>$token</code> declared) then the WOD syntax gate (Lezer error-node scan of plain fences, <code>parseScript</code> on dialect fences). Any failure aborts the build.</td></tr>
     <tr><td id="wb-td-e4594df2a0d5410e873a987dfe41b3c9" data-whiteboard-anchor>Compile passes</td><td id="wb-td-146e2ae427574a54a035f29afd21a9b5" data-whiteboard-anchor><code>buildBlockIndexRows</code> projects every fenced block into a <code>BlockIndexRow</code> (exactly one projection per block); <code>buildBlockEffortRows</code> links <code>wod</code> blocks to canonical effort slugs. Rows are grouped back per file into <code>SeedRow { path, content, blocks, blockIndex, blockEfforts }</code>.</td></tr>
     <tr><td id="wb-td-400090de1c834dd1bd96ebc149be1dab" data-whiteboard-anchor>Write</td><td id="wb-td-5254b9c0ab42473eba4581ed240aa7a5" data-whiteboard-anchor>Per chunk: rows serialized to <code>chunks/&lt;id&gt;.&lt;sha256-8&gt;.json</code>; the manifest records the full sha256, byte size, and row count. An HTML build report is written alongside.</td></tr>
@@ -183,7 +183,7 @@
   "dirty": true,
   "builtAt": "2026-10-16T18:10:02.356Z",
   "chunks": [
-    { "id": "collection.crossfit-girls", "path": "chunks/collection.crossfit-girls.b8f29e2a.json",
+    { "id": "notebook.crossfit-girls", "path": "chunks/notebook.crossfit-girls.b8f29e2a.json",
       "sha256": "…64 hex…", "bytes": 7531, "count": 21 }
   ]
 }</code></pre>
@@ -227,7 +227,7 @@
     <tr><td id="wb-td-ce6d537537044d82b2feb892d8e8fe1d" data-whiteboard-anchor>Subscription map</td><td id="wb-td-93ed242eedc54a25bd5c8404161debd7" data-whiteboard-anchor><code>wodwiki.seedSubscriptions</code></td><td id="wb-td-99d44967b8db4e2a9f8d323a1b2bbaef" data-whiteboard-anchor><code>{ [sourceId]: boolean }</code>. Absence = no explicit choice. Core is hardcoded always-subscribed. Subscribing never implies auto-updating.</td></tr>
     <tr><td id="wb-td-d4016298cd854db1bb1447ca106fa3f6" data-whiteboard-anchor>Auto-sync map</td><td id="wb-td-15bfe73b52984d21876c9271ede39f0e" data-whiteboard-anchor><code>wodwiki.seedAutoSync</code></td><td id="wb-td-8f60cd6f8ea24650b7e537abdd05c9e2" data-whiteboard-anchor><code>{ [sourceId]: boolean }</code>, default core on / all others off. Drives check-only vs apply in the background pass.</td></tr>
   </table>
-  <p id="wb-p-0789e43137634ab58163e155512af842" data-whiteboard-anchor>Defaults from <code>defaultFeedSources()</code>, in resolution order: <code>core</code> (build-embedded <code>${BASE_URL}seed/core/</code>, <code>autoImport</code> true, version stamped from <code>__SEED_VERSIONS__</code>) &#8594; <code>community</code> (https://bitcobblers.github.io/wod-wiki-community/, opt-in) &#8594; five per-catalog <code>FeedSeedSource</code> slices of the community manifest (CrossFit programming, Dan John 40-day, Girls, Heroes, dashboards) &#8594; custom sources (<code>embeddedVersion</code> 0, never boot-imported).</p>
+  <p id="wb-p-0789e43137634ab58163e155512af842" data-whiteboard-anchor>Defaults from <code>defaultFeedSources()</code>, in resolution order: <code>core</code> (build-embedded <code>${BASE_URL}seed/core/</code>, <code>autoImport</code> true, version stamped from <code>__SEED_VERSIONS__</code>) &#8594; <code>community</code> (https://bitcobblers.github.io/wod-wiki-community/, opt-in) &#8594; per-notebook manifest slices of the community manifest (CrossFit programming, Dan John 40-day, Girls, Heroes, dashboards) &#8594; custom sources (<code>embeddedVersion</code> 0, never boot-imported).</p>
   <p id="wb-p-77a01796ac1f416e870f7594ef993cd1" data-whiteboard-anchor>Side documents: <code>wodwiki.seedChecks</code> (last successful manifest check per source, best-effort) and <code>wodwiki.seedImport.enabled</code> (feature flag; <code>'0'</code> opts out).</p>
 
   <h3 id="con-boot" data-whiteboard-anchor>4.2 Boot: first visit vs returning visit</h3>
@@ -243,20 +243,20 @@
   <p id="wb-p-19ec54e6994a486291db385bd9abef7b" data-whiteboard-anchor>Every subscribed source's remote manifest is fetched and version-compared on page load (the skip-fetch fast path requires <code>schema === 8 &amp;&amp; seedVersion === embeddedVersion &gt; 0</code>; background checks bypass it with <code>probeManifests</code>). Then:</p>
   <ul>
     <li id="wb-li-05c8ecae7be44d1a9098fedb07ba039e" data-whiteboard-anchor><strong>Auto-sync ON</strong> &#8594; chunks with changed sha256 are fetched and applied; the checkpoint advances.</li>
-    <li id="wb-li-a9a6c74484144558bed46b99ab04a75d" data-whiteboard-anchor><strong>Auto-sync OFF</strong> &#8594; check-only: no chunk fetch, no checkpoint write. The detected update lands in the run's <code>CatalogUpdatesSnapshot</code> as <code>'pending'</code>.</li>
+    <li id="wb-li-a9a6c74484144558bed46b99ab04a75d" data-whiteboard-anchor><strong>Auto-sync OFF</strong> &#8594; check-only: no chunk fetch, no checkpoint write. The detected update lands in the run's <code>FeedUpdatesSnapshot</code> as <code>'pending'</code>.</li>
   </ul>
-  <p id="wb-p-73050744c7394ca9aa18487580588f0f" data-whiteboard-anchor>Background mode publishes exactly <strong>one snapshot per run</strong>; the UI toasts it once with a "Review updates" action that deep-links to <code>/catalogs?manage=1</code>. Manual sync of a source clears its entry; an empty list clears the notification. Per-source manual activity uses a separate <code>syncActivity</code> channel, suppressed during background runs. Outcomes aggregate worst-first: <code>disabled &lt; current &lt; busy &lt; imported &lt; server-stale &lt; error &lt; update-pending</code>, with <code>update-pending</code> treated as ready by the gate's preparing branch.</p>
+  <p id="wb-p-73050744c7394ca9aa18487580588f0f" data-whiteboard-anchor>Background mode publishes exactly <strong>one snapshot per run</strong>; the UI toasts it once with a "Review updates" action that deep-links to <code>/notebooks?manage=1</code>. Manual sync of a source clears its entry; an empty list clears the notification. Per-source manual activity uses a separate <code>syncActivity</code> channel, suppressed during background runs. Outcomes aggregate worst-first: <code>disabled &lt; current &lt; busy &lt; imported &lt; server-stale &lt; error &lt; update-pending</code>, with <code>update-pending</code> treated as ready by the gate's preparing branch.</p>
 
   <h3 id="con-claim" data-whiteboard-anchor>4.4 The multi-tab claim</h3>
   <p id="wb-p-f03770be9d654b1e9dcf0cc435aac4b1" data-whiteboard-anchor>An import stamps <code>claim { owner, at }</code> on the checkpoint row before fetching chunks. A fresh claim owned by another tab yields outcome <code>'busy'</code> (the readiness gate retries after the TTL and converges via the <code>seed-imported</code> broadcast). A claim older than <code>SEED_CLAIM_TTL_MS = 45&thinsp;000</code> ms is assumed abandoned (crashed tab) and is stolen. The <code>finally</code> block releases the claim only if still the owner.</p>
 
   <h3 id="con-intake" data-whiteboard-anchor>4.5 <code>/subscribe?source=…</code> intake and consent</h3>
   <ol>
-    <li id="wb-li-9b29820eb2f744a5993aa0295e3c3e64" data-whiteboard-anchor>No <code>?source</code> &#8594; redirect to <code>/catalogs</code>.</li>
+    <li id="wb-li-9b29820eb2f744a5993aa0295e3c3e64" data-whiteboard-anchor>No <code>?source</code> &#8594; redirect to <code>/notebooks</code>.</li>
     <li id="wb-li-435b6a7af25b4c00af9f21316033902e" data-whiteboard-anchor>Page-level URL validation mirrors <code>normalizeFeedUrl</code> (https only, no credentials/query/hash, trailing slash).</li>
     <li id="wb-li-c121d4825f62477a9174d87e37288b82" data-whiteboard-anchor>The manifest is fetched and validated <strong>before anything is shown</strong>; a failure renders an error and writes nothing.</li>
     <li id="wb-li-be7cff77ef234129b72c9ac708e51806" data-whiteboard-anchor>The consent screen discloses name, URL, description, published version, <code>builtAt</code>, schema, chunk/item counts, download size, and repository link &mdash; plus an explicit "opening this link has not added any content or source" notice &mdash; with an auto-sync checkbox.</li>
-    <li id="wb-li-25cd9edf5ac64f8faa4c22aa78b389c2" data-whiteboard-anchor><strong>Import Once</strong> / <strong>Import &amp; Subscribe</strong>: match an existing source by normalized URL or <code>addCustomFeedSource</code>, then <code>syncFeedSource(id, { subscribe: false })</code>; Subscribe additionally persists auto-sync + subscription (with an explicit storage-unavailable error if persistence fails). Success navigates to <code>/catalogs?manage=1</code>. <strong>Decline &amp; Dismiss</strong> writes nothing.</li>
+    <li id="wb-li-25cd9edf5ac64f8faa4c22aa78b389c2" data-whiteboard-anchor><strong>Import Once</strong> / <strong>Import &amp; Subscribe</strong>: match an existing source by normalized URL or <code>addCustomFeedSource</code>, then <code>syncFeedSource(id, { subscribe: false })</code>; Subscribe additionally persists auto-sync + subscription (with an explicit storage-unavailable error if persistence fails). Success navigates to <code>/notebooks?manage=1</code>. <strong>Decline &amp; Dismiss</strong> writes nothing.</li>
   </ol>
   <p id="wb-p-a12bfabf13f74bcc88e4e3b6d6419b3f" data-whiteboard-anchor>Import-once records an explicit <code>false</code> for a new source so the boot migration (<code>migrateSeedSubscriptions</code>, which adopts previously imported but unchosen sources with <code>seedVersion &gt; 0</code>) cannot silently subscribe it later.</p>
 
@@ -287,7 +287,7 @@
     <tr><td id="wb-td-814b81f06a284a8a8cb406d81e45504b" data-whiteboard-anchor><code>FeedSourceSpec</code></td><td id="wb-td-4f961d22c98c41119a43997999a8cae9" data-whiteboard-anchor><code>apps/playground/src/services/feed/feedSync.ts</code></td><td id="wb-td-b1b4d88911a24eb499ac53935c73f231" data-whiteboard-anchor><code>CustomFeedSource</code>, <code>SeedManifest</code></td><td id="wb-td-d53935a6af844b4884eba96fb65222d8" data-whiteboard-anchor>resolved by <code>defaultFeedSources()</code> &#8594; boot-checked &#8594; synced / pending / stale / error</td></tr>
     <tr><td id="wb-td-d8194d5be4124db2be691f770c1fd7a7" data-whiteboard-anchor><code>SeedSubscriptionMap</code></td><td id="wb-td-16b896f7fea2481d92dc50fef6bbf845" data-whiteboard-anchor><code>feedSubscriptions.ts</code></td><td id="wb-td-39d510817241465f9ada44a7e92e5523" data-whiteboard-anchor><code>FeedSourceSpec</code></td><td id="wb-td-704722f6cc58418894404506c7c79487" data-whiteboard-anchor>chosen / declined (explicit false) / migrated at boot</td></tr>
     <tr><td id="wb-td-9eeb172423d04d388089bde0e232d7b3" data-whiteboard-anchor><code>SeedAutoSyncMap</code></td><td id="wb-td-1d55fd4c20b34a85822a3e30c9c70934" data-whiteboard-anchor><code>feedSubscriptions.ts</code></td><td id="wb-td-d12d6960f359456bb23723ce8889a53f" data-whiteboard-anchor><code>SeedSubscriptionMap</code></td><td id="wb-td-4168b38cfe9441978a3f74b54b7e0704" data-whiteboard-anchor>off (updates stay pending) / on (background applies); cleared on unsubscribe</td></tr>
-    <tr><td id="wb-td-5a43669d33fd4e0180167a1d1b18f010" data-whiteboard-anchor><code>CatalogUpdatesSnapshot</code></td><td id="wb-td-b16a8b3d2c934172a7235ea4a4ea0168" data-whiteboard-anchor><code>feedSync.ts</code></td><td id="wb-td-1e46735c7096417db4d0a3e36b21e47a" data-whiteboard-anchor><code>FeedSourceSpec</code>, <code>SeedAutoSyncMap</code></td><td id="wb-td-bfb7a96a407e4eb1b04b8b06c503c271" data-whiteboard-anchor>one per background run &#8594; toasted once &#8594; entries cleared by manual sync</td></tr>
+    <tr><td id="wb-td-5a43669d33fd4e0180167a1d1b18f010" data-whiteboard-anchor><code>FeedUpdatesSnapshot</code></td><td id="wb-td-b16a8b3d2c934172a7235ea4a4ea0168" data-whiteboard-anchor><code>feedSync.ts</code></td><td id="wb-td-1e46735c7096417db4d0a3e36b21e47a" data-whiteboard-anchor><code>FeedSourceSpec</code>, <code>SeedAutoSyncMap</code></td><td id="wb-td-bfb7a96a407e4eb1b04b8b06c503c271" data-whiteboard-anchor>one per background run &#8594; toasted once &#8594; entries cleared by manual sync</td></tr>
     <tr><td id="wb-td-a791eeee595c45f69ccf86e9a3397b49" data-whiteboard-anchor><code>ImportClaim</code></td><td id="wb-td-b92582d00b894d528cd1293364b1e388" data-whiteboard-anchor><code>feedSync.ts</code></td><td id="wb-td-36987ad75c0347b6931e1e844ddfb46e" data-whiteboard-anchor><code>SeedMetaRecord</code></td><td id="wb-td-40be7fd02e8d4ca6a85d5cf0ea583326" data-whiteboard-anchor>claimed &#8594; stolen after 45 s &#8594; released in <code>finally</code></td></tr>
     <tr><td id="wb-td-3ed9206b4b4d464c81c32ef6536dd8c1" data-whiteboard-anchor><code>SeedReadinessGate</code></td><td id="wb-td-dac831f2bfc8458b9e17e9f4bd9975fe" data-whiteboard-anchor><code>seedReadiness.ts</code></td><td id="wb-td-dd9dc227d4ef4d9c9eae0e965bb7f34c" data-whiteboard-anchor><code>SeedMetaRecord</code>, <code>ImportClaim</code></td><td id="wb-td-dec2beacec4f4863b8e06efd9e7cb560" data-whiteboard-anchor>preparing (first visit) &#8594; ready (canvas committed) / current (returning) / busy&#8594;retry</td></tr>
   </table>
@@ -315,7 +315,7 @@
 
 </main>
 <footer>
-  WOD Wiki catalog architecture explainer &middot; pairs with <code>docs/catalogs-and-distributed-seed-model.html</code> (design review) and <code>docs/adrs/</code> (canonical models).
+  WOD Wiki feed architecture explainer &middot; pairs with <code>docs/catalogs-and-distributed-seed-model.html</code> (design review) and <code>docs/adrs/</code> (canonical models).
 </footer>
 <!-- whiteboard-html:tail -->
 <button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>

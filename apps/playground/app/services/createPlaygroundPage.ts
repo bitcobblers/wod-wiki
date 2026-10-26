@@ -9,7 +9,7 @@
  *  - Note id: a UUID (the V8 note shape) — results, attachments, and events
  *    join on it, and it survives a later promotion to the journal.
  *  - `slug`: `playground/<name>` — the route id `/playground/:id` resolves
- *    (getEntry falls back to by-slug lookup), so old composite-id links keep
+ *    (getRecord falls back to by-slug lookup), so old composite-id links keep
  *    working and new entries are UUID-keyed.
  *  - `sourceId: 'playground'` — the `:note{source:playground}` library
  *    scope (sourceMatches: exact `playground` id).
@@ -28,7 +28,7 @@ import { v7 as uuidv7 } from 'uuid';
 
 import type { INotePersistence } from '@/services/persistence';
 import { notePersistence } from '@/services/persistence';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { formatPlaygroundTimestampId } from '@/lib/playgroundDisplay';
 
 import { playgroundContent, pageId, type PlaygroundPage } from './playgroundContent';
@@ -120,7 +120,7 @@ export interface PlaygroundIntake {
    * duplicate playground entry remains). The source bucket is cleared so the
    * note leaves the `source:playground` scope and joins the journal page.
    */
-  moveToJournal(noteId: string, journalDate: string): Promise<HistoryEntry>;
+  moveToJournal(noteId: string, journalDate: string): Promise<HistoryRecord>;
 }
 
 export function createPlaygroundIntake({
@@ -141,7 +141,7 @@ export function createPlaygroundIntake({
     return entry.id;
   }
 
-  async function updateEntry(entry: PlaygroundPage, routeId: string, title: string, content: string): Promise<void> {
+  async function updateRecord(entry: PlaygroundPage, routeId: string, title: string, content: string): Promise<void> {
     await pages.savePage({
       id: entry.id,
       slug: routeId,
@@ -161,7 +161,7 @@ export function createPlaygroundIntake({
       // piling up two Notes behind one slug (the old composite-id behavior).
       const existing = await pages.getPage(routeId);
       if (existing) {
-        await updateEntry(existing, existing.slug ?? routeId, existing.name || name, content);
+        await updateRecord(existing, existing.slug ?? routeId, existing.name || name, content);
         return name;
       }
       await writeEntry(routeId, name, content, opts?.sourcePath);
@@ -184,7 +184,7 @@ export function createPlaygroundIntake({
       // legacy note would still resolve here. Its type says 'journal' now:
       // never touch it, mint a fresh entry under a suffixed slug instead.
       if (existing && existing.type === 'playground') {
-        await updateEntry(existing, existing.slug ?? routeId, existing.name || name, content);
+        await updateRecord(existing, existing.slug ?? routeId, existing.name || name, content);
         return { noteId: existing.id, routeId };
       }
       if (existing) {
@@ -257,6 +257,6 @@ export function ensurePlaygroundEntry(
 }
 
 /** Promote a playground entry to a journal date, preserving its UUID. */
-export function movePlaygroundToJournal(noteId: string, journalDate: string): Promise<HistoryEntry> {
+export function movePlaygroundToJournal(noteId: string, journalDate: string): Promise<HistoryRecord> {
   return playgroundIntake.moveToJournal(noteId, journalDate);
 }

@@ -1,7 +1,7 @@
 /**
- * `wod init-catalog <name>` — scaffold a ready-to-publish WOD Wiki catalog
+ * `wod init-feed <name>` — scaffold a ready-to-publish WOD Wiki feed
  * repository skeleton (docs/catalogs-and-distributed-seed-model.html §repo-creation,
- * roadmap Phase 4): markdown collections example, package.json, GitHub Actions
+ * roadmap Phase 4): a markdown notebooks example, package.json, GitHub Actions
  * Pages workflow, README. Creates a new directory only; refuses an existing
  * destination without touching it.
  *
@@ -12,36 +12,36 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { VERSION } from '../version';
 
-export interface ScaffoldCatalogResult {
-  /** Absolute path of the created catalog root. */
+export interface ScaffoldFeedResult {
+  /** Absolute path of the created feed root. */
   dir: string;
-  /** Created files, POSIX-relative to the catalog root. */
+  /** Created files, POSIX-relative to the feed root. */
   files: string[];
 }
 
 /** npm package name + single-directory-segment validation for `<name>`. */
-export function validateCatalogName(name: string): string {
+export function validateFeedName(name: string): string {
   if (name.length === 0 || name === '.' || name === '..') {
-    throw new Error('Catalog name must be a single non-empty directory name');
+    throw new Error('Feed name must be a single non-empty directory name');
   }
   if (name.includes('/') || name.includes('\\') || name.includes('\0')) {
-    throw new Error(`Invalid catalog name '${name}': must be a single directory name (no path separators or traversal)`);
+    throw new Error(`Invalid feed name '${name}': must be a single directory name (no path separators or traversal)`);
   }
   if (/^(?:[A-Za-z]:)?[/\\]/.test(name)) {
-    throw new Error(`Invalid catalog name '${name}': absolute paths are not allowed`);
+    throw new Error(`Invalid feed name '${name}': absolute paths are not allowed`);
   }
   if (name.length > 214 || !/^[a-z0-9][a-z0-9._-]*$/.test(name)) {
     throw new Error(
-      `Invalid catalog name '${name}': must be a valid npm package name ` +
+      `Invalid feed name '${name}': must be a valid npm package name ` +
       '(lowercase letters, digits, dots, hyphens, underscores; no leading dot/hyphen)',
     );
   }
   return name;
 }
 
-const publishWorkflow = (): string => `name: Publish catalog
+const publishWorkflow = (): string => `name: Publish feed
 
-# Compile the catalog with the wod CLI and deploy dist/ to GitHub Pages.
+# Compile the feed with the wod CLI and deploy dist/ to GitHub Pages.
 # Requires Pages enabled: repo Settings → Pages → Source: "GitHub Actions".
 
 on:
@@ -92,10 +92,10 @@ jobs:
         uses: actions/deploy-pages@v4
 `;
 
-const collectionReadme = (name: string): string => `# ${name}
+const feedReadme = (name: string): string => `# ${name}
 
-Example benchmark collection. Each \`.md\` file in this directory becomes part of
-the \`example\` collection chunk; \`README.md\` is the collection's landing page.
+Example benchmark notebook. Each \`.md\` file in this directory becomes part of
+the \`example\` notebook chunk; \`README.md\` is the notebook's landing page.
 
 Add one file per workout:
 
@@ -132,9 +132,9 @@ date: ${date}
 \`\`\`
 `;
 
-const catalogReadme = (name: string): string => `# ${name}
+const repoReadme = (name: string): string => `# ${name}
 
-A [WOD Wiki](https://github.com/bitcobblers/wod-wiki) workout catalog: plain
+A [WOD Wiki](https://github.com/bitcobblers/wod-wiki) workout feed: plain
 Markdown workouts compiled to static, version-stamped seed chunks and published
 via GitHub Pages.
 
@@ -146,35 +146,35 @@ bunx wod build . --output dist
 \`\`\`
 
 Workouts live under \`markdown/\` — this scaffold starts with one example
-collection. Validate everything with \`bunx wod build\`: it gates every file on
+feed. Validate everything with \`bunx wod build\`: it gates every file on
 the Whiteboard grammar and corpus layout before writing \`dist/\`.
 
 ## Publish
 
 Push to GitHub and enable Pages (**Settings → Pages → Source: GitHub
-Actions**). The bundled workflow (\`.github/workflows/publish-catalog.yml\`)
-builds the catalog on every push to \`main\` and deploys \`dist/\`.
+Actions**). The bundled workflow (\`.github/workflows/publish-feed.yml\`)
+builds the feed on every push to \`main\` and deploys \`dist/\`.
 
 ## Share
 
-Once published, anyone can subscribe to this catalog from a WOD Wiki instance
+Once published, anyone can subscribe to this feed from a WOD Wiki instance
 at:
 
 \`\`\`
-<app-url>/subscribe?source=<url-encoded published catalog URL>
+<app-url>/subscribe?source=<url-encoded published feed URL>
 \`\`\`
 
-For \`owner\`/\`repo\` on GitHub Pages the catalog URL is the deployed
+For \`owner\`/\`repo\` on GitHub Pages the feed URL is the deployed
 directory, \`https://owner.github.io/repo/\`, e.g.
 \`/subscribe?source=https%3A%2F%2Fowner.github.io%2Frepo%2F\`.
 `;
 
 /**
- * Scaffold a new catalog repository at `<cwd>/<name>`. Throws when the name is
+ * Scaffold a new feed repository at `<cwd>/<name>`. Throws when the name is
  * invalid or the destination already exists; partial failure removes created files.
  */
-export function scaffoldCatalog(name: string, opts: { cwd?: string } = {}): ScaffoldCatalogResult {
-  validateCatalogName(name);
+export function scaffoldFeed(name: string, opts: { cwd?: string } = {}): ScaffoldFeedResult {
+  validateFeedName(name);
   const dir = resolve(opts.cwd ?? process.cwd(), name);
   // Atomic acquire: EEXIST is the refusal signal — no exists-check/create race,
   // and an existing destination is never removed or written.
@@ -195,7 +195,7 @@ export function scaffoldCatalog(name: string, opts: { cwd?: string } = {}): Scaf
         version: '0.1.0',
         private: true,
         type: 'module',
-        description: `WOD Wiki workout catalog: ${name}`,
+        description: `WOD Wiki workout feed: ${name}`,
         scripts: {
           build: 'wod build . --output dist',
         },
@@ -207,10 +207,10 @@ export function scaffoldCatalog(name: string, opts: { cwd?: string } = {}): Scaf
       2,
     )}\n`],
     ['.gitignore', 'node_modules/\ndist/\n'],
-    ['.github/workflows/publish-catalog.yml', publishWorkflow()],
-    ['markdown/collections/example/README.md', collectionReadme(name)],
-    [`markdown/collections/example/morning-session.md`, exampleWorkout(date)],
-    ['README.md', catalogReadme(name)],
+    ['.github/workflows/publish-feed.yml', publishWorkflow()],
+    ['markdown/notebooks/example/README.md', feedReadme(name)],
+    [`markdown/notebooks/example/morning-session.md`, exampleWorkout(date)],
+    ['README.md', repoReadme(name)],
   ];
 
   try {

@@ -3,7 +3,7 @@ import { v7 as uuidv7 } from 'uuid';
 import type { INotePersistence } from '@/services/persistence';
 import { notePersistence } from '@/services/persistence';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { NoteBlock } from '@/types/storage';
 import { reconcileNoteBlocks, mapNoteBlockChanges, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import type { WidgetOpResult } from '@bitcobblers/wod-wiki-wql';
@@ -23,12 +23,12 @@ export interface CreateJournalNoteInput {
 }
 
 export interface JournalNotes {
-  create(input: CreateJournalNoteInput): Promise<HistoryEntry>;
-  getById(noteId: string): Promise<HistoryEntry>;
-  resolve(idOrSlug: string): Promise<HistoryEntry>;
-  listByDate(journalDate: string): Promise<HistoryEntry[]>;
-  update(note: Pick<HistoryEntry, 'id' | 'rawContent' | 'blocks' | 'sourceRevision'>, rawContent: string, lineage?: Pick<Extract<WidgetOpResult, { ok: true }>, 'changes' | 'retainedBlocks'>): Promise<HistoryEntry>;
-  moveToDate(noteId: string, journalDate: string): Promise<HistoryEntry>;
+  create(input: CreateJournalNoteInput): Promise<HistoryRecord>;
+  getById(noteId: string): Promise<HistoryRecord>;
+  resolve(idOrSlug: string): Promise<HistoryRecord>;
+  listByDate(journalDate: string): Promise<HistoryRecord[]>;
+  update(note: Pick<HistoryRecord, 'id' | 'rawContent' | 'blocks' | 'sourceRevision'>, rawContent: string, lineage?: Pick<Extract<WidgetOpResult, { ok: true }>, 'changes' | 'retainedBlocks'>): Promise<HistoryRecord>;
+  moveToDate(noteId: string, journalDate: string): Promise<HistoryRecord>;
   delete(noteId: string): Promise<void>;
 }
 
@@ -38,8 +38,8 @@ export interface JournalNotesDependencies {
    *  exactly one source page and attaches the destination in a single
    *  transaction — the additive metadata patch path never detaches, so a
    *  date change routed through it would leave the note on both dates. */
-  moveEntryPlacement?: (noteId: string, fromPageId: string, target: { date: string } | { slug: string }) => Promise<HistoryEntry>;
-  addEntryPlacement?: (noteId: string, target: { date: string } | { slug: string }) => Promise<HistoryEntry>;
+  moveRecordPlacement?: (noteId: string, fromPageId: string, target: { date: string } | { slug: string }) => Promise<HistoryRecord>;
+  addRecordPlacement?: (noteId: string, target: { date: string } | { slug: string }) => Promise<HistoryRecord>;
   uuid?: () => string;
 }
 
@@ -50,8 +50,8 @@ function dateTimestamp(journalDate: string): number {
 }
 export function createJournalNotes({
   persistence,
-  moveEntryPlacement,
-  addEntryPlacement,
+  moveRecordPlacement,
+  addRecordPlacement,
   uuid = uuidv7,
 }: JournalNotesDependencies): JournalNotes {
   // Serialize per-note mutations: asynchronous reads before the write transaction
@@ -140,15 +140,15 @@ export function createJournalNotes({
       // Validate the route date shape first — a malformed or impossible date
       // must not reach the store (throws).
       const targetDate = dateTimestamp(journalDate);
-      if (moveEntryPlacement && addEntryPlacement) {
+      if (moveRecordPlacement && addRecordPlacement) {
         // The atomic move: detach exactly one source page and attach the
         // destination in a single transaction. The note's primary calendar
         // placement is the source; every other placement survives the move.
         const entry = await persistence.getNote({ id: noteId }, { projection: 'summary' });
         const source = entry.placements?.find((placement) => placement.date);
         return source
-          ? moveEntryPlacement(noteId, source.pageId, { date: journalDate })
-          : addEntryPlacement(noteId, { date: journalDate });
+          ? moveRecordPlacement(noteId, source.pageId, { date: journalDate })
+          : addRecordPlacement(noteId, { date: journalDate });
       }
       // ponytail: seam-only fallback for tests without injected placement
       // ops — the app singleton always injects the real move operation.
@@ -169,6 +169,6 @@ export function createJournalNotes({
 const placementProvider = new IndexedDBContentProvider();
 export const journalNotes = createJournalNotes({
   persistence: notePersistence,
-  moveEntryPlacement: (noteId, fromPageId, target) => placementProvider.moveEntryPlacement(noteId, fromPageId, target),
-  addEntryPlacement: (noteId, target) => placementProvider.addEntryPlacement(noteId, target),
+  moveRecordPlacement: (noteId, fromPageId, target) => placementProvider.moveRecordPlacement(noteId, fromPageId, target),
+  addRecordPlacement: (noteId, target) => placementProvider.addRecordPlacement(noteId, target),
 });

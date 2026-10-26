@@ -16,7 +16,7 @@ import {
   SEED_REGISTERED_WIDGETS,
   canvasRouteSlug,
   seedNoteSourceId,
-  catalogForChunkId,
+  notebookSlugForChunkId,
   type ManifestChunk,
   type NotebookIndex,
   type SeedManifest,
@@ -104,10 +104,8 @@ export function chunkIdFor(relPath: string): string | null {
     case 'efforts':
     case 'equipment':
       return corpus;
-    case 'collections':
-      return parts.length === 3 ? `collection._root` : `collection.${slug}`;
-    case 'feeds':
-      return parts.length === 3 ? `feed._root` : `feed.${slug}`;
+    case 'notebooks':
+      return parts.length === 3 ? `notebook._root` : `notebook.${slug}`;
     default:
       return null;
   }
@@ -129,7 +127,7 @@ export function partitionIntoChunks(paths: string[]): ChunkGroup[] {
     if (id === null) {
       throw new Error(
         `[generate-seed] Parity failure: '${p}' is not part of any known corpus ` +
-        `(canvas | dashboards | efforts | equipment | collections | feeds). ` +
+        `(canvas | dashboards | efforts | equipment | notebooks). ` +
         `Extend chunkIdFor() if this is a new corpus.`,
       );
     }
@@ -193,7 +191,7 @@ function gateDashboards(groups: ChunkGroup[], corpusRoot: string): void {
 // ── Block index derivation ────────────────────────────────────────────────
 
 
-/** Created-at from the corpus repo's git history (collections/guides), 0 fallback when unknown. */
+/** Created-at from the corpus repo's git history (notebooks/guides), 0 fallback when unknown. */
 function getFileCreatedAt(file: string, repoRoot: string): number {
   try {
     const out = execSync(`git log -1 --format=%ct -- '${file}'`, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -255,8 +253,8 @@ export function frontmatterDateToCreatedAt(raw: string, path: string): number | 
   return ts;
 }
 
-/** Created-at timestamp for a feed entry's date key (`yyyy-mm-dd` from the path). */
-export function feedDateToCreatedAt(dateKey: string): number {
+/** Created-at timestamp for a dated notebook item's date key (`yyyy-mm-dd` from the path). */
+export function dateKeyToCreatedAt(dateKey: string): number {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return 0;
   const ts = Date.parse(`${dateKey}T00:00:00Z`);
   return Number.isNaN(ts) ? 0 : ts;
@@ -286,14 +284,14 @@ export function buildBlockIndexRows(markdownDir: string, corpusRoot: string, exc
     const content = readFileSync(join(corpusRoot, path), 'utf8');
     const parts = path.split('/');
     const stem = (parts.at(-1) ?? '').replace(/\.md$/, '');
-    const catalog = parts[2];
-    const routeId = chunkId === 'canvas' ? canvasRouteSlug(content) ?? undefined : chunkId.startsWith('collection.') ? (stem.toLowerCase() === 'readme' ? catalog : `${catalog}/${stem}`) : chunkId.startsWith('feed.') ? parts.slice(1).join('/').replace(/\.md$/, '') : undefined;
+    const slug = parts[2];
+    const routeId = chunkId === 'canvas' ? canvasRouteSlug(content) ?? undefined : chunkId.startsWith('notebook.') ? (stem.toLowerCase() === 'readme' ? slug : parts.slice(2).join('/').replace(/\.md$/, '')) : undefined;
     const sourceId = seedNoteSourceId(path, content, chunkId);
-    // Authored frontmatter date wins regardless of filename/directory; undated
-    // feeds keep their historical path-date placement, everything else falls
-    // back to the corpus repo's git history.
+    // Authored frontmatter date wins regardless of filename/directory; dated
+    // notebooks keep their historical path-date placement, everything else
+    // falls back to the corpus repo's git history.
     const createdAt = frontmatterDateToCreatedAt(content, path)
-      ?? (chunkId.startsWith('feed.') ? feedDateToCreatedAt(parts.at(-2) ?? '') : getFileCreatedAt(path, corpusRoot));
+      ?? (chunkId.startsWith('notebook.') && /^\d{4}-\d{2}-\d{2}$/.test(parts.at(-2) ?? '') ? dateKeyToCreatedAt(parts.at(-2) ?? '') : getFileCreatedAt(path, corpusRoot));
     rows.push(...compileSeedRow(path, content, { routeId, sourceId, createdAt }).blockIndex);
   }
   return rows;
@@ -675,7 +673,7 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     const notebookIndex: NotebookIndex = {
       notebookId: id,
       label: fileToDisplayName(id.split('.').at(-1) ?? id),
-      category: catalogForChunkId(id),
+      category: notebookSlugForChunkId(id),
       indexPath: notebookIndexPath,
       commit: records.find((r) => r.commit)?.commit ?? gitVersion.commit,
       count: rows.length,

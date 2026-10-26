@@ -81,19 +81,12 @@ import 'fake-indexeddb/auto';
 // The repository adapters now read through the seed-content seam (IndexedDB).
 // The real modules are import-safe; spread them to keep the pure builders
 // exercising real code while the async corpus reads stay stubbed empty.
-const realScriptFeeds = await import('@/repositories/script-feeds');
-mock.module('@/repositories/script-feeds', () => ({
-  ...realScriptFeeds,
-  getScriptFeeds: async () => [],
-  getScriptFeed: async (_slug: string) => undefined,
-  getScriptFeedItem: async () => undefined,
-}));
-
-const realScriptCollections = await import('@/repositories/script-collections');
-mock.module('@/repositories/script-collections', () => ({
-  ...realScriptCollections,
-  getScriptCollections: async () => [],
-  getScriptCollection: async (_slug: string) => undefined,
+const realScriptNotebooks = await import('@/repositories/script-notebooks');
+mock.module('@/repositories/script-notebooks', () => ({
+  ...realScriptNotebooks,
+  getScriptNotebooks: async () => [],
+  getScriptNotebook: async (_slug: string) => undefined,
+  getScriptNotebookItem: async () => undefined,
 }));
 
 mock.module('@/repositories/script-loader', () => ({

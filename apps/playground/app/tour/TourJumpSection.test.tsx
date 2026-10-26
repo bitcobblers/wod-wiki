@@ -316,7 +316,7 @@ describe('TourJumpSection', () => {
 
     // Subscribe the notebook
     fireEvent.click(toggleBtn)
-    expect(notebookSubscribed.has('seed-crossfit#collection.crossfit-games')).toBe(true)
+    expect(notebookSubscribed.has('seed-crossfit#notebook.crossfit-games')).toBe(true)
     expect(synced).toContain('seed-crossfit')
   })
 })

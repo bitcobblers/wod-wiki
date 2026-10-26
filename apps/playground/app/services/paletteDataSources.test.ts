@@ -56,17 +56,15 @@ mock.module('./playgroundContent', () => ({
 const {
   extractScriptBlocks,
   scriptBlockSource,
-  collectionSource,
-  collectionItemsSource,
+  notebookItemsSource,
   globalSearchSource,
   canvasRouteSource,
   constructSource,
   tagsPaletteSource,
 } = await import('./paletteDataSources');
 
-type ExtractedScriptBlock = import('./paletteDataSources').ExtractedScriptBlock;
-type WorkoutItem = import('./paletteDataSources').WorkoutItem;
-type ScriptCollection = import('@/repositories/script-collections').ScriptCollection;
+import type { ExtractedScriptBlock } from './paletteDataSources';
+import type { ScriptNotebook } from '@/repositories/script-notebooks';
 
 describe('extractScriptBlocks', () => {
   it('should extract single time block from markdown', () => {
@@ -267,110 +265,37 @@ describe('scriptBlockSource', () => {
   });
 });
 
-describe('collectionSource', () => {
-  const mockItems: WorkoutItem[] = [
-    { id: 'fran', name: 'Fran', category: 'girls' },
-    { id: 'grace', name: 'Grace', category: 'girls' },
-    { id: 'murph', name: 'Murph', category: 'heroes' },
-  ];
-
-  it('should filter items by collection name', async () => {
-    const source = collectionSource('girls', mockItems);
-    const results = await source.search('');
-
-    expect(results).toHaveLength(2);
-    expect(results.every(r => r.payload.category === 'girls')).toBe(true);
-  });
-
-  it('should include item name and category in results', async () => {
-    const source = collectionSource('girls', mockItems);
-    const results = await source.search('');
-
-    expect(results[0].label).toBe('Fran');
-    expect(results[0].sublabel).toBe('girls');
-    expect(results[0].payload).toEqual(mockItems[0]);
-  });
-
-  it('should filter by search query', async () => {
-    const source = collectionSource('girls', mockItems);
-    const results = await source.search('grace');
-
-    expect(results).toHaveLength(1);
-    expect(results[0].label).toBe('Grace');
-  });
-
-  it('should handle case-insensitive search', async () => {
-    const source = collectionSource('girls', mockItems);
-    const results = await source.search('GRACE');
-
-    expect(results).toHaveLength(1);
-  });
-
-  it('should return empty array when no items match collection', async () => {
-    const source = collectionSource('non-existent', mockItems);
-    const results = await source.search('');
-
-    expect(results).toEqual([]);
-  });
-
-  it('should return empty array when no items match search query', async () => {
-    const source = collectionSource('girls', mockItems);
-    const results = await source.search('non-existent');
-
-    expect(results).toEqual([]);
-  });
-
-  it('should handle empty items array', async () => {
-    const source = collectionSource('girls', []);
-    const results = await source.search('');
-
-    expect(results).toEqual([]);
-  });
-
-  it('should not filter items by searchHidden flag (collectionSource does not use it)', async () => {
-    const itemsWithHidden: WorkoutItem[] = [
-      { id: 'fran', name: 'Fran', category: 'girls' },
-      { id: 'secret', name: 'Secret', category: 'girls', searchHidden: true },
-    ];
-    const source = collectionSource('girls', itemsWithHidden);
-    const results = await source.search('');
-
-    expect(results).toHaveLength(2);
-  });
-});
-
-describe('collectionItemsSource', () => {
-  const mockCollection: ScriptCollection = {
+describe('notebookItemsSource', () => {
+  const mockNotebook: ScriptNotebook = {
     id: 'crossfit-girls',
     name: 'CrossFit Girls',
     categories: ['crossfit'],
-    count: 2,
     items: [
-      { id: 'fran', name: 'Fran', content: '21-15-9', path: 'fran.md' },
-      { id: 'grace', name: 'Grace', content: '30 clean & jerks', path: 'grace.md' },
+      { id: 'fran', name: 'Fran', content: '21-15-9', path: 'markdown/notebooks/crossfit-girls/fran.md' },
+      { id: 'grace', name: 'Grace', content: '30 clean & jerks', path: 'markdown/notebooks/crossfit-girls/grace.md' },
     ],
   };
 
-  it('should return all collection items', async () => {
-    const source = collectionItemsSource(mockCollection);
+  it('should return all notebook items', async () => {
+    const source = notebookItemsSource(mockNotebook);
     const results = await source.search('');
 
     expect(results).toHaveLength(2);
   });
 
   it('should include item details in results', async () => {
-    const source = collectionItemsSource(mockCollection);
+    const source = notebookItemsSource(mockNotebook);
     const results = await source.search('');
 
-    expect(results[0].id).toBe('fran');
+    expect(results[0].id).toBe('markdown/notebooks/crossfit-girls/fran.md');
     expect(results[0].label).toBe('Fran');
     expect(results[0].sublabel).toBe('CrossFit Girls');
     expect(results[0].category).toBe('CrossFit Girls');
-    expect(results[0].payload).toEqual(mockCollection.items[0]);
+    expect(results[0].payload).toEqual(mockNotebook.items[0]);
   });
 
   it('should filter items by search query on name', async () => {
-    const source = collectionItemsSource(mockCollection);
+    const source = notebookItemsSource(mockNotebook);
     const results = await source.search('grace');
 
     expect(results).toHaveLength(1);
@@ -378,7 +303,7 @@ describe('collectionItemsSource', () => {
   });
 
   it('should filter items by search query on id', async () => {
-    const source = collectionItemsSource(mockCollection);
+    const source = notebookItemsSource(mockNotebook);
     const results = await source.search('fran');
 
     expect(results).toHaveLength(1);
@@ -386,51 +311,63 @@ describe('collectionItemsSource', () => {
   });
 
   it('should handle case-insensitive search', async () => {
-    const source = collectionItemsSource(mockCollection);
+    const source = notebookItemsSource(mockNotebook);
     const results = await source.search('GRACE');
 
     expect(results).toHaveLength(1);
   });
 
-  it('should return empty array when collection has no items', async () => {
-    const emptyCollection: ScriptCollection = {
+  it('should return empty array when notebook has no items', async () => {
+    const emptyNotebook: ScriptNotebook = {
       id: 'empty',
       name: 'Empty',
       categories: [],
-      count: 0,
       items: [],
     };
-    const source = collectionItemsSource(emptyCollection);
+    const source = notebookItemsSource(emptyNotebook);
     const results = await source.search('');
 
     expect(results).toEqual([]);
   });
 
   it('should return empty array when no items match search query', async () => {
-    const source = collectionItemsSource(mockCollection);
+    const source = notebookItemsSource(mockNotebook);
     const results = await source.search('non-existent');
 
     expect(results).toEqual([]);
   });
 
   it('should handle partial matches', async () => {
-    const source = collectionItemsSource(mockCollection);
+    const source = notebookItemsSource(mockNotebook);
     const results = await source.search('gr');
 
     expect(results).toHaveLength(1); // Only Grace contains 'gr'
     expect(results[0].label).toBe('Grace');
   });
 
-  it('should set source ID based on collection ID', async () => {
-    const source = collectionItemsSource(mockCollection);
+  it('should set source ID based on notebook ID', async () => {
+    const source = notebookItemsSource(mockNotebook);
 
-    expect(source.id).toBe('collection-items:crossfit-girls');
+    expect(source.id).toBe('notebook-items:crossfit-girls');
   });
 
-  it('should set source label to collection name', async () => {
-    const source = collectionItemsSource(mockCollection);
+  it('should set source label to notebook name', async () => {
+    const source = notebookItemsSource(mockNotebook);
 
     expect(source.label).toBe('CrossFit Girls');
+  });
+
+  it('should include the date key on dated items', async () => {
+    const datedNotebook: ScriptNotebook = {
+      ...mockNotebook,
+      items: [
+        { id: 'day-01', name: 'Day 01', content: '…', path: 'markdown/notebooks/programs/2026-01-12/day-01.md', date: '2026-01-12' },
+      ],
+    };
+    const source = notebookItemsSource(datedNotebook);
+    const results = await source.search('');
+
+    expect(results[0].label).toBe('Day 01 — 2026-01-12');
   });
 });
 

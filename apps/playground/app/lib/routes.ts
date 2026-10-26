@@ -13,6 +13,10 @@
  *   One thing (deeper):     /notebook/:slug /note/:noteId /day/:date
  *                           /page/:slug /t/:type/:tag /feed/:slug
  *                           /effort/:slug /equipment/:slug /dashboard/:slug
+ *   Notebook member:        /notebook/:slug/:item (named item),
+ *                           /notebook/:slug/:date/:item (dated item),
+ *                           /notebook/:slug/:date (day-scoped view),
+ *                           /notebook/:slug/:noteId (one member note)
  *
  * Retired paths (/c/*, /collections, /catalogs, /p/*, /e/*, /d/*,
  * /notes/:noteId, /note/:category/:name, /journal/:identity, /feed,
@@ -42,8 +46,6 @@ export const ROUTE_PATTERNS = {
   feeds: '/feeds',
   /** /feed/:slug — one feed source. */
   feed: '/feed/:slug',
-  /** /feed/:slug/:feedDate/:feedItem — one feed post. */
-  feedItem: '/feed/:slug/:feedDate/:feedItem',
   /** /notebooks — the notebook library. */
   notebooks: '/notebooks',
   /** /notebook/:slug — one notebook. */
@@ -51,6 +53,8 @@ export const ROUTE_PATTERNS = {
   /** /notebook/:slug/:target — a notebook member: note UUID → the note,
    *  date → a day-scoped notebook view, else the named item editor. */
   notebookTarget: '/notebook/:slug/:target',
+  /** /notebook/:slug/:itemDate/:item — one dated notebook item. */
+  notebookItem: '/notebook/:slug/:itemDate/:item',
   subscribe: '/subscribe',
   /** /pages — the page library. */
   pages: '/pages',
@@ -134,19 +138,16 @@ export function notebookDatePath(slug: string, date: string): string {
   return `/notebook/${encodeURIComponent(slug)}/${encodeURIComponent(date)}`;
 }
 
-/** /notebook/:slug/:item — the named notebook item editor. */
+/** /notebook/:slug/:item — one notebook member. An `item` containing '/'
+ *  (a dated `<date>/<item>` identity) keeps its separators: each segment is
+ *  encoded individually so the date stays its own path segment. */
 export function notebookItemPath(slug: string, item: string): string {
-  return `/notebook/${encodeURIComponent(slug)}/${encodeURIComponent(item)}`;
+  return `/notebook/${encodeURIComponent(slug)}/${item.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 /** /feed/:slug */
 export function feedPath(feedSlug: string): string {
   return `/feed/${encodeURIComponent(feedSlug)}`;
-}
-
-/** /feed/:slug/:feedDate/:feedItem */
-export function feedItemPath(feedSlug: string, feedDate: string, feedItem: string): string {
-  return `/feed/${encodeURIComponent(feedSlug)}/${encodeURIComponent(feedDate)}/${encodeURIComponent(feedItem)}`;
 }
 
 /** /run/:runtimeId (canonical runtime seam for WOD-505) */
@@ -299,7 +300,8 @@ export function isTrackerPath(pathname: string): boolean {
   return pathname.startsWith('/tracker/') || pathname.startsWith('/run/');
 }
 
-/** Detect whether a location pathname belongs to the notebook item family. */
+/** Detect whether a location pathname belongs to the notebook member family
+ *  (named item, dated item, day-scoped view — anything below /notebook/:slug). */
 export function isNotebookItemPath(pathname: string): boolean {
   return pathname.startsWith('/notebook/') && pathname.split('/').length >= 4 && pathname.split('/')[3] !== '';
 }
@@ -325,21 +327,19 @@ export function isAiFirstPath(pathname: string): boolean {
 }
 
 /**
- * Capture the three segments of `/feed/:slug/:feedDate/:feedItem`.
- * Returns `[slug, feedDate, feedItem]` (raw, URL-encoded) or `null` if
- * the pathname is not a feed-item path. `AppContent` uses this because
- * `useParams` only captures generic `{category, name, id}`.
+ * Capture the three segments of `/notebook/:slug/:itemDate/:item`.
+ * Returns `[slug, itemDate, item]` (raw, URL-encoded) or `null` if the
+ * pathname is not a dated notebook-item path. `AppContent` uses this
+ * because `useParams` only captures generic `{category, name, id}`.
  */
-export function matchFeedItem(pathname: string): [string, string, string] | null {
-  const m = pathname.match(/^\/feed\/([^/]+)\/([^/]+)\/([^/]+)$/);
+export function matchNotebookItem(pathname: string): [string, string, string] | null {
+  const m = pathname.match(/^\/notebook\/([^/]+)\/([^/]+)\/([^/]+)$/);
   return m ? [m[1]!, m[2]!, m[3]!] : null;
 }
 
 /**
  * Capture the slug of `/feed/:slug`. Returns the slug or `null` if
- * the pathname is not a feed-detail path. Does not match feed-item paths
- * (those are 3-segment, this is 1-segment) — caller checks `matchFeedItem`
- * first if both may match.
+ * the pathname is not a feed-source path.
  */
 export function matchFeedDetail(pathname: string): string | null {
   const m = pathname.match(/^\/feed\/([^/]+)$/);

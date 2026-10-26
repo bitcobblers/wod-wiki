@@ -48,7 +48,7 @@ Run the homepage control, saved-duration and dashboard regressions with `bun run
 
 ### Journal notes
 
-Use the `+` in the L1 rail or mobile navigation to create a journal note. Choose a date and start blank, from a stored template, or from a collection or feed item. Creation opens the new note in edit mode. Each note has its own identity and content; notes on the same date share one calendar page at `/day/YYYY-MM-DD`.
+Use the `+` in the L1 rail or mobile navigation to create a journal note. Choose a date and start blank, from a stored template, or from a notebook item. Creation opens the new note in edit mode. Each note has its own identity and content; notes on the same date share one calendar page at `/day/YYYY-MM-DD`.
 
 Date pages also offer **New note**, including on empty dates. Open a note's title to reach its individual editor. **Note relationships** changes or clears its calendar date, named-page link, or source note without changing its identity. Changing a named-page link does not rename the shared page or move other notes.
 

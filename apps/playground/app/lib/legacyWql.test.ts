@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'bun:test';
 import { migrateLegacyCatalogFilter } from './legacyWql';
 
-describe('migrateLegacyCatalogFilter (ticket 08 mid-flight migration)', () => {
+describe('migrateLegacyCatalogFilter (ticket 08 persisted-data migration)', () => {
   it('rewrites the plain retired filter', () => {
-    expect(migrateLegacyCatalogFilter(':feed{catalog:fran}')).toBe(':feed{notebook:fran}');
+    expect(migrateLegacyCatalogFilter(':notebooks{catalog:fran}')).toBe(':notebooks{notebook:fran}');
     expect(migrateLegacyCatalogFilter('catalog:girls last 8w')).toBe('notebook:girls last 8w');
   });
 
   it('rewrites negated catalog filters', () => {
-    expect(migrateLegacyCatalogFilter(':feed{!catalog:fran}')).toBe(':feed{!notebook:fran}');
-    expect(migrateLegacyCatalogFilter(':feed{tags:pr,!catalog:open}')).toBe(':feed{tags:pr,!notebook:open}');
+    expect(migrateLegacyCatalogFilter(':notebooks{!catalog:fran}')).toBe(':notebooks{!notebook:fran}');
+    expect(migrateLegacyCatalogFilter(':notebooks{tags:pr,!catalog:open}')).toBe(':notebooks{tags:pr,!notebook:open}');
   });
 
   it('rewrites quoted values, including negated and multi-word ones', () => {
@@ -18,7 +18,7 @@ describe('migrateLegacyCatalogFilter (ticket 08 mid-flight migration)', () => {
   });
 
   it('touches only filter-key positions — heads and storage identities stay', () => {
-    // The :catalog HEAD is a deprecated-head mapping concern (wql.ts), not a
+    // The :catalog HEAD no longer resolves (ticket 12) — not a
     // filter rewrite; feed storage identities are not catalog filters.
     expect(migrateLegacyCatalogFilter(':catalog')).toBe(':catalog');
     expect(migrateLegacyCatalogFilter(':note{source:collection:fran}')).toBe(':note{source:collection:fran}');
@@ -26,13 +26,13 @@ describe('migrateLegacyCatalogFilter (ticket 08 mid-flight migration)', () => {
 
   it('leaves no retired key behind in any supported shape', () => {
     const cases = [
-      ':feed{catalog:fran}',
-      ':feed{!catalog:fran}',
+      ':notebooks{catalog:fran}',
+      ':notebooks{!catalog:fran}',
       'catalog:fran',
       '!catalog:fran',
       'catalog:"x y"',
-      ':feed{tags:pr, catalog:fran, !catalog:open}',
-      ':feed{catalog:crossfit-girls/fran} last 8w',
+      ':notebooks{tags:pr, catalog:fran, !catalog:open}',
+      ':notebooks{catalog:crossfit-girls/fran} last 8w',
     ];
     for (const query of cases) {
       const migrated = migrateLegacyCatalogFilter(query);

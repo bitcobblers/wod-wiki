@@ -19,7 +19,7 @@ import { dayPath, notePath, pagePath, runPath } from '../lib/routes'
 import { notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable } from '@bitcobblers/wod-wiki-core'
 import { NotePlacementDialog, type NotePlacementMode } from '../components/organisms/journal/NotePlacementDialog'
-import type { HistoryEntry } from '@/types/history'
+import type { HistoryRecord } from '@/types/history'
 import type { Session } from '@/types/storage'
 import { playgroundRecorder, onResultSaved } from '@/services/resultRecorder'
 import { pendingRuntimes } from '../runtimeStore'
@@ -51,7 +51,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const [entry, setEntry] = useState<HistoryEntry | null>(null)
+  const [entry, setEntry] = useState<HistoryRecord | null>(null)
   const [missing, setMissing] = useState(false)
   const committedRevisionRef = useRef(0);
   const draftRef = useRef<EditorIdentitySnapshot | null>(null);
@@ -61,7 +61,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const [saveError, setSaveError] = useState<{ noteId: string; message: string } | null>(null)
   const [placement, setPlacement] = useState<NotePlacementMode | null>(null)
   const [copied, setCopied] = useState(false)
-  const [sourceEntry, setSourceEntry] = useState<HistoryEntry | null>(null)
+  const [sourceEntry, setSourceEntry] = useState<HistoryRecord | null>(null)
   const handleCopyLink = useCallback(() => {
     // ponytail: navigator.clipboard only; fallback textarea omitted for modern browsers.
     void navigator.clipboard?.writeText(window.location.href).then(() => {
@@ -85,7 +85,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     setMissing(false)
     setSaveError(null)
     contentProvider
-      .getEntry(noteId)
+      .getRecord(noteId)
       .then((loaded) => {
         if (cancelled) return
         if (!loaded) {
@@ -111,7 +111,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     if (!sourceId) return
     let cancelled = false
     contentProvider
-      .getEntry(sourceId)
+      .getRecord(sourceId)
       .then((src) => {
         if (!cancelled) setSourceEntry(src)
       })

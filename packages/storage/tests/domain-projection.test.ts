@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { createClient } from '@libsql/client';
 import { SqlStorage, libsqlDatabase } from '../src/sql';
 import type { Note } from '../src/entities';
-import { catalogOfItem, notebookOfItem, sourceMatches } from '@bitcobblers/wod-wiki-wql';
+import { notebookSlugOfSourceId, notebookOfItem, sourceMatches } from '@bitcobblers/wod-wiki-wql';
 
 /**
  * Ticket 02 — the storage wire's source predicates and the JS predicate are
  * one decision. `sourceKindSql` (SQL over `source_id`) and `sourceMatches`
  * (residual JS filter) must derive from the SAME sourceId-shape table, and
- * the materialized `journal`/`catalog` columns must equal the resolver's
- * answer — never a second, prefix-only decision.
+ * the materialized `journal` column must equal the resolver's answer —
+ * never a second, prefix-only decision.
  */
 
 const uuid = (n: number): string => `01950000-0000-7000-8000-${String(n).padStart(12, '0')}`;
@@ -29,9 +29,9 @@ function note(overrides: Partial<Note> & { id: string }): Note {
  *  rows (sourceId-stamped and sourcePath-only legacy rows). */
 const notes: Note[] = [
   note({ id: uuid(1), title: 'Journal' }),
-  note({ id: uuid(2), title: 'Fran', sourceId: 'collection:girls/fran', catalog: 'girls', seedOrigin: 'seed', sourcePath: 'markdown/collections/girls/fran.md' }),
-  note({ id: uuid(3), title: 'Girls', sourceId: 'page:collection:girls', catalog: 'girls', notebookId: 'notebook/girls', seedOrigin: 'seed' }),
-  note({ id: uuid(4), title: 'Post', sourceId: 'feed:feeds/community/2024-01-01/post', seedOrigin: 'seed', sourcePath: 'markdown/feeds/community/2024-01-01/post.md' }),
+  note({ id: uuid(2), title: 'Fran', sourceId: 'notebook:girls/fran', seedOrigin: 'seed', sourcePath: 'markdown/notebooks/girls/fran.md' }),
+  note({ id: uuid(3), title: 'Girls', sourceId: 'page:girls', notebookId: 'notebook/girls', seedOrigin: 'seed' }),
+  note({ id: uuid(4), title: 'Post', sourceId: 'notebook:community/2024-01-01/post', seedOrigin: 'seed', sourcePath: 'markdown/notebooks/community/2024-01-01/post.md' }),
   note({ id: uuid(5), title: 'Home', sourceId: 'page', seedOrigin: 'seed' }),
   note({ id: uuid(6), title: 'Guide', sourceId: 'guides:guide/clock', seedOrigin: 'seed', sourcePath: 'markdown/canvas/guide/clock.md' }),
   note({ id: uuid(7), title: 'Draft', sourceId: 'playground', type: 'playground', seedOrigin: 'user' }),
@@ -50,7 +50,7 @@ const notes: Note[] = [
   note({ id: uuid(17), title: 'Feed delivered', seedOrigin: 'user', feedOrigin: 'feed', feedSourceId: 'core' }),
 ];
 
-const SOURCE_KINDS = ['feeds', 'pages', 'guides', 'playground', 'efforts', 'equipment', 'dashboards', 'journal', 'feed', 'page', 'guide'] as const;
+const SOURCE_KINDS = ['notebooks', 'pages', 'guides', 'playground', 'efforts', 'equipment', 'dashboards', 'journal', 'page', 'guide'] as const;
 
 async function makeStorage() {
   const db = libsqlDatabase(createClient({ url: ':memory:' }));
@@ -80,7 +80,7 @@ describe('domain source identity — one shared projection', () => {
     }
   });
 
-  it('materializes the journal column and the catalog column as the resolver\'s answer', async () => {
+  it('materializes the journal column as the resolver\'s answer', async () => {
     const { server } = await makeStorage();
     try {
       const result = await server.queryDomain({ plan: 'notes' });
@@ -131,11 +131,11 @@ describe('domain source identity — one shared projection', () => {
       expect(notebookOfItem(byId.get(uuid(10))!)).toBe('notebook/efforts');
       expect(notebookOfItem(byId.get(uuid(4))!)).toBe('notebook/community');
       expect(notebookOfItem(byId.get(uuid(13))!)).toBe('notebook/dashboards');
-      // Catalog projection stays the sourceId/catalog answer for collections
-      // and feeds — and path-only corpus rows carry no catalog.
-      expect(catalogOfItem(byId.get(uuid(2))!)).toBe('girls');
-      expect(catalogOfItem(byId.get(uuid(4))!)).toBe('community');
-      expect(catalogOfItem(byId.get(uuid(10))!)).toBeUndefined();
+      // The notebook-slug projection stays the sourceId answer for corpus
+      // rows — and path-only corpus rows carry no sourceId slug.
+      expect(notebookSlugOfSourceId(byId.get(uuid(2))!.sourceId)).toBe('girls');
+      expect(notebookSlugOfSourceId(byId.get(uuid(4))!.sourceId)).toBe('community');
+      expect(notebookSlugOfSourceId(byId.get(uuid(10))!.sourceId)).toBeUndefined();
     } finally {
       await server.close();
     }

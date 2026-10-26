@@ -209,8 +209,8 @@ describe('wod CLI database behavior', () => {
   it('seed imports freshly compiled source and queries classify the corpus', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wod-cli-seed-'));
     try {
-      mkdirSync(join(root, 'markdown/collections/test'), { recursive: true });
-      writeFileSync(join(root, 'markdown/collections/test/fran.md'), '---\ntitle: Fran\n---\n\n```time\n(21-15-9)\n  Thrusters @95lb\n  Pull-ups\n```\n', 'utf-8');
+      mkdirSync(join(root, 'markdown/notebooks/test'), { recursive: true });
+      writeFileSync(join(root, 'markdown/notebooks/test/fran.md'), '---\ntitle: Fran\n---\n\n```time\n(21-15-9)\n  Thrusters @95lb\n  Pull-ups\n```\n', 'utf-8');
       mkdirSync(join(root, 'markdown/efforts'), { recursive: true });
       writeFileSync(join(root, 'markdown/efforts/thruster.md'), '---\nid: effort-thruster\nslug: thruster\nlabel: Thruster\naliases:\n  - Thrusters\nbaseAttributes:\n  met: 8.5\n---\n', 'utf-8');
       const built = generateSeed({ corpusRoot: root, version: 1, outDir: join(root, 'dist') });
@@ -242,13 +242,13 @@ describe('wod CLI database behavior', () => {
   it('seed imports a version-0 source (fresh catalog, pre-commit) and retains the frontmatter date', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wod-cli-seed-v0-'));
     try {
-      mkdirSync(join(root, 'markdown/collections/test'), { recursive: true });
-      writeFileSync(join(root, 'markdown/collections/test/dated.md'), '---\ntitle: Dated\ndate: 2026-10-16\n---\n\n```time\n(21-15-9)\n  Thrusters @95lb\n  Pull-ups\n```\n', 'utf-8');
+      mkdirSync(join(root, 'markdown/notebooks/test'), { recursive: true });
+      writeFileSync(join(root, 'markdown/notebooks/test/dated.md'), '---\ntitle: Dated\ndate: 2026-10-16\n---\n\n```time\n(21-15-9)\n  Thrusters @95lb\n  Pull-ups\n```\n', 'utf-8');
       const built = generateSeed({ corpusRoot: root, version: 0, outDir: join(root, 'dist') });
       expect(await cliMain(['seed', '--db', TEMP_DB_FILE, '--source', built.outDir], { stdout: () => {} })).toBe(0);
       const imported = await openCliDb(TEMP_DB_FILE);
       try {
-        const note = (await imported.storage.readonly('notes').getAll()).find((n) => n.sourcePath === 'markdown/collections/test/dated.md');
+        const note = (await imported.storage.readonly('notes').getAll()).find((n) => n.sourcePath === 'markdown/notebooks/test/dated.md');
         expect(note?.date).toBe(Date.parse('2026-10-16T12:00:00Z'));
         expect(note?.createdAt).toBe(0);
       } finally {
@@ -675,7 +675,7 @@ describe('wod CLI database behavior', () => {
       const manifest = JSON.parse(readFileSync(join(seedDir, 'manifest.json'), 'utf-8'));
       expect(manifest.version).toBe(5);
       expect(manifest.chunks).toHaveLength(1);
-      expect(manifest.chunks[0].id).toBe('collection.heroes');
+      expect(manifest.chunks[0].id).toBe('notebook.heroes');
       expect(existsSync(join(seedDir, manifest.chunks[0].path))).toBe(true);
 
       // 3. Initialize cleanDb and import published seed via wod seed

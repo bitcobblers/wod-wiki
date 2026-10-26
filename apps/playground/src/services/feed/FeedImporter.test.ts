@@ -7,7 +7,7 @@ import { seedNoteId, FeedImporter } from './FeedImporter';
 import { assertSeedManifest, assertSeedRows } from '@bitcobblers/wod-wiki-engine';
 import { feedFixture as fixture } from './feedFixture';
 
-const path = 'markdown/collections/test/a.md';
+const path = 'markdown/notebooks/test/a.md';
 const workout = '# A\n\n```time\n10 Push-ups\n```\n';
 
 async function imported(content = workout) {
@@ -180,32 +180,32 @@ describe('seed effort ownership', () => {
 describe('granular record sync and notebook filtering', () => {
   it('filters import by requested notebookIds', async () => {
     const storage = new InMemoryFeedStorage();
-    const rowA = compileSeedRow('markdown/collections/nb1/a.md', '# A');
-    const rowB = compileSeedRow('markdown/collections/nb2/b.md', '# B');
+    const rowA = compileSeedRow('markdown/notebooks/nb1/a.md', '# A');
+    const rowB = compileSeedRow('markdown/notebooks/nb2/b.md', '# B');
     const manifest: SeedManifest = {
       schema: SEED_SCHEMA,
       version: 1,
       builtAt: new Date(1).toISOString(),
       chunks: [
-        { id: 'collection.nb1', path: 'chunks/collection.nb1.json', sha256: 'a'.repeat(64), count: 1, bytes: 10 },
-        { id: 'collection.nb2', path: 'chunks/collection.nb2.json', sha256: 'b'.repeat(64), count: 1, bytes: 10 },
+        { id: 'notebook.nb1', path: 'chunks/notebook.nb1.json', sha256: 'a'.repeat(64), count: 1, bytes: 10 },
+        { id: 'notebook.nb2', path: 'chunks/notebook.nb2.json', sha256: 'b'.repeat(64), count: 1, bytes: 10 },
       ],
     };
     const source = new InMemoryFeedSource(manifest, {
-      'chunks/collection.nb1.json': [rowA],
-      'chunks/collection.nb2.json': [rowB],
+      'chunks/notebook.nb1.json': [rowA],
+      'chunks/notebook.nb2.json': [rowB],
     });
-    const result = await new FeedImporter(storage, source, 'core').applyAll({ notebookIds: ['collection.nb1'] });
+    const result = await new FeedImporter(storage, source, 'core').applyAll({ notebookIds: ['notebook.nb1'] });
     expect(result.appliedChunks).toBe(1);
-    const idA = await seedNoteId('markdown/collections/nb1/a.md');
-    const idB = await seedNoteId('markdown/collections/nb2/b.md');
+    const idA = await seedNoteId('markdown/notebooks/nb1/a.md');
+    const idB = await seedNoteId('markdown/notebooks/nb2/b.md');
     expect(await storage.storageInstance.readonly('notes').get(idA)).toBeDefined();
     expect(await storage.storageInstance.readonly('notes').get(idB)).toBeUndefined();
   });
 
   it('pulls individual record JSONs and stamps seedCommit on the stored Note', async () => {
     const storage = new InMemoryFeedStorage();
-    const row = compileSeedRow('markdown/collections/heroes/murph.md', '# Murph');
+    const row = compileSeedRow('markdown/notebooks/heroes/murph.md', '# Murph');
     row.commit = 'commit-sha-murph-1';
     row.uuid = await seedNoteId(row.path);
     row.version = 1;
@@ -216,8 +216,8 @@ describe('granular record sync and notebook filtering', () => {
       builtAt: new Date(1).toISOString(),
       chunks: [
         {
-          id: 'collection.heroes',
-          path: 'chunks/collection.heroes.json',
+          id: 'notebook.heroes',
+          path: 'chunks/notebook.heroes.json',
           sha256: 'c'.repeat(64),
           count: 1,
           bytes: 10,
@@ -225,7 +225,7 @@ describe('granular record sync and notebook filtering', () => {
             {
               uuid: row.uuid,
               path: row.path,
-              recordPath: 'markdown/collections/heroes/murph.json',
+              recordPath: 'markdown/notebooks/heroes/murph.json',
               commit: 'commit-sha-murph-1',
               version: 1,
               sha256: 'd'.repeat(64),
@@ -236,7 +236,7 @@ describe('granular record sync and notebook filtering', () => {
       ],
     };
     const source = new InMemoryFeedSource(manifest, {
-      'markdown/collections/heroes/murph.json': row,
+      'markdown/notebooks/heroes/murph.json': row,
     });
     await new FeedImporter(storage, source, 'core').applyAll({ granularRecords: true });
     const note = await storage.storageInstance.readonly('notes').get(row.uuid);
@@ -247,7 +247,7 @@ describe('granular record sync and notebook filtering', () => {
 
   it('skips downloading records whose seedCommit already matches local storage', async () => {
     const storage = new InMemoryFeedStorage();
-    const row = compileSeedRow('markdown/collections/heroes/murph.md', '# Murph');
+    const row = compileSeedRow('markdown/notebooks/heroes/murph.md', '# Murph');
     row.commit = 'commit-sha-murph-1';
     row.uuid = await seedNoteId(row.path);
     row.version = 1;
@@ -258,8 +258,8 @@ describe('granular record sync and notebook filtering', () => {
       builtAt: new Date(1).toISOString(),
       chunks: [
         {
-          id: 'collection.heroes',
-          path: 'chunks/collection.heroes.json',
+          id: 'notebook.heroes',
+          path: 'chunks/notebook.heroes.json',
           sha256: 'c'.repeat(64),
           count: 1,
           bytes: 10,
@@ -267,7 +267,7 @@ describe('granular record sync and notebook filtering', () => {
             {
               uuid: row.uuid,
               path: row.path,
-              recordPath: 'markdown/collections/heroes/murph.json',
+              recordPath: 'markdown/notebooks/heroes/murph.json',
               commit: 'commit-sha-murph-1',
               version: 1,
               sha256: 'd'.repeat(64),
@@ -284,7 +284,7 @@ describe('granular record sync and notebook filtering', () => {
         return super.fetchChunk(chunkPath);
       }
     })(manifest, {
-      'markdown/collections/heroes/murph.json': row,
+      'markdown/notebooks/heroes/murph.json': row,
     });
 
     await new FeedImporter(storage, source, 'core').applyAll({ granularRecords: true });
@@ -296,8 +296,8 @@ describe('granular record sync and notebook filtering', () => {
 
   it('updates one changed record and deletes its vanished sibling without refetching', async () => {
     const storage = new InMemoryFeedStorage();
-    const homePath = 'markdown/collections/welcome/home.md';
-    const guidePath = 'markdown/collections/welcome/guide.md';
+    const homePath = 'markdown/notebooks/welcome/home.md';
+    const guidePath = 'markdown/notebooks/welcome/guide.md';
     const homeContent = '# Home\n\nWelcome to your canvas.\n';
     const guideContentV1 = '# Guide\n\nGetting started steps.\n';
     const guideContentV2 = '# Guide\n\nGetting started steps, updated.\n';
@@ -312,7 +312,7 @@ describe('granular record sync and notebook filtering', () => {
     const homeRef = {
       uuid: homeRow.uuid,
       path: homePath,
-      recordPath: 'markdown/collections/welcome/home.json',
+      recordPath: 'markdown/notebooks/welcome/home.json',
       commit: 'commit-home-1',
       version: 1,
       sha256: 'd'.repeat(64),
@@ -325,15 +325,15 @@ describe('granular record sync and notebook filtering', () => {
       builtAt: new Date(1).toISOString(),
       chunks: [
         {
-          id: 'collection.welcome',
-          path: 'chunks/collection.welcome.json',
+          id: 'notebook.welcome',
+          path: 'chunks/notebook.welcome.json',
           sha256: 'c'.repeat(64),
           count: 2,
           bytes: 10,
           records: [homeRef, {
             uuid: guideRow.uuid,
             path: guidePath,
-            recordPath: 'markdown/collections/welcome/guide.json',
+            recordPath: 'markdown/notebooks/welcome/guide.json',
             commit: 'commit-guide-1',
             version: 1,
             sha256: 'd'.repeat(64),
@@ -343,8 +343,8 @@ describe('granular record sync and notebook filtering', () => {
       ],
     };
     await new FeedImporter(storage, new InMemoryFeedSource(manifestV1, {
-      'markdown/collections/welcome/home.json': homeRow,
-      'markdown/collections/welcome/guide.json': guideRow,
+      'markdown/notebooks/welcome/home.json': homeRow,
+      'markdown/notebooks/welcome/guide.json': guideRow,
     }), 'core').applyAll({ granularRecords: true });
 
     const guideRowV2 = compileSeedRow(guidePath, guideContentV2);
@@ -358,15 +358,15 @@ describe('granular record sync and notebook filtering', () => {
       builtAt: new Date(2).toISOString(),
       chunks: [
         {
-          id: 'collection.welcome',
-          path: 'chunks/collection.welcome.json',
+          id: 'notebook.welcome',
+          path: 'chunks/notebook.welcome.json',
           sha256: 'e'.repeat(64),
           count: 2,
           bytes: 10,
           records: [homeRef, {
             uuid: guideRow.uuid,
             path: guidePath,
-            recordPath: 'markdown/collections/welcome/guide.json',
+            recordPath: 'markdown/notebooks/welcome/guide.json',
             commit: 'commit-guide-2',
             version: 2,
             sha256: 'f'.repeat(64),
@@ -382,7 +382,7 @@ describe('granular record sync and notebook filtering', () => {
         return super.fetchChunk(chunkPath);
       }
     })(manifestV2, {
-      'markdown/collections/welcome/guide.json': guideRowV2,
+      'markdown/notebooks/welcome/guide.json': guideRowV2,
     });
     await new FeedImporter(storage, sourceV2, 'core').applyAll({ granularRecords: true });
 
@@ -391,8 +391,8 @@ describe('granular record sync and notebook filtering', () => {
     expect(home!.rawContent).toBe(homeContent);
     const guide = await storage.storageInstance.readonly('notes').get(guideRow.uuid!);
     expect(guide!.rawContent).toBe(guideContentV2);
-    expect(fetchCalls).toEqual(['markdown/collections/welcome/guide.json']);
-    expect((await storage.getSeedMeta(seedMetaKey('core')))!.chunks['collection.welcome'].noteIds)
+    expect(fetchCalls).toEqual(['markdown/notebooks/welcome/guide.json']);
+    expect((await storage.getSeedMeta(seedMetaKey('core')))!.chunks['notebook.welcome'].noteIds)
       .toEqual([homeRow.uuid, guideRow.uuid]);
 
     // Manifest v3 removes home while guide's commit/version stay unchanged:
@@ -405,15 +405,15 @@ describe('granular record sync and notebook filtering', () => {
       builtAt: new Date(3).toISOString(),
       chunks: [
         {
-          id: 'collection.welcome',
-          path: 'chunks/collection.welcome.json',
+          id: 'notebook.welcome',
+          path: 'chunks/notebook.welcome.json',
           sha256: 'a'.repeat(64),
           count: 1,
           bytes: 10,
           records: [{
             uuid: guideRow.uuid,
             path: guidePath,
-            recordPath: 'markdown/collections/welcome/guide.json',
+            recordPath: 'markdown/notebooks/welcome/guide.json',
             commit: 'commit-guide-2',
             version: 2,
             sha256: 'f'.repeat(64),
@@ -434,8 +434,8 @@ describe('granular record sync and notebook filtering', () => {
     const unchangedGuide = await storage.storageInstance.readonly('notes').get(guideRow.uuid!);
     expect(unchangedGuide!.rawContent).toBe(guideContentV2);
     expect(unchangedGuide!.seedCommit).toBe('commit-guide-2');
-    expect(fetchCalls).toEqual(['markdown/collections/welcome/guide.json']);
-    expect((await storage.getSeedMeta(seedMetaKey('core')))!.chunks['collection.welcome'].noteIds)
+    expect(fetchCalls).toEqual(['markdown/notebooks/welcome/guide.json']);
+    expect((await storage.getSeedMeta(seedMetaKey('core')))!.chunks['notebook.welcome'].noteIds)
       .toEqual([guideRow.uuid]);
 
     // Manifest v4 advances version/builtAt/chunk hash while guide membership
@@ -448,15 +448,15 @@ describe('granular record sync and notebook filtering', () => {
       builtAt: new Date(4).toISOString(),
       chunks: [
         {
-          id: 'collection.welcome',
-          path: 'chunks/collection.welcome.json',
+          id: 'notebook.welcome',
+          path: 'chunks/notebook.welcome.json',
           sha256: 'b'.repeat(64),
           count: 1,
           bytes: 10,
           records: [{
             uuid: guideRow.uuid,
             path: guidePath,
-            recordPath: 'markdown/collections/welcome/guide.json',
+            recordPath: 'markdown/notebooks/welcome/guide.json',
             commit: 'commit-guide-2',
             version: 2,
             sha256: 'f'.repeat(64),
@@ -474,9 +474,9 @@ describe('granular record sync and notebook filtering', () => {
     await new FeedImporter(storage, sourceV4, 'core').applyAll({ granularRecords: true });
 
     expect(await storage.storageInstance.readonly('notes').get(guideRow.uuid!)).toBeDefined();
-    expect(fetchCalls).toEqual(['markdown/collections/welcome/guide.json']);
+    expect(fetchCalls).toEqual(['markdown/notebooks/welcome/guide.json']);
     const metaV4 = await storage.getSeedMeta(seedMetaKey('core'));
-    expect(metaV4!.chunks['collection.welcome'].sha256).toBe('b'.repeat(64));
-    expect(metaV4!.chunks['collection.welcome'].noteIds).toEqual([guideRow.uuid]);
+    expect(metaV4!.chunks['notebook.welcome'].sha256).toBe('b'.repeat(64));
+    expect(metaV4!.chunks['notebook.welcome'].noteIds).toEqual([guideRow.uuid]);
   });
 });

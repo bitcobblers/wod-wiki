@@ -61,7 +61,7 @@ Browser storage, WQL, and reports use IndexedDB. Optional Turso sync backs up co
 
 $$\text{Page } \xleftarrow{1:N} \text{ PageNote } \xrightarrow{N:1} \text{ Note } \xrightarrow{1:N} \{\text{Segment, Session, EventRecord, Attachment}\}$$
 
-* **`notes`**: Canonical container of authored content and exercise logic. Holds identity, type (`journal`, `template`, `playground`, `collection`, `dashboard`, `page`), and provenance.
+* **`notes`**: Canonical container of authored content and exercise logic. Holds identity, type (`journal`, `playground`, `dashboard`, `page`, `note`), and provenance.
 * **`segments`**: Versioned markdown and script fragments (`[id, version]`). Every edit creates a new version; superseded rows are flagged `isHistory`.
 * **`page` & `page_notes`**: Lightweight placement and routing anchors (`date` for calendar pages, `slug` for custom pages). `page_notes` joins notes to pages.
 * **`sessions`**: Pure execution metadata (start/end timestamps, elapsed duration, completion status, total rounds/reps).

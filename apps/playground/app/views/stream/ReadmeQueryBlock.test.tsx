@@ -20,8 +20,8 @@ const { ReadmeQueryBlock } = await import('./ReadmeQueryBlock')
 const entry = (id: string, title: string, date: string | null): Entry => ({
   id,
   kind: 'note',
-  sourceCatalog: 'test',
-  sourceItem: id,
+  sourceNotebook: 'test',
+  sourceNote: id,
   title,
   date,
 })
@@ -39,7 +39,7 @@ describe('ReadmeQueryBlock', () => {
       entry('c', 'Event 1', '2026-07-22'),
       entry('d', 'Undated thing', null),
     ]
-    render(<MemoryRouter><ReadmeQueryBlock query=":feed{catalog:test}" heading="2026" /></MemoryRouter>)
+    render(<MemoryRouter><ReadmeQueryBlock query=":notebook{notebook:test}" heading="2026" /></MemoryRouter>)
     await waitFor(() => screen.getByTestId('readme-query-block'))
 
     const rows = screen.getByTestId('readme-query-block').textContent ?? ''
@@ -55,7 +55,7 @@ describe('ReadmeQueryBlock', () => {
       entry('b', 'Event 1', '2026-07-22'),
       entry('c', 'Event 3', '2026-07-22'),
     ]
-    render(<MemoryRouter><ReadmeQueryBlock query=":feed{catalog:test} by {date}" heading="" /></MemoryRouter>)
+    render(<MemoryRouter><ReadmeQueryBlock query=":notebook{notebook:test} by {date}" heading="" /></MemoryRouter>)
     await waitFor(() => screen.getByTestId('readme-query-block'))
 
     expect(screen.queryByTestId('readme-query-heading')).toBeNull()
@@ -69,7 +69,7 @@ describe('ReadmeQueryBlock', () => {
   })
 
   it('renders the empty state when the query matches nothing', async () => {
-    render(<MemoryRouter><ReadmeQueryBlock query=":feed{catalog:test}" heading="" /></MemoryRouter>)
+    render(<MemoryRouter><ReadmeQueryBlock query=":notebook{notebook:test}" heading="" /></MemoryRouter>)
     await waitFor(() => screen.getByTestId('readme-query-empty'))
   })
 })

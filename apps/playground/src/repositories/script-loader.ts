@@ -25,7 +25,7 @@ export async function getScriptContent(id: string): Promise<string | undefined> 
   const files = await ensureSeedContent();
   // Try exact matches in both collections and canvas
   const paths = [
-    `markdown/collections/${id}.md`,
+    `markdown/notebooks/${id}.md`,
     `markdown/canvas/${id}.md`,
   ];
 

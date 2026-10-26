@@ -1,4 +1,4 @@
-import { applySeedChunk, backfillFeedProvenance, seedPrecedenceRank, type SeedChunkResult, type SeedChunkWrite } from '@bitcobblers/wod-wiki-engine';
+import { applySeedChunk, backfillFeedProvenance, migrateNotebookVocabulary, seedPrecedenceRank, type SeedChunkResult, type SeedChunkWrite } from '@bitcobblers/wod-wiki-engine';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import type { SeedMetaRecord } from '@/types/seed';
 import type { IStorage } from '@/services/storage/IStorage';
@@ -15,6 +15,13 @@ export interface FeedImportStorage {
    * Returns the number of notes stamped.
    */
   backfillFeedProvenance(): Promise<number>;
+  /**
+   * Migrate the retired collection/feed wire identities (chunk ids,
+   * sourceIds, corpus paths, the dropped `catalog` field, note type 'feed')
+   * to the notebook vocabulary. Deterministic and idempotent; runs before
+   * the first notebook-vocabulary sync. Returns the number of rows rewritten.
+   */
+  migrateNotebookVocabulary(): Promise<number>;
   /**
    * Delete one feed's imported rows and its checkpoint row in ONE
    * transaction. Ownership is exact: only note ids recorded in the given
@@ -57,6 +64,9 @@ export class IndexedDBFeedImportStorage implements FeedImportStorage {
   }
   backfillFeedProvenance(): Promise<number> {
     return backfillFeedProvenance(this.storageInstance);
+  }
+  migrateNotebookVocabulary(): Promise<number> {
+    return migrateNotebookVocabulary(this.storageInstance);
   }
   async removeSourceContent(meta: SeedMetaRecord): Promise<number> {
     return await this.storageInstance.transaction(

@@ -84,28 +84,15 @@ export type {
  *  (crypto.randomUUID on legacy rows). Seed corpus ids are path-shaped. */
 const NOTE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Extract the catalog directory id from a Note or BlockIndexRow.
- *  Uses explicit `catalog` when present; falls back to parsing `sourceId`
- *  (stripping `collection:`/`feed:` prefixes and `feeds/` path components) or `noteId`.
- *  Root landings carry no catalog — the writer stamps `collection:_root` /
- *  `feed._root` chunk rows with an undefined catalog field, and a bare
- *  single-segment feed remainder is a root-file stem, never a directory.
- *  Exported so host mappers (Entry derivation) carry the exact field the
- *  `catalog:` filter matches — presentation catalogs must not diverge. */
-export function catalogOfItem(item: { id?: string; noteId?: string; sourceId?: string; catalog?: string }): string | undefined {
-  if (item.catalog) return item.catalog;
-  const isCollectionOrFeed = !!item.sourceId && /^(collection|feed):/.test(item.sourceId);
-  const raw = isCollectionOrFeed ? item.sourceId!.replace(/^(collection|feed):/, '') : (item.noteId || item.id || '');
-  if (!raw) return undefined;
-  if (NOTE_UUID_RE.test(raw)) return undefined;
-  const clean = raw.startsWith('feeds/') ? raw.slice('feeds/'.length) : raw;
-  if (isCollectionOrFeed) {
-    if (clean === '_root') return undefined;
-    if (item.sourceId!.startsWith('feed:') && !clean.includes('/')) return undefined;
-  } else if (!clean.includes('/')) {
-    return undefined;
-  }
-  return clean.split('/')[0];
+/** The notebook slug a `notebook:<slug>[/<item>]` source id names — the
+ *  first path segment; README/root landings (`notebook:<slug>` bare or
+ *  `notebook:_root`) name no item. UUID and non-notebook source ids name
+ *  no notebook. */
+export function notebookSlugOfSourceId(sourceId: string | undefined): string | undefined {
+  if (!sourceId?.startsWith('notebook:')) return undefined;
+  const rest = sourceId.slice('notebook:'.length);
+  if (!rest || rest === '_root') return undefined;
+  return rest.split('/')[0];
 }
 
 import {
@@ -152,7 +139,7 @@ export function feedOfItem(item: { feedSourceId?: string | null }): FeedId | und
  *   1. explicit `notebookId` (user-created notebooks),
  *   2. the `notebook:{slug}` tag convention (user notebook membership),
  *   3. the corpus path (`markdown/<family>/…` sourcePath),
- *   4. the source-id prefix (`collection:`, `feed:`, `guides:`, `playground`,
+ *   4. the source-id prefix (`notebook:`, `guides:`, `playground`,
  *      and the `efforts`/`equipment`/`dashboards` corpus literals),
  *   5. the journal fallback.
  * Tiers 3 and 4 agree for every corpus note: the seed writer
@@ -169,7 +156,6 @@ export function notebookOfItem(item: {
   feedOrigin?: string;
   feedSourceId?: string;
   sourcePath?: string;
-  catalog?: string;
   notebookId?: string;
   tags?: readonly string[];
 }): NotebookId | undefined {
@@ -185,17 +171,16 @@ export function notebookOfItem(item: {
     }
   }
   // Corpus path — `markdown/<family>/…` rows written by the seed compiler
-  // (`chunkIdFor` mirrors these family rules). Collections and feeds carry
-  // the catalog in the next segment; a file directly under the directory is
-  // the writer's root landing (`collection._root` / `feed._root`) — the
-  // writer stamps no catalog for it, so it claims no notebook here either.
+  // (`chunkIdFor` mirrors these family rules). Notebooks carry the slug in
+  // the next segment; a file directly under `markdown/notebooks/` is the
+  // writer's root landing (`notebook._root`) — it claims no notebook here.
   // Canvas guides, efforts, dashboards, and equipment map to their family
   // notebook.
-  const corpus = /^markdown\/(collections|feeds|canvas|efforts|dashboards|equipment)\/(.+)$/.exec(item.sourcePath ?? '');
+  const corpus = /^markdown\/(notebooks|canvas|efforts|dashboards|equipment)\/(.+)$/.exec(item.sourcePath ?? '');
   if (corpus) {
     const [, family, rest] = corpus;
     if (family === 'canvas') return 'notebook/guides';
-    if (family !== 'collections' && family !== 'feeds') return toNotebookId(family);
+    if (family !== 'notebooks') return toNotebookId(family);
     const segs = rest.split('/');
     if (segs.length > 1) return toNotebookId(segs[0]!);
   }
@@ -206,8 +191,8 @@ export function notebookOfItem(item: {
   if (item.sourceId === 'efforts') return 'notebook/efforts';
   if (item.sourceId === 'equipment') return 'notebook/equipment';
   if (item.sourceId === 'dashboards' || item.type === 'dashboard') return 'notebook/dashboards';
-  const cat = catalogOfItem(item);
-  if (cat) return toNotebookId(cat);
+  const slug = notebookSlugOfSourceId(item.sourceId);
+  if (slug) return toNotebookId(slug);
   if (isJournalRow(item)) return 'notebook/journal';
   return undefined;
 }
@@ -218,7 +203,7 @@ export function notebookOfItem(item: {
  *   - explicit `notebookId` / `notebook:` tag membership → `'user'` (moves
  *     into feed-delivered notebooks are forbidden and the importer never
  *     stamps either field, so this tier is always user-managed),
- *   - corpus path, feed/corpus sourceId shapes, or a catalog → `'feed'`
+ *   - corpus path or feed/corpus sourceId shapes → `'feed'`
  *     (the delivering feed wrote these rows; guides included — the core
  *     feed delivers the canvas),
  *   - the playground and journal fallbacks → `'default'`.
@@ -244,7 +229,7 @@ export function notebookOriginOfItem(item: Parameters<typeof notebookOfItem>[0])
 function isJournalRow(item: {
   id?: string; noteId?: string; sourceId?: string; type?: string;
   seedOrigin?: string; seedChunkId?: string; feedOrigin?: string; feedSourceId?: string;
-  sourcePath?: string; catalog?: string;
+  sourcePath?: string;
 }): boolean {
   const sourceId = item.sourceId;
   if (item.type === 'playground' || item.id?.startsWith('playground/') || item.noteId?.startsWith('playground/')) return false;
@@ -261,7 +246,6 @@ function isJournalRow(item: {
     && item.seedOrigin !== 'seed'
     && item.feedOrigin !== 'feed'
     && item.seedChunkId === undefined
-    && !item.catalog
     && !(!!item.sourcePath && item.sourcePath.startsWith('markdown/'));
 }
 
@@ -283,7 +267,7 @@ export const SOURCE_ID_SHAPES: Readonly<Record<string, {
   /** Legacy rows that predate the sourceId convention match via note `type`. */
   legacyType?: string;
 }>> = {
-  feeds: { prefixes: ['collection:', 'page:collection:'] },
+  notebooks: { prefixes: ['notebook:'] },
   pages: { exact: ['page'], prefixes: ['page:', 'guides:'] },
   guides: { prefixes: ['guides:'] },
   playground: { exact: ['playground'], legacyType: 'playground' },
@@ -294,7 +278,6 @@ export const SOURCE_ID_SHAPES: Readonly<Record<string, {
 
 /** Query-vocabulary aliases for the shape table kinds. */
 const SOURCE_SHAPE_ALIASES: Record<string, string> = {
-  feed: 'feeds',
   page: 'pages',
   guide: 'guides',
 };
@@ -326,7 +309,7 @@ export function sourceMatches(
   item: {
     id?: string; noteId?: string; sourceId?: string; type?: string;
     seedOrigin?: string; seedChunkId?: string; feedOrigin?: string; feedSourceId?: string;
-    sourcePath?: string; catalog?: string; notebookId?: string;
+    sourcePath?: string; notebookId?: string;
     tags?: readonly string[];
   },
   kind: string,
@@ -345,18 +328,14 @@ export function sourceMatches(
       && (shape.exact?.includes(sourceId) || shape.prefixes?.some((p) => sourceId.startsWith(p)) === true);
     return idHit || (!!shape.legacyType && item.type === shape.legacyType);
   }
-  if (kind.startsWith('feed:')) {
-    // `feed:<slug>` targets one feed's notes; a full `feed:<slug>/<date>/<item>`
-    // id targets that single note. Both the query value and the storage
-    // sourceId may carry the optional `feeds/` path segment — compare with
-    // it normalized away so the two feed-id conventions agree.
-    const rest = kind.slice('feed:'.length).replace(/^feeds\//, '');
-    if (!rest || !sourceId?.startsWith('feed:')) return false;
-    const idRest = sourceId.slice('feed:'.length).replace(/^feeds\//, '');
-    return idRest === rest || idRest.startsWith(`${rest}/`);
-  }
   if (kind.startsWith('notebook:') || kind.startsWith('notebook/')) {
-    return notebookOfItem(item) === toNotebookId(kind);
+    // `notebook:<slug>` targets one notebook's notes; a full
+    // `notebook:<slug>/<item>` id targets that single note (its sourceId
+    // carries the same shape).
+    const rest = notebookSlugFromId(kind);
+    const idRest = sourceId?.startsWith('notebook:') ? sourceId.slice('notebook:'.length) : undefined;
+    if (!idRest) return notebookOfItem(item) === toNotebookId(kind);
+    return idRest === rest || idRest.startsWith(`${rest}/`);
   }
   return sourceId === kind;
 }
@@ -394,8 +373,7 @@ function applyNotebookFilter<T extends Parameters<typeof notebookOfItem>[0]>(ite
  *  whole WQL domain — queries naming them stay fully residual so the JS
  *  predicate stays the sole decider. */
 const DOMAIN_SOURCE_KINDS: Record<string, true> = {
-  feed: true,
-  feeds: true,
+  notebooks: true,
   page: true,
   pages: true,
   guide: true,
@@ -420,7 +398,7 @@ interface CompiledContentRead {
 
 /** Compile a plane's content filters for the domain candidate read — only
  *  clauses whose semantics match the storage wire exactly. Wildcards,
- *  negations, tags/effort/catalog/date/page, and `journal`/`all` source
+ *  negations, tags/effort/notebook/date/page, and `journal`/`all` source
  *  kinds stay residual JS filters. The candidate read is a SUPERSET either
  *  way; the JS pipeline re-applies every stage and owns the final slice. */
 function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourceScope?: string[]): CompiledContentRead {
@@ -1536,18 +1514,6 @@ export class QueryService {
       }
     }
 
-    // Catalog filter — static note catalog directory id (e.g. crossfit-girls)
-    for (const filter of parsed.filters) {
-      if (filter.key === 'catalog') {
-        const wanted = new Set(filter.values.map(v => v.value));
-        notes = notes.filter(n => {
-          const cat = catalogOfItem(n);
-          if (!cat) return filter.negate;
-          const hit = wanted.has(cat);
-          return filter.negate ? !hit : hit;
-        });
-      }
-    }
     notes = applyNotebookFilter(notes, parsed.filters);
 
     // Note filter — exact note id
@@ -1734,18 +1700,6 @@ export class QueryService {
       }
     }
 
-    // Catalog filter — catalog directory id
-    for (const filter of parsed.filters) {
-      if (filter.key === 'catalog') {
-        const wanted = new Set(filter.values.map(v => v.value));
-        blocks = blocks.filter(b => {
-          const cat = catalogOfItem(b);
-          if (!cat) return filter.negate;
-          const hit = wanted.has(cat);
-          return filter.negate ? !hit : hit;
-        });
-      }
-    }
     blocks = applyNotebookFilter(blocks, parsed.filters);
 
     // Tags filter — matches if the parent note has the tag
@@ -2535,7 +2489,7 @@ export class QueryService {
    * notebooks and `!notebook:` excludes them; the result shape never
    * changes with polarity, and container criteria (tags:, effort:, typed
    * tags, text:) narrow the members exactly like the note plane — this
-   * delegates to it. The notebook CONTAINER listing (the /catalogs
+   * delegates to it. The notebook CONTAINER listing (the /notebooks
    * management surface) is the app's NotebookService model, not WQL rows.
    */
   async runFindNotebook(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {

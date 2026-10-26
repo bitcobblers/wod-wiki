@@ -3,11 +3,8 @@ import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
 import { Button } from '@/components/atoms/primitives/button'
 import { storageService } from '@/services/storage'
 import { notebookService } from '@/services/NotebookService'
-import { getScriptCollections } from '@/repositories/script-collections'
-import { getScriptFeeds } from '@/repositories/script-feeds'
-import type { ScriptCollection } from '@/repositories/script-collections'
-import type { ScriptFeed } from '@/repositories/script-feeds'
-import type { HistoryEntry } from '@/types/history'
+import { getScriptNotebooks, type ScriptNotebook } from '@/repositories/script-notebooks'
+import type { HistoryRecord } from '@/types/history'
 
 import { formatDateHeader } from '../../../lib/dateFormat'
 import { getTodayDateKey } from '../../../services/dateUtils'
@@ -22,7 +19,7 @@ export interface CreateJournalNoteDialogProps {
   /** Preselected mode; defaults to 'blank'. */
   defaultMode?: StartMode
    /** Called with the created entry after a successful create. */
-   onCreated?: (entry: HistoryEntry) => void
+   onCreated?: (entry: HistoryRecord) => void
  }
 
 type StartMode = 'blank' | 'notebook' | 'source'
@@ -41,8 +38,7 @@ interface NotebookNoteChoice {
 }
 
 interface SourceState {
-  collections: ScriptCollection[]
-  feeds: ScriptFeed[]
+  notebooks: ScriptNotebook[]
   /** Exact Note.sourcePath → note id, from raw storage rows. */
   sourceIdByPath: Record<string, string>
 }
@@ -73,7 +69,7 @@ export function CreateJournalNoteDialog({
 
   const [notebookNoteId, setNotebookNoteId] = useState('')
   const [sourceGroupId, setSourceGroupId] = useState('')
-  const [sourceItemPath, setSourceItemPath] = useState('')
+  const [sourceNotePath, setSourceItemPath] = useState('')
 
   // Fresh form (and invalidated lists) on every open.
   useEffect(() => {
@@ -126,17 +122,17 @@ export function CreateJournalNoteDialog({
     setSources(null)
     setSourcesError(null)
     // ponytail: corpus adapters return full markdown per item; lazy per-item load if size demands.
-    Promise.all([getScriptCollections(), getScriptFeeds(), storageService.getAllNotes()])
-      .then(([collections, feeds, notes]) => {
+    Promise.all([getScriptNotebooks(), storageService.getAllNotes()])
+      .then(([notebooks, notes]) => {
         if (sourcesReq.current !== token) return
         const sourceIdByPath: Record<string, string> = {}
         for (const note of notes) {
           if (note.sourcePath) sourceIdByPath[note.sourcePath] = note.id
         }
-        setSources({ collections, feeds, sourceIdByPath })
+        setSources({ notebooks, sourceIdByPath })
       })
       .catch(() => {
-        if (sourcesReq.current === token) setSourcesError('Could not load collections and feeds.')
+        if (sourcesReq.current === token) setSourcesError('Could not load notebooks.')
       })
   }
 
@@ -151,26 +147,15 @@ export function CreateJournalNoteDialog({
     [notebookNotes, notebookNoteId],
   )
 
-  const activeGroup = useMemo<{ kind: 'collection' | 'feed'; group: ScriptCollection | ScriptFeed } | null>(() => {
+  const activeGroup = useMemo<{ group: ScriptNotebook } | null>(() => {
     if (!sources || !sourceGroupId) return null
-    const sep = sourceGroupId.indexOf(':')
-    if (sep < 0) return null
-    const kind = sourceGroupId.slice(0, sep)
-    const id = sourceGroupId.slice(sep + 1)
-    if (kind === 'collection') {
-      const group = sources.collections.find(c => c.id === id)
-      return group ? { kind: 'collection', group } : null
-    }
-    if (kind === 'feed') {
-      const group = sources.feeds.find(f => f.id === id)
-      return group ? { kind: 'feed', group } : null
-    }
-    return null
+    const group = sources.notebooks.find(n => n.id === sourceGroupId)
+    return group ? { group } : null
   }, [sources, sourceGroupId])
 
   // path is the stable unique key (feed filenames repeat across dates).
   const activeItem = activeGroup
-    ? activeGroup.group.items.find(i => i.path === sourceItemPath) ?? null
+    ? activeGroup.group.items.find(i => i.path === sourceNotePath) ?? null
     : null
 
   const dateParsed = parseJournalDate(date)
@@ -326,7 +311,7 @@ export function CreateJournalNoteDialog({
               <>
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="journal-create-source-group" className="text-sm font-medium">
-                    Feed
+                    Notebook
                   </label>
                   <select
                     id="journal-create-source-group"
@@ -339,22 +324,13 @@ export function CreateJournalNoteDialog({
                     className={fieldClass}
                   >
                     <option value="">
-                      {sources === null ? 'Loading…' : 'Choose a feed…'}
+                      {sources === null ? 'Loading…' : 'Choose a notebook…'}
                     </option>
-                    {sources && sources.collections.length > 0 && (
-                      <optgroup label="Feeds">
-                        {sources.collections.map(c => (
-                          <option key={c.id} value={`collection:${c.id}`}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {sources && sources.feeds.length > 0 && (
-                      <optgroup label="Feeds">
-                        {sources.feeds.map(f => (
-                          <option key={f.id} value={`feed:${f.id}`}>
-                            {f.name}
+                    {sources && sources.notebooks.length > 0 && (
+                      <optgroup label="Notebooks">
+                        {sources.notebooks.map(n => (
+                          <option key={n.id} value={n.id}>
+                            {n.name}
                           </option>
                         ))}
                       </optgroup>
@@ -363,21 +339,21 @@ export function CreateJournalNoteDialog({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="journal-create-source-item" className="text-sm font-medium">
-                    Item
+                    Note
                   </label>
                   <select
                     id="journal-create-source-item"
-                    value={sourceItemPath}
+                    value={sourceNotePath}
                     onChange={e => setSourceItemPath(e.target.value)}
                     disabled={!activeGroup || creating}
                     className={fieldClass}
                   >
                     <option value="">
-                      {activeGroup ? 'Choose an item…' : 'Choose a feed first'}
+                      {activeGroup ? 'Choose a note…' : 'Choose a notebook first'}
                     </option>
                     {activeGroup?.group.items.map(item => (
                       <option key={item.path} value={item.path}>
-                        {'feedDate' in item ? `${item.name} — ${item.feedDate}` : item.name}
+                        {item.date ? `${item.name} — ${item.date}` : item.name}
                       </option>
                     ))}
                   </select>

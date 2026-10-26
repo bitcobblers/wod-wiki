@@ -10,20 +10,20 @@
 import { describe, expect, it } from 'bun:test';
 import { v7 as uuidv7 } from 'uuid';
 
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { CreateNoteInput, GetNoteOptions, NoteLocator, NoteMutation, NoteQuery } from '@/services/persistence/types';
 import type { INotePersistence } from '@/services/persistence';
 
 import { createPlaygroundIntake, type PlaygroundPageStore } from './createPlaygroundPage';
 import type { PlaygroundPage } from './playgroundContent';
 
-type MemoryNote = HistoryEntry;
+type MemoryNote = HistoryRecord;
 
 class MemoryPersistence implements Pick<INotePersistence, 'createNote' | 'mutateNote'> {
   readonly notes = new Map<string, MemoryNote>();
   readonly mutations: Array<{ locator: NoteLocator; mutation: NoteMutation }> = [];
 
-  async createNote(input: CreateNoteInput): Promise<HistoryEntry> {
+  async createNote(input: CreateNoteInput): Promise<HistoryRecord> {
     if (this.notes.has(input.id)) throw new Error(`Note already exists: ${input.id}`);
     const entry: MemoryNote = {
       id: input.id,
@@ -52,18 +52,18 @@ class MemoryPersistence implements Pick<INotePersistence, 'createNote' | 'mutate
     return undefined;
   }
 
-  async getNote(locator: NoteLocator, _options?: GetNoteOptions): Promise<HistoryEntry> {
+  async getNote(locator: NoteLocator, _options?: GetNoteOptions): Promise<HistoryRecord> {
     const id = typeof locator === 'string' ? locator : locator.id;
     const entry = id ? await this.findByIdOrSlug(id) : undefined;
     if (!entry) throw new Error('not found');
     return entry;
   }
 
-  async listNotes(_query: NoteQuery = {}): Promise<HistoryEntry[]> {
+  async listNotes(_query: NoteQuery = {}): Promise<HistoryRecord[]> {
     return Array.from(this.notes.values());
   }
 
-  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryEntry> {
+  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryRecord> {
     this.mutations.push({ locator, mutation });
     const id = typeof locator === 'string' ? locator : (locator.id ?? '');
     const entry = await this.findByIdOrSlug(id);

@@ -9,7 +9,7 @@
  *    (markdown/dashboards/**, via the seed-content seam); a "Clone to
  *    vault" action turns it into an editable vault note.
  *
- * `useDashboardCatalog` merges both into the L2 nav list (vault dashboards
+ * `useDashboardList` merges both into the L2 nav list (vault dashboards
  * first, then prebuilts; a vault clone shadows its prebuilt by slug).
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -106,7 +106,7 @@ export function useDashboardSource(
 
 
 /** Every addressable dashboard — vault clones first, then unread prebuilts. */
-export function useDashboardCatalog(): { items: DashboardListItem[]; loading: boolean } {
+export function useDashboardList(): { items: DashboardListItem[]; loading: boolean } {
   const files = useSeedContent()
   const seeds = useMemo(() => (files ? buildDashboardSeeds(files) : []), [files])
   const [items, setItems] = useState<DashboardListItem[]>([])

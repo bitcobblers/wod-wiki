@@ -44,7 +44,7 @@ function spec(id: string): FeedSourceSpec {
     label: id,
     url: `https://seed.test/${id}/`,
     embeddedVersion: 0,
-    source: fixture([compileSeedRow('markdown/collections/x/a.md', WORKOUT)], 1),
+    source: fixture([compileSeedRow('markdown/notebooks/x/a.md', WORKOUT)], 1),
   };
 }
 
@@ -83,7 +83,7 @@ describe('feed provenance on imported notes', () => {
     const note = notes[0]!;
     // The seed provenance is untouched...
     expect(note.seedOrigin).toBe('seed');
-    expect(note.seedChunkId).toBe('collection.test');
+    expect(note.seedChunkId).toBe('notebook.test');
     expect(note.seedVersion).toBe(1);
     // ...and the feed provenance names the feed that delivered it.
     expect(note.feedOrigin).toBe('feed');
@@ -177,7 +177,7 @@ describe('repairing notes imported before the feed stamp existed', () => {
     expect(feedOfItem(repaired)).toBe('community');
     // The seed provenance and the content are untouched.
     expect(repaired.seedOrigin).toBe('seed');
-    expect(repaired.seedChunkId).toBe('collection.test');
+    expect(repaired.seedChunkId).toBe('notebook.test');
     expect(repaired.rawContent).toBe(note.rawContent);
     expect(repaired.title).toBe(note.title);
     // The provenance is part of the note, so the revision advances: a peer

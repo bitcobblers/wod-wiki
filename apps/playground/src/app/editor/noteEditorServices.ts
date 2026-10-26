@@ -52,8 +52,8 @@ let providerCache: {
 /** Route href for an existing effort/equipment page via the app's entry actions. */
 function referenceOpenHref(kind: 'effort' | 'equipment', slug: string, label: string): string {
   const entry: Entry = kind === 'effort'
-    ? { id: slug, kind: 'effort', sourceCatalog: 'efforts', sourceItem: slug, title: label, date: null, effort: { slug, label } }
-    : { id: slug, kind: 'equipment', sourceCatalog: 'equipment', sourceItem: slug, title: label, date: null };
+    ? { id: slug, kind: 'effort', sourceNotebook: 'efforts', sourceNote: slug, title: label, date: null, effort: { slug, label } }
+    : { id: slug, kind: 'equipment', sourceNotebook: 'equipment', sourceNote: slug, title: label, date: null };
   return entryOpenHref(entry);
 }
 

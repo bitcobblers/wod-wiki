@@ -149,14 +149,14 @@ describe('NotebookService (notes-store backed)', () => {
             rawContent,
             blocks: reconcileNoteBlocks(rawContent, { sourceRevision: 1 }),
             expectedSourceRevision: 0,
-            metadata: { title: 'Fran', type: 'note', sourceId: 'collection:crossfit-girls/fran' },
+            metadata: { title: 'Fran', type: 'note', sourceId: 'notebook:crossfit-girls/fran' },
         });
         const original = await store.getNote('fran');
         await store.saveNote({
             ...original,
             catalog: 'crossfit-girls',
             seedOrigin: 'seed',
-            seedChunkId: 'collection.crossfit-girls',
+            seedChunkId: 'notebook.crossfit-girls',
             feedOrigin: 'feed',
             feedSourceId: 'seed-crossfit',
         } as Note);

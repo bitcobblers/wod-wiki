@@ -105,21 +105,21 @@ describe('Legacy parameter migration across unified stream routes', () => {
   })
 
   it('migrates legacy bookmarks on /notes into canonical WQL queries', () => {
-    // The feeds scope keeps its source-scoped legacy mapping (scope feeds →
-    // the `:feeds` head).
+    // The notebooks scope keeps its source-scoped legacy mapping (scope
+    // notebooks → the `:notebooks` head).
     const legacy = NOTES_STREAM_PROFILE.legacy!
-    expect(legacy.toQuery(new URLSearchParams('text=fran'))).toBe(':feeds{text:fran} last 2w')
-    expect(legacy.toQuery(new URLSearchParams('timePreset=all'))).toBe(':feeds')
+    expect(legacy.toQuery(new URLSearchParams('text=fran'))).toBe(':notebooks{text:fran} last 2w')
+    expect(legacy.toQuery(new URLSearchParams('timePreset=all'))).toBe(':notebooks')
   })
 
   it('migrates legacy unscoped bookmarks on /notes without source narrowing', () => {
     const legacy = NOTES_STREAM_PROFILE.legacy!
     // No tri-state params: the default scope applies. Semantic check on the
-    // scoped form — one positive source filter, feeds scope, 2-week window.
+    // scoped form — one positive source filter, notebooks scope, 2-week window.
     const migrated = parseQuery(legacy.toQuery(new URLSearchParams('s=2026-07-12')) ?? '')
     expect(isFindQuery(migrated)).toBe(true)
     if (isFindQuery(migrated)) {
-      expect(migrated.filters.filter((f) => f.key === 'source' && f.values.some((v) => v.value === 'feeds'))).toHaveLength(1)
+      expect(migrated.filters.filter((f) => f.key === 'source' && f.values.some((v) => v.value === 'notebooks'))).toHaveLength(1)
       expect(migrated.window).toEqual({ kind: 'relative', size: 2, unit: 'w' })
     }
   })
@@ -127,8 +127,8 @@ describe('Legacy parameter migration across unified stream routes', () => {
   it('migrates legacy tri-state parameters on /notes', () => {
     const legacy = NOTES_STREAM_PROFILE.legacy!
     expect(legacy.toQuery(new URLSearchParams('note=on&session=hide&post=hide'))).toBe(':journal last 2w')
-    expect(legacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':feeds last 2w')
-    // post=on mapped to the now-excised feeds scope: unscoped, same window.
+    expect(legacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':notebooks last 2w')
+    // post=on mapped to the now-excised notebooks scope: unscoped, same window.
     const postOnly = parseQuery(legacy.toQuery(new URLSearchParams('note=hide&session=hide&post=on')) ?? '')
     expect(isFindQuery(postOnly)).toBe(true)
     if (isFindQuery(postOnly)) {

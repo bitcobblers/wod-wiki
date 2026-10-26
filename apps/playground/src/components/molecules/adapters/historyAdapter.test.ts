@@ -5,9 +5,9 @@ import {
   BookOpenIcon,
 } from '@heroicons/react/24/outline';
 import { historyEntryToListItem } from './historyAdapter';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 
-const baseEntry: HistoryEntry = {
+const baseEntry: HistoryRecord = {
   id: 'entry-1',
   title: '',
   createdAt: new Date('2026-04-27T14:30:22.481Z').getTime(),

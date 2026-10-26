@@ -170,7 +170,7 @@ export interface FeedSyncDeps {
    * decision. 'background': a load-time check — only sources whose
    * persisted auto-sync preference is on apply updates; the rest are
    * check-only and their detected updates land in the grouped
-   * catalog-updates snapshot instead of importing.
+   * feed-updates snapshot instead of importing.
    */
   mode?: 'manual' | 'background';
   /**
@@ -238,7 +238,7 @@ function applySourceResult(
   spec: FeedSourceSpec,
   result: SourceSyncCoreResult,
   deps: FeedSyncDeps,
-  updates: Map<string, CatalogSourceUpdate> | undefined,
+  updates: Map<string, FeedSourceUpdate> | undefined,
 ): void {
   const now = deps.now ?? Date.now;
   const broadcast = deps.broadcast ?? defaultBroadcast;
@@ -292,7 +292,7 @@ async function runFeedSyncViaWorker(
       resolve(null);
       return;
     }
-    const updates = deps.mode === 'background' ? new Map<string, CatalogSourceUpdate>() : undefined;
+    const updates = deps.mode === 'background' ? new Map<string, FeedSourceUpdate>() : undefined;
     const outcomes: FeedSyncOutcome[] = [];
     const totalSources = sources.length;
     let received = false;
@@ -349,7 +349,7 @@ async function runFeedSyncViaWorker(
         return;
       }
       // 'done'
-      if (updates) publishCatalogUpdates([...updates.values()]);
+      if (updates) publishFeedUpdates([...updates.values()]);
       settle(aggregateOutcomes(msg.outcomes.length ? msg.outcomes : outcomes));
     };
     worker.postMessage({
@@ -378,46 +378,46 @@ async function runFeedSyncViaWorker(
 
 // ── Grouped catalog updates (one snapshot per background load check) ───────
 
-export type CatalogUpdateState = 'pending' | 'updated' | 'error';
+export type FeedUpdateState = 'pending' | 'updated' | 'error';
 
-export interface CatalogSourceUpdate {
+export interface FeedSourceUpdate {
   sourceId: string;
   label: string;
-  state: CatalogUpdateState;
+  state: FeedUpdateState;
 }
 
-export interface CatalogUpdatesSnapshot {
+export interface FeedUpdatesSnapshot {
   id: number;
-  updates: CatalogSourceUpdate[];
+  updates: FeedSourceUpdate[];
 }
 
-let catalogUpdates: CatalogUpdatesSnapshot | null = null;
-let catalogUpdateSeq = 0;
-const catalogUpdateListeners = new Set<() => void>();
+let feedUpdates: FeedUpdatesSnapshot | null = null;
+let feedUpdateSeq = 0;
+const feedUpdateListeners = new Set<() => void>();
 
 /** Latest grouped snapshot of detected catalog updates, or null when the
  *  last background check (or manual sync) left nothing outstanding. */
-export function getCatalogUpdates(): CatalogUpdatesSnapshot | null {
-  return catalogUpdates;
+export function getFeedUpdates(): FeedUpdatesSnapshot | null {
+  return feedUpdates;
 }
 
-export function subscribeCatalogUpdates(listener: () => void): () => void {
-  catalogUpdateListeners.add(listener);
+export function subscribeFeedUpdates(listener: () => void): () => void {
+  feedUpdateListeners.add(listener);
   return () => {
-    catalogUpdateListeners.delete(listener);
+    feedUpdateListeners.delete(listener);
   };
 }
 
-function publishCatalogUpdates(updates: CatalogSourceUpdate[]): void {
-  catalogUpdates = updates.length ? { id: ++catalogUpdateSeq, updates } : null;
-  for (const listener of catalogUpdateListeners) listener();
+function publishFeedUpdates(updates: FeedSourceUpdate[]): void {
+  feedUpdates = updates.length ? { id: ++feedUpdateSeq, updates } : null;
+  for (const listener of feedUpdateListeners) listener();
 }
 
 /** Drop one source from the snapshot (manual sync applied it) and
  *  republish — an empty list clears the grouped notification. */
-function clearCatalogSourceUpdate(sourceId: string): void {
-  if (!catalogUpdates?.updates.some((u) => u.sourceId === sourceId)) return;
-  publishCatalogUpdates(catalogUpdates.updates.filter((u) => u.sourceId !== sourceId));
+function clearFeedSourceUpdate(sourceId: string): void {
+  if (!feedUpdates?.updates.some((u) => u.sourceId === sourceId)) return;
+  publishFeedUpdates(feedUpdates.updates.filter((u) => u.sourceId !== sourceId));
 }
 
 // ── Last manifest-check timestamps ─────────────────────────────────────────
@@ -453,7 +453,7 @@ export async function runFeedSync(deps: FeedSyncDeps = {}): Promise<FeedSyncOutc
   const storage = deps.storage ?? mainThreadFeedImportStorage();
   // Background load checks collect per-source update states; the run ends
   // with ONE grouped snapshot — never per-source notifications.
-  const updates = deps.mode === 'background' ? new Map<string, CatalogSourceUpdate>() : undefined;
+  const updates = deps.mode === 'background' ? new Map<string, FeedSourceUpdate>() : undefined;
 
   if (!(deps.isEnabled ?? isFeedImportEnabled)()) return 'disabled';
 
@@ -476,7 +476,7 @@ export async function runFeedSync(deps: FeedSyncDeps = {}): Promise<FeedSyncOutc
     console.debug(`[feedSync] ${spec.id} outcome: ${outcome}`);
     outcomes.push(outcome);
   }
-  if (updates) publishCatalogUpdates([...updates.values()]);
+  if (updates) publishFeedUpdates([...updates.values()]);
   return aggregateOutcomes(outcomes);
 }
 
@@ -530,7 +530,7 @@ async function runSourceSync(
   owner: string,
   sourceIndex: number,
   totalSources: number,
-  updates?: Map<string, CatalogSourceUpdate>,
+  updates?: Map<string, FeedSourceUpdate>,
 ): Promise<FeedSyncOutcome> {
   const now = deps.now ?? Date.now;
   const onProgress = deps.onProgress;
@@ -687,7 +687,7 @@ export async function syncFeedSource(id: string, deps: FeedSyncDeps = {}): Promi
     }
     // A successful manual sync applied (or confirmed) the remote version —
     // the pending-update marker is stale and the grouped snapshot clears.
-    clearCatalogSourceUpdate(id);
+    clearFeedSourceUpdate(id);
   }
   return outcome;
 }
@@ -710,7 +710,7 @@ export async function unsubscribeFeedSource(id: string, deps: Pick<FeedSyncDeps,
   const deleted = meta ? await storage.removeSourceContent(meta) : 0;
   setFeedSubscribed(id, false);
   setFeedAutoSync(id, false);
-  clearCatalogSourceUpdate(id);
+  clearFeedSourceUpdate(id);
   invalidateSeedContent();
   const effortRegistry = getAppEffortRegistry();
   if (effortRegistry.isInitialized()) await hydrateAppEffortRegistry(effortRegistry);
@@ -922,6 +922,19 @@ export async function adoptLegacyFeedCheckpoints(deps: Pick<FeedSyncDeps, 'stora
 export async function adoptFeedProvenance(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<number> {
   const storage = deps.storage ?? mainThreadFeedImportStorage();
   return await storage.backfillFeedProvenance();
+}
+
+/**
+ * One-time migration of the retired collection/feed wire identities to the
+ * notebook vocabulary (ticket 12): checkpoint chunk keys plus the source
+ * identities on note rows and their block projections/links. Idempotent —
+ * re-runs write nothing. Must run BEFORE any sync against a
+ * notebook-vocabulary manifest so the checkpoint membership names the new
+ * chunk ids. Returns the number of rows rewritten.
+ */
+export async function adoptNotebookVocabulary(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<number> {
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
+  return await storage.migrateNotebookVocabulary();
 }
 
 /**

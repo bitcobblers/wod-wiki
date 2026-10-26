@@ -67,33 +67,30 @@ export interface NotebookFilter {
 
 /**
  * A notebook package's chunk id encodes its corpus root:
- * `feed.<slug>` → markdown/feeds/<slug>, `collection.<slug>` →
- * markdown/collections/<slug>. Anything else is not a feed corpus notebook.
+ * `notebook.<slug>` → markdown/notebooks/<slug>. Anything else is not a
+ * notebook corpus chunk.
  */
 export function parseNotebookChunkId(chunkId: string): { slug: string } | null {
-  const feed = chunkId.match(/^feed\.(.+)$/);
-  if (feed) return { slug: feed[1] };
-  const collection = chunkId.match(/^collection\.(.+)$/);
-  if (collection) return { slug: collection[1] };
-  return null;
+  const match = chunkId.match(/^notebook\.(.+)$/);
+  return match ? { slug: match[1] } : null;
 }
 
 // ── Catalog builder ────────────────────────────────────────────────────────
 
-function summarizeGrouping(root: 'feed' | 'collection', grouping: Grouping): NotebookSummary {
+function summarizeGrouping(grouping: Grouping): NotebookSummary {
   const dates = grouping.items
     .map(item => item.date)
     .filter((date): date is string => !!date)
     .sort();
   return {
-    packageId: `local-${root}-${grouping.id}`,
+    packageId: `local-notebooks-${grouping.id}`,
     slug: grouping.id,
     label: grouping.name,
     description: grouping.description,
     image: grouping.image,
     categories: grouping.categories,
     sourceLabel: 'Local',
-    href: root === 'feed' ? `/feed/${encodeURIComponent(grouping.id)}` : `/notebook/${encodeURIComponent(grouping.id)}`,
+    href: `/notebook/${encodeURIComponent(grouping.id)}`,
     itemCount: grouping.items.length,
     ...(dates.length > 0
       ? { latestDate: dates[dates.length - 1], firstDate: dates[0] }
@@ -112,13 +109,11 @@ function summarizeGrouping(root: 'feed' | 'collection', grouping: Grouping): Not
  */
 export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: Record<string, string> | null, isSubscribed?: (feedId: string, chunkId: string) => boolean): NotebookSummary[] {
   const local: NotebookSummary[] = [];
-  const bySlugKind = new Map<string, Grouping>();
+  const bySlug = new Map<string, Grouping>();
   if (files) {
-    for (const root of ['feed', 'collection'] as const) {
-      for (const grouping of buildGroupings(root === 'feed' ? 'feeds' : 'collections', files)) {
-        bySlugKind.set(`${root}:${grouping.id}`, grouping);
-        local.push(summarizeGrouping(root, grouping));
-      }
+    for (const grouping of buildGroupings('notebooks', files)) {
+      bySlug.set(grouping.id, grouping);
+      local.push(summarizeGrouping(grouping));
     }
   }
 
@@ -126,8 +121,7 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
     .map((notebook): NotebookSummary | null => {
       const parsed = parseNotebookChunkId(notebook.chunkId);
       if (!parsed) return null;
-      const root = notebook.chunkId.startsWith('feed.') ? 'feed' : 'collection';
-      const grouping = bySlugKind.get(`${root}:${parsed.slug}`);
+      const grouping = bySlug.get(parsed.slug);
       const feed = feedSourceById(notebook.feedId);
       const dates = (grouping?.items ?? [])
         .map(item => item.date)
@@ -145,10 +139,7 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
         categories: grouping?.categories ?? [],
         sourceLabel: feed?.label ?? notebook.feedId,
         ...(feed?.repositoryUrl ? { repositoryUrl: feed.repositoryUrl } : {}),
-        href:
-          notebook.chunkId.startsWith('feed.')
-            ? `/feed/${encodeURIComponent(parsed.slug)}`
-            : `/notebook/${encodeURIComponent(parsed.slug)}`,
+        href: `/notebook/${encodeURIComponent(parsed.slug)}`,
         itemCount: grouping?.items.length ?? 0,
         ...(dates.length > 0
           ? { latestDate: dates[dates.length - 1], firstDate: dates[0] }

@@ -29,7 +29,7 @@ async function injectSessionQueryIntoNote(noteId: string, blockId: string, resul
   if (!block || block.to == null) return;
   const newContent = `${note.rawContent.slice(0, block.to)}\n\n\`\`\`query:table\n${wql}\n\`\`\`${note.rawContent.slice(block.to)}`;
   const provider = new IndexedDBContentProvider();
-  await provider.updateEntry(note.id, { rawContent: newContent, expectedSourceRevision: note.sourceRevision });
+  await provider.updateRecord(note.id, { rawContent: newContent, expectedSourceRevision: note.sourceRevision });
 }
 export function WallClockPage() {
   const { runtimeId } = useParams<{ runtimeId: string }>()

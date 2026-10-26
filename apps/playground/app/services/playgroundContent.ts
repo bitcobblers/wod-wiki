@@ -13,7 +13,7 @@
  * recovered from the id prefix, so no tag/type encoding is required.
  */
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { NoteBlock } from '@/types/storage';
 
 export interface PlaygroundPage {
@@ -29,7 +29,7 @@ export interface PlaygroundPage {
   updatedAt: number;
   /** Note kind ('playground', 'journal', …). */
   type?: string;
-  /** Source bucket ('playground', 'collection:…', …) — drives source: filters. */
+  /** Source bucket ('playground', 'notebook:…', …) — drives source: filters. */
   sourceId?: string;
 }
 
@@ -44,11 +44,11 @@ function categoryOf(id: string): string {
 }
 
 /** UUID-keyed Notes route through their slug; composite IDs route directly. */
-function routeIdOf(entry: HistoryEntry): string {
+function routeIdOf(entry: HistoryRecord): string {
   return entry.slug ?? entry.id;
 }
 
-function toPage(entry: HistoryEntry): PlaygroundPage {
+function toPage(entry: HistoryRecord): PlaygroundPage {
   const rid = routeIdOf(entry);
   return {
     id: entry.id,
@@ -73,15 +73,15 @@ export const playgroundContent = {
   pageId,
 
   async getPage(id: string): Promise<PlaygroundPage | undefined> {
-    const entry = await provider.getEntry(id);
+    const entry = await provider.getRecord(id);
     return entry ? toPage(entry) : undefined;
   },
 
   /** Upsert a whole Note with optimistic source revision protection. */
   async savePage(page: PlaygroundPage): Promise<string> {
-    const existing = await provider.getEntry(page.id);
+    const existing = await provider.getRecord(page.id);
     if (existing) {
-      await provider.updateEntry(existing.id, {
+      await provider.updateRecord(existing.id, {
         rawContent: page.content,
         expectedSourceRevision: page.sourceRevision,
         blocks: page.noteBlocks,
@@ -90,7 +90,7 @@ export const playgroundContent = {
       });
       return existing.id;
     }
-    const saved = await provider.saveEntry({
+    const saved = await provider.saveRecord({
       id: page.id,
       slug: page.slug,
       title: page.name,
@@ -105,7 +105,7 @@ export const playgroundContent = {
 
   /** Create a page, rejecting if one already exists with this id (add semantics). */
   async addPage(page: PlaygroundPage): Promise<string> {
-    const existing = await provider.getEntry(page.id);
+    const existing = await provider.getRecord(page.id);
     if (existing) {
       throw new DOMException(`Page already exists: ${page.id}`, 'ConstraintError');
     }
@@ -113,24 +113,24 @@ export const playgroundContent = {
   },
 
   async getAllPages(): Promise<PlaygroundPage[]> {
-    const entries = await provider.getEntries();
+    const entries = await provider.getRecords();
     return entries.map(toPage);
   },
 
   async getPagesByCategory(category: string): Promise<PlaygroundPage[]> {
-    const entries = await provider.getEntries();
+    const entries = await provider.getRecords();
     return entries.filter((e) => categoryOf(routeIdOf(e)) === category).map(toPage);
   },
 
   async deletePage(id: string): Promise<void> {
-    await provider.deleteEntry(id);
+    await provider.deleteRecord(id);
   },
 
   /** Remove every playground-managed page (id contains a category separator). */
   async clearAll(): Promise<void> {
-    const entries = await provider.getEntries();
+    const entries = await provider.getRecords();
     await Promise.all(
-      entries.filter((e) => e.id.includes('/')).map((e) => provider.deleteEntry(e.id)),
+      entries.filter((e) => e.id.includes('/')).map((e) => provider.deleteRecord(e.id)),
     );
   },
 };

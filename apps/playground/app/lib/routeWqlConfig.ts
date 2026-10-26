@@ -76,14 +76,15 @@ export { GROUP_BY_DIMENSIONS, GROUP_BY_DIMENSION_IDS } from './groupByOptions'
 /**
  * Narrow one-time id migration for persisted favorites (work item 3): the old
  * plural-noun type vocabulary maps onto canonical singular targets, and the
- * retired `collections` storage scope maps onto `feeds` (collections→feeds
- * rename; storage identities keep their `collection:` prefixes).
+ * retired `collections`/`feeds` storage scopes map onto `notebooks`
+ * (collections→feeds→notebooks rename chain).
  */
 const LEGACY_TYPE_OPTION_IDS: Record<string, string> = {
   notes: 'note',
   blocks: 'block',
   efforts: 'effort',
-  collections: 'feeds',
+  collections: 'notebooks',
+  feeds: 'notebooks',
 }
 
 function getRouteWqlStorageId(routeId: string): string {
@@ -165,22 +166,26 @@ const STORAGE_ID_OVERRIDES: Record<string, string> = {
 }
 
 /**
- * One-time hard-break migration for the collections→feeds rename: stored
- * default WQL written in the retired grammar rewrites to the feeds forms.
- * The `:collection`/`:collections` heads become `:feed`/`:feeds`,
- * `source:collections` becomes `source:feeds`, `type:collection` becomes
- * `type:feed`. The `catalog:` filter becomes `notebook:` (ticket 08 — the
- * catalog plane is the feed-notebook plane); `:catalog` heads still parse
- * mid-flight and need no text migration. Storage-identity spellings pass
- * through untouched — a `collection:`-prefixed source id keeps its prefix
+ * One-time hard-break migration for the collections→feeds→notebooks rename
+ * chain: stored default WQL written in the retired grammar rewrites to the
+ * notebook forms. The `:collection`/`:collections`/`:feed`/`:feeds` heads
+ * become `:notebook`/`:notebooks`, `source:collections`/`source:feeds`
+ * become `source:notebooks`, the retired note kinds `type:feed`/
+ * `type:collection` fold into `type:note` (a note in a notebook is one
+ * kind). The `catalog:` filter becomes `notebook:` (ticket 08 — the catalog
+ * plane is the notebook plane). Storage-identity spellings pass through
+ * untouched — a `collection:`-prefixed source id keeps its prefix
  * (`:collection:` is never followed by a head boundary).
  */
 function migrateLegacyStoredWql(wql: string): string {
   return migrateLegacyCatalogFilter(wql)
-    .replace(/^:(collections?)(?![\w:])/, (head) => (head === ':collections' ? ':feeds' : ':feed'))
-    .replace(/(^|[{,\s])source:collections(?![\w:])/g, '$1source:feeds')
-    .replace(/(^|[{,\s])type:collection(?![\w:])/g, '$1type:feed')
+    .replace(/^:(collections?|feeds?)(?![\w:])/, (head) =>
+      (head === ':collections' || head === ':feeds' ? ':notebooks' : ':notebook'))
+    .replace(/(^|[{,\s])source:(collections|feeds)(?![\w:])/g, '$1source:notebooks')
+    .replace(/(^|[{,\s])source:collection:/g, '$1source:notebook:')
+    .replace(/(^|[{,\s])type:(feed|collection)(?![\w:])/g, '$1type:note')
 }
+export { migrateLegacyStoredWql }
 
 export function readRouteWqlConfig(routeId: string, store: LocalStore = routeWqlStore): RouteWqlConfig {
   const id = getRouteWqlStorageId(routeId)

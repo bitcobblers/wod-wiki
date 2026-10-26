@@ -1,4 +1,4 @@
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 
 /**
  * Escape a CSV field value
@@ -24,7 +24,7 @@ export function arrayToCSV(headers: string[], rows: (string | number | boolean |
 /**
  * Convert parsed statements/metrics to CSV
  */
-export function statementsToCSV(entry: HistoryEntry): string {
+export function statementsToCSV(entry: HistoryRecord): string {
     const headers = [
         'Statement ID',
         'Parent ID',
@@ -78,7 +78,7 @@ export function statementsToCSV(entry: HistoryEntry): string {
 /**
  * Convert workout results to CSV format
  */
-export function resultsToCSV(entry: HistoryEntry): string {
+export function resultsToCSV(entry: HistoryRecord): string {
     const headers = [
         'Start Time',
         'End Time',

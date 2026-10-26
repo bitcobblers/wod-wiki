@@ -43,15 +43,15 @@ describe('seed sync orchestration', () => {
   it('releases its claim on failed chunk and publishes only committed progress', async () => {
     class FailingStorage extends InMemoryFeedStorage {
       async applyChunk(write: SeedChunkWrite): Promise<SeedChunkResult> {
-        if (write.chunkId === 'collection.beta') throw new Error('beta failed');
+        if (write.chunkId === 'notebook.beta') throw new Error('beta failed');
         return super.applyChunk(write);
       }
     }
     const a = compileSeedRow('markdown/canvas/a.md', '# A');
-    const b = compileSeedRow('markdown/collections/beta/b.md', '# B');
+    const b = compileSeedRow('markdown/notebooks/beta/b.md', '# B');
     const src = new InMemoryFeedSource({ schema: SEED_SCHEMA, version: 1, builtAt: new Date(1).toISOString(), chunks: [
       { id: 'canvas', path: 'chunks/canvas.json', sha256: 'a'.repeat(64), bytes: 1, count: 1 },
-      { id: 'collection.beta', path: 'chunks/beta.json', sha256: 'b'.repeat(64), bytes: 1, count: 1 },
+      { id: 'notebook.beta', path: 'chunks/beta.json', sha256: 'b'.repeat(64), bytes: 1, count: 1 },
     ] }, { 'chunks/canvas.json': [a], 'chunks/beta.json': [b] });
     const storage = new FailingStorage(), progress: FeedSyncProgress[] = [];
     expect(await runFeedSync({ sources: [spec(src)], storage, isEnabled: () => true, onProgress: (p) => progress.push(p) })).toBe('error');
@@ -74,13 +74,13 @@ describe('seed sync orchestration', () => {
 });
 
 describe('seed-level identity', () => {
-  const games = compileSeedRow('markdown/collections/crossfit-games/g.md', '# Games');
-  const heroes = compileSeedRow('markdown/collections/crossfit-heroes/h.md', '# Heroes');
+  const games = compileSeedRow('markdown/notebooks/crossfit-games/g.md', '# Games');
+  const heroes = compileSeedRow('markdown/notebooks/crossfit-heroes/h.md', '# Heroes');
   /** One seed publishing TWO notebooks — the case the seed unit exists for. */
   const twoNotebookSeed = () => {
     const chunks = [
-      { id: 'collection.crossfit-games', rows: [games] },
-      { id: 'collection.crossfit-heroes', rows: [heroes] },
+      { id: 'notebook.crossfit-games', rows: [games] },
+      { id: 'notebook.crossfit-heroes', rows: [heroes] },
     ].map(({ id, rows }) => {
       const body = JSON.stringify(rows);
       return {
@@ -107,7 +107,7 @@ describe('seed-level identity', () => {
     expect(await runFeedSync({ sources, storage, isEnabled: () => true })).toBe('imported');
     const meta = await storage.getSeedMeta(seedMetaKey('seed-crossfit'));
     expect(meta?.tier).toBe('community');
-    expect(Object.keys(meta!.chunks).sort()).toEqual(['collection.crossfit-games', 'collection.crossfit-heroes']);
+    expect(Object.keys(meta!.chunks).sort()).toEqual(['notebook.crossfit-games', 'notebook.crossfit-heroes']);
   });
 
   it('one Subscribe applies every notebook the seed publishes', async () => {
@@ -116,8 +116,8 @@ describe('seed-level identity', () => {
     expect(await syncFeedSource('seed-crossfit', { sources, storage, isEnabled: () => true })).toBe('imported');
     const status = await readFeedStatus({ sources, storage, now: () => 7 });
     expect(status.sources[0]!.notebooks.map((n) => ({ label: n.label, chunkId: n.chunkId, imported: n.imported }))).toEqual([
-      { label: 'CrossFit Games', chunkId: 'collection.crossfit-games', imported: true },
-      { label: 'CrossFit Heroes', chunkId: 'collection.crossfit-heroes', imported: true },
+      { label: 'CrossFit Games', chunkId: 'notebook.crossfit-games', imported: true },
+      { label: 'CrossFit Heroes', chunkId: 'notebook.crossfit-heroes', imported: true },
     ]);
     expect(status.sources[0]!.count).toBe(2);
   });
@@ -131,10 +131,10 @@ describe('seed-level identity', () => {
     const status = await readFeedStatus({ sources: [spec(offline, 'seed-crossfit')], storage });
     expect(status.sources[0]!.remote).toBeNull();
     expect(status.sources[0]!.notebooks.map((n) => n.chunkId)).toEqual([
-      'collection.crossfit-games',
-      'collection.crossfit-girls',
-      'collection.crossfit-heroes',
-      'feed.crossfit-programming',
+      'notebook.crossfit-games',
+      'notebook.crossfit-girls',
+      'notebook.crossfit-heroes',
+      'notebook.crossfit-programming',
     ]);
     expect(status.sources[0]!.notebooks.every((n) => !n.imported)).toBe(true);
   });
@@ -175,19 +175,19 @@ describe('legacy checkpoint adoption', () => {
     await storage.putSeedMeta({
       ...emptySeedMeta(seedMetaKey('community-crossfit-games')),
       seedVersion: 4, builtAt: 'b4', importedAt: 40, tier: 'community',
-      chunks: { 'collection.crossfit-games': { sha256: 'a'.repeat(64), noteIds: ['note-games'] } },
+      chunks: { 'notebook.crossfit-games': { sha256: 'a'.repeat(64), noteIds: ['note-games'] } },
     });
     await storage.putSeedMeta({
       ...emptySeedMeta(seedMetaKey('community-crossfit-heroes')),
       seedVersion: 7, builtAt: 'b7', importedAt: 70,
-      chunks: { 'collection.crossfit-heroes': { sha256: 'b'.repeat(64), noteIds: ['note-heroes'] } },
+      chunks: { 'notebook.crossfit-heroes': { sha256: 'b'.repeat(64), noteIds: ['note-heroes'] } },
     });
 
     expect(await adoptLegacyFeedCheckpoints({ storage })).toBe(1);
     const merged = await storage.getSeedMeta(seedMetaKey('seed-crossfit'));
     expect(merged).toMatchObject({ seedVersion: 7, builtAt: 'b7', importedAt: 70, tier: 'community' });
-    expect(merged!.chunks['collection.crossfit-games'].noteIds).toEqual(['note-games']);
-    expect(merged!.chunks['collection.crossfit-heroes'].noteIds).toEqual(['note-heroes']);
+    expect(merged!.chunks['notebook.crossfit-games'].noteIds).toEqual(['note-games']);
+    expect(merged!.chunks['notebook.crossfit-heroes'].noteIds).toEqual(['note-heroes']);
     // Ownership lives in exactly one record after the fold.
     expect((await storage.getSeedMeta(seedMetaKey('community-crossfit-games')))?.chunks).toEqual({});
     expect((await storage.getSeedMeta(seedMetaKey('community-crossfit-heroes')))?.seedVersion).toBe(0);

@@ -42,8 +42,7 @@ import {
   settingsPath,
   buildPlaygroundLoadUrl,
   feedPath,
-  feedItemPath,
-  matchFeedItem,
+  matchNotebookItem,
   matchFeedDetail,
   isPlaygroundNotePath,
   isDayPath,
@@ -178,9 +177,12 @@ describe('path builders', () => {
     expect(feedPath('my feed')).toBe('/feed/my%20feed')
   })
 
-  it('feedItemPath encodes all three segments', () => {
-    expect(feedItemPath('my feed', '2026-05-19', 'item 1')).toBe(
-      '/feed/my%20feed/2026-05-19/item%201',
+  it('notebookItemPath encodes all segments, keeping a dated item split', () => {
+    expect(notebookItemPath('my notebook', 'item 1')).toBe(
+      '/notebook/my%20notebook/item%201',
+    )
+    expect(notebookItemPath('my notebook', '2026-05-19/item 1')).toBe(
+      '/notebook/my%20notebook/2026-05-19/item%201',
     )
   })
 })
@@ -227,10 +229,11 @@ describe('route family helpers', () => {
     expect(isEffortsPath('/e/grace')).toBe(false)
   })
 
-  it('matchFeedItem captures the three /feed segments', () => {
-    expect(matchFeedItem('/feed/my-feed/2026-05-19/item-1')).toEqual(['my-feed', '2026-05-19', 'item-1'])
-    expect(matchFeedItem('/feed/my-feed')).toBeNull()
-    expect(matchFeedItem('/feeds/my-feed/2026-05-19/item-1')).toBeNull()
+  it('matchNotebookItem captures the three /notebook segments', () => {
+    expect(matchNotebookItem('/notebook/my-notebook/2026-05-19/item-1')).toEqual(['my-notebook', '2026-05-19', 'item-1'])
+    expect(matchNotebookItem('/notebook/my-notebook')).toBeNull()
+    expect(matchNotebookItem('/notebook/my-notebook/item-1')).toBeNull()
+    expect(matchNotebookItem('/feed/my-notebook/2026-05-19/item-1')).toBeNull()
   })
 
   it('matchFeedDetail captures the /feed slug but not feed items', () => {
@@ -337,7 +340,7 @@ describe('ROUTE_PATTERNS', () => {
     expect(ROUTE_PATTERNS.page).toBe('/page/:slug')
     expect(ROUTE_PATTERNS.tag).toBe('/t/:type/:tag')
     expect(ROUTE_PATTERNS.feed).toBe('/feed/:slug')
-    expect(ROUTE_PATTERNS.feedItem).toBe('/feed/:slug/:feedDate/:feedItem')
+    expect(ROUTE_PATTERNS.notebookItem).toBe('/notebook/:slug/:itemDate/:item')
     expect(ROUTE_PATTERNS.effort).toBe('/effort/:slug')
     expect(ROUTE_PATTERNS.equipmentSlug).toBe('/equipment/:slug')
     expect(ROUTE_PATTERNS.dashboardView).toBe('/dashboard/:slug')

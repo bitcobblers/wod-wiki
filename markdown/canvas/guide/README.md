@@ -44,7 +44,7 @@ You edit it, run it, watch what the clock records (Metrics), query the records (
 | 1 | "wrap your workout in a `wod` block"; dialects page implies ```` ```wod ````/```` ```plan ````/```` ```climb ```` fences | runtime affords `time` (run) and `log` (record) fences only; dialect fixtures themselves use ```` ```time ````/```` ```log:climbing ```` | teach `time`/`log`/`log:climbing`; `wod`/`plan`/`climb` kept as *intent* vocabulary, flagged **needs validation** ([sessions.md#intent](/page/guide-sessions?h=intent)) |
 | 2 | home caption + prototypes: "```` ```wql ```` for queries"; cookbook shows ```wql copy blocks | real in-note fence is ```` ```query ````; no ```wql handling exists | use ```query everywhere; cookbook's ```wql snippet blocks flagged **needs validation** |
 | 3 | analytics/README + anatomy document `source:all` | parser hard-errors: "source:all is retired — omit the source: filter" | omitting `source:` **is** the all-sources default; never write `source:all` |
-| 4 | filters.md teaches singular `source:collection`/`source:feed` | every note belongs to `notebook/{slug}`; `notebook:<id>` pins a notebook and `WQL_SOURCE_VALUES` provides storage scopes | teach `notebook:<id>` and `notebook/{slug}`; `source:collection:<id>` remains a legacy storage-identity literal |
+| 4 | filters.md teaches singular `source:collection`/`source:feed` | every note belongs to `notebook/{slug}`; `notebook:<id>` pins a notebook and `WQL_SOURCE_VALUES` provides storage scopes | teach `notebook:<id>` and `notebook/{slug}`; the retired `collection:`/`feed:` source literals hard-error at parse time (ticket 12) and stored occurrences rewrite to `notebook:` on read |
 | 5 | structure.md caption: name groups `(Warmup)`; named-groups/mixed-sections fixtures use `// Warmup` | classifier emits a labeled group node for `(Warmup)` (`RoundsMetric(label)`); `//` is a text comment — different mechanisms, both legal | both documented with the difference ([structure.md#named-sections](/page/guide-structure?h=named-sections)) |
 | 6 | `:?` placement: timers-3 prefixes (`:? Max Effort`), capture/cheatsheet append (`5:00 Run :?`) | `:?` is a standalone collectible-duration token; both positions parse | append taught as the convention; prefix noted as equally legal ([metrics.md#capture](/page/guide-metrics?h=capture)) |
 | 7 | behaviors/timers.md: movement without duration counts up; timers-5.md: "no timer — stopwatch mode" | `DurationMetric.direction`: value 0/undefined/collectible → **up** | same behavior, two descriptions: a bare movement runs a count-up stopwatch ([clock.md](/page/guide-clock)) |
@@ -184,7 +184,7 @@ Guarantees on every form factor:
 **Session vs template vs sample dataset vs revert.**
 
 - **Session** — immutable recorded facts from one run against its snapshot note.
-- **Template** — read-only source content (`sample-script.md`, `WORKOUT_PRESETS`, catalog sessions, seeded boards). Running a template copies it into the active workspace/snapshot; **templates never mutate**.
+- **Template** — read-only source content (`sample-script.md`, `WORKOUT_PRESETS`, seeded boards). Running a template copies it into the active workspace/snapshot; **templates never mutate**.
 - **Sample dataset** — the SAMPLE fallback (`SAMPLE_HOME_ANALYTICS`, `SampleDataPrompt`) shown when the store has no facts; always badged sample; never persisted as your results.
 - **Revert** ("Revert current session") — discards view-state only (query tweaks, sample overlay) and re-binds the stage to the current run's recorded facts; never deletes saved sessions.
 

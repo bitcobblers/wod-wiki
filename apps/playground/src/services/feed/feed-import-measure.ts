@@ -58,11 +58,11 @@ const measured: LibsqlClient = {
 const storage = new SqlStorage(libsqlDatabase(measured));
 await storage.ready();
 const importerStorage = new IndexedDBFeedImportStorage(storage);
-const rows = Array.from({ length: 100 }, (_, i) => compileSeedRow(`markdown/collections/measurement/n${i}.md`, `---\ntags: [strength]\n---\n# Note ${i}\n\n\`\`\`time\n10 Push-ups\n\`\`\`\n`));
+const rows = Array.from({ length: 100 }, (_, i) => compileSeedRow(`markdown/notebooks/measurement/n${i}.md`, `---\ntags: [strength]\n---\n# Note ${i}\n\n\`\`\`time\n10 Push-ups\n\`\`\`\n`));
 const measurements: Array<{ scenario: string; counters: Counters }> = [];
 async function measure(scenario: string, input: typeof rows, version: number) {
   counters = blank(); armed = true;
-  await new FeedImporter(importerStorage, feedFixture(input, version, 'collection.measurement'), 'measurement').applyAll();
+  await new FeedImporter(importerStorage, feedFixture(input, version, 'notebook.measurement'), 'measurement').applyAll();
   armed = false;
   measurements.push({ scenario, counters: { ...counters } });
 }

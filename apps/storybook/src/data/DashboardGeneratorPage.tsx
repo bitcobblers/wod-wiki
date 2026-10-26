@@ -19,7 +19,7 @@ import {
   type DashboardSectionInput,
 } from '@bitcobblers/wod-wiki-wql';
 import { DashboardView, type DashboardHeadingAnchor } from '@bitcobblers/wod-wiki-ui';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { notePersistence } from '@/services/persistence';
 import { queryService } from '@/services/queryService';
 import { useDatabase } from '../database/DatabaseContext';
@@ -58,12 +58,12 @@ export function DashboardGeneratorPage() {
   const [title, setTitle] = useState(DEFAULT_DASHBOARD_TITLE);
   const [question, setQuestion] = useState('How has volume trended over time?');
   const [wql, setWql] = useState(SEED_QUERY);
-  const [dashboards, setDashboards] = useState<HistoryEntry[]>([]);
+  const [dashboards, setDashboards] = useState<HistoryRecord[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const refresh = useCallback(async (): Promise<HistoryEntry[]> => {
+  const refresh = useCallback(async (): Promise<HistoryRecord[]> => {
     const entries = await notePersistence.listNotes({ kind: 'dashboard' });
     setDashboards(entries);
     return entries;

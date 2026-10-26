@@ -64,9 +64,9 @@ const realSeedSync = await import('@/services/feed/feedSync')
 // objects — see tests/unit-setup.ts), so the drawer and toaster are asserted
 // at their seams: the URL param drives the drawer, and toast() payloads are
 // what the app's Toaster would display.
-mock.module('../../pages/CatalogsManagerDrawer', () => ({
-  CatalogsManagerDrawer: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="catalogs-manager-drawer-open" /> : null,
+mock.module('../../pages/NotebookManageDrawer', () => ({
+  NotebookManageDrawer: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="notebook-manage-drawer-open" /> : null,
 }))
 
 const realUseToast = await import('@/hooks/use-toast')
@@ -95,7 +95,7 @@ mock.module('@/services/feed/feedSync', () => ({
   // The subscribe offer opens the manager drawer, which mounts SyncSection —
   // an empty registry is enough for it to render.
   readFeedStatus: async () => ({ sources: [] }),
-  subscribeCatalogUpdates: () => () => {},
+  subscribeFeedUpdates: () => () => {},
 }))
 
 // Collection READMEs read through useSeedContent; tests drive the readme by
@@ -144,8 +144,8 @@ describe('QueriableStreamView component', () => {
     {
       id: 'back-squat',
       kind: 'effort',
-      sourceCatalog: 'canonical',
-      sourceItem: 'back-squat',
+      sourceNotebook: 'canonical',
+      sourceNote: 'back-squat',
       title: 'Back Squat',
       date: null,
       effort: {
@@ -159,8 +159,8 @@ describe('QueriableStreamView component', () => {
     {
       id: 'pull-up',
       kind: 'effort',
-      sourceCatalog: 'canonical',
-      sourceItem: 'pull-up',
+      sourceNotebook: 'canonical',
+      sourceNote: 'pull-up',
       title: 'Pull-up',
       date: null,
       effort: {
@@ -312,8 +312,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'res-42:0',
         kind: 'segment',
-        sourceCatalog: 'results',
-        sourceItem: 'res-42',
+        sourceNotebook: 'results',
+        sourceNote: 'res-42',
         title: 'Session Result',
         date: '2026-06-01',
         segment: {
@@ -346,8 +346,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'res-42',
         kind: 'result',
-        sourceCatalog: 'results',
-        sourceItem: 'res-42',
+        sourceNotebook: 'results',
+        sourceNote: 'res-42',
         title: 'Fran Workout',
         date: '2026-06-01',
         execution: {
@@ -396,8 +396,8 @@ describe('QueriableStreamView component', () => {
         {
           id: 'res-42',
           kind: 'result',
-          sourceCatalog: 'results',
-          sourceItem: 'res-42',
+          sourceNotebook: 'results',
+          sourceNote: 'res-42',
           title: 'Fran Workout',
           date: '2026-06-01',
           execution: {
@@ -440,8 +440,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'note-1',
         kind: 'note',
-        sourceCatalog: 'canonical',
-        sourceItem: 'item-1',
+        sourceNotebook: 'canonical',
+        sourceNote: 'item-1',
         title: 'Workout 1',
         date: '2026-09-04',
         effort: { slug: 'fran', label: 'Fran', discipline: 'gymnastics' },
@@ -449,8 +449,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'note-2',
         kind: 'note',
-        sourceCatalog: 'canonical',
-        sourceItem: 'item-2',
+        sourceNotebook: 'canonical',
+        sourceNote: 'item-2',
         title: 'Workout 2',
         date: '2026-08-15',
         effort: { slug: 'grace', label: 'Grace', discipline: 'strength' },
@@ -597,13 +597,13 @@ describe('QueriableStreamView component', () => {
     expect(openLink.getAttribute('href')).toBe('/playground/uuid-1')
 
     // Playground scope: the note has no journal date, so grouping falls back
-    // to createdAt — a real date group, never the "Catalog Sessions" shelf,
+    // to createdAt — a real date group, never the "Notebook Sessions" shelf,
     // never the "Undated" bucket. Asserted BEFORE the Run click — Run
     // navigates to /run/:id, which drops ?q and resets the composer to the
     // profile default (in-app the view unmounts on that navigation).
     expect(screen.getByTestId('stream-feed-group-2023-11-14')).toBeDefined()
     expect(screen.queryByText('Undated')).toBeNull()
-    expect(screen.queryByText('Catalog Sessions')).toBeNull()
+    expect(screen.queryByText('Notebook Sessions')).toBeNull()
 
     // Run stages a pending runtime (what WallClockPage consumes) — retaining
     // the entry's Note UUID with playground origin/returnTo — then navigates.
@@ -750,8 +750,8 @@ describe('QueriableStreamView component', () => {
       {
         id: 'note-1',
         kind: 'note',
-        sourceCatalog: 'canonical',
-        sourceItem: 'item-1',
+        sourceNotebook: 'canonical',
+        sourceNote: 'item-1',
         title: 'Workout 1',
         date: '2026-09-04',
         tags: ['strength'],
@@ -800,11 +800,11 @@ describe('QueriableStreamView component', () => {
       const catalogEntry: Entry = {
         id: 'crossfit-girls/grace',
         kind: 'note',
-        sourceCatalog: 'crossfit-girls',
-        sourceItem: 'grace',
+        sourceNotebook: 'crossfit-girls',
+        sourceNote: 'grace',
         title: 'Grace',
         date: null,
-        sourceId: 'collection:crossfit-girls/grace',
+        sourceId: 'notebook:crossfit-girls/grace',
       }
       const engine = createMockEngine([catalogEntry])
 
@@ -866,7 +866,7 @@ describe('QueriableStreamView component', () => {
     // worklist that does not exist.
     await waitFor(() => {
       expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('manage=1')
-      expect(screen.getByTestId('catalogs-manager-drawer-open')).toBeDefined()
+      expect(screen.getByTestId('notebook-manage-drawer-open')).toBeDefined()
     })
     expect(syncFeedSourceMock).not.toHaveBeenCalled()
   })
@@ -1041,7 +1041,7 @@ describe('QueriableStreamView component', () => {
     coverageMock = { coreImported: true, libraryImported: true }
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={[`/feeds?q=${encodeURIComponent(':feeds{text:foo}')}`]}>
+      <MemoryRouter initialEntries={[`/feeds?q=${encodeURIComponent(':notebooks{text:foo}')}`]}>
         <LocationProbe />
         <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
@@ -1055,25 +1055,25 @@ describe('QueriableStreamView component', () => {
     const clear = within(empty).getByRole('button', { name: 'Clear filter' })
     fireEvent.click(clear)
 
-    // The authored text clause is gone; the feeds head's storage scope
+    // The authored text clause is gone; the notebooks head's storage scope
     // survives as an explicit filter (serializer emits plain `:note`). The
     // URL `q` is the committed query's home — the composer input keeps its
     // own draft.
     await waitFor(() => {
-      expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain(encodeURIComponent(':note{source:feeds}'))
+      expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain(encodeURIComponent(':note{source:notebooks}'))
     })
     await waitFor(() => {
       expect(within(screen.getByTestId('stream-empty-state')).queryByRole('button', { name: 'Clear filter' })).toBeNull()
     })
   })
 
-  it('catalog readme [heading](:query)! embeds inject results and suppress the default stream', async () => {
+  it('notebook readme [heading](:query)! embeds inject results and suppress the default stream', async () => {
     seedFilesMock = {
-      'markdown/collections/testcat/README.md':
-        'About this catalog.\n\n[Recent entries](:feed{catalog:testcat})!\n\nMore copy after.',
+      'markdown/notebooks/testcat/README.md':
+        'About this notebook.\n\n[Recent entries](:feed{catalog:testcat})!\n\nMore copy after.',
     }
     tokenEntries = [
-      { id: 'injected-1', kind: 'note', sourceCatalog: 'testcat', sourceItem: 'injected-1', title: 'Injected Entry', date: null },
+      { id: 'injected-1', kind: 'note', sourceNotebook: 'testcat', sourceNote: 'injected-1', title: 'Injected Entry', date: null },
     ]
     const engine = createMockEngine([])
     render(
@@ -1086,16 +1086,16 @@ describe('QueriableStreamView component', () => {
     expect(block.textContent).toContain('Injected Entry')
     // The embed link text becomes the block heading.
     expect(screen.getByTestId('readme-query-heading').textContent).toBe('Recent entries')
-    expect(screen.getByTestId('collection-readme-note').textContent).toContain('About this catalog.')
-    expect(screen.getByTestId('collection-readme-note').textContent).toContain('More copy after.')
+    expect(screen.getByTestId('notebook-readme-note').textContent).toContain('About this notebook.')
+    expect(screen.getByTestId('notebook-readme-note').textContent).toContain('More copy after.')
     // The override replaces the default feed stream below the readme.
     expect(screen.queryByTestId('stream-empty-state')).toBeNull()
   })
 
   it('embed with an empty heading renders no heading element', async () => {
-    seedFilesMock = { 'markdown/collections/testcat/README.md': '[](:feed{catalog:testcat})!' }
+    seedFilesMock = { 'markdown/notebooks/testcat/README.md': '[](:feed{catalog:testcat})!' }
     tokenEntries = [
-      { id: 'injected-2', kind: 'note', sourceCatalog: 'testcat', sourceItem: 'injected-2', title: 'Injected Entry', date: null },
+      { id: 'injected-2', kind: 'note', sourceNotebook: 'testcat', sourceNote: 'injected-2', title: 'Injected Entry', date: null },
     ]
     const engine = createMockEngine([])
     render(
@@ -1109,7 +1109,7 @@ describe('QueriableStreamView component', () => {
   })
 
   it('bang-less WQL links in the readme stay navigation links and keep the default stream', async () => {
-    seedFilesMock = { 'markdown/collections/testcat/README.md': 'Browse [all feeds](:feed{catalog:testcat}).' }
+    seedFilesMock = { 'markdown/notebooks/testcat/README.md': 'Browse [all feeds](:feed{catalog:testcat}).' }
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/notebook/testcat']}>
@@ -1117,15 +1117,15 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    await waitFor(() => screen.getByTestId('collection-readme-note'), { timeout: 5000 })
+    await waitFor(() => screen.getByTestId('notebook-readme-note'), { timeout: 5000 })
     const link = screen.getByRole('link', { name: 'all feeds' })
-    expect(link.getAttribute('href')).toBe(`/notebook/testcat?q=${encodeURIComponent(':feed{catalog:testcat}')}`)
+    expect(link.getAttribute('href')).toBe(`/notebook/testcat?q=${encodeURIComponent(':notebook{notebook:testcat}')}`)
     expect(screen.queryByTestId('readme-query-block')).toBeNull()
     expect(screen.getByTestId('stream-empty-state')).toBeDefined()
   })
 
-  it('catalog page keeps the default stream when the readme has no query tokens', async () => {
-    seedFilesMock = { 'markdown/collections/testcat/README.md': 'Plain readme, no tokens.' }
+  it('notebook page keeps the default stream when the readme has no query tokens', async () => {
+    seedFilesMock = { 'markdown/notebooks/testcat/README.md': 'Plain readme, no tokens.' }
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/notebook/testcat']}>
@@ -1133,7 +1133,7 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
-    await waitFor(() => screen.getByTestId('collection-readme-note'), { timeout: 5000 })
+    await waitFor(() => screen.getByTestId('notebook-readme-note'), { timeout: 5000 })
     expect(screen.getByTestId('stream-empty-state')).toBeDefined()
     expect(screen.queryByTestId('readme-query-block')).toBeNull()
   })
@@ -1182,8 +1182,8 @@ const DATED_NOTE_ENTRIES: Entry[] = [
   {
     id: 'note-1',
     kind: 'note',
-    sourceCatalog: 'canonical',
-    sourceItem: 'item-1',
+    sourceNotebook: 'canonical',
+    sourceNote: 'item-1',
     title: 'Workout 1',
     date: '2026-09-04',
     tags: ['strength'],
@@ -1191,8 +1191,8 @@ const DATED_NOTE_ENTRIES: Entry[] = [
   {
     id: 'note-2',
     kind: 'note',
-    sourceCatalog: 'canonical',
-    sourceItem: 'item-2',
+    sourceNotebook: 'canonical',
+    sourceNote: 'item-2',
     title: 'Workout 2',
     date: '2026-08-15',
     tags: ['strength'],
@@ -1333,7 +1333,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     expect(state.isOpen).toBe(true)
     expect(state.request?.wql?.initialQuery).toBe(authored)
   })
-  it('renders with collection catalog profile and default cards layout', async () => {
+  it('renders with the notebook stream profile and default cards layout', async () => {
     const profile = createNotebookProfile('dan-john')
     const { engine } = stubEngine(() => DATED_NOTE_ENTRIES)
 

@@ -57,8 +57,8 @@ function tableRowToEntry(row: Record<string, unknown>, target: 'segment' | 'even
   return {
     id: rowId ?? resultId ?? `${target}:${index}`,
     kind: target,
-    sourceCatalog: 'results',
-    sourceItem: resultId ?? rowId ?? `${target}:${index}`,
+    sourceNotebook: 'results',
+    sourceNote: resultId ?? rowId ?? `${target}:${index}`,
     title: effort ? formatEffortName(effort) : `${target === 'segment' ? 'Segment' : 'Event'} ${index + 1}`,
     date: typeof row.date === 'string' ? row.date : null,
     subtitle: fields.length > 0 ? fields.join(' • ') : undefined,
@@ -136,8 +136,8 @@ export class StreamQueryEngine {
     return next;
   }
 
-  /** One batched relation read per run (storageService.getEntryBatches —
-   *  local one-transaction bundles, remote ids chunked at the entries
+  /** One batched relation read per run (storageService.getDetailBatches —
+   *  local one-transaction bundles, remote ids chunked at the detail
    *  plan's 64-value limit; empty id set → no read). Journal page links
    *  and pages always hydrate; `withNoteFields` also fills blank titles
    *  (block-derived notes) and junction tags from the SAME bundle. A bundle
@@ -148,15 +148,15 @@ export class StreamQueryEngine {
     const parentNoteId = (entry: Entry) => entry.noteId ?? entry.id;
     const bundleIds = new Set<string>();
     for (const entry of entries) {
-      if (entry.sourceCatalog === 'journal') bundleIds.add(parentNoteId(entry));
+      if (entry.sourceNotebook === 'journal') bundleIds.add(parentNoteId(entry));
       if (withNoteFields && (!entry.title || !entry.tags || entry.tags.length === 0)) {
         bundleIds.add(parentNoteId(entry));
       }
     }
     if (bundleIds.size === 0) return;
-    const bundles = await storageService.getEntryBatches([...bundleIds]);
+    const bundles = await storageService.getDetailBatches([...bundleIds]);
     for (const entry of entries) {
-      if (entry.sourceCatalog !== 'journal') continue;
+      if (entry.sourceNotebook !== 'journal') continue;
       const bundle = bundles.get(parentNoteId(entry));
       // Every page the note sits on; the single-page fields below are the
       // deterministic primary projections of that list.

@@ -19,7 +19,7 @@ import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
 import { parseDocumentSections, validateNoteBlocks, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS, MetricType } from '@bitcobblers/wod-wiki-core';
 import { rowsEqual, userDeletedSeedKey } from '@bitcobblers/wod-wiki-storage';
-import type { DomainEntry, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
+import type { DomainDetail, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
 import type { IStorage, IStorageTransaction, StoreName } from './IStorage';
 import { NotePersistenceError, type NotePersistenceStorage, type SaveNoteInput } from '../persistence/types';
 const NOTE_BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
@@ -204,19 +204,19 @@ export class StorageService implements NotePersistenceStorage {
   }
 
   /** Hydrate note metadata through one remote plan or one local transaction. */
-  async getEntryBatches(noteIds: readonly string[]): Promise<Map<string, DomainEntry>> {
-    const out = new Map<string, DomainEntry>();
+  async getDetailBatches(noteIds: readonly string[]): Promise<Map<string, DomainDetail>> {
+    const out = new Map<string, DomainDetail>();
     if (noteIds.length === 0) return out;
     if (this.storage.queryDomain) {
       const ids = [...new Set(noteIds)];
-      const remote: DomainEntry[] = [];
+      const remote: DomainDetail[] = [];
       let remoteComplete = true;
       for (let i = 0; i < ids.length && remoteComplete; i += DOMAIN_ID_CHUNK) {
         const res = await this.storage.queryDomain({
-          plan: 'entries',
+          plan: 'detail',
           selection: [{ field: 'id', values: ids.slice(i, i + DOMAIN_ID_CHUNK) }],
         });
-        if (res && res.plan === 'entries') remote.push(...res.rows);
+        if (res && res.plan === 'detail') remote.push(...res.rows);
         else remoteComplete = false;
       }
       if (remoteComplete) {
@@ -923,17 +923,17 @@ export class StorageService implements NotePersistenceStorage {
 
   async countBlockIndexInDomain(): Promise<number> {
     const store = this.storage.readonly('block_index');
-    const [total, indexed, empty, collections, pageCollections, guides, playground, journal] = await Promise.all([
+    const [total, indexed, empty, notebooks, pages, guides, playground, journal] = await Promise.all([
       store.count(),
       store.countFromIndex('by-source'),
       store.countFromIndex('by-source', ''),
-      store.countFromIndex('by-source', IDBKeyRange.bound('collection:', 'collection;', false, true)),
-      store.countFromIndex('by-source', IDBKeyRange.bound('page:collection:', 'page:collection;', false, true)),
+      store.countFromIndex('by-source', IDBKeyRange.bound('notebook:', 'notebook;', false, true)),
+      store.countFromIndex('by-source', IDBKeyRange.bound('page:', 'page;', false, true)),
       store.countFromIndex('by-source', IDBKeyRange.bound('guides:', 'guides;', false, true)),
       store.countFromIndex('by-source', 'playground'),
       store.getAllFromIndex('by-source', 'journal'),
     ]);
-    return total - indexed + empty + collections + pageCollections + guides + playground
+    return total - indexed + empty + notebooks + pages + guides + playground
       + journal.filter(row => !row.id.startsWith('pg-') && !row.noteId.startsWith('pg-')).length;
   }
 

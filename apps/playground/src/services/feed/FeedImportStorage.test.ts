@@ -15,9 +15,9 @@ beforeEach(() => { globalThis.indexedDB = new IDBFactory(); idb = new IndexedDBS
 afterEach(async () => { await idb.close(); if (originalIndexedDB === undefined) Reflect.deleteProperty(globalThis, 'indexedDB'); else globalThis.indexedDB = originalIndexedDB; });
 
 async function writeFixture(): Promise<SeedChunkWrite> {
-  const row = compileSeedRow('markdown/collections/test/a.md', '# A\n\n```time\n10 Push-ups\n```\n');
+  const row = compileSeedRow('markdown/notebooks/test/a.md', '# A\n\n```time\n10 Push-ups\n```\n');
   const id = await seedNoteId(row.path);
-  return { chunkId: 'collection.test', rows: [row], manifest: { schema: SEED_SCHEMA, version: 1, builtAt: new Date(1).toISOString(), chunks: [] }, expectedMeta: undefined, meta: { ...emptySeedMeta(key), importedAt: 1, chunks: { 'collection.test': { sha256: 'a'.repeat(64), noteIds: [id] } } } };
+  return { chunkId: 'notebook.test', rows: [row], manifest: { schema: SEED_SCHEMA, version: 1, builtAt: new Date(1).toISOString(), chunks: [] }, expectedMeta: undefined, meta: { ...emptySeedMeta(key), importedAt: 1, chunks: { 'notebook.test': { sha256: 'a'.repeat(64), noteIds: [id] } } } };
 }
 
 describe('atomic sparse seed storage', () => {

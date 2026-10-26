@@ -10,7 +10,7 @@
  * callers decodeURIComponent before passing the query here.
  */
 import { parseQuery, isFindQuery, notebookSlugFromId } from '@bitcobblers/wod-wiki-engine'
-import { migrateLegacyCatalogFilter } from './legacyWql'
+import { migrateLegacyStoredWql } from './routeWqlConfig'
 
 function singleValue(filters: { key: string; negate: boolean; values: { value: string }[] }[], key: string): string | null {
   const filter = filters.find(f => f.key === key && !f.negate)
@@ -20,11 +20,13 @@ function singleValue(filters: { key: string; negate: boolean; values: { value: s
 export function wqlStreamHref(rawQuery: string): string | null {
   const query = rawQuery.trim()
   if (!query.startsWith(':')) return null
-  // Legacy `catalog:` filters still route to their notebook landing — the
-  // migration decides the target; the original text rides the query param.
-  const parsed = parseQuery(migrateLegacyCatalogFilter(query))
+  // Retired-grammar links (catalog: filters, feed/collection heads) migrate
+  // to the notebook plane — the migration decides the target AND rides the
+  // query param, so the landing composer parses what the link carries.
+  const migrated = migrateLegacyStoredWql(query)
+  const parsed = parseQuery(migrated)
   if (parsed.error || !isFindQuery(parsed)) return null
-  const q = `?q=${encodeURIComponent(query)}`
+  const q = `?q=${encodeURIComponent(migrated)}`
   switch (parsed.target) {
     case 'effort':
       return `/efforts${q}`
@@ -32,8 +34,16 @@ export function wqlStreamHref(rawQuery: string): string | null {
     case 'segment':
     case 'event':
       return `/sessions${q}`
-    case 'notebook':
+    case 'notebook': {
+      // The notebook plane narrowed to one notebook IS that notebook's
+      // landing (retired `:feed{catalog:x}` links migrate to this shape).
+      const notebookFilter = singleValue(parsed.filters, 'notebook')
+      if (notebookFilter) {
+        const slug = notebookSlugFromId(notebookFilter)
+        return `/notebook/${encodeURIComponent(slug)}${q}`
+      }
       return `/notebooks${q}`
+    }
     case 'page':
       return `/pages${q}`
     case 'tag':
@@ -43,7 +53,7 @@ export function wqlStreamHref(rawQuery: string): string | null {
     case 'note':
     case 'block': {
       // Scoped note heads parse to target 'note' plus injected filters
-      // (`:feed{…}` → source:feeds, `:journal{…}` → source:journal).
+      // (`:notebooks{…}` → source:notebooks, `:journal{…}` → source:journal).
       const notebookFilter = singleValue(parsed.filters, 'notebook')
       if (notebookFilter) {
         const slug = notebookSlugFromId(notebookFilter)

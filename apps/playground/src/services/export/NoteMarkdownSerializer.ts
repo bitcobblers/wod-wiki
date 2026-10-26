@@ -1,7 +1,7 @@
 import type { INowProvider } from '@bitcobblers/wod-wiki-engine';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 
-export function noteToMarkdown(entry: HistoryEntry, _clock?: INowProvider): string {
+export function noteToMarkdown(entry: HistoryRecord, _clock?: INowProvider): string {
     const metadata = [
         `# ${entry.title}`,
         '',

@@ -37,7 +37,7 @@ import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from '@/components/atoms/primitives/button'
 import {
   INLINE_RUNTIME_CATEGORIES,
-  NON_COLLECTION_CATEGORIES,
+  NOTEBOOK_EXCLUDED_CATEGORIES,
 } from './shared/pageUtils'
 
 export interface WorkoutEditorPageProps {
@@ -72,21 +72,21 @@ export function WorkoutEditorPage({
   onViewCreated,
 }: WorkoutEditorPageProps) {
   const usePopup = runMode ? runMode === 'inline' : INLINE_RUNTIME_CATEGORIES.has(category)
-  const isCollection = !NON_COLLECTION_CATEGORIES.has(category)
+  const isNotebookItem = !NOTEBOOK_EXCLUDED_CATEGORIES[category]
   const noteId = pageId(category, name)
   const navigate = useNavigate()
   // seedOnMount: collections are read-only bundled content — viewing one
   // must not create an undated ghost note in the library (#856). Journal
   // categories keep the seed (navigate-to-today creates the day's note).
-  const { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange, onLineChange, onBlur, flush, committedSourceRevision } = usePlaygroundContent({ category, name, mdContent, seedOnMount: !isCollection })
+  const { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange, onLineChange, onBlur, flush, committedSourceRevision } = usePlaygroundContent({ category, name, mdContent, seedOnMount: !isNotebookItem })
   const sourceNote = useMemo(() => {
-    if (!isCollection) return null
+    if (!isNotebookItem) return null
 
     return {
       label: `${category}-${name}`,
       path: notebookItemPath(category, name),
     }
-  }, [category, isCollection, name])
+  }, [category, isNotebookItem, name])
 
   const [pendingScheduleBlock, setPendingScheduleBlock] = useState<ScriptBlock | null>(null)
 
@@ -165,7 +165,7 @@ export function WorkoutEditorPage({
     [name, category, sourceNote, navigate],
   )
 
-  const commands = useScriptBlockCommands('collection-readonly', {
+  const commands = useScriptBlockCommands('notebook-readonly', {
     onPlay: handleStartWorkout,
     onShare: shareBlock,
     onAddToToday: hidePlanningCommands ? undefined : (block) => handleScheduleBlock(block, new Date()),
@@ -181,13 +181,13 @@ export function WorkoutEditorPage({
     content,
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
-    onEditNote: isCollection ? handleEditNote : undefined,
+    onEditNote: isNotebookItem ? handleEditNote : undefined,
   })
   // Contextual links (efforts in script, sibling workouts sharing blocks,
-  // journal copies) — only for real collection items, not journal/syntax ids.
+  // journal copies) — only for real notebook items, not journal/syntax ids.
   const ownership = useMemo(
-    () => (isCollection ? noteOwnership({ id: noteId, type: 'feed' }) : null),
-    [isCollection, noteId],
+    () => (isNotebookItem ? noteOwnership({ id: noteId, type: 'note' }) : null),
+    [isNotebookItem, noteId],
   )
   const contextData = useNoteContextLinks({
     noteId,
@@ -195,7 +195,7 @@ export function WorkoutEditorPage({
   })
   const headerActions = (
     <ResponsiveActions>
-      <PageActions mode="collection-readonly" currentWorkout={{ name: noteId, content }} index={index} />
+      <PageActions mode="notebook-readonly" currentWorkout={{ name: noteId, content }} index={index} />
     </ResponsiveActions>
   )
 

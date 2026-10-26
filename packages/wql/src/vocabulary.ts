@@ -111,28 +111,24 @@ export type WqlGrain = (typeof WQL_GRAINS)[number];
 export const WQL_FIND_TARGETS = ['note', 'block', 'effort', 'session', 'segment', 'event', 'notebook', 'page', 'tag', 'equipment'] as const;
 export type WqlFindTarget = (typeof WQL_FIND_TARGETS)[number];
 
-/** Canonical source filter values: the allowed storage locations (the
- *  former `collections` spelling is retired — renamed to feeds; storage
- *  identities keep their `collection:` prefixes). Seed corpus locations
- *  joined the note plane: prebuilt dashboards, the effort library and the
- *  equipment library. */
-export const WQL_SOURCE_VALUES = ['journal', 'feeds', 'guides', 'playground', 'dashboards', 'efforts', 'equipment'] as const;
+/** Canonical source filter values: the allowed storage locations. Corpus-
+ *  delivered notes carry `notebook:<slug>` source ids, so `notebooks` spans
+ *  the seeded notebooks. Seed corpus locations joined the note
+ *  plane: prebuilt dashboards, the effort library and the equipment library. */
+export const WQL_SOURCE_VALUES = ['journal', 'notebooks', 'guides', 'playground', 'dashboards', 'efforts', 'equipment'] as const;
 export type WqlSourceValue = (typeof WQL_SOURCE_VALUES)[number];
 
 /** Colon source heads — the unprefixed `:<head>` names. Find targets map
- *  1:1 to the content planes; journal/feed(s)/playground are source-scoped
+ *  1:1 to the content planes; journal/notebooks/playground are source-scoped
  *  note heads (they parse to target 'note' plus an injected `source:`
  *  filter). `:notebook{}` / `:page{}` / `:tag{}` / `:equipment{}` are the
  *  container planes (targets of their own name). `:notebook{}` stays a NOTE
  *  plane (ticket 05): it returns every notebook's notes, delegating to the
- *  note executor. `catalog`/`catalogs`/`collection`/`collections` stay
- *  mid-flight (final removal is ticket 12): they parse to the notebook
- *  plane scoped to feed-delivered notebooks. */
+ *  note executor. */
 export const WQL_SOURCE_HEADS = [
   'note', 'notes', 'block', 'effort', 'session', 'segment', 'event',
-  'journal', 'notebook', 'notebooks', 'feed', 'feeds', 'playground',
+  'journal', 'notebook', 'notebooks', 'playground',
   'page', 'tag', 'equipment',
-  'catalog', 'catalogs', 'collection', 'collections',
   'dashboard',
 ] as const;
 export type WqlSourceHead = (typeof WQL_SOURCE_HEADS)[number];
@@ -140,25 +136,13 @@ export type WqlSourceHead = (typeof WQL_SOURCE_HEADS)[number];
 /** Storage scope a source-scoped note head binds (undefined = plain target). */
 export const WQL_SOURCE_HEAD_SCOPES: Readonly<Record<string, WqlSourceValue>> = {
   journal: 'journal',
-  feed: 'feeds',
-  feeds: 'feeds',
+  notebooks: 'notebooks',
   playground: 'playground',
 };
 
 /** Note-head aliases — `:<head>` parses to target 'note' with NO injected
  *  scope (the note plane is inclusive; authored filters narrow it). */
 export const WQL_NOTE_HEAD_ALIASES = ['notes'] as const;
-
-/** Deprecated container heads — mid-flight mapping to the new vocabulary
- *  (ticket 08; the heads themselves are removed in ticket 12). The retired
- *  catalog plane IS the feed-notebook plane: `:catalog{}` ≡
- *  `:notebook{source:feeds}`, and `catalog:<id>` ≡ `notebook:<id>`. */
-export const WQL_DEPRECATED_HEAD_TARGETS: Readonly<Record<string, { target: string; scope?: WqlSourceValue }>> = {
-  catalog: { target: 'notebook', scope: 'feeds' },
-  catalogs: { target: 'notebook', scope: 'feeds' },
-  collection: { target: 'notebook', scope: 'feeds' },
-  collections: { target: 'notebook', scope: 'feeds' },
-};
 
 /** Type-alias note heads — `:<head>` parses to target 'note' plus an injected
  *  `type:` filter (no storage scope, so the head never narrows by source).

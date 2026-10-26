@@ -91,7 +91,7 @@ export function MarkdownCanvasPage({
   // every other canvas page keep the original flowing layout.
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const isGuideRunway = isGuide && !isCollection && !reducedMotion
-  const collectionSlug = isCollection ? (route.split('/').pop() ?? null) : null
+  const notebookSlug = isCollection ? (route.split('/').pop() ?? null) : null
 
   const handleSelectWorkout = useCallback(
     (item: WorkoutItem) => {
@@ -303,7 +303,7 @@ export function MarkdownCanvasPage({
 
   // NavActionDeps
   const [headingParam, setHeadingParam] = useQueryState('h', { history: 'replace', shallow: true })
-  const [collectionQuery] = useQueryState('q', { defaultValue: '', shallow: true })
+  const [notebookQuery] = useQueryState('q', { defaultValue: '', shallow: true })
 
   const deps = useMemo<NavActionDeps>(() => ({
     navigate: (to: string, opts?: { replace?: boolean }) => navigate(to, { replace: opts?.replace }),
@@ -389,23 +389,23 @@ export function MarkdownCanvasPage({
 
   // Collection query scroll
   // Collection query scroll
-  const previousCollectionQueryRef = useRef(collectionQuery)
+  const previousCollectionQueryRef = useRef(notebookQuery)
   useEffect(() => {
     if (!isCollection) {
-      previousCollectionQueryRef.current = collectionQuery
+      previousCollectionQueryRef.current = notebookQuery
       return
     }
-    const nextQuery = collectionQuery.trim()
+    const nextQuery = notebookQuery.trim()
     const previousQuery = previousCollectionQueryRef.current.trim()
     if (nextQuery && nextQuery !== previousQuery) {
-      const listElement = document.getElementById('collection-workouts')
+      const listElement = document.getElementById('notebook-workouts')
       if (listElement) {
         const top = listElement.getBoundingClientRect().top + window.scrollY - stickyViewportOffset - 8
         window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
       }
     }
-    previousCollectionQueryRef.current = collectionQuery
-  }, [collectionQuery, isCollection, stickyViewportOffset])
+    previousCollectionQueryRef.current = notebookQuery
+  }, [notebookQuery, isCollection, stickyViewportOffset])
 
   // Panel actions ready
   const onPanelActionsReadyRef = useRef(onPanelActionsReady)
@@ -600,7 +600,7 @@ export function MarkdownCanvasPage({
           <CanvasProsePanel
             contentSections={contentSections}
             isCollection={isCollection}
-            collectionSlug={collectionSlug}
+            notebookSlug={notebookSlug}
             workoutItems={workoutItems}
             handleSelectWorkout={handleSelectWorkout}
             activeSectionId={activeSectionId}

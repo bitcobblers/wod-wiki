@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { notePath } from '../lib/routes'
-import type { HistoryEntry } from '@/types/history'
+import type { HistoryRecord } from '@/types/history'
 
 const contentProvider = new IndexedDBContentProvider()
 
@@ -18,13 +18,13 @@ export interface NamedPagePageProps {
  * precedence — this page renders only when no canvas page claims the slug.
  */
 export function NamedPagePage({ slug }: NamedPagePageProps) {
-  const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
+  const [entries, setEntries] = useState<HistoryRecord[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setEntries(null)
     contentProvider
-      .getPageEntries(slug)
+      .getPageRecords(slug)
       .then((loaded) => {
         if (!cancelled) setEntries(loaded)
       })

@@ -120,7 +120,7 @@ describe('streamProfile', () => {
     expect(profile?.route).toBe('/notebook/dan-john')
     expect(profile?.title).toBe('Dan John')
     expect(profile?.defaultWql).toBe(':note{notebook:dan-john} by {date}')
-    expect(profile?.catalog).toBe('dan-john')
+    expect(profile?.notebookSlug).toBe('dan-john')
     expect(profile?.defaultLayout).toBe('cards')
     expect(profile?.level).toBe('session')
   })
@@ -163,7 +163,7 @@ describe('streamProfile', () => {
     const feedsLegacy = FEEDS_STREAM_PROFILE.legacy!
     expect(feedsLegacy).toBeDefined()
     expect(feedsLegacy.toQuery(new URLSearchParams('note=on&session=hide&post=hide'))).toBe(':journal last 2w')
-    expect(feedsLegacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':feeds last 2w')
+    expect(feedsLegacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':notebooks last 2w')
     // `post` mapped to the feeds WQL scope — excised, so it no longer narrows.
     const postOnly = parseQuery(feedsLegacy.toQuery(new URLSearchParams('note=hide&session=hide&post=on')) ?? '')
     expect(isFindQuery(postOnly)).toBe(true)
@@ -197,7 +197,7 @@ describe('NOTEBOOKS_STREAM_PROFILE default query (ticket 08)', () => {
     const { QueryService } = await import('@bitcobblers/wod-wiki-engine')
     const notes = [
       { id: 'journal/2026-10-26', title: 'Morning', seedOrigin: 'user', sourceId: 'journal', tags: ['benchmark'], createdAt: 1, rawContent: '', sourceRevision: 1, blocks: {} },
-      { id: 'crossfit-girls/fran', title: 'Fran', seedOrigin: 'seed', sourceId: 'collection:crossfit-girls/fran', tags: ['benchmark'], createdAt: 2, rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'crossfit-girls/fran', title: 'Fran', seedOrigin: 'seed', sourceId: 'notebook:crossfit-girls/fran', tags: ['benchmark'], createdAt: 2, rawContent: '', sourceRevision: 1, blocks: {} },
       { id: 'pg-1', title: 'Draft', seedOrigin: 'user', sourceId: 'playground', tags: ['emom'], createdAt: 3, rawContent: '', sourceRevision: 1, blocks: {} },
     ]
     const service = new QueryService({

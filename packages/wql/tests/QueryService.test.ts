@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
-import { QueryService, catalogOfItem, type NoteQueryStore, type EventStore } from '../src/QueryService';
+import { QueryService, type NoteQueryStore, type EventStore } from '../src/QueryService';
 import { parseQuery } from '../src/wql';
 
 const DAY = 86_400_000;
@@ -492,29 +492,13 @@ describe('window module (C1) execution', () => {
   });
 });
 
-describe('catalogOfItem', () => {
-  it('does not assign UUIDs or standalone note IDs as catalog', () => {
-    expect(catalogOfItem({ id: '0db18f41-f121-5656-8b42-57de0e4618d5' })).toBeUndefined();
-    expect(catalogOfItem({ noteId: '0db18f41-f121-5656-8b42-57de0e4618d5', sourceId: 'journal' })).toBeUndefined();
-    expect(catalogOfItem({ noteId: 'user-note-1', sourceId: 'playground' })).toBeUndefined();
-  });
-
-  it('extracts catalog from collections, feeds, or explicit catalog field', () => {
-    expect(catalogOfItem({ sourceId: 'collection:crossfit-girls/fran' })).toBe('crossfit-girls');
-    expect(catalogOfItem({ sourceId: 'collection:crossfit-girls' })).toBe('crossfit-girls');
-    expect(catalogOfItem({ sourceId: 'feed:feeds/dan-john/2026-01-12/day-01' })).toBe('dan-john');
-    expect(catalogOfItem({ noteId: 'crossfit-girls/fran' })).toBe('crossfit-girls');
-    expect(catalogOfItem({ catalog: 'custom-cat', id: '123' })).toBe('custom-cat');
-  });
-});
-
-describe(':catalog → the notebook plane (ticket 08)', () => {
+describe('the notebook plane (ticket 08)', () => {
   const notes = [
     {
       id: 'crossfit-girls/fran',
       title: 'Fran',
       seedOrigin: 'seed',
-      sourceId: 'collection:crossfit-girls/fran',
+      sourceId: 'notebook:crossfit-girls/fran',
       tags: ['for-time'],
       createdAt: 1000,
     },
@@ -522,7 +506,7 @@ describe(':catalog → the notebook plane (ticket 08)', () => {
       id: 'crossfit-girls/helen',
       title: 'Helen',
       seedOrigin: 'seed',
-      sourceId: 'collection:crossfit-girls/helen',
+      sourceId: 'notebook:crossfit-girls/helen',
       tags: ['benchmark'],
       createdAt: 1100,
     },
@@ -530,7 +514,7 @@ describe(':catalog → the notebook plane (ticket 08)', () => {
       id: 'dan-john/armor-building',
       title: 'Armor Building Complex',
       seedOrigin: 'seed',
-      sourceId: 'collection:dan-john/armor-building',
+      sourceId: 'notebook:dan-john/armor-building',
       tags: ['kettlebell'],
       createdAt: 2000,
     },
@@ -567,22 +551,9 @@ describe(':catalog → the notebook plane (ticket 08)', () => {
     },
   });
 
-  it(':catalog (deprecated head) resolves to the notebook plane with a source:feeds narrow', async () => {
+  it('the retired :catalog head no longer resolves (ticket 12 — no alias)', () => {
     const parsed = parseQuery(':catalog');
-    expect(parsed.error).toBeUndefined();
-    expect(parsed).toMatchObject({
-      family: 'find',
-      target: 'notebook',
-      filters: [{ key: 'source', negate: false, values: [{ value: 'feeds' }] }],
-    });
-    // Results are the feed-delivered NOTES (the retired catalog plane was a
-    // container listing — ticket 08 keeps answers as notes).
-    const result = await service.runFind(parsed as never);
-    expect(result.notes.map(n => n.id).sort()).toEqual([
-      'crossfit-girls/fran',
-      'crossfit-girls/helen',
-      'dan-john/armor-building',
-    ]);
+    expect(parsed.target).not.toBe('notebook');
   });
 
   it(':notebook{} returns the notes of every notebook — no synthetic container rows', async () => {
@@ -607,8 +578,8 @@ describe(':catalog → the notebook plane (ticket 08)', () => {
     expect(result.notes.every(n => !n.id.startsWith('notebook/'))).toBe(true);
   });
 
-  it(':notebook{source:feeds} keeps feed-delivered notes only', async () => {
-    const result = await service.runFind(parseQuery(':notebook{source:feeds}') as never);
+  it(':notebook{source:notebooks} keeps notebook-delivered notes only', async () => {
+    const result = await service.runFind(parseQuery(':notebook{source:notebooks}') as never);
     expect(result.notes.map(n => n.id).sort()).toEqual([
       'crossfit-girls/fran',
       'crossfit-girls/helen',

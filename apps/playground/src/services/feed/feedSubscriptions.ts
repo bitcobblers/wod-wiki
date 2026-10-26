@@ -164,6 +164,23 @@ export async function migrateFeedSubscriptions(
 ): Promise<string[]> {
   const all = { ...readAll() };
   const migrated: string[] = [];
+  let renamedLegacyKeys = false;
+  // Pre-rename builds keyed per-notebook verdicts by the old chunk-id
+  // spelling (`<feedId>#collection.<slug>` / `<feedId>#feed.<slug>`).
+  // Rewrite them to the current `notebook.<slug>` key, preserving the
+  // value; an explicit current-key verdict always wins, and the rewrite
+  // is idempotent (the legacy key is deleted once read).
+  for (const notebook of NOTEBOOKS) {
+    const slug = notebook.chunkId.replace(/^notebook\./, '');
+    const currentKey = `${notebook.feedId}#${notebook.chunkId}`;
+    for (const legacyId of [`collection.${slug}`, `feed.${slug}`]) {
+      const legacyKey = `${notebook.feedId}#${legacyId}`;
+      if (!(legacyKey in all)) continue;
+      if (!(currentKey in all)) all[currentKey] = all[legacyKey]!;
+      delete all[legacyKey];
+      renamedLegacyKeys = true;
+    }
+  }
   // Pre-feed-unit builds subscribed per notebook and never wrote a feed
   // record; the notebook verdicts they left behind become the feed's.
   for (const notebook of NOTEBOOKS) {
@@ -186,7 +203,7 @@ export async function migrateFeedSubscriptions(
       // Unreadable provider: nothing to migrate for this source.
     }
   }
-  if (migrated.length) writeAll(all);
+  if (migrated.length || renamedLegacyKeys) writeAll(all);
   return migrated;
 }
 

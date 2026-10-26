@@ -32,7 +32,6 @@ import {
   WQL_ROLLUP_PERIODS,
   WQL_SOURCE_HEADS,
   WQL_NOTE_HEAD_ALIASES,
-  WQL_DEPRECATED_HEAD_TARGETS,
   WQL_SOURCE_HEAD_SCOPES,
   WQL_TYPE_HEADS,
   WQL_SOURCE_VALUES,
@@ -302,7 +301,7 @@ function headApply(o: Completion, colonTyped: boolean): Completion {
 const LEGACY_HEAD_OPTIONS: Completion[] = WQL_AGGREGATORS.map((label) => ({ label, type: 'keyword' as const }));
 
 /** Sortable/selectable columns the executors actually read (QueryService). */
-const NOTE_COLUMNS: readonly string[] = ['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog', 'notebookId'];
+const NOTE_COLUMNS: readonly string[] = ['title', 'date', 'createdAt', 'type', 'sourceId', 'notebookId'];
 const BLOCK_COLUMNS: readonly string[] = ['noteTitle', 'dataType', 'position', 'createdAt', 'noteId', 'sourceId'];
 const EFFORT_COLUMNS: readonly string[] = ['slug', 'label', 'registrySource'];
 const SESSION_COLUMNS: readonly string[] = ['duration', 'startTime', 'origin'];
@@ -335,8 +334,6 @@ function resolveColonHead(name: string): Head {
   if ((WQL_CHART_HEADS as readonly string[]).includes(n)) return { family: 'find' };
   const headTarget = (head: string): string => {
     if ((WQL_NOTE_HEAD_ALIASES as readonly string[]).includes(head)) return 'note';
-    const deprecated = WQL_DEPRECATED_HEAD_TARGETS[head];
-    if (deprecated) return deprecated.target;
     const scoped = (WQL_SOURCE_HEAD_SCOPES as Readonly<Record<string, string>>)[head]
       || (WQL_TYPE_HEADS as Readonly<Record<string, string>>)[head];
     return scoped ? 'note' : head;

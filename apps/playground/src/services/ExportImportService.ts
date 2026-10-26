@@ -8,11 +8,11 @@
  * export and import sides go through JSZip directly (symmetric).
  *
  * Round-trip invariant: a re-imported Note preserves its `id`, `createdAt`,
- * and `updatedAt` (recovered by the deserializer, honored by `saveEntry` via
+ * and `updatedAt` (recovered by the deserializer, honored by `saveRecord` via
  * `NoteSaveInput`), so it overwrites its original instead of duplicating.
  */
 
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider } from '@/types/content-provider';
 import { wallClockNow } from '@bitcobblers/wod-wiki-engine';
 import JSZip from 'jszip';
@@ -62,7 +62,7 @@ function noteFilenameStem(id: string): string {
 // ── Export ────────────────────────────────────────────────────────────────
 
 export async function exportAllNotes(provider: IContentProvider): Promise<void> {
-    const entries = await provider.getEntries();
+    const entries = await provider.getRecords();
     if (entries.length === 0) {
         throw new Error('No notes to export');
     }
@@ -94,7 +94,7 @@ export async function exportAllNotes(provider: IContentProvider): Promise<void> 
     downloadBlob(blob, `wod-wiki-export-${clock.nowMs()}.zip`);
 }
 
-export async function exportNote(entry: HistoryEntry): Promise<void> {
+export async function exportNote(entry: HistoryRecord): Promise<void> {
     const clock = wallClockNow;
     const archive = new NoteArchive();
     const noteId = noteFilenameStem(entry.id);
@@ -139,8 +139,8 @@ export async function importFromZip(
             const content = await zip.files[filename].async('text');
             const entry = parseMarkdownToEntry(content, clock);
             if (entry) {
-                const existing = entry.id ? await provider.getEntry(entry.id) : null;
-                await provider.saveEntry({ ...entry, sourceRevision: existing?.sourceRevision ?? entry.sourceRevision,
+                const existing = entry.id ? await provider.getRecord(entry.id) : null;
+                await provider.saveRecord({ ...entry, sourceRevision: existing?.sourceRevision ?? entry.sourceRevision,
                     blocks: existing?.rawContent === entry.rawContent ? existing.blocks : entry.blocks });
                 imported++;
             } else {

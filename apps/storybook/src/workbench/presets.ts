@@ -2,8 +2,8 @@
  * Workout Markdown Presets & Fixtures
  * Curated from real workout files across the repository:
  *  - `markdown/feeds/crossfit-programming/`
- *  - `markdown/collections/the-golos-method/`
- *  - `markdown/collections/swimming-highschool/`
+ *  - `markdown/notebooks/the-golos-method/`
+ *  - `markdown/notebooks/swimming-highschool/`
  *  - `packages/lang/tests/fixtures/parser/`
  */
 

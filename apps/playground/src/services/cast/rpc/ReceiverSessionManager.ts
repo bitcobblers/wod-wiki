@@ -59,8 +59,8 @@ export interface ReceiverSessionHandle {
     /** Latest known clock snapshot, or `null` when none has arrived. */
     getClockSnapshot(): ClockSnapshot | null;
     /**
-     * Subscribe to the sender's library catalog (`rpc-library-state`). The
-     * handler fires immediately with the latest known catalog (possibly
+     * Subscribe to the sender's library list (`rpc-library-state`). The
+     * handler fires immediately with the latest known list (possibly
      * `null`), then on every push. `null` = nothing pushed yet.
      */
     onLibraryUpdate(handler: (library: RpcLibraryState | null) => void): () => void;
@@ -181,7 +181,7 @@ export function createReceiverSession(
         for (const listener of clockSnapshotListeners) listener(msg.snapshot);
     });
 
-    // Library catalog stream (browser → receiver): same shape as the clock
+    // Library catalog stream (browser → receiver): replay-safe, same shape as the clock
     // stream — keep the latest push, replay it on subscribe so a UI mounting
     // mid-session renders the listing immediately.
     const libraryListeners = new Set<(library: RpcLibraryState | null) => void>();
@@ -220,7 +220,7 @@ export function createReceiverSession(
         onLibraryUpdate(handler) {
             if (disposed) return () => {};
             libraryListeners.add(handler);
-            // Replay the latest catalog so mid-session mounts render the
+            // Replay the latest list so mid-session mounts render the
             // listing instead of flashing the waiting screen.
             handler(latestLibrary);
             return () => libraryListeners.delete(handler);

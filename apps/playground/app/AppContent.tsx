@@ -20,7 +20,7 @@ import { PaletteShell } from '@/components/organisms/command-palette/PaletteShel
 import { canvasRouteSource, constructSource } from './services/paletteDataSources'
 import { CreateJournalNoteDialog } from './components/organisms/journal/CreateJournalNoteDialog'
 import { notePath } from './lib/routes'
-import type { HistoryEntry } from '@/types/history'
+import type { HistoryRecord } from '@/types/history'
 import {
   wqlSearchSource,
   withWqlText,
@@ -37,7 +37,7 @@ import { MarkdownCanvasPage } from './canvas/MarkdownCanvasPage'
 import { HOME_PAGE } from './canvas/homeSlice'
 import { ScrollCanvasPage } from './canvas/ScrollCanvasPage'
 import { FeedDetailPage } from './pages/FeedDetailPage'
-import { FeedItemPage } from './pages/FeedItemPage'
+import { NotebookItemPage } from './pages/NotebookItemPage'
 import { TextFilterStrip } from './views/queriable-list/TextFilterStrip'
 import { HomeView } from './views/HomeView'
 import { QueriableStreamView } from './views/stream/QueriableStreamView'
@@ -56,7 +56,7 @@ import { EquipmentDetailPage } from './pages/EquipmentDetailPage'
 import { TagsPage } from './pages/TagsPage'
 import { NoteByIdPage } from './pages/NoteByIdPage'
 import { NamedPagePage } from './pages/NamedPagePage'
-import { CollectionDatePage } from './pages/CollectionDatePage'
+import { NotebookDatePage } from './pages/NotebookDatePage'
 import { AnalyticsExplorerPage } from './views/analytics/AnalyticsExplorerPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { DashboardViewPage } from './views/dashboards/DashboardViewPage'
@@ -99,7 +99,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     [location.pathname],
   )
   const handleJournalNoteCreated = useCallback(
-    (entry: HistoryEntry) => {
+    (entry: HistoryRecord) => {
       navigate(`${notePath(entry.id)}?edit=1`)
     },
     [navigate],
@@ -233,11 +233,11 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   // AppContent state, so no callback plumbing is needed. See docs/adr/app-route-view.md.
   const renderInner: Record<PageKind, () => ReactNode> = {
     feedDetail: () => <FeedDetailPage feedSlug={decodeURIComponent(view.feedDetailMatch!)} />,
-    feedItem: () => (
-      <FeedItemPage
-        feedSlug={decodeURIComponent(view.feedItemMatch![0])}
-        feedDate={decodeURIComponent(view.feedItemMatch![1])}
-        feedItem={decodeURIComponent(view.feedItemMatch![2])}
+    notebookItem: () => (
+      <NotebookItemPage
+        slug={decodeURIComponent(view.notebookItemMatch![0])}
+        itemDate={decodeURIComponent(view.notebookItemMatch![1])}
+        item={decodeURIComponent(view.notebookItemMatch![2])}
         theme={actualTheme}
         onViewCreated={handleViewCreated}
         onScrollToSection={scrollToSection}
@@ -253,7 +253,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     ),
     dashboardExplorer: () => (
       <AnalyticsExplorerPage
-        actions={<PageActions mode="collection-readonly" currentWorkout={currentWorkout} index={[]} />}
+        actions={<PageActions mode="notebook-readonly" currentWorkout={currentWorkout} index={[]} />}
       />
     ),
     dashboardView: () => <DashboardViewPage />,
@@ -291,8 +291,8 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       ) : (
         <NoteByIdPage key={view.note} noteId={view.note!} theme={actualTheme} />
       ),
-    collectionDate: () => (
-      <CollectionDatePage key={`${view.collectionDate!.slug}/${view.collectionDate!.date}`} slug={view.collectionDate!.slug} date={view.collectionDate!.date} theme={actualTheme} />
+    notebookDate: () => (
+      <NotebookDatePage key={`${view.notebookDate!.slug}/${view.notebookDate!.date}`} slug={view.notebookDate!.slug} date={view.notebookDate!.date} theme={actualTheme} />
     ),
     workout: () => (
       <WorkoutEditorPage
@@ -311,7 +311,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
           key={profile.route}
           profile={profile}
           registerStreamDraft={registerStreamDraft}
-          actions={<PageActions mode="collection-readonly" currentWorkout={currentWorkout} index={[]} />}
+          actions={<PageActions mode="notebook-readonly" currentWorkout={currentWorkout} index={[]} />}
         /></>
       )
     },
@@ -351,7 +351,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   const renderShell = (inner: ReactNode): ReactNode => {
     if (view.shell.wrap === 'bare') return inner
     const subheader =
-      view.shell.subheader === 'filter-collection-workouts'
+      view.shell.subheader === 'filter-notebook-workouts'
         ? <TextFilterStrip placeholder="Filter notebook notes… Press / to start filtering" />
         : undefined
     return (

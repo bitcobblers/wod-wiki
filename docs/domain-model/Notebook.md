@@ -13,39 +13,43 @@ source: markdown/notebooks/ (canonical corpus layout)
 
 - **Store:** user notebooks are landing notes in the notes store (ticket 05) — id `notebook/{slug}`, `notebookId` set, frontmatter `description`/`icon`; the CRUD layer is `NotebookService` (`apps/playground/src/services/NotebookService.ts`) over the notes store, replacing the retired localStorage registry. The former localStorage-only service is gone.
 - **Identity:** `notebook/{slug}` (`packages/core/src/types/notebook.ts`); the predefined notebooks are `notebook/journal`, `notebook/playground`, `notebook/defaults` and `notebook/guides` (`DEFAULT_NOTEBOOK_SLUGS`). `defaults` is user-owned and writable and holds the starter notes; the retired `template` note kind migrated into it.
-- **Resolution:** `notebookOfItem` in `packages/wql/src/QueryService.ts` resolves a note's notebook (notebookId → `notebook:` tag → corpus path → sourceId → catalog → journal fallback); `notebookOriginOfItem` reports who owns it (`user` / `feed` / `default`) and drives editability.
+- **Resolution:** `notebookOfItem` in `packages/wql/src/QueryService.ts` resolves a note's notebook (notebookId → `notebook:` tag → corpus path → sourceId → notebook id → journal fallback); `notebookOriginOfItem` reports who owns it (`user` / `feed` / `default`) and drives editability.
 - **Editability:** `isNoteEditable(note, notebookOrigin)` — a note is editable when its notebook is not feed-delivered; a note cloned into a user-owned notebook keeps its provenance stamps yet is editable.
-- **WQL:** `:notebook{}` / `:notebooks{}` are the inclusive notebook plane (every notebook's notes, narrowed with the `notebook:` filter key); `:catalog{}`/`:catalogs{}` list feed-delivered notebooks. `source:notebook(s)` is a retired spelling.
+- **WQL:** `:notebook{}` / `:notebooks{}` are the inclusive notebook plane (every notebook's notes, narrowed with the `notebook:` filter key); the retired `:catalog{}`/`:catalogs{}` heads and `source:notebook(s)` spelling are gone (ticket 12) — the notebook list is `:notebook{}` with `source:notebooks`.
 - **Feed-delivered notebooks:** one per published chunk — `NOTEBOOKS` in `apps/playground/src/services/feed/feedSources.ts` maps each chunk id to a notebook slug, label and description; the core feed's reference notebooks (efforts, equipment, dashboards) are listed by the gallery as app-owned.
-- **Routes today:** the notebook list renders at `/catalogs` and a notebook landing at `/c/:slug` (`apps/playground/app/lib/routes.ts`) — legacy paths the canonical vocabulary replaces with `/notebooks` and `/notebook/{slug}`.
+- **Routes today:** the notebook list renders at `/notebooks` and a notebook landing at `/notebook/{slug}` (`apps/playground/app/lib/routes.ts`).
 
 ### Corpus layout (Current)
 
 A notebook's content comes from one publisher-side directory under one slug
-(`markdown/collections/{slug}/` today, canonically `markdown/notebooks/{slug}/`):
+(`markdown/notebooks/{slug}/`):
 
 | Knob | Where | Effect |
 |------|-------|--------|
-| Directory name | `markdown/collections/{dir}/` | The notebook's slug, and its id in the feed registry |
+| Directory name | `markdown/notebooks/{dir}/` | The notebook's slug, and its id in the feed registry |
 | Member files | `{dir}/{file}.md` | One note per file (except `README.md`) |
 | `README.md` frontmatter `category` | `{dir}/README.md` | The notebook's categories (the only README field parsed) |
 | `README.md` body | `{dir}/README.md` | The notebook's description prose |
 
 The grouping builder (`apps/playground/src/repositories/groupings.ts`) owns file
-discovery and display-name derivation; the public adapters
-(`script-collections.ts`, `script-feeds.ts`) own item shape and sort order.
+discovery and display-name derivation; the one public adapter
+(`script-notebooks.ts`) owns item shape and sort order.
 
-### Legacy spellings still in the code (Current)
+### Retired spellings (ticket 12 — deleted)
 
-The rename is not applied yet — these identifiers still say `collection`/`feed`
-while the concept is a notebook:
+The rename landed in ticket 12; nothing in the model, storage, query
+vocabulary or app surface still says `collection`/`feed` (as a corpus name)/
+`catalog`. Persisted rows written under the retired identities migrate on
+read (`packages/wql/src/notebookVocabulary.ts`):
 
-| Spelling | Where | Means |
-|---|---|---|
-| `collection.<slug>` / `feed.<slug>` chunk ids | `packages/tools/src/seedbuild/compiler.ts` | one notebook's chunk |
-| `collection:` / `feed:` `sourceId` prefixes | seed-imported notes | which notebook a note came from |
-| `catalog` field on a note | `packages/core/src/types/storage.ts` | the notebook's directory slug |
-| `/catalogs`, `/c/:slug`, `/feeds`, `/feeds/:feedSlug` | `apps/playground/app/lib/routes.ts` | the notebook list and notebook landings |
+| Retired spelling | Current form |
+|---|---|
+| `collection.<slug>` / `feed.<slug>` chunk ids | `notebook.<slug>` |
+| `markdown/collections/…` / `markdown/feeds/…` sourcePaths | `markdown/notebooks/…` |
+| `collection:` / `feed:` `sourceId` prefixes | `notebook:` |
+| `catalog` field on a note | dropped (the `notebookId`/`notebook:{slug}` identity replaces it) |
+| `/catalogs`, `/c/:slug` routes | `/notebooks`, `/notebook/{slug}` |
+| `:catalog{}`/`:catalogs{}`/`:feed{}`/`:feeds{}` WQL heads | `:notebook{}`/`:notebooks{}`; `source:collections`/`source:feeds` → `source:notebooks` |
 
 ### Fields (Current)
 
@@ -78,7 +82,7 @@ while the concept is a notebook:
 - **`notebook/defaults` replaces the `template` note kind.** It holds the user's starter notes, and any notebook can be cloned from.
 - **Definitions arrive as notes.** Effort and equipment definitions are markdown delivered by a feed, imported as notes and indexed on import for search, autocomplete, and parser/compiler resolution; import and export round-trip markdown.
 - **Pages become placements.** A note is placed on many pages and a page holds many notes; the note→pages index and a move operation are later deliverables (see [[Page]]).
-- **Corpus layout.** The publisher's `markdown/collections/` and `markdown/feeds/` directories become `markdown/notebooks/` — a corpus-side rename, not an app concept.
+- **Corpus layout.** The publisher's directories are `markdown/notebooks/` (ticket 12 completed the corpus-side rename).
 
 ## Source evidence
 

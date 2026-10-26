@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { GitFork, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toShortId } from '@/lib/idUtils';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider } from '@/types/content-provider';
 import { CloneDateDropdown } from '@/components/molecules/CloneDateDropdown';
 import { formatDateMedium, formatDateShort } from '@/lib/dateFormat';
 
 interface LinkedNotesSectionProps {
-  entry: HistoryEntry;
+  entry: HistoryRecord;
   provider?: IContentProvider;
   onClone?: (targetDate?: number) => void;
 }
@@ -19,8 +19,8 @@ export const LinkedNotesSection: React.FC<LinkedNotesSectionProps> = ({
   onClone,
 }) => {
   const navigate = useNavigate();
-  const [sourceEntry, setSourceEntry] = useState<HistoryEntry | null>(null);
-  const [clonedEntries, setClonedEntries] = useState<HistoryEntry[]>([]);
+  const [sourceEntry, setSourceEntry] = useState<HistoryRecord | null>(null);
+  const [clonedEntries, setClonedEntries] = useState<HistoryRecord[]>([]);
   const entryId = entry?.id;
   const entrySourceId = entry?.sourceId;
 
@@ -32,12 +32,12 @@ export const LinkedNotesSection: React.FC<LinkedNotesSectionProps> = ({
     }
 
     if (entrySourceId) {
-      provider.getEntry(entrySourceId).then((e) => setSourceEntry(e ?? null)).catch(() => setSourceEntry(null));
+      provider.getRecord(entrySourceId).then((e) => setSourceEntry(e ?? null)).catch(() => setSourceEntry(null));
     } else {
       setSourceEntry(null);
     }
 
-    provider.getEntries()
+    provider.getRecords()
       .then((entries) => setClonedEntries(entries.filter((e) => e.sourceId === entryId)))
       .catch(() => setClonedEntries([]));
   }, [entryId, entrySourceId, provider]);

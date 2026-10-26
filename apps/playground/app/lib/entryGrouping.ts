@@ -110,8 +110,8 @@ function groupByDimension(
       // Playground notes carry no journal date — createdAt IS their stream
       // date, so `by {date}` groups stay meaningful. ponytail: playground-only
       // fallback; widen to other sources when one needs dated undated grouping.
-      const key = e.date ?? (e.sourceCatalog === 'playground' && e.createdAt && e.createdAt > 946684800000 ? new Date(e.createdAt).toISOString().slice(0, 10) : null)
-      if (options?.shelfVisible && (key == null || (e.kind === 'note' && !e.sourceItem))) {
+      const key = e.date ?? (e.sourceNotebook === 'playground' && e.createdAt && e.createdAt > 946684800000 ? new Date(e.createdAt).toISOString().slice(0, 10) : null)
+      if (options?.shelfVisible && (key == null || (e.kind === 'note' && !e.sourceNote))) {
         undatedShelf.push(e)
       } else if (key) {
         const arr = map.get(key)
@@ -129,7 +129,7 @@ function groupByDimension(
       groups.push({
         id: 'group-shelf',
         key: 'shelf',
-        label: 'Catalog Sessions',
+        label: 'Notebook Sessions',
         entries: undatedShelf,
       })
     }
@@ -327,7 +327,7 @@ function groupByDimension(
   if (dim === 'source' || dim === 'notebook') {
     const map = new Map<string, Entry[]>()
     for (const e of entries) {
-      const source = e.sourceCatalog || 'Other'
+      const source = e.sourceNotebook || 'Other'
       const label = source.charAt(0).toUpperCase() + source.slice(1)
       const arr = map.get(label)
       if (arr) arr.push(e)

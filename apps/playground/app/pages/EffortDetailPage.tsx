@@ -284,7 +284,7 @@ export function EffortDetailPage() {
   // copies stamped with /e/<slug> + workouts whose scripts use this effort.
   const ownerNoteId = effort?.ownerNoteId ?? `effort/${slug}`;
   const ownership = useMemo(
-    () => slug ? noteOwnership({ id: ownerNoteId, type: 'collection' }) : null,
+    () => slug ? noteOwnership({ id: ownerNoteId, type: 'note' }) : null,
     [slug, ownerNoteId],
   );
   const contextData = useNoteContextLinks({
@@ -294,7 +294,7 @@ export function EffortDetailPage() {
   });
 
   // ── WOD block commands ───────────────────────────────────────────────────
-  const commands = useScriptBlockCommands('collection-readonly', {
+  const commands = useScriptBlockCommands('notebook-readonly', {
     onPlay: handleStartWorkout,
     onShare: shareBlock,
     onSchedule: setPendingScheduleBlock,
@@ -399,7 +399,7 @@ export function EffortDetailPage() {
           <p className="text-sm text-destructive">{error}</p>
         </div>
         <Button variant="outline" onClick={() => navigate(effortsPath())}>
-          Back to Catalog
+          Back to library
         </Button>
       </div>
     );
@@ -436,7 +436,7 @@ export function EffortDetailPage() {
               Link as Alias
             </Button>
             <Button variant="outline" onClick={() => navigate(effortsPath())}>
-              Back to Catalog
+              Back to library
             </Button>
           </div>
         ) : (

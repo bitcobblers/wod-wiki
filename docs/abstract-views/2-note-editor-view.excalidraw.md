@@ -22,9 +22,9 @@ Key architectural responsibilities include:
 On desktop screens, the editor provides an expansive authoring and execution environment:
 
 1. **Global Navigation Rail (L1, 56px)** & **Context Sidebar (L2, 240px)**:
-   - Houses the workspace tree, note hierarchy, journal calendar picker, and catalog facets.
+   - Houses the workspace tree, note hierarchy, journal calendar picker, and notebook facets.
 2. **Sticky Page Header (`StickyPageHeader.tsx`)**:
-   - **Document Breadcrumb**: Indicates parent collection, journal date, or effort category alongside the note title.
+   - **Document Breadcrumb**: Indicates parent notebook, journal date, or effort category alongside the note title.
    - **Primary Action**: Inline *Edit / Read Mode* toggle button (or *Pinned Effort* chip in Playground).
    - **Document Actions Group**:
      - *Move to Journal* / *Schedule* button.
@@ -96,7 +96,7 @@ The table below specifies how each concrete route implements the abstract **Note
 | **Universal Note** | `/note/:noteId` | `NoteByIdPage.tsx` | `notes` & `block_revisions` | Toggleable (Default: Read) | Edit Mode Toggle (Header / FAB) | Canonical single-note storage, immutable saved block states. |
 | **Journal Date Stack** | `/day/:date` | `JournalDatePage.tsx` | `page` & `notes` (joined by date) | Toggleable (Date-wide) | Edit Mode Toggle (Header / FAB) | Stacks multiple notes per date; auto-start timer on `?autoStart=`. |
 | **Playground Scratchpad** | `/playground/:id` | `PlaygroundNotePage.tsx` | `notes` (ephemeral/local) | Always Editable (No toggle) | Pinned Effort Insert (Header / FAB) | Ephemeral scratch space, onboarding wizard, "Move to Journal" flow. |
-| **Named Workout** | `/notebook/:c/:w` | `WorkoutEditorPage.tsx` | Bundled seed markdown + local scratch | Toggleable (Seed protected) | Edit Mode Toggle (Header / FAB) | Curated catalog protection; forks on edit; "Add to Today" & "Schedule". |
+| **Named Workout** | `/notebook/:slug/:item` | `WorkoutEditorPage.tsx` | Bundled seed markdown + local scratch | Toggleable (Seed protected) | Edit Mode Toggle (Header / FAB) | Curated notebook protection; forks on edit; "Add to Today" & "Schedule". |
 | **Effort Detail** | `/effort/:slug` | `EffortDetailPage.tsx` | `efforts` store + note documentation | Read-only if bundled; Editable if custom | Clone Effort (Header / FAB) | MET & discipline properties grid, calculation rules, session history cross-join. |
 
 

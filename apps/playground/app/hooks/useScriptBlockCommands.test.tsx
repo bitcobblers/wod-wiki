@@ -45,8 +45,8 @@ describe('useScriptBlockCommands — log command', () => {
     expect(ids(cmds)).not.toContain('log');
   });
 
-  it('emits log in collection-readonly and journal-active modes', () => {
-    expect(ids(captureCommands('collection-readonly', { onLog: () => {} }))).toContain('log');
+  it('emits log in notebook-readonly and journal-active modes', () => {
+    expect(ids(captureCommands('notebook-readonly', { onLog: () => {} }))).toContain('log');
     expect(ids(captureCommands('journal-active', { onLog: () => {} }))).toContain('log');
   });
 

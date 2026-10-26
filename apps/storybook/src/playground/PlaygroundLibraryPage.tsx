@@ -12,7 +12,7 @@ import { notePersistence, type INotePersistence } from '@/services/persistence';
 import type { PaletteDataSource, PaletteItem } from '@/components/organisms/command-palette/palette-types';
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store';
 import { PaletteShell } from '@/components/organisms/command-palette/PaletteShell';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { useDatabase } from '../database/DatabaseContext';
 import { LanguageWorkbench } from '../workbench/LanguageWorkbench';
 
@@ -23,12 +23,12 @@ export interface PlaygroundLibraryPageProps {
 
 export function PlaygroundLibraryPage({ persistence = notePersistence }: PlaygroundLibraryPageProps) {
   const { activeName, dataVersion, feed } = useDatabase();
-  const [selected, setSelected] = useState<HistoryEntry | null>(null);
+  const [selected, setSelected] = useState<HistoryRecord | null>(null);
   /** Bumped on reload so an unchanged note still re-applies to the workbench. */
   const [reloadNonce, setReloadNonce] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSelect = useCallback((entry: HistoryEntry) => {
+  const handleSelect = useCallback((entry: HistoryRecord) => {
     setSelected(entry);
     setReloadNonce((n) => n + 1);
     setError(null);
@@ -84,7 +84,7 @@ export function PlaygroundLibraryPage({ persistence = notePersistence }: Playgro
       })
       .then((res) => {
         if (!res.dismissed && res.item?.payload) {
-          handleSelect(res.item.payload as HistoryEntry);
+          handleSelect(res.item.payload as HistoryRecord);
         }
       });
   }, [notesSource, activeName, handleSelect]);

@@ -67,7 +67,7 @@ export function SubscribePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center gap-5 p-6" data-testid="catalog-subscription-intake">
+    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center gap-5 p-6" data-testid="feed-subscription-intake">
       {intake.kind === 'loading' && <p role="status">Checking the feed manifest…</p>}
       {intake.kind === 'error' && <p role="alert" className="break-words text-destructive">{intake.message}</p>}
       {intake.kind === 'ready' && <>
@@ -80,7 +80,7 @@ export function SubscribePage() {
           <dt>Published at</dt><dd>{new Date(intake.manifest.builtAt).toLocaleString()}</dd>
           <dt>Schema</dt><dd>v{intake.manifest.schema}</dd>
           <dt>Chunks</dt><dd>{intake.manifest.chunks.length}</dd>
-          <dt>Catalog items</dt><dd>{intake.manifest.chunks.reduce((sum, chunk) => sum + chunk.count, 0)}</dd>
+          <dt>Notebook items</dt><dd>{intake.manifest.chunks.reduce((sum, chunk) => sum + chunk.count, 0)}</dd>
           <dt>Download size</dt><dd>{(intake.manifest.chunks.reduce((sum, chunk) => sum + chunk.bytes, 0) / 1024).toFixed(1)} KB</dd>
         </dl>
         {intake.manifest.repositoryUrl && <a href={intake.manifest.repositoryUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline">Git source directory</a>}

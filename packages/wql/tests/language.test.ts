@@ -211,7 +211,7 @@ describe('wqlCompletionSource', () => {
   });
 
   it('completes per-target pipe columns, directions, units and limit', () => {
-    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog', 'notebookId']);
+    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'notebookId']);
     expect(complete(':note | order by title ')).toEqual(['asc', 'desc']);
     expect(complete(':segment | select ')).toContain('date');
     expect(complete(':segment | select distance ')).toEqual(['kg', 'lb']);
@@ -288,7 +288,7 @@ describe('wqlCompletionSource — colon heads', () => {
   it('offers head names after the colon, narrowed by prefix', () => {
     expect(complete(':')).toEqual([
       'sum', 'avg', 'min', 'max', 'count', 'last', 'delta',
-      'note', 'notes', 'block', 'effort', 'session', 'segment', 'event', 'journal', 'notebook', 'notebooks', 'feed', 'feeds', 'playground', 'page', 'tag', 'equipment', 'catalog', 'catalogs', 'collection', 'collections', 'dashboard',
+      'note', 'notes', 'block', 'effort', 'session', 'segment', 'event', 'journal', 'notebook', 'notebooks', 'playground', 'page', 'tag', 'equipment', 'dashboard',
       'timeseries', 'bar', 'table', 'donut', 'toplist', 'value',
       '@session', '@today',
     ]);
@@ -310,7 +310,7 @@ describe('wqlCompletionSource — colon heads', () => {
   });
 
   it('carries target awareness into pipes after a colon head', () => {
-    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'catalog', 'notebookId']);
+    expect(complete(':note | order by ')).toEqual(['title', 'date', 'createdAt', 'type', 'sourceId', 'notebookId']);
     expect(complete(':segment | select ')).toContain('date');
   });
 });

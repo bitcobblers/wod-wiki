@@ -3,8 +3,9 @@ import type { IStorage, IReadWriteStore } from '@bitcobblers/wod-wiki-storage';
 import { userDeletedSeedNoteId } from '@bitcobblers/wod-wiki-storage';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
+import { hasLegacyIdentity, migrateLegacyChunkId, migrateLegacyRow } from '@bitcobblers/wod-wiki-wql';
 import { extractTypedTags, readFrontmatterMeta } from '../exchange';
-import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_NAMESPACE, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, catalogForChunkId, feedIdOfMetaKey, seedNoteSourceId, seedPrecedenceRank, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
+import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_NAMESPACE, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, feedIdOfMetaKey, seedNoteSourceId, seedPrecedenceRank, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
 import { assertSeedManifest, assertSeedRows } from './validation';
 
 export async function seedNoteId(path: string): Promise<string> {
@@ -326,7 +327,7 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
         date = ts;
       }
       const seedCommit = row.commit ?? write.manifest.commit;
-      const note: Note = { ...existing, id, title, rawContent: row.content, sourceRevision, blocks: map, createdAt: write.manifest.version, ...(date === undefined ? {} : { date }), type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note', sourceId, catalog: catalogForChunkId(write.chunkId ?? ''), seedOrigin: 'seed', seedVersion: write.manifest.version, seedChunkId: write.chunkId ?? undefined, feedOrigin: 'feed', feedSourceId, sourcePath: row.path, ...(seedCommit ? { seedCommit } : {}) };
+      const note: Note = { ...existing, id, title, rawContent: row.content, sourceRevision, blocks: map, createdAt: write.manifest.version, ...(date === undefined ? {} : { date }), type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note', sourceId, seedOrigin: 'seed', seedVersion: write.manifest.version, seedChunkId: write.chunkId ?? undefined, feedOrigin: 'feed', feedSourceId, sourcePath: row.path, ...(seedCommit ? { seedCommit } : {}) };
       if (date === undefined) delete note.date;
       if (!equal(note, existing)) changedNotes.push(note);
       const byRange = new Map(Object.values(map).map((b) => [`${b.from}:${b.to}`, b]));
@@ -497,6 +498,53 @@ export async function backfillFeedProvenance(storage: IStorage): Promise<number>
       if (changed.length > 0) await indexStore.putMany(changed);
     }
     return repaired.length;
+  });
+}
+
+/**
+ * One-time migration of the retired collection/feed wire identities to the
+ * notebook vocabulary (ticket 12): checkpoint chunk keys, note rows, and the
+ * block projections/effort/equipment links that carry source identities.
+ *
+ * Pure rewrites via the shared `notebookVocabulary` helpers — content is
+ * never touched, only addressing. Idempotent: already-migrated rows pass
+ * `hasLegacyIdentity`, so a re-run writes nothing. Must run BEFORE the first
+ * sync against a notebook-vocabulary manifest: the new chunk ids
+ * (`notebook.<slug>`) claim the same notes the old ids (`collection.<slug>`
+ * / `feed.<slug>`) delivered, and the checkpoint membership is how ownership
+ * is proven. Returns the number of rows rewritten.
+ */
+export async function migrateNotebookVocabulary(storage: IStorage): Promise<number> {
+  return await storage.transaction(['meta', 'notes', 'block_index', 'block_efforts', 'block_equipment'], 'readwrite', async (tx) => {
+    let migrated = 0;
+    // 1. Checkpoint chunk keys — the membership proof itself migrates.
+    const metaStore = tx.readwrite('meta');
+    for (const row of await metaStore.getAll()) {
+      const meta = row as SeedMetaRecord | undefined;
+      if (!meta || typeof meta.key !== 'string' || !meta.key.startsWith('seed:')) continue;
+      const chunks = meta.chunks ?? {};
+      let renamed = false;
+      const next: SeedMetaRecord['chunks'] = {};
+      for (const [chunkId, chunk] of Object.entries(chunks)) {
+        const id = migrateLegacyChunkId(chunkId);
+        if (id !== chunkId) renamed = true;
+        next[id] = next[id] && next[id] !== chunk
+          ? { ...next[id], noteIds: [...new Set([...(next[id].noteIds ?? []), ...(chunk.noteIds ?? [])])] }
+          : chunk;
+      }
+      if (renamed) { await metaStore.put({ ...meta, chunks: next }); migrated++; }
+    }
+    // 2. Rows carrying source identities (notes, block projections, links).
+    for (const storeName of ['notes', 'block_index', 'block_efforts', 'block_equipment'] as const) {
+      const store = tx.readwrite(storeName);
+      for (const row of await store.getAll()) {
+        const record = row as unknown as Record<string, unknown>;
+        if (!hasLegacyIdentity(record)) continue;
+        await store.put(migrateLegacyRow(record) as unknown as typeof row);
+        migrated++;
+      }
+    }
+    return migrated;
   });
 }
 

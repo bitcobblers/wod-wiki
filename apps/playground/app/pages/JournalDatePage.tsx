@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorView } from '@codemirror/view';
 import type { ScriptBlock } from '@/components/Editor/types';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { Session } from '@/types/storage';
 import { journalNotes } from '../services/journalNotes';
 import { playgroundRecorder, onResultSaved } from '@/services/resultRecorder';
@@ -40,7 +40,7 @@ interface JournalDatePageProps {
 
 
 export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDatePageProps) {
-  const [notes, setNotes] = useState<HistoryEntry[] | null>(null);
+  const [notes, setNotes] = useState<HistoryRecord[] | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
@@ -285,7 +285,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   }
 
 
-  const handleCreated = (created: HistoryEntry) => {
+  const handleCreated = (created: HistoryRecord) => {
     journalNotes.listByDate(journalDate).then(setNotes).catch(() => {});
     navigate(notePath(created.id));
   };

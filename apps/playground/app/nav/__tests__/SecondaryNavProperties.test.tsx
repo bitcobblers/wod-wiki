@@ -22,8 +22,8 @@ import { SecondaryNav } from '../SecondaryNav'
 
 const entry = (over: Partial<Entry> & { id: string; title: string }): Entry => ({
   kind: 'note',
-  sourceCatalog: 'journal',
-  sourceItem: over.id,
+  sourceNotebook: 'journal',
+  sourceNote: over.id,
   date: null,
   ...over,
 })

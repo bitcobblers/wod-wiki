@@ -223,7 +223,7 @@ async function suite(dir: string): Promise<void> {
     { op: 'put', store: 'notes', value: currentNote },
     { op: 'put', store: 'notes', value: { ...wholeNote(u2, 'Annie Row', 101), date: 20261005, userId: 'default' } },
     { op: 'put', store: 'notes', value: { ...wholeNote(u3, 'Page Home', 102), type: 'page', sourceId: 'page:home' } },
-    { op: 'put', store: 'notes', value: { ...wholeNote(u4, 'Feed G', 103), type: 'feed', sourceId: 'collection:g' } },
+    { op: 'put', store: 'notes', value: { ...wholeNote(u4, 'Feed G', 103), type: 'note', sourceId: 'notebook:g' } },
     { op: 'put', store: 'notes', value: wholeNote(u5, 'No Date', 500) },
     { op: 'put', store: 'block_revisions', value: oldRevision },
     { op: 'put', store: 'block_revisions', value: currentRevision },
@@ -289,31 +289,31 @@ async function suite(dir: string): Promise<void> {
   }
   const q = (body: unknown) => call('POST', '/api/v1/query', body);
 
-  const entries = await q({
-    plan: 'entries',
-    selection: [{ field: 'defaultNotes', feeds: false }],
+  const details = await q({
+    plan: 'detail',
+    selection: [{ field: 'defaultNotes', nonPages: false }],
     filters: [{ field: 'text', value: 'spank' }],
   });
-  assert.equal(entries.status, 200, String(entries.json));
-  const entryRows = entries.json as { selectedCount: number; matchedCount: number; rows: {
+  assert.equal(details.status, 200, String(details.json));
+  const detailRows = details.json as { selectedCount: number; matchedCount: number; rows: {
     note: { id: string; rawContent: string }; tags: { label: string }[]; links: unknown[]; pages: unknown[];
   }[] };
-  assert.equal(entryRows.selectedCount, 3, 'page + feed excluded pre-count; dateless u5 stays');
-  assert.equal(entryRows.matchedCount, 1);
-  assert.equal(entryRows.rows[0].note.id, u1);
-  assert.equal(entryRows.rows[0].note.rawContent, source, 'whole authored Note body round-trips');
-  assert.ok(!('segments' in entryRows.rows[0]), 'DomainEntry has no persisted segment payload');
+  assert.equal(detailRows.selectedCount, 3, 'page + notebook excluded pre-count; dateless u5 stays');
+  assert.equal(detailRows.matchedCount, 1);
+  assert.equal(detailRows.rows[0].note.id, u1);
+  assert.equal(detailRows.rows[0].note.rawContent, source, 'whole authored Note body round-trips');
+  assert.ok(!('segments' in detailRows.rows[0]), 'DomainDetail has no persisted segment payload');
   assert.equal(matched(await q({ plan: 'notes', filters: [{ field: 'text', value: 'silverneedle' }] })), 1, 'prose-only body match finds Note');
   assert.equal(matched(await q({ plan: 'blocks', filters: [{ field: 'text', value: 'silverneedle' }] })), 0, 'prose never becomes an actionable block');
-  assert.equal(entryRows.rows[0].tags[0].label, 'hero');
-  assert.equal(entryRows.rows[0].links.length, 1);
-  assert.equal(entryRows.rows[0].pages.length, 1);
-  assert.equal(matched(await q({ plan: 'entries', filters: [{ field: 'text', value: 'oldspanke' }] })), 0, 'saved history stays outside current body search');
+  assert.equal(detailRows.rows[0].tags[0].label, 'hero');
+  assert.equal(detailRows.rows[0].links.length, 1);
+  assert.equal(detailRows.rows[0].pages.length, 1);
+  assert.equal(matched(await q({ plan: 'detail', filters: [{ field: 'text', value: 'oldspanke' }] })), 0, 'saved history stays outside current body search');
 
   // paging counts run before limit/offset
   const paged = await q({
     plan: 'notes',
-    selection: [{ field: 'defaultNotes', feeds: false }],
+    selection: [{ field: 'defaultNotes', nonPages: false }],
     order: [{ field: 'date', direction: 'asc' }],
     limit: 1,
     offset: 1,
@@ -324,9 +324,8 @@ async function suite(dir: string): Promise<void> {
   assert.equal(pagedRows.rows.length, 1);
   assert.equal(pagedRows.rows[0].id, u2, 'raw date asc NULLS LAST: u1,u2 then dateless u5; offset 1 lands on u2');
 
-  assert.equal(field((await q({ plan: 'notes', selection: [{ field: 'defaultNotes', feeds: true }] })).json, 'selectedCount'), 4, 'feeds=true excludes only page rows');
-  assert.equal(matched(await q({ plan: 'notes', selection: [{ field: 'catalog', values: ['g'], negate: true }] })), 4, 'NULL-safe catalog negation');
-  assert.equal(matched(await q({ plan: 'notes', selection: [{ field: 'source', values: ['feeds'], negate: true }] })), 4, 'negated source never drops NULL sourceId');
+  assert.equal(field((await q({ plan: 'notes', selection: [{ field: 'defaultNotes', nonPages: true }] })).json, 'selectedCount'), 4, 'nonPages=true excludes only page rows');
+  assert.equal(matched(await q({ plan: 'notes', selection: [{ field: 'source', values: ['notebooks'], negate: true }] })), 4, 'NULL-safe negation never drops NULL sourceId');
   const journals = await q({ plan: 'notes', selection: [{ field: 'source', values: ['journal'] }] });
   const journalRows = field(journals.json, 'rows');
   assert.ok(Array.isArray(journalRows));

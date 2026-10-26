@@ -30,9 +30,9 @@ const fixtures = [
   actionableFixture({ id: 'n2', title: 'two', createdAt: T0 + 1, type: 'note' },
     [{ id: 'b2', body: 'diane' }, { id: 'b4', body: 'annie squat clean' }]),
   actionableFixture({ id: 'npage', title: 'guide', createdAt: T0 + 2, type: 'page', sourceId: 'guides:my-guide' }, []),
-  actionableFixture({ id: 'scol', title: 'cats', createdAt: T0 + 3, type: 'feed', sourceId: 'page:collection:cats', catalog: 'cats' },
+  actionableFixture({ id: 'scol', title: 'cats', createdAt: T0 + 3, type: 'note', sourceId: 'notebook:cats' },
     [{ id: 'b3', kind: 'query', body: ':note{text:squat}' }]),
-  actionableFixture({ id: 's1', title: 'fran', createdAt: T0 + 4, type: 'note', sourceId: 'collection:girls', catalog: 'girls' }, []),
+  actionableFixture({ id: 's1', title: 'fran', createdAt: T0 + 4, type: 'note', sourceId: 'notebook:girls' }, []),
 ];
 const userNotes = fixtures.map(f => f.note);
 const blocks = fixtures.flatMap(f => f.blocks).sort((a, b) => a.id.localeCompare(b.id));
@@ -59,7 +59,7 @@ function predicateHit(row: AnyRow, p: WqlDomainPredicate): boolean {
     case 'source':
       return values.some((k) => sourceMatches(row, k));
     case 'defaultNotes':
-      return p.feeds ? row.type !== 'page' : !isPageRow(row);
+      return p.nonPages ? row.type !== 'page' : !isPageRow(row);
     case 'text': {
       // Wire text = case-insensitive substring on the plane's text column.
       const needle = p.value.toLowerCase();
@@ -168,7 +168,7 @@ describe('domain candidate reads — parity with the whole-store path', () => {
       { id: 'c-user', title: 'bench', type: 'note', sourceId: 'journal', createdAt: T0 },
     ].map(row => ({ ...row, rawContent: 'Bench practice.', sourceRevision: 1, blocks: {} }));
     const parsed = { ...find('note', [{ key: 'text', negate: false, values: [val('bench')] }], { limit: 1 }),
-      sourceScope: ['journal', 'feeds', 'playground'] };
+      sourceScope: ['journal', 'notebooks', 'playground'] };
     const plain = new QueryService({ noteStore: makeNoteStore(rows) });
     const domain = new QueryService({ noteStore: makeNoteStore(rows, makeDomainRead(rows, [])) });
     const result = await outcome(domain, parsed);
@@ -189,9 +189,9 @@ describe('domain candidate reads — parity with the whole-store path', () => {
       // Lineage never overrides corpus ownership: UUID-stamped dashboards /
       // imported rows stay excluded, as do unknown source strings.
       { id: '01990e80-0000-7000-8000-000000000003', title: 'same', type: 'dashboard', sourceId: '01990e80-0000-7000-8000-000000000002', createdAt: T0 },
-      { id: '01990e80-0000-7000-8000-000000000004', title: 'same', type: 'note', sourceId: '01990e80-0000-7000-8000-000000000002', catalog: 'girls', createdAt: T0 },
+      { id: '01990e80-0000-7000-8000-000000000004', title: 'same', type: 'note', sourceId: '01990e80-0000-7000-8000-000000000002', seedOrigin: 'seed', seedChunkId: 'notebook.girls', createdAt: T0 },
       { id: 'zz-dash', title: 'same', type: 'dashboard', sourceId: 'dashboards', createdAt: T0 },
-      { id: 'zz-seed', title: 'same', type: 'note', sourceId: 'collection:girls', catalog: 'girls', createdAt: T0 },
+      { id: 'zz-seed', title: 'same', type: 'note', sourceId: 'notebook:girls', createdAt: T0 },
       { id: 'zz-stray', title: 'same', type: 'journal', sourceId: 'unknown-source', createdAt: T0 },
     ].map(row => ({ ...row, rawContent: '', sourceRevision: 1, blocks: {} }));
     const parsed = { ...find('note', [{ key: 'text', negate: false, values: [val('same')] }]), sourceScope: ['journal'] };
@@ -304,17 +304,17 @@ describe('domain candidate reads — parity with the whole-store path', () => {
     expect((await outcome(domain.service, parsed)).stages.matched).toBe(1);
   });
 
-  it('source:feeds compiles into selection and counts before filters', async () => {
+  it('source:notebooks compiles into selection and counts before filters', async () => {
     const plain = makeService(false);
     const domain = makeService(true);
     const parsed = find('block', [
-      { key: 'source', negate: false, values: [val('feeds')] },
+      { key: 'source', negate: false, values: [val('notebooks')] },
       { key: 'type', negate: false, values: [val('wod')] },
     ]);
     expect(await outcome(domain.service, parsed)).toEqual(await outcome(plain.service, parsed));
     expect(domain.captured[0]).toMatchObject({
       plan: 'blocks',
-      selection: [{ field: 'source', values: ['feeds'] }, { field: 'sourceFence' }],
+      selection: [{ field: 'source', values: ['notebooks'] }, { field: 'sourceFence' }],
       filters: [{ field: 'type', values: ['wod'] }],
     });
   });

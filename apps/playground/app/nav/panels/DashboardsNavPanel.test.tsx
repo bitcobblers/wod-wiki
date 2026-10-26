@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { NavigationDrawerProvider } from '../NavigationDrawerContext';
 
 mock.module('../../hooks/useDashboards', () => ({
-  useDashboardCatalog: () => ({
+  useDashboardList: () => ({
     items: [{ slug: 'pr-board', title: 'PR Board', editable: true }],
     loading: false,
   }),

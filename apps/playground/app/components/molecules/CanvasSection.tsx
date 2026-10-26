@@ -312,13 +312,13 @@ export const CanvasSection: React.FC<CanvasSectionProps> = ({
             }
             if (chunk.widget === 'workouts-list') {
               if (isCollection && collectionSlug && handleSelectWorkout) {
-                // The wrapper is the `collection-workouts` nav anchor — render it
+                // The wrapper is the `notebook-workouts` nav anchor — render it
                 // even when this collection has no items, so the L3 "Explore"
                 // link never targets a missing id (the list shows its own empty state).
                 return (
                   <div
                     key={`workouts-${chunkIdx}`}
-                    id="collection-workouts"
+                    id="notebook-workouts"
                     className="border-b border-border/50 bg-card my-6"
                   >
                     <div className="w-full mx-auto">

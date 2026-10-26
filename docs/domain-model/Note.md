@@ -28,7 +28,7 @@ A note lives in exactly one **container** — its [[Notebook]] — and may be pl
 | `journal`, `template`, `playground`, `feed`, `dashboard`, `page` | The current `NoteKind` values; missing type defaults to `'journal'` or `'note'`. |
 | Notebook membership | `notes.notebookId` (`notebook/{slug}`) and/or a `notebook:{slug}` tag; resolved by `notebookOfItem` (`packages/wql/src/QueryService.ts`). |
 | Journal placement | Grouped onto date-bearing [[Page]] containers via the [[PageNote]] junction table — many-to-many, one note may sit on several pages. |
-| Bundled content | Seed provenance (`seedOrigin`, `seedChunkId`) and the legacy `catalog` directory slug; discovery does not imply [[Page]] membership. |
+| Bundled content | Seed provenance (`seedOrigin`, `seedChunkId`) and the notebook directory slug; discovery does not imply [[Page]] membership. |
 | Dashboard content | Markdown with `dashboard: true` and query fences, rendered as composed cards. |
 | [[Effort]] content | An effort is a note in the domain with materialized `IEffort` projections. |
 
@@ -49,7 +49,6 @@ The stored [[Page]] is a placement record, not a note row. Neither Page tagging 
 | `type?` | NoteKind | 'journal' \| 'playground' \| 'feed' \| 'dashboard' \| 'page' \| 'note' — the `template` kind is retired (ticket 05); starter content lives in `notebook/defaults` and any notebook can be cloned from |
 | `sourceId?` | string | Note this one was created from (template/notebook source) |
 | `notebookId?` | `notebook/${string}` | The owning container (`notebook/journal`, `notebook/playground`, `notebook/defaults`, `notebook/guides`, `notebook/<slug>`) |
-| `catalog?` | string | Legacy notebook directory slug for static notes |
 | `seedOrigin?` | 'seed' \| 'user' | Ownership marker; editability is decided by the note's NOTEBOOK origin instead (ticket 05): feed-delivered notebooks are read-only, user-owned notebooks (including `notebook/defaults`) are editable — `isNoteEditable` falls back to these stamps only when no notebook origin resolves |
 | `seedVersion?` | number | manifest.version of last seed write |
 | `seedChunkId?` | string | Seed chunk provenance |
@@ -93,7 +92,7 @@ Identity is not yet uniform across sources: seed import derives an ID from its p
 - Keep one owning note identity and one authored content representation: `Note.rawContent` plus its occurrence map, with saved states in [[BlockRevision]]. Page composition must not copy or merge away ownership.
 - **One container, many placements.** A note belongs to exactly one [[Notebook]] and is placed on many [[Page]]s. The note's owning notebook decides editability; the pages it sits on decide where it is shown. A note index (note → its pages) and a move operation (detach from one page, attach to another, preserving position) are the deliverables that make the many-to-many placement usable — see [[Page]].
 - Keep `Note.type` as the existing app descriptor; use type for validation/configuration and default presentation, not permission, date, provenance or responsive layout. Do not create a parallel `Page.kind` solely to duplicate it.
-- Preserve the legacy `catalog` field and current Library locators until the feed-contract rename lands; query-composed pages do not require replacing them with `pageId`.
+- The legacy `catalog` field is retired with the feed-contract rename (ticket 12) — the `notebookId` identity replaces it; query-composed pages do not require replacing Library locators with `pageId`.
 - Do not add note-level `contentHash` or a `by-content` index for this effort. Block-content comparison and occurrence identity are different concerns owned by [[BlockRevision]] and [[BlockIndexRow]]. Note deduplication is not a requirement here.
 - Tags classify content; they neither create notebook/page/effort ownership nor grant source-write access. Mode and write destinations belong in [[Page#Mode and write destinations]].
 - **Dual-ID contract on query/provider outputs:** queries and content providers return note records carrying both `noteId` (authoring/editor target) and `pageId` (composition/page render target). This enables list surfaces to link to either the canonical editor or the containing page.

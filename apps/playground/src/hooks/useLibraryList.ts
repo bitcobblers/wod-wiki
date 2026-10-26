@@ -1,5 +1,5 @@
 /**
- * useLibraryCatalog — the notebook catalog behind the home gallery, resolved
+ * useLibraryList — the notebook catalog behind the home gallery, resolved
  * for cast-driven navigation.
  *
  * `[]` until the feed corpus lands; only installed feeds with local rows are
@@ -31,7 +31,7 @@ export function toLibraryEntries(files: Record<string, string> | null): RpcLibra
         }));
 }
 
-export function useLibraryCatalog(): RpcLibraryEntry[] {
+export function useLibraryList(): RpcLibraryEntry[] {
     const files = useSeedContent();
     return useMemo(() => toLibraryEntries(files), [files]);
 }

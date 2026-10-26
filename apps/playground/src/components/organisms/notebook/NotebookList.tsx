@@ -28,7 +28,7 @@ export const NotebookList: React.FC<NotebookListProps> = ({ refreshKey, onChange
 
     useEffect(() => {
         let cancelled = false;
-        void notebookService.getAllCatalogNotebooks()
+        void notebookService.getAllNotebooks()
             .then((all) => {
                 if (!cancelled) setNotebooks(all);
             })

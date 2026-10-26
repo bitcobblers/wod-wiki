@@ -51,15 +51,15 @@ describe('Note persistence projections', () => {
     const service = new StorageService(new InMemoryStorage());
     const provider = new IndexedDBContentProvider(service);
     const persistence = new IndexedDBNotePersistence(service, provider);
-    const saved = await provider.saveEntry({ id: 'n', title: 'Workout', rawContent: SOURCE, targetDate: 1, tags: ['manual'] });
+    const saved = await provider.saveRecord({ id: 'n', title: 'Workout', rawContent: SOURCE, targetDate: 1, tags: ['manual'] });
     const note = await service.getNote('n');
-    await service.saveNote({ ...note!, seedOrigin: 'seed', seedChunkId: 'owned', seedVersion: 1, sourcePath: 'markdown/collections/x.md' });
+    await service.saveNote({ ...note!, seedOrigin: 'seed', seedChunkId: 'owned', seedVersion: 1, sourcePath: 'markdown/notebooks/x.md' });
     const attachment = { id: 'a', label: 'GPS', mimeType: 'text/plain', data: 'track', timeSpan: { start: 1, end: 2 } };
     await persistence.mutateNote('n', { attachments: { add: [attachment] } });
     await persistence.saveNote({ noteId: 'n', rawContent: SOURCE.replace('10 Pushups', '20 Pushups'),
       blocks: saved.blocks!, expectedSourceRevision: 1 });
     expect(await service.getNote('n')).toMatchObject({ seedOrigin: 'seed', seedChunkId: 'owned', seedVersion: 1,
-      sourcePath: 'markdown/collections/x.md' });
+      sourcePath: 'markdown/notebooks/x.md' });
     expect(await service.getAttachmentsForNote('n')).toMatchObject([{ id: 'a', data: 'track', label: 'GPS' }]);
     expect((await service.getTagsForNote('n')).map(tag => tag.label)).toContain('manual');
   });

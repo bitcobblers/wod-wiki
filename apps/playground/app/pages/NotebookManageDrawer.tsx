@@ -1,5 +1,5 @@
 /**
- * CatalogsManagerDrawer — the /notebooks "Manage Catalogs" dialog. Wraps the
+ * NotebookManageDrawer — the /notebooks "Manage notebooks" dialog. Wraps the
  * /settings/sync SyncSection in the app's standard Dialog so sources can be
  * inspected, synced, unsubscribed, and deleted in place — no context switch.
  * Grouped update notifications and subscription intake deep-link here via
@@ -15,17 +15,17 @@ import {
 } from '@/components/atoms/primitives/dialog'
 import { SyncSection } from './SyncSection'
 
-export interface CatalogsManagerDrawerProps {
+export interface NotebookManageDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function CatalogsManagerDrawer({ open, onOpenChange }: CatalogsManagerDrawerProps) {
+export function NotebookManageDrawer({ open, onOpenChange }: NotebookManageDrawerProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-h-[85vh] w-full max-w-2xl overflow-y-auto"
-        data-testid="catalogs-manager-drawer"
+        data-testid="notebook-manage-drawer"
       >
         <DialogHeader>
           <DialogTitle>Feed Subscriptions &amp; Local Libraries</DialogTitle>

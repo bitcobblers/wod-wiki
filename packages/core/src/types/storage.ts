@@ -28,7 +28,7 @@ export interface BlockRevision {
 // ---------------------------------------------------------------------------
 // Note — root container
 // ---------------------------------------------------------------------------
-export type NoteKind = 'journal' | 'playground' | 'feed' | 'dashboard' | 'page' | 'note' | (string & {});
+export type NoteKind = 'journal' | 'playground' | 'dashboard' | 'page' | 'note' | (string & {});
 
 export interface Note {
   id: string; // UUID — canonical storage identity
@@ -40,7 +40,6 @@ export interface Note {
   createdAt: number; // Creation timestamp
   type?: NoteKind;
   sourceId?: string;
-  catalog?: string;
   /** Canonical notebook identifier ('notebook/{slug}', e.g. 'notebook/journal', 'notebook/playground', 'notebook/guides'). */
   notebookId?: string;
   tags?: string[];

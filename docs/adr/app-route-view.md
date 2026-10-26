@@ -40,9 +40,9 @@ link rules: [../link-crosswalk.md](../link-crosswalk.md) and
    retain the owning note identity. `pageId` is the Page UUID; `pageSlug`
    addresses named pages at `/page/:slug`. Search resolves named membership
    through `page_notes`, skipping calendar pages. Plain notes fall back to
-   `/note/:noteId`. Collection routes use declared `sourceId` or imported
-   `sourcePath`, not UUIDs: `/notebook/:catalog` for landings and
-   `/notebook/:catalog/:item` for workouts. Block results preserve section anchors.
+   `/note/:noteId`. Corpus routes use declared `sourceId` or imported
+   `sourcePath`, not UUIDs: `/notebook/:slug` for landings and
+   `/notebook/:slug/:item` for workouts. Block results preserve section anchors.
 
 6. **Redirect components, not scattered literals.** Each retired path family
    has one Navigate component in `lib/routeRedirects.tsx`, mounted in the App
@@ -61,7 +61,7 @@ link rules: [../link-crosswalk.md](../link-crosswalk.md) and
   title, and secondary follow from the profile.
 - Old paths keep working through redirects; behavior changes land in one
   component each.
-- UUID-keyed collection members remain notes, not catalog landings. The
-  catalog projection derives grouping and landing status from source routes.
+- UUID-keyed corpus members remain notes, not notebook landings. The
+  notebook projection derives grouping and landing status from source routes.
 - Runtime results from named pages retain the loaded note UUID, not the
   presentation slug.

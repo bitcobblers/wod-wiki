@@ -7,4 +7,4 @@
 export { StaticContentProvider } from './StaticContentProvider';
 
 export type { IContentProvider, ContentProviderMode } from '../../types/content-provider';
-export type { HistoryEntry, EntryQuery, ProviderCapabilities } from '../../types/history';
+export type { HistoryRecord, HistoryQuery, ProviderCapabilities } from '../../types/history';

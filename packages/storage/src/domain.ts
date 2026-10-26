@@ -1,10 +1,10 @@
 import type { BlockIndexRow, Note, Page, PageNote, Tag } from './entities';
 import { validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 
-export const DOMAIN_PROJECTION_VERSION = 2;
+export const DOMAIN_PROJECTION_VERSION = 4;
 
 export type DomainPredicate =
-  | { field: 'id' | 'noteId' | 'type' | 'catalog' | 'source' | 'tags' | 'effort'; values: string[]; negate?: boolean }
+  | { field: 'id' | 'noteId' | 'type' | 'source' | 'tags' | 'effort'; values: string[]; negate?: boolean }
   /** Typed-tag narrow (ticket 08): notes carrying a tag of the named TYPE
    *  and one of the labels — pushes down through the tags `by-type` index
    *  instead of resolving label-only like the `tags` field. */
@@ -12,7 +12,7 @@ export type DomainPredicate =
   | { field: 'text'; value: string }
   | { field: 'date'; start: number; end: number; endExclusive?: boolean }
   | { field: 'page'; value: boolean }
-  | { field: 'defaultNotes'; feeds: boolean }
+  | { field: 'defaultNotes'; nonPages: boolean }
   | { field: 'sourceFence' };
 
 export type DomainOrder = {
@@ -21,7 +21,7 @@ export type DomainOrder = {
 };
 
 export type DomainQuery = {
-  plan: 'notes' | 'blocks' | 'entries';
+  plan: 'notes' | 'blocks' | 'detail';
   selection?: DomainPredicate[];
   filters?: DomainPredicate[];
   order?: DomainOrder[];
@@ -29,7 +29,7 @@ export type DomainQuery = {
   limit?: number;
 };
 
-export interface DomainEntry {
+export interface DomainDetail {
   note: Note;
   tags: Tag[];
   links: PageNote[];
@@ -43,7 +43,7 @@ export type DomainQueryResult = {
 } & (
   | { plan: 'notes'; rows: Note[] }
   | { plan: 'blocks'; rows: BlockIndexRow[] }
-  | { plan: 'entries'; rows: DomainEntry[] }
+  | { plan: 'detail'; rows: DomainDetail[] }
 );
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -64,7 +64,7 @@ function isNote(value: unknown): value is Note {
     || typeof value.sourceRevision !== 'number' || value.sourceRevision < 1 || !isObject(value.blocks)
     || !finiteNumbers(value, ['createdAt'])
     || (value.date !== undefined && !finiteNumbers(value, ['date']))
-    || !optionalStrings(value, ['type', 'sourceId', 'catalog', 'notebookId', 'sourcePath', 'seedOrigin', 'seedChunkId', 'feedOrigin', 'feedSourceId'])
+    || !optionalStrings(value, ['type', 'sourceId', 'notebookId', 'sourcePath', 'seedOrigin', 'seedChunkId', 'feedOrigin', 'feedSourceId'])
     || (value.tags !== undefined && (!Array.isArray(value.tags) || !value.tags.every(tag => typeof tag === 'string')))) return false;
   try {
     validateNoteBlocks(value.rawContent, value.blocks as Note['blocks'], value.sourceRevision);
@@ -104,7 +104,7 @@ function isLink(value: unknown): value is PageNote {
     && (value.position === undefined || finiteNumbers(value, ['position']));
 }
 
-function isEntry(value: unknown): value is DomainEntry {
+function isDetail(value: unknown): value is DomainDetail {
   return isObject(value) && isNote(value.note)
     && Array.isArray(value.tags) && value.tags.every(isTag)
     && Array.isArray(value.links) && value.links.every(isLink)
@@ -127,8 +127,8 @@ export function parseDomainQueryResult(value: unknown, plan: DomainQuery['plan']
     case 'blocks':
       if (value.rows.every(isBlock)) return { ...counts, plan, rows: value.rows };
       break;
-    case 'entries':
-      if (value.rows.every(isEntry)) return { ...counts, plan, rows: value.rows };
+    case 'detail':
+      if (value.rows.every(isDetail)) return { ...counts, plan, rows: value.rows };
       break;
   }
   throw new Error('ApiStorage: invalid domain query rows');

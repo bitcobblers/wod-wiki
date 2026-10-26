@@ -121,7 +121,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         const outcome = await runBootFeedSync();
         const refreshed = await isCoreFeedImported();
         if (outcome === 'error') {
-          setFeed({ status: 'error', message: 'Feed sync failed — catalogs may be incomplete.', coreImported: refreshed });
+          setFeed({ status: 'error', message: 'Feed sync failed — notebooks may be incomplete.', coreImported: refreshed });
           // The import may still have committed rows before failing.
           setDataVersion((v) => v + 1);
           return;

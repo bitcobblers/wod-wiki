@@ -28,7 +28,7 @@ export class EffortsPage {
   }
 
   createCustomButton(): Locator {
-    return this.page.getByTestId(TEST_IDS.EFFORTS_CATALOG_CREATE_BTN);
+    return this.page.getByTestId(TEST_IDS.EFFORTS_CREATE_BTN);
   }
 
   emptyState(): Locator {

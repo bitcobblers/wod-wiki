@@ -46,7 +46,7 @@ always-subscribed and never removable.
 **Check vs apply**: every subscribed feed's manifest is fetched in a
 nonblocking background pass on each load (`probeManifests: true` bypasses
 the skip-fetch fast path). Auto-sync ON applies the update; auto-sync OFF
-records a `pending` entry in one grouped `CatalogUpdatesSnapshot`
+records a `pending` entry in one grouped `FeedUpdatesSnapshot`
 surfaced as a single notification with a "Review updates" action to
 `/notebooks?manage=1` (the current notebooks route).
 
@@ -113,7 +113,7 @@ lifecycle:
 ```yaml
 model: FeedWorkerRun
 source: apps/playground/src/services/feed/feedSync.worker.ts
-summary: "Production sync runs off the main thread: the driver (runFeedSyncViaWorker in feedSync.ts) posts specs to feedSync.worker.ts, which executes the feedSyncCore per-source loop (fetch, parse, validate, IndexedDB writes) and streams progress/results back. Main thread keeps activity reporting, content-cache invalidation, registry hydration, and the grouped catalog-update snapshot. Direct path remains for tests, injected storages, and VITE_STORAGE=api."
+summary: "Production sync runs off the main thread: the driver (runFeedSyncViaWorker in feedSync.ts) posts specs to feedSync.worker.ts, which executes the feedSyncCore per-source loop (fetch, parse, validate, IndexedDB writes) and streams progress/results back. Main thread keeps activity reporting, content-cache invalidation, registry hydration, and the grouped feed-update snapshot. Direct path remains for tests, injected storages, and VITE_STORAGE=api."
 invariant: "Specs travel whole: the worker imports every chunk the feed's manifest publishes in one run. Notebook ids ride along only to label progress and per-notebook status rows — they never narrow the import."
 ```
 
@@ -146,7 +146,7 @@ lifecycle:
 ```
 
 ```yaml
-model: CatalogUpdatesSnapshot (grouped notification)
+model: FeedUpdatesSnapshot (grouped notification)
 source: apps/playground/src/services/feed/feedSync.ts
 shape: "{ snapshotId, sources: [{ id, state: 'pending'|'updated'|'error' }] }"
 depends_on: [FeedSourceSpec, FeedAutoSyncMap]

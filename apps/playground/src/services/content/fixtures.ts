@@ -1,6 +1,6 @@
-import { HistoryEntry } from '../../types/history';
+import { HistoryRecord } from '../../types/history';
 
-export const createMockEntry = (overrides: Partial<HistoryEntry> = {}): HistoryEntry => ({
+export const createMockEntry = (overrides: Partial<HistoryRecord> = {}): HistoryRecord => ({
     id: 'mock-entry-1',
     title: 'Mock WOD',
     createdAt: Date.now(),

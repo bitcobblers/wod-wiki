@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { storageService } from '@/services/storage'
 import type { BlockEffort, BlockIndexRow, Note } from '@/types/storage'
-import type { HistoryEntry } from '@/types/history'
+import type { HistoryRecord } from '@/types/history'
 import { parseNoteId } from '@/lib/noteIdentity'
 import { noteRefToPath } from '../../lib/noteIdentity'
 import { useNav } from '../../nav/NavContext'
@@ -25,7 +25,6 @@ import {
   effortPath,
   effortsPath,
   equipmentPath,
-  feedPath,
   dayPath,
   notePath,
   pagePath,
@@ -86,7 +85,7 @@ export interface NoteOwnership {
  * stored conventions (entryMapper): `type` when present, then the composite-id
  * grammar (journal/:date, playground/:name, effort/:slug, feeds/…, cat/name).
  */
-export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceId' | 'journalDate' | 'slug' | 'pageId'>): NoteOwnership {
+export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'sourceId' | 'journalDate' | 'slug' | 'pageId'>): NoteOwnership {
   const id = entry.id
   const isPlayground = entry.type === 'playground' || entry.sourceId === 'playground' || id.startsWith('playground/')
   const ref = parseNoteId(id)
@@ -124,20 +123,18 @@ export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceI
         stamps: [equipmentPath(ref.id)],
       }
     }
-    if (ref.category === 'feeds') {
-      // Feed runs stamp the ITEM path (`/feeds/<slug>/<date>/<item>`) going
-      // forward (feed-level `/feeds/<slug>` stamps predate item attribution
-      // and only ever match the feed listing page, never this item).
-      const [, feedSlug, feedDate, feedItem] = id.split('/')
+    if (ref.category === 'notebook') {
+      // Corpus notebook members carry `notebook/<slug>` composite ids; the
+      // date-scoped item identity lives in the sourceId, not the id.
       return {
-        zone: 'feeds',
-        up: feedSlug ? { id: feedSlug, title: feedSlug, to: feedPath(feedSlug) } : null,
-        stamps: feedSlug && feedDate && feedItem ? [`/feed/${feedSlug}/${feedDate}/${feedItem}`] : [],
+        zone: 'notebooks',
+        up: ref.id ? { id: ref.id, title: ref.id, to: notebookPath(ref.id) } : null,
+        stamps: [],
       }
     }
     if (ref.category) {
       return {
-        zone: 'feeds',
+        zone: 'notebooks',
         up: { id: ref.category, title: ref.category, to: notebookPath(ref.category) },
         stamps: [notebookItemPath(ref.category, ref.id)],
       }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { escapeCSV, arrayToCSV, statementsToCSV, resultsToCSV } from './NoteCsvFormatter';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 
 describe('escapeCSV', () => {
     it('returns empty string for null and undefined', () => {
@@ -50,19 +50,19 @@ describe('arrayToCSV', () => {
 
 describe('statementsToCSV', () => {
     it('returns fallback row when sections are empty', () => {
-        const entry: HistoryEntry = {
+        const entry: HistoryRecord = {
             id: '1',
             createdAt: 0,
             updatedAt: 0,
             schemaVersion: 1,
             sections: [],
-        } as unknown as HistoryEntry;
+        } as unknown as HistoryRecord;
         const csv = statementsToCSV(entry);
         expect(csv).toBe('Statement ID,Parent ID,Line,Fragment Type,Fragment Value,Fragment Behavior\nNo statements found,,,,,');
     });
 
     it('returns correct CSV for entry with one section, one statement, one metric', () => {
-        const entry: HistoryEntry = {
+        const entry: HistoryRecord = {
             id: '1',
             createdAt: 0,
             updatedAt: 0,
@@ -83,7 +83,7 @@ describe('statementsToCSV', () => {
                     },
                 },
             ],
-        } as unknown as HistoryEntry;
+        } as unknown as HistoryRecord;
         const csv = statementsToCSV(entry);
         expect(csv).toBe(
             'Statement ID,Parent ID,Line,Fragment Type,Fragment Value,Fragment Behavior\n' +
@@ -92,7 +92,7 @@ describe('statementsToCSV', () => {
     });
 
     it('returns null columns for statement without metrics', () => {
-        const entry: HistoryEntry = {
+        const entry: HistoryRecord = {
             id: '1',
             createdAt: 0,
             updatedAt: 0,
@@ -111,7 +111,7 @@ describe('statementsToCSV', () => {
                     },
                 },
             ],
-        } as unknown as HistoryEntry;
+        } as unknown as HistoryRecord;
         const csv = statementsToCSV(entry);
         expect(csv).toBe(
             'Statement ID,Parent ID,Line,Fragment Type,Fragment Value,Fragment Behavior\n' +
@@ -122,12 +122,12 @@ describe('statementsToCSV', () => {
 
 describe('resultsToCSV', () => {
     it('returns fallback row when no results', () => {
-        const entry: HistoryEntry = {
+        const entry: HistoryRecord = {
             id: '1',
             createdAt: 0,
             updatedAt: 0,
             schemaVersion: 1,
-        } as unknown as HistoryEntry;
+        } as unknown as HistoryRecord;
         const csv = resultsToCSV(entry);
         expect(csv).toBe(
             'Start Time,End Time,Duration (ms),Rounds Completed,Total Rounds,Reps Completed,Completed,Fragment Type,Fragment Value,Metric Behavior,Metric Timestamp\n' +
@@ -136,7 +136,7 @@ describe('resultsToCSV', () => {
     });
 
     it('returns correct row for result with logs and metrics', () => {
-        const entry: HistoryEntry = {
+        const entry: HistoryRecord = {
             id: '1',
             createdAt: 0,
             updatedAt: 0,
@@ -158,7 +158,7 @@ describe('resultsToCSV', () => {
                     },
                 ],
             },
-        } as unknown as HistoryEntry;
+        } as unknown as HistoryRecord;
         const csv = resultsToCSV(entry);
         expect(csv).toBe(
             'Start Time,End Time,Duration (ms),Rounds Completed,Total Rounds,Reps Completed,Completed,Fragment Type,Fragment Value,Metric Behavior,Metric Timestamp\n' +
@@ -167,7 +167,7 @@ describe('resultsToCSV', () => {
     });
 
     it('returns summary row when result has no logs', () => {
-        const entry: HistoryEntry = {
+        const entry: HistoryRecord = {
             id: '1',
             createdAt: 0,
             updatedAt: 0,
@@ -181,7 +181,7 @@ describe('resultsToCSV', () => {
                 repsCompleted: null,
                 completed: false,
             },
-        } as unknown as HistoryEntry;
+        } as unknown as HistoryRecord;
         const csv = resultsToCSV(entry);
         expect(csv).toBe(
             'Start Time,End Time,Duration (ms),Rounds Completed,Total Rounds,Reps Completed,Completed,Fragment Type,Fragment Value,Metric Behavior,Metric Timestamp\n' +

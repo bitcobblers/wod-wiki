@@ -234,7 +234,7 @@ export interface FeedSource {
 }
 
 /** One notebook a feed publishes — exactly one manifest chunk
- *  (`collection.<slug>`, `feed.<slug>`, `efforts`, …). Notebook ids are
+ *  (`notebook.<slug>`, `efforts`, …). Notebook ids are
  *  permanent: they key note links, the library surfaces, and the legacy
  *  pre-feed-unit checkpoints (`seed:community-<slug>`). */
 export interface NotebookDef {
@@ -325,48 +325,48 @@ function notebook(feedId: string, slug: string, chunkId: string, label: string, 
 /**
  * Every notebook the built-in feeds publish, one entry per manifest chunk.
  * Notebook ids are permanent (library links, legacy checkpoints); chunk ids
- * mirror the corpus layout (collection.<slug> / feed.<slug>) and never
+ * mirror the corpus layout (`notebook.<slug>`) and never
  * change. Which feed publishes a notebook is a registry entry — the feed is
  * what imports and subscribes.
  */
 export const NOTEBOOKS: NotebookDef[] = [
   // CrossFit
-  notebook('seed-crossfit', 'crossfit-games', 'collection.crossfit-games', 'CrossFit Games', 'collections', 'CrossFit Games workouts — Open, Regionals, and Games programming, formatted for Wod Wiki.'),
-  notebook('seed-crossfit', 'crossfit-girls', 'collection.crossfit-girls', 'CrossFit Girls', 'collections', 'Classic benchmark workouts — Fran, Helen, Grace, Diane, and more, formatted for Wod Wiki.'),
-  notebook('seed-crossfit', 'crossfit-heroes', 'collection.crossfit-heroes', 'CrossFit Heroes', 'collections', 'Hero benchmark workouts honoring service members — Murph, DT, Badger, and more.'),
-  notebook('seed-crossfit', 'crossfit-programming', 'feed.crossfit-programming', 'CrossFit Programming', 'feeds', 'Weekly CrossFit programming — daily strength, conditioning, and skill sessions on a rotation with a weekly benchmark.'),
+  notebook('seed-crossfit', 'crossfit-games', 'notebook.crossfit-games', 'CrossFit Games', 'workouts', 'CrossFit Games workouts — Open, Regionals, and Games programming, formatted for Wod Wiki.'),
+  notebook('seed-crossfit', 'crossfit-girls', 'notebook.crossfit-girls', 'CrossFit Girls', 'workouts', 'Classic benchmark workouts — Fran, Helen, Grace, Diane, and more, formatted for Wod Wiki.'),
+  notebook('seed-crossfit', 'crossfit-heroes', 'notebook.crossfit-heroes', 'CrossFit Heroes', 'workouts', 'Hero benchmark workouts honoring service members — Murph, DT, Badger, and more.'),
+  notebook('seed-crossfit', 'crossfit-programming', 'notebook.crossfit-programming', 'CrossFit Programming', 'programs', 'Weekly CrossFit programming — daily strength, conditioning, and skill sessions on a rotation with a weekly benchmark.'),
   // HYROX
-  notebook('seed-hyrox', 'hyrox', 'collection.hyrox', 'HYROX', 'collections', 'HYROX race preparation — running, sled work, ergs, and functional stations in race format.'),
+  notebook('seed-hyrox', 'hyrox', 'notebook.hyrox', 'HYROX', 'workouts', 'HYROX race preparation — running, sled work, ergs, and functional stations in race format.'),
   // Kettlebell coaches
-  notebook('seed-kettlebell', 'geoff-neupert', 'collection.geoff-neupert', 'Geoff Neupert', 'collections', 'Geoff Neupert kettlebell workouts — strength and conditioning from a Master SFG coach.'),
-  notebook('seed-kettlebell', 'girevoy-sport', 'collection.girevoy-sport', 'Girevoy Sport', 'collections', 'Competitive kettlebell sport — jerk, snatch, and long-cycle programming.'),
-  notebook('seed-kettlebell', 'joe-daniels', 'collection.joe-daniels', 'Joe Daniels (Swing This)', 'collections', 'Joe Daniels kettlebell workouts — kettlebell sport and hardstyle fusion.'),
-  notebook('seed-kettlebell', 'keith-weber', 'collection.keith-weber', 'Keith Weber', 'collections', 'Keith Weber kettlebell workouts — high-intensity kettlebell cardio.'),
-  notebook('seed-kettlebell', 'steve-cotter', 'collection.steve-cotter', 'Steve Cotter', 'collections', 'Steve Cotter kettlebell workouts — comprehensive kettlebell education.'),
-  notebook('seed-kettlebell', 'dan-john-40-day', 'feed.dan-john-40-day', 'Dan John 40-Day Program', 'feeds', "Dan John's 40-day barbell program — five lifts, five sets of five, five days a week for 40 sessions."),
+  notebook('seed-kettlebell', 'geoff-neupert', 'notebook.geoff-neupert', 'Geoff Neupert', 'workouts', 'Geoff Neupert kettlebell workouts — strength and conditioning from a Master SFG coach.'),
+  notebook('seed-kettlebell', 'girevoy-sport', 'notebook.girevoy-sport', 'Girevoy Sport', 'workouts', 'Competitive kettlebell sport — jerk, snatch, and long-cycle programming.'),
+  notebook('seed-kettlebell', 'joe-daniels', 'notebook.joe-daniels', 'Joe Daniels (Swing This)', 'workouts', 'Joe Daniels kettlebell workouts — kettlebell sport and hardstyle fusion.'),
+  notebook('seed-kettlebell', 'keith-weber', 'notebook.keith-weber', 'Keith Weber', 'workouts', 'Keith Weber kettlebell workouts — high-intensity kettlebell cardio.'),
+  notebook('seed-kettlebell', 'steve-cotter', 'notebook.steve-cotter', 'Steve Cotter', 'workouts', 'Steve Cotter kettlebell workouts — comprehensive kettlebell education.'),
+  notebook('seed-kettlebell', 'dan-john-40-day', 'notebook.dan-john-40-day', 'Dan John 40-Day Program', 'programs', "Dan John's 40-day barbell program — five lifts, five sets of five, five days a week for 40 sessions."),
   // YouTube-sourced coach libraries
-  notebook('yt-dan-john', 'dan-john', 'collection.dan-john', 'Dan John Kettlebell', 'collections', 'Dan John kettlebell workouts — simple, effective programming with clear objectives.'),
-  notebook('yt-mark-wildman', 'mark-wildman', 'collection.mark-wildman', 'Mark Wildman', 'collections', 'Mark Wildman workouts — athletic kettlebell and club training.'),
-  notebook('yt-strongfirst', 'strongfirst', 'collection.strongfirst', 'StrongFirst', 'collections', 'StrongFirst workouts — hardstyle kettlebell strength and skill.'),
-  notebook('yt-the-stone-circle', 'the-stone-circle', 'collection.the-stone-circle', 'The Stone Circle', 'collections', 'Sandbag power endurance and density training — progressive EMOM protocols.'),
+  notebook('yt-dan-john', 'dan-john', 'notebook.dan-john', 'Dan John Kettlebell', 'workouts', 'Dan John kettlebell workouts — simple, effective programming with clear objectives.'),
+  notebook('yt-mark-wildman', 'mark-wildman', 'notebook.mark-wildman', 'Mark Wildman', 'workouts', 'Mark Wildman workouts — athletic kettlebell and club training.'),
+  notebook('yt-strongfirst', 'strongfirst', 'notebook.strongfirst', 'StrongFirst', 'workouts', 'StrongFirst workouts — hardstyle kettlebell strength and skill.'),
+  notebook('yt-the-stone-circle', 'the-stone-circle', 'notebook.the-stone-circle', 'The Stone Circle', 'workouts', 'Sandbag power endurance and density training — progressive EMOM protocols.'),
   // Swimming
-  notebook('seed-swimming', 'swimming-college', 'collection.swimming-college', 'Swimming: College', 'collections', 'College swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-highschool', 'collection.swimming-highschool', 'Swimming: High School', 'collections', 'High-school swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-masters', 'collection.swimming-masters', 'Swimming: Masters', 'collections', 'Masters swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-olympic', 'collection.swimming-olympic', 'Swimming: Olympic', 'collections', 'Olympic-caliber swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-post-college', 'collection.swimming-post-college', 'Swimming: Post-College', 'collections', 'Post-college swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-pre-highschool', 'collection.swimming-pre-highschool', 'Swimming: Pre-Highschool', 'collections', 'Pre-highschool swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-triathlete', 'collection.swimming-triathlete', 'Swimming: Triathlete', 'collections', 'Triathlete swim training sessions.'),
+  notebook('seed-swimming', 'swimming-college', 'notebook.swimming-college', 'Swimming: College', 'workouts', 'College swimming training sessions.'),
+  notebook('seed-swimming', 'swimming-highschool', 'notebook.swimming-highschool', 'Swimming: High School', 'workouts', 'High-school swimming training sessions.'),
+  notebook('seed-swimming', 'swimming-masters', 'notebook.swimming-masters', 'Swimming: Masters', 'workouts', 'Masters swimming training sessions.'),
+  notebook('seed-swimming', 'swimming-olympic', 'notebook.swimming-olympic', 'Swimming: Olympic', 'workouts', 'Olympic-caliber swimming training sessions.'),
+  notebook('seed-swimming', 'swimming-post-college', 'notebook.swimming-post-college', 'Swimming: Post-College', 'workouts', 'Post-college swimming training sessions.'),
+  notebook('seed-swimming', 'swimming-pre-highschool', 'notebook.swimming-pre-highschool', 'Swimming: Pre-Highschool', 'workouts', 'Pre-highschool swimming training sessions.'),
+  notebook('seed-swimming', 'swimming-triathlete', 'notebook.swimming-triathlete', 'Swimming: Triathlete', 'workouts', 'Triathlete swim training sessions.'),
   // Track
-  notebook('seed-track', 'hs-track-400m', 'collection.hs-track-400m', 'HS Track 400m', 'collections', 'High-school 400m program after Raffensperger — speed, tempo, and strength phases.'),
-  notebook('seed-track', 'hs-track-sprints', 'collection.hs-track-sprints', 'HS Track Sprints', 'collections', 'High-school sprints program after Arrowhead — acceleration, maximum velocity, and speed endurance.'),
+  notebook('seed-track', 'hs-track-400m', 'notebook.hs-track-400m', 'HS Track 400m', 'workouts', 'High-school 400m program after Raffensperger — speed, tempo, and strength phases.'),
+  notebook('seed-track', 'hs-track-sprints', 'notebook.hs-track-sprints', 'HS Track Sprints', 'workouts', 'High-school sprints program after Arrowhead — acceleration, maximum velocity, and speed endurance.'),
   // Movement / lifestyle
-  notebook('seed-zombie-fit', 'zombiefit', 'collection.zombiefit', 'ZombieFit', 'collections', 'The ZombieFit archive — parkour-inspired fitness WODs, 2009–2013.'),
-  notebook('seed-golos-method', 'the-golos-method', 'collection.the-golos-method', 'The Golos Method', 'collections', 'Daily minimalist strength and conditioning — dense, repeatable sessions.'),
-  notebook('example-movement', 'unconventional', 'collection.unconventional', 'Unconventional', 'collections', 'Unconventional training — maces, clubs, sandbags, and parkour movement.'),
-  notebook('example-yoga', 'yoga', 'collection.yoga', 'Yoga', 'collections', 'Yoga sessions for mobility and recovery.'),
-  // Reddit feeds
-  notebook('r-workoutroutines', 'workoutroutines-reddit', 'feed.workoutroutines-reddit', 'r/WorkoutRoutines', 'feeds', 'Community workouts from the r/WorkoutRoutines subreddit.'),
+  notebook('seed-zombie-fit', 'zombiefit', 'notebook.zombiefit', 'ZombieFit', 'workouts', 'The ZombieFit archive — parkour-inspired fitness WODs, 2009–2013.'),
+  notebook('seed-golos-method', 'the-golos-method', 'notebook.the-golos-method', 'The Golos Method', 'workouts', 'Daily minimalist strength and conditioning — dense, repeatable sessions.'),
+  notebook('example-movement', 'unconventional', 'notebook.unconventional', 'Unconventional', 'workouts', 'Unconventional training — maces, clubs, sandbags, and parkour movement.'),
+  notebook('example-yoga', 'yoga', 'notebook.yoga', 'Yoga', 'workouts', 'Yoga sessions for mobility and recovery.'),
+  // Reddit programs
+  notebook('r-workoutroutines', 'workoutroutines-reddit', 'notebook.workoutroutines-reddit', 'r/WorkoutRoutines', 'programs', 'Community workouts from the r/WorkoutRoutines subreddit.'),
 ];
 
 /**

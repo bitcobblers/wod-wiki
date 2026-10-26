@@ -68,7 +68,7 @@ export async function prepareWorkbenchRun(ctx: WorkbenchRunContext, blockIndex: 
   const startedAt = Date.now();
   const provider = new IndexedDBContentProvider(storageService);
   const existing = await storageService.getNote(ctx.noteId);
-  const saved = await provider.saveEntry({
+  const saved = await provider.saveRecord({
     id: ctx.noteId,
     title: ctx.title,
     rawContent: ctx.rawContent,

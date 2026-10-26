@@ -1,33 +1,32 @@
 import { nodeCrypto, nodeFs, nodePath, type CliDb } from './db';
 import type { BlockEffort, BlockEquipment, BlockIndexRow, Note } from '@bitcobblers/wod-wiki-storage';
-import { catalogOfItem } from '@bitcobblers/wod-wiki-wql';
-import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
+import { notebookSlugOfSourceId } from '@bitcobblers/wod-wiki-wql';
 import { SEED_SCHEMA, type ManifestChunk, type SeedManifest, type SeedRow } from '../seedbuild/contract';
 import { compileSeedRow } from '../seedbuild/compiler';
 import { writeBuildReport } from '../seedbuild/report';
 
-export interface PublishCatalogOptions {
-  catalog?: string;
+export interface PublishNotebookOptions {
+  notebook?: string;
   outDir: string;
   version?: number;
 }
 
-export interface PublishCatalogResult {
+export interface PublishNotebookResult {
   manifest: SeedManifest;
   outDir: string;
-  catalogs: string[];
+  notebooks: string[];
   totalNotes: number;
 }
 
 /**
- * Publishes catalog data from the database into a configured seed directory:
+ * Publishes notebook data from the database into a configured seed directory:
  * manifest.json, chunk files (SeedRow[] format), and report.html.
  * Compatible with `wod seed --source <outDir>` and playground custom sources.
  */
-export async function publishCatalogSeed(
+export async function publishNotebookSeed(
   db: CliDb,
-  options: PublishCatalogOptions,
-): Promise<PublishCatalogResult> {
+  options: PublishNotebookOptions,
+): Promise<PublishNotebookResult> {
   const t0 = Date.now();
   const fs = nodeFs();
   const path = nodePath();
@@ -37,38 +36,33 @@ export async function publishCatalogSeed(
     throw new Error(`[wod publish] No notes found in database ${db.path}`);
   }
 
-  // Group notes by catalog
-  const notesByCatalog = new Map<string, Note[]>();
+  // Group notes by notebook slug
+  const notesByNotebook = new Map<string, Note[]>();
   for (const note of allNotes) {
-    const fm = readFrontmatterMeta(note.rawContent);
-    const cat =
-      (typeof fm['catalog'] === 'string' && fm['catalog'].trim()) ||
-      (typeof fm['collection'] === 'string' && fm['collection'].trim()) ||
-      note.catalog ||
-      catalogOfItem(note);
-    const key = cat || '__uncataloged__';
-    const list = notesByCatalog.get(key) ?? [];
+    const slug = notebookSlugOfSourceId(note.sourceId);
+    const key = slug || '__unassigned__';
+    const list = notesByNotebook.get(key) ?? [];
     list.push(note);
-    notesByCatalog.set(key, list);
+    notesByNotebook.set(key, list);
   }
 
-  const targetCatalogs = new Map<string, Note[]>();
-  if (options.catalog) {
-    const matching = notesByCatalog.get(options.catalog);
+  const targetNotebooks = new Map<string, Note[]>();
+  if (options.notebook) {
+    const matching = notesByNotebook.get(options.notebook);
     if (matching) {
-      targetCatalogs.set(options.catalog, matching);
-    } else if (notesByCatalog.has('__uncataloged__') && notesByCatalog.size === 1) {
-      targetCatalogs.set(options.catalog, notesByCatalog.get('__uncataloged__')!);
+      targetNotebooks.set(options.notebook, matching);
+    } else if (notesByNotebook.has('__unassigned__') && notesByNotebook.size === 1) {
+      targetNotebooks.set(options.notebook, notesByNotebook.get('__unassigned__')!);
     } else {
-      const available = [...notesByCatalog.keys()].filter((k) => k !== '__uncataloged__');
+      const available = [...notesByNotebook.keys()].filter((k) => k !== '__unassigned__');
       throw new Error(
-        `[wod publish] Catalog "${options.catalog}" not found in ${db.path}.` +
-          (available.length > 0 ? ` Available catalogs: ${available.join(', ')}` : ''),
+        `[wod publish] Notebook "${options.notebook}" not found in ${db.path}.` +
+          (available.length > 0 ? ` Available notebooks: ${available.join(', ')}` : ''),
       );
     }
   } else {
-    for (const [cat, notes] of notesByCatalog.entries()) {
-      targetCatalogs.set(cat === '__uncataloged__' ? 'default' : cat, notes);
+    for (const [slug, notes] of notesByNotebook.entries()) {
+      targetNotebooks.set(slug === '__unassigned__' ? 'default' : slug, notes);
     }
   }
 
@@ -103,10 +97,10 @@ export async function publishCatalogSeed(
 
   const manifestChunks: ManifestChunk[] = [];
   let totalNotes = 0;
-  const publishedCatalogs: string[] = [];
+  const publishedNotebooks: string[] = [];
 
-  for (const [catalogName, notes] of targetCatalogs.entries()) {
-    publishedCatalogs.push(catalogName);
+  for (const [notebookSlug, notes] of targetNotebooks.entries()) {
+    publishedNotebooks.push(notebookSlug);
     const chunkRows: SeedRow[] = [];
 
     for (const note of notes) {
@@ -115,7 +109,7 @@ export async function publishCatalogSeed(
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)/g, '') || 'note';
-      const notePath = note.sourcePath ?? `markdown/collections/${catalogName}/${stem}.md`;
+      const notePath = note.sourcePath ?? `markdown/notebooks/${notebookSlug}/${stem}.md`;
       const noteBlockIndex = indexByNote.get(note.id) ?? [];
       const noteBlockEfforts = effortsByNote.get(note.id) ?? [];
       const noteBlockEquipment = equipmentByNote.get(note.id) ?? [];
@@ -125,13 +119,12 @@ export async function publishCatalogSeed(
           ? noteBlockIndex.map((b) => ({
               ...b,
               isStatic: true,
-              sourceId: b.sourceId ?? `collection:${catalogName}/${stem}`,
+              sourceId: b.sourceId ?? `notebook:${notebookSlug}/${stem}`,
               sourcePath: b.sourcePath ?? notePath,
-              catalog: catalogName,
             }))
           : compileSeedRow(notePath, note.rawContent, {
-              routeId: `${catalogName}/${stem}`,
-              sourceId: `collection:${catalogName}/${stem}`,
+              routeId: `${notebookSlug}/${stem}`,
+              sourceId: `notebook:${notebookSlug}/${stem}`,
               // Authored frontmatter date first — exports keep the post's own
               // day, never the import/publish time.
               createdAt: note.date ?? note.createdAt,
@@ -159,7 +152,7 @@ export async function publishCatalogSeed(
         blockEquipment,
       });
     }
-    const chunkId = `collection.${catalogName}`;
+    const chunkId = `notebook.${notebookSlug}`;
     const json = JSON.stringify(chunkRows);
     const digest = nodeCrypto().createHash('sha256').update(json).digest();
     const sha = [...digest].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -197,7 +190,7 @@ export async function publishCatalogSeed(
   return {
     manifest,
     outDir,
-    catalogs: publishedCatalogs,
+    notebooks: publishedNotebooks,
     totalNotes,
   };
 }

@@ -2,10 +2,11 @@
  * Groupings — pure builder over a seeded-content file map
  * (docs/prototypes/seed-data-unification.md: item shape + ordering).
  *
- * A grouping is one subdirectory of `markdown/collections/` or
- * `markdown/feeds/`: its README (front-matter categories + prose) plus its
- * dated (feeds) or plain (collections) items. The map keys follow the
- * canonical `markdown/<root>/…` form that `seedContent` serves.
+ * A grouping is one notebook: one subdirectory of `markdown/notebooks/` —
+ * its README (front-matter categories + prose) plus its items, plain
+ * (`<slug>/<file>.md`) or dated (`<slug>/<date>/<file>.md`). The map keys
+ * follow the canonical `markdown/notebooks/…` form that `seedContent`
+ * serves.
  */
 import { parseFrontmatter, parseFrontmatterCategories, getScalar } from '@/lib/frontmatter';
 
@@ -18,9 +19,9 @@ export interface GroupingItem {
   name: string;
   /** Raw markdown content */
   content: string;
-  /** Canonical markdown path key, e.g. "markdown/collections/crossfit-girls/fran.md" */
+  /** Canonical markdown path key, e.g. "markdown/notebooks/crossfit-girls/fran.md" */
   path: string;
-  /** Date key (feeds only): YYYY-MM-DD parent directory */
+  /** Date key (dated notebooks only): YYYY-MM-DD parent directory */
   date?: string;
 }
 
@@ -49,7 +50,7 @@ export interface Grouping {
   items: GroupingItem[];
 }
 
-export type GroupingRoot = 'collections' | 'feeds';
+export type GroupingRoot = 'notebooks';
 
 // ── README presentation metadata ───────────────────────────────────────────
 
@@ -171,10 +172,12 @@ export function fileToDisplayName(filename: string): string {
 // ── Builder ────────────────────────────────────────────────────────────────
 
 /**
- * Build the groupings for one root from a seeded-content file map. Pure —
- * the same map always yields the same groupings.
+ * Build the notebooks from a seeded-content file map. Pure — the same map
+ * always yields the same notebooks. One notebook is one subdirectory of
+ * `markdown/notebooks/`: its README plus its plain or dated items.
  */
 export function buildGroupings(root: GroupingRoot, files: Record<string, string>): Grouping[] {
+  if (root !== 'notebooks') return [];
   const groupMap = new Map<string, Grouping>();
 
   const ensureGrouping = (id: string): Grouping => {
@@ -187,30 +190,8 @@ export function buildGroupings(root: GroupingRoot, files: Record<string, string>
   };
 
   for (const [path, content] of Object.entries(files)) {
-    if (root === 'collections') {
-      // One level deep: markdown/collections/{dir}/{file}.md
-      const match = path.match(/(?:^|\/)markdown\/collections\/([^/]+)\/([^/]+\.md)$/);
-      if (!match) continue; // root-level files are intentionally ignored
-      const [, dirName, fileName] = match;
-      const grouping = ensureGrouping(dirName);
-
-      if (fileName.toLowerCase() === 'readme.md') {
-        grouping.readme = content;
-        grouping.categories = parseFrontmatterCategories(content);
-        Object.assign(grouping, parseReadmePresentation(content));
-      } else {
-        grouping.items.push({
-          id: fileName.replace(/\.md$/, ''),
-          name: fileToDisplayName(fileName),
-          content,
-          path,
-        });
-      }
-      continue;
-    }
-
-    // Feeds: README at feed root, dated items one level deeper.
-    const readmeMatch = path.match(/(?:^|\/)markdown\/feeds\/([^/]+)\/README\.md$/i);
+    // README at the notebook root.
+    const readmeMatch = path.match(/(?:^|\/)markdown\/notebooks\/([^/]+)\/README\.md$/i);
     if (readmeMatch) {
       const grouping = ensureGrouping(readmeMatch[1]);
       grouping.readme = content;
@@ -219,9 +200,10 @@ export function buildGroupings(root: GroupingRoot, files: Record<string, string>
       continue;
     }
 
-    const itemMatch = path.match(/(?:^|\/)markdown\/feeds\/([^/]+)\/(\d{4}-\d{2}-\d{2})\/([^/]+\.md)$/);
-    if (itemMatch) {
-      const [, slug, dateKey, fileName] = itemMatch;
+    // Dated item, one level deeper: markdown/notebooks/<slug>/<date>/<file>.md
+    const datedMatch = path.match(/(?:^|\/)markdown\/notebooks\/([^/]+)\/(\d{4}-\d{2}-\d{2})\/([^/]+\.md)$/);
+    if (datedMatch) {
+      const [, slug, dateKey, fileName] = datedMatch;
       ensureGrouping(slug).items.push({
         id: fileName.replace(/\.md$/, ''),
         name: fileToDisplayName(fileName),
@@ -231,7 +213,18 @@ export function buildGroupings(root: GroupingRoot, files: Record<string, string>
       });
       continue;
     }
-    // Other files (nested without date, etc.) are intentionally ignored.
+
+    // Plain item: markdown/notebooks/<slug>/<file>.md
+    const itemMatch = path.match(/(?:^|\/)markdown\/notebooks\/([^/]+)\/([^/]+\.md)$/);
+    if (!itemMatch) continue; // root-level files are intentionally ignored
+    const [, slug, fileName] = itemMatch;
+    if (fileName.toLowerCase() === 'readme.md') continue; // handled above
+    ensureGrouping(slug).items.push({
+      id: fileName.replace(/\.md$/, ''),
+      name: fileToDisplayName(fileName),
+      content,
+      path,
+    });
   }
 
   return Array.from(groupMap.values())

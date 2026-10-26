@@ -39,14 +39,13 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     expect(notebookSlugFromId('playground')).toBe('playground');
   });
 
-  it('derives notebook/{slug} for journal, playground, guides, seed catalogs, and explicit notebookId notes', () => {
+  it('derives notebook/{slug} for journal, playground, guides, seed notebooks, and explicit notebookId notes', () => {
     const journalNote = makeNote({ id: '01950000-0000-7000-8000-000000000001', seedOrigin: 'user' });
     const playgroundNote = makeNote({ id: 'pg-1', sourceId: 'playground', type: 'playground', seedOrigin: 'user' });
     const guideNote = makeNote({ id: 'g-1', sourceId: 'guides:start', seedOrigin: 'seed' });
     const girlNote = makeNote({
       id: 'girl-fran',
-      sourceId: 'collection:crossfit-girls/fran',
-      catalog: 'crossfit-girls',
+      sourceId: 'notebook:crossfit-girls/fran',
       seedOrigin: 'seed',
     });
     const customNotebookNote = makeNote({
@@ -83,7 +82,7 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     // A clone that kept its delivery stamps still resolves through tier 1.
     expect(notebookOriginOfItem({ id: 'w3', seedOrigin: 'seed', feedOrigin: 'feed', notebookId: 'notebook/defaults' })).toBe('user');
     // Feed-delivered corpus: collection items, efforts, dashboards, guides.
-    expect(notebookOriginOfItem({ id: 'w4', seedOrigin: 'seed', sourceId: 'collection:girls/fran', catalog: 'girls' })).toBe('feed');
+    expect(notebookOriginOfItem({ id: 'w4', seedOrigin: 'seed', sourceId: 'notebook:girls/fran' })).toBe('feed');
     expect(notebookOriginOfItem({ id: 'w5', seedOrigin: 'seed', sourceId: 'efforts', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' })).toBe('feed');
     expect(notebookOriginOfItem({ id: 'w6', seedOrigin: 'seed', sourceId: 'guides:guide/clock' })).toBe('feed');
     // Playground and journal fallbacks are the app's own containers.
@@ -101,8 +100,7 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
       makeNote({
         id: 'fran-id',
         title: 'Fran',
-        sourceId: 'collection:crossfit-girls/fran',
-        catalog: 'crossfit-girls',
+        sourceId: 'notebook:crossfit-girls/fran',
         seedOrigin: 'seed',
       }),
       makeNote({
@@ -155,28 +153,27 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
       'user-nb-1',
     ]);
 
-    // The retired plural storage scope is a parse error — the notebook plane
-    // is reached through the :notebook head, not source:notebooks.
-    expect(parseQuery(':note{type:feed,source:notebooks}').error).toContain('source:notebooks is retired');
-    expect(parseQuery(':note{source:notebook}').error).toContain('source:notebook is retired');
+    // The singular scope is a parse error — the notebook plane is reached
+    // through the :notebook head or the plural notebooks scope.
+    expect(parseQuery(':note{type:feed,source:notebook}').error).toContain('source:notebook is retired');
+    expect(parseQuery(':note{source:notebooks}').error).toBeUndefined();
 
-    // :catalog keeps its feed-catalog semantics via the deprecated-head
-    // mapping — the notebook plane narrowed to feed-delivered NOTES.
-    const catalogListingRes = await service.runFind(parseQuery(':catalog{}') as Parameters<typeof service.runFind>[0]);
-    expect(catalogListingRes.notes.map((n) => n.id)).toEqual(['fran-id']);
+    // The :catalog head is retired (ticket 08/12) — the notebook plane is
+    // :notebook{}, narrowed to feed-delivered notes via notebook filters.
+    expect(parseQuery(':catalog{}').error).toContain('Unknown find target');
   });
 
-  it('resolves every corpus family from its corpus path alone (effort, equipment, dashboard, guide, collection, feed)', () => {
+  it('resolves every corpus family from its corpus path alone (effort, equipment, dashboard, guide, notebook)', () => {
     expect(notebookOfItem(makeNote({ id: uuid(1), seedOrigin: 'seed', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' }))).toBe('notebook/efforts');
     expect(notebookOfItem(makeNote({ id: uuid(2), seedOrigin: 'seed', sourcePath: 'markdown/equipment/air-bike.md' }))).toBe('notebook/equipment');
     expect(notebookOfItem(makeNote({ id: uuid(3), seedOrigin: 'seed', sourcePath: 'markdown/dashboards/benchmark-pr-board.md' }))).toBe('notebook/dashboards');
     expect(notebookOfItem(makeNote({ id: uuid(4), seedOrigin: 'seed', sourcePath: 'markdown/canvas/guide/clock.md' }))).toBe('notebook/guides');
-    expect(notebookOfItem(makeNote({ id: uuid(5), seedOrigin: 'seed', sourcePath: 'markdown/collections/girls/fran.md' }))).toBe('notebook/girls');
-    expect(notebookOfItem(makeNote({ id: uuid(6), seedOrigin: 'seed', sourcePath: 'markdown/feeds/community/2024-01-01/post.md' }))).toBe('notebook/community');
-    // Writer root landings (`collection._root` / `feed._root`): the writer
+    expect(notebookOfItem(makeNote({ id: uuid(5), seedOrigin: 'seed', sourcePath: 'markdown/notebooks/girls/fran.md' }))).toBe('notebook/girls');
+    expect(notebookOfItem(makeNote({ id: uuid(6), seedOrigin: 'seed', sourcePath: 'markdown/notebooks/community/2024-01-01/post.md' }))).toBe('notebook/community');
+    // Writer root landings (`notebook._root`): the writer
     // stamps no catalog, so they claim no notebook from either tier.
-    expect(notebookOfItem(makeNote({ id: uuid(7), seedOrigin: 'seed', sourcePath: 'markdown/collections/README.md' }))).toBeUndefined();
-    expect(notebookOfItem(makeNote({ id: uuid(8), seedOrigin: 'seed', sourcePath: 'markdown/feeds/README.md' }))).toBeUndefined();
+    expect(notebookOfItem(makeNote({ id: uuid(7), seedOrigin: 'seed', sourcePath: 'markdown/notebooks/README.md' }))).toBeUndefined();
+    expect(notebookOfItem(makeNote({ id: uuid(8), seedOrigin: 'seed', sourcePath: 'markdown/notebooks/README.md' }))).toBeUndefined();
     // Unknown markdown/ paths claim nothing from the corpus tier, and the
     // journal fallback rejects every markdown/ path (existing predicate).
     expect(notebookOfItem(makeNote({ id: uuid(9), seedOrigin: 'user', sourcePath: 'markdown/somewhere/else.md' }))).toBeUndefined();
@@ -194,7 +191,7 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     const conflicting = {
       id: uuid(1),
       seedOrigin: 'seed' as const,
-      sourceId: 'collection:girls/fran',
+      sourceId: 'notebook:girls/fran',
       sourcePath: 'markdown/efforts/bodyweight/air-squat.md',
     };
     expect(notebookOfItem({ ...conflicting, notebookId: 'notebook/open-prep', tags: ['notebook:mine'] })).toBe('notebook/open-prep');
@@ -203,16 +200,16 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     expect(notebookOfItem(conflicting)).toBe('notebook/efforts');
     // …and agrees with it whenever both describe the same corpus note.
     expect(notebookOfItem({ id: uuid(2), sourceId: 'efforts', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' })).toBe('notebook/efforts');
-    expect(notebookOfItem({ id: uuid(3), sourceId: 'collection:girls/fran', sourcePath: 'markdown/collections/girls/fran.md' })).toBe('notebook/girls');
+    expect(notebookOfItem({ id: uuid(3), sourceId: 'notebook:girls/fran', sourcePath: 'markdown/notebooks/girls/fran.md' })).toBe('notebook/girls');
     expect(notebookOfItem({ id: uuid(4), sourceId: 'guides:guide/clock', sourcePath: 'markdown/canvas/guide/clock.md' })).toBe('notebook/guides');
     expect(notebookOfItem({ id: uuid(5), sourceId: 'dashboards', sourcePath: 'markdown/dashboards/benchmark-pr-board.md' })).toBe('notebook/dashboards');
-    expect(notebookOfItem({ id: uuid(6), sourceId: 'collection:_root', sourcePath: 'markdown/collections/README.md' })).toBeUndefined();
+    expect(notebookOfItem({ id: uuid(6), sourceId: 'notebook:_root', sourcePath: 'markdown/notebooks/README.md' })).toBeUndefined();
   });
 
   it('keeps today\'s resolutions stable: journal, playground, feed ids, guides, and the journal predicate', () => {
     expect(notebookOfItem(makeNote({ id: uuid(1), seedOrigin: 'user' }))).toBe('notebook/journal');
-    expect(notebookOfItem(makeNote({ id: 'playground/legacy-draft', seedOrigin: 'user' }))).toBe('notebook/playground');
-    expect(notebookOfItem(makeNote({ id: uuid(2), seedOrigin: 'seed', sourceId: 'feed:feeds/community/2024-01-01/post' }))).toBe('notebook/community');
+    expect(notebookOfItem(makeNote({ id: 'pg-legacy', sourceId: 'playground', type: 'playground', seedOrigin: 'user' }))).toBe('notebook/playground');
+    expect(notebookOfItem(makeNote({ id: uuid(2), seedOrigin: 'seed', sourceId: 'notebook:community/2024-01-01/post' }))).toBe('notebook/community');
     expect(notebookOfItem(makeNote({ id: uuid(3), seedOrigin: 'seed', sourceId: 'guides:guide/clock' }))).toBe('notebook/guides');
     // Corpus notes never journal — the corpus path and the sourceId literal
     // both exclude them from the journal fallback.

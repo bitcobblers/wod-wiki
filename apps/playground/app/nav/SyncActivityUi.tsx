@@ -24,7 +24,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { ToastAction } from '@/components/atoms/primitives/toast'
 import { ROUTE_PATTERNS } from '../lib/routes'
-import { getCatalogUpdates, subscribeCatalogUpdates } from '@/services/feed/feedSync'
+import { getFeedUpdates, subscribeFeedUpdates } from '@/services/feed/feedSync'
 
 function activityLabel(direction: 'upload' | 'download', count: number, label: string | null, progress?: SyncProgressItem | null): string {
   const noun = direction === 'upload' ? 'Uploading' : 'Downloading'
@@ -86,7 +86,7 @@ export function SyncActivityIndicators() {
 // many times the observer remounts (StrictMode, route changes).
 let lastSeenResultId = 0
 let lastSeenError: string | null = null
-let lastSeenCatalogUpdateId = 0
+let lastSeenFeedUpdateId = 0
 
 function notifyResult(result: NonNullable<SyncActivitySnapshot['result']>, navigate: (to: string) => void): void {
   const parts: string[] = []
@@ -109,9 +109,9 @@ export function SyncActivityNotifier() {
   const navigate = useNavigate()
   useEffect(() => {
     const check = () => {
-      const snapshot = getCatalogUpdates()
-      if (!snapshot || snapshot.id <= lastSeenCatalogUpdateId) return
-      lastSeenCatalogUpdateId = snapshot.id
+      const snapshot = getFeedUpdates()
+      if (!snapshot || snapshot.id <= lastSeenFeedUpdateId) return
+      lastSeenFeedUpdateId = snapshot.id
       if (!snapshot.updates.length) return
       toast({
         title: 'Notebook updates',
@@ -120,7 +120,7 @@ export function SyncActivityNotifier() {
       })
     }
     check()
-    return subscribeCatalogUpdates(check)
+    return subscribeFeedUpdates(check)
   }, [navigate])
   useEffect(() => {
     const check = (activity: SyncActivitySnapshot) => {

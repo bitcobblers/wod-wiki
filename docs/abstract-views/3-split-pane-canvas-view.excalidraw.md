@@ -22,7 +22,7 @@ Key architectural responsibilities include:
 On desktop displays (≥1024px), the view splits the screen into complementary halves:
 
 1. **Global Icon Rail (L1, 56px)** & **Context Sidebar (L2, 240px)**:
-   - Provides chapter-by-chapter table of contents, collection groupings, and fast navigation.
+   - Provides chapter-by-chapter table of contents, notebook groupings, and fast navigation.
 2. **Sticky Page Header (`StickyPageHeader.tsx`)**:
    - **Page Title & Subtitle**: Guide name and chapter progression counter.
    - **Quest Badge**: `ChallengeHeaderBadge` indicating active quest completion percentage; clicking smooth-scrolls directly to the current quest block.

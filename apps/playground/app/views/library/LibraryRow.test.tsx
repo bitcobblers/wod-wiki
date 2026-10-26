@@ -12,8 +12,8 @@ describe('LibraryRow — field projection adaptation', () => {
   const testEntry: Entry = {
     id: 'test-1',
     kind: 'note',
-    sourceCatalog: 'journal',
-    sourceItem: 'test-1',
+    sourceNotebook: 'journal',
+    sourceNote: 'test-1',
     title: 'Journal Entry Title',
     subtitle: 'Morning Session',
     detail: 'Push-up, Pull-up, Squat',
@@ -23,7 +23,7 @@ describe('LibraryRow — field projection adaptation', () => {
   it('labels note-kind rows by their source in the All view (playground/guide flavors)', () => {
     render(
       <MemoryRouter>
-        <LibraryRow entry={{ ...testEntry, id: 'pg-1', sourceCatalog: 'playground' }} />
+        <LibraryRow entry={{ ...testEntry, id: 'pg-1', sourceNotebook: 'playground' }} />
       </MemoryRouter>,
     )
     expect(screen.getByText('Playground')).toBeDefined()
@@ -31,7 +31,7 @@ describe('LibraryRow — field projection adaptation', () => {
     cleanup()
     render(
       <MemoryRouter>
-        <LibraryRow entry={{ ...testEntry, id: 'g-1', sourceCatalog: 'guides' }} />
+        <LibraryRow entry={{ ...testEntry, id: 'g-1', sourceNotebook: 'guides' }} />
       </MemoryRouter>,
     )
     expect(screen.getByText('Guide')).toBeDefined()
@@ -61,7 +61,7 @@ describe('LibraryRow — field projection adaptation', () => {
         <LibraryRow
           entry={testEntry}
           dateLabel="2026-09-02"
-          visibleFieldIds={['title', 'catalog']}
+          visibleFieldIds={['title', 'sourceNotebook']}
         />
       </MemoryRouter>,
     )
@@ -89,8 +89,8 @@ describe('LibraryRow — field projection adaptation', () => {
     const effortEntry: Entry = {
       id: 'eff-1',
       kind: 'effort',
-      sourceCatalog: 'canonical',
-      sourceItem: 'eff-1',
+      sourceNotebook: 'canonical',
+      sourceNote: 'eff-1',
       title: 'Thruster',
       date: null,
     }
@@ -109,8 +109,8 @@ describe('LibraryRow — field projection adaptation', () => {
     const segmentEntry: Entry = {
       id: 'res-123:0',
       kind: 'segment',
-      sourceCatalog: 'results',
-      sourceItem: 'res-123',
+      sourceNotebook: 'results',
+      sourceNote: 'res-123',
       title: 'Thruster',
       date: '2026-08-15',
       execution: {

@@ -200,16 +200,16 @@ export function App() {
                   {/* Retired corpus landing paths (/chapters/*, /challenge,
                       /getting-started) — no redirect left behind (ticket 09). */}
                   <Route path={ROUTE_PATTERNS.plan} element={<PlanRedirect />} />
-                  {/* Feed concept — /feeds the library, /feed/:slug one source,
-                      deeper segments one feed post. */}
+                  {/* Feed concept — /feeds the library, /feed/:slug one source. */}
                   <Route path={ROUTE_PATTERNS.feeds} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.feed} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.feedItem} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Notebook concept — /notebooks the library, /notebook/:slug
-                      one notebook, a deeper target a member (note UUID, date, item). */}
+                      one notebook, a deeper target a member (note UUID, date,
+                      dated item). */}
                   <Route path={ROUTE_PATTERNS.notebooks} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.notebook} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.notebookTarget} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route path={ROUTE_PATTERNS.notebookItem} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.subscribe} element={<SubscribePage />} />
                   {/* Page concept — /pages the library, /page/:slug one page. */}
                   <Route path={ROUTE_PATTERNS.pages} element={<AppContent searchHandlerRef={searchHandlerRef} />} />

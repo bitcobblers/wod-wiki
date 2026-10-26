@@ -51,7 +51,7 @@ export const indexedDbEventStore: EventStore = {
 
 export const indexedDbNoteStore: NoteQueryStore = {
   getAllNotes: () => storageService.getAllNotes(),
-  getNotesByIds: async (ids) => [...(await storageService.getEntryBatches(ids)).values()].map(bundle => bundle.note),
+  getNotesByIds: async (ids) => [...(await storageService.getDetailBatches(ids)).values()].map(bundle => bundle.note),
   getNoteIdsForTag: async (label: string) =>
     new Set((await storageService.getNotesForTag(label)).map((n) => n.id)),
   getNoteTagLabels: async (noteId: string) =>
@@ -314,7 +314,7 @@ export function createQueryService(): QueryService {
       getAllLinks: () => storageService.getAllPageNotes(),
     },
     relationStore: {
-      getBatches: (noteIds) => storageService.getEntryBatches(noteIds),
+      getBatches: (noteIds) => storageService.getDetailBatches(noteIds),
     },
     // Named page-source datasets — @session projects live at query time;
     // everything else reads the populated registry. No database roundtrip.

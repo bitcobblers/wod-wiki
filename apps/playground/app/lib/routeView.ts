@@ -18,8 +18,8 @@ import type { ParsedCanvasPage } from '../canvas/parseCanvasMarkdown'
 import type { MenuSpec } from '../nav/menuModel'
 import {
   isPlaygroundNotePath,
-  matchFeedItem,
   matchFeedDetail,
+  matchNotebookItem,
 } from './routes'
 import { cleanRoutePath, isStreamRoute, streamRouteTitle } from '../views/stream/streamProfile'
 import { deriveNav } from './routeNav'
@@ -54,7 +54,7 @@ export interface CurrentWorkout {
  */
 export type PageKind =
   | 'feedDetail'
-  | 'feedItem'
+  | 'notebookItem'
   | 'effortDetail'
   | 'equipmentDetail'
   | 'tagDetail'
@@ -65,7 +65,7 @@ export type PageKind =
   | 'playground'
   | 'day'
   | 'note'
-  | 'collectionDate'
+  | 'notebookDate'
   | 'workout'
   | 'library'
   | 'settings'
@@ -75,9 +75,9 @@ export interface ShellConfig {
   /** Canvas title (canvas branches). */
   title?: string
   /** Subheader filter strip kind. */
-  subheader?: 'filter-collection-workouts'
+  subheader?: 'filter-notebook-workouts'
   /** `<PageActions>` mode (canvas branches render an actions menu). */
-  actionsMode?: 'journal-active' | 'collection-readonly'
+  actionsMode?: 'journal-active' | 'notebook-readonly'
   /** Whether the canvas shell receives the nav index + scroll handler. */
   withIndex?: boolean
   /** Route-declared nav panel content (zone 2) — rendered in the context
@@ -110,8 +110,9 @@ export interface RouteFlags {
    *  listing, not a single note. Canvas routes keep precedence. */
   namedPageSlug: string | undefined
   /** /notebook/:slug/:date — a date-scoped, journal-style notebook view. */
-  collectionDate: { slug: string; date: string } | null
-  feedItemMatch: [string, string, string] | null
+  notebookDate: { slug: string; date: string } | null
+  /** /notebook/:slug/:itemDate/:item — one dated notebook item. */
+  notebookItemMatch: [string, string, string] | null
   feedDetailMatch: string | null
 }
 
@@ -134,8 +135,8 @@ function detectFlags(pathname: string, params: RouteViewParams): RouteFlags {
   const dayRoute = resolveDayRoute(pathname)
   const isDayRoute = dayRoute.kind === 'date'
   const day = dayRoute.kind === 'date' ? dayRoute.date : undefined
-  const feedItemMatch = matchFeedItem(pathname)
-  const feedDetailMatch = feedItemMatch ? null : matchFeedDetail(pathname)
+  const notebookItemMatch = matchNotebookItem(pathname)
+  const feedDetailMatch = matchFeedDetail(pathname)
 
   const noteMatch = pathname.match(/^\/note\/([^/]+)$/)
   const isNoteRoute = noteMatch != null
@@ -144,19 +145,19 @@ function detectFlags(pathname: string, params: RouteViewParams): RouteFlags {
   // /notebook/:slug/:target — a UUID targets one note (same single-note page
   // as /note/:noteId), a date scopes the notebook to a journal-style day;
   // anything else stays a page-slug item name.
-  let collectionDate: { slug: string; date: string } | null = null
+  let notebookDate: { slug: string; date: string } | null = null
   const notebookMatch = pathname.match(/^\/notebook\/([^/]+)\/([^/]+)$/)
   if (notebookMatch) {
     const slug = decodeURIComponent(notebookMatch[1]!)
     const target = decodeURIComponent(notebookMatch[2]!)
     if (isNoteUuid(target)) {
       if (!isNoteRoute) {
-        return { isPlaygroundRoute: isPlaygroundNotePath(pathname), effectivePlaygroundId: params.id, isDayRoute, day, isNoteRoute: true, note: target, namedPageSlug: undefined, collectionDate: null, feedItemMatch, feedDetailMatch }
+        return { isPlaygroundRoute: isPlaygroundNotePath(pathname), effectivePlaygroundId: params.id, isDayRoute, day, isNoteRoute: true, note: target, namedPageSlug: undefined, notebookDate: null, notebookItemMatch, feedDetailMatch }
       }
     } else {
       const parsed = parseJournalDate(target)
       if (parsed) {
-        collectionDate = { slug, date: parsed.dateKey }
+        notebookDate = { slug, date: parsed.dateKey }
       }
     }
   }
@@ -169,8 +170,8 @@ function detectFlags(pathname: string, params: RouteViewParams): RouteFlags {
     isNoteRoute,
     note,
     namedPageSlug: undefined,
-    collectionDate,
-    feedItemMatch,
+    notebookDate,
+    notebookItemMatch,
     feedDetailMatch,
   }
 }
@@ -190,8 +191,8 @@ function deriveWorkout(
   if (flags.namedPageSlug) {
     return { name: flags.namedPageSlug, content: '', category: 'page' }
   }
-  if (flags.collectionDate) {
-    return { name: flags.collectionDate.date, content: '', category: flags.collectionDate.slug }
+  if (flags.notebookDate) {
+    return { name: flags.notebookDate.date, content: '', category: flags.notebookDate.slug }
   }
   if (flags.isDayRoute && flags.day) {
     return { name: flags.day, content: '', category: 'journal' }
@@ -205,8 +206,8 @@ function deriveWorkout(
   if (pathname.startsWith('/equipment/')) {
     return { name: decodeURIComponent(pathname.slice('/equipment/'.length).split('/')[0] ?? 'Equipment'), content: '', category: 'equipment' }
   }
-  if (flags.feedItemMatch) {
-    return { name: decodeURIComponent(flags.feedItemMatch[2]), content: '', category: 'feed' }
+  if (flags.notebookItemMatch) {
+    return { name: decodeURIComponent(flags.notebookItemMatch[2]), content: '', category: 'notebook' }
   }
   if (flags.feedDetailMatch) {
     return { name: decodeURIComponent(flags.feedDetailMatch), content: '', category: 'feed' }
@@ -270,7 +271,7 @@ function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanva
     return 'library'
   }
   if (flags.feedDetailMatch) return 'feedDetail'
-  if (flags.feedItemMatch) return 'feedItem'
+  if (flags.notebookItemMatch) return 'notebookItem'
   if (pathname.startsWith('/effort/')) return 'effortDetail'
   if (pathname.startsWith('/equipment/')) return 'equipmentDetail'
   if (clean === '/dashboards') return 'dashboardExplorer'
@@ -283,7 +284,7 @@ function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanva
   if (flags.isPlaygroundRoute && flags.effectivePlaygroundId) return 'playground'
   if (flags.isNoteRoute && flags.note) return 'note'
   if (flags.namedPageSlug) return 'note'
-  if (flags.collectionDate) return 'collectionDate'
+  if (flags.notebookDate) return 'notebookDate'
   if (flags.isDayRoute && flags.day) return 'day'
   if (/^\/notebook\/[^/]+\/[^/]+$/.test(pathname)) return 'workout'
   return 'note'
@@ -296,11 +297,11 @@ function deriveShell(page: PageKind, pathname: string, workout: CurrentWorkout):
       return {
         wrap: 'canvas',
         title: workout.name,
-        // Canvas pages under the notebook prefix render the collection
+        // Canvas pages under the notebook prefix render the notebook
         // filter strip — the rebranded continuation of the pre-ticket
         // /collections/:slug canvas landing.
-        subheader: page === 'canvas' && /^\/notebook\//.test(pathname) ? 'filter-collection-workouts' : undefined,
-        actionsMode: 'collection-readonly',
+        subheader: page === 'canvas' && /^\/notebook\//.test(pathname) ? 'filter-notebook-workouts' : undefined,
+        actionsMode: 'notebook-readonly',
         withIndex: true,
       }
     default:

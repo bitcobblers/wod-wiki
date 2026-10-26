@@ -57,8 +57,8 @@ const mockStatus: FeedStatus = {
       url: 'https://seed.test/crossfit/',
       autoImport: false,
       notebooks: [
-        { id: 'games', label: 'CrossFit Games', chunkId: 'collection.crossfit-games', count: 10, bytes: 1000, imported: false, subscribed: false },
-        { id: 'heroes', label: 'Hero WODs', chunkId: 'collection.heroes', count: 20, bytes: 2000, imported: false, subscribed: false },
+        { id: 'games', label: 'CrossFit Games', chunkId: 'notebook.crossfit-games', count: 10, bytes: 1000, imported: false, subscribed: false },
+        { id: 'heroes', label: 'Hero WODs', chunkId: 'notebook.heroes', count: 20, bytes: 2000, imported: false, subscribed: false },
       ],
       stored: null,
       remote: { version: 2, schema: 9, builtAt: '2026-10-21' },
@@ -80,7 +80,7 @@ mock.module('@/services/feed/feedSync', () => ({
     return 'imported';
   },
   runFeedSync: async () => 'imported',
-  subscribeCatalogUpdates: () => () => {},
+  subscribeFeedUpdates: () => () => {},
   unsubscribeFeedSource: async () => ({ deleted: 0 }),
   deleteFeedSource: async () => ({ deleted: 0 }),
 }));
@@ -113,8 +113,8 @@ describe('SyncSection notebook subscriptions and filtering', () => {
     await waitFor(() => {
       expect(screen.getByTestId('feed-source-seed-crossfit')).toBeTruthy();
     });
-    expect(screen.getByTestId('feed-notebook-seed-crossfit-collection.crossfit-games')).toBeTruthy();
-    expect(screen.getByTestId('feed-notebook-seed-crossfit-collection.heroes')).toBeTruthy();
+    expect(screen.getByTestId('feed-notebook-seed-crossfit-notebook.crossfit-games')).toBeTruthy();
+    expect(screen.getByTestId('feed-notebook-seed-crossfit-notebook.heroes')).toBeTruthy();
   });
 
   it('filters by feed selector', async () => {
@@ -141,15 +141,15 @@ describe('SyncSection notebook subscriptions and filtering', () => {
     fireEvent.click(screen.getByTestId('sync-subscribed-only-toggle'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('feed-notebook-toggle-seed-crossfit-collection.heroes')).toBeTruthy();
+      expect(screen.getByTestId('feed-notebook-toggle-seed-crossfit-notebook.heroes')).toBeTruthy();
     });
 
-    const toggleBtn = screen.getByTestId('feed-notebook-toggle-seed-crossfit-collection.heroes');
+    const toggleBtn = screen.getByTestId('feed-notebook-toggle-seed-crossfit-notebook.heroes');
     expect(toggleBtn.textContent).toBe('Subscribe');
 
     fireEvent.click(toggleBtn);
 
-    expect(subscribedNotebooks.has('seed-crossfit#collection.heroes')).toBe(true);
+    expect(subscribedNotebooks.has('seed-crossfit#notebook.heroes')).toBe(true);
     expect(syncedSources).toContain('seed-crossfit');
   });
 });

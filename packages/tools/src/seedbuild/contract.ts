@@ -101,8 +101,11 @@ export function seedMetaKey(sourceId: string): string { return `seed:${sourceId}
 export function emptySeedMeta(key: string): SeedMetaRecord {
   return { key, schema: SEED_SCHEMA, seedVersion: 0, builtAt: '', importedAt: 0, chunks: {}, claim: null };
 }
-export function catalogForChunkId(chunkId: string): string | undefined {
-  const value = /^(?:collection|feed)\.(.+)$/.exec(chunkId)?.[1];
+/** The notebook slug a notebook chunk id names — `notebook.<slug>`; the
+ *  `_root` landing (a file directly under `markdown/notebooks/`) names no
+ *  notebook. */
+export function notebookSlugForChunkId(chunkId: string): string | undefined {
+  const value = /^notebook\.(.+)$/.exec(chunkId)?.[1];
   return value && value !== '_root' ? value : undefined;
 }
 export function canvasRouteSlug(content: string): string | null {
@@ -118,10 +121,11 @@ export function seedNoteSourceId(path: string, content: string, chunkId: string)
   if (chunkId === DASHBOARDS_CHUNK_ID) return 'dashboards';
   if (chunkId === EFFORTS_CHUNK_ID) return 'efforts';
   if (chunkId === EQUIPMENT_CHUNK_ID) return 'equipment';
-  if (chunkId.startsWith('collection.')) {
-    const catalog = catalogForChunkId(chunkId);
-    return !catalog ? 'collection:_root' : stem.toLowerCase() === 'readme' ? `collection:${catalog}` : `collection:${catalog}/${stem}`;
+  if (chunkId.startsWith('notebook.')) {
+    const slug = notebookSlugForChunkId(chunkId);
+    // `under` is `<slug>/<item>` or `<slug>/<date>/<item>` — one notebook
+    // source-id shape for plain and dated notebooks alike.
+    return !slug ? 'notebook:_root' : stem.toLowerCase() === 'readme' ? `notebook:${slug}` : `notebook:${under}`;
   }
-  if (chunkId.startsWith('feed.')) return `feed:feeds/${under}`;
   return undefined;
 }

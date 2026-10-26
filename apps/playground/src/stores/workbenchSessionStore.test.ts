@@ -13,7 +13,7 @@ import type { IScriptRuntime } from '@bitcobblers/wod-wiki-engine';
 import type { INowProvider } from '@bitcobblers/wod-wiki-engine';
 import type { INotePersistence } from '@/services/persistence';
 import type { CreateNoteInput, NoteMutation, NoteLocator, GetNoteOptions } from '@/services/persistence';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { Sessions, StoredOutputStatement } from '@/components/Editor/types';
 import type { Attachment } from '@/types/storage';
 import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
@@ -47,9 +47,9 @@ class FakeNotePersistence extends IndexedDBNotePersistence {
     return result;
   }
   public readonly mutated: Array<{ locator: NoteLocator; mutation: NoteMutation }> = [];
-  private readonly notes = new Map<string, HistoryEntry>();
+  private readonly notes = new Map<string, HistoryRecord>();
 
-  async createNote(input: CreateNoteInput): Promise<HistoryEntry> {
+  async createNote(input: CreateNoteInput): Promise<HistoryRecord> {
     const entry = makeEntry({
       ...input,
       tags: input.tags ?? [],
@@ -59,7 +59,7 @@ class FakeNotePersistence extends IndexedDBNotePersistence {
     return entry;
   }
 
-  async getNote(locator: NoteLocator, _options?: GetNoteOptions): Promise<HistoryEntry> {
+  async getNote(locator: NoteLocator, _options?: GetNoteOptions): Promise<HistoryRecord> {
     const id = typeof locator === 'string' ? locator : locator.id;
     if (!id) throw new Error('missing note id in locator');
     const note = this.notes.get(id);
@@ -72,7 +72,7 @@ class FakeNotePersistence extends IndexedDBNotePersistence {
     return Array.from(this.notes.values());
   }
 
-  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryEntry> {
+  async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryRecord> {
     this.mutated.push({ locator, mutation });
     const id = typeof locator === 'string' ? locator : locator.id;
     if (!id) throw new Error('missing note id in locator');
@@ -85,7 +85,7 @@ class FakeNotePersistence extends IndexedDBNotePersistence {
     if (id) this.notes.delete(id);
   }
 
-  seed(note: HistoryEntry) {
+  seed(note: HistoryRecord) {
     this.notes.set(note.id, note);
   }
 }
@@ -100,54 +100,54 @@ class FakeContentProvider implements IContentProvider {
     supportsHistory: true,
   } as const;
   public readonly updated: Array<{ id: string; rawContent?: string; title?: string }> = [];
-  private entries = new Map<string, HistoryEntry>();
+  private entries = new Map<string, HistoryRecord>();
 
-  async getEntries() {
+  async getRecords() {
     return Array.from(this.entries.values());
   }
-  async getEntry(id: string) {
+  async getRecord(id: string) {
     return this.entries.get(id) ?? null;
   }
   async getAttachments(_noteId: string) {
     return [];
   }
-  async saveEntry(input: NoteSaveInput): Promise<HistoryEntry> {
+  async saveRecord(input: NoteSaveInput): Promise<HistoryRecord> {
     const id = input.id ?? 'saved';
-    const entry = { ...input, id, type: 'note' } as HistoryEntry;
+    const entry = { ...input, id, type: 'note' } as HistoryRecord;
     this.entries.set(id, entry);
     return entry;
   }
-  async updateEntry(
+  async updateRecord(
     id: string,
     patch: { rawContent?: string; title?: string; tags?: string[] },
-  ): Promise<HistoryEntry> {
+  ): Promise<HistoryRecord> {
     this.updated.push({ id, ...patch });
     const existing = this.entries.get(id);
     const next = existing
       ? { ...existing, ...patch }
-      : ({ ...patch, id, type: 'note' } as HistoryEntry);
+      : ({ ...patch, id, type: 'note' } as HistoryRecord);
     this.entries.set(id, next);
     return next;
   }
-  async cloneEntry(sourceId: string, _targetDate?: number): Promise<HistoryEntry> {
+  async cloneRecord(sourceId: string, _targetDate?: number): Promise<HistoryRecord> {
     const existing = this.entries.get(sourceId);
     if (!existing) throw new Error(`clone failed: ${sourceId} not found`);
     return { ...existing, id: `${sourceId}-clone` };
   }
-  async deleteEntry(id: string): Promise<void> {
+  async deleteRecord(id: string): Promise<void> {
     /* no-op */
   }
-  async addEntryPlacement(id: string): Promise<HistoryEntry> {
+  async addRecordPlacement(id: string): Promise<HistoryRecord> {
     const entry = this.entries.get(id);
     if (!entry) throw new Error(`clone failed: ${id} not found`);
     return entry;
   }
-  async removeEntryPlacement(id: string): Promise<HistoryEntry> {
+  async removeRecordPlacement(id: string): Promise<HistoryRecord> {
     const entry = this.entries.get(id);
     if (!entry) throw new Error(`clone failed: ${id} not found`);
     return entry;
   }
-  async moveEntryPlacement(id: string): Promise<HistoryEntry> {
+  async moveRecordPlacement(id: string): Promise<HistoryRecord> {
     const entry = this.entries.get(id);
     if (!entry) throw new Error(`clone failed: ${id} not found`);
     return entry;
@@ -161,7 +161,7 @@ class FakeContentProvider implements IContentProvider {
   async deleteAttachment(_id: string): Promise<void> {
     /* no-op */
   }
-  seed(note: HistoryEntry) {
+  seed(note: HistoryRecord) {
     this.entries.set(note.id, note);
   }
 }
@@ -194,7 +194,7 @@ function fakeTimers() {
   };
 }
 
-function makeEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
+function makeEntry(overrides: Partial<HistoryRecord> = {}): HistoryRecord {
   return {
     id: 'note-1',
     title: 'Test',

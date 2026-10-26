@@ -89,11 +89,11 @@ A page is a **placement**, never a second container. The resolved target:
 
 ### Notebook page versus notebook
 
-**Proposed distinction:** a notebook page is a [[Page]] presentation configured by an authored [[Note]] containing prose and a WQL listing. A **Notebook** is the container of notes; the query that lists a notebook's notes belongs to the page that shows them, not to the notebook itself. The legacy collection-style adapter is an adapter over the source, not proof that query-page membership should become a stored entity.
+**Proposed distinction:** a notebook page is a [[Page]] presentation configured by an authored [[Note]] containing prose and a WQL listing. A **Notebook** is the container of notes; the query that lists a notebook's notes belongs to the page that shows them, not to the notebook itself. The legacy corpus adapter is an adapter over the source, not proof that query-page membership should become a stored entity.
 
 ### Membership questions and proposed answers
 
-Owner: [Decide collection-page membership: WQL segment vs pageId](https://github.com/bitcobblers/wod-wiki/issues/1031).
+Owner: [Decide notebook-page membership: WQL segment vs pageId](https://github.com/bitcobblers/wod-wiki/issues/1031).
 
 - **Live query, stored membership or hybrid?** Recommended answer: live query-derived display. `Note.pageId` remains owned placement, especially journal dates; it does not record all queries that happen to include a note. No membership backfill or second writable list is needed.
 - **Where do non-query segments live?** Recommended answer: ordinary prose/headings/metadata in the configuration note's `rawContent`. Do not add `Page.body`, duplicate category fields, or copy every member's source into the page.

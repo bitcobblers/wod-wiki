@@ -22,7 +22,7 @@ export {
   SUGGESTION_BINDINGS,
   blockTypesFromBlocks,
   canonicalSuggestionItems,
-  catalogIdsFromBlocks,
+  notebookSlugsFromBlocks,
   getSuggestionBinding,
   invalidateSuggestions,
   loadSuggestions,

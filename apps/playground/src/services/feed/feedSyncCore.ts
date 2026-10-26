@@ -7,7 +7,7 @@
  * UI-adjacent singletons — every dependency is an IFeedSource, a
  * FeedImportStorage, a plain flag, or a callback. Everything environment-specific
  * (activity reporting, content-cache invalidation, registry hydration,
- * catalog-update snapshotting, check timestamps) happens in the driver
+ * source-update snapshotting, check timestamps) happens in the driver
  * that interprets the returned SourceSyncCoreResult.
  */
 import { assertManifest, type IFeedSource } from './IFeedSource';
@@ -22,7 +22,7 @@ export type FeedSyncOutcome = 'disabled' | 'current' | 'busy' | 'imported' | 'se
 /**
  * 'update-pending': a background load check found a newer published
  * manifest for a source whose auto-sync is off — nothing was imported;
- * the update waits for a manual Sync (grouped catalog-updates snapshot).
+ * the update waits for a manual Sync (grouped source-updates snapshot).
  */
 export type FeedSyncOutcomeReason = FeedSyncOutcome;
 

@@ -82,7 +82,7 @@ that ever carried it, and their profile is inferred from the tag's slug
 - Keep tags as classification/discovery, separate from [[Note]] type, [[Page]] placement and source-write authority. Tagging a note `effort` or `page` does not create an owning relationship or parsed projection.
 - Reuse [[NoteTag]] for actual note records. An effort's proposed owning note can use that junction; no polymorphic tag target is needed merely to call an effort a note.
 
-**Feedback question:** if a tag changes which collection queries display a note, should it ever change the editor mode or ownership? Recommended answer: no; those contracts belong to [[Note#Wayfinder questions and proposed answers]] and [[Page#Mode and write destinations]].
+**Feedback question:** if a tag changes which corpus queries display a note, should it ever change the editor mode or ownership? Recommended answer: no; those contracts belong to [[Note#Wayfinder questions and proposed answers]] and [[Page#Mode and write destinations]].
 
 These are review proposals, not implemented changes. The earlier idea of direct session/query-document tagging is separate and needs a concrete use case before expanding the schema.
 

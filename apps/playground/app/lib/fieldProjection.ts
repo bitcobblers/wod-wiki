@@ -2,7 +2,7 @@
  * fieldProjection — level-configurable FieldProjection seam (Ticket 002).
  *
  * Defines the available and default visible fields for each entity level:
- * - Note level: title, tags, text excerpt, catalog source, date.
+ * - Note level: title, tags, text excerpt, notebook source, date.
  * - Session level: title, protocol, movements, target duration, session load.
  * - Result level: title, elapsed time, total tonnage, TIS score, PR badges.
  * - Segment level: split duration, round/lap index, reps, load, pacing/heart rate tier.
@@ -71,12 +71,12 @@ export const NOTE_FIELDS: readonly FieldDefinition[] = [
     formatValue: v => String(v ?? ''),
   },
   {
-    id: 'catalog',
-    label: 'Catalog Source',
+    id: 'sourceNotebook',
+    label: 'Notebook',
     level: 'note',
     defaultVisible: true,
     align: 'left',
-    getValue: e => e.sourceCatalog,
+    getValue: e => e.sourceNotebook,
     formatValue: v => String(v ?? ''),
   },
   {

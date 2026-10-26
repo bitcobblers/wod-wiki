@@ -31,7 +31,7 @@ import { entryOpenHref, entryIsPlayground } from './entryActions'
  *  actually resolves is determined at click time (startEntryRun surfaces a
  *  visible error when none exists). */
 export function entryCanRun(entry: Entry): boolean {
-  if (entry.kind === 'note' && !entry.sourceItem) return false
+  if (entry.kind === 'note' && !entry.sourceNote) return false
   return entry.kind === 'note'
 }
 
@@ -92,7 +92,7 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction): P
   // Catalog adoption (existing behavior): the run lands in today's journal.
   const journalNote = await createJournalNoteFromWorkout({
     workoutName: entry.title,
-    category: entry.sourceCatalog,
+    category: entry.sourceNotebook,
     sourceNoteLabel: entry.subtitle ?? entry.title,
     sourceNotePath: entryOpenHref(entry),
     wodContent: content,

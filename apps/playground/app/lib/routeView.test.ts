@@ -136,7 +136,7 @@ describe('resolveRouteView — bundle-owned home route', () => {
       expect(view.shell).toMatchObject({
         wrap: 'canvas',
         title: 'Home',
-        actionsMode: 'collection-readonly',
+        actionsMode: 'notebook-readonly',
         withIndex: true,
       })
       expect(view.nav).toEqual([])
@@ -295,7 +295,7 @@ describe('resolveRouteView — stream list routes', () => {
     expect(view.page).toBe('canvas')
     expect(view.shell.wrap).toBe('canvas')
     expect(view.shell.title).toBe('Canvas')
-    expect(view.shell.actionsMode).toBe('collection-readonly')
+    expect(view.shell.actionsMode).toBe('notebook-readonly')
     expect(view.shell.withIndex).toBe(true)
   })
 
@@ -307,7 +307,7 @@ describe('resolveRouteView — stream list routes', () => {
     const canvasPage = { route: '/notebook/girls/welcome', sections: [] } as unknown as ParsedCanvasPage
     const view = resolveRouteView('/notebook/girls/welcome', NO_PARAMS, makeDeps({ canvasPage }))
     expect(view.page).toBe('canvas')
-    expect(view.shell.subheader).toBe('filter-collection-workouts')
+    expect(view.shell.subheader).toBe('filter-notebook-workouts')
   })
 
   it('prefers the stream landing when a notebook path also has a canvas page', () => {
@@ -357,15 +357,15 @@ describe('resolveRouteView — single-note and notebook-date routes', () => {
 
   it('classifies /notebook/:slug/:date as the date-scoped notebook page', () => {
     const view = resolveRouteView('/notebook/girls/2026-09-17', { slug: 'girls', target: '2026-09-17' }, makeDeps())
-    expect(view.page).toBe('collectionDate')
-    expect(view.collectionDate).toEqual({ slug: 'girls', date: '2026-09-17' })
+    expect(view.page).toBe('notebookDate')
+    expect(view.notebookDate).toEqual({ slug: 'girls', date: '2026-09-17' })
     expect(view.workout.category).toBe('girls')
   })
 
   it('keeps /notebook/:slug/:name on the workout page', () => {
     const view = resolveRouteView('/notebook/girls/Fran', { slug: 'girls', target: 'Fran' }, makeDeps())
     expect(view.page).toBe('workout')
-    expect(view.collectionDate).toBeNull()
+    expect(view.notebookDate).toBeNull()
     expect(view.note).toBeUndefined()
   })
 })
@@ -423,15 +423,16 @@ describe('resolveRouteView — canonical direct routes (/notebook, /effort, /das
     expect(view.workout.name).toBe('Playgrounds')
   })
 
-  it('classifies /feed/:slug as the feed detail page and deeper segments as the feed item', () => {
+  it('classifies /feed/:slug as the feed detail page and /notebook/:slug/:date/:item as the notebook item', () => {
     const detail = resolveRouteView('/feed/seed-crossfit', NO_PARAMS, makeDeps())
     expect(detail.page).toBe('feedDetail')
     expect(detail.workout.name).toBe('seed-crossfit')
     expect(detail.workout.category).toBe('feed')
 
-    const item = resolveRouteView('/feed/seed-crossfit/2026-05-19/fran', NO_PARAMS, makeDeps())
-    expect(item.page).toBe('feedItem')
+    const item = resolveRouteView('/notebook/crossfit-girls/2026-05-19/fran', NO_PARAMS, makeDeps())
+    expect(item.page).toBe('notebookItem')
     expect(item.workout.name).toBe('fran')
+    expect(item.workout.category).toBe('notebook')
   })
 
   it('classifies /t/:type/:tag as the tag detail page', () => {

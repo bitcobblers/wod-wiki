@@ -1,4 +1,4 @@
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { formatDateKey } from './dateUtils';
 import { normalizeNoteTitle } from '@/lib/noteTitle';
 import { journalNotes } from './journalNotes';
@@ -21,7 +21,7 @@ export async function createJournalNoteFromWorkout({
   wodContent,
   date,
   wrapInWod = true,
-}: CreateJournalNoteFromWorkoutOptions): Promise<HistoryEntry> {
+}: CreateJournalNoteFromWorkoutOptions): Promise<HistoryRecord> {
   const journalDate = formatDateKey(date ?? new Date());
   const resolvedSourcePath = sourceNotePath?.trim() || `/notebook/${encodeURIComponent(category)}`;
   const lines = [

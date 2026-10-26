@@ -95,7 +95,7 @@ export interface PaletteItem {
   sublabel?: string;
   /** Used as group header in the results list. */
   category?: string;
-  type?: 'journal-entry' | 'collection' | 'workout' | 'action' | 'statement-part' | 'route' | 'entry';
+  type?: 'journal-entry' | 'notebook' | 'workout' | 'action' | 'statement-part' | 'route' | 'entry';
   /** Caller-defined; returned as-is in PaletteResponse. */
   payload?: unknown;
 }

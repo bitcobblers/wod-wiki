@@ -16,7 +16,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
 import { Button } from '@/components/atoms/primitives/button'
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider } from '@/types/content-provider';
 import type { NotePlacement } from '@bitcobblers/wod-wiki-core';
 import { journalNotes } from '../../../services/journalNotes'
@@ -28,13 +28,13 @@ export type NotePlacementMode = 'relationships' | 'clone'
 export interface NotePlacementDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  entry: HistoryEntry
+  entry: HistoryRecord
   mode: NotePlacementMode
   provider: IContentProvider
   /** Relationships mode: called with the updated entry after a successful save. */
-  onSaved?: (entry: HistoryEntry) => void
+  onSaved?: (entry: HistoryRecord) => void
   /** Clone mode: called with the newly created independent note. */
-  onCloned?: (entry: HistoryEntry) => void
+  onCloned?: (entry: HistoryRecord) => void
 }
 
 const fieldClass =
@@ -58,7 +58,7 @@ export function NotePlacementDialog({
   const [date, setDate] = useState('')
   const [slug, setSlug] = useState('')
   const [source, setSource] = useState('')
-  const [candidates, setCandidates] = useState<HistoryEntry[]>([])
+  const [candidates, setCandidates] = useState<HistoryRecord[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inFlight = useRef(false)
@@ -83,9 +83,9 @@ export function NotePlacementDialog({
     if (!open || mode !== 'relationships') return
     let cancelled = false
     provider
-      .getEntries()
+      .getRecords()
       .then((all) => {
-        if (!cancelled) setCandidates(all.filter((e) => e.id !== entry.id && !e.catalog))
+        if (!cancelled) setCandidates(all.filter((e) => e.id !== entry.id && e.seedOrigin !== 'seed' && !e.sourceId?.startsWith('notebook:')))
       })
       .catch(() => {})
     return () => {
@@ -103,7 +103,7 @@ export function NotePlacementDialog({
   }
 
   /** Run one membership operation and surface the updated entry. */
-  const runPlacementChange = async (change: () => Promise<HistoryEntry>) => {
+  const runPlacementChange = async (change: () => Promise<HistoryRecord>) => {
     if (inFlight.current) return
     inFlight.current = true
     setSaving(true)
@@ -136,11 +136,11 @@ export function NotePlacementDialog({
       return
     }
     const target = nextDate ? { date: nextDate } : { slug: nextSlug }
-    await runPlacementChange(() => provider.addEntryPlacement(entry.id, target))
+    await runPlacementChange(() => provider.addRecordPlacement(entry.id, target))
   }
 
   const handleRemovePlacement = async (pageId: string) => {
-    await runPlacementChange(() => provider.removeEntryPlacement(entry.id, pageId))
+    await runPlacementChange(() => provider.removeRecordPlacement(entry.id, pageId))
   }
 
   const handleMovePlacement = async (pageId: string) => {
@@ -159,7 +159,7 @@ export function NotePlacementDialog({
       return
     }
     const target = nextDate ? { date: nextDate } : { slug: nextSlug }
-    await runPlacementChange(() => provider.moveEntryPlacement(entry.id, pageId, target))
+    await runPlacementChange(() => provider.moveRecordPlacement(entry.id, pageId, target))
   }
 
   const handleSubmit = async (event: FormEvent) => {
@@ -219,7 +219,7 @@ export function NotePlacementDialog({
         return
       }
 
-      const updated = await provider.updateEntry(entry.id, patch)
+      const updated = await provider.updateRecord(entry.id, patch)
       onSaved?.(updated)
       onOpenChange(false)
     } catch {

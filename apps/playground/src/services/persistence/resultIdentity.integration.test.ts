@@ -16,7 +16,7 @@ describe('pinned result identities', () => {
     const blockId = Object.keys(saved.blocks!)[0]!;
     const started = await persistence.startSession({ noteId: saved.id, rawContent: SOURCE, blocks: saved.blocks!, expectedSourceRevision: 1 },
       { id: 'run', noteId: saved.id, blockId, origin: 'journal', startTime: 1, endTime: 1, duration: 0, completed: false, createdAt: 1 });
-    await provider.updateEntry(saved.id, { rawContent: SOURCE.replace('95lb', '75lb'), blocks: saved.blocks, expectedSourceRevision: 1 });
+    await provider.updateRecord(saved.id, { rawContent: SOURCE.replace('95lb', '75lb'), blocks: saved.blocks, expectedSourceRevision: 1 });
     const result = await persistence.finishSession('run', { startTime: 1, endTime: 10, duration: 9, completed: true,
       logs: [{ id: 1, outputType: 'segment', metrics: [{ type: 'rep', value: 21, origin: 'runtime' }], sourceBlockKey: '1', stackLevel: 0 }] });
     expect(result.blockId).toBe(blockId);
@@ -32,7 +32,7 @@ describe('pinned result identities', () => {
     const provider = new IndexedDBContentProvider(service);
     const persistence = new IndexedDBNotePersistence(service, provider);
     for (const id of ['a', 'b']) {
-      const saved = await provider.saveEntry({ id, title: 'Fran', rawContent: SOURCE + SOURCE, tags: [], targetDate: 1 });
+      const saved = await provider.saveRecord({ id, title: 'Fran', rawContent: SOURCE + SOURCE, tags: [], targetDate: 1 });
       const blockIds = Object.keys(saved.blocks!);
       expect(blockIds).toHaveLength(2);
       for (const [index, blockId] of blockIds.entries()) {

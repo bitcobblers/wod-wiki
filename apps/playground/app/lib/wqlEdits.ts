@@ -39,8 +39,8 @@ export function scopeOfQuery(query: string): string | null {
  *  `editQueryClause`: the FIRST actual source occurrence is replaced (or
  *  spliced when clearing) in place; sibling filters, window, grouping, pipes
  *  and join survive, and queries needing Edit WQL are returned unchanged.
- *  Feeds is the canonical `source:feeds` storage scope — never
- *  `source:page` + `type:feed` (storage identities keep their `collection:`
+ *  Notebooks is the canonical `source:notebooks` storage scope — never
+ *  `source:page` + `type:note` (storage identities keep their `notebook:`
  *  prefixes). Other targets/kinds are returned
  *  unchanged: scope is not a target pivot. */
 export function setScopeFilter(query: string, scope: string | null): string {

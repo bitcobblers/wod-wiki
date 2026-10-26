@@ -334,7 +334,7 @@ function CollectionLandingView() {
               <h1 className="text-xl font-bold">{collection.name}</h1>
             </div>
             <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold">
-              <Play className="size-3.5 fill-current" /> Start Collection
+              <Play className="size-3.5 fill-current" /> Start Workout
             </button>
           </header>
 

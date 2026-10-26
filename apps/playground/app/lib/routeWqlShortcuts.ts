@@ -43,6 +43,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { isFindQuery, parseQuery, serialize, type AnyParsedQuery } from '@bitcobblers/wod-wiki-engine'
+import { migrateLegacyStoredWql } from './routeWqlConfig'
 import { LocalStore } from '@/services/storage/LocalStore'
 import { remotePrefsMode, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
 
@@ -174,7 +175,9 @@ function sanitizeShortcuts(value: unknown): WqlShortcut[] {
       id: s.id.trim(),
       label: s.label.trim(),
       icon: s.icon,
-      wql: s.wql.trim(),
+      // Retired-grammar shortcuts migrate on read — the stored text keeps
+      // the user's scope instead of failing to parse.
+      wql: migrateLegacyStoredWql(s.wql.trim()),
       ...(typeof s.to === 'string' ? { to: s.to } : {}),
     })
   }

@@ -6,11 +6,11 @@ import { notePath } from '../lib/routes'
 import { formatDateKey } from '../services/dateUtils'
 import { useNav } from '../nav/NavContext'
 import type { NavItemL3 } from '../nav/navTypes'
-import type { HistoryEntry } from '@/types/history'
+import type { HistoryRecord } from '@/types/history'
 
 const contentProvider = new IndexedDBContentProvider()
 
-export interface CollectionDatePageProps {
+export interface NotebookDatePageProps {
   slug: string
   date: string
   theme: string
@@ -19,7 +19,7 @@ export interface CollectionDatePageProps {
 interface DayGroup {
   id: string
   label: string
-  entries: HistoryEntry[]
+  entries: HistoryRecord[]
 }
 
 /**
@@ -28,8 +28,8 @@ interface DayGroup {
  * only, so entries stay in one group; multi-tag membership lands with the
  * stream's entryGrouping when this page moves onto StreamProfile.
  */
-function groupByTag(entries: HistoryEntry[]): DayGroup[] {
-  const map = new Map<string, HistoryEntry[]>()
+function groupByTag(entries: HistoryRecord[]): DayGroup[] {
+  const map = new Map<string, HistoryRecord[]>()
   for (const entry of entries) {
     const tag = entry.tags[0]?.toLowerCase() ?? 'untagged'
     const bucket = map.get(tag)
@@ -48,32 +48,32 @@ function groupByTag(entries: HistoryEntry[]): DayGroup[] {
  * (seed frontmatter `date:`, noon-UTC epoch) with createdAt as the undated
  * fallback, so placement never depends on import time for dated posts.
  */
-export function entryDateKey(entry: Pick<HistoryEntry, 'targetDate'>): string {
+export function entryDateKey(entry: Pick<HistoryRecord, 'targetDate'>): string {
   return formatDateKey(new Date(entry.targetDate))
 }
 
 /**
  * /notebook/:slug/:date — a date-scoped, journal-style view of one
- * collection: every collection note dated `:date`, listed and linked to its
+ * notebook: every notebook note dated `:date`, listed and linked to its
  * single-note route, grouped by tag with an L3 group index.
  *
  * Undated notes place at their import time, so a date may legitimately list
  * nothing; seed frontmatter `date:` places dated posts on their own day.
  */
-export function CollectionDatePage({ slug, date }: CollectionDatePageProps) {
-  const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
+export function NotebookDatePage({ slug, date }: NotebookDatePageProps) {
+  const [entries, setEntries] = useState<HistoryRecord[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
     contentProvider
-      .getEntries()
+      .getRecords()
       .then((all) => {
         if (cancelled) return
-        const inCollection = all.filter((entry) => {
-          if (entry.catalog !== slug) return false
+        const inNotebook = all.filter((entry) => {
+          if (!entry.sourceId?.startsWith(`notebook:${slug}`)) return false
           return entryDateKey(entry) === date
         })
-        setEntries(inCollection.sort((a, b) => b.createdAt - a.createdAt))
+        setEntries(inNotebook.sort((a, b) => b.createdAt - a.createdAt))
       })
       .catch(() => {
         if (!cancelled) setEntries([])
@@ -108,7 +108,7 @@ export function CollectionDatePage({ slug, date }: CollectionDatePageProps) {
     : entries.length === 0
       ? (
           <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-            No notes in this collection for {date}.
+            No notes in this notebook for {date}.
           </p>
         )
       : (

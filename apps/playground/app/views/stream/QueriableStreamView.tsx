@@ -61,7 +61,7 @@ import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
-import { CatalogsManagerDrawer } from '../../pages/CatalogsManagerDrawer'
+import { NotebookManageDrawer } from '../../pages/NotebookManageDrawer'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
 import { effortPath, ROUTE_PATTERNS } from '../../lib/routes'
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
@@ -305,10 +305,10 @@ export function QueriableStreamView({
   // subscription intake deep-link here via ?manage=1; the toolbar button opens
   // it in place. Closing drops ONLY the manage param — the query string (q, …)
   // survives — and replaces the history entry so a modal never stacks history.
-  const isCatalogsRoute = profile.route === '/notebooks'
+  const isNotebooksRoute = profile.route === '/notebooks'
   const manageOpen = useMemo(
-    () => isCatalogsRoute && new URLSearchParams(location.search).get('manage') === '1',
-    [isCatalogsRoute, location.search],
+    () => isNotebooksRoute && new URLSearchParams(location.search).get('manage') === '1',
+    [isNotebooksRoute, location.search],
   )
   const setManageOpen = useCallback((open: boolean) => {
     const params = new URLSearchParams(location.search)
@@ -317,15 +317,15 @@ export function QueriableStreamView({
     const search = params.toString()
     navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: !open })
   }, [navigate, location.pathname, location.search])
-  const catalogsManager = isCatalogsRoute ? (
-    <CatalogsManagerDrawer open={manageOpen} onOpenChange={setManageOpen} />
+  const notebooksManager = isNotebooksRoute ? (
+    <NotebookManageDrawer open={manageOpen} onOpenChange={setManageOpen} />
   ) : null
   // The subscribe offer's target: /notebooks manages sources in place (the
   // drawer); every other route defers to Sync settings — no drawer there.
   const openLibraryManager = useCallback(() => {
-    if (isCatalogsRoute) setManageOpen(true)
+    if (isNotebooksRoute) setManageOpen(true)
     else navigate(ROUTE_PATTERNS.settingsSync)
-  }, [isCatalogsRoute, setManageOpen, navigate])
+  }, [isNotebooksRoute, setManageOpen, navigate])
   const [createNotebookOpen, setCreateNotebookOpen] = useState(false)
   const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
     // The landing note (the notebook's stored definition) is part of create().
@@ -333,7 +333,7 @@ export function QueriableStreamView({
     setSavedTick(t => t + 1)
     return created
   }, [])
-  const createNotebookDialog = isCatalogsRoute ? (
+  const createNotebookDialog = isNotebooksRoute ? (
     <CreateNotebookDialog
       open={createNotebookOpen}
       onOpenChange={setCreateNotebookOpen}
@@ -344,7 +344,7 @@ export function QueriableStreamView({
   const parsed = useMemo(() => parseQuery(query), [query])
 
   // Playground scope: the canonical filter source:playground (authored as
-  // :playground{...}). In this scope the "Catalog Sessions" shelf would
+  // :playground{...}). In this scope the "Notebook Sessions" shelf would
   // mislabel undated playground entries — they render in the explicit
   // 'Undated' group instead.
   const isPlaygroundScope = useMemo(() => {
@@ -353,15 +353,15 @@ export function QueriableStreamView({
       f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'playground'),
     )
   }, [parsed])
-  const catalogSlug = useMemo(() => {
-    if (profile.catalog) return profile.catalog
+  const notebookStreamSlug = useMemo(() => {
+    if (profile.notebookSlug) return profile.notebookSlug
     if (profile.route.startsWith('/notebook/')) {
       const slug = profile.route.slice(3)
       if (slug && !slug.includes('/')) return slug
     }
     if (!parsed.error && isFindQuery(parsed)) {
-      const cat = parsed.filters.find(f => (f.key === 'notebook' || f.key === 'catalog') && !f.negate)?.values[0]?.value
-      if (cat) return notebookSlugFromId(cat)
+      const nb = parsed.filters.find(f => f.key === 'notebook' && !f.negate)?.values[0]?.value
+      if (nb) return notebookSlugFromId(nb)
     }
     return undefined
   }, [profile, parsed])
@@ -369,7 +369,7 @@ export function QueriableStreamView({
   const seedFiles = useSeedContent()
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
   // WQL embed links (`[heading](:query)!`) — when any are present they
-  // override the catalog's default feed stream below the readme.
+  // override the notebook's default item stream below the readme.
   const readmeSegments = useMemo(
     () => (readmeContent ? splitReadmeQueries(readmeContent) : []),
     [readmeContent],
@@ -377,11 +377,11 @@ export function QueriableStreamView({
   const readmeOverride = hasReadmeQuery(readmeSegments)
 
   useEffect(() => {
-    if (!catalogSlug) {
+    if (!notebookStreamSlug) {
       setReadmeContent(null)
       return
     }
-    const seedPath = `markdown/collections/${catalogSlug}/README.md`
+    const seedPath = `markdown/notebooks/${notebookStreamSlug}/README.md`
     const raw = seedFiles?.[seedPath]
     if (raw) {
       setReadmeContent(raw.replace(/\{\{workouts\}\}/g, '').trim())
@@ -390,7 +390,7 @@ export function QueriableStreamView({
     let cancelled = false
     void seedNoteId(seedPath).then(async (id) => {
       try {
-        const entry = await contentProvider.getEntry(id)
+        const entry = await contentProvider.getRecord(id)
         if (!cancelled && entry?.rawContent) {
           setReadmeContent(entry.rawContent.replace(/\{\{workouts\}\}/g, '').trim())
         }
@@ -401,7 +401,7 @@ export function QueriableStreamView({
     return () => {
       cancelled = true
     }
-  }, [catalogSlug, seedFiles])
+  }, [notebookStreamSlug, seedFiles])
 
 
   // Feed mode attaches note block info (excerpt + wod content id) via the same
@@ -418,7 +418,7 @@ export function QueriableStreamView({
       entry.kind === 'result' || entry.kind === 'segment'
         ? entry.execution?.noteId
         : entry.kind === 'note'
-          ? entry.sourceItem
+          ? entry.sourceNote
           : entry.id
 
     if (targetNoteId) {
@@ -443,7 +443,7 @@ export function QueriableStreamView({
         }
       }
 
-      // 3. If still no content, fetch all blocks for the note (catalog sessions, feeds, or indexed notes)
+      // 3. If still no content, fetch all blocks for the note (notebook items or indexed notes)
       if (!rawContent && entry.kind !== 'note') {
         const result = await queryService.runFind({
           raw: `:block{note:${targetNoteId}}`,
@@ -518,7 +518,7 @@ export function QueriableStreamView({
   const [moveNotebookTargets, setMoveNotebookTargets] = useState<Array<{ id: string; name: string; icon: string }>>([])
   useEffect(() => {
     let cancelled = false
-    void notebookService.getAllCatalogNotebooks().then((all) => {
+    void notebookService.getAllNotebooks().then((all) => {
       if (cancelled) return
       setMoveNotebookTargets(all
         .filter(nb => nb.origin === 'user' || nb.origin === 'default')
@@ -905,7 +905,7 @@ export function QueriableStreamView({
         role="status"
         aria-busy="true"
       >
-        {catalogsManager}
+        {notebooksManager}
         {createNotebookDialog}
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
           <div className="w-full max-w-2xl space-y-3" aria-hidden="true">
@@ -921,7 +921,7 @@ export function QueriableStreamView({
 
   return (
     <div className="bg-card flex flex-col flex-1" data-testid="queriable-stream-view">
-      {catalogsManager}
+      {notebooksManager}
       {createNotebookDialog}
       {querySettingsSurface && (
         <QuerySettingsDialog
@@ -949,12 +949,12 @@ export function QueriableStreamView({
                   size="sm"
                   onClick={() => navigate(effortPath('new', undefined, { mode: 'create' }))}
                   className="h-9 px-2.5 text-xs gap-1.5"
-                  data-testid="efforts-catalog-create-btn"
+                  data-testid="efforts-create-btn"
                 >
                   <Plus className="size-3.5" />
                   <span>New</span>
                 </Button>
-              ) : isCatalogsRoute ? (
+              ) : isNotebooksRoute ? (
                 <Button
                   size="sm"
                   onClick={() => setCreateNotebookOpen(true)}
@@ -968,12 +968,12 @@ export function QueriableStreamView({
             }
             label="Stream actions"
           >
-            {isCatalogsRoute && (
+            {isNotebooksRoute && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setManageOpen(true)}
-                data-testid="manage-catalogs-button"
+                data-testid="manage-notebooks-button"
                 className="h-9 gap-1.5 px-2.5 text-xs"
               >
                 <Settings2 className="size-3.5" />
@@ -1143,17 +1143,17 @@ export function QueriableStreamView({
 
       {/* Notebook plane: the management list on /notebooks — defaults, the
           user's own, the feed libraries and the core references. */}
-      {isCatalogsRoute && (
+      {isNotebooksRoute && (
         <NotebookList refreshKey={savedTick} onChanged={() => setSavedTick(t => t + 1)} />
       )}
 
-      {/* Read-only view of the collection readme note. WQL embed links
+      {/* Read-only view of the notebook readme note. WQL embed links
           (`[heading](:query)!`) inject live query results in place; any
           embed suppresses the default stream below (the override). */}
       {readmeContent && (
         <div
           className="border-b border-border/60 bg-card/20 px-6 py-4"
-          data-testid="collection-readme-note"
+          data-testid="notebook-readme-note"
         >
           {readmeSegments.map((segment, index) =>
             segment.kind === 'markdown' ? (

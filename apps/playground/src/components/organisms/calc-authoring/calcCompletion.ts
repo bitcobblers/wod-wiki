@@ -40,7 +40,7 @@ interface CalcCompletionItem {
   detail: string;
 }
 
-/** Effort catalog keys suggested in the `lookup("effort", …, …)` key slot. */
+/** Effort library keys suggested in the `lookup("effort", …, …)` key slot. */
 const EFFORT_KEYS = ['effort', 'thruster', 'push-press', 'front-squat', 'wall-ball', 'row', 'run'];
 
 function quotedInsert(value: string, quoteTyped: boolean): string {

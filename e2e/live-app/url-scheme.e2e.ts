@@ -147,6 +147,7 @@ test.describe('URL scheme — tag deep link', () => {
 
     // The catalogue lists it as a query row linking back to the direct route.
     await page.goto('/tags', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
     await expect(page.locator('[data-testid="wql-composer-root"]:visible')).toContainText(':tag{}');
     await expect(page.getByTestId('library-row-tag').filter({ hasText: TAG })).toBeVisible({ timeout: 15_000 });
 

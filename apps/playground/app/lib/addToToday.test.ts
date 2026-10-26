@@ -13,8 +13,8 @@ function makeEntry(overrides: Partial<Entry> = {}): Entry {
   return {
     id: 'crossfit-girls/fran',
     kind: 'note',
-    sourceCatalog: 'crossfit-girls',
-    sourceItem: 'fran',
+    sourceNotebook: 'crossfit-girls',
+    sourceNote: 'fran',
     title: 'Fran',
     date: null,
     ...overrides,
@@ -26,8 +26,8 @@ describe('addEntryToTodayInput', () => {
     const input = addEntryToTodayInput(makeEntry({
       id: 'journal-2026-07-15',
       kind: 'note',
-      sourceCatalog: 'journal',
-      sourceItem: 'journal-2026-07-15',
+      sourceNotebook: 'journal',
+      sourceNote: 'journal-2026-07-15',
       date: '2026-07-15',
     }), '21-15-9\nFran', '2026-07-29')
     expect(input).toEqual({
@@ -43,8 +43,8 @@ describe('addEntryToTodayInput', () => {
     const input = addEntryToTodayInput(makeEntry({
       id: 'feeds/crossfit-programming/2026-01-12/monday',
       kind: 'note',
-      sourceCatalog: 'crossfit-programming',
-      sourceItem: 'monday',
+      sourceNotebook: 'crossfit-programming',
+      sourceNote: 'monday',
       title: 'Monday',
       date: '2026-01-12',
       sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday',
@@ -61,8 +61,8 @@ describe('addEntryToTodayInput', () => {
     const input = addEntryToTodayInput(makeEntry({
       id: 'crossfit-girls/fran',
       kind: 'note',
-      sourceCatalog: 'crossfit-girls',
-      sourceItem: 'fran',
+      sourceNotebook: 'crossfit-girls',
+      sourceNote: 'fran',
       sourceId: 'collection:crossfit-girls/fran',
     }), '21-15-9\nThrusters 95lb\nPull-ups', '2026-07-29')
     expect(input).toEqual({

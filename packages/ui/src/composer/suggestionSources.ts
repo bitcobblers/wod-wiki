@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { EFFORT_DISCIPLINES } from '@bitcobblers/wod-wiki-lang';
-import { catalogOfItem, WQL_INTENSITY_TIERS } from '@bitcobblers/wod-wiki-wql';
+import { notebookSlugOfSourceId, WQL_INTENSITY_TIERS } from '@bitcobblers/wod-wiki-wql';
 import type { BlockIndexRow } from '@bitcobblers/wod-wiki-core';
 
 export interface SuggestionItem {
@@ -32,13 +32,11 @@ export function tagsFromStaticBlocks(blocks: BlockIndexRow[]): string[] {
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
-export function catalogIdsFromBlocks(blocks: BlockIndexRow[]): string[] {
+export function notebookSlugsFromBlocks(blocks: BlockIndexRow[]): string[] {
   const set = new Set<string>();
   for (const b of blocks) {
-    if (b.sourceId && b.sourceId.startsWith('collection:')) {
-      const catalog = catalogOfItem(b);
-      if (catalog) set.add(catalog);
-    }
+    const slug = notebookSlugOfSourceId(b.sourceId);
+    if (slug) set.add(slug);
   }
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }

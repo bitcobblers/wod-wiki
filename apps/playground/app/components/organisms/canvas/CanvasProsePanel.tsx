@@ -138,7 +138,7 @@ export const CanvasProsePanel: React.FC<CanvasProsePanelProps> = ({
     : {}
 
   const collectionList = isCollection && collectionSlug && workoutItems ? (
-    <div id="collection-workouts" className="border-b border-border/50 bg-card">
+    <div id="notebook-workouts" className="border-b border-border/50 bg-card">
       <div className="w-full mx-auto">
         <CollectionWorkoutsList
           category={collectionSlug ?? ''}

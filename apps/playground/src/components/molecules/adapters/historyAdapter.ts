@@ -4,7 +4,7 @@ import {
   BookOpenIcon,
 } from '@heroicons/react/24/outline';
 import { formatPlaygroundTimestampLabel } from '@/lib/playgroundDisplay';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { IListItem } from '../types';
 
 function formatDate(timestamp: number): string {
@@ -22,20 +22,20 @@ function formatDuration(ms: number): string {
   return secs > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${mins}:00`;
 }
 
-function getLabel(entry: HistoryEntry): string {
+function getLabel(entry: HistoryRecord): string {
   if (entry.title) return entry.title;
   if (entry.type === 'playground') return formatPlaygroundTimestampLabel(entry.createdAt);
   return 'Untitled workout';
 }
 
-function getIcon(entry: HistoryEntry): React.ReactNode {
+function getIcon(entry: HistoryRecord): React.ReactNode {
   if (entry.type === 'playground') {
     return React.createElement(BeakerIcon, { className: 'w-4 h-4' });
   }
   return React.createElement(BookOpenIcon, { className: 'w-4 h-4' });
 }
 
-export function historyEntryToListItem(entry: HistoryEntry): IListItem<HistoryEntry> {
+export function historyEntryToListItem(entry: HistoryRecord): IListItem<HistoryRecord> {
   const duration = entry.results?.duration;
   const durationStr = duration ? formatDuration(duration) : undefined;
   const dateStr = formatDate(entry.targetDate);

@@ -10,18 +10,18 @@ function setup() {
 describe('Note Management', () => {
     it('saves a starter note in defaults and reads it back', async () => {
         const provider = setup();
-        const entry = await provider.saveEntry({ title: 'My Starter', rawContent: '# Starter',
+        const entry = await provider.saveRecord({ title: 'My Starter', rawContent: '# Starter',
             tags: ['starter'], type: 'note', targetDate: 1 });
         expect(entry.type).toBe('note');
         expect(entry.id).toBeDefined();
-        expect((await provider.getEntry(entry.id))?.type).toBe('note');
+        expect((await provider.getRecord(entry.id))?.type).toBe('note');
     });
 
     it('clones a starter note into a journal note with fresh workout occurrences', async () => {
         const provider = setup();
-        const starter = await provider.saveEntry({ title: 'Benchmark WOD', rawContent: '```time\n21-15-9 Thrusters\n```',
+        const starter = await provider.saveRecord({ title: 'Benchmark WOD', rawContent: '```time\n21-15-9 Thrusters\n```',
             tags: ['benchmark'], type: 'note', targetDate: 1 });
-        const cloned = await provider.cloneEntry(starter.id);
+        const cloned = await provider.cloneRecord(starter.id);
         expect(cloned.id).not.toBe(starter.id);
         expect(cloned.sourceId).toBe(starter.id);
         expect(cloned.type).toBe('journal');
@@ -33,9 +33,9 @@ describe('Note Management', () => {
 
     it('clones a note into another note for today', async () => {
         const provider = setup();
-        const source = await provider.saveEntry({ title: 'Yesterday Run', rawContent: 'Run 5k',
+        const source = await provider.saveRecord({ title: 'Yesterday Run', rawContent: 'Run 5k',
             tags: [], type: 'note', targetDate: Date.now() - 86400000 });
-        const cloned = await provider.cloneEntry(source.id);
+        const cloned = await provider.cloneRecord(source.id);
         expect(cloned.sourceId).toBe(source.id);
         expect(cloned.type).toBe('journal');
         expect(new Date(cloned.targetDate).toDateString()).toBe(new Date().toDateString());

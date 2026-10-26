@@ -45,25 +45,25 @@ import { createConditionsNavPanel } from '../ConditionsNavPanel'
 
 const entry = (over: Partial<Entry> & { id: string; title: string }): Entry => ({
   kind: 'note',
-  sourceCatalog: 'journal',
-  sourceItem: over.id,
+  sourceNotebook: 'journal',
+  sourceNote: over.id,
   date: null,
   ...over,
 })
 
 const ENTRIES: Entry[] = [
   entry({ id: 'n1', noteId: 'n1', noteType: 'note', title: 'Alpha' }),
-  entry({ id: 'c/one', noteId: 'collection:x/one', sourceId: 'collection:x', noteType: 'note', title: 'Beta' }),
+  entry({ id: 'c/one', noteId: 'notebook:x/one', sourceId: 'notebook:x', noteType: 'note', title: 'Beta' }),
 ]
 
 const MEMBERSHIP = new Map<string, Array<{ label: string; type?: string }>>([
   ['n1', [{ label: 'strength' }]],
-  ['collection:x/one', [{ label: 'barbell', type: 'equipment' }]],
+  ['notebook:x/one', [{ label: 'barbell', type: 'equipment' }]],
 ])
 
 const EFFORT_MEMBERSHIP = new Map<string, string[]>([
   ['n1', ['fran']],
-  ['collection:x/one', ['fran', 'thruster']],
+  ['notebook:x/one', ['fran', 'thruster']],
 ])
 
 const DEFAULT_Q = FEEDS_STREAM_PROFILE.defaultWql
@@ -91,7 +91,7 @@ function PathTracker() {
 }
 
 const ConditionsPanel = createConditionsNavPanel({
-  landingLabel: 'All feeds',
+  landingLabel: 'All notebooks',
   icon: undefined,
   route: '/feeds',
   profile: FEEDS_STREAM_PROFILE,
@@ -128,27 +128,27 @@ afterEach(() => {
 })
 
 // ── canonical tag-membership edge ────────────────────────────────────────────
-// Canonical corpus rows are UUID-keyed — no path stem to split — so a catalog
-// entry's facet vocabulary must come from the note's `catalog` family
-// aggregation over the junction batch. Exercised through the rendered panel:
-// the family-only value ('benchmark', carried by the second corpus note) must
-// surface for an entry whose catalog is the family.
+// Canonical corpus rows are UUID-keyed — no path stem to split — so a
+// notebook entry's facet vocabulary must come from the note's notebook-slug
+// family aggregation over the junction batch. Exercised through the rendered
+// panel: the family-only value ('benchmark', carried by the second corpus
+// note) must surface for an entry whose notebook is the family.
 describe('canonical tag membership through the panel', () => {
-  it('lists family-aggregated corpus tags for catalog entries with UUID note ids', async () => {
+  it('lists family-aggregated corpus tags for notebook entries with UUID note ids', async () => {
     storageService.getAllNotes = async () => [
-      { id: 'uuid-fran', title: 'Fran', createdAt: 1, catalog: 'crossfit-girls' },
-      { id: 'uuid-readme', title: 'Crossfit Girls', createdAt: 1, catalog: 'crossfit-girls' },
+      { id: 'uuid-fran', title: 'Fran', createdAt: 1, sourceId: 'notebook:crossfit-girls/fran' },
+      { id: 'uuid-readme', title: 'Crossfit Girls', createdAt: 1, sourceId: 'notebook:crossfit-girls' },
     ] as Note[];
     storageService.getNoteTagLabelsBatch = async () =>
       new Map([
         ['uuid-fran', [{ label: 'strength' }]],
         ['uuid-readme', [{ label: 'strength' }, { label: 'benchmark' }]],
       ]);
-    renderPanel('/feeds?q=%3Afeed%7Btags%3Astrength%7D%20by%20%7Btag%7D')
+    renderPanel('/notebooks?q=%3Anotebooks%7Btags%3Astrength%7D%20by%20%7Btag%7D')
     publish({
-      pathname: '/feeds',
-      query: ':feed{tags:strength} by {tag}',
-      entries: [entry({ id: 'f1', noteId: 'uuid-fran', catalog: 'crossfit-girls', title: 'Fran' })],
+      pathname: '/notebooks',
+      query: ':notebooks{tags:strength} by {tag}',
+      entries: [entry({ id: 'f1', noteId: 'uuid-fran', sourceNotebook: 'crossfit-girls', title: 'Fran' })],
     })
     fireEvent.click(await waitFor(() => {
       const button = screen.getByTestId('conditions-section-tags').querySelector('button')
@@ -164,8 +164,8 @@ describe('canonical tag membership through the panel', () => {
 
 describe('conditionsFacets toggling', () => {
   it('merges values into the existing occurrence (OR within key) and keeps structural clauses', () => {
-    const once = findOf(parseQuery(addFacetValue(':feed{} by {tag} last 4w', 'tags', 'strength')))!
-    // The serializer canonicalizes the :feed head to source:feeds.
+    const once = findOf(parseQuery(addFacetValue(':notebook{} by {tag} last 4w', 'tags', 'strength')))!
+    // The serializer canonicalizes the :notebooks head to source:notebooks.
     expect(tagsValues(once)).toEqual(['strength'])
     expect(once.groupBy).toEqual(['tag'])
     expect(once.window).toBeDefined()
@@ -176,7 +176,7 @@ describe('conditionsFacets toggling', () => {
   })
 
   it('removes one value occurrence-exactly and splices the clause when it empties', () => {
-    const q = serialize(findOf(parseQuery(':feed{tags:strength|endurance} by {tag} last 4w'))!)
+    const q = serialize(findOf(parseQuery(':notebooks{tags:strength|endurance} by {tag} last 4w'))!)
     const selected = selectedValuesFor(findOf(parseQuery(q))!, 'tags')
     const withoutStrength = findOf(parseQuery(removeFacetValue(q, 'tags', selected.find(row => row.display === 'strength')!)))!
     expect(tagsValues(withoutStrength)).toEqual(['endurance'])
@@ -197,31 +197,31 @@ describe('conditionsFacets toggling', () => {
   })
 
   it('keeps the source scope a radio (replace, not AND)', () => {
-    const replaced = findOf(parseQuery(addFacetValue(':feed{source:feeds}', 'source', 'journal')))!
+    const replaced = findOf(parseQuery(addFacetValue(':notebook{source:notebooks}', 'source', 'journal')))!
     expect(sourceValues(replaced)).toEqual(['journal'])
     expect(replaced.sourceScope).toBeUndefined()
-    const added = findOf(parseQuery(addFacetValue(':journal{}', 'source', 'feeds')))!
-    expect(sourceValues(added)).toContain('feeds')
+    const added = findOf(parseQuery(addFacetValue(':journal{}', 'source', 'notebooks')))!
+    expect(sourceValues(added)).toContain('notebooks')
     // Negated source occurrences are independent clauses — a scope write
     // replaces only the head-scope slot and the positive occurrence.
-    const withNegated = findOf(parseQuery(setSourceScopeValue(':note{source:journal,!source:guides}', 'feeds')))!
-    expect(sourceValues(withNegated)).toEqual(['feeds'])
+    const withNegated = findOf(parseQuery(setSourceScopeValue(':note{source:journal,!source:guides}', 'notebooks')))!
+    expect(sourceValues(withNegated)).toEqual(['notebooks'])
     expect(withNegated.filters.some(f => f.key === 'source' && f.negate && f.values.some(v => v.value === 'guides'))).toBe(true)
     // Head-authored scope clears to all sources, negations surviving.
-    const cleared = findOf(parseQuery(setSourceScopeValue(':feed{!source:guides} by {tag}', null)))!
+    const cleared = findOf(parseQuery(setSourceScopeValue(':notebooks{!source:guides} by {tag}', null)))!
     expect(sourceValues(cleared)).toEqual([])
     expect(cleared.filters.some(f => f.key === 'source' && f.negate)).toBe(true)
     expect(cleared.groupBy).toEqual(['tag'])
     // A user-authored scope under a scoped head survives the head-slot clear.
-    const mixed = findOf(parseQuery(setSourceScopeValue(':journal{source:feeds}', null)))!
-    expect(sourceValues(mixed)).toEqual(['feeds'])
+    const mixed = findOf(parseQuery(setSourceScopeValue(':journal{source:notebooks}', null)))!
+    expect(sourceValues(mixed)).toEqual(['notebooks'])
   })
 
   it('preserves sibling source occurrences on a targeted scope replace', () => {
     // Duplicate positives: the FIRST occurrence is the composer-targeted
     // scope slot; later positives and negations are never silently deleted.
-    const multi = findOf(parseQuery(setSourceScopeValue(':note{source:journal,source:feeds,!source:guides}', 'playground')))!
-    expect(sourceValues(multi)).toEqual(['playground', 'feeds'])
+    const multi = findOf(parseQuery(setSourceScopeValue(':note{source:journal,source:notebooks,!source:guides}', 'playground')))!
+    expect(sourceValues(multi)).toEqual(['playground', 'notebooks'])
     expect(multi.filters.some(f => f.key === 'source' && f.negate && f.values.some(v => v.value === 'guides'))).toBe(true)
   })
 
@@ -263,7 +263,7 @@ function textValues(parsed: ParsedFindQuery): string[] {
 
 describe('setTextCondition', () => {
   it('appends, rewrites and clears the positive text condition losslessly', () => {
-    const base = ':feed{} by {tag} last 4w'
+    const base = ':notebook{} by {tag} last 4w'
     const added = findOf(parseQuery(setTextCondition(base, 'squat')))!
     expect(textValues(added)).toEqual(['squat'])
     expect(added.groupBy).toEqual(['tag'])
@@ -281,11 +281,11 @@ describe('setTextCondition', () => {
   })
 
   it('survives negated occurrences and collapses ANDed positives', () => {
-    const withNegation = findOf(parseQuery(setTextCondition(':feed{!text:junk}', 'squat')))!
+    const withNegation = findOf(parseQuery(setTextCondition(':notebook{!text:junk}', 'squat')))!
     expect(textValues(withNegation)).toEqual(['squat'])
     expect(withNegation.filters.some(f => f.key === 'text' && f.negate)).toBe(true)
 
-    const anded = findOf(parseQuery(setTextCondition(':feed{text:a | text:b}', 'squat')))!
+    const anded = findOf(parseQuery(setTextCondition(':notebook{text:a | text:b}', 'squat')))!
     expect(textValues(anded)).toEqual(['squat'])
   })
 
@@ -389,14 +389,14 @@ describe('ConditionsNavPanel', () => {
 
   it('restores selections from the URL alone and keeps them removable at zero results', async () => {
     // Restoration: the selection renders from the routed q= with NO snapshot.
-    renderPanel('/feeds?q=%3Afeed%7Btags%3Astrength%7D%20by%20%7Btag%7D')
+    renderPanel('/feeds?q=%3Anotebook%7Btags%3Astrength%7D%20by%20%7Btag%7D')
     expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy()
     expect(stateButton('tags', 'strength').dataset.state).toBe('include')
 
     // Selected-zero recovery: an empty result set keeps the selection listed…
     publish({
       pathname: '/feeds',
-      query: ':feed{tags:strength} by {tag}',
+      query: ':notebook{tags:strength} by {tag}',
       entries: [],
     })
     await waitFor(() => expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy())
@@ -524,7 +524,7 @@ describe('ConditionsNavPanel', () => {
 // Guard: every toggle result must stay a parseable find query.
 describe('conditionsFacets invariants', () => {
   it('always yields a valid find AST with the target intact', () => {
-    let q = ':feed{} by {tag} last 4w | limit 20'
+    let q = ':notebook{} by {tag} last 4w | limit 20'
     for (const value of ['strength', 'fran*', 'endurance']) {
       q = addFacetValue(q, 'tags', value)
       const parsed = parseQuery(q)

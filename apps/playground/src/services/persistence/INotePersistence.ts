@@ -1,15 +1,15 @@
 import type { BlockRevision, Session } from '@/types/storage';
 import type { Sessions } from '@/components/Editor/types';
 import type { CreateNoteInput, GetNoteOptions, NoteLocator, NoteMutation, NoteQuery, SaveNoteInput, StartedSession } from './types';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 
 export interface INotePersistence {
-  createNote(input: CreateNoteInput): Promise<HistoryEntry>;
-  getNote(locator: NoteLocator, options?: GetNoteOptions): Promise<HistoryEntry>;
-  listNotes(query?: NoteQuery): Promise<HistoryEntry[]>;
-  mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryEntry>;
+  createNote(input: CreateNoteInput): Promise<HistoryRecord>;
+  getNote(locator: NoteLocator, options?: GetNoteOptions): Promise<HistoryRecord>;
+  listNotes(query?: NoteQuery): Promise<HistoryRecord[]>;
+  mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryRecord>;
   deleteNote(locator: NoteLocator): Promise<void>;
-  saveNote(input: SaveNoteInput): Promise<HistoryEntry>;
+  saveNote(input: SaveNoteInput): Promise<HistoryRecord>;
   startSession(input: SaveNoteInput, session: Omit<Session, 'blockVersion'>): Promise<StartedSession>;
   finishSession(sessionId: string, data: Sessions, createdAt?: number): Promise<Session>;
   getBlockRevision(noteId: string, blockId: string, version: number): Promise<BlockRevision | undefined>;

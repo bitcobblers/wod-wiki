@@ -14,8 +14,13 @@ import { ArrowTopRightOnSquareIcon, PlayIcon, PencilSquareIcon } from '@heroicon
 /** Categories where workouts run in an inline popup overlay instead of navigating to a tracker page. */
 export const INLINE_RUNTIME_CATEGORIES = new Set(['syntax'])
 
-/** Categories that are not library workout collections — these are user-generated or documentation pages. */
-export const NON_COLLECTION_CATEGORIES = new Set(['journal', 'playground', 'canvas', 'syntax'])
+/** Categories that are not notebook workout items — these are user-generated or documentation pages. */
+export const NOTEBOOK_EXCLUDED_CATEGORIES: Record<string, true> = {
+  journal: true,
+  playground: true,
+  canvas: true,
+  syntax: true,
+}
 
 // ── Playground template helpers ──────────────────────────────────────────────
 

@@ -15,7 +15,7 @@ type Story = StoryObj<typeof ParserTestRunner>;
  * and add a story — no code changes.
  */
 export const GoldenCatalog: Story = {
-  args: { jsonPath: 'parser-tests/catalog.json' },
+  args: { jsonPath: 'parser-tests/notebook.json' },
 };
 
 /** Dialect-heavy spot checks (climb, unit fusion) split into a second dataset. */

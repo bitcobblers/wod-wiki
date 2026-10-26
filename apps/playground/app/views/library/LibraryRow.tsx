@@ -10,7 +10,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/atoms/primitives/dropdown-menu'
 import type { Entry } from '../../lib/entryMapper'
-import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryCollectionFeedHref } from '../../lib/entryActions'
+import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryNotebookHref } from '../../lib/entryActions'
 import { entryCanRun } from '../../lib/entryRun'
 import { effortPath } from '../../lib/routes'
 
@@ -98,7 +98,7 @@ export function LibraryRow({
   // feed-delivered notebook notes by design; All-view rows pick the
   // icon/label by the entry's source so each note flavor shows its own type.
   // Distinct kinds (dashboard/effort/…) resolve through the records directly.
-  const noteCatalog = entry.kind === 'note' ? entry.sourceCatalog : undefined
+  const noteCatalog = entry.kind === 'note' ? entry.sourceNotebook : undefined
   const isNotebookNote = !!noteCatalog && noteCatalog !== 'journal' && noteCatalog !== 'playground' && noteCatalog !== 'guides'
   const Icon =
     noteCatalog === 'playground' ? FlaskConical
@@ -114,13 +114,13 @@ export function LibraryRow({
     ? 'bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20'
     : KIND_TONE[entry.kind]
   const isPrimary = tone === 'primary'
-  const feedHref = entryCollectionFeedHref(entry)
+  const notebookHref = entryNotebookHref(entry)
   const openHref = entryOpenHref(entry)
   const visibleSet = visibleFieldIds ? new Set(visibleFieldIds) : null
   const showDate = !visibleSet || visibleSet.has('date')
   const showSubtitle =
     !visibleSet ||
-    visibleSet.has('catalog') ||
+    visibleSet.has('sourceNotebook') ||
     visibleSet.has('protocol') ||
     visibleSet.has('elapsedTime') ||
     visibleSet.has('splitDuration') ||
@@ -176,18 +176,18 @@ export function LibraryRow({
               {entry.detail ?? entry.execution.effortSlug}
             </Link>
           )}
-          {feedHref && (
+          {notebookHref && (
             <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
               <Link
                 to={openHref}
                 data-testid="library-row-details-link"
                 className="text-[9px] font-bold tracking-wide text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border rounded-full px-2 py-0.5 transition-colors"
-                title="View catalog details"
+                title="View notebook details"
               >
                 Details
               </Link>
               <Link
-                to={feedHref}
+                to={notebookHref}
                 data-testid="library-row-feed-link"
                 className="text-[9px] font-bold tracking-wide text-primary/80 hover:text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-full px-2 py-0.5 transition-colors"
                 title="View feed"
@@ -241,7 +241,7 @@ interface RowActionsProps {
 function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook }: RowActionsProps) {
   const navigate = useNavigate()
   const compareHref = entryCompareHref(entry)
-  const feedHref = entryCollectionFeedHref(entry)
+  const notebookHref = entryNotebookHref(entry)
   const canAdd = entryCanAddToToday(entry) && !!onAddToToday
   const canRun = entryCanRun(entry) && !!onRunStart
   // A note in a user-owned notebook can move between user-owned notebooks
@@ -256,11 +256,11 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
 
   return (
     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-      <ActionButton title={feedHref ? "Details" : "Open"} testId="action-open" onClick={() => navigate(entryOpenHref(entry))}>
+      <ActionButton title={notebookHref ? "Details" : "Open"} testId="action-open" onClick={() => navigate(entryOpenHref(entry))}>
         <PlayIcon className="size-3.5" />
       </ActionButton>
-      {feedHref && (
-        <ActionButton title="Feed" testId="action-feed" onClick={() => navigate(feedHref)}>
+      {notebookHref && (
+        <ActionButton title="Notebook" testId="action-notebook" onClick={() => navigate(notebookHref)}>
           <Rss className="size-3.5" />
         </ActionButton>
       )}

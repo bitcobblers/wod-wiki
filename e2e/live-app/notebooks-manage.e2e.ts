@@ -5,7 +5,7 @@ import { getNoteContentByRouteId, seedNote } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
- * Catalog manager (/notebooks?manage=1) — companion to catalog-subscription
+ * Catalog manager (/notebooks?manage=1) — companion to feed-subscription
  * .e2e.ts (intake). This file owns manager behavior: the ?manage=1 deep link,
  * the toolbar/dock "Manage Catalogs" entry, per-source identity + published
  * links, auto-sync toggle persistence, auto-sync vs check-only updates, and
@@ -20,9 +20,9 @@ import { waitForFeedReady } from '../helpers/feedReadiness';
 const SOURCE_URL = 'https://manage.example.org/library/';
 const REPO_URL = 'https://github.com/example/manage-library';
 const SOURCE = { id: 'manage-library', label: 'Manage Library', url: SOURCE_URL, repositoryUrl: REPO_URL };
-const CHUNK_ID = 'collection.demo';
+const CHUNK_ID = 'notebook.demo';
 const CHUNK_PATH = `chunks/${CHUNK_ID}.json`;
-const SEED_NOTE_PATH = 'markdown/collections/demo-catalog/session-1.md';
+const SEED_NOTE_PATH = 'markdown/notebooks/demo-catalog/session-1.md';
 const SEED_NOTE_BODY = '---\ntags: [demo]\n---\n# Demo Session\n\n```time\n10 Push-ups\n```\n';
 const USER_NOTE_PATH = 'markdown/notes/my-own-note.md';
 const USER_NOTE_BODY = '# My own note\n\nNever a seed row.\n';
@@ -79,7 +79,7 @@ test.describe('Catalog manager — /notebooks?manage=1', () => {
     await seedSource(page, { current: 42 });
     await page.goto('/notebooks?manage=1&q=:notebook');
 
-    const drawer = page.getByTestId('catalogs-manager-drawer');
+    const drawer = page.getByTestId('notebook-manage-drawer');
     await expect(drawer).toBeVisible();
     await showAllSources(drawer);
     const row = drawer.getByTestId('feed-source-manage-library');
@@ -110,9 +110,9 @@ test.describe('Catalog manager — /notebooks?manage=1', () => {
   test('desktop toolbar opens the manager in place', async ({ page }) => {
     await seedSource(page, { current: 42 });
     await page.goto('/notebooks');
-    await expect(page.getByTestId('manage-catalogs-button')).toBeVisible();
-    await page.getByTestId('manage-catalogs-button').click();
-    const drawer = page.getByTestId('catalogs-manager-drawer');
+    await expect(page.getByTestId('manage-notebooks-button')).toBeVisible();
+    await page.getByTestId('manage-notebooks-button').click();
+    const drawer = page.getByTestId('notebook-manage-drawer');
     await expect(drawer).toBeVisible();
     await expect(page).toHaveURL(/\/notebooks\?manage=1$/);
     await drawer.getByRole('button', { name: 'Close' }).click();
@@ -127,8 +127,8 @@ test.describe('Catalog manager — /notebooks?manage=1', () => {
 
     await page.getByTestId('actions-overflow').click();
     const sheet = page.getByRole('dialog', { name: 'Stream actions' });
-    await sheet.getByTestId('manage-catalogs-button').click();
-    const drawer = page.getByTestId('catalogs-manager-drawer');
+    await sheet.getByTestId('manage-notebooks-button').click();
+    const drawer = page.getByTestId('notebook-manage-drawer');
     await expect(drawer).toBeVisible();
     await expect(page).toHaveURL(/\/notebooks\?manage=1$/);
 
@@ -153,7 +153,7 @@ test.describe('Catalog manager — /notebooks?manage=1', () => {
     // hard-fails on that state even though the notes store is unaffected.
     await seedNote(page, USER_NOTE_PATH, USER_NOTE_BODY);
 
-    const drawer = page.getByTestId('catalogs-manager-drawer');
+    const drawer = page.getByTestId('notebook-manage-drawer');
     await showAllSources(drawer);
     const row = drawer.getByTestId('feed-source-manage-library');
 
@@ -216,11 +216,11 @@ test.describe('Catalog manager — /notebooks?manage=1', () => {
   test('one Subscribe imports every notebook the seed publishes', async ({ page }) => {
     const source = 'https://bitcobblers.github.io/wod-wiki-seed-crossfit/';
     const chunks = ['crossfit-games', 'crossfit-girls'].map(name => {
-      const path = `markdown/collections/${name}/isolation.md`;
+      const path = `markdown/notebooks/${name}/isolation.md`;
       const content = `# ${name} isolation\n\nNotebook body.`;
       const body = JSON.stringify([compileSeedRow(path, content)]);
       return { path, content, body, entry: {
-        id: `collection.${name}`, path: `chunks/collection.${name}.json`,
+        id: `notebook.${name}`, path: `chunks/notebook.${name}.json`,
         sha256: createHash('sha256').update(body).digest('hex'),
         bytes: Buffer.byteLength(body), count: 1,
       } };

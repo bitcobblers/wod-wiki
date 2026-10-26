@@ -1,5 +1,5 @@
 /**
- * SyncSection — /settings/sync, and (via CatalogsManagerDrawer) the /catalogs
+ * SyncSection — /settings/sync, and (via NotebookManageDrawer) the /notebooks
  * manager. Content sync feeds for the active data location: the bundled core
  * feed (auto-imports at boot), the bundled community library, and
  * user-registered custom feeds. Per-feed identity, Auto-sync,
@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { CloudDownload, RefreshCw, CheckCircle2, AlertCircle, Plus, Link2 } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import { Input } from '@/components/atoms/primitives/input'
-import { deleteFeedSource, readFeedStatus, runFeedSync, subscribeCatalogUpdates, syncFeedSource, unsubscribeFeedSource, type FeedSourceStatus, type FeedStatus, type FeedSyncOutcome, type FeedSyncProgress } from '@/services/feed/feedSync'
+import { deleteFeedSource, readFeedStatus, runFeedSync, subscribeFeedUpdates, syncFeedSource, unsubscribeFeedSource, type FeedSourceStatus, type FeedStatus, type FeedSyncOutcome, type FeedSyncProgress } from '@/services/feed/feedSync'
 import type { FeedImportProgress } from '@/services/feed/FeedImporter'
 import { addCustomFeedSource, type CustomFeedSource } from '@/services/feed/feedSources'
 import { isNotebookSubscribed, isFeedAutoSync, setNotebookSubscribed, setFeedAutoSync, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
@@ -49,7 +49,7 @@ type SourceProgress = {
 }
 
 /** Exported for the stream surfaces' inline sync notice — one vocabulary for
- *  every sync outcome in the app (Settings rows and the catalogs/feeds
+ *  every sync outcome in the app (Settings rows and the feeds
  *  notice must never word the same outcome differently). */
 export const OUTCOME_LABEL: Record<FeedSyncOutcome, string> = {
   imported: 'Synced',
@@ -73,7 +73,7 @@ function progressLabel(event: FeedSyncProgress): string {
 }
 
 /** Status + actions for one registered feed — the same card serves
- *  /settings/sync and the /catalogs manager drawer. Identity (origin, counts,
+ *  /settings/sync and the /notebooks manager drawer. Identity (origin, counts,
  *  size, versions, last check/sync, subscription) comes from readFeedStatus;
  *  lifecycle actions ride the shared feed service contract. */
 function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscribe, onDelete, onAutoSync, onToggleNotebook, subscribedOnly }: {
@@ -272,7 +272,7 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
         <div className="flex items-center justify-between gap-4">
           <span className="text-xs text-muted-foreground">Library</span>
           <span className="font-medium text-foreground text-xs tabular-nums" data-testid="feed-source-size">
-            {source.count.toLocaleString()} catalog {source.count === 1 ? 'item' : 'items'} · {formatBytes(source.bytes)}
+            {source.count.toLocaleString()} feed {source.count === 1 ? 'item' : 'items'} · {formatBytes(source.bytes)}
           </span>
         </div>
         <div className="flex items-center justify-between gap-4">
@@ -370,10 +370,10 @@ export function SyncSection() {
   }, [refresh])
 
   // Re-read status when subscriptions change elsewhere (home cards) and when
-  // the load-time background check publishes its catalog-updates snapshot —
+  // the load-time background check publishes its feed-updates snapshot —
   // pending badges reflect the latest check without a manual reload.
   useEffect(() => subscribeFeedSubscriptions(() => { void refresh() }), [refresh])
-  useEffect(() => subscribeCatalogUpdates(() => { void refresh() }), [refresh])
+  useEffect(() => subscribeFeedUpdates(() => { void refresh() }), [refresh])
 
   const handleSync = useCallback(async (id: null | string) => {
     setBusyId(id ?? 'all')
@@ -445,7 +445,7 @@ export function SyncSection() {
   // convention (OfferingTiers).
   const handleUnsubscribe = useCallback(async (id: string) => {
     const label = status?.sources.find(s => s.id === id)?.label ?? id
-    if (!window.confirm(`Unsubscribe from "${label}"? Imported content for this catalog is removed from your library; the source stays listed so you can subscribe again. Your own notes are never touched.`)) return
+    if (!window.confirm(`Unsubscribe from "${label}"? Imported content for this feed's content is removed from your library; the source stays listed so you can subscribe again. Your own notes are never touched.`)) return
     try {
       const { deleted } = await unsubscribeFeedSource(id)
       toast({ title: `${label} unsubscribed`, description: `${deleted.toLocaleString()} imported ${deleted === 1 ? 'item' : 'items'} removed. The source stays listed for a later Subscribe.` })

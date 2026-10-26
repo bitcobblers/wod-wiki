@@ -80,11 +80,11 @@ export const TEST_IDS = {
   TESTBENCH_MEMORY: 'testbench-memory',
   TESTBENCH_SCRIPT_EDITOR: 'testbench-script-editor',
 
-  // ── Efforts catalog ───────────────────────────────────────────────────────
-  EFFORTS_CATALOG_ROOT: 'efforts-catalog-root',
-  EFFORTS_CATALOG_SEARCH: 'efforts-catalog-search',
-  EFFORTS_CATALOG_CREATE_BTN: 'efforts-catalog-create-btn',
-  EFFORTS_CATALOG_EMPTY_STATE: 'efforts-catalog-empty-state',
+  // ── Efforts library ───────────────────────────────────────────────────────
+  EFFORTS_ROOT: 'efforts-root',
+  EFFORTS_SEARCH: 'efforts-search',
+  EFFORTS_CREATE_BTN: 'efforts-create-btn',
+  EFFORTS_EMPTY_STATE: 'efforts-empty-state',
   EFFORTS_LOADING: 'efforts-loading',
 
   // ── Effort detail ─────────────────────────────────────────────────────────

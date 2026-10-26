@@ -431,7 +431,7 @@ describe('StreamQueryEngine — tabular rows plane (:segment / :event, #1042)', 
     expect(entries[0]!.id).toBe('row-1')
     expect(entries[0]!.date).toBe('2026-08-15')
     expect(entries[0]!.title).toBe('Thruster')
-    expect(entries[0]!.sourceItem).toBe('res-42')
+    expect(entries[0]!.sourceNote).toBe('res-42')
     expect(entries[1]!.id).toBe('row-2')
     expect(entries[1]!.title).toBe('Segment 2')
   })

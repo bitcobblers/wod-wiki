@@ -1,7 +1,7 @@
 # Screen: Notebook Landing
 
-- **Route:** `/c/:slug` (legacy `/collections/:slug`)
-- **Host Component:** `apps/playground/app/canvas/MarkdownCanvasPage.tsx` / `CollectionDetailPage`
+- **Route:** `/notebook/:slug` (a declared canvas route — the notebook's README)
+- **Host Component:** `apps/playground/app/canvas/MarkdownCanvasPage.tsx`
 - **Domain Models:** `Notebook` (`notebook/{slug}`), `Page`, `Note` (`rawContent` + occurrence map; saved states in `BlockRevision`)
 
 ---
@@ -10,12 +10,12 @@
 
 ### Core UI Components
 - `SplitCanvasTemplate` (`apps/playground/app/templates/SplitCanvasTemplate.tsx`). Desktop split-pane container.
-- `CanvasProsePanel` (`apps/playground/app/components/organisms/canvas/CanvasProsePanel.tsx`). Renders narrative collection markdown.
+- `CanvasProsePanel` (`apps/playground/app/components/organisms/canvas/CanvasProsePanel.tsx`). Renders narrative notebook markdown.
 - `CanvasPanelContent` (`apps/playground/app/canvas/CanvasPanelContent.tsx`). Interactive right panel containing CodeMirror editor and timer preview.
-- `CollectionWorkoutsList` (`apps/playground/app/views/queriable-list/CollectionWorkoutsList.tsx`). Searchable list of member workouts.
+- `CollectionWorkoutsList` (`apps/playground/app/views/queriable-list/CollectionWorkoutsList.tsx`). Searchable list of member notes (named for its legacy; it lists notebook members).
 
 ### Services & Runtimes
-- `seedContent` (`apps/playground/src/services/content/seedContent.ts`). Loads collection `README.md` and workout definitions.
+- `seedContent` (`apps/playground/src/services/content/seedContent.ts`). Loads the notebook `README.md` and member note definitions.
 - `useCanvasRuntime` (`apps/playground/app/hooks/useCanvasRuntime.ts`). Coordinates workout execution directly from canvas cards.
 
 ---

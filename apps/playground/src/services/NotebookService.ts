@@ -61,7 +61,7 @@ export class NotebookService {
         for (const notebook of listNotebooks()) {
             if (notebook.category === 'dashboards') continue;
             if (options?.onlySubscribed && !isFeedSubscribed(notebook.feedId)) continue;
-            const slug = notebook.chunkId.replace(/^(?:collection|feed)\./, '');
+            const slug = notebook.chunkId.replace(/^notebook\./, '');
             const seed = seedsById.get(notebook.feedId);
             out.push({
                 id: toNotebookId(slug),
@@ -186,7 +186,7 @@ export class NotebookService {
     }
 
     /** All notebooks across defaults, user-created, and feed-delivered sources. */
-    async getAllCatalogNotebooks(): Promise<Notebook[]> {
+    async getAllNotebooks(): Promise<Notebook[]> {
         const byNotebookId = new Map<string, Notebook>();
         for (const nb of [...this.getDefaultNotebooks(), ...this.getFeedNotebooks(), ...(await this.getAll())]) {
             byNotebookId.set(nb.notebookId, nb);

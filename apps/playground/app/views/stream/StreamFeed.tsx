@@ -42,7 +42,7 @@ import {
 import type { Entry } from '../../lib/entryMapper'
 import { formatDuration } from '../../lib/entryMapper'
 import type { StreamGroup } from '../../lib/entryGrouping'
-import { entryOpenHref, entryIsPlayground, entryCollectionFeedHref, entryCanAddToToday } from '../../lib/entryActions'
+import { entryOpenHref, entryIsPlayground, entryNotebookHref, entryCanAddToToday } from '../../lib/entryActions'
 import { entryCanRun } from '../../lib/entryRun'
 import { MoveToNotebookMenu } from '../library/LibraryRow'
 import type { BatchedItems } from '../../hooks/useBatchedItems'
@@ -178,7 +178,7 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
             {group.entries.map(entry => {
               // Same note-flavor rule as LibraryRow: guides/playground notes
               // carry their own icon/label inside the plain `note` kind.
-              const noteCatalog = entry.kind === 'note' ? entry.sourceCatalog : undefined
+              const noteCatalog = entry.kind === 'note' ? entry.sourceNotebook : undefined
               const isNotebookNote = !!noteCatalog && noteCatalog !== 'journal' && noteCatalog !== 'playground' && noteCatalog !== 'guides'
               const Icon =
                 noteCatalog === 'playground' ? FlaskConical
@@ -191,7 +191,7 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
                 : isNotebookNote ? 'Notebook'
                 : KIND_LABEL[entry.kind]
               const openHref = entryOpenHref(entry)
-              const feedHref = entryCollectionFeedHref(entry)
+              const notebookHref = entryNotebookHref(entry)
               const sendToPlayground = !entryIsPlayground(entry) && entry.kind === 'note'
               const canAdd = entryCanAddToToday(entry) && !!onAddToToday
               // Same rule as the cards/table RowActions: a note in a user-owned
@@ -235,11 +235,11 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
                           data-testid="stream-feed-open"
                           className="inline-flex min-h-[44px] items-center rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
                         >
-                          {feedHref ? 'Details' : 'Open'}
+                          {notebookHref ? 'Details' : 'Open'}
                         </Link>
-                        {feedHref && (
+                        {notebookHref && (
                           <Link
-                            to={feedHref}
+                            to={notebookHref}
                             data-testid="stream-feed-collection-feed"
                             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors"
                           >

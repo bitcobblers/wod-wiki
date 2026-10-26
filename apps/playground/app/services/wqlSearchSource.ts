@@ -22,9 +22,9 @@ const MAX_RESULTS = 20;
 
 /** The palette's in-code system default query — the single source of truth;
  *  the Settings palette card displays it as the read-only fallback. Journal
- *  and feed notes grouped by date (comma multi-value `source:` filter —
- *  engine-owned grammar; storage identities keep `collection:` prefixes). */
-export const PALETTE_SEED_QUERY = ':note{source:journal,feeds} by {date}';
+ *  and notebook notes grouped by date (comma multi-value `source:` filter —
+ *  engine-owned grammar; storage identities keep `notebook:` prefixes). */
+export const PALETTE_SEED_QUERY = ':note{source:journal,notebooks} by {date}';
 const KIND_CATEGORY: Record<EntryKind, string> = {
   note: 'Journal',
   effort: 'Efforts',
@@ -37,13 +37,13 @@ const KIND_CATEGORY: Record<EntryKind, string> = {
 };
 
 function toPaletteItem(entry: Entry): PaletteItem {
-  // Notebook members (collection items, feed posts) are notes too — the
-  // palette groups them under Notebooks, not the journal.
+  // Notebook members are notes too — the palette groups them under
+  // Notebooks, not the journal.
   return {
     id: `entry:${entry.id}`,
     label: entry.title,
     sublabel: entry.subtitle ?? entry.date ?? undefined,
-    category: entry.kind === 'note' && entry.sourceCatalog !== 'journal' ? 'Notebooks' : KIND_CATEGORY[entry.kind],
+    category: entry.kind === 'note' && entry.sourceNotebook !== 'journal' ? 'Notebooks' : KIND_CATEGORY[entry.kind],
     type: 'entry',
     payload: entry,
   };

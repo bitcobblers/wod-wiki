@@ -3,7 +3,7 @@ import { EFFORT_DISCIPLINES } from '@bitcobblers/wod-wiki-lang';
 import {
   CANONICAL_BLOCK_TYPES,
   canonicalSuggestionItems,
-  catalogIdsFromBlocks,
+  notebookSlugsFromBlocks,
   mergeSuggestionItems,
   SUGGESTION_BINDINGS,
 } from '../src/composer/suggestionSources';
@@ -33,8 +33,8 @@ describe('canonical suggestion values', () => {
   });
 });
 
-it('offers catalog slugs rather than imported note UUIDs', () => {
-  expect(catalogIdsFromBlocks([{
+it('offers notebook slugs rather than imported note UUIDs', () => {
+  expect(notebookSlugsFromBlocks([{
     id: '1c36bebe-022d-5743-8d50-7ed2be4f1840:s',
     noteId: '1c36bebe-022d-5743-8d50-7ed2be4f1840',
     blockId: 's',
@@ -46,6 +46,6 @@ it('offers catalog slugs rather than imported note UUIDs', () => {
     rawContent: '```time\n21 Pullups\n```',
     noteTitle: 'Fran',
     createdAt: 0,
-    sourceId: 'collection:crossfit-girls/fran',
+    sourceId: 'notebook:crossfit-girls/fran',
   }])).toEqual(['crossfit-girls']);
 });

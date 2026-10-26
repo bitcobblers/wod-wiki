@@ -81,15 +81,15 @@ describe('noteOwnership — source-aware zone / up / stamps', () => {
     expect(own.stamps).toEqual(['018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f70'])
   })
 
-  it('collection workout: feeds zone, collection root up, /c/ stamp', () => {
-    const own = noteOwnership({ id: 'crossfit-girls/fran', type: 'feed' })
-    expect(own.zone).toBe('feeds')
+  it('notebook workout: notebooks zone, notebook root up, item stamp', () => {
+    const own = noteOwnership({ id: 'crossfit-girls/fran', type: 'note' })
+    expect(own.zone).toBe('notebooks')
     expect(own.up).toMatchObject({ title: 'crossfit-girls', to: '/notebook/crossfit-girls' })
     expect(own.stamps).toEqual(['/notebook/crossfit-girls/fran'])
   })
 
-  it('effort shadow note: efforts zone, catalog up, /e/ stamp', () => {
-    const own = noteOwnership({ id: 'effort/grace', type: 'feed' })
+  it('effort shadow note: efforts zone, efforts up, /e/ stamp', () => {
+    const own = noteOwnership({ id: 'effort/grace', type: 'note' })
     expect(own.zone).toBe('efforts')
     expect(own.up).toMatchObject({ title: 'Efforts', to: '/efforts' })
     expect(own.stamps).toEqual(['/effort/grace'])
@@ -102,11 +102,13 @@ describe('noteOwnership — source-aware zone / up / stamps', () => {
     expect(own.stamps).toEqual(['/playground/018f3c2a-0000-7000-8000-000000000001'])
   })
 
-  it('feed item: feeds zone, feed listing up, item-level stamp', () => {
-    const own = noteOwnership({ id: 'feeds/dan-john/2026-01-12/day-01', type: 'feed' })
-    expect(own.zone).toBe('feeds')
-    expect(own.up).toMatchObject({ title: 'dan-john', to: '/feed/dan-john' })
-    expect(own.stamps).toEqual(['/feed/dan-john/2026-01-12/day-01'])
+  it('dated notebook item: notebooks zone, notebook landing up, id-level stamp', () => {
+    // The date-scoped item identity lives in the row's sourceId, not the
+    // composite id — the ownership stamps stay empty for these rows.
+    const own = noteOwnership({ id: 'notebook/dan-john/2026-01-12/day-01', type: 'note' })
+    expect(own.zone).toBe('notebooks')
+    expect(own.up).toMatchObject({ title: 'dan-john', to: '/notebook/dan-john' })
+    expect(own.stamps).toEqual([])
   })
 
   it('unknown bare id: no zone, no up', () => {
@@ -121,7 +123,7 @@ describe('backlinkNotes — journal copies by sourceNote stamp', () => {
     { id: '018f-copy-1', title: 'Fran copy', sourceId: '/notebook/crossfit-girls/fran', createdAt: 3 },
     { id: '018f-copy-2', title: 'Fran copy anchored', sourceId: '/notebook/crossfit-girls/fran#seg-1', createdAt: 4 },
     { id: '018f-other', title: 'Other', sourceId: '/notebook/other/wod', createdAt: 9 },
-    { id: '018f-self', title: 'Itself', sourceId: '/c/crossfit-girls/fran', createdAt: 5 },
+    { id: '018f-self', title: 'Itself', sourceId: '/notebook/crossfit-girls/fran', createdAt: 5 },
   ] as Note[]
 
   it('matches exact and #fragment stamps, excludes self, newest first, canonical routes', () => {

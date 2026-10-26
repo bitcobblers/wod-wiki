@@ -1,10 +1,10 @@
 /**
- * FeedItemPage — /feed/:slug/:feedDate/:feedItem
+ * NotebookItemPage — /notebook/:slug/:itemDate/:item
  *
- * Renders a single feed workout in the JournalPageShell.
+ * Renders a single dated notebook item in the JournalPageShell.
  * Content is read-only at source (build-time), but local edits are
- * saved to playgroundContent under `feed/{slug}/{date}/{item}` so scratch
- * edits are preserved across sessions.
+ * saved to playgroundContent under `notebook/{slug}/{date}/{item}` so
+ * scratch edits are preserved across sessions.
  * Action bar exposes:
  *   - Add to Today   → appends the wod block to today's journal
  *   - Plan for date  → appends to a specific date's journal (calendar picker)
@@ -20,7 +20,7 @@ import { JournalPageShell } from '@/panels/page-shells';
 import type { ScriptBlock } from '@/components/Editor/types';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui';
-import { buildScriptFeeds } from '@/repositories/script-feeds';
+import { buildScriptNotebooks, findNotebookItem } from '@/repositories/script-notebooks';
 import { useSeedContent } from '@/services/content/seedContent';
 import { usePlaygroundContent } from '../hooks/usePlaygroundContent';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
@@ -40,56 +40,55 @@ import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/atoms/primitives/toast';
 import { localDateKey } from '@/lib/dateFormat';
 
-export interface FeedItemPageProps {
-  feedSlug: string;
-  feedDate: string;
-  feedItem: string;
+export interface NotebookItemPageProps {
+  slug: string;
+  itemDate: string;
+  item: string;
   theme: string;
   onViewCreated?: (view: EditorView) => void;
   onScrollToSection?: (id: string) => void;
 }
 
-export function FeedItemPage({
-  feedSlug,
-  feedDate,
-  feedItem,
+export function NotebookItemPage({
+  slug,
+  itemDate,
+  item,
   theme,
   onViewCreated,
-}: FeedItemPageProps) {
+}: NotebookItemPageProps) {
   const navigate = useNavigate();
 
   const files = useSeedContent();
-  const { item, feed } = useMemo(() => {
-    if (!files) return { item: undefined, feed: undefined };
-    const feeds = buildScriptFeeds(files);
-    const feed = feeds.find((f) => f.id === feedSlug);
-    const item = feed?.items.find((i) => i.feedDate === feedDate && i.id === feedItem);
-    return { item, feed };
-  }, [files, feedSlug, feedDate, feedItem]);
-  const playgroundCategory = `feed/${feedSlug}/${feedDate}`;
+  const notebookItem = useMemo(() => {
+    if (!files) return undefined;
+    return findNotebookItem(buildScriptNotebooks(files).find((n) => n.id === slug), itemDate, item);
+  }, [files, slug, itemDate, item]);
+  const playgroundCategory = `notebook/${slug}/${itemDate}`;
   // Store local edits under a deterministic key in playgroundContent.
-  // The feed item's canonical content is the mdContent fallback.
-  // seedOnMount: false — viewing a feed item is read-only against the local
-  // index; seeding created undated ghost notes in the library (#856).
+  // The notebook item's canonical content is the mdContent fallback.
+  // seedOnMount: false — viewing a notebook item is read-only against the
+  // local index; seeding created undated ghost notes in the library (#856).
   const { content, noteBlocks, sourceRevision, onIdentityChange, onSaved, onChange, onLineChange, onBlur, flush } = usePlaygroundContent({
     category: playgroundCategory,
-    name: feedItem,
-    mdContent: item?.content ?? `# ${feedItem}\n\n*Feed item not found.*\n`,
+    name: item,
+    mdContent: notebookItem?.content ?? `# ${item}\n\n*Notebook item not found.*\n`,
     seedOnMount: false,
   });
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([]);
-  const noteId = `feed/${feedSlug}/${feedDate}/${feedItem}`;
+  const noteId = `notebook/${slug}/${itemDate}/${item}`;
+
+  const itemPath = `/notebook/${encodeURIComponent(slug)}/${itemDate}/${encodeURIComponent(item)}`;
 
   const handleStartWorkout = useCallback(
     async (block: ScriptBlock) => {
       try {
         const runtimeId = uuidv7();
         const journalNote = await createJournalNoteFromWorkout({
-          workoutName: item?.name ?? feedItem,
-          category: feedSlug,
-          sourceNoteLabel: feed?.name,
-          sourceNotePath: `/feed/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
+          workoutName: notebookItem?.name ?? item,
+          category: slug,
+          sourceNoteLabel: slug,
+          sourceNotePath: itemPath,
           wodContent: block.content,
         });
         const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
@@ -100,16 +99,16 @@ export function FeedItemPage({
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
     },
-    [feed, feedDate, feedItem, feedSlug, item, navigate, noteId],
+    [slug, item, itemPath, notebookItem, navigate],
   );
 
   const handleAddToToday = useCallback(async (block: ScriptBlock) => {
     try {
       const journalNote = await createJournalNoteFromWorkout({
-        workoutName: item?.name ?? feedItem,
-        category: feedSlug,
-        sourceNoteLabel: feed?.name,
-        sourceNotePath: `/feed/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
+        workoutName: notebookItem?.name ?? item,
+        category: slug,
+        sourceNoteLabel: slug,
+        sourceNotePath: itemPath,
         wodContent: block.content,
       });
       const today = localDateKey(new Date());
@@ -125,7 +124,7 @@ export function FeedItemPage({
     } catch {
       toast({ title: 'Error', description: 'Could not add to journal', variant: 'destructive' });
     }
-  }, [feed, feedDate, feedItem, feedSlug, item, navigate]);
+  }, [slug, item, itemPath, notebookItem, navigate]);
 
   const [pendingScheduleBlock, setPendingScheduleBlock] = useState<ScriptBlock | null>(null);
 
@@ -136,10 +135,10 @@ export function FeedItemPage({
     const dateKey = `${y}-${m}-${d}`;
     try {
       await createJournalNoteFromWorkout({
-        workoutName: item?.name ?? feedItem,
-        category: feedSlug,
-        sourceNoteLabel: feed?.name,
-        sourceNotePath: `/feed/${encodeURIComponent(feedSlug)}/${feedDate}/${encodeURIComponent(feedItem)}`,
+        workoutName: notebookItem?.name ?? item,
+        category: slug,
+        sourceNoteLabel: slug,
+        sourceNotePath: itemPath,
         wodContent: block.content,
         date: date,
       });
@@ -156,7 +155,7 @@ export function FeedItemPage({
     } catch {
       toast({ title: 'Error', description: 'Could not schedule workout', variant: 'destructive' });
     }
-  }, [feed, feedDate, feedItem, feedSlug, item, navigate]);
+  }, [slug, item, itemPath, notebookItem, navigate]);
 
   const index = useNotePageNav({
     content,
@@ -164,14 +163,14 @@ export function FeedItemPage({
     onStartWorkout: handleStartWorkout,
   });
 
-  // Canonical corpus id (`feeds/<slug>/<date>/<item>`) drives ownership and
-  // the block indexes. Feed runs stamp the FEED listing path as sourceNote,
-  // so per-item journal-copy backlinks don't exist in the data.
-  const corpusId = `feeds/${feedSlug}/${feedDate}/${feedItem}`;
-  const ownership = useMemo(() => noteOwnership({ id: corpusId, type: 'collection' }), [corpusId]);
+  // Canonical corpus id (`notebook/<slug>/<date>/<item>`) drives ownership
+  // and the block indexes. Notebook runs stamp the listing path as
+  // sourceNote, so per-item journal-copy backlinks don't exist in the data.
+  const corpusId = `notebook/${slug}/${itemDate}/${item}`;
+  const ownership = useMemo(() => noteOwnership({ id: corpusId, type: 'note' }), [corpusId]);
   const contextData = useNoteContextLinks({ noteId: corpusId, stamps: ownership.stamps });
 
-  const commands = useScriptBlockCommands('collection-readonly', {
+  const commands = useScriptBlockCommands('notebook-readonly', {
     onPlay: handleStartWorkout,
     onShare: shareBlock,
     onAddToToday: handleAddToToday,
@@ -182,12 +181,12 @@ export function FeedItemPage({
   return (
     <>
       <JournalPageShell
-        title={item?.name ?? feedItem}
+        title={notebookItem?.name ?? item}
         actions={
           <ResponsiveActions label="Workout actions">
           <PageActions
-            mode="collection-readonly"
-            currentWorkout={{ name: item?.name ?? feedItem, content }}
+            mode="notebook-readonly"
+            currentWorkout={{ name: notebookItem?.name ?? item, content }}
             index={index}
           />
           </ResponsiveActions>

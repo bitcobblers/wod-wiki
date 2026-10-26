@@ -72,7 +72,7 @@ export const WorkoutActionButton: React.FC<WorkoutActionButtonProps> = ({
         const loadEntryDates = async () => {
             setLoading(true);
             try {
-                const entries = await provider.getEntries();
+                const entries = await provider.getRecords();
                 const dates = new Set(
                     entries
                         .filter(isJournalEntry)

@@ -75,7 +75,7 @@ const STATIC_BLOCK: BlockIndexRow = {
   noteTitle: 'Fran',
   createdAt: Date.parse('2026-01-01T00:00:00Z'),
   isStatic: true,
-  sourceId: 'collection:girl-wods',
+  sourceId: 'notebook:girl-wods',
 }
 
 const emptyResult = (raw: string): FindQueryResult => ({
@@ -119,7 +119,7 @@ describe('wqlSearchSource', () => {
     expect(item.type).toBe('entry')
     const entry = item.payload as Entry
     expect(entry.kind).toBe('note')
-    expect(entry.sourceItem).toBe('journal/2026-07-30')
+    expect(entry.sourceNote).toBe('journal/2026-07-30')
   })
 
   it('keeps whole-Note text filtering in one executor request', async () => {
@@ -135,7 +135,7 @@ describe('wqlSearchSource', () => {
       result.blocks = [STATIC_BLOCK]
       return result
     })
-    const results = await wqlSearchSource().search(':block{type:wod} in feeds')
+    const results = await wqlSearchSource().search(':block{type:wod} in notebooks')
 
     expect(results).toHaveLength(1)
     const item = results[0]!
@@ -144,7 +144,7 @@ describe('wqlSearchSource', () => {
     expect(item.category).toBe('Notebooks')
     const entry = item.payload as Entry
     expect(entry.kind).toBe('note')
-    expect(entry.sourceCatalog).toBe('girl-wods')
+    expect(entry.sourceNotebook).toBe('girl-wods')
   })
 
   it('finds body matches for plain words inside the live scope', async () => {
@@ -161,7 +161,7 @@ describe('wqlSearchSource', () => {
     expect(prose.map(r => r.id)).toEqual(['entry:journal/2026-07-30'])
 
     // The corpus is journal-only: a feeds scope fabricates nothing.
-    const other = await wqlSearchSource().search('pushup', { scopeWql: ':note in feeds' })
+    const other = await wqlSearchSource().search('pushup', { scopeWql: ':note in notebooks' })
     expect(other).toEqual([])
   })
 
@@ -207,7 +207,7 @@ const JOURNAL_ROW: CorpusRow = {
 }
 
 const FEED_ROW: CorpusRow = {
-  note: { id: 'feeds/feed-a/2026-01-01/note-0', title: 'Feed note', createdAt: 1, type: 'note', sourceId: 'feed:feeds/feed-a/2026-01-01/note-0', rawContent: 'pushup ladder', sourceRevision: 1, blocks: {} },
+  note: { id: 'notebook/feed-a/2026-01-01/note-0', title: 'Feed note', createdAt: 1, type: 'note', sourceId: 'notebook:feed-a/2026-01-01/note-0', rawContent: 'pushup ladder', sourceRevision: 1, blocks: {} },
   body: 'pushup ladder',
   source: 'feeds',
 }
@@ -259,7 +259,7 @@ describe('scopedTextQuery', () => {
   it('quotes multiword terms and keeps the scope structure', () => {
     const merged = findOf(scopedTextQuery(findOf(PALETTE_SEED_QUERY)!, 'two words'))!
     expect(textFiltersOf(merged)).toEqual(['two words'])
-    expect(sourceValuesOf(merged)).toEqual(['journal', 'feeds'])
+    expect(sourceValuesOf(merged)).toEqual(['journal', 'notebooks'])
     expect(merged.groupBy).toContain('date')
   })
 
@@ -339,9 +339,9 @@ describe('navigatePaletteResult', () => {
     const entry = {
       id: 'girl-wods/fran',
       kind: 'note',
-      sourceId: 'collection:girl-wods/fran',
-      sourceCatalog: 'girl-wods',
-      sourceItem: 'fran',
+      sourceId: 'notebook:girl-wods/fran',
+      sourceNotebook: 'girl-wods',
+      sourceNote: 'fran',
       title: 'Fran',
       date: null,
     } satisfies Entry

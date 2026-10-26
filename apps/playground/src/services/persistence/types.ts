@@ -1,5 +1,5 @@
 import type { Sessions } from '@/components/Editor/types';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { Attachment, AnalyticsDataPoint, Note, NoteKind, NoteBlock, BlockRevision, ResultOrigin, EventRecord, Session } from '@/types/storage';
 import type { StoreName } from '@bitcobblers/wod-wiki-storage';
 import type { StorageService } from '@/services/storage/StorageService';
@@ -204,4 +204,4 @@ export interface NotePersistenceStorage {
   ): Promise<R>;
 }
 
-export type { HistoryEntry, Attachment, AnalyticsDataPoint, Session, EventRecord };
+export type { HistoryRecord, Attachment, AnalyticsDataPoint, Session, EventRecord };

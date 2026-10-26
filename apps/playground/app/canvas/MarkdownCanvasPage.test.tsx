@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { useEffect } from 'react'
 
 import type { NoteEditorProps } from '@/components/organisms/editor/NoteEditor'
-import type { HistoryEntry } from '@/types/history'
+import type { HistoryRecord } from '@/types/history'
 import type {
   INotePersistence,
   NoteLocator,
@@ -105,7 +105,7 @@ const fakeNotePersistence: INotePersistence = {
   async deleteNote() {},
 }
 
-function fakeEntry(id: string): HistoryEntry {
+function fakeEntry(id: string): HistoryRecord {
   return {
     id,
     title: id,

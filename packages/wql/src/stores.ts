@@ -79,7 +79,7 @@ export interface NoteQueryStore {
  * ORs; `negate` excludes any row matching any value.
  */
 export type WqlDomainPredicate =
-  | { field: 'id' | 'noteId' | 'type' | 'catalog' | 'source' | 'tags' | 'effort'; values: string[]; negate?: boolean }
+  | { field: 'id' | 'noteId' | 'type' | 'source' | 'tags' | 'effort'; values: string[]; negate?: boolean }
   /** Typed-tag narrow — notes carrying a tag of this type and one of these
    *  labels (pushes down through the tags by-type index). Mirror of the
    *  storage wire's typedTag predicate (ticket 08). */
@@ -87,11 +87,11 @@ export type WqlDomainPredicate =
   | { field: 'text'; value: string }
   | { field: 'date'; start: number; end: number; endExclusive?: boolean }
   | { field: 'page'; value: boolean }
-  /** The :note default page-exclusion stage (notes plan only). `feeds`
-   *  = an authored feed source clause rides along: true drops literal
+  /** The :note default page-exclusion stage (notes plan only). `nonPages`
+   *  = an authored notebook source clause rides along: true drops literal
    *  type 'page' rows; false drops isPage rows (page-like kinds or page:/
    *  guides: source prefixes on non-note kinds). */
-  | { field: 'defaultNotes'; feeds: boolean }
+  | { field: 'defaultNotes'; nonPages: boolean }
   | { field: 'sourceFence' };
 
 /** Server order clause — structural mirror of the storage wire's

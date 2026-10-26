@@ -12,7 +12,7 @@
  * 3. Long title (verifying text truncation)
  */
 import type { Meta } from '@storybook/react-vite';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import { historyEntryToListItem } from '@/components/molecules/adapters/historyAdapter';
 import { DefaultListItem } from '@/components/molecules/DefaultListItem';
 import type { ListItemContext } from '@/components/molecules/types';
@@ -30,7 +30,7 @@ const defaultContext: ListItemContext = {
   onSelect: () => {},
   executeAction: () => {},
 };
-function makeEntry(overrides: Partial<HistoryEntry> & { type: HistoryEntry['type'] }): HistoryEntry {
+function makeEntry(overrides: Partial<HistoryRecord> & { type: HistoryRecord['type'] }): HistoryRecord {
   return {
     id: `entry-${Math.random().toString(36).slice(2, 9)}`,
     createdAt: 1774000000000,
@@ -46,7 +46,7 @@ function makeEntry(overrides: Partial<HistoryEntry> & { type: HistoryEntry['type
     ...overrides,
   };
 }
-function renderGroup(title: string, entries: HistoryEntry[]) {
+function renderGroup(title: string, entries: HistoryRecord[]) {
   return (
     <div className="max-w-md space-y-2">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{title}</h3>

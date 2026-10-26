@@ -113,19 +113,14 @@ export const TARGET_OPTIONS = WQL_FIND_TARGETS.map((t) => ({
 }));
 
 /** Storage scopes — the `source:` filter values (`Where stored`). All
- *  sources means no source filter at all.
- *
- *  The `feeds` value here is a CONTAINER scope (the notes a feed publishes),
- *  not the feed-source vocabulary: it selects the notes, not the sources.
- *  Its spelling stays as it is — it is a WQL vocabulary value shared with
- *  saved queries and the guide corpus, so renaming it belongs to the query
- *  vocabulary ticket, not the source→feed rename. */
+ *  sources means no source filter at all. The `notebooks` value is a
+ *  CONTAINER scope (the notes a notebook holds): it selects the notes. */
 export const SOURCE_OPTIONS = WQL_SOURCE_VALUES.map((s) => ({
   value: s,
   label: s.charAt(0).toUpperCase() + s.slice(1),
   description: ({
     journal: 'Daily journal notes',
-    feeds: 'Notebook notes',
+    notebooks: 'Notebook notes',
     guides: 'Static guide pages',
     playground: 'Playground scratch pages',
     dashboards: 'Dashboard notes',

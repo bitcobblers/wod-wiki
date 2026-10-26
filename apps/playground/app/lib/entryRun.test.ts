@@ -24,8 +24,8 @@ function makeEntry(overrides: Partial<Entry> = {}): Entry {
   return {
     id: 'crossfit-girls/grace',
     kind: 'note',
-    sourceCatalog: 'crossfit-girls',
-    sourceItem: 'grace',
+    sourceNotebook: 'crossfit-girls',
+    sourceNote: 'grace',
     title: 'Grace',
     date: null,
     sourceId: 'collection:crossfit-girls/grace',
@@ -49,11 +49,11 @@ beforeEach(() => {
 describe('entryCanRun', () => {
   it('offers Run for content entries — journal, collection items and feed posts are all notes', () => {
     expect(entryCanRun(makeEntry())).toBe(true)
-    expect(entryCanRun(makeEntry({ sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday', sourceCatalog: 'crossfit-programming' }))).toBe(true)
-    expect(entryCanRun(makeEntry({ kind: 'note', sourceCatalog: 'journal' }))).toBe(true)
+    expect(entryCanRun(makeEntry({ sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday', sourceNotebook: 'crossfit-programming' }))).toBe(true)
+    expect(entryCanRun(makeEntry({ kind: 'note', sourceNotebook: 'journal' }))).toBe(true)
     expect(
       entryCanRun(
-        makeEntry({ id: 'uuid-1', kind: 'note', sourceCatalog: 'playground', sourceItem: 'x', sourceId: 'playground' }),
+        makeEntry({ id: 'uuid-1', kind: 'note', sourceNotebook: 'playground', sourceNote: 'x', sourceId: 'playground' }),
       ),
     ).toBe(true)
     expect(entryCanRun(makeEntry({ kind: 'effort', id: 'back-squat' }))).toBe(false)
@@ -66,8 +66,8 @@ describe('startEntryRun — playground entries', () => {
     const entry = makeEntry({
       id: 'uuid-1',
       kind: 'note',
-      sourceCatalog: 'playground',
-      sourceItem: 'fran-experiment',
+      sourceNotebook: 'playground',
+      sourceNote: 'fran-experiment',
       sourceId: 'playground',
       wodBlock: { blockId: 'playground-workout', blockVersion: 1, blockContentId: 'wod-hash-1', content: '21-15-9 Thrusters / Pull-ups' },
     })

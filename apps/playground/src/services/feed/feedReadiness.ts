@@ -18,7 +18,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { SEED_BROADCAST_CHANNEL, seedMetaKey } from '@/types/seed';
 import { subscribeSyncActivity } from '@/services/syncActivity';
 import { markBootMilestone } from '@/services/bootDiagnostics';
-import { adoptFeedProvenance, adoptLegacyFeedCheckpoints, defaultFeedSources, readFeedCoverage, runBootFeedSync, SEED_CLAIM_TTL_MS, subscribeCatalogUpdates, type FeedSyncDeps, type FeedSyncOutcome, type FeedSyncProgress } from './feedSync';
+import { adoptFeedProvenance, adoptLegacyFeedCheckpoints, adoptNotebookVocabulary, defaultFeedSources, readFeedCoverage, runBootFeedSync, SEED_CLAIM_TTL_MS, subscribeFeedUpdates, type FeedSyncDeps, type FeedSyncOutcome, type FeedSyncProgress } from './feedSync';
 import { mainThreadFeedImportStorage } from './feedStorageDefault';
 import { isFeedSubscribed, migrateFeedSubscriptions } from './feedSubscriptions';
 
@@ -186,6 +186,11 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   const all = deps.sources ?? defaultFeedSources();
   // Pre-feed-unit per-notebook checkpoints fold into their feed's checkpoint
   // first: the subscription migration below probes feed checkpoints, and the
+  // Retired collection/feed wire identities fold into the notebook
+  // vocabulary BEFORE any checkpoint adoption or sync: the migration
+  // renames chunk keys in place, and the legacy adoption below reads them.
+  await adoptNotebookVocabulary(deps)
+    .catch((err) => console.error('[feedSync] notebook vocabulary migration failed', err));
   // folded records are what make an already-imported feed read as imported.
   await adoptLegacyFeedCheckpoints(deps)
     .catch((err) => console.error('[feedSync] checkpoint adoption failed', err));
@@ -248,7 +253,7 @@ export function useFeedLibraryMissing(): boolean | null {
     };
     probe();
     const unsubSync = subscribeSyncActivity(() => probe());
-    const unsubUpdates = subscribeCatalogUpdates(() => probe());
+    const unsubUpdates = subscribeFeedUpdates(() => probe());
     let channel: BroadcastChannel | null = null;
     if (typeof BroadcastChannel !== 'undefined') {
       try {

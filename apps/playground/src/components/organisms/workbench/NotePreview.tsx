@@ -4,14 +4,14 @@ import { Dumbbell, Edit2, Play, Save } from 'lucide-react';
 import { Button } from '@/components/atoms/primitives/button';
 import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
 import { cn } from '@/lib/utils';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider } from '@/types/content-provider';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { CloneDateDropdown } from '@/components/molecules/CloneDateDropdown';
 
 export interface NotePreviewProps {
     /** The workout entry to preview */
-    entry?: HistoryEntry;
+    entry?: HistoryRecord;
 
     /** Manual document structure items (for TrackPanel workout selector) */
     items?: DocumentItem[];

@@ -60,7 +60,7 @@ or `{ type: 'call', handler }`. Scrolls go through
 | Writer | File | Page kinds | Content |
 |---|---|---|---|
 | `useNotePageNav` | `app/pages/shared/useNotePageNav.ts` | note pages | Document headings + ```` ```time ```` blocks (Run affordance) + ```` ```log ```` blocks (display-only, result badges) extracted from the editor document |
-| `deriveNav` + `usePageScrollSync`/`AppContent` | `app/lib/routeView.ts`, `app/hooks/usePageScrollSync.ts`, `app/App.tsx` | canvas pages | Sections (level > 1) + `Workout N` entries per ```` ```time/```log ```` fence (skipped on `/page/guide-*`) + collection workout links |
+| `deriveNav` + `usePageScrollSync`/`AppContent` | `app/lib/routeView.ts`, `app/hooks/usePageScrollSync.ts`, `app/App.tsx` | canvas pages | Sections (level > 1) + `Workout N` entries per ```` ```time/```log ```` fence (skipped on `/page/guide-*`) + notebook workout links |
 | `QueriableStreamView` | `app/views/stream/QueriableStreamView.tsx` | stream pages | Dynamic group headers from `groupEntriesByDimension` — dim = WQL `by {…}` → view-setting `groupBy` → page default |
 | `deriveNav('/journal')` | `app/lib/routeView.ts` | `/journal` only | Top-10 distinct session dates (pre-load placeholder; superseded by stream groups once entries resolve) |
 
@@ -74,7 +74,7 @@ or `{ type: 'call', handler }`. Scrolls go through
 |---|---|---|---|
 | `/library` | date | `date-group-YYYY-MM-DD` | |
 | `/journal` | date | `date-group-YYYY-MM-DD` | overlaps with deriveNav top-10 dates until entries load |
-| `/collections` | date | `date-group-*` | |
+| `/notebooks` | date | `date-group-*` | |
 | `/feeds`, `/feed` | date | `date-group-*` | |
 | `/efforts` | discipline | `group-discipline-<slug>` | undated entries → `Undated` bucket under date dims |
 | `/results`, `/results/*` | date | `date-group-*` | |
@@ -89,7 +89,7 @@ composer wins; otherwise per-route View Settings **Group By**
 |---|---|
 | `/` (Home) | markdown sections (level > 1) + `Workout N` per time/log fence |
 | `/page/guide-*` (8 consolidated chapters) | sections only (workout fences skipped on guide pages) |
-| `/notebook/:slug` | sections + `Explore` + one link per collection workout (`onRun` → open editor) |
+| `/notebook/:slug` | sections + `Explore` + one link per notebook workout (`onRun` → open editor) |
 
 ### Note pages — `useNotePageNav` document index
 

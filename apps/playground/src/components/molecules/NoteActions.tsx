@@ -1,12 +1,12 @@
 import React from 'react';
 import { Lock } from 'lucide-react';
-import { HistoryEntry } from '../../types/history';
+import { HistoryRecord } from '../../types/history';
 import { cn } from '../../lib/utils';
 import { CloneDateDropdown } from '@/components/molecules/CloneDateDropdown';
 import type { IContentProvider } from '@/types/content-provider';
 
 interface NoteActionsProps {
-    entry: HistoryEntry | null;
+    entry: HistoryRecord | null;
     onClone: (targetDate?: number) => void;
     className?: string;
     showLabel?: boolean;

@@ -182,7 +182,7 @@ export function DatabaseSelectionPage() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Catalogs</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Feeds</h2>
         <ul className="space-y-2">
           {feedSources.map((source) => (
             <li

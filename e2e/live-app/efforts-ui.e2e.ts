@@ -178,7 +178,7 @@ test.describe('Effort Detail Page', () => {
 
 // ── Clone Effort ─────────────────────────────────────────────────────────────
 // (The retired create-custom effort fixme lived here; the supported flow is
-// covered by efforts-catalog.e2e.ts "opens create-custom flow from the
+// covered by efforts create-custom coverage: "opens create-custom flow from the
 // catalog CTA and creates the effort" against the notebook editor form.)
 
 test.describe('Clone Effort', () => {

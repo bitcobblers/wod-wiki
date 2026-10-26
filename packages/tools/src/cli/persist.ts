@@ -12,7 +12,7 @@ import type {
 } from '@bitcobblers/wod-wiki-storage';
 import { rowsEqual as sameRow } from '@bitcobblers/wod-wiki-storage';
 import type { ExecutionLog } from '@bitcobblers/wod-wiki-engine';
-import { extractNoteIdentity, extractTypedTags, readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
+import { extractNoteIdentity, extractTypedTags } from '@bitcobblers/wod-wiki-engine';
 import { MetricType, type EventRecord } from '@bitcobblers/wod-wiki-core';
 import {
   blockContentId,
@@ -110,11 +110,6 @@ async function saveSource(
       sourceRevision++;
       for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
     }
-    const fm = readFrontmatterMeta(options.source);
-    const catalog =
-      (typeof fm['catalog'] === 'string' && fm['catalog'].trim()) ||
-      (typeof fm['collection'] === 'string' && fm['collection'].trim()) ||
-      existing?.catalog;
     const note: Note = {
       ...existing,
       id: noteId,
@@ -125,7 +120,6 @@ async function saveSource(
       rawContent: options.source,
       sourceRevision,
       blocks,
-      ...(catalog ? { catalog } : {}),
     };
     const priorRows = await tx.readonly('block_index').getAllFromIndex('by-note', noteId);
     const priorEfforts = await tx.readonly('block_efforts').getAllFromIndex('by-note', noteId);
@@ -156,7 +150,6 @@ async function saveSource(
         dataType: block.kind, sourceRevision, from: block.from, to: block.to, position,
         rawContent, noteTitle: note.title, createdAt: prior?.createdAt ?? now,
         blockContentId: fingerprint,
-        ...(catalog ? { catalog } : {}),
         ...(note.sourceId ? { sourceId: note.sourceId } : {}),
       });
       if (block.kind === 'wod') {

@@ -13,7 +13,7 @@ import { InMemoryFeedStorage } from './FeedImportStorage';
 import { CountingFeedSource, InMemoryFeedSource } from './InMemoryFeedSource';
 import type { IFeedSource, SeedChunkPayload } from './IFeedSource';
 import { feedFixture as fixture } from './feedFixture';
-import { runBootFeedSync, runFeedSync, syncFeedSource, getCatalogUpdates, type FeedSourceSpec } from './feedSync';
+import { runBootFeedSync, runFeedSync, syncFeedSource, getFeedUpdates, type FeedSourceSpec } from './feedSync';
 import { getFeedReadiness, resetFeedReadinessForTest, startFeedBootstrap } from './feedReadiness';
 import { seedNoteId } from './FeedImporter';
 import {
@@ -114,7 +114,7 @@ describe('seed subscriptions', () => {
 
   it('a manual sync subscribes on imported or current; server-stale/error never subscribe', async () => {
     const storage = new InMemoryFeedStorage();
-    const src = () => fixture([row('markdown/collections/x/a.md', '# A')], 1);
+    const src = () => fixture([row('markdown/notebooks/x/a.md', '# A')], 1);
     expect(await syncFeedSource('community', { sources: [spec(src(), 'community')], storage, isEnabled: () => true })).toBe('imported');
     expect(isFeedSubscribed('community')).toBe(true);
     setFeedSubscribed('community', false);
@@ -146,7 +146,7 @@ describe('boot seed policy', () => {
     const storage = new InMemoryFeedStorage();
     await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
     const coreCounting = new CountingFeedSource(fixture([row('markdown/canvas/a.md', '# A')], 1, 'canvas'));
-    const communityCounting = new CountingFeedSource(fixture([row('markdown/collections/x/b.md', '# B')], 1));
+    const communityCounting = new CountingFeedSource(fixture([row('markdown/notebooks/x/b.md', '# B')], 1));
     const sources = [spec(coreCounting, 'core', 1), spec(communityCounting, 'community', 0, false)];
 
     // Not subscribed: community is not touched, but the embedded core fast
@@ -164,7 +164,7 @@ describe('boot seed policy', () => {
     expect(communityCounting.fetchManifestCalls).toBe(1);
     expect(communityCounting.fetchChunkCalls).toEqual([]);
     expect(await storage.getSeedMeta(seedMetaKey('community'))).toBeUndefined();
-    expect(getCatalogUpdates()?.updates).toEqual([{ sourceId: 'community', label: 'community', state: 'pending' }]);
+    expect(getFeedUpdates()?.updates).toEqual([{ sourceId: 'community', label: 'community', state: 'pending' }]);
 
     // Auto-sync ON: the same background check applies the update (a first
     // import is not an "update" — it does not join the grouped snapshot),
@@ -172,7 +172,7 @@ describe('boot seed policy', () => {
     setFeedAutoSync('community', true);
     expect(await runBootFeedSync({ sources, storage, isEnabled: () => true })).toBe('imported');
     expect((await storage.getSeedMeta(seedMetaKey('community')))?.seedVersion).toBe(1);
-    expect(getCatalogUpdates()).toBeNull();
+    expect(getFeedUpdates()).toBeNull();
     expect(await runBootFeedSync({ sources, storage, isEnabled: () => true })).toBe('current');
     expect(communityCounting.fetchManifestCalls).toBe(4);
   });
@@ -180,7 +180,7 @@ describe('boot seed policy', () => {
   it('fresh visit imports core only, before any subscription exists', async () => {
     const storage = new InMemoryFeedStorage();
     const coreCounting = new CountingFeedSource(fixture([row('markdown/canvas/a.md', '# A')], 1, 'canvas'));
-    const communityCounting = new CountingFeedSource(fixture([row('markdown/collections/x/b.md', '# B')], 1));
+    const communityCounting = new CountingFeedSource(fixture([row('markdown/notebooks/x/b.md', '# B')], 1));
     setFeedSubscribed('community', true); // even an explicit choice waits for the first core import
     const outcome = await runBootFeedSync({
       sources: [spec(coreCounting, 'core', 1), spec(communityCounting, 'community', 0, false)],
@@ -218,7 +218,7 @@ describe('boot orchestrator (startFeedBootstrap)', () => {
     // failure instead.
     expect(getFeedReadiness()).toBe('ready');
     expect(getSyncActivity().error).toBeNull();
-    expect(getCatalogUpdates()?.updates).toEqual([
+    expect(getFeedUpdates()?.updates).toEqual([
       { sourceId: 'seed-crossfit', label: 'seed-crossfit', state: 'error' },
     ]);
     // ...and the returning probe still consulted the core manifest.
@@ -228,7 +228,7 @@ describe('boot orchestrator (startFeedBootstrap)', () => {
   it('fresh visit gates until the canvas chunk commits, then ungates while the rest imports', async () => {
     const storage = new InMemoryFeedStorage();
     const coreSrc = fixture(
-      [row('markdown/canvas/a.md', '# A'), row('markdown/collections/x/b.md', '# B')], 1, 'canvas',
+      [row('markdown/canvas/a.md', '# A'), row('markdown/notebooks/x/b.md', '# B')], 1, 'canvas',
     );
     // Hold the canvas chunk fetch open so the gate state is observable
     // mid-import without any wall-clock waiting.
@@ -241,7 +241,7 @@ describe('boot orchestrator (startFeedBootstrap)', () => {
     // Drain the bootstrap's microtask chain (every storage/sync hop resolves
     // synchronously-created promises) until it parks on the held canvas
     // fetch — no wall-clock timers involved.
-    for (let i = 0; i < 100 && getFeedReadiness() !== 'preparing'; i++) await null;
+    for (let i = 0; i < 2000 && getFeedReadiness() !== 'preparing'; i++) await null;
     expect(getFeedReadiness()).toBe('preparing');
     heldCanvas.resolve(await coreSrc.fetchChunk('chunks/canvas.json'));
     await done;
@@ -268,10 +268,10 @@ describe('committed record counting', () => {
       spec(new InMemoryFeedSource({
         schema: SEED_SCHEMA, version, builtAt: new Date(version).toISOString(),
         chunks: [{
-          id: 'collection.test', path: 'chunks/collection.test.json',
+          id: 'notebook.test', path: 'chunks/notebook.test.json',
           sha256: `${version}`.repeat(64), bytes: 1, count: 2,
         }],
-      }, { 'chunks/collection.test.json': [row('markdown/collections/x/a.md', aContent), row('markdown/collections/x/b.md', bContent)] }), 'core'),
+      }, { 'chunks/notebook.test.json': [row('markdown/notebooks/x/a.md', aContent), row('markdown/notebooks/x/b.md', bContent)] }), 'core'),
     ];
 
     // First import: two NEW committed notes.
@@ -283,7 +283,7 @@ describe('committed record counting', () => {
     expect(getSyncActivity().result).toMatchObject({ source: 'core', added: 0, updated: 1 });
 
     // User takes ownership of note A: its later seed changes are not committed.
-    const noteId = await seedNoteId('markdown/collections/x/a.md');
+    const noteId = await seedNoteId('markdown/notebooks/x/a.md');
     const owned = await storage.storageInstance.readonly('notes').get(noteId);
     await storage.storageInstance.readwrite('notes').put({ ...owned, seedOrigin: 'user' });
     expect(await runFeedSync({ sources: sources(3, '# A3', '# B3'), storage, isEnabled: () => true })).toBe('imported');

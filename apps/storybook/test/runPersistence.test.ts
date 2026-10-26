@@ -8,8 +8,8 @@ import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-engine';
 
 const mockContentProvider = vi.hoisted(() => {
-  const saveEntry = vi.fn();
-  return { saveEntry, IndexedDBContentProvider: class { saveEntry = saveEntry; } };
+  const saveRecord = vi.fn();
+  return { saveRecord, IndexedDBContentProvider: class { saveRecord = saveRecord; } };
 });
 
 vi.mock('@/services/storage', () => ({
@@ -76,7 +76,7 @@ function fakeSavedEntry(rawContent: string) {
   };
 }
 
-const saveEntryMock = mockContentProvider.saveEntry;
+const saveRecordMock = mockContentProvider.saveRecord;
 const getNoteMock = vi.mocked(storageService).getNote;
 const captureRunMock = vi.mocked(captureRun);
 const recordMock = playgroundRecorder.record;
@@ -93,7 +93,7 @@ describe('prepareWorkbenchRun', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getNoteMock.mockResolvedValue(null);
-    saveEntryMock.mockImplementation(async (entry: { rawContent: string }) => fakeSavedEntry(entry.rawContent));
+    saveRecordMock.mockImplementation(async (entry: { rawContent: string }) => fakeSavedEntry(entry.rawContent));
     captureRunMock.mockResolvedValue({} as never);
   });
 
@@ -113,10 +113,10 @@ describe('prepareWorkbenchRun', () => {
     const ctx = { noteId: 'note-1', title: 'T', rawContent: TWO_FENCE_NOTE };
     getNoteMock.mockResolvedValue({ id: 'note-1', title: 'T', rawContent: '', blocks: {}, sourceRevision: 7, createdAt: 1 });
     await prepareWorkbenchRun(ctx, 0);
-    expect(saveEntryMock.mock.calls[0][0]).toMatchObject({ id: 'note-1', type: 'playground', sourceRevision: 7 });
+    expect(saveRecordMock.mock.calls[0][0]).toMatchObject({ id: 'note-1', type: 'playground', sourceRevision: 7 });
     getNoteMock.mockResolvedValue(null);
     await prepareWorkbenchRun(ctx, 0);
-    expect('sourceRevision' in saveEntryMock.mock.calls[1][0]).toBe(false);
+    expect('sourceRevision' in saveRecordMock.mock.calls[1][0]).toBe(false);
   });
 
   it('rejects an out-of-range fence index', async () => {

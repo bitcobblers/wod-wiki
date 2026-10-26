@@ -14,7 +14,7 @@ import { Plus } from 'lucide-react';
 import { parseQuery, serialize } from '@bitcobblers/wod-wiki-engine';
 import { cn } from '@/lib/utils';
 import type { NavPanelProps } from '../navTypes';
-import { useDashboardCatalog } from '../../hooks/useDashboards';
+import { useDashboardList } from '../../hooks/useDashboards';
 import { dashboardNotes } from '../../services/dashboardNotes';
 import { parseFrontmatter } from '@/lib/frontmatter';
 import { analyticsExplorerPath, dashboardsPath, dashboardViewPath } from '../../lib/routes';
@@ -34,7 +34,7 @@ export function DashboardsNavPanel(_props: NavPanelProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const closeDrawer = useCloseNavigationDrawer();
-  const { items, loading } = useDashboardCatalog();
+  const { items, loading } = useDashboardList();
   const [creating, setCreating] = useState(false);
 
   const handleNew = async () => {

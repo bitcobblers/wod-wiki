@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Calendar, Clock, Tag, X, Plus, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { HistoryEntry } from '@/types/history';
+import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider } from '@/types/content-provider';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import { isNotebookTag } from '@/types/notebook';
 import { formatDateMedium, formatDateTimeMediumShort } from '@/lib/dateFormat';
 
 interface DatesTagsSectionProps {
-  entry: HistoryEntry;
+  entry: HistoryRecord;
   provider?: IContentProvider;
-  onEntryUpdate?: (updated: HistoryEntry) => void;
+  onEntryUpdate?: (updated: HistoryRecord) => void;
 }
 
 export const DatesTagsSection: React.FC<DatesTagsSectionProps> = ({
@@ -52,10 +52,10 @@ export const DatesTagsSection: React.FC<DatesTagsSectionProps> = ({
   }, [isTagInputVisible]);
 
   const persistUpdate = useCallback(
-    async (patch: Parameters<IContentProvider['updateEntry']>[1]) => {
+    async (patch: Parameters<IContentProvider['updateRecord']>[1]) => {
       if (!provider) return;
       try {
-        const updated = await provider.updateEntry(entry.id, patch);
+        const updated = await provider.updateRecord(entry.id, patch);
         onEntryUpdate?.(updated);
       } catch (err) {
         console.error('Failed to update entry:', err);
