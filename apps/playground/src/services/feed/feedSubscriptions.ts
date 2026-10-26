@@ -13,7 +13,7 @@
  */
 import type { FeedImportStorage } from './FeedImportStorage';
 import { mainThreadFeedImportStorage } from './feedStorageDefault';
-import { NOTEBOOKS } from './feedSources';
+import { NOTEBOOKS, feedIdForLegacyId, LEGACY_FEED_ID_MAP } from './feedSources';
 import { seedMetaKey } from '@/types/seed';
 
 const STORAGE_KEY = 'wodwiki.seedSubscriptions';
@@ -72,11 +72,15 @@ function writeAll(next: Record<string, boolean>): boolean {
 export type FeedSubscriptionMode = 'full' | 'partial' | 'unsubscribed';
 
 export function getFeedSubscriptionMode(id: string): FeedSubscriptionMode {
-  if (id === 'core') return 'full';
+  const canonicalId = feedIdForLegacyId(id);
+  if (canonicalId === 'core') return 'full';
   const all = readAll();
-  if (all[id] === true) return 'full';
-  const prefix = `${id}#`;
-  const hasPartial = Object.entries(all).some(([key, val]) => val === true && key.startsWith(prefix));
+  if (all[canonicalId] === true || all[id] === true) return 'full';
+  const prefix = `${canonicalId}#`;
+  const legacyPrefix = `${id}#`;
+  const hasPartial = Object.entries(all).some(
+    ([key, val]) => val === true && (key.startsWith(prefix) || key.startsWith(legacyPrefix)),
+  );
   if (hasPartial) return 'partial';
   return 'unsubscribed';
 }
@@ -107,11 +111,14 @@ export function setFeedSubscribed(id: string, subscribed: boolean): boolean {
 
 /** Check whether a specific notebook is subscribed (explicitly or via owning feed). */
 export function isNotebookSubscribed(feedId: string, notebookId: string): boolean {
-  if (feedId === 'core') return true;
+  const canonicalId = feedIdForLegacyId(feedId);
+  if (canonicalId === 'core') return true;
   const all = readAll();
-  const specificKey = `${feedId}#${notebookId}`;
+  const specificKey = `${canonicalId}#${notebookId}`;
   if (specificKey in all) return all[specificKey] === true;
-  return all[feedId] === true;
+  const legacyKey = `${feedId}#${notebookId}`;
+  if (legacyKey in all) return all[legacyKey] === true;
+  return all[canonicalId] === true || all[feedId] === true;
 }
 
 /** Subscribe or unsubscribe an individual notebook from a feed. */
@@ -157,14 +164,16 @@ export function setNotebookSubscribed(
 
 /** Returns the explicit notebook ids subscribed for a feed, or null if the whole feed is subscribed, or [] if unsubscribed. */
 export function getSubscribedNotebooks(feedId: string): string[] | null {
-  const mode = getFeedSubscriptionMode(feedId);
+  const canonicalId = feedIdForLegacyId(feedId);
+  const mode = getFeedSubscriptionMode(canonicalId);
   if (mode === 'full') return null;
   if (mode === 'unsubscribed') return [];
   const all = readAll();
-  const prefix = `${feedId}#`;
+  const prefix = `${canonicalId}#`;
+  const legacyPrefix = `${feedId}#`;
   return Object.entries(all)
-    .filter(([key, val]) => val === true && key.startsWith(prefix))
-    .map(([key]) => key.slice(prefix.length));
+    .filter(([key, val]) => val === true && (key.startsWith(prefix) || key.startsWith(legacyPrefix)))
+    .map(([key]) => (key.startsWith(prefix) ? key.slice(prefix.length) : key.slice(legacyPrefix.length)));
 }
 
 export function subscribeFeedSubscriptions(listener: () => void): () => void {
@@ -217,15 +226,31 @@ export async function migrateFeedSubscriptions(
   // Rewrite them to the current `notebook.<slug>` key, preserving the
   // value; an explicit current-key verdict always wins, and the rewrite
   // is idempotent (the legacy key is deleted once read).
+  for (const [oldId, newId] of Object.entries(LEGACY_FEED_ID_MAP)) {
+    if (oldId in all) {
+      if (!(newId in all)) {
+        all[newId] = all[oldId]!;
+        if (all[oldId]) migrated.push(newId);
+      }
+      delete all[oldId];
+      renamedLegacyKeys = true;
+    }
+  }
   for (const notebook of NOTEBOOKS) {
     const slug = notebook.chunkId.replace(/^notebook\./, '');
     const currentKey = `${notebook.feedId}#${notebook.chunkId}`;
-    for (const legacyId of [`collection.${slug}`, `feed.${slug}`]) {
-      const legacyKey = `${notebook.feedId}#${legacyId}`;
-      if (!(legacyKey in all)) continue;
-      if (!(currentKey in all)) all[currentKey] = all[legacyKey]!;
-      delete all[legacyKey];
-      renamedLegacyKeys = true;
+    const feedIds = [notebook.feedId];
+    for (const [oldId, newId] of Object.entries(LEGACY_FEED_ID_MAP)) {
+      if (newId === notebook.feedId) feedIds.push(oldId);
+    }
+    for (const fid of feedIds) {
+      for (const legacyId of [`collection.${slug}`, `feed.${slug}`, notebook.chunkId]) {
+        const legacyKey = `${fid}#${legacyId}`;
+        if (legacyKey === currentKey || !(legacyKey in all)) continue;
+        if (!(currentKey in all)) all[currentKey] = all[legacyKey]!;
+        delete all[legacyKey];
+        renamedLegacyKeys = true;
+      }
     }
   }
   // Pre-feed-unit builds subscribed per notebook and never wrote a feed

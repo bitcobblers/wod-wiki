@@ -20,7 +20,7 @@ import { FEED_SOURCES, type NotebookDef } from '@/services/feed/feedSources';
 const NOTEBOOK_FIXTURES: NotebookDef[] = [
   {
     id: 'community-crossfit-programming',
-    feedId: 'seed-crossfit',
+    feedId: 'sport-crossfit',
     chunkId: 'notebook.crossfit-programming',
     label: 'CrossFit Programming',
     category: 'programs',
@@ -28,7 +28,7 @@ const NOTEBOOK_FIXTURES: NotebookDef[] = [
   },
   {
     id: 'community-crossfit-girls',
-    feedId: 'seed-crossfit',
+    feedId: 'sport-crossfit',
     chunkId: 'notebook.crossfit-girls',
     label: 'CrossFit Girls',
     category: 'workouts',
@@ -121,9 +121,9 @@ describe('groupNotebooksByFeed', () => {
   it('groups notebooks under the feed that publishes them, registry order', () => {
     const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
     const groups = groupNotebooksByFeed(catalog, FEED_SOURCES);
-    expect(groups.map(group => group.feed?.id)).toEqual(['seed-crossfit', undefined]);
+    expect(groups.map(group => group.feed?.id)).toEqual(['sport-crossfit', undefined]);
     expect(groups[0]!.label).toBe('CrossFit');
-    expect(groups[0]!.repositoryUrl).toContain('wod-wiki-seed-crossfit');
+    expect(groups[0]!.repositoryUrl).toContain('wod-wiki-sport-crossfit');
     expect(groups[0]!.notebooks.map(n => n.packageId))
       .toEqual(['community-crossfit-programming', 'community-crossfit-girls']);
     // The app-owned core notebooks ride the Local group here — no passed
@@ -170,8 +170,8 @@ describe('sortNotebooks', () => {
 describe('buildFeedCatalog', () => {
   it('builds one card per seed, holding its notebooks and local totals', () => {
     const catalog = buildFeedCatalog(NOTEBOOK_FIXTURES, feedFiles('crossfit-programming'), FEED_SOURCES);
-    expect(catalog.map(card => card.feedId)).toEqual(['seed-crossfit']);
-    expect(catalog[0]).toMatchObject({ label: 'CrossFit', slug: 'seed-crossfit', itemCount: 2, href: '/notebooks' });
+    expect(catalog.map(card => card.feedId)).toEqual(['sport-crossfit', undefined]);
+    expect(catalog[0]).toMatchObject({ label: 'CrossFit', slug: 'sport-crossfit', itemCount: 2, href: '/notebooks' });
     expect(catalog[0]!.notebooks.map(n => n.packageId))
       .toEqual(['community-crossfit-programming', 'community-crossfit-girls']);
     expect(catalog[0]!.latestDate).toBe('2026-10-05');
@@ -209,7 +209,7 @@ describe('filterFeeds / sortFeeds', () => {
   it('filters feeds by feedId and subscribedOnly', () => {
     const isSubscribed = (feedId: string, chunkId: string) => chunkId === 'notebook.crossfit-programming';
     const subCatalog = buildFeedCatalog(NOTEBOOK_FIXTURES, null, FEED_SOURCES, isSubscribed);
-    expect(filterFeeds(subCatalog, { feedId: 'seed-crossfit' })).toHaveLength(1);
+    expect(filterFeeds(subCatalog, { feedId: 'sport-crossfit' })).toHaveLength(1);
     expect(filterFeeds(subCatalog, { feedId: 'other-seed' })).toHaveLength(0);
     // The Local card (core notebooks delivered with the app) is always subscribed.
     expect(filterFeeds(subCatalog, { subscribedOnly: true })).toHaveLength(2);

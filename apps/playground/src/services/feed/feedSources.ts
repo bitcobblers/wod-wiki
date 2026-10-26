@@ -282,19 +282,19 @@ function feedSource(id: string, label: string, name: string, description: string
  * (transferred from the interim SergeiGolos account; Pages moved with them).
  */
 export const FEED_SOURCES: FeedSource[] = [
-  feedSource('seed-crossfit', 'CrossFit', 'wod-wiki-seed-crossfit', 'CrossFit benchmark collections (Games, Girls, Heroes) and weekly programming.'),
-  feedSource('seed-hyrox', 'HYROX', 'wod-wiki-seed-hyrox', 'HYROX race preparation and simulation workouts.'),
-  feedSource('seed-kettlebell', 'Kettlebell Coaches', 'wod-wiki-seed-kettlebell', 'Kettlebell coach collections and the Dan John 40-Day Program feed.'),
-  feedSource('seed-swimming', 'Swimming', 'wod-wiki-seed-swimming', 'Swimming programs from pre-highschool through college, masters, Olympic, and triathlete.'),
-  feedSource('seed-track', 'Track & Field', 'wod-wiki-seed-track', 'High-school track programs — 400m (Raffensperger) and sprints (Arrowhead).'),
-  feedSource('seed-zombie-fit', 'ZombieFit', 'wod-wiki-seed-zombie-fit', 'The ZombieFit parkour archive — daily WODs since 2009.'),
-  feedSource('seed-golos-method', 'Golos Method', 'wod-wiki-seed-golos-method', 'Daily minimalist strength and conditioning.'),
+  feedSource('sport-crossfit', 'CrossFit', 'wod-wiki-sport-crossfit', 'CrossFit benchmark collections (Games, Girls, Heroes) and weekly programming.'),
+  feedSource('sport-hyrox', 'HYROX', 'wod-wiki-sport-hyrox', 'HYROX race preparation and simulation workouts.'),
+  feedSource('legends-of-kettlebell', 'Kettlebell Coaches', 'wod-wiki-legends-of-kettlebell', 'Kettlebell coach collections and the Dan John 40-Day Program feed.'),
+  feedSource('sport-swimming', 'Swimming', 'wod-wiki-sport-swimming', 'Swimming programs from pre-highschool through college, masters, Olympic, and triathlete.'),
+  feedSource('sport-track', 'Track & Field', 'wod-wiki-sport-track', 'High-school track programs — 400m (Raffensperger) and sprints (Arrowhead).'),
+  feedSource('wayback-zombie-fit', 'ZombieFit', 'wod-wiki-wayback-zombie-fit', 'The ZombieFit parkour archive — daily WODs since 2009.'),
+  feedSource('sport-golos-method', 'Golos Method', 'wod-wiki-feed-golos-method', 'Daily minimalist strength and conditioning.'),
   feedSource('yt-dan-john', 'Dan John', 'wod-wiki-youtube-dan-john', 'Dan John kettlebell workouts.'),
   feedSource('yt-mark-wildman', 'Mark Wildman', 'wod-wiki-youtube-mark-wildman', 'Mark Wildman athletic kettlebell and club training.'),
   feedSource('yt-strongfirst', 'StrongFirst', 'wod-wiki-youtube-strongfirst', 'StrongFirst hardstyle kettlebell workouts.'),
   feedSource('yt-the-stone-circle', 'The Stone Circle', 'wod-wiki-youtube-the-stone-circle', 'Sandbag power-endurance and density training.'),
-  feedSource('example-movement', 'Movement Examples', 'wod-wiki-example-movement', 'Unconventional and parkour-style training examples.'),
-  feedSource('example-yoga', 'Yoga Examples', 'wod-wiki-example-yoga', 'Yoga session examples.'),
+  feedSource('samples-movement', 'Movement Examples', 'wod-wiki-samples-movement', 'Unconventional and parkour-style training examples.'),
+  feedSource('sport-yoga', 'Yoga Examples', 'wod-wiki-sport-yoga', 'Yoga session examples.'),
   feedSource('r-workoutroutines', 'r/WorkoutRoutines', 'wod-wiki-r-workoutroutines', 'Community feed from the r/WorkoutRoutines subreddit.'),
 ];
 
@@ -331,40 +331,40 @@ function notebook(feedId: string, slug: string, chunkId: string, label: string, 
  */
 export const NOTEBOOKS: NotebookDef[] = [
   // CrossFit
-  notebook('seed-crossfit', 'crossfit-games', 'notebook.crossfit-games', 'CrossFit Games', 'workouts', 'CrossFit Games workouts — Open, Regionals, and Games programming, formatted for Wod Wiki.'),
-  notebook('seed-crossfit', 'crossfit-girls', 'notebook.crossfit-girls', 'CrossFit Girls', 'workouts', 'Classic benchmark workouts — Fran, Helen, Grace, Diane, and more, formatted for Wod Wiki.'),
-  notebook('seed-crossfit', 'crossfit-heroes', 'notebook.crossfit-heroes', 'CrossFit Heroes', 'workouts', 'Hero benchmark workouts honoring service members — Murph, DT, Badger, and more.'),
-  notebook('seed-crossfit', 'crossfit-programming', 'notebook.crossfit-programming', 'CrossFit Programming', 'programs', 'Weekly CrossFit programming — daily strength, conditioning, and skill sessions on a rotation with a weekly benchmark.'),
+  notebook('sport-crossfit', 'crossfit-games', 'notebook.crossfit-games', 'CrossFit Games', 'workouts', 'CrossFit Games workouts — Open, Regionals, and Games programming, formatted for Wod Wiki.'),
+  notebook('sport-crossfit', 'crossfit-girls', 'notebook.crossfit-girls', 'CrossFit Girls', 'workouts', 'Classic benchmark workouts — Fran, Helen, Grace, Diane, and more, formatted for Wod Wiki.'),
+  notebook('sport-crossfit', 'crossfit-heroes', 'notebook.crossfit-heroes', 'CrossFit Heroes', 'workouts', 'Hero benchmark workouts honoring service members — Murph, DT, Badger, and more.'),
+  notebook('sport-crossfit', 'crossfit-programming', 'notebook.crossfit-programming', 'CrossFit Programming', 'programs', 'Weekly CrossFit programming — daily strength, conditioning, and skill sessions on a rotation with a weekly benchmark.'),
   // HYROX
-  notebook('seed-hyrox', 'hyrox', 'notebook.hyrox', 'HYROX', 'workouts', 'HYROX race preparation — running, sled work, ergs, and functional stations in race format.'),
+  notebook('sport-hyrox', 'hyrox', 'notebook.hyrox', 'HYROX', 'workouts', 'HYROX race preparation — running, sled work, ergs, and functional stations in race format.'),
   // Kettlebell coaches
-  notebook('seed-kettlebell', 'geoff-neupert', 'notebook.geoff-neupert', 'Geoff Neupert', 'workouts', 'Geoff Neupert kettlebell workouts — strength and conditioning from a Master SFG coach.'),
-  notebook('seed-kettlebell', 'girevoy-sport', 'notebook.girevoy-sport', 'Girevoy Sport', 'workouts', 'Competitive kettlebell sport — jerk, snatch, and long-cycle programming.'),
-  notebook('seed-kettlebell', 'joe-daniels', 'notebook.joe-daniels', 'Joe Daniels (Swing This)', 'workouts', 'Joe Daniels kettlebell workouts — kettlebell sport and hardstyle fusion.'),
-  notebook('seed-kettlebell', 'keith-weber', 'notebook.keith-weber', 'Keith Weber', 'workouts', 'Keith Weber kettlebell workouts — high-intensity kettlebell cardio.'),
-  notebook('seed-kettlebell', 'steve-cotter', 'notebook.steve-cotter', 'Steve Cotter', 'workouts', 'Steve Cotter kettlebell workouts — comprehensive kettlebell education.'),
-  notebook('seed-kettlebell', 'dan-john-40-day', 'notebook.dan-john-40-day', 'Dan John 40-Day Program', 'programs', "Dan John's 40-day barbell program — five lifts, five sets of five, five days a week for 40 sessions."),
+  notebook('legends-of-kettlebell', 'geoff-neupert', 'notebook.geoff-neupert', 'Geoff Neupert', 'workouts', 'Geoff Neupert kettlebell workouts — strength and conditioning from a Master SFG coach.'),
+  notebook('legends-of-kettlebell', 'girevoy-sport', 'notebook.girevoy-sport', 'Girevoy Sport', 'workouts', 'Competitive kettlebell sport — jerk, snatch, and long-cycle programming.'),
+  notebook('legends-of-kettlebell', 'joe-daniels', 'notebook.joe-daniels', 'Joe Daniels (Swing This)', 'workouts', 'Joe Daniels kettlebell workouts — kettlebell sport and hardstyle fusion.'),
+  notebook('legends-of-kettlebell', 'keith-weber', 'notebook.keith-weber', 'Keith Weber', 'workouts', 'Keith Weber kettlebell workouts — high-intensity kettlebell cardio.'),
+  notebook('legends-of-kettlebell', 'steve-cotter', 'notebook.steve-cotter', 'Steve Cotter', 'workouts', 'Steve Cotter kettlebell workouts — comprehensive kettlebell education.'),
+  notebook('legends-of-kettlebell', 'dan-john-40-day', 'notebook.dan-john-40-day', 'Dan John 40-Day Program', 'programs', "Dan John's 40-day barbell program — five lifts, five sets of five, five days a week for 40 sessions."),
   // YouTube-sourced coach libraries
   notebook('yt-dan-john', 'dan-john', 'notebook.dan-john', 'Dan John Kettlebell', 'workouts', 'Dan John kettlebell workouts — simple, effective programming with clear objectives.'),
   notebook('yt-mark-wildman', 'mark-wildman', 'notebook.mark-wildman', 'Mark Wildman', 'workouts', 'Mark Wildman workouts — athletic kettlebell and club training.'),
   notebook('yt-strongfirst', 'strongfirst', 'notebook.strongfirst', 'StrongFirst', 'workouts', 'StrongFirst workouts — hardstyle kettlebell strength and skill.'),
   notebook('yt-the-stone-circle', 'the-stone-circle', 'notebook.the-stone-circle', 'The Stone Circle', 'workouts', 'Sandbag power endurance and density training — progressive EMOM protocols.'),
   // Swimming
-  notebook('seed-swimming', 'swimming-college', 'notebook.swimming-college', 'Swimming: College', 'workouts', 'College swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-highschool', 'notebook.swimming-highschool', 'Swimming: High School', 'workouts', 'High-school swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-masters', 'notebook.swimming-masters', 'Swimming: Masters', 'workouts', 'Masters swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-olympic', 'notebook.swimming-olympic', 'Swimming: Olympic', 'workouts', 'Olympic-caliber swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-post-college', 'notebook.swimming-post-college', 'Swimming: Post-College', 'workouts', 'Post-college swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-pre-highschool', 'notebook.swimming-pre-highschool', 'Swimming: Pre-Highschool', 'workouts', 'Pre-highschool swimming training sessions.'),
-  notebook('seed-swimming', 'swimming-triathlete', 'notebook.swimming-triathlete', 'Swimming: Triathlete', 'workouts', 'Triathlete swim training sessions.'),
+  notebook('sport-swimming', 'swimming-college', 'notebook.swimming-college', 'Swimming: College', 'workouts', 'College swimming training sessions.'),
+  notebook('sport-swimming', 'swimming-highschool', 'notebook.swimming-highschool', 'Swimming: High School', 'workouts', 'High-school swimming training sessions.'),
+  notebook('sport-swimming', 'swimming-masters', 'notebook.swimming-masters', 'Swimming: Masters', 'workouts', 'Masters swimming training sessions.'),
+  notebook('sport-swimming', 'swimming-olympic', 'notebook.swimming-olympic', 'Swimming: Olympic', 'workouts', 'Olympic-caliber swimming training sessions.'),
+  notebook('sport-swimming', 'swimming-post-college', 'notebook.swimming-post-college', 'Swimming: Post-College', 'workouts', 'Post-college swimming training sessions.'),
+  notebook('sport-swimming', 'swimming-pre-highschool', 'notebook.swimming-pre-highschool', 'Swimming: Pre-Highschool', 'workouts', 'Pre-highschool swimming training sessions.'),
+  notebook('sport-swimming', 'swimming-triathlete', 'notebook.swimming-triathlete', 'Swimming: Triathlete', 'workouts', 'Triathlete swim training sessions.'),
   // Track
-  notebook('seed-track', 'hs-track-400m', 'notebook.hs-track-400m', 'HS Track 400m', 'workouts', 'High-school 400m program after Raffensperger — speed, tempo, and strength phases.'),
-  notebook('seed-track', 'hs-track-sprints', 'notebook.hs-track-sprints', 'HS Track Sprints', 'workouts', 'High-school sprints program after Arrowhead — acceleration, maximum velocity, and speed endurance.'),
+  notebook('sport-track', 'hs-track-400m', 'notebook.hs-track-400m', 'HS Track 400m', 'workouts', 'High-school 400m program after Raffensperger — speed, tempo, and strength phases.'),
+  notebook('sport-track', 'hs-track-sprints', 'notebook.hs-track-sprints', 'HS Track Sprints', 'workouts', 'High-school sprints program after Arrowhead — acceleration, maximum velocity, and speed endurance.'),
   // Movement / lifestyle
-  notebook('seed-zombie-fit', 'zombiefit', 'notebook.zombiefit', 'ZombieFit', 'workouts', 'The ZombieFit archive — parkour-inspired fitness WODs, 2009–2013.'),
-  notebook('seed-golos-method', 'the-golos-method', 'notebook.the-golos-method', 'The Golos Method', 'workouts', 'Daily minimalist strength and conditioning — dense, repeatable sessions.'),
-  notebook('example-movement', 'unconventional', 'notebook.unconventional', 'Unconventional', 'workouts', 'Unconventional training — maces, clubs, sandbags, and parkour movement.'),
-  notebook('example-yoga', 'yoga', 'notebook.yoga', 'Yoga', 'workouts', 'Yoga sessions for mobility and recovery.'),
+  notebook('wayback-zombie-fit', 'zombiefit', 'notebook.zombiefit', 'ZombieFit', 'workouts', 'The ZombieFit archive — parkour-inspired fitness WODs, 2009–2013.'),
+  notebook('sport-golos-method', 'the-golos-method', 'notebook.the-golos-method', 'The Golos Method', 'workouts', 'Daily minimalist strength and conditioning — dense, repeatable sessions.'),
+  notebook('samples-movement', 'unconventional', 'notebook.unconventional', 'Unconventional', 'workouts', 'Unconventional training — maces, clubs, sandbags, and parkour movement.'),
+  notebook('sport-yoga', 'yoga', 'notebook.yoga', 'Yoga', 'workouts', 'Yoga sessions for mobility and recovery.'),
   // Reddit programs
   notebook('r-workoutroutines', 'workoutroutines-reddit', 'notebook.workoutroutines-reddit', 'r/WorkoutRoutines', 'programs', 'Community workouts from the r/WorkoutRoutines subreddit.'),
 ];
@@ -430,7 +430,21 @@ export function notebookById(id: string): NotebookDef | undefined {
  * notebook id. Those ids fold onto the feed that publishes the notebook;
  * anything else is already a feed id and passes through.
  */
+export const LEGACY_FEED_ID_MAP: Record<string, string> = {
+  'seed-crossfit': 'sport-crossfit',
+  'seed-hyrox': 'sport-hyrox',
+  'seed-kettlebell': 'legends-of-kettlebell',
+  'seed-swimming': 'sport-swimming',
+  'seed-track': 'sport-track',
+  'seed-zombie-fit': 'wayback-zombie-fit',
+  'seed-golos-method': 'sport-golos-method',
+  'example-movement': 'samples-movement',
+  'example-yoga': 'sport-yoga',
+};
+
 export function feedIdForLegacyId(id: string): string {
+  const mapped = LEGACY_FEED_ID_MAP[id];
+  if (mapped) return mapped;
   return NOTEBOOKS.find((notebook) => notebook.id === id)?.feedId ?? id;
 }
 
@@ -445,7 +459,7 @@ export interface DemoFeedSource {
 
 /** The demo feeds the home community-feeds cards try in one click. */
 export function demoFeedSources(): DemoFeedSource[] {
-  return ['seed-crossfit', 'seed-kettlebell'].flatMap((id) => {
+  return ['sport-crossfit', 'legends-of-kettlebell'].flatMap((id) => {
     const feed = feedSourceById(id);
     if (!feed) return [];
     return [{
@@ -467,6 +481,15 @@ const RESERVED_FEED_SOURCE_IDS: Record<string, true> = Object.fromEntries([
   ['community', true] as const,
   ['common', true] as const,
   ['seed-core', true] as const,
+  ['seed-crossfit', true] as const,
+  ['seed-hyrox', true] as const,
+  ['seed-kettlebell', true] as const,
+  ['seed-swimming', true] as const,
+  ['seed-track', true] as const,
+  ['seed-zombie-fit', true] as const,
+  ['seed-golos-method', true] as const,
+  ['example-movement', true] as const,
+  ['example-yoga', true] as const,
   ...FEED_SOURCES.map((feed) => [feed.id, true] as const),
   ...NOTEBOOKS.map((notebook) => [notebook.id, true] as const),
 ]);

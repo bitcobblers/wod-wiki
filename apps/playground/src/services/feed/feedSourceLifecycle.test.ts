@@ -76,51 +76,51 @@ describe('single notebook subscriptions', () => {
 describe('legacy per-notebook subscription migration', () => {
   it('renames collection./feed. chunk-id keys to notebook., preserving the value', async () => {
     localStorage.setItem('wodwiki.seedSubscriptions', JSON.stringify({
-      'seed-crossfit#collection.crossfit-girls': true,
-      'seed-crossfit#feed.crossfit-programming': false,
+      'sport-crossfit#collection.crossfit-girls': true,
+      'sport-crossfit#feed.crossfit-programming': false,
     }));
     resetFeedSubscriptionsForTest();
     await migrateFeedSubscriptions([{ id: 'core' }], new InMemoryFeedStorage());
-    expect(isNotebookSubscribed('seed-crossfit', 'notebook.crossfit-girls')).toBe(true);
-    expect(isNotebookSubscribed('seed-crossfit', 'notebook.crossfit-programming')).toBe(false);
+    expect(isNotebookSubscribed('sport-crossfit', 'notebook.crossfit-girls')).toBe(true);
+    expect(isNotebookSubscribed('sport-crossfit', 'notebook.crossfit-programming')).toBe(false);
     const persisted = JSON.parse(localStorage.getItem('wodwiki.seedSubscriptions')!);
-    expect(persisted['seed-crossfit#collection.crossfit-girls']).toBeUndefined();
-    expect(persisted['seed-crossfit#feed.crossfit-programming']).toBeUndefined();
-    expect(persisted['seed-crossfit#notebook.crossfit-girls']).toBe(true);
-    expect(persisted['seed-crossfit#notebook.crossfit-programming']).toBe(false);
+    expect(persisted['sport-crossfit#collection.crossfit-girls']).toBeUndefined();
+    expect(persisted['sport-crossfit#feed.crossfit-programming']).toBeUndefined();
+    expect(persisted['sport-crossfit#notebook.crossfit-girls']).toBe(true);
+    expect(persisted['sport-crossfit#notebook.crossfit-programming']).toBe(false);
   });
 
   it('current-key verdict wins over the legacy key, and the rewrite is idempotent', async () => {
     localStorage.setItem('wodwiki.seedSubscriptions', JSON.stringify({
-      'seed-crossfit#collection.crossfit-girls': true,
-      'seed-crossfit#notebook.crossfit-girls': false,
+      'sport-crossfit#collection.crossfit-girls': true,
+      'sport-crossfit#notebook.crossfit-girls': false,
     }));
     resetFeedSubscriptionsForTest();
     await migrateFeedSubscriptions([{ id: 'core' }], new InMemoryFeedStorage());
-    expect(isNotebookSubscribed('seed-crossfit', 'notebook.crossfit-girls')).toBe(false);
+    expect(isNotebookSubscribed('sport-crossfit', 'notebook.crossfit-girls')).toBe(false);
     resetFeedSubscriptionsForTest();
     // Second run: nothing left to rename, no drift.
     await migrateFeedSubscriptions([{ id: 'core' }], new InMemoryFeedStorage());
-    expect(isNotebookSubscribed('seed-crossfit', 'notebook.crossfit-girls')).toBe(false);
+    expect(isNotebookSubscribed('sport-crossfit', 'notebook.crossfit-girls')).toBe(false);
     const persisted = JSON.parse(localStorage.getItem('wodwiki.seedSubscriptions')!);
-    expect(persisted).toEqual({ 'seed-crossfit#notebook.crossfit-girls': false });
-    expect(Object.keys(persisted)).toEqual(['seed-crossfit#notebook.crossfit-girls']);
+    expect(persisted).toEqual({ 'sport-crossfit#notebook.crossfit-girls': false });
+    expect(Object.keys(persisted)).toEqual(['sport-crossfit#notebook.crossfit-girls']);
   });
 
   it('a migrated per-notebook subscription selects the feed for sync', async () => {
     localStorage.setItem('wodwiki.seedSubscriptions', JSON.stringify({
-      'seed-crossfit#collection.crossfit-girls': true,
+      'sport-crossfit#collection.crossfit-girls': true,
     }));
     resetFeedSubscriptionsForTest();
     const storage = new InMemoryFeedStorage();
-    await migrateFeedSubscriptions([{ id: 'core' }, { id: 'seed-crossfit' }], storage);
-    expect(getSubscribedNotebooks('seed-crossfit')).toEqual(['notebook.crossfit-girls']);
+    await migrateFeedSubscriptions([{ id: 'core' }, { id: 'sport-crossfit' }], storage);
+    expect(getSubscribedNotebooks('sport-crossfit')).toEqual(['notebook.crossfit-girls']);
     // The background sync selector admits the feed on its notebook verdict.
     const sources: FeedSourceSpec[] = [
-      spec(fixture([row('markdown/notebooks/crossfit-girls/fran.md', '# Fran\n\n```time\n21-15-9 Thrusters\n```')], 1, 'notebook.crossfit-girls'), 'seed-crossfit'),
+      spec(fixture([row('markdown/notebooks/crossfit-girls/fran.md', '# Fran\n\n```time\n21-15-9 Thrusters\n```')], 1, 'notebook.crossfit-girls'), 'sport-crossfit'),
     ];
     expect(await runBootFeedSync({ sources, storage, isEnabled: () => true })).toBe('imported');
-    expect((await storage.getSeedMeta(seedMetaKey('seed-crossfit')))?.seedVersion).toBe(1);
+    expect((await storage.getSeedMeta(seedMetaKey('sport-crossfit')))?.seedVersion).toBe(1);
   });
 });
 
@@ -274,15 +274,15 @@ describe('delete source', () => {
     expect(await storage.getSeedMeta(seedMetaKey(added.id))).toBeUndefined();
 
     // A built-in SEED row is hidden (its config lives in code, not storage).
-    await deleteFeedSource('seed-crossfit', { storage });
-    expect(hiddenFeedSourceIds()).toEqual(['seed-crossfit']);
-    expect(defaultFeedSources().some((s) => s.id === 'seed-crossfit')).toBe(false);
+    await deleteFeedSource('sport-crossfit', { storage });
+    expect(hiddenFeedSourceIds()).toEqual(['sport-crossfit']);
+    expect(defaultFeedSources().some((s) => s.id === 'sport-crossfit')).toBe(false);
     // Pre-seed-unit notebook ids fold onto the seed that publishes them.
     await deleteFeedSource('community-crossfit-girls', { storage });
-    expect(hiddenFeedSourceIds()).toEqual(['seed-crossfit']);
+    expect(hiddenFeedSourceIds()).toEqual(['sport-crossfit']);
     // ...but an id no built-in seed owns is ignored.
     await deleteFeedSource('nobody-home', { storage });
-    expect(hiddenFeedSourceIds()).toEqual(['seed-crossfit']);
+    expect(hiddenFeedSourceIds()).toEqual(['sport-crossfit']);
 
     expect(await deleteFeedSource('core', { storage })).toEqual({ deleted: 0 });
     expect(defaultFeedSources().some((s) => s.id === 'core')).toBe(true);

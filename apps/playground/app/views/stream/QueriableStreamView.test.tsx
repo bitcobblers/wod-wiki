@@ -935,7 +935,7 @@ describe('QueriableStreamView component', () => {
 
   it('a subscribed source that is already current shows an up-to-date confirmation', async () => {
     communitySyncOutcome = 'current'
-    setFeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('sport-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -949,14 +949,14 @@ describe('QueriableStreamView component', () => {
       fireEvent.click(syncButton)
     })
 
-    expect(syncFeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.anything())
+    expect(syncFeedSourceMock).toHaveBeenCalledWith('sport-crossfit', expect.anything())
     await waitFor(() => {
       expect(toastCalls.some(t => t.title === 'Everything is up to date')).toBe(true)
     })
   })
 
   it('syncs the subscribed libraries inline and drops the notice on success', async () => {
-    setFeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('sport-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -969,7 +969,7 @@ describe('QueriableStreamView component', () => {
       fireEvent.click(syncButton)
     })
 
-    expect(syncFeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.anything())
+    expect(syncFeedSourceMock).toHaveBeenCalledWith('sport-crossfit', expect.anything())
     await waitFor(() => {
       expect(screen.queryByTestId('feed-library-notice')).toBeNull()
     })
@@ -980,7 +980,7 @@ describe('QueriableStreamView component', () => {
     // check), so the executor could never report "current" and the
     // up-to-date case stayed silent — the dead-button bug.
     communitySyncOutcome = 'current'
-    setFeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('sport-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -993,14 +993,14 @@ describe('QueriableStreamView component', () => {
       fireEvent.click(syncButton)
     })
 
-    expect(syncFeedSourceMock).toHaveBeenCalledWith('seed-crossfit', expect.not.objectContaining({ force: true }))
+    expect(syncFeedSourceMock).toHaveBeenCalledWith('sport-crossfit', expect.not.objectContaining({ force: true }))
   })
 
   it('never syncs the auto-importing core as a library', async () => {
     // The bundled core auto-imports at boot and is not a "library" by the
     // coverage probe's own rule — syncing it must not satisfy the notice
     // while the community library the page needs is still missing.
-    setFeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('sport-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>
@@ -1015,12 +1015,12 @@ describe('QueriableStreamView component', () => {
 
     const syncedIds = syncFeedSourceMock.mock.calls.map(([id]) => id)
     expect(syncedIds).not.toContain('core')
-    expect(syncedIds).toContain('seed-crossfit')
+    expect(syncedIds).toContain('sport-crossfit')
   })
 
   it('keeps the notice and shows a visible error when the inline sync fails', async () => {
     communitySyncOutcome = 'error'
-    setFeedSubscribed('seed-crossfit', true)
+    setFeedSubscribed('sport-crossfit', true)
     const engine = createMockEngine([])
     render(
       <MemoryRouter initialEntries={['/feeds']}>

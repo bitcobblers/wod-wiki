@@ -78,7 +78,7 @@ describe('addCustomFeedSource', () => {
 
   it('never registers a URL a built-in source already serves', () => {
     // A split seed repo's Pages dir is that seed — not a second source.
-    expect(() => addCustomFeedSource('CrossFit mirror', 'https://bitcobblers.github.io/wod-wiki-seed-crossfit')).toThrow(/already registered/);
+    expect(() => addCustomFeedSource('CrossFit mirror', 'https://bitcobblers.github.io/wod-wiki-sport-crossfit')).toThrow(/already registered/);
     expect(() => addCustomFeedSource('Core mirror', 'https://seed.example/seed/')).not.toThrow();
   });
 });
@@ -94,16 +94,16 @@ describe('removeCustomFeedSource', () => {
 
 describe('built-in row hiding', () => {
   it('hides built-in feed ids only, idempotently; core is never hideable', () => {
-    hideFeedSourceRow('seed-hyrox');
-    hideFeedSourceRow('seed-hyrox');
+    hideFeedSourceRow('sport-hyrox');
+    hideFeedSourceRow('sport-hyrox');
     // A pre-feed-unit notebook id folds onto the feed that publishes it —
     // notebooks are no longer independent sync units, so nothing narrower
     // can be hidden.
     hideFeedSourceRow('community-crossfit-girls');
     hideFeedSourceRow('core');
     hideFeedSourceRow('never-registered');
-    expect(hiddenFeedSourceIds()).toEqual(['seed-hyrox', 'seed-crossfit']);
-    expect(builtInFeedSourceIds()).toContain('seed-hyrox');
+    expect(hiddenFeedSourceIds()).toEqual(['sport-hyrox', 'sport-crossfit']);
+    expect(builtInFeedSourceIds()).toContain('sport-hyrox');
     expect(builtInFeedSourceIds()).not.toContain('core');
   });
 });
@@ -129,10 +129,10 @@ describe('feeds and their notebooks', () => {
   });
 
   it('folds pre-feed-unit notebook ids onto their feed, and leaves feed ids alone', () => {
-    expect(feedIdForLegacyId('community-crossfit-girls')).toBe('seed-crossfit');
-    expect(feedIdForLegacyId('seed-crossfit')).toBe('seed-crossfit');
+    expect(feedIdForLegacyId('community-crossfit-girls')).toBe('sport-crossfit');
+    expect(feedIdForLegacyId('sport-crossfit')).toBe('sport-crossfit');
     expect(feedIdForLegacyId('some-custom-source')).toBe('some-custom-source');
-    expect(notebookById('community-yoga')?.feedId).toBe('example-yoga');
+    expect(notebookById('community-yoga')?.feedId).toBe('sport-yoga');
   });
 
   it('built-in notebook and feed ids are reserved from custom registration', () => {
@@ -174,7 +174,7 @@ describe('feed identity in the registry', () => {
 
   it('resolves the registered source by its id — built-in, core, and custom', () => {
     const custom = addCustomFeedSource('My Library', 'https://example.com/feed/lib');
-    for (const id of ['core', 'seed-crossfit', 'yt-dan-john', custom.id]) {
+    for (const id of ['core', 'sport-crossfit', 'yt-dan-john', custom.id]) {
       const source = feedSourceById(id);
       expect(source, id).toBeDefined();
       expect(source!.id, id).toBe(id);
@@ -201,8 +201,8 @@ describe('feed identity in the registry', () => {
       { id: 'my-library', label: 'My Library', url: 'https://example.com/feed/lib/' },
     ]);
     expect(localStorage.getItem('wodwiki.seedSources.hidden')).toBeNull();
-    hideFeedSourceRow('seed-hyrox');
-    expect(JSON.parse(localStorage.getItem('wodwiki.seedSources.hidden')!)).toEqual(['seed-hyrox']);
+    hideFeedSourceRow('sport-hyrox');
+    expect(JSON.parse(localStorage.getItem('wodwiki.seedSources.hidden')!)).toEqual(['sport-hyrox']);
     // The registered source survives the hidden-row write.
     expect(customFeedSources().map((source) => source.id)).toEqual(['my-library']);
   });

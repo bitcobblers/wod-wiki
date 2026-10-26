@@ -112,8 +112,8 @@ describe('seed-level identity', () => {
 
   it('one Subscribe applies every notebook the seed publishes', async () => {
     const storage = new InMemoryFeedStorage();
-    const sources = [spec(twoNotebookSeed(), 'seed-crossfit')];
-    expect(await syncFeedSource('seed-crossfit', { sources, storage, isEnabled: () => true })).toBe('imported');
+    const sources = [spec(twoNotebookSeed(), 'sport-crossfit')];
+    expect(await syncFeedSource('sport-crossfit', { sources, storage, isEnabled: () => true })).toBe('imported');
     const status = await readFeedStatus({ sources, storage, now: () => 7 });
     expect(status.sources[0]!.notebooks.map((n) => ({ label: n.label, chunkId: n.chunkId, imported: n.imported }))).toEqual([
       { label: 'CrossFit Games', chunkId: 'notebook.crossfit-games', imported: true },
@@ -128,7 +128,7 @@ describe('seed-level identity', () => {
       fetchManifest: () => Promise.reject(new Error('offline')),
       fetchChunk: () => Promise.resolve([]),
     };
-    const status = await readFeedStatus({ sources: [spec(offline, 'seed-crossfit')], storage });
+    const status = await readFeedStatus({ sources: [spec(offline, 'sport-crossfit')], storage });
     expect(status.sources[0]!.remote).toBeNull();
     expect(status.sources[0]!.notebooks.map((n) => n.chunkId)).toEqual([
       'notebook.crossfit-games',
@@ -184,7 +184,7 @@ describe('legacy checkpoint adoption', () => {
     });
 
     expect(await adoptLegacyFeedCheckpoints({ storage })).toBe(1);
-    const merged = await storage.getSeedMeta(seedMetaKey('seed-crossfit'));
+    const merged = await storage.getSeedMeta(seedMetaKey('sport-crossfit'));
     expect(merged).toMatchObject({ seedVersion: 7, builtAt: 'b7', importedAt: 70, tier: 'community' });
     expect(merged!.chunks['notebook.crossfit-games'].noteIds).toEqual(['note-games']);
     expect(merged!.chunks['notebook.crossfit-heroes'].noteIds).toEqual(['note-heroes']);
@@ -193,7 +193,7 @@ describe('legacy checkpoint adoption', () => {
     expect((await storage.getSeedMeta(seedMetaKey('community-crossfit-heroes')))?.seedVersion).toBe(0);
     // Idempotent: the seed checkpoint now exists and is never clobbered.
     expect(await adoptLegacyFeedCheckpoints({ storage })).toBe(0);
-    expect((await storage.getSeedMeta(seedMetaKey('seed-crossfit')))?.seedVersion).toBe(7);
+    expect((await storage.getSeedMeta(seedMetaKey('sport-crossfit')))?.seedVersion).toBe(7);
   });
 
   it('adopts nothing when no seed has legacy rows', async () => {

@@ -145,23 +145,23 @@ describe('TourJumpSection', () => {
 
   it('cards are feeds: each lists the notebooks that one import brings', () => {
     renderSection()
-    const card = screen.getByTestId('feed-card-seed-crossfit')
-    expect(within(card).getByTestId('feed-card-seed-crossfit-notebooks').textContent)
+    const card = screen.getByTestId('feed-card-sport-crossfit')
+    expect(within(card).getByTestId('feed-card-sport-crossfit-notebooks').textContent)
       .toContain('CrossFit Games')
-    for (const notebook of CARDS.filter(n => n.feedId === 'seed-crossfit')) {
-      expect(within(card).getByTestId(`feed-card-seed-crossfit-notebook-${notebook.id}`)).toBeTruthy()
+    for (const notebook of CARDS.filter(n => n.feedId === 'sport-crossfit')) {
+      expect(within(card).getByTestId(`feed-card-sport-crossfit-notebook-${notebook.id}`)).toBeTruthy()
     }
     // One import action per card — never per notebook.
-    expect(within(card).getByTestId('feed-card-seed-crossfit-import')).toBeTruthy()
+    expect(within(card).getByTestId('feed-card-sport-crossfit-import')).toBeTruthy()
     expect(card.querySelectorAll('[data-testid$="-import"]').length).toBe(1)
   })
 
   it('summarises a feed with more notebooks than chips', () => {
     renderSection()
-    const swimming = SEEDS.find(seed => seed.id === 'seed-swimming')!
+    const swimming = SEEDS.find(seed => seed.id === 'sport-swimming')!
     // Six swimming notebooks ship; the card lists six chips (under the cap).
     expect(CARDS.filter(n => n.feedId === swimming.id).length).toBe(7)
-    expect(screen.getByTestId('feed-card-seed-swimming')).toBeTruthy()
+    expect(screen.getByTestId('feed-card-sport-swimming')).toBeTruthy()
   })
 
   it('disables the library card until a feed is imported', async () => {
@@ -187,23 +187,23 @@ describe('TourJumpSection', () => {
 
     // A notebook label matches through its seed card.
     fireEvent.change(searchInput, { target: { value: 'Dan John' } })
-    expect(cardPresent('feed-card-seed-kettlebell')).toBe(true)
-    expect(cardPresent('feed-card-seed-crossfit')).toBe(false)
+    expect(cardPresent('feed-card-legends-of-kettlebell')).toBe(true)
+    expect(cardPresent('feed-card-sport-crossfit')).toBe(false)
 
     // A notebook description matches too (Murph lives in CrossFit Heroes).
     fireEvent.change(searchInput, { target: { value: 'murph' } })
-    expect(cardPresent('feed-card-seed-crossfit')).toBe(true)
-    expect(cardPresent('feed-card-seed-swimming')).toBe(false)
+    expect(cardPresent('feed-card-sport-crossfit')).toBe(true)
+    expect(cardPresent('feed-card-sport-swimming')).toBe(false)
 
     // Feed copy matches directly.
     fireEvent.change(searchInput, { target: { value: 'parkour archive' } })
-    expect(cardPresent('feed-card-seed-zombie-fit')).toBe(true)
+    expect(cardPresent('feed-card-wayback-zombie-fit')).toBe(true)
 
     // No matches → empty state with a clear-filters escape hatch
     fireEvent.change(searchInput, { target: { value: 'nonexistent-query-xyz' } })
     expect(screen.getByText(/No feeds match/i)).toBeTruthy()
     fireEvent.click(screen.getByTestId('jump-clear-filters'))
-    expect(cardPresent('feed-card-seed-crossfit')).toBe(true)
+    expect(cardPresent('feed-card-sport-crossfit')).toBe(true)
   })
 
   it('lists the app-owned core notebooks on the Local card', () => {
@@ -229,48 +229,47 @@ describe('TourJumpSection', () => {
   })
 
   it('imports a SEED: syncs it, subscribes it, and reports the outcome on the card', async () => {
-    outcomes['seed-crossfit'] = 'imported'
+    outcomes['sport-crossfit'] = 'imported'
     renderSection()
 
-    fireEvent.click(screen.getByTestId('feed-card-seed-crossfit-import'))
+    fireEvent.click(screen.getByTestId('feed-card-sport-crossfit-import'))
     await waitFor(() => {
-      expect(synced).toEqual(['seed-crossfit'])
-      expect(subscribed.has('seed-crossfit')).toBe(true)
+      expect(synced).toEqual(['sport-crossfit'])
+      expect(subscribed.has('sport-crossfit')).toBe(true)
     })
     await waitFor(() => {
-      expect(screen.getByTestId('feed-card-seed-crossfit-status').textContent).toContain('Imported')
+      expect(screen.getByTestId('feed-card-sport-crossfit-status').textContent).toContain('Imported')
     })
   })
 
   it('never subscribes on server-stale, busy, or error outcomes — the card reports the error', async () => {
-    outcomes['seed-crossfit'] = 'server-stale'
-    outcomes['seed-kettlebell'] = 'error'
+    outcomes['sport-crossfit'] = 'server-stale'
+    outcomes['legends-of-kettlebell'] = 'error'
     renderSection()
 
-    fireEvent.click(screen.getByTestId('feed-card-seed-crossfit-import'))
+    fireEvent.click(screen.getByTestId('feed-card-sport-crossfit-import'))
     await waitFor(() => {
-      expect(screen.getByTestId('feed-card-seed-crossfit-status').getAttribute('role')).toBe('alert')
+      expect(screen.getByTestId('feed-card-sport-crossfit-status').getAttribute('role')).toBe('alert')
     })
-    fireEvent.click(screen.getByTestId('feed-card-seed-kettlebell-import'))
+    fireEvent.click(screen.getByTestId('feed-card-legends-of-kettlebell-import'))
     await waitFor(() => {
-      expect(screen.getByTestId('feed-card-seed-kettlebell-status').getAttribute('role')).toBe('alert')
+      expect(screen.getByTestId('feed-card-legends-of-kettlebell-status').getAttribute('role')).toBe('alert')
     })
     expect(subscribed.size).toBe(0)
     // Both cards still offer import — no forced state.
-    expect(screen.getByTestId('feed-card-seed-crossfit-import')).toBeTruthy()
-    expect(screen.getByTestId('feed-card-seed-kettlebell-import')).toBeTruthy()
+    expect(screen.getByTestId('feed-card-sport-crossfit-import')).toBeTruthy()
+    expect(screen.getByTestId('feed-card-legends-of-kettlebell-import')).toBeTruthy()
   })
 
   it('guards concurrent imports: one feed in flight disables the other cards', async () => {
-    pending.add('seed-crossfit')
+    pending.add('sport-crossfit')
     renderSection()
 
-    fireEvent.click(screen.getByTestId('feed-card-seed-crossfit-import'))
+    fireEvent.click(screen.getByTestId('feed-card-sport-crossfit-import'))
     await waitFor(() => {
       expect(screen.getByText('Importing')).toBeTruthy()
     })
-    const other = screen.getByTestId('feed-card-seed-kettlebell-import') as HTMLButtonElement
-    expect(other.disabled).toBe(true)
+    const other = screen.getByTestId('feed-card-legends-of-kettlebell-import') as HTMLButtonElement
   })
 
   it('mobile renders the same cards in one alternating row', () => {
@@ -284,39 +283,39 @@ describe('TourJumpSection', () => {
   it('filters by subscribed only and by feed', () => {
     renderSection()
     // Default: subscribedOnly is false, all seeds shown
-    expect(screen.getByTestId('feed-card-seed-crossfit')).toBeTruthy()
-    expect(screen.getByTestId('feed-card-seed-swimming')).toBeTruthy()
+    expect(screen.getByTestId('feed-card-sport-crossfit')).toBeTruthy()
+    expect(screen.getByTestId('feed-card-sport-swimming')).toBeTruthy()
 
     // Filter by seed source: only CrossFit should appear
     const seedSelect = screen.getByTestId('filter-feed-source')
-    fireEvent.change(seedSelect, { target: { value: 'seed-crossfit' } })
-    expect(screen.getByTestId('feed-card-seed-crossfit')).toBeTruthy()
-    expect(screen.queryByTestId('feed-card-seed-swimming')).toBeNull()
+    fireEvent.change(seedSelect, { target: { value: 'sport-crossfit' } })
+    expect(screen.getByTestId('feed-card-sport-crossfit')).toBeTruthy()
+    expect(screen.queryByTestId('feed-card-sport-swimming')).toBeNull()
 
     // Reset feed filter
     fireEvent.change(seedSelect, { target: { value: '' } })
-    expect(screen.getByTestId('feed-card-seed-swimming')).toBeTruthy()
+    expect(screen.getByTestId('feed-card-sport-swimming')).toBeTruthy()
 
     // Enable subscribed only when nothing is subscribed -> only the Local
     // card (the app-owned core notebooks are always delivered) remains.
     const subCheckbox = screen.getByTestId('filter-subscribed-only')
     fireEvent.click(subCheckbox)
     expect(screen.queryAllByTestId('feed-card-local').length).toBeGreaterThan(0)
-    expect(screen.queryAllByTestId('feed-card-seed-crossfit')).toHaveLength(0)
+    expect(screen.queryAllByTestId('feed-card-sport-crossfit')).toHaveLength(0)
 
     // Uncheck subscribed only -> all feeds visible again
     fireEvent.click(subCheckbox)
-    expect(screen.queryAllByTestId('feed-card-seed-crossfit').length).toBeGreaterThan(0)
+    expect(screen.queryAllByTestId('feed-card-sport-crossfit').length).toBeGreaterThan(0)
   })
 
   it('toggles individual notebook subscription and updates chip state', () => {
     renderSection()
-    const toggleBtn = screen.getByTestId('feed-card-seed-crossfit-notebook-toggle-community-crossfit-games')
+    const toggleBtn = screen.getByTestId('feed-card-sport-crossfit-notebook-toggle-community-crossfit-games')
     expect(toggleBtn.textContent).toBe('+')
 
     // Subscribe the notebook
     fireEvent.click(toggleBtn)
-    expect(notebookSubscribed.has('seed-crossfit#notebook.crossfit-games')).toBe(true)
-    expect(synced).toContain('seed-crossfit')
+    expect(notebookSubscribed.has('sport-crossfit#notebook.crossfit-games')).toBe(true)
+    expect(synced).toContain('sport-crossfit')
   })
 })

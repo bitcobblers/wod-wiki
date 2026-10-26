@@ -171,7 +171,7 @@ test.describe('Feed Source Settings & Library Navigation', () => {
   });
 
   test('one Subscribe imports every notebook the seed publishes', async ({ page }) => {
-    const source = 'https://bitcobblers.github.io/wod-wiki-seed-crossfit/';
+    const source = 'https://bitcobblers.github.io/wod-wiki-sport-crossfit/';
     const chunks = ['crossfit-games', 'crossfit-girls'].map(name => {
       const path = `markdown/notebooks/${name}/isolation.md`;
       const content = `# ${name} isolation\n\nNotebook body.`;
