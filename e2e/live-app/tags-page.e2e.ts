@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { gotoFeedSurface } from '../helpers/feedReadiness';
 
 /**
  * Tags (/tags) — the catalogue of what a tag brings.
@@ -16,7 +17,7 @@ const TAG_NAME = 'e2e-heavy';
 
 test.describe('Tags — /tags', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/tags');
+    await gotoFeedSurface(page, '/tags');
     await expect(page.getByRole('heading', { name: 'Tags', level: 1 })).toBeVisible();
 
     // Start from a clean slate so a tag from a previous run cannot leak in.
@@ -73,7 +74,7 @@ test.describe('Tags — /tags', () => {
 
     // The editor links a tag reference to /tags?tag=<slug> — that link has
     // to land on the tag itself.
-    await page.goto(`/tags?tag=${TAG_NAME}`);
+    await gotoFeedSurface(page, `/tags?tag=${TAG_NAME}`);
     await expect(page.getByRole('heading', { name: `Edit ${TAG_NAME}` })).toBeVisible();
   });
 

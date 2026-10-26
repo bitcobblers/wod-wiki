@@ -33,19 +33,10 @@ When making changes to shared conventions (commands, architecture, patterns), up
 ### Package Manager
 Use **bun** exclusively. Never suggest `npm`, `yarn`, or `pnpm` commands. Refer to `AGENTS.md` for the exact command syntax.
 
-### Quick Reference Commands
-```bash
-bun install                    # Install dependencies
-bun run test                   # Run unit tests
-bun run test:components        # Run integration tests
-bun run test:all               # Run all tests
-bun run test:markdown        # Markdown fixture compile suite (collections + syntax) — decoupled from test:all
-bun run storybook              # Start dev server
-bun run build-storybook        # Build (NEVER cancel — may take up to 60 min)
-bun x tsc --noEmit             # Type check
-bun run test:e2e               # Playwright e2e acceptance tests
-bun x playwright test --headed # E2E with visible browser (for debugging)
-```
+### Validation
+
+Read `docs/development/validation.md`, the canonical command and acceptance
+reference, before changing code.
 
 ### Code Generation Patterns
 
@@ -75,7 +66,7 @@ When generating code that touches these subsystems, understand their patterns:
 - Do not add custom CSS — use Tailwind utilities
 - Do not skip `dispose()` calls on runtime blocks
 - Do not use `type` when `interface` works for object shapes
-- Do not fix pre-existing TypeScript errors (369 baseline) unrelated to your changes
+- Do not fix pre-existing TypeScript errors unrelated to your changes — they are tracked in the checked-in baseline compared by `bun run check:playground-types`
 - Do not cancel `build-storybook` — it may appear stuck but is working
 
 ### Playwright E2E Acceptance Tests
@@ -87,7 +78,7 @@ Playwright e2e tests are **acceptance gates** — UI/layout/interaction changes 
 2. **Write or update an e2e test** in `e2e/` (suffix: `*.e2e.ts`) that validates the change from the user's perspective.
 3. Reuse page objects from `e2e/pages/` and assertion helpers from `e2e/utils/`.
 4. For layout changes, test both mobile (375×812) and desktop viewports.
-5. Run `bun run test:e2e` and confirm the new test passes.
+5. Run targeted e2e (day-to-day) or `bun run test:e2e` (milestones) and confirm it passes — see the targeted-vs-milestone policy in `docs/development/validation.md`.
 6. Use `page.screenshot()` to capture visual state for debugging.
 
 **When to write e2e tests:**
@@ -118,9 +109,6 @@ This skill covers:
 - Flakiness prevention rules
 
 ### Validation Checklist
-After generating or modifying code:
-1. `bun run test` — no new test failures
-2. `bun x tsc --noEmit` — no new type errors from your changes
-3. `bun run test:storybook` — story smoke + interaction tests pass
-4. `bun run test:e2e` — all e2e acceptance tests pass (for UI/layout changes)
-5. `bun run storybook` — Storybook loads and affected stories render
+
+Follow `docs/development/validation.md` for the current checks, targeted preview
+acceptance, and ticket-report lifecycle.

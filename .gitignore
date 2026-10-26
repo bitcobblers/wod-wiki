@@ -201,3 +201,5 @@ apps/playground/dist-api/
 .ask/
 *-report.html
 .questions/history/
+# Ticket validation reports (scripts/ticket-report.mjs)
+.scratch/
