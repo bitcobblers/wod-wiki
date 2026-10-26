@@ -18,10 +18,8 @@ import {
   type BlockQueryStore,
   type EffortQueryStore,
   type EventStore,
+  type IEffort,
 } from '@bitcobblers/wod-wiki-engine';
-// wql's own IEffort — the engine umbrella re-exports lang's IEffort under the
-// same name, and the two differ on baseAttributes' index signature (0.6.36).
-import type { IEffort } from '@bitcobblers/wod-wiki-wql';
 import {
   PageSourceRegistry,
   captureContext,
@@ -80,7 +78,9 @@ export const indexedDbBlockStore: BlockQueryStore = {
 
 /**
  * Production effort store: the CompositeEffortRegistry (bundled + user,
- * IndexedDB-backed), lazily constructed on first query.
+ * IndexedDB-backed), lazily constructed on first query. The registry rows
+ * are projections of definition notes — one authoritative IEffort shape
+ * (lang), re-exported by both engine and wql.
  */
 export class RegistryEffortStore implements EffortQueryStore {
   async getAllEfforts(): Promise<IEffort[]> {
@@ -88,7 +88,7 @@ export class RegistryEffortStore implements EffortQueryStore {
     if (!registry.isInitialized()) {
       await hydrateAppEffortRegistry(registry);
     }
-    return [...registry.list()] as unknown as IEffort[]; // lang's IEffort.baseAttributes lacks the index signature wql's IEffort declares (engine-internal inconsistency, 0.6.36)
+    return [...registry.list()];
   }
 }
 

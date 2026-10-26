@@ -1797,7 +1797,9 @@ export class QueryService {
   }
 
   /**
-   * Execute a :effort query against the effort registry.
+   * Execute a :effort query: the registry is the filter plane (discipline,
+   * intensity, origin, text), the note plane is the result plane — matched
+   * projections resolve to their owning definition notes.
    */
   async runFindEffort(parsed: ParsedFindQuery): Promise<FindQueryResult> {
     const all = await this.effortStore.getAllEfforts();
@@ -1852,7 +1854,26 @@ export class QueryService {
       efforts = pipes.limit !== undefined ? efforts.slice(offset, offset + pipes.limit) : efforts.slice(offset);
     }
 
-    return { parsed, notes: [], blocks: [], efforts, stages: { selected: selectedCount, matched: efforts.length } };
+    // Definitions are notes: resolve each matched projection to its owning
+    // definition note (projection.ownerNoteId). The registry is the filter
+    // plane (it carries baseAttributes/origin); the note store is the result
+    // plane. Projections without an owner note stay in the `efforts` result
+    // but resolve to no note — ownerless legacy rows. Consumers that list
+    // definitions (library search) fall back to the registry row for those.
+    const ownerIds = [...new Set(efforts.map(e => e.ownerNoteId).filter((id): id is string => typeof id === 'string' && id.length > 0))];
+    let notes: Note[] = [];
+    if (ownerIds.length > 0) {
+      const fetched = this.noteStore.getNotesByIds
+        ? await this.noteStore.getNotesByIds(ownerIds)
+        : (await this.noteStore.getAllNotes()).filter(n => ownerIds.includes(n.id));
+      const byId = new Map(fetched.map(n => [n.id, n]));
+      notes = ownerIds.flatMap(id => {
+        const note = byId.get(id);
+        return note ? [note] : [];
+      });
+    }
+
+    return { parsed, notes, blocks: [], efforts, stages: { selected: selectedCount, matched: efforts.length } };
   }
 
   async run(parsed: AnyParsedQuery, options: QueryOptions = {}): Promise<QueryResult> {

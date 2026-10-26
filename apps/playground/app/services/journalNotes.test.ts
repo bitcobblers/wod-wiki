@@ -270,5 +270,41 @@ describe('Journal Notes', () => {
       expect(entry?.placements?.map((placement) => placement.date ?? placement.slug).sort())
         .toEqual(['2026-10-17', '2026-10-18', 'gym']);
     });
+
+    it('keeps the primary date deterministic when every placement ties on createdAt', async () => {
+      // Regression: unpositioned rows tie on createdAt, and the random
+      // junction id then decides the canonical order — a move could detach
+      // the newer second date instead of the original primary. Explicit
+      // append positions make the order structural, not temporal.
+      const realNow = Date.now;
+      Date.now = () => 1_720_828_800_000;
+      try {
+        const storage = new StorageService(new InMemoryStorage());
+        const persistence = new IndexedDBNotePersistence(storage, new IndexedDBContentProvider(storage));
+        const provider = new IndexedDBContentProvider(storage);
+        const journal = createJournalNotes({
+          persistence,
+          moveEntryPlacement: (noteId, fromPageId, target) => provider.moveEntryPlacement(noteId, fromPageId, target),
+          addEntryPlacement: (noteId, target) => provider.addEntryPlacement(noteId, target),
+        });
+        const saved = await persistence.createNote({ id: 'frozen-note', title: 'A', rawContent: 'x', targetDate: 1 });
+
+        await provider.addEntryPlacement(saved.id, { date: '2026-10-15' });
+        await provider.addEntryPlacement(saved.id, { slug: 'gym' });
+        await journal.moveToDate(saved.id, '2026-10-16');
+        await provider.addEntryPlacement(saved.id, { date: '2026-10-18' });
+        await journal.moveToDate(saved.id, '2026-10-17');
+        // …and once more, to pin repeated add/move cycles: the move detaches
+        // the earliest surviving date (2026-10-18), never the just-added one.
+        await provider.addEntryPlacement(saved.id, { date: '2026-10-19' });
+        await journal.moveToDate(saved.id, '2026-10-20');
+
+        const entry = await provider.getEntry(saved.id);
+        expect(entry?.placements?.map((placement) => placement.date ?? placement.slug).sort())
+          .toEqual(['2026-10-17', '2026-10-19', '2026-10-20', 'gym']);
+      } finally {
+        Date.now = realNow;
+      }
+    });
   });
 });

@@ -110,7 +110,7 @@ describe('adding a placement', () => {
     expect(placements.map((placement) => placement.pageId).sort()).toEqual(['cal-1', 'named-1', 'named-2']);
   });
 
-  it('appends by default and leaves the other placements\u2019 positions alone', async () => {
+  it('appends by default and leaves the other placements’ positions alone', async () => {
     const service = await makeService();
     await service.addNoteToPage('note-1', 'named-1', 0);
     await service.addNoteToPage('note-2', 'named-1', 1);
@@ -121,9 +121,51 @@ describe('adding a placement', () => {
     const positionOf = (noteId: string) => links.find((link) => link.noteId === noteId)?.position;
     expect(positionOf('note-1')).toBe(0);
     expect(positionOf('note-2')).toBe(1);
-    // The appended placement carries no position — it sorts after every
-    // positioned row of that page.
-    expect(positionOf('note-3')).toBeUndefined();
+    // The appended placement carries an explicit position — one past the
+    // page's current maximum — so it sorts after every positioned row of
+    // that page without tie-breaking on createdAt.
+    expect(positionOf('note-3')).toBe(2);
+  });
+
+  it('appends deterministically when every row ties on createdAt', async () => {
+    const realNow = Date.now;
+    Date.now = () => T0;
+    try {
+      const service = await makeService();
+      // Same note, same millisecond: the explicit append positions alone
+      // decide the canonical order.
+      await service.addNoteToPage('note-1', 'cal-1');
+      await service.addNoteToPage('note-1', 'named-1');
+      await service.addNoteToPage('note-1', 'named-2');
+
+      const placements = await service.getNotePlacements('note-1');
+      expect(placements.map((placement) => placement.pageId))
+        .toEqual(['cal-1', 'named-1', 'named-2']);
+      expect(placements.map((placement) => placement.position)).toEqual([0, 1, 2]);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('keeps append order stable across repeated add and move cycles', async () => {
+    const realNow = Date.now;
+    Date.now = () => T0;
+    try {
+      const service = await makeService();
+      await service.addNoteToPage('note-1', 'cal-1');
+      await service.addNoteToPage('note-1', 'named-2');
+      await service.moveNoteBetweenPages('note-1', 'cal-1', 'cal-2');
+      await service.addNoteToPage('note-1', 'named-1');
+      await service.moveNoteBetweenPages('note-1', 'named-1', 'cal-1');
+
+      // The note's canonical history is the insertion order, no matter the
+      // createdAt ties: gym → 2026-07-16 → 2026-07-15.
+      const placements = await service.getNotePlacements('note-1');
+      expect(placements.map((placement) => placement.pageId))
+        .toEqual(['named-2', 'cal-2', 'cal-1']);
+    } finally {
+      Date.now = realNow;
+    }
   });
 
   it('is idempotent — placing the same note on the same page twice keeps one row', async () => {
@@ -169,7 +211,9 @@ describe('moving a placement', () => {
 
     const links = await service.getPageNotes('cal-2');
     expect(links.find((link) => link.noteId === 'note-2')?.position).toBe(0);
-    expect(links.find((link) => link.noteId === 'note-1')?.position).toBeUndefined();
+    // The moved placement appends with an explicit position — after the
+    // destination's current maximum.
+    expect(links.find((link) => link.noteId === 'note-1')?.position).toBe(1);
   });
 
   it('is atomic — a failed move leaves the note on its source page', async () => {

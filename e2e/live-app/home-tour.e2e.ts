@@ -275,11 +275,14 @@ test.describe('library & community feeds gallery', () => {
     await section.getByTestId('package-search-input').fill('')
     await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
 
-    // Kind facets keep the seeds publishing a notebook of that kind.
-    await section.getByTestId('package-kind-collection').click()
+    // Feed facets keep only the seeds published by that source — the
+    // canonical facet now that collection/feed kinds collapsed into
+    // notebooks (one Subscribe imports every notebook a feed publishes).
+    await section.getByTestId('filter-feed-source').selectOption('seed-crossfit')
     await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
     await expect(copies.getByTestId('feed-card-r-workoutroutines')).toHaveCount(0)
-    await section.getByTestId('package-kind-collection').click()
+    await section.getByTestId('filter-feed-source').selectOption('')
+    await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
 
     // Sort by name keeps CrossFit leading.
     await section.getByTestId('package-sort-name').click()

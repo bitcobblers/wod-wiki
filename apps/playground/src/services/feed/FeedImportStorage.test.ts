@@ -73,6 +73,36 @@ describe('atomic sparse seed storage', () => {
     await expect(storage.applyChunk(write)).rejects.toThrow(/checkpoint changed/);
     expect(await idb.readonly('notes').count()).toBe(0);
   });
+  it('definition chunk commits the note and its projection together — never half-imported', async () => {
+    const effortDoc = ['---', 'id: effort-seed-1', 'slug: turkish-get-up', 'label: Turkish Get-Up', 'aliases: []', 'baseAttributes:', '  met: 5.5', '---', '', 'Ground to standing.', ''].join('\n');
+    const row = compileSeedRow('markdown/efforts/strength/turkish-get-up.md', effortDoc);
+    const id = await seedNoteId(row.path);
+    const write: SeedChunkWrite = { chunkId: 'efforts', rows: [row], manifest: { schema: SEED_SCHEMA, version: 1, builtAt: new Date(1).toISOString(), chunks: [] }, expectedMeta: undefined, meta: { ...emptySeedMeta(key), importedAt: 1, chunks: { efforts: { sha256: 'b'.repeat(64), noteIds: [id] } } } };
+
+    await storage.applyChunk(write);
+    // The note is the storage form; the typed row is its projection.
+    expect(await idb.readonly('notes').count()).toBe(1);
+    expect((await idb.readonly('notes').get(id))?.rawContent).toBe(effortDoc);
+    const projection = await idb.readonly('efforts').get('turkish-get-up');
+    expect(projection?.ownerNoteId).toBe(id);
+    expect(projection?.registrySource).toBe('bundled');
+
+    // A commit failure rolls back BOTH — no half-imported definition.
+    globalThis.indexedDB = new IDBFactory();
+    const idb2 = new IndexedDBStorage();
+    const failing = new IndexedDBFeedImportStorage({
+      readonly: idb2.readonly.bind(idb2), readwrite: idb2.readwrite.bind(idb2),
+      wipe: idb2.wipe.bind(idb2), close: idb2.close.bind(idb2),
+      transaction: (stores, mode, fn) => idb2.transaction(stores, mode, async (tx) => {
+        await fn(tx);
+        throw new Error('forced commit failure');
+      }),
+    });
+    await expect(failing.applyChunk(write)).rejects.toThrow(/forced commit failure/);
+    expect(await idb2.readonly('notes').count()).toBe(0);
+    expect(await idb2.readonly('efforts').count()).toBe(0);
+    await idb2.close();
+  });
   it('claim acquisition verifies the original full row in the transaction', async () => {
     const claimed = { ...emptySeedMeta(key), claim: { owner: 'first', at: 1 } };
     await storage.putSeedMeta(claimed, null);

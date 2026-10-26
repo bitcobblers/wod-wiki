@@ -42,7 +42,7 @@ import { runDbCommand, type DbAdminDeps } from './dbAdmin';
 // Type-only: erased at build time, keeps the Bun-only server module out of the
 // browser/Node import graph (runCliServer itself is lazily imported).
 import type { CliServerOptions } from './server';
-import { persistNote, startRun, persistRun, persistSessionBundle, persistEffort, persistEquipment, persistTypedTags } from './persist';
+import { persistNote, startRun, persistRun, persistSessionBundle, persistDefinitionNote, persistTypedTags } from './persist';
 import { defaultSeedDirs, importSeedDir } from './seed';
 import { publishCatalogSeed } from './publish';
 import {
@@ -56,7 +56,6 @@ import {
   extractTypedTags,
   sessionToCsv,
 } from '@bitcobblers/wod-wiki-engine';
-import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import {
   formatParseOutput,
   formatExecutionOutput,
@@ -1026,30 +1025,22 @@ export async function cliMain(
         return 0;
       }
       if (kind === 'effort') {
-        const effort = parseEffortFile(fs.readFileSync(file, 'utf-8'));
-        if (!effort) {
-          writeErr(`[wod import] Unparseable effort file (need frontmatter id/slug/label + numeric baseAttributes.met): ${file}`);
-          return 1;
-        }
+        const source = fs.readFileSync(file, 'utf-8');
         const db = await openCliDb(cliDb());
         try {
-          await persistEffort(db, { ...effort, registrySource: 'user' });
-          writeOut(`[wod import] effort ${effort.slug} — ${effort.label} → ${db.path}`);
+          const result = await persistDefinitionNote(db, 'effort', source);
+          writeOut(`[wod import] effort ${result.slug}${result.createdNote ? '' : ' (updated)'} — note ${result.noteId} → ${db.path}`);
         } finally {
           await db.close();
         }
         return 0;
       }
       if (kind === 'equipment' && /\.md$/i.test(file)) {
-        const equipment = parseEquipmentFile(fs.readFileSync(file, 'utf-8'));
-        if (!equipment) {
-          writeErr(`[wod import] Unparseable equipment file (need frontmatter type: equipment + id/slug/label): ${file}`);
-          return 1;
-        }
+        const source = fs.readFileSync(file, 'utf-8');
         const db = await openCliDb(cliDb());
         try {
-          await persistEquipment(db, { ...equipment, registrySource: 'user' });
-          writeOut(`[wod import] equipment ${equipment.slug} — ${equipment.label} → ${db.path}`);
+          const result = await persistDefinitionNote(db, 'equipment', source);
+          writeOut(`[wod import] equipment ${result.slug}${result.createdNote ? '' : ' (updated)'} — note ${result.noteId} → ${db.path}`);
         } finally {
           await db.close();
         }

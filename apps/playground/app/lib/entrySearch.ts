@@ -186,12 +186,20 @@ export class StreamQueryEngine {
 
     // 1. Content and Effort Discovery Planes
     if (isFindQuery(parsed)) {
-      // :effort — queries the effort registry via runFindEffort
+      // :effort — the note plane is the result plane: matched projections
+      // resolve to their owning definition notes (entryMapper classifies
+      // them as effort entries). Projections the note plane did not resolve
+      // (legacy rows without an owner note) fall back to the registry row.
       if (parsed.target === 'effort') {
         const result = this.service.runFindEffort
           ? await this.service.runFindEffort(parsed)
           : await this.service.runFind(parsed);
-        const entries = (result.efforts ?? []).map(effortToEntry);
+        const noteById = new Map(result.notes.map(note => [note.id, note]));
+        const entries = (result.efforts ?? []).map(effort =>
+          effort.ownerNoteId && noteById.has(effort.ownerNoteId)
+            ? toEntry(noteById.get(effort.ownerNoteId)!)
+            : effortToEntry(effort),
+        );
         emitStages(onStages, result.stages, entries);
         return entries;
       }

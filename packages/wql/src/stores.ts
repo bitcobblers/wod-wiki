@@ -8,6 +8,9 @@
  */
 
 import type { BlockIndexRow, Note, EventRecord, Page, PageNote } from '@bitcobblers/wod-wiki-core';
+import type { IEffort } from '@bitcobblers/wod-wiki-lang';
+
+export type { IEffort };
 
 /**
  * Store surface for the unified event table — every workout-data read the
@@ -119,21 +122,8 @@ export interface BlockQueryStore {
   }): Promise<WqlDomainReadResult | undefined>;
 }
 
-/** Pure effort model interface for `:effort` queries. */
-export interface IEffort {
-  id: string;
-  slug: string;
-  label: string;
-  aliases: string[];
-  baseAttributes: {
-    met?: number;
-    discipline?: string;
-    intensityTier?: string;
-    [key: string]: unknown;
-  };
-  registrySource?: 'bundled' | 'user' | string;
-  [key: string]: unknown;
-}
+/** Effort definition records for `:effort` queries — the language package's
+ *  IEffort (single authoritative definition; re-exported above). */
 export interface EffortQueryStore {
   getAllEfforts(): Promise<IEffort[]>;
 }

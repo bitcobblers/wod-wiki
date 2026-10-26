@@ -397,10 +397,12 @@ export class StorageService implements NotePersistenceStorage {
   }
 
   /**
-   * Place a note on a page. The placement is appended by default — no
-   * position is written, so it orders after every positioned row of that
-   * page — and the positions of the page's other placements are left
-   * untouched. Attaching never detaches: the note keeps its other pages.
+   * Place a note on a page. The placement is appended by default — an
+   * explicit position one past the maximum explicit position among the
+   * page's rows and the note's rows — so the canonical order stays
+   * deterministic even when rows tie on createdAt. The positions of the
+   * page's other placements are left untouched. Attaching never detaches:
+   * the note keeps its other pages.
    */
   async addNoteToPage(noteId: string, pageId: string, position?: number): Promise<string> {
     return this.withTransaction(['page_notes'], async (scoped) => {
@@ -411,11 +413,30 @@ export class StorageService implements NotePersistenceStorage {
         id,
         pageId,
         noteId,
-        position,
+        position: position ?? (await scoped.nextAppendPosition(pageId, noteId)),
         createdAt: Date.now(),
       });
       return id;
     });
+  }
+
+  /**
+   * The append ordinal for a new placement: one past the maximum explicit
+   * position among the page's rows and the note's rows. Scoped to the
+   * enclosing transaction. Rows without a position are legacy rows — they
+   * never set the maximum, but the explicit position keeps a new row from
+   * tie-breaking on createdAt (and the random id) against either ordering.
+   */
+  private async nextAppendPosition(pageId: string, noteId: string): Promise<number> {
+    const rows = [
+      ...(await this.getPageNotes(pageId)),
+      ...(await this.getNotePages(noteId)),
+    ];
+    let max = -1;
+    for (const row of rows) {
+      if (typeof row.position === 'number' && row.position > max) max = row.position;
+    }
+    return max + 1;
   }
 
   /** Detach a note from one page. The note, its source and its results stay. */
@@ -458,7 +479,7 @@ export class StorageService implements NotePersistenceStorage {
           id: generateId(),
           pageId: toPageId,
           noteId,
-          position,
+          position: position ?? (await scoped.nextAppendPosition(toPageId, noteId)),
           createdAt: Date.now(),
         });
       }

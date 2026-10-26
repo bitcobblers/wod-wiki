@@ -124,11 +124,16 @@ test.describe('Notebook plane', () => {
 
     // Move the starter note from defaults into Trip 2026 via the feed row's
     // move action (the feed layout's real control — the shared move menu).
+    // The move commits asynchronously and the mounted stream re-runs once it
+    // lands — gate on the row leaving the source listing before navigating.
+    // A goto straight after the menu click races the uncommitted move, and
+    // the target page's one-shot stream query then renders pre-move state.
     await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
     await waitForFeedReady(page);
     const row = page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first();
     await row.getByTestId('stream-feed-move').click();
     await page.getByTestId('stream-feed-move-notebook/trip-2026').click();
+    await expect(page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' })).toHaveCount(0, { timeout: 15_000 });
     await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:trip-2026}')}`);
     await waitForFeedReady(page);
     await expect(page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first()).toBeVisible();
@@ -138,6 +143,7 @@ test.describe('Notebook plane', () => {
     const movedRow = page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first();
     await movedRow.getByTestId('stream-feed-move').click();
     await page.getByTestId('stream-feed-move-notebook/trip-2027').click();
+    await expect(page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' })).toHaveCount(0, { timeout: 15_000 });
     await page.goto(`/catalogs?q=${encodeURIComponent(':notebook{notebook:trip-2027}')}`);
     await waitForFeedReady(page);
     await expect(page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first()).toBeVisible();
