@@ -4,6 +4,7 @@ import {
   parseQuery,
   feedOfItem,
   notebookOfItem,
+  notebookOriginOfItem,
   sourceMatches,
   toNotebookId,
   notebookSlugFromId,
@@ -25,8 +26,8 @@ const uuid = (n: number): string =>
   `01950000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
 describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
-  it('normalizes canonical notebook/{slug} identifiers including default slugs (journal, playground, guides)', () => {
-    expect(DEFAULT_NOTEBOOK_SLUGS).toEqual(['journal', 'playground', 'guides']);
+  it('normalizes canonical notebook/{slug} identifiers including default slugs (journal, playground, defaults, guides)', () => {
+    expect(DEFAULT_NOTEBOOK_SLUGS).toEqual(['journal', 'playground', 'defaults', 'guides']);
     expect(toNotebookId('journal')).toBe('notebook/journal');
     expect(toNotebookId('notebook/journal')).toBe('notebook/journal');
     expect(toNotebookId('notebook:playground')).toBe('notebook/playground');
@@ -61,10 +62,35 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     expect(notebookOfItem(customNotebookNote)).toBe('notebook/open-prep');
   });
 
-  it('decides editability at the application level: only user-created notes (seedOrigin !== "seed") are editable', () => {
+  it('decides editability from the notebook origin, falling back to the note stamps', () => {
+    // No notebook context — the note's own stamps decide (importer rows agree
+    // with the registry answer).
     expect(isNoteEditable({ seedOrigin: 'user' })).toBe(true);
     expect(isNoteEditable({ seedOrigin: undefined })).toBe(true);
     expect(isNoteEditable({ seedOrigin: 'seed' })).toBe(false);
+    expect(isNoteEditable({ seedOrigin: 'user', feedOrigin: 'feed' })).toBe(false);
+    // Notebook context wins: a feed-note clone in a user-owned notebook keeps
+    // its provenance stamps yet is editable, and any feed notebook note is
+    // read-only regardless of its stamps.
+    expect(isNoteEditable({ seedOrigin: 'seed', feedOrigin: 'feed' }, 'user')).toBe(true);
+    expect(isNoteEditable({ seedOrigin: 'user' }, 'feed')).toBe(false);
+    expect(isNoteEditable({ seedOrigin: 'seed' }, 'default')).toBe(true);
+  });
+
+  it('reports the notebook origin: user assignment, feed delivery, defaults', () => {
+    expect(notebookOriginOfItem({ id: 'w1', seedOrigin: 'user', notebookId: 'notebook/open-prep' })).toBe('user');
+    expect(notebookOriginOfItem({ id: 'w2', seedOrigin: 'user', tags: ['notebook:mine'] })).toBe('user');
+    // A clone that kept its delivery stamps still resolves through tier 1.
+    expect(notebookOriginOfItem({ id: 'w3', seedOrigin: 'seed', feedOrigin: 'feed', notebookId: 'notebook/defaults' })).toBe('user');
+    // Feed-delivered corpus: collection items, efforts, dashboards, guides.
+    expect(notebookOriginOfItem({ id: 'w4', seedOrigin: 'seed', sourceId: 'collection:girls/fran', catalog: 'girls' })).toBe('feed');
+    expect(notebookOriginOfItem({ id: 'w5', seedOrigin: 'seed', sourceId: 'efforts', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' })).toBe('feed');
+    expect(notebookOriginOfItem({ id: 'w6', seedOrigin: 'seed', sourceId: 'guides:guide/clock' })).toBe('feed');
+    // Playground and journal fallbacks are the app's own containers.
+    expect(notebookOriginOfItem({ id: 'pg-1', sourceId: 'playground', type: 'playground', seedOrigin: 'user' })).toBe('default');
+    expect(notebookOriginOfItem({ id: 'w7', seedOrigin: 'user' })).toBe('default');
+    // Nothing resolves — no origin.
+    expect(notebookOriginOfItem({ id: 'w8', seedOrigin: 'seed', sourceId: 'mystery' })).toBeUndefined();
   });
 
   it('filters notes and blocks by notebook:{slug} or notebook:notebook/{slug} in WQL', async () => {
@@ -115,16 +141,25 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     expect(notesHeadRes.notes.map((n) => n.id)).toEqual(['user-nb-1']);
 
     const notebookHeadRes = await service.runFind(parseQuery(':notebook{notebook:crossfit-girls}') as Parameters<typeof service.runFind>[0]);
-    expect(notebookHeadRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
+    expect(notebookHeadRes.notes.map((n) => n.id)).toEqual(['fran-id']);
 
-    // The notebooks listing head and the authored plural storage scope both
-    // route to the catalog executor — one row per notebook, never the
-    // generic note plane (which would surface fran-id).
-    const notebooksListingRes = await service.runFind(parseQuery(':notebook{} by {tag}') as Parameters<typeof service.runFind>[0]);
-    expect(notebooksListingRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
+    // The notebook head is the inclusive notebook plane: every notebook's
+    // notes — journal, playground, guides, feed-delivered, user notebooks —
+    // never a per-notebook listing (that is :catalog's job).
+    const notebooksPlaneRes = await service.runFind(parseQuery(':notebook{}') as Parameters<typeof service.runFind>[0]);
+    expect(notebooksPlaneRes.notes.map((n) => n.id).sort()).toEqual(
+      ['01950000-0000-7000-8000-000000000001', 'fran-id', 'g-1', 'pg-1', 'user-nb-1'],
+    );
 
-    const pluralScopeRes = await service.runFind(parseQuery(':note{type:feed,source:notebooks}') as Parameters<typeof service.runFind>[0]);
-    expect(pluralScopeRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
+    // The retired plural storage scope is a parse error — the notebook plane
+    // is reached through the :notebook head, not source:notebooks.
+    expect(parseQuery(':note{type:feed,source:notebooks}').error).toContain('source:notebooks is retired');
+    expect(parseQuery(':note{source:notebook}').error).toContain('source:notebook is retired');
+
+    // :feed/:catalog keep their feed-catalog semantics — the listing of
+    // feed-delivered notebooks (one row per catalog, synthesized landings).
+    const catalogListingRes = await service.runFind(parseQuery(':catalog{}') as Parameters<typeof service.runFind>[0]);
+    expect(catalogListingRes.notes.map((n) => n.id)).toEqual(['crossfit-girls']);
   });
 
   it('resolves every corpus family from its corpus path alone (effort, equipment, dashboard, guide, collection, feed)', () => {

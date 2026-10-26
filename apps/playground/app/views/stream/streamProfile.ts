@@ -96,7 +96,7 @@ export function createContentLegacyConfig(defaultSource?: string): StreamProfile
       let head = ':note'
       const otherFilters = [textClause, tagsClause].filter(Boolean)
       if (sourceFilter === 'source:journal') head = ':journal'
-      else if (sourceFilter === 'source:feeds') head = ':notebook'
+      else if (sourceFilter === 'source:feeds') head = ':feeds'
       else if (sourceFilter === 'source:playground') head = ':playground'
       else if (sourceFilter) otherFilters.unshift(sourceFilter)
       const braces = otherFilters.length ? `{${otherFilters.join(',')}}` : ''
@@ -131,7 +131,7 @@ export const CATALOGS_STREAM_PROFILE: StreamProfile = {
 export const FEEDS_STREAM_PROFILE: StreamProfile = {
   route: '/feeds',
   title: 'Notes',
-  defaultWql: ':notebook{}',
+  defaultWql: ':feeds{}',
   level: 'note',
   target: 'note',
   scopeOptions: ['feeds'],

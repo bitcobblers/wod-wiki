@@ -130,8 +130,6 @@ export interface CliParsedArgs {
   sources: string[];
   /** `wod build`: scaffold markdown stubs for newly discovered efforts. */
   scaffold?: boolean;
-  /** `wod build`: extra template markdown file compiled as the `template` chunk. */
-  template?: string;
   /** `wod build`: content repo root (alias for the positional directory). */
   dir?: string;
 }
@@ -292,12 +290,6 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       i++;
     } else if (arg === '--force') {
       result.force = true;
-      i++;
-    } else if (arg === '--template') {
-      result.template = args[++i];
-      i++;
-    } else if (arg.startsWith('--template=')) {
-      result.template = arg.slice('--template='.length);
       i++;
     } else if (arg === '--out') {
       result.output = args[++i];
@@ -503,8 +495,6 @@ SUBCOMMANDS:
 BUILD OPTIONS (for 'build'):
   --scaffold          Also scaffold markdown/efforts/discovered/*.md stubs for
                       workout effort labels missing from the registry.
-  --template <file>   Compile an extra markdown file as the 'template' chunk
-                      (the host's playground intake template).
 
 INPUT SOURCING (for 'query'; without these, the database is queried):
   -c, --corpus <path> Load historical corpus dataset from a versioned JSON file
@@ -1129,7 +1119,6 @@ export async function cliMain(
         const result = generateSeed({
           corpusRoot: root,
           ...(parsed.output ? { outDir: nodePath().resolve(cwd, parsed.output) } : {}),
-          ...(parsed.template ? { templateFile: nodePath().resolve(cwd, parsed.template) } : {}),
           scaffoldDiscoveredEfforts: parsed.scaffold === true,
         });
         const kb = (n: number): string => `${(n / 1024).toFixed(0)} KB`;

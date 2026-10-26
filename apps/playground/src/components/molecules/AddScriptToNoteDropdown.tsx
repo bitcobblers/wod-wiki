@@ -3,6 +3,7 @@ import { Plus, Calendar, FilePlus, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { planPath } from '@/lib/routes';
 import { toShortId } from '@/lib/idUtils';
+import { isJournalEntry } from '@/types/notebook';
 import {
     DropdownMenu,
     DropdownMenuTrigger,
@@ -73,7 +74,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
     const entryDates = useMemo(() => {
         return new Set(
             allEntries
-                .filter(e => e.type !== 'template')
+                .filter(isJournalEntry)
                 .map(e => toDateKey(new Date(e.targetDate)))
         );
     }, [allEntries]);
@@ -81,7 +82,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
     // Filter notes for the selected date
     const notesForDate = useMemo(() => {
         return allEntries.filter(e => {
-            if (e.type === 'template') return false;
+            if (!isJournalEntry(e)) return false;
             return isSameDay(new Date(e.targetDate), selectedDate);
         }).sort((a, b) => a.targetDate - b.targetDate);
     }, [allEntries, selectedDate]);

@@ -4,6 +4,8 @@ import { appWarn } from '@/lib/log';
 import type { IContentProvider } from '@/types/content-provider';
 import type { HistoryEntry } from '@/types/history';
 
+/** Synthesizes the display entry for a corpus-backed workbench route with no
+ *  stored note yet — an ordinary (read-only) note, not a stored row. */
 export function createTemplateEntry(id: string, content: string): HistoryEntry {
   const titleMatch = content.match(/^#\s+(.+)$/m);
   const title = titleMatch ? titleMatch[1].trim() : id;
@@ -13,7 +15,7 @@ export function createTemplateEntry(id: string, content: string): HistoryEntry {
     id,
     title,
     rawContent: content,
-    type: 'template',
+    type: 'note',
     tags: [],
     createdAt: now,
     updatedAt: now,

@@ -14,7 +14,6 @@ import {
   SEED_NAMESPACE,
   SEED_SCHEMA,
   SEED_REGISTERED_WIDGETS,
-  TEMPLATE_CHUNK_ID,
   canvasRouteSlug,
   seedNoteSourceId,
   catalogForChunkId,
@@ -33,7 +32,7 @@ import { assertSeedManifest } from './validation';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync, execSync } from 'node:child_process';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 
 // BlockEffort/BlockIndexRow row types come from @bitcobblers/wod-wiki-storage
 // (type-only import — chunk rows are plain JSON applied structurally by the
@@ -61,15 +60,6 @@ export interface ChunkGroup {
 export interface GenerateSeedOptions {
   /** The corpus directory (`markdown/`). Defaults to `<corpusRoot>/markdown`. */
   markdownDir?: string;
-  /** Optional playground template file — the host passes its own; standalone builds omit the `template` chunk. */
-  templateFile?: string;
-  /**
-   * Row path recorded for the template chunk (the runtime derives the
-   * template note's id from it, so it must stay stable across builds). The
-   * host pins its historical in-repo path; defaults to the path relative to
-   * `corpusRoot`.
-   */
-  templateRowPath?: string;
   /** Output directory. Defaults to `<corpusRoot>/dist`. */
   outDir?: string;
   /**
@@ -594,11 +584,6 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
   const paths = collectCorpusMarkdown(markdownDir, options.excludePaths);
   const groups = partitionIntoChunks(paths);
   gateDashboards(groups, corpusRoot);
-  if (options.templateFile && existsSync(options.templateFile)) {
-    const templateRowPath = options.templateRowPath
-      ?? relative(corpusRoot, options.templateFile).split('\\').join('/');
-    groups.push({ id: TEMPLATE_CHUNK_ID, files: [templateRowPath] });
-  }
   passMs.scan = Date.now() - tScan;
 
   const tBlockIndex = Date.now();
@@ -642,13 +627,10 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
 
   const tWrite = Date.now();
   for (const { id, files } of groups) {
-    // The template chunk's row path is the host-pinned historical identity,
-    // not a path inside this repo — read it from the template file itself.
-    const templateSource = id === TEMPLATE_CHUNK_ID ? options.templateFile : undefined;
     const records: SeedRecordRef[] = [];
     const rows: SeedRow[] = files.map((p) => {
-      const raw = readFileSync(templateSource ?? join(corpusRoot, p), 'utf8');
-      const content = id === TEMPLATE_CHUNK_ID ? raw.replace(/\$CURSOR/g, '') : raw;
+      const raw = readFileSync(join(corpusRoot, p), 'utf8');
+      const content = raw;
       const compiled = compileSeedRow(p, content);
       compiled.blockIndex = blocksByPath.get(p) ?? compiled.blockIndex;
       compiled.blockEfforts = effortsByPath.get(p) ?? [];

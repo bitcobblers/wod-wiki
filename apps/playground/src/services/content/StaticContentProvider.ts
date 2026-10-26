@@ -16,7 +16,7 @@ export class StaticContentProvider extends IndexedDBContentProvider {
     const service = new StorageService(new InMemoryStorage());
     super(service);
     this.persistenceReady = new IndexedDBContentProvider(service).saveEntry({ id: this.singletonId,
-      title: 'Untitled Workout', rawContent: initialContent, tags: [], targetDate: Date.now(), type: 'template' });
+      title: 'Untitled Workout', rawContent: initialContent, tags: [], targetDate: Date.now(), type: 'note' });
   }
 
   override async getEntries(_query?: EntryQuery): Promise<HistoryEntry[]> {

@@ -111,7 +111,7 @@ function groupByDimension(
       // date, so `by {date}` groups stay meaningful. ponytail: playground-only
       // fallback; widen to other sources when one needs dated undated grouping.
       const key = e.date ?? (e.sourceCatalog === 'playground' && e.createdAt && e.createdAt > 946684800000 ? new Date(e.createdAt).toISOString().slice(0, 10) : null)
-      if (options?.shelfVisible && (e.kind === 'session' || key == null)) {
+      if (options?.shelfVisible && (key == null || (e.kind === 'note' && !e.sourceItem))) {
         undatedShelf.push(e)
       } else if (key) {
         const arr = map.get(key)

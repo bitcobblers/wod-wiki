@@ -23,12 +23,12 @@ import type { Entry } from './entryMapper'
 function makeEntry(overrides: Partial<Entry> = {}): Entry {
   return {
     id: 'crossfit-girls/grace',
-    kind: 'session',
+    kind: 'note',
     sourceCatalog: 'crossfit-girls',
     sourceItem: 'grace',
     title: 'Grace',
     date: null,
-    sourceId: 'collection:crossfit-girls',
+    sourceId: 'collection:crossfit-girls/grace',
     ...overrides,
   }
 }
@@ -47,9 +47,9 @@ beforeEach(() => {
 })
 
 describe('entryCanRun', () => {
-  it('offers Run for content entries — notes (journal included), sessions, posts', () => {
+  it('offers Run for content entries — journal, collection items and feed posts are all notes', () => {
     expect(entryCanRun(makeEntry())).toBe(true)
-    expect(entryCanRun(makeEntry({ kind: 'post', sourceCatalog: 'crossfit-programming' }))).toBe(true)
+    expect(entryCanRun(makeEntry({ sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday', sourceCatalog: 'crossfit-programming' }))).toBe(true)
     expect(entryCanRun(makeEntry({ kind: 'note', sourceCatalog: 'journal' }))).toBe(true)
     expect(
       entryCanRun(

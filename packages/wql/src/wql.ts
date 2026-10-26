@@ -22,6 +22,7 @@ import {
   WQL_EFFORT_FILTER_KEYS,
   WQL_FIND_TARGETS,
   WQL_FUNCTION_HEADS,
+  WQL_NOTE_HEAD_ALIASES,
   WQL_SOURCE_HEADS,
   WQL_SOURCE_HEAD_SCOPES,
   WQL_SOURCE_VALUES,
@@ -574,11 +575,12 @@ function validateSourceFilter(filters: TagFilter[]): string | undefined {
       if (val === 'collection' || val === 'collections') {
         return `source:${val} is retired — collections were renamed to feeds; use source:feeds or :feed{}.`;
       }
+      if (val === 'notebook' || val === 'notebooks') {
+        return `source:${val} is retired — :notebook{} is the notebook plane (every notebook); narrow it with the notebook: filter, e.g. :notebook{notebook:journal}.`;
+      }
       if (
         (WQL_SOURCE_VALUES as readonly string[]).includes(val) ||
         val === 'feed' ||
-        val === 'notebook' ||
-        val === 'notebooks' ||
         val.startsWith('collection:') ||
         val.startsWith('feed:') ||
         val.startsWith('notebook:') ||
@@ -920,7 +922,7 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
     // (they intersect any explicit source:/type: — plain AND).
     result.target = 'note';
   } else {
-    result.target = headName === 'notes' ? 'note' : headName;
+    result.target = (WQL_NOTE_HEAD_ALIASES as readonly string[]).includes(headName) ? 'note' : headName;
     if (result.target === 'page') {
       result.error = 'find:page is retired — page-ness is handled by type: (e.g. :note{source:guides} or type:feed).';
       return result;
@@ -949,7 +951,7 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
       negate: false,
       values: [{ value: scope, wildcard: false }],
     });
-    if (headName === 'catalog' || headName === 'catalogs' || headName === 'notebook' || headName === 'notebooks') {
+    if (headName === 'catalog' || headName === 'catalogs') {
       result.filters.push({
         key: 'type',
         negate: false,

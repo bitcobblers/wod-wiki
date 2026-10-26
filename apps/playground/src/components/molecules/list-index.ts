@@ -6,9 +6,6 @@ export { useListState } from './useListState';
 export type { UseListStateOptions, ListState } from './useListState';
 
 // Variant hosts
-export { ListView } from './ListView';
-export type { ListViewProps } from './ListView';
-
 export { CommandListView } from './CommandListView';
 export type { CommandListViewProps } from './CommandListView';
 

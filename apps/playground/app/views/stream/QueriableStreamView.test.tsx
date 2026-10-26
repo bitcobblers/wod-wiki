@@ -25,6 +25,13 @@ import { resetFeedSubscriptionsForTest, setFeedSubscribed } from '@/services/fee
 import { NavContext, initialNavState, type StreamNavControls } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 
+/** Test sleep — flush macrotasks inside act() scopes. */
+function delay(ms: number): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>()
+  setTimeout(resolve, ms)
+  return promise
+}
+
 // The notice's inline sync goes through syncFeedSource; the coverage probe
 // must report "no manual library" so feedNotice routes render the banner.
 let communitySyncOutcome: 'imported' | 'current' | 'error' | 'busy' = 'imported'
@@ -619,6 +626,85 @@ describe('QueriableStreamView component', () => {
     }
   })
 
+  it('feed layout moves a note between user notebooks via the shared move menu', async () => {
+    writeViewSettings('/playgrounds', {
+      level: 'note',
+      layout: 'feed',
+      visibleFields: ['title', 'excerpt', 'date'],
+    })
+
+    const memory = new InMemoryStorage()
+    setStorageForTesting(memory)
+    try {
+    // A user notebook target + a note living in the defaults notebook.
+    await storageService.saveNote({
+      id: 'notebook/trip-2026',
+      notebookId: 'notebook/trip-2026',
+      title: 'Trip 2026',
+      rawContent: '',
+      blocks: {},
+      sourceRevision: 1,
+      createdAt: 1,
+      type: 'note',
+      seedOrigin: 'user',
+    } as Note)
+    const note: Note = {
+      id: 'user-note-1',
+      title: 'My Workout',
+      createdAt: 1_700_000_000_000,
+      type: 'note',
+      seedOrigin: 'user',
+      notebookId: 'notebook/defaults',
+      rawContent: '# My Workout\n',
+      sourceRevision: 1,
+      blocks: {},
+    }
+    // The row the feed renders AND the row moveNote reads — one note.
+    await storageService.saveNote({ ...note } as Note)
+    const engine = new StreamQueryEngine({
+      service: {
+        runFind: mock(async () => ({
+          parsed: { raw: '', target: 'note', filters: [] } as unknown as ParsedFindQuery,
+          notes: [note],
+          blocks: [],
+          stages: { selected: 1, matched: 1 },
+        })),
+      },
+    })
+
+    render(
+      <MemoryRouter initialEntries={[`/catalogs?q=${encodeURIComponent(':notebook{notebook:defaults}')}`]}>
+        <QueriableStreamView profile={PLAYGROUNDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-feed')).toBeDefined()
+    }, { timeout: 5000 })
+
+    // The feed row exposes the real move control (and Add-to-today), then
+    // moving through it lands the note in the target notebook in storage.
+    // The move is async and re-renders on completion — flush it inside act.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('stream-feed-move'))
+      await delay(30)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('stream-feed-move-notebook/trip-2026'))
+      for (let i = 0; i < 100; i++) {
+        if ((await storageService.getNote('user-note-1'))?.notebookId === 'notebook/trip-2026') break
+        await delay(10)
+      }
+      await delay(50)
+    })
+    expect((await storageService.getNote('user-note-1'))?.notebookId).toBe('notebook/trip-2026')
+    expect(screen.getByTestId('stream-feed-add')).toBeDefined()
+    } finally {
+      resetStorageForTesting()
+      await memory.close()
+    }
+  })
+
   it('L3 toggleGroupDim writes through to the WQL line and the grid follows', async () => {
     const engine = createMockEngine(sampleEffortEntries)
     let capturedControls: StreamNavControls | null = null
@@ -710,12 +796,12 @@ describe('QueriableStreamView component', () => {
     try {
       const catalogEntry: Entry = {
         id: 'crossfit-girls/grace',
-        kind: 'session',
+        kind: 'note',
         sourceCatalog: 'crossfit-girls',
         sourceItem: 'grace',
         title: 'Grace',
         date: null,
-        sourceId: 'collection:crossfit-girls',
+        sourceId: 'collection:crossfit-girls/grace',
       }
       const engine = createMockEngine([catalogEntry])
 
@@ -952,7 +1038,7 @@ describe('QueriableStreamView component', () => {
     coverageMock = { coreImported: true, libraryImported: true }
     const engine = createMockEngine([])
     render(
-      <MemoryRouter initialEntries={[`/feeds?q=${encodeURIComponent(':notebook{text:foo}')}`]}>
+      <MemoryRouter initialEntries={[`/feeds?q=${encodeURIComponent(':feeds{text:foo}')}`]}>
         <LocationProbe />
         <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
@@ -966,12 +1052,12 @@ describe('QueriableStreamView component', () => {
     const clear = within(empty).getByRole('button', { name: 'Clear filter' })
     fireEvent.click(clear)
 
-    // The authored text clause is gone; the notebook head's scope and plane
-    // type survive as explicit filters (serializer emits plain `:note`). The
+    // The authored text clause is gone; the feeds head's storage scope
+    // survives as an explicit filter (serializer emits plain `:note`). The
     // URL `q` is the committed query's home — the composer input keeps its
     // own draft.
     await waitFor(() => {
-      expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain(encodeURIComponent(':note{source:feeds,type:feed}'))
+      expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain(encodeURIComponent(':note{source:feeds}'))
     })
     await waitFor(() => {
       expect(within(screen.getByTestId('stream-empty-state')).queryByRole('button', { name: 'Clear filter' })).toBeNull()

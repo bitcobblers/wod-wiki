@@ -6,7 +6,9 @@
  * `notebook/playground`, and `notebook/guides`).
  *
  * Read-only / editability is decided at the application level via
- * `isNoteEditable` (only user-created notes `seedOrigin !== 'seed'` are editable).
+ * `isNoteEditable` over the note's NOTEBOOK origin (ticket 05): feed-delivered
+ * notebooks are read-only; user-owned notebooks — including `notebook/defaults`
+ * — are editable.
  */
 import {
     DEFAULT_NOTEBOOK_SLUGS,
@@ -52,3 +54,10 @@ export const fromNotebookTag = (tag: string): string | null =>
 /** Check if a tag is a notebook tag */
 export const isNotebookTag = (tag: string): boolean =>
     tag.startsWith(NOTEBOOK_TAG_PREFIX);
+
+/** True when an entry belongs to the journal — either it names no notebook
+ *  (journal is the resolver's fallback) or it names `notebook/journal`.
+ *  Dated-note pickers show only journal entries; notes in any other notebook
+ *  are notebook content (clone sources), not dated notes. */
+export const isJournalEntry = (entry: { notebookId?: string | null }): boolean =>
+    !entry.notebookId || entry.notebookId === 'notebook/journal';

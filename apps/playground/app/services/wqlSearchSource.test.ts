@@ -141,9 +141,9 @@ describe('wqlSearchSource', () => {
     const item = results[0]!
     expect(item.id).toBe('entry:girl-wods/fran')
     expect(item.label).toBe('Fran')
-    expect(item.category).toBe('Feeds')
+    expect(item.category).toBe('Notebooks')
     const entry = item.payload as Entry
-    expect(entry.kind).toBe('session')
+    expect(entry.kind).toBe('note')
     expect(entry.sourceCatalog).toBe('girl-wods')
   })
 
@@ -338,7 +338,8 @@ describe('navigatePaletteResult', () => {
     const visited: string[] = []
     const entry = {
       id: 'girl-wods/fran',
-      kind: 'session',
+      kind: 'note',
+      sourceId: 'collection:girl-wods/fran',
       sourceCatalog: 'girl-wods',
       sourceItem: 'fran',
       title: 'Fran',

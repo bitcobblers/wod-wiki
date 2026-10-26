@@ -335,7 +335,6 @@ export const CREATE_FROM_SOURCE: PaletteDataSource = {
       { id: 'collection', label: 'Collection', sublabel: 'Drill into a collection → pick a workout → clone a WOD block', category: 'Create from', type: 'action', payload: 'collection' },
       { id: 'feed',       label: 'Feed',       sublabel: 'Pick a recent entry from your feed and clone a WOD block',  category: 'Create from', type: 'action', payload: 'feed' },
       { id: 'history',    label: 'History',    sublabel: 'Copy the full content of a past journal entry',             category: 'Create from', type: 'action', payload: 'history' },
-      { id: 'template',   label: 'Template',   sublabel: 'Coming soon — saved note templates',                          category: 'Create from', type: 'action', payload: 'template' },
     ];
     if (!query) return options;
     const low = query.toLowerCase();

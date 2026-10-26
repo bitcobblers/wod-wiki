@@ -9,7 +9,7 @@ import {
 } from './fieldProjection'
 
 describe('fieldProjection - getEntityLevel', () => {
-  it('identifies note and post kinds as note level', () => {
+  it('identifies the note kind as note level (sessions and posts folded into note)', () => {
     const noteEntry: Entry = {
       id: 'n1',
       kind: 'note',
@@ -20,7 +20,7 @@ describe('fieldProjection - getEntityLevel', () => {
     }
     const postEntry: Entry = {
       id: 'p1',
-      kind: 'post',
+      kind: 'note',
       sourceCatalog: 'feeds',
       sourceItem: 'p1',
       title: 'Feed Post',
@@ -28,18 +28,6 @@ describe('fieldProjection - getEntityLevel', () => {
     }
     expect(getEntityLevel(noteEntry)).toBe('note')
     expect(getEntityLevel(postEntry)).toBe('note')
-  })
-
-  it('identifies session kind as session level', () => {
-    const sessionEntry: Entry = {
-      id: 's1',
-      kind: 'session',
-      sourceCatalog: 'crossfit-girls',
-      sourceItem: 'fran',
-      title: 'Fran',
-      date: null,
-    }
-    expect(getEntityLevel(sessionEntry)).toBe('session')
   })
 
   it('identifies result kind as result level', () => {
@@ -160,7 +148,7 @@ describe('fieldProjection - value extraction and formatting', () => {
   it('extracts session level fields from an entry', () => {
     const entry: Entry = {
       id: 'crossfit-girls/fran',
-      kind: 'session',
+      kind: 'note',
       sourceCatalog: 'crossfit-girls',
       sourceItem: 'fran',
       title: 'Fran',

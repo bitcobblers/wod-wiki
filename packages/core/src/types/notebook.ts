@@ -8,7 +8,7 @@
 import type { FeedId } from './feed';
 
 /** Predefined default notebook slugs always present in the application. */
-export const DEFAULT_NOTEBOOK_SLUGS = ['journal', 'playground', 'guides'] as const;
+export const DEFAULT_NOTEBOOK_SLUGS = ['journal', 'playground', 'defaults', 'guides'] as const;
 export type DefaultNotebookSlug = (typeof DEFAULT_NOTEBOOK_SLUGS)[number];
 export type NotebookId = `notebook/${string}`;
 /** Where a notebook comes from. 'feed' = delivered by a feed (the feed that
@@ -29,9 +29,20 @@ export function toNotebookId(slugOrId: string): NotebookId {
   return `notebook/${notebookSlugFromId(slugOrId)}`;
 }
 
-/** Application-level editability rule: only user-created notes (`seedOrigin !== 'seed'`) are editable. */
-export function isNoteEditable(note: { seedOrigin?: string | null }): boolean {
-  return note.seedOrigin !== 'seed';
+/** Application-level editability rule (ticket 05): a note is editable when
+ *  its NOTEBOOK is user-owned. `notebookOrigin` is the origin of the note's
+ *  resolved notebook (`notebookOfItem` + the notebook registry) — feed-delivered
+ *  notebooks are read-only, and a note cloned into a user-owned notebook
+ *  (e.g. `notebook/defaults`) is editable even though it keeps its seed/feed
+ *  provenance stamps. Without a resolved notebook origin the decision falls
+ *  back to the note's own stamps, which match the registry answer for every
+ *  importer-written row. */
+export function isNoteEditable(
+  note: { seedOrigin?: string | null; feedOrigin?: string | null },
+  notebookOrigin?: NotebookOrigin,
+): boolean {
+  if (notebookOrigin) return notebookOrigin !== 'feed';
+  return note.seedOrigin !== 'seed' && note.feedOrigin !== 'feed';
 }
 
 export interface Notebook {

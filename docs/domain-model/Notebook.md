@@ -11,12 +11,12 @@ source: markdown/notebooks/ (canonical corpus layout)
 
 ## Current State (Implemented in Code)
 
-- **Store:** none — derived. A note names its notebook through the `notes.notebookId` column or a `notebook:` tag; `notebookOfItem` in `packages/wql/src/QueryService.ts` resolves either, plus the source-derived defaults.
-- **Identity:** `notebook/{slug}` (`packages/core/src/types/notebook.ts`); the predefined notebooks are `notebook/journal`, `notebook/playground` and `notebook/guides` (`DEFAULT_NOTEBOOK_SLUGS`).
-- **Type source:** `packages/core/src/types/notebook.ts` (`Notebook` shape — a shape only; no store holds a notebook row).
-- **Feed-delivered notebooks:** one per published chunk — `NOTEBOOKS` in `apps/playground/src/services/feed/feedSources.ts` maps each chunk id to a notebook slug, label and description.
-- **Editability today:** decided per row, not per notebook — `isNoteEditable` (`packages/core/src/types/notebook.ts`) treats `seedOrigin === 'seed'` as read-only.
-- **WQL:** `:notebook{}` / `:notebooks{}` are source-scoped note heads bound to the `feeds` storage scope (`packages/wql/src/vocabulary.ts`); `notebook:<slug>` is the content filter key that pins one notebook.
+- **Store:** user notebooks are landing notes in the notes store (ticket 05) — id `notebook/{slug}`, `notebookId` set, frontmatter `description`/`icon`; the CRUD layer is `NotebookService` (`apps/playground/src/services/NotebookService.ts`) over the notes store, replacing the retired localStorage registry. The former localStorage-only service is gone.
+- **Identity:** `notebook/{slug}` (`packages/core/src/types/notebook.ts`); the predefined notebooks are `notebook/journal`, `notebook/playground`, `notebook/defaults` and `notebook/guides` (`DEFAULT_NOTEBOOK_SLUGS`). `defaults` is user-owned and writable and holds the starter notes; the retired `template` note kind migrated into it.
+- **Resolution:** `notebookOfItem` in `packages/wql/src/QueryService.ts` resolves a note's notebook (notebookId → `notebook:` tag → corpus path → sourceId → catalog → journal fallback); `notebookOriginOfItem` reports who owns it (`user` / `feed` / `default`) and drives editability.
+- **Editability:** `isNoteEditable(note, notebookOrigin)` — a note is editable when its notebook is not feed-delivered; a note cloned into a user-owned notebook keeps its provenance stamps yet is editable.
+- **WQL:** `:notebook{}` / `:notebooks{}` are the inclusive notebook plane (every notebook's notes, narrowed with the `notebook:` filter key); `:catalog{}`/`:catalogs{}` list feed-delivered notebooks. `source:notebook(s)` is a retired spelling.
+- **Feed-delivered notebooks:** one per published chunk — `NOTEBOOKS` in `apps/playground/src/services/feed/feedSources.ts` maps each chunk id to a notebook slug, label and description; the core feed's reference notebooks (efforts, equipment, dashboards) are listed by the gallery as app-owned.
 - **Routes today:** the notebook list renders at `/catalogs` and a notebook landing at `/c/:slug` (`apps/playground/app/lib/routes.ts`) — legacy paths the canonical vocabulary replaces with `/notebooks` and `/notebook/{slug}`.
 
 ### Corpus layout (Current)

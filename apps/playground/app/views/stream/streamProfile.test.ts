@@ -128,7 +128,7 @@ describe('streamProfile', () => {
     const feedsLegacy = FEEDS_STREAM_PROFILE.legacy!
     expect(feedsLegacy).toBeDefined()
     expect(feedsLegacy.toQuery(new URLSearchParams('note=on&session=hide&post=hide'))).toBe(':journal last 2w')
-    expect(feedsLegacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':notebook last 2w')
+    expect(feedsLegacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':feeds last 2w')
     // `post` mapped to the feeds WQL scope — excised, so it no longer narrows.
     const postOnly = parseQuery(feedsLegacy.toQuery(new URLSearchParams('note=hide&session=hide&post=on')) ?? '')
     expect(isFindQuery(postOnly)).toBe(true)

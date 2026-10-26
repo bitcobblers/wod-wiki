@@ -69,7 +69,7 @@ describe('searchEntries — :block (#855, #861)', () => {
     // Executor order is presentation order — no local re-sort.
     expect(entries[0]!.block?.blockId).toBe('seg-0')
     for (const entry of entries) {
-      expect(entry.kind).toBe('post')
+      expect(entry.kind).toBe('note')
       expect(entry.block?.dataType).toBe('wod')
       // Parent identity preserved for Open / Add-to-today.
       expect(entry.id).toMatch(/^feeds\/feed-a\//)

@@ -2,7 +2,6 @@ import React from 'react';
 import {
   BeakerIcon,
   BookOpenIcon,
-  DocumentDuplicateIcon,
 } from '@heroicons/react/24/outline';
 import { formatPlaygroundTimestampLabel } from '@/lib/playgroundDisplay';
 import type { HistoryEntry } from '@/types/history';
@@ -32,9 +31,6 @@ function getLabel(entry: HistoryEntry): string {
 function getIcon(entry: HistoryEntry): React.ReactNode {
   if (entry.type === 'playground') {
     return React.createElement(BeakerIcon, { className: 'w-4 h-4' });
-  }
-  if (entry.type === 'template') {
-    return React.createElement(DocumentDuplicateIcon, { className: 'w-4 h-4' });
   }
   return React.createElement(BookOpenIcon, { className: 'w-4 h-4' });
 }

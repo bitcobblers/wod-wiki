@@ -88,8 +88,8 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
 
   // Global new-journal-note dialog; prefilled from /journal/YYYY-MM-DD routes.
   const [journalCreateOpen, setJournalCreateOpen] = useState(false)
-  const [journalCreateMode, setJournalCreateMode] = useState<'blank' | 'template' | 'source'>('blank')
-  const openJournalCreate = useCallback((opts?: { mode?: 'blank' | 'template' | 'source' }) => {
+  const [journalCreateMode, setJournalCreateMode] = useState<'blank' | 'notebook' | 'source'>('blank')
+  const openJournalCreate = useCallback((opts?: { mode?: 'blank' | 'notebook' | 'source' }) => {
     setJournalCreateMode(opts?.mode ?? 'blank')
     setJournalCreateOpen(true)
   }, [])

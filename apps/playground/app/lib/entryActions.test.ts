@@ -12,9 +12,9 @@ import type { Note } from '@/types/storage'
 function makeEntry(overrides: Partial<Entry> = {}): Entry {
   return {
     id: 'crossfit-girls/fran',
-    kind: 'session',
-    sourceCatalog: 'crossfit-girls',
-    sourceItem: 'fran',
+    kind: 'note',
+    sourceCatalog: 'journal',
+    sourceItem: 'crossfit-girls/fran',
     title: 'Fran',
     date: null,
     ...overrides,
@@ -122,9 +122,10 @@ describe('entryOpenHref', () => {
 
   it('appends the block anchor to the open href', () => {
     expect(entryOpenHref(makeEntry({
-      kind: 'session',
+      kind: 'note',
       sourceCatalog: 'crossfit-girls',
       sourceItem: 'fran',
+      sourceId: 'collection:crossfit-girls/fran',
       block: { blockId: 'sec 1', dataType: 'wod', preview: [] },
     }))).toBe('/c/crossfit-girls/fran#sec%201')
     expect(entryOpenHref(makeEntry({
@@ -138,19 +139,21 @@ describe('entryOpenHref', () => {
     }))).toBe('/p/workout-plan#seg-0')
   })
 
-  it('routes a Session to the /c page-slug editor', () => {
+  it('routes a collection item note to the /c page-slug editor', () => {
     expect(entryOpenHref(makeEntry({
       id: 'crossfit-girls/fran',
-      kind: 'session',
+      kind: 'note',
+      sourceId: 'collection:crossfit-girls/fran',
       sourceCatalog: 'crossfit-girls',
       sourceItem: 'fran',
     }))).toBe('/c/crossfit-girls/fran')
   })
 
-  it('routes a collection page Session to the /c collection landing', () => {
+  it('routes a collection landing note to the /c collection landing', () => {
     expect(entryOpenHref(makeEntry({
       id: 'crossfit-girls',
-      kind: 'session',
+      kind: 'note',
+      sourceId: 'page:collection:crossfit-girls',
       sourceCatalog: 'crossfit-girls',
       sourceItem: '',
     }))).toBe('/c/crossfit-girls')
@@ -198,10 +201,11 @@ describe('entryOpenHref', () => {
     }))).toBe('/notes/0c9e6f2e-1111-4222-8333-444455556666')
   })
 
-  it('routes a Post to the feed-item deep-link (catalog/date/item)', () => {
+  it('routes a feed post note to the feed-item deep-link (catalog/date/item)', () => {
     expect(entryOpenHref(makeEntry({
       id: 'feeds/crossfit-programming/2026-01-12/monday',
-      kind: 'post',
+      kind: 'note',
+      sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday',
       sourceCatalog: 'crossfit-programming',
       sourceItem: 'monday',
       date: '2026-01-12',
@@ -210,20 +214,22 @@ describe('entryOpenHref', () => {
 })
 
 describe('entryCollectionFeedHref', () => {
-  it('routes a collection page Session to the /feeds route with collection filter', () => {
+  it('routes a collection landing note to the /feeds route with collection filter', () => {
     const entry = makeEntry({
       id: 'crossfit-girls',
-      kind: 'session',
+      kind: 'note',
+      sourceId: 'page:collection:crossfit-girls',
       sourceCatalog: 'crossfit-girls',
       sourceItem: '',
     })
     expect(entryCollectionFeedHref(entry)).toBe('/feeds?q=%3Anotebook%7Bnotebook%3Acrossfit-girls%7D')
   })
 
-  it('returns null for regular workouts', () => {
+  it('returns null for collection items (only landings link the notebook)', () => {
     const entry = makeEntry({
       id: 'crossfit-girls/fran',
-      kind: 'session',
+      kind: 'note',
+      sourceId: 'collection:crossfit-girls/fran',
       sourceCatalog: 'crossfit-girls',
       sourceItem: 'fran',
     })
@@ -248,12 +254,8 @@ describe('entryCanAddToToday', () => {
     expect(entryCanAddToToday(makeEntry({ kind: 'note' }))).toBe(true)
   })
 
-  it('returns true for a Post', () => {
-    expect(entryCanAddToToday(makeEntry({ kind: 'post' }))).toBe(true)
-  })
-
-  it('returns false for a Session (undated, cannot be added to a journal date)', () => {
-    expect(entryCanAddToToday(makeEntry({ kind: 'session' }))).toBe(false)
+  it('returns true for a feed post note', () => {
+    expect(entryCanAddToToday(makeEntry({ kind: 'note', sourceId: 'feed:feeds/x/2026-01-12/monday' }))).toBe(true)
   })
   it('returns true for a Result with an associated noteId', () => {
     expect(entryCanAddToToday(makeEntry({

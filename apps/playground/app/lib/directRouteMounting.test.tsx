@@ -74,7 +74,7 @@ describe('Route-aware stream profile resolution', () => {
     expect(resolveStreamProfile('/catalogs').defaultWql).toBe(':notebook{} by {tag}')
 
     expect(resolveStreamProfile('/feeds')).toBe(FEEDS_STREAM_PROFILE)
-    expect(resolveStreamProfile('/feeds').defaultWql).toBe(':notebook{}')
+    expect(resolveStreamProfile('/feeds').defaultWql).toBe(':feeds{}')
 
     expect(resolveStreamProfile('/efforts')).toBe(EFFORTS_STREAM_PROFILE)
     expect(resolveStreamProfile('/efforts').defaultWql).toBe(':effort')
@@ -90,11 +90,11 @@ describe('Legacy parameter migration across unified stream routes', () => {
   })
 
   it('migrates legacy bookmarks on /feeds into canonical WQL queries', () => {
-    // The renamed collections listing keeps the catalog-flavored legacy
-    // mapping (scope feeds → `:notebook` head).
+    // The feeds scope keeps its source-scoped legacy mapping (scope feeds →
+    // the `:feeds` head).
     const legacy = FEEDS_STREAM_PROFILE.legacy!
-    expect(legacy.toQuery(new URLSearchParams('text=fran'))).toBe(':notebook{text:fran} last 2w')
-    expect(legacy.toQuery(new URLSearchParams('timePreset=all'))).toBe(':notebook')
+    expect(legacy.toQuery(new URLSearchParams('text=fran'))).toBe(':feeds{text:fran} last 2w')
+    expect(legacy.toQuery(new URLSearchParams('timePreset=all'))).toBe(':feeds')
   })
 
   it('migrates legacy unscoped bookmarks on /feeds without source narrowing', () => {
@@ -112,7 +112,7 @@ describe('Legacy parameter migration across unified stream routes', () => {
   it('migrates legacy tri-state parameters on /feeds', () => {
     const legacy = FEEDS_STREAM_PROFILE.legacy!
     expect(legacy.toQuery(new URLSearchParams('note=on&session=hide&post=hide'))).toBe(':journal last 2w')
-    expect(legacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':notebook last 2w')
+    expect(legacy.toQuery(new URLSearchParams('note=hide&session=on&post=hide'))).toBe(':feeds last 2w')
     // post=on mapped to the now-excised feeds scope: unscoped, same window.
     const postOnly = parseQuery(legacy.toQuery(new URLSearchParams('note=hide&session=hide&post=on')) ?? '')
     expect(isFindQuery(postOnly)).toBe(true)

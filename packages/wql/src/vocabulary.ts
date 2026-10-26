@@ -124,17 +124,23 @@ export const WQL_SOURCE_HEADS = [
 ] as const;
 export type WqlSourceHead = (typeof WQL_SOURCE_HEADS)[number];
 
-/** Storage scope a source-scoped note head binds (undefined = plain target). */
+/** Storage scope a source-scoped note head binds (undefined = plain target).
+ *  `notebook`/`notebooks` are NOT here: they are plain note-head aliases
+ *  (ticket 05) — the notebook plane is every notebook (journal, playground,
+ *  defaults, user-created, feed-delivered), narrowed with the `notebook:`
+ *  filter key, not a feeds source scope. */
 export const WQL_SOURCE_HEAD_SCOPES: Readonly<Record<string, WqlSourceValue>> = {
   journal: 'journal',
-  notebook: 'feeds',
-  notebooks: 'feeds',
   feed: 'feeds',
   feeds: 'feeds',
   catalog: 'feeds',
   catalogs: 'feeds',
   playground: 'playground',
 };
+
+/** Note-head aliases — `:<head>` parses to target 'note' with NO injected
+ *  scope (the note plane is inclusive; authored filters narrow it). */
+export const WQL_NOTE_HEAD_ALIASES = ['notes', 'notebook', 'notebooks'] as const;
 
 /** Type-alias note heads — `:<head>` parses to target 'note' plus an injected
  *  `type:` filter (no storage scope, so the head never narrows by source).

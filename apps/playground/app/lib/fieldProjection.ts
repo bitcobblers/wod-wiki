@@ -29,10 +29,7 @@ export interface FieldDefinition {
 export function getEntityLevel(entry: Entry): EntityLevel {
   switch (entry.kind) {
     case 'note':
-    case 'post':
       return 'note'
-    case 'session':
-      return 'session'
     case 'result':
       return 'result'
     case 'segment':

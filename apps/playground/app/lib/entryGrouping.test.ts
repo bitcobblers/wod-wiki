@@ -126,7 +126,7 @@ describe('groupEntriesByDimension — date (playground createdAt fallback)', () 
 
   it('keeps undated collection sessions on the shelf while playgrounds date-group', () => {
     const groups = groupEntriesByDimension([
-      entry('c1', { kind: 'session', sourceCatalog: 'crossfit-girls', date: null }),
+      entry('c1', { kind: 'note', sourceCatalog: 'crossfit-girls', date: null }),
       entry('p1', { sourceCatalog: 'playground', createdAt: Date.UTC(2026, 9, 8) }),
     ], 'date', { shelfVisible: true })
 

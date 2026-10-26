@@ -4,9 +4,10 @@
  * these; the test seam is the URL the row would visit on click.
  *
  * URL shapes (target scheme — see docs/link-crosswalk.md):
- *   Open  Note         → /notes/:noteId (named pages → /p/:pageSlug)
- *   Open  Session      → /c/:cat/:page-slug
- *   Open  Post         → /feeds/:feedSlug/:date/:item (transitional)
+ *   Open  Note         → /notes/:noteId (named pages → /p/:pageSlug);
+ *                        notebook members keep their corpus routes —
+ *                        collection items → /c/:cat[/:item], feed posts →
+ *                        /feeds/:feedSlug/:date/:item (transitional)
  *   Open  Effort       → /e/:slug
  *   Open  Equipment    → /equipment/:slug
  *   Open  Result       → /results/:sessionId
@@ -55,16 +56,27 @@ export function entryOpenHref(entry: Entry): string {
         if (dash?.[1]) return `/d/${encodePath(dash[1])}`
         const effort = /^markdown\/efforts\/[^/]+\/(.+)\.md$/.exec(entry.sourcePath ?? '')
         if (effort?.[1]) return `/e/${encodePath(effort[1])}`
+        // Notebook members (ticket 05) — collection items and feed posts
+        // keep their corpus routes; identity comes from sourceId/sourcePath
+        // (noteType for legacy rows), never a UUID.
+        const sid = entry.sourceId ?? ''
+        const spath = entry.sourcePath ?? ''
+        if (sid.startsWith('page:collection:') || sid.startsWith('collection:')
+          || spath.startsWith('markdown/collections/')
+          || entry.noteType === 'feed' || entry.noteType === 'page') {
+          return !entry.sourceItem
+            ? `/c/${encodeURIComponent(entry.sourceCatalog)}`
+            : `/c/${encodeURIComponent(entry.sourceCatalog)}/${encodeURIComponent(entry.sourceItem)}`
+        }
+        if (sid.startsWith('feed:') || spath.startsWith('markdown/feeds/')) {
+          const date = entry.date ?? ''
+          return `/feeds/${encodeURIComponent(entry.sourceCatalog)}/${encodeURIComponent(date)}/${encodeURIComponent(entry.sourceItem)}`
+        }
         // Named pages open at their slug; everything else in the canonical
         // single-note editor.
         if (entry.pageSlug) return `/p/${encodePath(entry.pageSlug)}`
         return noteByIdPath(entry.id)
       }
-      case 'session':
-        if (!entry.sourceItem) {
-          return `/c/${encodeURIComponent(entry.sourceCatalog)}`
-        }
-        return `/c/${encodeURIComponent(entry.sourceCatalog)}/${encodeURIComponent(entry.sourceItem)}`
       case 'dashboard':
         // Corpus dashboards route by page slug (/d/<slug>); vault dashboards
         // with no corpus path fall back to the canonical note editor.
@@ -78,10 +90,6 @@ export function entryOpenHref(entry: Entry): string {
         const slug = raw.startsWith('equipment/') ? raw.slice('equipment/'.length) : raw
         const isNoteId = /^(?:uuid-|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)/i.test(slug)
         return slug && !isNoteId ? `/equipment/${encodePath(slug)}` : noteByIdPath(entry.id)
-      }
-      case 'post': {
-        const date = entry.date ?? ''
-        return `/feeds/${encodeURIComponent(entry.sourceCatalog)}/${encodeURIComponent(date)}/${encodeURIComponent(entry.sourceItem)}`
       }
       case 'effort':
         return `/e/${encodeURIComponent(entry.effort?.slug ?? entry.id)}`
@@ -107,9 +115,10 @@ export function entryIsPlayground(entry: Entry): boolean {
   return entry.sourceCatalog === 'playground' || entry.sourceId === 'playground'
 }
 
-/** Feed deep link for collection definition entries. */
+/** Feed deep link for collection definition entries — a note with no item
+ *  is a notebook landing (every kind fills sourceItem except landings). */
 export function entryCollectionFeedHref(entry: Entry): string | null {
-  if (entry.kind === 'session' && !entry.sourceItem) {
+  if (entry.kind === 'note' && !entry.sourceItem) {
     return `/feeds?q=${encodeURIComponent(`:notebook{notebook:${entry.sourceCatalog}}`)}`
   }
   return null
@@ -122,9 +131,10 @@ export function entryCompareHref(entry: Entry): string | null {
   return analyticsExplorerPath({ q: entry.blockContentId })
 }
 
-/** Add to today: Note + Post (per spec), and Result + Segment when associated with a noteId. */
+/** Add to today: any note (journal, collection item, feed post), and
+ *  Result + Segment when associated with a noteId. */
 export function entryCanAddToToday(entry: Entry): boolean {
-  if (entry.kind === 'note' || entry.kind === 'post') return true
+  if (entry.kind === 'note') return true
   if ((entry.kind === 'result' || entry.kind === 'segment') && !!entry.execution?.noteId) {
     return true
   }

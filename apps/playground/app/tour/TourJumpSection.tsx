@@ -11,9 +11,9 @@
  * live stats once imported; installed notebooks deep-link to their detail
  * surface.
  *
- * Controls: text search (label + description), kind facets (Feeds /
- * Collections), and three sort orders (Updated / Name / Size) — they filter
- * notebooks, and a feed with nothing left drops out. The Library exit stays
+ * Controls: text search (label + description) and three sort orders
+ * (Updated / Name / Size) — they filter notebooks, and a feed with nothing
+ * left drops out. The Library exit stays
  * disabled until at least one feed has been synced; re-sync and removal live
  * in Settings → Sync.
  */
@@ -45,13 +45,8 @@ import {
   filterFeeds,
   sortFeeds,
 } from '../views/notebook-gallery/notebookGalleryModel'
-import type { NotebookKind, NotebookSort } from '../views/notebook-gallery/notebookGalleryModel'
+import type { NotebookSort } from '../views/notebook-gallery/notebookGalleryModel'
 import { useMediaQuery } from '../hooks/useMediaQuery'
-
-const KIND_OPTIONS: { value: NotebookKind; label: string }[] = [
-  { value: 'feed', label: 'Feeds' },
-  { value: 'collection', label: 'Collections' },
-]
 
 const SORT_OPTIONS: { value: NotebookSort; label: string }[] = [
   { value: 'updated', label: 'Updated' },
@@ -96,7 +91,6 @@ function BoxFace(props: {
 export function TourJumpSection() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [kind, setKind] = useState<NotebookKind | undefined>()
   const [sort, setSort] = useState<NotebookSort>('updated')
   const [importingFeedId, setImportingFeedId] = useState<string | null>(null)
   const [statuses, setStatuses] = useState<Record<string, { text: string; tone: 'muted' | 'error' }>>({})
@@ -117,8 +111,8 @@ export function TourJumpSection() {
     [files, subTick],
   )
   const visible = useMemo(
-    () => sortFeeds(filterFeeds(catalog, { text: search, kind, feedId: selectedFeedId, subscribedOnly }), sort),
-    [catalog, search, kind, sort, selectedFeedId, subscribedOnly],
+    () => sortFeeds(filterFeeds(catalog, { text: search, feedId: selectedFeedId, subscribedOnly }), sort),
+    [catalog, search, sort, selectedFeedId, subscribedOnly],
   )
   // Two rows sliding opposite ways on desktop: split the catalog in half.
   const half = Math.ceil(visible.length / 2)
@@ -201,7 +195,7 @@ export function TourJumpSection() {
     navigate(noteByIdPath(note.id))
   }, [navigate])
 
-  const hasFilters = Boolean(search.trim()) || kind !== undefined
+  const hasFilters = Boolean(search.trim())
 
   return (
     <section
@@ -244,29 +238,6 @@ export function TourJumpSection() {
               </button>
             )}
           </label>
-
-          <div className="flex items-center gap-1.5" role="group" aria-label="Filter by kind">
-            {KIND_OPTIONS.map(option => {
-              const active = kind === option.value
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={active}
-                  data-testid={`package-kind-${option.value}`}
-                  onClick={() => setKind(active ? undefined : option.value)}
-                  className={cn(
-                    'inline-flex min-h-11 items-center justify-center rounded-full border px-4 text-[10px] font-black uppercase tracking-widest transition-colors',
-                    active
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-foreground/25 hover:text-foreground',
-                  )}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
 
           {/* Subscribed only toggle */}
           <label className="flex min-h-11 items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground px-2">
@@ -428,7 +399,7 @@ export function TourJumpSection() {
                 <button
                   type="button"
                   data-testid="jump-clear-filters"
-                  onClick={() => { setSearch(''); setKind(undefined); setSelectedFeedId(undefined); setSubscribedOnly(false) }}
+                  onClick={() => { setSearch(''); setSelectedFeedId(undefined); setSubscribedOnly(false) }}
                   className="mt-3 h-8 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
                 >
                   Clear filters

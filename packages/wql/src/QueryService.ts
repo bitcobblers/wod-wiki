@@ -116,6 +116,7 @@ import {
   type DefaultNotebookSlug,
   type FeedId,
   type NotebookId,
+  type NotebookOrigin,
 } from '@bitcobblers/wod-wiki-core';
 
 export {
@@ -126,6 +127,7 @@ export {
   type DefaultNotebookSlug,
   type FeedId,
   type NotebookId,
+  type NotebookOrigin,
 };
 
 /**
@@ -210,6 +212,28 @@ export function notebookOfItem(item: {
   return undefined;
 }
 
+/**
+ * Who owns the notebook a row resolves to — the editability key (ticket 05).
+ * Pure over the row's own fields, and exact for every reachable state:
+ *   - explicit `notebookId` / `notebook:` tag membership → `'user'` (moves
+ *     into feed-delivered notebooks are forbidden and the importer never
+ *     stamps either field, so this tier is always user-managed),
+ *   - corpus path, feed/corpus sourceId shapes, or a catalog → `'feed'`
+ *     (the delivering feed wrote these rows; guides included — the core
+ *     feed delivers the canvas),
+ *   - the playground and journal fallbacks → `'default'`.
+ * A user-owned copy (clone) keeps its provenance stamps but resolves through
+ * tier 1, so it is editable while its origin stays visible.
+ */
+export function notebookOriginOfItem(item: Parameters<typeof notebookOfItem>[0]): NotebookOrigin | undefined {
+  const notebook = notebookOfItem(item);
+  if (!notebook) return undefined;
+  if (item.notebookId?.trim()) return 'user';
+  if (item.tags?.some((t) => t.startsWith('notebook:') || t.startsWith('notebook/'))) return 'user';
+  if (notebook === 'notebook/journal' || notebook === 'notebook/playground') return 'default';
+  return 'feed';
+}
+
 /** The resolver's journal fallback tier — pure shape logic over the row's own
  *  fields (no prefix, no notebook ownership). {@link notebookOfItem} reaches
  *  `notebook/journal` only through this predicate, and
@@ -268,15 +292,11 @@ export const SOURCE_ID_SHAPES: Readonly<Record<string, {
   dashboards: { exact: ['dashboards'] },
 };
 
-/** Query-vocabulary aliases for the shape table kinds. `notebook`/`notebooks`
- *  deliberately ride the feeds shape — the authored storage scope for
- *  notebooks keeps its `collection:`/`page:collection:` identities. */
+/** Query-vocabulary aliases for the shape table kinds. */
 const SOURCE_SHAPE_ALIASES: Record<string, string> = {
   feed: 'feeds',
   page: 'pages',
   guide: 'guides',
-  notebook: 'feeds',
-  notebooks: 'feeds',
 };
 
 /** The storage-identity shape for a WQL source kind (aliases resolved), or
@@ -1413,9 +1433,8 @@ export class QueryService {
     }
     const isCatalogHead = parsed.target === 'note'
       && parsed.filters.some(f => f.key === 'type' && !f.negate && f.values.some(v => v.value === 'feed'))
-      && (parsed.filters.some(f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feed' || v.value === 'feeds' || v.value === 'notebook' || v.value === 'notebooks'))
-          || parsed.sourceScope?.includes('feeds')
-          || parsed.sourceScope?.includes('notebooks'));
+      && (parsed.filters.some(f => f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feed' || v.value === 'feeds'))
+          || parsed.sourceScope?.includes('feeds'));
     if (isCatalogHead) {
       return this.runFindCatalog(parsed, options, await this.noteStore.getAllNotes());
     }
@@ -2516,7 +2535,7 @@ export class QueryService {
     }
 
     const criteriaFilters = parsed.filters.filter(f =>
-      !(f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feeds' || v.value === 'feed' || v.value === 'notebooks' || v.value === 'notebook')) &&
+      !(f.key === 'source' && !f.negate && f.values.some(v => v.value === 'feeds' || v.value === 'feed')) &&
       !(f.key === 'type' && !f.negate && f.values.some(v => v.value === 'feed'))
     );
 

@@ -28,7 +28,7 @@ export interface BlockRevision {
 // ---------------------------------------------------------------------------
 // Note — root container
 // ---------------------------------------------------------------------------
-export type NoteKind = 'journal' | 'template' | 'playground' | 'feed' | 'dashboard' | 'page' | (string & {});
+export type NoteKind = 'journal' | 'playground' | 'feed' | 'dashboard' | 'page' | 'note' | (string & {});
 
 export interface Note {
   id: string; // UUID — canonical storage identity
@@ -87,7 +87,7 @@ export interface PageNote {
 // ---------------------------------------------------------------------------
 // Tag / NoteTag — normalized note tagging
 // ---------------------------------------------------------------------------
-export type TagType = 'template' | 'playground' | 'qualification' | 'notebook' | 'general' | (string & {});
+export type TagType = 'playground' | 'qualification' | 'notebook' | 'general' | (string & {});
 
 export interface TagTypeRecord {
   id: string;

@@ -29,7 +29,8 @@ import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/fe
 import { toast } from '@/hooks/use-toast'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
-import { notebookService, storageService } from '@/hooks/useBrowserServices'
+import { NotebookList } from '@/components/organisms/notebook/NotebookList'
+import { notebookService } from '@/hooks/useBrowserServices'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
@@ -327,8 +328,8 @@ export function QueriableStreamView({
   }, [isCatalogsRoute, setManageOpen, navigate])
   const [createNotebookOpen, setCreateNotebookOpen] = useState(false)
   const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
+    // The landing note (the notebook's stored definition) is part of create().
     const created = await notebookService.create(name, description, icon)
-    await storageService.saveNote(notebookService.createNotebookLandingNote(created))
     setSavedTick(t => t + 1)
     return created
   }, [])
@@ -510,6 +511,33 @@ export function QueriableStreamView({
   // (stale, flagged by the query error banner), and loading never wedges.
   // A committed result bumps savedTick so the mounted listing re-queries.
   const [savedTick, setSavedTick] = useState(0)
+
+  // Notebook-plane management (ticket 05): the /catalogs list plus the move
+  // targets the stream rows offer (user-owned notebooks only — feed
+  // notebooks are read-only).
+  const [moveNotebookTargets, setMoveNotebookTargets] = useState<Array<{ id: string; name: string; icon: string }>>([])
+  useEffect(() => {
+    let cancelled = false
+    void notebookService.getAllCatalogNotebooks().then((all) => {
+      if (cancelled) return
+      setMoveNotebookTargets(all
+        .filter(nb => nb.origin === 'user' || nb.origin === 'default')
+        .filter(nb => nb.slug !== 'guides' && nb.slug !== 'playground')
+        .map(nb => ({ id: nb.notebookId, name: nb.name, icon: nb.icon })))
+    }).catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [savedTick])
+  const handleMoveNotebook = useCallback(async (noteId: string | undefined, notebookId: string) => {
+    if (!noteId) return
+    try {
+      await notebookService.moveNote(noteId, notebookId)
+      setSavedTick(t => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    }
+  }, [])
   useEffect(() => onResultSaved(() => setSavedTick((t) => t + 1)), [])
   // A sync that commits records (inline notice run, Settings page, another
   // tab) changes the vault under the mounted query — re-run it so imported
@@ -1113,6 +1141,12 @@ export function QueriableStreamView({
         </div>
       )}
 
+      {/* Notebook plane: the management list on /catalogs — defaults, the
+          user's own, the feed libraries and the core references. */}
+      {isCatalogsRoute && (
+        <NotebookList refreshKey={savedTick} onChanged={() => setSavedTick(t => t + 1)} />
+      )}
+
       {/* Read-only view of the collection readme note. WQL embed links
           (`[heading](:query)!`) inject live query results in place; any
           embed suppresses the default stream below (the override). */}
@@ -1158,6 +1192,9 @@ export function QueriableStreamView({
             stickyOffset={stickyOffset}
             onRunEntry={handleRunEntry}
             onSendToPlayground={handleSendToPlayground}
+            onAddToToday={handleAddToToday}
+            moveNotebookTargets={moveNotebookTargets}
+            onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.noteId, notebookId)}
           />
         ) : loading && entries.length === 0 ? (
           <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
@@ -1206,6 +1243,8 @@ export function QueriableStreamView({
                               visibleFieldIds={settings.visibleFields}
                               onAddToToday={handleAddToToday}
                               onRunStart={handleRunEntry}
+                              moveNotebookTargets={moveNotebookTargets}
+                              onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.noteId, notebookId)}
                             />
                           ))}
                         </div>
@@ -1236,6 +1275,8 @@ export function QueriableStreamView({
                           tone={group.isToday ? 'primary' : 'secondary'}
                           onAddToToday={handleAddToToday}
                           onRunStart={handleRunEntry}
+                          moveNotebookTargets={moveNotebookTargets}
+                          onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.noteId, notebookId)}
                         />
                       ))}
                     </div>

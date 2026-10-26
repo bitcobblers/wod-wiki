@@ -27,8 +27,6 @@ const MAX_RESULTS = 20;
 export const PALETTE_SEED_QUERY = ':note{source:journal,feeds} by {date}';
 const KIND_CATEGORY: Record<EntryKind, string> = {
   note: 'Journal',
-  session: 'Feeds',
-  post: 'Feeds',
   effort: 'Efforts',
   result: 'Results',
   segment: 'Segments',
@@ -38,11 +36,13 @@ const KIND_CATEGORY: Record<EntryKind, string> = {
 };
 
 function toPaletteItem(entry: Entry): PaletteItem {
+  // Notebook members (collection items, feed posts) are notes too — the
+  // palette groups them under Notebooks, not the journal.
   return {
     id: `entry:${entry.id}`,
     label: entry.title,
     sublabel: entry.subtitle ?? entry.date ?? undefined,
-    category: KIND_CATEGORY[entry.kind],
+    category: entry.kind === 'note' && entry.sourceCatalog !== 'journal' ? 'Notebooks' : KIND_CATEGORY[entry.kind],
     type: 'entry',
     payload: entry,
   };

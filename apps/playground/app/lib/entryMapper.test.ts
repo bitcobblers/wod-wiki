@@ -125,14 +125,14 @@ describe('toEntry — kind discrimination', () => {
     expect(entry.kind).toBe<EntryKind>('note')
   })
 
-  it('classifies a collection note as Session', () => {
+  it('classifies a collection note as note (the notebook member kind)', () => {
     const entry = toEntry(makeNote({ id: 'crossfit-girls/fran', sourceId: 'collection:crossfit-girls/fran' }))
-    expect(entry.kind).toBe('session')
+    expect(entry.kind).toBe('note')
   })
 
-  it('classifies a feed note as Post', () => {
+  it('classifies a feed note as note (the notebook member kind)', () => {
     const entry = toEntry(makeNote({ id: 'feeds/crossfit-programming/2026-01-12/monday', sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday' }))
-    expect(entry.kind).toBe('post')
+    expect(entry.kind).toBe('note')
   })
 })
 
@@ -205,13 +205,13 @@ describe('toEntry — source fields', () => {
     expect(entry.sourceItem).toBe('journal-2026-07-15')
   })
 
-  it('sets sourceCatalog to the first path segment for Session', () => {
+  it('sets sourceCatalog to the first path segment for a collection item', () => {
     const entry = toEntry(makeNote({ id: 'crossfit-girls/fran', sourceId: 'collection:crossfit-girls/fran' }))
     expect(entry.sourceCatalog).toBe('crossfit-girls')
     expect(entry.sourceItem).toBe('fran')
   })
 
-  it('sets sourceCatalog to the second path segment (after feeds/) for Post', () => {
+  it('sets sourceCatalog to the second path segment (after feeds/) for a feed post', () => {
     const entry = toEntry(makeNote({ id: 'feeds/crossfit-programming/2026-01-12/monday', sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday' }))
     expect(entry.sourceCatalog).toBe('crossfit-programming')
     expect(entry.sourceItem).toBe('monday')
@@ -219,12 +219,12 @@ describe('toEntry — source fields', () => {
 })
 
 describe('toEntry — date resolution', () => {
-  it('returns null for Session (undated by design)', () => {
+  it('returns null for undated collection items (no journal date)', () => {
     const entry = toEntry(makeNote({ id: 'crossfit-girls/fran', sourceId: 'collection:crossfit-girls/fran' }))
     expect(entry.date).toBeNull()
   })
 
-  it('extracts YYYY-MM-DD from the second path segment for Post', () => {
+  it('extracts YYYY-MM-DD from the second path segment for a feed post', () => {
     const entry = toEntry(makeNote({ id: 'feeds/crossfit-programming/2026-01-12/monday', sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday' }))
     expect(entry.date).toBe('2026-01-12')
   })
@@ -243,7 +243,7 @@ describe('toEntry — collection route derivation (sourceId/sourcePath, never UU
 
   it('derives catalog/item from a collection: sourceId on a UUID-keyed note', () => {
     const entry = toEntry(makeNote({ id: UUID, sourceId: 'collection:crossfit-girls/fran' }))
-    expect(entry.kind).toBe<EntryKind>('session')
+    expect(entry.kind).toBe<EntryKind>('note')
     expect(entry.sourceCatalog).toBe('crossfit-girls')
     expect(entry.sourceItem).toBe('fran')
     expect(entry.id).toBe(UUID)
@@ -264,7 +264,7 @@ describe('toEntry — collection route derivation (sourceId/sourcePath, never UU
       sourcePath: 'markdown/collections/girls/fran.md',
       catalog: 'girls',
     }))
-    expect(entry.kind).toBe<EntryKind>('session')
+    expect(entry.kind).toBe<EntryKind>('note')
     expect(entry.sourceCatalog).toBe('girls')
     expect(entry.sourceItem).toBe('fran')
     expect(entry.subtitle).toBe('girls')
@@ -303,7 +303,7 @@ describe('toEntry — feed route derivation (sourceId/sourcePath, never UUID)', 
 
   it('derives catalog/date/item from the feed: sourceId route on a UUID-keyed note', () => {
     const entry = toEntry(makeNote({ id: UUID, sourceId: 'feed:feeds/crossfit-programming/2026-01-12/monday' }))
-    expect(entry.kind).toBe<EntryKind>('post')
+    expect(entry.kind).toBe<EntryKind>('note')
     expect(entry.sourceCatalog).toBe('crossfit-programming')
     expect(entry.date).toBe('2026-01-12')
     expect(entry.sourceItem).toBe('monday')
@@ -316,7 +316,7 @@ describe('toEntry — feed route derivation (sourceId/sourcePath, never UUID)', 
       sourceId: undefined,
       sourcePath: 'markdown/feeds/crossfit-programming/2026-01-12/monday.md',
     }))
-    expect(entry.kind).toBe<EntryKind>('post')
+    expect(entry.kind).toBe<EntryKind>('note')
     expect(entry.sourceCatalog).toBe('crossfit-programming')
     expect(entry.date).toBe('2026-01-12')
     expect(entry.sourceItem).toBe('monday')
@@ -363,7 +363,7 @@ describe('blockToEntry (#855)', () => {
   it('keeps the parent note identity and carries the block payload', () => {
     const entry = blockToEntry(makeBlock())
     expect(entry.id).toBe('feeds/crossfit-programming/2026-01-12/wednesday-hero')
-    expect(entry.kind).toBe<EntryKind>('post')
+    expect(entry.kind).toBe<EntryKind>('note')
     expect(entry.date).toBe('2026-01-12')
     expect(entry.title).toBe('Wednesday Hero')
     expect(entry.block).toEqual({
@@ -374,12 +374,12 @@ describe('blockToEntry (#855)', () => {
     expect(entry.blockContentId).toBe('bc-murph')
   })
 
-  it('classifies collection blocks as Session', () => {
+  it('classifies collection blocks as notebook-member notes', () => {
     const entry = blockToEntry(makeBlock({
       noteId: 'crossfit-girls/fran',
       sourceId: 'collection:crossfit-girls/fran',
     }))
-    expect(entry.kind).toBe<EntryKind>('session')
+    expect(entry.kind).toBe<EntryKind>('note')
     expect(entry.date).toBeNull()
   })
 
@@ -394,7 +394,7 @@ describe('blockToEntry (#855)', () => {
       sourceId: undefined,
       sourcePath: 'markdown/collections/girls/fran.md',
     }))
-    expect(entry.kind).toBe<EntryKind>('session')
+    expect(entry.kind).toBe<EntryKind>('note')
     expect(entry.sourceCatalog).toBe('girls')
     expect(entry.sourceItem).toBe('fran')
   })
@@ -684,7 +684,7 @@ describe('toEntry — notebook/{slug} identity and application-level editability
       },
       {
         note: { id: 'post-1', sourceId: 'feed:feeds/community/2026-01-02/post', sourcePath: 'markdown/feeds/community/2026-01-02/post.md', seedOrigin: 'seed' },
-        kind: 'post',
+        kind: 'note',
         notebookId: 'notebook/community',
       },
       {

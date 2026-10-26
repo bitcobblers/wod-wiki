@@ -190,7 +190,7 @@ describe('WorkoutActionButton', () => {
           return [
             { type: 'workout', targetDate: '2024-01-10T00:00:00Z' },
             { type: 'workout', targetDate: '2024-01-15T00:00:00Z' },
-            { type: 'template', targetDate: '2024-01-20T00:00:00Z' },
+            { type: 'note', notebookId: 'notebook/defaults', targetDate: '2024-01-20T00:00:00Z' },
           ];
         },
       } as unknown as IContentProvider;

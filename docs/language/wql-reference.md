@@ -13,8 +13,9 @@ WQL queries discover notes, sessions, and emitted workout statements, then reduc
 | Head | Selected records |
 |---|---|
 | `:journal{}` | Journal notebook notes (`notebook/journal`) |
-| `:notebook{}` / `:notebooks{}` | Notebooks (seed-delivered and user-created) |
-| `:feeds{}` | Notebook workout notes |
+| `:notebook{}` / `:notebooks{}` | The notebook plane — notes from every notebook (journal, playground, `defaults`, user-created, feed-delivered); narrow with `notebook:<slug>` |
+| `:catalog{}` / `:catalogs{}` | The feed catalog listing — one row per feed-delivered notebook |
+| `:feeds{}` | Notebook workout notes (feed-delivered notebooks) |
 | `:playground{}` | Playground notebook notes (`notebook/playground`) |
 | `:note{}` / `:notes{}` | Whole Notes across all notebooks |
 | `:effort{}` | Movement registry entries |
@@ -24,7 +25,7 @@ WQL queries discover notes, sessions, and emitted workout statements, then reduc
 
 `:segment` and `:event` read the same `EventRecord` store. Debug queries include system, compiler, load, completion, and other emitted statement types, including statements without numeric metrics. Finalized summary records are not emitted debug statements.
 
-The scoped note heads restrict the storage source or notebook. `:note{notebook:guides}` (or `:note{source:guides}`) selects guides (`notebook/guides`); `:note{notebook:crossfit-girls}` selects notes in `notebook/crossfit-girls`. `source:` accepts `journal`, `notebooks` (`feeds`), `guides`, `playground`, `dashboards`, `efforts`, and `equipment`, plus explicit storage identities such as `notebook/<slug>`, `collection:crossfit-girls`, and `feed:<id>`.
+The scoped note heads restrict the storage source or notebook. `:note{notebook:guides}` (or `:note{source:guides}`) selects guides (`notebook/guides`); `:note{notebook:crossfit-girls}` selects notes in `notebook/crossfit-girls`; `:notebook{notebook:journal}` narrows the notebook plane to the journal. `source:` accepts `journal`, `feeds`, `guides`, `playground`, `dashboards`, `efforts`, and `equipment`, plus explicit storage identities such as `notebook/<slug>`, `collection:crossfit-girls`, and `feed:<id>` (`source:notebook(s)` is retired — the notebook plane is reached through the `:notebook` head and the `notebook:` filter key).
 
 ```wql
 :note{tags:benchmark}

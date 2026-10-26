@@ -97,7 +97,6 @@ export const EFFORTS_CHUNK_ID = 'efforts';
 export const EQUIPMENT_CHUNK_ID = 'equipment';
 export const CANVAS_CHUNK_ID = 'canvas';
 export const DASHBOARDS_CHUNK_ID = 'dashboards';
-export const TEMPLATE_CHUNK_ID = 'template';
 export function seedMetaKey(sourceId: string): string { return `seed:${sourceId}`; }
 /**
  * The feed identifier a checkpoint key names — the key's source id. The
@@ -128,7 +127,6 @@ export function seedNoteSourceId(path: string, content: string, chunkId: string)
   if (chunkId === DASHBOARDS_CHUNK_ID) return 'dashboards';
   if (chunkId === EFFORTS_CHUNK_ID) return 'efforts';
   if (chunkId === EQUIPMENT_CHUNK_ID) return 'equipment';
-  if (chunkId === TEMPLATE_CHUNK_ID) return 'playground';
   if (chunkId.startsWith('collection.')) {
     const catalog = catalogForChunkId(chunkId);
     return !catalog ? 'collection:_root' : stem.toLowerCase() === 'readme' ? `collection:${catalog}` : `collection:${catalog}/${stem}`;

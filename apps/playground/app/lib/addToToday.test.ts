@@ -12,7 +12,7 @@ import type { Entry } from './entryMapper'
 function makeEntry(overrides: Partial<Entry> = {}): Entry {
   return {
     id: 'crossfit-girls/fran',
-    kind: 'session',
+    kind: 'note',
     sourceCatalog: 'crossfit-girls',
     sourceItem: 'fran',
     title: 'Fran',
@@ -42,7 +42,7 @@ describe('addEntryToTodayInput', () => {
   it('maps a Post to a journal note input (today), preserving the sourceId', () => {
     const input = addEntryToTodayInput(makeEntry({
       id: 'feeds/crossfit-programming/2026-01-12/monday',
-      kind: 'post',
+      kind: 'note',
       sourceCatalog: 'crossfit-programming',
       sourceItem: 'monday',
       title: 'Monday',
@@ -60,7 +60,7 @@ describe('addEntryToTodayInput', () => {
   it('maps a Session to a journal note input (today), preserving the sourceId', () => {
     const input = addEntryToTodayInput(makeEntry({
       id: 'crossfit-girls/fran',
-      kind: 'session',
+      kind: 'note',
       sourceCatalog: 'crossfit-girls',
       sourceItem: 'fran',
       sourceId: 'collection:crossfit-girls/fran',

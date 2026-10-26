@@ -15,6 +15,8 @@ import '@fontsource/jetbrains-mono/latin-500.css';
 import '../src/index.css';
 import { remotePrefsMode, hydrateMetaPrefs } from '@/services/storage/metaStore';
 import { whenStorageReady, startBackgroundStorageSync } from '@/services/storage';
+import { notebookService } from '@/services/NotebookService';
+import { appWarn } from '@/lib/log';
 import { getStorageUpdate, subscribeStorageUpdate } from '@/services/storage/storageUpdate';
 
 const root = createRoot(document.getElementById('root')!);
@@ -31,6 +33,9 @@ function BootGate() {
     let cleanupSync: (() => void) | undefined;
     whenStorageReady()
       .then(() => (remotePrefsMode ? hydrateMetaPrefs() : undefined))
+      // Notebook plane setup is optional at boot — a failure here must not
+      // block the app; surfaces retry on next boot.
+      .then(() => notebookService.ensureNotebooks().catch((err: unknown) => appWarn('NotebookService', 'ensureNotebooks failed', err)))
       .then(() => {
         if (!cancelled) {
           cleanupSync = startBackgroundStorageSync();

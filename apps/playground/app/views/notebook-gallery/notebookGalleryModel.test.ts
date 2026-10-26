@@ -57,9 +57,9 @@ function feedFiles(root: string, slug: string): Record<string, string> {
 }
 
 describe('parseNotebookChunkId', () => {
-  it('parses feed and collection chunk ids', () => {
-    expect(parseNotebookChunkId('feed.crossfit-programming')).toEqual({ kind: 'feed', slug: 'crossfit-programming' });
-    expect(parseNotebookChunkId('collection.crossfit-girls')).toEqual({ kind: 'collection', slug: 'crossfit-girls' });
+  it('parses feed and collection chunk ids to their notebook slug', () => {
+    expect(parseNotebookChunkId('feed.crossfit-programming')).toEqual({ slug: 'crossfit-programming' });
+    expect(parseNotebookChunkId('collection.crossfit-girls')).toEqual({ slug: 'crossfit-girls' });
   });
 
   it('rejects non-notebook chunk ids', () => {
@@ -71,7 +71,13 @@ describe('parseNotebookChunkId', () => {
 describe('buildNotebookCatalog', () => {
   it('lists registry packages even without local corpus, marked not installed', () => {
     const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
-    expect(catalog).toHaveLength(2); // both crossfit notebooks
+    // both crossfit notebooks plus the three app-owned core notebooks
+    expect(catalog).toHaveLength(5);
+    expect(catalog.slice(-3).map(n => n.slug)).toEqual(['efforts', 'equipment', 'dashboards']);
+    expect(catalog[2]!.installed).toBe(false);
+    expect(catalog[2]!.itemCount).toBe(0);
+    expect(catalog[2]!.sourceLabel).toBe('Core');
+    expect(catalog[2]!.href).toBe('/efforts');
     const feed = catalog.find(n => n.slug === 'crossfit-programming')!;
     expect(feed.installed).toBe(false);
     expect(feed.itemCount).toBe(0);
@@ -114,35 +120,29 @@ describe('groupNotebooksByFeed', () => {
   it('groups notebooks under the feed that publishes them, registry order', () => {
     const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
     const groups = groupNotebooksByFeed(catalog, FEED_SOURCES);
-    expect(groups.map(group => group.feed?.id)).toEqual(['seed-crossfit']);
+    expect(groups.map(group => group.feed?.id)).toEqual(['seed-crossfit', undefined]);
     expect(groups[0]!.label).toBe('CrossFit');
     expect(groups[0]!.repositoryUrl).toContain('wod-wiki-seed-crossfit');
     expect(groups[0]!.notebooks.map(n => n.packageId))
       .toEqual(['community-crossfit-programming', 'community-crossfit-girls']);
+    // The app-owned core notebooks ride the Local group here — no passed
+    // feed claims them (the core feed is not a library entry).
+    expect(groups[1]!.notebooks.map(n => n.slug)).toEqual(['efforts', 'equipment', 'dashboards']);
     // The card's source line names the seed, not a package source.
     expect(catalog[0]!.sourceLabel).toBe('CrossFit');
   });
 
-  it('drops seeds with nothing left after filtering, and keeps local content last', () => {
-    const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
-    const feedsOnly = groupNotebooksByFeed(filterNotebooks(catalog, { kind: 'feed' }), FEED_SOURCES);
-    expect(feedsOnly[0]!.notebooks.map(n => n.packageId)).toEqual(['community-crossfit-programming']);
-
+  it('keeps local content and the core notebooks in the trailing Local group', () => {
     const withLocal = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'my-garage-gym'));
     const groups = groupNotebooksByFeed(withLocal, FEED_SOURCES);
     expect(groups.at(-1)!.label).toBe('Local');
     expect(groups.at(-1)!.feed).toBeUndefined();
-    expect(groups.at(-1)!.notebooks.map(n => n.slug)).toEqual(['my-garage-gym']);
+    expect(groups.at(-1)!.notebooks.map(n => n.slug)).toEqual(['my-garage-gym', 'efforts', 'equipment', 'dashboards']);
   });
 });
 
 describe('filterNotebooks', () => {
   const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, null);
-
-  it('filters by kind', () => {
-    expect(filterNotebooks(catalog, { kind: 'feed' }).every(n => n.kind === 'feed')).toBe(true);
-    expect(filterNotebooks(catalog, { kind: 'collection' })).toHaveLength(1);
-  });
 
   it('matches text over label and description, case-insensitively', () => {
     expect(filterNotebooks(catalog, { text: 'crossfit' })).toHaveLength(2);
@@ -161,7 +161,7 @@ describe('sortNotebooks', () => {
 
   it('name sorts alphabetically and size sorts by item count', () => {
     const catalog = buildNotebookCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'crossfit-programming'));
-    expect(sortNotebooks(catalog, 'name').map(n => n.label)).toEqual(['CrossFit Girls', 'CrossFit Programming']);
+    expect(sortNotebooks(catalog, 'name').slice(0, 2).map(n => n.label)).toEqual(['CrossFit Girls', 'CrossFit Programming']);
     expect(sortNotebooks(catalog, 'size')[0]!.slug).toBe('crossfit-programming');
   });
 });
@@ -192,7 +192,7 @@ describe('buildFeedCatalog', () => {
     const local = catalog.at(-1)!;
     expect(local.feedId).toBeUndefined();
     expect(local.label).toBe('Local');
-    expect(local.notebooks.map(notebook => notebook.slug)).toEqual(['my-garage-gym']);
+    expect(local.notebooks.map(notebook => notebook.slug)).toEqual(['my-garage-gym', 'efforts', 'equipment', 'dashboards']);
   });
 });
 
@@ -203,8 +203,6 @@ describe('filterFeeds / sortFeeds', () => {
     expect(filterFeeds(catalog, { text: 'crossfit' })).toHaveLength(1);
     expect(filterFeeds(catalog, { text: 'BENCHMARK' })).toHaveLength(1);
     expect(filterFeeds(catalog, { text: 'zzz-nothing' })).toHaveLength(0);
-    expect(filterFeeds(catalog, { kind: 'collection' })).toHaveLength(1);
-    expect(filterFeeds(catalog, { kind: 'feed' })).toHaveLength(1);
   });
 
   it('filters feeds by feedId and subscribedOnly', () => {
@@ -212,17 +210,19 @@ describe('filterFeeds / sortFeeds', () => {
     const subCatalog = buildFeedCatalog(NOTEBOOK_FIXTURES, null, FEED_SOURCES, isSubscribed);
     expect(filterFeeds(subCatalog, { feedId: 'seed-crossfit' })).toHaveLength(1);
     expect(filterFeeds(subCatalog, { feedId: 'other-seed' })).toHaveLength(0);
-    expect(filterFeeds(subCatalog, { subscribedOnly: true })).toHaveLength(1);
+    // The Local card (core notebooks delivered with the app) is always subscribed.
+    expect(filterFeeds(subCatalog, { subscribedOnly: true })).toHaveLength(2);
 
     const noneSubscribed = buildFeedCatalog(NOTEBOOK_FIXTURES, null, FEED_SOURCES, () => false);
-    expect(filterFeeds(noneSubscribed, { subscribedOnly: true })).toHaveLength(0);
-    expect(filterFeeds(noneSubscribed, { subscribedOnly: false })).toHaveLength(1);
+    expect(filterFeeds(noneSubscribed, { subscribedOnly: true })).toHaveLength(1);
+    expect(filterFeeds(noneSubscribed, { subscribedOnly: false })).toHaveLength(2);
   });
 
   it('sorts by name and by local size', () => {
     const withLocal = buildFeedCatalog(NOTEBOOK_FIXTURES, feedFiles('feeds', 'my-garage-gym'), FEED_SOURCES);
     expect(sortFeeds(withLocal, 'name').map(seed => seed.label)).toEqual(['CrossFit', 'Local']);
-    // Only the local feed has rows here, so it leads on size.
+    // The local group out-counts the registry card here (its rows + the
+    // core notebooks), so it leads on size.
     expect(sortFeeds(withLocal, 'size').map(seed => seed.label)).toEqual(['Local', 'CrossFit']);
   });
 });

@@ -99,7 +99,6 @@ describe('generateSeed', () => {
     try {
       const { manifest, outDir } = generateSeed({
         markdownDir: join(tmp, 'markdown'),
-        templateFile: join(tmp, 'template.md'),
         outDir: join(tmp, 'out'),
         corpusRoot: tmp,
         version: 12345,
@@ -107,8 +106,10 @@ describe('generateSeed', () => {
 
       expect(manifest.schema).toBe(SEED_SCHEMA);
       expect(manifest.version).toBe(12345);
+      // No template chunk — starter notes live in the app's
+      // notebook/defaults (ticket 05), not in the seed.
       expect(manifest.chunks.map((c) => c.id)).toEqual([
-        'canvas', 'collection.cat1', 'feed.f', 'template',
+        'canvas', 'collection.cat1', 'feed.f',
       ]);
 
       for (const c of manifest.chunks) {
@@ -163,7 +164,6 @@ describe('generateSeed', () => {
     try {
       const opts = {
         markdownDir: join(tmp, 'markdown'),
-        templateFile: join(tmp, 'template.md'),
         outDir: join(tmp, 'out'),
         corpusRoot: tmp,
       };
@@ -580,7 +580,6 @@ function makeTmpCorpus(): string {
   writeFileSync(join(tmp, 'markdown/canvas/sub/b.md'), '# B');
   writeFileSync(join(tmp, 'markdown/collections/cat1/c.md'), '# C');
   writeFileSync(join(tmp, 'markdown/feeds/f/d.md'), '# D');
-  writeFileSync(join(tmp, 'template.md'), 'new page: {{title}}');
   return tmp;
 }
 

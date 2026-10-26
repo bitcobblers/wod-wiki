@@ -9,9 +9,12 @@ import { parseNotebookChunkId } from '../views/notebook-gallery/notebookGalleryM
 const CARDS = NOTEBOOKS.filter(notebook => parseNotebookChunkId(notebook.chunkId) !== null)
 /** Seeds that publish at least one card notebook. */
 const SEEDS = FEED_SOURCES.filter(seed => CARDS.some(notebook => notebook.feedId === seed.id))
-/** Default card order: nothing imported → labels alphabetically. */
+/** Default card order: nothing imported → labels alphabetically. The
+ *  trailing Local card carries the app-owned core notebooks (ticket 05). */
 const feedCardIds = (seeds = SEEDS) =>
-  [...seeds].sort((a, b) => a.label.localeCompare(b.label)).map(seed => `feed-card-${seed.id}`)
+  [...seeds.map(seed => ({ id: seed.id, label: seed.label })), { id: 'local', label: 'Local' }]
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .map(card => `feed-card-${card.id}`)
 
 // jsdom has neither ResizeObserver nor layout; the marquee falls back to
 // one set per half (two copies) and tests scope queries to the first copy.
@@ -179,44 +182,40 @@ describe('TourJumpSection', () => {
   it('filters feeds via search box (label, description, and their notebooks)', () => {
     renderSection()
     const searchInput = screen.getByTestId('package-search-input')
+    // Cards render in both marquee copies — presence, not uniqueness.
+    const cardPresent = (testId: string) => screen.queryAllByTestId(testId).length > 0
 
     // A notebook label matches through its seed card.
     fireEvent.change(searchInput, { target: { value: 'Dan John' } })
-    expect(screen.getByTestId('feed-card-seed-kettlebell')).toBeTruthy()
-    expect(screen.queryByTestId('feed-card-seed-crossfit')).toBeNull()
+    expect(cardPresent('feed-card-seed-kettlebell')).toBe(true)
+    expect(cardPresent('feed-card-seed-crossfit')).toBe(false)
 
     // A notebook description matches too (Murph lives in CrossFit Heroes).
     fireEvent.change(searchInput, { target: { value: 'murph' } })
-    expect(screen.getByTestId('feed-card-seed-crossfit')).toBeTruthy()
-    expect(screen.queryByTestId('feed-card-seed-swimming')).toBeNull()
+    expect(cardPresent('feed-card-seed-crossfit')).toBe(true)
+    expect(cardPresent('feed-card-seed-swimming')).toBe(false)
 
     // Feed copy matches directly.
     fireEvent.change(searchInput, { target: { value: 'parkour archive' } })
-    expect(screen.getByTestId('feed-card-seed-zombie-fit')).toBeTruthy()
+    expect(cardPresent('feed-card-seed-zombie-fit')).toBe(true)
 
     // No matches → empty state with a clear-filters escape hatch
     fireEvent.change(searchInput, { target: { value: 'nonexistent-query-xyz' } })
     expect(screen.getByText(/No feeds match/i)).toBeTruthy()
     fireEvent.click(screen.getByTestId('jump-clear-filters'))
-    expect(screen.getByTestId('feed-card-seed-crossfit')).toBeTruthy()
+    expect(cardPresent('feed-card-seed-crossfit')).toBe(true)
   })
 
-  it('kind facets keep the feeds that publish a notebook of that kind', () => {
+  it('lists the app-owned core notebooks on the Local card', () => {
     renderSection()
 
-    fireEvent.click(screen.getByTestId('package-kind-feed'))
-    // Swimming publishes only collections → dropped; kettlebell keeps its feed.
-    expect(screen.queryByTestId('feed-card-seed-swimming')).toBeNull()
-    expect(screen.getByTestId('feed-card-seed-kettlebell')).toBeTruthy()
-
-    fireEvent.click(screen.getByTestId('package-kind-collection'))
-    expect(screen.getByTestId('feed-card-seed-swimming')).toBeTruthy()
-    // r/WorkoutRoutines publishes only a feed → dropped by the collection facet.
-    expect(screen.queryByTestId('feed-card-r-workoutroutines')).toBeNull()
-
-    // Toggle the collection chip off → every seed back
-    fireEvent.click(screen.getByTestId('package-kind-collection'))
-    expect(screen.getByTestId('feed-card-r-workoutroutines')).toBeTruthy()
+    // Cards render in both marquee copies — inspect the first.
+    const local = screen.getAllByTestId('feed-card-local')[0]!
+    expect(within(local).getByTestId('feed-card-local-notebooks').textContent)
+      .toContain('Efforts')
+    expect(within(local).getByTestId('feed-card-local-notebook-core-efforts')).toBeTruthy()
+    expect(within(local).getByTestId('feed-card-local-notebook-core-equipment')).toBeTruthy()
+    expect(within(local).getByTestId('feed-card-local-notebook-core-dashboards')).toBeTruthy()
   })
 
   it('name sort reorders the cards inside both rows', () => {
@@ -298,14 +297,16 @@ describe('TourJumpSection', () => {
     fireEvent.change(seedSelect, { target: { value: '' } })
     expect(screen.getByTestId('feed-card-seed-swimming')).toBeTruthy()
 
-    // Enable subscribed only when nothing is subscribed -> no feeds match
+    // Enable subscribed only when nothing is subscribed -> only the Local
+    // card (the app-owned core notebooks are always delivered) remains.
     const subCheckbox = screen.getByTestId('filter-subscribed-only')
     fireEvent.click(subCheckbox)
-    expect(screen.getByText(/No feeds match/i)).toBeTruthy()
+    expect(screen.queryAllByTestId('feed-card-local').length).toBeGreaterThan(0)
+    expect(screen.queryAllByTestId('feed-card-seed-crossfit')).toHaveLength(0)
 
     // Uncheck subscribed only -> all feeds visible again
     fireEvent.click(subCheckbox)
-    expect(screen.getByTestId('feed-card-seed-crossfit')).toBeTruthy()
+    expect(screen.queryAllByTestId('feed-card-seed-crossfit').length).toBeGreaterThan(0)
   })
 
   it('toggles individual notebook subscription and updates chip state', () => {

@@ -19,8 +19,6 @@ import { feedSourceById, type NotebookDef, type FeedSource } from '@/services/fe
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type NotebookKind = 'feed' | 'collection';
-
 export interface NotebookSummary {
   /** Registry notebook id (e.g. `community-crossfit-programming`). */
   packageId: string;
@@ -28,7 +26,6 @@ export interface NotebookSummary {
   feedId?: string;
   /** Corpus directory slug (e.g. `crossfit-programming`). */
   slug: string;
-  kind: NotebookKind;
   label: string;
   /** Review description — registry copy wins, README-derived fallback. */
   description?: string;
@@ -60,8 +57,6 @@ export type NotebookSort = 'updated' | 'name' | 'size';
 export interface NotebookFilter {
   /** Case-insensitive substring over label + description. */
   text?: string;
-  /** Restrict to one kind; undefined = all. */
-  kind?: NotebookKind;
   /** Filter by specific feed id; undefined = all feeds. */
   feedId?: string;
   /** Filter by subscribed state: true = subscribed only; false = all. */
@@ -73,34 +68,32 @@ export interface NotebookFilter {
 /**
  * A notebook package's chunk id encodes its corpus root:
  * `feed.<slug>` → markdown/feeds/<slug>, `collection.<slug>` →
- * markdown/collections/<slug>. Anything else (e.g. `dashboards`) is not a
- * notebook and never appears in the gallery.
+ * markdown/collections/<slug>. Anything else is not a feed corpus notebook.
  */
-export function parseNotebookChunkId(chunkId: string): { kind: NotebookKind; slug: string } | null {
+export function parseNotebookChunkId(chunkId: string): { slug: string } | null {
   const feed = chunkId.match(/^feed\.(.+)$/);
-  if (feed) return { kind: 'feed', slug: feed[1] };
+  if (feed) return { slug: feed[1] };
   const collection = chunkId.match(/^collection\.(.+)$/);
-  if (collection) return { kind: 'collection', slug: collection[1] };
+  if (collection) return { slug: collection[1] };
   return null;
 }
 
 // ── Catalog builder ────────────────────────────────────────────────────────
 
-function summarizeGrouping(kind: NotebookKind, grouping: Grouping): NotebookSummary {
+function summarizeGrouping(root: 'feed' | 'collection', grouping: Grouping): NotebookSummary {
   const dates = grouping.items
     .map(item => item.date)
     .filter((date): date is string => !!date)
     .sort();
   return {
-    packageId: `local-${kind}-${grouping.id}`,
+    packageId: `local-${root}-${grouping.id}`,
     slug: grouping.id,
-    kind,
     label: grouping.name,
     description: grouping.description,
     image: grouping.image,
     categories: grouping.categories,
     sourceLabel: 'Local',
-    href: kind === 'feed' ? `/feeds/${encodeURIComponent(grouping.id)}` : `/collections/${encodeURIComponent(grouping.id)}`,
+    href: root === 'feed' ? `/feeds/${encodeURIComponent(grouping.id)}` : `/collections/${encodeURIComponent(grouping.id)}`,
     itemCount: grouping.items.length,
     ...(dates.length > 0
       ? { latestDate: dates[dates.length - 1], firstDate: dates[0] }
@@ -121,10 +114,10 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
   const local: NotebookSummary[] = [];
   const bySlugKind = new Map<string, Grouping>();
   if (files) {
-    for (const kind of ['feed', 'collection'] as const) {
-      for (const grouping of buildGroupings(kind === 'feed' ? 'feeds' : 'collections', files)) {
-        bySlugKind.set(`${kind}:${grouping.id}`, grouping);
-        local.push(summarizeGrouping(kind, grouping));
+    for (const root of ['feed', 'collection'] as const) {
+      for (const grouping of buildGroupings(root === 'feed' ? 'feeds' : 'collections', files)) {
+        bySlugKind.set(`${root}:${grouping.id}`, grouping);
+        local.push(summarizeGrouping(root, grouping));
       }
     }
   }
@@ -133,7 +126,8 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
     .map((notebook): NotebookSummary | null => {
       const parsed = parseNotebookChunkId(notebook.chunkId);
       if (!parsed) return null;
-      const grouping = bySlugKind.get(`${parsed.kind}:${parsed.slug}`);
+      const root = notebook.chunkId.startsWith('feed.') ? 'feed' : 'collection';
+      const grouping = bySlugKind.get(`${root}:${parsed.slug}`);
       const feed = feedSourceById(notebook.feedId);
       const dates = (grouping?.items ?? [])
         .map(item => item.date)
@@ -144,7 +138,6 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
         feedId: notebook.feedId,
         chunkId: notebook.chunkId,
         slug: parsed.slug,
-        kind: parsed.kind,
         label: notebook.label,
         // Registry copy wins for the review blurb; README paragraph as fallback.
         description: notebook.description || grouping?.description,
@@ -153,7 +146,7 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
         sourceLabel: feed?.label ?? notebook.feedId,
         ...(feed?.repositoryUrl ? { repositoryUrl: feed.repositoryUrl } : {}),
         href:
-          parsed.kind === 'feed'
+          notebook.chunkId.startsWith('feed.')
             ? `/feeds/${encodeURIComponent(parsed.slug)}`
             : `/collections/${encodeURIComponent(parsed.slug)}`,
         itemCount: grouping?.items.length ?? 0,
@@ -167,8 +160,44 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
     })
     .filter((summary): summary is NotebookSummary => summary !== null);
 
-  const registryKeys = new Set(registry.map(summary => `${summary.kind}:${summary.slug}`));
-  return [...registry, ...local.filter(summary => !registryKeys.has(`${summary.kind}:${summary.slug}`))];
+  const registryKeys = new Set(registry.map(summary => summary.slug));
+  return [...registry, ...local.filter(summary => !registryKeys.has(summary.slug)), ...coreNotebookCatalog(files)];
+}
+
+// ── App-owned core notebooks ───────────────────────────────────────────────
+
+/** The core feed's reference notebooks (ticket 05): delivered with the app's
+ *  own seed, not published by a library feed. Item counts read straight off
+ *  the corpus file map (`markdown/<slug>/…`). */
+const CORE_NOTEBOOKS: ReadonlyArray<{
+  slug: string; label: string; description: string; href: string; chunkId: string;
+}> = [
+  { slug: 'efforts', label: 'Efforts', description: 'The effort library — every effort the parser and analytics resolve, across the canonical disciplines.', href: '/efforts', chunkId: 'efforts' },
+  { slug: 'equipment', label: 'Equipment', description: 'The equipment library — gear definitions the language resolves.', href: '/equipment', chunkId: 'equipment' },
+  { slug: 'dashboards', label: 'Dashboards', description: 'Prebuilt WQL dashboards — query compositions ready to open.', href: '/dashboards', chunkId: 'dashboards' },
+];
+
+function coreNotebookCatalog(files: Record<string, string> | null): NotebookSummary[] {
+  return CORE_NOTEBOOKS.map((notebook) => {
+    const prefix = `markdown/${notebook.slug}/`;
+    const paths = files
+      ? Object.keys(files).filter((p) => p.startsWith(prefix) && p.endsWith('.md') && !p.endsWith('/README.md'))
+      : [];
+    return {
+      packageId: `core-${notebook.slug}`,
+      feedId: 'core',
+      chunkId: notebook.chunkId,
+      slug: notebook.slug,
+      label: notebook.label,
+      description: notebook.description,
+      categories: [],
+      sourceLabel: 'Core',
+      href: notebook.href,
+      itemCount: paths.length,
+      installed: files ? paths.length > 0 : false,
+      subscribed: true,
+    };
+  });
 }
 
 // ── Feed grouping ──────────────────────────────────────────────────────────
@@ -195,8 +224,9 @@ export function groupNotebooksByFeed(
 ): NotebookGroup[] {
   const byFeed: Record<string, NotebookSummary[]> = {};
   const local: NotebookSummary[] = [];
+  const listed = new Set(feeds.map((feed) => feed.id));
   for (const notebook of catalog) {
-    if (notebook.feedId) (byFeed[notebook.feedId] ??= []).push(notebook);
+    if (notebook.feedId && listed.has(notebook.feedId)) (byFeed[notebook.feedId] ??= []).push(notebook);
     else local.push(notebook);
   }
   const groups: NotebookGroup[] = [];
@@ -247,8 +277,6 @@ export interface FeedSummary {
 export interface FeedFilter {
   /** Case-insensitive substring over the feed AND its notebooks. */
   text?: string;
-  /** Restrict to feeds publishing a notebook of this kind; undefined = all. */
-  kind?: NotebookKind;
   /** Filter by specific feed id; undefined = all feeds. */
   feedId?: string;
   /** Filter by subscribed state: true = subscribed only; false = all. */
@@ -285,13 +313,11 @@ export function buildFeedCatalog(
   });
 }
 
-/** Text matches the feed or any of its notebooks; the kind facet keeps feeds
- *  that publish a notebook of that kind. */
+/** Text matches the feed or any of its notebooks. */
 export function filterFeeds(catalog: readonly FeedSummary[], filter: FeedFilter): FeedSummary[] {
   const text = filter.text?.trim().toLowerCase();
   return catalog.filter((feed) => {
     if (filter.feedId && feed.feedId !== filter.feedId) return false;
-    if (filter.kind && !feed.notebooks.some((notebook) => notebook.kind === filter.kind)) return false;
     if (filter.subscribedOnly && !feed.notebooks.some((notebook) => notebook.subscribed)) return false;
     if (!text) return true;
     return (
@@ -331,7 +357,6 @@ export function filterNotebooks(catalog: readonly NotebookSummary[], filter: Not
   const text = filter.text?.trim().toLowerCase();
   return catalog.filter((summary) => {
     if (filter.feedId && summary.feedId !== filter.feedId) return false;
-    if (filter.kind && summary.kind !== filter.kind) return false;
     if (filter.subscribedOnly && !summary.subscribed) return false;
     if (!text) return true;
     return (

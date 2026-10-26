@@ -46,11 +46,11 @@ The stored [[Page]] is a placement record, not a note row. Neither Page tagging 
 | `date?` | number | Domain date (Unix ms), e.g. workout date from frontmatter |
 | `createdAt` | number | Unix ms when note was created |
 | `tags?` | string[] | Optional denormalized tag array projection; canonical persistence in `note_tags` |
-| `type?` | NoteKind | 'journal' \| 'template' \| 'playground' \| 'feed' \| 'dashboard' \| 'page' |
+| `type?` | NoteKind | 'journal' \| 'playground' \| 'feed' \| 'dashboard' \| 'page' \| 'note' — the `template` kind is retired (ticket 05); starter content lives in `notebook/defaults` and any notebook can be cloned from |
 | `sourceId?` | string | Note this one was created from (template/notebook source) |
-| `notebookId?` | `notebook/${string}` | The owning container (`notebook/journal`, `notebook/playground`, `notebook/guides`, `notebook/<slug>`) |
+| `notebookId?` | `notebook/${string}` | The owning container (`notebook/journal`, `notebook/playground`, `notebook/defaults`, `notebook/guides`, `notebook/<slug>`) |
 | `catalog?` | string | Legacy notebook directory slug for static notes |
-| `seedOrigin?` | 'seed' \| 'user' | Ownership marker; the application layer allows editing only when `seedOrigin !== 'seed'` (user-created) |
+| `seedOrigin?` | 'seed' \| 'user' | Ownership marker; editability is decided by the note's NOTEBOOK origin instead (ticket 05): feed-delivered notebooks are read-only, user-owned notebooks (including `notebook/defaults`) are editable — `isNoteEditable` falls back to these stamps only when no notebook origin resolves |
 | `seedVersion?` | number | manifest.version of last seed write |
 | `seedChunkId?` | string | Seed chunk provenance |
 | `sourcePath?` | string | Original seed file path |

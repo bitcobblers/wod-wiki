@@ -4,18 +4,22 @@
  * (per the spec); the rest of the Library never inspects `Note.sourceId`.
  *
  * Entry shape is locked by #807: identity = `{ sourceCatalog, sourceItem }`,
- * kind = `Note | Session | Post`. Notes carry a journal-date (resolved
- * elsewhere from `Page.date`); Sessions are undated by design; Posts carry
- * a `YYYY-MM-DD` recovered from the file path.
+ * kind = `Note` plus execution/effort/dashboard/equipment specializations.
+ * Every notebook member — journal note, collection item, feed post — is a
+ * note (ticket 05); notes carry a journal-date when they have one.
  */
 import type { BlockIndexRow, Note } from '@/types/storage'
 import type { IEffort, RowsRun, RowsQueryResult } from '@bitcobblers/wod-wiki-wql'
-import { catalogOfItem, isNoteEditable, notebookOfItem } from '@bitcobblers/wod-wiki-wql'
+import { catalogOfItem, isNoteEditable, notebookOfItem, notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
 import type { NotePlacement } from '@bitcobblers/wod-wiki-core'
 import { formatDateKey } from '../services/dateUtils'
 import { parseNoteId } from '@/lib/noteIdentity'
 
-export type EntryKind = 'note' | 'session' | 'post' | 'result' | 'segment' | 'effort' | 'event' | 'dashboard' | 'equipment'
+/** Presentation kinds. Collection items and feed posts are notes in a
+ *  notebook (ticket 05) — there is no separate session/post kind; the
+ *  notebook the note belongs to (`notebookId`) and its corpus route carry
+ *  the distinction the old kinds encoded. */
+export type EntryKind = 'note' | 'result' | 'segment' | 'effort' | 'event' | 'dashboard' | 'equipment'
 
 /** Block-level payload on an Entry produced from a :block hit (#855):
  *  the card shows the parent note's identity plus the block's own type and
@@ -100,7 +104,7 @@ export interface Entry {
   sourcePath?: string
   /** Executor-exact `Note.type` — what the WQL `type:` / `page:` / source
    *  playground-legacy predicates match. Distinct from the presentation
-   *  `kind` (a collection page maps to kind 'session', never a type value). */
+   *  `kind` (a collection page maps to kind 'note', never a type value). */
   noteType?: string
   /** Executor-exact catalog (QueryService.catalogOfItem) — the directory id
    *  the `catalog:` filter matches; not the presentation sourceCatalog. */
@@ -217,7 +221,7 @@ export function toEntry(note: Note): Entry {
     noteType: note.type,
     catalog: catalogOfItem(note),
     notebookId: notebookOfItem(note),
-    editable: isNoteEditable(note),
+    editable: isNoteEditable(note, notebookOriginOfItem(note)),
     noteId: note.id,
   }
 }
@@ -247,7 +251,7 @@ function toEntryBase(note: Note): Entry {
     const isLanding = !item || note.type === 'feed' || note.type === 'page'
     return {
       id: cleanId,
-      kind: 'session',
+      kind: 'note',
       sourceCatalog: catalog,
       sourceItem: isLanding ? '' : item,
       sourceId: note.sourceId,
@@ -275,7 +279,7 @@ function toEntryBase(note: Note): Entry {
     const date = segs[1] && /^\d{4}-\d{2}-\d{2}$/.test(segs[1]) ? segs[1] : null
     return {
       id,
-      kind: 'post',
+      kind: 'note',
       sourceCatalog: segs[0]!,
       sourceItem: segs.slice(2).join('/') || segs[segs.length - 1]!,
       sourceId: note.sourceId,
