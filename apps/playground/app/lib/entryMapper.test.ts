@@ -280,14 +280,13 @@ describe('toEntry — notebook route derivation (sourceId/sourcePath, never UUID
     expect(entry.sourceNotebook).toBe('crossfit-girls')
     expect(entry.sourceNote).toBe('fran')
     expect(entry.id).toBe(UUID)
-    expect(entry.noteId).toBe(UUID)
   })
 
   it('maps a notebook: UUID landing to the notebook landing', () => {
     const entry = toEntry(makeNote({ id: UUID, sourceId: 'notebook:crossfit-girls' }))
     expect(entry.sourceNotebook).toBe('crossfit-girls')
     expect(entry.sourceNote).toBe('')
-    expect(entry.noteId).toBe(UUID)
+    expect(entry.id).toBe(UUID)
   })
 
   it('derives the route from sourcePath for imported notes lacking sourceId', () => {
@@ -318,7 +317,7 @@ describe('toEntry — notebook route derivation (sourceId/sourcePath, never UUID
     expect(entry.sourceNotebook).toBe('crossfit-programming')
     expect(entry.date).toBe('2026-01-12')
     expect(entry.sourceNote).toBe('2026-01-12/monday')
-    expect(entry.noteId).toBe(UUID)
+    expect(entry.id).toBe(UUID)
   })
 
   it('derives the dated route from sourcePath for imported notes lacking sourceId', () => {

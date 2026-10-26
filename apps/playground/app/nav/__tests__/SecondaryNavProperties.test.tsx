@@ -29,7 +29,7 @@ const entry = (over: Partial<Entry> & { id: string; title: string }): Entry => (
 })
 
 const ENTRIES: Entry[] = [
-  entry({ id: 'n1', noteId: 'n1', noteType: 'note', title: 'Alpha', tags: ['strength'] }),
+  entry({ id: 'n1', noteType: 'note', title: 'Alpha', tags: ['strength'] }),
 ]
 
 const DEFAULT_Q = FEEDS_STREAM_PROFILE.defaultWql

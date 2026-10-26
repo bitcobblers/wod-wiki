@@ -45,6 +45,85 @@ export function isNoteEditable(
   return note.seedOrigin !== 'seed' && note.feedOrigin !== 'feed';
 }
 
+export interface BuiltinNotebookSpec {
+  slug: string;
+  notebookId: NotebookId;
+  name: string;
+  description: string;
+  icon: string;
+  href: string;
+  feedEntryId?: FeedId;
+  seedChunkId?: string;
+}
+
+/** Single source of truth for always-present built-in and core reference notebooks. */
+export const BUILTIN_NOTEBOOKS: readonly BuiltinNotebookSpec[] = [
+  {
+    slug: 'journal',
+    notebookId: 'notebook/journal',
+    name: 'Journal',
+    description: 'Dated training log and scheduled workouts.',
+    icon: '📅',
+    href: '/journal',
+  },
+  {
+    slug: 'playground',
+    notebookId: 'notebook/playground',
+    name: 'Playground',
+    description: 'Scratchpad workouts and timer experiments.',
+    icon: '🧪',
+    href: '/playgrounds',
+  },
+  {
+    slug: 'defaults',
+    notebookId: 'notebook/defaults',
+    name: 'Defaults',
+    description: 'Starter notes — clone any of them into your own notebooks.',
+    icon: '📝',
+    href: '/notebook/defaults',
+  },
+  {
+    slug: 'guides',
+    notebookId: 'notebook/guides',
+    name: 'Guides',
+    description: 'Built-in Whiteboard Language and WQL guides.',
+    icon: '📖',
+    href: '/notebook/guides',
+    feedEntryId: 'core',
+    seedChunkId: 'canvas',
+  },
+  {
+    slug: 'efforts',
+    notebookId: 'notebook/efforts',
+    name: 'Efforts',
+    description: 'The effort library — every effort the parser and analytics resolve, across the canonical disciplines.',
+    icon: '🏋️',
+    href: '/efforts',
+    feedEntryId: 'core',
+    seedChunkId: 'efforts',
+  },
+  {
+    slug: 'equipment',
+    notebookId: 'notebook/equipment',
+    name: 'Equipment',
+    description: 'The equipment library — gear definitions the language resolves.',
+    icon: '🔧',
+    href: '/equipment',
+    feedEntryId: 'core',
+    seedChunkId: 'equipment',
+  },
+  {
+    slug: 'dashboards',
+    notebookId: 'notebook/dashboards',
+    name: 'Dashboards',
+    description: 'Prebuilt WQL dashboards — query compositions ready to open.',
+    icon: '📊',
+    href: '/dashboards',
+    feedEntryId: 'core',
+    seedChunkId: 'dashboards',
+  },
+] as const;
+
 export interface Notebook {
   /** Canonical `notebook/{slug}` identifier. */
   id: NotebookId | string;
@@ -58,16 +137,9 @@ export interface Notebook {
   origin: NotebookOrigin;
   /** Registered feed entry id — the feed that publishes this notebook. */
   feedEntryId?: FeedId;
-  /** Seed package id when delivered by a named package slice. */
-  packageId?: string;
-  /** Feed directory URL where the source is pulled from. */
-  sourceUrl?: string;
-  /** Published Git repository URL when declared by the source entry. */
-  repositoryUrl?: string;
   /** Seed manifest chunk id when delivered by a seed. */
   seedChunkId?: string;
   createdAt: number;
-  lastEditedAt: number;
 }
 export const NOTEBOOK_TAG_PREFIX = 'notebook:';
 

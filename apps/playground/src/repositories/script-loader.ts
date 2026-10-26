@@ -9,17 +9,6 @@
  */
 import { ensureSeedContent } from '@/services/content/seedContent';
 
-/** All seeded collections/canvas script ids (path under the corpus, no extension). */
-export async function getAllScriptIds(): Promise<string[]> {
-  const files = await ensureSeedContent();
-  return Object.keys(files)
-    .map((path) => {
-      const match = path.match(/^markdown\/(?:collections|canvas)\/(.+)\.md$/);
-      return match ? match[1] : path;
-    })
-    .filter((id) => id.startsWith('/') === false);
-}
-
 /** Resolve a script id to its raw markdown, exact path first, then suffix match. */
 export async function getScriptContent(id: string): Promise<string | undefined> {
   const files = await ensureSeedContent();

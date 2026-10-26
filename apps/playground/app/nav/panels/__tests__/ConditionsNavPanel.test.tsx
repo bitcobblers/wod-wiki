@@ -52,8 +52,8 @@ const entry = (over: Partial<Entry> & { id: string; title: string }): Entry => (
 })
 
 const ENTRIES: Entry[] = [
-  entry({ id: 'n1', noteId: 'n1', noteType: 'note', title: 'Alpha' }),
-  entry({ id: 'c/one', noteId: 'notebook:x/one', sourceId: 'notebook:x', noteType: 'note', title: 'Beta' }),
+  entry({ id: 'n1', noteType: 'note', title: 'Alpha' }),
+  entry({ id: 'notebook:x/one', sourceId: 'notebook:x', noteType: 'note', title: 'Beta' }),
 ]
 
 const MEMBERSHIP = new Map<string, Array<{ label: string; type?: string }>>([
@@ -148,7 +148,7 @@ describe('canonical tag membership through the panel', () => {
     publish({
       pathname: '/notebooks',
       query: ':notebooks{tags:strength} by {tag}',
-      entries: [entry({ id: 'f1', noteId: 'uuid-fran', sourceNotebook: 'crossfit-girls', title: 'Fran' })],
+      entries: [entry({ id: 'f1', sourceNotebook: 'crossfit-girls', title: 'Fran' })],
     })
     fireEvent.click(await waitFor(() => {
       const button = screen.getByTestId('conditions-section-tags').querySelector('button')
@@ -350,7 +350,7 @@ describe('ConditionsNavPanel', () => {
     publish({
       pathname: '/feeds',
       query: routedQuery(),
-      entries: ENTRIES.filter(e => e.id === 'c/one'),
+      entries: ENTRIES.filter(e => e.id === 'notebook:x/one'),
     })
     await waitFor(() => expect(stateButton('tags', 'strength').dataset.state).toBe('exclude'))
     fireEvent.click(stateButton('tags', 'strength'))

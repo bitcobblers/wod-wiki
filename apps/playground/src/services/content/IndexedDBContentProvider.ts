@@ -1,16 +1,16 @@
 import { v7 as uuidv7 } from 'uuid';
-import { formatPlaygroundTimestampId } from '../../lib/playgroundDisplay';
-import type { AttachmentCreateInput, IContentProvider, ContentProviderMode, NoteSaveInput, NoteRecordPatch } from '../../types/content-provider';
-import type { HistoryRecord, HistoryQuery, ProviderCapabilities } from '../../types/history';
-import { storageService, type StorageService } from '@/services/storage';
-import type { Attachment, Page, Session } from '../../types/storage';
 import { parseDocumentSections, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS, projectPlacements, resolvePlacements, type PageTarget } from '@bitcobblers/wod-wiki-core';
-import { extractTypedFrontmatterTags } from '../../lib/frontmatter';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import type { DomainDetail, DomainPredicate } from '@bitcobblers/wod-wiki-storage';
-import { sessionToPayload } from '../persistence/sessionPayload';
-import { NotePersistenceError } from '../persistence/types';
 import { localDateKey } from '@/lib/dateFormat';
+import { extractTypedFrontmatterTags } from '@/lib/frontmatter';
+import { formatPlaygroundTimestampId } from '@/lib/playgroundDisplay';
+import { sessionToPayload } from '@/services/persistence/sessionPayload';
+import { NotePersistenceError } from '@/services/persistence/types';
+import { storageService, type StorageService } from '@/services/storage';
+import type { AttachmentCreateInput, IContentProvider, ContentProviderMode, NoteSaveInput, NoteRecordPatch } from '@/types/content-provider';
+import type { HistoryRecord, HistoryQuery, ProviderCapabilities } from '@/types/history';
+import type { Attachment, Page, Session } from '@/types/storage';
 
 const BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
 const MUTATION_STORES = ['notes', 'block_revisions', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'sessions', 'events', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'] as const;

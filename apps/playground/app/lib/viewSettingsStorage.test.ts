@@ -87,6 +87,22 @@ describe('viewSettingsStorage — pure read/write/reset', () => {
     expect(readViewSettings('/notes', 'note', store).layout).toBe('feed')
   })
 
+  it('resetViewSettings removes the second-hop /collections key for /notes', () => {
+    // A key from the second rename hop must not survive a reset: the next
+    // read would otherwise resurrect the retired /collections settings.
+    const backend = new InMemoryBackend()
+    const store = new LocalStore(VIEW_SETTINGS_STORAGE_PREFIX, backend)
+    backend.setItem(
+      `${VIEW_SETTINGS_STORAGE_PREFIX}/collections`,
+      JSON.stringify({ level: 'note', layout: 'feed', visibleFields: ['title'] }),
+    )
+
+    resetViewSettings('/notes', 'note', store)
+
+    expect(backend.getItem(`${VIEW_SETTINGS_STORAGE_PREFIX}/collections`)).toBeNull()
+    expect(readViewSettings('/notes', 'note', store).layout).toBe('cards')
+  })
+
   it('the new /feeds surface stores under /feeds@2 — legacy note settings never leak', () => {
     // A user's old /feeds (notes list) rows layout must not shape the new
     // feed-source list at the same public URL.

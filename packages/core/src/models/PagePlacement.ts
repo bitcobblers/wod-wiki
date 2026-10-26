@@ -88,16 +88,6 @@ export function resolvePlacements(links: readonly PageNote[], pages: readonly Pa
   return out;
 }
 
-/** The primary placement of a note — the first in canonical order. */
-export function primaryPlacement(placements: readonly NotePlacement[]): NotePlacement | undefined {
-  return placements[0];
-}
-
-/** The page identity of a placement — what a caller addresses it by. */
-export function placementTarget(placement: NotePlacement): PageTarget {
-  return placement.date ? { date: placement.date } : { slug: placement.slug };
-}
-
 /**
  * The single-page projections of a note's placements.
  *
@@ -133,20 +123,4 @@ export function projectPlacements(placements: readonly NotePlacement[]): Placeme
     if (projection.pageSlug === undefined && placement.slug && !placement.date) projection.pageSlug = placement.slug;
   }
   return projection;
-}
-
-/**
- * The placements of a note that carry a given calendar date — the note
- * appears in that date's listing when this list is non-empty.
- */
-export function placementsOnDate(placements: readonly NotePlacement[], date: string): NotePlacement[] {
-  return placements.filter((placement) => placement.date === date);
-}
-
-/**
- * The placements of a note that carry a given named-page slug — the note
- * appears in that page's listing when this list is non-empty.
- */
-export function placementsOnSlug(placements: readonly NotePlacement[], slug: string): NotePlacement[] {
-  return placements.filter((placement) => placement.slug === slug && !placement.date);
 }

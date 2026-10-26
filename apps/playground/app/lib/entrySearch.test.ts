@@ -494,7 +494,7 @@ describe('StreamQueryEngine — named page navigation', () => {
         const entries = await engine.query(query)
         expect(entries[0]?.pageId).toBe('calendar-uuid')
         expect(entryOpenHref(entries[0]!)).toBe(query.startsWith(':block') ? '/page/workout-plan#seg-0' : '/page/workout-plan')
-        expect(entries[0]?.noteId).toBe(note.id)
+        expect(entries[0]?.id).toBe(note.id)
       }
     } finally {
       resetStorageForTesting()

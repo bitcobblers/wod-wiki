@@ -14,31 +14,17 @@
 
 import { v7 as uuidv7 } from 'uuid';
 import type { Note } from '@bitcobblers/wod-wiki-core';
-import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
-import { notebookSlugFromId, slugifyNotebookName, toNotebookId, type Notebook } from '../types/notebook';
+import { BUILTIN_NOTEBOOKS, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { notebookSlugFromId, slugifyNotebookName, toNotebookId, type Notebook } from '@/types/notebook';
 import { StorageService } from './storage/StorageService';
 import { storageService } from './storage';
-import {
-    CORE_FEED_URL,
-    listNotebooks,
-    listFeedSources,
-} from './feed/feedSources';
-import { isFeedSubscribed } from './feed/feedSubscriptions';
+import { listNotebooks } from './feed/feedSources';
 
 /** The always-present starter-notes notebook (`DEFAULT_NOTEBOOK_SLUGS`). */
 export const DEFAULTS_NOTEBOOK_ID = 'notebook/defaults';
 
 /** Always-present notebook slugs (app-owned; user CRUD is refused). */
-const RESERVED_SLUGS: Record<string, true> = {
-    journal: true,
-    playground: true,
-    defaults: true,
-    guides: true,
-    efforts: true,
-    equipment: true,
-    dashboards: true,
-};
-
+const RESERVED_SLUGS: ReadonlySet<string> = new Set(BUILTIN_NOTEBOOKS.map((n) => n.slug));
 export class NotebookService {
     constructor(private store: StorageService = storageService) {}
 
@@ -55,14 +41,11 @@ export class NotebookService {
     }
 
     /** All notebooks the feeds publish (registry + custom feed entries). */
-    getFeedNotebooks(options?: { onlySubscribed?: boolean }): Notebook[] {
-        const seedsById = new Map(listFeedSources().map((s) => [s.id, s]));
+    getFeedNotebooks(): Notebook[] {
         const out: Notebook[] = [];
         for (const notebook of listNotebooks()) {
             if (notebook.category === 'dashboards') continue;
-            if (options?.onlySubscribed && !isFeedSubscribed(notebook.feedId)) continue;
             const slug = notebook.chunkId.replace(/^notebook\./, '');
-            const seed = seedsById.get(notebook.feedId);
             out.push({
                 id: toNotebookId(slug),
                 slug,
@@ -72,12 +55,8 @@ export class NotebookService {
                 icon: notebook.category === 'feeds' ? '📡' : '📚',
                 origin: 'feed',
                 feedEntryId: notebook.feedId,
-                packageId: notebook.id,
-                sourceUrl: seed?.url,
-                ...(seed?.repositoryUrl ? { repositoryUrl: seed.repositoryUrl } : {}),
                 seedChunkId: notebook.chunkId,
                 createdAt: 0,
-                lastEditedAt: 0,
             });
         }
         return out;
@@ -90,101 +69,19 @@ export class NotebookService {
      * seed.
      */
     getDefaultNotebooks(): Notebook[] {
-        return [
-            {
-                id: 'notebook/journal',
-                slug: 'journal',
-                notebookId: 'notebook/journal',
-                name: 'Journal',
-                description: 'Dated training log and scheduled workouts.',
-                icon: '📅',
-                origin: 'default',
-                createdAt: 0,
-                lastEditedAt: 0,
-            },
-            {
-                id: 'notebook/playground',
-                slug: 'playground',
-                notebookId: 'notebook/playground',
-                name: 'Playground',
-                description: 'Scratchpad workouts and timer experiments.',
-                icon: '🧪',
-                origin: 'default',
-                createdAt: 0,
-                lastEditedAt: 0,
-            },
-            {
-                id: DEFAULTS_NOTEBOOK_ID,
-                slug: 'defaults',
-                notebookId: DEFAULTS_NOTEBOOK_ID,
-                name: 'Defaults',
-                description: 'Starter notes — clone any of them into your own notebooks.',
-                icon: '📝',
-                origin: 'default',
-                createdAt: 0,
-                lastEditedAt: 0,
-            },
-            {
-                id: 'notebook/guides',
-                slug: 'guides',
-                notebookId: 'notebook/guides',
-                name: 'Guides',
-                description: 'Built-in Whiteboard Language and WQL guides.',
-                icon: '📖',
-                origin: 'default',
-                feedEntryId: 'core',
-                sourceUrl: CORE_FEED_URL,
-                seedChunkId: 'canvas',
-                createdAt: 0,
-                lastEditedAt: 0,
-            },
-            // App-owned core references (ticket 05): the core seed's
-            // reference notebooks, listed with the other always-present ones.
-            {
-                id: 'notebook/efforts',
-                slug: 'efforts',
-                notebookId: 'notebook/efforts',
-                name: 'Efforts',
-                description: 'The effort library — every effort the parser and analytics resolve.',
-                icon: '🏋️',
-                origin: 'default',
-                feedEntryId: 'core',
-                sourceUrl: CORE_FEED_URL,
-                seedChunkId: 'efforts',
-                createdAt: 0,
-                lastEditedAt: 0,
-            },
-            {
-                id: 'notebook/equipment',
-                slug: 'equipment',
-                notebookId: 'notebook/equipment',
-                name: 'Equipment',
-                description: 'The equipment library — gear definitions the language resolves.',
-                icon: '🔧',
-                origin: 'default',
-                feedEntryId: 'core',
-                sourceUrl: CORE_FEED_URL,
-                seedChunkId: 'equipment',
-                createdAt: 0,
-                lastEditedAt: 0,
-            },
-            {
-                id: 'notebook/dashboards',
-                slug: 'dashboards',
-                notebookId: 'notebook/dashboards',
-                name: 'Dashboards',
-                description: 'Prebuilt WQL dashboards — query compositions ready to open.',
-                icon: '📊',
-                origin: 'default',
-                feedEntryId: 'core',
-                sourceUrl: CORE_FEED_URL,
-                seedChunkId: 'dashboards',
-                createdAt: 0,
-                lastEditedAt: 0,
-            },
-        ];
+        return BUILTIN_NOTEBOOKS.map((spec) => ({
+            id: spec.notebookId,
+            slug: spec.slug,
+            notebookId: spec.notebookId,
+            name: spec.name,
+            description: spec.description,
+            icon: spec.icon,
+            origin: 'default',
+            ...(spec.feedEntryId ? { feedEntryId: spec.feedEntryId } : {}),
+            ...(spec.seedChunkId ? { seedChunkId: spec.seedChunkId } : {}),
+            createdAt: 0,
+        }));
     }
-
     /** All notebooks across defaults, user-created, and feed-delivered sources. */
     async getAllNotebooks(): Promise<Notebook[]> {
         const byNotebookId = new Map<string, Notebook>();
@@ -217,7 +114,7 @@ export class NotebookService {
     private async createNow(name: string, description: string, icon: string): Promise<Notebook> {
         const existing = await this.getAll();
         const baseSlug = slugifyNotebookName(name);
-        const taken = new Set([...Object.keys(RESERVED_SLUGS), ...existing.map((n) => n.slug)]);
+        const taken = new Set([...RESERVED_SLUGS, ...existing.map((n) => n.slug)]);
         let slug = baseSlug;
         for (let i = 2; taken.has(slug); i++) {
             slug = `${baseSlug}-${i}`;
@@ -378,25 +275,35 @@ function isNotebookLanding(note: Note): boolean {
 /** The always-present notebooks are app-owned: user CRUD must not touch them,
  *  regardless of what a surface passes in (the service is the boundary). */
 function assertUserNotebook(notebookId: string): void {
-    if (RESERVED_SLUGS[notebookSlugFromId(notebookId)]) {
+    if (RESERVED_SLUGS.has(notebookSlugFromId(notebookId))) {
         throw new Error(`Notebook ${notebookId} is always present and cannot be changed.`);
     }
 }
 
 function landingRawContent(name: string, description: string, icon: string): string {
-    return `---\ndescription: ${description.replace(/\n/g, ' ')}\nicon: ${icon}\n---\n\n# ${name}\n`;
+    return `---\ndescription: ${description ? JSON.stringify(description.replace(/\n/g, ' ')) : ''}\nicon: ${icon ? JSON.stringify(icon.replace(/\n/g, ' ')) : ''}\n---\n\n# ${name}\n`;
 }
 
 function readLandingMeta(note: Note): { description: string; icon: string } {
     const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(note.rawContent);
     let description = '';
     let icon = '📓';
+    const unquote = (value: string): string => {
+        if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+            try {
+                return JSON.parse(value) as string;
+            } catch {
+                return value;
+            }
+        }
+        return value;
+    };
     if (block) {
         for (const line of block[1].split(/\r?\n/)) {
             const kv = line.match(/^(description|icon):\s*(.*)$/);
             if (!kv) continue;
-            if (kv[1] === 'description') description = kv[2]!.trim();
-            else icon = kv[2]!.trim() || icon;
+            if (kv[1] === 'description') description = unquote(kv[2]!.trim());
+            else icon = unquote(kv[2]!.trim()) || icon;
         }
     }
     return { description, icon };
@@ -407,13 +314,12 @@ function landingToNotebook(note: Note): Notebook {
     return {
         id: note.id,
         slug: note.id.slice('notebook/'.length),
-        notebookId: note.id,
+        notebookId: toNotebookId(note.id),
         name: note.title,
         description,
         icon,
         origin: 'user',
         createdAt: note.createdAt,
-        lastEditedAt: note.createdAt,
     };
 }
 

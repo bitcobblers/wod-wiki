@@ -47,6 +47,8 @@ export const NotebookList: React.FC<NotebookListProps> = ({ refreshKey, onChange
     const handleDelete = async (notebook: Notebook) => {
         try {
             await notebookService.delete(notebook.id);
+        } catch {
+            // Deletion failed (e.g. reserved slug refused at the boundary); leave the list as-is.
         } finally {
             setConfirmingDelete(null);
             onChanged();

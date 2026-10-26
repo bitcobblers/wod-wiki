@@ -248,7 +248,7 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
   // (feed-delivered notebooks are read-only; move targets already exclude
   // them). Journal notes stay put — the journal is their notebook.
   const moveable = !!onMoveNotebook
-    && !!entry.noteId
+    && entry.kind === 'note'
     && !!entry.notebookId
     && entry.notebookId !== 'notebook/journal'
     && !!moveNotebookTargets?.length

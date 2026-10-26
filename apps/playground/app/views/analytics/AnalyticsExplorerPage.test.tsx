@@ -42,8 +42,7 @@ const FEED_NOTE = {
   title: 'StrongLifts 5×5',
   createdAt: Date.parse('2026-07-01T10:00:00Z'),
   type: 'note',
-  sourceId: 'feed:stronglifts',
-  catalog: 'stronglifts',
+  sourceId: 'notebook:stronglifts',
 } as unknown as FindQueryResult['notes'][number];
 
 // Page runs carry { rangeStart, rangeEnd, preferredUnit } options; the

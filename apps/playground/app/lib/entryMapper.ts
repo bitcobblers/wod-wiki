@@ -91,7 +91,7 @@ export interface Entry {
    *  search layer). Route decisions NEVER use this; Open uses
    *  {@link Entry.pageSlug}. */
   pageId?: string
-  /** Named Page.slug — the /p/:slug route slug. Sources: projected note
+  /** Named Page.slug — the /page/:slug route slug. Sources: projected note
    *  slug fields at map time, page_notes hydration in entrySearch. */
   pageSlug?: string
   /** Every page the note is placed on, in canonical placement order —
@@ -108,11 +108,10 @@ export interface Entry {
   noteType?: string
   /** Canonical `notebook/{slug}` identifier ('notebook/journal', 'notebook/playground', 'notebook/guides', etc.). */
   notebookId?: string
-  /** Application-level editability flag: true only for user-created notes (`seedOrigin !== 'seed'`). */
+  /** Application-level editability flag — follows notebook ownership:
+   *  feed-delivered notebooks are read-only; user-owned notebooks
+   *  (including `notebook/defaults`) are editable. */
   editable?: boolean
-  /** Original Note.id — the stored identity `note:` filters match through
-   *  this field (Entry.id keeps the note id verbatim). */
-  noteId?: string
   /** The note's junction tags WITH their configured type — the property
    *  plane `by {<type>}` grouping resolves against (domain, equipment, any
    *  custom tag type). Flat `tags` above stays label-only. */
@@ -221,7 +220,6 @@ export function toEntry(note: Note): Entry {
     noteType: note.type,
     notebookId: notebookOfItem(note),
     editable: isNoteEditable(note, notebookOriginOfItem(note)),
-    noteId: note.id,
   }
 }
 

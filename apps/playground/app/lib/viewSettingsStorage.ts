@@ -120,7 +120,9 @@ export function writeViewSettings(route: string, settings: ViewSettings, store: 
 export function resetViewSettings(route: string, level: EntityLevel, store: LocalStore = viewSettingsStore): ViewSettings {
   const cleanRoute = storageRouteId(route)
   const legacyRoute = LEGACY_ROUTE_ALIASES[cleanRoute]
+  const secondHop = LEGACY_ROUTE_SECOND_HOP[cleanRoute]
   store.remove(cleanRoute, legacyRoute)
+  if (secondHop) store.remove(secondHop)
   return getDefaultViewSettings(level)
 }
 

@@ -85,23 +85,12 @@ const realScriptNotebooks = await import('@/repositories/script-notebooks');
 mock.module('@/repositories/script-notebooks', () => ({
   ...realScriptNotebooks,
   getScriptNotebooks: async () => [],
-  getScriptNotebook: async (_slug: string) => undefined,
-  getScriptNotebookItem: async () => undefined,
 }));
 
 mock.module('@/repositories/script-loader', () => ({
   getScriptContent: async (_id: string) => undefined,
-  getAllScriptIds: async () => [],
 }));
 
-mock.module('@/repositories/page-examples', () => ({
-  getTabExamples: async (_page: string, _section: string) => [],
-  getHomeExample: async (_name: string) => '',
-}));
-mock.module('@/repositories/script-loader', () => ({
-  getScriptContent: async (_id: string) => undefined,
-  getAllScriptIds: async () => [],
-}));
 // Test loading boundary: capture the real module before replacing only its
 // React bindings; static imports cannot express this mock.module ordering.
 const realCanvasRoutes = await import('../app/canvas/canvasRoutes');

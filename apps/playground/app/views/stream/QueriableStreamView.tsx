@@ -1204,7 +1204,7 @@ export function QueriableStreamView({
             onSendToPlayground={handleSendToPlayground}
             onAddToToday={handleAddToToday}
             moveNotebookTargets={moveNotebookTargets}
-            onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.noteId, notebookId)}
+            onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
           />
         ) : loading && entries.length === 0 ? (
           <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
@@ -1254,7 +1254,7 @@ export function QueriableStreamView({
                               onAddToToday={handleAddToToday}
                               onRunStart={handleRunEntry}
                               moveNotebookTargets={moveNotebookTargets}
-                              onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.noteId, notebookId)}
+                              onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.id, notebookId)}
                             />
                           ))}
                         </div>
@@ -1286,7 +1286,7 @@ export function QueriableStreamView({
                           onAddToToday={handleAddToToday}
                           onRunStart={handleRunEntry}
                           moveNotebookTargets={moveNotebookTargets}
-                          onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.noteId, notebookId)}
+                          onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.id, notebookId)}
                         />
                       ))}
                     </div>

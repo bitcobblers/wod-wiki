@@ -106,7 +106,7 @@ export type WqlGrain = (typeof WQL_GRAINS)[number];
 
 /** Content-discovery query targets (find:<target>). The four container
  *  planes (ticket 08) are first-class targets: `:notebook{}` lists the
- *  notebook containers, `:page{}` the page placements, `:tag{}` the tags,
+ *  notes across every notebook, `:page{}` the page placements, `:tag{}` the tags,
  *  `:equipment{}` the equipment notes — the latter two resolve to notes. */
 export const WQL_FIND_TARGETS = ['note', 'block', 'effort', 'session', 'segment', 'event', 'notebook', 'page', 'tag', 'equipment'] as const;
 export type WqlFindTarget = (typeof WQL_FIND_TARGETS)[number];
@@ -197,8 +197,8 @@ export type WqlContentFilterKey = (typeof WQL_CONTENT_FILTER_KEYS)[number];
  * deliberately absent — it needs new grammar/engine semantics and is
  * deferred to its own ticket.
  */
-export const WQL_SOURCES = ['note', 'block', 'effort', 'session', 'segment', 'event', 'notebook', 'page', 'tag', 'equipment'] as const;
-export type WqlSource = (typeof WQL_SOURCES)[number];
+export const WQL_SOURCES = WQL_FIND_TARGETS;
+export type WqlSource = WqlFindTarget;
 
 /** Rollup periods the aggregate grammar accepts (wql.ts: N > 1, unit d|w). */
 export const WQL_ROLLUP_PERIODS = ['2w', '4w'] as const;

@@ -199,7 +199,7 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
               // stay put, feed-delivered notebooks are read-only.
               const moveTargets = moveNotebookTargets?.filter((target) => target.id !== entry.notebookId) ?? []
               const moveable = !!onMoveNotebook
-                && !!entry.noteId
+                && entry.kind === 'note'
                 && !!entry.notebookId
                 && entry.notebookId !== 'notebook/journal'
                 && moveTargets.length > 0

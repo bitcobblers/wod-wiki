@@ -145,19 +145,18 @@ export class StreamQueryEngine {
    *  re-fetched per note; ids absent from the notes store stay untagged
    *  and untitled (fail-closed). */
   private async hydrateEntries(entries: Entry[], withNoteFields: boolean): Promise<void> {
-    const parentNoteId = (entry: Entry) => entry.noteId ?? entry.id;
     const bundleIds = new Set<string>();
     for (const entry of entries) {
-      if (entry.sourceNotebook === 'journal') bundleIds.add(parentNoteId(entry));
+      if (entry.sourceNotebook === 'journal') bundleIds.add(entry.id);
       if (withNoteFields && (!entry.title || !entry.tags || entry.tags.length === 0)) {
-        bundleIds.add(parentNoteId(entry));
+        bundleIds.add(entry.id);
       }
     }
     if (bundleIds.size === 0) return;
     const bundles = await storageService.getDetailBatches([...bundleIds]);
     for (const entry of entries) {
       if (entry.sourceNotebook !== 'journal') continue;
-      const bundle = bundles.get(parentNoteId(entry));
+      const bundle = bundles.get(entry.id);
       // Every page the note sits on; the single-page fields below are the
       // deterministic primary projections of that list.
       const placements = resolvePlacements(bundle?.links ?? [], bundle?.pages ?? []);
@@ -168,7 +167,7 @@ export class StreamQueryEngine {
     }
     if (!withNoteFields) return;
     for (const entry of entries) {
-      const bundle = bundles.get(parentNoteId(entry));
+      const bundle = bundles.get(entry.id);
       if (!entry.title && bundle?.note.title) entry.title = bundle.note.title;
       if (bundle && bundle.tags.length > 0) {
         if (!entry.tags || entry.tags.length === 0) {

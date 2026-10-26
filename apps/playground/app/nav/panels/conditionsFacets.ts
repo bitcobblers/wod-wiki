@@ -480,12 +480,12 @@ export function facetOptions(target: string, key: string, ctx: FacetContext): Fa
         // they are not among the five stream routes; add row-value facets
         // (metric/unit/tag columns) when a table route needs them.
         if (tagKey) {
-          const rows = ctx.tagMembership!.get(entry.sourceNotebook ?? entry.noteId ?? entry.id) ?? ctx.tagMembership!.get(entry.noteId ?? entry.id) ?? []
+          const rows = ctx.tagMembership!.get(entry.sourceNotebook ?? entry.id) ?? ctx.tagMembership!.get(entry.id) ?? []
           for (const row of rows) {
             if (tagKey === 'tags' || row.type === tagKey) bump(row.label)
           }
         } else if (effortNoteKey) {
-          const slugs = ctx.effortMembership!.get(entry.sourceNotebook ?? entry.noteId ?? entry.id) ?? ctx.effortMembership!.get(entry.noteId ?? entry.id) ?? []
+          const slugs = ctx.effortMembership!.get(entry.sourceNotebook ?? entry.id) ?? ctx.effortMembership!.get(entry.id) ?? []
           for (const slug of slugs) bump(slug)
         }
     }
@@ -495,7 +495,7 @@ export function facetOptions(target: string, key: string, ctx: FacetContext): Fa
     return WQL_SOURCE_VALUES.map(value => ({
       value,
       count: ctx.entries.filter(entry =>
-        sourceMatches({ id: entry.noteId ?? entry.id, sourceId: entry.sourceId, type: entry.noteType }, value),
+        sourceMatches({ id: entry.id, sourceId: entry.sourceId, type: entry.noteType }, value),
       ).length,
     })).filter(option => option.count > 0)
   }
@@ -505,14 +505,14 @@ export function facetOptions(target: string, key: string, ctx: FacetContext): Fa
     return WQL_SOURCE_VALUES.map(value => ({
       value,
       count: ctx.entries.filter(entry =>
-        sourceMatches({ id: entry.id, noteId: entry.noteId, sourceId: entry.sourceId, type: undefined }, value),
+        sourceMatches({ id: entry.id, sourceId: entry.sourceId, type: undefined }, value),
       ).length,
     })).filter(option => option.count > 0)
   }
   if ((target === 'note' || target === 'block') && key === 'note') {
     // Identifier facet: one row per result note, labelled with its title.
     for (const entry of ctx.entries) {
-      bump(entry.noteId ?? entry.id, entry.title)
+      bump(entry.id, entry.title)
     }
   }
   // Corpus vocabulary for the membership-backed keys — the empty criteria

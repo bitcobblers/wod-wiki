@@ -7,7 +7,7 @@
  *   Open  Note         → /note/:noteId (named pages → /page/:pageSlug);
  *                        notebook members keep their corpus routes —
  *                        notebook items → /notebook/:slug[/:item],
- *                        feed posts → /feed/:feedSlug/:date/:item
+ *                        feed posts → /notebook/:slug/:date/:item
  *   Open  Effort       → /effort/:slug
  *   Open  Equipment    → /equipment/:slug
  *   Open  Tag          → /t/:type/:tag

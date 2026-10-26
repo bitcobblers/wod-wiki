@@ -115,11 +115,11 @@ Every note belongs to a canonical `notebook/{slug}` container — including the 
 
 Filter by notebook with `notebook:<slug>` (or `notebook:notebook/<slug>`), or by storage scope with `source:`:
 
-`journal` (your journal notes) · `feeds` (notebook notes) · `guides` · `playground` (plus `dashboards`, `efforts`, `equipment`)
+`journal` (your journal notes) · `notebooks` (feed-delivered notebook notes) · `guides` · `playground` (plus `dashboards`, `efforts`, `equipment`)
 
 Omitting `source:` and `notebook:` searches **all** notes — there is no `source:all` (the parser refuses it). Pin one notebook with `notebook:crossfit-girls`.
 
-Journal scope includes user-created clones whose `sourceId` points to the original note UUID or legacy `journal/YYYY-MM-DD` ID. Only user-created notes (`seedOrigin !== 'seed'`) are editable; seed-delivered notebook notes are read-only and can be cloned into your writable notebooks.
+Journal scope includes user-created clones whose `sourceId` points to the original note UUID or legacy `journal/YYYY-MM-DD` ID. Notes in user-owned notebooks (`journal`, `playground`, `defaults`, and user-created notebooks) are editable; notes in feed-delivered notebooks are read-only and can be cloned into your writable notebooks.
 
 ### Windows {#windows}
 
@@ -161,7 +161,7 @@ pipeline:
 
 Targets: `:note` / `:notes` (whole notes), `:block` (addressable fenced blocks), `:effort` (registry entries, filterable by `effort`, `discipline`, `intensity`, `origin`, `text`), plus the advanced `:session`, `:segment`, `:event` for recorded results and raw rows — and four container planes that speak the app's own vocabulary:
 
-- `:notebook{}` returns the **notes** of every notebook — journal, playground, defaults, user-created, feed-delivered — never a synthetic container list. `notebook:crossfit-girls` narrows to that notebook's notes (the same query behind the notebook page); `!notebook:` excludes one; `source:feeds` narrows to feed-delivered notes. Container criteria narrow members: `:notebook{notebook:crossfit-girls, tags:benchmark}` keeps only matching notes.
+- `:notebook{}` returns the **notes** of every notebook — journal, playground, defaults, user-created, feed-delivered — never a synthetic container list. `notebook:crossfit-girls` narrows to that notebook's notes (the same query behind the notebook page); `!notebook:` excludes one; `source:notebooks` narrows to feed-delivered notes. Container criteria narrow members: `:notebook{notebook:crossfit-girls, tags:benchmark}` keeps only matching notes.
 - `:page{}` lists **placements** — notes placed on dated or named pages; `page:2026-10-24` or `page:back-log` narrows by the page, `notebook:` by its notebook.
 - `:tag{}` lists tags — filter by label (`tag:kettlebell`), record type (`type:equipment`), or what a tag contributes (`contributes:metric`, `contributes:tag:mobility`, `contributes:function:calc.e1rm`). A contribution is never offered as a label filter.
 - `:equipment{}` lists equipment notes — the equipment library plane; narrow with `equipment:kettlebell` or any tag filter (`tags:benchmark`).

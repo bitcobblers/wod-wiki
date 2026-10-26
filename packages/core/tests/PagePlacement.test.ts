@@ -2,10 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   comparePlacements,
   orderPlacements,
-  placementsOnDate,
-  placementsOnSlug,
-  primaryPlacement,
-  placementTarget,
   projectPlacements,
   resolvePlacements,
   type NotePlacement,
@@ -84,26 +80,6 @@ describe('resolvePlacements', () => {
   });
 });
 
-describe('primary placement', () => {
-  const placement = (overrides: Partial<NotePlacement>): NotePlacement => ({
-    pageId: 'p1', noteId: 'n1', createdAt: T0, ...overrides,
-  });
-
-  it('is the first placement in canonical order', () => {
-    const placements = [placement({ pageId: 'first' }), placement({ pageId: 'second' })];
-    expect(primaryPlacement(placements)?.pageId).toBe('first');
-  });
-
-  it('is undefined when the note sits on no page', () => {
-    expect(primaryPlacement([])).toBeUndefined();
-  });
-
-  it('addresses a placement by its date page, else by its named page', () => {
-    expect(placementTarget(placement({ date: '2026-07-15', slug: 'x' }))).toEqual({ date: '2026-07-15' });
-    expect(placementTarget(placement({ slug: 'marathon-block' }))).toEqual({ slug: 'marathon-block' });
-  });
-});
-
 describe('the single-page projection', () => {
   const placement = (overrides: Partial<NotePlacement>): NotePlacement => ({
     pageId: 'p1', noteId: 'n1', createdAt: T0, ...overrides,
@@ -132,16 +108,5 @@ describe('the single-page projection', () => {
     const projection = projectPlacements(placements);
     expect(placements).toHaveLength(3);
     expect(projection.pageSlug).toBe('gym');
-  });
-
-  it('finds the placements of one date and one named page', () => {
-    const placements = [
-      placement({ pageId: 'cal', date: '2026-07-15' }),
-      placement({ pageId: 'cal-2', date: '2026-07-16' }),
-      placement({ pageId: 'named', slug: 'gym' }),
-    ];
-    expect(placementsOnDate(placements, '2026-07-16').map((p) => p.pageId)).toEqual(['cal-2']);
-    expect(placementsOnSlug(placements, 'gym').map((p) => p.pageId)).toEqual(['named']);
-    expect(placementsOnDate(placements, '2026-07-17')).toEqual([]);
   });
 });

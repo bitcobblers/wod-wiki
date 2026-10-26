@@ -22,6 +22,17 @@
 import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, Page, PageNote, NotePlacement, Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
 import { normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
+  DEFAULT_NOTEBOOK_SLUGS,
+  isNoteEditable,
+  notebookSlugFromId,
+  toNotebookId,
+  type DefaultNotebookSlug,
+  type FeedId,
+  type NotebookId,
+  type NotebookOrigin,
+} from '@bitcobblers/wod-wiki-core';
+
+import {
   parseQuery,
   isFindQuery,
   isPipelineQuery,
@@ -70,6 +81,16 @@ import type {
   WqlDomainPredicate,
 } from './stores';
 
+export {
+  DEFAULT_NOTEBOOK_SLUGS,
+  isNoteEditable,
+  notebookSlugFromId,
+  toNotebookId,
+  type DefaultNotebookSlug,
+  type FeedId,
+  type NotebookId,
+  type NotebookOrigin,
+};
 export type {
   EventStore,
   NoteQueryStore,
@@ -94,28 +115,6 @@ export function notebookSlugOfSourceId(sourceId: string | undefined): string | u
   if (!rest || rest === '_root') return undefined;
   return rest.split('/')[0];
 }
-
-import {
-  DEFAULT_NOTEBOOK_SLUGS,
-  isNoteEditable,
-  notebookSlugFromId,
-  toNotebookId,
-  type DefaultNotebookSlug,
-  type FeedId,
-  type NotebookId,
-  type NotebookOrigin,
-} from '@bitcobblers/wod-wiki-core';
-
-export {
-  DEFAULT_NOTEBOOK_SLUGS,
-  isNoteEditable,
-  notebookSlugFromId,
-  toNotebookId,
-  type DefaultNotebookSlug,
-  type FeedId,
-  type NotebookId,
-  type NotebookOrigin,
-};
 
 /**
  * The feed that delivered a note — the resolver's feed answer.
@@ -284,7 +283,7 @@ const SOURCE_SHAPE_ALIASES: Record<string, string> = {
 
 /** The storage-identity shape for a WQL source kind (aliases resolved), or
  *  undefined for kinds that are not pure sourceId shapes (`journal`, `all`,
- *  `feed:<slug>` targets, plain sourceId literals). The storage wire's SQL
+ *  plain sourceId literals). The storage wire's SQL
  *  projection reads the same accessor. */
 export function sourceShape(kind: string): (typeof SOURCE_ID_SHAPES)[string] | undefined {
   return SOURCE_ID_SHAPES[SOURCE_SHAPE_ALIASES[kind] ?? kind];

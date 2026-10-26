@@ -140,7 +140,7 @@ export function FacetProperties({ profile }: { profile: StreamProfile }) {
   const facetEntries = entries ?? (pending ? committed!.entries : EMPTY_ENTRIES)
 
   // Result identity is never offered as a facet catalog: on a target's own
-  // plane (note — journal/collection/playground heads parse to target
+  // plane (note — journal/notebooks/playground heads parse to target
   // 'note' + an injected source scope — and effort) the identity key would
   // list every result row as a filter value. A query that explicitly
   // authors the identity key keeps its section so rows stay removable.
@@ -232,7 +232,7 @@ function identifierLabels(target: string, key: string, entries: Entry[]): Map<st
     if (id && !labels.has(id)) labels.set(id, title)
   }
   if ((target === 'note' || target === 'block') && key === 'note') {
-    for (const entry of entries) bump(entry.noteId ?? entry.id, entry.title)
+    for (const entry of entries) bump(entry.id, entry.title)
   }
   if (target === 'session') {
     for (const entry of entries) {

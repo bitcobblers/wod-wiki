@@ -184,6 +184,10 @@ export function NotePlacementDialog({
           setError('Choose a destination date or named page for the clone.')
           return
         }
+        if (nextDate && nextSlug) {
+          setError('Choose a destination date OR a named page — a clone targets one page, never both.')
+          return
+        }
         const created = await journalNotes.create({
           journalDate: nextDate || undefined,
           slug: nextSlug || undefined,
@@ -205,7 +209,10 @@ export function NotePlacementDialog({
         } else {
           try {
             const resolved = await journalNotes.resolve(nextSource)
-            if (!resolved || resolved.id === entry.id) throw new Error('invalid source')
+            if (!resolved || resolved.id === entry.id) {
+              setError('Source note not found.')
+              return
+            }
             patch.sourceId = resolved.id
           } catch {
             setError('Source note not found.')

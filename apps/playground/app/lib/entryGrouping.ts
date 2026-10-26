@@ -11,8 +11,6 @@ import { parseQuery, type AnyParsedQuery } from '@bitcobblers/wod-wiki-engine'
 import { CONTENT_GROUPING_DIMENSIONS } from '@bitcobblers/wod-wiki-ui'
 import { sortGroupBuckets } from './groupByOptions'
 
-export const UNDATED_KEY = '(undated)'
-
 export interface StreamGroup {
   /** DOM id and scroll target, e.g. "date-group-2026-09-04" or "group-discipline-strength" */
   id: string
@@ -24,18 +22,6 @@ export interface StreamGroup {
   isToday?: boolean
   /** Entries in this group */
   entries: Entry[]
-}
-
-/** Legacy signature kept for existing callers and tests */
-export function groupEntriesByDate(entries: Entry[]): [string, Entry[]][] {
-  const map = new Map<string, Entry[]>()
-  for (const e of entries) {
-    const k = e.date ?? UNDATED_KEY
-    const arr = map.get(k)
-    if (arr) arr.push(e)
-    else map.set(k, [e])
-  }
-  return Array.from(map.entries())
 }
 
 /** Parse the ordered grouping dimensions from a WQL query string or a

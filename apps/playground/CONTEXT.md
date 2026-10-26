@@ -46,7 +46,7 @@ Domain vocabulary that applies repo-wide lives in the root
 ## Route & query vocabulary (per-page query settings)
 
 - **Stream Route** — a route mounting the shared queriable stream
-  (`/journal`, `/catalogs`, `/feeds`, `/efforts`, `/equipment`, `/sessions`,
+  (`/journal`, `/notebooks`, `/feeds`, `/efforts`, `/equipment`, `/sessions`,
   `/playgrounds`, `/results`, `/results/segments`, `/results/:resultId`),
   each backed by a **Stream Profile**. The canonical names for what these
   routes list — notebook, feed, note, page — live in `CONTEXT.md`

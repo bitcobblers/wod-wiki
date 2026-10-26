@@ -46,7 +46,7 @@ export interface Grouping {
    * deterministic monogram cover instead.
    */
   image?: string;
-  /** Items in this grouping (unsorted — adapters own sort order) */
+  /** Items in this grouping (canonically sorted: dated desc by date, then id asc). */
   items: GroupingItem[];
 }
 
@@ -203,13 +203,13 @@ export function buildGroupings(root: GroupingRoot, files: Record<string, string>
     // Dated item, one level deeper: markdown/notebooks/<slug>/<date>/<file>.md
     const datedMatch = path.match(/(?:^|\/)markdown\/notebooks\/([^/]+)\/(\d{4}-\d{2}-\d{2})\/([^/]+\.md)$/);
     if (datedMatch) {
-      const [, slug, dateKey, fileName] = datedMatch;
+      const [, slug, itemDate, fileName] = datedMatch;
       ensureGrouping(slug).items.push({
         id: fileName.replace(/\.md$/, ''),
         name: fileToDisplayName(fileName),
         content,
         path,
-        date: dateKey,
+        ...(itemDate ? { date: itemDate } : {}),
       });
       continue;
     }
@@ -227,6 +227,19 @@ export function buildGroupings(root: GroupingRoot, files: Record<string, string>
     });
   }
 
+  // Canonical notebook item order: dated items newest first, ties then ids
+  // ascending, undated items last by id ascending — one order for every
+  // notebook surface. Notebooks sort by name ascending.
+  for (const grouping of groupMap.values()) {
+    grouping.items.sort((a, b) => {
+      if (a.date && b.date && a.date !== b.date) return b.date.localeCompare(a.date);
+      if (a.date && !b.date) return -1;
+      if (!a.date && b.date) return 1;
+      return a.id.localeCompare(b.id);
+    });
+  }
+
   return Array.from(groupMap.values())
-    .filter(({ items, readme }) => items.length > 0 || readme !== undefined);
+    .filter(({ items, readme }) => items.length > 0 || readme !== undefined)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -14,6 +14,7 @@
  * one. Pure functions only — React and storage live in the section.
  */
 
+import { BUILTIN_NOTEBOOKS } from '@bitcobblers/wod-wiki-core';
 import { buildGroupings, type Grouping } from '@/repositories/groupings';
 import { feedSourceById, type NotebookDef, type FeedSource } from '@/services/feed/feedSources';
 
@@ -157,40 +158,32 @@ export function buildNotebookCatalog(notebooks: readonly NotebookDef[], files: R
 
 // ── App-owned core notebooks ───────────────────────────────────────────────
 
-/** The core feed's reference notebooks (ticket 05): delivered with the app's
- *  own seed, not published by a library feed. Item counts read straight off
- *  the corpus file map (`markdown/<slug>/…`). */
-const CORE_NOTEBOOKS: ReadonlyArray<{
-  slug: string; label: string; description: string; href: string; chunkId: string;
-}> = [
-  { slug: 'efforts', label: 'Efforts', description: 'The effort library — every effort the parser and analytics resolve, across the canonical disciplines.', href: '/efforts', chunkId: 'efforts' },
-  { slug: 'equipment', label: 'Equipment', description: 'The equipment library — gear definitions the language resolves.', href: '/equipment', chunkId: 'equipment' },
-  { slug: 'dashboards', label: 'Dashboards', description: 'Prebuilt WQL dashboards — query compositions ready to open.', href: '/dashboards', chunkId: 'dashboards' },
-];
-
 function coreNotebookCatalog(files: Record<string, string> | null): NotebookSummary[] {
-  return CORE_NOTEBOOKS.map((notebook) => {
-    const prefix = `markdown/${notebook.slug}/`;
-    const paths = files
-      ? Object.keys(files).filter((p) => p.startsWith(prefix) && p.endsWith('.md') && !p.endsWith('/README.md'))
-      : [];
-    return {
-      packageId: `core-${notebook.slug}`,
-      feedId: 'core',
-      chunkId: notebook.chunkId,
-      slug: notebook.slug,
-      label: notebook.label,
-      description: notebook.description,
-      categories: [],
-      sourceLabel: 'Core',
-      href: notebook.href,
-      itemCount: paths.length,
-      installed: files ? paths.length > 0 : false,
-      subscribed: true,
-    };
-  });
+  return BUILTIN_NOTEBOOKS
+    .filter((spec): spec is typeof spec & { seedChunkId: string } =>
+      spec.feedEntryId === 'core' && spec.slug !== 'guides' && typeof spec.seedChunkId === 'string',
+    )
+    .map((notebook) => {
+      const prefix = `markdown/${notebook.slug}/`;
+      const paths = files
+        ? Object.keys(files).filter((p) => p.startsWith(prefix) && p.endsWith('.md') && !p.endsWith('/README.md'))
+        : [];
+      return {
+        packageId: `core-${notebook.slug}`,
+        feedId: 'core',
+        chunkId: notebook.seedChunkId,
+        slug: notebook.slug,
+        label: notebook.name,
+        description: notebook.description,
+        categories: [],
+        sourceLabel: 'Core',
+        href: notebook.href,
+        itemCount: paths.length,
+        installed: files ? paths.length > 0 : false,
+        subscribed: true,
+      };
+    });
 }
-
 // ── Feed grouping ──────────────────────────────────────────────────────────
 
 /** One feed with the notebooks it publishes — the library section's unit:

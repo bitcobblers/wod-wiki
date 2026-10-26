@@ -61,6 +61,25 @@ describe('NotebookService (notes-store backed)', () => {
         expect((await service.getById('notebook/open-prep'))?.icon).toBe('🔥');
     });
 
+    it('quotes YAML-special descriptions in the landing note frontmatter', async () => {
+        const description = 'Strength: 5x5 #1 priority "unbroken"';
+        const nb = await service.create('Special Chars', description, '🏷️');
+        expect(nb.description).toBe(description);
+
+        const stored = await store.getNote(nb.id);
+        expect(stored?.rawContent).toContain(`description: ${JSON.stringify(description)}`);
+        expect(stored?.rawContent).toContain(`icon: ${JSON.stringify('🏷️')}`);
+
+        // Round-trip: quoted frontmatter reads back identically via getById/getAll.
+        expect((await service.getById(nb.id))?.description).toBe(description);
+        expect((await service.getAll()).find((n) => n.id === nb.id)?.description).toBe(description);
+
+        // And the same survives an update with other YAML-special characters.
+        const updated = await service.update(nb.id, { description: 'Updated: yes #note' });
+        expect(updated.description).toBe('Updated: yes #note');
+        expect((await store.getNote(nb.id))?.rawContent).toContain('description: "Updated: yes #note"');
+    });
+
     it('never reuses default notebook slugs', async () => {
         const nb = await service.create('Journal');
         expect(nb.slug).toBe('journal-2');
@@ -77,7 +96,7 @@ describe('NotebookService (notes-store backed)', () => {
 
         const stored = await store.getNote(nb.id);
         expect(stored?.title).toBe('New Name');
-        expect(stored?.rawContent).toContain('description: new');
+        expect(stored?.rawContent).toContain('description: "new"');
     });
 
     it('deleting a notebook returns its notes to the journal', async () => {
