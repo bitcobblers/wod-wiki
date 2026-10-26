@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { TEST_IDS } from '../contracts/TestIdContract';
-import { waitForSeedReady } from '../helpers/seedReadiness';
+import { gotoFeedSurface } from '../helpers/feedReadiness';
 
 const DB_NAME = 'wodwiki-db';
 
@@ -8,14 +8,12 @@ export class EffortsPage {
   constructor(readonly page: Page) {}
 
   async gotoCatalog() {
-    await this.page.goto('/efforts', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(this.page);
+    await gotoFeedSurface(this.page, '/efforts');
     await this.waitForCatalogLoaded();
   }
 
   async gotoDetail(slug: string) {
-    await this.page.goto(`/e/${encodeURIComponent(slug)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForSeedReady(this.page);
+    await gotoFeedSurface(this.page, `/e/${encodeURIComponent(slug)}`);
     await this.waitForDetailLoaded();
   }
 
