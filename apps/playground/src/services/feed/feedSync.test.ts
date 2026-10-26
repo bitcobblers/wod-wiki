@@ -317,8 +317,8 @@ describe('legacy core registry migration', () => {
 
     const counting = new CountingFeedSource(fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 5, 'canvas'));
     expect(await runBootFeedSync({ sources: [spec(counting, 'core', 5)], storage, isEnabled: () => true })).toBe('imported');
-    // Two manifest reads: the boot decision probe, then the importer's own fetch.
-    expect(counting.fetchManifestCalls).toBe(2);
+    // Exactly one manifest read: forwarded from runSourceSyncCore to FeedImporter
+    expect(counting.fetchManifestCalls).toBe(1);
     const core = await storage.getSeedMeta(seedMetaKey('core'));
     expect(core?.seedVersion).toBe(5);
     expect(core?.builtAt).toBe(new Date(5).toISOString());

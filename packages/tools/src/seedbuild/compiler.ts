@@ -19,6 +19,7 @@ import {
   notebookSlugForChunkId,
   type ManifestChunk,
   type NotebookIndex,
+  type NotebookIndexSummary,
   type SeedManifest,
   type SeedRecordRef,
   type SeedRow,
@@ -28,7 +29,7 @@ import { createReferenceIndex, extractStatementRefs, parseEffortFile, parseEquip
 import { resolveGitVersion } from './git-version';
 import { writeBuildReport } from './report';
 import { getScalar, parseFrontmatter } from './frontmatter';
-import { assertSeedManifest } from './validation';
+import { assertNotebookIndex, assertSeedManifest, assertSeedRows } from './validation';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync, execSync } from 'node:child_process';
@@ -226,6 +227,40 @@ export function getFileVersion(file: string, repoRoot: string): number {
   } catch {
     return 1;
   }
+}
+export function getPathVersion(targetPath: string, repoRoot: string): number {
+  try {
+    const out = execFileSync('git', ['rev-list', '--count', 'HEAD', '--', targetPath], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const count = Number(out);
+    return Number.isFinite(count) && count > 0 ? count : 1;
+  } catch {
+    return 1;
+  }
+}
+
+export function getPathCommit(targetPath: string, repoRoot: string): string {
+  try {
+    return execFileSync('git', ['log', '-1', '--format=%H', '--', targetPath], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return '';
+  }
+}
+
+export function getPathUpdatedAt(targetPath: string, repoRoot: string): string | undefined {
+  try {
+    const out = execFileSync('git', ['log', '-1', '--format=%cI', '--', targetPath], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return out || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function groupCorpusPath(id: string): string {
+  if (id.startsWith('notebook.')) {
+    const slug = id.slice('notebook.'.length);
+    return slug === '_root' ? 'markdown/notebooks' : `markdown/notebooks/${slug}`;
+  }
+  return `markdown/${id}`;
 }
 
 /**
@@ -621,7 +656,8 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     rows.push(row); equipmentByPath.set(row.sourcePath!, rows);
   }
   let totalFiles = 0;
-  const manifestNotebooks: NotebookIndex[] = [];
+  const manifestNotebooks: NotebookIndexSummary[] = [];
+  const manifestBuiltAt = new Date().toISOString();
 
   const tWrite = Date.now();
   for (const { id, files } of groups) {
@@ -661,6 +697,7 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
 
       return compiled;
     });
+    assertSeedRows(rows);
     const bytes = Buffer.from(JSON.stringify(rows), 'utf8');
     const sha = sha256Hex(bytes);
     const file = `chunks/${id}.${sha.slice(0, 8)}.json`;
@@ -669,20 +706,34 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     totalFiles += rows.length;
 
     // Emit notebook index
+    const groupPath = groupCorpusPath(id);
+    const groupVersion = getPathVersion(groupPath, corpusRoot);
+    const groupCommit = getPathCommit(groupPath, corpusRoot) || gitVersion.commit || '';
+    const groupUpdatedAt = getPathUpdatedAt(groupPath, corpusRoot);
+
     const notebookIndexPath = `indexes/notebooks/${id}.json`;
-    const notebookIndex: NotebookIndex = {
+    const summary: NotebookIndexSummary = {
       notebookId: id,
       label: fileToDisplayName(id.split('.').at(-1) ?? id),
       category: notebookSlugForChunkId(id),
       indexPath: notebookIndexPath,
-      commit: records.find((r) => r.commit)?.commit ?? gitVersion.commit,
+      version: groupVersion,
+      commit: groupCommit,
+      updatedAt: groupUpdatedAt,
+      builtAt: manifestBuiltAt,
+      sha256: sha,
+      bytes: bytes.length,
       count: rows.length,
+    };
+    const notebookIndex: NotebookIndex = {
+      ...summary,
       records,
     };
+    assertNotebookIndex(notebookIndex);
     const indexOutFile = join(outDir, notebookIndexPath);
     mkdirSync(dirname(indexOutFile), { recursive: true });
     writeFileSync(indexOutFile, JSON.stringify(notebookIndex, null, 2) + '\n');
-    manifestNotebooks.push(notebookIndex);
+    manifestNotebooks.push(summary);
   }
 
   passMs.write = Date.now() - tWrite;
@@ -696,7 +747,7 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     versionLabel: gitVersion.versionLabel,
     commit: gitVersion.commit,
     dirty: gitVersion.dirty,
-    builtAt: new Date().toISOString(),
+    builtAt: manifestBuiltAt,
     chunks: manifestChunks,
     notebooks: manifestNotebooks,
   };

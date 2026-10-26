@@ -434,15 +434,16 @@ not contain them).
 
 **Feed**:
 The configured source that publishes notebooks. A feed is one published directory: one
-manifest, one version, one import checkpoint, one subscription. It delivers notebooks —
-never notes of its own: the notebooks it publishes stay read-only until the user clones
-content into a notebook they own. Effort and equipment definitions arrive the same way,
-as markdown delivered by a feed and imported as notes.
+manifest index, one import checkpoint (`seed:<id>`), and a published set of versioned
+notebooks that can be subscribed as a whole feed or individually by notebook (`<feedId>#<chunkId>`).
+It delivers notebooks — never notes of its own: the notebooks it publishes stay read-only
+until the user clones content into a notebook they own. Effort and equipment definitions
+arrive the same way, as markdown delivered by a feed and imported as notes.
 Identity: a registered feed has ONE id — the source's own id (`FeedSource.id`, the
 notebook's `feedEntryId`, the note's `feedSourceId`). The import checkpoint keys that
 same id as `seed:<id>`: the checkpoint key carries the id as its suffix, it is not the id
 itself. A feed id therefore resolves the same registry entry, import checkpoint, and
-subscription, and there is no second source id to keep in step. The seed spelling
+feed-level or partial-notebook subscription state, with no second source id to keep in step. The seed spelling
 survives only as the published artifact (a **Seed**), its per-row provenance stamps
 (`seedOrigin`, `seedVersion`, `seedChunkId`), and the checkpoint key prefix; the feed
 spelling is the source-side one (`feedOrigin`, `feedSourceId`, `feedEntryId`). A note imported before the feed stamp existed is

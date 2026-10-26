@@ -174,7 +174,7 @@ describe('boot seed policy', () => {
     expect((await storage.getSeedMeta(seedMetaKey('community')))?.seedVersion).toBe(1);
     expect(getFeedUpdates()).toBeNull();
     expect(await runBootFeedSync({ sources, storage, isEnabled: () => true })).toBe('current');
-    expect(communityCounting.fetchManifestCalls).toBe(4);
+    expect(communityCounting.fetchManifestCalls).toBe(3);
   });
 
   it('fresh visit imports core only, before any subscription exists', async () => {
@@ -188,9 +188,8 @@ describe('boot seed policy', () => {
       isEnabled: () => true,
     });
     expect(outcome).toBe('imported');
-    // Two manifest reads: the boot decision probe, then the importer's own
-    // fetch as it applies the chunk plan.
-    expect(coreCounting.fetchManifestCalls).toBe(2);
+    // Exactly one manifest read: pre-fetched manifest is forwarded to the importer
+    expect(coreCounting.fetchManifestCalls).toBe(1);
     expect(communityCounting.fetchManifestCalls).toBe(0);
   });
 });

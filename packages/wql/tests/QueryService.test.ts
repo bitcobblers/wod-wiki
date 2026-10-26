@@ -604,4 +604,48 @@ describe('the notebook plane (ticket 08)', () => {
     expect((await service.runFind(parseQuery(':notebook{notebook:crossfit-girls, tags:benchmark}') as never)).notes.map(n => n.id))
       .toEqual(['crossfit-girls/helen']);
   });
+
+  it('filters by feed:<id> and feed:local', async () => {
+    const feedNotes = [
+      { id: 'n1', title: 'N1', rawContent: '', sourceRevision: 1, blocks: {}, createdAt: 1, feedSourceId: 'seed-crossfit', sourceId: 'notebook:crossfit-girls/fran' },
+      { id: 'n2', title: 'N2', rawContent: '', sourceRevision: 1, blocks: {}, createdAt: 2, feedSourceId: 'custom-feed', sourceId: 'notebook:custom/a' },
+      { id: 'n3', title: 'N3', rawContent: '', sourceRevision: 1, blocks: {}, createdAt: 3, notebookId: 'my-notebook' },
+    ];
+    const s = new QueryService({
+      eventStore: { getEventsByTimeRange: async () => [], getEventsByResult: async () => [] },
+      noteStore: { getAllNotes: async () => feedNotes as never, getNoteIdsForTag: async () => new Set() },
+    });
+
+    const resFeed = await s.runFind(parseQuery(':notebook{feed:seed-crossfit}') as never);
+    expect(resFeed.notes.map(n => n.id)).toEqual(['n1']);
+
+    const resLocal = await s.runFind(parseQuery(':notebook{feed:local}') as never);
+    expect(resLocal.notes.map(n => n.id)).toEqual(['n3']);
+  });
+
+  it('applies subscribed filter and default visibility predicate on :notebook{}', async () => {
+    const mixedNotes = [
+      { id: 'user-note', title: 'User Note', rawContent: '', sourceRevision: 1, blocks: {}, createdAt: 1, notebookId: 'my-nb' },
+      { id: 'sub-note', title: 'Subscribed Seed', rawContent: '', sourceRevision: 1, blocks: {}, createdAt: 2, feedSourceId: 'feed-a', seedChunkId: 'notebook.chunk-a' },
+      { id: 'unsub-note', title: 'Unsubscribed Seed', rawContent: '', sourceRevision: 1, blocks: {}, createdAt: 3, feedSourceId: 'feed-b', seedChunkId: 'notebook.chunk-b' },
+    ];
+    const isSub = (fid: string, cid: string) => fid === 'feed-a' && cid === 'notebook.chunk-a';
+    const s = new QueryService({
+      eventStore: { getEventsByTimeRange: async () => [], getEventsByResult: async () => [] },
+      noteStore: { getAllNotes: async () => mixedNotes as never, getNoteIdsForTag: async () => new Set() },
+      isNotebookSubscribed: isSub,
+    });
+
+    // Default visibility on :notebook{}: user notes + subscribed seed notes (unsubscribed seed excluded)
+    const defRes = await s.runFind(parseQuery(':notebook{}') as never);
+    expect(defRes.notes.map(n => n.id)).toEqual(['user-note', 'sub-note']);
+
+    // Explicit subscribed:false
+    const unsubRes = await s.runFind(parseQuery(':notebook{subscribed:false}') as never);
+    expect(unsubRes.notes.map(n => n.id)).toEqual(['unsub-note']);
+
+    // Explicit subscribed:true,false
+    const allRes = await s.runFind(parseQuery(':notebook{subscribed:true,false}') as never);
+    expect(allRes.notes.map(n => n.id)).toEqual(['user-note', 'sub-note', 'unsub-note']);
+  });
 });

@@ -29,14 +29,13 @@ load without gating first paint.
 
 ## Decision
 
-**The feed is the unit**: one published directory = one manifest = one
-checkpoint `seed:<sourceId>` = one Subscribe, and Subscribe imports every
-notebook the feed publishes. A notebook is one chunk inside that import
-and a listing row in the library surfaces — never a separate sync or
-subscription. The retired model (a monolith `community` source sliced
-into one package source per notebook) survives only as its migration
-path (see *Legacy checkpoint adoption* below).
-
+**Feed container, granular subscriptions**: The feed is the configured source
+and checkpoint container (`seed:<feedId>`), while subscription and update pulls
+operate at either whole-feed or individual-notebook (`<feedId>#<chunkId>`)
+granularity. Subscribing can pull a single notebook without pulling sibling
+notebooks, and unsubscribing removes only that chunk's seed-owned notes in one
+transaction while user notes survive. If all chunks of a feed are unsubscribed,
+the `seed:<feedId>` checkpoint is deleted.
 **Separation of concerns**: the *feed registry* (what exists), the
 *subscription map* (what the user opted into), and the *auto-sync map*
 (what may self-apply) are three independent localStorage documents.
@@ -48,7 +47,7 @@ nonblocking background pass on each load (`probeManifests: true` bypasses
 the skip-fetch fast path). Auto-sync ON applies the update; auto-sync OFF
 records a `pending` entry in one grouped `FeedUpdatesSnapshot`
 surfaced as a single notification with a "Review updates" action to
-`/notebooks?manage=1` (the current notebooks route).
+`/notebooks`.
 
 **Exact ownership**: deletion uses the checkpoint's recorded `noteIds`
 and only removes notes still stamped `seedOrigin === 'seed'`, cascading

@@ -116,6 +116,8 @@ export interface Entry {
    *  plane `by {<type>}` grouping resolves against (domain, equipment, any
    *  custom tag type). Flat `tags` above stays label-only. */
   typedTags?: Array<{ label: string; type?: string }>
+  /** Publishing feed source id (e.g. 'core', 'seed-crossfit', or 'local'). */
+  feedId?: string
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -219,6 +221,7 @@ export function toEntry(note: Note): Entry {
     ...toEntryBase(note),
     noteType: note.type,
     notebookId: notebookOfItem(note),
+    feedId: note.feedSourceId ?? (notebookOriginOfItem(note) === 'user' ? 'local' : 'core'),
     editable: isNoteEditable(note, notebookOriginOfItem(note)),
   }
 }

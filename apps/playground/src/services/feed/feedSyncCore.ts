@@ -136,7 +136,21 @@ export async function runSourceSyncCore(
     // import checkpoints. A detected update lands in the grouped snapshot
     // and waits for a manual Sync; installed content stays untouched.
     if (deps.background && !input.autoSyncOn) {
-      result.outcome = decision === 'import' ? 'update-pending' : 'current';
+      const targetChunks = manifest.chunks.filter((c) => {
+        if (input.notebookIds !== undefined && input.notebookIds !== null) {
+          if (input.notebookIds.length === 0) return false;
+          if (!input.notebookIds.includes(c.id)) return false;
+        }
+        return true;
+      });
+      const hasPending = targetChunks.some((c) => {
+        const nb = manifest.notebooks?.find((n) => n.notebookId === c.id);
+        const chunkStored = stored?.chunks[c.id];
+        if (!chunkStored) return true;
+        if (nb && (nb.version ?? 0) > (chunkStored.version ?? 0)) return true;
+        return chunkStored.sha256 !== c.sha256;
+      });
+      result.outcome = hasPending ? 'update-pending' : 'current';
       return result;
     }
     if (!deps.force && decision === 'current' && stored?.schema === SEED_SCHEMA && stored.builtAt === manifest.builtAt) {
@@ -161,6 +175,8 @@ export async function runSourceSyncCore(
         onProgress: callbacks.onProgress,
         notebookIds: input.notebookIds,
         granularRecords: input.granularRecords,
+        manifest,
+        stored: claimed,
       });
       // Reaching the apply stage at all means the version decision chose an
       // import (or force/builtAt mismatch) — the run counts as 'imported'

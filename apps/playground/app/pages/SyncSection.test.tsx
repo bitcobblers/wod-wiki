@@ -6,8 +6,13 @@ import type { FeedStatus } from '@/services/feed/feedSync';
 let subscribedFeeds = new Set<string>();
 let subscribedNotebooks = new Set<string>();
 let syncedSources: string[] = [];
+const mockNavigate = mock();
+mock.module('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}));
 
 mock.module('@/services/feed/feedSubscriptions', () => ({
+  getFeedSubscriptionMode: (id: string) => id === 'core' || subscribedFeeds.has(id) ? 'full' : subscribedNotebooks.size ? 'partial' : 'unsubscribed',
   isFeedSubscribed: (id: string) => subscribedFeeds.has(id),
   isNotebookSubscribed: (feedId: string, chunkId: string) =>
     subscribedFeeds.has(feedId) || subscribedNotebooks.has(`${feedId}#${chunkId}`),
@@ -109,8 +114,8 @@ describe('SyncSection notebook subscriptions and filtering', () => {
     await waitFor(() => {
       expect(screen.getByTestId('feed-source-seed-crossfit')).toBeTruthy();
     });
-    expect(screen.getByTestId('feed-notebook-seed-crossfit-notebook.crossfit-games')).toBeTruthy();
-    expect(screen.getByTestId('feed-notebook-seed-crossfit-notebook.heroes')).toBeTruthy();
+    expect(screen.getByTestId('feed-notebooks-seed-crossfit')).toBeTruthy();
+    expect(screen.getByTestId('browse-notebooks-link-seed-crossfit')).toBeTruthy();
   });
 
   it('filters by feed selector', async () => {
@@ -131,21 +136,18 @@ describe('SyncSection notebook subscriptions and filtering', () => {
     expect(screen.queryByTestId('feed-source-core')).toBeNull();
   });
 
-  it('toggles individual notebook subscription and triggers sync', async () => {
+  it('renders subscription mode summary and link to Library browser', async () => {
     render(<SyncSection />);
 
     fireEvent.click(screen.getByTestId('sync-subscribed-only-toggle'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('feed-notebook-toggle-seed-crossfit-notebook.heroes')).toBeTruthy();
+      expect(screen.getByTestId('browse-notebooks-link-seed-crossfit')).toBeTruthy();
     });
 
-    const toggleBtn = screen.getByTestId('feed-notebook-toggle-seed-crossfit-notebook.heroes');
-    expect(toggleBtn.textContent).toBe('Subscribe');
+    expect(screen.getByTestId('feed-sub-mode-seed-crossfit').textContent).toContain('Unsubscribed');
 
-    fireEvent.click(toggleBtn);
-
-    expect(subscribedNotebooks.has('seed-crossfit#notebook.heroes')).toBe(true);
-    expect(syncedSources).toContain('seed-crossfit');
+    fireEvent.click(screen.getByTestId('browse-notebooks-link-seed-crossfit'));
+    expect(mockNavigate).toHaveBeenCalledWith('/notebooks?q=:notebook{feed:seed-crossfit,subscribed:true,false}');
   });
 });

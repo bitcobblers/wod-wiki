@@ -48,7 +48,7 @@ export type WqlTagKey = (typeof WQL_TAG_KEYS)[number];
  *  `catalog:` is retired (ticket 08 — the notebook plane and the
  *  `notebook:` filter replace it) and `has:` was removed from the
  *  declared vocabulary: it had no executor and the composer withheld it. */
-export const WQL_CONTENT_ONLY_KEYS = ['type', 'text', 'source', 'notebook', 'contributes'] as const;
+export const WQL_CONTENT_ONLY_KEYS = ['type', 'text', 'source', 'notebook', 'contributes', 'feed', 'subscribed'] as const;
 
 /** Filter keys the effort registry can resolve (runFindEffort) — anything
  *  else on find:effort is ignored and reported as an advisory. */
@@ -185,7 +185,7 @@ export type WqlResultPlane = (typeof WQL_RESULT_PLANES)[number];
  *  and `has:` are gone (ticket 08): `catalog:` → `notebook:`, `has:` had no
  *  executor. `contributes:` is the tag plane's contribution filter — a
  *  contribution is never a `tags:` label filter. */
-export const WQL_CONTENT_FILTER_KEYS = ['type', 'text', 'source', 'notebook', 'page', 'contributes', ...WQL_TAG_KEYS] as const;
+export const WQL_CONTENT_FILTER_KEYS = ['type', 'text', 'source', 'notebook', 'page', 'contributes', 'feed', 'subscribed', ...WQL_TAG_KEYS] as const;
 export type WqlContentFilterKey = (typeof WQL_CONTENT_FILTER_KEYS)[number];
 
 /**

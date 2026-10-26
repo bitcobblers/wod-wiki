@@ -342,6 +342,22 @@ function groupByDimension(
       entries: groupEntries,
     }))
   }
+  if (dim === 'feed') {
+    const map = new Map<string, Entry[]>()
+    for (const e of entries) {
+      const feedId = e.feedId ?? (e.sourceNotebook === 'journal' || e.sourceNotebook === 'playground' ? 'local' : 'core')
+      const arr = map.get(feedId)
+      if (arr) arr.push(e)
+      else map.set(feedId, [e])
+    }
+    return sortGroupBuckets(Array.from(map.entries()), 'alpha').map(([key, groupEntries]) => ({
+      id: `group-feed-${safeSlug(key)}`,
+      key,
+      label: key === 'local' ? 'Local' : key === 'core' ? 'Core' : key,
+      entries: groupEntries,
+    }))
+  }
+
 
   // Property dimension — any configured tag type (domain, equipment, custom
   // types from tag settings). First matching value wins, same as the tag

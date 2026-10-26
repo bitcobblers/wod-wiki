@@ -65,7 +65,9 @@ export type ClauseType =
   | 'note'
   | 'page'
   | 'plane'
-  | 'pipes';
+  | 'pipes'
+  | 'feed'
+  | 'subscribed';
 
 export interface QueryClause {
   id: string;
@@ -165,6 +167,10 @@ export const GROUPBY_OPTIONS = [...WQL_VIRTUAL_DIMS, ...WQL_TAG_KEYS].map((v) =>
 export const METRIC_OPTIONS = [...WQL_METRIC_AGGREGATES, ...WQL_METRIC_FAMILIES, ...WQL_CALC_TARGETS]
   .map((v) => ({ value: v, label: v }));
 export const UNIT_OPTIONS = WQL_DISPLAY_UNITS.map((v) => ({ value: v, label: v }));
+export const SUBSCRIBED_OPTIONS = [
+  { value: 'true', label: 'true' },
+  { value: 'false', label: 'false' },
+];
 
 /**
  * Where-join editor vocab — the same source of truth the analytics composer
@@ -222,6 +228,8 @@ export const CLAUSE_META: Record<ClauseType, ClauseMeta> = {
   page:      { label: 'Page',       inputType: 'select',   placeholder: 'slug, date, true…',           placeholderText: 'page: [slug|date]',       icon: '📄', description: 'On :page — the page slug or YYYY-MM-DD date; on :note — page-ness (true/false)', prefix: 'page:' },
   plane:     { label: 'Output Plane',inputType: 'select',   placeholder: 'segment, load, event…',       placeholderText: 'plane: [type]',           icon: '📋', description: 'Output-statement plane on :session', prefix: 'plane:' },
   pipes:     { label: 'Pipes',      inputType: 'freetext', placeholder: '| order by date | limit 10',  placeholderText: '| select | order | limit', icon: '⇥', description: 'Presentation pipes — select/order/limit/offset' },
+  feed:       { label: 'Feed',        inputType: 'select',   placeholder: 'core, local, feed id…',       placeholderText: 'feed: [id]',              icon: '📡', description: 'Filter by publishing feed source', prefix: 'feed:' },
+  subscribed: { label: 'Subscribed',  inputType: 'select',   placeholder: 'true, false',                 placeholderText: 'subscribed: [true|false]', icon: '⭐', description: 'Filter by notebook subscription state', prefix: 'subscribed:' },
 };
 
 const CUSTOM_FALLBACK_ICON = '\u{1F9E9}';

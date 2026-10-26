@@ -30,7 +30,6 @@ import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/fe
 import { toast } from '@/hooks/use-toast'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
-import { NotebookList } from '@/components/organisms/notebook/NotebookList'
 import { notebookService } from '@/hooks/useBrowserServices'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
@@ -62,7 +61,8 @@ import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
-import { NotebookManageDrawer } from '../../pages/NotebookManageDrawer'
+import { NotebookLibraryBrowser } from '../notebook-gallery/NotebookLibraryBrowser'
+import { FeedIntakeBanner } from '../notebook-gallery/FeedIntakeBanner'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
 import { effortPath, ROUTE_PATTERNS } from '../../lib/routes'
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
@@ -302,31 +302,20 @@ export function QueriableStreamView({
   const isMobile = useIsMobile()
   const mobileSlot = useMobileQuerySlot()
 
-  // /notebooks in-situ source management. The grouped update notification and
-  // subscription intake deep-link here via ?manage=1; the toolbar button opens
-  // it in place. Closing drops ONLY the manage param — the query string (q, …)
-  // survives — and replaces the history entry so a modal never stacks history.
   const isNotebooksRoute = profile.route === '/notebooks'
-  const manageOpen = useMemo(
-    () => isNotebooksRoute && new URLSearchParams(location.search).get('manage') === '1',
+  const feedIntakeParam = useMemo(
+    () => isNotebooksRoute ? new URLSearchParams(location.search).get('feed') : null,
     [isNotebooksRoute, location.search],
   )
-  const setManageOpen = useCallback((open: boolean) => {
+  const dismissFeedIntake = useCallback(() => {
     const params = new URLSearchParams(location.search)
-    if (open) params.set('manage', '1')
-    else params.delete('manage')
+    params.delete('feed')
     const search = params.toString()
-    navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: !open })
+    navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true })
   }, [navigate, location.pathname, location.search])
-  const notebooksManager = isNotebooksRoute ? (
-    <NotebookManageDrawer open={manageOpen} onOpenChange={setManageOpen} />
-  ) : null
-  // The subscribe offer's target: /notebooks manages sources in place (the
-  // drawer); every other route defers to Sync settings — no drawer there.
   const openLibraryManager = useCallback(() => {
-    if (isNotebooksRoute) setManageOpen(true)
-    else navigate(ROUTE_PATTERNS.settingsSync)
-  }, [isNotebooksRoute, setManageOpen, navigate])
+    navigate(ROUTE_PATTERNS.settingsSync)
+  }, [navigate])
   const [createNotebookOpen, setCreateNotebookOpen] = useState(false)
   const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
     // The landing note (the notebook's stored definition) is part of create().
@@ -915,7 +904,6 @@ export function QueriableStreamView({
         role="status"
         aria-busy="true"
       >
-        {notebooksManager}
         {createNotebookDialog}
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
           <div className="w-full max-w-2xl space-y-3" aria-hidden="true">
@@ -931,7 +919,6 @@ export function QueriableStreamView({
 
   return (
     <div className="bg-card flex flex-col flex-1" data-testid="queriable-stream-view">
-      {notebooksManager}
       {createNotebookDialog}
       {querySettingsSurface && (
         <QuerySettingsDialog
@@ -982,12 +969,12 @@ export function QueriableStreamView({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setManageOpen(true)}
-                data-testid="manage-notebooks-button"
+                onClick={() => navigate(ROUTE_PATTERNS.settingsSync)}
+                data-testid="feed-settings-button"
                 className="h-9 gap-1.5 px-2.5 text-xs"
               >
                 <Settings2 className="size-3.5" />
-                <span>Manage Notebooks</span>
+                <span>Feed Settings</span>
               </Button>
             )}
             {actions}
@@ -1151,10 +1138,21 @@ export function QueriableStreamView({
         </div>
       )}
 
-      {/* Notebook plane: the management list on /notebooks — defaults, the
-          user's own, the feed libraries and the core references. */}
-      {isNotebooksRoute && (
-        <NotebookList refreshKey={savedTick} onChanged={() => setSavedTick(t => t + 1)} />
+      {isNotebooksRoute && feedIntakeParam && (
+        <div className="px-6 pt-4">
+          <FeedIntakeBanner
+            feedParam={feedIntakeParam}
+            onDismiss={dismissFeedIntake}
+            onRegistered={(feedId) => {
+              dismissFeedIntake()
+              setQuery(`:notebook{feed:${feedId},subscribed:true,false}`)
+            }}
+            onSubscribed={(feedId) => {
+              dismissFeedIntake()
+              setQuery(`:notebook{feed:${feedId}}`)
+            }}
+          />
+        </div>
       )}
 
       {/* Read-only view of the notebook readme note. WQL embed links
@@ -1181,10 +1179,28 @@ export function QueriableStreamView({
         </div>
       )}
 
-      {/* Main Content: Rows (table) / Feed (rich cards) / Cards (grouped stream).
-          An invalid draft dims retained results — visibly stale, still inspectable.
-          With readme query tokens the injected blocks replace this stream. */}
-      {readmeOverride ? null : settings.layout === 'rows' ? (
+      {/* Main Content: On /notebooks, render the unified NotebookLibraryBrowser.
+          On other stream routes, render Rows (table) / Feed (rich cards) / Cards (grouped stream). */}
+      {isNotebooksRoute && !readmeOverride && !libraryNotImported ? (
+        <div className="p-6 flex-1">
+          <NotebookLibraryBrowser
+            query={query}
+            layout={settings.layout}
+            refreshKey={savedTick}
+            onChanged={() => setSavedTick((t) => t + 1)}
+            onQueryChange={setQuery}
+            onEditNotebook={() => setCreateNotebookOpen(true)}
+            onDeleteNotebook={async (nb) => {
+              try {
+                await notebookService.delete(nb.id)
+                setSavedTick((t) => t + 1)
+              } catch {
+                // Deletion failed (e.g. reserved slug refused)
+              }
+            }}
+          />
+        </div>
+      ) : readmeOverride ? null : settings.layout === 'rows' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <PropertyTable
             entries={entries}

@@ -39,6 +39,7 @@ import {
   Rss,
   Star,
   Tag,
+  Plus,
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
@@ -72,6 +73,7 @@ export const SHORTCUT_ICONS: Record<string, LucideIcon> = {
   'flask-conical': FlaskConical,
   heart: Heart,
   library: Library,
+  plus: Plus,
   rss: Rss,
   star: Star,
   tag: Tag,
@@ -122,6 +124,13 @@ const LANDING_ICONS: Record<string, string> = {
 /** The built-in links for a route: the landing link. */
 export function builtinShortcuts(routeId: string): WqlShortcut[] {
   const id = normalizeRouteId(routeId)
+  if (id === '/notebooks') {
+    return [
+      defaultLandingShortcut('All notebooks', 'library'),
+      { id: 'all-configured', label: 'All configured', icon: 'bookmark', wql: ':notebook{subscribed:true,false}' },
+      { id: 'available', label: 'Available to subscribe', icon: 'plus', wql: ':notebook{subscribed:false}' },
+    ]
+  }
   return [defaultLandingShortcut(LANDING_LABELS[id] ?? 'Landing link', LANDING_ICONS[id] ?? 'bookmark')]
 }
 

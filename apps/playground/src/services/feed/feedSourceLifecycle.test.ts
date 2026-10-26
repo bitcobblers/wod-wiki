@@ -60,7 +60,7 @@ describe('catalog auto-sync preference', () => {
 describe('single notebook subscriptions', () => {
   it('supports subscribing to a single notebook within a feed', () => {
     expect(isNotebookSubscribed('feed-1', 'notebook.heroes')).toBe(false);
-    expect(getSubscribedNotebooks('feed-1')).toBeNull();
+    expect(getSubscribedNotebooks('feed-1')).toEqual([]);
 
     setNotebookSubscribed('feed-1', 'notebook.heroes', true);
     expect(isNotebookSubscribed('feed-1', 'notebook.heroes')).toBe(true);
@@ -69,7 +69,7 @@ describe('single notebook subscriptions', () => {
 
     setNotebookSubscribed('feed-1', 'notebook.heroes', false);
     expect(isNotebookSubscribed('feed-1', 'notebook.heroes')).toBe(false);
-    expect(getSubscribedNotebooks('feed-1')).toBeNull();
+    expect(getSubscribedNotebooks('feed-1')).toEqual([]);
   });
 });
 

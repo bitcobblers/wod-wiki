@@ -217,6 +217,35 @@ export function notebookOriginOfItem(item: Parameters<typeof notebookOfItem>[0])
   if (notebook === 'notebook/journal' || notebook === 'notebook/playground') return 'default';
   return 'feed';
 }
+export function feedIdOfItem(item: { feedSourceId?: string; seedChunkId?: string; sourcePath?: string; notebookId?: string; tags?: readonly string[] }): string {
+  const origin = notebookOriginOfItem(item);
+  if (origin === 'user') return 'local';
+  if (item.feedSourceId) return item.feedSourceId;
+  if (origin === 'default') return 'local';
+  return 'core';
+}
+
+export function chunkIdOfItem(item: { seedChunkId?: string; sourcePath?: string; notebookId?: string; tags?: readonly string[] }): string | undefined {
+  if (item.seedChunkId) return item.seedChunkId;
+  const nb = notebookOfItem(item);
+  if (!nb) return undefined;
+  const slug = nb.replace(/^notebook\//, '');
+  return `notebook.${slug}`;
+}
+
+export function isItemSubscribed(
+  item: Parameters<typeof notebookOfItem>[0] & { feedSourceId?: string; seedChunkId?: string; seedOrigin?: string; origin?: string },
+  isNotebookSubscribedFn?: (feedId: string, chunkId: string) => boolean,
+): boolean {
+  const origin = item.origin ?? notebookOriginOfItem(item);
+  if (origin === 'user' || origin === 'default') return true;
+  if (!isNotebookSubscribedFn) return true;
+  const feedId = feedIdOfItem(item);
+  const chunkId = chunkIdOfItem(item);
+  if (!chunkId) return true;
+  return isNotebookSubscribedFn(feedId, chunkId);
+}
+
 
 /** The resolver's journal fallback tier — pure shape logic over the row's own
  *  fields (no prefix, no notebook ownership). {@link notebookOfItem} reaches
@@ -641,6 +670,7 @@ export interface FindOptions {
   anchorNow?: number;
   /** Captured execution context (ticket 12). */
   context?: ExecutionContext;
+  isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
 }
 
 export interface QueryResult {
@@ -1004,6 +1034,7 @@ export class QueryService {
   private readonly datasetStore?: {
     getDataset(name: string): { events: EventRecord[]; notes: Note[] } | undefined;
   };
+  private readonly isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
 
   // Optional storage seam properties for block_efforts and typed tag resolution.
   // Injected by the app adapter (`services/queryService.ts`); tests can supply fakes.
@@ -1045,6 +1076,7 @@ export class QueryService {
       if (stores.blockEffortsStore) this.blockEffortsStore = stores.blockEffortsStore;
       if (stores.tagsStore) this.tagsStore = stores.tagsStore;
       if (stores.noteTagsStore) this.noteTagsStore = stores.noteTagsStore;
+      if (stores.isNotebookSubscribed) this.isNotebookSubscribed = stores.isNotebookSubscribed;
     } else {
       this.store = (storesOrEventStore as EventStore | undefined) ?? defaultEventStore;
       this.noteStore = noteStore ?? defaultNoteStore;
@@ -1514,6 +1546,49 @@ export class QueryService {
     }
 
     notes = applyNotebookFilter(notes, parsed.filters);
+    const isSubscribedFn = options.isNotebookSubscribed ?? this.isNotebookSubscribed ?? (() => true);
+
+    // feed: filter
+    for (const filter of parsed.filters) {
+      if (filter.key === 'feed') {
+        const wanted = new Set(filter.values.map(v => v.value));
+        const hasWildcard = filter.values.some(v => v.wildcard);
+        notes = notes.filter(n => {
+          const fid = feedIdOfItem(n);
+          let hit = false;
+          if (hasWildcard) {
+            hit = fid !== 'local';
+          } else {
+            hit = wanted.has(fid);
+          }
+          return filter.negate ? !hit : hit;
+        });
+      }
+    }
+
+    // subscribed: filter
+    const subscribedFilter = parsed.filters.find(f => f.key === 'subscribed');
+    if (subscribedFilter) {
+      const wantedValues = new Set(subscribedFilter.values.map(v => v.value));
+      const wantsTrue = wantedValues.has('true');
+      const wantsFalse = wantedValues.has('false');
+      notes = notes.filter(n => {
+        const isSub = isItemSubscribed(n, isSubscribedFn);
+        let match = false;
+        if (wantsTrue && wantsFalse) {
+          match = true;
+        } else if (wantsTrue) {
+          match = isSub;
+        } else if (wantsFalse) {
+          match = !isSub;
+        }
+        return subscribedFilter.negate ? !match : match;
+      });
+    } else if (parsed.target === 'notebook' || parsed.raw.startsWith(':notebook')) {
+      // Default visibility predicate on :notebook{}: origin === 'user' || origin === 'default' || subscribed === true
+      notes = notes.filter(n => isItemSubscribed(n, isSubscribedFn));
+    }
+
 
     // Note filter — exact note id
     for (const filter of parsed.filters) {
@@ -1700,6 +1775,46 @@ export class QueryService {
     }
 
     blocks = applyNotebookFilter(blocks, parsed.filters);
+    const isSubscribedFn = options.isNotebookSubscribed ?? this.isNotebookSubscribed ?? (() => true);
+
+    // feed: filter
+    for (const filter of parsed.filters) {
+      if (filter.key === 'feed') {
+        const wanted = new Set(filter.values.map(v => v.value));
+        const hasWildcard = filter.values.some(v => v.wildcard);
+        blocks = blocks.filter(b => {
+          const fid = feedIdOfItem(b);
+          let hit = false;
+          if (hasWildcard) {
+            hit = fid !== 'local';
+          } else {
+            hit = wanted.has(fid);
+          }
+          return filter.negate ? !hit : hit;
+        });
+      }
+    }
+
+    // subscribed: filter
+    const subscribedFilter = parsed.filters.find(f => f.key === 'subscribed');
+    if (subscribedFilter) {
+      const wantedValues = new Set(subscribedFilter.values.map(v => v.value));
+      const wantsTrue = wantedValues.has('true');
+      const wantsFalse = wantedValues.has('false');
+      blocks = blocks.filter(b => {
+        const isSub = isItemSubscribed(b, isSubscribedFn);
+        let match = false;
+        if (wantsTrue && wantsFalse) {
+          match = true;
+        } else if (wantsTrue) {
+          match = isSub;
+        } else if (wantsFalse) {
+          match = !isSub;
+        }
+        return subscribedFilter.negate ? !match : match;
+      });
+    }
+
 
     // Tags filter — matches if the parent note has the tag
     for (const filter of parsed.filters) {

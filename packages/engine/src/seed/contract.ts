@@ -29,14 +29,22 @@ export interface SeedRecordRef {
   date?: number;
 }
 
-export interface NotebookIndex {
+export interface NotebookIndexSummary {
   notebookId: string;
   label: string;
   category?: string;
-  indexPath?: string;
-  sha256?: string;
-  commit?: string;
+  description?: string;
+  indexPath: string;
+  version: number;
+  commit: string;
+  updatedAt?: string;
+  builtAt: string;
+  sha256: string;
+  bytes: number;
   count: number;
+}
+
+export interface NotebookIndex extends NotebookIndexSummary {
   records: SeedRecordRef[];
 }
 
@@ -61,7 +69,7 @@ export interface SeedManifest {
   dirty?: boolean;
   builtAt: string;
   chunks: ManifestChunk[];
-  notebooks?: NotebookIndex[];
+  notebooks?: NotebookIndexSummary[];
 }
 export type SeedPrecedenceTier = 'core' | 'community' | 'imported' | 'user';
 export const SEED_PRECEDENCE_RANK: Readonly<Record<SeedPrecedenceTier, number>> = {
@@ -88,7 +96,7 @@ export interface SeedMetaRecord {
   seedVersion: number;
   builtAt: string;
   importedAt: number;
-  chunks: Record<string, { sha256: string; noteIds?: string[] }>;
+  chunks: Record<string, { sha256: string; version?: number; builtAt?: string; importedAt?: number; noteIds?: string[] }>;
   claim?: { owner: string; at: number } | null;
   tier?: SeedPrecedenceTier;
 }

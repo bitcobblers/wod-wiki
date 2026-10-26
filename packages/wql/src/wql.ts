@@ -577,7 +577,7 @@ function validateSourceFilter(filters: TagFilter[]): string | undefined {
         return `source:notebook is retired — :notebook{} is the notebook plane (every notebook); narrow it with the notebook: filter, e.g. :notebook{notebook:journal}.`;
       }
       if (val === 'feed' || val === 'feeds' || val.startsWith('feed:')) {
-        return `source:${val} is retired — the feed corpus is the notebook plane; use source:notebooks or notebook:<slug>.`;
+        return `source:${val} is retired — the feed corpus is the notebook plane; use feed:<feedId> or source:notebooks.`;
       }
       if (val === 'collection' || val === 'collections' || val.startsWith('collection:')) {
         return `source:${val} is retired — collections are notebooks; use source:notebooks or notebook:<slug>.`;
@@ -594,6 +594,30 @@ function validateSourceFilter(filters: TagFilter[]): string | undefined {
   }
   return undefined;
 }
+function validateSubscribedFilter(filters: TagFilter[]): string | undefined {
+  for (const f of filters) {
+    if (f.key !== 'subscribed') continue;
+    for (const v of f.values) {
+      if (v.value !== 'true' && v.value !== 'false') {
+        return `Invalid subscribed: value '${v.value}' — expected true or false`;
+      }
+    }
+  }
+  return undefined;
+}
+
+function validateFeedFilter(filters: TagFilter[]): string | undefined {
+  for (const f of filters) {
+    if (f.key !== 'feed') continue;
+    for (const v of f.values) {
+      if (!v.value && !v.wildcard) {
+        return `Invalid feed: value — expected a non-empty feed identifier or wildcard`;
+      }
+    }
+  }
+  return undefined;
+}
+
 
 /** Extract pipe clauses (| select … | order by … | limit …) outside braces
  *  and quotes — an OR `a|b` or quoted `"x|y"` inside filters is a value. */
@@ -680,7 +704,7 @@ function extractFilters(query: SyntaxNode, text: string): TagFilter[] {
       let value = quoted ? raw.slice(1, -1) : raw;
       const wildcard = quoted ? false : value.endsWith('*');
       if (wildcard) value = value.slice(0, -1);
-      if (!value) continue;
+      if (!value && !wildcard) continue;
       values.push({ value, wildcard });
     }
     if (values.length === 0) continue;
@@ -970,6 +994,10 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
   // WQL_NOTE_DEFAULT_SOURCES remains exported (empty) for the serializer.
   const sourceError = validateSourceFilter(result.filters);
   if (sourceError) { result.error = sourceError; return result; }
+  const subscribedError = validateSubscribedFilter(result.filters);
+  if (subscribedError) { result.error = subscribedError; return result; }
+  const feedError = validateFeedFilter(result.filters);
+  if (feedError) { result.error = feedError; return result; }
   const findGrainError = retiredGrainRollup(result.filters);
   if (findGrainError) { result.error = findGrainError; return result; }
   const target = result.target;

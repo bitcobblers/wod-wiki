@@ -64,10 +64,6 @@ const realSeedSync = await import('@/services/feed/feedSync')
 // objects — see tests/unit-setup.ts), so the drawer and toaster are asserted
 // at their seams: the URL param drives the drawer, and toast() payloads are
 // what the app's Toaster would display.
-mock.module('../../pages/NotebookManageDrawer', () => ({
-  NotebookManageDrawer: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="notebook-manage-drawer-open" /> : null,
-}))
 
 const realUseToast = await import('@/hooks/use-toast')
 let toastCalls: { title?: unknown; description?: unknown; variant?: unknown }[] = []
@@ -910,11 +906,8 @@ describe('QueriableStreamView component', () => {
       fireEvent.click(primary)
     })
 
-    // The in-place manager drawer deep-link — never a sync call against a
-    // worklist that does not exist.
     await waitFor(() => {
-      expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('manage=1')
-      expect(screen.getByTestId('notebook-manage-drawer-open')).toBeDefined()
+      expect(screen.getByTestId('location-probe').getAttribute('data-path')).toBe('/settings/sync')
     })
     expect(syncFeedSourceMock).not.toHaveBeenCalled()
   })

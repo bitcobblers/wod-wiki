@@ -73,7 +73,7 @@ TagKey { Word }
 // (`text:"300 Air Squats"`, #867). Quoted atoms carry no colon/wildcard forms.
 TagValue { Value (pipe Value)* }
 
-Value { Word ((colon | dot) Word)* Star? | Quoted Star? }
+Value { Star | Word ((colon | dot) Word)* Star? | Quoted Star? }
 
 GroupBy { By braceOpen (Dimension (comma Dimension)*)? braceClose }
 

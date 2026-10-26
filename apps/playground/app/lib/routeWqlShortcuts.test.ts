@@ -83,6 +83,8 @@ describe('routeWqlShortcuts — built-in library-group links', () => {
     ])
     expect(builtinShortcuts('/notebooks')).toEqual([
       { id: ALL_SHORTCUT_ID, label: 'All notebooks', icon: 'library', wql: '' },
+      { id: 'all-configured', label: 'All configured', icon: 'bookmark', wql: ':notebook{subscribed:true,false}' },
+      { id: 'available', label: 'Available to subscribe', icon: 'plus', wql: ':notebook{subscribed:false}' },
     ])
   })
 

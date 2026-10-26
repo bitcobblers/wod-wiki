@@ -200,10 +200,22 @@ describe('generateSeed', () => {
       const cat1Nb = manifest.notebooks!.find((n) => n.notebookId === 'notebook.cat1');
       expect(cat1Nb).toBeDefined();
       expect(cat1Nb!.count).toBe(1);
-      expect(cat1Nb!.records.length).toBe(1);
+      expect('records' in (cat1Nb as Record<string, unknown>)).toBe(false);
+      expect(cat1Nb!.version).toBeGreaterThanOrEqual(1);
+      expect(cat1Nb!.indexPath).toBe('indexes/notebooks/notebook.cat1.json');
+      expect(cat1Nb!.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(cat1Nb!.bytes).toBeGreaterThan(0);
 
-      const recordRef = cat1Nb!.records[0];
-      expect(recordRef.path).toBe('markdown/notebooks/cat1/c.md');
+      // Verify individual notebook index was written in outDir
+      const indexJsonPath = join(outDir, cat1Nb!.indexPath!);
+      expect(existsSync(indexJsonPath)).toBe(true);
+      const parsedIndex = JSON.parse(readFileSync(indexJsonPath, 'utf8'));
+      expect(parsedIndex.notebookId).toBe('notebook.cat1');
+      expect(parsedIndex.records.length).toBe(1);
+      expect(parsedIndex.sha256).toBe(cat1Nb!.sha256);
+      expect(parsedIndex.version).toBe(cat1Nb!.version);
+
+      const recordRef = parsedIndex.records[0];
       expect(recordRef.recordPath).toBe('markdown/notebooks/cat1/c.json');
       expect(recordRef.uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(recordRef.sha256).toMatch(/^[0-9a-f]{64}$/);
@@ -216,13 +228,6 @@ describe('generateSeed', () => {
       expect(parsedRecord.content).toBe('# C');
       expect(parsedRecord.uuid).toBe(recordRef.uuid);
 
-      // Verify individual notebook index was written in outDir
-      expect(cat1Nb!.indexPath).toBe('indexes/notebooks/notebook.cat1.json');
-      const indexJsonPath = join(outDir, cat1Nb!.indexPath!);
-      expect(existsSync(indexJsonPath)).toBe(true);
-      const parsedIndex = JSON.parse(readFileSync(indexJsonPath, 'utf8'));
-      expect(parsedIndex.notebookId).toBe('notebook.cat1');
-      expect(parsedIndex.records.length).toBe(1);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

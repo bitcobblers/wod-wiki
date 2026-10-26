@@ -184,13 +184,13 @@ describe('streamProfile', () => {
 })
 
 describe('NOTEBOOKS_STREAM_PROFILE default query (ticket 08)', () => {
-  it('defaults to notes from every notebook grouped by tag', () => {
-    expect(NOTEBOOKS_STREAM_PROFILE.defaultWql).toBe(':notebook{} by {tag}')
+  it('defaults to notes from every notebook grouped by feed', () => {
+    expect(NOTEBOOKS_STREAM_PROFILE.defaultWql).toBe(':notebook{} by {feed}')
     expect(NOTEBOOKS_STREAM_PROFILE.target).toBe('note')
     const parsed = parseQuery(NOTEBOOKS_STREAM_PROFILE.defaultWql)
     expect(parsed.error).toBeUndefined()
     // The grouping dimension the stream view consumes.
-    expect(isFindQuery(parsed) && parsed.groupBy).toEqual(['tag'])
+    expect(isFindQuery(parsed) && parsed.groupBy).toEqual(['feed'])
   })
 
   it('the default query runs against the notebook plane and returns notes', async () => {

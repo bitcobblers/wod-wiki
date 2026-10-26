@@ -116,7 +116,7 @@ export function SyncActivityNotifier() {
       toast({
         title: 'Notebook updates',
         description: snapshot.updates.map(update => `${update.label}: ${update.state === 'updated' ? 'updated' : update.state === 'error' ? 'sync failed' : 'update available'}`).join('; '),
-        action: <ToastAction altText="Manage notebook updates" onClick={() => navigate(`${ROUTE_PATTERNS.notebooks}?manage=1`)}>Review updates</ToastAction>,
+        action: <ToastAction altText="Manage notebook updates" onClick={() => navigate(ROUTE_PATTERNS.notebooks)}>Review updates</ToastAction>,
       })
     }
     check()

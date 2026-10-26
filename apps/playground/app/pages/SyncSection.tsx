@@ -8,13 +8,14 @@
  */
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { CloudDownload, RefreshCw, CheckCircle2, AlertCircle, Plus, Link2 } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import { Input } from '@/components/atoms/primitives/input'
 import { deleteFeedSource, readFeedStatus, runFeedSync, subscribeFeedUpdates, syncFeedSource, unsubscribeFeedSource, type FeedSourceStatus, type FeedStatus, type FeedSyncOutcome, type FeedSyncProgress } from '@/services/feed/feedSync'
 import type { FeedImportProgress } from '@/services/feed/FeedImporter'
 import { addCustomFeedSource, type CustomFeedSource } from '@/services/feed/feedSources'
-import { isNotebookSubscribed, isFeedAutoSync, setNotebookSubscribed, setFeedAutoSync, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
+import { getFeedSubscriptionMode, isNotebookSubscribed, isFeedAutoSync, setNotebookSubscribed, setFeedAutoSync, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { ProgressBar } from '../components/atoms/ProgressBar'
 import { toast } from '@/hooks/use-toast'
 import { formatDateTimeMediumShort } from '@/lib/dateFormat'
@@ -90,9 +91,12 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
   onToggleNotebook?: (feedId: string, chunkId: string, subscribed: boolean) => void
   subscribedOnly?: boolean
 }) {
+  const navigate = useNavigate()
   // Read the preference synchronously so React cannot restore a stale checked prop.
   const autoSync = useSyncExternalStore(subscribeFeedSubscriptions, () => isFeedAutoSync(source.id))
   const allNotebooks = source.notebooks.filter(notebook => notebook.id !== source.id)
+  const subMode = getFeedSubscriptionMode(source.id)
+  const subscribedCount = allNotebooks.filter(notebook => notebook.subscribed).length
   const notebooks = subscribedOnly
     ? allNotebooks.filter(notebook => notebook.subscribed)
     : allNotebooks
@@ -225,48 +229,36 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
           are never synced on their own). A custom feed's contents are unknown
           until its manifest is read — its id-keyed placeholder row would only
           repeat the row title, so it is dropped. */}
-      {notebooks.length > 0 && (
-        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2" data-testid={`feed-notebooks-${source.id}`}>
+      {/* Subscription mode summary and link to Library browser */}
+      <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 flex flex-wrap items-center justify-between gap-3" data-testid={`feed-notebooks-${source.id}`}>
+        <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">
-            {notebooks.length === 1 ? '1 notebook' : `${notebooks.length} notebooks`} · {subscribedOnly ? 'subscribed' : 'available in this feed'}
+            Subscription Mode
           </p>
-          <ul className="mt-1.5 flex flex-col gap-1">
-            {notebooks.map(notebook => (
-              <li
-                key={notebook.chunkId}
-                data-testid={`feed-notebook-${source.id}-${notebook.chunkId}`}
-                className="flex items-center justify-between gap-4 text-xs"
-              >
-                <span className={notebook.imported ? 'flex min-w-0 items-center gap-1.5 text-foreground' : 'flex min-w-0 items-center gap-1.5 text-muted-foreground'}>
-                  {notebook.imported
-                    ? <CheckCircle2 className="size-3 shrink-0 text-emerald-500" aria-hidden />
-                    : <CloudDownload className="size-3 shrink-0 opacity-60" aria-hidden />}
-                  <span className="truncate">{notebook.label}</span>
-                </span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="tabular-nums text-muted-foreground">
-                    {notebook.count.toLocaleString()} {notebook.count === 1 ? 'item' : 'items'}
-                  </span>
-                  {!core && onToggleNotebook && (
-                    <button
-                      type="button"
-                      onClick={() => onToggleNotebook(source.id, notebook.chunkId, !notebook.subscribed)}
-                      data-testid={`feed-notebook-toggle-${source.id}-${notebook.chunkId}`}
-                      className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 transition-colors ${
-                        notebook.subscribed
-                          ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
-                          : 'border border-border text-muted-foreground hover:bg-muted'
-                      }`}
-                    >
-                      {notebook.subscribed ? 'Subscribed' : 'Subscribe'}
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-1 flex items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold ${
+                subMode === 'full'
+                  ? 'bg-emerald-500/10 text-emerald-600'
+                  : subMode === 'partial'
+                    ? 'bg-amber-500/10 text-amber-600'
+                    : 'bg-muted text-muted-foreground'
+              }`}
+              data-testid={`feed-sub-mode-${source.id}`}
+            >
+              {subMode === 'full' ? 'Full' : subMode === 'partial' ? `Partial (${subscribedCount} of ${allNotebooks.length} subscribed)` : 'Unsubscribed'}
+            </span>
+          </div>
         </div>
-      )}
+        <button
+          type="button"
+          onClick={() => navigate(`/notebooks?q=:notebook{feed:${source.id},subscribed:true,false}`)}
+          data-testid={`browse-notebooks-link-${source.id}`}
+          className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+        >
+          Browse notebooks in Library →
+        </button>
+      </div>
 
       <div className="grid gap-1 text-sm" data-testid="feed-status-card">
         <div className="flex items-center justify-between gap-4">

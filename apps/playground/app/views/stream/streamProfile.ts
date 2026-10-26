@@ -125,7 +125,7 @@ export const NOTEBOOKS_STREAM_PROFILE: StreamProfile = {
   title: 'Notebooks',
   // The notebook plane (ticket 08) — notes from every notebook, grouped by
   // tag; the source picker narrows to corpus-delivered notebooks.
-  defaultWql: ':notebook{} by {tag}',
+  defaultWql: ':notebook{} by {feed}',
   level: 'session',
   target: 'note',
   scopeOptions: ['notebooks'],

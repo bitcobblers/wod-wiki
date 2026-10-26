@@ -189,4 +189,6 @@ export interface QueryServiceStores {
   datasetStore?: {
     getDataset(name: string): { events: EventRecord[]; notes: Note[] } | undefined;
   };
+  /** Optional notebook subscription checker for feed-owned notes/notebooks. */
+  isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
 }

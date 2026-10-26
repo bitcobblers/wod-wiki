@@ -398,6 +398,48 @@ describe('parseQuery — colon function heads', () => {
 });
 
 // ── Pipelines ────────────────────────────────────────────────────────
+describe('parseQuery — feed: and subscribed: filters (Slice 3)', () => {
+  it('parses valid feed and subscribed filters on find queries', () => {
+    const q1 = _parseQuery(':notebook{feed:core,subscribed:true}');
+    expect(q1.error).toBeUndefined();
+    if (!isFindQuery(q1)) throw new Error('expected find query');
+    expect(q1.filters).toEqual([
+      { key: 'feed', negate: false, values: [{ value: 'core', wildcard: false }] },
+      { key: 'subscribed', negate: false, values: [{ value: 'true', wildcard: false }] },
+    ]);
+
+    const q2 = _parseQuery(':notebook{feed:*,subscribed:false}');
+    expect(q2.error).toBeUndefined();
+    if (!isFindQuery(q2)) throw new Error('expected find query');
+    expect(q2.filters).toEqual([
+      { key: 'feed', negate: false, values: [{ value: '', wildcard: true }] },
+      { key: 'subscribed', negate: false, values: [{ value: 'false', wildcard: false }] },
+    ]);
+
+    const q3 = _parseQuery(':notebook{subscribed:true,false}');
+    expect(q3.error).toBeUndefined();
+    if (!isFindQuery(q3)) throw new Error('expected find query');
+    expect(q3.filters[0].values.map((v) => v.value)).toEqual(['true', 'false']);
+  });
+
+  it('rejects invalid subscribed values', () => {
+    const q = _parseQuery(':notebook{subscribed:yes}');
+    expect(q.error).toMatch(/Invalid subscribed: value 'yes' — expected true or false/);
+  });
+
+  it('rejects source:feed pointing to feed:<feedId> or source:notebooks', () => {
+    const q = _parseQuery(':note{source:feed}');
+    expect(q.error).toMatch(/feed:<feedId> or source:notebooks/);
+  });
+
+  it('rejects feed and subscribed on aggregate queries as content-only keys', () => {
+    const q1 = _parseQuery(':sum{metric:tis,feed:core}');
+    expect(q1.error).toMatch(/Content filter key\(s\) "feed" cannot narrow an aggregate/);
+    const q2 = _parseQuery(':sum{metric:tis,subscribed:true}');
+    expect(q2.error).toMatch(/Content filter key\(s\) "subscribed" cannot narrow an aggregate/);
+  });
+});
+
 describe('parseQuery — pipelines', () => {
   it('parses source | function | chart with Lezer Head/Pipeline nodes', () => {
     const parsed = _parseQuery(':journal{effort:snatch} last 8w | :sum{metric:tis} by {week} | :timeseries{}');

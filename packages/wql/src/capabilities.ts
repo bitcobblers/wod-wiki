@@ -14,7 +14,7 @@ import {
  * results and the view groups them, ordered and multi-dim. The find tables
  * (segment/event) group inside the executor over selected columns instead.
  */
-export const CONTENT_GROUPING_DIMENSIONS = ['date', 'day', 'week', 'month', 'year', 'discipline', 'origin', 'source', 'notebook', 'kind', 'type', 'tag'] as const;
+export const CONTENT_GROUPING_DIMENSIONS = ['date', 'day', 'week', 'month', 'year', 'discipline', 'origin', 'source', 'notebook', 'kind', 'type', 'tag', 'feed'] as const;
 
 /** Clause types that never name a data field. `metric` is NOT structural:
  *  as a filter key it selects fact rows by their metric (metric:reps); the
@@ -33,9 +33,9 @@ const TARGET_TYPES: Readonly<Record<string, ReadonlySet<string>>> = {
   // The notebook plane IS the note plane (its executor delegates), so both
   // advertise the same member-criteria keys — container criteria (tags:,
   // effort:, typed tags, text:) narrow notebook results, never ignored.
-  notebook: new Set(['text', 'notebook', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where']),
-  note: new Set(['text', 'notebook', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where']),
-  block: new Set(['text', 'notebook', 'tag', 'effort', 'type', 'source', 'note', 'time', 'groupby', 'where']),
+  notebook: new Set(['text', 'notebook', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where', 'feed', 'subscribed']),
+  note: new Set(['text', 'notebook', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where', 'feed', 'subscribed']),
+  block: new Set(['text', 'notebook', 'tag', 'effort', 'type', 'source', 'note', 'time', 'groupby', 'where', 'feed', 'subscribed']),
   effort: new Set([...WQL_EFFORT_FILTER_KEYS, 'groupby']),
   session: new Set(['result', 'block', 'note', 'plane', 'time', 'groupby']),
   segment: new Set([...TABLE_KEYS, 'time', 'groupby', 'unit']),

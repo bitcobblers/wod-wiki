@@ -65,13 +65,9 @@ test.describe('Dated notebook item — /notebook/:slug/:date/:item', () => {
 
   test('renders the dated item and the workout start path lands on the day autostart', async ({ page }) => {
     await seedSource(page);
-    await page.goto('/notebooks?manage=1');
-
-    const drawer = page.getByTestId('notebook-manage-drawer');
-    await expect(drawer).toBeVisible();
-    // The drawer defaults to subscribed-only; the fixture source is not.
-    await drawer.getByRole('checkbox', { name: 'Subscribed only' }).setChecked(false);
-    const row = drawer.getByTestId('feed-source-dated-library');
+    await page.goto('/settings/sync');
+    await page.getByRole('checkbox', { name: 'Subscribed only' }).setChecked(false);
+    const row = page.getByTestId('feed-source-dated-library');
     await row.getByTestId('feed-subscribe-dated-library').click();
     await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
     await waitForFeedReady(page);

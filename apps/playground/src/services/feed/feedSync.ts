@@ -25,7 +25,7 @@ import { mainThreadFeedImportStorage } from './feedStorageDefault';
 import { assertManifest, type IFeedSource } from './IFeedSource';
 import { EMBEDDED_FEED_VERSIONS } from './feedVersion';
 import { customFeedSources, CORE_FEED_URL, FEED_SOURCES, notebooksOfFeed, hideFeedSourceRow, hiddenFeedSourceIds, removeCustomFeedSource, safeRepositoryUrl, toAbsoluteFeedUrl } from './feedSources';
-import { getSubscribedNotebooks, isNotebookSubscribed, isFeedAutoSync, isFeedSubscribed, setFeedAutoSync, setFeedSubscribed } from './feedSubscriptions';
+import { getFeedSubscriptionMode, getSubscribedNotebooks, isNotebookSubscribed, isFeedAutoSync, isFeedSubscribed, setFeedAutoSync, setFeedSubscribed, setNotebookSubscribed } from './feedSubscriptions';
 import { beginSyncActivity, reportSyncResult, reportSyncError, reportSyncProgress } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
@@ -195,6 +195,9 @@ export interface FeedSyncDeps {
    * of the library is still importing.
    */
   onFirstPaint?: () => void;
+  notebookIds?: string[] | null;
+  preserveSubscriptionState?: boolean;
+  manifest?: SeedManifest;
 }
 
 function defaultBroadcast(message: unknown): void {
@@ -369,7 +372,7 @@ async function runFeedSyncViaWorker(
         ...(s.tier ? { tier: s.tier } : {}),
         embeddedVersion: s.embeddedVersion,
         autoSyncOn: isFeedAutoSync(s.id),
-        notebookIds: getSubscribedNotebooks(s.id) ?? undefined,
+        notebookIds: deps.notebookIds !== undefined ? (deps.notebookIds ?? undefined) : (getFeedSubscriptionMode(s.id) === 'partial' ? (getSubscribedNotebooks(s.id) ?? undefined) : (deps.mode === 'background' && getFeedSubscriptionMode(s.id) === 'unsubscribed' ? [] : undefined)),
         granularRecords: true,
       })),
     });
@@ -513,7 +516,7 @@ export async function runBootFeedSync(deps: FeedSyncDeps = {}): Promise<FeedSync
   if (!coreCheckpoint || coreCheckpoint.seedVersion <= 0) {
     return runFeedSync({ ...deps, sources: all.filter((s) => s.autoImport !== false) });
   }
-  const sources = all.filter((s) => s.id === 'core' || isFeedSubscribed(s.id) || getSubscribedNotebooks(s.id) !== null);
+  const sources = all.filter((s) => s.id === 'core' || getFeedSubscriptionMode(s.id) !== 'unsubscribed');
   return runFeedSync({
     ...deps,
     sources,
@@ -555,7 +558,7 @@ async function runSourceSync(
         embeddedVersion: spec.embeddedVersion,
         autoSyncOn: isFeedAutoSync(spec.id),
         ...(spec.tier ? { tier: spec.tier } : {}),
-        notebookIds: getSubscribedNotebooks(spec.id) ?? undefined,
+        notebookIds: deps.notebookIds !== undefined ? (deps.notebookIds ?? undefined) : (getFeedSubscriptionMode(spec.id) === 'partial' ? (getSubscribedNotebooks(spec.id) ?? undefined) : (deps.mode === 'background' && getFeedSubscriptionMode(spec.id) === 'unsubscribed' ? [] : undefined)),
         granularRecords: true,
       },
       { storage, owner, now, force: deps.force, probeManifests: deps.probeManifests, background: deps.mode === 'background' },
@@ -678,7 +681,7 @@ export async function syncFeedSource(id: string, deps: FeedSyncDeps = {}): Promi
       // Import Once: pin the explicit choice, but never downgrade a live
       // subscription (the flag only ever guards NEW registrations).
       if (!isFeedSubscribed(id)) setFeedSubscribed(id, false);
-    } else {
+    } else if (!deps.preserveSubscriptionState && !deps.notebookIds) {
       // A manual sync that restored a healthy checkpoint subscribes the
       // library for background refresh — both a fresh import and an
       // already-current library the user explicitly chose. 'busy'/'error'/
@@ -690,6 +693,77 @@ export async function syncFeedSource(id: string, deps: FeedSyncDeps = {}): Promi
     clearFeedSourceUpdate(id);
   }
   return outcome;
+}
+
+/**
+ * Targeted single-notebook sync: updates only the requested notebook without
+ * promoting a partial feed to a full-feed subscription.
+ */
+export async function syncNotebook(feedId: string, chunkId: string, deps: FeedSyncDeps = {}): Promise<FeedSyncOutcome> {
+  return syncFeedSource(feedId, {
+    ...deps,
+    notebookIds: [chunkId],
+    preserveSubscriptionState: true,
+    force: true,
+  });
+}
+
+/**
+ * Subscribe or unsubscribe an individual notebook from a feed.
+ * Subscribing syncs the chunk; unsubscribing immediately deletes that chunk's
+ * seed-owned notes in one transaction. If no chunks remain, drops the checkpoint.
+ */
+export async function toggleNotebookSubscription(
+  feedId: string,
+  chunkId: string,
+  subscribed: boolean,
+  deps: FeedSyncDeps = {},
+): Promise<{ deleted?: number; outcome?: FeedSyncOutcome }> {
+  if (subscribed) {
+    setNotebookSubscribed(feedId, chunkId, true);
+    const outcome = await syncNotebook(feedId, chunkId, deps);
+    return { outcome };
+  } else {
+    setNotebookSubscribed(feedId, chunkId, false);
+    const storage = deps.storage ?? mainThreadFeedImportStorage();
+    const meta = await storage.getSeedMeta(seedMetaKey(feedId));
+    if (!meta || !meta.chunks[chunkId]) {
+      return { deleted: 0 };
+    }
+    const nextChunks = { ...meta.chunks };
+    delete nextChunks[chunkId];
+    if (Object.keys(nextChunks).length === 0) {
+      const deleted = await storage.removeSourceContent(meta);
+      invalidateSeedContent();
+      const effortRegistry = getAppEffortRegistry();
+      if (effortRegistry.isInitialized()) await hydrateAppEffortRegistry(effortRegistry);
+      const equipmentRegistry = getAppEquipmentRegistry();
+      if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
+      defaultBroadcast({ kind: 'seed-removed', source: feedId });
+      return { deleted };
+    }
+    const nextMeta = { ...meta, chunks: nextChunks, importedAt: Date.now() };
+    const manifest: SeedManifest = {
+      schema: SEED_SCHEMA,
+      version: meta.seedVersion,
+      builtAt: meta.builtAt,
+      chunks: [],
+    };
+    const res = await storage.applyChunk({
+      chunkId,
+      rows: [],
+      manifest,
+      expectedMeta: meta,
+      meta: nextMeta,
+    });
+    invalidateSeedContent();
+    const effortRegistry = getAppEffortRegistry();
+    if (effortRegistry.isInitialized()) await hydrateAppEffortRegistry(effortRegistry);
+    const equipmentRegistry = getAppEquipmentRegistry();
+    if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
+    defaultBroadcast({ kind: 'seed-removed', source: feedId });
+    return { deleted: res.deleted };
+  }
 }
 
 // ── Unsubscribe / delete (exact checkpoint ownership) ──────────────────────

@@ -1,5 +1,5 @@
 import { blockContentId, parseDocumentSections, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
-import { SEED_REGISTERED_WIDGETS, SEED_SCHEMA, type SeedManifest, type SeedRow } from './contract';
+import { SEED_REGISTERED_WIDGETS, SEED_SCHEMA, type NotebookIndex, type SeedManifest, type SeedRow } from './contract';
 
 function object(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function positive(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0; }
@@ -18,13 +18,63 @@ export function assertSeedManifest(value: unknown): SeedManifest {
   if (value.notebooks !== undefined) {
     if (!Array.isArray(value.notebooks)) throw new Error('seed manifest failed shape validation');
     for (const nb of value.notebooks) {
-      if (!object(nb) || typeof nb.notebookId !== 'string' || typeof nb.label !== 'string' || !nonnegative(nb.count) || !Array.isArray(nb.records)) {
+      if (
+        !object(nb) ||
+        typeof nb.notebookId !== 'string' ||
+        !nb.notebookId ||
+        typeof nb.label !== 'string' ||
+        !nonnegative(nb.count) ||
+        typeof nb.indexPath !== 'string' ||
+        !nb.indexPath ||
+        !nonnegative(nb.version) ||
+        typeof nb.commit !== 'string' ||
+        typeof nb.builtAt !== 'string' ||
+        typeof nb.sha256 !== 'string' ||
+        !nonnegative(nb.bytes)
+      ) {
         throw new Error('seed manifest failed shape validation');
+      }
+      if ('records' in nb && Array.isArray((nb as Record<string, unknown>).records)) {
+        throw new Error('seed manifest failed shape validation: manifest.notebooks must not contain inline records');
       }
     }
   }
   return value as unknown as SeedManifest;
 }
+export function assertNotebookIndex(value: unknown): NotebookIndex {
+  if (!object(value)) throw new Error('notebook index failed shape validation');
+  if (
+    typeof value.notebookId !== 'string' ||
+    !value.notebookId ||
+    typeof value.label !== 'string' ||
+    typeof value.indexPath !== 'string' ||
+    !value.indexPath ||
+    !nonnegative(value.version) ||
+    typeof value.commit !== 'string' ||
+    typeof value.builtAt !== 'string' ||
+    typeof value.sha256 !== 'string' ||
+    !nonnegative(value.bytes) ||
+    !nonnegative(value.count) ||
+    !Array.isArray(value.records)
+  ) {
+    throw new Error('notebook index failed shape validation: missing required index summary or records');
+  }
+  for (const r of value.records) {
+    if (
+      !object(r) ||
+      typeof r.uuid !== 'string' ||
+      typeof r.path !== 'string' ||
+      typeof r.recordPath !== 'string' ||
+      typeof r.commit !== 'string' ||
+      !nonnegative(r.version) ||
+      typeof r.sha256 !== 'string'
+    ) {
+      throw new Error('notebook index failed shape validation: invalid record ref');
+    }
+  }
+  return value as unknown as NotebookIndex;
+}
+
 export function assertSeedRows(value: unknown): SeedRow[] {
   if (!Array.isArray(value)) throw new Error('seed chunk is not an array');
   const paths = new Set<string>();

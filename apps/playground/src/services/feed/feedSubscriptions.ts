@@ -69,11 +69,21 @@ function writeAll(next: Record<string, boolean>): boolean {
  * entries fold onto the feed that publishes the notebook, which is what a
  * subscription means now (an explicit feed record always wins).
  */
+export type FeedSubscriptionMode = 'full' | 'partial' | 'unsubscribed';
+
+export function getFeedSubscriptionMode(id: string): FeedSubscriptionMode {
+  if (id === 'core') return 'full';
+  const all = readAll();
+  if (all[id] === true) return 'full';
+  const prefix = `${id}#`;
+  const hasPartial = Object.entries(all).some(([key, val]) => val === true && key.startsWith(prefix));
+  if (hasPartial) return 'partial';
+  return 'unsubscribed';
+}
+
 export function isFeedSubscribed(id: string): boolean {
   if (id === 'core') return true;
-  const all = readAll();
-  if (id in all) return all[id] === true;
-  return NOTEBOOKS.some((notebook) => notebook.feedId === id && all[notebook.id] === true);
+  return getFeedSubscriptionMode(id) !== 'unsubscribed';
 }
 
 /** Persist an explicit subscription choice (core ignores unsubscribe).
@@ -85,8 +95,11 @@ export function isFeedSubscribed(id: string): boolean {
 export function setFeedSubscribed(id: string, subscribed: boolean): boolean {
   if (id === 'core') return true;
   const all: Record<string, boolean> = {};
+  const prefix = `${id}#`;
   for (const [key, value] of Object.entries(readAll())) {
-    if (!NOTEBOOKS.some((notebook) => notebook.feedId === id && notebook.id === key)) all[key] = value;
+    if (key.startsWith(prefix)) continue;
+    if (NOTEBOOKS.some((notebook) => notebook.feedId === id && notebook.id === key)) continue;
+    all[key] = value;
   }
   all[id] = subscribed;
   return writeAll(all);
@@ -98,26 +111,60 @@ export function isNotebookSubscribed(feedId: string, notebookId: string): boolea
   const all = readAll();
   const specificKey = `${feedId}#${notebookId}`;
   if (specificKey in all) return all[specificKey] === true;
-  return isFeedSubscribed(feedId);
+  return all[feedId] === true;
 }
 
 /** Subscribe or unsubscribe an individual notebook from a feed. */
-export function setNotebookSubscribed(feedId: string, notebookId: string, subscribed: boolean): boolean {
+export function setNotebookSubscribed(
+  feedId: string,
+  notebookId: string,
+  subscribed: boolean,
+  knownChunkIds?: readonly string[],
+): boolean {
+  if (feedId === 'core') return true;
+  const all = { ...readAll() };
   const specificKey = `${feedId}#${notebookId}`;
-  const all = { ...readAll(), [specificKey]: subscribed };
+  const prefix = `${feedId}#`;
+
+  const siblings = knownChunkIds ?? NOTEBOOKS.filter((n) => n.feedId === feedId).map((n) => n.chunkId);
+
+  // If feed was full and unsubscribing this chunk: expand full feed into explicit siblings
+  if (all[feedId] === true && !subscribed) {
+    all[feedId] = false;
+    for (const sib of siblings) {
+      if (sib !== notebookId) {
+        all[`${feedId}#${sib}`] = true;
+      }
+    }
+    all[specificKey] = false;
+    return writeAll(all);
+  }
+
+  all[specificKey] = subscribed;
+
+  // If subscribing and all known chunks are now subscribed, fold back into full feed
+  if (subscribed && siblings.length > 0 && siblings.every((sib) => sib === notebookId || all[`${feedId}#${sib}`] === true)) {
+    all[feedId] = true;
+    for (const key of Object.keys(all)) {
+      if (key.startsWith(prefix)) delete all[key];
+    }
+  } else if (!subscribed && siblings.length > 0 && siblings.every((sib) => all[`${feedId}#${sib}`] === false)) {
+    all[feedId] = false;
+  }
+
   return writeAll(all);
 }
 
-/** Returns the explicit notebook ids subscribed for a feed, or null if the whole feed is subscribed. */
+/** Returns the explicit notebook ids subscribed for a feed, or null if the whole feed is subscribed, or [] if unsubscribed. */
 export function getSubscribedNotebooks(feedId: string): string[] | null {
-  if (feedId === 'core') return null;
+  const mode = getFeedSubscriptionMode(feedId);
+  if (mode === 'full') return null;
+  if (mode === 'unsubscribed') return [];
   const all = readAll();
-  if (all[feedId] === true) return null;
   const prefix = `${feedId}#`;
-  const notebookIds = Object.entries(all)
+  return Object.entries(all)
     .filter(([key, val]) => val === true && key.startsWith(prefix))
     .map(([key]) => key.slice(prefix.length));
-  return notebookIds.length > 0 ? notebookIds : null;
 }
 
 export function subscribeFeedSubscriptions(listener: () => void): () => void {
