@@ -5,6 +5,7 @@ import type { ReferenceIndex } from '../../effort-registry/reference-resolution'
 import type { SoundProfile } from '../sound/SoundProfile';
 import type { TagIndex } from '@bitcobblers/wod-wiki-core';
 import type { CalculationDefinition } from '../../analytics/calc/types';
+import type { PropertyRuleInput } from '../../analytics/calc/shakeOutQueue';
 
 /**
  * Factory function type for wrapping blocks in debug mode.
@@ -134,6 +135,8 @@ export interface RuntimeStackOptions extends IRuntimeOptions {
          * bundle a profile applies.
          */
         activeTags?: readonly string[];
+        /** Property Note metric/summary rules active for this run or block. */
+        propertySources?: readonly PropertyRuleInput[];
     };
     /**
      * Sound configuration for this run.

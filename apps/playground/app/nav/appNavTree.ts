@@ -59,6 +59,7 @@ const guideOrder: Record<string, number> = {
   '/page/guide-wql': 5,
   '/page/guide-dashboards': 6,
   '/page/guide-sessions': 7,
+  '/page/guide-metrics-summaries': 8,
 }
 
 /** Guide chapters as NavItems — the Home L2 list and the end-of-page

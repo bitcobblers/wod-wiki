@@ -13,7 +13,7 @@ import { CalculationRegistry } from './registry';
 import { BUILTIN_CALCS } from './seeds';
 import { createDisciplinesTable, createEffortTable, createProfileTable, createRpeLabelsTable, IProfileSource } from './tables';
 import { CalculationDefinition } from './types';
-import { compilePropertySummaryCalcs, type PropertyRuleInput } from './shakeOutQueue';
+import { compilePropertySummaryCalcs, extractTagPropertyRules, type PropertyRuleInput } from './shakeOutQueue';
 
 export interface CalcStackOptions {
   effortResolver: IEffortResolver;
@@ -45,8 +45,11 @@ export function createCalcStack(options: CalcStackOptions): CalcStack {
   const registry = new CalculationRegistry(lookups);
   for (const def of BUILTIN_CALCS) registry.register(def);
   for (const def of options.calcs ?? []) registry.register(def);
-  if (options.propertySources && options.propertySources.length > 0) {
-    for (const def of compilePropertySummaryCalcs(options.propertySources)) {
+  const allTagSlugs = (options.tags?.list() ?? []).map((t) => t.slug);
+  const tagRules = extractTagPropertyRules(options.tags, allTagSlugs);
+  const combinedSources = [...(options.propertySources ?? []), ...tagRules];
+  if (combinedSources.length > 0) {
+    for (const def of compilePropertySummaryCalcs(combinedSources)) {
       registry.register(def);
     }
   }

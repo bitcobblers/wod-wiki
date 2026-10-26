@@ -22,6 +22,7 @@ const EXPECTED_ROUTES = [
   '/page/guide-wql',
   '/page/guide-dashboards',
   '/page/guide-sessions',
+  '/page/guide-metrics-summaries',
 ] as const
 
 /** The retired routed learning pages (deleted in the 2026-10 cutover). */
@@ -59,8 +60,8 @@ function loadGuidePages(): Array<{ file: string; page: ParsedCanvasPage }> {
 describe('guide route governance', () => {
   const pages = loadGuidePages()
 
-  it('ships exactly the eight consolidated chapters', () => {
-    expect(pages.length).toBe(8)
+  it('ships the consolidated guide chapters including metrics summaries', () => {
+    expect(pages.length).toBe(9)
     expect(pages.map((p) => p.page?.route).sort()).toEqual([...EXPECTED_ROUTES].sort())
   })
 

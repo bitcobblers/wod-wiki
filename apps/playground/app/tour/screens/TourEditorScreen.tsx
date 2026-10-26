@@ -201,6 +201,7 @@ export const TourEditorScreen: React.FC<TourEditorScreenProps> = ({
       <div ref={bodyRef} className="relative flex-1 min-h-0">
         <NoteEditor
           noteId="canvas:home"
+          ariaLabel="Home workout editor"
           value={doc}
           onChange={onDocChange}
           onBlocksChange={onBlocksChange}

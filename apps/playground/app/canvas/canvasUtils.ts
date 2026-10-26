@@ -1,4 +1,4 @@
-import { stripFrontmatter } from '@/lib/frontmatter'
+import { parseFrontmatter } from '@bitcobblers/wod-wiki-wql'
 import type { CanvasSection } from './parseCanvasMarkdown'
 
 export const STICKY_NAV_HEIGHT = 104
@@ -27,7 +27,15 @@ export function resolveSource(dslPath: string, wodFiles: Record<string, string>)
   }
   const read = (logical: string): string | null => {
     const k = bySuffix(logical)
-    return k === null ? null : stripFrontmatter(wodFiles[k] as string)
+    if (k === null) return null
+    const raw = wodFiles[k] as string
+    // Strip only canvas catalog metadata (search, title, template, etc.).
+    // Preserve example frontmatter (tags, metrics.*, summaries.*) so the
+    // playground editor can evaluate it live.
+    const { meta, body } = parseFrontmatter(raw)
+    const catalogKeys = new Set(['search', 'template', 'route', 'type', 'title', 'description', 'subtitle', 'section', 'order'])
+    const hasNonCatalogProps = Object.keys(meta).some((key) => !catalogKeys.has(key.trim().toLowerCase()))
+    return hasNonCatalogProps ? raw : body
   }
 
   if (dslPath.startsWith('markdown/')) {

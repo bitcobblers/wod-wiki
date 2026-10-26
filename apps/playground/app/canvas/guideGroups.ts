@@ -57,6 +57,9 @@ const SEMANTIC_GROUPS: Record<string, string[][]> = {
     ['nested', 'partner', 'swimming'],
     ['barbell-cycling', 'climbing', 'try-it'],
   ],
+  'metrics-summaries': [
+    ['frontmatter-metrics', 'tag-summaries', 'querying-summaries', 'try-it'],
+  ],
 }
 
 export interface GuideGrouping {

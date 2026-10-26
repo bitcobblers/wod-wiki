@@ -219,17 +219,35 @@ export function tagMarkerSlugs(metrics: Iterable<IMetric>): string[] {
 }
 
 /**
- * The metric a tag's metric contributions produce.
+ * True when a contribution value is an equation expression rather than a
+ * static literal or slug. Equation contributions are evaluated by the
+ * MetricShakeOutQueue instead of being stamped as static parser strings.
+ */
+export function isEquationMetricValue(value: unknown): boolean {
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (/^[+-]?\d+(?:\.\d+)?(?:\s*[A-Za-z%/][\w%/.-]*)?$/.test(trimmed)) return false;
+    if (/^[a-zA-Z0-9_]+(?:-[a-zA-Z0-9_]+)*$/.test(trimmed)) return false;
+    return /[*/+()]|\s-\s|->|\b(?:convert|sum|avg|min|max|count|last|round|floor|ceil|abs|clamp|lookup|when|and|or)\b/.test(trimmed);
+}
+
+/**
+ * The static metrics a tag's metric contributions produce at parse time.
+ * Dynamic equations and `summaries.*` definitions are evaluated by the
+ * MetricShakeOutQueue and CalcEngine.
  */
 export function tagContributionMetrics(
     contributions: readonly TagMetricContribution[],
     origin: MetricOrigin = 'parser',
 ): IMetric[] {
-    return contributions.map(contribution => ({
-        type: contribution.type,
-        value: contribution.value,
-        origin,
-        image: String(contribution.value),
-        ...(contribution.unit ? { unit: contribution.unit } : {}),
-    }));
+    return contributions
+        .filter(c => !c.type.trim().startsWith('summaries.') && !isEquationMetricValue(c.value))
+        .map(contribution => ({
+            type: contribution.type,
+            value: contribution.value,
+            origin,
+            image: contribution.unit ? `${String(contribution.value)} ${contribution.unit}` : String(contribution.value),
+            ...(contribution.unit ? { unit: contribution.unit } : {}),
+        }));
 }

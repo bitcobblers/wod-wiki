@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Locator } from '@playwright/test'
 import { syncFeed, waitForFeedReady } from '../helpers/feedReadiness'
 import { TEST_IDS } from '../contracts/TestIdContract'
@@ -445,3 +446,27 @@ test('wod wiki university lists guide cards in the on-this-page outline', async 
   expect(await thumbLeftOfText(0)).toBe(true)
   expect(await thumbLeftOfText(1)).toBe(false)
 })
+
+for (const viewport of [
+  { width: 375, height: 812 },
+  { width: 1440, height: 1000 },
+]) {
+  test(`home page meets WCAG A and AA rules at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.setViewportSize(viewport)
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await waitForFeedReady(page)
+    await expect(page.getByTestId('tour-hero')).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze()
+
+    expect(results.violations.map(({ id, impact, nodes }) => ({
+      id,
+      impact,
+      nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })),
+    }))).toEqual([])
+  })
+}

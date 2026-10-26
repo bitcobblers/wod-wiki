@@ -82,7 +82,7 @@ export function CaptionBody({ cap, onCommand }: { cap: TourCaption; onCommand?: 
     <>
       {/* Section number kept subtly inline — no eyebrow prelabel. */}
       <h3 className="mb-3.5 xl:mb-5 text-[clamp(22px,2vw,32px)] font-extrabold leading-[1.12] tracking-[-0.03em]">
-        <span className="mr-2 align-[0.2em] font-mono text-[0.5em] font-semibold tracking-[0.08em] text-muted-foreground/50">
+        <span className="mr-2 align-[0.2em] font-mono text-[0.5em] font-semibold tracking-[0.08em] text-muted-foreground">
           {cap.num}
         </span>
         {cap.title}
@@ -99,7 +99,7 @@ export function CaptionBody({ cap, onCommand }: { cap: TourCaption; onCommand?: 
         </ul>
       )}
       {cap.foot && (
-        <div className="mt-4 xl:mt-6 border-t border-border pt-3 xl:pt-4 font-mono text-[10px] xl:text-[11px] tracking-[0.06em] text-muted-foreground/60">
+        <div className="mt-4 xl:mt-6 border-t border-border pt-3 xl:pt-4 font-mono text-[10px] xl:text-[11px] tracking-[0.06em] text-muted-foreground">
           {cap.foot}
         </div>
       )}

@@ -23,7 +23,7 @@ import {
 } from './workoutDerivation';
 import type { ScriptBlock, StoredOutputStatement } from '@/components/Editor/types';
 import { toEventRows } from '@bitcobblers/wod-wiki-wql';
-import { MetricType } from '@bitcobblers/wod-wiki-engine';
+import { MetricType, createTagIndex } from '@bitcobblers/wod-wiki-engine';
 
 const T0 = 1_700_000_000_000;
 
@@ -257,6 +257,41 @@ describe('replayResultAnalytics', () => {
       ],
     });
     expect(derivedDefault.find((o) => o.outputType === 'segment')?.metrics.find((m) => m.type === 'work')?.value).toBe(504);
+  });
+
+  it('adds Summary Metrics from tags on the note and inline tags', () => {
+    const tags = createTagIndex([
+      {
+        slug: 'tonnage',
+        contributions: [
+          { kind: 'metric', type: 'resistance', value: 24, unit: 'kg' },
+          { kind: 'metric', type: 'work', value: 'reps * resistance' },
+          { kind: 'metric', type: 'summaries.totalWork', value: 'sum(work)' },
+        ],
+      },
+    ]);
+    const noLoadSegment: StoredOutputStatement = {
+      ...segmentLog(),
+      metrics: segmentLog().metrics.filter((m) => m.type !== MetricType.Resistance),
+    };
+    const events = toEventRows([noLoadSegment], {
+      noteId: 'n1',
+      resultId: 'r3',
+      blockId: 'wod-2-test',
+      blockVersion: 1,
+      blockContentId: 'bc-test',
+      origin: 'journal',
+      workoutTimestamp: T0 + 60_000,
+    });
+
+    const derived = replayResultAnalytics(BLOCK, events, {
+      tags,
+      activeTags: ['tonnage'],
+    });
+
+    const summaryPoints = normalizeSummaryFacts(derived, { noteId: 'n1', resultId: 'r3' });
+    const totalWorkFact = summaryPoints.find((p) => p.metricKey === 'totalWork');
+    expect(totalWorkFact?.value).toBe(504);
   });
 });
 

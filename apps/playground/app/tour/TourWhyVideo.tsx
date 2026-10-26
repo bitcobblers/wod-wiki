@@ -41,7 +41,7 @@ export function TourWhyVideo({ onWatched }: { onWatched?: () => void }) {
           type="button"
           onClick={() => setPlaying(true)}
           data-testid="tour-why-video"
-          aria-label="Play the Why Wod Wiki? video"
+          aria-label="Play Why Wod Wiki? · YouTube video"
           className="block h-full w-full overflow-hidden rounded-xl"
         >
           <img

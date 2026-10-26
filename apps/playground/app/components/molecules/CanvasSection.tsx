@@ -249,12 +249,12 @@ export const CanvasSection: React.FC<CanvasSectionProps> = ({
         {showEyebrow && (!fullBleed || !hasViewDef) && linkedQuest && (
           <div className="mb-4 flex items-center gap-2 select-none min-h-[14px]">
             {linkedQuest.quest.isCompleted ? (
-              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
                 Challenge Complete
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-muted-foreground/80 bg-muted/60 px-2 py-0.5 rounded-full border border-border/50">
+              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border/50">
                 <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500" />
                 {linkedQuest.chapterTitle}: Challenge Pending
               </span>

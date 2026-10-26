@@ -137,7 +137,6 @@ export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: In
                 type="button"
                 role="tab"
                 aria-selected={slide === i}
-                aria-pressed={slide === i}
                 data-testid={`dashboard-slide-tab-${sl.id}`}
                 onClick={() => setSlide(i)}
                 className={cn(
@@ -175,7 +174,7 @@ export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: In
             <SampleDashboardPane boardSlug={active.id} />
           </div>
         </MacOSChrome>
-        <p className="text-center font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60">
+        <p className="text-center font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
           {slide + 1} / {DASHBOARD_SLIDES.length}
         </p>
       </div>

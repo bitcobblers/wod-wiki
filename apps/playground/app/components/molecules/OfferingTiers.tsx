@@ -76,7 +76,7 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 function ActiveBadge() {
   return (
-    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-emerald-600">
+    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-emerald-800">
       Active
     </span>
   )
@@ -173,7 +173,7 @@ function OfferingCard(props: {
         {props.badge}
       </div>
       {props.eyebrow && (
-        <p className={`mt-3.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] ${props.us ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+        <p className={`mt-3.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] ${props.us ? 'text-emerald-800' : 'text-muted-foreground'}`}>
           {props.eyebrow}
         </p>
       )}

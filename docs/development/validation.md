@@ -47,6 +47,12 @@ checked-in baseline that `check:playground-types` compares against.
 - Acceptance must confirm **feed-ready navigation**: after the change, routes
   reach a feed-ready state without console errors or stuck loading shells.
 
+Run the home-page WCAG A/AA checks at mobile and desktop sizes with:
+
+```sh
+bun x playwright test --config playwright.journal.config.ts e2e/live-app/home-tour.e2e.ts --grep "meets WCAG" --project=journal-chromium --workers=1
+```
+
 ### UI worker done gate
 
 A UI worker **MUST** run targeted preview acceptance (`bun run test:e2e:preview`)

@@ -225,7 +225,7 @@ export function TourJumpSection() {
               placeholder="Search feeds…"
               aria-label="Search feeds"
               data-testid="package-search-input"
-              className="h-11 w-full rounded-full border border-border bg-background pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none transition-colors focus:border-primary/50"
+              className="h-11 w-full rounded-full border border-border bg-background pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/50"
             />
             {search && (
               <button
@@ -394,7 +394,7 @@ export function TourJumpSection() {
               className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border p-10 text-center"
             >
               <p className="text-sm font-bold text-muted-foreground">No feeds match your search.</p>
-              <p className="mt-1 text-xs text-muted-foreground/70">Try a different term or clear the filters.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Try a different term or clear the filters.</p>
               {hasFilters && (
                 <button
                   type="button"
@@ -411,7 +411,7 @@ export function TourJumpSection() {
       </div>
 
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60 xl:text-[11px]">
+        <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground xl:text-[11px]">
           — or keep scrolling ↓
         </p>
       </div>

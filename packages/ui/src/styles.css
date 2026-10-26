@@ -30,7 +30,7 @@
     --popover-foreground: 30 16% 15%;
 
     /* Primary — slate blue (time/duration hue) */
-    --primary: 212 32% 50%;            /* #5980a8 */
+    --primary: 212 32% 42%;            /* #49698d */
     --primary-foreground: 40 38% 98%;
 
     /* Secondary — soft blue tint */
@@ -39,7 +39,7 @@
 
     /* Muted / neutral surfaces */
     --muted: 38 18% 90%;               /* #ede9e2 */
-    --muted-foreground: 30 13% 45%;    /* #6a5f52 */
+    --muted-foreground: 30 13% 37%;    /* #6b5e52 */
 
     /* Accent — ochre (action hue) */
     --accent: 46 42% 85%;
@@ -96,7 +96,7 @@
     --popover-foreground: 218 22% 76%;
 
     /* Primary — Nord frost blue */
-    --primary: 210 35% 64%;            /* #81a1c1 */
+    --primary: 210 35% 64%;            /* #83a3c3 */
     --primary-foreground: 222 16% 18%;
 
     /* Secondary — darker surface */
@@ -105,7 +105,7 @@
 
     /* Muted */
     --muted: 222 18% 18%;              /* #262c38 polar night 0 */
-    --muted-foreground: 219 14% 62%;   /* #9099ab */
+    --muted-foreground: 219 14% 66%;   /* #9ca5b4 */
 
     /* Accent — Nord aurora yellow */
     --accent: 40 55% 28%;

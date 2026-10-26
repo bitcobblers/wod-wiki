@@ -336,7 +336,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     if (adoptRuntime) return;
     if (!wizardDone && (collectionItems.length > 0 || wizardEngagedRef.current)) return;
 
-    const rt = createRuntimeForBlock(runtimeBlock);
+    const rt = createRuntimeForBlock(runtimeBlock, view?.state.doc.toString());
     if (!rt) {
       // Block has no compilable statements — nothing to run
       setNothingToRun(true);

@@ -295,7 +295,7 @@ export function ScrollGate({
         <button
           type="button"
           className="min-h-11 self-start rounded px-3 py-2 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
-          aria-label={`Scroll ${gateId.replace(/-/g, ' ')} content`}
+          aria-label={`${mode === 'captured' ? 'Scroll page' : 'Scroll panel'}: ${gateId.replace(/-/g, ' ')} content`}
           aria-pressed={mode === 'captured'}
           onClick={() => mode === 'captured'
             ? track.releaseGate(gateId)

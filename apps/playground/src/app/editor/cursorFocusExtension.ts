@@ -329,14 +329,14 @@ const metricUnderlineTheme = EditorView.baseTheme({
   ".cm-metric-underline-action":     { borderBottom: "2px solid hsl(var(--metric-action))",     color: "hsl(var(--metric-action))" },
   ".cm-metric-underline-equipment":  { borderBottom: "2px solid hsl(var(--metric-equipment))",  color: "hsl(var(--metric-equipment))" },
 
-  ".cm-metric-underline-duration-dim":   { borderBottom: "2px solid hsl(var(--metric-time) / 0.2)",       color: "hsl(var(--metric-time))" },
-  ".cm-metric-underline-rep-dim":        { borderBottom: "2px solid hsl(var(--metric-rep) / 0.2)",        color: "hsl(var(--metric-rep))" },
-  ".cm-metric-underline-effort-dim":     { borderBottom: "2px solid hsl(var(--metric-effort) / 0.2)",     color: "hsl(var(--metric-effort))" },
-  ".cm-metric-underline-rounds-dim":     { borderBottom: "2px solid hsl(var(--metric-rounds) / 0.2)",     color: "hsl(var(--metric-rounds))" },
-  ".cm-metric-underline-distance-dim":   { borderBottom: "2px solid hsl(var(--metric-distance) / 0.2)",   color: "hsl(var(--metric-distance))" },
-  ".cm-metric-underline-resistance-dim": { borderBottom: "2px solid hsl(var(--metric-resistance) / 0.2)", color: "hsl(var(--metric-resistance))" },
-  ".cm-metric-underline-action-dim":     { borderBottom: "2px solid hsl(var(--metric-action) / 0.2)",     color: "hsl(var(--metric-action))" },
-  ".cm-metric-underline-equipment-dim":  { borderBottom: "2px solid hsl(var(--metric-equipment) / 0.2)",  color: "hsl(var(--metric-equipment))" },
+  ".cm-metric-underline-duration-dim":   { borderBottom: "2px solid hsl(var(--metric-time) / 0.2)",       color: "hsl(var(--muted-foreground))" },
+  ".cm-metric-underline-rep-dim":        { borderBottom: "2px solid hsl(var(--metric-rep) / 0.2)",        color: "hsl(var(--muted-foreground))" },
+  ".cm-metric-underline-effort-dim":     { borderBottom: "2px solid hsl(var(--metric-effort) / 0.2)",     color: "hsl(var(--muted-foreground))" },
+  ".cm-metric-underline-rounds-dim":     { borderBottom: "2px solid hsl(var(--metric-rounds) / 0.2)",     color: "hsl(var(--muted-foreground))" },
+  ".cm-metric-underline-distance-dim":   { borderBottom: "2px solid hsl(var(--metric-distance) / 0.2)",   color: "hsl(var(--muted-foreground))" },
+  ".cm-metric-underline-resistance-dim": { borderBottom: "2px solid hsl(var(--metric-resistance) / 0.2)", color: "hsl(var(--muted-foreground))" },
+  ".cm-metric-underline-action-dim":     { borderBottom: "2px solid hsl(var(--metric-action) / 0.2)",     color: "hsl(var(--muted-foreground))" },
+  ".cm-metric-underline-equipment-dim":  { borderBottom: "2px solid hsl(var(--metric-equipment) / 0.2)",  color: "hsl(var(--muted-foreground))" },
 
   // A tag reference is a hashtag: a chip, not an underline.
   ".cm-tag-reference": {
@@ -345,7 +345,7 @@ const metricUnderlineTheme = EditorView.baseTheme({
     borderRadius: "3px",
     padding: "0 2px",
   },
-  ".cm-tag-reference-dim": { color: "hsl(var(--primary) / 0.55)" },
+  ".cm-tag-reference-dim": { color: "hsl(var(--muted-foreground))" },
   // A `#sound-` reference names a sound profile.
   ".cm-tag-reference-sound": {
     color: "hsl(var(--metric-action))",
@@ -353,7 +353,7 @@ const metricUnderlineTheme = EditorView.baseTheme({
     borderRadius: "3px",
     padding: "0 2px",
   },
-  ".cm-tag-reference-sound-dim": { color: "hsl(var(--metric-action) / 0.55)" },
+  ".cm-tag-reference-sound-dim": { color: "hsl(var(--muted-foreground))" },
 });
 
 // ── Exported extension ───────────────────────────────────────────────

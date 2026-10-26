@@ -21,7 +21,9 @@ import {
   MetricType,
   type IMetric,
   type MetricOrigin,
+  type TagIndex,
 } from '@bitcobblers/wod-wiki-core';
+import { resolveTagContributions } from '../../tags/TagContributions';
 import { type ExprNode } from './ast';
 import { CONTEXT_ATOMS, STREAM_ATOMS } from './atoms';
 import { addDim, DIM_ZERO, subDim, type DimVector } from './dimensions';
@@ -170,6 +172,50 @@ function isSupportedMetricValue(val: unknown): val is string | number | readonly
 
 function isPlainObject(val: unknown): val is Record<string, unknown> {
   return Boolean(val) && typeof val === 'object' && !Array.isArray(val);
+}
+
+/**
+ * Extract `PropertyRuleInput` records from a `TagIndex` for the given tag slugs.
+ * Supports both statement-level `metrics` (static or equation) and workout-level
+ * `summaries.<key>` contributions on tags (including nested tags).
+ */
+export function extractTagPropertyRules(
+  tags: TagIndex | undefined,
+  slugs: readonly string[],
+): PropertyRuleInput[] {
+  if (!tags || slugs.length === 0) return [];
+  const rules: PropertyRuleInput[] = [];
+  for (const slug of slugs) {
+    const resolved = resolveTagContributions(tags, slug);
+    if (resolved.metrics.length === 0) continue;
+    const metrics: Record<string, string | number | readonly string[]> = {};
+    const summaries: Record<string, string> = {};
+    for (const m of resolved.metrics) {
+      const key = m.type.trim();
+      if (!key) continue;
+      if (key.startsWith('summaries.')) {
+        const subKey = key.slice('summaries.'.length).trim();
+        if (subKey && !(subKey in summaries)) {
+          summaries[subKey] = String(m.value);
+        }
+      } else if (!(key in metrics)) {
+        metrics[key] = m.unit
+          ? `${String(m.value)} ${m.unit}`
+          : m.value === null || typeof m.value === 'boolean'
+            ? String(m.value)
+            : m.value;
+      }
+    }
+    if (Object.keys(metrics).length > 0 || Object.keys(summaries).length > 0) {
+      rules.push({
+        layer: 'tag',
+        sourceSlug: slug,
+        metrics,
+        summaries,
+      });
+    }
+  }
+  return rules;
 }
 
 /**

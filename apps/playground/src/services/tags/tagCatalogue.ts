@@ -15,7 +15,6 @@ import { createTagIndex, type TagDefinition, type TagIndex } from '@bitcobblers/
 import type { ITagSource, Tag, TagContribution } from '@bitcobblers/wod-wiki-core'
 import { storageService } from '@/services/storage'
 import { soundProfileIdFromTag } from '@/services/sound/soundTagNaming'
-import { SEED_BROADCAST_CHANNEL } from '@/types/seed'
 
 /**
  * The contributions of a tag that carries none of its own.
@@ -72,7 +71,7 @@ const tagSource: ITagSource = new StorageTagSource();
  * before the tags load simply sees no tags — the same as a document with
  * no tag references.
  */
-let cachedTagIndex: TagIndex = createTagIndex([])
+let cachedTagIndex: TagIndex = createTagIndex(builtinExampleDefinitions())
 
 type TagIndexListener = () => void
 const listeners = new Set<TagIndexListener>()
@@ -81,6 +80,36 @@ const listeners = new Set<TagIndexListener>()
 export function setTagIndex(tags: readonly Tag[]): void {
     cachedTagIndex = createTagIndex(buildTagDefinitions(tags))
     for (const listener of listeners) listener()
+}
+
+/** Built-in property-note tags used by the syntax guide and playground examples. */
+function builtinExampleDefinitions(): TagDefinition[] {
+  return [
+    {
+      slug: 'tonnage',
+      contributions: [
+        { kind: 'metric', type: 'resistance', value: 24, unit: 'kg' },
+        { kind: 'metric', type: 'work', value: 'reps * resistance' },
+        { kind: 'metric', type: 'summaries.totalWork', value: 'sum(work)' },
+      ],
+    },
+    {
+      slug: 'metabolic',
+      contributions: [
+        { kind: 'metric', type: 'met', value: 8 },
+        { kind: 'metric', type: 'metMinutes', value: 'met * convert(elapsed, min)' },
+        { kind: 'metric', type: 'summaries.totalMetMinutes', value: 'sum(metMinutes)' },
+      ],
+    },
+    {
+      slug: 'kettlebell-24kg',
+      contributions: [
+        { kind: 'metric', type: 'resistance', value: 24, unit: 'kg' },
+        { kind: 'metric', type: 'work', value: 'reps * resistance' },
+        { kind: 'metric', type: 'summaries.totalWork', value: 'sum(work)' },
+      ],
+    },
+  ];
 }
 
 /** The cached tag index. */

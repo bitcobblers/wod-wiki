@@ -45,7 +45,7 @@ export function FeedCard({ feed, testId = 'feed-card', className, onImport, impo
   const coverImage = feed.notebooks.find((notebook) => notebook.image)?.image;
 
   const meta = (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
       <span className="tabular-nums">
         {feed.notebooks.length} {feed.notebooks.length === 1 ? 'notebook' : 'notebooks'}
       </span>
@@ -150,8 +150,8 @@ export function FeedCard({ feed, testId = 'feed-card', className, onImport, impo
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-widest transition-colors',
                   notebook.subscribed
-                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                    : 'border-border text-muted-foreground/70',
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-800'
+                    : 'border-border text-muted-foreground',
                 )}
               >
                 {notebook.installed ? (
@@ -181,7 +181,7 @@ export function FeedCard({ feed, testId = 'feed-card', className, onImport, impo
               </span>
             ))}
             {overflow > 0 && (
-              <span className="rounded-full border border-dashed border-border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <span className="rounded-full border border-dashed border-border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
                 +{overflow} more
               </span>
             )}

@@ -165,6 +165,7 @@ export {
   outputNodeId,
   runMetricShakeOutQueue,
   extractPropertyRulesFromMeta,
+  extractTagPropertyRules,
   compilePropertySummaryCalcs,
   type PropertyRuleInput,
   type PropertySourceLayer,

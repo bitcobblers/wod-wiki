@@ -35,7 +35,7 @@ export function MacOSChrome({ title, subtitle, children, onReset, headerActions,
             <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">
               {title}
               {subtitle && (
-                <span className="ml-1.5 font-medium normal-case tracking-normal text-muted-foreground/50">
+                <span className="ml-1.5 font-medium normal-case tracking-normal text-muted-foreground">
                   · {subtitle}
                 </span>
               )}

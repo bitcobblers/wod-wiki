@@ -145,27 +145,16 @@ pipeline:
   - set-source: wods/examples/syntax/calculated-metrics.md
 ```
 
-Two ways to derive values.
+**Frontmatter `metrics:` and `summaries:`** derive values per statement and across the workout:
 
-**In-note `calculate` blocks** evaluate over the workout's recorded rows; rows with unknown inputs are skipped, not zeroed:
-
-````markdown
-```time
-rpe: 8
-(5 Sets)
-  5 Deadlifts 225lb
-  5 Deadlifts ?lb
+```yaml
+metrics.work: reps * resistance
+summaries.totalWork: sum(work)
 ```
 
-```calculate
-totalLoad = sum(reps * weight)
-avgRPE = mean(rpe)
-setCount = count(reps)
-```
-````
+Each logged statement gains `work = reps * resistance` through the Metric Shake-Out Queue, then `totalWork = sum(work)` is emitted as a Summary Metric. Tag Property Notes can contribute the same metrics and summaries when a note or statement carries the tag (e.g. `#tonnage`).
 
-A trailing `calculate` section inside the fence works the same way. Formulas run live during tracking and finalize on completion.
-
+See [Summary properties & tag annotations](/page/guide-metrics-summaries) for a runnable example.
 **Engine-published `calc.*` metrics** are built in — the full vocabulary WQL can query:
 
 | Family | Keys |

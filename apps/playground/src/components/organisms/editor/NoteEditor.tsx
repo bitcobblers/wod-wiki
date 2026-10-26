@@ -134,6 +134,8 @@ export interface NoteEditorProps {
   readonly?: boolean;
   /** CSS class name */
   className?: string;
+  /** Accessible name for the CodeMirror textbox */
+  ariaLabel?: string;
   /** Called when user triggers "Run" on a Whiteboard Script block */
   onStartWorkout?: (block: ScriptBlock) => void;
   /** Called when a workout is completed with the results.
@@ -227,6 +229,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   theme = "vs",
   readonly = false,
   className = "",
+  ariaLabel = "Note editor",
   onStartWorkout,
   onCompleteWorkout,
   onBlocksChange,
@@ -667,6 +670,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       EditorState.readOnly.of(readonly),
       EditorView.editable.of(!readonly),
       ...(placeholderText ? [placeholder(placeholderText)] : []),
+      EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
     ],
     [
       onChange,
@@ -688,6 +692,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       notePersistence,
       widgetComponents,
       placeholderText,
+      ariaLabel,
     ]
   );
 

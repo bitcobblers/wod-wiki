@@ -541,9 +541,9 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   const offeringsBlock = (
     <>
       <OfferingTiers />
-      <p className="-mt-8 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60 xl:text-[11px]">
+      <p className="-mt-8 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground xl:text-[11px]">
         — or learn the language with examples{' '}
-        <Link to="/syntax" className="text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline">
+        <Link to="/syntax" className="text-foreground underline underline-offset-4 transition-colors hover:text-primary">
           on the syntax page →
         </Link>
       </p>

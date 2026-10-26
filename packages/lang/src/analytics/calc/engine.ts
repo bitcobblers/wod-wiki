@@ -39,7 +39,7 @@ import { ABSENT, num, str, truthy, Val } from './values';
 import { DIM_ZERO } from './dimensions';
 import { AUTHORITATIVE_CASTS } from './units';
 import { UNITS } from './units';
-import { runMetricShakeOutQueue, type PropertyRuleInput } from './shakeOutQueue';
+import { extractTagPropertyRules, runMetricShakeOutQueue, type PropertyRuleInput } from './shakeOutQueue';
 
 export interface CalcEngineDeps {
   /** Fence dialect of the block being analyzed; calcs filter on it. */
@@ -95,9 +95,24 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
     this.workoutCalcs = registry.byScope('workout').filter(fenced);
     // A tag carries the functions it names and the functions the tags it
     // applies name — the same resolution the parser does.
+    const noteDefinedSummaries = new Set<string>();
+    for (const src of deps.propertySources ?? []) {
+      for (const k of Object.keys(src.summaries ?? {})) {
+        noteDefinedSummaries.add(k.trim());
+      }
+    }
     for (const tag of deps.tags?.list() ?? []) {
       const resolved = resolveTagContributions(deps.tags, tag.slug);
-      for (const name of resolved.functions) {
+      const carriedNames = [...resolved.functions];
+      for (const m of resolved.metrics) {
+        if (m.type.trim().startsWith('summaries.')) {
+          const summaryId = m.type.trim().slice('summaries.'.length).trim();
+          if (summaryId && !noteDefinedSummaries.has(summaryId)) {
+            carriedNames.push(summaryId);
+          }
+        }
+      }
+      for (const name of carriedNames) {
         const carriers = this.tagCarriedFunctions.get(name);
         if (carriers) carriers.add(tag.slug);
         else this.tagCarriedFunctions.set(name, new Set([tag.slug]));
@@ -143,10 +158,13 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
     if (output.outputType !== 'segment' || !output.isLeaf) return output;
     const effortData = extractEffortData(output.metrics.rawMetrics);
     if (effortData) this.lastSegmentEffort = effortData.resolved.slug;
-    if (this.deps.propertySources && this.deps.propertySources.length > 0) {
+    const appliedTags = this.appliedTags(output);
+    const tagSources = extractTagPropertyRules(this.deps.tags, appliedTags);
+    const allSources = [...tagSources, ...(this.deps.propertySources ?? [])];
+    if (allSources.length > 0) {
       runMetricShakeOutQueue(output.metrics, {
         stage: 'log',
-        sources: this.deps.propertySources,
+        sources: allSources,
         lookups: this.deps.lookups,
         lastEffortSlug: this.lastSegmentEffort,
       });
@@ -172,8 +190,6 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
     if (climbGrade && typeof climbGrade === 'object' && 'raw' in climbGrade) {
       effortTags.grade = String(climbGrade.raw);
     }
-
-    const appliedTags = this.appliedTags(output);
 
     for (const def of this.segmentCalcs) {
       if (!this.isActive(def, appliedTags)) continue;

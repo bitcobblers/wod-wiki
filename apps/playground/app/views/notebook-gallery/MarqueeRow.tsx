@@ -69,7 +69,7 @@ export function MarqueeRow({ direction, children, testId, className }: MarqueeRo
       >
         {Array.from({ length: copies }, (_, copy) => (
           // Copies repeat for the seamless loop; tests scope queries to copy 0.
-          <div key={copy} data-marquee-copy={copy} aria-hidden={copy > 0} className="flex shrink-0 items-stretch gap-4 pr-4">
+          <div key={copy} data-marquee-copy={copy} aria-hidden={copy > 0} inert={copy > 0} className="flex shrink-0 items-stretch gap-4 pr-4">
             {children}
           </div>
         ))}

@@ -47,29 +47,14 @@ Notes:
 
 ## Calculated metrics
 
-A `calculate` block is document-level, not nested inside `wod`.
-Each line uses the shape `target = expression`.
-Supported functions are:
+Frontmatter `metrics:` derive statement-level metrics and `summaries:` derive workout-level values.
+Each uses the shape `metrics.<name>: <value-or-equation>` and `summaries.<name>: <equation>`.
+Supported operators are `+`, `-`, `*`, `/`, and parentheses; `convert(x, unit)` converts units.
 
-- `sum`
-- `mean`
-- `max`
-- `min`
-- `count`
-
-Supported operators are `+`, `-`, `*`, `/`, `^`, and parentheses.
-
-```time
-rpe: 8
-(5 Sets)
-  5 Deadlifts 225lb
-  5 Deadlifts ?lb
-```
-
-```calculate
-totalLoad = sum(reps * weight)
-avgRPE = mean(rpe)
-setCount = count(reps)
+```yaml
+metrics.work: reps * resistance
+summaries.totalWork: sum(work)
+summaries.avgRPE: avg(sessionRpe)
 ```
 
 Notes:
@@ -77,7 +62,7 @@ Notes:
 - rows with missing inputs are skipped for that calculation
 - if a definition cannot resolve to a finite number, it is omitted
 - calculations can reference numeric custom metrics and mapped properties
-- cross-workout aggregation is out of scope for this v1 syntax
+- tag Property Notes can contribute metrics and summaries when a note or statement carries the tag
 
 ## Example fixtures
 
