@@ -29,6 +29,7 @@ import {
   PAGES_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
   SESSIONS_STREAM_PROFILE,
+  TAGS_STREAM_PROFILE,
   type StreamProfile,
 } from '../views/stream/streamProfile'
 import { PALETTE_ROUTE_ID } from './routeWqlConfig'
@@ -98,6 +99,12 @@ const LIBRARY_SURFACES: QueryConfigSurface[] = [
     label: 'Equipment',
     profile: EQUIPMENT_STREAM_PROFILE,
     scopeChoices: SOURCE_OPTIONS,
+    shortcuts: true,
+  },
+  {
+    id: TAGS_STREAM_PROFILE.route,
+    label: 'Tags',
+    profile: TAGS_STREAM_PROFILE,
     shortcuts: true,
   },
   {

@@ -122,25 +122,35 @@ test.describe('URL scheme — canonical direct routes', () => {
 });
 
 test.describe('URL scheme — tag deep link', () => {
-  test('/t/:type/:tag renders the tag catalogue with the tag opened', async ({ page }) => {
+  test('/t/:type/:tag renders the tag editor for that tag', async ({ page }) => {
     const TAG = 'url-scheme-e2e';
-    await page.goto('/tags', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await expect(page.getByRole('heading', { name: 'Tags', level: 1 })).toBeVisible();
-    // Defensive cleanup (only if a previous run left the tag behind):
-    // open the editor for the tag and use its scoped Delete action.
-    const existing = page.getByRole('button', { name: TAG, exact: true });
-    if ((await existing.count()) > 0) {
-      await existing.first().click();
+    // Defensive cleanup (only if a previous run left the tag behind): the
+    // catalogue query narrows to the tag, then its editor deletes it.
+    await page.goto(`/tags?q=${encodeURIComponent(`:tag{tag:${TAG}}`)}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20_000,
+    });
+    const row = page.getByTestId('library-row-tag').filter({ hasText: TAG });
+    if ((await row.count()) > 0) {
+      await page.goto(`/t/domain/${TAG}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
       await expect(page.getByRole('heading', { name: `Edit ${TAG}` })).toBeVisible({ timeout: 10_000 });
-      const editor = page.locator('div').filter({ has: page.getByRole('heading', { name: `Edit ${TAG}` }) }).last();
-      await editor.getByRole('button', { name: 'Delete' }).click();
-      await expect(existing).toHaveCount(0);
+      await page.getByRole('button', { name: 'Delete' }).click();
+      await expect(page.getByRole('heading', { name: `Edit ${TAG}` })).toHaveCount(0);
     }
+    // Create the tag on its direct route (the catalogue is a query surface,
+    // not an editor).
+    await page.goto(`/t/domain/${TAG}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'Tags', level: 1 })).toBeVisible();
     await page.getByPlaceholder('heavy').fill(TAG);
     await page.getByRole('button', { name: /Add Tag/i }).click();
-    await expect(page.getByRole('button', { name: TAG, exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: `Edit ${TAG}` })).toBeVisible({ timeout: 10_000 });
 
-    // The canonical tag deep link opens the catalogue on that tag.
+    // The catalogue lists it as a query row linking back to the direct route.
+    await page.goto('/tags', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await expect(page.locator('[data-testid="wql-composer-root"]:visible')).toContainText(':tag{}');
+    await expect(page.getByTestId('library-row-tag').filter({ hasText: TAG })).toBeVisible({ timeout: 15_000 });
+
+    // The canonical tag deep link opens the editor on that tag.
     await page.goto(`/t/domain/${TAG}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await expect(page.getByRole('heading', { name: /not found/i })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: `Edit ${TAG}` })).toBeVisible({ timeout: 15_000 });

@@ -762,7 +762,10 @@ describe('QueriableStreamView component', () => {
 
     render(
       <MemoryRouter initialEntries={['/journal']}>
-        <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
+        <QueriableStreamView
+          profile={{ ...JOURNAL_STREAM_PROFILE, defaultWql: ':journal{}' }}
+          queryEngine={engine}
+        />
       </MemoryRouter>,
     )
 
@@ -1219,7 +1222,9 @@ describe('QueriableStreamView — query truth and retained state', () => {
     const status = screen.getByTestId('stream-query-status').textContent ?? ''
     expect(status).toContain(':note')
     expect(status).toContain('1 applied')
-    expect(status).toContain('by date (level)')
+    // The journal default groups by date in the query itself — a copied URL
+    // reproduces the same list, grouping included (ticket 11).
+    expect(status).toContain('by date (query)')
     expect(screen.queryByText('Invalid query — showing previous results')).toBeNull()
   })
 

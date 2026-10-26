@@ -245,11 +245,10 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     ),
     effortDetail: () => <EffortDetailPage />,
     equipmentDetail: () => <EquipmentDetailPage />,
-    tags: () => <TagsPage />,
     tagDetail: () => (
       <TagsPage
         key={routeParams.tag ?? ''}
-        initialTag={routeParams.tag ? decodeURIComponent(routeParams.tag) : undefined}
+        initialTag={routeParams.tag}
       />
     ),
     dashboardExplorer: () => (

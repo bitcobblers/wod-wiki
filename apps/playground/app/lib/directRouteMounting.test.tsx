@@ -74,11 +74,14 @@ describe('Route-aware stream profile resolution', () => {
   it('resolves canonical StreamProfile configurations per route', () => {
     expect(resolveStreamProfile('/journal')).toBe(JOURNAL_STREAM_PROFILE)
     // Semantic, not spelling: the journal default scopes to the journal
-    // source over a 4-week window regardless of head alias.
+    // notebook over a 4-week window, grouped by date in the query itself —
+    // a copyable note-plane query regardless of head spelling.
     const journalDefault = parseQuery(resolveStreamProfile('/journal').defaultWql)
     expect(isFindQuery(journalDefault)).toBe(true)
     if (isFindQuery(journalDefault)) {
-      expect(journalDefault.filters.some((f) => f.key === 'source' && f.values.some((v) => v.value === 'journal'))).toBe(true)
+      expect(journalDefault.target).toBe('note')
+      expect(journalDefault.filters.some((f) => f.key === 'notebook' && f.values.some((v) => v.value === 'journal'))).toBe(true)
+      expect(journalDefault.groupBy).toEqual(['date'])
       expect(journalDefault.window).toEqual({ kind: 'relative', size: 4, unit: 'w' })
     }
 

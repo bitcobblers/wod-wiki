@@ -7,11 +7,14 @@ import {
   FEEDS_STREAM_PROFILE,
   PAGES_STREAM_PROFILE,
   EFFORTS_STREAM_PROFILE,
+  EQUIPMENT_STREAM_PROFILE,
+  TAGS_STREAM_PROFILE,
   SESSIONS_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
   getStreamProfile,
   resolveStreamProfile,
   isStreamRoute,
+  streamRouteTitle,
 } from './streamProfile'
 
 describe('streamProfile', () => {
@@ -23,6 +26,8 @@ describe('streamProfile', () => {
       FEEDS_STREAM_PROFILE,
       PAGES_STREAM_PROFILE,
       EFFORTS_STREAM_PROFILE,
+      EQUIPMENT_STREAM_PROFILE,
+      TAGS_STREAM_PROFILE,
       SESSIONS_STREAM_PROFILE,
       PLAYGROUNDS_STREAM_PROFILE,
     ]) {
@@ -38,8 +43,30 @@ describe('streamProfile', () => {
     expect(FEEDS_STREAM_PROFILE.title).toBe('Feeds')
     expect(PAGES_STREAM_PROFILE.title).toBe('Pages')
     expect(EFFORTS_STREAM_PROFILE.title).toBe('Efforts')
+    expect(EQUIPMENT_STREAM_PROFILE.title).toBe('Equipment')
+    expect(TAGS_STREAM_PROFILE.title).toBe('Tags')
     expect(SESSIONS_STREAM_PROFILE.title).toBe('Sessions')
     expect(PLAYGROUNDS_STREAM_PROFILE.title).toBe('Playgrounds')
+  })
+
+  it('the journal default is a copyable note-plane query grouped by date', () => {
+    // The landing query is plain `:note{…} by {date}` — anyone can copy the
+    // URL's `?q=` and reproduce the same list, grouping included.
+    const parsed = parseQuery(JOURNAL_STREAM_PROFILE.defaultWql)
+    if (!isFindQuery(parsed)) throw new Error('journal default must be a find query')
+    expect(parsed.target).toBe('note')
+    expect(parsed.groupBy).toEqual(['date'])
+    expect(JOURNAL_STREAM_PROFILE.defaultWql).toContain('notebook:journal')
+  })
+
+  it('the tags surface binds the tag plane — one row per tag, no storage scope', () => {
+    expect(TAGS_STREAM_PROFILE.route).toBe('/tags')
+    expect(TAGS_STREAM_PROFILE.target).toBe('tag')
+    expect(TAGS_STREAM_PROFILE.defaultWql).toBe(':tag{}')
+    expect(TAGS_STREAM_PROFILE.scopeOptions).toEqual([])
+    expect(isStreamRoute('/tags')).toBe(true)
+    expect(getStreamProfile('/tags')).toBe(TAGS_STREAM_PROFILE)
+    expect(streamRouteTitle('/tags')).toBe('Tags')
   })
 
   it('owns stream-surface membership — isStreamRoute is the single registry', () => {

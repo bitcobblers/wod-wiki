@@ -10,6 +10,7 @@
  *                        feed posts → /feed/:feedSlug/:date/:item
  *   Open  Effort       → /effort/:slug
  *   Open  Equipment    → /equipment/:slug
+ *   Open  Tag          → /t/:type/:tag
  *   Open  Result       → /results/:sessionId
  *   Open  Dashboard    → /dashboard/:slug (corpus) or /note/:noteId (vault)
  *   Compare (any)      → /dashboards?q=:blockContentId
@@ -23,6 +24,7 @@
  * (`entryCanAddToToday`) so the LibraryRow can render the button.
  */
 import type { Entry } from './entryMapper'
+import { tagRowSegments } from './entryMapper'
 import { notePath, sessionDetailPath, analyticsExplorerPath } from './routes'
 
 /** Per-path-segment encoding — slashes stay separators. */
@@ -90,6 +92,17 @@ export function entryOpenHref(entry: Entry): string {
         const slug = raw.startsWith('equipment/') ? raw.slice('equipment/'.length) : raw
         const isNoteId = /^(?:uuid-|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)/i.test(slug)
         return slug && !isNoteId ? `/equipment/${encodePath(slug)}` : notePath(entry.id)
+      }
+      case 'tag': {
+        // The tag's own direct route — /t/:type/:tag (identity from the
+        // tag/{type}/{label} row id, never a note UUID). Type and label are
+        // encoded as individual URI components: encodeURIComponent also
+        // escapes '/', so a slash-containing label survives as one segment
+        // (matches the editor's reference links — encodePath would not).
+        const segments = tagRowSegments(entry)
+        const type = segments?.type ?? 'general'
+        const label = segments?.label ?? entry.sourceItem ?? entry.id
+        return `/t/${encodeURIComponent(type)}/${encodeURIComponent(label)}`
       }
       case 'effort':
         return `/effort/${encodeURIComponent(entry.effort?.slug ?? entry.id)}`

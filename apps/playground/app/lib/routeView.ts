@@ -58,7 +58,6 @@ export type PageKind =
   | 'effortDetail'
   | 'equipmentDetail'
   | 'tagDetail'
-  | 'tags'
   | 'dashboardExplorer'
   | 'dashboardView'
   | 'home'
@@ -212,7 +211,7 @@ function deriveWorkout(
   if (flags.feedDetailMatch) {
     return { name: decodeURIComponent(flags.feedDetailMatch), content: '', category: 'feed' }
   }
-  if (cleanRoutePath(pathname) === '/tags' || pathname.startsWith('/t/')) {
+  if (pathname.startsWith('/t/')) {
     return { name: 'Tags', content: '', category: 'tags' }
   }
   if (pathname.startsWith('/dashboard/')) {
@@ -277,7 +276,6 @@ function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanva
   if (clean === '/dashboards') return 'dashboardExplorer'
   if (pathname.startsWith('/dashboard/')) return 'dashboardView'
   if (clean === '/settings' || clean.startsWith('/settings/')) return 'settings'
-  if (clean === '/tags') return 'tags'
   if (pathname.startsWith('/t/')) return 'tagDetail'
 
   if (clean === '/') return 'home'

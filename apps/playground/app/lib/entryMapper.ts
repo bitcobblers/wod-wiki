@@ -19,7 +19,7 @@ import { parseNoteId } from '@/lib/noteIdentity'
  *  notebook (ticket 05) — there is no separate session/post kind; the
  *  notebook the note belongs to (`notebookId`) and its corpus route carry
  *  the distinction the old kinds encoded. */
-export type EntryKind = 'note' | 'result' | 'segment' | 'effort' | 'event' | 'dashboard' | 'equipment'
+export type EntryKind = 'note' | 'result' | 'segment' | 'effort' | 'event' | 'dashboard' | 'equipment' | 'tag'
 
 /** Block-level payload on an Entry produced from a :block hit (#855):
  *  the card shows the parent note's identity plus the block's own type and
@@ -157,6 +157,19 @@ function isEffortNote(note: Note): boolean {
 /** Equipment note (gear definitions; new source — legacy rows are sourceless). */
 function isEquipmentNote(note: Note): boolean {
   return note.sourceId === 'equipment' || note.sourcePath?.startsWith('markdown/equipment/') === true
+}
+
+/** Synthetic tag-plane row (`:tag{}`) — the tag catalogue record rendered as
+ *  one note-shaped result (runFindTag). Identity is `tag/{type}/{label}`;
+ *  the row carries what the tag contributes in its body. */
+function isTagRow(note: Note): boolean {
+  return note.type === 'tag' && note.id.startsWith('tag/')
+}
+
+/** The tag row's `/t/:type/:tag` segments — [type, label]. */
+export function tagRowSegments(note: Pick<Note, 'id'>): { type: string; label: string } | undefined {
+  const match = /^tag\/([^/]+)\/(.+)$/.exec(note.id)
+  return match ? { type: match[1]!, label: match[2]! } : undefined
 }
 
 /** Slug of a corpus note — `<slug>.md` (dashboards/equipment) or
@@ -345,6 +358,24 @@ function toEntryBase(note: Note): Entry {
       date: null,
       createdAt: note.createdAt,
       subtitle: 'equipment',
+      ...(tags ? { tags } : {}),
+    }
+  }
+
+  // Synthetic tag-plane row — one tag per row; the contribution summary the
+  // executor wrote into the body is what the row shows it carries.
+  if (isTagRow(note)) {
+    const segments = tagRowSegments(note)
+    return {
+      id,
+      kind: 'tag',
+      sourceCatalog: 'tags',
+      sourceItem: segments?.label ?? title,
+      title: title || segments?.label || id,
+      date: null,
+      createdAt: note.createdAt,
+      subtitle: ('tagType' in note && typeof note.tagType === 'string' ? note.tagType : undefined) ?? segments?.type,
+      detail: note.rawContent || undefined,
       ...(tags ? { tags } : {}),
     }
   }

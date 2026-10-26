@@ -185,6 +185,39 @@ describe('toEntry — seeded kinds stay out of journal (All-view inclusion)', ()
     expect(entryOpenHref(entry)).toBe('/note/uuid-gear')
   })
 
+  it('maps a synthetic tag-plane row to a Tag entry exposing its contributions', () => {
+    // The tag plane's synthetic row — a Note carrying the tag's type (the
+    // executor's row shape, wider than the storage Note).
+    const tagRow: Note & { tagType?: string } = {
+      ...makeNote({
+        id: 'tag/domain/running',
+        title: 'running',
+        type: 'tag',
+        rawContent: 'contributes metric discipline, function tis',
+        createdAt: 42,
+      }),
+      tagType: 'domain',
+    }
+    const entry = toEntry(tagRow)
+    expect(entry.kind).toBe<EntryKind>('tag')
+    expect(entry.sourceCatalog).toBe('tags')
+    expect(entry.sourceItem).toBe('running')
+    expect(entry.subtitle).toBe('domain')
+    // The row shows what the tag carries.
+    expect(entry.detail).toBe('contributes metric discipline, function tis')
+    expect(entryOpenHref(entry)).toBe('/t/domain/running')
+  })
+
+  it('a tag row without a type opens under the general type', () => {
+    const entry = toEntry(makeNote({
+      id: 'tag/general/heavy',
+      title: 'heavy',
+      type: 'tag',
+      rawContent: '',
+    }))
+    expect(entryOpenHref(entry)).toBe('/t/general/heavy')
+  })
+
   it('none of the seeded kinds masquerade as journal entries', () => {
     for (const note of [
       makeNote({ type: 'dashboard', sourceId: 'dashboards' }),

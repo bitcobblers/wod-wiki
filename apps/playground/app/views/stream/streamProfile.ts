@@ -3,7 +3,8 @@
  *
  * Encapsulates the routing, default WQL query, entity level, and presentation
  * metadata for each unified stream route (/journal, /notes, /notebooks,
- * /feeds, /pages, /efforts, /equipment, /sessions, /results/:sessionId).
+ * /feeds, /pages, /efforts, /equipment, /tags, /sessions, /playgrounds,
+ * /results/:sessionId).
  */
 import type { EntityLevel } from '../../lib/fieldProjection'
 import type { LayoutMode } from '../../lib/viewSettingsStorage'
@@ -108,7 +109,11 @@ export function createContentLegacyConfig(defaultSource?: string): StreamProfile
 export const JOURNAL_STREAM_PROFILE: StreamProfile = {
   route: '/journal',
   title: 'Journal',
-  defaultWql: ':journal{} last 4w',
+  // The journal landing is a plain note-plane query anyone can copy: the
+  // journal notebook narrowed with `notebook:journal`, grouped by date in
+  // the query itself (a copied URL reproduces the same list — the grouping
+  // rides the query, never a view setting).
+  defaultWql: ':note{notebook:journal} by {date} last 4w',
   level: 'note',
   target: 'note',
   scopeOptions: ['journal'],
@@ -189,6 +194,19 @@ export const EQUIPMENT_STREAM_PROFILE: StreamProfile = {
   emptyMessage: 'No equipment matches your search.',
 }
 
+export const TAGS_STREAM_PROFILE: StreamProfile = {
+  route: '/tags',
+  title: 'Tags',
+  // The tag plane (ticket 08) — every tag as one row; the composer offers
+  // exactly the plane's filters (tag:, type:, text:, contributes:) and a
+  // contribution is never offered as a label filter.
+  defaultWql: ':tag{}',
+  level: 'note',
+  target: 'tag',
+  scopeOptions: [],
+  emptyMessage: 'No tags match your search.',
+}
+
 export const SESSIONS_STREAM_PROFILE: StreamProfile = {
   route: '/sessions',
   title: 'Sessions',
@@ -258,6 +276,7 @@ const PROFILES_BY_ROUTE: Record<string, StreamProfile> = {
   '/pages': PAGES_STREAM_PROFILE,
   '/efforts': EFFORTS_STREAM_PROFILE,
   '/equipment': EQUIPMENT_STREAM_PROFILE,
+  '/tags': TAGS_STREAM_PROFILE,
   '/sessions': SESSIONS_STREAM_PROFILE,
   '/playgrounds': PLAYGROUNDS_STREAM_PROFILE,
 }

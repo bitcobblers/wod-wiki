@@ -80,9 +80,10 @@ test.describe('Page query settings — library surfaces', () => {
     await openQuerySettings(page);
 
     await expect(page.getByRole('heading', { name: 'Journal query settings' })).toBeVisible();
-    // The system default is shown read-only beside the editable value.
+    // The system default is shown read-only beside the editable value — the
+    // copyable note-plane form (`:note{…} by {date}`), not a scoped head.
     await expect(
-      page.getByTestId('query-settings-panel').getByText(':journal{} last 4w'),
+      page.getByTestId('query-settings-panel').getByText(':note{notebook:journal} by {date} last 4w'),
     ).toBeVisible();
   });
 
@@ -112,6 +113,10 @@ test.describe('Page query settings — library surfaces', () => {
   test('the Group-By favorites drive the arrangement dimension', async ({ page }) => {
     await openQuerySettings(page);
 
+    // A query grouping beats a stored favorite (the query leg wins), so make
+    // the landing bare — the journal default carries `by {date}` in the
+    // query itself — then store the favorite.
+    await page.getByTestId('query-settings-wql').fill(':journal{}');
     await page.getByTestId('query-settings-group-custom').click();
     await page.getByTestId('query-settings-group-add-week').click();
     await page.getByTestId('query-settings-save').click();

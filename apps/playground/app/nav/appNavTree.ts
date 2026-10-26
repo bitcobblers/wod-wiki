@@ -35,7 +35,7 @@ import { HomeIcon, CodeBracketIcon } from '@heroicons/react/20/solid'
 import { ChartBarIcon, Dumbbell, Rss, Settings, Paintbrush, Sliders, ClipboardList, File, Tag, Library, CalendarPlus, UserRound, Database, CloudDownload, Wrench, Volume2 } from 'lucide-react'
 import type { NavItem } from './navTypes'
 import type { Location } from 'react-router-dom'
-import { NOTES_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PAGES_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
+import { NOTES_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PAGES_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, TAGS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
 import { ROUTE_PATTERNS, isEffortsPath, isEquipmentPath } from '../lib/routes'
 
 import { DashboardsNavPanel } from './panels/DashboardsNavPanel'
@@ -326,6 +326,14 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       icon: Tag,
       action: { type: 'route', to: ROUTE_PATTERNS.tags },
       isActive: (loc: Location) => loc.pathname.startsWith('/tags') || loc.pathname.startsWith('/t/'),
+      applyFooter: true,
+      panel: createConditionsNavPanel({
+        landingLabel: 'All Tags',
+        icon: Tag,
+        route: ROUTE_PATTERNS.tags,
+        profile: TAGS_STREAM_PROFILE,
+        familyActive: (loc: Location) => loc.pathname.startsWith('/tags') || loc.pathname.startsWith('/t/'),
+      }),
     },
     {
       id: 'settings',

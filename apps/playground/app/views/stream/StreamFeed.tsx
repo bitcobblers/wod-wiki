@@ -37,6 +37,7 @@ import {
   Wrench,
   FlaskConical,
   BookOpen,
+  Tag as TagIcon,
 } from 'lucide-react'
 import type { Entry } from '../../lib/entryMapper'
 import { formatDuration } from '../../lib/entryMapper'
@@ -54,6 +55,7 @@ const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
   event: Activity,
   dashboard: LayoutDashboard,
   equipment: Wrench,
+  tag: TagIcon,
 }
 
 const KIND_LABEL: Record<Entry['kind'], string> = {
@@ -64,6 +66,7 @@ const KIND_LABEL: Record<Entry['kind'], string> = {
   event: 'Event',
   dashboard: 'Dashboard',
   equipment: 'Equipment',
+  tag: 'Tag',
 }
 
 /** Collapsed preview height: enough to read the workout's shape (schema,

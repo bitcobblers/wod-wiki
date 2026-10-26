@@ -201,6 +201,38 @@ describe('entryOpenHref', () => {
     }))).toBe('/note/0c9e6f2e-1111-4222-8333-444455556666')
   })
 
+  it('routes Tag rows to the /t/:type/:tag direct route', () => {
+    expect(entryOpenHref(makeEntry({
+      id: 'tag/domain/running',
+      kind: 'tag',
+      sourceCatalog: 'tags',
+      sourceItem: 'running',
+    }))).toBe('/t/domain/running')
+
+    // A row with no parseable identity degrades to the general type.
+    expect(entryOpenHref(makeEntry({
+      id: 'tag-1',
+      kind: 'tag',
+      sourceCatalog: 'tags',
+      sourceItem: 'heavy',
+    }))).toBe('/t/general/heavy')
+  })
+
+  it('encodes the tag type and label as individual URI components', () => {
+    const href = (id: string) =>
+      entryOpenHref(makeEntry({ id, kind: 'tag', sourceCatalog: 'tags', sourceItem: id.slice(id.indexOf('/') + 1) }))
+
+    // '/' must escape (encodePath would preserve it) so the whole label is
+    // one :tag segment; '%' escapes so a round-trip decode cannot throw;
+    // spaces and Unicode pass through untouched by double decoding.
+    expect(href('tag/general/a/b')).toBe('/t/general/a%2Fb')
+    expect(href('tag/general/50%')).toBe('/t/general/50%25')
+    expect(href('tag/general/e2e heavy')).toBe('/t/general/e2e%20heavy')
+    expect(href('tag/general/själv')).toBe('/t/general/sj%C3%A4lv')
+    // The type segment gets the same treatment.
+    expect(href('tag/do main/x')).toBe('/t/do%20main/x')
+  })
+
   it('routes a feed post note to the feed-item deep-link (catalog/date/item)', () => {
     expect(entryOpenHref(makeEntry({
       id: 'feeds/crossfit-programming/2026-01-12/monday',

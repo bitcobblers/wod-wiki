@@ -30,6 +30,7 @@ describe('queryConfigSurfaces — registry', () => {
       '/pages',
       '/efforts',
       '/equipment',
+      '/tags',
       '/sessions',
       '/playgrounds',
     ]) {
@@ -41,7 +42,14 @@ describe('queryConfigSurfaces — registry', () => {
     for (const surface of QUERY_CONFIG_SURFACES) {
       if (surface.id === '/dashboards' || surface.id === PALETTE_ROUTE_ID) continue
       expect(surface.profile).toBeDefined()
-      expect(surface.scopeChoices?.length).toBeGreaterThan(0)
+      // /tags queries the tag plane — a catalogue with no storage scope, so
+      // it offers no Where-stored favorites (its composer exposes exactly the
+      // plane's filters instead).
+      if (surface.id === '/tags') {
+        expect(surface.scopeChoices).toBeUndefined()
+      } else {
+        expect(surface.scopeChoices?.length).toBeGreaterThan(0)
+      }
       expect(surface.shortcuts).toBe(true)
     }
   })

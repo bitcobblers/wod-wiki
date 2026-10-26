@@ -21,6 +21,10 @@ export function createFrontmatterSuggestions(): Extension {
       storageService.getAllTags(),
       loadReferenceCatalog(),
     ]);
+    // The tag record's type is the /t/:type/:tag route segment — refreshed
+    // with every suggestion build, so reference links name the real type
+    // (falling back to 'general' only before the first load).
+    tagTypesByLabel = new Map(tags.map(tag => [tag.label, tag.type ?? 'general']));
     return {
       types: types.map((type) => type.name),
       tags,
@@ -53,9 +57,15 @@ function referenceOpenHref(kind: 'effort' | 'equipment', slug: string, label: st
   return entryOpenHref(entry);
 }
 
-/** Route href for a tag — the catalogue page, opened on that tag. */
+/** Label → type cache, refreshed by every frontmatter-suggestion build. */
+let tagTypesByLabel: Map<string, string> | undefined;
+
+/** Route href for a tag — its own direct route, `/t/:type/:tag`. The type
+ *  segment comes from the hydrated tag record; until the first load the
+ *  link names 'general' (the editor resolves the tag by label either way). */
 function tagOpenHref(slug: string): string {
-  return `/tags?tag=${encodeURIComponent(slug)}`;
+  const type = tagTypesByLabel?.get(slug) ?? 'general';
+  return `/t/${encodeURIComponent(type)}/${encodeURIComponent(slug)}`;
 }
 
 function buildProvider(index: ReferenceIndex): FrontmatterReferenceProvider {

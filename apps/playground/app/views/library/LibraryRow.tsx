@@ -7,7 +7,7 @@
  * in the Library page, not the row.
  */
 import { useNavigate, Link } from 'react-router-dom'
-import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput } from 'lucide-react'
+import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/atoms/primitives/dropdown-menu'
 import type { Entry } from '../../lib/entryMapper'
 import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryCollectionFeedHref } from '../../lib/entryActions'
@@ -56,6 +56,7 @@ const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
   event: Activity,
   dashboard: LayoutDashboard,
   equipment: Wrench,
+  tag: TagIcon,
 }
 
 const KIND_LABEL: Record<Entry['kind'], string> = {
@@ -66,6 +67,7 @@ const KIND_LABEL: Record<Entry['kind'], string> = {
   event: 'Event',
   dashboard: 'Dashboard',
   equipment: 'Equipment',
+  tag: 'Tag',
 }
 
 const KIND_TONE: Record<Entry['kind'], string> = {
@@ -76,6 +78,7 @@ const KIND_TONE: Record<Entry['kind'], string> = {
   event: 'bg-indigo-500/10 text-indigo-600 group-hover:bg-indigo-500/20',
   dashboard: 'bg-cyan-500/10 text-cyan-600 group-hover:bg-cyan-500/20',
   equipment: 'bg-orange-500/10 text-orange-600 group-hover:bg-orange-500/20',
+  tag: 'bg-violet-500/10 text-violet-600 group-hover:bg-violet-500/20',
 }
 
 export function LibraryRow({
