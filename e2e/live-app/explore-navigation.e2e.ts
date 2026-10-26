@@ -16,8 +16,9 @@ test.describe('Explore navigation', () => {
     await page.goto('/dashboard/e2e-nav-dashboard', { waitUntil: 'domcontentloaded' })
 
     const navigation = page.getByRole('navigation').first()
-    // Dashboard is the active L1; the explorer + dashboard slots live in L2.
-    await expect(navigation.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible()
+    // Dashboards is the active L1 (label derived from the /dashboards route);
+    // the explorer + dashboard slots live in L2.
+    await expect(navigation.getByRole('button', { name: 'Dashboards', exact: true })).toBeVisible()
     const explore = navigation.getByRole('button', { name: 'Explorer', exact: true })
     await expect(explore).toBeVisible()
     // Dashboard slots are exposed in L2: the vault dashboard row plus the

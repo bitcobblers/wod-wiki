@@ -74,9 +74,9 @@ describe('noteLinkPath — stored-note routing', () => {
 })
 
 describe('noteOwnership — source-aware zone / up / stamps', () => {
-  it('journal entry: journal zone, date page up, id stamp', () => {
+  it('journal entry: notebooks zone (the journal view lives inside it), date page up, id stamp', () => {
     const own = noteOwnership({ id: '018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f70', type: 'journal', journalDate: '2026-01-12' })
-    expect(own.zone).toBe('journal')
+    expect(own.zone).toBe('notebooks')
     expect(own.up).toMatchObject({ title: 'Journal', to: '/day/2026-01-12' })
     expect(own.stamps).toEqual(['018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f70'])
   })
@@ -95,9 +95,9 @@ describe('noteOwnership — source-aware zone / up / stamps', () => {
     expect(own.stamps).toEqual(['/effort/grace'])
   })
 
-  it('playground note: playgrounds zone, list up, /playground/ stamp', () => {
+  it('playground note: notebooks zone (the playgrounds view lives inside it), list up, /playground/ stamp', () => {
     const own = noteOwnership({ id: '018f3c2a-0000-7000-8000-000000000001', type: 'playground' })
-    expect(own.zone).toBe('playgrounds')
+    expect(own.zone).toBe('notebooks')
     expect(own.up).toMatchObject({ title: 'Playgrounds', to: '/playgrounds' })
     expect(own.stamps).toEqual(['/playground/018f3c2a-0000-7000-8000-000000000001'])
   })

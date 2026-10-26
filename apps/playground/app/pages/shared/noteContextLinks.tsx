@@ -68,10 +68,12 @@ const MAX_RELATED = 8
 
 // ── Source-aware ownership ───────────────────────────────────────────────────
 
-export type NoteZone = 'journal' | 'feeds' | 'playgrounds' | 'efforts' | 'equipment' | null
+/** L1 zone ids that exist in the nav tree. The journal and playgrounds
+ * views live inside the notebooks zone, so their notes light 'notebooks'. */
+export type NoteZone = 'notebooks' | 'feeds' | 'efforts' | 'equipment' | null
 
 export interface NoteOwnership {
-  /** L1 zone id to light on the canonical /notes route (guarded against the tree). */
+  /** L1 zone id to light on the canonical /note/:id route (guarded against the tree). */
   zone: NoteZone
   /** Owning-list link ("Up") derived from the note's source; null when unknown. */
   up: ContextNoteLink | null
@@ -92,7 +94,8 @@ export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceI
   if (entry.type === 'journal' || entry.journalDate || (!isPlayground && ref.kind === 'journal')) {
     const date = entry.journalDate ?? (ref.kind === 'journal' ? ref.id : undefined)
     return {
-      zone: 'journal',
+      // The journal is a view within the notebooks zone (ticket 10).
+      zone: 'notebooks',
       up: date ? { id: date, title: 'Journal', to: dayPath(date) } : null,
       stamps: [id],
     }
@@ -100,7 +103,8 @@ export function noteOwnership(entry: Pick<HistoryEntry, 'id' | 'type' | 'sourceI
   if (isPlayground || ref.kind === 'playground') {
     const name = playgroundRouteName({ id })
     return {
-      zone: 'playgrounds',
+      // The playground is a view within the notebooks zone (ticket 10).
+      zone: 'notebooks',
       up: { id: 'playgrounds', title: 'Playgrounds', to: playgroundsPath() },
       stamps: [`/playground/${name}`],
     }

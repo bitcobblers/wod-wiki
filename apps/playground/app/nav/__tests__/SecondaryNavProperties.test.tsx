@@ -12,8 +12,10 @@ import { NuqsAdapter } from 'nuqs/adapters/react-router'
 
 import { publishStreamResults } from '../../views/stream/streamResults'
 import { FEEDS_STREAM_PROFILE } from '../../views/stream/streamProfile'
+import { GROUP_BY_DIMENSION_IDS, resolveGroupByOptions } from '../../lib/groupByOptions'
 import type { Entry } from '../../lib/entryMapper'
 import type { StreamNavControls } from '../NavContext'
+import { wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 
 import { NavContext, initialNavState } from '../NavContext'
 import { SecondaryNav } from '../SecondaryNav'
@@ -121,5 +123,20 @@ describe('SecondaryNav view controls on stream routes', () => {
   it('renders nothing when the route publishes no controls and no page index', () => {
     const { container } = renderRail('/feeds', undefined)
     expect(container.firstChild).toBeNull()
+  })
+
+  it('group-by parity: the rail offers exactly the shared-vocabulary dimensions the stream picker derives', () => {
+    // The stream view publishes resolveGroupByOptions(wqlGroupingDimensions…);
+    // the rail renders that same list — same dims, same order, same labels.
+    const supported = wqlGroupingDimensions('note', 'find')
+    const dims = resolveGroupByOptions(supported, FEEDS_STREAM_PROFILE.groupByOptions)
+    renderRail('/feeds', controls({ availableGroupDims: dims }))
+
+    const options = screen.getByTestId('l3-groupby-options')
+    expect(options.children.length).toBe(dims.length)
+    for (const d of dims) {
+      expect(GROUP_BY_DIMENSION_IDS).toContain(d.id)
+      expect(screen.getByTestId(`l3-groupby-${d.id}`)).toBeTruthy()
+    }
   })
 })
