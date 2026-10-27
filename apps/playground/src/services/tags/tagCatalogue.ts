@@ -114,7 +114,7 @@ export function categoryDefinitionsFrom(records: readonly TagTypeRecord[]): TagD
 }
 
 /** Categories plus tags in one read — the layering order indexFrom expects. */
-async function loadIndexDefinitions(): Promise<TagDefinition[]> {
+async function loadIndexDefinitions(): Promise<readonly TagDefinition[]> {
     return tagSource.loadTags();
 }
 
