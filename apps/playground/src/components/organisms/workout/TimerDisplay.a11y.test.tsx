@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, render } from '@testing-library/react';
 import { TimerDisplay } from '../../../panels/wallclock-panel';
 
 // ── Mocks ───────────────────────────────────────────────────────────────────

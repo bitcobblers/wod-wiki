@@ -11,7 +11,6 @@ import { describe, expect, it, beforeEach } from 'bun:test';
 import { createWorkbenchSessionStore } from './workbenchSessionStore';
 import type { IScriptRuntime } from '@bitcobblers/wod-wiki-engine';
 import type { INowProvider } from '@bitcobblers/wod-wiki-engine';
-import type { INotePersistence } from '@/services/persistence';
 import type { CreateNoteInput, NoteMutation, NoteLocator, GetNoteOptions } from '@/services/persistence';
 import type { HistoryRecord } from '@/types/history';
 import type { Sessions, StoredOutputStatement } from '@/components/Editor/types';
@@ -134,7 +133,7 @@ class FakeContentProvider implements IContentProvider {
     if (!existing) throw new Error(`clone failed: ${sourceId} not found`);
     return { ...existing, id: `${sourceId}-clone` };
   }
-  async deleteRecord(id: string): Promise<void> {
+  async deleteRecord(_id: string): Promise<void> {
     /* no-op */
   }
   async addRecordPlacement(id: string): Promise<HistoryRecord> {

@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BlockHistory, revertBlock } from './BlockHistory';
-import { IndexedDBNotePersistence } from '@/services/persistence';
-import { StorageService } from '@/services/storage/StorageService';
-import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
+import { IndexedDBNotePersistence, InMemoryStorage, StorageService } from '@/hooks/useBrowserServices';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import type { BlockRevision } from '@/types/storage';
 

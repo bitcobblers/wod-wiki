@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { IndexedDBNotePersistence, notePersistence } from '@/services/persistence';
+import { IndexedDBNotePersistence, notePersistence } from '@/hooks/useBrowserServices';
 import type { BlockRevision, Session } from '@/types/storage';
 import { BlockHistory } from '../editor/BlockHistory';
 

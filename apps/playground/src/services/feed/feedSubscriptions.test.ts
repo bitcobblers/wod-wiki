@@ -2,7 +2,6 @@ import { describe, expect, it, beforeEach } from 'bun:test';
 import {
   getFeedSubscriptionMode,
   getSubscribedNotebooks,
-  isFeedSubscribed,
   isNotebookSubscribed,
   resetFeedSubscriptionsForTest,
   setFeedSubscribed,
@@ -11,7 +10,6 @@ import {
 import { syncNotebook, toggleNotebookSubscription } from './feedSync';
 import { InMemoryFeedStorage } from './FeedImportStorage';
 import { InMemoryFeedSource } from './InMemoryFeedSource';
-import { feedFixture } from './feedFixture';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
 import { seedMetaKey, SEED_SCHEMA } from '@/types/seed';
 

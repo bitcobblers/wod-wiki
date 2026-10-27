@@ -33,3 +33,26 @@ export { notebookService, NotebookService } from '@/services/NotebookService';
 
 // ── Storage ───────────────────────────────────────────────────────────────
 export { storageService, setStorageForTesting, resetStorageForTesting, InMemoryStorage } from '@/services/storage';
+export { StorageService } from '@/services/storage/StorageService';
+
+// ── Persistence ───────────────────────────────────────────────────────────
+export { notePersistence, IndexedDBNotePersistence } from '@/services/persistence';
+export type { INotePersistence } from '@/services/persistence';
+
+// ── Telemetry ─────────────────────────────────────────────────────────────
+export { telemetry, engagementMs } from '@/services/telemetry';
+
+// ── Registries & tags ─────────────────────────────────────────────────────
+export { getAppEffortRegistry } from '@/services/effortRegistry';
+export { getTagIndex } from '@/services/tags/tagCatalogue';
+
+// ── Run capture & recording ───────────────────────────────────────────────
+export { captureRun } from '@/services/runCapture';
+export type { CapturedRun } from '@/services/runCapture';
+export { createResultRecorder } from '@/services/resultRecorder';
+
+// ── Sound ─────────────────────────────────────────────────────────────────
+export { readSoundProfiles } from '@/services/sound/soundProfiles';
+
+// ── Analytics corrections ─────────────────────────────────────────────────
+export { captureMetricCorrection } from '@/services/analytics/captureMetricCorrection';

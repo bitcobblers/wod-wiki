@@ -10,7 +10,7 @@ import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { CalcScope } from '@bitcobblers/wod-wiki-engine';
 import { autocompleteTooltipTheme } from '@bitcobblers/wod-wiki-ui/extensions';
-import { getAppEffortRegistry } from '@/services/effortRegistry';
+import { getAppEffortRegistry } from '@/hooks/useBrowserServices';
 import { calcLineSupport } from './calcLineLanguage';
 import { calcCompletion } from './calcCompletion';
 

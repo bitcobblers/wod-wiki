@@ -9,18 +9,16 @@ import { getAnalyticsFromLogs } from "@/hooks/useWorkbenchServices";
 import type { IScriptRuntime } from "@/hooks/useRuntimeTimer";
 import { type Segment, MetricType, OutputStatement } from '@bitcobblers/wod-wiki-engine';
 import { eventsToStoredLogs } from '@bitcobblers/wod-wiki-wql';
-import { storageService } from '@/services/storage';
+import { storageService, telemetry, engagementMs, captureMetricCorrection } from '@/hooks/useBrowserServices';
 import { FocusedDialog } from "@/components/molecules/FocusedDialog";
 import { CastButtonRpc } from "@/components/organisms/cast/CastButtonRpc";
 import { AudioToggle } from "@/components/atoms/AudioToggle";
-import { telemetry, engagementMs } from "@/services/telemetry";
 import {
   type CollectionItem,
   useCollectionMetrics,
   entryFieldId,
 } from "@/hooks/useCollectionMetrics";
 import { CollectionWizard } from "@/components/organisms/review/CollectionWizard";
-import { captureMetricCorrection } from "@/services/analytics/captureMetricCorrection";
 import {
   type ClockCommand,
   type ClockSnapshot,
@@ -158,9 +156,10 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
 
   useEffect(() => {
     const prevTitle = prevTitleRef.current;
+    const mountTime = mountTimeRef.current;
     const workoutLabel = block.label || block.id;
     return () => {
-      const durationMs = Date.now() - mountTimeRef.current;
+      const durationMs = Date.now() - mountTime;
       if (durationMs >= 1000) {
         window.gtag?.('event', 'runtime_dialog_closed', {
           workout_label: workoutLabel,

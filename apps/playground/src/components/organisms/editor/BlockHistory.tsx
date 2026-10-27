@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { notePersistence, type INotePersistence } from '@/services/persistence';
+import { notePersistence, type INotePersistence } from '@/hooks/useBrowserServices';
 import { formatDateTimeMedium } from '@/lib/dateFormat';
 import type { BlockRevision, NoteBlock } from '@/types/storage';
 import type { EditorIdentitySnapshot } from './NoteEditor';

@@ -215,7 +215,7 @@ export const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenu
       if (!isOpen || !autoFlip || !contentRef.current) return
       const rect = contentRef.current.getBoundingClientRect()
       setFlipped(position.top + rect.height > window.innerHeight)
-    }, [isOpen, autoFlip, position.top])
+    }, [isOpen, autoFlip, position.top, contentRef])
 
     // Focus first item when opened
     React.useEffect(() => {

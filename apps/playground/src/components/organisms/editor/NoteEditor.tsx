@@ -13,7 +13,7 @@
  * SectionEditor to a single, highly-extensible CodeMirror 6 instance."
  */
 
-import { getTagIndex } from '@/services/tags/tagCatalogue';
+import { getTagIndex } from '@/hooks/useBrowserServices';
 import React, { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import { EditorState, Prec, StateEffect, type Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
@@ -49,8 +49,7 @@ import { sectionField, SectionState, activeCursorSection, type EditorSection } f
 import { sectionIdentity, sectionIdentityHistory, registeredSectionWidgets, sectionSaved, sectionRestore } from '@bitcobblers/wod-wiki-ui/extensions';
 import type { NoteBlock } from '@/types/storage';
 import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
-import { captureRun, type CapturedRun } from '@/services/runCapture';
-import { createResultRecorder } from '@/services/resultRecorder';
+import { captureRun, type CapturedRun, createResultRecorder } from '@/hooks/useBrowserServices';
 import { sessionQueryInsert } from '@bitcobblers/wod-wiki-ui/extensions';
 import { previewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
 import { embedPreviewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
@@ -77,7 +76,7 @@ import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { INotePersistence } from "@/services/persistence";
 import { queryService, onResultSaved } from "@/hooks/useCastSignaling";
 import { createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence } from "@/app/editor/noteEditorServices";
-import { readSoundProfiles } from "@/services/sound/soundProfiles";
+import { readSoundProfiles } from "@/hooks/useBrowserServices";
 
 import { entryOpenHref } from '../../../../app/lib/entryActions';
 import { toEntry, blockToEntry } from '../../../../app/lib/entryMapper';
@@ -672,6 +671,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       ...(placeholderText ? [placeholder(placeholderText)] : []),
       EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial doc/identity seed; ongoing value/block syncs ride in separate effects below
     [
       onChange,
       onCursorPositionChange,
