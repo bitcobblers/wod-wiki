@@ -11,7 +11,7 @@
  * Bundled efforts are read-only until first edit, which auto-clones them.
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -120,6 +120,15 @@ export function EffortDetailPage() {
     onBlur,
     flush,
   } = useEffortContent(slug);
+
+  const previousSlugRef = useRef(effort?.slug);
+  useEffect(() => {
+    const previous = previousSlugRef.current;
+    if (effort && previous && effort.slug !== previous && effort.registrySource === 'user') {
+      navigate(effortPath(effort.slug));
+    }
+    previousSlugRef.current = effort?.slug;
+  }, [effort, navigate]);
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([]);
   const [results] = useState<Session[]>([]);

@@ -32,6 +32,8 @@ const NO_OVERRIDES = new Map();
 
 export interface FullscreenTimerProps {
   block: ScriptBlock;
+  /** Raw Note source used for Property Note metrics on standalone runs. */
+  noteContent?: string;
   prepareRun?: () => Promise<ScriptBlock>;
   view?: EditorView;
   onClose: () => void;
@@ -75,6 +77,7 @@ export interface FullscreenTimerProps {
 
 export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   block,
+  noteContent,
   prepareRun,
   view,
   onClose,
@@ -474,6 +477,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
         <div className="min-h-0 flex-1">
           <RuntimeTimerPanel
             block={preparedBlock}
+            noteContent={noteContent}
             view={view}
             onClose={handleClose}
             onComplete={handleComplete}

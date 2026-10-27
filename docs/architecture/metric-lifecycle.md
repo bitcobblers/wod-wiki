@@ -124,7 +124,9 @@ After (or during) execution, analytics processors derive insight metrics:
 - `power` = work / time
 - `tis` = Training Intensity Score (composite)
 
-These are written as `analyzed` metrics into the same `MetricContainer` stream.
+These are written as `analyzed` metrics into the same `MetricContainer` stream. Custom statement Metrics keep their authored names (`work`, `power`) so later equations and WQL can reference them. At workout completion, Summary Metrics are emitted with a `metadata.canonicalKey`, persisted as summary events, and rendered through data-discovered result columns. Aggregate WQL results also map to result rows on stream screens.
+
+Missing or unresolvable equation inputs produce Skipped-Dependency Diagnostics on the affected exercise statement without blocking the session save. Structural outputs do not emit these diagnostics. When a note and a tag define the same Summary Metric key, the note definition wins.
 
 ## MetricContainer
 

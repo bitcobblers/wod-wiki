@@ -4,6 +4,7 @@ import { IRuntimeAction } from '../contracts/IRuntimeAction';
 import { TimerState, ChildrenStatusState, RoundState } from '../memory/MemoryTypes';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
 import { ClearChildrenAction } from '../actions/stack/ClearChildrenAction';
+import { PopBlockAction } from '../actions/stack/PopBlockAction';
 import { calculateElapsed } from '../time/calculateElapsed';
 import { startSpan, closeCurrentSpan, openSpan, readTimer, mutateTimerSpans } from '../time/TimerSpans';
 import { CurrentRoundMetric } from '../compiler/metrics/CurrentRoundMetric';
@@ -82,16 +83,11 @@ export class CountdownTimerBehavior implements IRuntimeBehavior {
         // Tick subscription — monitors elapsed and triggers expiry
         this.subscriptions.push(
             ctx.subscribe('tick', (_event, tickCtx) => {
-                const timer = readTimer(tickCtx);
-                if (!timer || timer.direction !== 'down' || timer.durationMs === undefined) {
-                    return [];
-                }
                 // Once block is complete in complete-block mode, stop monitoring
                 if (mode === 'complete-block' && tickCtx.block.isComplete) {
                     return [];
                 }
-                const elapsed = calculateElapsed(timer, tickCtx.clock.currentDate.getTime());
-                if (elapsed < timer.durationMs) return [];
+                if (!this.hasExpired(tickCtx)) return [];
 
                 this.handleExpiry(tickCtx, mode);
                 return [new ClearChildrenAction(tickCtx.block.key.toString())];
@@ -129,6 +125,22 @@ export class CountdownTimerBehavior implements IRuntimeBehavior {
     }
 
     onNext(ctx: IBehaviorContext): IRuntimeAction[] {
+        // Reconcile a missed expiry BEFORE skip restrictions. The timer surfaces
+        // count down from open timer spans even while the tick pump is idle or
+        // stopped, so the user can face 00:00 without any tick having delivered
+        // expiry. A Next at/after the real boundary finishes the timer exactly
+        // as the missed tick would have (expiry → pop → parent next), never a
+        // skip attempt. complete-block only: interval timers (reset-interval)
+        // cycle through the pump's event coordination and keep their skip
+        // semantics. When the pump already expired this block, isComplete
+        // short-circuits — no double fire.
+        if ((this.config.mode ?? 'complete-block') === 'complete-block'
+            && !ctx.block.isComplete
+            && this.hasExpired(ctx)) {
+            ctx.markComplete('timer-expired');
+            return [new PopBlockAction(), new ClearChildrenAction(ctx.block.key.toString())];
+        }
+
         // Required timers cannot be skipped — emit a skip-attempt event instead.
         if (this.config.required && !ctx.block.isComplete) {
             ctx.emitEvent({
@@ -223,6 +235,19 @@ export class CountdownTimerBehavior implements IRuntimeBehavior {
                 ctx.pushMemory('children:status', [{type: 'status', image: '', origin: 'runtime', value: newChildStatus}]);
             }
         }
+    }
+
+    /**
+     * True when the countdown has fully elapsed against the context's clock.
+     * Single definition of "expired" shared by the tick subscription and the
+     * Next-time reconcile, so display (spans) and runtime cannot diverge.
+     */
+    private hasExpired(ctx: IBehaviorContext): boolean {
+        const timer = readTimer(ctx);
+        if (!timer || timer.direction !== 'down' || timer.durationMs === undefined) {
+            return false;
+        }
+        return calculateElapsed(timer, ctx.nowProvider.nowMs()) >= timer.durationMs;
     }
 
     private getRemainingCountdownMs(ctx: IBehaviorContext): number {

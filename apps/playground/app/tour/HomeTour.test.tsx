@@ -340,9 +340,9 @@ describe('HomeTour', () => {
     window.localStorage.clear()
   })
 
-  // The parallax section mounts its scopes twice (desktop sticky pane +
-  // mobile steps); scope queries to the sticky pane or the active scope
-  // to stay unique.
+  // One breakpoint arrangement renders at a time; the desktop sticky pane
+  // hosts both scopes (opacity crossfade), so scope queries target the
+  // sticky pane or the active scope to stay unique.
   const stickyPane = () => within(screen.getByTestId('tour-sticky-pane'))
   const activeScope = () =>
     within(screen.getByTestId('tour-section-insights').querySelector('[data-scope-active="true"]') as HTMLElement)
@@ -711,7 +711,10 @@ describe('HomeTour', () => {
       timerPanelControl().fireTimerComplete?.(completedResults())
       await Promise.resolve()
     })
-    expect(stickyPane().getByTestId('tour-insights')).toBeTruthy()
+    // One arrangement renders at a time, so the completed session's insights
+    // pane exists exactly once whether the phone or the desktop layout won
+    // the breakpoint crossing.
+    expect(screen.getByTestId('tour-insights')).toBeTruthy()
     expect((within(editor()).getByTestId('mock-note-editor') as HTMLTextAreaElement).value).toBe('EDIT ACROSS WIDTHS')
   })
 

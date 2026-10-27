@@ -38,11 +38,10 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { useLocation } from 'react-router-dom'
 import { EllipsisVerticalIcon, XMarkIcon } from '@heroicons/react/20/solid'
 import { cn } from '@/lib/utils'
-import { useVisualViewportRect } from '@bitcobblers/wod-wiki-ui'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { useVisualViewportRect } from '@bitcobblers/wod-wiki-ui';
 import { useFabAlignment } from '../lib/fabAlignment'
 import { SearchFab } from './SearchFab'
 
@@ -187,15 +186,15 @@ export function NavbarActions() {
 }
 
 /**
- * The single mounted mobile dock. Fixed thumb-zone cluster anchored to the
- * fabAlignment corner; rises with the on-screen keyboard via visualViewport.
- * Renders nothing on desktop — page headers own actions there. Stack, top to
- * bottom: page primary, search FAB, overflow sheet (slides up from the ⋮,
- * underneath the buttons), ⋮ trigger at the very corner. The ⋮ renders only
- * when the sheet has real rows — measured live from the always-mounted
- * (hidden while closed) sheet — so empty pages never show it, matching the
- * sticky header's ⋮.
+ * The single mounted mobile action row. Stays within document flow so it
+ * cannot cover or intercept editable fields; sticky bottom alignment keeps
+ * it reachable without a fixed overlay. Renders nothing on desktop — page
+ * headers own actions there. Stack, top to bottom: page primary, search FAB,
+ * overflow sheet (slides up from the ⋮), ⋮ trigger at the corner. The ⋮
+ * renders only when the sheet has real rows — measured live from the
+ * always-mounted (hidden while closed) sheet — so empty pages never show it.
  */
+
 function ResponsiveActionsDock({
   registrations,
   onSearch,
@@ -208,13 +207,6 @@ function ResponsiveActionsDock({
   const viewport = useVisualViewportRect()
   const [sheetOpen, setSheetOpen] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
-  const location = useLocation()
-  // Scroll auto-hide: hide while scrolling down (content moves up beneath
-  // the dock), reveal on scroll up or at the top. Never while the sheet is
-  // open or the keyboard is lifted — both take precedence.
-  const [scrollHidden, setScrollHidden] = useState(false)
-  const lastScrollYRef = useRef(0)
-  const keyboardOpen = viewport.offsetBottom > 0
 
   const activeContentRef = useRef<HTMLDivElement>(null)
   const globalContentRef = useRef<HTMLDivElement>(null)
@@ -233,38 +225,6 @@ function ResponsiveActionsDock({
     return undefined
   }, [registrations])
 
-  // Route change: collapse the sheet (registered page actions unmount with
-  // the page; a stale open sheet must not outlive them) and reveal the dock
-  // (each route starts at its own scroll position; a hidden dock on arrival
-  // would read as missing chrome).
-  useEffect(() => {
-    setSheetOpen(false)
-    setScrollHidden(false)
-    lastScrollYRef.current = window.scrollY
-  }, [location.pathname])
-
-  // Scroll-direction auto-hide. An 8px threshold kills jitter from
-  // sub-pixel scroll deltas; reading window.scrollY keeps this testable in
-  // jsdom. The sheet and the keyboard lift both force visibility: a dialog
-  // that slides out of reach while open is a focus trap, and the dock is
-  // the search entry point while typing.
-  useEffect(() => {
-    if (!isMobile) return
-    const onScroll = () => {
-      const y = window.scrollY
-      if (y <= 0 || keyboardOpen || sheetOpen) {
-        lastScrollYRef.current = y
-        setScrollHidden(false)
-        return
-      }
-      const dy = y - lastScrollYRef.current
-      if (Math.abs(dy) < 8) return
-      lastScrollYRef.current = y
-      setScrollHidden(dy > 0)
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [isMobile, keyboardOpen, sheetOpen])
 
   // Focus the sheet when it opens so keyboard users land inside it.
   useLayoutEffect(() => {
@@ -289,23 +249,15 @@ function ResponsiveActionsDock({
   if (!isMobile) return null
   if (!onSearch && !active && !globalActions) return null
 
-  // The sheet and the keyboard lift override a scroll-down hide: the sheet
-  // must stay reachable while open, and the dock stays put while typing.
-  const dockHidden = scrollHidden && !sheetOpen && !keyboardOpen
 
   return (
     <div
       data-testid="actions-dock"
       className={cn(
-        'lg:hidden fixed z-40 flex flex-col items-center gap-2',
+        'lg:hidden relative z-40 mt-4 flex flex-col items-center gap-2',
         'transition-[transform,visibility] duration-200 ease-out',
-        alignment === 'left' ? 'left-4 items-start' : 'right-4 items-end',
-        // Bottom-anchored: slide fully below the fold. `invisible` (flipping
-        // at the end of the transition) keeps hidden chrome out of the focus
-        // and hit-test order; pointer-events dies immediately.
-        dockHidden && 'translate-y-[calc(100%+2rem)] invisible pointer-events-none',
+        alignment === 'left' ? 'self-start items-start' : 'self-end items-end',
       )}
-      style={{ bottom: `calc(1rem + var(--thumb-dock-lift, 0px) + ${viewport.offsetBottom}px + env(safe-area-inset-bottom))` }}
     >
       {/* Page primary on top, search FAB under it. */}
       <div className="relative z-40 flex flex-col items-center gap-2">

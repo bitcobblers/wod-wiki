@@ -22,7 +22,7 @@ import type {
   GridFilterConfig,
   GridSortConfig,
 } from './types';
-import { GRID_COLUMN_SET_CONFIG } from './cdlColumnDefinitions';
+import { GRID_COLUMN_SET_CONFIG, makeMetricColumn } from './cdlColumnDefinitions';
 import { ColumnSet } from './ColumnSet';
 import type { ColumnSetContext } from './ColumnSet';
 import type { ColumnDef, ComputeContext } from './column-definition-language';
@@ -69,8 +69,6 @@ export interface UseGridDataReturn {
   graphTaggedColumnIds: string[];
 }
 
-// Singleton ColumnSet — config is immutable
-const globalColumnSet = new ColumnSet(GRID_COLUMN_SET_CONFIG);
 
 export function useGridData(options: UseGridDataOptions): UseGridDataReturn {
   const {
@@ -91,6 +89,23 @@ export function useGridData(options: UseGridDataOptions): UseGridDataReturn {
     () => segmentsToRows(segments, userOutputOverrides),
     [segments, userOutputOverrides],
   );
+
+  // Custom Property Note metrics and Summary Metrics are data-named types
+  // (work, power, totalWork), so a fixed catalogue cannot know them up front.
+  // Discover their definitions from the rows; metric-type columns become
+  // visible when they have data through the normal ColumnSet contract.
+  const columnSet = useMemo(() => {
+    const definitions = [...GRID_COLUMN_SET_CONFIG.definitions];
+    const known = new Set(definitions.map((definition) => definition.id));
+    for (const row of rows) {
+      for (const metricType of row.cells.keys()) {
+        if (known.has(metricType)) continue;
+        definitions.push(makeMetricColumn(metricType));
+        known.add(metricType);
+      }
+    }
+    return new ColumnSet({ ...GRID_COLUMN_SET_CONFIG, definitions });
+  }, [rows]);
 
   // 2. Build ColumnSetContext
   const effectiveAddedColumnIds = useMemo(() => {
@@ -115,29 +130,29 @@ export function useGridData(options: UseGridDataOptions): UseGridDataReturn {
 
   // 3. Compute visible and available columns via ColumnSet
   const visibleColumns = useMemo(
-    () => globalColumnSet.getVisibleColumns(columnSetContext),
-    [columnSetContext],
+    () => columnSet.getVisibleColumns(columnSetContext),
+    [columnSet, columnSetContext],
   );
 
   const availableColumns = useMemo(
-    () => globalColumnSet.getAvailableColumns(columnSetContext),
-    [columnSetContext],
+    () => columnSet.getAvailableColumns(columnSetContext),
+    [columnSet, columnSetContext],
   );
 
   // 4. Merge filter: preset filters + user overrides
   const mergedFilter = useMemo<GridFilterConfig>(
     () => ({
-      ...(globalColumnSet.getPreset(presetId).filters ?? {}),
+      ...(columnSet.getPreset(presetId).filters ?? {}),
       ...filterOverrides,
     }),
-    [presetId, filterOverrides],
+    [presetId, filterOverrides, columnSet],
   );
 
   // 5. Apply filters and sorting
   const filteredSortedRows = useMemo(() => {
-    const filtered = applyFilters(rows, mergedFilter, visibleColumns, globalColumnSet.definitions);
-    return applySorting(filtered, sortConfigs, visibleColumns, globalColumnSet.definitions);
-  }, [rows, mergedFilter, sortConfigs, visibleColumns]);
+    const filtered = applyFilters(rows, mergedFilter, visibleColumns, columnSet.definitions);
+    return applySorting(filtered, sortConfigs, visibleColumns, columnSet.definitions);
+  }, [rows, mergedFilter, sortConfigs, visibleColumns, columnSet]);
 
   const graphTaggedColumnIds = useMemo(
     () => Array.from(graphTaggedColumns ?? []),

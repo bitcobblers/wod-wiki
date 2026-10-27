@@ -1148,6 +1148,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
       if (isTags || isReferenceList) {
         const chips = parseTagList(value);
         const chipIsReference = valueKind !== "tags";
+        const isAliasRow = isAliasProperty(key);
         for (let idx = 0; idx < chips.length; idx++) {
           const chip = chips[idx];
           const match = chipIsReference ? refMatch(chip) : null;
@@ -1159,7 +1160,11 @@ export class DefaultFrontmatterWidget extends WidgetType {
               : "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 dark:border-amber-500/30";
 
           const pillText = document.createElement("span");
-          pillText.textContent = match ? match.label : chip;
+          // Aliases are the note's own alternate names, not durable
+          // references: display the authored token (resolution still routes
+          // navigation), or every self-aliasing pill collapses to the
+          // canonical label and becomes indistinguishable.
+          pillText.textContent = isAliasRow ? chip : (match ? match.label : chip);
           pill.appendChild(pillText);
 
           if (match && referenceProvider) {

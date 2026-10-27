@@ -54,6 +54,14 @@ Remove the `tags: [tonnage]` property in the editor's frontmatter and put `#tonn
 The tag supplies the same metric and summary contributions:
 `resistance = 24 kg`, `work = reps * resistance`, and `summaries.totalWork = sum(work)`.
 
+## Stacking and overrides {#stacking-overrides}
+
+Tag Categories contribute defaults to their child Tags. Tags, Efforts, Equipment, and note frontmatter stack more specific rules on top. For a Summary Metric with the same key, the note's own definition wins over a tag or Tag Category default, so a shared `summaries.totalWork` can be overridden locally.
+
+## Dependencies and diagnostics {#dependency-diagnostics}
+
+Equations resolve in waves as their inputs arrive. A chained metric such as `metrics.power: work / convert(elapsed, s)` uses the statement's execution time, including time supplied while the block runs. If a required input is still missing or the expression cannot produce a number, the statement keeps a Skipped-Dependency Diagnostic naming the failed metric and missing input; the workout can still be saved. Structural session and parent rows do not emit these diagnostics.
+
 ## Querying your summaries {#querying-summaries}
 
 Saved Summary Metrics become queryable WQL facts:

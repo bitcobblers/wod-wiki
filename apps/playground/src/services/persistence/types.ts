@@ -58,7 +58,13 @@ export interface CreateNoteInput {
 export interface SaveNoteInput {
   noteId: string;
   rawContent: string;
-  blocks: Record<string, NoteBlock>;
+  /**
+   * Authored actionable-block map. Optional: every save seam reconciles the
+   * map from `rawContent` when omitted — Property Note commits and seeds
+   * rely on this, since a synthesized Property Note's ```query widget must
+   * not require a hand-built block map.
+   */
+  blocks?: Record<string, NoteBlock>;
   expectedSourceRevision: number;
   metadata?: NoteMutation['metadata'];
   noteType?: NoteKind;

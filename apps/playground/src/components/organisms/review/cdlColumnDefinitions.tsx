@@ -126,7 +126,7 @@ function getUnitForMetricType(ft: MetricType): string {
 // Metric Column Factory
 // ═══════════════════════════════════════════════════════════════
 
-function makeMetricColumn(
+export function makeMetricColumn(
   metricType: MetricType,
   opts?: { defaultVisible?: boolean; graphable?: boolean; debugOnly?: boolean },
 ): ColumnDef {
@@ -636,6 +636,8 @@ export const volumeColumn = makeMetricColumn(MetricType.Volume);
 export const intensityColumn = makeMetricColumn(MetricType.Intensity);
 export const loadColumn = makeMetricColumn(MetricType.Load);
 export const workColumn = makeMetricColumn(MetricType.Work);
+/** Skipped-Dependency Diagnostics: why a note metric (e.g. `work`) never resolved. */
+export const diagnosticColumn = makeMetricColumn(MetricType.Diagnostic);
 
 /** Composite exercise column: effort + text when both exist, otherwise best available label. */
 export const exerciseColumn: ColumnDef = {
@@ -844,6 +846,7 @@ export const ALL_COLUMN_DEFINITIONS: ColumnDef[] = [
   loadFocusColumn,
   loadColumn,
   workColumn,
+  diagnosticColumn,   // Skipped-Dependency Diagnostics — why a note metric never resolved
   // System / meta
   groupColumn,
   systemColumn,
@@ -873,6 +876,7 @@ export const CDL_PRESET_DEFAULT: ColumnSetPreset = {
     'intensity',
     'load',
     'work',
+    'diagnostic',
   ],
 };
 
@@ -902,6 +906,7 @@ export const CDL_PRESET_DEBUG: ColumnSetPreset = {
     'intensity',
     'load',
     'work',
+    'diagnostic',
     'group',
     'system',
     'elapsedTotal',

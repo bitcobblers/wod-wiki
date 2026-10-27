@@ -122,6 +122,10 @@ class MockBehaviorContext implements IBehaviorContext {
     };
   }
 
+  get nowProvider() {
+    return this._mockBlock.runtime.nowProvider;
+  }
+
   subscribe(eventType: BehaviorEventType, listener: BehaviorEventListener, options?: SubscribeOptions): Unsubscribe {
     const runtime = this._mockBlock.runtime;
     let unsub: Unsubscribe;

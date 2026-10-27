@@ -19,6 +19,7 @@ import { MacOSChrome } from '../components/atoms/MacOSChrome'
 import type { Sessions } from '@/components/Editor/types'
 import { TourSessionInsights } from './screens/TourSessionInsights'
 import { SampleDashboardPane } from './screens/SampleDashboardPane'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { cn } from '@/lib/utils'
 
 type Scope = 'analytics' | 'boards'
@@ -182,7 +183,7 @@ export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: In
   }
 
   const stickyPane = (
-    <div data-testid="tour-sticky-pane" className="sticky top-[72px] hidden h-[calc(100dvh-72px)] flex-col items-center justify-center self-start lg:top-[104px] lg:flex lg:h-[calc(100dvh-104px)]">
+    <div data-testid="tour-sticky-pane" className="sticky top-[104px] flex h-[calc(100dvh-104px)] flex-col items-center justify-center self-start">
       <div className="relative w-full max-w-[700px]">
         <div className="relative h-[460px]">
           {SCOPES.map((s) => (
@@ -215,32 +216,43 @@ export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: In
   )
 
   const mobileStep = (s: Scope) => (
-    <div data-testid={`tour-step-mobile-${s}`} data-scope={s} className="flex flex-col gap-4 lg:hidden">
+    <div data-testid={`tour-step-mobile-${s}`} data-scope={s} className="flex flex-col gap-4">
       <StepCopy scope={s} />
       <div className="h-[460px]">{scopePane(s)}</div>
     </div>
   )
 
+  // One arrangement in the DOM at a time (JS breakpoint, not CSS display
+  // toggles): the previous dual render mounted every chart-bearing pane
+  // twice, and the hidden copy initialized its charts inside a display:none
+  // subtree — repeated Recharts "width(0) and height(0)" warnings on clean
+  // load. isMobile flips below Tailwind's lg breakpoint, the same edge the
+  // two layouts were split on.
+  const isMobile = useIsMobile()
+
   return (
     <section id="tour-section-insights" data-testid="tour-section-insights" className="border-b border-border/60">
-      <div className="mx-auto grid max-w-[1500px] gap-10 px-5 py-14 lg:grid-cols-2 lg:gap-16 lg:px-12 lg:py-0 xl:px-16 2xl:max-w-[1720px]">
-        {/* Scrolling copy — desktop steps drive the sticky pane's scope. */}
-        <div className="hidden flex-col lg:flex">
-          <div id="tour-scroll-target-insights" className="scroll-mt-[72px] lg:scroll-mt-[104px]">
-            {desktopStep('analytics')}
-          </div>
-          {desktopStep('boards', {
-            id: 'tour-section-boards',
-            'data-testid': 'tour-section-boards',
-          })}
-        </div>
-        {/* Mobile: each step is copy followed by its own pane. */}
-        <div className="flex flex-col gap-12 lg:hidden">
+      {isMobile ? (
+        /* Mobile: each step is copy followed by its own pane. */
+        <div className="flex flex-col gap-12 px-5 py-14">
           {mobileStep('analytics')}
           {mobileStep('boards')}
         </div>
-        {stickyPane}
-      </div>
+      ) : (
+        <div className="mx-auto grid max-w-[1500px] gap-10 px-5 py-14 lg:grid-cols-2 lg:gap-16 lg:px-12 lg:py-0 xl:px-16 2xl:max-w-[1720px]">
+          {/* Scrolling copy — desktop steps drive the sticky pane's scope. */}
+          <div className="flex flex-col">
+            <div id="tour-scroll-target-insights" className="scroll-mt-[104px]">
+              {desktopStep('analytics')}
+            </div>
+            {desktopStep('boards', {
+              id: 'tour-section-boards',
+              'data-testid': 'tour-section-boards',
+            })}
+          </div>
+          {stickyPane}
+        </div>
+      )}
     </section>
   )
 }

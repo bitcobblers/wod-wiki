@@ -801,7 +801,8 @@ export function tagToDocument(tag: TagPropertyDocument): string {
     lines.push(`# ${tag.label}`);
     lines.push('');
     lines.push('```query');
-    lines.push(`find:note{${filterExpr}}`);
+    // Modern colon head — `find:note` is retired and parses as an error.
+    lines.push(`:note{${filterExpr}}`);
     lines.push('```');
   }
   return lines.join('\n');

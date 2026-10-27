@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, mock } from 'bun:test'
 
-import type { FindQueryResult, ParsedRowsQuery, RowsQueryResult } from '@bitcobblers/wod-wiki-engine'
+import type { FindQueryResult, ParsedRowsQuery, QueryResult, RowsQueryResult } from '@bitcobblers/wod-wiki-engine'
 import type { BlockIndexRow, Note } from '@/types/storage'
 import { parseQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import type { IEffort, RowsRun } from '@bitcobblers/wod-wiki-wql'
@@ -500,5 +500,32 @@ describe('StreamQueryEngine — named page navigation', () => {
       resetStorageForTesting()
       await memory.close()
     }
+  })
+})
+
+describe('StreamQueryEngine — aggregate summaries', () => {
+  it('maps saved Summary Metric series into visible stream entries', async () => {
+    const engine = new StreamQueryEngine({
+      service: {
+        runFind: mock(async parsed => ({ parsed, notes: [], blocks: [], stages: { selected: 0, matched: 0 } })),
+        runQuery: mock(async raw => ({
+          parsed: parseQuery(raw) as QueryResult['parsed'],
+          series: [{
+            key: '["result-1"]',
+            label: 'result-1',
+            points: [{ ts: 1000, value: 240 }],
+            unit: 'kg',
+          }],
+          stages: { selected: 1, buckets: 1, aggregated: 1, groups: 1 },
+          matched: [],
+        })),
+      },
+    })
+
+    const entries = await engine.query('sum:totalWork{} by {session}')
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.title).toBe('totalWork: 240 kg')
+    expect(entries[0]!.subtitle).toBe('result-1')
+    expect(entries[0]!.kind).toBe('result')
   })
 })

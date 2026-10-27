@@ -22,9 +22,10 @@ import type { Tag, TagContribution, TagTypeRecord } from '@bitcobblers/wod-wiki-
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/atoms/primitives/button';
 import { storageService } from '@/services/storage';
-import { refreshTagIndex } from '@/services/tags/tagCatalogue';
+import { loadTagIndex, refreshTagIndex } from '@/services/tags/tagCatalogue';
 import { useTagIndex } from '@/hooks/useTagIndex';
 import { hydrateUserCalcs } from '@/stores/userCalcStore';
+import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { buildTagNoteDocument, usePropertyNote } from '../hooks/usePropertyNote';
 import { tagPath } from '../lib/routes';
@@ -81,7 +82,24 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
     ]);
     // A calc that does not compile must not keep the page from listing tags.
     const hydration = await hydrateUserCalcs().catch(() => ({ defs: [], errors: [] }));
-    setTags(storedTags);
+    const index = await loadTagIndex();
+    const resolvedBySlug = new Map(index.list().map((definition) => [definition.slug, definition]));
+    const resolvedStoredTags = storedTags.map((tag): Tag => {
+      const resolved = resolvedBySlug.get(tag.label);
+      return resolved && (tag.contributions?.length ?? 0) === 0 && resolved.contributions.length > 0
+        ? { ...tag, contributions: [...resolved.contributions] }
+        : tag;
+    });
+    const storedSlugs = new Set(resolvedStoredTags.map(tag => tag.label));
+    const bundledTags: Tag[] = index.list()
+      .filter(definition => !definition.isCategory && !storedSlugs.has(definition.slug))
+      .map(definition => ({
+        id: `builtin-${definition.slug}`,
+        label: definition.slug,
+        contributions: [...definition.contributions],
+        createdAt: 0,
+      }));
+    setTags([...resolvedStoredTags, ...bundledTags]);
     setTagTypes(storedTypes);
     setEffortSlugs(storedEfforts.map(e => ({ id: e.id || `effort-${e.slug}`, label: e.slug, type: 'effort' })));
     setEquipmentSlugs(storedEquipment.map(eq => ({ id: eq.id || `equipment-${eq.slug}`, label: eq.slug, type: 'equipment' })));
@@ -165,7 +183,6 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
       type: kind || undefined,
       contributions,
     };
-    await storageService.putTag(updatedTag);
     const noteCat = kind || activeCategory || 'tag';
     const noteId = `t/${noteCat}/${trimmed}`;
     const bodyPart = propertyNote.document.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trim();
@@ -173,14 +190,14 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
     const syncedDoc = bodyPart
       ? `${baseDoc.match(/^---\r?\n[\s\S]*?\r?\n---/)?.[0] ?? ''}\n\n${bodyPart}`
       : baseDoc;
-    await storageService.saveNoteSource({
-      noteId,
+    await commitReferenceNote({
+      kind: 'tag',
+      slug: trimmed,
+      title: trimmed,
       rawContent: syncedDoc,
       expectedSourceRevision: propertyNote.sourceRevision,
-      blocks: {},
-      metadata: { title: trimmed, sourceId: 'tags' },
-      createdAt: Date.now(),
-    }).catch(() => undefined);
+      noteId,
+    });
     await refreshTagIndex();
     await load();
     setError(null);
@@ -357,7 +374,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
           <h2 className="text-base font-semibold text-foreground">Edit {selected.label}</h2>
           <div className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-4">
             <p className="text-xs text-muted-foreground">
-              Created {new Date(selected.createdAt).toLocaleDateString()}
+              {selected.createdAt > 0 ? `Created ${new Date(selected.createdAt).toLocaleDateString()}` : 'Built-in'}
             </p>
             <div className="flex flex-wrap items-end gap-3">
               <div className="flex-1 min-w-[200px]">

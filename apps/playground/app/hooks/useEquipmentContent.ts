@@ -66,8 +66,8 @@ export interface UseEquipmentContentResult {
   onLineChange: (line: number, column: number) => void;
   /** Editor lost focus — flushes the staged draft (useEditorSave has no idle timer). */
   onBlur: () => void;
-  /** Persist the current document (create or update); resolves with the owning note. */
-  save: (value?: string) => Promise<{ id: string; sourceRevision: number }>;
+  /** Persist the current document and return the saved Equipment. */
+  save: (value?: string) => Promise<IEquipment | null>;
   /** Remove this user-owned equipment (projection + note + links). */
   remove: () => Promise<void>;
   /** Clone a bundled definition: patches identity into the raw source and persists the copy. */
@@ -177,6 +177,9 @@ export function useEquipmentContent(slug: string | undefined): UseEquipmentConte
       parsed.slug = patched.slug;
       parsed.label = patched.label;
       parsed.registrySource = 'user';
+      // The clone owns a NEW note (`equipment/<clone-slug>`) created at
+      // revision 0 — never overwrite the bundled note or reuse its revision.
+      parsed.ownerNoteId = `equipment/${parsed.slug}`;
     }
 
     try {
@@ -193,6 +196,7 @@ export function useEquipmentContent(slug: string | undefined): UseEquipmentConte
       committedNote.current = { id: saved.id, revision: saved.sourceRevision };
       await refresh();
       setEquipment(parsed);
+      return parsed;
     } catch (err) {
       toast({
         title: 'Save failed',
@@ -204,7 +208,7 @@ export function useEquipmentContent(slug: string | undefined): UseEquipmentConte
   }, [equipment, refresh]);
 
   const { onChange, onLineChange, onBlur, flush } = useEditorSave({
-    onSave: handleSave,
+    onSave: async (value) => { await handleSave(value); },
   });
 
   const setDocument = useCallback((value: string) => {

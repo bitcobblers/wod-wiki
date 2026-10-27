@@ -105,7 +105,7 @@ describe('ResponsiveActions dock trigger', () => {
     );
 
     const trigger = screen.getByTestId('actions-overflow');
-    const dock = trigger.closest('.fixed.z-40')!;
+    const dock = trigger.closest('[data-testid="actions-dock"]')!;
     // Stack top→bottom: buttons (primary + search), sheet, ⋮ at the corner.
     expect(dock.lastElementChild).toBe(trigger);
     const sheet = dock.querySelector('[role="dialog"]')!;
@@ -115,58 +115,12 @@ describe('ResponsiveActions dock trigger', () => {
   });
 });
 
-describe('ResponsiveActions dock scroll auto-hide', () => {
-  const scrollYDescriptor = Object.getOwnPropertyDescriptor(window, 'scrollY');
-  const visualViewportDescriptor = Object.getOwnPropertyDescriptor(window, 'visualViewport');
-
-  // jsdom never fires layout scroll events; dispatch manually. The dock
-  // reads window.scrollY, so no layout engine is needed.
-  function scrollTo(y: number) {
-    Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: y });
-    act(() => {
-      window.dispatchEvent(new window.Event('scroll'));
-    });
-  }
-
-  const dockIsHidden = () => screen.getByTestId('actions-dock').className.includes('invisible');
-
+describe('ResponsiveActions mobile layout', () => {
   afterEach(() => {
     cleanup();
-    isMobile = true;
-    if (scrollYDescriptor) Object.defineProperty(window, 'scrollY', scrollYDescriptor);
-    else Reflect.deleteProperty(window, 'scrollY');
-    if (visualViewportDescriptor) Object.defineProperty(window, 'visualViewport', visualViewportDescriptor);
-    else Reflect.deleteProperty(window, 'visualViewport');
   });
 
-  it('hides on scroll down, reveals on scroll up or at the top, ignores jitter under 8px', () => {
-    scrollTo(0);
-    render(
-      <Shell>
-        <ResponsiveActions fallback label="Page options">
-          <button>Download</button>
-        </ResponsiveActions>
-      </Shell>,
-    );
-    expect(dockIsHidden()).toBe(false);
-
-    scrollTo(5); // below the 8px threshold: no state change
-    expect(dockIsHidden()).toBe(false);
-
-    scrollTo(100); // well past the threshold, heading down
-    expect(dockIsHidden()).toBe(true);
-
-    scrollTo(92); // heading back up
-    expect(dockIsHidden()).toBe(false);
-
-    scrollTo(300); // down again…
-    expect(dockIsHidden()).toBe(true);
-    scrollTo(0); // …and home: top of page always shows the dock
-    expect(dockIsHidden()).toBe(false);
-  });
-
-  it('stays visible while the overflow sheet is open', () => {
-    scrollTo(0);
+  it('keeps the action row in normal document flow instead of positioned overlays', () => {
     render(
       <Shell>
         <ResponsiveActions fallback label="Page options">
@@ -175,28 +129,8 @@ describe('ResponsiveActions dock scroll auto-hide', () => {
       </Shell>,
     );
 
-    // Open the sheet, then scroll down: the sheet must stay reachable.
-    fireEvent.click(screen.getByTestId('actions-overflow'));
-    scrollTo(100);
-    expect(dockIsHidden()).toBe(false);
-  });
-
-  it('stays visible while the on-screen keyboard lifts the viewport', () => {
-    // Stub a visualViewport shrunk by the keyboard (jsdom has none).
-    Object.defineProperty(window, 'visualViewport', {
-      configurable: true,
-      value: { height: 300, offsetTop: 0, addEventListener() {}, removeEventListener() {} },
-    });
-    scrollTo(0);
-    render(
-      <Shell>
-        <ResponsiveActions fallback label="Page options">
-          <button>Download</button>
-        </ResponsiveActions>
-      </Shell>,
-    );
-
-    scrollTo(100); // keyboard up: keyboard lift wins over scroll direction
-    expect(dockIsHidden()).toBe(false);
+    const dock = screen.getByTestId('actions-dock');
+    expect(dock.className).toContain('relative');
+    expect(dock.className).not.toContain('fixed');
   });
 });

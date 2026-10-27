@@ -31,7 +31,7 @@ import { evaluate, type EvalContext } from './evaluator';
 import { compileLineForm } from './lineform';
 import { LookupRegistry } from './lookup';
 import { parseCalcLine } from './parser';
-import { CalculationDefinition } from './types';
+import { CalculationDefinition, CalcRegistrationDiagnostic } from './types';
 import { AUTHORITATIVE_CASTS, getUnit, UNITS } from './units';
 import { ABSENT, num, str, truthy, type Val } from './values';
 
@@ -91,6 +91,8 @@ export interface ShakeOutQueueOptions {
   readonly sources: readonly PropertyRuleInput[];
   readonly lookups?: LookupRegistry;
   readonly lastEffortSlug?: string;
+  /** Structural outputs may evaluate rules without surfacing diagnostics. */
+  readonly emitDiagnostics?: boolean;
 }
 
 interface StaticMetricRule {
@@ -188,31 +190,42 @@ export function extractTagPropertyRules(
   for (const slug of slugs) {
     const resolved = resolveTagContributions(tags, slug);
     if (resolved.metrics.length === 0) continue;
-    const metrics: Record<string, string | number | readonly string[]> = {};
-    const summaries: Record<string, string> = {};
-    for (const m of resolved.metrics) {
-      const key = m.type.trim();
-      if (!key) continue;
-      if (key.startsWith('summaries.')) {
-        const subKey = key.slice('summaries.'.length).trim();
-        if (subKey && !(subKey in summaries)) {
-          summaries[subKey] = String(m.value);
+    // Bucket each involved tag's OWN contributions by layer: a Tag
+    // Category's contributions are the category-wide defaults (layer
+    // 'category', LAYER_PRECEDENCE 1) and stack under the tags that apply,
+    // so note, effort, equipment, and tag rules all override them.
+    const tagMetrics: Record<string, string | number | readonly string[]> = {};
+    const tagSummaries: Record<string, string> = {};
+    const categoryMetrics: Record<string, string | number | readonly string[]> = {};
+    const categorySummaries: Record<string, string> = {};
+    for (const involvedSlug of resolved.tags) {
+      const definition = tags.resolve(involvedSlug);
+      if (!definition) continue;
+      const metrics = definition.isCategory ? categoryMetrics : tagMetrics;
+      const summaries = definition.isCategory ? categorySummaries : tagSummaries;
+      for (const m of definition.contributions) {
+        if (m.kind !== 'metric') continue;
+        const key = m.type.trim();
+        if (!key) continue;
+        if (key.startsWith('summaries.')) {
+          const subKey = key.slice('summaries.'.length).trim();
+          if (subKey && !(subKey in summaries)) {
+            summaries[subKey] = String(m.value);
+          }
+        } else if (!(key in metrics)) {
+          metrics[key] = m.unit
+            ? `${String(m.value)} ${m.unit}`
+            : m.value === null || typeof m.value === 'boolean'
+              ? String(m.value)
+              : m.value;
         }
-      } else if (!(key in metrics)) {
-        metrics[key] = m.unit
-          ? `${String(m.value)} ${m.unit}`
-          : m.value === null || typeof m.value === 'boolean'
-            ? String(m.value)
-            : m.value;
       }
     }
-    if (Object.keys(metrics).length > 0 || Object.keys(summaries).length > 0) {
-      rules.push({
-        layer: 'tag',
-        sourceSlug: slug,
-        metrics,
-        summaries,
-      });
+    if (Object.keys(tagMetrics).length > 0 || Object.keys(tagSummaries).length > 0) {
+      rules.push({ layer: 'tag', sourceSlug: slug, metrics: tagMetrics, summaries: tagSummaries });
+    }
+    if (Object.keys(categoryMetrics).length > 0 || Object.keys(categorySummaries).length > 0) {
+      rules.push({ layer: 'category', sourceSlug: slug, metrics: categoryMetrics, summaries: categorySummaries });
     }
   }
   return rules;
@@ -220,14 +233,38 @@ export function extractTagPropertyRules(
 
 /**
  * Compile `summaries:` equations across stacked Property Notes into workout-scope
- * `CalculationDefinition` records. Higher-precedence layers shadow lower layers
- * when both define the same summary key.
+ * `CalculationDefinition` records.
+ *
+ * Summaries shadow by authored specificity, not by the metric stack's
+ * proximity rule: a note authors its own dashboard, so its `summaries.*`
+ * overrides a tag's default summary of the same key; a Tag Category's
+ * summaries are the broadest defaults and lose to everything.
  */
+const SUMMARY_LAYER_PRECEDENCE: Record<PropertyRuleInput['layer'], number> = {
+  note: 6,
+  tag: 5,
+  effort: 4,
+  equipment: 3,
+  category: 1,
+};
+
+/** Compiled note summaries plus the unresolved dependencies found while compiling. */
+export interface CompiledPropertySummaries {
+  defs: CalculationDefinition[];
+  diagnostics: CalcRegistrationDiagnostic[];
+}
+
 export function compilePropertySummaryCalcs(
   sources: readonly PropertyRuleInput[],
 ): CalculationDefinition[] {
+  return compilePropertySummaryCalcsWithDiagnostics(sources).defs;
+}
+
+export function compilePropertySummaryCalcsWithDiagnostics(
+  sources: readonly PropertyRuleInput[],
+): CompiledPropertySummaries {
   const ordered = [...sources].sort(
-    (a, b) => LAYER_PRECEDENCE[b.layer] - LAYER_PRECEDENCE[a.layer],
+    (a, b) => SUMMARY_LAYER_PRECEDENCE[b.layer] - SUMMARY_LAYER_PRECEDENCE[a.layer],
   );
   const chosen = new Map<string, string>();
   for (const source of ordered) {
@@ -251,6 +288,27 @@ export function compilePropertySummaryCalcs(
       } else {
         customAtomsMap.set(parsed.key, inferApproxDim(parsed.ast, customAtomsMap));
       }
+    }
+  }
+  // A summary may reference a metric atom no rule defines (the tag that was
+  // supposed to define `work` is absent, or the author anticipates one).
+  // Dimension-check them as dimensionless so registration never rejects the
+  // whole summary — and never crashes runtime creation — over an unknown
+  // ref, and surface each unresolved dependency as a named diagnostic: the
+  // summary stays blank by design, but never disappears silently.
+  const diagnostics: CalcRegistrationDiagnostic[] = [];
+  for (const [key, expr] of chosen) {
+    try {
+      const missing = [...collectRequiredRefs(parseCalcLine(`summary = ${expr}`).expr)]
+        .filter((ref) => !customAtomsMap.has(ref) && STREAM_ATOMS[ref] === undefined && CONTEXT_ATOMS[ref] === undefined);
+      for (const ref of missing) {
+        customAtomsMap.set(ref, DIM_ZERO);
+      }
+      if (missing.length > 0) {
+        diagnostics.push({ id: key, message: `Summary ${key}: missing ${[...new Set(missing)].join(', ')}` });
+      }
+    } catch {
+      // Unparseable summaries are skipped by the compile loop below.
     }
   }
   const customAtoms = Object.fromEntries(customAtomsMap);
@@ -278,7 +336,7 @@ export function compilePropertySummaryCalcs(
       // Malformed summary expressions are skipped at compilation time.
     }
   }
-  return defs;
+  return { defs, diagnostics };
 }
 
 /**
@@ -595,6 +653,11 @@ export function runMetricShakeOutQueue(
   // Pass 2: topological fixed-point shake-out waves over dynamic equations
   const unresolved = new Set<DynamicEquationRule>(pendingEquations);
   const notApplicable = new Set<DynamicEquationRule>();
+  // Equations whose inputs are all present but whose expression still never
+  // evaluates to a number (division by zero, string operands, …). They are
+  // terminal — re-running waves cannot change them — and they must surface
+  // as Skipped-Dependency Diagnostics, not vanish silently.
+  const unresolvable = new Set<DynamicEquationRule>();
 
   const makeEvalContext = (): EvalContext => ({
     resolveRef: (name) => readContainerMetricAtom(container, name, inferredDims, options.lastEffortSlug),
@@ -622,7 +685,12 @@ export function runMetricShakeOutQueue(
       }
 
       const val = evaluate(rule.ast, ctx);
-      if (val.kind !== 'number') continue;
+      if (val.kind !== 'number') {
+        unresolved.delete(rule);
+        unresolvable.add(rule);
+        progressed = true;
+        continue;
+      }
 
       let dim = val.dim;
       if (rule.unit && AUTHORITATIVE_CASTS[rule.unit]) {
@@ -660,16 +728,8 @@ export function runMetricShakeOutQueue(
   const diagnostics: SkippedDependencyDiagnostic[] = [];
   const finalCtx = makeEvalContext();
 
-  for (const rule of unresolved) {
-    if (notApplicable.has(rule)) continue;
-    const missing = rule.dependencies.filter((dep) => finalCtx.resolveRef(dep).kind === 'absent');
-    if (missing.length === 0) continue;
-
-    if (options.stage === 'plan') {
-      deferredRuntime.push(rule.key);
-      continue;
-    }
-
+  const emitDiagnostic = (rule: DynamicEquationRule, missing: readonly string[]): void => {
+    if (options.emitDiagnostics === false) return;
     const diag: SkippedDependencyDiagnostic = {
       target: rule.key,
       expression: rule.expression,
@@ -682,8 +742,8 @@ export function runMetricShakeOutQueue(
     container.add({
       type: MetricType.Diagnostic,
       name: `diagnostic.${rule.key}`,
-      value: `Skipped ${rule.key}: missing ${missing.join(', ')}`,
-      image: `Skipped ${rule.key} (missing ${missing.join(', ')})`,
+      value: `Skipped ${rule.key}: ${missing.length > 0 ? `missing ${missing.join(', ')}` : 'expression could not be evaluated'}`,
+      image: `Skipped ${rule.key} (${missing.length > 0 ? `missing ${missing.join(', ')}` : 'expression could not be evaluated'})`,
       origin: 'diagnostic',
       metadata: {
         diagnostic: 'skipped-dependency',
@@ -694,6 +754,29 @@ export function runMetricShakeOutQueue(
         missing,
       },
     });
+  };
+
+  for (const rule of unresolved) {
+    if (notApplicable.has(rule)) continue;
+    const missing = rule.dependencies.filter((dep) => finalCtx.resolveRef(dep).kind === 'absent');
+    if (missing.length === 0) continue;
+
+    if (options.stage === 'plan') {
+      deferredRuntime.push(rule.key);
+      continue;
+    }
+
+    emitDiagnostic(rule, missing);
+  }
+
+  // Inputs present, expression still never produced a number — diagnosable
+  // at log stage with the evaluated operands named absent-free.
+  for (const rule of unresolvable) {
+    if (options.stage === 'plan') {
+      deferredRuntime.push(rule.key);
+      continue;
+    }
+    emitDiagnostic(rule, []);
   }
 
   return {

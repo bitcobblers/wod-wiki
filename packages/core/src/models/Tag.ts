@@ -60,6 +60,12 @@ export interface TagDefinition {
   readonly slug: string;
   /** What the tag contributes when referenced. */
   readonly contributions: readonly TagContribution[];
+  /**
+   * A Tag Category definition (`/t/:category`): its contributions are the
+   * category-wide defaults that stack under every more specific layer —
+   * note frontmatter, tags, and statement-owned metrics all override them.
+   */
+  readonly isCategory?: boolean;
 }
 
 /** A slug → tag lookup. */

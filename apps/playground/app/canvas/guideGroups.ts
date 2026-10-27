@@ -58,7 +58,8 @@ const SEMANTIC_GROUPS: Record<string, string[][]> = {
     ['barbell-cycling', 'climbing', 'try-it'],
   ],
   'metrics-summaries': [
-    ['frontmatter-metrics', 'tag-summaries', 'querying-summaries', 'try-it'],
+    ['frontmatter-metrics', 'tag-summaries', 'stacking-overrides'],
+    ['querying-summaries', 'dependency-diagnostics', 'try-it'],
   ],
 }
 

@@ -12,7 +12,7 @@
  */
 
 import { createTagIndex, type TagDefinition, type TagIndex } from '@bitcobblers/wod-wiki-engine'
-import type { ITagSource, Tag, TagContribution } from '@bitcobblers/wod-wiki-core'
+import type { ITagSource, Tag, TagContribution, TagTypeRecord } from '@bitcobblers/wod-wiki-core'
 import { storageService } from '@/services/storage'
 import { soundProfileIdFromTag } from '@/services/sound/soundTagNaming'
 
@@ -31,21 +31,92 @@ function inferredContributions(slug: string): TagContribution[] {
 /**
  * The tag definitions a set of stored tags makes.
  *
- * A tag's slug is its label — that is what `#slug` refers to.
+ * A tag's slug is its label — that is what `#slug` refers to. A typed tag
+ * stacks its category's contributions: the child→category edge is
+ * synthesized here at index build from `Tag.type` (the single source of
+ * truth) and never persisted onto the tag row. A stored tag typed
+ * `category` is a Tag Category definition: its contributions are the
+ * category-wide defaults that stack under every more specific layer.
  */
 export function buildTagDefinitions(tags: readonly Tag[]): TagDefinition[] {
-    const definitions: TagDefinition[] = []
+    const definitions: TagDefinition[] = [];
+    const slugs = new Set<string>(builtinExampleDefinitions().map((d) => d.slug));
     for (const tag of tags) {
-        const slug = tag.label.trim()
+        const slug = tag.label.trim();
+        if (slug.length > 0) slugs.add(slug);
+    }
+
+    for (const tag of tags) {
+        const slug = tag.label.trim();
         if (slug.length === 0) continue
 
         const contributions = tag.contributions?.length
-            ? tag.contributions
-            : inferredContributions(slug)
+            ? [...tag.contributions]
+            : [...inferredContributions(slug)];
 
-        definitions.push({ slug, contributions })
+        const category = tag.type?.trim();
+        if (
+            category
+            && category !== slug
+            && category !== 'category'
+            && slugs.has(category)
+            && !contributions.some((c) => c.kind === 'tag' && c.slug === category)
+        ) {
+            contributions.push({ kind: 'tag', slug: category });
+        }
+
+        definitions.push({
+            slug,
+            ...(category === 'category' ? { isCategory: true } : {}),
+            contributions,
+        });
     }
-    return definitions
+    return definitions;
+}
+
+/**
+ * The tag index for a set of tag definitions: the built-in example tags seed
+ * the catalogue and every stored definition layers over the same slug — a
+ * storage load replaces the cache but can never silently drop the built-ins.
+ */
+function indexFrom(definitions: readonly TagDefinition[]): TagIndex {
+    const builtins = builtinExampleDefinitions();
+    const builtInSlugs = new Set(builtins.map((definition) => definition.slug));
+    // A storage row is an override only when it actually defines behavior.
+    // Older clients could persist an empty tonnage shell; letting that shell
+    // replace the built-in erased every contribution and made #tonnage inert.
+    const overrides = definitions.filter((definition) =>
+        !builtInSlugs.has(definition.slug) || definition.contributions.length > 0);
+    const overriddenSlugs = new Set(overrides.map((definition) => definition.slug));
+    const fallback = builtins.filter((definition) => !overriddenSlugs.has(definition.slug));
+    return createTagIndex([...fallback, ...overrides]);
+}
+
+/**
+ * The tag definitions a set of Tag Category records makes.
+ *
+ * Category records live in the tag_types store (written by Property Note
+ * category commits); `name` is the canonical slug, `contributions` the
+ * category-wide defaults the note declares. A record without contributions
+ * declares a category that carries nothing.
+ */
+export function categoryDefinitionsFrom(records: readonly TagTypeRecord[]): TagDefinition[] {
+    return records
+        .filter((record) => record.name.trim().length > 0)
+        .map((record) => ({
+            slug: record.name.trim(),
+            isCategory: true,
+            contributions: record.contributions ?? [],
+        }));
+}
+
+/** Categories plus tags in one read — the layering order indexFrom expects. */
+async function loadIndexDefinitions(): Promise<TagDefinition[]> {
+    const [tags, categories] = await Promise.all([
+        tagSource.loadTags(),
+        storageService.getAllTagTypes().catch(() => [] as TagTypeRecord[]),
+    ]);
+    return [...categoryDefinitionsFrom(categories), ...tags];
 }
 
 /**
@@ -72,13 +143,12 @@ const tagSource: ITagSource = new StorageTagSource();
  * no tag references.
  */
 let cachedTagIndex: TagIndex = createTagIndex(builtinExampleDefinitions())
-
 type TagIndexListener = () => void
 const listeners = new Set<TagIndexListener>()
 
 /** Replace the cached tag index. */
 export function setTagIndex(tags: readonly Tag[]): void {
-    cachedTagIndex = createTagIndex(buildTagDefinitions(tags))
+    cachedTagIndex = indexFrom(buildTagDefinitions(tags))
     for (const listener of listeners) listener()
 }
 
@@ -126,10 +196,9 @@ let loadPromise: Promise<TagIndex> | null = null
 
 export function loadTagIndex(): Promise<TagIndex> {
     if (!loadPromise) {
-        loadPromise = tagSource
-            .loadTags()
+        loadPromise = loadIndexDefinitions()
             .then(definitions => {
-                cachedTagIndex = createTagIndex(definitions)
+                cachedTagIndex = indexFrom(definitions)
                 for (const listener of listeners) listener()
                 return cachedTagIndex
             })
@@ -144,8 +213,7 @@ export function loadTagIndex(): Promise<TagIndex> {
  * Refresh the cached index from storage, bypassing the shared load.
  */
 export async function refreshTagIndex(): Promise<TagIndex> {
-    const definitions = await tagSource.loadTags()
-    cachedTagIndex = createTagIndex(definitions)
+    cachedTagIndex = indexFrom(await loadIndexDefinitions())
     for (const listener of listeners) listener()
     return cachedTagIndex
 }

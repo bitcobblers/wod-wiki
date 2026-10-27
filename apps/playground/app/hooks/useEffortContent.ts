@@ -48,8 +48,8 @@ export interface UseEffortContentResult {
   flush: () => Promise<void>;
   onLineChange: (line: number, column: number) => void;
   onBlur: () => void;
-  /** Persist the current document (create or update); resolves with the owning note. */
-  save: (value?: string) => Promise<{ id: string; sourceRevision: number }>;
+  /** Persist the current document and return the saved Effort. */
+  save: (value?: string) => Promise<IEffort | null>;
   /** Remove this user-owned effort (projection + note + links). */
   remove: () => Promise<void>;
   /** Clone a bundled effort: patches identity into the raw source and persists the copy. */
@@ -155,7 +155,7 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
   // failure keeps the draft intact. Normalization patches the raw source so
   // document and projection always agree.
   const handleSave = useCallback(async (value: string) => {
-    if (!slug && !effort) return;
+    if (!slug && !effort) return null;
 
     const { effort: parsed, errors } = documentToEffort(value, effort ?? undefined);
     if (errors.length > 0) {
@@ -185,6 +185,9 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
       parsed.label = patched.label;
       parsed.registrySource = 'user';
       parsed.derivation = { parentSlug: effort?.slug, coefficients: {}, hardOverrides: {} };
+      // The clone owns a NEW note (`effort/<clone-slug>`) created at
+      // revision 0 — never the bundled note or its revision.
+      parsed.ownerNoteId = `effort/${parsed.slug}`;
     }
 
     try {
@@ -200,6 +203,7 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
       committedNote.current = { id: saved.id, revision: saved.sourceRevision };
       await refresh();
       setEffort(parsed);
+      return parsed;
     } catch (err) {
       toast({
         title: 'Save failed',
@@ -211,7 +215,7 @@ export function useEffortContent(slug: string | undefined): UseEffortContentResu
   }, [slug, effort, refresh]);
 
   const { onChange, onLineChange, onBlur, flush } = useEditorSave({
-    onSave: handleSave,
+    onSave: async (value) => { await handleSave(value); },
   });
 
   // Wrap setDocument to also trigger save mechanics

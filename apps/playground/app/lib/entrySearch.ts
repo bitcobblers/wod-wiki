@@ -23,6 +23,7 @@ import {
   type ParsedFindQuery,
   type ParsedRowsQuery,
   type FindQueryResult,
+  type QueryResult,
   type RowsQueryResult,
 } from '@bitcobblers/wod-wiki-engine';
 import { blockContentId, parseDocumentSections, projectPlacements, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
@@ -65,7 +66,25 @@ function tableRowToEntry(row: Record<string, unknown>, target: 'segment' | 'even
   };
 }
 
-/** Stage counts describe the executor's mapped page without another search. */
+/** Aggregate series → stream rows. Summary Metrics stay values, not Notes. */
+function aggregateToEntries(result: QueryResult): Entry[] {
+  const metric = result.parsed.family === 'aggregate' ? result.parsed.metric : 'metric';
+  return result.series.map((series) => {
+    const values = series.points
+      .map((point) => `${point.value}${series.unit ? ` ${series.unit}` : ''}`)
+      .join(' • ');
+    return {
+      id: `aggregate:${metric}:${series.key}`,
+      kind: 'result',
+      sourceNotebook: 'results',
+      sourceNote: series.label,
+      title: `${metric}: ${values}`,
+      subtitle: series.label,
+      date: null,
+    };
+  });
+}
+
 function emitStages(
   onStages: ((stages: { selected: number; matched: number }) => void) | undefined,
   stages: { selected: number; matched: number } | undefined,
@@ -80,6 +99,7 @@ function emitStages(
 
 export interface StreamQueryService {
   runFind(parsed: ParsedFindQuery, options?: unknown): Promise<FindQueryResult>;
+  runQuery?(raw: string): Promise<QueryResult>;
   runFindEffort?(parsed: ParsedFindQuery): Promise<FindQueryResult>;
   runRows?(parsed: ParsedRowsQuery, options?: unknown): Promise<RowsQueryResult>;
 }
@@ -284,7 +304,15 @@ export class StreamQueryEngine {
       return entries;
     }
 
-    // Unsupported query family (e.g. aggregate queries)
+    if (parsed.family === 'aggregate') {
+      if (!this.service.runQuery) return [];
+      const result = await this.service.runQuery(parsed.raw);
+      const entries = aggregateToEntries(result);
+      onStages?.({ selected: result.stages?.selected ?? entries.length, matched: entries.length });
+      return entries;
+    }
+
+    // Other query families are not stream content planes.
     return [];
   }
 }

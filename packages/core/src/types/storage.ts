@@ -93,6 +93,13 @@ export interface TagTypeRecord {
   name: string;
   label: string;
   color?: string;
+  /**
+   * Category-wide default metrics/summaries contributed to referencing
+   * notes — the executable projection of the category note's frontmatter
+   * (`metrics.*` / `summaries.*`), mirrored on every commit. Same shapes as
+   * `Tag.contributions`; summary rules use `type: 'summaries.<key>'`.
+   */
+  contributions?: TagContribution[];
   createdAt: number;
 }
 

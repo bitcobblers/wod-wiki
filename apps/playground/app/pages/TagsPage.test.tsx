@@ -57,6 +57,16 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
         await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit heavy' })).toBeTruthy());
     });
 
+    it('opens the built-in tonnage tag with its contributions in clean storage', async () => {
+        renderTags('tonnage', '/t/tag/tonnage');
+
+        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit tonnage' })).toBeTruthy(), { timeout: 5000 });
+        await waitFor(() => expect(screen.getByDisplayValue('resistance')).toBeTruthy(), { timeout: 5000 });
+        await waitFor(() => expect(screen.getByDisplayValue('24')).toBeTruthy(), { timeout: 5000 });
+        await waitFor(() => expect(screen.getByDisplayValue('reps * resistance')).toBeTruthy(), { timeout: 5000 });
+        expect(screen.queryByText('This tag contributes nothing yet.')).toBeNull();
+    });
+
     it('renders a percent-containing tag route without a URIError', async () => {
         // Row/editor links encode '%' as %25; the router decodes the param
         // exactly once. A second decode (decodeURIComponent('%')) throws —
@@ -112,6 +122,12 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
                 { kind: 'metric', type: 'intensity', value: 'heavy' },
             ]);
         }, { timeout: 5000 });
+        await waitFor(async () => {
+            const note = await storageService.getNote('t/tag/heavy');
+            expect(note).toBeTruthy();
+            expect(note!.rawContent).toContain('metrics.intensity: heavy');
+            expect(note!.rawContent).toContain('```query');
+        }, { timeout: 5000 });
     });
 
     it('refuses a second tag with the same name', async () => {
@@ -143,5 +159,27 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
         await waitFor(() => expect(screen.getByText('Category: Domain')).toBeTruthy(), { timeout: 5000 });
         await waitFor(() => expect(screen.getByText('#crossfit')).toBeTruthy(), { timeout: 5000 });
         expect(screen.getByText('#parkour')).toBeTruthy();
+    });
+
+    it('persists the category note when Save Category Note is clicked', async () => {
+        // Dogfood finding 4: on /t/domain, Save Category Note silently lost
+        // the whole save (the synthesized ```query widget aborted the commit),
+        // so the added frontmatter metric vanished and the category
+        // contribution was absent after reload.
+        await storageService.putTagType({ id: 'type-domain', name: 'domain', label: 'Domain', createdAt: 1000 });
+
+        renderTagRoute('/t/domain');
+
+        const saveButton = await waitFor(
+            () => screen.getByRole('button', { name: 'Save Category Note' }),
+            { timeout: 5000 },
+        );
+        fireEvent.click(saveButton);
+
+        await waitFor(async () => {
+            const stored = await storageService.getNote('t/domain');
+            expect(stored).toBeTruthy();
+            expect(stored!.rawContent).toContain('```query');
+        }, { timeout: 5000 });
     });
 });

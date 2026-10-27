@@ -1,6 +1,7 @@
 import { IEvent } from './events/IEvent';
 import { IRuntimeAction } from './IRuntimeAction';
 import type { IBlockRef } from './primitives/IBlockRef';
+import type { INowProvider } from '../INowProvider';
 import { IRuntimeClock } from './IRuntimeClock';
 import { IMetric } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
@@ -124,6 +125,8 @@ export interface IBehaviorContext {
 
     /** Current runtime clock */
     readonly clock: IRuntimeClock;
+    /** Live wall-clock provider, independent of execution snapshots. */
+    readonly nowProvider: INowProvider;
 
     /**
      * Current stack level (depth) of the block.

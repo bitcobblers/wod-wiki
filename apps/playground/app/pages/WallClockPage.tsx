@@ -110,9 +110,12 @@ export function WallClockPage() {
     )
   }
 
+  const noteContent = captureRef.current?.note.rawContent ?? pending.captured?.note.rawContent ?? pending.snapshot?.rawContent;
+
   return (
     <FullscreenTimer
       block={pending.block}
+      noteContent={noteContent}
       prepareRun={prepareRun}
       onClose={handleClose}
       onCompleteWorkout={handleComplete}

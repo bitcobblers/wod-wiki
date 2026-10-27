@@ -65,6 +65,10 @@ export class BehaviorContext implements IBehaviorContext {
     ) {
         this._capabilities = sharedCapabilities ?? new Set<string>();
     }
+
+    get nowProvider() {
+        return this.runtime.nowProvider;
+    }
     // ============================================================================
     // Event Subscription
     // ============================================================================

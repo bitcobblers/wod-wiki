@@ -39,6 +39,7 @@ import { resolveSoundProfiles, noteProfileIdFromTags } from '@/services/sound/so
 import { loadTagIndex } from '@/services/tags/tagCatalogue'
 import { useTagIndex } from '@/hooks/useTagIndex'
 import { hydrateUserCalcs } from '@/stores/userCalcStore'
+import { notePropertySourcesFromContent } from '@/app/editor/runtimeTimerModel'
 import type { CalculationDefinition } from '@bitcobblers/wod-wiki-engine'
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 
@@ -146,6 +147,15 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
   // here.
   const tagIndex = useTagIndex();
 
+  // The note's frontmatter `metrics.*` / `summaries.*` rules ride the
+  // analytics options — without them a workbench track-view run never sees
+  // note-derived metrics like `work` or summaries like `totalWork`.
+  const noteContent = useWorkbenchSession((s) => s.content);
+  const propertySources = useMemo(
+    () => notePropertySourcesFromContent(noteContent),
+    [noteContent],
+  );
+
   // The user's own calculations — the functions they wrote. They are
   // registered with the run, so a function a tag carries can be one of them.
   const [userCalcs, setUserCalcs] = useState<CalculationDefinition[]>([]);
@@ -180,7 +190,8 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
     tags: tagIndex,
     calcs: userCalcs,
     activeTags: noteTags ?? [],
-  }), [tagIndex, userCalcs, noteTags]);
+    propertySources,
+  }), [tagIndex, userCalcs, noteTags, propertySources]);
 
   // ── Runtime initialization on view-mode changes ──
   // when entering track view with a fresh selectedBlock; dispose when
@@ -189,7 +200,8 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
   const lastInitializedKeyRef = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    if (viewMode === 'track' && selectedBlock && configurationLoaded && lastInitializedKeyRef.current === null) {
+    const documentReady = noteContent.trim().length > 0;
+    if (viewMode === 'track' && selectedBlock && configurationLoaded && documentReady && lastInitializedKeyRef.current === null) {
       lastInitializedKeyRef.current = 'starting';
       sessionApi.getState().startPinnedRun(selectedBlock).then(block => {
         if (cancelled) return;
@@ -201,7 +213,7 @@ export function useWorkbenchSessionLifecycle(deps: UseWorkbenchSessionLifecycleD
       lastInitializedKeyRef.current = null;
     }
     return () => { cancelled = true; };
-  }, [viewMode, selectedBlock?.id, sessionApi, soundOptions, analyticsOptions, configurationLoaded, runtimeControls.initializeRuntime, runtimeControls.disposeRuntime]);
+  }, [viewMode, selectedBlock, sessionApi, soundOptions, analyticsOptions, configurationLoaded, runtimeControls, noteContent]);
 
   // ── Clear stale analytics on selection change ──
 

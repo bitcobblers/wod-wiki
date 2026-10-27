@@ -10,6 +10,14 @@ import type { DimVector } from './dimensions';
 export type CalcOrigin = 'analyzed' | 'analyzed-estimated' | 'user';
 export type CalcScope = 'segment' | 'workout' | 'store';
 
+/** A note summary that failed registration — surfaced, never silently dropped. */
+export interface CalcRegistrationDiagnostic {
+  /** The summary calc id that failed to register. */
+  id: string;
+  /** Why it was skipped (the registration error message). */
+  message: string;
+}
+
 export interface CalcNode {
   id: string;
   kind: 'metric' | 'lookup' | 'builtin' | 'wql' | 'expr';

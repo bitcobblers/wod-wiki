@@ -72,6 +72,42 @@ const REFERENCE_TX_STORES = [
   'tag_types',
   'attachments',
 ] as const;
+/**
+ * Property Note frontmatter → contribution rows: `metrics.*` (quantity
+ * strings split into value + unit), `summaries.*` (kept under
+ * `type: 'summaries.<key>'` for workout-scope stacking), applied tags and
+ * functions. Shared by the tag and tag-type commit branches so a Tag and
+ * its Tag Category project the same shapes.
+ */
+function contributionsFromTagDocument(parsed: {
+  metrics: Record<string, string | number | readonly string[]>;
+  summaries: Record<string, string>;
+  tags: string[];
+  functions: string[];
+}): TagContribution[] {
+  const contributions: TagContribution[] = [];
+  for (const [mKey, mVal] of Object.entries(parsed.metrics)) {
+    if (typeof mVal !== 'string' && typeof mVal !== 'number') continue;
+    const strVal = String(mVal).trim();
+    const qtyMatch = strVal.match(/^([+-]?\d+(?:\.\d+)?)\s*([A-Za-z%/][\w%/.-]*)$/);
+    if (qtyMatch) {
+      contributions.push({ kind: 'metric', type: mKey, value: Number(qtyMatch[1]), unit: qtyMatch[2] });
+    } else {
+      contributions.push({ kind: 'metric', type: mKey, value: mVal });
+    }
+  }
+  for (const [sKey, sExpr] of Object.entries(parsed.summaries)) {
+    contributions.push({ kind: 'metric', type: `summaries.${sKey}`, value: sExpr });
+  }
+  for (const tSlug of parsed.tags) {
+    contributions.push({ kind: 'tag', slug: tSlug });
+  }
+  for (const fnName of parsed.functions) {
+    contributions.push({ kind: 'function', name: fnName });
+  }
+  return contributions;
+}
+
 export async function commitReferenceNote(input: CommitReferenceNoteInput): Promise<CommitReferenceNoteResult> {
   // Parse + validate BEFORE any write: an invalid document never touches
   // storage and the draft stays editable.
@@ -81,26 +117,7 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
     const category = parsedTag.tag.category || input.category || 'tag';
     const noteId = input.noteId ?? `t/${category}/${input.slug}`;
     return storageService.withTransaction([...REFERENCE_TX_STORES], async (scoped) => {
-      const contributions: TagContribution[] = [];
-      for (const [mKey, mVal] of Object.entries(parsedTag.tag.metrics)) {
-        if (typeof mVal !== 'string' && typeof mVal !== 'number') continue;
-        const strVal = String(mVal).trim();
-        const qtyMatch = strVal.match(/^([+-]?\d+(?:\.\d+)?)\s*([A-Za-z%/][\w%/.-]*)$/);
-        if (qtyMatch) {
-          contributions.push({ kind: 'metric', type: mKey, value: Number(qtyMatch[1]), unit: qtyMatch[2] });
-        } else {
-          contributions.push({ kind: 'metric', type: mKey, value: mVal });
-        }
-      }
-      for (const tSlug of parsedTag.tag.tags) {
-      for (const [sKey, sExpr] of Object.entries(parsedTag.tag.summaries)) {
-        contributions.push({ kind: 'metric', type: `summaries.${sKey}`, value: sExpr });
-      }
-        contributions.push({ kind: 'tag', slug: tSlug });
-      }
-      for (const fnName of parsedTag.tag.functions) {
-        contributions.push({ kind: 'function', name: fnName });
-      }
+      const contributions = contributionsFromTagDocument(parsedTag.tag);
       const tagRow: Tag = {
         id: parsedTag.tag.id || `tag-${input.slug}`,
         label: parsedTag.tag.label || input.slug,
@@ -109,11 +126,12 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
         createdAt: Date.now(),
       };
       await scoped.putTag(tagRow);
+      // No `blocks` map: saveNoteSource reconciles actionable sections
+      // (the synthesized ```query widget) from the raw content.
       const note = await scoped.saveNoteSource({
         noteId,
         rawContent: input.rawContent,
         expectedSourceRevision: input.expectedSourceRevision,
-        blocks: {},
         metadata: { title: parsedTag.tag.label || input.title, sourceId: FAMILY_SOURCE.tag },
         createdAt: Date.now(),
       });
@@ -128,6 +146,12 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
     const color = typeof fm['color'] === 'string' && fm['color'].trim() ? fm['color'].trim() : undefined;
     const id = typeof fm['id'] === 'string' && fm['id'].trim() ? fm['id'].trim() : `tag-type-${name}`;
     const noteId = input.noteId ?? `t/${name}`;
+    // Executable category projection: the frontmatter `metrics.*` /
+    // `summaries.*` rules (case-preserving — readFrontmatterMeta lowercases
+    // keys, so parse through the tag document path). Mirrors the source: a
+    // document without metric/summary lines commits a record without them.
+    const parsedCategory = documentToTag(input.rawContent, 'tag');
+    const contributions = contributionsFromTagDocument(parsedCategory.tag);
     return storageService.withTransaction([...REFERENCE_TX_STORES], async (scoped) => {
       const existing = await scoped.getTagType(name);
       await scoped.putTagType({
@@ -135,13 +159,15 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
         name,
         label,
         ...(color ? { color } : existing?.color ? { color: existing.color } : {}),
+        ...(contributions.length > 0 ? { contributions } : {}),
         createdAt: existing?.createdAt ?? Date.now(),
       });
+      // No `blocks` map: saveNoteSource reconciles actionable sections
+      // (the synthesized ```query widget) from the raw content.
       const note = await scoped.saveNoteSource({
         noteId,
         rawContent: input.rawContent,
         expectedSourceRevision: input.expectedSourceRevision,
-        blocks: {},
         metadata: { title: label, sourceId: FAMILY_SOURCE['tag-type'] },
         createdAt: Date.now(),
       });

@@ -11,7 +11,7 @@
  *     commitReferenceNote seam.
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeftIcon, DocumentDuplicateIcon } from '@heroicons/react/20/solid';
 import { Button } from '@/components/atoms/primitives/button';
@@ -55,6 +55,15 @@ export function EquipmentDetailPage() {
     onBlur,
     flush,
   } = useEquipmentContent(slug);
+
+  const previousSlugRef = useRef(equipment?.slug);
+  useEffect(() => {
+    const previous = previousSlugRef.current;
+    if (equipment && previous && equipment.slug !== previous && equipment.registrySource === 'user') {
+      navigate(equipmentPath(equipment.slug));
+    }
+    previousSlugRef.current = equipment?.slug;
+  }, [equipment, navigate]);
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([]);
 

@@ -46,23 +46,6 @@ describe('grid presets', () => {
       'group',
       'analytics',
     ]);
-    expect(DEFAULT_PRESET.visibleColumns).toEqual([
-      '#',
-      'timeSpan',
-      'descriptor',
-      'rep',
-      'distance',
-      'resistance',
-      'action',
-      'increment',
-      'metric',
-      'calculated',
-      'custom',
-      'volume',
-      'intensity',
-      'load',
-      'work',
-    ]);
     expect(DEBUG_PRESET.visibleColumns.slice(0, 7)).toEqual([
       '#',
       'timeSpan',

@@ -34,7 +34,7 @@ import { evaluate, EvalContext } from './evaluator';
 import { LookupRegistry } from './lookup';
 import { outputNodeIds, CalculationRegistry } from './registry';
 import { IProfileSource } from './tables';
-import { CalculationDefinition, CalcVariant } from './types';
+import { CalculationDefinition, CalcRegistrationDiagnostic, CalcVariant } from './types';
 import { ABSENT, num, str, truthy, Val } from './values';
 import { DIM_ZERO } from './dimensions';
 import { AUTHORITATIVE_CASTS } from './units';
@@ -56,6 +56,8 @@ export interface CalcEngineDeps {
   activeTags?: readonly string[];
   /** Property Note metric/summary rules active for this run or block. */
   propertySources?: readonly PropertyRuleInput[];
+  /** Note summaries that failed registration — stamped onto the log stream. */
+  summaryDiagnostics?: readonly CalcRegistrationDiagnostic[];
 }
 
 /** Segment's resolved effort identity for grouping/exclusion. */
@@ -85,6 +87,8 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
   private readonly activatedTags = new Set<string>();
   /** The tags the run activates — a note-level bundle of attachments. */
   private readonly runTags: string[];
+  /** Registration diagnostics are stamped once per workout, on the first leaf. */
+  private summaryDiagnosticsStamped = false;
 
   constructor(
     private readonly registry: CalculationRegistry,
@@ -161,12 +165,57 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
     const appliedTags = this.appliedTags(output);
     const tagSources = extractTagPropertyRules(this.deps.tags, appliedTags);
     const allSources = [...tagSources, ...(this.deps.propertySources ?? [])];
+    const hasExerciseStatement = output.metrics.rawMetrics.some((metric) =>
+      metric.type === MetricType.Effort
+      && String(metric.value ?? metric.image ?? '').trim().toLowerCase() !== 'rest');
+    if (!this.summaryDiagnosticsStamped && (this.deps.summaryDiagnostics?.length ?? 0) > 0) {
+      // A skipped summary is a consumer-visible fact: the note author asked
+      // for `totalWork` and it will never appear. Name it on the stream.
+      this.summaryDiagnosticsStamped = true;
+      for (const diagnostic of this.deps.summaryDiagnostics ?? []) {
+        output.metrics.add({
+          type: MetricType.Diagnostic,
+          name: `diagnostic.${diagnostic.id}`,
+          value: diagnostic.message,
+          image: diagnostic.message,
+          origin: 'diagnostic',
+          timestamp: new Date(),
+          metadata: { diagnostic: 'summary-registration', target: diagnostic.id },
+        });
+      }
+    }
     if (allSources.length > 0) {
+      // A leaf segment without a timer carries no Elapsed metric — or a
+      // degenerate `ElapsedMetric(0)` (timers live on their parent block) —
+      // so note equations like `power: work / convert(elapsed, s)` divided
+      // by zero and vanished. The segment's own timeSpan IS its active
+      // window: derive the atom from it when no real elapsed exists.
+      // Derivation strips `analyzed` metrics on replay, so this stays
+      // idempotent through re-derivation.
+      const spanMs =
+        typeof output.timeSpan?.started === 'number' && typeof output.timeSpan.ended === 'number'
+          ? output.timeSpan.ended - output.timeSpan.started
+          : 0;
+      const existingElapsed = output.metrics.rawMetrics
+        .map((m) => (m.type === MetricType.Elapsed && typeof m.value === 'number' ? m.value : undefined))
+        .reduce<number | undefined>((found, v) => v ?? found, undefined);
+      if (spanMs > 0 && (existingElapsed === undefined || existingElapsed === 0)) {
+        output.metrics.add({
+          type: MetricType.Elapsed,
+          name: 'elapsed',
+          value: spanMs,
+          unit: 'ms',
+          image: `${spanMs} ms`,
+          origin: 'analyzed',
+          timestamp: new Date(),
+        });
+      }
       runMetricShakeOutQueue(output.metrics, {
         stage: 'log',
         sources: allSources,
         lookups: this.deps.lookups,
         lastEffortSlug: this.lastSegmentEffort,
+        emitDiagnostics: hasExerciseStatement,
       });
     }
     const atoms = buildSegmentAtoms(output, this.lastSegmentEffort);

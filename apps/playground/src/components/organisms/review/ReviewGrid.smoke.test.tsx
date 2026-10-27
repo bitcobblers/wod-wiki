@@ -196,4 +196,48 @@ describe('ReviewGrid smoke', () => {
       consoleWarn.mockRestore();
     }
   });
+  it('discovers columns for custom statement and summary metric types', () => {
+    const { container } = renderReviewGrid([
+      makeSegment({
+        id: 10,
+        name: 'deadlifts-1',
+        metrics: makeMetrics('segment-10', [
+          makeMetric(MetricType.Text, 'Deadlifts'),
+          makeMetric('power' as MetricType, 500),
+        ]),
+      }),
+      makeSegment({
+        id: 11,
+        name: 'totalWork',
+        type: 'analytics',
+        metrics: makeMetrics('analytics-11', [
+          makeMetric(MetricType.Label, 'totalWork'),
+          makeMetric('totalWork' as MetricType, 240, '240 kg'),
+        ]),
+      }),
+    ]);
+
+    expect(screen.getByText('Power')).toBeDefined();
+    expect(screen.getByText('Total Work')).toBeDefined();
+    expect(screen.getByText('500')).toBeDefined();
+    expect(screen.getByText('240 kg')).toBeDefined();
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(2);
+  });
+
+  it('renders a skipped-dependency diagnostic on the affected statement', () => {
+    renderReviewGrid([
+      makeSegment({
+        id: 20,
+        name: 'thrusters-1',
+        metrics: makeMetrics('segment-20', [
+          makeMetric(MetricType.Effort, 'Thrusters'),
+          makeMetric(MetricType.Diagnostic, 'Skipped work: missing resistance', 'Skipped work (missing resistance)'),
+        ]),
+      }),
+    ]);
+
+    expect(screen.getByText('Skipped work (missing resistance)')).toBeDefined();
+  });
+
+
 });

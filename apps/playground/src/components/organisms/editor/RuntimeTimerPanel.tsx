@@ -56,6 +56,8 @@ export interface RuntimeTimerPanelProps {
   block: ScriptBlock;
   /** The CM6 EditorView — needed to dispatch gutter highlights. Optional for standalone tracker. */
   view?: EditorView;
+  /** Raw Note source for standalone runs without an editor view. */
+  noteContent?: string;
   /** Called when the user presses Stop (which also closes the panel). */
   onClose: () => void;
   /** Called when a workout is completed or stopped with results. May return a
@@ -233,6 +235,7 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
 export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   block,
   view,
+  noteContent,
   onClose,
   onComplete,
   isExpanded = false,
@@ -336,7 +339,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     if (adoptRuntime) return;
     if (!wizardDone && (collectionItems.length > 0 || wizardEngagedRef.current)) return;
 
-    const rt = createRuntimeForBlock(runtimeBlock, view?.state.doc.toString());
+    const rt = createRuntimeForBlock(runtimeBlock, view?.state.doc.toString() ?? noteContent);
     if (!rt) {
       // Block has no compilable statements — nothing to run
       setNothingToRun(true);

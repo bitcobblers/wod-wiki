@@ -22,8 +22,9 @@ import {
   resolveCanonicalMetricKey,
 } from './workoutDerivation';
 import type { ScriptBlock, StoredOutputStatement } from '@/components/Editor/types';
-import { toEventRows } from '@bitcobblers/wod-wiki-wql';
-import { MetricType, createTagIndex } from '@bitcobblers/wod-wiki-engine';
+import { toEventRows, toSummaryEventRows, QueryService, type EventStore } from '@bitcobblers/wod-wiki-wql';
+import { MetricType, createTagIndex, type PropertyRuleInput } from '@bitcobblers/wod-wiki-engine';
+import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 
 const T0 = 1_700_000_000_000;
 
@@ -492,5 +493,110 @@ describe('normalizeSummaryFacts', () => {
     const trainingLoad = points.find(p => p.metricKey === 'trainingLoad');
     expect(trainingLoad).toBeDefined();
     expect(trainingLoad!.value).toBe(100);
+  });
+});
+
+// ── Dogfood finding #2 — saved-summary + WQL lifecycle ─────────────────────
+// Note rules `metrics.work: reps * resistance` + `summaries.totalWork:
+// sum(work)` over one 10 @ 24 kg set: the segment carries work = 240, the
+// derived logs carry a valued totalWork summary, and the saved-fact query
+// `sum:totalWork{} by {session}` returns 240 for the session. Deployed
+// behavior: the totalWork row surfaced without a usable value and the
+// query returned none.
+
+const NOTE_WORK_RULES: PropertyRuleInput = {
+  layer: 'note',
+  sourceSlug: 'note-frontmatter',
+  metrics: { work: 'reps * resistance' },
+  summaries: { totalWork: 'sum(work)' },
+};
+
+const SWING_IDENTITY = {
+  noteId: 'n-tonnage',
+  resultId: 'r-tonnage',
+  blockContentId: 'bc-tonnage',
+  blockId: 'wod-tonnage',
+  blockVersion: 1,
+  origin: 'journal' as const,
+  pageId: 'p-tonnage',
+  workoutTimestamp: T0,
+};
+
+function swingSegmentLog(): StoredOutputStatement {
+  return {
+    id: 1,
+    outputType: 'segment',
+    timeSpan: { started: T0, ended: T0 + 30_000 },
+    metrics: [
+      { type: MetricType.Rep, value: 10, image: '10', origin: 'runtime' },
+      { type: MetricType.Resistance, value: 24, unit: 'kg', image: '24 kg', origin: 'parser' },
+      { type: MetricType.Effort, value: 'Kettlebell Swings', image: 'Kettlebell Swings', origin: 'parser' },
+      { type: MetricType.Elapsed, value: 30_000, origin: 'runtime' },
+    ],
+    sourceBlockKey: 'block-tonnage',
+    stackLevel: 0,
+  };
+}
+
+function summaryEventStore(rows: EventRecord[]): EventStore {
+  return {
+    getEventsByTimeRange: async (start, end) => rows.filter((r) => r.timestamp >= start && r.timestamp <= end),
+    getEventsByResult: async (resultId) => rows.filter((r) => r.resultId === resultId),
+    getEventsForNote: async (noteId) => rows.filter((r) => r.noteId === noteId),
+    getEventsByContent: async () => [],
+    getEventsByMetricDates: async () => [],
+    scanAll: async () => rows,
+    appendEvents: async () => {},
+    finalizeSummaries: async () => {},
+    deleteEvents: async () => {},
+  };
+}
+
+describe('note summary lifecycle — derive, save, query (dogfood finding #2)', () => {
+  it('deriveWorkoutFromLogs annotates work per set and emits a valued totalWork summary', () => {
+    const derived = deriveWorkoutFromLogs([swingSegmentLog()], {
+      block: BLOCK,
+      propertySources: [NOTE_WORK_RULES],
+    });
+
+    const segment = derived.find((o) => o.outputType === 'segment')!;
+    expect(segment.metrics.find((m) => m.type === 'work')?.value).toBe(240);
+
+    const summaries = derived.filter((o) => o.outputType === 'analytics');
+    const totalWorkRow = summaries.find((o) =>
+      o.metrics.some((m) => m.type === MetricType.Label && m.value === 'totalWork'));
+    expect(totalWorkRow).toBeDefined();
+    const valueMetric = totalWorkRow!.metrics.find((m) => m.type !== MetricType.Label && typeof m.value === 'number');
+    expect(valueMetric?.value).toBe(240);
+  });
+
+  it('normalizeSummaryFacts produces a totalWork fact of 240 for the session', () => {
+    const derived = deriveWorkoutFromLogs([swingSegmentLog()], {
+      block: BLOCK,
+      propertySources: [NOTE_WORK_RULES],
+    });
+
+    const facts = normalizeSummaryFacts(derived, SWING_IDENTITY);
+    const totalWorkFact = facts.find((p) => p.metricKey === 'totalWork');
+    expect(totalWorkFact?.value).toBe(240);
+    expect(totalWorkFact?.resultId).toBe('r-tonnage');
+  });
+
+  it('sum:totalWork{} by {session} returns 240 for the saved session', async () => {
+    const derived = deriveWorkoutFromLogs([swingSegmentLog()], {
+      block: BLOCK,
+      propertySources: [NOTE_WORK_RULES],
+    });
+
+    const rows = [
+      ...toEventRows(derived.filter((o) => o.outputType === 'segment'), SWING_IDENTITY),
+      ...toSummaryEventRows(derived, SWING_IDENTITY),
+    ];
+    const service = new QueryService({ eventStore: summaryEventStore(rows) });
+    const result = await service.runQuery('sum:totalWork{} by {session}');
+
+    expect(result.error).toBeUndefined();
+    const points = (result.series ?? []).flatMap((s) => s.points);
+    expect(points.map((p) => p.value)).toEqual([240]);
   });
 });
