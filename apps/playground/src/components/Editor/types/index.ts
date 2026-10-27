@@ -162,7 +162,7 @@ export interface ScriptBlock {
   /** Execution state */
   state: ScriptBlockState;
 
-  /** Monaco widget/zone IDs for cleanup */
+  /** Editor widget/zone IDs for cleanup */
   widgetIds: {
     overlay?: string;
     clockZone?: string;

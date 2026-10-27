@@ -4,9 +4,9 @@ This document provides core development guidelines for AI assistants working on 
 
 ## Project Overview
 
-WOD Wiki is a React component library for parsing, displaying, and executing workout definitions using the **Whiteboard Language** (fence tag `wod`; `whiteboard` accepted as alias). It features a Monaco Editor integration, JIT compiler for workout scripts, and components styled with Tailwind CSS.
+WOD Wiki is a React component library for parsing, displaying, and executing workout definitions using the **Whiteboard Language** (fence tag `wod`; `whiteboard` accepted as alias). It features a CodeMirror Editor integration, JIT compiler for workout scripts, and components styled with Tailwind CSS.
 
-**Tech Stack**: TypeScript, React, Storybook, Bun Test, Monaco Editor, Tailwind CSS, Lezer parser (CodeMirror)
+**Tech Stack**: TypeScript, React, Storybook, Bun Test, CodeMirror 6, Tailwind CSS, Lezer parser
 **Package Manager**: bun (NOT npm/yarn)
 
 ## Essential Development Commands
@@ -230,7 +230,7 @@ Sizing heuristics:
 - Metrics are the universal currency: the same `IMetric`/`MetricContainer` shapes flow from parsing through compilation, runtime memory, and the logged output statements
 
 **Editor Integration** (`src/editor/`)
-- Monaco Editor integration with custom syntax highlighting
+- CodeMirror 6 editor integration with custom syntax highlighting
 - Suggestion engine and semantic token processing
 - `WodWiki.tsx` is the main editor component
 
@@ -383,7 +383,7 @@ e2e/
 
 - All runtime stack operations must meet performance targets (see Lifecycle section)
 - JIT compilation should complete within milliseconds for typical workout scripts
-- Monaco Editor performance depends on efficient syntax highlighting and suggestion systems
+- Editor performance depends on efficient syntax highlighting and suggestion systems
 - Memory management is critical - always dispose of runtime blocks properly
 
 ## Known Issues and Constraints

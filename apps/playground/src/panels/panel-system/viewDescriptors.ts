@@ -13,7 +13,7 @@ import type { ViewDescriptor, PanelSpan, PanelDescriptor } from './types';
 /**
  * Plan View - Editor for authoring workout definitions
  *
- * Single full-width panel with Monaco Editor
+ * Single full-width panel with CodeMirror Editor
  */
 export function createPlanView(planPanel: React.ReactNode): ViewDescriptor {
   return {

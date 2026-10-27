@@ -4,9 +4,9 @@ This file provides guidance for Google Gemini when working with code in this rep
 
 ## Project Overview
 
-WOD Wiki is a React component library for parsing, displaying, and executing workout definitions using a specialized syntax. It features a Monaco Editor integration, JIT compiler for workout scripts, and components styled with Tailwind CSS.
+WOD Wiki is a React component library for parsing, displaying, and executing workout definitions using a specialized syntax. It features a CodeMirror Editor integration, JIT compiler for workout scripts, and components styled with Tailwind CSS.
 
-**Tech Stack**: TypeScript, React, Storybook, Bun Test, Monaco Editor, Tailwind CSS, Lezer parser (CodeMirror)
+**Tech Stack**: TypeScript, React, Storybook, Bun Test, CodeMirror 6, Tailwind CSS, Lezer parser
 **Package Manager**: bun
 
 ## Essential Development Commands
@@ -60,7 +60,7 @@ WOD Wiki is a React component library for parsing, displaying, and executing wor
 - Metrics are the universal currency: the same `IMetric`/`MetricContainer` shapes flow from parsing through compilation, runtime memory, and the logged output statements
 
 **Editor Integration** (`src/editor/`)
-- Monaco Editor integration with custom syntax highlighting
+- CodeMirror 6 editor integration with custom syntax highlighting
 - Suggestion engine and semantic token processing
 - `WodWiki.tsx` is the main editor component
 
@@ -201,7 +201,7 @@ After making changes, always validate:
 
 - All runtime stack operations must meet performance targets (see Lifecycle section)
 - JIT compilation should complete within milliseconds for typical workout scripts
-- Monaco Editor performance depends on efficient syntax highlighting and suggestion systems
+- Editor performance depends on efficient syntax highlighting and suggestion systems
 - Memory management is critical - always dispose of runtime blocks properly
 
 ## Gemini-Specific Guidelines
@@ -221,7 +221,7 @@ After making changes, always validate:
 ### Integration Best Practices
 - Leverage the existing JIT compiler patterns for new features
 - Use the runtime stack lifecycle management correctly
-- Integrate with the Monaco Editor system when working on editor features
+- Integrate with the CodeMirror Editor system when working on editor features
 - Follow the metric-classification patterns (typed `IMetric` subclasses with an `origin`) for new workout syntax, not a "fragment system" — that concept was replaced by metrics
 
 ### Documentation Standards

@@ -141,7 +141,7 @@ runtime.popBlock();  // Includes automatic dispose
 
 ### Editor Module
 
-- Document Monaco integration details
+- Document CodeMirror integration details
 - Include token types and colors
 - Document suggestion provider interfaces
 - Note performance considerations for highlighting
@@ -242,7 +242,7 @@ Current generated documentation:
 - [runtime-system.md](./runtime-system.md) - Runtime engine and execution
 - [fragment-types.md](./fragment-types.md) - Parsed component types
 - [parser-system.md](./parser-system.md) - Workout script parsing
-- [editor-integration.md](./editor-integration.md) - Monaco editor features
+- [editor-integration.md](./editor-integration.md) - CodeMirror editor features
 - [services.md](./services.md) - Shared services and utilities
 - [clock-timer.md](./clock-timer.md) - Timer components and utilities
 

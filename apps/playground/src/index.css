@@ -43,7 +43,7 @@
   overflow-y: hidden !important;
 }
 
-/* Monaco Editor - WOD Block Decorations */
+/* WOD Block Decorations */
 .wod-block {
   background-color: hsl(var(--primary) / 0.05) !important;
 }

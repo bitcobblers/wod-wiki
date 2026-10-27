@@ -13,7 +13,7 @@ if (!(globalThis as any).window || !globalThis.document) {
   (globalThis as any).navigator = dom.window.navigator as any;
   (globalThis as any).location = dom.window.location as any;
 
-  // Monaco checks these clipboard APIs; jsdom doesn't implement them.
+  // JSDOM clipboard API polyfills
   if (!(globalThis.document as any).queryCommandSupported) {
     (globalThis.document as any).queryCommandSupported = () => false;
   }
@@ -21,7 +21,7 @@ if (!(globalThis as any).window || !globalThis.document) {
     (globalThis.document as any).execCommand = () => false;
   }
 
-  // Make common DOM globals available at global scope (e.g. UIEvent for monaco).
+  // Make common DOM globals available at global scope (e.g. UIEvent).
   for (const key of Object.getOwnPropertyNames(dom.window)) {
     if (!(key in globalThis)) {
       Object.defineProperty(globalThis, key, {

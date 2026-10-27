@@ -1,0 +1,327 @@
+{
+  "title": "Navigation System Architecture Review & Roadmap",
+  "subtitle": "Analysis of dogfood findings, L1/L2/L3 taxonomy unification, and mobile navigation contract",
+  "components": [
+    {
+      "type": "hero",
+      "id": "hero-overview",
+      "eyebrow": "Architecture Review & Implementation Plan",
+      "title": "Wod.Wiki Navigation System Unification",
+      "body": "Synthesis of the dogfood navigation audit (v0.48.2175) and architectural deep-module review. Establishes the Home/Pages roll-up, scopes Notebooks to subscribed libraries, scopes Notes to notebook members, enforces the mobile destination-versus-mutation invariant via a deep Navigation Shell, and outlines deployment-safe performance enhancements on GitHub Pages."
+    },
+    {
+      "type": "metrics",
+      "id": "metrics-summary",
+      "title": "Key Metrics & Scope",
+      "body": "System health, architectural depth, and complexity reduction goals.",
+      "items": [
+        {
+          "value": 6,
+          "label": "Audit Findings",
+          "detail": "4 Medium UX, 2 Low UX/Content"
+        },
+        {
+          "value": "3 Deep Modules",
+          "label": "Architectural Seams",
+          "detail": "NavShell, StreamZone, ViewController"
+        },
+        {
+          "value": "11 → 7",
+          "label": "L1 Domains",
+          "detail": "Home/Pages roll-up & clean content tiers"
+        },
+        {
+          "value": "100%",
+          "label": "Mobile Route Visibility",
+          "detail": "Zero obscured routes after navigation"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "findings-section",
+      "title": "Dogfood Audit Findings & Structural Solutions",
+      "body": "Detailed resolution matrix combining product feedback with deep architectural module patterns from architecture-review-20261027-124623.html.",
+      "components": [
+        {
+          "type": "table",
+          "id": "findings-table",
+          "title": "Findings Resolution Matrix",
+          "body": "Root causes and deep architectural solutions for each reported issue.",
+          "columns": ["#", "Issue", "Severity", "Root Cause", "Architectural Resolution"],
+          "rows": [
+            [
+              "1",
+              "Mobile drawer leaves full-screen overlay open on navigation",
+              "Medium",
+              "AppRail explicitly suppressed closeDrawer() on L1 clicks to 'keep drawer open for L2'. 7 callers guess when to close.",
+              "Deep Navigation Shell Module (Candidate 1): encapsulate drawer state behind navigateAction(item, { kind: 'destination' | 'mutation' }). Delete NavigationDrawerContext and MutationObserver."
+            ],
+            [
+              "2",
+              "All Sessions defaults to 'last 1d' query",
+              "Medium",
+              "SESSIONS_STREAM_PROFILE hardcodes defaultWql: ':session{} last 1d' while L1/L2 label reads 'All Sessions'.",
+              "StreamZone Registry Module (Candidate 2): unify stream profiles, WQL defaults, labels, and shortcuts into single definitions. Set Sessions default to ':session{}' (all-time); add 'Recent (1d)' shortcut."
+            ],
+            [
+              "3",
+              "Notes, Notebooks, and Pages heavily overlap",
+              "Medium",
+              "Three separate L1 routes query the same 280 seed notes without distinct conceptual boundaries.",
+              "Roll up Home and Pages: Home button opens navigation; Home pinned at top; 'All Pages' links to /pages with pinned Canvas/Guides below (with unpin support). Notebooks defaults to subscribed notebooks. Notes displays notebook-member notes."
+            ],
+            [
+              "4",
+              "Large eager startup payload & short cache TTL",
+              "Medium",
+              "CodeMirror and editor bundles preloaded in HTML; GitHub Pages serves static assets with max-age=600.",
+              "Vite dynamic imports (React.lazy) work natively on GitHub Pages with base path. Add a lightweight Service Worker for Cache-First handling of hashed /assets/*.js to overcome GitHub's 10-minute CDN TTL."
+            ],
+            [
+              "5",
+              "Duplicate Home and creation controls in viewport",
+              "Low",
+              "AppRail mounts avatar (Home) + dedicated Home icon; Efforts shows dual New buttons; Empty states duplicate CTAs.",
+              "Avatar acts as single Home affordance (opens navigation); remove redundant rail icon and consolidate duplicate in-viewport CTAs."
+            ],
+            [
+              "6",
+              "Mobile action-location setting mismatch",
+              "Low",
+              "Appearance setting describes floating bottom cluster, but actual UI renders actions in top header.",
+              "Prune dead setting copy; lock action placement to responsive header bar."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "deep-modules-section",
+      "title": "Deep Architecture Modules (from Architecture Review)",
+      "body": "Addressing architectural debt identified in architecture-review-20261027-124623.html to support the navigation overhaul cleanly.",
+      "components": [
+        {
+          "type": "cards",
+          "id": "deep-modules-cards",
+          "title": "The Three Core Deep Modules",
+          "body": "Replacing leaky coordination with high-leverage internal seams.",
+          "columns": 3,
+          "items": [
+            {
+              "badge": "Candidate #1 • Strong",
+              "title": "Navigation Shell Module",
+              "body": "Collapses SidebarLayout drawer state, NavigationDrawerContext, and caller dismiss logic into one module. Callers invoke navigateAction(item, { kind }) where destination auto-closes and mutation retains the drawer. Internal occupancy tracking eliminates the DOM child MutationObserver."
+            },
+            {
+              "badge": "Candidate #2 • Strong",
+              "title": "StreamZone Registry Module",
+              "body": "Folds streamProfile.ts, appNavTree.ts, and routeWqlShortcuts.ts into a single authoritative StreamZoneDefinition (route, title, defaultWql, shortcuts, icon, L1 metadata). Prevents query defaults from contradicting landing labels."
+            },
+            {
+              "badge": "Candidate #3 • Exploring",
+              "title": "In-Page View Controller",
+              "body": "Consolidates usePageScrollSync, useSectionScrollSpy, and disjoint L3 channels into a single registerViewSurface({ outline, controls, actions }) seam. Absorbs intersection observation and derives right-drawer presence internally."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "taxonomy-section",
+      "title": "Unified Navigation Model & Domain Roll-Up",
+      "body": "Reorganizing L1/L2 domains into distinct, non-overlapping concepts with clear parent-child relationships.",
+      "components": [
+        {
+          "type": "cards",
+          "id": "tier-definitions",
+          "title": "Hierarchy Levels & Responsibilities",
+          "body": "Each tier owns a distinct axis of application navigation and state.",
+          "columns": 3,
+          "items": [
+            {
+              "badge": "L1 • Domain",
+              "title": "Primary Concept Zones",
+              "body": "Top-level application destinations. Rendered on desktop as the persistent 56px left icon rail, and on mobile inside the left drawer's AppRail."
+            },
+            {
+              "badge": "L2 • Scope & Query",
+              "title": "Context Views & Facets",
+              "body": "Sub-navigation within a domain: presets, saved WQL shortcuts, entity creation, pinned documents, and the live WHERE-clause accordion (FacetProperties)."
+            },
+            {
+              "badge": "L3 • View & Outline",
+              "title": "Display Options & TOC",
+              "body": "Surface view options (layout, date window, visible fields, group-by) and in-page anchor index (TOC). Desktop 2xl+ rail, lg-2xl header menu, mobile right drawer."
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "l1-consolidation-table",
+          "title": "Consolidated L1 Domain Structure",
+          "body": "Roll-up of Home & Pages, scoping of Notebooks and Notes, and distinct domain responsibilities.",
+          "columns": ["Domain (L1)", "Desktop Affordance", "L2 Context (Left)", "L3 View & TOC (Right / ⋯)"],
+          "rows": [
+            [
+              "Home / Pages",
+              "AppRail Avatar (opens nav)",
+              "Home pinned at top; 'All Pages' (/pages) list view; pinned Canvas & Guide docs below (with unpin control)",
+              "Tour TOC outline + Guide in-page section links + Quick actions"
+            ],
+            [
+              "Notebooks",
+              "AppRail (Library)",
+              "Subscribed notebooks listing (default: :notebook{subscribed:true}); Journal & Playgrounds views; Available to subscribe",
+              "Layout (Cards/Rows/Feed), Date Window, Group-By, Visible Fields"
+            ],
+            [
+              "Notes",
+              "AppRail (Rss)",
+              "Notes belonging to notebooks (:note{notebook:*}); New note; Notebook filter & Tag facets",
+              "Layout (Cards/Rows/Feed), Date Window, Group-By, Visible Fields"
+            ],
+            [
+              "Dashboards",
+              "AppRail (Chart)",
+              "Analytics Explorer, Example queries, Vault & Seed dashboards, New dashboard",
+              "Dashboard display options + Query settings"
+            ],
+            [
+              "Efforts",
+              "AppRail (Dumbbell)",
+              "New effort, Saved movement shortcuts, Type & Muscle facets",
+              "Layout mode, Metric dimensions, In-page index"
+            ],
+            [
+              "Equipment",
+              "AppRail (Wrench)",
+              "New equipment, Gear category & availability facets",
+              "Layout mode, Item sorting"
+            ],
+            [
+              "Sessions",
+              "AppRail (Clipboard)",
+              "All Sessions (all-time default), Recent presets (1d, 7d), Result facets",
+              "Date window, Group-by dimensions, Layout mode"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "mobile-contract-section",
+      "title": "The Mobile Contract: Navigation vs. Form Mutation",
+      "body": "Resolving the core mobile dilemma: when to dismiss the full-screen drawer vs. when it must stick around.",
+      "components": [
+        {
+          "type": "cards",
+          "id": "mobile-behavior-cards",
+          "title": "Behavioral Distinction",
+          "body": "Intent determines whether drawer auto-dismisses or requires explicit confirmation.",
+          "columns": 2,
+          "items": [
+            {
+              "badge": "Auto-Dismiss",
+              "title": "Navigation & Destination Jump",
+              "body": "Triggered by: L1 icon click, L2 route/shortcut click, 'New note/effort' click, L3 TOC anchor click, or WQL search link. The URL changes or the page scrolls. The deep Navigation Shell immediately dismisses the drawer so the destination is visible without extra taps."
+            },
+            {
+              "badge": "Stick Around",
+              "title": "Query & View Configuration",
+              "body": "Triggered by: L2 FacetProperties checkboxes (tags, status), L3 date window picker, group-by checkboxes, layout switchers, or visible field toggles. User is editing in-place settings and often toggles multiple values. The drawer stays open; the 'Apply' footer or backdrop dismisses it."
+            }
+          ]
+        },
+        {
+          "type": "note",
+          "id": "mobile-friction-note",
+          "tone": "info",
+          "title": "The Single Seam Rule",
+          "body": "Instead of callers calling closeDrawer() directly, all navigation passes through navigateAction(item, { kind: 'destination' | 'mutation' }). Destination actions enforce drawer dismissal internally. Form option mutations retain drawer state until 'Apply' is pressed."
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "github-pages-section",
+      "title": "GitHub Pages Loading & Cache Strategy",
+      "body": "Addressing Annotation 3: Ensuring code splitting and asset caching operate reliably within GitHub Pages constraints.",
+      "components": [
+        {
+          "type": "cards",
+          "id": "gh-pages-cards",
+          "title": "Deployment & Asset Pipeline",
+          "body": "Technical mechanics for dynamic imports and caching on static GitHub Pages hosting.",
+          "columns": 2,
+          "items": [
+            {
+              "badge": "Code Splitting",
+              "title": "React.lazy() Compatibility",
+              "body": "Vite compiles dynamic imports to chunk URLs prefixed with the repository base (/wod-wiki/). GitHub Pages natively returns 200 OK for static .js asset requests. Direct route deep links utilize the existing 404.html SPA redirect shim."
+            },
+            {
+              "badge": "Asset Caching",
+              "title": "Service Worker Cache-First",
+              "body": "GitHub Pages enforces Cache-Control: max-age=600 at the edge. To achieve true immutable caching, register a lightweight Service Worker intercepting /assets/*-[hash].js with a Cache-First policy, providing instant cold boots after initial visit."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "implementation-roadmap-section",
+      "title": "Implementation Roadmap & Next Steps",
+      "body": "Phased delivery combining deep architectural refactors with immediate UX polish.",
+      "components": [
+        {
+          "type": "timeline",
+          "id": "roadmap-timeline",
+          "title": "Execution Phases",
+          "body": "Sequence of targeted PRs following test-driven delivery.",
+          "items": [
+            {
+              "meta": "PR 1 • Architecture",
+              "title": "Navigation Shell Deep Module (Candidate 1)",
+              "body": "Introduce navigateAction seam in Navigation Shell. Auto-dismiss drawers on destination clicks (L1 rail, L2 route/guide links, TOC anchors, WQL links). Retain drawers for facet and stream option mutations. Delete NavigationDrawerContext and MutationObserver DOM hack."
+            },
+            {
+              "meta": "PR 2 • Architecture",
+              "title": "StreamZone Registry (Candidate 2) & Default Queries",
+              "body": "Consolidate stream profiles, WQL defaults, labels, and shortcuts into unified StreamZone definitions. Fix Sessions default query to ':session{}' all-time; add 'Recent (1d)' shortcut. Remove duplicate Home icon and in-viewport CTAs."
+            },
+            {
+              "meta": "PR 3 • Taxonomy",
+              "title": "Home/Pages Roll-Up & Scoped Libraries",
+              "body": "Roll up Home and Pages: Home button opens navigation; Home pinned at top; 'All Pages' (/pages) list view with pinned Canvas/Guide documents below (with unpin support). Scope Notebooks to subscribed libraries by default. Scope Notes to notebook members."
+            },
+            {
+              "meta": "PR 4 • Performance",
+              "title": "Code-Splitting & Service Worker Caching",
+              "body": "Lazy-load CodeMirror and heavy editor routes via React.lazy(). Implement Cache-First Service Worker for hashed static assets on GitHub Pages to bypass 10-minute edge revalidation."
+            }
+          ]
+        },
+        {
+          "type": "list",
+          "id": "pr1-checklist",
+          "title": "PR 1 Scope & Verification Checklist",
+          "body": "Specific acceptance criteria for the Navigation Shell deep module.",
+          "ordered": true,
+          "items": [
+            "Encapsulate drawer state and dismissal inside Navigation Shell via navigateAction(item, { kind }).",
+            "Delete NavigationDrawerContext pass-through module and migrate existing callers to shell seam.",
+            "Delete MutationObserver DOM child-count inspection in SidebarLayout; derive presence internally.",
+            "Verify L1 rail clicks, L2 guide links, and L3 TOC anchor clicks close the mobile drawer immediately.",
+            "Verify FacetProperties checkboxes and StreamControlsNav options keep the drawer open for multi-selection.",
+            "Add Playwright mobile acceptance test verifying zero obscured routes and seamless drawer dismissal."
+          ]
+        }
+      ]
+    }
+  ]
+}
