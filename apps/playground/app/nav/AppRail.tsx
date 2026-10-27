@@ -38,10 +38,14 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
   }
 
   // buy-me-a-coffee rides the tree for the mobile drawer but renders as a
-  // dedicated bottom icon here, not in the primary loop.
+  // dedicated bottom icon here, not in the primary loop. Home avatar owns route '/'.
   const items = (tree ?? []).filter(
     (item): item is NavItem =>
-      item != null && item.icon != null && item.id !== 'settings' && item.id !== 'buy-me-a-coffee',
+      item != null &&
+      item.icon != null &&
+      item.id !== 'settings' &&
+      item.id !== 'buy-me-a-coffee' &&
+      item.id !== 'home',
   )
   const isSettingsActive = location.pathname.startsWith('/settings')
   const isHomeActive = location.pathname === '/' || location.pathname === ''
@@ -53,8 +57,10 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
     <>
       {/* Avatar → home */}
       <button
-        type="button"
-        onClick={() => navigate('/')}
+        onClick={() => {
+          closeDrawer()
+          navigate('/')
+        }}
         title="Home"
         aria-label="Wod Wiki home"
         aria-current={isHomeActive ? 'page' : undefined}
@@ -75,6 +81,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
               key={item.id}
               type="button"
               onClick={() => {
+                closeDrawer()
                 dispatch({ type: 'SET_ACTIVE_L1', id: item.id })
                 executeNavAction(item.action, deps)
               }}

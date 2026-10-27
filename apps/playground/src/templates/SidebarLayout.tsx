@@ -186,31 +186,16 @@ export function SidebarLayout({
   let [showSidebar, setShowSidebar] = useState(false)
   let [showRightDrawer, setShowRightDrawer] = useState(false)
   // The right-drawer trigger mirrors the hamburger: it only appears when the
-  // L3 rail actually has content (stream properties, page index, controls,
-  // download). The rail stays mounted at every width (hidden below 2xl via
-  // CSS), so its rendered output is the source of truth for the trigger.
-  const railContentRef = useRef<HTMLDivElement>(null)
-  const [railHasContent, setRailHasContent] = useState(false)
-  useEffect(() => {
-    const el = railContentRef.current
-    if (!el) return
-    // Event-driven, not commit-coupled: a layout effect keyed on the
-    // secondary/pageAction props re-runs whenever a parent re-creates them,
-    // and any state feedback loop there crashes the tree (maximum update
-    // depth). Only real DOM content changes update the flag.
-    const update = () => setRailHasContent((prev) => {
-      const next = el.childElementCount > 0
-      return prev === next ? prev : next
-    })
-    const observer = new MutationObserver(update)
-    observer.observe(el, { childList: true, subtree: true })
-    update()
-    return () => observer.disconnect()
-  }, [])
-
+  // L3 rail actually has content (stream controls, page index, secondary spec,
+  // page action). Derived directly from state — no DOM child MutationObserver.
+  const { streamControls, l3Items } = useNav()
+  const railHasContent = Boolean(
+    (secondary && secondary.length > 0) ||
+    (l3Items && l3Items.length > 0) ||
+    streamControls ||
+    pageAction
+  )
   // Mobile hides the facet columns behind the right drawer, so the applied
-  // where-filters get no visible state — mirror them as a dot on the trigger.
-  const { streamControls } = useNav()
   const hasAppliedFilters = useMemo(() => {
     const parsed = parseQuery(streamControls?.query ?? '')
     return !parsed.error && isFindQuery(parsed) && parsed.filters.length > 0
@@ -306,9 +291,7 @@ export function SidebarLayout({
           {/* display:contents pass-through — the wrapper exists only to
               measure whether SecondaryNav rendered anything (drives the
               mobile right-drawer trigger). */}
-          <div ref={railContentRef} className="contents">
-            <SecondaryNav spec={secondary} pageAction={pageAction} />
-          </div>
+          <SecondaryNav spec={secondary} pageAction={pageAction} />
         </aside>
         <MobileRightDrawer open={showRightDrawer} close={() => setShowRightDrawer(false)}>
           <SecondaryNav spec={secondary} pageAction={pageAction} />

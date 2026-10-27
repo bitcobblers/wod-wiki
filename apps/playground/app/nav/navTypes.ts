@@ -119,6 +119,8 @@ export interface NavItem extends Omit<INavActivation, 'icon'> {
   disabled?: boolean
   variant?: 'default' | 'notable'
   meta?: Record<string, unknown>
+  pinned?: boolean
+  onTogglePin?: () => void
 }
 
 // ─── L3 page-index item ───────────────────────────────────────────────────────

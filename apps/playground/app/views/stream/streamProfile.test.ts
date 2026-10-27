@@ -184,8 +184,8 @@ describe('streamProfile', () => {
 })
 
 describe('NOTEBOOKS_STREAM_PROFILE default query (ticket 08)', () => {
-  it('defaults to notes from every notebook grouped by feed', () => {
-    expect(NOTEBOOKS_STREAM_PROFILE.defaultWql).toBe(':notebook{} by {feed}')
+  it('defaults to subscribed notebooks grouped by feed', () => {
+    expect(NOTEBOOKS_STREAM_PROFILE.defaultWql).toBe(':notebook{subscribed:true} by {feed}')
     expect(NOTEBOOKS_STREAM_PROFILE.target).toBe('note')
     const parsed = parseQuery(NOTEBOOKS_STREAM_PROFILE.defaultWql)
     expect(parsed.error).toBeUndefined()

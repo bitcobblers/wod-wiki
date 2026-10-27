@@ -147,7 +147,7 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByText('All notebooks')).toBeDefined()
+    expect(screen.getByText('Subscribed notebooks')).toBeDefined()
     expect(screen.queryByTestId('journal-create-entry')).toBeNull()
     expect(screen.queryByTestId('playgrounds-create-playground')).toBeNull()
     // The view rows still offer the switch.
@@ -421,9 +421,13 @@ describe('appNavTree - L2 notable buttons and Catalogs', () => {
     ]
     const tree = buildAppNavTree(() => {}, dummyRoutes)
     const home = tree.find(i => i.id === 'home')!
-    expect(home.children?.[0]?.id).toBe('home-new-journal')
-    expect(home.children?.[0]?.variant).toBe('notable')
-    expect(home.children?.[0]?.label).toBe('New journal entry')
+    expect(home.children?.[0]?.id).toBe('home-landing')
+    expect(home.children?.[0]?.label).toBe('Home')
+    expect(home.children?.[1]?.id).toBe('home-all-pages')
+    expect(home.children?.[1]?.label).toBe('All pages')
+    expect(home.children?.[2]?.id).toBe('home-new-journal')
+    expect(home.children?.[2]?.variant).toBe('notable')
+    expect(home.children?.[2]?.label).toBe('New journal entry')
     // Guide items are flattened directly under Home (no guide-group accordion)
     expect(home.children?.find(i => i.id === 'guide-group')).toBeUndefined()
     expect(home.children?.find(i => i.id === 'guide-/page/guide-start')).toBeDefined()

@@ -12,13 +12,15 @@
 
 import { useNavigate, useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, PinOff } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 import { Sidebar, SidebarBody, SidebarHeader, SidebarItem, SidebarLabel, SidebarSection } from '@/components/organisms/layout/Sidebar'
 import { SidebarAccordion } from '@/components/organisms/layout/SidebarAccordion'
 
 import { useNav } from './NavContext'
 import { executeNavAction } from './navTypes'
+import { useCloseNavigationDrawer } from './NavigationDrawerContext'
 import type { NavItem, NavActionDeps, NavState } from './navTypes'
 import { MenuList, useResolvedMenu } from './MenuList'
 import type { MenuSpec } from './menuModel'
@@ -42,8 +44,10 @@ function useNavDeps(): NavActionDeps {
 function useNavAction() {
   const deps = useNavDeps()
   const { openCreateJournal } = useNav()
+  const closeDrawer = useCloseNavigationDrawer()
 
   return (item: NavItem) => {
+    closeDrawer()
     if (item.id === 'home-new-journal') {
       openCreateJournal({ mode: 'blank' })
       return
@@ -120,17 +124,32 @@ function L2ChildrenList({ items }: { items: NavItem[] }) {
 
         // Flat item
         return (
-          <SidebarItem
-            key={child.id}
-            onClick={child.disabled ? undefined : () => handleAction(child)}
-            current={active}
-            disabled={child.disabled}
-            aria-label={child.disabled ? `${child.label} (coming soon)` : undefined}
-            className={child.disabled ? 'opacity-60' : undefined}
-          >
-            {child.icon && <child.icon data-slot="icon" />}
-            <SidebarLabel>{child.disabled ? '+' : child.label}</SidebarLabel>
-          </SidebarItem>
+          <div key={child.id} className="group relative flex items-center">
+            <SidebarItem
+              onClick={child.disabled ? undefined : () => handleAction(child)}
+              current={active}
+              disabled={child.disabled}
+              aria-label={child.disabled ? `${child.label} (coming soon)` : undefined}
+              className={cn('flex-1', child.disabled && 'opacity-60')}
+            >
+              {child.icon && <child.icon data-slot="icon" />}
+              <SidebarLabel>{child.disabled ? '+' : child.label}</SidebarLabel>
+            </SidebarItem>
+            {child.onTogglePin && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  child.onTogglePin?.()
+                }}
+                title={child.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'}
+                aria-label={child.pinned ? `Unpin ${child.label}` : `Pin ${child.label}`}
+                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-opacity"
+              >
+                <PinOff className="size-3.5" />
+              </button>
+            )}
+          </div>
         )
       })}
     </SidebarSection>

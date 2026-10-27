@@ -42,6 +42,7 @@ import { DashboardsNavPanel } from './panels/DashboardsNavPanel'
 import { NotebookZonePanel } from './panels/NotebookZonePanel'
 import { createConditionsNavPanel, type ConditionsPanelSpec } from './panels/ConditionsNavPanel'
 import type { CanvasRoute } from '../canvas/canvasRoutes'
+import { isGuidePinned, setGuidePinned } from '../lib/pinnedGuidesStorage'
 
 import { BUY_ME_A_COFFEE_URL, BuyMeACoffeeIcon } from '../components/atoms/BuyMeACoffee'
 
@@ -68,6 +69,7 @@ export function guideChildrenFrom(routes: CanvasRoute[]): NavItem[] {
   return routes
     .filter(r => !r.route.startsWith('/notebook'))
     .filter(r => r.page.frontmatter?.type === 'guide')
+    .filter(r => isGuidePinned(r.route))
     .sort((a, b) => (guideOrder[a.route] ?? 99) - (guideOrder[b.route] ?? 99))
     .map(r => ({
       id: `guide-${r.route}`,
@@ -76,11 +78,32 @@ export function guideChildrenFrom(routes: CanvasRoute[]): NavItem[] {
       icon: CodeBracketIcon,
       action: { type: 'route' as const, to: r.route },
       isActive: (loc: Location) => loc.pathname === r.route,
+      pinned: true,
+      onTogglePin: () => {
+        setGuidePinned(r.route, false)
+      },
     }))
 }
 
 function buildHomeChildren(routes: CanvasRoute[]): NavItem[] {
   return [
+    {
+      id: 'home-landing',
+      label: 'Home',
+      level: 2,
+      icon: HomeIcon,
+      action: { type: 'route', to: ROUTE_PATTERNS.home },
+      isActive: (loc: Location) =>
+        loc.pathname === '/' || loc.pathname === '' || loc.pathname === ROUTE_PATTERNS.home,
+    },
+    {
+      id: 'home-all-pages',
+      label: 'All pages',
+      level: 2,
+      icon: File,
+      action: { type: 'route', to: ROUTE_PATTERNS.pages },
+      isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.pages,
+    },
     {
       id: 'home-new-journal',
       label: 'New journal entry',
@@ -211,7 +234,8 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       isActive: (loc) =>
         loc.pathname === '/' ||
         loc.pathname === '' ||
-        loc.pathname.startsWith('/page/guide-') ||
+        loc.pathname.startsWith('/page/') ||
+        loc.pathname.startsWith('/pages') ||
         loc.pathname.startsWith('/canvas') ||
         loc.pathname === ROUTE_PATTERNS.home ||
         loc.pathname === ROUTE_PATTERNS.aiFirst ||

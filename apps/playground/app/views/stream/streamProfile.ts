@@ -123,9 +123,8 @@ export const JOURNAL_STREAM_PROFILE: StreamProfile = {
 export const NOTEBOOKS_STREAM_PROFILE: StreamProfile = {
   route: '/notebooks',
   title: 'Notebooks',
-  // The notebook plane (ticket 08) — notes from every notebook, grouped by
-  // tag; the source picker narrows to corpus-delivered notebooks.
-  defaultWql: ':notebook{} by {feed}',
+  // The notebook plane: displays subscribed notebooks by default
+  defaultWql: ':notebook{subscribed:true} by {feed}',
   level: 'session',
   target: 'note',
   scopeOptions: ['notebooks'],
@@ -138,7 +137,8 @@ export const NOTEBOOKS_STREAM_PROFILE: StreamProfile = {
 export const NOTES_STREAM_PROFILE: StreamProfile = {
   route: '/notes',
   title: 'Notes',
-  defaultWql: ':note{}',
+  // Notes belonging to notebooks
+  defaultWql: ':note{notebook:*}',
   level: 'note',
   target: 'note',
   scopeOptions: ['journal', 'notebooks'],
@@ -209,7 +209,8 @@ export const TAGS_STREAM_PROFILE: StreamProfile = {
 export const SESSIONS_STREAM_PROFILE: StreamProfile = {
   route: '/sessions',
   title: 'Sessions',
-  defaultWql: ':session{} last 1d',
+  // All-time default prevents zero-result confusion on empty date windows
+  defaultWql: ':session{}',
   level: 'result',
   target: 'session',
   scopeOptions: [],

@@ -99,7 +99,7 @@ export function defaultLandingShortcut(label: string, icon: string): WqlShortcut
 
 const LANDING_LABELS: Record<string, string> = {
   '/journal': 'All entries',
-  '/notebooks': 'All notebooks',
+  '/notebooks': 'Subscribed notebooks',
   '/notes': 'All notes',
   '/feeds': 'All feeds',
   '/pages': 'All pages',
@@ -126,9 +126,16 @@ export function builtinShortcuts(routeId: string): WqlShortcut[] {
   const id = normalizeRouteId(routeId)
   if (id === '/notebooks') {
     return [
-      defaultLandingShortcut('All notebooks', 'library'),
+      defaultLandingShortcut('Subscribed notebooks', 'library'),
       { id: 'all-configured', label: 'All configured', icon: 'bookmark', wql: ':notebook{subscribed:true,false}' },
       { id: 'available', label: 'Available to subscribe', icon: 'plus', wql: ':notebook{subscribed:false}' },
+    ]
+  }
+  if (id === '/sessions') {
+    return [
+      defaultLandingShortcut('All Sessions', 'clipboard-list'),
+      { id: 'recent-1d', label: 'Recent (last 1d)', icon: 'clock', wql: ':session{} last 1d' },
+      { id: 'recent-7d', label: 'Last 7 days', icon: 'calendar', wql: ':session{} last 7d' },
     ]
   }
   return [defaultLandingShortcut(LANDING_LABELS[id] ?? 'Landing link', LANDING_ICONS[id] ?? 'bookmark')]

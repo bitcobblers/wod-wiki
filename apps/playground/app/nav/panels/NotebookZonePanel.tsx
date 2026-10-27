@@ -70,7 +70,7 @@ export const notebookViewChildren: NavItem[] = [
 ]
 
 const NotebooksConditionsPanel = createConditionsNavPanel({
-  landingLabel: 'All notebooks',
+  landingLabel: 'Subscribed notebooks',
   icon: Library,
   route: ROUTE_PATTERNS.notebooks,
   profile: NOTEBOOKS_STREAM_PROFILE,

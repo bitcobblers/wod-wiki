@@ -15,6 +15,7 @@ import { PlayIcon, StopIcon, ArrowTopRightOnSquareIcon, PencilSquareIcon } from 
 
 import { searchEntries } from '../lib/entrySearch'
 import { useNav } from './NavContext'
+import { useCloseNavigationDrawer } from './NavigationDrawerContext'
 import type { MenuEntry, MenuLink, MenuSection, MenuSpec, MenuWql } from './menuModel'
 
 // ── WQL resolution ───────────────────────────────────────────────────────────
@@ -174,14 +175,15 @@ export function MenuList({
 }) {
   const navigate = useNavigate()
   const { scrollToSection } = useNav()
+  const closeDrawer = useCloseNavigationDrawer()
 
   const activate = (entry: MenuLink) => {
+    closeDrawer()
     if (onSection) return onSection(entry)
     if (entry.onRun) return entry.onRun()
     if (entry.to) return navigate(entry.to)
     if (entry.sectionId) return scrollToSection(entry.sectionId)
   }
-
   return (
     <div className="flex flex-col gap-0.5">
       {entries.map(entry => {
