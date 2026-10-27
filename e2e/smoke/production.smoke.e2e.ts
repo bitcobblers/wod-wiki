@@ -85,10 +85,8 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
     await page.screenshot({ path: 'e2e/screenshots/smoke-feeds.png', fullPage: false });
   });
 
-  test('/chapters/basics redirects and renders without critical page errors', async ({ page }) => {
-    // /chapters/basics → /guide/start (client-side redirect). Probe the
-    // source route; the redirect resolves and the guide renders.
-    await probeRoute(page, '/chapters/basics');
+  test('/page/guide-start loads without critical page errors', async ({ page }) => {
+    await probeRoute(page, '/page/guide-start');
     await page.screenshot({ path: 'e2e/screenshots/smoke-syntax-basics.png', fullPage: false });
   });
 
@@ -117,7 +115,7 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
     await expect(play).toBeVisible({ timeout: 15_000 });
     await play.evaluate((el) => (el as HTMLElement).click());
 
-    await expect(page).toHaveURL(/\/journal\/\d{4}-\d{2}-\d{2}/);
+    await expect(page).toHaveURL(/\/day\/\d{4}-\d{2}-\d{2}/);
     await expect(page.getByRole('button', { name: 'Stop Session', exact: true }).first()).toBeVisible();
     await page.screenshot({ path: 'e2e/screenshots/smoke-fran-timer.png', fullPage: false });
   });
@@ -128,8 +126,8 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
   // what makes a cold open render. Assert the render (not the HTTP status —
   // that's a Pages limitation, documented in #909).
 
-  test('/analytics/explorer deep link cold-loads and renders (#909)', async ({ page }) => {
-    const deepLink = '/analytics/explorer?q=' + encodeURIComponent('sum:totalVolume{}');
+  test('/dashboards deep link cold-loads and renders (#909)', async ({ page }) => {
+    const deepLink = '/dashboards?q=' + encodeURIComponent('sum:totalVolume{}');
     await page.goto(deepLink, { waitUntil: 'domcontentloaded' });
     await waitForFeedReady(page);
 
