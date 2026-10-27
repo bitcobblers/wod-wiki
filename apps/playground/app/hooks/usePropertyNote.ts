@@ -168,6 +168,7 @@ export function usePropertyNote(
         expectedSourceRevision: sourceRevision,
         noteId,
       });
+      await refreshTagIndex();
       setSourceRevision(res.sourceRevision);
       return res;
     },

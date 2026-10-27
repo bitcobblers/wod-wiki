@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { waitForFeedReady } from '../helpers/feedReadiness';
-import { seedNote, WOD_DB } from '../helpers/wodwikiDb';
+import { getNoteContentByRouteId, seedNote, WOD_DB } from '../helpers/wodwikiDb';
 import { TEST_IDS } from '../contracts/TestIdContract';
+import { currentDocument, replaceDocument } from '../utils/noteEditor';
 
 function documentWith(frontmatter: readonly string[], statement: string): string {
   return [
@@ -102,8 +103,12 @@ test.describe('Property Note metric and summary acceptance', () => {
     ], '10 Kettlebell Swings'));
     await completeWorkout(page);
 
-    await expect(resultRow(page, 'totalWork')).toContainText('480');
+    await expect(resultRow(page, 'totalWork')).toContainText('480 kg');
     expect(errors).toEqual([]);
+
+    await page.goto(`/notes?q=${encodeURIComponent('sum:totalWork{} by {session}')}`, { waitUntil: 'domcontentloaded' });
+    await waitForFeedReady(page);
+    await expect(page.getByText(/480 kg/).first()).toBeVisible({ timeout: 15_000 });
   });
 
   test('inline tonnage supplies resistance, work, and the default summary', async ({ page }) => {
@@ -115,6 +120,30 @@ test.describe('Property Note metric and summary acceptance', () => {
     await expect(resultRow(page, 'Kettlebell Swings')).toContainText('24 kg');
     await expect(resultRow(page, 'Kettlebell Swings')).toContainText('240 kg');
     await expect(resultRow(page, 'totalWork')).toContainText('240');
+    expect(errors).toEqual([]);
+  });
+
+  test('Tag Category metrics reach child-tagged statements', async ({ page }) => {
+    await page.goto('/t/domain', { waitUntil: 'domcontentloaded' });
+    await waitForFeedReady(page);
+    await page.getByRole('button', { name: 'Edit YAML' }).click();
+    const source = await currentDocument(page);
+    const edited = source.replace('\n---\n', '\nmetrics.resistance: 12 kg\n---\n');
+    await replaceDocument(page, edited);
+    await page.getByRole('button', { name: 'Save Category Note' }).click();
+    await expect.poll(() => getNoteContentByRouteId(page, 't/domain'), { timeout: 15_000 })
+      .toContain('metrics.resistance: 12 kg');
+
+    const errors = await openAndRun(page, 'metric-category-contribution', documentWith([
+      'title: Metric Category Contribution',
+      'tags: [crossfit]',
+      'metrics.work: reps * resistance',
+    ], '10 Kettlebell Swings'));
+    await completeWorkout(page);
+
+    const row = resultRow(page, 'Kettlebell Swings');
+    await expect(row).toContainText('12 kg');
+    await expect(row).toContainText('120 kg');
     expect(errors).toEqual([]);
   });
 

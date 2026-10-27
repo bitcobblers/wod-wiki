@@ -599,4 +599,28 @@ describe('note summary lifecycle — derive, save, query (dogfood finding #2)', 
     const points = (result.series ?? []).flatMap((s) => s.points);
     expect(points.map((p) => p.value)).toEqual([240]);
   });
+
+  it('a note-overridden totalWork preserves kilograms on screen and through WQL', async () => {
+    const derived = deriveWorkoutFromLogs([swingSegmentLog()], {
+      block: BLOCK,
+      propertySources: [{ ...NOTE_WORK_RULES, summaries: { totalWork: 'sum(work) * 2' } }],
+      activeTags: ['tonnage'],
+    });
+
+    const totalWorkRow = derived.find((o) =>
+      o.outputType === 'analytics'
+      && o.metrics.some((m) => m.type === MetricType.Label && m.value === 'totalWork'));
+    const valueMetric = totalWorkRow!.metrics.find((m) => m.type !== MetricType.Label && typeof m.value === 'number');
+    expect(valueMetric?.value).toBe(480);
+    expect(valueMetric?.unit).toBe('kg');
+
+    const rows = [
+      ...toEventRows(derived.filter((o) => o.outputType === 'segment'), SWING_IDENTITY),
+      ...toSummaryEventRows(derived, SWING_IDENTITY),
+    ];
+    const result = await new QueryService({ eventStore: summaryEventStore(rows) }).runQuery('sum:totalWork{} by {session}');
+    const points = (result.series ?? []).flatMap((s) => s.points);
+    expect(points.map((p) => p.value)).toEqual([480]);
+    expect(result.series?.[0]?.unit).toBe('kg');
+  });
 });

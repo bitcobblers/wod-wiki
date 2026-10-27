@@ -3,14 +3,15 @@ import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { createElement } from 'react';
 import { parseQuery } from '@bitcobblers/wod-wiki-wql';
 import type { Tag, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
+import { getTagIndex } from '@/services/tags/tagCatalogue';
+import { setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage';
+import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
 import {
   buildTagCategoryNoteDocument,
   buildTagNoteDocument,
   usePropertyNote,
   type UsePropertyNoteResult,
 } from './usePropertyNote';
-import { setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage';
-import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
 
 afterEach(() => {
   cleanup();
@@ -96,6 +97,7 @@ describe('usePropertyNote — category note save/reload', () => {
     // 12kg` to the category note and hits Save Category Note; the metric
     // vanished while the (re-synthesized) prose persisted.
     await storageService.putTagType({ id: 'type-domain', name: 'domain', label: 'Domain', createdAt: 0 });
+    await storageService.putTag({ id: 'tag-cf', label: 'crossfit', type: 'domain', createdAt: 0 });
 
     let latest: UsePropertyNoteResult | null = null;
     const expose = (result: UsePropertyNoteResult) => { latest = result; };
@@ -119,6 +121,8 @@ describe('usePropertyNote — category note save/reload', () => {
     // The save also refreshes the executable category projection.
     const tagType = await storageService.getTagType('domain');
     expect(tagType!.contributions).toContainEqual({ kind: 'metric', type: 'resistance', value: 12, unit: 'kg' });
+    expect(getTagIndex().resolve('domain')?.contributions).toContainEqual({ kind: 'metric', type: 'resistance', value: 12, unit: 'kg' });
+    expect(getTagIndex().resolve('crossfit')?.contributions).toContainEqual({ kind: 'tag', slug: 'domain' });
 
     // Reload the way navigating away and back does: a fresh hook mount must
     // read the committed source, not re-synthesize the document.

@@ -107,7 +107,13 @@ export class CalcUnitError extends Error {
  * convention behind `kg` (volume) and `kg/s` (power) rather than `kg·reps`.
  */
 export function composeMulUnit(a: string | undefined, aDim: DimVector, b: string | undefined, bDim: DimVector, resultDim: DimVector): string | undefined {
-  if (dimEquals(resultDim, DIM_ZERO)) return undefined;
+  // Scalar multiplication must not erase an authored unit when the
+  // resulting vector is dimensionless (e.g. sum(work) * 2).
+  if (dimEquals(resultDim, DIM_ZERO)) {
+    if (a && !b) return a;
+    if (b && !a) return b;
+    return dimEquals(aDim, bDim) ? a ?? b : undefined;
+  }
   const parts: string[] = [];
   for (const [u, d] of [[a, aDim], [b, bDim]] as const) {
     if (!u || dimEquals(d, DIM_ZERO)) continue;

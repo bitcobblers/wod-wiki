@@ -69,3 +69,42 @@ describe('tagCatalogue — built-in fallback', () => {
         }
     });
 });
+
+
+describe('tagCatalogue — category-to-statement edges', () => {
+    it('synthesizes child edges using TagTypeRecord categories, not only stored tag slugs', () => {
+        const crossfit = tag('crossfit', 'domain');
+        const domain: TagTypeRecord = {
+            id: 'type-domain',
+            name: 'domain',
+            label: 'Domain',
+            contributions: [{ kind: 'metric', type: 'resistance', value: 12, unit: 'kg' }],
+            createdAt: 0,
+        };
+
+        const definitions = buildTagDefinitions([crossfit], [domain]);
+        const child = definitions.find((definition) => definition.slug === 'crossfit');
+        expect(child?.contributions).toContainEqual({ kind: 'tag', slug: 'domain' });
+    });
+
+    it('resolves saved category metrics through the real storage index', async () => {
+        setStorageForTesting(new InMemoryStorage());
+        await storageService.putTagType({
+            id: 'type-domain',
+            name: 'domain',
+            label: 'Domain',
+            contributions: [{ kind: 'metric', type: 'resistance', value: 12, unit: 'kg' }],
+            createdAt: 0,
+        });
+        await storageService.putTag(tag('crossfit', 'domain'));
+        try {
+            const index = await loadTagIndex();
+            const child = index.resolve('crossfit');
+            expect(child?.contributions).toContainEqual({ kind: 'tag', slug: 'domain' });
+            expect(index.resolve('domain')?.contributions).toContainEqual({ kind: 'metric', type: 'resistance', value: 12, unit: 'kg' });
+        } finally {
+            resetStorageForTesting();
+            setTagIndex([]);
+        }
+    });
+});

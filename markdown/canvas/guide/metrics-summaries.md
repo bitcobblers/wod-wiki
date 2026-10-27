@@ -60,7 +60,7 @@ Tag Categories contribute defaults to their child Tags. Tags, Efforts, Equipment
 
 ## Dependencies and diagnostics {#dependency-diagnostics}
 
-Equations resolve in waves as their inputs arrive. A chained metric such as `metrics.power: work / convert(elapsed, s)` uses the statement's execution time, including time supplied while the block runs. If a required input is still missing or the expression cannot produce a number, the statement keeps a Skipped-Dependency Diagnostic naming the failed metric and missing input; the workout can still be saved. Structural session and parent rows do not emit these diagnostics.
+Equations resolve in waves as their inputs arrive. Scalar arithmetic preserves the input unit, so `sum(work) * 2` remains a kilogram-denominated Summary Metric when `work` is in kilograms. A chained metric such as `metrics.power: work / convert(elapsed, s)` uses the statement's execution time, including time supplied while the block runs. If a required input is still missing or the expression cannot produce a number, the statement keeps a Skipped-Dependency Diagnostic naming the failed metric and missing input; the workout can still be saved. Structural session and parent rows do not emit these diagnostics.
 
 ## Querying your summaries {#querying-summaries}
 

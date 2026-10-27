@@ -38,9 +38,12 @@ function inferredContributions(slug: string): TagContribution[] {
  * `category` is a Tag Category definition: its contributions are the
  * category-wide defaults that stack under every more specific layer.
  */
-export function buildTagDefinitions(tags: readonly Tag[]): TagDefinition[] {
+export function buildTagDefinitions(tags: readonly Tag[], categories: readonly TagTypeRecord[] = []): TagDefinition[] {
     const definitions: TagDefinition[] = [];
-    const slugs = new Set<string>(builtinExampleDefinitions().map((d) => d.slug));
+    const slugs = new Set<string>([
+        ...builtinExampleDefinitions().map((d) => d.slug),
+        ...categories.map((category) => category.name.trim()),
+    ]);
     for (const tag of tags) {
         const slug = tag.label.trim();
         if (slug.length > 0) slugs.add(slug);
@@ -112,11 +115,7 @@ export function categoryDefinitionsFrom(records: readonly TagTypeRecord[]): TagD
 
 /** Categories plus tags in one read — the layering order indexFrom expects. */
 async function loadIndexDefinitions(): Promise<TagDefinition[]> {
-    const [tags, categories] = await Promise.all([
-        tagSource.loadTags(),
-        storageService.getAllTagTypes().catch(() => [] as TagTypeRecord[]),
-    ]);
-    return [...categoryDefinitionsFrom(categories), ...tags];
+    return tagSource.loadTags();
 }
 
 /**
@@ -125,8 +124,11 @@ async function loadIndexDefinitions(): Promise<TagDefinition[]> {
  */
 class StorageTagSource implements ITagSource {
     async loadTags(): Promise<readonly TagDefinition[]> {
-        const tags = await storageService.getAllTags();
-        return buildTagDefinitions(tags);
+        const [tags, categories] = await Promise.all([
+            storageService.getAllTags(),
+            storageService.getAllTagTypes().catch(() => [] as TagTypeRecord[]),
+        ]);
+        return [...categoryDefinitionsFrom(categories), ...buildTagDefinitions(tags, categories)];
     }
 }
 
