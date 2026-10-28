@@ -24,90 +24,83 @@ describe('appNavTree - Flattened listing zones', () => {
     cleanup()
   })
 
-  it('derives L1 zones from the canonical list routes — no Library, Journal, or Playgrounds rows', () => {
+  it('derives L1 zones: Notebooks, Journal, Pages, Dashboards, Settings — notes, sessions, efforts, equipment, tags, feeds removed from L1', () => {
     const tree = buildAppNavTree(() => {})
     const l1 = tree.filter(item => item.level === 1).map(item => item.id)
 
     expect(l1).toEqual([
       'home',
       'notebooks',
-      'notes',
-      'feeds',
+      'journal',
       'pages',
       'dashboards',
-      'efforts',
-      'equipment',
-      'sessions',
-      'tags',
       'settings',
       'buy-me-a-coffee',
     ])
-    expect(tree.find(item => item.id === 'library')).toBeUndefined()
-    // Journal and Playgrounds are views within the notebooks zone, not L1 zones.
-    expect(tree.find(item => item.id === 'journal')).toBeUndefined()
-    expect(tree.find(item => item.id === 'playgrounds')).toBeUndefined()
+    // Rolled up into Pages L2 or Settings; removed from L1 rail:
+    expect(tree.find(item => item.id === 'notes')).toBeUndefined()
+    expect(tree.find(item => item.id === 'feeds')).toBeUndefined()
+    expect(tree.find(item => item.id === 'efforts')).toBeUndefined()
+    expect(tree.find(item => item.id === 'equipment')).toBeUndefined()
+    expect(tree.find(item => item.id === 'sessions')).toBeUndefined()
+    expect(tree.find(item => item.id === 'tags')).toBeUndefined()
   })
 
-  it('derives every library L1 label from its route name', () => {
+  it('derives L1 labels for the core domains', () => {
     const tree = buildAppNavTree(() => {})
     for (const [id, route, label] of [
       ['notebooks', ROUTE_PATTERNS.notebooks, 'Notebooks'],
-      ['notes', ROUTE_PATTERNS.notes, 'Notes'],
-      ['feeds', ROUTE_PATTERNS.feeds, 'Feeds'],
+      ['journal', ROUTE_PATTERNS.journal, 'Journal'],
       ['pages', ROUTE_PATTERNS.pages, 'Pages'],
       ['dashboards', ROUTE_PATTERNS.dashboards, 'Dashboards'],
-      ['efforts', ROUTE_PATTERNS.efforts, 'Efforts'],
-      ['equipment', ROUTE_PATTERNS.equipment, 'Equipment'],
-      ['sessions', ROUTE_PATTERNS.sessions, 'Sessions'],
-      ['tags', ROUTE_PATTERNS.tags, 'Tags'],
     ] as const) {
       const zone = tree.find(item => item.id === id)!
+      expect(zone).toBeDefined()
       expect(zone.label).toBe(label)
       expect(zone.action).toEqual({ type: 'route', to: route })
     }
   })
-
-  it('lights Feeds for feed routes only', () => {
-    const tree = buildAppNavTree(() => {})
-    const feeds = tree.find(item => item.id === 'feeds')!
-
-    // The listing is /feeds; feed detail and feed item routes light the same zone.
-    expect(feeds.isActive!(mockLocation('/feeds'))).toBe(true)
-    expect(feeds.isActive!(mockLocation('/feed/routines'))).toBe(true)
-    expect(feeds.isActive!(mockLocation('/notebook/dan-john'))).toBe(false)
-    expect(feeds.isActive!(mockLocation('/journal'))).toBe(false)
-    expect(feeds.isActive!(mockLocation('/playgrounds'))).toBe(false)
-  })
-
-  it('lights Notebooks for the whole notebook family — landing, notebooks, journal and playgrounds views', () => {
+  it('lights Notebooks for notebooks and playgrounds routes', () => {
     const tree = buildAppNavTree(() => {})
     const notebooks = tree.find(item => item.id === 'notebooks')!
 
     expect(notebooks.isActive!(mockLocation('/notebooks'))).toBe(true)
     expect(notebooks.isActive!(mockLocation('/notebook/dan-john'))).toBe(true)
-    // The journal and playgrounds views belong to the notebooks zone.
-    expect(notebooks.isActive!(mockLocation('/journal'))).toBe(true)
-    expect(notebooks.isActive!(mockLocation('/day/2026-10-26'))).toBe(true)
     expect(notebooks.isActive!(mockLocation('/playgrounds'))).toBe(true)
     expect(notebooks.isActive!(mockLocation('/playground/example'))).toBe(true)
-    // Neighbouring zones stay dark.
+    // Journal has its own L1 zone now
+    expect(notebooks.isActive!(mockLocation('/journal'))).toBe(false)
     expect(notebooks.isActive!(mockLocation('/feeds'))).toBe(false)
     expect(notebooks.isActive!(mockLocation('/notes'))).toBe(false)
   })
 
-  it('renders the Feeds conditions panel rows in NavSidebar on /feeds', () => {
-    render(
-      <MemoryRouter initialEntries={['/feeds']}>
-        <NavProvider tree={appNavTree}>
-          <NavSidebar />
-        </NavProvider>
-      </MemoryRouter>,
-    )
+  it('lights Journal for journal and day routes', () => {
+    const tree = buildAppNavTree(() => {})
+    const journal = tree.find(item => item.id === 'journal')!
 
-    expect(screen.getAllByText('All feeds').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Notebook crosswalk')).toBeNull()
+    expect(journal.isActive!(mockLocation('/journal'))).toBe(true)
+    expect(journal.isActive!(mockLocation('/day/2026-10-26'))).toBe(true)
+    expect(journal.isActive!(mockLocation('/notebooks'))).toBe(false)
+    expect(journal.isActive!(mockLocation('/pages'))).toBe(false)
+  })
+
+  it('lights Pages for pages and all rolled-up entity routes (notes, sessions, efforts, equipment, tags)', () => {
+    const tree = buildAppNavTree(() => {})
+    const pages = tree.find(item => item.id === 'pages')!
+
+    expect(pages.isActive!(mockLocation('/pages'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/page/guide-start'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/notes'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/note/123'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/sessions'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/efforts'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/equipment'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/tags'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/journal'))).toBe(false)
+    expect(pages.isActive!(mockLocation('/notebooks'))).toBe(false)
   })
 })
+
 
 describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
   afterEach(() => {
@@ -122,6 +115,7 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
         </NavProvider>
       </MemoryRouter>,
     )
+    expect(screen.getAllByText('Journal').length).toBeGreaterThan(0)
 
     // Journal view chrome survives the zone fold: its create action and landing.
     expect(screen.getByTestId('journal-create-entry')).toBeDefined()
@@ -129,7 +123,7 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
     expect(screen.getByText('All entries')).toBeDefined()
 
     // Both view rows render; the Journal row is the active one.
-    expect(screen.getByText('Journal')).toBeDefined()
+    expect(screen.getAllByText('Journal').length).toBeGreaterThan(0)
     expect(screen.getByText('Playgrounds')).toBeDefined()
 
     // The All row links the inclusive :note{!source:playground} query view on
@@ -192,89 +186,66 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
   })
 })
 
-describe('appNavTree - Efforts navigation', () => {
+describe('appNavTree - Pages L2 roll-up navigation', () => {
   afterEach(() => {
     cleanup()
   })
 
-  it('defines L1 efforts item routed to /efforts with the shared conditions panel', () => {
+  it('defines L1 Pages item routed to /pages with the PagesZonePanel', () => {
     const tree = buildAppNavTree(() => {})
-    const efforts = tree.find(item => item.id === 'efforts')
+    const pages = tree.find(item => item.id === 'pages')
 
-    expect(efforts).toBeDefined()
-    expect(efforts?.label).toBe('Efforts')
-    expect(efforts?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.efforts })
-    // Discipline conditions live in the shared current-result panel now.
-    expect(efforts?.panel).toBeDefined()
+    expect(pages).toBeDefined()
+    expect(pages?.label).toBe('Pages')
+    expect(pages?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.pages })
+    expect(pages?.panel).toBeDefined()
   })
 
-  it('activates efforts L1 for /efforts and /effort/:slug routes', () => {
-    const tree = buildAppNavTree(() => {})
-    const efforts = tree.find(item => item.id === 'efforts')!
+  it('renders Pages L2 panel with lateral variations (Notes, Sessions, Efforts, Equipment, Tags) on /pages', () => {
+    render(
+      <MemoryRouter initialEntries={['/pages']}>
+        <NavProvider tree={appNavTree}>
+          <NavSidebar />
+        </NavProvider>
+      </MemoryRouter>,
+    )
 
-    expect(efforts.isActive!(mockLocation('/efforts'))).toBe(true)
-    expect(efforts.isActive!(mockLocation('/effort/push-up'))).toBe(true)
-    expect(efforts.isActive!(mockLocation('/journal'))).toBe(false)
+    expect(screen.getAllByText('All pages').length).toBeGreaterThan(0)
+    expect(screen.getByText('Notes')).toBeDefined()
+    expect(screen.getByText('Sessions')).toBeDefined()
+    expect(screen.getByText('Efforts')).toBeDefined()
+    expect(screen.getByText('Equipment')).toBeDefined()
+    expect(screen.getByText('Tags')).toBeDefined()
+  })
+
+  it('renders Sessions conditions panel with Pages lateral variations on /sessions', () => {
+    render(
+      <MemoryRouter initialEntries={['/sessions']}>
+        <NavProvider tree={appNavTree}>
+          <NavSidebar />
+        </NavProvider>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getAllByText('All Sessions').length).toBeGreaterThan(0)
+    expect(screen.getByText('Notes')).toBeDefined()
+    expect(screen.getByText('Efforts')).toBeDefined()
+  })
+
+  it('renders Efforts conditions panel with Pages lateral variations on /efforts', () => {
+    render(
+      <MemoryRouter initialEntries={['/efforts']}>
+        <NavProvider tree={appNavTree}>
+          <NavSidebar />
+        </NavProvider>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getAllByText('All Efforts').length).toBeGreaterThan(0)
+    expect(screen.getByText('Notes')).toBeDefined()
+    expect(screen.getByText('Sessions')).toBeDefined()
   })
 })
-
-describe('appNavTree - Equipment navigation', () => {
-  afterEach(() => {
-    cleanup()
-  })
-
-  it('places Equipment directly after Efforts with the shared conditions panel', () => {
-    const tree = buildAppNavTree(() => {})
-    const ids = tree.filter(item => item.level === 1).map(item => item.id)
-    expect(ids.indexOf('equipment')).toBe(ids.indexOf('efforts') + 1)
-
-    const equipment = tree.find(item => item.id === 'equipment')
-    expect(equipment?.label).toBe('Equipment')
-    expect(equipment?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.equipment })
-    expect(equipment?.panel).toBeDefined()
-  })
-
-  it('activates equipment L1 for /equipment and /equipment/:slug routes only', () => {
-    const tree = buildAppNavTree(() => {})
-    const equipment = tree.find(item => item.id === 'equipment')!
-    const efforts = tree.find(item => item.id === 'efforts')!
-
-    expect(equipment.isActive!(mockLocation('/equipment'))).toBe(true)
-    expect(equipment.isActive!(mockLocation('/equipment/dumbbell'))).toBe(true)
-    expect(equipment.isActive!(mockLocation('/e/dumbbell'))).toBe(false)
-    expect(equipment.isActive!(mockLocation('/efforts'))).toBe(false)
-    // The two zones are disjoint: equipment routes never light Efforts.
-    expect(efforts.isActive!(mockLocation('/equipment/dumbbell'))).toBe(false)
-  })
-})
-
-describe('appNavTree - Sessions navigation', () => {
-  afterEach(() => {
-    cleanup()
-  })
-
-  it('defines L1 sessions item with panel', () => {
-    const tree = buildAppNavTree(() => {})
-    const sessions = tree.find(item => item.id === 'sessions')
-
-    expect(sessions).toBeDefined()
-    expect(sessions?.label).toBe('Sessions')
-    expect(sessions?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.sessions })
-    expect(sessions?.panel).toBeDefined()
-  })
-
-  it('activates sessions L1 for /sessions, /session/:date, and /results', () => {
-    const tree = buildAppNavTree(() => {})
-    const sessions = tree.find(item => item.id === 'sessions')!
-
-    expect(sessions.isActive!(mockLocation('/sessions'))).toBe(true)
-    expect(sessions.isActive!(mockLocation('/sessions/session-123'))).toBe(true)
-    expect(sessions.isActive!(mockLocation('/session/2026-09-17'))).toBe(true)
-    expect(sessions.isActive!(mockLocation('/results'))).toBe(true)
-    expect(sessions.isActive!(mockLocation('/efforts'))).toBe(false)
-  })
-})
-
 describe('appNavTree - Settings navigation', () => {
   afterEach(() => {
     cleanup()
@@ -289,9 +260,12 @@ describe('appNavTree - Settings navigation', () => {
     expect(settings?.level).toBe(1)
     expect(settings?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsAppearance })
     expect(settings?.children).toBeDefined()
-    expect(settings?.children?.length).toBe(7)
+    expect(settings?.children?.length).toBe(8)
 
-    const [profile, appearance, tags, soundProfiles, sync, storage, system] = settings!.children!
+    const [profile, feeds, appearance, tags, soundProfiles, sync, storage, system] = settings!.children!
+    expect(feeds.id).toBe('settings-feeds')
+    expect(feeds.label).toBe('Feeds & Sources')
+    expect(feeds.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.feeds })
 
     expect(appearance.id).toBe('settings-appearance')
     expect(appearance.label).toBe('Appearance')
@@ -334,7 +308,7 @@ describe('appNavTree - Settings navigation', () => {
   it('activates appropriate L2 child based on route', () => {
     const tree = buildAppNavTree(() => {})
     const settings = tree.find(item => item.id === 'settings')!
-    const [profile, appearance, tags, soundProfiles, sync, storage, system] = settings.children!
+    const [profile, feeds, appearance, tags, soundProfiles, sync, storage, system] = settings.children!
 
     expect(appearance.isActive!(mockLocation('/settings'))).toBe(true)
     expect(appearance.isActive!(mockLocation('/settings/appearance'))).toBe(true)

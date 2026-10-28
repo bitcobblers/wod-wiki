@@ -1,0 +1,363 @@
+{
+  "title": "Screen & Data Level Navigation Framework",
+  "subtitle": "Streamlined 3-Domain L1 Rail with Pages L2 Roll-Up, Feed Configuration, and Screen Review Protocol",
+  "components": [
+    {
+      "type": "hero",
+      "id": "hero-framework",
+      "eyebrow": "Architecture Review & Feedback Framework",
+      "title": "Navigating Data Levels: L1, L2, and L3 System",
+      "body": "A unified framework mapping the application data hierarchy (Domain → Container/Query → Record/Outline) to physical navigation surfaces (Rail → Context Sidebar → Document Outline & View Controls). Features the radical simplification of L1 down to 3 core content domains (Notebooks, Journal, Pages) plus Settings, removing standalone entity rails (Notes, Sessions, Efforts, Equipment, Tags, Dashboards) by rolling them into Pages L2 subsections."
+    },
+    {
+      "type": "metrics",
+      "id": "metrics-overview",
+      "title": "Navigation & Screen Scope",
+      "body": "Current scale of the navigation tree, data hierarchy, and evaluated surfaces.",
+      "items": [
+        {
+          "value": "11 → 3 + 1",
+          "label": "L1 Rail Domains",
+          "detail": "Notebooks, Journal, Pages + Settings"
+        },
+        {
+          "value": "6 Rolled Up",
+          "label": "Removed from L1",
+          "detail": "Notes, Sessions, Efforts, Gear, Tags, Dashboards → Pages L2"
+        },
+        {
+          "value": "17 Screens",
+          "label": "Cataloged Views",
+          "detail": "Audited from docs/screens/"
+        },
+        {
+          "value": "v2 Feedback",
+          "label": "Interactive Review",
+          "detail": "Annotate selections & export future states"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "core-framework-section",
+      "title": "1. The Unified 3-Tier Data Navigation Framework",
+      "body": "To eliminate confusion, every screen strictly adheres to three clear data levels that map consistently between desktop columns and mobile overlays.",
+      "components": [
+        {
+          "type": "cards",
+          "id": "data-tiers-cards",
+          "title": "Data Hierarchy vs. Navigation Surface",
+          "body": "What each level represents conceptually and where it lives physically.",
+          "columns": 3,
+          "items": [
+            {
+              "badge": "L1 • Domain Level (Macro)",
+              "title": "Where in the universe am I?",
+              "body": "Strictly limited to 3 Primary Content Domains: Notebooks, Journal, Pages (plus Settings pinned to bottom). All individual entity types are removed from L1. Desktop: 56px fixed left icon rail. Mobile: AppRail inside the left slide-over drawer."
+            },
+            {
+              "badge": "L2 • Container / Query (Meso)",
+              "title": "What collection or filter am I in?",
+              "body": "The current scope within the domain: Notebooks (Subscribed vs Available & Feed sources), Journal (Calendar mini-month & Notebook selector), or Pages (Subsections for Notes, Sessions, Efforts, Equipment, Tags, Dashboards, Guides). Desktop: 240px context sidebar. Mobile: slide-over left drawer body."
+            },
+            {
+              "badge": "L3 • Record / View / TOC (Micro)",
+              "title": "What piece or view mode am I manipulating?",
+              "body": "The current record's internal structure or stream layout: 'On this page' heading anchors, runnable block list, stream layout (Cards/Rows), and date window. Desktop: 240px right rail (2xl+) or ⋯ menu. Mobile: right slide-over drawer."
+            }
+          ]
+        },
+        {
+          "type": "cards",
+          "id": "three-macro-paths-cards",
+          "title": "The Three Primary Macro Pathways to Notes & Content (The New L1)",
+          "body": "Every note and data record in the system is reachable through one of three intuitive top-level paths, each serving a distinct mental model.",
+          "columns": 3,
+          "items": [
+            {
+              "badge": "L1 Path 1 • Curated Collections",
+              "title": "Notebooks (/notebooks)",
+              "body": "Index of Notebooks themselves (not flat notes). Displays subscribed notebooks by default with toggle to include unsubscribed notebooks for subscription. Per-notebook sync controls. Clicking any notebook navigates to /notebook/:slug (its README/root note). Includes 'Configure Sources' button routing to /settings feed management."
+            },
+            {
+              "badge": "L1 Path 2 • Chronological Life",
+              "title": "Journal (/journal, /journal/:date)",
+              "body": "Time and calendar-centric view of daily notes and workouts. L2 provides a calendar mini-month and timeline. Default shows the user's own journal entries; provides multi-select toggles in L2 to include specific subscribed notebooks on the calendar."
+            },
+            {
+              "badge": "L1 Path 3 • Universal Index",
+              "title": "Pages (/pages)",
+              "body": "Universal flat, sortable index of all records having a unique slug (or direct note link if unslugged). Absorbs all former standalone L1 entities (Notes, Sessions, Efforts, Equipment, Tags, Guides, Dashboards) into clean L2 subsections."
+            }
+          ]
+        },
+        {
+          "type": "cards",
+          "id": "l1-pruning-cards",
+          "title": "L1 Rail Pruning: What Was Removed & Where It Lives Now",
+          "body": "Consolidating 11 fragmented rail icons into Pages L2 subsections eliminates cognitive clutter and visual noise.",
+          "columns": 3,
+          "items": [
+            {
+              "badge": "Removed from L1",
+              "title": "Notes & Dashboards",
+              "body": "Now inside Pages L2: Select 'Notes' subsection for all notebook-member and standalone markdown notes. Select 'Dashboards' subsection for analytics explorers and custom vault dashboards."
+            },
+            {
+              "badge": "Removed from L1",
+              "title": "Efforts, Equipment, & Sessions",
+              "body": "Now inside Pages L2: Select 'Efforts' subsection for movement taxonomy and PR logs. Select 'Equipment' for gear catalog. Select 'Sessions' for completed workout execution histories."
+            },
+            {
+              "badge": "Removed from L1",
+              "title": "Tags & Feeds",
+              "body": "Now inside Pages L2 & Settings: 'Tags' is an L2 subsection of Pages grouping notes by tag taxonomy. 'Feeds' is moved out of the content rail into Settings under Source & Feed Management."
+            }
+          ]
+        },
+        {
+          "type": "note",
+          "id": "mental-model-rule",
+          "tone": "info",
+          "title": "The Golden Rule of Consistency",
+          "body": "A user must never wonder 'where am I?'. If you are viewing a single Note (/note/:id), L1 indicates its Domain (Notebooks, Journal, or Pages), L2 shows its parent Container (Notebook member list, Calendar date stack, or Pages subsection), and L3 shows its internal Outline (Headings & Blocks). L2 must never disappear."
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "screens-audit-section",
+      "title": "2. Comprehensive Screen-by-Screen Navigation Audit",
+      "body": "Evaluating all 17 primary screens against the streamlined L1 model (Notebooks, Journal, Pages + Settings), with rolled-up L2 subsections and feed configuration.",
+      "components": [
+        {
+          "type": "table",
+          "id": "screen-matrix-table",
+          "title": "Screen Navigation & Data Level Matrix",
+          "body": "Complete crosswalk of current implementations versus future-state navigation assignments.",
+          "columns": ["Screen / Route", "Current L1 / L2 / L3", "Data Level Mismatch / UX Friction", "Proposed Future State L1 / L2 / L3"],
+          "rows": [
+            [
+              "Notebooks Library (/notebooks)",
+              "L1: Notebooks rail. L2: Flat seed notes mixed with notebooks. L3: Stream facets / sort.",
+              "Confuses notebook index with notes index. No way to manage source subscriptions, sync schedules, or navigate to high-level notebook READMEs.",
+              "L1: Notebooks. L2: Subscribed notebooks (default) + Toggle unsubscribed notebooks for subscription + Filter by sources + Sync state controls. Header Action: 'Configure Sources' (routes to /settings feed management). Clicking a notebook opens /notebook/:slug. L3: Grid/List layout + Sort."
+            ],
+            [
+              "Notebook Landing (/notebook/:slug)",
+              "L1: Notebooks rail. L2: Redundant notebooks list. L3: Chapter/Workout TOC.",
+              "Desktop split pane duplicates L2 list. Clicking a workout updates preview pane without clear parent-child continuity.",
+              "L1: Notebooks. L2: Notebook outline (README root, Sections, Workouts index, Progress). L3: Active workout preview actions (Run, Add to Today, Schedule) + Subscription toggle."
+            ],
+            [
+              "Named Workout Editor (/notebook/:slug/:item)",
+              "L1: Notebooks rail. L2: Notebooks listing. L3: Heading/Block TOC.",
+              "Feels disconnected from the notebook README. Editing seed note forks into scratch note without clear visual ancestry.",
+              "L1: Notebooks. L2: Sibling workouts in the active notebook. L3: Workout script outline + Fork/Schedule action triggers."
+            ],
+            [
+              "Journal Stream (/journal)",
+              "L1: Notebooks rail. L2: Notebooks family panel. L3: Stream controls (layout, date window).",
+              "Journal is buried inside Notebooks L1. Calendar view lacks notebook inclusion controls; seed notes pollute daily view.",
+              "L1: Journal (Dedicated L1 rail icon). L2: Calendar mini-month / Timeline view + Notebook selector (default: own entries; checkboxes to include subscribed notebooks on calendar). L3: Stream display controls (Cards/Rows, Group by Week/Month)."
+            ],
+            [
+              "Journal Date Stack (/journal/:date)",
+              "L1: Notebooks rail. L2: Notebook family panel. L3: Single date TOC or empty.",
+              "Nested under Notebooks. L2 shows other notebooks instead of nearby calendar dates or notes for the day.",
+              "L1: Journal. L2: Calendar mini-month + Date switcher (yesterday/today/tomorrow). L3: Multi-note stacked TOC (jump to specific note on that date) + Add Note to Date."
+            ],
+            [
+              "Universal Note Editor (/note/:noteId)",
+              "L1: Notes rail. L2: Blank/hidden or stale query. L3: 'On this page' headings outline.",
+              "L2 context vanishes completely. User loses sense of parent notebook, folder, or date. No breadcrumb trail back to parent collection.",
+              "L1: Origin Domain (Notebooks, Journal, or Pages). L2: Parent container member list (Notebook workouts, Calendar date stack, or Pages category) with active note highlighted. L3: Heading TOC + Runnable block actions + Read/Edit toggle."
+            ],
+            [
+              "Universal Pages Index (/pages)",
+              "L1: Notes rail (or Pages). L2: Confusing overlap between /notes and /pages. L3: Stream facets.",
+              "Notes, Notebooks, and Pages all query the same seed data. Standalone entity rails fragment navigation.",
+              "L1: Pages (Universal L1 rail icon). L2: Library variation selector (Subsections for Notes, Sessions, Efforts, Equipment, Tags, Guides, Dashboards — all entities with unique slugs or note links). L3: Sort by name/date/slug + Visible fields + Search."
+            ],
+            [
+              "Playgrounds Stream (/playgrounds)",
+              "L1: Notebooks rail. L2: Notebook family panel. L3: Stream controls.",
+              "Playgrounds is a scratchpad environment forced into the Notebooks L1 zone. No quick categorization for scratch notes.",
+              "L1: Pages (Scratchpads subsection in L2). L2: Scratch note list sorted by recency + 'New Scratch' button. L3: Sort & search controls."
+            ],
+            [
+              "Playground Note Editor (/playground/:noteId)",
+              "L1: Notebooks rail. L2: Blank or Notebooks panel. L3: Headings outline.",
+              "Scratch notes have no save target or notebook container. No obvious button to promote a scratch note into the Journal or a Notebook.",
+              "L1: Pages (Scratchpads in L2). L2: Other scratchpad notes for fast switching. L3: Promote to Journal CTA + Promote to Notebook + Script block TOC."
+            ],
+            [
+              "Efforts Stream (/efforts)",
+              "L1: Standalone Efforts rail icon. L2: ConditionsNavPanel (WQL accordion). L3: Stream view options.",
+              "Standalone L1 rail icon clutters top-level navigation. L2 accordion displays intimidating WQL syntax.",
+              "L1: Pages (Efforts removed from L1; lives under Pages L2 subsection 'Efforts'). L2: Movement taxonomy (Weightlifting, Gymnastics, Monostructural, Custom) + Equipment filters. L3: Grid view, Metrics displayed, Sort."
+            ],
+            [
+              "Effort Detail (/e/:slug)",
+              "L1: Standalone Efforts rail icon. L2: Hidden or stale conditions panel. L3: Movement properties & PR history.",
+              "Navigating into an effort hides L2, abandoning the user in a dead-end page. Back navigation loses movement category context.",
+              "L1: Pages (Efforts). L2: Movement catalog tree with current effort selected. L3: PR history, derivation rules, associated workouts."
+            ],
+            [
+              "Equipment Stream (/equipment)",
+              "L1: Standalone Equipment rail icon. L2: Category & availability facets. L3: Sort & layout.",
+              "Standalone L1 rail icon consumes valuable top-level space for an infrequently accessed gear catalog.",
+              "L1: Pages (Equipment removed from L1; lives under Pages L2 subsection 'Equipment'). L2: Gear categories (Barbells, Racks, Cardio, Accessories). L3: Item sorting & availability filter."
+            ],
+            [
+              "Sessions Stream (/sessions)",
+              "L1: Standalone Sessions rail icon. L2: ConditionsNavPanel (hardcoded last 1d). L3: Stream controls.",
+              "Standalone L1 icon. Default query was restricted to 'last 1d', hiding past workouts.",
+              "L1: Pages (Sessions removed from L1; lives under Pages L2 subsection 'Sessions'). L2: Time presets (All-Time, This Month, PRs Only) + Outcome facets (Rx, Scaled). L3: Group-by (Week/Month), Summary metrics."
+            ],
+            [
+              "Session Execution Detail (/sessions/:sessionId)",
+              "L1: Sessions rail. L2: Hidden. L3: Round splits & Event stream.",
+              "No sibling session navigation. Difficult to compare today's session with last week's attempt on the same workout.",
+              "L1: Pages (Sessions). L2: Recent sessions list or workout history timeline. L3: Detailed round splits, Heart rate/cadence charts, Event log."
+            ],
+            [
+              "Analytics Explorer (/dashboards)",
+              "L1: Standalone Dashboards rail icon. L2: DashboardsNavPanel (Vault/Seed dashboards). L3: Query settings.",
+              "Standalone L1 icon. Analytics Explorer and saved Dashboards share /dashboards without clear visual distinction between query lab and viewing mode.",
+              "L1: Pages (Dashboards removed from L1; lives under Pages L2 subsection 'Dashboards'). L2: Pinned & Saved Dashboards list + 'New Query' lab trigger. L3: Chart type, Aggregations, Time window."
+            ],
+            [
+              "Dashboard View (/dashboard/:slug)",
+              "L1: Dashboards rail. L2: DashboardsNavPanel. L3: Widget index / refresh.",
+              "L2 panel competes with wide dashboard layout. Screen feels cramped on 1080p monitors.",
+              "L1: Pages (Dashboards). L2: Dashboard switcher (collapsible). L3: Widget jump index + Date range override."
+            ],
+            [
+              "Syntax / Canvas Guide (/page/:slug, /guide/*)",
+              "L1: Home rail (avatar). L2: Consolidated 8 guide chapters. L3: On this page TOC.",
+              "Desktop explicitly hides L2 sidebar (hideDesktopSidebar) and forces chapter list to end of page, creating discontinuous navigation.",
+              "L1: Pages (Guides subsection in L2). L2: Interactive Curriculum (8 chapters with completion progress checkmarks). L3: Chapter section TOC + Interactive challenge jump."
+            ],
+            [
+              "Wall Clock / Runtime (/run/:runtimeId)",
+              "L1: Hidden (full screen). L2: Hidden. L3: Hidden.",
+              "Full-screen immersion is appropriate for workout timing, but dismissing timer has unclear exit destination (does it return to Note, Journal, or Session?).",
+              "L1: Hidden (Immersion mode). L2: Hidden. L3: Audio/Bell controls + Interval split HUD. Explicit 'Finish & Save to Session' exit flow."
+            ],
+            [
+              "Settings & Feeds (/settings/*, /load)",
+              "L1: Settings rail (pinned bottom). L2: Settings sub-navigation (Theme, Audio, Sync, Backup). L3: Page options.",
+              "Feed management is buried or missing an explicit link from the notebooks library.",
+              "L1: Settings (Pinned bottom of rail). L2: Dedicated 'Feeds & Sources' management (registered feeds, source sync schedules) + Appearance, Audio, Storage. L3: Feed credentials & import logs."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "review-framework-section",
+      "title": "3. The Screen Review Framework (How to Review & Give Feedback)",
+      "body": "Use this structured 4-step framework whenever evaluating a screen or specifying a future-state version.",
+      "components": [
+        {
+          "type": "cards",
+          "id": "four-step-framework",
+          "title": "The 4-Step Screen Review Checklist",
+          "body": "Four questions to ask for every screen in the application.",
+          "columns": 2,
+          "items": [
+            {
+              "badge": "Step 1 • Orientation",
+              "title": "1. Where am I in the data model?",
+              "body": "Identify the Macro data level (Notebooks, Journal, Pages, Settings), Meso data level (Parent collection, Calendar date, or Pages subsection), and Micro data level (Current entity). Ensure L1 and L2 clearly communicate this location without blank spaces or unexpected route jumps."
+            },
+            {
+              "badge": "Step 2 • Up & Lateral Moves",
+              "title": "2. How do I move laterally or up?",
+              "body": "Check L2 context: Can the user switch to sibling items (e.g. other notes in the notebook, other dates in the month, other pages in the library variation) without hitting the browser Back button or returning to the root list?"
+            },
+            {
+              "badge": "Step 3 • In-Page Manipulation",
+              "title": "3. What can I inspect or configure here?",
+              "body": "Check L3 context: Does the screen provide immediate access to in-page section anchors (TOC), runnable block commands, and display layout options (Cards/Rows, visible fields)?"
+            },
+            {
+              "badge": "Step 4 • Mobile & Responsive Parity",
+              "title": "4. Does mobile preserve the hierarchy?",
+              "body": "Verify mobile drawers: Left drawer must provide L1 rail + L2 scope. Right drawer must provide L3 TOC + display controls. Tapping destinations must auto-dismiss; editing filter checkboxes must retain drawer open until Apply."
+            }
+          ]
+        },
+        {
+          "type": "timeline",
+          "id": "feedback-workflow-timeline",
+          "title": "How to Create Future-State Versions Using This Whiteboard",
+          "body": "Step-by-step workflow for providing feedback and creating v2, v3, etc.",
+          "items": [
+            {
+              "meta": "Step 1",
+              "title": "Highlight & Annotate",
+              "body": "Open this HTML file in your browser via file://. Highlight any text row in the table above or in this document. Click 'Annotate selection' and type your feedback, desired changes, or screen redesign proposals."
+            },
+            {
+              "meta": "Step 2",
+              "title": "Export Annotations",
+              "body": "Click the floating pill icon in the top right corner. Click the copy icon to copy all your saved comments and quotes to your clipboard."
+            },
+            {
+              "meta": "Step 3",
+              "title": "Prompt the Next Iteration",
+              "body": "Paste the annotations into chat. The agent will read your feedback, update the JSON specification, and run build.py to generate navigation-screen-data-levels.v(N+1).html with your future-state screens built in."
+            },
+            {
+              "meta": "Step 4",
+              "title": "Review Version Diffs",
+              "body": "Open the new snapshot. Use the version history links at the top (v1, v2, etc.) to toggle between versions, observing how each screen evolved according to your notes."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "priority-future-states-section",
+      "title": "4. Priority Future-State Implementations",
+      "body": "Core architectural updates aligned with the Streamlined L1 Rail (Notebooks, Journal, Pages + Settings) and Pages L2 Subsections.",
+      "components": [
+        {
+          "type": "cards",
+          "id": "priority-cards",
+          "title": "Immediate High-Leverage Upgrades",
+          "body": "Resolving rail bloat, establishing clean content hierarchy, and empowering source management.",
+          "columns": 3,
+          "items": [
+            {
+              "badge": "Priority 1 • High",
+              "title": "Notebooks Index & Source Management",
+              "body": "Rebuild /notebooks as an index of notebooks (not raw notes). Show subscribed notebooks by default with toggle for unsubscribed. Add sync controls and a top 'Configure Sources' button routing to /settings feeds management. Clicking opens /notebook/:slug."
+            },
+            {
+              "badge": "Priority 2 • High",
+              "title": "Journal with Notebook Selection",
+              "body": "Elevate Journal to its own primary L1. Default calendar shows only the user's personal journal entries. L2 provides checkboxes to include subscribed notebooks on the calendar."
+            },
+            {
+              "badge": "Priority 3 • High",
+              "title": "Prune L1: Universal Pages Roll-Up",
+              "body": "Remove Notes, Sessions, Efforts, Equipment, Tags, and Dashboards from the L1 rail. Roll them all into Pages L2 subsections for all entities with a unique slug or direct note link."
+            }
+          ]
+        },
+        {
+          "type": "note",
+          "id": "next-action-note",
+          "tone": "success",
+          "title": "Ready for v2 Review",
+          "body": "The streamlined L1 rail (Notebooks, Journal, Pages + Settings) with all entity types rolled up into Pages L2 subsections is now fully specified. Build and review v2 in your browser to continue annotating screen details."
+        }
+      ]
+    }
+  ]
+}

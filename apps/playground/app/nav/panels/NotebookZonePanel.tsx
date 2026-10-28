@@ -11,7 +11,7 @@
  */
 import { useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
-import { Calendar, CalendarPlus, FlaskConical, Layers, Library } from 'lucide-react'
+import { Calendar, CalendarPlus, FlaskConical, Layers, Library, Settings } from 'lucide-react'
 
 import { ROUTE_PATTERNS } from '../../lib/routes'
 import {
@@ -67,8 +67,15 @@ export const notebookViewChildren: NavItem[] = [
     action: { type: 'route', to: ROUTE_PATTERNS.playgrounds },
     isActive: playgroundsViewActive,
   },
+  {
+    id: 'notebooks-configure-sources',
+    label: 'Configure sources',
+    level: 2,
+    icon: Settings,
+    action: { type: 'route', to: ROUTE_PATTERNS.feeds },
+    isActive: (loc: Location) => startsWithAny(loc.pathname, '/feeds', '/feed'),
+  },
 ]
-
 const NotebooksConditionsPanel = createConditionsNavPanel({
   landingLabel: 'Subscribed notebooks',
   icon: Library,
@@ -79,7 +86,7 @@ const NotebooksConditionsPanel = createConditionsNavPanel({
     startsWithAny(loc.pathname, '/notebooks', '/notebook', '/journal', '/day', '/playgrounds', '/playground'),
 })
 
-const JournalViewConditionsPanel = createConditionsNavPanel({
+export const JournalViewConditionsPanel = createConditionsNavPanel({
   landingLabel: 'All entries',
   icon: Calendar,
   route: ROUTE_PATTERNS.journal,

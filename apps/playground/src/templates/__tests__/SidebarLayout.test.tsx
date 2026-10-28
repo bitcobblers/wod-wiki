@@ -89,7 +89,7 @@ describe('SidebarLayout mobile folding zones', () => {
 
   it('shows the fixed Apply footer on filter L1s and closes the drawer on click', async () => {
     render(
-      <MemoryRouter initialEntries={['/feeds']}>
+      <MemoryRouter initialEntries={['/pages']}>
         <NuqsAdapter>
           <NavProvider tree={appNavTree}>
             <SidebarLayout navbar={<div>Navbar</div>} sidebar={<div>Sidebar</div>}>

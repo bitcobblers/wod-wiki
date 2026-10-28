@@ -37,4 +37,20 @@ describe('AppRail accessibility', () => {
     const homeBtn = container.querySelector('button[aria-current="page"]');
     expect(homeBtn).not.toBeNull();
   });
+
+  it('renders exactly the 4 core content domains in Primary nav (Notebooks, Journal, Pages, Dashboards)', () => {
+    const { getByRole } = render(
+      <MemoryRouter initialEntries={['/notebooks']}>
+        <NavProvider tree={appNavTree}>
+          <AppRail onSearch={() => {}} />
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    const primary = getByRole('navigation', { name: 'Primary' });
+    const buttons = Array.from(primary.querySelectorAll('button'));
+    const labels = buttons.map(b => b.getAttribute('aria-label'));
+
+    expect(labels).toEqual(['Notebooks', 'Journal', 'Pages', 'Dashboards']);
+  });
 });

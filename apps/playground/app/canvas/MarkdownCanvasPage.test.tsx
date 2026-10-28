@@ -123,6 +123,7 @@ function fakeEntry(id: string): HistoryRecord {
 mock.module('@/services/persistence', () => ({
   createNotePersistence: () => fakeNotePersistence,
   notePersistence: fakeNotePersistence,
+  IndexedDBNotePersistence: class IndexedDBNotePersistence {},
 }))
 
 mock.module('@/components/organisms/editor/NoteEditor', () => ({

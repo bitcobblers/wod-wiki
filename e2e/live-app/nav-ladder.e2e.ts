@@ -18,10 +18,10 @@ import { expect, test } from '@playwright/test';
 import { seedNote } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
-const L1_LABELS = ['Notebooks', 'Notes', 'Feeds', 'Pages', 'Dashboards', 'Efforts', 'Equipment', 'Sessions', 'Tags'];
+const L1_LABELS = ['Notebooks', 'Journal', 'Pages', 'Dashboards'];
 
 test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
-  test('L1 rail labels are the list route names; Journal and Playgrounds are not L1 zones', async ({ page }) => {
+  test('L1 rail labels are the primary domains (Notebooks, Journal, Pages, Dashboards); entity lists are rolled up', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
@@ -30,26 +30,35 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     for (const label of L1_LABELS) {
       await expect(primary.getByRole('button', { name: label, exact: true }), `L1 ${label}`).toBeVisible();
     }
-    // Journal and Playgrounds are views within the notebooks zone, not L1 zones.
-    await expect(primary.getByRole('button', { name: 'Journal', exact: true })).toHaveCount(0);
-    await expect(primary.getByRole('button', { name: 'Playgrounds', exact: true })).toHaveCount(0);
+    // Notes, Feeds, Efforts, Equipment, Sessions, Tags, Playgrounds are not L1 rail items.
+    for (const label of ['Notes', 'Feeds', 'Efforts', 'Equipment', 'Sessions', 'Tags', 'Playgrounds']) {
+      await expect(primary.getByRole('button', { name: label, exact: true })).toHaveCount(0);
+    }
   });
 
-  test('active state follows route identity across the notebook family', async ({ page }) => {
+  test('active state follows route identity across the notebook and journal families', async ({ page }) => {
     const primary = page.getByRole('navigation', { name: 'Primary' });
     const notebooksBtn = primary.getByRole('button', { name: 'Notebooks', exact: true });
+    const journalBtn = primary.getByRole('button', { name: 'Journal', exact: true });
 
-    for (const path of ['/notebooks', '/notebook/crossfit-girls', '/journal', '/day/2099-12-31', '/playgrounds']) {
+    for (const path of ['/notebooks', '/notebook/crossfit-girls', '/playgrounds']) {
       await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 20_000 });
       await expect(notebooksBtn, `Notebooks L1 active on ${path}`).toHaveAttribute('aria-current', 'page', {
         timeout: 15_000,
       });
     }
 
-    // Outside the family the notebooks zone goes dark and the own zone lights.
-    await page.goto('/feeds', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    for (const path of ['/journal', '/day/2099-12-31']) {
+      await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+      await expect(journalBtn, `Journal L1 active on ${path}`).toHaveAttribute('aria-current', 'page', {
+        timeout: 15_000,
+      });
+    }
+
+    // Pages zone lights on /pages and rolled-up routes (/notes, /sessions, etc.)
+    await page.goto('/pages', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await expect(notebooksBtn).not.toHaveAttribute('aria-current', 'page');
-    await expect(primary.getByRole('button', { name: 'Feeds', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(primary.getByRole('button', { name: 'Pages', exact: true })).toHaveAttribute('aria-current', 'page');
   });
 
   test('the journal view renders inside the notebooks zone with its own chrome', async ({ page }) => {
@@ -86,7 +95,7 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
 test.describe('Nav ladder — mobile (375px)', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test('the folded notebooks zone: no Journal/Playgrounds L1; each view reachable with its own chrome', async ({ page }) => {
+  test('mobile drawer: Journal is an L1 destination; Playgrounds is reachable with its own chrome', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
@@ -96,14 +105,12 @@ test.describe('Nav ladder — mobile (375px)', () => {
     const drawer = page.getByRole('dialog');
     const primary = drawer.getByRole('navigation', { name: 'Primary' });
 
-    // Journal and Playgrounds are views inside the notebooks zone — never
-    // sibling L1 rail items.
-    await expect(primary.getByRole('button', { name: 'Journal', exact: true })).toHaveCount(0);
+    // Journal is an L1 rail button; Playgrounds is not in the L1 rail
+    await expect(primary.getByRole('button', { name: 'Journal', exact: true })).toBeVisible();
     await expect(primary.getByRole('button', { name: 'Playgrounds', exact: true })).toHaveCount(0);
 
-    // Open Notebooks: the L2 panel offers both folded views.
+    // Open Notebooks: the L2 panel offers Playgrounds and Subscribed notebooks.
     await primary.getByRole('button', { name: 'Notebooks', exact: true }).click();
-    await expect(drawer.getByRole('button', { name: 'Journal', exact: true })).toBeVisible();
     await expect(drawer.getByRole('button', { name: 'Playgrounds', exact: true })).toBeVisible();
     await expect(drawer.getByRole('button', { name: 'All notebooks', exact: true })).toBeVisible();
 

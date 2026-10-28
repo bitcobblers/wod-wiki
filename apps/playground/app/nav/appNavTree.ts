@@ -32,14 +32,15 @@
  */
 
 import { HomeIcon, CodeBracketIcon } from '@heroicons/react/20/solid'
-import { ChartBarIcon, Dumbbell, Rss, Settings, Paintbrush, Sliders, ClipboardList, File, Tag, Library, CalendarPlus, UserRound, Database, CloudDownload, Wrench, Volume2 } from 'lucide-react'
+import { ChartBarIcon, Dumbbell, Rss, Settings, Paintbrush, Sliders, ClipboardList, File, Tag, Library, CalendarPlus, UserRound, Database, CloudDownload, Wrench, Volume2, Calendar } from 'lucide-react'
 import type { NavItem } from './navTypes'
 import type { Location } from 'react-router-dom'
 import { NOTES_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PAGES_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, TAGS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
 import { ROUTE_PATTERNS, isEffortsPath, isEquipmentPath } from '../lib/routes'
 
 import { DashboardsNavPanel } from './panels/DashboardsNavPanel'
-import { NotebookZonePanel } from './panels/NotebookZonePanel'
+import { NotebookZonePanel, JournalViewConditionsPanel } from './panels/NotebookZonePanel'
+import { createPagesZonePanel } from './panels/PagesZonePanel'
 import { createConditionsNavPanel, type ConditionsPanelSpec } from './panels/ConditionsNavPanel'
 import type { CanvasRoute } from '../canvas/canvasRoutes'
 import { isGuidePinned, setGuidePinned } from '../lib/pinnedGuidesStorage'
@@ -172,47 +173,6 @@ function listingZone(spec: ListingZoneSpec): NavItem {
   }
 }
 
-const listingZones: ListingZoneSpec[] = [
-  {
-    landingLabel: 'All notes',
-    icon: Rss,
-    route: ROUTE_PATTERNS.notes,
-    profile: NOTES_STREAM_PROFILE,
-    // '/note/…' without '/notebook…' — one note is the notes concept too.
-    familyActive: (loc: Location) =>
-      loc.pathname === '/notes'
-      || (loc.pathname.startsWith('/note/') && !loc.pathname.startsWith('/notebook')),
-    createAction: {
-      label: 'New note',
-      testId: 'notes-create-note',
-      onClick: ({ openCreateJournal, navigate }) => {
-        if (openCreateJournal) openCreateJournal({ mode: 'source' })
-        else navigate('/notes?create=1&mode=source')
-      },
-    },
-  },
-  {
-    landingLabel: 'All feeds',
-    icon: Rss,
-    route: ROUTE_PATTERNS.feeds,
-    profile: FEEDS_STREAM_PROFILE,
-    familyActive: (loc: Location) => startsWithAny(loc.pathname, '/feeds', '/feed'),
-  },
-  {
-    landingLabel: 'All pages',
-    icon: File,
-    route: ROUTE_PATTERNS.pages,
-    profile: PAGES_STREAM_PROFILE,
-    familyActive: (loc: Location) => startsWithAny(loc.pathname, '/pages', '/page'),
-    createAction: {
-      label: 'New page',
-      testId: 'pages-create-page',
-      onClick: ({ navigate }) => {
-        navigate('/page/new?mode=create')
-      },
-    },
-  },
-]
 
 // ─── App nav tree ─────────────────────────────────────────────────────────────
 
@@ -224,6 +184,7 @@ const listingZones: ListingZoneSpec[] = [
  */
 export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRoute[] = []): NavItem[] {
   const homeChildren = buildHomeChildren(canvasRoutes)
+  const pagesPanel = createPagesZonePanel(canvasRoutes)
   return [
     {
       id: 'home',
@@ -234,32 +195,61 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       isActive: (loc) =>
         loc.pathname === '/' ||
         loc.pathname === '' ||
-        loc.pathname.startsWith('/page/') ||
-        loc.pathname.startsWith('/pages') ||
-        loc.pathname.startsWith('/canvas') ||
         loc.pathname === ROUTE_PATTERNS.home ||
         loc.pathname === ROUTE_PATTERNS.aiFirst ||
         loc.pathname.startsWith('/ai-first/'),
       children: homeChildren,
     },
 
-    // Notebooks leads the library: the journal and playgrounds views live
-    // inside this zone, so it precedes the other list routes.
     {
       id: listRouteId(ROUTE_PATTERNS.notebooks),
       label: listRouteLabel(ROUTE_PATTERNS.notebooks),
       level: 1,
       icon: Library,
       action: { type: 'route', to: ROUTE_PATTERNS.notebooks },
-      // The whole notebook family: the landing, one notebook, and the
-      // journal / playgrounds views (NotebookZonePanel picks the view).
       isActive: (loc: Location) =>
-        startsWithAny(loc.pathname, '/notebooks', '/notebook', '/journal', '/day', '/playgrounds', '/playground'),
+        startsWithAny(loc.pathname, '/notebooks', '/notebook', '/playgrounds', '/playground'),
       applyFooter: true,
       panel: NotebookZonePanel,
     },
 
-    ...listingZones.map(listingZone),
+    {
+      id: listRouteId(ROUTE_PATTERNS.journal),
+      label: listRouteLabel(ROUTE_PATTERNS.journal),
+      level: 1,
+      icon: Calendar,
+      action: { type: 'route', to: ROUTE_PATTERNS.journal },
+      isActive: (loc: Location) => startsWithAny(loc.pathname, '/journal', '/day'),
+      applyFooter: true,
+      panel: JournalViewConditionsPanel,
+    },
+
+    {
+      id: listRouteId(ROUTE_PATTERNS.pages),
+      label: listRouteLabel(ROUTE_PATTERNS.pages),
+      level: 1,
+      icon: File,
+      action: { type: 'route', to: ROUTE_PATTERNS.pages },
+      isActive: (loc: Location) =>
+        startsWithAny(
+          loc.pathname,
+          '/pages',
+          '/page',
+          '/notes',
+          '/note',
+          '/sessions',
+          '/session',
+          '/results',
+          '/efforts',
+          '/effort',
+          '/e',
+          '/equipment',
+          '/tags',
+          '/t',
+        ),
+      applyFooter: true,
+      panel: pagesPanel,
+    },
 
     {
       id: listRouteId(ROUTE_PATTERNS.dashboards),
@@ -267,98 +257,9 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       level: 1,
       icon: ChartBarIcon,
       action: { type: 'route', to: ROUTE_PATTERNS.dashboards },
-      isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.dashboards || loc.pathname.startsWith('/dashboard/'),
-      // The L2 list (Explorer + vault-created + prebuilts, plus a New
-      // dashboard action) is dynamic — vault dashboards are runtime data —
-      // so it lives in the panel, not static children.
-      panel: DashboardsNavPanel,
-    },
-
-    {
-      id: listRouteId(ROUTE_PATTERNS.efforts),
-      label: listRouteLabel(ROUTE_PATTERNS.efforts),
-      level: 1,
-      icon: Dumbbell,
-      action: { type: 'route', to: ROUTE_PATTERNS.efforts },
-      isActive: (loc: Location) => isEffortsPath(loc.pathname),
-      applyFooter: true,
-      panel: createConditionsNavPanel({
-        landingLabel: 'All Efforts',
-        icon: Dumbbell,
-        route: ROUTE_PATTERNS.efforts,
-        profile: EFFORTS_STREAM_PROFILE,
-        familyActive: (loc: Location) => isEffortsPath(loc.pathname),
-        createAction: {
-          label: 'New effort',
-          testId: 'efforts-create-effort',
-          onClick: ({ navigate }) => {
-            navigate('/effort/new?mode=create')
-          },
-        },
-      }),
-    },
-
-    {
-      id: listRouteId(ROUTE_PATTERNS.equipment),
-      label: listRouteLabel(ROUTE_PATTERNS.equipment),
-      level: 1,
-      icon: Wrench,
-      action: { type: 'route', to: ROUTE_PATTERNS.equipment },
-      isActive: (loc: Location) => isEquipmentPath(loc.pathname),
-      applyFooter: true,
-      panel: createConditionsNavPanel({
-        landingLabel: 'All Equipment',
-        icon: Wrench,
-        route: ROUTE_PATTERNS.equipment,
-        profile: EQUIPMENT_STREAM_PROFILE,
-        familyActive: (loc: Location) => isEquipmentPath(loc.pathname),
-        createAction: {
-          label: 'New equipment',
-          testId: 'equipment-create-equipment',
-          onClick: ({ navigate }) => {
-            navigate('/equipment/new?mode=create')
-          },
-        },
-      }),
-    },
-
-    {
-      id: listRouteId(ROUTE_PATTERNS.sessions),
-      label: listRouteLabel(ROUTE_PATTERNS.sessions),
-      level: 1,
-      icon: ClipboardList,
-      action: { type: 'route', to: ROUTE_PATTERNS.sessions },
       isActive: (loc: Location) =>
-        loc.pathname.startsWith('/sessions') ||
-        loc.pathname.startsWith('/session/') ||
-        loc.pathname.startsWith('/results'),
-      applyFooter: true,
-      panel: createConditionsNavPanel({
-        landingLabel: 'All Sessions',
-        icon: ClipboardList,
-        route: ROUTE_PATTERNS.sessions,
-        profile: SESSIONS_STREAM_PROFILE,
-        familyActive: (loc: Location) =>
-          loc.pathname.startsWith('/sessions') ||
-          loc.pathname.startsWith('/session/') ||
-          loc.pathname.startsWith('/results'),
-      }),
-    },
-    {
-      id: listRouteId(ROUTE_PATTERNS.tags),
-      label: listRouteLabel(ROUTE_PATTERNS.tags),
-      level: 1,
-      icon: Tag,
-      action: { type: 'route', to: ROUTE_PATTERNS.tags },
-      isActive: (loc: Location) => loc.pathname.startsWith('/tags') || loc.pathname.startsWith('/t/'),
-      applyFooter: true,
-      panel: createConditionsNavPanel({
-        landingLabel: 'All Tags',
-        icon: Tag,
-        route: ROUTE_PATTERNS.tags,
-        profile: TAGS_STREAM_PROFILE,
-        familyActive: (loc: Location) => loc.pathname.startsWith('/tags') || loc.pathname.startsWith('/t/'),
-      }),
+        loc.pathname === ROUTE_PATTERNS.dashboards || loc.pathname.startsWith('/dashboard/'),
+      panel: DashboardsNavPanel,
     },
     {
       id: 'settings',
@@ -375,6 +276,14 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
           icon: UserRound,
           action: { type: 'route', to: ROUTE_PATTERNS.settingsProfile },
           isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.settingsProfile,
+        },
+        {
+          id: 'settings-feeds',
+          label: 'Feeds & Sources',
+          level: 2,
+          icon: Rss,
+          action: { type: 'route', to: ROUTE_PATTERNS.feeds },
+          isActive: (loc: Location) => startsWithAny(loc.pathname, '/feeds', '/feed'),
         },
         {
           id: 'settings-appearance',

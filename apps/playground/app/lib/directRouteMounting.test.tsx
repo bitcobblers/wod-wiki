@@ -86,10 +86,10 @@ describe('Route-aware stream profile resolution', () => {
     }
 
     expect(resolveStreamProfile('/notebooks')).toBe(NOTEBOOKS_STREAM_PROFILE)
-    expect(resolveStreamProfile('/notebooks').defaultWql).toBe(':notebook{} by {feed}')
+    expect(resolveStreamProfile('/notebooks').defaultWql).toBe(':notebook{subscribed:true} by {feed}')
 
     expect(resolveStreamProfile('/notes')).toBe(NOTES_STREAM_PROFILE)
-    expect(resolveStreamProfile('/notes').defaultWql).toBe(':note{}')
+    expect(resolveStreamProfile('/notes').defaultWql).toBe(':note{notebook:*}')
 
     expect(resolveStreamProfile('/efforts')).toBe(EFFORTS_STREAM_PROFILE)
     expect(resolveStreamProfile('/efforts').defaultWql).toBe(':effort')
