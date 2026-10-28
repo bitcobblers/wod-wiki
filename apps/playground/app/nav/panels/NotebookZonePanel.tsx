@@ -52,14 +52,6 @@ const allNotesChild: NavItem = {
  * entries of the zone. Labels are the views' route names. */
 export const notebookViewChildren: NavItem[] = [
   {
-    id: 'notebooks-view-journal',
-    label: 'Journal',
-    level: 2,
-    icon: Calendar,
-    action: { type: 'route', to: ROUTE_PATTERNS.journal },
-    isActive: journalViewActive,
-  },
-  {
     id: 'notebooks-view-playgrounds',
     label: 'Playgrounds',
     level: 2,
@@ -83,7 +75,7 @@ const NotebooksConditionsPanel = createConditionsNavPanel({
   profile: NOTEBOOKS_STREAM_PROFILE,
   extraChildren: notebookViewChildren,
   familyActive: (loc: Location) =>
-    startsWithAny(loc.pathname, '/notebooks', '/notebook', '/journal', '/day', '/playgrounds', '/playground'),
+    startsWithAny(loc.pathname, '/notebooks', '/notebook', '/playgrounds', '/playground'),
 })
 
 export const JournalViewConditionsPanel = createConditionsNavPanel({
@@ -91,7 +83,7 @@ export const JournalViewConditionsPanel = createConditionsNavPanel({
   icon: Calendar,
   route: ROUTE_PATTERNS.journal,
   profile: JOURNAL_STREAM_PROFILE,
-  extraChildren: [...notebookViewChildren, allNotesChild],
+  extraChildren: [allNotesChild],
   familyActive: journalViewActive,
   createAction: {
     label: 'New journal entry',

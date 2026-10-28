@@ -112,11 +112,10 @@ test.describe('Nav ladder — mobile (375px)', () => {
     // Open Notebooks: the L2 panel offers Playgrounds and Subscribed notebooks.
     await primary.getByRole('button', { name: 'Notebooks', exact: true }).click();
     await expect(drawer.getByRole('button', { name: 'Playgrounds', exact: true })).toBeVisible();
-    await expect(drawer.getByRole('button', { name: 'All notebooks', exact: true })).toBeVisible();
+    await expect(drawer.getByRole('button', { name: 'Subscribed notebooks', exact: true })).toBeVisible();
 
-    // View rows navigate and dismiss the drawer, so each folded view is
-    // asserted after reopening the navigation on its own route.
-    await drawer.getByRole('button', { name: 'Journal', exact: true }).click();
+    // Primary rail Journal button navigates to /journal and dismisses the drawer
+    await primary.getByRole('button', { name: 'Journal', exact: true }).click();
     await expect(page).toHaveURL(/\/journal(?:\?.*)?$/);
     await page.getByRole('button', { name: 'Open navigation' }).click();
     await expect(drawer.getByRole('button', { name: 'New journal entry' })).toBeVisible({ timeout: 15_000 });

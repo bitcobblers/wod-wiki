@@ -235,6 +235,7 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
           loc.pathname,
           '/pages',
           '/page',
+          '/canvas',
           '/notes',
           '/note',
           '/sessions',
@@ -267,7 +268,7 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       level: 1,
       icon: Settings,
       action: { type: 'route', to: ROUTE_PATTERNS.settingsAppearance },
-      isActive: (loc: Location) => loc.pathname.startsWith('/settings'),
+      isActive: (loc: Location) => startsWithAny(loc.pathname, '/settings', '/feeds', '/feed'),
       children: [
         {
           id: 'settings-profile',

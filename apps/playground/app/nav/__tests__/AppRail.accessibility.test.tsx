@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'bun:test';
-import { render } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'bun:test';
+import { cleanup, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AppRail } from '../AppRail';
 import { NavProvider } from '../NavContext';
 import { appNavTree } from '../appNavTree';
 
+afterEach(() => {
+  cleanup();
+});
 describe('AppRail accessibility', () => {
   it('exposes accessible names, titles, tooltips, and aria-current on active destination', () => {
     const { container } = render(

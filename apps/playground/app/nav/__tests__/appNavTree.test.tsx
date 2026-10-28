@@ -122,9 +122,8 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
     expect(screen.getByText('New journal entry')).toBeDefined()
     expect(screen.getByText('All entries')).toBeDefined()
 
-    // Both view rows render; the Journal row is the active one.
-    expect(screen.getAllByText('Journal').length).toBeGreaterThan(0)
-    expect(screen.getByText('Playgrounds')).toBeDefined()
+    // All entries landing row renders
+    expect(screen.getByText('All entries')).toBeDefined()
 
     // The All row links the inclusive :note{!source:playground} query view on
     // the journal surface — no route of its own.
@@ -145,7 +144,7 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
     expect(screen.queryByTestId('journal-create-entry')).toBeNull()
     expect(screen.queryByTestId('playgrounds-create-playground')).toBeNull()
     // The view rows still offer the switch.
-    expect(screen.getByText('Journal')).toBeDefined()
+    expect(screen.getByText('Configure sources')).toBeDefined()
     expect(screen.getByText('Playgrounds')).toBeDefined()
   })
 

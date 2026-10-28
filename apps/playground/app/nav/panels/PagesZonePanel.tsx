@@ -9,6 +9,7 @@
  * Pages variation links as extraChildren, ensuring lateral movement remains
  * one click away.
  */
+import type React from 'react'
 import { useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import {
@@ -91,7 +92,7 @@ export function pagesVariationChildren(canvasRoutes: CanvasRoute[] = []): NavIte
   ]
 }
 
-export function createPagesZonePanel(canvasRoutes: CanvasRoute[] = []) {
+export function createPagesZonePanel(canvasRoutes: CanvasRoute[] = []): (props: NavPanelProps) => React.ReactElement {
   const variations = pagesVariationChildren(canvasRoutes)
 
   const PagesConditionsPanel = createConditionsNavPanel({
