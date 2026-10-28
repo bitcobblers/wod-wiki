@@ -18,10 +18,10 @@ import { expect, test } from '@playwright/test';
 import { seedNote } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
-const L1_LABELS = ['Notebooks', 'Journal', 'Pages', 'Dashboards'];
+const L1_LABELS = ['Home', 'Notebooks', 'Journal', 'Pages', 'Dashboards'];
 
 test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
-  test('L1 rail labels are the primary domains (Notebooks, Journal, Pages, Dashboards); entity lists are rolled up', async ({ page }) => {
+  test('L1 rail labels are the primary domains (Home, Notebooks, Journal, Pages, Dashboards); entity lists are rolled up', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
@@ -36,10 +36,14 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     }
   });
 
-  test('active state follows route identity across the notebook and journal families', async ({ page }) => {
+  test('active state follows route identity across the home, notebook and journal families', async ({ page }) => {
     const primary = page.getByRole('navigation', { name: 'Primary' });
+    const homeBtn = primary.getByRole('button', { name: 'Home', exact: true });
     const notebooksBtn = primary.getByRole('button', { name: 'Notebooks', exact: true });
     const journalBtn = primary.getByRole('button', { name: 'Journal', exact: true });
+
+    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await expect(homeBtn, 'Home L1 active on /').toHaveAttribute('aria-current', 'page', { timeout: 15_000 });
 
     for (const path of ['/notebooks', '/notebook/crossfit-girls', '/playgrounds']) {
       await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 20_000 });

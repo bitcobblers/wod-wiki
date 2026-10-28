@@ -41,9 +41,9 @@ describe('AppRail accessibility', () => {
     expect(homeBtn).not.toBeNull();
   });
 
-  it('renders exactly the 4 core content domains in Primary nav (Notebooks, Journal, Pages, Dashboards)', () => {
+  it('renders Home plus the core content domains in Primary nav (Home, Notebooks, Journal, Pages, Dashboards) with highlight', () => {
     const { getByRole } = render(
-      <MemoryRouter initialEntries={['/notebooks']}>
+      <MemoryRouter initialEntries={['/']}>
         <NavProvider tree={appNavTree}>
           <AppRail onSearch={() => {}} />
         </NavProvider>
@@ -54,6 +54,11 @@ describe('AppRail accessibility', () => {
     const buttons = Array.from(primary.querySelectorAll('button'));
     const labels = buttons.map(b => b.getAttribute('aria-label'));
 
-    expect(labels).toEqual(['Notebooks', 'Journal', 'Pages', 'Dashboards']);
+    expect(labels).toEqual(['Home', 'Notebooks', 'Journal', 'Pages', 'Dashboards']);
+
+    const homeBtn = primary.querySelector('button[aria-label="Home"]');
+    expect(homeBtn).not.toBeNull();
+    expect(homeBtn?.getAttribute('aria-current')).toBe('page');
+    expect(homeBtn?.className).toContain('bg-primary/10');
   });
 });

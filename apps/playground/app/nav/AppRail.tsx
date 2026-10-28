@@ -44,8 +44,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
       item != null &&
       item.icon != null &&
       item.id !== 'settings' &&
-      item.id !== 'buy-me-a-coffee' &&
-      item.id !== 'home',
+      item.id !== 'buy-me-a-coffee',
   )
   const isSettingsActive = location.pathname.startsWith('/settings')
   const isHomeActive = location.pathname === '/' || location.pathname === ''
@@ -55,21 +54,20 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
 
   return (
     <>
-      {/* Avatar → home */}
+      {/* Brand logo */}
       <button
         onClick={() => {
           closeDrawer()
           navigate('/')
         }}
-        title="Home"
+        title="Wod Wiki home"
         aria-label="Wod Wiki home"
-        aria-current={isHomeActive ? 'page' : undefined}
         className="group relative mb-3 grid size-8 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20 rotate-3"
       >
         <Dumbbell size={17} />
-        <span className="sr-only">Home</span>
+        <span className="sr-only">Wod Wiki home</span>
         <span role="tooltip" className={TOOLTIP_CLASS}>
-          Home
+          Wod Wiki home
         </span>
       </button>
       <nav aria-label="Primary" className="flex flex-col items-center gap-1.5">
