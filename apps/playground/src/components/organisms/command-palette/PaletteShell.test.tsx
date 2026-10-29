@@ -461,10 +461,7 @@ describe('PaletteShell mobile keyboard adaptation', () => {
     fire: (type: string) => void
   }
 
-  /** jsdom's Window type omits visualViewport and the test drives innerHeight. */
-  type TestWindow = Window & { visualViewport?: unknown; innerHeight: number }
-
-  let savedVv: unknown
+  let savedVvDescriptor: PropertyDescriptor | undefined
   let savedInnerHeight: number
 
   function stubVisualViewport(height: number): VvStub {
@@ -482,21 +479,27 @@ describe('PaletteShell mobile keyboard adaptation', () => {
         for (const fn of listeners[type] ?? []) fn(new Event(type))
       },
     }
-    ;(globalThis.window as TestWindow).visualViewport = vv
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      writable: true,
+      value: vv,
+    })
     return vv
   }
 
   beforeEach(() => {
-    const w = globalThis.window as TestWindow
-    savedVv = w.visualViewport
-    savedInnerHeight = w.innerHeight ?? 768
-    w.innerHeight = 800
+    savedVvDescriptor = Object.getOwnPropertyDescriptor(window, 'visualViewport')
+    savedInnerHeight = window.innerHeight ?? 768
+    window.innerHeight = 800
   })
 
   afterEach(() => {
-    const w = globalThis.window as TestWindow
-    w.visualViewport = savedVv
-    w.innerHeight = savedInnerHeight
+    if (savedVvDescriptor) {
+      Object.defineProperty(window, 'visualViewport', savedVvDescriptor)
+    } else {
+      Reflect.deleteProperty(window, 'visualViewport')
+    }
+    window.innerHeight = savedInnerHeight
   })
 
   it('lifts the sheet above the soft keyboard and takes the full visual viewport height', async () => {
