@@ -48,7 +48,7 @@ class MockTransport implements IRpcTransport {
     }
 }
 
-type WorkbenchState = { mode: 'active' | 'review' | 'preview' };
+type WorkbenchState = { mode: 'idle' | 'active' | 'review' | 'preview' };
 
 class MockRuntime {
     disposeCalls = 0;
