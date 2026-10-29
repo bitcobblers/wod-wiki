@@ -449,3 +449,89 @@ describe('PaletteShell Find mode (plain text default)', () => {
     await screen.findByText('Fran')
   })
 })
+
+describe('PaletteShell mobile keyboard adaptation', () => {
+  /** Minimal VisualViewport stand-in: the hook only reads height/offsetTop
+   *  and subscribes resize/scroll; offsetBottom it derives itself. */
+  type VvStub = {
+    height: number
+    offsetTop: number
+    addEventListener: (type: string, fn: (e: Event) => void) => void
+    removeEventListener: (type: string, fn: (e: Event) => void) => void
+    fire: (type: string) => void
+  }
+
+  /** jsdom's Window type omits visualViewport and the test drives innerHeight. */
+  type TestWindow = Window & { visualViewport?: unknown; innerHeight: number }
+
+  let savedVv: unknown
+  let savedInnerHeight: number
+
+  function stubVisualViewport(height: number): VvStub {
+    const listeners: Record<string, Array<(e: Event) => void>> = {}
+    const vv: VvStub = {
+      height,
+      offsetTop: 0,
+      addEventListener: (type, fn) => {
+        listeners[type] = [...(listeners[type] ?? []), fn]
+      },
+      removeEventListener: (type, fn) => {
+        listeners[type] = (listeners[type] ?? []).filter(f => f !== fn)
+      },
+      fire: type => {
+        for (const fn of listeners[type] ?? []) fn(new Event(type))
+      },
+    }
+    ;(globalThis.window as TestWindow).visualViewport = vv
+    return vv
+  }
+
+  beforeEach(() => {
+    const w = globalThis.window as TestWindow
+    savedVv = w.visualViewport
+    savedInnerHeight = w.innerHeight ?? 768
+    w.innerHeight = 800
+  })
+
+  afterEach(() => {
+    const w = globalThis.window as TestWindow
+    w.visualViewport = savedVv
+    w.innerHeight = savedInnerHeight
+  })
+
+  it('lifts the sheet above the soft keyboard and takes the full visual viewport height', async () => {
+    const search = mock(async (_q: string): Promise<PaletteItem[]> => [])
+    // Keyboard closed: the whole 800px layout viewport is visible.
+    const vv = stubVisualViewport(800)
+    renderShell()
+    openPalette({
+      wql: { initialQuery: paletteQuery, execute },
+      sources: [{ id: 'plain', search }],
+    })
+    await screen.findByTestId('wql-composer')
+
+    // The composer mounts its own dialog; the palette's Content is the one
+    // labelled by the sr-only Dialog.Title.
+    const content = screen.getByRole('dialog', { name: 'Command Palette' }) as HTMLElement
+    expect(content.style.getPropertyValue('--palette-bottom')).toBe('0px')
+    expect(content.style.getPropertyValue('--palette-min-h')).toBe(`${Math.round(800 * 0.66)}px`)
+    expect(content.style.getPropertyValue('--palette-max-h')).toBe(`${Math.round(800 * 0.92)}px`)
+    // jsdom's CSS parser drops max(env(...)) entirely (the style attribute
+    // never materializes), so the closed-state footer padding isn't
+    // observable here; the browser renders it. The open-state padding is
+    // parseable and asserted below.
+    const footer = screen.getByTestId('palette-cancel').parentElement as HTMLElement
+
+    // Keyboard opens: the visual viewport shrinks to 380px → offsetBottom 420.
+    vv.height = 380
+    act(() => {
+      vv.fire('resize')
+    })
+
+    expect(content.style.getPropertyValue('--palette-bottom')).toBe('420px')
+    expect(content.style.getPropertyValue('--palette-min-h')).toBe('380px')
+    expect(content.style.getPropertyValue('--palette-max-h')).toBe('380px')
+    // The keyboard offset already clears the safe area — no extra padding.
+    expect(footer.style.paddingBottom).toBe('0.5rem')
+  })
+})

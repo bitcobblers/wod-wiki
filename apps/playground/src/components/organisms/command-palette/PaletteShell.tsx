@@ -158,8 +158,25 @@ export const PaletteShell: React.FC = () => {
   // Shared visual-viewport tracking (keyboard-aware sheet bounds — no
   // duplicate viewport listeners in this host).
   const viewport = useVisualViewportRect();
-  const sheetMinH = viewport.height ? `${Math.round(viewport.height * SHEET_MIN_VH)}px` : '66dvh';
-  const sheetMaxH = viewport.height ? `${Math.round(viewport.height * SHEET_MAX_VH)}px` : '92dvh';
+  // Soft keyboard: the visual viewport's bottom edge lifts by the keyboard's
+  // height. Lift the sheet with it and take the full visible height so the
+  // sticky footer stays on screen instead of hiding behind the keyboard.
+  const isKeyboardOpen = !isDesktop && (viewport.offsetBottom ?? 0) > 40;
+  const sheetMinH = isDesktop
+    ? undefined
+    : isKeyboardOpen && viewport.height
+      ? `${viewport.height}px`
+      : viewport.height
+        ? `${Math.round(viewport.height * SHEET_MIN_VH)}px`
+        : '66dvh';
+  const sheetMaxH = isDesktop
+    ? undefined
+    : isKeyboardOpen && viewport.height
+      ? `${viewport.height}px`
+      : viewport.height
+        ? `${Math.round(viewport.height * SHEET_MAX_VH)}px`
+        : '92dvh';
+  const sheetBottom = isDesktop ? undefined : `${viewport.offsetBottom ?? 0}px`;
 
   // Reset the draft + results whenever the request changes (new step) or the
   // palette opens. The composer owns further emissions; seeding here only
@@ -336,7 +353,9 @@ export const PaletteShell: React.FC = () => {
   const footer = wqlConfig ? (
     <div
       className="flex items-center gap-2 border-t border-border/80 px-3 pt-2"
-      style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+      style={{
+        paddingBottom: isKeyboardOpen ? '0.5rem' : 'max(0.5rem, env(safe-area-inset-bottom))',
+      }}
     >
       {isWqlMode && !validity.valid && (
         <span
@@ -378,9 +397,10 @@ export const PaletteShell: React.FC = () => {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
         <Dialog.Content
-          className={`fixed inset-x-0 z-50 mx-auto flex w-full flex-col outline-none max-lg:bottom-0 max-lg:top-auto max-lg:rounded-t-2xl max-lg:max-h-[var(--palette-max-h)] max-lg:min-h-[var(--palette-min-h)] lg:top-[10%] lg:max-h-[80vh] lg:rounded-xl ${wqlConfig ? 'max-w-2xl' : 'max-w-xl'}`}
+          className={`fixed inset-x-0 z-50 mx-auto flex w-full flex-col outline-none max-lg:bottom-[var(--palette-bottom,0px)] max-lg:top-auto max-lg:rounded-t-2xl max-lg:max-h-[var(--palette-max-h)] max-lg:min-h-[var(--palette-min-h)] lg:top-[10%] lg:max-h-[80vh] lg:rounded-xl ${wqlConfig ? 'max-w-2xl' : 'max-w-xl'}`}
           style={
             {
+              '--palette-bottom': sheetBottom,
               '--palette-min-h': sheetMinH,
               '--palette-max-h': sheetMaxH,
             } as React.CSSProperties
