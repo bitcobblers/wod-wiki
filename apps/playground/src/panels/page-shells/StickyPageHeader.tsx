@@ -67,7 +67,7 @@ export function StickyPageHeader({
       id={id}
       data-page-sticky-boundary="true"
       className={cn(
-        'max-lg:hidden lg:sticky lg:top-0 z-30 bg-background/80 backdrop-blur-md transition-colors',
+        'max-lg:hidden lg:sticky lg:top-0 z-30 border-b border-border/50 bg-background/95 backdrop-blur-md transition-colors',
         className,
       )}
     >

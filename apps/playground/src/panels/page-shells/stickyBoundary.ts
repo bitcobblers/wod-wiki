@@ -51,20 +51,29 @@ export function useStickyBoundaryOffset(fallback: number, margin = DEFAULT_BOUND
 
   useEffect(() => {
     let raf = 0
-    const update = () => {
+    const apply = () => setOffset(measureStickyBoundary(fallback, margin))
+    const schedule = () => {
       cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => setOffset(measureStickyBoundary(fallback, margin)))
+      raf = requestAnimationFrame(apply)
     }
-    update()
-    window.addEventListener('scroll', update, { passive: true })
-    window.addEventListener('resize', update)
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(update)
+    apply()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', apply)
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(apply)
     document.querySelectorAll(STICKY_BOUNDARY_SELECTOR).forEach(element => observer?.observe(element))
+    const mutation = typeof MutationObserver === 'undefined' ? undefined : new MutationObserver(() => {
+      document.querySelectorAll(STICKY_BOUNDARY_SELECTOR).forEach(element => observer?.observe(element))
+      apply()
+    })
+    if (typeof document !== 'undefined' && document.body) {
+      mutation?.observe(document.body, { childList: true, subtree: true })
+    }
     return () => {
+      mutation?.disconnect()
       observer?.disconnect()
       cancelAnimationFrame(raf)
-      window.removeEventListener('scroll', update)
-      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', apply)
     }
   }, [fallback, margin])
 

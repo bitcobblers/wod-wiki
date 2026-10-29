@@ -52,4 +52,8 @@ export const STATIC_OPTIONS: Record<string, { value: string; label: string }[]> 
   metric: METRIC_OPTIONS,
   unit: UNIT_OPTIONS,
   intensity: WQL_INTENSITY_TIERS.map((v) => ({ value: v, label: v })),
+  subscribed: [
+    { value: 'true', label: 'Subscribed' },
+    { value: 'false', label: 'All / unsubscribed' },
+  ],
 };

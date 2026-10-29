@@ -54,8 +54,8 @@ export function WqlDiagnosticsStrip({
         'flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3 py-1.5 text-xs font-mono transition-colors',
         header
           ? valid
-            ? 'border-b border-primary/30 text-muted-foreground'
-            : 'border-b border-destructive/50 bg-destructive/5 text-destructive'
+            ? 'border-b border-border/60 bg-muted/20 text-muted-foreground'
+            : 'border-b border-destructive/40 bg-destructive/5 text-destructive'
           : cn(
               'rounded-lg border',
               valid

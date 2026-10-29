@@ -267,7 +267,7 @@ export function wqlEditorKeymap(onSubmit: () => void, onEscape: () => boolean, o
   ];
 }
 
-export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder, autoFocus = false, dense = false, onSlotActivate, activeRange, activeClause }: {
+export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder, autoFocus = false, dense = false, onSlotActivate, activeRange, activeClause, className }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -281,6 +281,7 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
   onSlotActivate?: (slot: WqlSlotActivation) => void;
   activeRange?: { from: number; to: number };
   activeClause?: QueryClause;
+  className?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | undefined>(undefined);
@@ -340,10 +341,16 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
                 let node = syntaxTree(editor.state).resolveInner(to, -1);
                 while (node.parent && !['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) node = node.parent;
                 if (!['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) return false;
-                editor.dispatch({ selection: { anchor: from, head: to } });
+                if (!callbacks.current.onSlotActivate) {
+                  editor.dispatch({ selection: { anchor: from, head: to } });
+                }
               }
-              if (callbacks.current.onSlotActivate) activateSlot(editor, from, slot => callbacks.current.onSlotActivate?.(slot));
-              else startCompletion(editor);
+              if (callbacks.current.onSlotActivate) {
+                closeCompletion(editor);
+                activateSlot(editor, from, slot => callbacks.current.onSlotActivate?.(slot));
+              } else {
+                startCompletion(editor);
+              }
               return false;
             },
             keydown: (event, editor) => {
@@ -367,7 +374,7 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
             '.cm-scroller': { overflow: 'auto' },
             '.cm-placeholder': { color: 'hsl(var(--muted-foreground))' },
             '.wql-completion-icon': { display: 'inline-flex', flexShrink: '0', color: 'hsl(var(--primary))' },
-            '.wql-active-segment': { backgroundColor: 'hsl(var(--primary) / 0.16)', boxShadow: 'inset 0 -2px hsl(var(--primary))', borderRadius: '3px' },
+            '.wql-active-segment': { backgroundColor: 'hsl(var(--primary) / 0.16)', boxShadow: 'inset 0 -2px hsl(var(--primary))', borderRadius: '4px', padding: '1px 2px', margin: '0 -2px', fontWeight: '600' },
           }),
           autocompleteTooltipTheme,
         ],
@@ -392,5 +399,5 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
     editor.dispatch({ effects: activeSegmentEffect.of(resolvedRange ?? null) });
   }, [activeRange, activeClause, value]);
 
-  return <div ref={host} className="min-w-0 w-full rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-ring" data-testid="wql-text-editor" />;
+  return <div ref={host} className={className ?? 'min-w-0 w-full rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-ring'} data-testid="wql-text-editor" />;
 }

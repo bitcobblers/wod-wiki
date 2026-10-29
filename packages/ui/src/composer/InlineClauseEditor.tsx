@@ -67,11 +67,9 @@ export function InlineClauseEditor({
   const meta = getClauseMeta(clause.type);
   const current = clause.value.trim();
   const typedIdx = filteredItems.length;
-  // The committed value strip always shows what the clause holds — for
-  // single-select that is the current value itself.
-  const shownValues = selectedValues.length > 0
-    ? selectedValues
-    : !isMulti && current ? [current] : [];
+  // Chip strip is multi-select only: single-select clauses already show the
+  // current value in the bar highlight, input placeholder, and option check.
+  const shownValues = selectedValues;
 
   const reorder = (i: number, dir: -1 | 1) => {
     if (!onReorder) return;
@@ -89,8 +87,8 @@ export function InlineClauseEditor({
       data-clause-type={clause.type}
     >
 
-      {shownValues.length > 0 && (
-        <div className={cn('px-2 pb-1.5', isMulti && 'border-b border-border/50')}>
+      {isMulti && shownValues.length > 0 && (
+        <div className="border-b border-border/50 px-2 pb-1.5">
           <div className="flex flex-wrap gap-1.5 sm:gap-1 max-h-24 overflow-y-auto overscroll-contain touch-pan-y sm:max-h-none sm:overflow-visible">
             {shownValues.map((v, i) => (
             <span
@@ -146,7 +144,7 @@ export function InlineClauseEditor({
         role="listbox"
         aria-label={`${meta.label} options`}
         aria-multiselectable={isMulti || undefined}
-        className="max-h-[min(38svh,16rem)] sm:max-h-48 overflow-y-auto overscroll-contain touch-pan-y flex flex-col gap-0.5 pt-1"
+        className="max-h-[min(38svh,16rem)] sm:max-h-36 overflow-y-auto overscroll-contain touch-pan-y flex flex-col gap-0.5 pt-1"
       >
         {canCommitTyped && (
           <button
@@ -204,18 +202,20 @@ export function InlineClauseEditor({
         )}
       </div>
 
-      <div className="hidden sm:flex items-center justify-between px-2 pt-2 text-[10px] text-muted-foreground/70 font-mono border-t border-border/40 mt-1">
-        <span>↑↓ choose · Enter {isMulti ? 'toggle' : 'set'}</span>
-        <span>Tab next segment · Esc close</span>
-      </div>
+      {(filteredItems.length > 0 || canCommitTyped) && (
+        <div className="hidden sm:flex items-center justify-between px-2 pt-2 text-[10px] text-muted-foreground/70 font-mono border-t border-border/40 mt-1">
+          <span>↑↓ choose · Enter {isMulti ? 'toggle' : 'set'}</span>
+          <span>Tab next segment · Esc close</span>
+        </div>
+      )}
 
       {isMulti && onDone && (
-        <div className="sticky bottom-0 -mx-1 -mb-1 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] bg-popover rounded-b-xl flex justify-end">
+        <div className="pt-2 flex justify-end">
           <button
             type="button"
             onClick={onDone}
             data-testid="wql-clause-editor-done"
-            className="inline-flex w-full sm:w-auto items-center justify-center min-h-12 sm:min-h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm sm:text-xs font-semibold hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex w-full sm:w-auto items-center justify-center min-h-10 sm:min-h-7 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Done{shownValues.length > 0 ? ` · ${shownValues.length} selected` : ''}
           </button>
