@@ -13,13 +13,8 @@ import { useVisualViewportRect, WqlComposer, type WqlValidationState } from '@bi
  *  only the source search coalesces (#1010 kept at the existing 150ms). */
 const SEARCH_DEBOUNCE_MS = 150;
 
-/** Mobile bottom sheet: opens at roughly the lower two-thirds of the visual
- *  viewport and may expand toward full height when content needs it. Both
- *  bounds track the visual viewport, so the sticky footer stays above the
- *  soft keyboard. */
-const SHEET_MIN_VH = 0.66;
-const SHEET_MAX_VH = 0.92;
-
+/** On mobile, the palette takes full screen when the keyboard is closed,
+ *  and shrinks to the remaining visual viewport above the soft keyboard when open. */
 /** The palette is a search-first surface on desktop (type immediately); on
  *  mobile it opens without claiming the keyboard — Search is an explicit
  *  tap (modal hosts never autofocus). */
@@ -155,29 +150,17 @@ export const PaletteShell: React.FC = () => {
   // resets with each request (a new palette open starts closed).
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Shared visual-viewport tracking (keyboard-aware sheet bounds — no
-  // duplicate viewport listeners in this host).
+  // Shared visual-viewport tracking: on mobile the palette fills the screen
+  // when the keyboard is closed (100dvh), and shrinks to the visible viewport
+  // above the keyboard when open.
   const viewport = useVisualViewportRect();
-  // Soft keyboard: the visual viewport's bottom edge lifts by the keyboard's
-  // height. Lift the sheet with it and take the full visible height so the
-  // sticky footer stays on screen instead of hiding behind the keyboard.
   const isKeyboardOpen = !isDesktop && (viewport.offsetBottom ?? 0) > 40;
-  const sheetMinH = isDesktop
+  const sheetHeight = isDesktop
     ? undefined
-    : isKeyboardOpen && viewport.height
+    : viewport.height
       ? `${viewport.height}px`
-      : viewport.height
-        ? `${Math.round(viewport.height * SHEET_MIN_VH)}px`
-        : '66dvh';
-  const sheetMaxH = isDesktop
-    ? undefined
-    : isKeyboardOpen && viewport.height
-      ? `${viewport.height}px`
-      : viewport.height
-        ? `${Math.round(viewport.height * SHEET_MAX_VH)}px`
-        : '92dvh';
+      : '100dvh';
   const sheetBottom = isDesktop ? undefined : `${viewport.offsetBottom ?? 0}px`;
-
   // Reset the draft + results whenever the request changes (new step) or the
   // palette opens. The composer owns further emissions; seeding here only
   // sets the request's own initial text.
@@ -395,14 +378,15 @@ export const PaletteShell: React.FC = () => {
   return (
     <Dialog.Root open={isOpen} onOpenChange={handleDialogOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+        <Dialog.Overlay className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm" />
         <Dialog.Content
-          className={`fixed inset-x-0 z-50 mx-auto flex w-full flex-col outline-none max-lg:bottom-[var(--palette-bottom,0px)] max-lg:top-auto max-lg:rounded-t-2xl max-lg:max-h-[var(--palette-max-h)] max-lg:min-h-[var(--palette-min-h)] lg:top-[10%] lg:max-h-[80vh] lg:rounded-xl ${wqlConfig ? 'max-w-2xl' : 'max-w-xl'}`}
+          className={`fixed inset-x-0 z-[200] mx-auto flex w-full flex-col outline-none max-lg:bottom-[var(--palette-bottom,0px)] max-lg:top-0 max-lg:h-[var(--palette-height,100dvh)] max-lg:max-h-[var(--palette-height,100dvh)] max-lg:min-h-[var(--palette-height,100dvh)] max-lg:rounded-none max-lg:pt-[env(safe-area-inset-top,0px)] lg:top-[10%] lg:max-h-[80vh] lg:rounded-xl ${wqlConfig ? 'max-w-2xl' : 'max-w-xl'}`}
           style={
             {
               '--palette-bottom': sheetBottom,
-              '--palette-min-h': sheetMinH,
-              '--palette-max-h': sheetMaxH,
+              '--palette-height': sheetHeight,
+              '--palette-min-h': sheetHeight,
+              '--palette-max-h': sheetHeight,
             } as React.CSSProperties
           }
         >

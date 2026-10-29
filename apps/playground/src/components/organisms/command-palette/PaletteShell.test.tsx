@@ -502,9 +502,9 @@ describe('PaletteShell mobile keyboard adaptation', () => {
     window.innerHeight = savedInnerHeight
   })
 
-  it('lifts the sheet above the soft keyboard and takes the full visual viewport height', async () => {
+  it('takes full screen when keyboard is closed and shrinks above soft keyboard when open', async () => {
     const search = mock(async (_q: string): Promise<PaletteItem[]> => [])
-    // Keyboard closed: the whole 800px layout viewport is visible.
+    // Keyboard closed: the whole 800px layout viewport is visible → full screen on mobile.
     const vv = stubVisualViewport(800)
     renderShell()
     openPalette({
@@ -517,21 +517,23 @@ describe('PaletteShell mobile keyboard adaptation', () => {
     // labelled by the sr-only Dialog.Title.
     const content = screen.getByRole('dialog', { name: 'Command Palette' }) as HTMLElement
     expect(content.style.getPropertyValue('--palette-bottom')).toBe('0px')
-    expect(content.style.getPropertyValue('--palette-min-h')).toBe(`${Math.round(800 * 0.66)}px`)
-    expect(content.style.getPropertyValue('--palette-max-h')).toBe(`${Math.round(800 * 0.92)}px`)
+    expect(content.style.getPropertyValue('--palette-height')).toBe('800px')
+    expect(content.style.getPropertyValue('--palette-min-h')).toBe('800px')
+    expect(content.style.getPropertyValue('--palette-max-h')).toBe('800px')
     // jsdom's CSS parser drops max(env(...)) entirely (the style attribute
     // never materializes), so the closed-state footer padding isn't
     // observable here; the browser renders it. The open-state padding is
     // parseable and asserted below.
     const footer = screen.getByTestId('palette-cancel').parentElement as HTMLElement
 
-    // Keyboard opens: the visual viewport shrinks to 380px → offsetBottom 420.
+    // Keyboard opens: the visual viewport shrinks to 380px (half screen) → offsetBottom 420.
     vv.height = 380
     act(() => {
       vv.fire('resize')
     })
 
     expect(content.style.getPropertyValue('--palette-bottom')).toBe('420px')
+    expect(content.style.getPropertyValue('--palette-height')).toBe('380px')
     expect(content.style.getPropertyValue('--palette-min-h')).toBe('380px')
     expect(content.style.getPropertyValue('--palette-max-h')).toBe('380px')
     // The keyboard offset already clears the safe area — no extra padding.
