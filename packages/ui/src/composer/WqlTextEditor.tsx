@@ -295,6 +295,36 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
     const source = wqlCompletionSource({
       values: async key => (await loadSuggestions(key === 'tags' ? 'tag' : key)).map(item => ({ label: item.value, detail: item.label, type: 'constant' })),
     });
+    // Shared by mouseup and touchend: resolve the tapped/selected WQL token
+    // to a slot and either activate the host writer or open completions.
+    const handlePointerOrTouchActivation = (editor: EditorView, clientX?: number, clientY?: number): boolean => {
+      let { from, to } = editor.state.selection.main;
+      if (clientX !== undefined && clientY !== undefined) {
+        const pos = editor.posAtCoords({ x: clientX, y: clientY });
+        if (pos === null) return false;
+        from = to = pos;
+      }
+      if (from === to) {
+        const line = editor.state.doc.lineAt(from);
+        const word = Array.from(line.text.matchAll(/[\w.*-]+/g)).find(m => line.from + m.index! <= from && from <= line.from + m.index! + m[0].length);
+        if (!word) return false;
+        from = line.from + word.index!;
+        to = from + word[0].length;
+        let node = syntaxTree(editor.state).resolveInner(to, -1);
+        while (node.parent && !['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) node = node.parent;
+        if (!['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) return false;
+        if (!callbacks.current.onSlotActivate) {
+          editor.dispatch({ selection: { anchor: from, head: to } });
+        }
+      }
+      if (callbacks.current.onSlotActivate) {
+        closeCompletion(editor);
+        activateSlot(editor, from, slot => callbacks.current.onSlotActivate?.(slot));
+      } else {
+        startCompletion(editor);
+      }
+      return false;
+    };
     const editor = new EditorView({
       parent: host.current,
       state: EditorState.create({
@@ -331,27 +361,12 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
             // retain token selection and in-row completion.
             mouseup: (event, editor) => {
               if (event.button !== 0) return false;
-              let { from, to } = editor.state.selection.main;
-              if (from === to) {
-                const line = editor.state.doc.lineAt(from);
-                const word = Array.from(line.text.matchAll(/[\w.*-]+/g)).find(m => line.from + m.index! <= from && from <= line.from + m.index! + m[0].length);
-                if (!word) return false;
-                from = line.from + word.index!;
-                to = from + word[0].length;
-                let node = syntaxTree(editor.state).resolveInner(to, -1);
-                while (node.parent && !['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) node = node.parent;
-                if (!['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) return false;
-                if (!callbacks.current.onSlotActivate) {
-                  editor.dispatch({ selection: { anchor: from, head: to } });
-                }
-              }
-              if (callbacks.current.onSlotActivate) {
-                closeCompletion(editor);
-                activateSlot(editor, from, slot => callbacks.current.onSlotActivate?.(slot));
-              } else {
-                startCompletion(editor);
-              }
-              return false;
+              return handlePointerOrTouchActivation(editor);
+            },
+            touchend: (event, editor) => {
+              if (event.changedTouches.length !== 1) return false;
+              const touch = event.changedTouches[0];
+              return handlePointerOrTouchActivation(editor, touch.clientX, touch.clientY);
             },
             keydown: (event, editor) => {
               // IME safety: while composing (or once a composition has started

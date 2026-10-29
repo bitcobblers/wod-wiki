@@ -47,10 +47,11 @@ export function openStreamQueryEditor(
   query: string,
   execute: WqlExecutor,
   onApply: (wql: string) => void,
+  scopeOptions?: readonly string[],
 ): void {
   void usePaletteStore.getState().open({
     placeholder: 'Craft the query…',
-    wql: { initialQuery: query, execute, onApply },
+    wql: { initialQuery: query, execute, onApply, preferredChoices: scopeOptions },
     sources: [wqlSearchSource()],
   })
 }
@@ -65,8 +66,8 @@ export function StreamQueryBar({
   className,
 }: StreamQueryBarProps) {
   const openEditor = useCallback(
-    () => openStreamQueryEditor(query, execute, onQueryChange),
-    [query, execute, onQueryChange],
+    () => openStreamQueryEditor(query, execute, onQueryChange, scopeOptions),
+    [query, execute, onQueryChange, scopeOptions],
   )
 
   if (compact) {
