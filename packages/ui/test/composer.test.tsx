@@ -47,6 +47,23 @@ describe('current visible draft actions', () => {
     expect(change).not.toHaveBeenCalled();
     expect(screen.getByTestId('wql-picker-search').getAttribute('aria-activedescendant')).toBeNull();
   });
+  it('opens an externally targeted segment without rewriting the query', () => {
+    const change = vi.fn();
+    const { rerender } = render(<WqlComposer initialQuery=':note{text:snatch}' onQueryChange={change} />);
+    rerender(<WqlComposer initialQuery=':note{text:snatch}' onQueryChange={change} segmentEditRequest={{ type: 'text', token: 1 }} />);
+    expect(screen.getByTestId('wql-picker-search')).toBeDefined();
+    expect(screen.getByTestId('token-slot-text').getAttribute('aria-pressed')).toBe('true');
+    expect(change).not.toHaveBeenCalled();
+  });
+
+  it('moves the lower writer with Tab and Shift-Tab', () => {
+    render(<WqlComposer initialQuery=':note{text:snatch} by {week}' />);
+    fireEvent.click(screen.getByTestId('token-slot-text'));
+    fireEvent.keyDown(screen.getByTestId('wql-picker-search'), { key: 'Tab' });
+    expect(screen.getByTestId('token-slot-groupby').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.keyDown(screen.getByTestId('wql-picker-search'), { key: 'Tab', shiftKey: true });
+    expect(screen.getByTestId('token-slot-text').getAttribute('aria-pressed')).toBe('true');
+  });
 
   it('opening a picker from typed suggestions inserts no empty filter', () => {
     const change = vi.fn();
@@ -237,6 +254,37 @@ describe('WQL text editor keyboard and lint', () => {
     vi.setSystemTime(Date.now() + 150);
     fireEvent.keyDown(view.contentDOM, { key: 'Enter' });
     expect(submit).toHaveBeenCalledTimes(1);
+  });
+  it('reports the semantic filter when Tab lands on its WQL slot', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const activate = vi.fn();
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({
+        doc: ':note{text:snatch} by {week}',
+        extensions: [wqlLanguage, keymap.of(wqlEditorKeymap(() => {}, () => false, activate))],
+      }),
+    });
+    views.push(view);
+    view.dispatch({ selection: { anchor: 0 } });
+    fireEvent.keyDown(view.contentDOM, { key: 'Tab' });
+    expect(activate).toHaveBeenCalledWith(expect.objectContaining({ node: 'Filter', filterIndex: 0 }));
+  });
+  it('decorates the active clause in the CodeMirror editor when activeClause is provided', () => {
+    const clause = { id: 'c-filter-0', type: 'text', label: 'Contains', value: 'snatch', filterIndex: 0 };
+    const { container } = render(
+      <WqlTextEditor
+        value=":note{text:snatch} by {week}"
+        onChange={() => {}}
+        onSubmit={() => {}}
+        onEscape={() => false}
+        activeClause={clause}
+      />,
+    );
+    const marked = container.querySelector('.wql-active-segment');
+    expect(marked).not.toBeNull();
+    expect(marked?.textContent).toContain('text:snatch');
   });
 
   it('real editor: Enter during an active composition never submits', () => {

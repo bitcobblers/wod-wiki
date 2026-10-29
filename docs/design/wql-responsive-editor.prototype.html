@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WQL responsive segment editor — interactive prototype</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f3f6fa; scroll-padding-top: 110px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    [data-whiteboard-anchor] { scroll-margin-top: 110px; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+    .shell { width: min(980px, calc(100% - 32px)); margin: 0 auto; padding: 56px 0 80px; }
+    .eyebrow { margin: 0 0 8px; color: #2563eb; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { max-width: 760px; margin: 0; font-size: clamp(30px, 5vw, 48px); line-height: 1.1; letter-spacing: -.035em; }
+    .intro { max-width: 740px; margin: 16px 0 28px; color: #526078; font-size: 17px; line-height: 1.6; }
+    .demo { overflow: hidden; border: 1px solid #d9e1ec; border-radius: 22px; background: #fff; box-shadow: 0 18px 50px #17203312; }
+    .demo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
+    .demo-title { font-weight: 750; }
+    .prototype-badge { padding: 5px 9px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .workspace { padding: 14px; }
+    .query-label, .writer-label { display: block; margin-bottom: 6px; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .query-row { display: flex; align-items: center; gap: 1px; min-height: 48px; padding: 6px; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; font: 14px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
+    .segment { min-height: 36px; padding: 4px 3px; border: 0; border-radius: 6px; background: transparent; color: #172033; font: inherit; }
+    .segment:hover { background: #e2e8f0; }
+    .segment.active { background: #dbeafe; color: #1d4ed8; box-shadow: inset 0 -2px #2563eb; font-weight: 750; }
+    .punctuation { color: #64748b; }
+    .editor { margin-top: 10px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 12px; background: #f8fbff; }
+    .editor[hidden] { display: none; }
+    .editor-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .close-button { min-width: 44px; min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: #475569; }
+    .close-button:hover { background: #e2e8f0; }
+    .writer-input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #94a3b8; border-radius: 9px; background: #fff; color: #172033; font: 16px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .suggestions { margin-top: 6px; overflow: hidden; border: 1px solid #d9e1ec; border-radius: 10px; background: #fff; box-shadow: 0 8px 18px #1720330c; }
+    .suggestions[hidden] { display: none; }
+    .suggestion-group { padding: 6px 10px 4px; color: #64748b; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .option { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; width: 100%; min-height: 48px; padding: 6px 10px; border: 0; border-top: 1px solid #eef2f7; background: #fff; line-height: 1.2; text-align: left; }
+    .option:hover, .option.highlighted { background: #eff6ff; }
+    .option.highlighted { box-shadow: inset 3px 0 #2563eb; }
+    .option-value { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-weight: 750; }
+    .option-meta { grid-row: span 2; align-self: center; color: #64748b; font-size: 12px; }
+    .option-description { overflow: hidden; color: #64748b; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .empty { padding: 18px 14px; color: #64748b; }
+    .suggestion-footer { padding: 6px 10px; border-top: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 11px; }
+    .editor-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
+    .nav-group { display: flex; gap: 8px; }
+    .button { min-height: 44px; padding: 9px 14px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #334155; font-weight: 650; }
+    .button:hover { background: #f1f5f9; }
+    .button.primary { border-color: #2563eb; background: #2563eb; color: #fff; }
+    .button.primary:hover { background: #1d4ed8; }
+    .status { min-height: 0; margin: 8px 0 0; color: #526078; font-size: 12px; }
+    .status:empty { display: none; }
+    .demo-footer { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid #e2e8f0; background: #f8fafc; }
+    .current-label { margin: 0 0 4px; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .current-query { margin: 0; overflow-wrap: anywhere; font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .help { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
+    .help-card { padding: 18px; border: 1px solid #d9e1ec; border-radius: 14px; background: #fff; }
+    .help-card h2 { margin: 0 0 8px; font-size: 15px; }
+    .help-card p { margin: 0; color: #64748b; font-size: 14px; line-height: 1.55; }
+    .scenarios { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    kbd { padding: 2px 5px; border: 1px solid #cbd5e1; border-bottom-width: 2px; border-radius: 4px; background: #f8fafc; font: 12px ui-monospace, monospace; }
+    .view-switcher { display: inline-flex; gap: 4px; margin: 0 0 20px; padding: 4px; border: 1px solid #d9e1ec; border-radius: 12px; background: #fff; }
+    .view-switcher a { min-height: 44px; padding: 10px 16px; border-radius: 8px; color: #526078; font-size: 14px; font-weight: 700; text-decoration: none; }
+    .view-switcher a[aria-current="page"] { background: #172033; color: #fff; }
+    body.mobile-preview .shell { width: min(420px, calc(100% - 20px)); }
+    body.mobile-preview .demo { border: 4px solid #172033; border-radius: 24px; }
+    body.mobile-preview .demo-head, body.mobile-preview .workspace, body.mobile-preview .demo-footer { padding: 10px; }
+    body.mobile-preview .workspace { padding-bottom: 10px; }
+    body.mobile-preview .query-row { min-height: 52px; padding: 3px; }
+    body.mobile-preview .segment { min-height: 44px; }
+    body.mobile-preview .editor { margin-top: 8px; padding: 10px; }
+    body.mobile-preview .suggestions { max-height: 32dvh; overflow-y: auto; }
+    body.mobile-preview .demo-footer, body.mobile-preview .help { grid-template-columns: 1fr; }
+    body.mobile-preview .demo-footer > div, body.mobile-preview .prototype-badge { display: none; }
+    body.mobile-preview .suggestion-footer { display: none; }
+    body.mobile-preview .editor-actions .button { flex: 1; padding-inline: 8px; }
+    @media (max-width: 600px) {
+      .shell { width: min(100% - 20px, 980px); padding-top: 70px; }
+      .demo { border-radius: 16px; }
+      .demo-head, .workspace, .demo-footer { padding: 10px; }
+      .workspace { padding-bottom: 10px; }
+      .query-row { min-height: 52px; padding: 3px; }
+      .segment { min-height: 44px; }
+      .editor { margin-top: 8px; padding: 10px; }
+      .suggestions { max-height: 32dvh; overflow-y: auto; }
+      .demo-footer { grid-template-columns: 1fr; }
+      .demo-footer > div, .prototype-badge { display: none; }
+      .help { grid-template-columns: 1fr; }
+      .suggestion-footer { display: none; }
+      .editor-actions .button { flex: 1; padding-inline: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/design/wql-responsive-editor.prototype.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  html { scroll-padding-top: 80px; color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 80px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: fixed; top: 16px; right: 16px; z-index: 100; padding: 5px; border: 1px solid #cbd5e1; border-radius: 9999px; box-shadow: 0 4px 16px #0f172a26; }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-bar .wb-controls { flex-wrap: nowrap; gap: 3px; }
+  #wb-count { min-width: 20px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 40px; padding: 7px 10px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button { display: inline-flex; align-items: center; justify-content: center; width: 40px; padding: 7px; border-color: transparent; border-radius: 9999px; }
+  #wb-bar button:hover { background: #f1f5f9; }
+  #wb-bar button:disabled { opacity: .4; cursor: default; }
+  #wb-bar button svg, #wb-current-toggle svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #wb-bar #wb-copy, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-bar #wb-copy:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar #wb-copy.wb-copied { background: #15803d; border-color: #15803d; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-status, #wb-storage-warning { position: fixed; top: 70px; right: 16px; z-index: 100; width: min(350px, calc(100% - 32px)); margin: 0; padding: 8px 12px; border-radius: 8px; background: #fff; box-shadow: 0 4px 16px #0f172a26; font-size: 12px; }
+  #wb-storage-warning { top: 112px; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current[hidden], #wb-current-body[hidden], #wb-copy [hidden] { display: none !important; }
+  #wb-current h2 { margin: 0; padding: 0; font-size: 14px; }
+  #wb-current-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 42px !important; padding: 10px 12px !important; border: 0 !important; border-radius: 11px !important; text-align: left; }
+  #wb-current-toggle svg { transition: transform 120ms ease; }
+  #wb-current-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  #wb-current-body { padding: 0 16px 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media (max-width: 480px) { #wb-bar { top: 8px; right: 8px; } #wb-status { top: 62px; right: 8px; } #wb-storage-warning { top: 104px; } #wb-current { right: 8px; bottom: 8px; } }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn, #wb-status, #wb-storage-warning { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite" aria-label="0 annotations" title="0 annotations">0</strong>
+    <button id="wb-add" type="button" aria-pressed="false" aria-label="Add annotation" title="Add annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation" title="Previous annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation" title="Next annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+    <button id="wb-copy" type="button" disabled aria-label="Copy annotations" title="Copy annotations">
+      <svg id="wb-copy-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg>
+      <svg id="wb-copy-check" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="m5 12 4 4L19 6"/></svg>
+    </button>
+  </div>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+  <main class="shell" data-whiteboard-document>
+    <p class="eyebrow" id="wb-p-137c852b6ae84d79ae86ac64821162e7" data-whiteboard-anchor>Interactive throwaway prototype</p>
+    <h1 id="wb-h1-262b1a2e705342169c922751bc97208d" data-whiteboard-anchor>Edit one part of WQL without losing the whole query.</h1>
+    <p class="intro" id="wb-p-f0c3bcb3ffed4da38c8e81645b4e4c3b" data-whiteboard-anchor>Explore whether one active segment, a contextual writer, and visible suggestions feel coherent on desktop and mobile. Everything runs locally in this page; no query leaves your browser.</p>
+    <nav class="view-switcher" aria-label="Prototype viewport">
+      <a id="desktop-view" href="?view=desktop">Desktop</a>
+      <a id="mobile-view" href="?view=mobile">Mobile</a>
+    </nav>
+
+    <section class="demo" aria-label="Interactive WQL editor">
+      <div class="demo-head">
+        <span class="demo-title">Command palette · Library WQL</span>
+        <span class="prototype-badge">Compact</span>
+      </div>
+      <div class="workspace">
+        <span class="query-label" id="query-label">WQL · choose a segment to edit</span>
+        <div class="query-row" id="query-row" role="group" aria-labelledby="query-label"></div>
+
+        <section class="editor" id="editor" hidden aria-labelledby="writer-label">
+          <div class="editor-top">
+            <label class="writer-label" id="writer-label" for="writer">Edit segment</label>
+            <button class="close-button" id="close" type="button" aria-label="Close segment editor">✕</button>
+          </div>
+          <input class="writer-input" id="writer" type="text" role="combobox" aria-autocomplete="list" aria-controls="suggestion-list" aria-expanded="true" autocomplete="off" spellcheck="false">
+          <div class="suggestions" id="suggestions">
+            <div class="suggestion-group" id="suggestion-group">Suggestions</div>
+            <div id="suggestion-list" role="listbox" aria-label="Segment suggestions"></div>
+            <div class="suggestion-footer">↑↓ choose · Enter accepts · Tab accepts and moves · Esc closes</div>
+          </div>
+          <div class="editor-actions">
+            <div class="nav-group">
+              <button class="button" id="previous" type="button">← Previous</button>
+              <button class="button" id="next" type="button">Next →</button>
+            </div>
+            <button class="button primary" id="done" type="button">Done</button>
+          </div>
+          <p class="status" id="status" role="status" aria-live="polite" data-whiteboard-anchor></p>
+        </section>
+      </div>
+      <div class="demo-footer">
+        <div>
+          <p class="current-label" id="wb-p-871b7dc7c02d42819a62989134edfc84" data-whiteboard-anchor>Current WQL</p>
+          <p class="current-query" id="current-query" data-whiteboard-anchor></p>
+        </div>
+        <button class="button" id="target-text" type="button">External command: Edit text</button>
+      </div>
+    </section>
+
+    <div class="scenarios" aria-label="Guided starting points">
+      <button class="button" id="scenario-text" type="button">Start: target text from outside</button>
+      <button class="button" id="scenario-source" type="button">Start: change Source</button>
+      <button class="button" id="scenario-reset" type="button">Reset query</button>
+    </div>
+
+    <section class="help" aria-label="Prototype guidance">
+      <article class="help-card">
+        <h2 id="wb-h2-f932421fc07042bb975f88c54d09f04d" data-whiteboard-anchor>Pointer or touch</h2>
+        <p id="wb-p-9f4350bb77e54a17b55f0706fa20f5b6" data-whiteboard-anchor>Select any WQL segment. Use the writer and suggestion rows, then Previous or Next to traverse without a keyboard.</p>
+      </article>
+      <article class="help-card">
+        <h2 id="wb-h2-f7f9901ba2f8449c88e18f302bdb2434" data-whiteboard-anchor>Keyboard</h2>
+        <p id="wb-p-73c1aff70ec74ddf93d8270d2f0719ab" data-whiteboard-anchor><kbd>Tab</kbd> and <kbd>Shift</kbd> + <kbd>Tab</kbd> move between segments. Arrow keys navigate suggestions; Enter accepts.</p>
+      </article>
+      <article class="help-card">
+        <h2 id="wb-h2-06657f8fb9a14186a585dfba85cdf0ae" data-whiteboard-anchor>Responsive review</h2>
+        <p id="wb-p-627056bb283a49b3a75e25f5b4597712" data-whiteboard-anchor>Resize below 600px or use device emulation. Suggestions become full-width and height-bounded while the active WQL range stays visible.</p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    // Pure prototype state: no DOM access in this module.
+    const WqlPrototype = (() => {
+      const definitions = [
+        { id: 'kind', label: 'Kind', prefix: '', suffix: ':', group: 'Query kinds', options: [
+          ['find', 'Find content', 'Search notes, blocks, and events'], ['sum', 'Sum a metric', 'Aggregate matching facts'], ['count', 'Count results', 'Count matching facts']
+        ] },
+        { id: 'target', label: 'Target', prefix: '', suffix: '', group: 'Find targets', options: [
+          ['note', 'Notes', '38 available'], ['block', 'Blocks', '124 available'], ['segment', 'Segments', '12 available'], ['event', 'Events', '86 available']
+        ] },
+        { id: 'source', label: 'Source value', prefix: 'source:', suffix: '', group: 'Values for source', options: [
+          ['journal', 'Journal', '12 notes'], ['notebooks', 'Notebooks', '38 notes'], ['guides', 'Guides', '7 notes']
+        ] },
+        { id: 'text', label: 'Text', prefix: 'text:', suffix: '', group: 'Suggested text searches', options: [
+          ['snatch', 'snatch', '9 matching notes'], ['mobility', 'mobility', '14 matching notes'], ['strength', 'strength', '21 matching notes']
+        ] },
+        { id: 'groupby', label: 'Group by', prefix: '', suffix: '', group: 'Grouping dimensions', options: [
+          ['week', 'Week', 'Calendar week'], ['day', 'Day', 'Calendar day'], ['source', 'Source', 'Source collection'], ['effort', 'Effort', 'Exercise effort']
+        ] }
+      ];
+      const initial = { values: { kind: 'find', target: 'note', source: 'journal', text: 'snatch', groupby: 'week' }, active: null, highlight: 0, suggestionsOpen: true };
+      const clone = state => ({ ...state, values: { ...state.values } });
+      const index = id => definitions.findIndex(item => item.id === id);
+      function activate(state, id) {
+        if (!definitions.some(item => item.id === id)) return state;
+        return { ...clone(state), active: id, highlight: 0, suggestionsOpen: true };
+      }
+      function move(state, direction) {
+        const current = state.active === null ? (direction > 0 ? -1 : definitions.length) : index(state.active);
+        const next = Math.max(0, Math.min(definitions.length - 1, current + direction));
+        return activate(state, definitions[next].id);
+      }
+      function update(state, value) {
+        if (state.active === null) return state;
+        const next = clone(state);
+        next.values[state.active] = value;
+        next.highlight = 0;
+        next.suggestionsOpen = true;
+        return next;
+      }
+      function options(state) {
+        if (state.active === null) return [];
+        const definition = definitions[index(state.active)];
+        const typed = state.values[state.active].toLowerCase();
+        return definition.options.filter(option => option[0].toLowerCase().includes(typed) || option[1].toLowerCase().includes(typed));
+      }
+      function accept(state, option) {
+        return state.active === null || !option ? state : update(state, option[0]);
+      }
+      function query(state) {
+        const v = state.values;
+        return `${v.kind}:${v.target}{source:${v.source} text:${v.text}} by {${v.groupby}}`;
+      }
+      return { definitions, initial, activate, move, update, options, accept, query, index };
+    })();
+
+    let state = WqlPrototype.activate(WqlPrototype.initial, 'source');
+    const $ = id => document.getElementById(id);
+    const queryRow = $('query-row'), writer = $('writer'), editor = $('editor');
+    let lastTrigger = null;
+
+    function fragment(text) {
+      const span = document.createElement('span');
+      span.className = 'punctuation';
+      span.textContent = text;
+      return span;
+    }
+    function segmentButton(definition) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'segment' + (state.active === definition.id ? ' active' : '');
+      button.dataset.segment = definition.id;
+      button.textContent = definition.prefix + state.values[definition.id] + definition.suffix;
+      button.setAttribute('aria-label', `Edit ${definition.label}: ${state.values[definition.id]}`);
+      button.setAttribute('aria-pressed', String(state.active === definition.id));
+      button.addEventListener('click', event => {
+        lastTrigger = event.currentTarget;
+        state = WqlPrototype.activate(state, definition.id);
+        render(true);
+      });
+      return button;
+    }
+    function renderQuery() {
+      queryRow.replaceChildren();
+      const d = WqlPrototype.definitions;
+      queryRow.append(segmentButton(d[0]), segmentButton(d[1]), fragment('{'), segmentButton(d[2]), fragment(' '), segmentButton(d[3]), fragment('} by {'), segmentButton(d[4]), fragment('}'));
+      $('current-query').textContent = WqlPrototype.query(state);
+    }
+    function renderSuggestions() {
+      const list = $('suggestion-list');
+      list.replaceChildren();
+      const options = WqlPrototype.options(state);
+      const definition = WqlPrototype.definitions[WqlPrototype.index(state.active)];
+      $('suggestion-group').textContent = definition.group;
+      if (!options.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = `No suggestions. Press Enter to use exact text “${state.values[state.active]}”.`;
+        list.append(empty);
+      }
+      options.forEach((option, optionIndex) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.id = `option-${optionIndex}`;
+        button.className = 'option' + (optionIndex === state.highlight ? ' highlighted' : '');
+        button.setAttribute('role', 'option');
+        button.setAttribute('aria-selected', String(state.values[state.active] === option[0]));
+        const value = document.createElement('span');
+        value.className = 'option-value';
+        value.textContent = option[0];
+        const description = document.createElement('span');
+        description.className = 'option-description';
+        description.textContent = option[1];
+        const meta = document.createElement('span');
+        meta.className = 'option-meta';
+        meta.textContent = option[2] + (state.values[state.active] === option[0] ? ' · ✓' : '');
+        button.append(value, description, meta);
+        button.addEventListener('click', () => {
+          state = WqlPrototype.accept(state, option);
+          $('status').textContent = `${definition.label} changed to ${option[0]}.`;
+          render(true);
+        });
+        list.append(button);
+      });
+      if (options.length && state.highlight >= 0) writer.setAttribute('aria-activedescendant', `option-${state.highlight}`);
+      else writer.removeAttribute('aria-activedescendant');
+      $('suggestions').hidden = !state.suggestionsOpen;
+      writer.setAttribute('aria-expanded', String(state.suggestionsOpen));
+    }
+    function render(focusWriter = false) {
+      renderQuery();
+      const active = state.active !== null;
+      editor.hidden = !active;
+      if (active) {
+        const definition = WqlPrototype.definitions[WqlPrototype.index(state.active)];
+        $('writer-label').textContent = `Edit ${definition.label}`;
+        writer.value = state.values[state.active];
+        renderSuggestions();
+        $('previous').disabled = WqlPrototype.index(state.active) === 0;
+        $('next').disabled = WqlPrototype.index(state.active) === WqlPrototype.definitions.length - 1;
+        if (focusWriter) {
+          writer.focus();
+          writer.select();
+        }
+        queryRow.querySelector('.segment.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      } else {
+        $('status').textContent = '';
+      }
+    }
+    function move(direction) {
+      state = WqlPrototype.move(state, direction);
+      $('status').textContent = `Active segment: ${WqlPrototype.definitions[WqlPrototype.index(state.active)].label}.`;
+      render(true);
+    }
+    writer.addEventListener('input', event => {
+      state = WqlPrototype.update(state, event.target.value);
+      renderQuery();
+      renderSuggestions();
+    });
+    writer.addEventListener('keydown', event => {
+      if (event.isComposing) return;
+      const options = WqlPrototype.options(state);
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!options.length) return;
+        const delta = event.key === 'ArrowDown' ? 1 : -1;
+        state = { ...state, highlight: (state.highlight + delta + options.length) % options.length, suggestionsOpen: true };
+        renderSuggestions();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const option = options[state.highlight];
+        if (option) state = WqlPrototype.accept(state, option);
+        $('status').textContent = `Using ${state.values[state.active]}.`;
+        render(true);
+      } else if (event.key === 'Tab') {
+        event.preventDefault();
+        if (state.suggestionsOpen && options[state.highlight]) state = WqlPrototype.accept(state, options[state.highlight]);
+        move(event.shiftKey ? -1 : 1);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        if (state.suggestionsOpen) {
+          state = { ...state, suggestionsOpen: false };
+          renderSuggestions();
+        } else {
+          state = { ...state, active: null };
+          render();
+          lastTrigger?.focus();
+        }
+      }
+    });
+    $('previous').addEventListener('click', () => move(-1));
+    $('next').addEventListener('click', () => move(1));
+    $('done').addEventListener('click', () => { state = { ...state, active: null }; render(); lastTrigger?.focus(); });
+    $('close').addEventListener('click', () => { state = { ...state, active: null }; render(); lastTrigger?.focus(); });
+    function target(id, trigger) {
+      lastTrigger = trigger;
+      state = WqlPrototype.activate(state, id);
+      $('status').textContent = `External command opened ${WqlPrototype.definitions[WqlPrototype.index(id)].label}.`;
+      render(true);
+    }
+    $('target-text').addEventListener('click', event => target('text', event.currentTarget));
+    $('scenario-text').addEventListener('click', event => target('text', event.currentTarget));
+    $('scenario-source').addEventListener('click', event => target('source', event.currentTarget));
+    $('scenario-reset').addEventListener('click', () => { state = WqlPrototype.activate(WqlPrototype.initial, 'source'); $('status').textContent = 'Query reset.'; render(true); });
+    render(true);
+    const mobileView = new URLSearchParams(location.search).get('view') === 'mobile';
+    document.body.classList.toggle('mobile-preview', mobileView);
+    $(mobileView ? 'mobile-view' : 'desktop-view').setAttribute('aria-current', 'page');
+  </script>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2><button id="wb-current-toggle" type="button" aria-expanded="false" aria-controls="wb-current-body"><span id="wb-current-title"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></h2>
+  <div id="wb-current-body" hidden>
+    <a id="wb-current-source">Source block</a>
+    <p id="wb-current-quote"></p>
+    <p id="wb-current-context"></p>
+    <p id="wb-current-note"></p>
+    <div class="wb-controls">
+      <button id="wb-edit" type="button">Edit</button>
+      <button id="wb-delete" type="button">Delete</button>
+      <button id="wb-hide" type="button">Hide</button>
+    </div>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Copy annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true, copyTimer;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Copy before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Copy before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    const label = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : `, ${active + 1} of ${count}`}`;
+    byId('wb-count').textContent = String(count);
+    byId('wb-count').setAttribute('aria-label', label);
+    byId('wb-count').title = label;
+    for (const id of ['wb-prev', 'wb-next', 'wb-copy']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function setExpanded(value) {
+    byId('wb-current-toggle').setAttribute('aria-expanded', String(value));
+    byId('wb-current-body').hidden = !value;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    setExpanded(false);
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+  byId('wb-current-toggle').addEventListener('click', () => {
+    setExpanded(byId('wb-current-toggle').getAttribute('aria-expanded') !== 'true');
+  });
+
+  function resetCopyButton() {
+    byId('wb-copy').classList.remove('wb-copied');
+    byId('wb-copy').setAttribute('aria-label', 'Copy annotations');
+    byId('wb-copy').title = 'Copy annotations';
+    byId('wb-copy-icon').toggleAttribute('hidden', false);
+    byId('wb-copy-check').toggleAttribute('hidden', true);
+  }
+
+  byId('wb-copy').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    clearTimeout(copyTimer);
+    resetCopyButton();
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy').classList.add('wb-copied');
+      byId('wb-copy').setAttribute('aria-label', 'Annotations copied to clipboard');
+      byId('wb-copy').title = 'Annotations copied to clipboard';
+      byId('wb-copy-icon').toggleAttribute('hidden', true);
+      byId('wb-copy-check').toggleAttribute('hidden', false);
+      byId('wb-status').textContent = 'Annotations copied to clipboard. Drafts are kept.';
+      copyTimer = setTimeout(() => {
+        resetCopyButton();
+        byId('wb-status').textContent = '';
+      }, 3000);
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+      byId('wb-export').showModal();
+      output.focus();
+      output.select();
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>

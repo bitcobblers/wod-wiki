@@ -1,6 +1,6 @@
 /**
- * StreamQueryBar — the single-line WQL query bar that lives IN the header
- * (Stitch redesign, `prototypes/header-query-bar/`).
+ * StreamQueryBar — the compact WQL query bar that lives IN the header.
+ * Its contextual writer expands to a second row inside the sticky boundary.
  *
  * Desktop: the shared WqlComposer in compact mode IS the bar — kind, target
  * and Where-stored scope chips with one searchable picker; favorites

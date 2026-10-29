@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Responsive WQL segment editor</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f8fafc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.6; }
+    .wb-shell { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 56px 0 32px; }
+    .wb-document-header { max-width: 780px; margin-bottom: 32px; padding-right: 120px; }
+    .wb-document-header h1 { margin: 0; font-size: clamp(32px, 6vw, 56px); line-height: 1.08; letter-spacing: -.04em; }
+    .wb-document-header p { margin: 16px 0 0; color: #526078; font-size: 18px; }
+    .wb-stack { display: grid; gap: 20px; }
+    .wb-card, .wb-hero, .wb-note { border: 1px solid #dce3ed; border-radius: 18px; background: #fff; box-shadow: 0 8px 30px #1720330a; }
+    .wb-card { padding: clamp(20px, 4vw, 32px); }
+    .wb-card > h2, .wb-hero h2 { margin: 0 0 12px; font-size: 24px; line-height: 1.25; letter-spacing: -.02em; }
+    .wb-card > p, .wb-hero p, .wb-note p { margin: 8px 0; }
+    .wb-hero { padding: clamp(28px, 6vw, 52px); background: #172033; color: #fff; }
+    .wb-hero p { max-width: 720px; color: #dbe5f3; font-size: 18px; }
+    .wb-eyebrow { margin: 0 0 10px !important; color: #93c5fd !important; font-size: 12px !important; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .wb-grid { display: grid; grid-template-columns: repeat(var(--wb-columns, auto-fit), minmax(min(100%, 220px), 1fr)); gap: 14px; }
+    .wb-grid > article { padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+    .wb-grid h3, .wb-timeline h3 { margin: 0 0 6px; font-size: 17px; line-height: 1.35; }
+    .wb-grid p, .wb-timeline p { margin: 6px 0; }
+    .wb-badge { display: inline-block; margin-bottom: 10px; padding: 2px 8px; border-radius: 999px; background: #dbeafe; color: #1e40af; font-size: 12px; font-weight: 700; }
+    .wb-metrics { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+    .wb-metrics dl { margin: 0; }
+    .wb-metrics dd { margin: 0; font-size: 32px; font-weight: 750; line-height: 1.15; letter-spacing: -.03em; }
+    .wb-metrics dt { margin-top: 6px; color: #526078; }
+    .wb-metrics p { margin: 6px 0 0; color: #64748b; font-size: 13px; }
+    .wb-list { margin: 12px 0 0; padding-left: 24px; }
+    .wb-list li { padding: 5px 0 5px 4px; }
+    .wb-table-wrap { overflow-x: auto; }
+    .wb-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .wb-table th, .wb-table td { padding: 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    .wb-table th { background: #f1f5f9; font-size: 13px; }
+    .wb-timeline { margin: 12px 0 0; padding: 0; list-style: none; }
+    .wb-timeline li { position: relative; margin-left: 7px; padding: 0 0 22px 24px; border-left: 2px solid #cbd5e1; }
+    .wb-timeline li::before { content: ""; position: absolute; top: 6px; left: -7px; width: 12px; height: 12px; border-radius: 50%; background: #2563eb; }
+    .wb-meta { color: #64748b; font-size: 13px; }
+    .wb-note { padding: 20px 24px; border-left: 5px solid #2563eb; box-shadow: none; }
+    .wb-note h2 { margin: 0 0 6px; font-size: 17px; }
+    .wb-note-success { border-left-color: #15803d; }
+    .wb-note-warning { border-left-color: #b45309; }
+    .wb-versions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 32px; padding-top: 20px; border-top: 1px solid #dce3ed; color: #64748b; font-size: 13px; }
+    .wb-versions strong { margin-right: 4px; color: #172033; }
+    .wb-versions a, .wb-versions span[aria-current] { padding: 3px 8px; border-radius: 999px; }
+    .wb-versions a { color: #1d4ed8; text-decoration: none; }
+    .wb-versions a:hover { background: #dbeafe; }
+    .wb-versions span[aria-current] { background: #172033; color: #fff; }
+    .wb-render-error { padding: 20px; border: 2px solid #b91c1c; border-radius: 12px; background: #fef2f2; color: #7f1d1d; }
+    @media (max-width: 600px) { .wb-shell { padding-top: 72px; } .wb-document-header { padding-right: 0; } .wb-card { border-radius: 14px; } .wb-grid { grid-template-columns: 1fr; } }
+    @media print { :root { background: #fff; } .wb-shell { width: 100%; padding: 0; } .wb-card, .wb-hero, .wb-note { box-shadow: none; break-inside: avoid; } }
+  </style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/design/wql-responsive-editor.v3.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  html { scroll-padding-top: 80px; color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 80px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: fixed; top: 16px; right: 16px; z-index: 100; padding: 5px; border: 1px solid #cbd5e1; border-radius: 9999px; box-shadow: 0 4px 16px #0f172a26; }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-bar .wb-controls { flex-wrap: nowrap; gap: 3px; }
+  #wb-count { min-width: 20px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 40px; padding: 7px 10px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button { display: inline-flex; align-items: center; justify-content: center; width: 40px; padding: 7px; border-color: transparent; border-radius: 9999px; }
+  #wb-bar button:hover { background: #f1f5f9; }
+  #wb-bar button:disabled { opacity: .4; cursor: default; }
+  #wb-bar button svg, #wb-current-toggle svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #wb-bar #wb-copy, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-bar #wb-copy:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar #wb-copy.wb-copied { background: #15803d; border-color: #15803d; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-status, #wb-storage-warning { position: fixed; top: 70px; right: 16px; z-index: 100; width: min(350px, calc(100% - 32px)); margin: 0; padding: 8px 12px; border-radius: 8px; background: #fff; box-shadow: 0 4px 16px #0f172a26; font-size: 12px; }
+  #wb-storage-warning { top: 112px; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current[hidden], #wb-current-body[hidden], #wb-copy [hidden] { display: none !important; }
+  #wb-current h2 { margin: 0; padding: 0; font-size: 14px; }
+  #wb-current-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 42px !important; padding: 10px 12px !important; border: 0 !important; border-radius: 11px !important; text-align: left; }
+  #wb-current-toggle svg { transition: transform 120ms ease; }
+  #wb-current-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  #wb-current-body { padding: 0 16px 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media (max-width: 480px) { #wb-bar { top: 8px; right: 8px; } #wb-status { top: 62px; right: 8px; } #wb-storage-warning { top: 104px; } #wb-current { right: 8px; bottom: 8px; } }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn, #wb-status, #wb-storage-warning { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite" aria-label="0 annotations" title="0 annotations">0</strong>
+    <button id="wb-add" type="button" aria-pressed="false" aria-label="Add annotation" title="Add annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation" title="Previous annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation" title="Next annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+    <button id="wb-copy" type="button" disabled aria-label="Copy annotations" title="Copy annotations">
+      <svg id="wb-copy-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg>
+      <svg id="wb-copy-check" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="m5 12 4 4L19 6"/></svg>
+    </button>
+  </div>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+  <div class="wb-shell">
+    <main data-whiteboard-document id="whiteboard"></main>
+    <nav class="wb-versions" aria-label="Whiteboard version history"><strong>Version 3</strong><a href="wql-responsive-editor.v1.html" aria-label="Open version 1">v1</a> <a href="wql-responsive-editor.v2.html" aria-label="Open version 2">v2</a> <span aria-current="page">v3</span></nav>
+  </div>
+  <script id="whiteboard-data" type="application/json">{"title":"Responsive WQL segment editor","subtitle":"Mobile and desktop interaction, suggestion visualization, and accessibility review","components":[{"type":"hero","id":"vision","eyebrow":"Recommended direction · Coordinated WQL row + contextual writer","title":"One query. One active segment. One clear place to type.","body":"The WQL row keeps the whole expression visible. Activating a segment highlights its real text and opens a contextual writer below. The same model supports touch, keyboard, screen readers, and commands from other UI."},{"type":"note","id":"interactive-prototype","tone":"success","title":"Interactive standalone prototype · wql-responsive-editor.prototype.html","body":"Open the sibling HTML file directly in a browser. Click WQL segments, filter and accept suggestions, use Tab and Shift+Tab, try Previous and Next on mobile, or invoke External command: Edit text. The prototype includes the same offline annotation controls for review feedback."},{"type":"section","id":"layouts","title":"Responsive layouts","body":"Keep the interaction identical across viewport sizes. Change density and suggestion presentation, not the underlying editing model.","components":[{"type":"cards","columns":2,"items":[{"badge":"Desktop","title":"WQL row → writer → anchored suggestions","body":"The full WQL row remains visible. The writer appears directly below it with a persistent active-range highlight above. Suggestions open beneath the writer, aligned to its leading edge, using a compact list with room for labels, values, and contextual detail. The query and surrounding results remain visible."},{"badge":"Mobile","title":"WQL row → fixed-context writer → touch suggestions","body":"The active WQL row can horizontally scroll without wrapping into ambiguity. The writer stays immediately below it. Suggestions use a full-width panel below the writer, capped around 40 percent of the visible viewport so the software keyboard does not hide the active context. Previous and Next controls supplement Tab on touch devices."}]},{"type":"cards","title":"Layout behavior by viewport","columns":2,"items":[{"badge":"Active query","title":"Desktop · Full row; Mobile · Horizontal scroll","body":"Decorate the active segment on desktop. On mobile, keep long WQL intact and scroll the active range into view."},{"badge":"Writer","title":"Below the query at every size","body":"Use normal form density on desktop. Mobile uses minimum 48px controls and 16px input text to avoid browser zoom."},{"badge":"Suggestions","title":"Anchored desktop; full-width mobile","body":"Use a 360–480px desktop panel. Size the mobile panel against the remaining visual viewport."},{"badge":"Navigation","title":"Keyboard and touch equivalents","body":"Desktop uses Tab and Shift+Tab. Mobile adds visible Previous and Next buttons while retaining external keyboard support."},{"badge":"Dismissal","title":"Explicit and keyboard actions","body":"Provide Close and Escape at every size. Do not require a swipe-only action."},{"badge":"Specialized controls","title":"Same capabilities, responsive density","body":"Dates, multi-select, negation, wildcard, and custom editors stay below the writer and become one column on mobile."}]}]},{"type":"section","id":"suggestions","title":"Suggestion visualization","body":"Suggestions should explain what will be inserted and why it belongs in this context. Avoid a bare wall of similar text.","components":[{"type":"cards","id":"suggestion-anatomy","columns":4,"items":[{"badge":"1 · Identity","title":"Primary label","body":"The inserted value in the strongest typography: journal, source, week, or a text phrase. Preserve exact spelling and wildcard markers."},{"badge":"2 · Meaning","title":"Readable secondary label","body":"A human description such as Journal, Filter key, Group by dimension, or 12 notes. This supplements the raw WQL value rather than repeating it."},{"badge":"3 · Context","title":"Role and grouping","body":"Group rows under Filter keys, Values, Grouping, or Recent. Show a small role badge where useful. Never rely on an icon or color alone."},{"badge":"4 · State","title":"Selection and insertion preview","body":"Use a visible selected background, focus indicator, and checkmark for existing values. A short footer can preview text:snatch* before acceptance."}]},{"type":"list","title":"Example suggestion panel","ordered":true,"items":["VALUES FOR SOURCE — section label, not a selectable row","journal   Journal   12 notes   ✓ currently selected","notebooks   Notebooks   38 notes","guides   Guides   7 notes","Footer: Enter selects · Tab selects and moves to Text · Esc closes suggestions"]},{"type":"note","tone":"info","title":"Keep text search distinct","body":"When no exact suggestion matches, show a separate final action such as Use exact text “morning mobility”. Do not silently convert typed text into the nearest suggestion."}]},{"type":"section","id":"interaction","title":"One interaction contract","body":"Mouse, touch, keyboard, and external UI commands all call the same segment activation path.","components":[{"type":"timeline","items":[{"meta":"Activate","title":"Select a real segment","body":"Tap/click a WQL token, activate its pill, run an external command such as Edit Text, or navigate with Tab. Highlight the segment and focus the writer without rewriting the query."},{"meta":"Suggest","title":"Use whole-query context plus segment role","body":"A filter key receives valid keys for the current target. A value receives values valid for that key. Text receives exact-text behavior. Grouping receives supported dimensions. Open suggestions automatically when useful; Ctrl+Space manually invokes them."},{"meta":"Navigate","title":"Move without losing context","body":"Arrow keys move through suggestions. Tab accepts a selected completion when appropriate, then moves to the next WQL segment. Shift+Tab reverses. Touch users get equivalent Previous and Next buttons."},{"meta":"Commit or dismiss","title":"Preserve user input","body":"Enter accepts the highlighted suggestion or commits exact input. Escape first closes suggestions, then dismisses the writer. Invalid or incomplete input remains visible; never silently revert it."}]}]},{"type":"section","id":"accessibility","title":"Accessibility requirements","body":"The visual design is only complete when the same state and actions are available without sight, a pointer, or a precise touch.","components":[{"type":"cards","columns":2,"items":[{"badge":"Semantics","title":"Expose the active relationship","body":"The writer uses combobox semantics with aria-controls, aria-expanded, and aria-activedescendant. Its accessible name includes the segment, for example Edit Text or Edit Source value. The active WQL range is exposed through a concise description, not color alone."},{"badge":"Focus","title":"No keyboard trap","body":"Keep DOM focus in the writer while arrows change the active suggestion. Tab exits at the first or last segment instead of wrapping forever. Closing restores focus to the invoking token, pill, or external command."},{"badge":"Announcements","title":"Announce outcomes, not chatter","body":"Use the listbox active descendant for suggestion reading. A polite live region announces segment changes, result counts after completion settles, validation errors, and commits. Do not announce the entire query after every keystroke."},{"badge":"Visual and touch","title":"Perceivable at every size","body":"Meet WCAG contrast, visible focus, 200 percent zoom, reflow, reduced motion, and 44 by 44 CSS pixel minimum touch targets. Selection uses shape/checkmark plus color. Support screen magnification without covering the writer."}]},{"type":"note","tone":"warning","title":"Mobile keyboard is part of the layout","body":"Size and position suggestions against the visual viewport after the software keyboard opens. Keep the writer and active suggestion visible. Do not use a full-screen modal by default; it hides the WQL relationship this design is meant to clarify."}]},{"type":"section","id":"states","title":"Suggestion states to design and test","body":"Each state needs a stable panel height where practical to avoid layout jumps.","components":[{"type":"cards","columns":2,"items":[{"badge":"Loading","title":"Retain typed text","body":"Show a small status row after a short delay. Continue typing or dismiss."},{"badge":"Results","title":"Grouped, descriptive rows","body":"Show labels, descriptions, metadata, and selection state. Accept by arrow and Enter, Tab, or tap."},{"badge":"No matches","title":"Offer exact text","body":"Explain the empty result and provide an exact-text action when valid, or let the user revise input."},{"badge":"Invalid input","title":"Preserve the buffer","body":"Show inline validation near the writer. Continue editing without a forced reset."},{"badge":"Raw WQL","title":"Explain unavailable structure","body":"State that structured suggestions are unavailable and continue in the full WQL editor."},{"badge":"Async error","title":"Keep input and allow retry","body":"Show a concise retry message or allow exact text without replacing current input."},{"badge":"Multi-values","title":"Keep the panel open","body":"Show checkmarks and a selected summary. Toggle values, then choose Done or move segments."}]}]},{"type":"section","id":"review","title":"Review decisions","body":"Recommended defaults for the first implementation.","components":[{"type":"list","ordered":true,"items":["Use the coordinated WQL row and contextual writer on both mobile and desktop.","Use an anchored suggestion panel on desktop and a full-width visual-viewport-aware panel on mobile.","Show visible Previous and Next segment controls on touch layouts; preserve Tab and Shift+Tab for keyboards.","Keep specialized date, multi-value, wildcard, negation, and custom controls in the same lower surface.","Retain exact-text actions and raw-WQL fallback; never force a query into a lossy guided representation."]},{"type":"note","tone":"success","title":"Prototype acceptance path","body":"Review at 375 by 812 and desktop width, with the mobile software keyboard open. Activate Text from an external command, edit Source with suggestions, traverse forward and backward across segments, dismiss with Escape, and repeat with a screen reader and at 200 percent zoom."}]}]}</script>
+  <script id="whiteboard-renderer">
+  (() => {
+    'use strict';
+    const root = document.getElementById('whiteboard');
+    const spec = JSON.parse(document.getElementById('whiteboard-data').textContent);
+    const usedIds = new Set(['whiteboard']);
+    const tones = new Set(['info', 'success', 'warning']);
+
+    function element(tag, className, value) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (value !== undefined && value !== null) node.textContent = String(value);
+      return node;
+    }
+
+    function anchor(node, id) {
+      if (usedIds.has(id)) throw new Error(`Duplicate whiteboard id: ${id}`);
+      usedIds.add(id);
+      node.id = id;
+      node.dataset.whiteboardAnchor = '';
+      return node;
+    }
+
+    function text(parent, tag, value, id, className = '') {
+      if (value === undefined || value === null || value === '') return null;
+      const node = anchor(element(tag, className, value), id);
+      parent.appendChild(node);
+      return node;
+    }
+
+    function baseId(component, path) {
+      if (!component || Array.isArray(component) || typeof component !== 'object') throw new Error(`Component ${path} must be an object`);
+      if (component.id !== undefined && !/^[A-Za-z][A-Za-z0-9_-]*$/.test(component.id)) throw new Error(`Invalid component id at ${path}`);
+      return component.id ? `wb-${component.id}` : `wb-c-${path.replace(/\./g, '-')}`;
+    }
+
+    function headingAndBody(component, node, id) {
+      text(node, 'h2', component.title, `${id}-title`);
+      text(node, 'p', component.body, `${id}-body`);
+    }
+
+    const renderers = {
+      hero(component, path, id) {
+        const node = element('section', 'wb-hero');
+        text(node, 'p', component.eyebrow, `${id}-eyebrow`, 'wb-eyebrow');
+        text(node, 'h2', component.title, `${id}-title`);
+        text(node, 'p', component.body, `${id}-body`);
+        return node;
+      },
+      section(component, path, id) {
+        const node = element('section', 'wb-card wb-stack');
+        headingAndBody(component, node, id);
+        if (!Array.isArray(component.components)) throw new Error(`${path}.components must be an array`);
+        component.components.forEach((child, index) => node.appendChild(render(child, `${path}.${index}`)));
+        return node;
+      },
+      cards(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        const grid = element('div', 'wb-grid');
+        const columns = component.columns === undefined ? 'auto-fit' : component.columns;
+        if (columns !== 'auto-fit' && (!Number.isInteger(columns) || columns < 1 || columns > 4)) throw new Error(`${path}.columns must be auto-fit or an integer from 1 to 4`);
+        grid.style.setProperty('--wb-columns', columns);
+        if (!Array.isArray(component.items)) throw new Error(`${path}.items must be an array`);
+        component.items.forEach((item, index) => {
+          const card = element('article');
+          text(card, 'span', item.badge, `${id}-item-${index}-badge`, 'wb-badge');
+          text(card, 'h3', item.title, `${id}-item-${index}-title`);
+          text(card, 'p', item.body, `${id}-item-${index}-body`);
+          grid.appendChild(card);
+        });
+        node.appendChild(grid);
+        return node;
+      },
+      metrics(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        const grid = element('div', 'wb-grid wb-metrics');
+        if (!Array.isArray(component.items)) throw new Error(`${path}.items must be an array`);
+        component.items.forEach((item, index) => {
+          const pair = element('dl');
+          text(pair, 'dd', item.value, `${id}-item-${index}-value`);
+          text(pair, 'dt', item.label, `${id}-item-${index}-label`);
+          text(pair, 'p', item.detail, `${id}-item-${index}-detail`);
+          grid.appendChild(pair);
+        });
+        node.appendChild(grid);
+        return node;
+      },
+      list(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        if (!Array.isArray(component.items)) throw new Error(`${path}.items must be an array`);
+        const list = element(component.ordered ? 'ol' : 'ul', 'wb-list');
+        component.items.forEach((item, index) => text(list, 'li', item, `${id}-item-${index}`));
+        node.appendChild(list);
+        return node;
+      },
+      table(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        if (!Array.isArray(component.columns) || !Array.isArray(component.rows)) throw new Error(`${path} requires columns and rows arrays`);
+        const wrap = element('div', 'wb-table-wrap');
+        const table = element('table', 'wb-table');
+        const thead = element('thead');
+        const header = element('tr');
+        component.columns.forEach((column, index) => text(header, 'th', column, `${id}-column-${index}`));
+        thead.appendChild(header);
+        table.appendChild(thead);
+        const tbody = element('tbody');
+        component.rows.forEach((row, rowIndex) => {
+          if (!Array.isArray(row) || row.length !== component.columns.length) throw new Error(`${path}.rows.${rowIndex} must have ${component.columns.length} cells`);
+          const tr = element('tr');
+          row.forEach((cell, columnIndex) => text(tr, 'td', cell, `${id}-row-${rowIndex}-cell-${columnIndex}`));
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        node.appendChild(wrap);
+        return node;
+      },
+      timeline(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        if (!Array.isArray(component.items)) throw new Error(`${path}.items must be an array`);
+        const list = element('ol', 'wb-timeline');
+        component.items.forEach((item, index) => {
+          const entry = element('li');
+          text(entry, 'p', item.meta, `${id}-item-${index}-meta`, 'wb-meta');
+          text(entry, 'h3', item.title, `${id}-item-${index}-title`);
+          text(entry, 'p', item.body, `${id}-item-${index}-body`);
+          list.appendChild(entry);
+        });
+        node.appendChild(list);
+        return node;
+      },
+      note(component, path, id) {
+        const tone = component.tone || 'info';
+        if (!tones.has(tone)) throw new Error(`${path}.tone must be info, success, or warning`);
+        const node = element('aside', `wb-note wb-note-${tone}`);
+        headingAndBody(component, node, id);
+        return node;
+      }
+    };
+
+    function render(component, path) {
+      const id = baseId(component, path);
+      const renderer = renderers[component.type];
+      if (!renderer) throw new Error(`Unknown component type at ${path}: ${component.type}`);
+      return renderer(component, path, id);
+    }
+
+    try {
+      const header = element('header', 'wb-document-header');
+      text(header, 'h1', spec.title, 'wb-document-title');
+      text(header, 'p', spec.subtitle, 'wb-document-subtitle');
+      const stack = element('div', 'wb-stack');
+      spec.components.forEach((component, index) => stack.appendChild(render(component, String(index))));
+      root.replaceChildren(header, stack);
+    } catch (error) {
+      root.replaceChildren(anchor(element('p', 'wb-render-error', error.message), 'wb-render-error'));
+      console.error(error);
+    }
+  })();
+  </script>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2><button id="wb-current-toggle" type="button" aria-expanded="false" aria-controls="wb-current-body"><span id="wb-current-title"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></h2>
+  <div id="wb-current-body" hidden>
+    <a id="wb-current-source">Source block</a>
+    <p id="wb-current-quote"></p>
+    <p id="wb-current-context"></p>
+    <p id="wb-current-note"></p>
+    <div class="wb-controls">
+      <button id="wb-edit" type="button">Edit</button>
+      <button id="wb-delete" type="button">Delete</button>
+      <button id="wb-hide" type="button">Hide</button>
+    </div>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Copy annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true, copyTimer;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Copy before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Copy before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    const label = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : `, ${active + 1} of ${count}`}`;
+    byId('wb-count').textContent = String(count);
+    byId('wb-count').setAttribute('aria-label', label);
+    byId('wb-count').title = label;
+    for (const id of ['wb-prev', 'wb-next', 'wb-copy']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function setExpanded(value) {
+    byId('wb-current-toggle').setAttribute('aria-expanded', String(value));
+    byId('wb-current-body').hidden = !value;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    setExpanded(false);
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+  byId('wb-current-toggle').addEventListener('click', () => {
+    setExpanded(byId('wb-current-toggle').getAttribute('aria-expanded') !== 'true');
+  });
+
+  function resetCopyButton() {
+    byId('wb-copy').classList.remove('wb-copied');
+    byId('wb-copy').setAttribute('aria-label', 'Copy annotations');
+    byId('wb-copy').title = 'Copy annotations';
+    byId('wb-copy-icon').toggleAttribute('hidden', false);
+    byId('wb-copy-check').toggleAttribute('hidden', true);
+  }
+
+  byId('wb-copy').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    clearTimeout(copyTimer);
+    resetCopyButton();
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy').classList.add('wb-copied');
+      byId('wb-copy').setAttribute('aria-label', 'Annotations copied to clipboard');
+      byId('wb-copy').title = 'Annotations copied to clipboard';
+      byId('wb-copy-icon').toggleAttribute('hidden', true);
+      byId('wb-copy-check').toggleAttribute('hidden', false);
+      byId('wb-status').textContent = 'Annotations copied to clipboard. Drafts are kept.';
+      copyTimer = setTimeout(() => {
+        resetCopyButton();
+        byId('wb-status').textContent = '';
+      }, 3000);
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+      byId('wb-export').showModal();
+      output.focus();
+      output.select();
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>

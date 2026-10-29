@@ -308,6 +308,7 @@ export const PaletteShell: React.FC = () => {
         className={isWqlMode ? undefined : '[&_[role=alert]]:hidden [&_[data-testid=wql-composer-pending]]:hidden'}
       >
         <WqlComposer
+          compact
           key={requestSeqRef.current}
           query={query}
           onQueryChange={handleQueryChange}

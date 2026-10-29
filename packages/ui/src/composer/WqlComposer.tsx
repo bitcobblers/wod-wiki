@@ -10,7 +10,7 @@ import { CLAUSE_META, CONTENT_GROUPING_DIMENSIONS, getClauseMeta, allowedFilterT
 import { astToPills, editQueryClause, pivotQuery, resolveQueryDraft, type QueryDraft } from './queryAst';
 import { isPipelineQuery } from '@bitcobblers/wod-wiki-wql';
 import { useSuggestionBoundTypes } from './suggestionSources';
-import { WqlTextEditor } from './WqlTextEditor';
+import { WqlTextEditor, type WqlSlotActivation } from './WqlTextEditor';
 
 export interface WqlValidationState {
   valid: boolean;
@@ -42,11 +42,18 @@ export interface WqlComposerProps {
   autoFocus?: boolean;
   placeholder?: string;
   className?: string;
+  /** External commands activate the same writer as pointer and keyboard entry. */
+  segmentEditRequest?: WqlSegmentEditRequest;
+}
+export interface WqlSegmentEditRequest {
+  type: ClauseType;
+  /** Change the token to repeat a request for the same segment. */
+  token: number;
 }
 
 type ActiveEditor =
   | { kind: 'closed' }
-  | { kind: 'value'; clause: QueryClause }
+  | { kind: 'value'; clause: QueryClause; range?: { from: number; to: number } }
   | { kind: 'wql' };
 
 export function WqlComposer({
@@ -54,6 +61,7 @@ export function WqlComposer({
   compact = false, showDiagnostics = true, diagnosticsPosition = 'bottom', execute, stages: suppliedStages,
   debounceMs = DEFAULT_DIAGNOSTICS_DEBOUNCE_MS, customSlots, diagnosticsActions,
   hiddenClauseTypes, preferredChoices, autoFocus = false, placeholder = 'Search text or enter WQL', className,
+  segmentEditRequest,
 }: WqlComposerProps) {
   const [desktop, setDesktop] = useState(false);
   const [base, setBase] = useState(query ?? initialQuery ?? ':note');
@@ -181,14 +189,14 @@ export function WqlComposer({
     else inputRef.current?.focus();
   };
 
-  const openEditor = (clause: QueryClause) => {
+  const openEditor = (clause: QueryClause, range?: { from: number; to: number }) => {
     if (pending && currentRef.current.valid) commit(currentRef.current);
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (clause.type === 'where' || clause.type === 'pipes') {
       setActive({ kind: 'wql' });
       commit(currentRef.current);
     } else {
-      setActive({ kind: 'value', clause });
+      setActive({ kind: 'value', clause, range });
       setSearch('');
     }
     setHighlight(-1);
@@ -199,6 +207,30 @@ export function WqlComposer({
     const existing = pills.find((pill) => pill.type === type);
     if (pending) commit(resolveQueryDraft(base));
     openEditor(existing ?? { id: `new-${type}`, type, ...getClauseMeta(type), value: '' });
+  };
+  const openFieldRef = useRef(openField);
+  openFieldRef.current = openField;
+  useEffect(() => {
+    if (segmentEditRequest) openFieldRef.current(segmentEditRequest.type);
+  }, [segmentEditRequest]);
+  const activateWqlSlot = (slot: WqlSlotActivation) => {
+    const clause = slot.filterIndex !== undefined
+      ? pills.find((pill) => pill.filterIndex === slot.filterIndex)
+      : slot.node === 'GroupBy' ? pills.find((pill) => pill.type === 'groupby')
+        : slot.node === 'Rollup' ? pills.find((pill) => pill.type === 'rollup')
+          : slot.node === 'Head' ? pills.find((pill) => ['kind', 'target', 'agg', 'metric'].includes(pill.type) && pill.value === slot.text)
+            : undefined;
+    if (clause) openEditor(clause, { from: slot.from, to: slot.to });
+  };
+
+  const moveEditor = (direction: 1 | -1): boolean => {
+    if (active.kind !== 'value') return false;
+    const visible = pills.filter((pill) => !hidden.has(pill.type));
+    const index = visible.findIndex((pill) => pill.id === active.clause.id);
+    const next = visible[index + direction];
+    if (!next) return false;
+    openEditor(next);
+    return true;
   };
 
   const updateClause = (clause: QueryClause, value: string | null) => {
@@ -243,6 +275,12 @@ export function WqlComposer({
   };
 
   const handleKeys = (event: KeyboardEvent<HTMLElement>) => {
+    if (active.kind === 'value' && event.key === 'Tab' && !event.nativeEvent.isComposing) {
+      if (moveEditor(event.shiftKey ? -1 : 1)) {
+        event.preventDefault(); event.stopPropagation();
+      }
+      return;
+    }
     if (event.nativeEvent.isComposing) return;
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault(); event.stopPropagation(); submit(); return;
@@ -285,8 +323,8 @@ export function WqlComposer({
   return (
     <div className={cn('min-w-0 space-y-2', desktop && compact && 'flex flex-wrap items-center gap-2 space-y-0 [&>:not([data-wql-inline])]:w-full', className)} data-testid="wql-composer-root">
       {diagnosticsPosition === 'top' && showDiagnostics && <WqlDiagnosticsStrip diagnostics={diagnostics} stages={stages} actions={action} variant="header" />}
-      {(desktop || active.kind === 'wql' || !guided) && <div data-wql-inline className={cn('min-w-0', desktop && compact ? 'flex-1' : 'w-full')}><WqlTextEditor value={resolved.wql} placeholder={placeholder} dense={desktop && compact} onChange={(text) => commit(resolveQueryDraft(text))} onSubmit={submit} onEscape={() => { if (active.kind === 'closed') return false; closeEditor(); return true; }} autoFocus={autoFocus} /></div>}
-      <div className={cn('flex min-w-0 flex-wrap items-center gap-1', !desktop && 'rounded-xl border border-border p-2', desktop && compact && 'hidden')} data-testid="wql-composer" onKeyDown={(event) => {
+      {(desktop || compact || active.kind === 'wql' || !guided) && <div data-wql-inline className={cn('min-w-0', desktop && compact ? 'flex-1' : 'w-full')}><WqlTextEditor value={resolved.wql} placeholder={placeholder} dense={compact} activeRange={active.kind === 'value' ? active.range : undefined} activeClause={active.kind === 'value' ? active.clause : undefined} onSlotActivate={activateWqlSlot} onChange={(text) => commit(resolveQueryDraft(text))} onSubmit={submit} onEscape={() => { if (active.kind === 'closed') return false; closeEditor(); return true; }} autoFocus={autoFocus} /></div>}
+      <div className={cn('flex min-w-0 flex-wrap items-center gap-1', !desktop && !compact && 'rounded-xl border border-border p-2', desktop && compact && 'hidden', !desktop && compact && 'hidden')} data-testid="wql-composer" onKeyDown={(event) => {
         if (!['Delete', 'Backspace'].includes(event.key) || !(event.target instanceof HTMLButtonElement)) return;
         const buttons = Array.from(event.currentTarget.querySelectorAll('[data-testid^="token-slot-"]:not([data-testid^="token-slot-remove-"]):not([data-testid^="token-slot-value-"])'));
         const pill = pills.filter((item) => !hidden.has(item.type))[buttons.indexOf(event.target)];
@@ -297,28 +335,139 @@ export function WqlComposer({
         inputRef.current?.focus();
       }}>
         {guided && active.kind !== 'wql' && pills.filter((pill) => !hidden.has(pill.type)).map((pill) => <TokenSlotPill key={pill.id} clause={pill} compact={compact} isActive={active.kind === 'value' && active.clause.id === pill.id} onClick={() => openEditor(pill)} onRemove={['kind', 'target', 'agg', 'metric'].includes(pill.type) ? undefined : () => { setUndo(currentRef.current.wql); updateClause(pill, null); }} />)}
-        {!desktop && active.kind !== 'wql' && guided && <input ref={inputRef} type="text" role="combobox" aria-label="Search text or WQL" aria-controls={suggesting ? listId : undefined} aria-expanded={suggesting} aria-activedescendant={suggesting && highlight >= 0 ? `${listId}-option-${highlight}` : undefined} value={pending} placeholder={placeholder} onChange={(event) => { const text = event.target.value; setPending(text); setHighlight(-1); setError(undefined); notify(resolveQueryDraft(base, text)); }} onKeyDown={handleKeys} className="min-h-12 min-w-0 flex-[1_1_140px] bg-transparent font-mono text-base outline-none" data-testid="wql-composer-input" />}
+        {!desktop && !compact && active.kind !== 'wql' && guided && <input ref={inputRef} type="text" role="combobox" aria-label="Search text or WQL" aria-controls={suggesting ? listId : undefined} aria-expanded={suggesting} aria-activedescendant={suggesting && highlight >= 0 ? `${listId}-option-${highlight}` : undefined} value={pending} placeholder={placeholder} onChange={(event) => { const text = event.target.value; setPending(text); setHighlight(-1); setError(undefined); notify(resolveQueryDraft(base, text)); }} onKeyDown={handleKeys} className="min-h-12 min-w-0 flex-[1_1_140px] bg-transparent font-mono text-base outline-none" data-testid="wql-composer-input" />}
         {customSlots}
       </div>
-      {(!desktop || undo) && <div data-wql-inline={desktop && compact ? '' : undefined} className="flex flex-wrap items-center gap-2">
-        {!desktop && <button type="button" onClick={() => { commit(currentRef.current); if (active.kind === 'wql') closeEditor(); else setActive({ kind: 'wql' }); }} disabled={active.kind === 'wql' && !guided} className="min-h-12 rounded-lg px-3">{active.kind === 'wql' ? 'Guided controls' : 'Edit WQL'}</button>}
+      {((!desktop && !compact) || undo) && <div data-wql-inline={desktop && compact ? '' : undefined} className="flex flex-wrap items-center gap-2">
+        {!desktop && !compact && <button type="button" onClick={() => { commit(currentRef.current); if (active.kind === 'wql') closeEditor(); else setActive({ kind: 'wql' }); }} disabled={active.kind === 'wql' && !guided} className="min-h-12 rounded-lg px-3">{active.kind === 'wql' ? 'Guided controls' : 'Edit WQL'}</button>}
         {undo && <button type="button" onClick={() => { commit(resolveQueryDraft(undo)); setUndo(undefined); }} className={cn('rounded-lg', desktop && compact ? 'min-h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground' : 'min-h-12 px-3')}>Undo removal</button>}
       </div>}
-      {active.kind === 'value' && <div data-testid="wql-field-picker" className="min-w-0 rounded-xl border border-border p-2 focus-within:ring-2 focus-within:ring-ring" onKeyDown={(event) => { if (event.key === 'Escape' || (event.key === 'Enter' && (event.ctrlKey || event.metaKey))) handleKeys(event); }}>
-        <button type="button" onClick={closeEditor} className="min-h-12 px-3">Back</button>
-        <label className="block text-sm">Search {getClauseMeta(active.clause.type).label}
-          <input ref={pickerRef} type="search" role="combobox" aria-label={`Search ${getClauseMeta(active.clause.type).label}`} aria-controls={listId} aria-expanded="true" aria-activedescendant={highlight >= 0 ? `${listId}-option-${highlight}` : undefined} value={search} onChange={(event) => { setSearch(event.target.value); setHighlight(-1); setError(undefined); }} onKeyDown={handleKeys} className="min-h-12 w-full rounded border border-border bg-background px-3 text-base" data-testid="wql-picker-search" />
-        </label>
-        {active.kind === 'value' && active.clause.filterIndex !== undefined && <div className="flex flex-wrap gap-2">
-          <label className="flex min-h-12 items-center gap-2"><input type="checkbox" checked={active.clause.negate ?? false} onChange={(event) => updateClause({ ...active.clause, negate: event.target.checked }, active.clause.value)} />Exclude</label>
-          <label className="flex min-h-12 items-center gap-2"><input type="checkbox" checked={active.clause.value.split('|').every((value) => value.endsWith('*'))} onChange={(event) => updateClause(active.clause, active.clause.value.split('|').map((value) => `${value.replace(/\*$/, '')}${event.target.checked ? '*' : ''}`).join('|'))} />Starts with</label>
-        </div>}
-        {active.kind === 'value' && active.clause.type === 'time' && <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label>Start date<input type="date" aria-label="Start date" className="min-h-12 w-full bg-background text-base" onChange={(event) => { const end = draftWindow(); updateClause(active.clause, `from ${event.target.value}${end?.kind === 'range' && end.end ? ` to ${end.end}` : ''}`); }} value={astWindow?.kind === 'range' ? astWindow.start : ''} /></label>
-          <label>End date<input type="date" aria-label="End date" className="min-h-12 w-full bg-background text-base" onChange={(event) => { const window = draftWindow(); if (window?.kind === 'range') updateClause(active.clause, `from ${window.start}${event.target.value ? ` to ${event.target.value}` : ''}`); else setError('Choose a start date first'); }} value={astWindow?.kind === 'range' ? astWindow.end ?? '' : ''} /></label>
-        </div>}
-        {active.kind === 'value' && (customEditor ? <customEditor.Editor value={customEditor.parseValue ? customEditor.parseValue(active.clause.value) : active.clause.value} onChange={(value) => updateClause(active.clause, customEditor.formatValue ? customEditor.formatValue(value) : String(value))} onClose={closeEditor} /> : <InlineClauseEditor clause={active.clause} filteredItems={preferredItems} selectedValues={values.selectedValues} isMulti={values.isMulti} typedValue={values.typedValue} canCommitTyped={values.canCommitTyped} emptyText={values.emptyText} highlightIdx={highlight} onHighlight={setHighlight} onCommitValue={chooseValue} onCommitTyped={chooseValue} listId={listId} onDone={closeEditor} onReorder={(dimensions) => updateClause(active.clause, dimensions.join('|'))} />)}
-      </div>}
+      {active.kind === 'value' && (
+        <div
+          data-testid="wql-field-picker"
+          className="min-w-0 rounded-xl border border-border/80 bg-muted/30 p-2 sm:p-2.5 shadow-2xs space-y-2 backdrop-blur-sm"
+          onKeyDown={(event) => { if (event.key === 'Escape' || (event.key === 'Enter' && (event.ctrlKey || event.metaKey))) handleKeys(event); }}
+        >
+          <div className="flex items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground font-mono">
+              <span aria-hidden="true" className="text-sm">{getClauseMeta(active.clause.type).icon}</span>
+              <span>Edit {getClauseMeta(active.clause.type).label}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Previous WQL segment"
+                data-testid="wql-segment-previous"
+                onClick={() => { if (moveEditor(-1)) pickerRef.current?.focus(); }}
+                className="flex items-center justify-center min-h-8 min-w-8 sm:min-h-7 sm:min-w-7 rounded-md border border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground text-xs transition-colors"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                aria-label="Next WQL segment"
+                data-testid="wql-segment-next"
+                onClick={() => { if (moveEditor(1)) pickerRef.current?.focus(); }}
+                className="flex items-center justify-center min-h-8 min-w-8 sm:min-h-7 sm:min-w-7 rounded-md border border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground text-xs transition-colors"
+              >
+                →
+              </button>
+              <button
+                type="button"
+                aria-label="Close segment editor"
+                onClick={closeEditor}
+                className="flex items-center justify-center min-h-8 min-w-8 sm:min-h-7 sm:min-w-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground text-xs transition-colors ml-0.5"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+          <label className="sr-only">Search {getClauseMeta(active.clause.type).label}</label>
+          <input
+            ref={pickerRef}
+            type="search"
+            role="combobox"
+            aria-label={`Search ${getClauseMeta(active.clause.type).label}`}
+            aria-controls={listId}
+            aria-expanded="true"
+            aria-activedescendant={highlight >= 0 ? `${listId}-option-${highlight}` : undefined}
+            value={search}
+            placeholder={active.clause.value ? `Current: ${active.clause.value}` : `Type value for ${getClauseMeta(active.clause.type).label}…`}
+            onChange={(event) => { setSearch(event.target.value); setHighlight(-1); setError(undefined); }}
+            onKeyDown={handleKeys}
+            className="min-h-11 sm:min-h-9 w-full rounded-lg border border-border/80 bg-background px-3 font-mono text-sm sm:text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+            data-testid="wql-picker-search"
+          />
+          {active.kind === 'value' && active.clause.filterIndex !== undefined && (
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <label className="inline-flex cursor-pointer select-none items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-background/50 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={active.clause.negate ?? false}
+                  onChange={(event) => updateClause({ ...active.clause, negate: event.target.checked }, active.clause.value)}
+                  className="size-3.5 rounded border-border text-primary focus:ring-primary"
+                />
+                <span>Exclude</span>
+              </label>
+              <label className="inline-flex cursor-pointer select-none items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-background/50 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={active.clause.value.split('|').every((value) => value.endsWith('*'))}
+                  onChange={(event) => updateClause(active.clause, active.clause.value.split('|').map((value) => `${value.replace(/\*$/, '')}${event.target.checked ? '*' : ''}`).join('|'))}
+                  className="size-3.5 rounded border-border text-primary focus:ring-primary"
+                />
+                <span>Starts with</span>
+              </label>
+            </div>
+          )}
+          {active.kind === 'value' && active.clause.type === 'time' && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 pt-0.5 text-xs">
+              <label className="block text-muted-foreground">Start date
+                <input
+                  type="date"
+                  aria-label="Start date"
+                  className="mt-1 min-h-9 w-full rounded-md border border-border/80 bg-background px-2.5 text-xs text-foreground"
+                  onChange={(event) => { const end = draftWindow(); updateClause(active.clause, `from ${event.target.value}${end?.kind === 'range' && end.end ? ` to ${end.end}` : ''}`); }}
+                  value={astWindow?.kind === 'range' ? astWindow.start : ''}
+                />
+              </label>
+              <label className="block text-muted-foreground">End date
+                <input
+                  type="date"
+                  aria-label="End date"
+                  className="mt-1 min-h-9 w-full rounded-md border border-border/80 bg-background px-2.5 text-xs text-foreground"
+                  onChange={(event) => { const window = draftWindow(); if (window?.kind === 'range') updateClause(active.clause, `from ${window.start}${event.target.value ? ` to ${event.target.value}` : ''}`); else setError('Choose a start date first'); }}
+                  value={astWindow?.kind === 'range' ? astWindow.end ?? '' : ''}
+                />
+              </label>
+            </div>
+          )}
+          {active.kind === 'value' && (customEditor ? (
+            <customEditor.Editor
+              value={customEditor.parseValue ? customEditor.parseValue(active.clause.value) : active.clause.value}
+              onChange={(value) => updateClause(active.clause, customEditor.formatValue ? customEditor.formatValue(value) : String(value))}
+              onClose={closeEditor}
+            />
+          ) : (
+            <InlineClauseEditor
+              clause={active.clause}
+              filteredItems={preferredItems}
+              selectedValues={values.selectedValues}
+              isMulti={values.isMulti}
+              typedValue={values.typedValue}
+              canCommitTyped={values.canCommitTyped}
+              emptyText={values.emptyText}
+              highlightIdx={highlight}
+              onHighlight={setHighlight}
+              onCommitValue={chooseValue}
+              onCommitTyped={chooseValue}
+              listId={listId}
+              onDone={closeEditor}
+              onReorder={(dimensions) => updateClause(active.clause, dimensions.join('|'))}
+            />
+          ))}
+        </div>
+      )}
       {suggesting && <div id={listId} role="listbox" aria-label="Query conditions" className="max-h-64 overflow-y-auto rounded-xl border border-border p-1" data-testid="wql-filter-typeahead">
         {catalog.map((type, index) => <button key={type} id={`${listId}-option-${index}`} type="button" role="option" aria-selected={false} onMouseEnter={() => setHighlight(index)} onClick={() => openField(type)} className={cn('flex min-h-12 w-full items-center gap-2 rounded px-3 text-left', index === highlight && 'bg-muted')} data-testid={`wql-filter-typeahead-${type}`}><span>{pills.some((pill) => pill.type === type) ? 'Edit' : 'Add'} {getClauseMeta(type).label}</span><span className="text-xs text-muted-foreground">{type}</span></button>)}
         {textAction && <button id={`${listId}-option-${catalog.length}`} type="button" role="option" aria-selected={false} onMouseEnter={() => setHighlight(catalog.length)} className={cn('min-h-12 w-full rounded px-3 text-left', highlight === catalog.length && 'bg-muted')} onClick={submit}>Search text {pending}</button>}

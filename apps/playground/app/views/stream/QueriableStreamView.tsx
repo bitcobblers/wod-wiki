@@ -14,7 +14,6 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CloudDownload,
-  Plus,
   RefreshCw,
   Settings2,
   TriangleAlertIcon,
@@ -65,7 +64,7 @@ import { ResponsiveActions } from '../../nav/ResponsiveActions'
 import { NotebookLibraryBrowser } from '../notebook-gallery/NotebookLibraryBrowser'
 import { FeedIntakeBanner } from '../notebook-gallery/FeedIntakeBanner'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
-import { effortPath, ROUTE_PATTERNS } from '../../lib/routes'
+import { ROUTE_PATTERNS } from '../../lib/routes'
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings } from '../../lib/viewSettingsStorage'
 import { useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
@@ -327,7 +326,6 @@ export function QueriableStreamView({
   }, [navigate])
   const [createNotebookOpen, setCreateNotebookOpen] = useState(false)
   const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
-    // The landing note (the notebook's stored definition) is part of create().
     const created = await notebookService.create(name, description, icon)
     setSavedTick(t => t + 1)
     return created
@@ -948,32 +946,7 @@ export function QueriableStreamView({
       <StickyPageHeader
         className="max-lg:hidden"
         actions={
-          <ResponsiveActions
-            primary={
-              profile.route === '/efforts' ? (
-                <Button
-                  size="sm"
-                  onClick={() => navigate(effortPath('new', undefined, { mode: 'create' }))}
-                  className="h-9 px-2.5 text-xs gap-1.5"
-                  data-testid="efforts-create-btn"
-                >
-                  <Plus className="size-3.5" />
-                  <span>New</span>
-                </Button>
-              ) : isNotebooksRoute ? (
-                <Button
-                  size="sm"
-                  onClick={() => setCreateNotebookOpen(true)}
-                  className="h-9 px-2.5 text-xs gap-1.5"
-                  data-testid="notebooks-create-button"
-                >
-                  <Plus className="size-3.5" />
-                  <span>New Notebook</span>
-                </Button>
-              ) : undefined
-            }
-            label="Stream actions"
-          >
+          <ResponsiveActions label="Stream actions">
             {isNotebooksRoute && (
               <Button
                 variant="outline"

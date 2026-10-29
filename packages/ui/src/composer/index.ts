@@ -1,4 +1,4 @@
-export { WqlComposer, type WqlComposerProps, type WqlValidationState } from './WqlComposer';
+export { WqlComposer, type WqlComposerProps, type WqlSegmentEditRequest, type WqlValidationState } from './WqlComposer';
 export {
   matchFilterTypeahead,
   type FilterTypeaheadCandidate,

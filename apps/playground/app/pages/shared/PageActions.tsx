@@ -2,9 +2,8 @@
  * PageActions — unified page-level action bar.
  *
  * Replaces NotePageActions and PlaygroundNoteActions with a single
- * mode-driven component. All pages receive [Cast, …].
- * The playground page additionally receives a [New | Reset] ButtonGroup
- * prepended to the left.
+ * mode-driven component. Desktop pages receive [New ▾, Cast, …]; phones
+ * retain their existing dock and navbar ownership.
  *
  * See docs/navbar-wodblock-actions-assessment-2026-05-08.md §4 Candidate 2.
  */
@@ -14,11 +13,13 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowPathIcon, PlusIcon } from '@heroicons/react/20/solid'
 
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc'
+import { Button } from '@/components/atoms/primitives/button'
 import { ButtonGroup } from '@/components/molecules/ButtonGroup'
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown'
 import type { PageMode } from '@/types/content-type'
 
 import { ActionsMenu } from './PageToolbar'
+import { NewEntryCombo } from './NewEntryCombo'
 import { mapIndexToL3 } from './pageUtils'
 import { DEFAULT_PLAYGROUND_CONTENT } from '../../templates/defaultPlaygroundContent'
 import { createPlaygroundPage } from '../../services/createPlaygroundPage'
@@ -78,16 +79,13 @@ export function PageActions({
     }
   }
 
-  // Playground mode contributes its New | Reset group even on phones (the
-  // dock sheet hosts it); every other mode is pure generic controls, which
-  // the shell owns on mobile — render nothing so the page registers no
-  // empty overflow group.
+  // Playground mode contributes its New | Reset group to the phone dock;
+  // desktop uses the shared New combo and a separate Reset action.
   if (dockOwnsGeneric && mode !== 'playground') return null
 
   return (
     <div className="flex items-center gap-3">
-      {/* Playground-only: New | Reset group button */}
-      {mode === 'playground' && (
+      {mode === 'playground' && dockOwnsGeneric && (
         <ButtonGroup
           primary={{
             id: 'new-playground',
@@ -105,6 +103,13 @@ export function PageActions({
         />
       )}
 
+      {!dockOwnsGeneric && <NewEntryCombo />}
+      {!dockOwnsGeneric && mode === 'playground' && (
+        <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs" onClick={() => void handleReset()}>
+          <ArrowPathIcon className="size-3.5" />
+          {isResetting ? 'Resetting…' : 'Reset to default'}
+        </Button>
+      )}
       {!dockOwnsGeneric && <SyncActivityIndicators />}
       {!dockOwnsGeneric && <CastButtonRpc />}
       {!dockOwnsGeneric && (

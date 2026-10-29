@@ -1,0 +1,229 @@
+{
+  "title": "Responsive WQL segment editor",
+  "subtitle": "Mobile and desktop interaction, suggestion visualization, and accessibility review",
+  "components": [
+    {
+      "type": "hero",
+      "id": "vision",
+      "eyebrow": "Recommended direction · Coordinated WQL row + contextual writer",
+      "title": "One query. One active segment. One clear place to type.",
+      "body": "The WQL row keeps the whole expression visible. Activating a segment highlights its real text and opens a contextual writer below. The same model supports touch, keyboard, screen readers, and commands from other UI."
+    },
+    {
+      "type": "note",
+      "id": "interactive-prototype",
+      "tone": "success",
+      "title": "Interactive prototypes · desktop and dedicated mobile mode",
+      "body": "Open wql-responsive-editor.prototype.html for desktop or wql-responsive-editor.prototype.html?view=mobile for the dedicated phone-width version. The compact command-palette and library query-bar pattern uses a 52px mobile WQL row, 44px writer, 48px suggestion rows, and 44px segment touch targets. Spacing and duplicate mobile status text are reduced. Both modes retain suggestions, WQL updates, keyboard traversal, touch navigation, external Edit text targeting, and offline annotations."
+    },
+    {
+      "type": "section",
+      "id": "layouts",
+      "title": "Responsive layouts",
+      "body": "Keep the interaction identical across viewport sizes. Change density and suggestion presentation, not the underlying editing model.",
+      "components": [
+        {
+          "type": "cards",
+          "columns": 2,
+          "items": [
+            {
+              "badge": "Desktop",
+              "title": "WQL row → writer → anchored suggestions",
+              "body": "The full WQL row remains visible. The writer appears directly below it with a persistent active-range highlight above. Suggestions open beneath the writer, aligned to its leading edge, using a compact list with room for labels, values, and contextual detail. The query and surrounding results remain visible."
+            },
+            {
+              "badge": "Mobile",
+              "title": "WQL row → fixed-context writer → touch suggestions",
+              "body": "The active WQL row can horizontally scroll without wrapping into ambiguity. The writer stays immediately below it. Suggestions use a full-width panel below the writer, capped around 40 percent of the visible viewport so the software keyboard does not hide the active context. Previous and Next controls supplement Tab on touch devices."
+            }
+          ]
+        },
+        {
+          "type": "cards",
+          "title": "Layout behavior by viewport",
+          "columns": 2,
+          "items": [
+            { "badge": "Active query", "title": "Desktop · Full row; Mobile · Horizontal scroll", "body": "Decorate the active segment on desktop. On mobile, keep long WQL intact and scroll the active range into view." },
+            { "badge": "Writer", "title": "Below the query at every size", "body": "Use normal form density on desktop. Mobile uses minimum 48px controls and 16px input text to avoid browser zoom." },
+            { "badge": "Suggestions", "title": "Anchored desktop; full-width mobile", "body": "Use a 360–480px desktop panel. Size the mobile panel against the remaining visual viewport." },
+            { "badge": "Navigation", "title": "Keyboard and touch equivalents", "body": "Desktop uses Tab and Shift+Tab. Mobile adds visible Previous and Next buttons while retaining external keyboard support." },
+            { "badge": "Dismissal", "title": "Explicit and keyboard actions", "body": "Provide Close and Escape at every size. Do not require a swipe-only action." },
+            { "badge": "Specialized controls", "title": "Same capabilities, responsive density", "body": "Dates, multi-select, negation, wildcard, and custom editors stay below the writer and become one column on mobile." }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "suggestions",
+      "title": "Suggestion visualization",
+      "body": "Suggestions should explain what will be inserted and why it belongs in this context. Avoid a bare wall of similar text.",
+      "components": [
+        {
+          "type": "cards",
+          "id": "suggestion-anatomy",
+          "columns": 4,
+          "items": [
+            {
+              "badge": "1 · Identity",
+              "title": "Primary label",
+              "body": "The inserted value in the strongest typography: journal, source, week, or a text phrase. Preserve exact spelling and wildcard markers."
+            },
+            {
+              "badge": "2 · Meaning",
+              "title": "Readable secondary label",
+              "body": "A human description such as Journal, Filter key, Group by dimension, or 12 notes. This supplements the raw WQL value rather than repeating it."
+            },
+            {
+              "badge": "3 · Context",
+              "title": "Role and grouping",
+              "body": "Group rows under Filter keys, Values, Grouping, or Recent. Show a small role badge where useful. Never rely on an icon or color alone."
+            },
+            {
+              "badge": "4 · State",
+              "title": "Selection and insertion preview",
+              "body": "Use a visible selected background, focus indicator, and checkmark for existing values. A short footer can preview text:snatch* before acceptance."
+            }
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Example suggestion panel",
+          "ordered": true,
+          "items": [
+            "VALUES FOR SOURCE — section label, not a selectable row",
+            "journal   Journal   12 notes   ✓ currently selected",
+            "notebooks   Notebooks   38 notes",
+            "guides   Guides   7 notes",
+            "Footer: Enter selects · Tab selects and moves to Text · Esc closes suggestions"
+          ]
+        },
+        {
+          "type": "note",
+          "tone": "info",
+          "title": "Keep text search distinct",
+          "body": "When no exact suggestion matches, show a separate final action such as Use exact text “morning mobility”. Do not silently convert typed text into the nearest suggestion."
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "interaction",
+      "title": "One interaction contract",
+      "body": "Mouse, touch, keyboard, and external UI commands all call the same segment activation path.",
+      "components": [
+        {
+          "type": "timeline",
+          "items": [
+            {
+              "meta": "Activate",
+              "title": "Select a real segment",
+              "body": "Tap/click a WQL token, activate its pill, run an external command such as Edit Text, or navigate with Tab. Highlight the segment and focus the writer without rewriting the query."
+            },
+            {
+              "meta": "Suggest",
+              "title": "Use whole-query context plus segment role",
+              "body": "A filter key receives valid keys for the current target. A value receives values valid for that key. Text receives exact-text behavior. Grouping receives supported dimensions. Open suggestions automatically when useful; Ctrl+Space manually invokes them."
+            },
+            {
+              "meta": "Navigate",
+              "title": "Move without losing context",
+              "body": "Arrow keys move through suggestions. Tab accepts a selected completion when appropriate, then moves to the next WQL segment. Shift+Tab reverses. Touch users get equivalent Previous and Next buttons."
+            },
+            {
+              "meta": "Commit or dismiss",
+              "title": "Preserve user input",
+              "body": "Enter accepts the highlighted suggestion or commits exact input. Escape first closes suggestions, then dismisses the writer. Invalid or incomplete input remains visible; never silently revert it."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "accessibility",
+      "title": "Accessibility requirements",
+      "body": "The visual design is only complete when the same state and actions are available without sight, a pointer, or a precise touch.",
+      "components": [
+        {
+          "type": "cards",
+          "columns": 2,
+          "items": [
+            {
+              "badge": "Semantics",
+              "title": "Expose the active relationship",
+              "body": "The writer uses combobox semantics with aria-controls, aria-expanded, and aria-activedescendant. Its accessible name includes the segment, for example Edit Text or Edit Source value. The active WQL range is exposed through a concise description, not color alone."
+            },
+            {
+              "badge": "Focus",
+              "title": "No keyboard trap",
+              "body": "Keep DOM focus in the writer while arrows change the active suggestion. Tab exits at the first or last segment instead of wrapping forever. Closing restores focus to the invoking token, pill, or external command."
+            },
+            {
+              "badge": "Announcements",
+              "title": "Announce outcomes, not chatter",
+              "body": "Use the listbox active descendant for suggestion reading. A polite live region announces segment changes, result counts after completion settles, validation errors, and commits. Do not announce the entire query after every keystroke."
+            },
+            {
+              "badge": "Visual and touch",
+              "title": "Perceivable at every size",
+              "body": "Meet WCAG contrast, visible focus, 200 percent zoom, reflow, reduced motion, and 44 by 44 CSS pixel minimum touch targets. Selection uses shape/checkmark plus color. Support screen magnification without covering the writer."
+            }
+          ]
+        },
+        {
+          "type": "note",
+          "tone": "warning",
+          "title": "Mobile keyboard is part of the layout",
+          "body": "Size and position suggestions against the visual viewport after the software keyboard opens. Keep the writer and active suggestion visible. Do not use a full-screen modal by default; it hides the WQL relationship this design is meant to clarify."
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "states",
+      "title": "Suggestion states to design and test",
+      "body": "Each state needs a stable panel height where practical to avoid layout jumps.",
+      "components": [
+        {
+          "type": "cards",
+          "columns": 2,
+          "items": [
+            { "badge": "Loading", "title": "Retain typed text", "body": "Show a small status row after a short delay. Continue typing or dismiss." },
+            { "badge": "Results", "title": "Grouped, descriptive rows", "body": "Show labels, descriptions, metadata, and selection state. Accept by arrow and Enter, Tab, or tap." },
+            { "badge": "No matches", "title": "Offer exact text", "body": "Explain the empty result and provide an exact-text action when valid, or let the user revise input." },
+            { "badge": "Invalid input", "title": "Preserve the buffer", "body": "Show inline validation near the writer. Continue editing without a forced reset." },
+            { "badge": "Raw WQL", "title": "Explain unavailable structure", "body": "State that structured suggestions are unavailable and continue in the full WQL editor." },
+            { "badge": "Async error", "title": "Keep input and allow retry", "body": "Show a concise retry message or allow exact text without replacing current input." },
+            { "badge": "Multi-values", "title": "Keep the panel open", "body": "Show checkmarks and a selected summary. Toggle values, then choose Done or move segments." }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "review",
+      "title": "Review decisions",
+      "body": "Recommended defaults for the first implementation.",
+      "components": [
+        {
+          "type": "list",
+          "ordered": true,
+          "items": [
+            "Use the coordinated WQL row and contextual writer on both mobile and desktop.",
+            "Use an anchored suggestion panel on desktop and a full-width visual-viewport-aware panel on mobile.",
+            "Show visible Previous and Next segment controls on touch layouts; preserve Tab and Shift+Tab for keyboards.",
+            "Keep specialized date, multi-value, wildcard, negation, and custom controls in the same lower surface.",
+            "Retain exact-text actions and raw-WQL fallback; never force a query into a lossy guided representation."
+          ]
+        },
+        {
+          "type": "note",
+          "tone": "success",
+          "title": "Prototype acceptance path",
+          "body": "Review at 375 by 812 and desktop width, with the mobile software keyboard open. Activate Text from an external command, edit Source with suggestions, traverse forward and backward across segments, dismiss with Escape, and repeat with a screen reader and at 200 percent zoom."
+        }
+      ]
+    }
+  ]
+}

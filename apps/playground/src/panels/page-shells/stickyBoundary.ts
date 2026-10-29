@@ -43,8 +43,8 @@ export function measureStickyBoundary(fallback: number, margin = DEFAULT_BOUNDAR
 
 /**
  * Reactive variant of {@link measureStickyBoundary}: re-measures on scroll,
- * resize, and mount (rAF-throttled). Use for CSS `top` of stacked sticky
- * elements that must track the header as it sticks/unsticks.
+ * viewport resize, content resize, and mount (rAF-throttled). Content resize
+ * tracks expanding WQL writers without a window event.
  */
 export function useStickyBoundaryOffset(fallback: number, margin = DEFAULT_BOUNDARY_MARGIN): number {
   const [offset, setOffset] = useState(fallback)
@@ -58,7 +58,10 @@ export function useStickyBoundaryOffset(fallback: number, margin = DEFAULT_BOUND
     update()
     window.addEventListener('scroll', update, { passive: true })
     window.addEventListener('resize', update)
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(update)
+    document.querySelectorAll(STICKY_BOUNDARY_SELECTOR).forEach(element => observer?.observe(element))
     return () => {
+      observer?.disconnect()
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)

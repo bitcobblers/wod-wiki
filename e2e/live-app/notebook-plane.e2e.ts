@@ -25,6 +25,8 @@ async function createNotebook(page: Page, name: string): Promise<void> {
   const dialog = page.locator('[role="dialog"]');
   await dialog.getByPlaceholder('e.g., Morning Routines').fill(name);
   await dialog.getByRole('button', { name: 'Create' }).click();
+  await expect(page).toHaveURL(/\/notebook\//);
+  await page.goto('/notebooks');
   await expect(page.getByTestId('notebook-list')).toContainText(name);
 }
 
