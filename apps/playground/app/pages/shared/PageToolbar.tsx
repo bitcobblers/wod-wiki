@@ -25,6 +25,7 @@ import { PlusIcon } from '@heroicons/react/16/solid'
 
 import { useNav } from '../../nav/NavContext'
 import { useResolvedMenu } from '../../nav/MenuList'
+import { useCloseNavigationDrawer } from '../../nav/NavigationDrawerContext'
 import { StreamControlsNav } from '../../nav/SecondaryNav'
 import { CalendarSplitButton } from '@/components/molecules/CalendarSplitButton'
 import type { NavItemL3 } from '../../nav/navTypes'
@@ -239,6 +240,7 @@ export function MobilePageOptionsRows({
   items,
 }: MobilePageOptionsRowsProps) {
   const entries = usePageOptionsEntries(currentWorkout, items, onDownload)
+  const closeSheet = useCloseNavigationDrawer()
   return entries.map(entry => {
     if (entry.kind === 'heading') {
       return <div key={entry.id} className="px-2 pt-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{entry.label}</div>
@@ -251,7 +253,11 @@ export function MobilePageOptionsRows({
         key={entry.id}
         type="button"
         className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-accent"
-        onClick={entry.secondary ? entry.secondary.onSelect : entry.onSelect}
+        onClick={() => {
+          closeSheet()
+          if (entry.secondary) entry.secondary.onSelect()
+          else entry.onSelect()
+        }}
       >
         {entry.icon}
         <span>{entry.secondary?.label ?? entry.label}</span>

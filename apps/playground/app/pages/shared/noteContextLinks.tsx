@@ -89,11 +89,10 @@ export interface NoteOwnership {
  * stored conventions (entryMapper): `type` when present, then the composite-id
  * grammar (journal/:date, playground/:name, effort/:slug, feeds/…, cat/name).
  */
-export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'sourceId' | 'journalDate' | 'slug' | 'pageId'>): NoteOwnership {
+export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'sourceId' | 'journalDate' | 'slug' | 'pageId' | 'notebookId'>): NoteOwnership {
   const id = entry.id
-  const isPlayground = entry.type === 'playground' || entry.sourceId === 'playground' || id.startsWith('playground/')
+  const isPlayground = entry.type === 'playground' || entry.sourceId === 'playground' || entry.notebookId === 'notebook/playground' || id.startsWith('playground/')
   const ref = parseNoteId(id)
-
   if (entry.type === 'journal' || entry.journalDate || (!isPlayground && ref.kind === 'journal')) {
     const date = entry.journalDate ?? (ref.kind === 'journal' ? ref.id : undefined)
     return {
@@ -141,6 +140,16 @@ export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'source
         zone: 'notebooks',
         up: { id: ref.category, title: ref.category, to: notebookPath(ref.category) },
         stamps: [notebookItemPath(ref.category, ref.id)],
+      }
+    }
+  }
+  if (entry.notebookId?.startsWith('notebook/')) {
+    const slug = entry.notebookId.slice('notebook/'.length)
+    if (slug && slug !== 'journal' && slug !== 'playground' && slug !== 'guides') {
+      return {
+        zone: 'notebooks',
+        up: { id: slug, title: slug, to: notebookPath(slug) },
+        stamps: [notebookItemPath(slug, id)],
       }
     }
   }
@@ -238,13 +247,14 @@ export function backlinkNotes(notes: Note[], stamps: string[], excludeNoteId?: s
 }
 
 /** Notes whose scripts use an effort, from block_efforts by-effort rows. */
-export function effortUsageLinks(rows: BlockEffort[], excludeNoteId?: string): ContextNoteLink[] {
+export function effortUsageLinks(rows: BlockEffort[], excludeNoteId?: string, notes?: readonly Pick<Note, 'id' | 'title'>[]): ContextNoteLink[] {
+  const titles = notes ? new Map(notes.map(n => [n.id, n.title])) : undefined
   const byNote = new Map<string, ContextNoteLink>()
   for (const row of rows) {
     if (row.noteId === excludeNoteId || byNote.has(row.noteId)) continue
     byNote.set(row.noteId, {
       id: row.noteId,
-      title: row.noteId,
+      title: titles?.get(row.noteId) || row.noteId,
       to: noteLinkPath(row.noteId),
     })
   }
@@ -295,7 +305,7 @@ export function useNoteContextLinks({ noteId, stamps, effortSlug }: UseNoteConte
         const related = relatedBlockLinks([...blockRows, ...siblingRows.flat()], noteId)
         if (effortSlug) {
           const seen = new Set(related.map(r => r.id))
-          for (const usage of effortUsageLinks(usageRows, noteId)) {
+          for (const usage of effortUsageLinks(usageRows, noteId, notes)) {
             if (!seen.has(usage.id)) {
               seen.add(usage.id)
               related.push(usage)

@@ -16,7 +16,7 @@ import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { refreshPageSources } from '@/services/queryService'
 import { dayPath, notePath, pagePath, runPath } from '../lib/routes'
 import { notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
-import { isNoteEditable } from '@bitcobblers/wod-wiki-core'
+import { isNoteEditable, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core'
 import { NotePlacementDialog, type NotePlacementMode } from '../components/organisms/journal/NotePlacementDialog'
 import { localDateKey } from '@/lib/dateFormat'
 import type { HistoryRecord } from '@/types/history'
@@ -229,7 +229,14 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     if (changed) saveOnChange(snapshot);
   }, [saveOnChange]);
   const onChange = useCallback((value: string) => {
-    setEntry(previous => previous ? { ...previous, rawContent: value } : previous);
+    setEntry(previous => {
+      if (!previous || previous.rawContent === value) return previous;
+      const rev = Math.max(1, committedRevisionRef.current);
+      const blocks = draftRef.current?.rawContent === value
+        ? draftRef.current.blocks
+        : reconcileNoteBlocks(value, { sourceRevision: rev, blocks: draftRef.current?.blocks ?? previous.blocks, registeredWidgets: KNOWN_SECTION_WIDGETS });
+      return { ...previous, rawContent: value, blocks };
+    });
   }, []);
   const restore = useCallback(async (revision: Parameters<typeof revertBlock>[1]) => {
     await flush();

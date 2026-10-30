@@ -197,11 +197,17 @@ export function SidebarLayout({
     return !parsed.error && isFindQuery(parsed) && parsed.filters.length > 0
   }, [streamControls?.query])
 
-  // No pathname auto-close: L1 selection swaps the L2 panel in place and WQL
-  // facet/query updates keep the drawer open for repeated edits. Dismissal is
-  // explicit only — Apply + modal/external rail flows (NavigationDrawerProvider
-  // seam), Close button, Escape, backdrop.
-
+  // Dismiss open mobile drawers on browser Back/Forward so the route never
+  // changes hidden underneath an open drawer.
+  useEffect(() => {
+    if (!showSidebar && !showRightDrawer) return
+    const onPopState = () => {
+      setShowSidebar(false)
+      setShowRightDrawer(false)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [showSidebar, showRightDrawer])
   return (
     <MobileQuerySlotProvider>
     <ResponsiveActionsProvider onSearch={onSearch}>

@@ -25,6 +25,7 @@ export function usePlaygroundContent({ category, name, mdContent, seedOnMount = 
   const [content, setContent] = useState(mdContent);
   const [loading, setLoading] = useState(true);
   const [entryId, setEntryId] = useState<string>();
+  const [entryTitle, setEntryTitle] = useState<string>();
   const [noteBlocks, setNoteBlocks] = useState<Record<string, NoteBlock>>({});
   const [sourceRevision, setSourceRevision] = useState(0);
   const [loadError, setLoadError] = useState<unknown>(null);
@@ -67,11 +68,12 @@ export function usePlaygroundContent({ category, name, mdContent, seedOnMount = 
     setLoading(true);
     setLoadError(null);
     const fallback = reconcileNoteBlocks(mdContent, { sourceRevision: 1, registeredWidgets: KNOWN_SECTION_WIDGETS });
-    const install = (rawContent: string, blocks: Record<string, NoteBlock>, revision: number, id?: string) => {
+    const install = (rawContent: string, blocks: Record<string, NoteBlock>, revision: number, id?: string, title?: string) => {
       setContent(rawContent);
       setNoteBlocks(blocks);
       setSourceRevision(revision);
       setEntryId(id);
+      setEntryTitle(title);
       committed.current = { id: id ?? pageId, revision };
       draft.current = { rawContent, noteBlocks: blocks, sourceRevision: revision };
     };
@@ -86,7 +88,7 @@ export function usePlaygroundContent({ category, name, mdContent, seedOnMount = 
       try {
         const page = await playgroundContent.getPage(pageId);
         if (cancelled) return;
-        if (page) install(page.content, page.noteBlocks ?? {}, page.sourceRevision ?? 1, page.id);
+        if (page) install(page.content, page.noteBlocks ?? {}, page.sourceRevision ?? 1, page.id, page.name);
         else if (seedOnMount) {
           const saved = await notePersistence.saveNote({ noteId: pageId, rawContent: mdContent, blocks: fallback,
             expectedSourceRevision: 0, metadata: { title: name }, noteType: 'playground' });
@@ -129,7 +131,7 @@ export function usePlaygroundContent({ category, name, mdContent, seedOnMount = 
   // dep arrays; a fresh arrow per render would invalidate them every render.
   const committedSourceRevision = useCallback(() => committed.current.revision, []);
 
-  return { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved,
+  return { content, loading, entryId, entryTitle, noteBlocks, sourceRevision, onIdentityChange, onSaved,
     onChange, onLineChange: saves.onLineChange, onBlur: saves.onBlur, flush: saves.flush,
     committedSourceRevision,
     resetToOriginal, isModified: content !== mdContent, error: saves.error ?? loadError };

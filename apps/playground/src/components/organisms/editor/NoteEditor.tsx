@@ -774,11 +774,16 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     if (!view) return;
     const identity = view.state.field(sectionField);
     if (value !== identity.rawContent) {
+      const rev = Math.max(1, sourceRevision);
+      const expected = noteBlocks ? reconcileNoteBlocks(value, { sourceRevision: rev, blocks: noteBlocks, registeredWidgets: widgetComponents ? [...widgetComponents.keys()] : KNOWN_SECTION_WIDGETS }) : undefined;
+      const validRestore = expected && noteBlocks && Object.keys(expected).length === Object.keys(noteBlocks).length
+        && Object.entries(noteBlocks).every(([id, b]) => {
+          const r = expected[id];
+          return r && r.from === b.from && r.to === b.to && r.kind === b.kind && r.dialect === b.dialect && r.sport === b.sport;
+        });
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: value },
-        // Unsaved fallbacks carry revision 0 with blocks stamped at 1 — the
-        // restore validation requires a matching stamp (Math.max, as init).
-        ...(noteBlocks ? { effects: sectionRestore.of({ rawContent: value, blocks: noteBlocks, sourceRevision: Math.max(1, sourceRevision) }) } : {}),
+        ...(validRestore ? { effects: sectionRestore.of({ rawContent: value, blocks: noteBlocks, sourceRevision: rev }) } : {}),
       });
     } else if (noteBlocks && sourceRevision !== identity.sourceRevision) {
       view.dispatch({ effects: sectionSaved.of({ blocks: noteBlocks, sourceRevision: Math.max(1, sourceRevision) }) });

@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useVisualViewportRect } from '@bitcobblers/wod-wiki-ui';
 import { useFabAlignment } from '../lib/fabAlignment'
+import { NavigationDrawerProvider } from './NavigationDrawerContext'
 import { SearchFab } from './SearchFab'
 
 // ── Registration ─────────────────────────────────────────────────────────────
@@ -234,8 +235,8 @@ function ResponsiveActionsDock({
   const [alignment] = useFabAlignment()
   const viewport = useVisualViewportRect()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const closeSheet = useCallback(() => setSheetOpen(false), [])
   const sheetRef = useRef<HTMLDivElement>(null)
-
   const activeContentRef = useRef<HTMLDivElement>(null)
   const globalContentRef = useRef<HTMLDivElement>(null)
   // Most recent page registration wins; the most recent fallback supplies
@@ -256,7 +257,7 @@ function ResponsiveActionsDock({
 
   // Focus the sheet when it opens so keyboard users land inside it.
   useLayoutEffect(() => {
-    if (sheetOpen) sheetRef.current?.focus()
+    if (sheetOpen) sheetRef.current?.focus({ preventScroll: true })
   }, [sheetOpen])
 
   // Registration is the overflow contract: libraries publish stream controls,
@@ -314,20 +315,23 @@ function ResponsiveActionsDock({
           }
         }}
         className={cn(
-          'relative z-40 flex w-60 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto rounded-2xl bg-card p-3 shadow-xl ring-1 ring-foreground/5 outline-none',
+          sheetOpen && showOverflow ? 'flex' : 'hidden',
+          'relative z-40 w-60 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto rounded-2xl bg-card p-3 shadow-xl ring-1 ring-foreground/5 outline-none',
           '[&_button]:min-h-11 [&_button]:min-w-11',
         )}
         style={{ maxHeight: `calc(${viewport.height === null ? '100dvh' : `${viewport.height}px`} - 6rem - env(safe-area-inset-bottom))` }}
       >
-        <div ref={activeContentRef} className="contents">
-          {active?.children}
-        </div>
-        {active?.children && globalActions?.children && (
-          <div className="my-1 border-t border-border/60" aria-hidden="true" />
-        )}
-        <div ref={globalContentRef} className="contents">
-          {globalActions?.children}
-        </div>
+        <NavigationDrawerProvider close={closeSheet}>
+          <div ref={activeContentRef} className="contents">
+            {active?.children}
+          </div>
+          {active?.children && globalActions?.children && (
+            <div className="my-1 border-t border-border/60" aria-hidden="true" />
+          )}
+          <div ref={globalContentRef} className="contents">
+            {globalActions?.children}
+          </div>
+        </NavigationDrawerProvider>
       </div>
 
       {showOverflow && (

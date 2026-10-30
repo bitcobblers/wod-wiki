@@ -37,6 +37,19 @@ test.describe('Contextual new entry actions', () => {
     await page.getByRole('menuitem', { name: 'Add timer', exact: true }).click();
     await expect(page.locator('.cm-content').getByText('10:00', { exact: true }).first()).toBeVisible();
   });
+  test('adds a timer to a blank journal note without crashing', async ({ page }) => {
+    await page.goto('/journal');
+    await waitForFeedReady(page);
+    await page.getByTestId('new-entry-primary').click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(page).toHaveURL(/\/note\/[0-9a-f-]+\?edit=1$/);
+    await expect(page.locator('.cm-content')).toBeVisible();
+    await page.getByRole('button', { name: 'Page options' }).click();
+    await page.getByRole('menuitem', { name: 'Add timer', exact: true }).click();
+    await expect(page.locator('.cm-content').getByText('10:00', { exact: true }).first()).toBeVisible();
+  });
+
   test('creates a note in the current notebook', async ({ page }) => {
     await page.goto('/notebooks');
     await waitForFeedReady(page);
@@ -49,6 +62,7 @@ test.describe('Contextual new entry actions', () => {
     await page.getByTestId('new-entry-primary').click();
     await expect(page).toHaveURL(/\/notebook\/combo-notes\/[0-9a-f-]+$/);
     await expect(page.locator('.cm-content')).toContainText('Untitled note');
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'combo-notes' })).toBeVisible();
   });
 
   test('does not offer generic creation on detail pages', async ({ page }) => {
@@ -73,5 +87,12 @@ test.describe('Contextual new entry actions', () => {
     const menuY = (await page.getByTestId('actions-overflow').boundingBox())!.y;
     expect(searchY).toBeLessThan(newY);
     expect(newY).toBeLessThan(menuY);
+  });
+
+  test('exposes New Dashboard creation on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/dashboards');
+    await waitForFeedReady(page);
+    await expect(page.getByRole('button', { name: 'New Dashboard', exact: true })).toBeVisible();
   });
 });

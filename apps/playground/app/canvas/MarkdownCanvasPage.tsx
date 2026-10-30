@@ -140,7 +140,7 @@ export function MarkdownCanvasPage({
   // (`set-source: …`) instead of ```example fences — derive the same owner
   // map from those so runway activation swaps/restores the panel source
   // exactly like the example-driven pages do (null on non-guide pages).
-  const guideGroupKey = isGuideRunway ? route.split('/').pop() || undefined : undefined
+  const guideGroupKey = isGuideRunway ? route.split('/').pop()?.replace(/^guide-/, '') || undefined : undefined
   const guideGrouping = useMemo(
     () => (isGuideRunway ? groupGuideSections(contentSections, guideGroupKey) : null),
     [isGuideRunway, guideGroupKey, contentSections],
@@ -479,7 +479,7 @@ export function MarkdownCanvasPage({
       section={heroSection}
       idx={-1}
       prose={undefined}
-      blockId={heroSection.id}
+      blockId={`hero-${heroSection.id}`}
       keySuffix="hero"
       showEyebrow={false}
       isActive={false}

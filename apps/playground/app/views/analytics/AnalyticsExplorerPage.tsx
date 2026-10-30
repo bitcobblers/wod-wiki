@@ -60,6 +60,8 @@ import { useExplorerQueryState } from '../../hooks/useExplorerQueryState';
 import { useNav } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
 import { ExplorerOptionsMenu } from './ExplorerOptionsMenu';
+import { ResponsiveActions } from '../../nav/ResponsiveActions';
+import { MobileNewEntryCombo } from '../../pages/shared/NewEntryCombo';
 import { SampleDataPrompt } from './SampleDataPrompt';
 import { cn } from '@/lib/utils';
 
@@ -362,7 +364,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
       <StickyPageHeader
         title="Metric Explorer"
         actions={
-          <div className="flex items-center gap-3">
+          <ResponsiveActions primary={<MobileNewEntryCombo />} label="Explorer actions">
             <ExplorerOptionsMenu
               weeks={activeWeeks}
               onWeeks={setWeeks}
@@ -370,7 +372,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
               onOpenQuerySettings={() => setQuerySettingsOpen(true)}
             />
             {actions}
-          </div>
+          </ResponsiveActions>
         }
       />
 

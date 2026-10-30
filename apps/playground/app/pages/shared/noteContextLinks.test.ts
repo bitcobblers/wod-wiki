@@ -113,6 +113,16 @@ describe('noteOwnership — source-aware zone / up / stamps', () => {
     expect(own.stamps).toEqual([])
   })
 
+  it('user-created notebook note: notebooks zone, notebook slug up from notebookId', () => {
+    const own = noteOwnership({
+      id: '018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f70',
+      type: 'note',
+      notebookId: 'notebook/dogfood-notebook',
+    })
+    expect(own.zone).toBe('notebooks')
+    expect(own.up).toMatchObject({ title: 'dogfood-notebook', to: '/notebook/dogfood-notebook' })
+  })
+
   it('unknown bare id: no zone, no up', () => {
     const own = noteOwnership({ id: 'loose-note', type: 'note' })
     expect(own.zone).toBeNull()
@@ -197,6 +207,13 @@ describe('effortUsageLinks — notes whose scripts use an effort', () => {
     expect(links.map(l => l.id)).toEqual(['018f-uuid-1', 'crossfit-girls/grace'])
     expect(links[0].to).toBe('/note/018f-uuid-1')
     expect(links[1].to).toBe('/notebook/crossfit-girls/grace')
+  })
+
+  it('resolves readable note titles when notes are supplied', () => {
+    const links = effortUsageLinks(rows, 'effort/grace', [
+      { id: '018f-uuid-1', title: 'Multiple AMRAP Windows' },
+    ])
+    expect(links[0]).toMatchObject({ id: '018f-uuid-1', title: 'Multiple AMRAP Windows', to: '/note/018f-uuid-1' })
   })
 })
 

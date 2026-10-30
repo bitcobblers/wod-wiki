@@ -14,7 +14,7 @@ import { isNoteEditable, notebookOfItem, notebookOriginOfItem } from '@bitcobble
 import type { NotePlacement } from '@bitcobblers/wod-wiki-core'
 import { formatDateKey } from '../services/dateUtils'
 import { parseNoteId } from '@/lib/noteIdentity'
-
+import { formatPlaygroundPageTitle } from '@/lib/playgroundDisplay'
 /** Presentation kinds. Corpus notes and dated posts are notes in a
  *  notebook (ticket 05) — there is no separate session/post kind; the
  *  notebook the note belongs to (`notebookId`) and its corpus route carry
@@ -209,8 +209,9 @@ function isPlaygroundNote(note: Note): boolean {
 
 /** Route-visible name of a playground note — the `/playground/:id` segment
  *  (the id itself for UUID-keyed notes). */
-export function playgroundRouteName(note: Pick<Note, 'id'>): string {
-  return note.id.startsWith('playground/') ? note.id.slice('playground/'.length) : note.id
+export function playgroundRouteName(note: { id: string; slug?: string }): string {
+  const raw = note.slug ?? note.id
+  return raw.startsWith('playground/') ? raw.slice('playground/'.length) : raw
 }
 
 export function toEntry(note: Note): Entry {
@@ -238,7 +239,7 @@ function toEntryBase(note: Note): Entry {
       sourceNotebook: 'playground',
       sourceNote: playgroundRouteName(note),
       sourceId: note.sourceId,
-      title,
+      title: formatPlaygroundPageTitle(title || playgroundRouteName(note)),
       date: null,
       createdAt: note.createdAt,
       ...(tags ? { tags } : {}),

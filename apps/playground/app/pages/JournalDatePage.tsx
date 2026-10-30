@@ -28,6 +28,7 @@ import { SavedNoteEditor } from './shared/SavedNoteEditor';
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
 import type { ParkedRun, PendingRuntime } from '../runtimeStore';
 import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
+import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 
 import { JournalPageShell } from '@/panels/page-shells';
 const journalContentProvider = new IndexedDBContentProvider();
@@ -149,7 +150,9 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   }, [journalDate, isTimerOpen]);
 
   const handleNoteContentChange = useCallback((noteId: string, newContent: string) => {
-    setNotes((prev) => prev?.map((n) => (n.id === noteId ? { ...n, rawContent: newContent } : n)) ?? prev);
+    setNotes((prev) => prev?.map((n) => (n.id === noteId && n.rawContent !== newContent
+      ? { ...n, rawContent: newContent, blocks: reconcileNoteBlocks(newContent, { sourceRevision: Math.max(1, n.sourceRevision ?? 1), blocks: n.blocks, registeredWidgets: KNOWN_SECTION_WIDGETS }) }
+      : n)) ?? prev);
   }, []);
 
   const handleCompleteWorkout = useCallback((_blockId: string, results: ScriptBlock['results'], editorResultId?: string, _editorRunBlock?: Pick<ScriptBlock, 'id' | 'contentId'>, _targetNoteId?: string): Promise<unknown> => {

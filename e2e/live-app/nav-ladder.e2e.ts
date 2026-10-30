@@ -135,6 +135,21 @@ test.describe('Nav ladder — mobile (375px)', () => {
     await page.getByRole('button', { name: 'Close navigation' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
+
+  test('mobile outline sheet selects the right section and closes its backdrop', async ({ page }) => {
+    await page.goto('/page/guide-start', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
+    await page.getByTestId('actions-overflow').click();
+    const sheet = page.getByRole('dialog', { name: 'Page options' });
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole('button', { name: 'Three rules', exact: true }).click();
+    await expect(sheet).toBeHidden();
+    await expect(page).toHaveURL(/h=first-workout/);
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
+    await page.goBack();
+    await expect(page.getByRole('button', { name: 'Close navigation' })).toHaveCount(0);
+  });
 });
 
 test.describe('Nav ladder — L3 document index', () => {
@@ -145,6 +160,10 @@ test.describe('Nav ladder — L3 document index', () => {
     await waitForFeedReady(page);
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
     await expect(page.getByText('On this page', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole('button', { name: 'Page options' }).click();
+    await page.getByRole('menuitem', { name: 'Three rules', exact: true }).click();
+    await expect(page).toHaveURL(/h=first-workout/);
   });
 
   test('a note document publishes the On this page index', async ({ page }) => {

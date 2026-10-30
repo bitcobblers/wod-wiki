@@ -224,12 +224,10 @@ function GuideRunwayGroup({
           }
           testId={`guide-runway-${part}`}
         />
-        {/* Stage markers: zero-size anchors at each stage's runway start
-            (identical box geometry to the track). +50vh + 120px keeps every
-            scroll landing (deep-link ~112px, L3 96px, mobile sticky-panel
-            ~50vh+40px) strictly inside the stage's 100vh dwell — the margin
-            above the boundary stays positive for any viewport, and never
-            overshoots into the next stage. */}
+        {/* Stage markers: zero-size anchors inside each stage's runway slice
+            (identical box geometry to the track). +160px keeps every scroll
+            landing (desktop 96px, mobile 75px) strictly inside stage i's
+            [i/n, (i+1)/n) progress window (rect.top <= 0). */}
         {sections.map((section, i) => (
           <span
             key={section.id}
@@ -237,7 +235,7 @@ function GuideRunwayGroup({
             data-section-id={section.id}
             aria-hidden="true"
             className="pointer-events-none absolute left-0 h-px w-px"
-            style={{ top: `calc((100% - 100vh) * ${i / sections.length} + 50vh + 120px)` }}
+            style={{ top: `calc((100% - 100vh) * ${i / sections.length} + 160px)` }}
           />
         ))}
       </div>
