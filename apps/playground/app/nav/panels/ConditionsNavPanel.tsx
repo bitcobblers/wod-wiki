@@ -236,7 +236,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                   }
                 }}
                 current={child.isActive?.(location) ?? false}
-                data-testid={override ? `nav-shortcut-${override.id}` : undefined}
+                data-testid={override ? `nav-shortcut-${override.id}` : child.id}
               >
                 {OverrideIcon ? <OverrideIcon data-slot="icon" /> : child.icon && <child.icon data-slot="icon" />}
                 <SidebarLabel>{override?.label ?? child.label}</SidebarLabel>

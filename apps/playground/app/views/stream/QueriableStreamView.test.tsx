@@ -899,6 +899,8 @@ describe('QueriableStreamView component', () => {
         <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
     )
+    expect(screen.queryByTestId('feed-settings-button')).toBeNull()
+    expect(screen.queryByText('Feed Settings')).toBeNull()
 
     const primary = await waitFor(() => screen.getByTestId('feed-library-notice-sync'))
     expect(primary.textContent).toContain('Browse libraries')

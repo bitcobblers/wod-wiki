@@ -8,6 +8,7 @@ import { ROUTE_PATTERNS } from '../../lib/routes'
 import { resetRouteShortcuts, writeRouteShortcuts } from '../../lib/routeWqlShortcuts'
 import { NavProvider } from '../NavContext'
 import { NavSidebar } from '../NavSidebar'
+import { notebookViewChildren } from '../panels/NotebookZonePanel'
 
 function mockLocation(pathname: string): Location {
   return {
@@ -145,7 +146,10 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
     expect(screen.queryByTestId('playgrounds-create-playground')).toBeNull()
     // The view rows still offer the switch.
     expect(screen.getByText('Configure sources')).toBeDefined()
+    expect(screen.getByTestId('notebooks-configure-sources')).toBeDefined()
     expect(screen.getByText('Playgrounds')).toBeDefined()
+    const configureSources = notebookViewChildren.find(c => c.id === 'notebooks-configure-sources')
+    expect(configureSources?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsSync })
   })
 
   it('renders the playgrounds view panel on /playgrounds with its create action', () => {

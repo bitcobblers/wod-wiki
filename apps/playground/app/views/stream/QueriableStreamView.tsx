@@ -952,18 +952,6 @@ export function QueriableStreamView({
             primary={routeSupportsCreation(profile.route) ? <MobileNewEntryCombo /> : undefined}
             label="Stream actions"
           >
-            {isNotebooksRoute && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(ROUTE_PATTERNS.settingsSync)}
-                data-testid="feed-settings-button"
-                className="h-9 gap-1.5 px-2.5 text-xs"
-              >
-                <Settings2 className="size-3.5" />
-                <span>Feed Settings</span>
-              </Button>
-            )}
             {actions}
             {/* Mobile thumb ⋯ sheet carries the same L3 controls (whiteboard
                 bottom-up Search → New → … contract). ResponsiveActions

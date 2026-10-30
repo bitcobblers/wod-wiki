@@ -29,6 +29,7 @@ import { SyntaxView } from './views/SyntaxView'
 import { NotFoundPage } from './pages/NotFoundPage'
 import CalcAuthoringPrototypePage from './pages/CalcAuthoringPrototypePage'
 import QueryBlockComposerPrototypePage from './pages/QueryBlockComposerPrototypePage'
+import CalendarMobilePrototypePage from './pages/CalendarMobilePrototypePage'
 import { CalcAuthoringPanel } from '@/components/organisms/calc-authoring/CalcAuthoringPanel'
 import { LoadZipPage } from './pages/LoadZipPage'
 import { JournalZipLoadPage } from './pages/JournalZipLoadPage'
@@ -178,6 +179,7 @@ export function App() {
                   />
                   <Route path="/proto/calc-authoring" element={<CalcAuthoringPrototypePage />} />
                   <Route path="/proto/query-block-composer" element={<QueryBlockComposerPrototypePage />} />
+                  <Route path="/proto/calendar-mobile" element={<CalendarMobilePrototypePage />} />
 
                   <Route path="/settings" element={<Navigate to="/settings/appearance" replace />} />
                   <Route path="/settings/appearance" element={<AppContent searchHandlerRef={searchHandlerRef} />} />

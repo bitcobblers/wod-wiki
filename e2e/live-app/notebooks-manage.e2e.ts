@@ -9,7 +9,7 @@ import { waitForFeedReady } from '../helpers/feedReadiness';
  * Companion to feed-subscription.e2e.ts.
  *
  * Verifies:
- * - Desktop/Mobile "Feed Settings" CTA on /notebooks navigates to /settings/sync
+ * - Desktop/Mobile "Configure sources" L2 CTA on /notebooks navigates to /settings/sync
  * - Per-source identity, endpoint, and repository links on /settings/sync
  * - Auto-sync toggle persistence, manual sync vs background check
  * - Feed unsubscribe (checkpoint reset, content removed) vs delete (source deleted)
@@ -65,13 +65,12 @@ async function seedSource(page: Page, version: { current: number }): Promise<voi
 }
 
 test.describe('Feed Source Settings & Library Navigation', () => {
-  test('desktop toolbar opens /settings/sync from /notebooks', async ({ page }) => {
+  test('desktop L2 menu opens /settings/sync from /notebooks', async ({ page }) => {
     await seedSource(page, { current: 42 });
     await page.goto('/notebooks');
-    await expect(page.getByTestId('feed-settings-button')).toBeVisible();
-    await page.getByTestId('feed-settings-button').click();
+    await expect(page.getByTestId('feed-settings-button')).toHaveCount(0);
+    await page.getByTestId('notebooks-configure-sources').click();
     await expect(page).toHaveURL(/\/settings\/sync$/);
-
     const subscribedOnly = page.getByRole('checkbox', { name: 'Subscribed only' });
     await subscribedOnly.setChecked(false);
     const row = page.getByTestId('feed-source-manage-library');
@@ -89,14 +88,14 @@ test.describe('Feed Source Settings & Library Navigation', () => {
     await expect(git).toHaveAttribute('href', REPO_URL);
   });
 
-  test('mobile: feed settings is reachable via actions dock', async ({ page }) => {
+  test('mobile: configure sources is reachable via navigation drawer', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await seedSource(page, { current: 42 });
     await page.goto('/notebooks');
 
-    await page.getByTestId('actions-overflow').click();
-    const sheet = page.getByRole('dialog', { name: 'Stream actions' });
-    await sheet.getByTestId('feed-settings-button').click();
+    await expect(page.getByTestId('feed-settings-button')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    await page.getByTestId('notebooks-configure-sources').click();
     await expect(page).toHaveURL(/\/settings\/sync$/);
 
     const subscribedOnly = page.getByRole('checkbox', { name: 'Subscribed only' });

@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Library — Calendar view | WOD Wiki</title>
+  <!--
+    PROTOTYPE — throwaway. Not production code.
+
+    The 4th library layout: CAL (Calendar). Cards / Rows / Feed all answer
+    "what is in the library"; CAL answers "when is it" — notes placed on a
+    month grid, colored by the notebook they belong to, for review and
+    planning across several notebooks.
+
+    Three radically different shapes of the same CAL layout, switchable:
+      ?variant=grid     A — month grid + day detail panel
+      ?variant=planner  B — week planner board (columns = days, rows = weeks)
+      ?variant=timeline C — vertical agenda + month density heatmap
+
+    Open: file://.../playground/prototypes/calendar-view/library.html
+    Notes, system review and implementation map: ./NOTES.md
+  -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      /* App tokens — packages/ui/src/styles.css (Mineral, light mode) */
+      --background: #f6f2ec;
+      --foreground: #2b2723;
+      --card: #fbf8f4;
+      --card-fg: #2b2723;
+      --popover: #f4efe7;
+      --muted: #ede9e2;
+      --muted-fg: #6b5e52;
+      --primary: #49698d;
+      --primary-fg: #fbf8f4;
+      --accent: #948030;
+      --success: #508860;
+      --destructive: #a05858;
+      --border: #cdc5b8;
+      --radius: 1rem;
+
+      /* Metric hues — the app's semantic palette */
+      --m-time: #5980a8;
+      --m-rep: #a87040;
+      --m-effort: #508860;
+      --m-rounds: #7c62a0;
+      --m-distance: #408888;
+      --m-resistance: #a05858;
+      --m-action: #948030;
+
+      --font-ui: 'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 14px;
+      --r-pill: 9999px;
+      --shadow: 0 1px 2px rgba(43,38,32,.05), 0 6px 18px rgba(43,38,32,.06);
+      --hairline: rgba(205,197,184,.55);
+
+      --rail-w: 56px;
+      --side-w: 240px;
+      --toc-w: 216px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-ui);
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font-family: inherit; font-size: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    svg { display: block; }
+    .mono { font-family: var(--font-mono); }
+
+    /* ── Shell ─────────────────────────────────────────────────────────── */
+    .app {
+      display: grid;
+      grid-template-columns: var(--rail-w) var(--side-w) minmax(0, 1fr) var(--toc-w);
+      min-height: 100vh;
+    }
+    .rail {
+      position: sticky; top: 0; height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 10px 0 14px;
+      border-right: 1px solid var(--hairline);
+      background: var(--background);
+    }
+    .rail-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--primary); color: var(--primary-fg);
+      display: grid; place-items: center; font-weight: 700; font-size: 13px;
+      margin-bottom: 18px;
+    }
+    .rail-nav { display: flex; flex-direction: column; gap: 6px; }
+    .rail-item {
+      width: 36px; height: 36px; border-radius: var(--r-sm);
+      display: grid; place-items: center; color: var(--muted-fg); position: relative;
+    }
+    .rail-item:hover { background: var(--muted); color: var(--foreground); }
+    .rail-item.active { background: var(--muted); color: var(--foreground); }
+    .rail-item.active::before {
+      content: ""; position: absolute; left: -10px; width: 3px; height: 18px;
+      border-radius: 2px; background: var(--primary);
+    }
+    .rail-spacer { flex: 1; }
+
+    .side {
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+      border-right: 1px solid var(--hairline);
+      padding: 14px 10px 24px;
+    }
+    .side-head {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .14em;
+      color: var(--muted-fg); padding: 4px 10px 12px;
+    }
+    .nav-group-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 10.5px; font-weight: 700; letter-spacing: .12em; color: var(--muted-fg);
+      padding: 10px 10px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      padding: 6px 10px; border-radius: var(--r-sm);
+      font-size: 13px; color: var(--muted-fg); text-align: left;
+    }
+    .nav-item:hover { background: var(--muted); color: var(--foreground); }
+    .nav-item.on { background: hsl(212 32% 42% / .10); color: var(--primary); font-weight: 600; }
+    .nav-item .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .nav-item .count { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-fg); }
+
+    .main { min-width: 0; display: flex; flex-direction: column; }
+    .topbar {
+      position: sticky; top: 0; z-index: 30;
+      display: flex; align-items: center; gap: 12px;
+      padding: 9px 18px; min-height: 46px;
+      background: hsl(40 20% 96% / .9); backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--hairline);
+    }
+    .crumbs { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted-fg); }
+    .crumbs .here { color: var(--foreground); font-weight: 600; }
+    .topbar-spacer { flex: 1; }
+    .qbar {
+      display: flex; align-items: center; gap: 6px;
+      border: 1px solid var(--border); background: var(--card);
+      border-radius: var(--r-pill); padding: 5px 12px; color: var(--muted-fg); font-size: 12.5px;
+    }
+    .qbar .mono { font-size: 11.5px; }
+    .qbar .k { color: var(--muted-fg); }
+
+    /* Layout toggle — the place CAL joins Cards / Rows / Feed */
+    .layouts { display: inline-flex; gap: 2px; border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--card); padding: 2px; }
+    .layouts button {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 11px; border-radius: var(--r-pill);
+      font-size: 11.5px; font-weight: 600; color: var(--muted-fg);
+    }
+    .layouts button:hover { color: var(--foreground); }
+    .layouts button.on { background: var(--muted); color: var(--foreground); box-shadow: var(--shadow); }
+    .layouts button.on.cal { background: var(--primary); color: var(--primary-fg); }
+
+    /* ── Calendar toolbar ─────────────────────────────────────────────── */
+    .calbar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 12px 18px; border-bottom: 1px solid var(--hairline);
+    }
+    .calbar h1 { font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+    .monthnav { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--card); padding: 2px; }
+    .monthnav button { width: 26px; height: 24px; border-radius: 50%; color: var(--muted-fg); display: grid; place-items: center; }
+    .monthnav button:hover { background: var(--muted); color: var(--foreground); }
+    .monthnav .label { padding: 0 8px; font-size: 12.5px; font-weight: 700; min-width: 128px; text-align: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 13px; border-radius: 9px; font-size: 12.5px; font-weight: 600;
+      border: 1px solid var(--border); background: var(--card); color: var(--foreground);
+      box-shadow: var(--shadow);
+    }
+    .btn:hover { filter: brightness(.98); }
+    .btn.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+    .btn.ghost { background: transparent; box-shadow: none; color: var(--muted-fg); }
+    .legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+    .legend .item { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted-fg); }
+    .legend .swatch { width: 9px; height: 9px; border-radius: 3px; }
+    .legend .item.off { opacity: .38; }
+
+    .calbody { padding: 14px 18px 90px; }
+
+    /* ── Shared calendar atoms ────────────────────────────────────────── */
+    .dow {
+      display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 1px; margin-bottom: 6px;
+    }
+    .dow span { font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--muted-fg); padding-left: 4px; }
+
+    .daynum { font-family: var(--font-mono); font-size: 11px; color: var(--muted-fg); }
+    .daynum.today { color: var(--primary); font-weight: 700; }
+    .todayring { box-shadow: inset 0 0 0 1.5px hsl(212 32% 42% / .45); }
+
+    .note {
+      display: flex; align-items: center; gap: 6px;
+      border-radius: var(--r-sm); padding: 3px 6px 3px 5px;
+      background: var(--card); border: 1px solid var(--hairline);
+      font-size: 11.5px; color: var(--foreground);
+      overflow: hidden;
+    }
+    .note .bar { width: 3px; align-self: stretch; border-radius: 2px; flex: none; }
+    .note .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .note .kind { font-size: 9px; font-weight: 700; letter-spacing: .06em; color: var(--muted-fg); text-transform: uppercase; }
+    .note.planned { border-style: dashed; background: transparent; }
+    .note .plus { color: var(--primary); font-weight: 700; }
+
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10.5px; font-weight: 600; padding: 2px 9px; border-radius: var(--r-pill);
+      border: 1px solid var(--border); color: var(--muted-fg); background: var(--muted);
+    }
+    .chip.t { color: var(--m-time); border-color: hsl(212 32% 50% / .35); }
+    .chip.r { color: var(--m-rounds); border-color: hsl(270 26% 50% / .35); }
+    .chip.e { color: var(--m-effort); border-color: hsl(140 28% 42% / .35); }
+    .chip.a { color: var(--m-action); border-color: hsl(46 52% 37% / .35); }
+
+    /* ── Variant A: month grid ────────────────────────────────────────── */
+    .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); border-radius: var(--r-md); overflow: hidden; }
+    .cell { background: var(--background); min-height: 104px; padding: 6px; display: flex; flex-direction: column; gap: 4px; text-align: left; }
+    .cell.out { background: color-mix(in srgb, var(--muted) 55%, var(--background)); }
+    .cell.sel { background: var(--card); }
+    .cell .notes { display: flex; flex-direction: column; gap: 3px; }
+    .cell .more { font-size: 10.5px; color: var(--muted-fg); padding-left: 4px; }
+
+    .detail { margin-top: 16px; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--card); box-shadow: var(--shadow); }
+    .detail-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--hairline); }
+    .detail-head b { font-size: 13.5px; }
+    .detail-head .sub { font-size: 11.5px; color: var(--muted-fg); }
+    .detail-list { display: flex; flex-direction: column; }
+    .detail-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--hairline); }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row .bar { width: 3px; height: 26px; border-radius: 2px; flex: none; }
+    .detail-row .t { font-weight: 600; font-size: 13px; }
+    .detail-row .meta { font-size: 11px; color: var(--muted-fg); }
+    .detail-row .acts { margin-left: auto; display: flex; gap: 6px; }
+    .act { font-size: 11px; font-weight: 600; color: var(--muted-fg); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 3px 10px; background: var(--card); }
+    .act:hover { color: var(--foreground); background: var(--muted); }
+    .empty { padding: 26px 14px; text-align: center; font-size: 12px; color: var(--muted-fg); }
+
+    /* ── Variant B: week planner board ────────────────────────────────── */
+    .planner { display: flex; flex-direction: column; gap: 12px; }
+    .weekrow { display: grid; grid-template-columns: 84px repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); border-radius: var(--r-md); overflow: hidden; }
+    .weekrow .wklabel { background: var(--muted); padding: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--muted-fg); display: flex; flex-direction: column; gap: 2px; }
+    .weekrow .wklabel .n { font-size: 10px; color: var(--muted-fg); opacity: .75; }
+    .weekcell { background: var(--background); min-height: 96px; padding: 7px; display: flex; flex-direction: column; gap: 4px; }
+    .weekcell.out { background: color-mix(in srgb, var(--muted) 55%, var(--background)); }
+    .weekcell .d { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-fg); }
+    .weekcell .d.today { color: var(--primary); font-weight: 700; }
+    .weekcell .stack { display: flex; flex-direction: column; gap: 4px; }
+    .drop { border: 1px dashed var(--border); border-radius: var(--r-sm); padding: 4px 6px; font-size: 10.5px; color: var(--muted-fg); text-align: center; }
+    .weekcell:hover .drop { color: var(--primary); border-color: var(--primary); }
+    .planned-tag { font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m-action); }
+
+    /* ── Variant C: vertical agenda + heatmap ─────────────────────────── */
+    .heat { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; width: 220px; flex: none; }
+    .heat i { display: block; aspect-ratio: 1; border-radius: 3px; background: var(--muted); }
+    .heat i.l1 { background: hsl(212 32% 42% / .32); }
+    .heat i.l2 { background: hsl(212 32% 42% / .55); }
+    .heat i.l3 { background: hsl(212 32% 42% / .78); }
+    .heat i.l4 { background: var(--primary); }
+    .heatkey { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--muted-fg); margin-top: 6px; }
+    .heatkey i { width: 9px; height: 9px; border-radius: 3px; display: block; }
+    .heat i.out { opacity: .3; }
+    .agenda { display: flex; flex-direction: column; }
+    .aday { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+    .aday:last-child { border-bottom: none; }
+    .aday .date { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted-fg); padding-top: 2px; }
+    .aday .date b { display: block; font-size: 17px; font-weight: 700; color: var(--foreground); letter-spacing: -.01em; }
+    .aday .date.today b { color: var(--primary); }
+    .aday .items { display: flex; flex-direction: column; gap: 6px; }
+    .card {
+      background: var(--card); border: 1px solid var(--hairline); border-radius: var(--r-md);
+      padding: 11px 13px; box-shadow: var(--shadow);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .card .top { display: flex; align-items: center; gap: 8px; }
+    .card .t { font-weight: 600; font-size: 13.5px; }
+    .card .sub { font-size: 11.5px; color: var(--muted-fg); }
+    .card .foot { display: flex; gap: 6px; align-items: center; }
+    .card .mono { font-size: 11px; color: var(--muted-fg); }
+
+    .undated { margin-top: 22px; border: 1px dashed var(--border); border-radius: var(--r-md); padding: 12px 14px; background: color-mix(in srgb, var(--muted) 40%, transparent); }
+    .undated h3 { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--muted-fg); margin-bottom: 8px; }
+    .undated .row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    /* ── Right rail ───────────────────────────────────────────────────── */
+    .toc { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 22px 16px; border-left: 1px solid var(--hairline); }
+    .toc-head { font-size: 10px; font-weight: 700; letter-spacing: .14em; color: var(--muted-fg); margin-bottom: 10px; }
+    .toc-sec { margin-bottom: 20px; }
+    .toc-sec h4 { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; color: var(--muted-fg); margin-bottom: 8px; }
+    .toc-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: var(--r-sm); font-size: 12.5px; color: var(--muted-fg); }
+    .toc-row:hover { background: var(--muted); color: var(--foreground); }
+    .toc-row .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .toc-row .n { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; }
+
+    /* ── Prototype switcher ───────────────────────────────────────────── */
+    .switcher {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 10px;
+      background: #16130a; color: #f6f2ec;
+      border-radius: var(--r-pill); padding: 7px 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.28); z-index: 90;
+      font-size: 12px;
+    }
+    .switcher button { color: #f6f2ec; opacity: .7; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; }
+    .switcher button:hover { opacity: 1; background: rgba(255,255,255,.12); }
+    .switcher .lab { font-weight: 600; letter-spacing: .01em; }
+    .switcher .lab span { opacity: .6; font-weight: 500; }
+
+    @media (max-width: 1180px) { .app { grid-template-columns: var(--rail-w) var(--side-w) minmax(0,1fr); } .toc { display: none; } }
+    @media (max-width: 860px) {
+      .app { grid-template-columns: var(--rail-w) minmax(0,1fr); }
+      .side { display: none; }
+      .calbar h1 { font-size: 15px; }
+      .legend { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Icon rail ─────────────────────────────────────────────────────── -->
+  <aside class="rail">
+    <div class="rail-avatar">W</div>
+    <nav class="rail-nav">
+      <a class="rail-item" href="#" title="Home">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></svg>
+      </a>
+      <a class="rail-item active" href="#" title="Library">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5 8.5 4.5 6 4.5c-1 0-2 .1-3 .4V19c1-.3 2-.4 3-.4 2.5 0 4.5.5 6 2 1.5-1.5 3.5-2 6-2 1 0 2 .1 3 .4V4.9c-1-.3-2-.4-3-.4-2.5 0-4.5.5-6 2Z"/><path d="M12 6.5v14.1"/></svg>
+      </a>
+      <a class="rail-item" href="#" title="Dashboards">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+      </a>
+      <a class="rail-item" href="#" title="Efforts">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6.5 6v12M17.5 6v12M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/></svg>
+      </a>
+    </nav>
+    <div class="rail-spacer"></div>
+    <button class="rail-item" title="Search (⌘K)">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    </button>
+    <button class="rail-item" title="Settings" style="margin-top:6px">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2.1 2.1M16.9 16.9 19 19M19 5l-2.1 2.1M7.1 16.9 5 19"/></svg>
+    </button>
+  </aside>
+
+  <!-- ── Context sidebar: notebooks (the calendar's color key) ─────────── -->
+  <aside class="side">
+    <div class="side-head">LIBRARY</div>
+    <div class="nav-group-label">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.5 7.5h17v12h-17z"/><path d="M7 7.5V5h13v12h-2.5"/></svg>
+      NOTEBOOKS
+    </div>
+    <div id="nb-list"></div>
+
+    <div class="nav-group-label" style="margin-top:14px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      SAVED VIEWS
+    </div>
+    <button class="nav-item on"><span class="dot" style="background:var(--m-time)"></span>This month</button>
+    <button class="nav-item"><span class="dot" style="background:var(--m-rep)"></span>Planned ahead</button>
+    <button class="nav-item"><span class="dot" style="background:var(--m-effort)"></span>Unplanned</button>
+  </aside>
+
+  <!-- ── Main ──────────────────────────────────────────────────────────── -->
+  <main class="main">
+    <div class="topbar">
+      <nav class="crumbs"><a href="#">Library</a><span>/</span><span class="here">Notes</span></nav>
+      <div class="topbar-spacer"></div>
+      <div class="qbar">
+        <span class="mono"><span class="k">:note</span>{notebook:*}</span>
+        <span class="mono" style="color:var(--muted-fg)">last 4w</span>
+      </div>
+      <div class="layouts" role="group" aria-label="Layout">
+        <button title="Cards">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          Cards
+        </button>
+        <button title="Rows">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9.5h18M3 15h18"/></svg>
+          Rows
+        </button>
+        <button title="Feed">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM4 12a8 8 0 0 1 8 8M4 5a15 15 0 0 1 15 15"/></svg>
+          Feed
+        </button>
+        <button class="on cal" title="Calendar" aria-pressed="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          Cal
+        </button>
+      </div>
+      <button class="btn primary">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New note
+      </button>
+    </div>
+
+    <!-- Calendar toolbar: month navigation + notebook legend -->
+    <div class="calbar">
+      <h1>Notes</h1>
+      <div class="monthnav">
+        <button id="prev" title="Previous month">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m14 6-6 6 6 6"/></svg>
+        </button>
+        <span class="label" id="month-label">October 2026</span>
+        <button id="next" title="Next month">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m10 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+      <button class="btn" id="today-btn">Today</button>
+      <button class="btn ghost" id="view-toggle">Week board</button>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="calbody" id="calbody"></div>
+  </main>
+
+  <!-- ── Right rail: facets + unplanned ───────────────────────────────── -->
+  <aside class="toc">
+    <div class="toc-head">THIS VIEW</div>
+    <div class="toc-sec">
+      <h4>NOTEBOOKS</h4>
+      <div id="toc-nb"></div>
+    </div>
+    <div class="toc-sec">
+      <h4>PLANNING</h4>
+      <div class="toc-row"><span class="dot" style="background:var(--m-action)"></span>Planned ahead<span class="n">6</span></div>
+      <div class="toc-row"><span class="dot" style="background:var(--muted-fg)"></span>Undated notes<span class="n">3</span></div>
+      <div class="toc-row"><span class="dot" style="background:var(--m-time)"></span>This week<span class="n">11</span></div>
+    </div>
+    <div class="toc-sec">
+      <h4>TAGS</h4>
+      <div class="toc-row"><span class="dot" style="background:var(--m-rep)"></span>amrap<span class="n">9</span></div>
+      <div class="toc-row"><span class="dot" style="background:var(--m-effort)"></span>strength<span class="n">7</span></div>
+      <div class="toc-row"><span class="dot" style="background:var(--m-rounds)"></span>engine<span class="n">5</span></div>
+    </div>
+  </aside>
+</div>
+
+<!-- ── Prototype switcher ──────────────────────────────────────────────── -->
+<div class="switcher" id="switcher">
+  <button id="s-prev" title="Previous variant (←)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m14 6-6 6 6 6"/></svg>
+  </button>
+  <span class="lab" id="s-lab"></span>
+  <button id="s-next" title="Next variant (→)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m10 6 6 6-6 6"/></svg>
+  </button>
+</div>
+
+<script>
+/* ═══════════════════ Fixtures — several notebooks, dated notes ═══════ */
+
+const NOTEBOOKS = {
+  journal:   { label: 'Journal',           color: 'var(--m-time)' },
+  girls:     { label: 'CrossFit Girls',    color: 'var(--m-rounds)' },
+  strength:  { label: 'Strength Cycle Q3', color: 'var(--m-rep)' },
+  engine:    { label: 'Engine Room',       color: 'var(--m-effort)' },
+  pullup:    { label: 'Iron Pulls',        color: 'var(--m-distance)' },
+};
+
+// nb = notebook, d = YYYY-MM-DD, k = kind, t = title, planned = scheduled (not yet done)
+const NOTES = [
+  { nb: 'journal',  d: '2026-10-01', k: 'note',   t: 'Month opener — bench check' },
+  { nb: 'strength', d: '2026-10-01', k: 'block',  t: 'Squat 5×5 @ 225lb' },
+  { nb: 'girls',    d: '2026-10-02', k: 'block',  t: 'Fran — 21-15-9' },
+  { nb: 'engine',   d: '2026-10-03', k: 'note',   t: 'Zone 2 ride 60m', planned: true },
+  { nb: 'journal',  d: '2026-10-05', k: 'note',   t: 'Form check: pull-up' },
+  { nb: 'strength', d: '2026-10-06', k: 'block',  t: 'Deadlift 3×3 @ 315lb' },
+  { nb: 'girls',    d: '2026-10-07', k: 'block',  t: 'Cindy' },
+  { nb: 'engine',   d: '2026-10-08', k: 'note',   t: 'Row 5k PR attempt', planned: true },
+  { nb: 'journal',  d: '2026-10-09', k: 'note',   t: 'Week 1 deload notes' },
+  { nb: 'pullup',   d: '2026-10-10', k: 'block',  t: 'Strict pull-up ladder' },
+  { nb: 'girls',    d: '2026-10-12', k: 'block',  t: 'Grace — 30 clean & jerks' },
+  { nb: 'strength', d: '2026-10-13', k: 'block',  t: 'Overhead press 5×3' },
+  { nb: 'journal',  d: '2026-10-14', k: 'note',   t: 'Sore elbows — deload' },
+  { nb: 'engine',   d: '2026-10-15', k: 'note',   t: 'Aerobic base build', planned: true },
+  { nb: 'girls',    d: '2026-10-16', k: 'block',  t: 'Elizabeth — 21-15-9' },
+  { nb: 'journal',  d: '2026-10-17', k: 'note',   t: 'Rest day walk 5k' },
+  { nb: 'pullup',   d: '2026-10-19', k: 'block',  t: 'Weighted pull-up 5×3' },
+  { nb: 'strength', d: '2026-10-20', k: 'block',  t: 'Front squat 4×6 @ 185lb' },
+  { nb: 'journal',  d: '2026-10-21', k: 'note',   t: 'Meet prep — handstand' },
+  { nb: 'girls',    d: '2026-10-22', k: 'block',  t: 'Chelsea' },
+  { nb: 'engine',   d: '2026-10-23', k: 'note',   t: 'Threshold 4×10', planned: true },
+  { nb: 'journal',  d: '2026-10-24', k: 'note',   t: 'Saturday long ride' },
+  { nb: 'strength', d: '2026-10-26', k: 'block',  t: 'Deadlift 1RM test' },
+  { nb: 'girls',    d: '2026-10-27', k: 'block',  t: 'Fran — repeat PR' },
+  { nb: 'pullup',   d: '2026-10-28', k: 'block',  t: 'Muscle-up progression' },
+  { nb: 'engine',   d: '2026-10-29', k: 'note',   t: 'Tempo run 6×1k', planned: true },
+  { nb: 'journal',  d: '2026-10-30', k: 'note',   t: 'Today — heavy pulls' },
+  { nb: 'strength', d: '2026-10-30', k: 'block',  t: 'Clean & jerk 5×3' },
+  { nb: 'girls',    d: '2026-10-31', k: 'block',  t: 'Nancy — 5 rounds' },
+  { nb: 'journal',  d: '2026-11-02', k: 'note',   t: 'Programming next block' },
+  { nb: 'strength', d: '2026-11-03', k: 'block',  t: 'Back squat 6×2 @ 275lb' },
+  { nb: 'girls',    d: '2026-11-05', k: 'block',  t: 'Annie' },
+  { nb: 'engine',   d: '2026-11-07', k: 'note',   t: 'Zone 2 ride 75m', planned: true },
+  { nb: 'pullup',   d: '2026-11-09', k: 'block',  t: 'Weighted pull-up 6×2' },
+  { nb: 'journal',  d: '2026-11-10', k: 'note',   t: 'Meet day plan' },
+  { nb: 'girls',    d: '2026-11-12', k: 'block',  t: 'Christine' },
+  { nb: 'strength', d: '2026-11-14', k: 'block',  t: 'Clean pull 5×5' },
+  { nb: 'journal',  d: '2026-09-18', k: 'note',   t: 'Deload week recap' },
+  { nb: 'girls',    d: '2026-09-25', k: 'block',  t: 'Helen' },
+  // Undated — a calendar has nowhere to put these; they need a shelf.
+  { nb: 'engine',   d: null, k: 'note',  t: 'Bike fit notes' },
+  { nb: 'pullup',   d: null, k: 'block', t: 'Grip work — open' },
+  { nb: 'journal',  d: null, k: 'note',  t: 'Mobility routine' },
+];
+
+const TODAY = '2026-10-30';
+
+/* ═══════════════════ State ═══════════════════════════════════════════ */
+
+const VARIANTS = [
+  { id: 'grid',     name: 'Month grid' },
+  { id: 'planner',  name: 'Week planner' },
+  { id: 'timeline', name: 'Agenda' },
+];
+
+const state = {
+  variant: new URLSearchParams(location.search).get('variant') ?? 'grid',
+  view: 'month',                 // month | weeks
+  cursor: new Date(Date.UTC(2026, 9, 1)),
+  selected: TODAY,
+  hidden: new Set(),
+};
+
+const $ = (id) => document.getElementById(id);
+const key = (d) => `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+const parseKey = (k) => { const [y,m,d] = k.split('-').map(Number); return new Date(Date.UTC(y, m-1, d)); };
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
+function visibleNotes() {
+  return NOTES.filter(n => !state.hidden.has(n.nb) && n.d);
+}
+function byDay() {
+  const map = new Map();
+  for (const n of visibleNotes()) {
+    const arr = map.get(n.d) ?? [];
+    arr.push(n);
+    map.set(n.d, arr);
+  }
+  return map;
+}
+function nbCount(nb) {
+  return NOTES.filter(n => n.nb === nb).length;
+}
+function countFor(nb) {
+  return NOTES.filter(n => n.nb === nb && n.d && n.d.startsWith(state.cursor.toISOString().slice(0,7))).length;
+}
+
+/* ═══════════════════ Shared bits ═════════════════════════════════════ */
+
+function noteChip(n) {
+  const nb = NOTEBOOKS[n.nb];
+  const kind = n.k === 'block' ? 'block' : 'note';
+  return `<div class="note ${n.planned ? 'planned' : ''}" title="${n.t}">
+    <span class="bar" style="background:${nb.color}"></span>
+    <span class="t">${n.t}</span>
+    <span class="kind">${kind}</span>
+  </div>`;
+}
+function monthCells() {
+  const y = state.cursor.getUTCFullYear(), m = state.cursor.getUTCMonth();
+  const first = new Date(Date.UTC(y, m, 1));
+  const startOffset = (first.getUTCDay() + 6) % 7;
+  const start = new Date(Date.UTC(y, m, 1 - startOffset));
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start.getTime() + i * 86400000);
+    cells.push({ d, out: d.getUTCMonth() !== m });
+    if (i >= 34 && d.getUTCMonth() !== m && d.getUTCDay() === 0) break;
+  }
+  return cells;
+}
+
+/* ═══════════════════ Variant A — month grid ═══════════════════════════ */
+
+function renderGrid() {
+  const map = byDay();
+  const cells = monthCells();
+  const html = [];
+  html.push(`<div class="dow">${DOW.map(d => `<span>${d}</span>`).join('')}</div>`);
+  html.push(`<div class="grid">`);
+  for (const c of cells) {
+    const k = key(c.d);
+    const items = map.get(k) ?? [];
+    const shown = items.slice(0, 3);
+    html.push(`<button class="cell ${c.out ? 'out' : ''} ${k === state.selected ? 'sel' : ''} ${k === TODAY ? 'todayring' : ''}" data-day="${k}">
+      <span class="daynum ${k === TODAY ? 'today' : ''}">${c.d.getUTCDate()}</span>
+      <div class="notes">${shown.map(noteChip).join('')}</div>
+      ${items.length > shown.length ? `<span class="more">+${items.length - shown.length} more</span>` : ''}
+    </button>`);
+  }
+  html.push(`</div>`);
+
+  // Day detail panel — the review surface for a single day.
+  const sel = state.selected;
+  const selItems = map.get(sel) ?? [];
+  const d = parseKey(sel);
+  html.push(`<div class="detail">
+    <div class="detail-head">
+      <b>${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}</b>
+      <span class="sub">${selItems.length} ${selItems.length === 1 ? 'entry' : 'entries'} · ${DOW[(d.getUTCDay()+6)%7]}</span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="act">Plan a workout here</button>
+        <button class="act">Open day</button>
+      </div>
+    </div>
+    ${selItems.length ? `<div class="detail-list">${selItems.map(n => {
+      const nb = NOTEBOOKS[n.nb];
+      return `<div class="detail-row">
+        <span class="bar" style="background:${nb.color}"></span>
+        <div>
+          <div class="t">${n.t}</div>
+          <div class="meta">${nb.label} · ${n.k === 'block' ? 'workout block' : 'note'}${n.planned ? ' · planned' : ''}</div>
+        </div>
+        <div class="acts">
+          <button class="act">Open</button>
+          <button class="act">Run</button>
+          <button class="act">Move</button>
+        </div>
+      </div>`;
+    }).join('')}</div>` : `<div class="empty">Nothing on this day. Drop a planned workout here to fill it.</div>`}
+  </div>`);
+
+  html.push(undatedShelf());
+  return html.join('');
+}
+
+/* ═══════════════════ Variant B — week planner board ═══════════════════ */
+
+function renderPlanner() {
+  const map = byDay();
+  // Six week rows starting from the Monday on/before the cursor.
+  const first = new Date(Date.UTC(state.cursor.getUTCFullYear(), state.cursor.getUTCMonth(), 1));
+  const start = new Date(first.getTime() - ((first.getUTCDay() + 6) % 7) * 86400000);
+  const rows = [];
+  for (let w = 0; w < 6; w++) {
+    const cells = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start.getTime() + (w * 7 + i) * 86400000);
+      const k = key(d);
+      const items = map.get(k) ?? [];
+      cells.push(`<div class="weekcell ${d.getUTCMonth() !== state.cursor.getUTCMonth() ? 'out' : ''}">
+        <span class="d ${k === TODAY ? 'today' : ''}">${DOW[i]} ${d.getUTCDate()}</span>
+        <div class="stack">
+          ${items.map(n => noteChip(n)).join('')}
+          <div class="drop">+ plan</div>
+        </div>
+      </div>`);
+    }
+    const wkStart = new Date(start.getTime() + w * 7 * 86400000);
+    const wkEnd = new Date(wkStart.getTime() + 6 * 86400000);
+    const wkItems = [...Array(7)].reduce((acc, _, i) => acc.concat(map.get(key(new Date(wkStart.getTime() + i * 86400000))) ?? []), []);
+    rows.push(`<div class="weekrow">
+      <div class="wklabel"><span>W${isoWeek(wkStart)}</span><span class="n">${wkItems.length} entries</span></div>
+      ${cells.join('')}
+    </div>`);
+  }
+  return `<div class="planner">${rows.join('')}</div>${undatedShelf()}`;
+}
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  const start = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - start) / 86400000 + 1) / 7);
+}
+
+/* ═══════════════════ Variant C — agenda + heatmap ═════════════════════ */
+
+function renderTimeline() {
+  const map = byDay();
+  const days = [...map.keys()].sort();
+  const y = state.cursor.getUTCFullYear(), m = state.cursor.getUTCMonth();
+  const monthDays = days.filter(k => k.startsWith(`${y}-${String(m+1).padStart(2,'0')}`));
+
+  // Heatmap: one cell per day of the month, intensity by entry count.
+  const heat = [];
+  const first = new Date(Date.UTC(y, m, 1));
+  const offset = (first.getUTCDay() + 6) % 7;
+  for (let i = 0; i < offset; i++) heat.push('<i class="out"></i>');
+  const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  for (let d = 1; d <= dim; d++) {
+    const n = (map.get(`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`) ?? []).length;
+    const lvl = n === 0 ? '' : n === 1 ? 'l1' : n === 2 ? 'l2' : n >= 3 ? 'l3' : '';
+    heat.push(`<i class="${lvl}" title="${d}: ${n}"></i>`);
+  }
+  const heatHtml = `<div style="display:flex;gap:18px;align-items:flex-start;margin-bottom:16px">
+    <div>
+      <div class="heat">${heat.join('')}</div>
+      <div class="heatkey"><span>less</span><i style="background:var(--muted)"></i><i style="background:hsl(212 32% 42% / .32)"></i><i style="background:hsl(212 32% 42% / .55)"></i><i style="background:hsl(212 32% 42% / .78)"></i><span>more</span></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--muted-fg)">
+      ${monthDays.length} days with notes this month<br/>
+      <span class="mono">${visibleNotes().filter(n => n.d.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length}</span> entries placed
+    </div>
+  </div>`;
+
+  const agenda = monthDays.map(k => {
+    const d = parseKey(k);
+    const items = map.get(k);
+    return `<div class="aday">
+      <div class="date ${k === TODAY ? 'today' : ''}"><b>${String(d.getUTCDate()).padStart(2,'0')}</b>${MONTHS[d.getUTCMonth()].slice(0,3)} ${d.getUTCFullYear()}</div>
+      <div class="items">${items.map(n => {
+        const nb = NOTEBOOKS[n.nb];
+        return `<div class="card">
+          <div class="top">
+            <span class="bar" style="width:3px;height:16px;border-radius:2px;background:${nb.color}"></span>
+            <span class="t">${n.t}</span>
+            ${n.planned ? '<span class="planned-tag" style="margin-left:auto">planned</span>' : ''}
+          </div>
+          <div class="sub">${nb.label} · ${n.k === 'block' ? 'workout block' : 'note'}</div>
+          <div class="foot">
+            ${n.k === 'block' ? '<span class="chip t">5 rounds</span><span class="chip e">AMRAP</span>' : '<span class="chip a">journal</span>'}
+            <span class="mono" style="margin-left:auto">Open · Run · Plan</span>
+          </div>
+        </div>`;
+      }).join('')}</div>
+    </div>`;
+  }).join('');
+
+  return `${heatHtml}<div class="agenda">${agenda || '<div class="empty">No dated notes this month.</div>'}</div>${undatedShelf()}`;
+}
+
+function undatedShelf() {
+  const items = NOTES.filter(n => !n.d && !state.hidden.has(n.nb));
+  if (!items.length) return '';
+  return `<div class="undated">
+    <h3>UNDATED · ${items.length} — the calendar cannot place these</h3>
+    <div class="row">${items.map(n => `<span class="note"><span class="bar" style="background:${NOTEBOOKS[n.nb].color}"></span><span class="t">${n.t}</span><span class="kind">${NOTEBOOKS[n.nb].label}</span></span>`).join('')}</div>
+  </div>`;
+}
+
+/* ═══════════════════ Chrome rendering ════════════════════════════════ */
+
+function renderNotebookLists() {
+  const ids = Object.keys(NOTEBOOKS);
+  $('nb-list').innerHTML = ids.map(id => `
+    <button class="nav-item" data-nb="${id}">
+      <span class="dot" style="background:${NOTEBOOKS[id].color}"></span>
+      ${NOTEBOOKS[id].label}
+      <span class="count">${countFor(id)}</span>
+    </button>`).join('');
+  $('toc-nb').innerHTML = ids.map(id => `
+    <div class="toc-row" data-nb="${id}">
+      <span class="dot" style="background:${NOTEBOOKS[id].color}"></span>
+      ${NOTEBOOKS[id].label}<span class="n">${countFor(id)}</span>
+    </div>`).join('');
+  $('legend').innerHTML = ids.map(id => `
+    <span class="item ${state.hidden.has(id) ? 'off' : ''}" data-nb="${id}">
+      <span class="swatch" style="background:${NOTEBOOKS[id].color}"></span>${NOTEBOOKS[id].label}
+    </span>`).join('');
+
+  document.querySelectorAll('[data-nb]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.nb;
+      state.hidden.has(id) ? state.hidden.delete(id) : state.hidden.add(id);
+      render();
+    });
+  });
+}
+
+function renderChrome() {
+  const y = state.cursor.getUTCFullYear(), m = state.cursor.getUTCMonth();
+  $('month-label').textContent = `${MONTHS[m]} ${y}`;
+  $('view-toggle').textContent = state.view === 'month' ? 'Week board' : 'Month grid';
+  const v = VARIANTS.find(x => x.id === state.variant) ?? VARIANTS[0];
+  $('s-lab').innerHTML = `${v.id.toUpperCase()} <span>(${v.name})</span>`;
+}
+
+function render() {
+  renderChrome();
+  renderNotebookLists();
+  const body = $('calbody');
+  body.innerHTML = state.variant === 'grid' ? renderGrid()
+    : state.variant === 'planner' ? renderPlanner()
+    : renderTimeline();
+
+  body.querySelectorAll('[data-day]').forEach(el => {
+    el.addEventListener('click', () => { state.selected = el.dataset.day; render(); });
+  });
+}
+
+/* ═══════════════════ Wiring ═══════════════════════════════════════════ */
+
+$('prev').addEventListener('click', () => {
+  state.cursor = new Date(Date.UTC(state.cursor.getUTCFullYear(), state.cursor.getUTCMonth() - 1, 1));
+  render();
+});
+$('next').addEventListener('click', () => {
+  state.cursor = new Date(Date.UTC(state.cursor.getUTCFullYear(), state.cursor.getUTCMonth() + 1, 1));
+  render();
+});
+$('today-btn').addEventListener('click', () => {
+  state.cursor = new Date(Date.UTC(2026, 9, 1));
+  state.selected = TODAY;
+  render();
+});
+$('view-toggle').addEventListener('click', () => {
+  state.view = state.view === 'month' ? 'weeks' : 'month';
+  state.variant = state.view === 'weeks' ? 'planner' : 'grid';
+  render();
+});
+
+function setVariant(id) {
+  state.variant = id;
+  const url = new URL(location.href);
+  url.searchParams.set('variant', id);
+  history.replaceState(null, '', url);
+  render();
+}
+$('s-prev').addEventListener('click', () => {
+  const i = VARIANTS.findIndex(v => v.id === state.variant);
+  setVariant(VARIANTS[(i - 1 + VARIANTS.length) % VARIANTS.length].id);
+});
+$('s-next').addEventListener('click', () => {
+  const i = VARIANTS.findIndex(v => v.id === state.variant);
+  setVariant(VARIANTS[(i + 1) % VARIANTS.length].id);
+});
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') $('s-prev').click();
+  if (e.key === 'ArrowRight') $('s-next').click();
+});
+
+render();
+</script>
+</body>
+</html>

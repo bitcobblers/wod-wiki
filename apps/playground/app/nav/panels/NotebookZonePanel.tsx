@@ -64,8 +64,8 @@ export const notebookViewChildren: NavItem[] = [
     label: 'Configure sources',
     level: 2,
     icon: Settings,
-    action: { type: 'route', to: ROUTE_PATTERNS.feeds },
-    isActive: (loc: Location) => startsWithAny(loc.pathname, '/feeds', '/feed'),
+    action: { type: 'route', to: ROUTE_PATTERNS.settingsSync },
+    isActive: (loc: Location) => startsWithAny(loc.pathname, ROUTE_PATTERNS.settingsSync),
   },
 ]
 const NotebooksConditionsPanel = createConditionsNavPanel({
