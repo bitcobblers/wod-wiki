@@ -87,7 +87,8 @@ export interface StreamNavControls {
   onToggleGroupDim: (dim: string) => void
   availableGroupDims: { id: string; label: string }[]
   /** Per-route view settings (layout + visible fields), published so the
-   *  L3 rail and ⋯ fallbacks carry view controls. Cast stays header-only chrome. */
+   *  L3 rail and ⋯ fallbacks carry view controls (plus the where-filter
+   *  accordion via FacetProperties). Cast stays header-only chrome. */
   settings: ViewSettings
   onLayoutChange: (layout: LayoutMode) => void
   onToggleField: (fieldId: string) => void
@@ -115,7 +116,7 @@ export interface NavContextValue {
   secondarySpec?: MenuSpec
   setSecondarySpec: (spec?: MenuSpec) => void
   contextNav?: ContextNav
-  setContextNav: (nav?: ContextNav) => void
+  setContextNav: (nav?: ContextNav | ((prev?: ContextNav) => ContextNav | undefined)) => void
   streamControls?: StreamNavControls | null
   setStreamControls: (controls: StreamNavControls | null) => void
   scrollToSection: (id: string) => void
@@ -184,9 +185,37 @@ export interface NavProviderProps {
 export function NavProvider({ tree, children }: NavProviderProps) {
   const [navState, dispatch] = useReducer(navReducer, initialNavState)
   const [l3Items, setL3ItemsInternal] = useState<NavItemL3[]>([])
-  const [secondarySpec, setSecondarySpec] = useState<MenuSpec | undefined>(undefined)
-  const [contextNav, setContextNav] = useState<ContextNav | undefined>(undefined)
-  const [streamControls, setStreamControls] = useState<StreamNavControls | null>(null)
+  const [secondarySpec, setSecondarySpecInternal] = useState<MenuSpec | undefined>(undefined)
+  const [contextNav, setContextNavInternal] = useState<ContextNav | undefined>(undefined)
+  const [streamControls, setStreamControlsInternal] = useState<StreamNavControls | null>(null)
+
+  const setSecondarySpec = useCallback((next?: MenuSpec) => {
+    setSecondarySpecInternal(prev => (prev === next ? prev : next))
+  }, [])
+
+  const setContextNav = useCallback(
+    (next: ContextNav | undefined | ((prev: ContextNav | undefined) => ContextNav | undefined)) => {
+      setContextNavInternal(prev => {
+        const resolved = typeof next === 'function' ? next(prev) : next
+        if (prev === resolved) return prev
+        if (!prev && !resolved) return prev
+        if (
+          prev &&
+          resolved &&
+          prev.pathname === resolved.pathname &&
+          prev.spec === resolved.spec
+        ) {
+          return prev
+        }
+        return resolved
+      })
+    },
+    [],
+  )
+
+  const setStreamControls = useCallback((next: StreamNavControls | null) => {
+    setStreamControlsInternal(prev => (prev === next ? prev : next))
+  }, [])
   const location = useLocation()
 
   // Mutable ref so AppContent can override scroll behaviour without re-rendering
@@ -266,7 +295,7 @@ export function NavProvider({ tree, children }: NavProviderProps) {
       openCreateJournal,
       registerCreateJournal,
     }),
-    [tree, navState, l3Items, setL3Items, secondarySpec, contextNav, setContextNav, streamControls, scrollToSection, registerScrollFn, openCreateJournal, registerCreateJournal],
+    [tree, navState, l3Items, setL3Items, secondarySpec, setSecondarySpec, contextNav, setContextNav, streamControls, setStreamControls, scrollToSection, registerScrollFn, openCreateJournal, registerCreateJournal],
   )
   return (
     <NavContext.Provider value={value}>

@@ -1,12 +1,26 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { JournalPageShell } from '@/panels/page-shells'
+import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
-import { notePath } from '../lib/routes'
+import { localDateKey } from '@/lib/dateFormat'
+import { notebookService } from '@/hooks/useBrowserServices'
+import type { HistoryRecord } from '@/types/history'
+import { notePath, notebookDatePath, notebookPath } from '../lib/routes'
 import { formatDateKey } from '../services/dateUtils'
 import { useNav } from '../nav/NavContext'
 import type { NavItemL3 } from '../nav/navTypes'
-import type { HistoryRecord } from '@/types/history'
+import { PageActions } from './shared/PageActions'
+import { NewEntryCombo } from './shared/NewEntryCombo'
+import { appendTimerBlock } from './shared/pageUtils'
+import { journalNotes } from '../services/journalNotes'
+import { ResponsiveActions } from '../nav/ResponsiveActions'
+import {
+  NoteContextNav,
+  useNotebookEntryDates,
+  EMPTY_NOTE_CONTEXT,
+} from './shared/noteContextLinks'
+import type { MenuSpec } from '../nav/menuModel'
 
 const contentProvider = new IndexedDBContentProvider()
 
@@ -32,9 +46,9 @@ function groupByTag(entries: HistoryRecord[]): DayGroup[] {
   const map = new Map<string, HistoryRecord[]>()
   for (const entry of entries) {
     const tag = entry.tags[0]?.toLowerCase() ?? 'untagged'
-    const bucket = map.get(tag)
-    if (bucket) bucket.push(entry)
-    else map.set(tag, [entry])
+    const group = map.get(tag) ?? []
+    group.push(entry)
+    map.set(tag, group)
   }
   return Array.from(map.entries()).map(([tag, groupEntries]) => ({
     id: `day-group-${tag}`,
@@ -61,6 +75,7 @@ export function entryDateKey(entry: Pick<HistoryRecord, 'targetDate'>): string {
  * nothing; seed frontmatter `date:` places dated posts on their own day.
  */
 export function NotebookDatePage({ slug, date }: NotebookDatePageProps) {
+  const navigate = useNavigate()
   const [entries, setEntries] = useState<HistoryRecord[] | null>(null)
 
   useEffect(() => {
@@ -85,23 +100,65 @@ export function NotebookDatePage({ slug, date }: NotebookDatePageProps) {
 
   const groups = useMemo(() => (entries ? groupByTag(entries) : []), [entries])
 
-  // Publish the group index (publish-on-mount / clear-on-unmount, like the
-  // stream's group L3 — the shell skips its empty static index here).
+  // Whiteboard "notebook day" L3: On this page (tag groups) first, then date
+  // navigation. New note is the sticky/dock primary, not an L3 row.
+  const handleAddTimer = useCallback(async () => {
+    const created = await journalNotes.create({
+      journalDate: date,
+      title: 'Untitled note',
+      rawContent: `# Untitled note\n\n${appendTimerBlock('')}`,
+      type: 'note',
+    })
+    await notebookService.moveNote(created.id, slug)
+    navigate(notePath(created.id))
+  }, [date, slug, navigate])
   const { setL3Items } = useNav()
   useEffect(() => {
-    if (groups.length === 0) {
-      setL3Items([])
-      return
-    }
     const links: NavItemL3[] = groups.map(group => ({
       id: group.id,
       label: group.label,
       level: 3,
       action: { type: 'scroll', sectionId: group.id },
     }))
+    links.push({
+      id: 'helpful-add-timer',
+      label: 'Add timer',
+      level: 3,
+      action: { type: 'call', handler: () => void handleAddTimer() },
+    })
+    if (slug) {
+      links.push({
+        id: 'helpful-today',
+        label: 'Today',
+        level: 3,
+        action: { type: 'call', handler: () => navigate(notebookDatePath(slug, localDateKey(new Date()))) },
+      })
+    }
     setL3Items(links)
     return () => setL3Items([])
-  }, [groups, setL3Items])
+  }, [groups, setL3Items, slug, navigate, handleAddTimer])
+
+  // ── L2 (whiteboard "notebook day"): Up to this notebook; calendar scoped
+  // to notebook dates; recent notes in the notebook.
+  const notebookDates = useNotebookEntryDates(slug)
+  const up = useMemo(() => ({ id: slug, title: slug, to: notebookPath(slug) }), [slug])
+  const calendar = (
+    <CalendarCard
+      selectedDate={new Date(`${date}T12:00:00`)}
+      onDateSelect={(picked) => navigate(notebookDatePath(slug, localDateKey(picked)))}
+      entryDates={notebookDates}
+    />
+  )
+  const recentSection = useMemo<MenuSpec>(() => [
+    {
+      kind: 'wql',
+      id: 'recent-notebook-notes',
+      label: 'Recent notes',
+      query: `:note{notebook:${slug}}`,
+      limit: 6,
+      toEntry: (e) => notePath(e.id),
+    },
+  ], [slug])
 
   const body = entries === null
     ? <div className="flex flex-1 items-center justify-center text-zinc-400">Loading…</div>
@@ -142,7 +199,30 @@ export function NotebookDatePage({ slug, date }: NotebookDatePageProps) {
     <JournalPageShell
       title={date}
       subtitle={slug}
-      editor={<div className="flex flex-col gap-6 px-4 py-6 sm:px-6">{body}</div>}
+      actions={
+        // Whiteboard "notebook day" sticky: New note in this notebook
+        // (NewEntryCombo resolves this route to a note in `slug`; read-only
+        // notebooks get Clone), plus Cast, sync, and page options. Mobile:
+        // New note rides the dock, Cast stays in the navbar.
+        <ResponsiveActions label="Notebook day actions" primary={<NewEntryCombo />}>
+          <PageActions
+            mode="notebook-readonly"
+            currentWorkout={{ name: `${slug} · ${date}`, content: '' }}
+            index={[]}
+          />
+        </ResponsiveActions>
+      }
+      editor={
+        <div className="flex flex-col gap-6 px-4 py-6 sm:px-6">
+          <NoteContextNav
+            data={EMPTY_NOTE_CONTEXT}
+            up={up}
+            calendar={calendar}
+            sections={recentSection}
+          />
+          {body}
+        </div>
+      }
     />
   )
 }

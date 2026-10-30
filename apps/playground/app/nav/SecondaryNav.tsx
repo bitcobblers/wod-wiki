@@ -1,15 +1,15 @@
 /**
  * SecondaryNav — shell zone 4: the right-hand "On this page" rail.
  *
- * Content = the stream surface's VIEW controls (date window, group-by,
- * layout, visible fields — the same state the View dialog and header
- * buttons drive) + stream controls + route-declared spec (shell.secondary)
- * + the page's own index (NavContext l3Items — published by useNotePageNav /
- * CanvasPage / HomeTour). Where-clause filters live ONLY in the L2 context
- * panel (ConditionsNavPanel ▸ FacetProperties). Desktop (2xl+) renders this
- * rail; below 2xl the same entries collapse into the ⋯ header menu
- * (ActionsMenu) and the mobile right drawer, per the responsive shell
- * contract.
+ * Content = the stream surface's L3 CONTROLS (where-filters via FacetProperties,
+ * date window, group-by, layout, visible fields — the same state the View
+ * dialog and header buttons drive) + stream controls + route-declared spec
+ * (shell.secondary) + the page's own index (NavContext l3Items — published by
+ * useNotePageNav / CanvasPage / HomeTour). Where-clause filters are L3-only:
+ * the L2 ConditionsNavPanel keeps navigation, labeled shortcuts and recent
+ * results. Desktop (2xl+) renders this rail; below 2xl the same entries
+ * collapse into the ⋯ header menu (ActionsMenu) and the mobile thumb ⋯ sheet
+ * (MobileStreamControlsNav), per the responsive shell contract.
  */
 
 import { useMemo, type ReactNode } from 'react'
@@ -23,6 +23,8 @@ import { WqlWindowPicker } from '../views/stream/WqlWindowPicker'
 import { QuerySettingsTrigger } from '../components/organisms/wql/QuerySettingsTrigger'
 import type { LayoutMode } from '../lib/viewSettingsStorage'
 import { getFieldsForLevel } from '../lib/fieldProjection'
+import { useIsMobile } from '../hooks/useIsMobile'
+import { FacetProperties } from './panels/FacetProperties'
 
 const LAYOUT_OPTIONS: readonly { id: LayoutMode; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'cards', label: 'Cards', icon: LayoutGrid },
@@ -31,11 +33,12 @@ const LAYOUT_OPTIONS: readonly { id: LayoutMode; label: string; icon: typeof Lay
 ]
 
 /**
- * StreamControlsNav — the L3 stream-controls block (date window picker +
- * group-by toggles + layout + visible fields + the query-settings entry).
- * Rendered by the 2xl+ rail AND by the ⋯ fallback (dropdown + dock sheet)
- * below 2xl, so every surface carries the same components bound to the same
- * NavContext streamControls.
+ * StreamControlsNav — the L3 stream-controls block (where-filters +
+ * date window picker + group-by toggles + layout + visible fields + the
+ * query-settings entry). Rendered by the 2xl+ rail, by the header ⋯
+ * dropdown below 2xl, and by the mobile thumb ⋯ sheet via
+ * MobileStreamControlsNav — every surface carries the same components bound
+ * to the same NavContext streamControls.
  */
 export function StreamControlsNav({ streamControls }: { streamControls: StreamNavControls }) {
   return (
@@ -145,8 +148,27 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
           })}
         </div>
       </div>
+
+      {/* Where-clause filters over the current query — L3-owned (moved out of
+          the L2 ConditionsNavPanel); self-titled, renders nothing without a
+          parseable find query. */}
+      <FacetProperties />
     </div>
   )
+}
+
+/**
+ * MobileStreamControlsNav — the mobile thumb ⋯ sheet's L3 block, registered
+ * by QueriableStreamView as a ResponsiveActions child. ResponsiveActions only
+ * registers children with the dock on mobile and renders them inline on
+ * desktop, so gating on useIsMobile keeps the desktop header and 2xl rail the
+ * sole L3 owners — no duplicate controls.
+ */
+export function MobileStreamControlsNav() {
+  const isMobile = useIsMobile()
+  const { streamControls } = useNav()
+  if (!isMobile || !streamControls) return null
+  return <StreamControlsNav streamControls={streamControls} />
 }
 
 export function SecondaryNav({ spec, pageAction }: { spec?: MenuSpec; pageAction?: ReactNode }) {

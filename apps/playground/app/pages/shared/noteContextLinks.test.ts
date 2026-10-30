@@ -15,8 +15,10 @@ import type { BlockEffort, BlockIndexRow, Note } from '@/types/storage'
 import { extractPageIndex, mapIndexToL3 } from './pageUtils'
 import {
   backlinkNotes,
+  buildNoteContextSpec,
   effortLinks,
   effortUsageLinks,
+  EMPTY_NOTE_CONTEXT,
   noteLinkPath,
   noteOwnership,
   provenanceLink,
@@ -215,5 +217,53 @@ describe('provenanceLink — stamped sourceId resolution', () => {
     const link = provenanceLink('/notebook/girls/%E0%A4%A')
     expect(link?.to).toBe('/notebook/girls/%E0%A4%A')
     expect(typeof link?.title).toBe('string')
+  })
+})
+
+describe('buildNoteContextSpec — whiteboard L2 ordering', () => {
+  const data = {
+    efforts: [{ id: 'e1', title: 'Fran', to: '/effort/fran' }],
+    related: [{ id: 'r1', title: 'Related WOD', to: '/note/r1' }],
+    backlinks: [{ id: 'b1', title: 'Journal copy', to: '/note/b1' }],
+  }
+  const up = { id: 'u', title: 'Playgrounds', to: '/playgrounds' }
+  const source = { id: 's', title: 'Source', to: '/notebook/girls' }
+
+  it('orders Up, Source, calendar, sections, Related, Efforts, Journal copies, trailing', () => {
+    const spec = buildNoteContextSpec({
+      data,
+      up,
+      source,
+      calendar: 'CAL',
+      sections: [{ kind: 'section', id: 'recent', label: 'Recent', entries: [] }],
+      trailingSections: [{ kind: 'section', id: 'recent-efforts', label: 'Recent efforts', entries: [] }],
+    })
+    expect(spec.map(e => e.id)).toEqual([
+      'note-context-up',
+      'note-context-source',
+      'note-context-calendar',
+      'recent',
+      'note-context-related',
+      'note-context-efforts',
+      'note-context-backlinks',
+      'recent-efforts',
+    ])
+    const calendar = spec[2]
+    expect(calendar.kind === 'widget' && calendar.render()).toBe('CAL')
+  })
+
+  it('omits empty sections; a relationship-free spec renders Up/sections only', () => {
+    const spec = buildNoteContextSpec({
+      data: EMPTY_NOTE_CONTEXT,
+      up: { id: 'nb', title: 'girls', to: '/notebook/girls' },
+      sections: [{ kind: 'wql', id: 'recent-notes', label: 'Recent notes', query: ':note{}' }],
+    })
+    expect(spec.map(e => e.id)).toEqual(['note-context-up', 'recent-notes'])
+  })
+
+  it('renames the related section via relatedLabel', () => {
+    const spec = buildNoteContextSpec({ data, up, relatedLabel: 'Used in' })
+    const related = spec.find(e => e.id === 'note-context-related')
+    expect(related && related.kind === 'section' && related.label).toBe('Used in')
   })
 })

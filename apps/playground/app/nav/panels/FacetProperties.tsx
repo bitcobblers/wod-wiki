@@ -1,9 +1,10 @@
 /**
- * FacetProperties — the properties accordion of a stream surface, rendered
- * by the L2 ConditionsNavPanel (the only host since the L3 rail and ⋯ menu
- * dropped where-filters in favour of view controls).
+ * FacetProperties — the properties accordion of a stream surface, hosted by
+ * the L3 stream-controls block (StreamControlsNav: the 2xl+ rail, the header
+ * ⋯ dropdown and the mobile thumb ⋯ sheet). The L2 ConditionsNavPanel keeps
+ * navigation, labeled shortcuts and recent results only.
  *
- * ponytail: the L2 panel remounts per route mount, so async membership
+ * ponytail: hosts remount per route/path mount, so async membership
  * loads re-fire on navigation. Swap for a shared context cache if that
  * shows up in profiling.
  *
@@ -43,7 +44,7 @@ import { useCloseNavigationDrawer } from '../NavigationDrawerContext'
 import { storageService } from '@/services/storage'
 
 import { useAppliedRouteWqlConfig } from '../../lib/routeWqlConfig'
-import type { StreamProfile } from '../../views/stream/streamProfile'
+import { resolveStreamProfile } from '../../views/stream/streamProfile'
 import { useStreamResults, type StreamResultSnapshot } from '../../views/stream/streamResults'
 import type { Entry } from '../../lib/entryMapper'
 import {
@@ -102,12 +103,12 @@ export function navigateToQuery(location: Location, navigate: (to: string) => vo
 }
 
 /**
- * Facet properties for one stream surface. `profile` identifies the
- * surface's WQL target and default query; the effective query always comes
- * from the URL (`q`) falling back to the route-default overlay, matching
- * QueriableStreamView exactly.
+ * Facet properties for the CURRENT stream surface. The profile is derived
+ * from the pathname the same way AppContent resolves it (resolveStreamProfile,
+ * so dynamic detail/date routes match the mounted stream), keeping the L3
+ * host's default-query fallback in exact parity with QueriableStreamView.
  */
-export function FacetProperties({ profile }: { profile: StreamProfile }) {
+export function FacetProperties() {
   const location = useLocation()
   const navigate = useNavigate()
   const published = useStreamResults()
@@ -115,8 +116,8 @@ export function FacetProperties({ profile }: { profile: StreamProfile }) {
   // when it parses; absent or invalid falls back to the profile default —
   // the same rule useComposerQueryState applies, so publication matches.
   const rawQ = urlQuery(location)
-  const defaultProfile = useAppliedRouteWqlConfig(profile)
-  const effectiveQuery = rawQ && !parseQuery(rawQ).error ? rawQ : defaultProfile.defaultWql
+  const defaultProfile = useAppliedRouteWqlConfig(resolveStreamProfile(location.pathname))
+  const effectiveQuery = rawQ && !parseQuery(rawQ).error ? rawQ : defaultProfile!.defaultWql
   const parsed = useMemo(() => parseQuery(effectiveQuery), [effectiveQuery])
   const parsedFind = useMemo(
     () => (!parsed.error && isFindQuery(parsed) ? parsed : null),
@@ -204,7 +205,10 @@ export function FacetProperties({ profile }: { profile: StreamProfile }) {
 
   if (!parsedFind) return null
   return (
-    <div className="flex flex-col" aria-busy={pending || undefined}>
+    <div className="flex flex-col" aria-busy={pending || undefined} data-testid="l3-filters">
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        Filters
+      </div>
       {orderedKeys.map(key => (
         <div key={key} data-testid={`conditions-section-${key}`}>
           <ConditionSection

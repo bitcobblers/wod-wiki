@@ -61,10 +61,12 @@ import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
+import { MobileStreamControlsNav } from '../../nav/SecondaryNav'
 import { NotebookLibraryBrowser } from '../notebook-gallery/NotebookLibraryBrowser'
 import { FeedIntakeBanner } from '../notebook-gallery/FeedIntakeBanner'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
 import { ROUTE_PATTERNS } from '../../lib/routes'
+import { MobileNewEntryCombo, routeSupportsCreation } from '../../pages/shared/NewEntryCombo'
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings } from '../../lib/viewSettingsStorage'
 import { useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
@@ -946,7 +948,10 @@ export function QueriableStreamView({
       <StickyPageHeader
         className="max-lg:hidden"
         actions={
-          <ResponsiveActions label="Stream actions">
+          <ResponsiveActions
+            primary={routeSupportsCreation(profile.route) ? <MobileNewEntryCombo /> : undefined}
+            label="Stream actions"
+          >
             {isNotebooksRoute && (
               <Button
                 variant="outline"
@@ -960,6 +965,11 @@ export function QueriableStreamView({
               </Button>
             )}
             {actions}
+            {/* Mobile thumb ⋯ sheet carries the same L3 controls (whiteboard
+                bottom-up Search → New → … contract). ResponsiveActions
+                registers children only on mobile, so the desktop header row
+                and the 2xl+ rail keep sole ownership — no duplicates. */}
+            <MobileStreamControlsNav />
           </ResponsiveActions>
         }
         queryBar={
@@ -1303,7 +1313,7 @@ export function QueriableStreamView({
           ) : null}
         </div>
       )}
-      {/* ponytail: view controls (layout, visible fields, grouping) live in L3 (SecondaryNav) */}
+      {/* ponytail: L3 controls (filters, layout, visible fields, grouping) live in L3 (SecondaryNav) */}
     </div>
   )
 }

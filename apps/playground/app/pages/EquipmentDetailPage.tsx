@@ -13,7 +13,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeftIcon, DocumentDuplicateIcon } from '@heroicons/react/20/solid';
+import { DocumentDuplicateIcon } from '@heroicons/react/20/solid';
 import { Button } from '@/components/atoms/primitives/button';
 import { Badge } from '@/components/atoms/primitives/badge';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
@@ -23,9 +23,10 @@ import type { ScriptBlock } from '@/components/Editor/types';
 import { useEquipmentContent, useEquipmentLinks, blankEquipmentDocument } from '../hooks/useEquipmentContent';
 import { useNotePageNav } from './shared/useNotePageNav';
 import { NoteContextNav, noteOwnership, useNoteContextLinks, noteLinkPath } from './shared/noteContextLinks';
-import { canGoBack } from './shared/pageUtils';
 import { useEquipmentRegistry } from '../contexts/EquipmentRegistryContext';
 import { equipmentPath, effortPath, ROUTE_PATTERNS } from '../lib/routes';
+import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
+import type { MenuSpec } from '../nav/menuModel';
 import { toast } from '@/hooks/use-toast';
 import { TEST_IDS } from '@/testing/contracts/TestIdContract';
 import { documentToEquipment } from '@bitcobblers/wod-wiki-lang';
@@ -116,9 +117,19 @@ export function EquipmentDetailPage() {
 
   // ── L3 nav from document content (display-only links — equipment bodies
   // are reference material, not runnable workouts) ──────────────────────────
+  // Whiteboard equipment L3: Clone (read-only) and Copy link after the
+  // outline. `key` republishes when the equipment loads so Clone's closure
+  // never stays null.
+  const handleCopyLink = useCallback(() => {
+    void navigator.clipboard?.writeText(window.location.href)
+  }, [])
   useNotePageNav({
     content: isCreateMode ? createDocument : document,
     scriptBlocks,
+    helpfulActions: [
+      ...(equipment && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: equipment.slug }] : []),
+      { id: 'copy-link', label: 'Copy link', onRun: handleCopyLink },
+    ],
   });
 
   // ── Contextual links + editor identity ride the ACTUAL owner note id —
@@ -138,6 +149,19 @@ export function EquipmentDetailPage() {
     related: links.usedBy.map(u => ({ id: u.noteId, title: u.title, to: noteLinkPath(u.noteId) })),
     backlinks: baseContext.backlinks,
   }), [links, baseContext.backlinks]);
+  // Whiteboard equipment L2: related efforts (section above), recent
+  // equipment last.
+  const trailingSections = useMemo<MenuSpec>(() => [
+    {
+      kind: 'wql',
+      id: 'recent-equipment',
+      label: 'Recent equipment',
+      query: ':equipment{}',
+      limit: 5,
+      toEntry: (e) => equipmentPath(e.id),
+      filterEntry: (e) => e.id !== equipment?.ownerNoteId && e.id !== `equipment/${equipment?.slug ?? ''}`,
+    },
+  ], [equipment]);
 
   // ── Page title ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -268,23 +292,25 @@ export function EquipmentDetailPage() {
   }
 
   // ── Actions bar (rendered by JournalPageShell actions prop) ──────────────
+  // Whiteboard equipment sticky: Clone + Cast — Back became the L2 Up link
+  // (NoteContextNav "Up" section).
   const pageActions = (
-    <ResponsiveActions primary={!isEditable ? (
-      <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EQUIPMENT_DETAIL_CLONE_BTN}>
-        <DocumentDuplicateIcon className="size-4 mr-1.5" />
-        Clone
-      </Button>
-    ) : undefined}>
-      <Button variant="ghost" size="icon" onClick={() => (canGoBack() ? navigate(-1) : navigate(ROUTE_PATTERNS.equipment))} aria-label="Back to Equipment" title={canGoBack() ? 'Back' : 'Back to Equipment'}>
-        <ArrowLeftIcon className="size-4" />
-      </Button>
-      <Badge
-        data-testid={TEST_IDS.EQUIPMENT_DETAIL_SOURCE}
-        variant={equipment.registrySource === 'bundled' ? 'secondary' : 'default'}
-      >
-        {equipment.registrySource === 'bundled' ? 'Bundled' : 'Custom'}
-      </Badge>
-    </ResponsiveActions>
+    <div className="flex items-center gap-2">
+      <ResponsiveActions primary={!isEditable ? (
+        <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EQUIPMENT_DETAIL_CLONE_BTN}>
+          <DocumentDuplicateIcon className="size-4 mr-1.5" />
+          Clone
+        </Button>
+      ) : undefined}>
+        <Badge
+          data-testid={TEST_IDS.EQUIPMENT_DETAIL_SOURCE}
+          variant={equipment.registrySource === 'bundled' ? 'secondary' : 'default'}
+        >
+          {equipment.registrySource === 'bundled' ? 'Bundled' : 'Custom'}
+        </Badge>
+      </ResponsiveActions>
+      <CastButtonRpc />
+    </div>
   );
 
   return (
@@ -312,7 +338,7 @@ export function EquipmentDetailPage() {
               mode="edit"
               onBlocksChange={setScriptBlocks}
             />
-            <NoteContextNav data={contextData} up={ownership?.up} relatedLabel="Used in" />
+            <NoteContextNav data={contextData} up={ownership?.up} relatedLabel="Used in" trailingSections={trailingSections} />
           </div>
         }
       />

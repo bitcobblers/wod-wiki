@@ -34,10 +34,10 @@ import {
 import { useScriptBlockCommands } from '../hooks/useScriptBlockCommands'
 import { shareBlock, openBlockInPlayground } from '../services/openInPlayground'
 import { ResponsiveActions } from '../nav/ResponsiveActions'
-import { Button } from '@/components/atoms/primitives/button'
 import {
   INLINE_RUNTIME_CATEGORIES,
   NOTEBOOK_EXCLUDED_CATEGORIES,
+  appendTimerBlock,
 } from './shared/pageUtils'
 
 export interface WorkoutEditorPageProps {
@@ -177,11 +177,32 @@ export function WorkoutEditorPage({
   const handleEditNote = useCallback(() => {
     navigate(notePath(noteId))
   }, [navigate, noteId])
-  const index = useNotePageNav({
+  // Whiteboard notebook-member L3: Add to today, Plan, Open in playground
+  // after the outline — page-level shortcuts over the first runnable block
+  // (every block keeps its own command bar). Index deps on scriptBlocks keep
+  // the published closures fresh.
+  const firstWodBlock = useMemo(
+    () => scriptBlocks.find(b => b.dialect === 'time' || b.dialect === 'log') ?? null,
+    [scriptBlocks],
+  )
+  const helpfulActions = useMemo(() => {
+    const actions = [{ id: 'add-timer', label: 'Add timer', onRun: () => onChange(appendTimerBlock(content)) }]
+    if (!firstWodBlock) return actions
+    return [
+      ...actions,
+      ...(hidePlanningCommands ? [] : [
+        { id: 'add-to-today', label: 'Add to today', onRun: () => void handleScheduleBlock(firstWodBlock, new Date()) },
+        { id: 'plan', label: 'Plan for a date', onRun: () => setPendingScheduleBlock(firstWodBlock) },
+      ]),
+      { id: 'open-in-playground', label: 'Open in playground', onRun: () => openBlockInPlayground(firstWodBlock, navigate) },
+    ]
+  }, [firstWodBlock, content, hidePlanningCommands, handleScheduleBlock, navigate, onChange])
+  useNotePageNav({
     content,
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     onEditNote: isNotebookItem ? handleEditNote : undefined,
+    helpfulActions,
   })
   // Contextual links (efforts in script, sibling workouts sharing blocks,
   // journal copies) — only for real notebook items, not journal/syntax ids.
@@ -195,7 +216,8 @@ export function WorkoutEditorPage({
   })
   const headerActions = (
     <ResponsiveActions>
-      <PageActions mode="notebook-readonly" currentWorkout={{ name: noteId, content }} index={index} />
+      {/* index=[] → the ⋯ menu mirrors NavContext l3Items (outline + helpful). */}
+      <PageActions mode="notebook-readonly" currentWorkout={{ name: noteId, content }} index={[]} />
     </ResponsiveActions>
   )
 

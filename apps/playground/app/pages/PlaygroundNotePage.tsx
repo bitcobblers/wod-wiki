@@ -31,9 +31,10 @@ import { usePlaygroundContent } from '../hooks/usePlaygroundContent'
 import { pageId } from '../services/playgroundContent'
 import { storageService } from '@/services/storage'
 import { pendingRuntimes } from '../runtimeStore'
-import { dayPath, notePath, runPath } from '../lib/routes'
+import { dayPath, notePath, playgroundPath, runPath } from '../lib/routes'
 import { PageActions } from './shared/PageActions'
 import { useNotePageNav } from './shared/useNotePageNav'
+import { appendTimerBlock } from './shared/pageUtils'
 import {
   NoteContextNav,
   noteOwnership,
@@ -41,7 +42,7 @@ import {
 } from './shared/noteContextLinks'
 import { useScriptBlockCommands } from '../hooks/useScriptBlockCommands'
 import { shareBlock } from '../services/openInPlayground'
-import { movePlaygroundToJournal } from '../services/createPlaygroundPage'
+import { movePlaygroundToJournal, createPlaygroundPage } from '../services/createPlaygroundPage'
 import { createJournalNoteFromWorkout } from '../services/journalWorkout'
 import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
@@ -236,7 +237,32 @@ export function PlaygroundNotePage({
   )
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([])
-  const index = useNotePageNav({ content, scriptBlocks, onStartWorkout: handleStartWorkout, results })
+  // Clone this playground into a NEW entry (same service the library New
+  // playground uses) — whiteboard playground L3: Move, Reset, Clone.
+  const handleClone = useCallback(async () => {
+    try {
+      const pageId = await createPlaygroundPage(content)
+      toast({ title: 'Cloned', description: 'A playground copy was created.' })
+      navigate(playgroundPath(pageId))
+    } catch {
+      toast({ title: 'Error', description: 'Could not clone playground', variant: 'destructive' })
+    }
+  }, [content, navigate])
+
+  const index = useNotePageNav({
+    content,
+    scriptBlocks,
+    onStartWorkout: handleStartWorkout,
+    results,
+    // Whiteboard playground L3: Move to journal, Reset, Clone after the
+    // outline (Move also stays the sticky pill below).
+    helpfulActions: [
+      { id: 'move-to-journal', label: 'Move to journal', onRun: () => setMoveToJournalOpen(true) },
+      { id: 'add-timer', label: 'Add timer', onRun: () => onChange(appendTimerBlock(content)) },
+      { id: 'reset', label: 'Reset to default', onRun: () => void resetToOriginal() },
+      { id: 'clone', label: 'Clone', onRun: () => void handleClone() },
+    ],
+  })
 
   // Contextual links: back to the Playgrounds list + efforts/related. The
   // runtime note is UUID-keyed; ownership derives the /playground/<name>
@@ -272,11 +298,13 @@ export function PlaygroundNotePage({
         <CalendarPlus className="size-3.5" aria-hidden="true" />
         Move to journal
       </button>
+      {/* Whiteboard playground sticky: Move to journal + Cast/sync/options.
+          Reset and Clone live in L3 (helpfulActions); dropping `index` lets
+          the ⋯ menu mirror NavContext l3Items (outline + helpful). */}
       <PageActions
         mode="playground"
         currentWorkout={{ name: pageTitle, content }}
-        index={index}
-        onReset={resetToOriginal}
+        index={[]}
       />
     </ResponsiveActions>
   )

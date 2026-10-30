@@ -36,6 +36,11 @@ export function applyTemplate(raw: string): { content: string; cursorOffset: num
   }
 }
 
+/** Append a runnable timer through the page's normal editor change path. */
+export function appendTimerBlock(content: string): string {
+  return `${content.trimEnd()}\n\n\`\`\`time\n10:00\n\`\`\`\n`
+}
+
 // ── Page index helpers ───────────────────────────────────────────────────────
 
 /**

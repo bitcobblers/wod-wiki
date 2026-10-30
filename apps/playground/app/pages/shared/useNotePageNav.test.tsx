@@ -7,11 +7,13 @@
  */
 
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { NavContext, initialNavState } from '../../nav/NavContext';
+import { NavContext, NavProvider, useNav, initialNavState } from '../../nav/NavContext';
+import type { NavItemL3 } from '../../nav/navTypes';
 import { useNotePageNav } from './useNotePageNav';
-import type { PageNavLink } from './pageUtils';
+import { NoteContextNav } from './noteContextLinks';
+import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown';
 import type { ScriptBlock } from '@/components/Editor/types';
 
 const CONTENT = ['# Note', '', '```time', '10:00 AMRAP', '```', '', '```log', '5-5-5 Back Squat', '```'].join('\n');
@@ -45,6 +47,10 @@ function renderNav(scriptBlocks: ScriptBlock[]): PageNavLink[] {
           scrollToSection: () => {},
           registerScrollFn: () => {},
           setContextNav: () => {},
+          setSecondarySpec: () => {},
+          setStreamControls: () => {},
+          openCreateJournal: () => {},
+          registerCreateJournal: () => {},
         }}
       >
         <Harness />
@@ -56,6 +62,49 @@ function renderNav(scriptBlocks: ScriptBlock[]): PageNavLink[] {
 
 describe('useNotePageNav — log link gating', () => {
   afterEach(() => cleanup());
+
+  it('publishes helpful actions after the outline (On this page first)', () => {
+    let published: NavItemL3[] = [];
+    function Harness() {
+      useNotePageNav({
+        content: CONTENT,
+        scriptBlocks: [],
+        helpfulActions: [
+          { id: 'clone', label: 'Clone', onRun: () => {} },
+          { id: 'copy-link', label: 'Copy link', onRun: () => {} },
+        ],
+      });
+      return null;
+    }
+    render(
+      <MemoryRouter>
+        <NavContext.Provider
+          value={{
+            tree: [],
+            navState: initialNavState,
+            dispatch: () => {},
+            l3Items: [],
+            setL3Items: (items: NavItemL3[]) => { published = items; },
+            scrollToSection: () => {},
+            registerScrollFn: () => {},
+            setContextNav: () => {},
+            setSecondarySpec: () => {},
+            setStreamControls: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
+          }}
+        >
+          <Harness />
+        </NavContext.Provider>
+      </MemoryRouter>,
+    );
+    const ids = published.map(item => item.id);
+    // Outline rows (time/log fences) precede every helpful row.
+    expect(ids.indexOf('helpful-clone')).toBeGreaterThan(ids.indexOf('time-line-3'));
+    expect(ids.indexOf('helpful-copy-link')).toBe(ids.length - 1);
+    const clone = published.find(item => item.id === 'helpful-clone')!;
+    expect(clone.action.type).toBe('call');
+  });
 
   it('time links keep onRun; log links are display-only', () => {
     // ```time opens on line 3 (1-based), ```log on line 7
@@ -86,6 +135,11 @@ describe('useNotePageNav — log link gating', () => {
             setL3Items: () => {},
             scrollToSection: () => {},
             registerScrollFn: () => {},
+            setContextNav: () => {},
+            setSecondarySpec: () => {},
+            setStreamControls: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
           }}
         >
           <Harness />
@@ -118,6 +172,11 @@ describe('useNotePageNav — log link gating', () => {
             setL3Items: () => {},
             scrollToSection: () => {},
             registerScrollFn: () => {},
+            setContextNav: () => {},
+            setSecondarySpec: () => {},
+            setStreamControls: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
           }}
         >
           <Harness />
@@ -129,5 +188,120 @@ describe('useNotePageNav — log link gating', () => {
     expect(headerLink?.onRun).toBeDefined();
     headerLink?.onRun?.();
     expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cause an update loop when rendered inside real NavProvider with re-renders', () => {
+    let renderCount = 0;
+    function Consumer({ count }: { count: number }) {
+      renderCount++;
+      const { l3Items } = useNav();
+      useNotePageNav({
+        content: CONTENT,
+        scriptBlocks: [],
+        helpfulActions: [
+          { id: 'clone', label: 'Clone', onRun: () => {} },
+        ],
+      });
+      return <div data-testid="count">{count} (items: {l3Items.length})</div>;
+    }
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <NavProvider tree={[]}>
+          <Consumer count={1} />
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('count').textContent).toContain('1');
+    expect(renderCount).toBeLessThan(10);
+
+    rerender(
+      <MemoryRouter>
+        <NavProvider tree={[]}>
+          <Consumer count={2} />
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('count').textContent).toContain('2');
+    expect(renderCount).toBeLessThan(10);
+  });
+
+  it('invokes the latest onRun handler when helpful action closure updates without label change', () => {
+    let capturedL3: NavItemL3[] = [];
+    const calls: string[] = [];
+
+    function Consumer({ value }: { value: string }) {
+      const { l3Items } = useNav();
+      capturedL3 = l3Items;
+      useNotePageNav({
+        content: CONTENT,
+        scriptBlocks: [],
+        helpfulActions: [
+          { id: 'action', label: 'Action', onRun: () => calls.push(value) },
+        ],
+      });
+      return null;
+    }
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <NavProvider tree={[]}>
+          <Consumer value="first" />
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    rerender(
+      <MemoryRouter>
+        <NavProvider tree={[]}>
+          <Consumer value="second" />
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    const actionItem = capturedL3.find(i => i.id === 'helpful-action');
+    expect(actionItem).toBeDefined();
+    if (actionItem?.action.type === 'call') {
+      actionItem.action.handler();
+    }
+    expect(calls).toEqual(['second']);
+  });
+
+  it('does not cause an update loop when NoteContextNav receives new calendar element identity', () => {
+    let renderCount = 0;
+    function Consumer({ count }: { count: number }) {
+      renderCount++;
+      const calendar = <div>Calendar {count}</div>;
+      return (
+        <div>
+          <NoteContextNav
+            data={{ related: [], efforts: [], backlinks: [] }}
+            calendar={calendar}
+          />
+        </div>
+      );
+    }
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <NavProvider tree={[]}>
+          <Consumer count={1} />
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    expect(renderCount).toBeLessThan(10);
+
+    rerender(
+      <MemoryRouter>
+        <NavProvider tree={[]}>
+          <Consumer count={2} />
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    expect(renderCount).toBeLessThan(10);
   });
 });

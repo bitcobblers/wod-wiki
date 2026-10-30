@@ -5,11 +5,12 @@
  * playgrounds (/playgrounds, /playground/:id) views inside the notebooks
  * zone — one route-keyed panel per view.
  *
- * Chrome rows (create action, landing row, Custom row with save/clear,
- * saved shortcuts, page actions) plus the {@link FacetProperties}
- * properties accordion over the CURRENT query — the ONLY surface where
- * where-clause filters render (the L3 rail and ⋯ menu carry view controls
- * instead).
+ * Navigation and discovery only: chrome rows (create action, landing row,
+ * Custom row with save/clear, saved shortcuts, page actions) plus a Recent
+ * section linking the committed results of the CURRENT route+query. L2 never
+ * renders where-clause filters — those moved to the L3 stream controls
+ * (StreamControlsNav ▸ FacetProperties, via the rail, the header ⋯ dropdown
+ * and the mobile thumb ⋯ sheet).
  *
  * Grouping presets ("Arrange by …", "All time") ride the CURRENT query as
  * their base — never the profile default — and page actions (Feeds, the
@@ -23,19 +24,21 @@ import { BookmarkPlus, Plus, X } from 'lucide-react'
 
 import { parseQuery } from '@bitcobblers/wod-wiki-wql'
 
-import { SidebarItem, SidebarLabel, SidebarSection } from '@/components/organisms/layout/Sidebar'
+import { SidebarItem, SidebarLabel, SidebarSection, SidebarHeading } from '@/components/organisms/layout/Sidebar'
 
 import { SaveWqlShortcutDialog } from '../../components/organisms/wql/SaveWqlShortcutDialog'
 
 import { useAppliedRouteWqlConfig } from '../../lib/routeWqlConfig'
 import { ALL_SHORTCUT_ID, SHORTCUT_ICONS, shortcutMatches, useRouteShortcuts } from '../../lib/routeWqlShortcuts'
 import type { StreamProfile } from '../../views/stream/streamProfile'
+import { useStreamResults } from '../../views/stream/streamResults'
+import { entryOpenHref } from '../../lib/entryActions'
 
 import type { NavItem, NavPanelProps } from '../navTypes'
 import { executeNavAction } from '../navTypes'
 import { useCloseNavigationDrawer } from '../NavigationDrawerContext'
 import { useNav } from '../NavContext'
-import { FacetProperties, navigateToQuery } from './FacetProperties'
+import { navigateToQuery } from './FacetProperties'
 
 export interface ConditionsPanelSpec {
   /** Landing ("All …") row label and route. */
@@ -57,6 +60,9 @@ export interface ConditionsPanelSpec {
 
 const urlQuery = (loc: Location): string => new URLSearchParams(loc.search).get('q') ?? ''
 
+/** Deterministic cap on the L2 Recent links — the committed run's head rows. */
+export const RECENT_RESULTS_LIMIT = 8
+
 export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
   return function ConditionsNavPanel(_props: NavPanelProps | Record<string, unknown>) {
     const location = useLocation()
@@ -75,6 +81,17 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
     // replace the whole query/page — the drawer closes after navigating.
     // Facet edits intentionally keep it open.
     const closeNavigationDrawer = useCloseNavigationDrawer()
+
+    // Recent — the committed run for THIS route+query (both must match, so a
+    // previous page's or a superseded draft's results never appear). The
+    // facets' pending-stale display is deliberately not mirrored here: links
+    // are discovery, they hide until a matching run commits. No query
+    // execution — the panel subscribes to the view's published snapshot.
+    const published = useStreamResults()
+    const recentEntries =
+      published && published.pathname === location.pathname && published.query === effectiveQuery
+        ? published.entries.slice(0, RECENT_RESULTS_LIMIT)
+        : []
 
     // Saved shortcuts (routeWqlShortcuts): the built-in library-group links
     // (landing, Feeds route action) plus the user's saved full-WQL links
@@ -97,8 +114,8 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
         : null
     const [shortcutEditorOpen, setShortcutEditorOpen] = useState(false)
 
-    // Full-bleed over the SidebarBody gutter: condition accordion headers
-    // span the whole L2 view; shortcuts row and section bodies re-inset rows.
+    // Full-bleed over the SidebarBody gutter: sections span the whole L2
+    // view; shortcuts rows and the Recent list re-inset rows.
     return (
       <div className="-mx-4 flex flex-col gap-1 py-3" data-testid="conditions-nav-panel">
         <SidebarSection className="px-6">
@@ -228,7 +245,21 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
           })}
         </SidebarSection>
 
-        <FacetProperties profile={spec.profile} />
+        {recentEntries.length > 0 && (
+          <SidebarSection className="px-6" data-testid="conditions-nav-recent">
+            <SidebarHeading>Recent</SidebarHeading>
+            {recentEntries.map(entry => (
+              <SidebarItem
+                key={`${entry.id}:${entry.block?.blockId ?? ''}`}
+                href={entryOpenHref(entry)}
+                onClick={closeNavigationDrawer}
+                data-testid="conditions-nav-recent-link"
+              >
+                <SidebarLabel>{entry.title}</SidebarLabel>
+              </SidebarItem>
+            ))}
+          </SidebarSection>
+        )}
 
         <SaveWqlShortcutDialog
           open={shortcutEditorOpen}

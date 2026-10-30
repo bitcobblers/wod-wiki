@@ -153,6 +153,7 @@ export function usePageOptionsEntries(
       if (section.entries.length === 0) continue
       entries.push({ kind: 'heading', id: section.id, label: section.label, nav: true })
       for (const entry of section.entries) {
+        if (entry.kind !== 'link') continue
         entries.push({
           kind: 'row',
           id: entry.id,
@@ -165,6 +166,8 @@ export function usePageOptionsEntries(
           },
         })
       }
+    } else if (section.kind === 'widget') {
+      continue
     } else {
       entries.push({
         kind: 'row',
@@ -220,6 +223,41 @@ export function usePageOptionsEntries(
   }
 
   return entries
+}
+
+/** Mobile thumb … rows — the same resolved L3 entries as the rail and
+ *  desktop ⋯ menu, rendered as ≥44px dock-sheet actions. */
+export interface MobilePageOptionsRowsProps {
+  currentWorkout: { name: string; content: string }
+  onDownload?: () => void
+  items?: NavItemL3[]
+}
+
+export function MobilePageOptionsRows({
+  currentWorkout,
+  onDownload,
+  items,
+}: MobilePageOptionsRowsProps) {
+  const entries = usePageOptionsEntries(currentWorkout, items, onDownload)
+  return entries.map(entry => {
+    if (entry.kind === 'heading') {
+      return <div key={entry.id} className="px-2 pt-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{entry.label}</div>
+    }
+    if (entry.kind === 'custom') {
+      return <div key={entry.id}>{entry.render()}</div>
+    }
+    return (
+      <button
+        key={entry.id}
+        type="button"
+        className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-accent"
+        onClick={entry.secondary ? entry.secondary.onSelect : entry.onSelect}
+      >
+        {entry.icon}
+        <span>{entry.secondary?.label ?? entry.label}</span>
+      </button>
+    )
+  })
 }
 
 export function ActionsMenu({

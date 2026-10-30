@@ -12,7 +12,7 @@ import { Navbar } from '@/components/organisms/layout/Navbar'
 import { NavSidebar } from './nav/NavSidebar'
 import { useRouteView } from './lib/useRouteView'
 import { useSelectWorkout } from './lib/useSelectWorkout'
-import { NavbarActions } from './nav/ResponsiveActions'
+import { NavbarActions, ResponsiveActions } from './nav/ResponsiveActions'
 import { SyncActivityIndicators, SyncActivityNotifier } from './nav/SyncActivityUi'
 import type { PageKind } from './lib/routeView'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
@@ -60,9 +60,13 @@ import { AnalyticsExplorerPage } from './views/analytics/AnalyticsExplorerPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { DashboardViewPage } from './views/dashboards/DashboardViewPage'
 import { PageActions } from './pages/shared/PageActions'
-import { PageDownloadAction } from './pages/shared/PageToolbar'
+import { routeSupportsCreation } from './pages/shared/NewEntryCombo'
+import { PageDownloadAction, MobilePageOptionsRows } from './pages/shared/PageToolbar'
 import { mapIndexToL3 } from './pages/shared/pageUtils'
 import { useWorkoutItems, EMPTY_WOD_FILES } from './lib/workoutIndex'
+import { createPlaygroundPage } from './services/createPlaygroundPage'
+import { playgroundPath } from './lib/routes'
+import { appendTimerBlock } from './pages/shared/pageUtils'
 import { useSeedContent } from '@/services/content/seedContent'
 import { SessionSource } from '@/components/organisms/review/SessionSource';
 
@@ -115,7 +119,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   // crumb is the ONLY page identity, since the page header is hidden below lg.
   const crumbTitle = view.shell.title ?? currentWorkout.name
   // Stream surfaces resolve their profile once per path — the view reads it
-  // directly (where-filters are L2-only; the L3 rail carries view controls).
+  // directly. L2 owns navigation/recent items; L3 owns filters and view controls.
   // The user's config is applied LIVE: a save in the page's own query
   // settings updates the open page without a reload.
   const rawStreamProfile = useMemo(
@@ -147,13 +151,27 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       navigate(`${location.pathname}${search}`, { replace: true })
     }
   }, [location.pathname, location.search, openJournalCreate, navigate])
+  const canvasWorkout = view.page === 'canvas'
+    ? view.canvasPage?.sections.find(section => section.examples?.length)?.examples?.[0]?.source
+    : undefined
+  const handleCanvasAddTimer = useCallback(async () => {
+    if (!canvasWorkout) return
+    const pageId = await createPlaygroundPage(appendTimerBlock(canvasWorkout))
+    navigate(playgroundPath(pageId))
+  }, [canvasWorkout, navigate])
   useEffect(() => {
-    // Skip empty indexes: pages that own their L3 (home tour, streams, date
-    // groups) publish directly — writing [] here would clobber their links.
-    if (!view.shell.withIndex || currentNavLinks.length === 0) return
-    setL3Items(mapIndexToL3(currentNavLinks))
+    if (!view.shell.withIndex || (currentNavLinks.length === 0 && !canvasWorkout)) return
+    setL3Items([
+      ...mapIndexToL3(currentNavLinks),
+      ...(canvasWorkout ? [{
+        id: 'helpful-add-timer',
+        label: 'Add timer',
+        level: 3 as const,
+        action: { type: 'call' as const, handler: () => void handleCanvasAddTimer() },
+      }] : []),
+    ])
     return () => setL3Items([])
-  }, [view.shell.withIndex, currentNavLinks, setL3Items])
+  }, [view.shell.withIndex, currentNavLinks, canvasWorkout, handleCanvasAddTimer, setL3Items])
   // Open the palette for global search (Ctrl/Cmd+/ — WQL mode, issue #834).
   // The mounted stream composer registers a getter for its LIVE draft — the
   // exact text, invalid included (invalid drafts never reach the URL, so a
@@ -253,7 +271,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     ),
     dashboardExplorer: () => (
       <AnalyticsExplorerPage
-        actions={<PageActions mode="notebook-readonly" currentWorkout={currentWorkout} index={[]} />}
+        actions={<PageActions mode="notebook-readonly" showCreate currentWorkout={currentWorkout} index={[]} />}
       />
     ),
     dashboardView: () => <DashboardViewPage />,
@@ -311,7 +329,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
           key={profile.route}
           profile={profile}
           registerStreamDraft={registerStreamDraft}
-          actions={<PageActions mode="notebook-readonly" currentWorkout={currentWorkout} index={[]} />}
+          actions={<PageActions mode="notebook-readonly" showCreate={routeSupportsCreation(location.pathname)} currentWorkout={currentWorkout} index={[]} />}
         /></>
       )
     },
@@ -406,11 +424,17 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       secondary={secondarySpec}
       pageAction={currentWorkout.content !== '' ? <PageDownloadAction currentWorkout={currentWorkout} /> : undefined}
       onSearch={openSearchPalette}
-      onCreate={openJournalCreate}
     >
-      {/* Mobile L3 (properties, stream controls, On this page, download)
-          lives in the right drawer; the dock sheet hosts only page-specific
-          rows (e.g. playground New/Reset) — no global fallback rows. */}
+      {/* Mobile L3 lives in the right drawer and the thumb … sheet. Streams
+          register their own controls; other routes use this shared fallback. */}
+      <ResponsiveActions fallback label="Page options">
+        {view.page !== 'library' && (
+          <MobilePageOptionsRows
+            currentWorkout={currentWorkout}
+            items={currentNavLinks.length > 0 ? mapIndexToL3(currentNavLinks) : undefined}
+          />
+        )}
+      </ResponsiveActions>
       <CreateJournalNoteDialog
         open={journalCreateOpen}
         onOpenChange={setJournalCreateOpen}

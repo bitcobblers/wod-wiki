@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { resolveNewEntryRoute, type NewEntryKind } from './NewEntryCombo'
+import { resolveNewEntryRoute, routeSupportsCreation, type NewEntryKind } from './NewEntryCombo'
 
 describe('resolveNewEntryRoute', () => {
   it.each<[string, NewEntryKind]>([
@@ -11,6 +11,8 @@ describe('resolveNewEntryRoute', () => {
     ['/notebooks', 'notebook'],
     ['/efforts', 'effort'],
     ['/equipment', 'equipment'],
+    ['/pages', 'page'],
+    ['/dashboards', 'dashboard'],
     ['/notes', 'journal'],
   ])('uses the current library type for %s', (pathname, expected) => {
     expect(resolveNewEntryRoute(pathname)).toEqual({ defaultKind: expected })
@@ -25,5 +27,33 @@ describe('resolveNewEntryRoute', () => {
       defaultKind: 'note',
       notebookSlug: 'training',
     })
+  })
+})
+
+describe('routeSupportsCreation', () => {
+  it.each([
+    '/journal',
+    '/playgrounds',
+    '/notebooks',
+    '/notebook/training',
+    '/pages',
+    '/efforts',
+    '/equipment',
+    '/dashboards',
+  ])('allows creation on %s', pathname => {
+    expect(routeSupportsCreation(pathname)).toBe(true)
+  })
+
+  it.each([
+    '/notes',
+    '/tags',
+    '/feeds',
+    '/sessions',
+    '/results/result-id',
+    '/note/note-id',
+    '/playground/entry-id',
+    '/notebook/training/fran',
+  ])('does not infer creation on %s', pathname => {
+    expect(routeSupportsCreation(pathname)).toBe(false)
   })
 })

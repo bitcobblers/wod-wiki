@@ -1,6 +1,13 @@
+
 import { describe, expect, it, mock } from 'bun:test'
-import { mapIndexToL3, applyTemplate, extractPageIndex } from './pageUtils'
+import { mapIndexToL3, applyTemplate, extractPageIndex, appendTimerBlock } from './pageUtils'
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown'
+
+describe('appendTimerBlock', () => {
+  it('appends one runnable timer without disturbing the note', () => {
+    expect(appendTimerBlock('# Note\n')).toBe('# Note\n\n```time\n10:00\n```\n')
+  })
+})
 
 describe('mapIndexToL3', () => {
   it('maps a plain heading link to a scroll action', () => {

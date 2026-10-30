@@ -3,7 +3,7 @@
 import * as Headless from '@headlessui/react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { CalendarPlus, SlidersHorizontal } from 'lucide-react'
+import { SlidersHorizontal } from 'lucide-react'
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { NavbarItem } from '@/components/organisms/layout/Navbar'
 import { AppRail } from '../../app/nav/AppRail'
@@ -56,7 +56,7 @@ function DrawerApplyFooter() {
   )
 }
 
-function MobileSidebar({ open, close, onSearch, onCreate, children }: React.PropsWithChildren<{ open: boolean; close: () => void; onSearch?: () => void; onCreate?: () => void }>) {
+function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChildren<{ open: boolean; close: () => void; onSearch?: () => void }>) {
   return (
     // z-50 lifts the whole dialog (backdrop + panel) above the mobile
     // thumb dock (z-40) and query footer (z-30); relative anchors the
@@ -83,7 +83,6 @@ function MobileSidebar({ open, close, onSearch, onCreate, children }: React.Prop
                 close()
                 onSearch?.()
               }}
-              onCreate={onCreate ? () => { close(); onCreate() } : undefined}
             />
           </div>
           <div className="flex min-w-0 flex-1 flex-col">
@@ -161,7 +160,6 @@ export function SidebarLayout({
   navbar,
   sidebar,
   onSearch,
-  onCreate,
   secondary,
   pageAction,
   /** Suppress the desktop L2 column only (mobile drawer keeps it) — set for
@@ -174,8 +172,6 @@ export function SidebarLayout({
   sidebar: React.ReactNode
   /** Opens the global search palette — wired to the icon rail's search button. */
   onSearch?: () => void
-  /** Opens the global new-journal-note dialog (rail + mobile header; the drawer rail closes first). */
-  onCreate?: () => void
   /** Route-declared secondary nav (zone 4); the page index merges in. */
   secondary?: MenuSpec
   /** Per-page action row appended to the L3 rail (e.g. Download Markdown) —
@@ -214,7 +210,7 @@ export function SidebarLayout({
         {/* Main desktop nav — L1 Icon rail + L2 Context sidebar */}
         <nav aria-label="Main" className="hidden lg:flex">
           <div className="w-14 shrink-0 sticky top-0 h-svh flex flex-col items-center border-r border-zinc-950/5 dark:border-white/5 bg-background/72 backdrop-blur-sm z-40 py-3">
-            <AppRail onSearch={onSearch ?? (() => {})} onCreate={onCreate} />
+            <AppRail onSearch={onSearch ?? (() => {})} />
           </div>
 
           {/* overflow-hidden: SidebarBody is the single scroll owner; shell
@@ -223,7 +219,7 @@ export function SidebarLayout({
             {sidebar}
           </div>
         </nav>
-        <MobileSidebar open={showSidebar} close={() => setShowSidebar(false)} onSearch={onSearch} onCreate={onCreate}>
+        <MobileSidebar open={showSidebar} close={() => setShowSidebar(false)} onSearch={onSearch}>
           {sidebar}
         </MobileSidebar>
 
@@ -240,14 +236,6 @@ export function SidebarLayout({
               </NavbarItem>
             </div>
             <div className="min-w-0 flex-1">{navbar}</div>
-            {onCreate && (
-              <div className="py-2.5 shrink-0">
-                <NavbarItem onClick={onCreate} aria-label="New journal note" title="New journal note">
-                  <CalendarPlus className="size-5" />
-                  <span className="sr-only">New journal note</span>
-                </NavbarItem>
-              </div>
-            )}
             {railHasContent && (
               <div className="py-2.5 shrink-0">
                 <NavbarItem onClick={() => setShowRightDrawer(true)} aria-label="Open page options" title="Open page options">

@@ -243,8 +243,13 @@ describe('DashboardViewPage L3 outline', () => {
     await waitFor(() => {
       const ids = captured.at(-1)?.map((item) => item.id) ?? [];
       // Document order: sticky title, titled widget, both consecutive
-      // standalone headings (each its own anchor), second widget, trailing.
-      expect(ids).toEqual(['dashboard-title', 'widget-w0', 'note-h4', 'note-h5', 'widget-w1', 'note-h9']);
+      // standalone headings (each its own anchor), second widget, trailing —
+      // then the L3 view-control widgets and helpful actions (whiteboard:
+      // on-this-page first, Edit/Clone/range/units/Copy link after).
+      expect(ids).toEqual([
+        'dashboard-title', 'widget-w0', 'note-h4', 'note-h5', 'widget-w1', 'note-h9',
+        'dashboard-range', 'dashboard-units', 'helpful-edit', 'helpful-copy-link',
+      ]);
     });
 
     // Every heading entry targets a rendered anchor — no fake targets.

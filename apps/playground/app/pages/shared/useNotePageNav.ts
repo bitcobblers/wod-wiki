@@ -13,10 +13,11 @@
  * collapses it into a single call.
  */
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown'
 import type { ScriptBlock } from '@/components/Editor/types'
 import type { Session } from '@/types/storage'
+import type { NavItemL3 } from '../../nav/navTypes'
 import { useNav } from '../../nav/NavContext'
 import { extractPageIndex, mapIndexToL3 } from './pageUtils'
 import { groupResultsByVersion } from '@/utils/groupResultsByVersion';
@@ -37,6 +38,51 @@ export interface UseNotePageNavOptions {
   results?: Session[]
   /** Optional callback to edit the note from the L3 header item. */
   onEditNote?: () => void
+  /**
+   * Per-page L3 helpful actions (Clone, Placements, Reset, Copy link…),
+   * published after the outline so "On this page" stays first. They ride
+   * the same NavContext l3Items channel as the outline, so the 2xl+ rail,
+   * the lg–2xl ⋯ menu and the mobile right drawer all carry them.
+   */
+  helpfulActions?: NoteHelpfulAction[]
+  /** Set to false on pages/modes where outline is managed elsewhere (e.g. multi-note dates). */
+  enabled?: boolean
+}
+/** A per-page L3 helpful action rendered after the page outline. */
+export interface NoteHelpfulAction {
+  id: string
+  label: string
+  onRun: () => void
+  /**
+   * Bump to re-publish when the handler closes over freshly loaded data
+   * (e.g. the resolved effort). ids/labels already re-publish.
+   */
+  key?: string
+}
+
+/** Helpful actions as NavItemL3 call rows (whole-row click runs). */
+export function helpfulActionsToL3(
+  actions: readonly NoteHelpfulAction[],
+  actionsRef?: { current: readonly NoteHelpfulAction[] },
+): NavItemL3[] {
+  return actions.map(a => ({
+    id: `helpful-${a.id}`,
+    label: a.label,
+    level: 3 as const,
+    action: {
+      type: 'call' as const,
+      handler: () => {
+        if (actionsRef) {
+          const latest = actionsRef.current.find(item => item.id === a.id)
+          if (latest) {
+            latest.onRun()
+            return
+          }
+        }
+        a.onRun()
+      },
+    },
+  }))
 }
 
 /**
@@ -106,17 +152,30 @@ export function useNotePageNav({
   onStartWorkout,
   results,
   onEditNote,
+  helpfulActions,
+  enabled = true,
 }: UseNotePageNavOptions): PageNavLink[] {
   const index = useMemo(
     () => wirePageIndexLinks(extractPageIndex(content), scriptBlocks, onStartWorkout, results, onEditNote),
     [content, scriptBlocks, onStartWorkout, results, onEditNote],
   )
 
+  // Latest helpful actions by ref; the publish effect re-runs when their
+  // signature (ids + labels + keys) changes, so freshly loaded closures
+  // replace the published handlers without re-running every render.
+  const helpfulRef = useRef<readonly NoteHelpfulAction[]>(helpfulActions ?? [])
+  helpfulRef.current = helpfulActions ?? []
+  const helpfulSig = helpfulRef.current.map(a => [a.id, a.label, a.key ?? ''].join(':')).join(';')
+
   const { setL3Items } = useNav()
   useEffect(() => {
-    setL3Items(mapIndexToL3(index))
+    if (!enabled) return
     return () => setL3Items([])
-  }, [index, setL3Items])
+  }, [enabled, setL3Items])
 
+  useEffect(() => {
+    if (!enabled) return
+    setL3Items([...mapIndexToL3(index), ...helpfulActionsToL3(helpfulRef.current, helpfulRef)])
+  }, [enabled, index, setL3Items, helpfulSig])
   return index
 }

@@ -11,7 +11,8 @@
  * Pure functions are exported for tests; `useNoteContextLinks` + the
  * `NoteContextNav` registration are the view surface every note page composes.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { storageService } from '@/services/storage'
 import type { BlockEffort, BlockIndexRow, Note } from '@/types/storage'
@@ -33,6 +34,7 @@ import {
   notebookItemPath,
 } from '../../lib/routes'
 import { playgroundRouteName } from '../../lib/entryMapper'
+import { formatDateKey } from '../../services/dateUtils'
 
 /**
  * Routable path for a STORED note id. Composite ids keep their family route
@@ -61,7 +63,9 @@ export interface NoteContextData {
   backlinks: ContextNoteLink[]
 }
 
-const EMPTY_CONTEXT: NoteContextData = { efforts: [], related: [], backlinks: [] }
+/** Relationship-free context — pages whose L2 is Up/calendar/recent only
+ *  (notebook dates, feeds, named pages, dashboards, tags). */
+export const EMPTY_NOTE_CONTEXT: NoteContextData = { efforts: [], related: [], backlinks: [] }
 /** ponytail: cap related links so the L2 nav section stays scannable; raise when a page wants full lists. */
 const MAX_RELATED = 8
 
@@ -260,11 +264,11 @@ export interface UseNoteContextLinksOptions {
 /** Load the three context datasets over the existing IDB indexes. */
 export function useNoteContextLinks({ noteId, stamps, effortSlug }: UseNoteContextLinksOptions): NoteContextData {
   const stampKey = stamps.join('\n')
-  // Key results by route inputs: while inputs change, render EMPTY_CONTEXT —
+  // Key results by route inputs: while inputs change, render EMPTY_NOTE_CONTEXT —
   // a new note never shows the previous note's still-in-flight relationships.
-  const [result, setResult] = useState<{ key: string; data: NoteContextData }>({ key: '', data: EMPTY_CONTEXT })
+  const [result, setResult] = useState<{ key: string; data: NoteContextData }>({ key: '', data: EMPTY_NOTE_CONTEXT })
   const routeKey = `${noteId}\u0000${stampKey}\u0000${effortSlug ?? ''}`
-  const data = result.key === routeKey ? result.data : EMPTY_CONTEXT
+  const data = result.key === routeKey ? result.data : EMPTY_NOTE_CONTEXT
 
   useEffect(() => {
     let cancelled = false
@@ -279,7 +283,7 @@ export function useNoteContextLinks({ noteId, stamps, effortSlug }: UseNoteConte
         : Promise.resolve([]),
     ])
       .then(async ([effortRows, blockRows, notes, allEfforts, usageRows]) => {
-        if (cancelled) return EMPTY_CONTEXT
+        if (cancelled) return EMPTY_NOTE_CONTEXT
         const knownEffortSlugs = new Set(allEfforts.map(e => e.slug))
         const ownContentIds = [...new Set(
           blockRows.filter(r => r.dataType === 'wod' && r.blockContentId).map(r => r.blockContentId as string),
@@ -287,7 +291,7 @@ export function useNoteContextLinks({ noteId, stamps, effortSlug }: UseNoteConte
         const siblingRows = await Promise.all(
           ownContentIds.map(cid => storageService.getAllFromIndex('block_index', 'by-content', cid) as Promise<BlockIndexRow[]>),
         )
-        if (cancelled) return EMPTY_CONTEXT
+        if (cancelled) return EMPTY_NOTE_CONTEXT
         const related = relatedBlockLinks([...blockRows, ...siblingRows.flat()], noteId)
         if (effortSlug) {
           const seen = new Set(related.map(r => r.id))
@@ -318,7 +322,7 @@ export function useNoteContextLinks({ noteId, stamps, effortSlug }: UseNoteConte
 
 // ── L2 registration ──────────────────────────────────────────────────────────
 
-export interface NoteContextNavProps {
+export interface NoteContextSpecOptions {
   data: NoteContextData
   /** Owning-list link ("Up") — first section when present. */
   up?: ContextNoteLink | null
@@ -326,35 +330,134 @@ export interface NoteContextNavProps {
   source?: ContextNoteLink | null
   /** Label override for the `related` section (e.g. "Used in" on effort pages). */
   relatedLabel?: string
+  /**
+   * Calendar widget entry rendered right after Up/Source (journal and
+   * notebook-date L2s); any renderable node (CalendarCard).
+   */
+  calendar?: ReactNode
+  /**
+   * Leading discovery sections (recent items, sibling lists) — placed after
+   * Up/Source/calendar, before the relationship sections.
+   */
+  sections?: MenuSpec
+  /** Trailing sections appended after the relationship sections (e.g.
+   *  "recent efforts last"). */
+  trailingSections?: MenuSpec
 }
+
+/**
+ * Pure L2 spec builder so ordering stays testable. Section order:
+ * Up, Source, calendar, sections, Related, Efforts, Journal copies,
+ * trailingSections. Empty sections are omitted.
+ */
+export function buildNoteContextSpec({
+  data,
+  up,
+  source,
+  relatedLabel = 'Related workouts',
+  calendar,
+  sections,
+  trailingSections,
+}: NoteContextSpecOptions): MenuSpec {
+  const spec: MenuSpec = []
+  const section = (id: string, label: string, items: ContextNoteLink[]) => {
+    if (items.length === 0) return
+    spec.push({
+      kind: 'section',
+      id,
+      label,
+      entries: items.map(item => ({ kind: 'link' as const, id: `${id}:${item.id}`, label: item.title, to: item.to })),
+    })
+  }
+  section('note-context-up', 'Up', up ? [up] : [])
+  section('note-context-source', 'Source', source ? [source] : [])
+  if (calendar) spec.push({ kind: 'widget', id: 'note-context-calendar', render: () => calendar })
+  if (sections) spec.push(...sections)
+  section('note-context-related', relatedLabel, data.related)
+  section('note-context-efforts', 'Efforts', data.efforts)
+  section('note-context-backlinks', 'Journal copies', data.backlinks)
+  if (trailingSections) spec.push(...trailingSections)
+  return spec
+}
+
+export interface NoteContextNavProps extends NoteContextSpecOptions {}
 
 /** Registers the note's relationships as the L2 sidebar content for the
  *  current route (replacing the listing panel). Renders nothing itself: the
  *  sidebar consumes the static MenuSpec. Links navigate to their canonical
  *  `to` — no history.back. */
-export function NoteContextNav({ data, up, source, relatedLabel = 'Related workouts' }: NoteContextNavProps) {
+export function NoteContextNav(props: NoteContextNavProps) {
   const { setContextNav } = useNav()
   const location = useLocation()
+  const calendarRef = useRef(props.calendar)
+  calendarRef.current = props.calendar
+  const hasCalendar = Boolean(props.calendar)
+
+  const spec = useMemo(
+    () =>
+      buildNoteContextSpec({
+        ...props,
+        calendar: hasCalendar ? <>{calendarRef.current}</> : undefined,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [props.data, props.up, props.source, props.relatedLabel, hasCalendar, props.sections, props.trailingSections],
+  )
 
   useEffect(() => {
-    const spec: MenuSpec = []
-    const section = (id: string, label: string, items: ContextNoteLink[]) => {
-      if (items.length === 0) return
-      spec.push({
-        kind: 'section',
-        id,
-        label,
-        entries: items.map(item => ({ kind: 'link' as const, id: `${id}:${item.id}`, label: item.title, to: item.to })),
-      })
+    return () => {
+      setContextNav(prev => (prev?.pathname === location.pathname ? undefined : prev))
     }
-    section('note-context-up', 'Up', up ? [up] : [])
-    section('note-context-source', 'Source', source ? [source] : [])
-    section('note-context-efforts', 'Efforts', data.efforts)
-    section('note-context-backlinks', 'Journal copies', data.backlinks)
-    section('note-context-related', relatedLabel, data.related)
+  }, [location.pathname, setContextNav])
+
+  useEffect(() => {
     setContextNav({ pathname: location.pathname, spec })
-    return () => setContextNav(undefined)
-  }, [data, up, source, relatedLabel, location.pathname, setContextNav])
+  }, [spec, location.pathname, setContextNav])
 
   return null
+}
+
+// ── L2 calendars ─────────────────────────────────────────────────────────────
+
+/** Local YYYY-MM-DD keys of notes that belong to the journal (or, with a
+ *  slug, to that notebook) and carry a domain date — CalendarCard dots. */
+function noteDates(notes: Note[], notebookSlug?: string): Set<string> {
+  const keys = new Set<string>()
+  for (const note of notes) {
+    if (note.date === undefined) continue
+    const wanted = notebookSlug === undefined ? 'notebook/journal' : `notebook/${notebookSlug}`
+    if (note.notebookId !== wanted) continue
+    keys.add(formatDateKey(new Date(note.date)))
+  }
+  return keys
+}
+
+/** Journal entry dates for the note L2 calendar ("journal calendar when
+ *  applicable"). */
+export function useJournalEntryDates(): Set<string> {
+  const [dates, setDates] = useState<Set<string>>(() => new Set())
+  useEffect(() => {
+    let cancelled = false
+    storageService.getAllNotes().then((notes) => {
+      if (!cancelled) setDates(noteDates(notes))
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return dates
+}
+
+/** Dates with notes in one notebook — the notebook-date L2 calendar dots. */
+export function useNotebookEntryDates(slug: string): Set<string> {
+  const [dates, setDates] = useState<Set<string>>(() => new Set())
+  useEffect(() => {
+    let cancelled = false
+    storageService.getAllNotes().then((notes) => {
+      if (!cancelled) setDates(noteDates(notes, slug))
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
+  return dates
 }

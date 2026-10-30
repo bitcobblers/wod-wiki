@@ -25,8 +25,9 @@ import { useSeedContent } from '@/services/content/seedContent';
 import { usePlaygroundContent } from '../hooks/usePlaygroundContent';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
 import { pendingRuntimes } from '../runtimeStore';
-import { runPath, dayAutoStartPath, dayPath } from '../lib/routes';
+import { dayAutoStartPath, dayPath } from '../lib/routes';
 import { useNotePageNav } from './shared/useNotePageNav';
+import { appendTimerBlock } from './shared/pageUtils';
 import {
   NoteContextNav,
   noteOwnership,
@@ -75,7 +76,7 @@ export function NotebookItemPage({
     seedOnMount: false,
   });
 
-  const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([]);
+  const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([])
   const noteId = `notebook/${slug}/${itemDate}/${item}`;
 
   const itemPath = `/notebook/${encodeURIComponent(slug)}/${itemDate}/${encodeURIComponent(item)}`;
@@ -157,10 +158,30 @@ export function NotebookItemPage({
     }
   }, [slug, item, itemPath, notebookItem, navigate]);
 
-  const index = useNotePageNav({
+  // Whiteboard notebook-member L3: Add to today, Plan, Open in playground
+  // after the outline — page-level shortcuts over the first runnable block
+  // (each block keeps its own command bar). Index deps on scriptBlocks keep
+  // the published closures fresh.
+  const firstWodBlock = useMemo(
+    () => scriptBlocks.find(b => b.dialect === 'time' || b.dialect === 'log') ?? null,
+    [scriptBlocks],
+  );
+  const itemHelpfulActions = useMemo(() => {
+    const actions = [{ id: 'add-timer', label: 'Add timer', onRun: () => onChange(appendTimerBlock(content)) }];
+    if (!firstWodBlock) return actions;
+    return [
+      ...actions,
+      { id: 'add-to-today', label: 'Add to today', onRun: () => void handleAddToToday(firstWodBlock) },
+      { id: 'plan', label: 'Plan for a date', onRun: () => setPendingScheduleBlock(firstWodBlock) },
+      { id: 'open-in-playground', label: 'Open in playground', onRun: () => openBlockInPlayground(firstWodBlock, navigate) },
+    ];
+  }, [firstWodBlock, content, handleAddToToday, navigate, onChange]);
+
+  useNotePageNav({
     content,
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
+    helpfulActions: itemHelpfulActions,
   });
 
   // Canonical corpus id (`notebook/<slug>/<date>/<item>`) drives ownership
@@ -184,10 +205,11 @@ export function NotebookItemPage({
         title={notebookItem?.name ?? item}
         actions={
           <ResponsiveActions label="Workout actions">
+          {/* No `index`: the ⋯ menu mirrors NavContext l3Items (outline + helpful). */}
           <PageActions
             mode="notebook-readonly"
             currentWorkout={{ name: notebookItem?.name ?? item, content }}
-            index={index}
+            index={[]}
           />
           </ResponsiveActions>
         }

@@ -199,6 +199,13 @@ export function MenuList({
           )
         }
         if (entry.kind === 'wql') return null // unresolved specs never reach the renderer
+        if (entry.kind === 'widget') {
+          return (
+            <div key={entry.id} className="px-1 py-1">
+              {entry.render()}
+            </div>
+          )
+        }
         return (
           <MenuRow
             key={entry.id}

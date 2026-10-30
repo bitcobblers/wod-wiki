@@ -32,7 +32,8 @@ const CONTENT = '# Placement E2E\n\n```time\n10 Pushups\n```';
 async function openPlacementDialog(page: Page): Promise<void> {
   await page.goto(NOTE_PATH, { waitUntil: 'domcontentloaded', timeout: 20_000 });
   await waitForFeedReady(page);
-  await page.getByRole('button', { name: 'Note placements' }).click();
+  await page.getByRole('button', { name: 'Page options' }).click();
+  await page.getByRole('menuitem', { name: 'Note placements' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 }
 
@@ -155,7 +156,8 @@ test.describe('Named-page listing — /page/:slug', () => {
     for (const noteId of [NOTE_ID, SECOND_NOTE_ID]) {
       await page.goto(`/note/${encodeURIComponent(noteId)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
       await waitForFeedReady(page);
-      await page.getByRole('button', { name: 'Note placements' }).click();
+      await page.getByRole('button', { name: 'Page options' }).click();
+      await page.getByRole('menuitem', { name: 'Note placements' }).click();
       await page.getByLabel('Named page').fill(NAMED_SLUG);
       await page.getByRole('button', { name: 'Place on this page' }).click();
       await expect(page.getByRole('dialog')).toBeHidden();

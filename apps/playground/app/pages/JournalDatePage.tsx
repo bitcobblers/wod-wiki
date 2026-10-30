@@ -20,8 +20,8 @@ import { Button } from '@/components/atoms/primitives/button'
 import { notePersistence } from '@/services/persistence';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import { sessionQueryInsert, sessionQueryWql } from '@bitcobblers/wod-wiki-ui/extensions';
-import { useNotePageNav, wirePageIndexLinks } from './shared/useNotePageNav';
-import { canGoBack, extractPageIndex, mapIndexToL3 } from './shared/pageUtils';
+import { useNotePageNav, wirePageIndexLinks, type NoteHelpfulAction } from './shared/useNotePageNav';
+import { canGoBack, extractPageIndex, mapIndexToL3, appendTimerBlock } from './shared/pageUtils';
 import type { NavItemL3 } from '../nav/navTypes';
 import { useNav } from '../nav/NavContext';
 import { SavedNoteEditor } from './shared/SavedNoteEditor';
@@ -231,11 +231,24 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (singleNote) void startOutlineRun(singleNote.id, block);
   }, [singleNote, startOutlineRun]);
 
+  const singleHelpfulActions = useMemo<NoteHelpfulAction[]>(() => {
+    if (!singleNote) return [];
+    return [
+      {
+        id: 'add-timer',
+        label: 'Add timer',
+        onRun: () => handleNoteContentChange(singleNote.id, appendTimerBlock(singleNote.rawContent)),
+      },
+    ];
+  }, [singleNote, handleNoteContentChange]);
+
   useNotePageNav({
     content: singleNote?.rawContent ?? '',
     scriptBlocks: singleNote ? (blocksByNote[singleNote.id] ?? []) : [],
     onStartWorkout: handleOutlineRun,
     results,
+    helpfulActions: singleHelpfulActions,
+    enabled: Boolean(singleNote),
   });
 
   // Multi-note outline: real per-note entries (headings + fences) with Run
@@ -259,8 +272,15 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         items.push(...mapIndexToL3([{ ...link, id: `note-${note.id}:${link.id}`, label: `${labelPrefix} · ${link.label}` }]));
       }
     }
+    const first = notes[0]!;
+    items.push({
+      id: 'helpful-add-timer',
+      label: 'Add timer',
+      level: 3,
+      action: { type: 'call', handler: () => handleNoteContentChange(first.id, appendTimerBlock(first.rawContent)) },
+    });
     return items;
-  }, [notes, blocksByNote, resultsByNote, handleOutlineRunFor]);
+  }, [notes, blocksByNote, resultsByNote, handleOutlineRunFor, handleNoteContentChange]);
   // Publish-on-mount / clear-on-unmount, guarded so the single-note outline
   // published by useNotePageNav is never clobbered on transitions (destroy
   // phase runs before create phase, so the flag keeps clear/create paired).

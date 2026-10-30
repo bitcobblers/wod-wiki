@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { v7 as uuidv7 } from 'uuid'
-import { CalendarDays, Check, Copy, Link2 } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
+import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { JournalPageShell } from '@/panels/page-shells'
 import { NoteEditor, type EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor'
 import { BlockHistory, revertBlock } from '@/components/organisms/editor/BlockHistory'
 import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore';
-import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { useEditorSave } from '../hooks/useEditorSave'
 import { useNoteL1Zone } from '../nav/NavContext'
 import { notePersistence } from '@/services/persistence'
@@ -19,17 +18,21 @@ import { dayPath, notePath, pagePath, runPath } from '../lib/routes'
 import { notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable } from '@bitcobblers/wod-wiki-core'
 import { NotePlacementDialog, type NotePlacementMode } from '../components/organisms/journal/NotePlacementDialog'
+import { localDateKey } from '@/lib/dateFormat'
 import type { HistoryRecord } from '@/types/history'
 import type { Session } from '@/types/storage'
-import { playgroundRecorder, onResultSaved } from '@/services/resultRecorder'
+import { onResultSaved } from '@/services/resultRecorder'
 import { pendingRuntimes } from '../runtimeStore'
 import { captureRun } from '@/services/runCapture';
 import type { ScriptBlock } from '@/components/Editor/types'
 import { useNotePageNav } from './shared/useNotePageNav'
+import { appendTimerBlock } from './shared/pageUtils'
+import { PageActions } from './shared/PageActions'
 import {
   NoteContextNav,
   noteOwnership,
   provenanceLink,
+  useJournalEntryDates,
   useNoteContextLinks,
 } from './shared/noteContextLinks'
 const contentProvider = new IndexedDBContentProvider()
@@ -176,11 +179,30 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     results,
+    // Canonical-note L3 (whiteboard): Placements, Clone, Copy link after the
+    // outline — rail, ⋯ menu and mobile right drawer all carry them.
+    helpfulActions: entry
+      ? [
+          { id: 'placements', label: 'Note placements', onRun: () => setPlacement('relationships') },
+          { id: 'add-timer', label: 'Add timer', onRun: () => onChange(appendTimerBlock(entry.rawContent)) },
+          { id: 'clone', label: 'Clone', onRun: () => setPlacement('clone') },
+          { id: 'copy-link', label: copied ? 'Copied' : 'Copy link', onRun: handleCopyLink },
+        ]
+      : [],
   })
 
   const contextLinks = useNoteContextLinks(
     entry ? { noteId: entry.id, stamps: ownership.stamps } : { noteId: '', stamps: [] },
   )
+  // Journal calendar dots (whiteboard: "journal calendar when applicable").
+  const journalDates = useJournalEntryDates()
+  const calendar = entry?.journalDate ? (
+    <CalendarCard
+      selectedDate={new Date(`${entry.journalDate}T12:00:00`)}
+      onDateSelect={(date) => navigate(dayPath(localDateKey(date)))}
+      entryDates={journalDates}
+    />
+  ) : undefined
 
   const acceptSaved = useCallback((snapshot: EditorIdentitySnapshot) => {
     committedRevisionRef.current = snapshot.sourceRevision;
@@ -234,30 +256,15 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   } else if (!entry) {
     body = <div className="flex flex-1 items-center justify-center text-zinc-400">Loading…</div>
   } else {
-    const actionPill =
-      'inline-flex min-h-11 items-center gap-1 rounded-pill border border-border bg-card px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent'
-
+    // Whiteboard "canonical note" sticky: only Cast + shared chrome + page
+    // options — Placements/Clone/Copy link live in L3 (helpfulActions above,
+    // mirrored into the ⋯ menu via NavContext l3Items).
     const pageActions = (
-      <ResponsiveActions label="Note actions">
-        <button type="button" className={actionPill} onClick={() => setPlacement('relationships')}>
-          <CalendarDays className="size-3.5" aria-hidden="true" />
-          Note placements
-        </button>
-        <button type="button" className={actionPill} onClick={() => setPlacement('clone')}>
-          <Copy className="size-3.5" aria-hidden="true" />
-          Clone
-        </button>
-        <button
-          type="button"
-          className={actionPill}
-          onClick={handleCopyLink}
-          title={notePath(entry.id)}
-          aria-label="Copy link"
-        >
-          {copied ? <Check className="size-3.5 text-emerald-500" aria-hidden="true" /> : <Link2 className="size-3.5" aria-hidden="true" />}
-          {copied ? 'Copied' : 'Copy link'}
-        </button>
-      </ResponsiveActions>
+      <PageActions
+        mode="notebook-readonly"
+        currentWorkout={{ name: entry.title || entry.id, content: entry.rawContent }}
+        index={[]}
+      />
     )
 
     body = (
@@ -274,7 +281,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           actions={pageActions}
           editor={
             <div className="flex flex-col gap-4 px-4 py-6 sm:px-6 min-w-0 max-w-full">
-              <NoteContextNav data={contextLinks} up={ownership.up} />
+              <NoteContextNav data={contextLinks} up={ownership.up} calendar={calendar} />
               {((entry.journalDate && entry.journalDate !== entry.title) || entry.slug || entry.sourceId) && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   {entry.journalDate && entry.journalDate !== entry.title && (

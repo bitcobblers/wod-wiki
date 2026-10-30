@@ -32,12 +32,12 @@ import { useAnalyticsRange } from '../../hooks/useAnalyticsRange';
 import { journalNotes } from '../../services/journalNotes';
 import { dashboardNotes } from '../../services/dashboardNotes';
 import { parseFrontmatter, serializeFrontmatter } from '@/lib/frontmatter';
+import { storageService } from '@/services/storage';
+import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
+import { StickyPageHeader } from '@/panels/page-shells';
 import {
   parseDashboardNote,
   type WidgetOpResult,
-} from '@bitcobblers/wod-wiki-wql';
-import { storageService } from '@/services/storage';
-import {
   buildDashboardDocument,
   defaultTokenValues,
   setDashboardTokenValue,
@@ -52,11 +52,13 @@ import {
   updateWidget,
 } from '@bitcobblers/wod-wiki-wql';
 import { useDashboardSource } from '../../hooks/useDashboards';
-import { analyticsExplorerPath } from '../../lib/routes';
+import { analyticsExplorerPath, dashboardsPath, dashboardViewPath } from '../../lib/routes';
 import { useNav } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
 import { ResponsiveActions } from '../../nav/ResponsiveActions';
-import { StickyPageHeader } from '@/panels/page-shells';
+import type { MenuSpec } from '../../nav/menuModel';
+import type { Entry } from '../../lib/entryMapper';
+import { NoteContextNav, EMPTY_NOTE_CONTEXT } from '../../pages/shared/noteContextLinks';
 import { SampleDataPrompt } from '../analytics/SampleDataPrompt';
 import { WidgetComposerDialog, type WidgetComposerApply } from './WidgetComposerDialog';
 
@@ -139,11 +141,50 @@ export function DashboardViewPage() {
     });
     return { headings, items };
   }, [parsed]);
-  const l3Items = outline.items;
+  // Declared early so the L3 helpful actions below can close over them.
+  const [editMode, setEditMode] = useState(false);
+  const handleClone = useCallback(async () => {
+    if (!source || source.editable) return;
+    await dashboardNotes.cloneDashboard(source.slug, source.rawContent, source.title);
+    setRefreshKey((k) => k + 1); // re-resolve → vault clone shadows the seed
+  }, [source]);
+  // Whiteboard dashboard L3: on-this-page/widget links first, then Edit/Done,
+  // Clone to vault, Copy link, and the range/units view controls as live L3
+  // widgets (rendered by the rail + mobile right drawer via NavItem.panel).
+  const RangeWidget = useCallback(() => <RangeSelector />, [])
+  const UnitsWidget = useCallback(() => <AnalyticsUnitPreference />, [])
+  const handleCopyLink = useCallback(() => {
+    void navigator.clipboard?.writeText(window.location.href)
+  }, [])
+  const l3Items = useMemo(() => [
+    ...outline.items,
+    { id: 'dashboard-range', label: 'Date range', level: 3 as const, action: { type: 'none' as const }, panel: RangeWidget },
+    { id: 'dashboard-units', label: 'Units', level: 3 as const, action: { type: 'none' as const }, panel: UnitsWidget },
+    { id: 'helpful-edit', label: editMode ? 'Done' : 'Edit', level: 3 as const, action: { type: 'call' as const, handler: () => setEditMode(v => !v) } },
+    ...(!source?.editable && source ? [{ id: 'helpful-clone', label: 'Clone to vault', level: 3 as const, action: { type: 'call' as const, handler: () => void handleClone() }, key: source.slug }] : []),
+    { id: 'helpful-copy-link', label: 'Copy link', level: 3 as const, action: { type: 'call' as const, handler: handleCopyLink } },
+  ], [outline.items, editMode, source, RangeWidget, UnitsWidget, handleClone, handleCopyLink]);
   useEffect(() => {
     setL3Items(l3Items);
     return () => setL3Items([]);
   }, [l3Items, setL3Items]);
+
+  // Whiteboard dashboard L2: Up to Dashboards; recent dashboards (this one
+  // filtered out).
+  const dashboardL2 = useMemo(() => ({
+    up: { id: 'dashboards', title: 'Dashboards', to: dashboardsPath() },
+    trailingSections: [
+      {
+        kind: 'wql' as const,
+        id: 'recent-dashboards',
+        label: 'Recent dashboards',
+        query: ':note{type:dashboard}',
+        limit: 5,
+        toEntry: (e: Entry) => dashboardViewPath(e.id),
+        filterEntry: (e: Entry) => e.id !== source?.noteId,
+      },
+    ] as MenuSpec,
+  }), [source]);
 
   // Outline clicks scroll and flash. The component `document` (parsed
   // DashboardDocument) shadows the DOM global here — hence globalThis.
@@ -167,7 +208,7 @@ export function DashboardViewPage() {
       });
   }, [registerScrollFn]);
 
-  const [editMode, setEditMode] = useState(false);
+  // editMode is declared early (the L3 helpful actions close over it).
   const [composer, setComposer] = useState<ComposerState | null>(null);
   // Visible refusal surface for toolbar widget ops that lost the revision
   // race (a concurrent edit landed between render and write).
@@ -265,11 +306,7 @@ export function DashboardViewPage() {
     [composer, mutateNote],
   );
 
-  const handleClone = useCallback(async () => {
-    if (!source || source.editable) return;
-    await dashboardNotes.cloneDashboard(source.slug, source.rawContent, source.title);
-    setRefreshKey((k) => k + 1); // re-resolve → vault clone shadows the seed
-  }, [source]);
+  // handleClone is declared early (the L3 helpful actions close over it).
 
   // A refresh (new refreshKey) flips the hook to loading=true but KEEPS the
   // previously resolved source — gate the early returns on source-readiness,
@@ -301,34 +338,38 @@ export function DashboardViewPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <NoteContextNav data={EMPTY_NOTE_CONTEXT} up={dashboardL2.up} trailingSections={dashboardL2.trailingSections} />
       <StickyPageHeader
         id={TITLE_ANCHOR}
         title={document?.title || source.title}
         subtitle={editable ? 'Editable dashboard note.' : 'Prebuilt — read-only until cloned to your vault.'}
         actions={
-          <ResponsiveActions
-            label="Dashboard actions"
-            primary={
-              editable ? (
-                <button
-                  type="button"
-                  data-testid="dashboard-edit-toggle"
-                  aria-pressed={editMode}
-                  onClick={() => setEditMode((v) => !v)}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    editMode
-                      ? 'bg-primary text-primary-foreground'
-                      : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                  }`}
-                >
-                  <Pencil size={12} /> {editMode ? 'Done' : 'Edit'}
-                </button>
-              ) : undefined
-            }
-          >
-            <RangeSelector />
-            <AnalyticsUnitPreference />
-          </ResponsiveActions>
+          // Whiteboard dashboard sticky: Edit/Done + Cast. Range and units
+          // moved to L3 view controls (dashboard-range / dashboard-units
+          // widgets); the helpful actions mirror them in the ⋯ surfaces.
+          <div className="flex items-center gap-2">
+            <ResponsiveActions
+              label="Dashboard actions"
+              primary={
+                editable ? (
+                  <button
+                    type="button"
+                    data-testid="dashboard-edit-toggle"
+                    aria-pressed={editMode}
+                    onClick={() => setEditMode((v) => !v)}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      editMode
+                        ? 'bg-primary text-primary-foreground'
+                        : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <Pencil size={12} /> {editMode ? 'Done' : 'Edit'}
+                  </button>
+                ) : undefined
+              }
+            />
+            <CastButtonRpc />
+          </div>
         }
       />
       <div className="max-w-[1500px] w-full mx-auto p-4 md:p-6 lg:p-8 flex-1">

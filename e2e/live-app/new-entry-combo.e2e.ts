@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
-test.describe('Desktop new entry combo', () => {
+test.describe('Contextual new entry actions', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
   });
@@ -32,6 +32,10 @@ test.describe('Desktop new entry combo', () => {
     await page.getByTestId('new-entry-playground').click();
     await expect(page).toHaveURL(/\/playground\/[^/]+$/);
     await expect(page.locator('.cm-content')).toBeVisible();
+    await expect(page.getByTestId('new-entry-combo')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Page options' }).click();
+    await page.getByRole('menuitem', { name: 'Add timer', exact: true }).click();
+    await expect(page.locator('.cm-content').getByText('10:00', { exact: true }).first()).toBeVisible();
   });
   test('creates a note in the current notebook', async ({ page }) => {
     await page.goto('/notebooks');
@@ -47,10 +51,27 @@ test.describe('Desktop new entry combo', () => {
     await expect(page.locator('.cm-content')).toContainText('Untitled note');
   });
 
-  test('does not duplicate the desktop combo on mobile', async ({ page }) => {
+  test('does not offer generic creation on detail pages', async ({ page }) => {
+    await page.goto('/');
+    await waitForFeedReady(page);
+    await expect(page.getByTestId('new-entry-combo')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Cast to TV/ })).toBeVisible();
+  });
+
+  test('orders mobile bubbles and removes the global journal shortcut', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto('/journal');
     await waitForFeedReady(page);
-    await expect(page.getByTestId('new-entry-combo')).toHaveCount(0);
+    await expect(page.getByTestId('new-entry-combo')).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'New Journal entry', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New journal note', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Cast to TV/ })).toBeVisible();
+    await expect(page.getByTestId('actions-overflow')).toBeVisible();
+
+    const searchY = (await page.getByTestId('search-fab').boundingBox())!.y;
+    const newY = (await page.getByTestId('new-entry-primary').boundingBox())!.y;
+    const menuY = (await page.getByTestId('actions-overflow').boundingBox())!.y;
+    expect(searchY).toBeLessThan(newY);
+    expect(newY).toBeLessThan(menuY);
   });
 });

@@ -15,7 +15,6 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import {
-  ArrowLeftIcon,
   DocumentDuplicateIcon,
 } from '@heroicons/react/20/solid';
 import { Eye } from 'lucide-react';
@@ -34,11 +33,12 @@ import {
   noteOwnership,
   useNoteContextLinks,
 } from './shared/noteContextLinks';
-import { canGoBack } from './shared/pageUtils';
 import { useScriptBlockCommands } from '../hooks/useScriptBlockCommands';
 import { useEffortRegistry } from '../contexts/EffortRegistryContext';
 import { EffortResolver, addAliasToEffort, type IEffort, type ResolvedEffort } from '@bitcobblers/wod-wiki-lang';
 import { effortsPath, parseEffortRouteOptions, effortPath, dayPath } from '../lib/routes';
+import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
+import type { MenuSpec } from '../nav/menuModel';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/atoms/primitives/toast';
 import { TEST_IDS } from '@/testing/contracts/TestIdContract';
@@ -283,11 +283,22 @@ export function EffortDetailPage() {
   }, [effort, navigate]);
 
   // ── L3 nav from document content ─────────────────────────────────────────
+  // Whiteboard effort L3: Clone (read-only), Show Resolved, Copy link after
+  // the outline. `key` republishes when the effort loads so Clone's closure
+  // never stays null.
+  const handleCopyLink = useCallback(() => {
+    void navigator.clipboard?.writeText(window.location.href)
+  }, [])
   useNotePageNav({
     content: document,
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     results,
+    helpfulActions: [
+      ...(effort && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: effort.slug }] : []),
+      ...(resolved ? [{ id: 'show-resolved', label: showResolved ? 'Hide Resolved' : 'Show Resolved', onRun: () => setShowResolved(v => !v) }] : []),
+      { id: 'copy-link', label: 'Copy link', onRun: handleCopyLink },
+    ],
   });
 
   // ── Contextual links: back to the catalog (history state intact) + journal
@@ -302,6 +313,18 @@ export function EffortDetailPage() {
     stamps: ownership?.stamps ?? [],
     effortSlug: slug,
   });
+  // Whiteboard effort L2: recent efforts last.
+  const trailingSections = useMemo<MenuSpec>(() => [
+    {
+      kind: 'wql',
+      id: 'recent-efforts',
+      label: 'Recent efforts',
+      query: ':effort{}',
+      limit: 5,
+      toEntry: (e) => effortPath(e.effort?.slug ?? e.id),
+      filterEntry: (e) => (e.effort?.slug ?? e.id) !== slug,
+    },
+  ], [slug]);
 
   // ── WOD block commands ───────────────────────────────────────────────────
   const commands = useScriptBlockCommands('notebook-readonly', {
@@ -491,32 +514,34 @@ export function EffortDetailPage() {
   }
 
   // ── Actions bar (rendered by JournalPageShell actions prop) ──────────────
+  // Whiteboard effort sticky: Clone, Show Resolved, Cast — Back became the
+  // L2 Up link (NoteContextNav "Up" section).
   const pageActions = (
-    <ResponsiveActions primary={!isEditable ? (
-      <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}>
-        <DocumentDuplicateIcon className="size-4 mr-1.5" />
-        Clone
-      </Button>
-    ) : undefined}>
-      <Button variant="ghost" size="icon" onClick={() => (canGoBack() ? navigate(-1) : navigate(effortsPath()))} aria-label="Back to catalog" title={canGoBack() ? 'Back' : 'Back to catalog'}>
-        <ArrowLeftIcon className="size-4" />
-      </Button>
-      <Badge
-        data-testid={TEST_IDS.EFFORT_DETAIL_SOURCE}
-        variant={effort.registrySource === 'bundled' ? 'secondary' : 'default'}
-      >
-        {effort.registrySource === 'bundled' ? 'Bundled' : 'Custom'}
-      </Badge>
-      {resolved && (
-        <Button
-          variant={showResolved ? 'default' : 'outline'}
-          onClick={() => setShowResolved(v => !v)}
-        >
-          <Eye className="size-4 mr-1.5" />
-          {showResolved ? 'Hide Resolved' : 'Show Resolved'}
+    <div className="flex items-center gap-2">
+      <ResponsiveActions primary={!isEditable ? (
+        <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}>
+          <DocumentDuplicateIcon className="size-4 mr-1.5" />
+          Clone
         </Button>
-      )}
-    </ResponsiveActions>
+      ) : undefined}>
+        <Badge
+          data-testid={TEST_IDS.EFFORT_DETAIL_SOURCE}
+          variant={effort.registrySource === 'bundled' ? 'secondary' : 'default'}
+        >
+          {effort.registrySource === 'bundled' ? 'Bundled' : 'Custom'}
+        </Badge>
+        {resolved && (
+          <Button
+            variant={showResolved ? 'default' : 'outline'}
+            onClick={() => setShowResolved(v => !v)}
+          >
+            <Eye className="size-4 mr-1.5" />
+            {showResolved ? 'Hide Resolved' : 'Show Resolved'}
+          </Button>
+        )}
+      </ResponsiveActions>
+      <CastButtonRpc />
+    </div>
   );
 
   const noteId = ownerNoteId;
@@ -554,7 +579,7 @@ export function EffortDetailPage() {
               commands={commands}
               onBlocksChange={setScriptBlocks}
             />
-            <NoteContextNav data={contextData} up={ownership?.up} relatedLabel="Used in" />
+            <NoteContextNav data={contextData} up={ownership?.up} relatedLabel="Used in" trailingSections={trailingSections} />
           </div>
         }
       />

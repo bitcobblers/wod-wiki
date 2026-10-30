@@ -52,6 +52,7 @@ interface ActionsRegistration {
   primary?: ReactNode
   navbar?: ReactNode
   children?: ReactNode
+  hasContent: boolean
   label: string
   fallback: boolean
 }
@@ -104,20 +105,28 @@ export function ResponsiveActions({
   const registers = registry !== null && !nested && isMobile && !fallback
   const fallbackRegisters = registry !== null && fallback
 
-  // Registered children carry the nesting marker so a ResponsiveActions
-  // declared INSIDE another's children renders inline (within the sheet)
-  // and never registers — the outer wrapper stays the single owner.
-  const registeredChildren = (
+  const hasContent = children !== undefined && children !== null && children !== false
+  const registeredChildren = useMemo(() => (
     <InsideActionsContext.Provider value={true}>
       {children}
     </InsideActionsContext.Provider>
-  )
+  ), [children])
+  const canRegister = registers || fallbackRegisters
+  const entryRef = useRef<ActionsRegistration | null>(null)
+  entryRef.current = { id, primary, navbar, children: registeredChildren, hasContent, label: label ?? 'Page options', fallback }
+
+  // Ownership changes only on mount/unmount or breakpoint transitions. Content
+  // updates must not unregister first: that provider update used to retrigger
+  // this effect until React hit its maximum update depth.
+  useEffect(() => {
+    if (!canRegister) return
+    registry!.register(entryRef.current!)
+    return () => registry!.unregister(id)
+  }, [canRegister, registry, id])
 
   useEffect(() => {
-    if (!registers && !fallbackRegisters) return
-    registry!.register({ id, primary, navbar, children: registeredChildren, label: label ?? 'Page options', fallback })
-    return () => registry!.unregister(id)
-  }, [registers, fallbackRegisters, registry, id, primary, registeredChildren, label, fallback])
+    if (canRegister) registry!.register(entryRef.current!)
+  }, [canRegister, registry, primary, navbar, registeredChildren, hasContent, label, fallback])
 
   // Fallback never renders inline (desktop keeps its existing header
   // affordances); below lg the dock owns the surface.
@@ -148,7 +157,26 @@ export function ResponsiveActionsProvider({ onSearch, children }: ResponsiveActi
   const [registrations, setRegistrations] = useState<ActionsRegistration[]>([])
   const register = useCallback(
     (entry: ActionsRegistration) =>
-      setRegistrations(prev => [...prev.filter(r => r.id !== entry.id), entry]),
+      setRegistrations(prev => {
+        const idx = prev.findIndex(r => r.id === entry.id)
+        if (idx === -1) {
+          return [...prev, entry]
+        }
+        const existing = prev[idx]
+        if (
+          existing.primary === entry.primary &&
+          existing.navbar === entry.navbar &&
+          existing.children === entry.children &&
+          existing.hasContent === entry.hasContent &&
+          existing.label === entry.label &&
+          existing.fallback === entry.fallback
+        ) {
+          return prev
+        }
+        const next = [...prev]
+        next[idx] = entry
+        return next
+      }),
     [],
   )
   const unregister = useCallback(
@@ -231,20 +259,10 @@ function ResponsiveActionsDock({
     if (sheetOpen) sheetRef.current?.focus()
   }, [sheetOpen])
 
-  // The sheet stays mounted (hidden while closed) so its rows are countable
-  // live: the ⋮ trigger must never appear for sheets with no rows — same
-  // rule as the sticky header's ⋮, without the old open-then-flash
-  // measurement. `display:contents` wrappers keep the registrations
-  // layout-neutral while making each countable.
-  const [rowCounts, setRowCounts] = useState({ active: 0, global: 0 })
-  useLayoutEffect(() => {
-    const activeRows = activeContentRef.current?.childElementCount ?? 0
-    const globalRows = globalContentRef.current?.childElementCount ?? 0
-    setRowCounts(prev =>
-      prev.active === activeRows && prev.global === globalRows ? prev : { active: activeRows, global: globalRows },
-    )
-  }, [active, globalActions])
-  const showOverflow = rowCounts.active > 0 || rowCounts.global > 0
+  // Registration is the overflow contract: libraries publish stream controls,
+  // other routes publish page options. Do not measure live DOM rows here —
+  // asynchronous L2/L3 content can otherwise retrigger registration endlessly.
+  const showOverflow = Boolean(active?.hasContent || globalActions?.hasContent)
 
   if (!isMobile) return null
   if (!onSearch && !active && !globalActions) return null
@@ -259,12 +277,12 @@ function ResponsiveActionsDock({
         alignment === 'left' ? 'self-start items-start' : 'self-end items-end',
       )}
     >
-      {/* Page primary on top, search FAB under it. */}
+      {/* Bottom-up: Search, contextual primary, then the … menu. */}
       <div className="relative z-40 flex flex-col items-center gap-2">
+        {onSearch && <SearchFab onOpen={() => { setSheetOpen(false); onSearch() }} />}
         {active?.primary && (
           <div className="[&_button]:min-h-11 [&_button]:min-w-11">{active.primary}</div>
         )}
-        {onSearch && <SearchFab onOpen={() => { setSheetOpen(false); onSearch() }} />}
       </div>
 
       {/* Overflow sheet slides up from the ⋮: rows sit underneath the
@@ -304,7 +322,7 @@ function ResponsiveActionsDock({
         <div ref={activeContentRef} className="contents">
           {active?.children}
         </div>
-        {rowCounts.active > 0 && rowCounts.global > 0 && (
+        {active?.children && globalActions?.children && (
           <div className="my-1 border-t border-border/60" aria-hidden="true" />
         )}
         <div ref={globalContentRef} className="contents">

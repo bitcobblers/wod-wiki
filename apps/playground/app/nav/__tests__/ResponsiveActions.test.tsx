@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
+import { memo } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { ResponsiveActions, ResponsiveActionsProvider, NavbarActions } from '../ResponsiveActions';
 
@@ -65,6 +66,26 @@ describe('ResponsiveActions navbar slot', () => {
 
     const navbar = screen.getByTestId('app-navbar');
     expect(navbar.textContent).toBe('Second');
+  });
+
+  it('preserves registration order when an earlier registration updates its content', () => {
+    const Child = memo(() => <ResponsiveActions navbar={<button>Modal Child</button>} />);
+    function TestComponent({ parentLabel }: { parentLabel: string }) {
+      return (
+        <Shell>
+          <ResponsiveActions navbar={<button>{parentLabel}</button>} />
+          <Child />
+        </Shell>
+      );
+    }
+
+    const { rerender } = render(<TestComponent parentLabel="Parent v1" />);
+    const navbar = screen.getByTestId('app-navbar');
+    expect(navbar.textContent).toBe('Modal Child');
+
+    // Updating parent content must not bump parent to the end of registrations array
+    rerender(<TestComponent parentLabel="Parent v2" />);
+    expect(navbar.textContent).toBe('Modal Child');
   });
 
   it('renders nothing when the active page pins no navbar action', () => {

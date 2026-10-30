@@ -15,7 +15,7 @@
  * the same slug.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { BUILTIN_CALCS, findTagContributionCycles } from '@bitcobblers/wod-wiki-engine';
 import type { Tag, TagContribution, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
@@ -27,9 +27,13 @@ import { useTagIndex } from '@/hooks/useTagIndex';
 import { hydrateUserCalcs } from '@/stores/userCalcStore';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
+import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import { buildTagNoteDocument, usePropertyNote } from '../hooks/usePropertyNote';
-import { tagPath } from '../lib/routes';
-
+import { tagPath, tagCategoryPath, effortPath, equipmentPath, ROUTE_PATTERNS } from '../lib/routes';
+import { useNav } from '../nav/NavContext';
+import type { NavItemL3 } from '../nav/navTypes';
+import type { MenuSpec } from '../nav/menuModel';
+import { NoteContextNav, EMPTY_NOTE_CONTEXT, noteLinkPath } from './shared/noteContextLinks';
 /** A function a tag can carry, with the grain it runs at. */
 interface FunctionOption {
   name: string;
@@ -258,16 +262,127 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
     return [...names].sort();
   }, [tagTypes, tags, kind]);
 
+  // ── Whiteboard tag L2/L3 ────────────────────────────────────────────────────
+  // save/remove close over the live edit state; the L3 rows read them through
+  // refs so a click always runs the current draft, never a stale publish.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const removeRef = useRef(remove);
+  removeRef.current = remove;
+  const handleCopyLink = useCallback(() => {
+    void navigator.clipboard?.writeText(window.location.href);
+  }, []);
+
+  const savePropertyNote = propertyNote.save;
+  const { setL3Items } = useNav();
+  useEffect(() => {
+    const outline: NavItemL3[] = [
+      { id: 'tags-new', label: 'New tag', level: 3, action: { type: 'scroll', sectionId: 'tags-new' } },
+    ];
+    if (selected) {
+      outline.push({ id: 'tags-editor', label: `Edit ${selected.label}`, level: 3, action: { type: 'scroll', sectionId: 'tags-editor' } });
+    } else if (activeCategory) {
+      outline.push({ id: 'tags-category', label: `Category: ${activeCategory}`, level: 3, action: { type: 'scroll', sectionId: 'tags-category' } });
+    }
+    outline.push(
+      ...(selected ? [
+        { id: 'helpful-save', label: 'Save', level: 3 as const, action: { type: 'call' as const, handler: () => void saveRef.current() } },
+        { id: 'helpful-delete', label: 'Delete', level: 3 as const, action: { type: 'call' as const, handler: () => void removeRef.current() } },
+      ] : []),
+      ...(selected ? [] : (propertyNote.document ? [
+        { id: 'helpful-save-category', label: 'Save Category Note', level: 3 as const, action: { type: 'call' as const, handler: () => void savePropertyNote() } },
+      ] : [])),
+      { id: 'helpful-copy-link', label: 'Copy link', level: 3 as const, action: { type: 'call' as const, handler: handleCopyLink } },
+    );
+    setL3Items(outline);
+    return () => setL3Items([]);
+  }, [selected, activeCategory, propertyNote.document, savePropertyNote, handleCopyLink, setL3Items]);
+
+  const up = useMemo(
+    () => (activeCategory && selected
+      ? { id: activeCategory, title: activeCategory, to: tagCategoryPath(activeCategory) }
+      : { id: 'tags', title: 'Tags', to: ROUTE_PATTERNS.tags }),
+    [activeCategory, selected],
+  );
+  // Whiteboard tag L2: important tagged notes, linked efforts/equipment,
+  // recent tags last.
+  const tagL2 = useMemo<MenuSpec>(() => {
+    const spec: MenuSpec = [];
+    if (selected) {
+      spec.push({
+        kind: 'wql',
+        id: 'tagged-notes',
+        label: 'Tagged notes',
+        query: `:note{tags:${selected.label}}`,
+        limit: 5,
+        toEntry: (e) => noteLinkPath(e.id),
+      });
+    }
+    if (activeCategory === 'effort' && categoryChildren.length > 0) {
+      spec.push({
+        kind: 'section',
+        id: 'tag-efforts',
+        label: 'Efforts',
+        entries: categoryChildren.map(child => ({
+          kind: 'link' as const,
+          id: child.id,
+          label: child.label,
+          to: effortPath(child.label),
+        })),
+      });
+    }
+    if (activeCategory === 'equipment' && categoryChildren.length > 0) {
+      spec.push({
+        kind: 'section',
+        id: 'tag-equipment',
+        label: 'Equipment',
+        entries: categoryChildren.map(child => ({
+          kind: 'link' as const,
+          id: child.id,
+          label: child.label,
+          to: equipmentPath(child.label),
+        })),
+      });
+    }
+    if (tags.length > 0) {
+      spec.push({
+        kind: 'section',
+        id: 'all-tags',
+        label: 'Tags',
+        entries: tags.slice(0, 20).map(tag => ({
+          kind: 'link' as const,
+          id: tag.id,
+          label: `#${tag.label}`,
+          to: tagPath(tag.type || activeCategory || 'tag', tag.label),
+        })),
+      });
+    }
+    return spec;
+  }, [selected, activeCategory, categoryChildren, tags]);
+
+  const tagContextNav = (
+    <NoteContextNav data={EMPTY_NOTE_CONTEXT} up={up} sections={tagL2} />
+  );
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-8">
+      {tagContextNav}
       <section className="space-y-2">
-        <h1 className="text-lg font-semibold text-foreground">Tags</h1>
-        <p className="text-sm text-muted-foreground">
-          A tag is a named bundle a script can point at:{' '}
-          <code className="font-mono">5 reps @ 100 kg {'#heavy'}</code>. What the tag brings
-          applies to the line it sits on. A tag can contribute a metric (a typed value with a unit),
-          another tag, or a function — a named calculation that runs where the tag applies.
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">Tags</h1>
+            <p className="text-sm text-muted-foreground">
+              A tag is a named bundle a script can point at:{' '}
+              <code className="font-mono">5 reps @ 100 kg {'#heavy'}</code>. What the tag brings
+              applies to the line it sits on. A tag can contribute a metric (a typed value with a unit),
+              another tag, or a function — a named calculation that runs where the tag applies.
+            </p>
+          </div>
+          {/* Cast: shared navbar on mobile, desktop header here. */}
+          <div className="max-lg:hidden">
+            <CastButtonRpc />
+          </div>
+        </div>
         {cycles.length > 0 && (
           <p className="text-xs text-destructive">
             These tags apply each other in a loop: {cycles.map(cycle => cycle.join(' → ')).join('; ')}.
@@ -276,7 +391,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
         )}
       </section>
 
-      <section className="space-y-3">
+      <section id="tags-new" className="space-y-3">
         <h2 className="text-base font-semibold text-foreground">New tag</h2>
         <div className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-3">
           <form
@@ -324,7 +439,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
         </p>
       )}
       {!selected && activeCategory && (
-        <section className="space-y-4" data-testid="tag-category-property-note">
+        <section id="tags-category" className="space-y-4" data-testid="tag-category-property-note">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-foreground">
               Category: {activeTagType?.label ?? activeCategory}
@@ -370,7 +485,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
       )}
 
       {selected && (
-        <section className="space-y-3">
+        <section id="tags-editor" className="space-y-3">
           <h2 className="text-base font-semibold text-foreground">Edit {selected.label}</h2>
           <div className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-4">
             <p className="text-xs text-muted-foreground">

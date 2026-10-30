@@ -162,6 +162,7 @@ describe('ActionsMenu', () => {
 });
 
 describe('L3 fallback uniformity (⋯ menu mirrors the rail)', () => {
+  afterEach(() => cleanup());
   const streamControls = {
     query: ':journal{} last 4w',
     onQueryChange: mock(() => {}),
@@ -205,7 +206,7 @@ describe('L3 fallback uniformity (⋯ menu mirrors the rail)', () => {
   it('ActionsMenu renders the L3 stream controls (date window + group by) below the rail', () => {
     renderMenu(<ActionsMenu currentWorkout={{ name: 'Test', content: '' }} />);
     act(() => {
-      screen.getByRole('button').click();
+      screen.getByRole('button', { name: 'Page options' }).click();
     });
     expect(screen.getByText('Date window')).toBeDefined();
     expect(screen.getByText('Group by')).toBeDefined();
@@ -222,7 +223,7 @@ describe('L3 fallback uniformity (⋯ menu mirrors the rail)', () => {
   it('omits stream controls when the route publishes none', () => {
     renderMenu(<ActionsMenu currentWorkout={{ name: 'Test', content: '# Test' }} />, null);
     act(() => {
-      screen.getByRole('button').click();
+      screen.getByRole('button', { name: 'Page options' }).click();
     });
     expect(screen.queryByText('Date window')).toBeNull();
     expect(screen.queryByText('Group by')).toBeNull();
@@ -230,7 +231,7 @@ describe('L3 fallback uniformity (⋯ menu mirrors the rail)', () => {
 
   it('hides the ⋯ trigger at 2xl even when non-nav rows (download) exist', () => {
     renderMenu(<ActionsMenu currentWorkout={{ name: 'Test', content: '# Test' }} />, null);
-    const trigger = screen.getByRole('button');
+    const trigger = screen.getByRole('button', { name: 'Page options' });
     expect(trigger.className).toContain('2xl:hidden');
   });
 });
