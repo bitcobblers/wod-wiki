@@ -57,4 +57,23 @@ describe('whole Note provider', () => {
     expect(await provider.getRecord(`playground/${entry.id}`)).toMatchObject({ id: entry.id, rawContent: '10 Thrusters' });
     expect(await service.getNote(routeId)).toBeUndefined();
   });
+
+  it('updates notes addressed by slug', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const provider = new IndexedDBContentProvider(service);
+    const entry = await provider.saveRecord({
+      slug: 'my-custom-slug',
+      title: 'Slug Note',
+      rawContent: 'Original',
+      tags: [],
+      targetDate: 1,
+    });
+    const updated = await provider.updateRecord('my-custom-slug', {
+      rawContent: 'Updated via slug',
+      expectedSourceRevision: entry.sourceRevision,
+      blocks: {},
+    });
+    expect(updated.rawContent).toBe('Updated via slug');
+  });
 });
+

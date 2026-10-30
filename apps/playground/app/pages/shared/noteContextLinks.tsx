@@ -85,27 +85,26 @@ export interface NoteOwnership {
 }
 
 /**
- * Source-aware ownership for a loaded entry. Kind resolution follows the
- * stored conventions (entryMapper): `type` when present, then the composite-id
- * grammar (journal/:date, playground/:name, effort/:slug, feeds/…, cat/name).
+ * Source-aware ownership for a loaded entry.
+ * Resolves L1 zone, owning-list "Up" link, and provenance stamps
+ * across journal, playground, notebook, and page entities.
  */
 export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'sourceId' | 'journalDate' | 'slug' | 'pageId' | 'notebookId'>): NoteOwnership {
   const id = entry.id
   const isPlayground = entry.type === 'playground' || entry.sourceId === 'playground' || entry.notebookId === 'notebook/playground' || id.startsWith('playground/')
   const ref = parseNoteId(id)
+
   if (entry.type === 'journal' || entry.journalDate || (!isPlayground && ref.kind === 'journal')) {
     const date = entry.journalDate ?? (ref.kind === 'journal' ? ref.id : undefined)
     return {
-      // The journal is a view within the notebooks zone (ticket 10).
       zone: 'notebooks',
       up: date ? { id: date, title: 'Journal', to: dayPath(date) } : null,
       stamps: [id],
     }
   }
   if (isPlayground || ref.kind === 'playground') {
-    const name = playgroundRouteName({ id })
+    const name = playgroundRouteName({ id, slug: entry.slug })
     return {
-      // The playground is a view within the notebooks zone (ticket 10).
       zone: 'notebooks',
       up: { id: 'playgrounds', title: 'Playgrounds', to: playgroundsPath() },
       stamps: [`/playground/${name}`],
@@ -127,8 +126,6 @@ export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'source
       }
     }
     if (ref.category === 'notebook') {
-      // Corpus notebook members carry `notebook/<slug>` composite ids; the
-      // date-scoped item identity lives in the sourceId, not the id.
       return {
         zone: 'notebooks',
         up: ref.id ? { id: ref.id, title: ref.id, to: notebookPath(ref.id) } : null,

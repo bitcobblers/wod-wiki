@@ -86,10 +86,11 @@ export function useResolvedMenu(spec: MenuSpec | undefined): MenuEntry[] {
 
 /** Read the URL-synced / context-tracked active in-page section id. */
 export function useActiveSectionId(): string {
+  const [hParam] = useQueryState('h', { shallow: true })
   const [sParam] = useQueryState('s', { shallow: true })
   const { navState } = useNav()
   const l3Active = (navState as { activeL3Id?: string | null }).activeL3Id ?? ''
-  return sParam || l3Active || ''
+  return hParam || sParam || l3Active || ''
 }
 
 // ── Rendering ────────────────────────────────────────────────────────────────

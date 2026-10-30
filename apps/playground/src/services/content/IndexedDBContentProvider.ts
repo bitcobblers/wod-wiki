@@ -10,7 +10,7 @@ import { NotePersistenceError } from '@/services/persistence/types';
 import { storageService, type StorageService } from '@/services/storage';
 import type { AttachmentCreateInput, IContentProvider, ContentProviderMode, NoteSaveInput, NoteRecordPatch } from '@/types/content-provider';
 import type { HistoryRecord, HistoryQuery, ProviderCapabilities } from '@/types/history';
-import type { Attachment, Page, Session } from '@/types/storage';
+import type { Attachment, Note, NoteBlock, Page, Session } from '@/types/storage';
 
 const BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
 const MUTATION_STORES = ['notes', 'block_revisions', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'sessions', 'events', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'] as const;
@@ -68,19 +68,14 @@ export class IndexedDBContentProvider implements IContentProvider {
     }
 
     async getRecord(id: string): Promise<HistoryRecord | null> {
-        // ponytail: fallback to stripped playground prefix and slug before failing; upgrade to unified locator resolver when route models merge.
-        const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
-        const note = await this.db.getNote(id)
-            ?? (rawId !== id ? await this.db.getNote(rawId) : undefined)
-            ?? await this.db.getNoteBySlug(id)
-            ?? (rawId !== id ? await this.db.getNoteBySlug(rawId) : undefined);
+        const note = await this.resolveStoredNote(id);
         if (!note) return null;
         const bundle = (await this.db.getDetailBatches([note.id])).get(note.id);
         if (!bundle) return null;
         const entry = entryFromDomainRow(bundle);
         const latest = (await this.db.getSessionsForNote(note.id)).sort((a, b) => b.createdAt - a.createdAt)[0];
         const sections = parseDocumentSections(note.rawContent, BLOCK_OPTIONS).map(section => {
-            const block = Object.values(note.blocks).find(block => block.from === section.from && block.to === section.to);
+            const block = Object.values(note.blocks as Record<string, NoteBlock>).find(block => block.from === section.from && block.to === section.to);
             if (!block) return section;
             return { ...section, id: block.id, version: block.version,
                 scriptBlock: section.scriptBlock ? { ...section.scriptBlock, id: block.id, version: block.version } : undefined };
@@ -125,11 +120,7 @@ export class IndexedDBContentProvider implements IContentProvider {
     }
 
     async updateRecord(id: string, patch: NoteRecordPatch): Promise<HistoryRecord> {
-        const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
-        const resolved = await this.db.getNote(id)
-            ?? (rawId !== id ? await this.db.getNote(rawId) : undefined)
-            ?? await this.db.getNoteBySlug(id)
-            ?? (rawId !== id ? await this.db.getNoteBySlug(rawId) : undefined);
+        const resolved = await this.resolveStoredNote(id);
         if (!resolved) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${id}`);
         await this.db.withTransaction([...MUTATION_STORES], async scoped => {
             const note = await scoped.getNote(resolved.id);
@@ -278,13 +269,17 @@ export class IndexedDBContentProvider implements IContentProvider {
         return note.id;
     }
 
-    /** The stored note id behind an entry id — the canonical note route. */
-    private async resolveNoteId(id: string): Promise<string> {
+    /** Single locator resolver: UUID, composite id, playground/ prefix, or Page slug. */
+    private async resolveStoredNote(id: string): Promise<Note | undefined> {
         const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
-        const note = await this.db.getNote(id)
+        return await this.db.getNote(id)
             ?? (rawId !== id ? await this.db.getNote(rawId) : undefined)
             ?? await this.db.getNoteBySlug(id)
             ?? (rawId !== id ? await this.db.getNoteBySlug(rawId) : undefined);
+    }
+
+    private async resolveNoteId(id: string): Promise<string> {
+        const note = await this.resolveStoredNote(id);
         if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${id}`);
         return note.id;
     }

@@ -145,6 +145,11 @@ test.describe('Nav ladder — mobile (375px)', () => {
     await sheet.getByRole('button', { name: 'Three rules', exact: true }).click();
     await expect(sheet).toBeHidden();
     await expect(page).toHaveURL(/h=first-workout/);
+  });
+
+  test('browser Back dismisses the mobile drawer without navigating underneath it', async ({ page }) => {
+    await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
     await page.getByRole('button', { name: 'Open navigation' }).click();
     await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
     await page.goBack();

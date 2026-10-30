@@ -62,14 +62,16 @@ export function usePageScrollSync(currentNavLinks: PageNavLink[]): UsePageScroll
     // 1. Try standard DOM element (Canvas / List / Card pages).
     const el = findDomElement(id)
     if (el) {
+      const prev = el.style.scrollMarginTop
       const isMobileViewport = window.innerWidth < 1024
       const offset = isMobileViewport ? 75 : 96
-      const scrollTarget = () => {
+      el.style.scrollMarginTop = `${offset}px`
+      el.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+      requestAnimationFrame(() => { el.style.scrollMarginTop = prev })
+      if (typeof window.scrollTo === 'function') {
         const top = el.getBoundingClientRect().top + window.scrollY - offset
         window.scrollTo({ top: Math.max(0, top) })
       }
-      scrollTarget()
-      requestAnimationFrame(scrollTarget)
       return
     }
 
