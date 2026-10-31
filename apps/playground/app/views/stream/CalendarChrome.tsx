@@ -16,6 +16,7 @@ import { Button } from '@/components/atoms/primitives/button'
 import type { Entry } from '../../lib/entryMapper'
 import { entryOpenHref } from '../../lib/entryActions'
 import {
+  calendarNotebookKey,
   monthLabel,
   notebookAccent,
   shiftMonth,
@@ -104,12 +105,12 @@ export function calendarDayLabel(day: CalendarDay): string {
  * whole chip is the link to the entry.
  */
 export function CalendarEntryChip({ entry }: { entry: Entry }) {
-  const accent = notebookAccent(entry.sourceNotebook)
+  const accent = notebookAccent(calendarNotebookKey(entry))
   return (
     <Link
       to={entryOpenHref(entry)}
       className="flex min-h-6 items-center gap-1.5 rounded border border-border/60 bg-card px-1.5 py-0.5 text-[11px] text-foreground transition-colors hover:bg-muted/60"
-      title={`${entry.title} — ${entry.sourceNotebook}`}
+      title={`${entry.title} — ${calendarNotebookKey(entry)}`}
       data-testid="calendar-entry-chip"
     >
       <span className={`h-3 w-0.5 shrink-0 rounded-full ${accent.bar}`} aria-hidden />
@@ -147,7 +148,7 @@ export function CalendarUndatedShelf({ entries }: { entries: readonly Entry[] })
             className="inline-flex min-h-6 items-center gap-1.5 rounded border border-border/60 bg-card px-1.5 py-0.5 text-[11px]"
           >
             <span
-              className={`h-3 w-0.5 shrink-0 rounded-full ${notebookAccent(entry.sourceNotebook).bar}`}
+              className={`h-3 w-0.5 shrink-0 rounded-full ${notebookAccent(calendarNotebookKey(entry)).bar}`}
               aria-hidden
             />
             <span className="max-w-[16rem] truncate">{entry.title || 'Untitled'}</span>

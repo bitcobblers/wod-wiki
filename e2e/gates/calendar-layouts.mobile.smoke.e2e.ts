@@ -55,6 +55,36 @@ test('the planner layout renders on /notes at 375px without horizontal overflow'
   expect(overflow).toBe(0);
 });
 
+test('a planner cell starts a new entry on its own day, with a notebook target', async ({ page }) => {
+  await seedLayout(page, 'planner');
+  await page.goto('/notes?q=:note{}', { waitUntil: 'domcontentloaded' });
+  await waitForFeedReady(page);
+
+  await expect(page.getByTestId('calendar-planner-view')).toBeVisible();
+
+  // Every day cell carries a "+" that starts an entry on THAT day.
+  const addButton = page.getByTestId('calendar-planner-add-button').first();
+  await expect(addButton).toBeVisible();
+  const label = await addButton.getAttribute('aria-label');
+  await addButton.click();
+
+  // The dialog opens on the clicked day.
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  const expectedDate = label?.match(/Add an entry on (\w+) (\d+)/);
+  const opened = await page.locator('#journal-create-date').inputValue();
+  expect(opened).toBeTruthy();
+  // The date the dialog opens on is the date the button names.
+  const openedParts = opened.split('-');
+  expect(Number(openedParts[2])).toBe(Number(expectedDate?.[2]));
+
+  // The note can be targeted at any notebook the user owns — the journal is
+  // the default target.
+  const target = page.locator('[data-testid="journal-create-target-notebook"]');
+  await expect(target).toBeVisible();
+  await expect(target.locator('option').first()).toHaveText('Journal (no notebook)');
+});
+
 test('the layout picker offers the calendar layouts only where entries have dates', async ({ page }) => {
   await page.goto('/notes?q=:note{}', { waitUntil: 'domcontentloaded' });
   await waitForFeedReady(page);

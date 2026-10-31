@@ -9,6 +9,7 @@ import { describe, expect, it } from 'bun:test'
 import type { Entry } from './entryMapper'
 import {
   buildDayBuckets,
+  calendarNotebookKey,
   buildMonthAgenda,
   buildMonthGrid,
   buildMonthWeeks,
@@ -192,6 +193,21 @@ describe('densityLevel', () => {
     expect(densityLevel(1)).toBe(1)
     expect(densityLevel(2)).toBe(2)
     expect(densityLevel(5)).toBe(3)
+  })
+})
+
+describe('calendarNotebookKey', () => {
+  it('prefers the notebook the note belongs to over its source plane', () => {
+    // A dated note placed in a user notebook keeps the 'journal' SOURCE
+    // plane — the notebook is the truth for a calendar's color key.
+    expect(calendarNotebookKey(entry('a', {
+      sourceNotebook: 'journal',
+      notebookId: 'notebook/iron-pulls',
+    }))).toBe('iron-pulls')
+  })
+
+  it('falls back to the source plane for a note with no notebook', () => {
+    expect(calendarNotebookKey(entry('a', { sourceNotebook: 'girls' }))).toBe('girls')
   })
 })
 

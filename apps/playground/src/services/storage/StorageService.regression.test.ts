@@ -68,6 +68,30 @@ async function seedEventCorpus(service: StorageService): Promise<void> {
   ]);
 }
 
+describe('StorageService note title extraction', () => {
+  it('updates note.title from H1 heading in rawContent', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const initial = await service.saveNoteSource({
+      noteId: 'n-title',
+      rawContent: '# Initial Title\n\nBody',
+      expectedSourceRevision: 0,
+      blocks: {},
+      metadata: { title: 'Initial Title' },
+    });
+    expect(initial.title).toBe('Initial Title');
+
+    const updated = await service.saveNoteSource({
+      noteId: 'n-title',
+      rawContent: '# Edited Title\n\nBody',
+      expectedSourceRevision: initial.sourceRevision,
+      blocks: {},
+    });
+    expect(updated.title).toBe('Edited Title');
+    const retrieved = await service.getNote('n-title');
+    expect(retrieved?.title).toBe('Edited Title');
+  });
+});
+
 const sortedIds = (rows: EventRecord[]) => rows.map((r) => r.id).sort();
 
 describe('StorageService indexed event reads — parity across backends', () => {

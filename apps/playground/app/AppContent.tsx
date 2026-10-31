@@ -60,7 +60,7 @@ import { AnalyticsExplorerPage } from './views/analytics/AnalyticsExplorerPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { DashboardViewPage } from './views/dashboards/DashboardViewPage'
 import { PageActions } from './pages/shared/PageActions'
-import { routeSupportsCreation } from './pages/shared/NewEntryCombo'
+import { MobileNewEntryCombo, routeSupportsCreation } from './pages/shared/NewEntryCombo'
 import { PageDownloadAction, MobilePageOptionsRows } from './pages/shared/PageToolbar'
 import { mapIndexToL3 } from './pages/shared/pageUtils'
 import { useWorkoutItems, EMPTY_WOD_FILES } from './lib/workoutIndex'
@@ -373,7 +373,19 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
         subheader={subheader}
         index={view.shell.withIndex ? currentNavLinks : undefined}
         actions={view.shell.actionsMode
-          ? <PageActions mode={view.shell.actionsMode} currentWorkout={currentWorkout} index={currentNavLinks} />
+          ? (
+            <ResponsiveActions
+              primary={routeSupportsCreation(location.pathname) ? <MobileNewEntryCombo /> : undefined}
+              label="Page actions"
+            >
+              <PageActions
+                mode={view.shell.actionsMode}
+                currentWorkout={currentWorkout}
+                index={currentNavLinks}
+                showCreate={routeSupportsCreation(location.pathname)}
+              />
+            </ResponsiveActions>
+          )
           : undefined}
       >
         {inner}

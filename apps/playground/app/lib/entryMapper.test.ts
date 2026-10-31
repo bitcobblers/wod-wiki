@@ -119,6 +119,31 @@ describe('toEntry — guide entries', () => {
   })
 })
 
+describe('toEntry — journal post dates', () => {
+  it('reads a journal post\'s row date as the day it belongs to', () => {
+    // The create path stamps the local midnight of the chosen day; the row
+    // date IS the journal day. A note written for Oct 22 must not be listed
+    // on the day it was typed.
+    const entry = toEntry(makeNote({
+      id: 'journal-1',
+      type: 'journal',
+      date: new Date(2026, 9, 22).getTime(),
+      createdAt: new Date(2026, 9, 31).getTime(),
+    }))
+    expect(entry.date).toBe('2026-10-22')
+  })
+
+  it('leaves a collection member on its creation day — its row date is the workout\'s own', () => {
+    const entry = toEntry(makeNote({
+      id: 'collection-1',
+      type: 'note',
+      date: new Date(2010, 2, 20).getTime(),
+      createdAt: new Date(2026, 9, 9).getTime(),
+    }))
+    expect(entry.date).toBe('2026-10-09')
+  })
+})
+
 describe('toEntry — kind discrimination', () => {
   it('classifies a journal note (no sourceId) as Note', () => {
     const entry = toEntry(makeNote())

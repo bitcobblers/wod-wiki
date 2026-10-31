@@ -11,12 +11,14 @@
  * The planner never shows LESS of the month than the agenda does.
  */
 import { useMemo } from 'react'
-import { CalendarIcon } from 'lucide-react'
+import { CalendarIcon, Plus } from 'lucide-react'
 import type { Entry } from '../../lib/entryMapper'
 import {
   buildDayBuckets,
   buildMonthWeeks,
+  calendarNotebookKey,
   notebookAccent,
+  shortMonthLabel,
   WEEKDAY_SHORT,
   type CalendarDay,
   type CalendarWeek,
@@ -42,23 +44,45 @@ export interface CalendarPlannerViewProps {
   /** User-owned notebooks a note can move into, and the handler. */
   moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
   onMoveNotebook?: (entry: Entry, notebookId: string) => void
+  /**
+   * Start a new entry on a given day — the board's empty space and its "+"
+   * button both call this. The host opens the new-note dialog for that date.
+   */
+  onCreateOnDay?: (dateKey: string) => void
 }
 
 /** How many entries one board cell shows before it counts the rest. */
 const CELL_ENTRY_LIMIT = 3
 
-/** One day cell of the board: the date, its entries, and its count. */
-function PlannerCell({ day }: { day: CalendarDay }) {
+/**
+ * One day cell of the board: the date, its entries, and its count.
+ *
+ * The EMPTY SPACE of a cell is a create affordance — clicking it starts a
+ * new entry on that day, which is how a planner is actually used ("this
+ * Thursday is free, put something there"). The explicit "+" button says so
+ * without a hover; the cell-wide target does it with one tap.
+ */
+function PlannerCell({ day, onCreateOnDay }: { day: CalendarDay; onCreateOnDay: (dateKey: string) => void }) {
   const shown = day.entries.slice(0, CELL_ENTRY_LIMIT)
   const hidden = day.entries.length - shown.length
+  const label = `${shortMonthLabel(day.date)} ${day.dayOfMonth}`
   return (
     <div
-      className={`flex min-h-[5.5rem] min-w-0 flex-col gap-1 border-l border-border/50 p-1.5 first:border-l-0 ${
+      className={`group/cell relative flex min-h-[5.5rem] min-w-0 flex-col gap-1 border-l border-border/50 p-1.5 first:border-l-0 ${
         day.inMonth ? '' : 'bg-muted/40'
       }`}
       data-testid="calendar-planner-cell"
     >
-      <div className="flex items-baseline gap-1">
+      {/* The cell-wide target sits UNDER the content, so an entry chip keeps
+          its own click and the empty space belongs to the calendar. */}
+      <button
+        type="button"
+        onClick={() => onCreateOnDay(day.key)}
+        className="absolute inset-0 h-full w-full cursor-pointer"
+        aria-label={`Add an entry on ${label}`}
+        data-testid="calendar-planner-cell-add"
+      />
+      <div className="pointer-events-none relative flex items-baseline gap-1">
         <span
           className={`font-mono text-[11px] font-bold ${
             day.isToday ? 'text-primary' : day.inMonth ? 'text-foreground' : 'text-muted-foreground/50'
@@ -71,22 +95,42 @@ function PlannerCell({ day }: { day: CalendarDay }) {
             Today
           </span>
         )}
+        <button
+          type="button"
+          onClick={() => onCreateOnDay(day.key)}
+          className="pointer-events-auto ml-auto grid size-5 place-items-center rounded text-muted-foreground/60 transition-colors hover:bg-muted hover:text-primary"
+          aria-label={`Add an entry on ${label}`}
+          title="Add an entry on this day"
+          data-testid="calendar-planner-add-button"
+        >
+          <Plus className="size-3" aria-hidden />
+        </button>
         {day.entries.length > 0 && (
-          <span className="ml-auto font-mono text-[9px] text-muted-foreground">{day.entries.length}</span>
+          <span className="font-mono text-[9px] text-muted-foreground">{day.entries.length}</span>
         )}
       </div>
-      {shown.map(entry => (
-        <CalendarEntryChip key={entry.id} entry={entry} />
-      ))}
-      {hidden > 0 && (
-        <span className="px-1 text-[10px] font-medium text-muted-foreground">+{hidden} more</span>
-      )}
+      <div className="pointer-events-none relative flex flex-col gap-1">
+        {shown.map(entry => (
+          <span key={entry.id} className="pointer-events-auto">
+            <CalendarEntryChip entry={entry} />
+          </span>
+        ))}
+        {hidden > 0 && (
+          <span className="px-1 text-[10px] font-medium text-muted-foreground">+{hidden} more</span>
+        )}
+      </div>
     </div>
   )
 }
 
 /** One week row of the board: the week label and its seven day cells. */
-function PlannerWeek({ week }: { week: CalendarWeek }) {
+function PlannerWeek({
+  week,
+  onCreateOnDay,
+}: {
+  week: CalendarWeek
+  onCreateOnDay: (dateKey: string) => void
+}) {
   return (
     <div
       className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-t border-border/60"
@@ -99,7 +143,7 @@ function PlannerWeek({ week }: { week: CalendarWeek }) {
         </span>
       </div>
       {week.days.map(day => (
-        <PlannerCell key={day.key} day={day} />
+        <PlannerCell key={day.key} day={day} onCreateOnDay={onCreateOnDay} />
       ))}
     </div>
   )
@@ -117,6 +161,7 @@ function PlannerPhone({
   onRunStart,
   moveNotebookTargets,
   onMoveNotebook,
+  onCreateOnDay,
 }: {
   weeks: CalendarWeek[]
   visibleFieldIds?: readonly string[]
@@ -124,6 +169,7 @@ function PlannerPhone({
   onRunStart?: (entry: Entry) => void
   moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
   onMoveNotebook?: (entry: Entry, notebookId: string) => void
+  onCreateOnDay: (dateKey: string) => void
 }) {
   const weeksWithEntries = weeks.filter(week => week.days.some(day => day.entries.length > 0))
   if (weeksWithEntries.length === 0) {
@@ -164,15 +210,25 @@ function PlannerPhone({
                       Today
                     </span>
                   )}
-                  <span className="ml-auto flex items-center gap-1">
+                  <span className="ml-auto flex items-center gap-1.5">
                     {day.entries.slice(0, 4).map(entry => (
                       <span
                         key={entry.id}
-                        className={`size-1.5 rounded-full ${notebookAccent(entry.sourceNotebook).bar}`}
+                        className={`size-1.5 rounded-full ${notebookAccent(calendarNotebookKey(entry)).bar}`}
                         title={entry.title}
                         aria-hidden
                       />
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => onCreateOnDay(day.key)}
+                      className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                      aria-label={`Add an entry on ${WEEKDAY_SHORT[(day.date.getDay() + 6) % 7]} ${day.dayOfMonth}`}
+                      title="Add an entry on this day"
+                      data-testid="calendar-planner-add-button"
+                    >
+                      <Plus className="size-3.5" aria-hidden />
+                    </button>
                   </span>
                 </div>
                 <div className="divide-y divide-border/30">
@@ -204,6 +260,7 @@ export function CalendarPlannerView({
   onRunStart,
   moveNotebookTargets,
   onMoveNotebook,
+  onCreateOnDay,
 }: CalendarPlannerViewProps) {
   const isMobile = useIsMobile()
   const nav = useCalendarMonth()
@@ -237,6 +294,7 @@ export function CalendarPlannerView({
           onRunStart={onRunStart}
           moveNotebookTargets={moveNotebookTargets}
           onMoveNotebook={onMoveNotebook}
+          onCreateOnDay={onCreateOnDay ?? (() => {})}
         />
       ) : (
         <div className="flex-1 overflow-x-auto pb-6">
@@ -253,7 +311,7 @@ export function CalendarPlannerView({
               ))}
             </div>
             {weeks.map(week => (
-              <PlannerWeek key={week.label} week={week} />
+              <PlannerWeek key={week.label} week={week} onCreateOnDay={onCreateOnDay ?? (() => {})} />
             ))}
           </div>
         </div>

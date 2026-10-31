@@ -18,6 +18,7 @@
 - `queryService` (`apps/playground/src/services/queryService.ts`). Executes WQL queries against IndexedDB fact stores.
 - `routeWqlConfig` (`apps/playground/app/lib/routeWqlConfig.ts`). Stores the user's per-surface query configuration (landing default, scope and Group-By favorites), edited in the page's own query settings.
 - `viewSettingsStorage` (`apps/playground/app/lib/viewSettingsStorage.ts`). Persists layout mode (Cards, Feed, Rows, Agenda, Planner) and visible fields.
+- `CreateJournalNoteDialog` (`apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx`). The new-note sheet: date, title, and a **Place in** target — the journal (default) or any notebook the user owns.
 
 ### Hooks
 - `useComposerQueryState` (`apps/playground/app/hooks/useComposerQueryState.ts`). Synchronizes WQL query drafts with URL parameters.

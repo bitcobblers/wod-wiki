@@ -68,7 +68,9 @@ const UNIVERSAL_KINDS: NewEntryKind[] = ['journal', 'playground', 'notebook', 'e
 
 /** Creation is a library/collection capability, never a detail-page fallback. */
 export function routeSupportsCreation(pathname: string): boolean {
-  return /^\/(?:journal|playgrounds|notebooks|pages|efforts|equipment|dashboards)\/?$/.test(pathname)
+  // ponytail: literal '/' match; upgrade to normalized path regex if home gains subpath aliases.
+  return pathname === '/'
+    || /^\/(?:journal|playgrounds|notebooks|pages|efforts|equipment|dashboards)\/?$/.test(pathname)
     || /^\/notebook\/[^/]+\/?$/.test(pathname)
 }
 
@@ -117,18 +119,20 @@ export function NewEntryCombo() {
     if (!context.notebookSlug) return
     void notebookService.getAllNotebooks().then(notebooks => {
       if (!cancelled) {
-        setNotebookOrigin(notebooks.find(notebook => notebook.slug === context.notebookSlug)?.origin ?? 'feed')
+        const found = notebooks.find(notebook => notebook.slug === context.notebookSlug)
+        setNotebookOrigin(found ? found.origin : 'user')
       }
     }).catch(() => {
-      if (!cancelled) setNotebookOrigin('feed')
+      if (!cancelled) setNotebookOrigin('user')
     })
     return () => { cancelled = true }
   }, [context.notebookSlug])
 
   const cloneCurrentNotebook = async (notebookSlug: string) => {
-    const source = (await notebookService.getAllNotebooks()).find(notebook => notebook.slug === notebookSlug)
-    if (!source) throw new Error(`Notebook not found: ${notebookSlug}`)
-    const clone = await notebookService.create(`${source.name} copy`, source.description ?? '', source.icon ?? '📓')
+    const notebooks = await notebookService.getAllNotebooks()
+    const source = notebooks.find(notebook => notebook.slug === notebookSlug)
+    const name = source?.name ?? notebookSlug
+    const clone = await notebookService.create(`${name} copy`, source?.description ?? '', source?.icon ?? '📓')
     const notes = await notebookService.listNotes(notebookSlug)
     for (const note of notes) {
       await notebookService.cloneNote(note.id, clone.slug)

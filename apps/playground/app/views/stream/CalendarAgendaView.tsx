@@ -15,6 +15,7 @@
  * Cards layout offers (Open, Run, Add to today, Move notebook).
  */
 import { useMemo } from 'react'
+import { Plus } from 'lucide-react'
 import type { Entry } from '../../lib/entryMapper'
 import {
   buildDayBuckets,
@@ -47,10 +48,23 @@ export interface CalendarAgendaViewProps {
   /** User-owned notebooks a note can move into, and the handler. */
   moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
   onMoveNotebook?: (entry: Entry, notebookId: string) => void
+  /**
+   * Start a new entry on a given day — the day header's "+" calls this. The
+   * host opens the new-note dialog for that date.
+   */
+  onCreateOnDay?: (dateKey: string) => void
 }
 
 /** The calendar-shaped day header: weekday over a big day number. */
-function AgendaDayHeader({ day, top }: { day: CalendarDay; top: number }) {
+function AgendaDayHeader({
+  day,
+  top,
+  onCreateOnDay,
+}: {
+  day: CalendarDay
+  top: number
+  onCreateOnDay: (dateKey: string) => void
+}) {
   const weekday = WEEKDAY_SHORT[(day.date.getDay() + 6) % 7]
   return (
     <div
@@ -76,6 +90,16 @@ function AgendaDayHeader({ day, top }: { day: CalendarDay; top: number }) {
       <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
         {day.entries.length} {day.entries.length === 1 ? 'entry' : 'entries'}
       </span>
+      <button
+        type="button"
+        onClick={() => onCreateOnDay(day.key)}
+        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+        aria-label={`Add an entry on ${shortMonthLabel(day.date)} ${day.dayOfMonth}`}
+        title="Add an entry on this day"
+        data-testid="calendar-agenda-add-button"
+      >
+        <Plus className="size-3.5" aria-hidden />
+      </button>
     </div>
   )
 }
@@ -130,6 +154,7 @@ export function CalendarAgendaView({
   onRunStart,
   moveNotebookTargets,
   onMoveNotebook,
+  onCreateOnDay,
 }: CalendarAgendaViewProps) {
   const nav = useCalendarMonth()
   const buckets = useMemo(() => buildDayBuckets(entries), [entries])
@@ -165,7 +190,7 @@ export function CalendarAgendaView({
         <div className="flex-1 pb-6">
           {agenda.map(day => (
             <section key={day.key}>
-              <AgendaDayHeader day={day} top={stickyOffset} />
+              <AgendaDayHeader day={day} top={stickyOffset} onCreateOnDay={onCreateOnDay ?? (() => {})} />
               <div className="divide-y divide-border/30">
                 {day.entries.map(entry => (
                   <LibraryRow

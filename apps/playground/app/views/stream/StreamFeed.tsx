@@ -194,16 +194,13 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
               const notebookHref = entryNotebookHref(entry)
               const sendToPlayground = !entryIsPlayground(entry) && entry.kind === 'note'
               const canAdd = entryCanAddToToday(entry) && !!onAddToToday
-              // Same rule as the cards/table RowActions: a note in a user-owned
-              // notebook can move between user-owned notebooks; journal notes
-              // stay put, feed-delivered notebooks are read-only.
-              const moveTargets = moveNotebookTargets?.filter((target) => target.id !== entry.notebookId) ?? []
+              // Notes can move between user-owned notebooks or in/out of Journal.
+              const currentNotebookId = entry.notebookId ?? 'notebook/journal'
+              const moveTargets = moveNotebookTargets?.filter((target) => target.id !== currentNotebookId) ?? []
               const moveable = !!onMoveNotebook
                 && entry.kind === 'note'
-                && !!entry.notebookId
-                && entry.notebookId !== 'notebook/journal'
+                && (entry.editable ?? true)
                 && moveTargets.length > 0
-
               return (
                 <article key={entry.id} data-testid="stream-feed-item" className="px-6 py-4">
                   <div className="flex items-start gap-3">

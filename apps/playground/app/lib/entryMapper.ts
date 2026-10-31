@@ -371,6 +371,15 @@ function toEntryBase(note: Note): Entry {
     journalDate = note.journalDate
   } else if ('date' in note && typeof note.date === 'string') {
     journalDate = note.date
+  } else if (note.type === 'journal' && 'date' in note && typeof note.date === 'number' && Number.isFinite(note.date)) {
+    // A journal post's row carries the day it BELONGS to: the create path
+    // stamps the local midnight of the chosen day, the same convention the
+    // notebook corpus uses. Without this the note falls through to its
+    // CREATION time — a note written for Oct 22 would be listed on the day
+    // it was typed, not the day it is about. Only journal posts read their
+    // row date: a collection member's date is the workout's own date, not a
+    // placement.
+    journalDate = formatDateKey(new Date(note.date))
   } else if ('targetDate' in note && Boolean(note.targetDate) && (typeof note.targetDate === 'number' || typeof note.targetDate === 'string')) {
     journalDate = formatDateKey(new Date(note.targetDate))
   } else if (note.createdAt) {

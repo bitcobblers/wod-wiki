@@ -161,7 +161,14 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
       setEntry(prev => prev ? { ...prev, rawContent: nextContent } : prev);
     },
     onSavedRecord: (saved) => {
-      setEntry(prev => prev ? { ...prev, rawContent: saved.rawContent, blocks: saved.blocks, sourceRevision: saved.sourceRevision } : prev);
+      const headingMatch = saved.rawContent.match(/^#\s+(.+)$/m);
+      setEntry(prev => prev ? {
+        ...prev,
+        rawContent: saved.rawContent,
+        blocks: saved.blocks,
+        sourceRevision: saved.sourceRevision,
+        ...(headingMatch ? { title: headingMatch[1].trim() } : {}),
+      } : prev);
     },
   });
   flushRef.current = draft.flush;

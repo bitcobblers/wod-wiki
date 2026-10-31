@@ -72,12 +72,15 @@ export function useNoteDraft({
   }, [onSavedRecord]);
 
   const save = useCallback(async (snapshot: EditorIdentitySnapshot) => {
+    const headingMatch = snapshot.rawContent.match(/^#\s+(.+)$/m);
+    const derivedTitle = headingMatch ? headingMatch[1].trim() : metadata?.title;
+    const effectiveMetadata = { ...metadata, ...(derivedTitle ? { title: derivedTitle } : {}) };
     const updated = await notePersistence.saveNote({
       noteId,
       rawContent: snapshot.rawContent,
       blocks: snapshot.blocks,
       expectedSourceRevision: committedRevisionRef.current,
-      metadata,
+      metadata: effectiveMetadata,
       noteType,
     });
     const snapshotSaved: EditorIdentitySnapshot = {
@@ -89,7 +92,6 @@ export function useNoteDraft({
     setActionError(null);
     return snapshotSaved;
   }, [noteId, metadata, noteType, accept]);
-
   const saves = useEditorSave<EditorIdentitySnapshot>({
     onSave: async snapshot => { await save(snapshot); },
     getSnapshotKey: snapshot => JSON.stringify([snapshot.rawContent, Object.values(snapshot.blocks).map(b => [b.id, b.from, b.to, b.kind, b.dialect, b.sport])]),

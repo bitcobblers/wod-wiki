@@ -169,6 +169,20 @@ Open questions for the verdict:
    picker hides the Cal option elsewhere — otherwise the user picks Cal on
    `/efforts` and gets an empty grid.
 
+## 4a. What the shipped version added
+
+The verdict's two views shipped, and the planner grew a create affordance: the
+empty space of a day cell (and an explicit "+") starts a new entry on that
+day, with the new-note dialog's **Place in** field targeting any notebook the
+user owns.
+
+One bug the build surfaced: a note created for a day landed on the day it was
+TYPED, not the day it was ABOUT — `toEntry` ignored a journal post's row date
+and fell through to `createdAt`. The row date of a journal post IS its journal
+day (the create path stamps the local midnight of the chosen day), so the
+mapper now reads it. Collection members keep the old rule: their row date is
+the workout's own date, not a placement.
+
 ## 5. Implementation map (if approved)
 
 Everything below is a clean cutover — no shims.

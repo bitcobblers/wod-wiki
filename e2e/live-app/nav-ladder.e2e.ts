@@ -77,7 +77,6 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     // Journal view chrome: create action, landing, and the two view rows.
     await expect(sidebar.getByRole('button', { name: 'New journal entry' })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'Journal', exact: true })).toBeVisible();
-    await expect(sidebar.getByRole('button', { name: 'Playgrounds', exact: true })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'All entries', exact: true })).toBeVisible();
   });
 
@@ -85,7 +84,7 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
     const sidebar = page.getByRole('navigation', { name: 'Main' });
-    await expect(sidebar.getByRole('button', { name: 'All notebooks', exact: true })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Subscribed notebooks', exact: true })).toBeVisible();
     // The landing offers no journal/playgrounds create actions.
     await expect(sidebar.getByRole('button', { name: 'New journal entry' })).toHaveCount(0);
     await expect(sidebar.getByRole('button', { name: 'New playground' })).toHaveCount(0);
@@ -115,19 +114,24 @@ test.describe('Nav ladder — mobile (375px)', () => {
 
     // Open Notebooks: the L2 panel offers Playgrounds and Subscribed notebooks.
     await primary.getByRole('button', { name: 'Notebooks', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Open navigation' }).click();
     await expect(drawer.getByRole('button', { name: 'Playgrounds', exact: true })).toBeVisible();
     await expect(drawer.getByRole('button', { name: 'Subscribed notebooks', exact: true })).toBeVisible();
-
     // Primary rail Journal button navigates to /journal and dismisses the drawer
     await primary.getByRole('button', { name: 'Journal', exact: true }).click();
     await expect(page).toHaveURL(/\/journal(?:\?.*)?$/);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: 'Open navigation' }).click();
     await expect(drawer.getByRole('button', { name: 'New journal entry' })).toBeVisible({ timeout: 15_000 });
     await expect(drawer.getByRole('button', { name: 'All entries', exact: true })).toBeVisible();
-
-    // Playgrounds view: own route and own chrome.
+    // Playgrounds view: reachable through Notebooks L1.
+    await primary.getByRole('button', { name: 'Notebooks', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Open navigation' }).click();
     await drawer.getByRole('button', { name: 'Playgrounds', exact: true }).click();
     await expect(page).toHaveURL(/\/playgrounds(?:\?.*)?$/);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: 'Open navigation' }).click();
     await expect(drawer.getByRole('button', { name: 'New playground' })).toBeVisible({ timeout: 15_000 });
     await expect(drawer.getByRole('button', { name: 'All playgrounds', exact: true })).toBeVisible();
@@ -140,7 +144,7 @@ test.describe('Nav ladder — mobile (375px)', () => {
     await page.goto('/page/guide-start', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
     await page.getByTestId('actions-overflow').click();
-    const sheet = page.getByRole('dialog', { name: 'Page options' });
+    const sheet = page.getByRole('dialog');
     await expect(sheet).toBeVisible();
     await sheet.getByRole('button', { name: 'Three rules', exact: true }).click();
     await expect(sheet).toBeHidden();

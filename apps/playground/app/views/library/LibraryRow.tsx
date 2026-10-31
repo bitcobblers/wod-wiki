@@ -244,16 +244,13 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
   const notebookHref = entryNotebookHref(entry)
   const canAdd = entryCanAddToToday(entry) && !!onAddToToday
   const canRun = entryCanRun(entry) && !!onRunStart
-  // A note in a user-owned notebook can move between user-owned notebooks
-  // (feed-delivered notebooks are read-only; move targets already exclude
-  // them). Journal notes stay put — the journal is their notebook.
+  // Notes can move between user-owned notebooks or in/out of Journal.
+  const currentNotebookId = entry.notebookId ?? 'notebook/journal'
+  const targets = moveNotebookTargets?.filter((target) => target.id !== currentNotebookId) ?? []
   const moveable = !!onMoveNotebook
     && entry.kind === 'note'
-    && !!entry.notebookId
-    && entry.notebookId !== 'notebook/journal'
-    && !!moveNotebookTargets?.length
-  const targets = moveNotebookTargets?.filter((target) => target.id !== entry.notebookId) ?? []
-
+    && (entry.editable ?? true)
+    && targets.length > 0
   return (
     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
       <ActionButton title={notebookHref ? "Details" : "Open"} testId="action-open" onClick={() => navigate(entryOpenHref(entry))}>

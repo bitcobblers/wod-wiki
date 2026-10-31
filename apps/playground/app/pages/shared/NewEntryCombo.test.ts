@@ -4,6 +4,7 @@ import { resolveNewEntryRoute, routeSupportsCreation, type NewEntryKind } from '
 
 describe('resolveNewEntryRoute', () => {
   it.each<[string, NewEntryKind]>([
+    ['/', 'journal'],
     ['/journal', 'journal'],
     ['/day/2026-10-28', 'journal'],
     ['/playgrounds', 'playground'],
@@ -32,6 +33,7 @@ describe('resolveNewEntryRoute', () => {
 
 describe('routeSupportsCreation', () => {
   it.each([
+    '/',
     '/journal',
     '/playgrounds',
     '/notebooks',

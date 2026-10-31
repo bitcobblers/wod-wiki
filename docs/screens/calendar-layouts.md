@@ -67,7 +67,28 @@ much of the set is in view (`1643 of 1643 dated entries in October 2026`), so
 a narrower month never reads as a smaller library. The WQL date window in the
 L3 rail stays the user's way to bound the corpus.
 
-## 6. Mobile
+## 6. Starting an entry on a day
+
+A calendar is a planning surface, so both layouts START entries:
+
+- **Planner** — the empty space of a day cell is a create target (the cell's
+  own button sits UNDER the content, so an entry chip keeps its click), and
+  every cell carries an explicit **"+"**.
+- **Agenda** — each day header carries the same **"+"**.
+
+Both open the new-note dialog on the clicked day. The dialog's **Place in**
+field targets the note at any notebook the user owns (the journal is the
+default) — the note is created on that day and then placed in that notebook,
+exactly as the "Move to notebook" action does, so the date it was created with
+is preserved.
+
+A note's day is its PLACEMENT (the date page it sits on) and its row date.
+`toEntry` reads a journal post's row date — the local midnight of the chosen
+day the create path stamps — so a note written for Oct 22 is listed on Oct 22,
+not on the day it was typed. Collection members keep the old rule (their row
+date is the workout's own date, not a placement).
+
+## 7. Mobile
 
 The house mobile contract, and how these layouts honour it:
 

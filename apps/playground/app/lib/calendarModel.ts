@@ -239,6 +239,20 @@ export function densityLevel(count: number): 0 | 1 | 2 | 3 {
 // ── Notebook identity ──────────────────────────────────────────────────────
 
 /**
+ * The notebook an entry belongs to — its SLUG.
+ *
+ * `Entry.sourceNotebook` is the entry's SOURCE PLANE ('journal' for every
+ * dated note, whatever notebook it was placed in), so it cannot key a color.
+ * `Entry.notebookId` is the truth (`notebook/<slug>`). A note with no
+ * notebook (a plain journal note) falls back to its source plane.
+ */
+export function calendarNotebookKey(entry: Entry): string {
+  const notebookId = entry.notebookId
+  if (notebookId) return notebookId.replace(/^notebook\//, '')
+  return entry.sourceNotebook
+}
+
+/**
  * The notebook accent — the color a notebook wears in the calendar.
  *
  * Same hue families as the library's monogram covers

@@ -5,6 +5,7 @@ import { storageService } from '@/services/storage'
 import { notebookService } from '@/services/NotebookService'
 import { getScriptNotebooks, type ScriptNotebook } from '@/repositories/script-notebooks'
 import type { HistoryRecord } from '@/types/history'
+import type { Notebook } from '@/types/notebook'
 
 import { formatDateHeader } from '../../../lib/dateFormat'
 import { getTodayDateKey } from '../../../services/dateUtils'
@@ -69,13 +70,20 @@ export function CreateJournalNoteDialog({
 
   const [notebookNoteId, setNotebookNoteId] = useState('')
   const [sourceGroupId, setSourceGroupId] = useState('')
-  const [sourceNotePath, setSourceItemPath] = useState('')
+  const [sourceItemPath, setSourceItemPath] = useState('')
+
+  // The TARGET notebook — where the new note lands. '' = the journal.
+  const [targetNotebookId, setTargetNotebookId] = useState('')
+  const [targetNotebooks, setTargetNotebooks] = useState<Notebook[] | null>(null)
+  const [targetNotebooksError, setTargetNotebooksError] = useState<string | null>(null)
+  const targetsReq = useRef(0)
 
   // Fresh form (and invalidated lists) on every open.
   useEffect(() => {
     if (!open) return
     templatesReq.current++
     sourcesReq.current++
+    targetsReq.current++
     setMode(defaultMode)
     setDate(defaultDate && parseJournalDate(defaultDate) ? defaultDate : getTodayDateKey())
     setCreating(false)
@@ -83,11 +91,33 @@ export function CreateJournalNoteDialog({
     setNotebookNoteId('')
     setSourceGroupId('')
     setSourceItemPath('')
+    setTargetNotebookId('')
+    setTargetNotebooks(null)
+    setTargetNotebooksError(null)
     setNotebookNotes(null)
     setNotebookNotesError(null)
     setSources(null)
     setSourcesError(null)
   }, [open, defaultDate])
+
+  // The user's OWN notebooks are the only writable targets — a feed-delivered
+  // notebook is read-only, so offering it would hand the user a note they
+  // cannot edit.
+  useEffect(() => {
+    if (!open) return
+    const token = ++targetsReq.current
+    notebookService
+      .getAll()
+      .then(notebooks => {
+        if (targetsReq.current === token) setTargetNotebooks(notebooks)
+      })
+      .catch(() => {
+        if (targetsReq.current === token) setTargetNotebooksError('Could not load your notebooks.')
+      })
+    return () => {
+      targetsReq.current++
+    }
+  }, [open])
 
   const loadNotebookNotes = () => {
     const token = ++templatesReq.current
@@ -155,7 +185,7 @@ export function CreateJournalNoteDialog({
 
   // path is the stable unique key (feed filenames repeat across dates).
   const activeItem = activeGroup
-    ? activeGroup.group.items.find(i => i.path === sourceNotePath) ?? null
+    ? activeGroup.group.items.find(i => i.path === sourceItemPath) ?? null
     : null
 
   const dateParsed = parseJournalDate(date)
@@ -210,10 +240,20 @@ export function CreateJournalNoteDialog({
     setSubmitError(null)
     try {
       const entry = await journalNotes.create(input)
+      // The note is born a dated journal note; placing it in a notebook is
+      // the SAME move the "Move to notebook" action performs, so the date it
+      // was created with is preserved and the note stays on its day.
+      if (targetNotebookId) {
+        await notebookService.moveNote(entry.id, targetNotebookId)
+      }
       onCreated?.(entry)
       onOpenChange(false)
-    } catch {
-      setSubmitError('Could not create the note. Your input is kept — try again.')
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error && err.message.includes('read-only')
+          ? 'That notebook is read-only. Choose another one — your input is kept.'
+          : 'Could not create the note. Your input is kept — try again.',
+      )
     } finally {
       inFlight.current = false
       setCreating(false)
@@ -343,7 +383,7 @@ export function CreateJournalNoteDialog({
                   </label>
                   <select
                     id="journal-create-source-item"
-                    value={sourceNotePath}
+                    value={sourceItemPath}
                     onChange={e => setSourceItemPath(e.target.value)}
                     disabled={!activeGroup || creating}
                     className={fieldClass}
@@ -377,6 +417,37 @@ export function CreateJournalNoteDialog({
             className={fieldClass}
           />
           {dateInvalid && <p className="text-sm text-destructive">Enter a valid date (YYYY-MM-DD).</p>}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="journal-create-target-notebook" className="text-sm font-medium">
+            Place in
+          </label>
+          {targetNotebooksError ? (
+            <p className="flex min-h-11 items-center text-sm text-destructive">{targetNotebooksError}</p>
+          ) : (
+            <select
+              id="journal-create-target-notebook"
+              value={targetNotebookId}
+              onChange={e => setTargetNotebookId(e.target.value)}
+              disabled={creating}
+              className={fieldClass}
+              data-testid="journal-create-target-notebook"
+            >
+              <option value="">Journal (no notebook)</option>
+              {targetNotebooks?.map(nb => (
+                <option key={nb.notebookId} value={nb.notebookId}>
+                  {nb.icon ? `${nb.icon} ` : ''}
+                  {nb.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {targetNotebooks !== null && targetNotebooks.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              You have no notebooks yet — the note goes to your journal.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">

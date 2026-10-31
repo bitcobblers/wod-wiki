@@ -75,6 +75,7 @@ import { withoutWindow, withGroupBy } from '../../lib/wqlEdits'
 import { LibraryRow } from '../library/LibraryRow'
 import { PropertyTable } from './PropertyTable'
 import { StreamFeed } from './StreamFeed'
+import { CreateJournalNoteDialog } from '../../components/organisms/journal/CreateJournalNoteDialog'
 import { CalendarAgendaView } from './CalendarAgendaView'
 import { CalendarPlannerView } from './CalendarPlannerView'
 import { journalNotes } from '../../services/journalNotes'
@@ -305,6 +306,10 @@ export function QueriableStreamView({
   const [querySettingsOpen, setQuerySettingsOpen] = useState(false)
 
   const [entries, setEntries] = useState<Entry[]>([])
+
+  // The calendar layouts start a new entry on a given day; the dialog lives
+  // here so the calendar never owns a creation flow of its own.
+  const [createOnDate, setCreateOnDate] = useState<string | null>(null)
   // The run's own stage counts (scope population vs matches) — captured from
   // the engine's stage callback, never a second scan.
   const [stages, setStages] = useState<{ selected: number; matched: number } | undefined>(undefined)
@@ -1215,6 +1220,7 @@ export function QueriableStreamView({
             onRunStart={handleRunEntry}
             moveNotebookTargets={moveNotebookTargets}
             onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
+            onCreateOnDay={setCreateOnDate}
           />
         </div>
       ) : layout === 'planner' ? (
@@ -1226,6 +1232,7 @@ export function QueriableStreamView({
             onRunStart={handleRunEntry}
             moveNotebookTargets={moveNotebookTargets}
             onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
+            onCreateOnDay={setCreateOnDate}
           />
         </div>
       ) : layout === 'feed' ? (
@@ -1339,6 +1346,22 @@ export function QueriableStreamView({
           ) : null}
         </div>
       )}
+
+      {/* The calendar layouts start a new entry on a day — the dialog opens
+          with that date, and the user picks the notebook it lands in. */}
+      <CreateJournalNoteDialog
+        open={createOnDate !== null}
+        onOpenChange={open => {
+          if (!open) setCreateOnDate(null)
+        }}
+        defaultDate={createOnDate ?? undefined}
+        onCreated={() => {
+          // The new note is in the vault — re-run the query so the calendar
+          // shows it on its day without a reload.
+          setSavedTick(t => t + 1)
+        }}
+      />
+
       {/* ponytail: L3 controls (filters, layout, visible fields, grouping) live in L3 (SecondaryNav) */}
     </div>
   )

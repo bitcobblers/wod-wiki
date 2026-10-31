@@ -94,10 +94,30 @@ export class NotebookService {
     /** The user's own notebooks — one landing note each, registry order = creation. */
     async getAll(): Promise<Notebook[]> {
         const notes = await this.store.getAllNotes();
-        return notes
-            .filter(isNotebookLanding)
-            .sort((a, b) => a.createdAt - b.createdAt)
-            .map(landingToNotebook);
+        const landings = notes.filter(isNotebookLanding);
+        const landingSlugs = new Set(landings.map((n) => n.id.slice('notebook/'.length)));
+        const userNotebooks = landings.map(landingToNotebook);
+
+        for (const note of notes) {
+            if (note.notebookId?.startsWith('notebook/')) {
+                const slug = note.notebookId.slice('notebook/'.length);
+                if (slug && !RESERVED_SLUGS.has(slug) && !landingSlugs.has(slug)) {
+                    landingSlugs.add(slug);
+                    userNotebooks.push({
+                        id: note.notebookId,
+                        slug,
+                        notebookId: toNotebookId(slug),
+                        name: slug,
+                        description: '',
+                        icon: '📓',
+                        origin: 'user',
+                        createdAt: note.createdAt,
+                    });
+                }
+            }
+        }
+
+        return userNotebooks.sort((a, b) => a.createdAt - b.createdAt);
     }
 
     async getById(id: string): Promise<Notebook | null> {

@@ -747,7 +747,10 @@ export class StorageService implements NotePersistenceStorage {
         });
       const sourceRevision = (previous?.sourceRevision ?? 0) + (sourceChanged ? 1 : 0);
       for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
-      const note: Note = { ...previous, id: input.noteId, title: input.metadata?.title ?? previous?.title ?? '',
+      const headingMatch = input.rawContent.match(/^#\s+(.+)$/m);
+      const headingTitle = headingMatch ? headingMatch[1].trim() : undefined;
+      const noteTitle = input.metadata?.title ?? headingTitle ?? previous?.title ?? '';
+      const note: Note = { ...previous, id: input.noteId, title: noteTitle,
         createdAt: previous?.createdAt ?? input.createdAt ?? savedAt,
         rawContent: input.rawContent, sourceRevision, blocks,
         type: input.metadata?.type ?? previous?.type ?? input.noteType ?? 'note',

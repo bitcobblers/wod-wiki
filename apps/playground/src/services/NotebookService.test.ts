@@ -125,6 +125,14 @@ describe('NotebookService (notes-store backed)', () => {
         expect((await store.getNote('w-2'))?.notebookId).toBeUndefined();
     });
 
+    it('getAll includes user notebooks that have notes even if the landing note was lost', async () => {
+        await saved({ id: 'w-orphan', title: 'Orphan Note', notebookId: 'notebook/orphan-gym' });
+        const all = await service.getAll();
+        expect(all.some(nb => nb.slug === 'orphan-gym')).toBe(true);
+        const allNotebooks = await service.getAllNotebooks();
+        expect(allNotebooks.some(nb => nb.slug === 'orphan-gym' && nb.origin === 'user')).toBe(true);
+    });
+
     it('update and delete reject reserved always-present slugs at the service boundary', async () => {
         // Only defaults has a stored landing (journal/playground/guides are
         // resolver fallbacks) — the guard must fire regardless.

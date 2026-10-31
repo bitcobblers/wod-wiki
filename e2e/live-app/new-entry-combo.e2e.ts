@@ -65,10 +65,11 @@ test.describe('Contextual new entry actions', () => {
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'combo-notes' })).toBeVisible();
   });
 
-  test('does not offer generic creation on detail pages', async ({ page }) => {
+  test('offers entry creation on the home page sticky', async ({ page }) => {
     await page.goto('/');
     await waitForFeedReady(page);
-    await expect(page.getByTestId('new-entry-combo')).toHaveCount(0);
+    await expect(page.getByTestId('new-entry-combo')).toHaveCount(1);
+    await expect(page.getByTestId('new-entry-primary')).toHaveText('New Journal entry');
     await expect(page.getByRole('button', { name: /Cast to TV/ })).toBeVisible();
   });
 
@@ -94,5 +95,34 @@ test.describe('Contextual new entry actions', () => {
     await page.goto('/dashboards');
     await waitForFeedReady(page);
     await expect(page.getByRole('button', { name: 'New Dashboard', exact: true })).toBeVisible();
+  });
+
+  test('exposes New Note creation on mobile inside a custom notebook', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/notebook/combo-notes');
+    await waitForFeedReady(page);
+    await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeVisible();
+  });
+
+  test('editing H1 in a note updates document title and persists across reload', async ({ page }) => {
+    await page.goto('/journal');
+    await waitForFeedReady(page);
+    await page.getByTestId('new-entry-primary').click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(page).toHaveURL(/\/note\/[0-9a-f-]+\?edit=1$/);
+    const editor = page.locator('.cm-content');
+    await expect(editor).toBeVisible();
+
+    // Edit the H1 title in the editor
+    await editor.click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.type('# Brand New Custom Title\n\n10 Pushups\n');
+    await page.keyboard.press('ControlOrMeta+S');
+    await expect(page.getByRole('heading', { name: 'Brand New Custom Title', level: 1 })).toBeVisible();
+
+    // Reload and verify title is preserved
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Brand New Custom Title', level: 1 })).toBeVisible();
   });
 });

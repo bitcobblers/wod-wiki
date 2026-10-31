@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
 import { Button } from '@/components/atoms/primitives/button'
+import { cn } from '@/lib/utils'
 import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider } from '@/types/content-provider';
 import type { NotePlacement } from '@bitcobblers/wod-wiki-core';
@@ -59,10 +60,10 @@ export function NotePlacementDialog({
   const [slug, setSlug] = useState('')
   const [source, setSource] = useState('')
   const [candidates, setCandidates] = useState<HistoryRecord[]>([])
+  const [selectedPlacementPageId, setSelectedPlacementPageId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inFlight = useRef(false)
-
   // Re-seed from placement primitives only: a background content autosave
   // produces a new entry object without touching the form.
   const entryId = entry.id
@@ -143,11 +144,12 @@ export function NotePlacementDialog({
     await runPlacementChange(() => provider.removeRecordPlacement(entry.id, pageId))
   }
 
-  const handleMovePlacement = async (pageId: string) => {
+  const handleMovePlacement = async (pagePlacement: NotePlacement) => {
+    setSelectedPlacementPageId(pagePlacement.pageId)
     const nextDate = date.trim()
     const nextSlug = slug.trim()
     if (!nextDate && !nextSlug) {
-      setError('Choose the journal date or named page to move the note to.')
+      setError(`Selected ${placementLabel(pagePlacement)} to move. Choose a new destination date or named page below, then click "Move to this page".`)
       return
     }
     if (nextDate && nextSlug) {
@@ -158,10 +160,44 @@ export function NotePlacementDialog({
       setError('Enter a valid date (YYYY-MM-DD).')
       return
     }
+    if (pagePlacement.date === nextDate || (pagePlacement.slug && pagePlacement.slug === nextSlug)) {
+      setError('The note is already placed on this page. Choose a different destination.')
+      return
+    }
     const target = nextDate ? { date: nextDate } : { slug: nextSlug }
-    await runPlacementChange(() => provider.moveRecordPlacement(entry.id, pageId, target))
+    await runPlacementChange(() => provider.moveRecordPlacement(entry.id, pagePlacement.pageId, target))
   }
 
+  const handleMoveToPage = async () => {
+    if (inFlight.current) return
+    const nextDate = date.trim()
+    const nextSlug = slug.trim()
+    if (!nextDate && !nextSlug) {
+      setError('Choose a journal date or named page to move the note to.')
+      return
+    }
+    if (nextDate && nextSlug) {
+      setError('Choose a journal date OR a named page — a move targets one page, never both.')
+      return
+    }
+    if (nextDate && !parseJournalDate(nextDate)) {
+      setError('Enter a valid date (YYYY-MM-DD).')
+      return
+    }
+    const fromPlacement = selectedPlacementPageId
+      ? placements.find(p => p.pageId === selectedPlacementPageId)
+      : placements[0]
+    if (!fromPlacement) {
+      setError('No placement available to move from.')
+      return
+    }
+    if (fromPlacement.date === nextDate || (fromPlacement.slug && fromPlacement.slug === nextSlug)) {
+      setError('The note is already placed on this page. Choose a different destination.')
+      return
+    }
+    const target = nextDate ? { date: nextDate } : { slug: nextSlug }
+    await runPlacementChange(() => provider.moveRecordPlacement(entry.id, fromPlacement.pageId, target))
+  }
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (inFlight.current) return
@@ -277,34 +313,45 @@ export function NotePlacementDialog({
               </p>
             ) : (
               <ul className="flex flex-col gap-1.5">
-                {placements.map((placement) => (
-                  <li
-                    key={placement.pageId}
-                    className="flex items-center justify-between gap-2 rounded border border-border px-2.5 py-1.5"
-                  >
-                    <span className="font-mono text-xs">{placementLabel(placement)}</span>
-                    <span className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={saving}
-                        onClick={() => void handleMovePlacement(placement.pageId)}
-                      >
-                        Move
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={saving}
-                        onClick={() => void handleRemovePlacement(placement.pageId)}
-                      >
-                        Remove
-                      </Button>
-                    </span>
-                  </li>
-                ))}
+                {placements.map((placement) => {
+                  const isSelectedForMove = selectedPlacementPageId === placement.pageId
+                  return (
+                    <li
+                      key={placement.pageId}
+                      className={cn(
+                        'flex items-center justify-between gap-2 rounded border px-2.5 py-1.5 transition-colors',
+                        isSelectedForMove ? 'border-primary bg-primary/5' : 'border-border',
+                      )}
+                    >
+                      <span className="font-mono text-xs flex items-center gap-1.5">
+                        {placementLabel(placement)}
+                        {isSelectedForMove && (
+                          <span className="text-[10px] text-primary font-medium font-sans">(moving)</span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant={isSelectedForMove ? 'default' : 'outline'}
+                          size="sm"
+                          disabled={saving}
+                          onClick={() => void handleMovePlacement(placement)}
+                        >
+                          Move
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={saving}
+                          onClick={() => void handleRemovePlacement(placement.pageId)}
+                        >
+                          Remove
+                        </Button>
+                      </span>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
@@ -352,9 +399,16 @@ export function NotePlacementDialog({
         </div>
 
         {!isClone && (
-          <Button type="button" size="lg" disabled={saving} onClick={() => void handleAddPlacement()}>
-            {saving ? 'Saving…' : 'Place on this page'}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" size="lg" className="flex-1" disabled={saving} onClick={() => void handleAddPlacement()}>
+              {saving ? 'Saving…' : 'Place on this page'}
+            </Button>
+            {placements.length > 0 && (
+              <Button type="button" variant="outline" size="lg" className="flex-1" disabled={saving} onClick={() => void handleMoveToPage()}>
+                {saving ? 'Saving…' : 'Move to this page'}
+              </Button>
+            )}
+          </div>
         )}
 
         {isClone ? null : (
