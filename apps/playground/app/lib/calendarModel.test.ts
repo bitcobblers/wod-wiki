@@ -11,6 +11,7 @@ import {
   buildDayBuckets,
   buildMonthAgenda,
   buildMonthGrid,
+  buildMonthWeeks,
   buildWeekStrip,
   dayKey,
   densityLevel,
@@ -104,6 +105,35 @@ describe('buildMonthGrid', () => {
     expect(days.find(d => d.key === '2026-10-30')?.isToday).toBe(true)
     expect(days.find(d => d.key === '2026-10-31')?.isWeekend).toBe(true)
     expect(days.find(d => d.key === '2026-10-29')?.isWeekend).toBe(false)
+  })
+})
+
+describe('buildMonthWeeks — the planner board', () => {
+  it('returns the weeks the anchor month touches, not a fixed six rows', () => {
+    // October 2026 starts Thursday and ends Saturday → five overlapping weeks.
+    const weeks = buildMonthWeeks(new Date(2026, 9, 1), buildDayBuckets([]))
+    expect(weeks).toHaveLength(5)
+    expect(weeks[0]!.days[0]!.key).toBe('2026-09-28')
+    expect(weeks[4]!.days[6]!.key).toBe('2026-11-01')
+  })
+
+  it('covers every day of the month exactly once', () => {
+    const weeks = buildMonthWeeks(new Date(2026, 9, 1), buildDayBuckets([]))
+    const inMonth = weeks.flatMap(w => w.days).filter(d => d.inMonth)
+    expect(inMonth).toHaveLength(31)
+    expect(new Set(inMonth.map(d => d.key)).size).toBe(31)
+  })
+
+  it('yields six rows for a month that needs them', () => {
+    // August 2026 starts Saturday and ends Monday → six overlapping weeks.
+    expect(buildMonthWeeks(new Date(2026, 7, 1), buildDayBuckets([]))).toHaveLength(6)
+  })
+
+  it('places entries on their own day', () => {
+    const buckets = buildDayBuckets([entry('a', { date: '2026-10-16' })])
+    const weeks = buildMonthWeeks(new Date(2026, 9, 1), buckets)
+    const day = weeks.flatMap(w => w.days).find(d => d.key === '2026-10-16')
+    expect(day?.entries.map(e => e.id)).toEqual(['a'])
   })
 })
 

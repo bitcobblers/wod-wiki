@@ -52,6 +52,22 @@ describe('viewSettingsStorage — pure read/write/reset', () => {
     expect(read.layout).toBe('feed')
   })
 
+  it('persists the calendar layouts', () => {
+    writeViewSettings('/notes', { level: 'note', layout: 'agenda', visibleFields: ['title'] })
+    expect(readViewSettings('/notes', 'note').layout).toBe('agenda')
+
+    writeViewSettings('/notes', { level: 'note', layout: 'planner', visibleFields: ['title'] })
+    expect(readViewSettings('/notes', 'note').layout).toBe('planner')
+  })
+
+  it('falls back to cards for an unknown layout', () => {
+    window.localStorage.setItem(
+      `${VIEW_SETTINGS_STORAGE_PREFIX}/notes`,
+      JSON.stringify({ level: 'note', layout: 'timeline', visibleFields: ['title'] }),
+    )
+    expect(readViewSettings('/notes', 'note').layout).toBe('cards')
+  })
+
   it('the current route key wins over the legacy alias', () => {
     writeViewSettings('/results', { level: 'result', layout: 'feed', visibleFields: ['title'] })
     writeViewSettings('/sessions', { level: 'result', layout: 'rows', visibleFields: ['title'] })

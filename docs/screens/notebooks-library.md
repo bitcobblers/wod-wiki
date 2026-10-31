@@ -29,7 +29,7 @@
 - **Sticky Top Bar:**
   - `StreamQueryBar` configured for the notebooks scope.
   - Tag filter dropdowns and keyword search input.
-  - Layout controls (Cards / Rows / Feed).
+  - Layout controls (Cards / Rows / Feed). Notebooks carry no date, so the calendar layouts (Agenda / Planner) are not offered on this route.
 - **Content Grid:** Responsive 2 or 3-column card grid. Each card displays notebook title, description excerpt, workout count badge, and category tags.
 - **Right Rail (216px right):** Category facets and tag cloud for instant filtering.
 

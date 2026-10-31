@@ -160,6 +160,31 @@ export function buildWeekStrip(anchor: Date, buckets: DayBuckets, todayKey = day
 }
 
 /**
+ * The week rows of the planner board: the weeks that OVERLAP the anchor
+ * month, Monday first, each seven days. Unlike {@link buildMonthGrid}, the
+ * board does not pad to a fixed six rows — it shows the weeks the month
+ * actually touches, so a month that fits in five rows shows five.
+ */
+export function buildMonthWeeks(anchor: Date, buckets: DayBuckets, todayKey = dayKey(new Date())): CalendarWeek[] {
+  const year = anchor.getFullYear()
+  const month = anchor.getMonth()
+  const first = new Date(year, month, 1)
+  const last = new Date(year, month + 1, 0)
+  const gridStart = addDays(first, -mondayIndex(first))
+  const gridEnd = addDays(last, 6 - mondayIndex(last))
+  const weeks: CalendarWeek[] = []
+  for (let start = gridStart; start <= gridEnd; start = addDays(start, 7)) {
+    const days: CalendarDay[] = []
+    for (let d = 0; d < 7; d++) {
+      const date = addDays(start, d)
+      days.push(makeDay(date, date.getMonth() === month && date.getFullYear() === year, buckets, todayKey))
+    }
+    weeks.push({ label: `${MONTHS_SHORT[days[0]!.date.getMonth()]} ${days[0]!.date.getDate()}`, days })
+  }
+  return weeks
+}
+
+/**
  * The days of `anchor`'s month that carry entries, ascending — the mobile
  * agenda's spine.
  */

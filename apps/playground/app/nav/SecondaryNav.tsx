@@ -13,7 +13,7 @@
  */
 
 import { useMemo, type ReactNode } from 'react'
-import { LayoutGrid, Rss, Table } from 'lucide-react'
+import { CalendarDays, Columns3, LayoutGrid, Rss, Table } from 'lucide-react'
 
 import { MenuList, useActiveSectionId, useResolvedMenu } from './MenuList'
 import { useNav, type StreamNavControls } from './NavContext'
@@ -30,6 +30,8 @@ const LAYOUT_OPTIONS: readonly { id: LayoutMode; label: string; icon: typeof Lay
   { id: 'cards', label: 'Cards', icon: LayoutGrid },
   { id: 'rows', label: 'Rows', icon: Table },
   { id: 'feed', label: 'Feed', icon: Rss },
+  { id: 'agenda', label: 'Agenda', icon: CalendarDays },
+  { id: 'planner', label: 'Planner', icon: Columns3 },
 ]
 
 /**
@@ -41,6 +43,7 @@ const LAYOUT_OPTIONS: readonly { id: LayoutMode; label: string; icon: typeof Lay
  * to the same NavContext streamControls.
  */
 export function StreamControlsNav({ streamControls }: { streamControls: StreamNavControls }) {
+  const available = streamControls.availableLayouts
   return (
     <div className="flex flex-col gap-3" data-testid="l3-stream-controls">
       {streamControls.onOpenQuerySettings && (
@@ -99,27 +102,29 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
           Layout
         </span>
         <div className="grid grid-cols-3 gap-1" data-testid="l3-layout-options">
-          {LAYOUT_OPTIONS.map(opt => {
-            const Icon = opt.icon
-            const active = streamControls.settings.layout === opt.id
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => streamControls.onLayoutChange(opt.id)}
-                data-testid={`l3-layout-${opt.id}`}
-                className={`flex min-h-8 items-center justify-center gap-1 rounded-md border px-1.5 py-1 text-[11px] font-medium transition-colors ${
-                  active
-                    ? 'border-border/80 bg-card text-foreground shadow-sm'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon aria-hidden className="size-3" />
-                {opt.label}
-              </button>
-            )
-          })}
+          {LAYOUT_OPTIONS
+            .filter(opt => !available || available.includes(opt.id))
+            .map(opt => {
+              const Icon = opt.icon
+              const active = streamControls.settings.layout === opt.id
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => streamControls.onLayoutChange(opt.id)}
+                  data-testid={`l3-layout-${opt.id}`}
+                  className={`flex min-h-8 items-center justify-center gap-1 rounded-md border px-1.5 py-1 text-[11px] font-medium transition-colors ${
+                    active
+                      ? 'border-border/80 bg-card text-foreground shadow-sm'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Icon aria-hidden className="size-3" />
+                  {opt.label}
+                </button>
+              )
+            })}
         </div>
       </div>
 

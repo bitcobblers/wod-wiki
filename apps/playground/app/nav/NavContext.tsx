@@ -93,6 +93,13 @@ export interface StreamNavControls {
   onLayoutChange: (layout: LayoutMode) => void
   onToggleField: (fieldId: string) => void
   level: EntityLevel
+  /**
+   * The layouts this surface can actually render, in picker order. Absent =
+   * every layout. The calendar layouts (Agenda / Planner) are offered only
+   * where the entries carry dates — a picker that offers a layout the page
+   * cannot render is a dead button.
+   */
+  availableLayouts?: readonly LayoutMode[]
   /** Open this surface's query settings (landing default, scope and Group-By
    *  favorites, saved shortcuts). Published only by surfaces that HAVE a
    *  configurable surface — absent means the page offers none. */

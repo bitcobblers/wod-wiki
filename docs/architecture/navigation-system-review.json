@@ -175,13 +175,13 @@
               "Notebooks",
               "AppRail (Library)",
               "Subscribed notebooks listing (default: :notebook{subscribed:true}); Journal & Playgrounds views; Available to subscribe",
-              "Layout (Cards/Rows/Feed), Date Window, Group-By, Visible Fields"
+              "Layout (Cards/Rows/Feed/Agenda/Planner), Date Window, Group-By, Visible Fields"
             ],
             [
               "Notes",
               "AppRail (Rss)",
               "Notes belonging to notebooks (:note{notebook:*}); New note; Notebook filter & Tag facets",
-              "Layout (Cards/Rows/Feed), Date Window, Group-By, Visible Fields"
+              "Layout (Cards/Rows/Feed/Agenda/Planner), Date Window, Group-By, Visible Fields"
             ],
             [
               "Dashboards",

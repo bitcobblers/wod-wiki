@@ -57,6 +57,15 @@ export interface StreamProfile {
   notebookSlug?: string
   /** Preferred initial layout mode (defaults to level standard if omitted). */
   defaultLayout?: LayoutMode
+  /**
+   * True when this surface's entries carry DATES, so the calendar layouts
+   * (Agenda / Planner) can place them on a time axis.
+   *
+   * A notebook, an effort, an equipment record or a tag has no date — the
+   * calendar views are therefore not offered there, and the layout picker
+   * shows only the flat projections on those routes.
+   */
+  calendarCapable?: boolean
   /** Legacy parameter and salvage configuration for URL migration. */
   legacy?: StreamProfileLegacyConfig
 }
@@ -117,6 +126,8 @@ export const JOURNAL_STREAM_PROFILE: StreamProfile = {
   level: 'note',
   target: 'note',
   scopeOptions: ['journal'],
+  // Journal notes carry a journal date — the calendar layouts place them.
+  calendarCapable: true,
   legacy: createContentLegacyConfig('journal'),
 }
 
@@ -143,6 +154,8 @@ export const NOTES_STREAM_PROFILE: StreamProfile = {
   target: 'note',
   scopeOptions: ['journal', 'notebooks'],
   emptyMessage: 'No note entries match your search.',
+  // Notebook notes carry a date (their route item starts with it).
+  calendarCapable: true,
   legacy: createContentLegacyConfig('notebooks'),
 }
 
@@ -215,6 +228,8 @@ export const SESSIONS_STREAM_PROFILE: StreamProfile = {
   target: 'session',
   scopeOptions: [],
   emptyMessage: 'No completed session results recorded in this period.',
+  // Session results are stamped with the day they were recorded.
+  calendarCapable: true,
 }
 
 export const PLAYGROUNDS_STREAM_PROFILE: StreamProfile = {
@@ -262,6 +277,8 @@ export function createNotebookProfile(notebookSlug: string): StreamProfile {
     scopeOptions: ['notebooks'],
     shelfVisible: false,
     defaultLayout: 'cards',
+    // One notebook's notes carry dates — the calendar layouts place them.
+    calendarCapable: true,
     notebookSlug: notebookSlug,
     legacy: createContentLegacyConfig('notebooks'),
   }

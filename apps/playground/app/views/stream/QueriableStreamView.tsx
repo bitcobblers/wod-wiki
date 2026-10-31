@@ -68,13 +68,15 @@ import { OUTCOME_LABEL } from '../../pages/SyncSection'
 import { ROUTE_PATTERNS } from '../../lib/routes'
 import { MobileNewEntryCombo, routeSupportsCreation } from '../../pages/shared/NewEntryCombo'
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
-import { useViewSettings } from '../../lib/viewSettingsStorage'
+import { useViewSettings, LAYOUT_MODES, type LayoutMode } from '../../lib/viewSettingsStorage'
 import { useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
 import { todayKey } from '../../lib/dateFormat'
 import { withoutWindow, withGroupBy } from '../../lib/wqlEdits'
 import { LibraryRow } from '../library/LibraryRow'
 import { PropertyTable } from './PropertyTable'
 import { StreamFeed } from './StreamFeed'
+import { CalendarAgendaView } from './CalendarAgendaView'
+import { CalendarPlannerView } from './CalendarPlannerView'
 import { journalNotes } from '../../services/journalNotes'
 import { ensurePlaygroundEntry } from '../../services/createPlaygroundPage'
 import { addEntryToTodayInput } from '../../lib/addToToday'
@@ -283,6 +285,18 @@ export function QueriableStreamView({
     profile.defaultLayout,
   )
 
+  /**
+   * The layouts this surface offers. The calendar layouts need dated
+   * entries, so a route without dates (notebooks, efforts, tags…) never
+   * offers them — and a stored calendar layout falls back to Cards there
+   * rather than rendering an empty time axis.
+   */
+  const availableLayouts = useMemo<readonly LayoutMode[]>(
+    () => (profile.calendarCapable ? LAYOUT_MODES : LAYOUT_MODES.filter(mode => mode !== 'agenda' && mode !== 'planner')),
+    [profile.calendarCapable],
+  )
+  const layout = availableLayouts.includes(settings.layout) ? settings.layout : 'cards'
+
   // This page's own query settings — the landing default, the Where-stored
   // and Group-By favorites and the saved shortcuts, edited where the query
   // lives. Only surfaces WITH a configurable surface offer it (detail routes
@@ -407,7 +421,7 @@ export function QueriableStreamView({
   // engine's block-plane companion query — never a second query-state seam.
   const activeEngine = useMemo<StreamQueryEngine>(() => {
     const base = queryEngine ?? defaultStreamQueryEngine
-    return settings.layout === 'feed' ? base.withNoteBlockInfo() : base
+    return layout === 'feed' ? base.withNoteBlockInfo() : base
   }, [queryEngine, settings.layout])
 
   const defaultAddToToday = useCallback(async (entry: Entry) => {
@@ -773,10 +787,11 @@ export function QueriableStreamView({
       onLayoutChange: setLayout,
       onToggleField: toggleField,
       level: profile.level,
+      availableLayouts,
       ...(querySettingsSurface ? { onOpenQuerySettings: () => setQuerySettingsOpen(true) } : {}),
     })
     return () => setStreamControls?.(null)
-  }, [query, setQuery, groupDims, handleToggleGroupDim, availableGroupDims, setStreamControls, settings, setLayout, toggleField, profile.level, querySettingsSurface])
+  }, [query, setQuery, groupDims, handleToggleGroupDim, availableGroupDims, setStreamControls, settings, setLayout, toggleField, profile.level, availableLayouts, querySettingsSurface])
 
   // Progressive anchor reachability: the L3 index covers ALL groups, but only
   // the rendered prefix has DOM anchors (progressive batching). A click on a
@@ -1180,7 +1195,7 @@ export function QueriableStreamView({
             }}
           />
         </div>
-      ) : readmeOverride ? null : settings.layout === 'rows' ? (
+      ) : readmeOverride ? null : layout === 'rows' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <PropertyTable
             entries={entries}
@@ -1190,7 +1205,30 @@ export function QueriableStreamView({
             emptyMessage={profile.emptyMessage ?? 'No matching records found.'}
           />
         </div>
-      ) : settings.layout === 'feed' ? (
+      ) : layout === 'agenda' ? (
+        <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
+          <CalendarAgendaView
+            entries={entries}
+            stickyOffset={stickyOffset}
+            visibleFieldIds={settings.visibleFields}
+            onAddToToday={handleAddToToday}
+            onRunStart={handleRunEntry}
+            moveNotebookTargets={moveNotebookTargets}
+            onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
+          />
+        </div>
+      ) : layout === 'planner' ? (
+        <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
+          <CalendarPlannerView
+            entries={entries}
+            visibleFieldIds={settings.visibleFields}
+            onAddToToday={handleAddToToday}
+            onRunStart={handleRunEntry}
+            moveNotebookTargets={moveNotebookTargets}
+            onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
+          />
+        </div>
+      ) : layout === 'feed' ? (
         visibleGroups.length > 0 ? (
           <StreamFeed
             groups={visibleGroups}

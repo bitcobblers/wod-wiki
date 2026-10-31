@@ -22,6 +22,7 @@ import { syncNotebook, toggleNotebookSubscription, syncFeedSource, unsubscribeFe
 import { mainThreadFeedImportStorage } from '@/services/feed/feedStorageDefault';
 import { seedMetaKey, type SeedMetaRecord } from '@/types/seed';
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine';
+import type { LayoutMode } from '../../lib/viewSettingsStorage';
 
 export interface NotebookLibraryItem {
   id?: string;
@@ -46,7 +47,11 @@ export interface NotebookLibraryItem {
 
 export interface NotebookLibraryBrowserProps {
   query: string;
-  layout: 'cards' | 'feed' | 'rows';
+  /**
+   * The stream's layout setting. A notebook has no date, so the calendar
+   * layouts (Agenda / Planner) cannot place one — they fall back to Cards.
+   */
+  layout: LayoutMode;
   refreshKey: number;
   onChanged: () => void;
   onQueryChange: (q: string) => void;
@@ -56,13 +61,15 @@ export interface NotebookLibraryBrowserProps {
 
 export function NotebookLibraryBrowser({
   query,
-  layout,
+  layout: requestedLayout,
   refreshKey,
   onChanged,
   onQueryChange,
   onEditNotebook,
   onDeleteNotebook,
 }: NotebookLibraryBrowserProps) {
+  const layout: 'cards' | 'feed' | 'rows' =
+    requestedLayout === 'feed' || requestedLayout === 'rows' ? requestedLayout : 'cards';
   // Navigation handled via Link and callbacks
   const [localNotebooks, setLocalNotebooks] = useState<Notebook[]>([]);
   const [checkpoints, setCheckpoints] = useState<Record<string, SeedMetaRecord>>({});

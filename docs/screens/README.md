@@ -31,6 +31,7 @@ Detailed component breakdowns, service dependencies, responsive desktop vs mobil
 | [Universal Note Editor](./note-editor.md) | `/note/:noteId` | `NoteByIdPage.tsx` | Single-note authoring, CodeMirror 6 extensions, inline block runtime. |
 | [Journal Date Stack](./journal-date-stack.md) | `/journal/:date` | `JournalDatePage.tsx` | Calendar date grouping, multi-note stacked editors, auto-start timer. |
 | [Journal Stream](./journal-stream.md) | `/journal` | `QueriableStreamView.tsx` | Chronological feed, date scroll-spy, header query bar vs mobile thumb footer. |
+| [Calendar Layouts](./calendar-layouts.md) | `/journal`, `/notes`, `/sessions`, `/notebook/:slug` | `QueriableStreamView.tsx` | Agenda and Planner — the calendar projections of the query result set. |
 | [Notebooks Stream & Library](./notebooks-library.md) | `/notebooks`, `/notes` | `QueriableStreamView.tsx` | Notebook browsing, category facets, WQL filtering. |
 | [Notebook Landing](./notebook-landing.md) | `/notebook/:slug` | `MarkdownCanvasPage.tsx` | Split-pane canvas, notebook README, interactive workout selection. |
 | [Notebook Date View](./notebook-date-view.md) | `/notebook/:slug/:date` | `NotebookDatePage.tsx` | Scoped notebook date view, direct routing to universal editor. |

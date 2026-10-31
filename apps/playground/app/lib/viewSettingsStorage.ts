@@ -1,10 +1,10 @@
 /**
  * viewSettingsStorage — client storage persistence for per-route view settings (Ticket 002).
  *
- * Persists the user's field visibility, layout (Cards / Rows / Feed), and
- * grouping per view route in localStorage. Legacy stream/table layouts
- * migrate to cards/rows on read. Drops obsolete or unknown field IDs on read
- * to keep stored state resilient.
+ * Persists the user's field visibility, layout (Cards / Rows / Feed / Agenda
+ * / Planner), and grouping per view route in localStorage. Legacy
+ * stream/table layouts migrate to cards/rows on read. Drops obsolete or
+ * unknown field IDs on read to keep stored state resilient.
  */
 import { useState, useCallback, useEffect } from 'react'
 import { LocalStore } from '@/services/storage/LocalStore'
@@ -14,7 +14,18 @@ import {
   getDefaultVisibleFieldIds,
 } from './fieldProjection'
 
-export type LayoutMode = 'cards' | 'rows' | 'feed'
+/**
+ * The layouts a stream surface can render.
+ *
+ * `cards` / `rows` / `feed` are the flat projections of the query result set.
+ * `agenda` / `planner` are the CALENDAR projections — the same set laid out
+ * on a time axis (a month of days, or a board of weeks). They are offered
+ * only on routes whose entries carry dates (see `StreamProfile.calendarCapable`).
+ */
+export type LayoutMode = 'cards' | 'rows' | 'feed' | 'agenda' | 'planner'
+
+/** Every layout the picker can offer, in picker order. */
+export const LAYOUT_MODES: readonly LayoutMode[] = ['cards', 'rows', 'feed', 'agenda', 'planner']
 
 /** Persisted layouts from before the Cards / Rows / Feed split (Ticket 002). */
 const LEGACY_LAYOUTS: Record<string, LayoutMode> = {
@@ -87,10 +98,9 @@ export function readViewSettings(route: string, level: EntityLevel, store: Local
   }
   if (!parsed) return defaults
   const rawLayout = typeof parsed.layout === 'string' ? parsed.layout : ''
-    const layout: LayoutMode =
-      rawLayout === 'cards' || rawLayout === 'rows' || rawLayout === 'feed'
-        ? rawLayout
-        : (LEGACY_LAYOUTS[rawLayout] ?? 'cards')
+  const layout: LayoutMode = LAYOUT_MODES.includes(rawLayout as LayoutMode)
+    ? (rawLayout as LayoutMode)
+    : (LEGACY_LAYOUTS[rawLayout] ?? 'cards')
 
     // Sanitize visible fields against valid fields for this level
     const availableFieldIds = new Set(getFieldsForLevel(level).map(f => f.id))

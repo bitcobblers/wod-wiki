@@ -1,12 +1,20 @@
 # CAL — the 4th library layout
 
-> **Status: AWAITING VERDICT.** Prototype at `./library.html` (three variants,
-> switchable via `?variant=grid|planner|timeline`, `←`/`→` keys, or the floating
-> bottom bar). Nothing here is production code.
+> **Status: SHIPPED.** The verdict took the **month agenda** (this file's
+> variant C) and the **weekly planner** (variant B) into the real library
+> pages as two new layout modes — `Agenda` and `Planner` — on every stream
+> surface whose entries carry a date. The desktop month grid (variant A) was
+> not taken.
 >
-> **The phone version is a different shape, not a smaller one** — see
-> [`MOBILE.md`](./MOBILE.md) for the reactive (React) implementation, the house
-> mobile contract it obeys, and the mobile verdict questions.
+> This file is the DESIGN RECORD. The implementation lives in:
+> - `apps/playground/app/lib/calendarModel.ts` — the pure geometry
+> - `apps/playground/app/views/stream/CalendarAgendaView.tsx`
+> - `apps/playground/app/views/stream/CalendarPlannerView.tsx`
+> - `apps/playground/app/views/stream/CalendarChrome.tsx`
+> - `docs/screens/calendar-layouts.md` — the screen contract
+>
+> The phone version is a different shape, not a smaller one — see
+> [`MOBILE.md`](./MOBILE.md).
 
 ## The question
 
@@ -176,10 +184,9 @@ Everything below is a clean cutover — no shims.
 | 7 | `NotebookLibraryBrowser` (`/notebooks`) takes `layout` too — decide whether Cal is offered there (notebooks have no dates → likely no) | `app/views/notebook-gallery/NotebookLibraryBrowser.tsx` |
 | 8 | Doc updates: the screen docs list "Cards / Rows / Feed" in three places | `docs/screens/notebooks-library.md`, `docs/screens/journal-stream.md`, `docs/architecture/navigation-system-review.json` |
 
-**Already built (mobile, reactive):** the pure model (#4), the mobile
-component (`app/views/stream/CalendarStreamView.tsx`), its prototype route
-(`/proto/calendar-mobile`), the model tests, and the 375px e2e gate. See
-[`MOBILE.md`](./MOBILE.md).
+**Shipped:** the pure model (#4), both layout views, the L3 picker wiring,
+the calendar-capable route list, the model/storage/render tests, and the
+375px e2e gate. See [`MOBILE.md`](./MOBILE.md) for the phone shapes.
 
 Tests to write: `calendarModel` (month boundaries, leap years, week-start
 Monday, dated vs undated split), `viewSettingsStorage` (persistence + default

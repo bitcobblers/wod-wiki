@@ -1,14 +1,19 @@
 # CAL on mobile — the reactive version
 
-> **Status: AWAITING VERDICT.** The desktop CAL is a static HTML prototype
-> (`../calendar-view/library.html`). This is the **reactive** counterpart:
-> real React, real Tailwind tokens, the house bottom-sheet primitive, and
-> the house 44px touch contract — running inside the real app shell.
+> **Status: SHIPPED** — folded into the real library pages. The two layout
+> modes the verdict took are now first-class layouts on every stream surface
+> whose entries carry a date:
 >
-> - Component: `apps/playground/app/views/stream/CalendarStreamView.tsx`
-> - Model: `apps/playground/app/lib/calendarModel.ts` (pure, 17 tests)
-> - Prototype route: `/proto/calendar-mobile?v=agenda|week|month`
-> - Gate: `e2e/gates/calendar-mobile.mobile.smoke.e2e.ts` (5 tests)
+> | | Desktop | Phone |
+> |---|---|---|
+> | **Agenda** | the month as a list of days, each a group | the same list |
+> | **Planner** | a board: week rows × day columns | the board turned vertical — one card per week |
+>
+> - Views: `apps/playground/app/views/stream/CalendarAgendaView.tsx`, `CalendarPlannerView.tsx`
+> - Shared chrome: `apps/playground/app/views/stream/CalendarChrome.tsx`
+> - Model: `apps/playground/app/lib/calendarModel.ts` (pure, 21 tests)
+> - Gate: `e2e/gates/calendar-layouts.mobile.smoke.e2e.ts` (3 tests)
+> - Contract: `docs/screens/calendar-layouts.md`
 
 ---
 
@@ -150,11 +155,28 @@ A calendar that silently drops a third of the set is lying about coverage.
 
 ```bash
 bun run dev:app
-# then, in a 375px-wide browser window (or devtools device mode):
-#   http://localhost:5173/proto/calendar-mobile?v=agenda
-#   http://localhost:5173/proto/calendar-mobile?v=week
-#   http://localhost:5173/proto/calendar-mobile?v=month
+# then, on /journal, /notes, /sessions or /notebook/<slug>:
+#   open the L3 rail (desktop, 2xl+) or the page-options drawer (phone)
+#   and pick Agenda or Planner
 ```
 
-The shape switcher is inside the calendar's own toolbar; the URL mirrors it
-so a link is shareable and reload-stable.
+Both layouts are stored per route, so the choice survives a reload.
+
+## 8. What changed from the prototype
+
+The three prototype shapes became TWO layouts, because the layout picker is
+where a user looks for "how should this be arranged":
+
+- **Agenda** — the prototype's agenda shape, promoted. The density ribbon
+  became one row (a ribbon) instead of a six-row heatmap: the planner board
+  already carries the grid, and a ribbon does not duplicate it.
+- **Planner** — the prototype's week-board shape, promoted. On a phone the
+  board turns VERTICAL (one card per week) rather than shrinking to seven
+  unreadable columns — and it never shows less of the month than the agenda.
+- **Month** — the prototype's heatmap-grid shape was dropped. With the
+  planner board shipped, a second month grid on the phone was redundant
+  against the existing `/day/:date` route.
+
+The prototype's bottom sheet for a single day is gone with it: the agenda's
+day headers and the planner's cells carry the entries directly, so there is
+no second tap to reach them.

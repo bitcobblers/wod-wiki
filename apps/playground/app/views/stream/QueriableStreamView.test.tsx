@@ -195,6 +195,33 @@ describe('QueriableStreamView component', () => {
     return engine
   }
 
+  const datedNoteEntries: Entry[] = [
+    {
+      id: 'note-a',
+      kind: 'note',
+      sourceNotebook: 'journal',
+      sourceNote: 'a',
+      title: 'Heavy pulls',
+      date: '2026-10-16',
+    },
+    {
+      id: 'note-b',
+      kind: 'note',
+      sourceNotebook: 'girls',
+      sourceNote: 'b',
+      title: 'Fran',
+      date: '2026-10-16',
+    },
+    {
+      id: 'note-undated',
+      kind: 'note',
+      sourceNotebook: 'journal',
+      sourceNote: 'c',
+      title: 'No date yet',
+      date: null,
+    },
+  ]
+
   it('renders the sticky header without a page title — the query bar fills the row', async () => {
     const engine = createMockEngine([])
 
@@ -278,6 +305,79 @@ describe('QueriableStreamView component', () => {
       expect(screen.getByTestId('property-table-header-label')).toBeDefined()
       expect(screen.getByTestId('property-table-header-discipline')).toBeDefined()
     })
+  })
+
+  it('renders the agenda layout — dated notes grouped into days, undated on a shelf', async () => {
+    writeViewSettings('/journal', {
+      level: 'note',
+      layout: 'agenda',
+      visibleFields: ['title'],
+    })
+
+    const engine = createMockEngine(datedNoteEntries)
+
+    render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    // Wait for the loaded days, not just the shell — the agenda renders its
+    // empty state until the query resolves.
+    await waitFor(() => expect(screen.getAllByTestId('calendar-agenda-day').length).toBeGreaterThan(0))
+
+    // Both notes of Oct 16 land under one day header.
+    const days = screen.getAllByTestId('calendar-agenda-day')
+    expect(days.length).toBe(1)
+    expect(days[0]!.textContent).toContain('16')
+    expect(screen.getByText('Heavy pulls')).toBeDefined()
+    expect(screen.getByText('Fran')).toBeDefined()
+
+    // The undated note is named, not dropped.
+    expect(screen.getByText('Undated · 1')).toBeDefined()
+    expect(screen.getByText('No date yet')).toBeDefined()
+  })
+
+  it('renders the planner layout — a board of weeks with a cell per day', async () => {
+    writeViewSettings('/journal', {
+      level: 'note',
+      layout: 'planner',
+      visibleFields: ['title'],
+    })
+
+    const engine = createMockEngine(datedNoteEntries)
+
+    render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getAllByTestId('calendar-planner-week').length).toBeGreaterThan(0))
+    expect(screen.getByTestId('calendar-planner-view')).toBeDefined()
+    // One cell per day of every week on the board.
+    expect(screen.getAllByTestId('calendar-planner-cell').length % 7).toBe(0)
+    expect(screen.getAllByTestId('calendar-entry-chip').length).toBe(2)
+  })
+
+  it('falls back to cards when a calendar layout is stored on a route without dates', async () => {
+    // /efforts has no dates — the calendar layouts cannot place an effort.
+    writeViewSettings('/efforts', {
+      level: 'effort',
+      layout: 'agenda',
+      visibleFields: ['label'],
+    })
+
+    const engine = createMockEngine(sampleEffortEntries)
+
+    render(
+      <MemoryRouter initialEntries={['/efforts']}>
+        <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('Back Squat')).toBeDefined())
+    expect(screen.queryByTestId('calendar-agenda-view')).toBeNull()
   })
 
   it('renders custom actions in the header action slot', async () => {
