@@ -22,6 +22,7 @@ import { rowsEqual, userDeletedSeedKey } from '@bitcobblers/wod-wiki-storage';
 import type { DomainDetail, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
 import type { IStorage, IStorageTransaction, StoreName } from './IStorage';
 import { NotePersistenceError, type NotePersistenceStorage, type SaveNoteInput } from '../persistence/types';
+import { extractHeadingTitle } from '@/lib/noteTitle';
 const NOTE_BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
 
 /**
@@ -747,9 +748,8 @@ export class StorageService implements NotePersistenceStorage {
         });
       const sourceRevision = (previous?.sourceRevision ?? 0) + (sourceChanged ? 1 : 0);
       for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
-      const headingMatch = input.rawContent.match(/^#\s+(.+)$/m);
-      const headingTitle = headingMatch ? headingMatch[1].trim() : undefined;
-      const noteTitle = input.metadata?.title ?? headingTitle ?? previous?.title ?? '';
+      const headingTitle = extractHeadingTitle(input.rawContent);
+      const noteTitle = headingTitle ?? input.metadata?.title ?? previous?.title ?? '';
       const note: Note = { ...previous, id: input.noteId, title: noteTitle,
         createdAt: previous?.createdAt ?? input.createdAt ?? savedAt,
         rawContent: input.rawContent, sourceRevision, blocks,

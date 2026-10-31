@@ -144,46 +144,41 @@ export function NotePlacementDialog({
     await runPlacementChange(() => provider.removeRecordPlacement(entry.id, pageId))
   }
 
-  const handleMovePlacement = async (pagePlacement: NotePlacement) => {
-    setSelectedPlacementPageId(pagePlacement.pageId)
+  const validateMoveTarget = (sourcePlacement: NotePlacement): { date?: string; slug?: string } | null => {
     const nextDate = date.trim()
     const nextSlug = slug.trim()
     if (!nextDate && !nextSlug) {
-      setError(`Selected ${placementLabel(pagePlacement)} to move. Choose a new destination date or named page below, then click "Move to this page".`)
-      return
+      setError('Choose a journal date or named page to move the note to.')
+      return null
     }
     if (nextDate && nextSlug) {
       setError('Choose a journal date OR a named page — a move targets one page, never both.')
-      return
+      return null
     }
     if (nextDate && !parseJournalDate(nextDate)) {
       setError('Enter a valid date (YYYY-MM-DD).')
-      return
+      return null
     }
-    if (pagePlacement.date === nextDate || (pagePlacement.slug && pagePlacement.slug === nextSlug)) {
+    if (sourcePlacement.date === nextDate || (sourcePlacement.slug && sourcePlacement.slug === nextSlug)) {
       setError('The note is already placed on this page. Choose a different destination.')
+      return null
+    }
+    return nextDate ? { date: nextDate } : { slug: nextSlug }
+  }
+
+  const handleMovePlacement = async (pagePlacement: NotePlacement) => {
+    setSelectedPlacementPageId(pagePlacement.pageId)
+    if (!date.trim() && !slug.trim()) {
+      setError(`Selected ${placementLabel(pagePlacement)} to move. Choose a new destination date or named page below, then click "Move to this page".`)
       return
     }
-    const target = nextDate ? { date: nextDate } : { slug: nextSlug }
+    const target = validateMoveTarget(pagePlacement)
+    if (!target) return
     await runPlacementChange(() => provider.moveRecordPlacement(entry.id, pagePlacement.pageId, target))
   }
 
   const handleMoveToPage = async () => {
     if (inFlight.current) return
-    const nextDate = date.trim()
-    const nextSlug = slug.trim()
-    if (!nextDate && !nextSlug) {
-      setError('Choose a journal date or named page to move the note to.')
-      return
-    }
-    if (nextDate && nextSlug) {
-      setError('Choose a journal date OR a named page — a move targets one page, never both.')
-      return
-    }
-    if (nextDate && !parseJournalDate(nextDate)) {
-      setError('Enter a valid date (YYYY-MM-DD).')
-      return
-    }
     const fromPlacement = selectedPlacementPageId
       ? placements.find(p => p.pageId === selectedPlacementPageId)
       : placements[0]
@@ -191,11 +186,8 @@ export function NotePlacementDialog({
       setError('No placement available to move from.')
       return
     }
-    if (fromPlacement.date === nextDate || (fromPlacement.slug && fromPlacement.slug === nextSlug)) {
-      setError('The note is already placed on this page. Choose a different destination.')
-      return
-    }
-    const target = nextDate ? { date: nextDate } : { slug: nextSlug }
+    const target = validateMoveTarget(fromPlacement)
+    if (!target) return
     await runPlacementChange(() => provider.moveRecordPlacement(entry.id, fromPlacement.pageId, target))
   }
   const handleSubmit = async (event: FormEvent) => {

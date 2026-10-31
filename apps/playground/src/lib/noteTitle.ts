@@ -16,3 +16,9 @@ const MARKDOWN_HEADING_RE = /^#{1,6}\s+/;
 export function normalizeNoteTitle(title: string | undefined | null): string {
     return (title ?? '').replace(MARKDOWN_HEADING_RE, '').trim();
 }
+
+/** Extract the first H1 markdown heading title from raw note content. */
+export function extractHeadingTitle(rawContent: string): string | undefined {
+    const match = rawContent.match(/^#\s+(.+)$/m);
+    return match ? match[1].trim() : undefined;
+}
