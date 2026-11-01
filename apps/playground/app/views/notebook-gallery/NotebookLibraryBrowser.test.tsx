@@ -21,8 +21,8 @@ mock.module('@/services/feed/feedSources', () => ({
   notebooksOfFeed: (feedId: string) =>
     feedId === 'seed-crossfit'
       ? [
-          { id: 'crossfit-girls', chunkId: 'notebook.crossfit-girls', label: 'The Girls', description: 'Benchmark workouts', category: 'benchmarks', count: 20 },
-          { id: 'crossfit-heroes', chunkId: 'notebook.crossfit-heroes', label: 'Hero WODs', description: 'Hero workouts', category: 'benchmarks', count: 30 },
+          { id: 'community-crossfit-girls', chunkId: 'notebook.crossfit-girls', label: 'The Girls', description: 'Benchmark workouts', category: 'benchmarks', count: 20 },
+          { id: 'community-crossfit-heroes', chunkId: 'notebook.crossfit-heroes', label: 'Hero WODs', description: 'Hero workouts', category: 'benchmarks', count: 30 },
         ]
       : [],
 }));

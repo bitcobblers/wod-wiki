@@ -125,6 +125,14 @@ describe('streamProfile', () => {
     expect(profile?.level).toBe('session')
   })
 
+  it('normalizes community- prefixed notebook slug in profile query and slug', () => {
+    const profile = getStreamProfile('/notebook/community-crossfit-girls')
+    expect(profile).toBeDefined()
+    expect(profile?.title).toBe('Crossfit Girls')
+    expect(profile?.defaultWql).toBe(':note{notebook:crossfit-girls} by {date}')
+    expect(profile?.notebookSlug).toBe('crossfit-girls')
+  })
+
 
   it('dynamically resolves the result detail stream profile for /results/:sessionId', () => {
     const detail = getStreamProfile('/results/res-42')

@@ -126,6 +126,11 @@ describe('path builders', () => {
   it('notebookPath lands the notebook landing', () => {
     expect(notebookPath('dan-john')).toBe('/notebook/dan-john')
   })
+  it('notebookPath normalizes community- prefixed or chunk-id slugs', () => {
+    expect(notebookPath('community-crossfit-girls')).toBe('/notebook/crossfit-girls')
+    expect(notebookPath('notebook.crossfit-programming')).toBe('/notebook/crossfit-programming')
+    expect(notebookPath('notebook/my-slug')).toBe('/notebook/my-slug')
+  })
 
   it('notebookDatePath scopes a notebook to a date', () => {
     expect(notebookDatePath('dan-john', '2026-09-17')).toBe('/notebook/dan-john/2026-09-17')

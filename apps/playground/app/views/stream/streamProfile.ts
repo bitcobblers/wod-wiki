@@ -12,6 +12,7 @@ import { EFFORTS_LEGACY_CONFIG } from '../../hooks/useEffortsComposerState'
 import type { ComposerLegacyConfig } from '../../hooks/useComposerQueryState'
 import type { WqlFindTarget, WqlSourceValue } from '@bitcobblers/wod-wiki-engine'
 import { toDisplayName } from '@/repositories/groupings'
+import { canonicalNotebookSlug } from '@/services/feed/feedSources'
 
 export function cleanRoutePath(route: string): string {
   return route.endsWith('/') && route.length > 1 ? route.slice(0, -1) : route
@@ -268,10 +269,12 @@ export function createResultDetailProfile(resultId: string): StreamProfile {
 }
 /** /notebook/:slug — stream profile for one notebook */
 export function createNotebookProfile(notebookSlug: string): StreamProfile {
+  // ponytail: strip community- or notebook. prefixes so deep queries match imported corpus slugs.
+  const cleanSlug = canonicalNotebookSlug(notebookSlug);
   return {
     route: `/notebook/${notebookSlug}`,
-    title: toDisplayName(notebookSlug),
-    defaultWql: `:note{notebook:${notebookSlug}} by {date}`,
+    title: toDisplayName(cleanSlug),
+    defaultWql: `:note{notebook:${cleanSlug}} by {date}`,
     level: 'session',
     target: 'note',
     scopeOptions: ['notebooks'],
@@ -279,11 +282,10 @@ export function createNotebookProfile(notebookSlug: string): StreamProfile {
     defaultLayout: 'cards',
     // One notebook's notes carry dates — the calendar layouts place them.
     calendarCapable: true,
-    notebookSlug: notebookSlug,
+    notebookSlug: cleanSlug,
     legacy: createContentLegacyConfig('notebooks'),
   }
 }
-
 
 const PROFILES_BY_ROUTE: Record<string, StreamProfile> = {
   '/journal': JOURNAL_STREAM_PROFILE,

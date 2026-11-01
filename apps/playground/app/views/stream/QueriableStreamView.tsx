@@ -25,7 +25,7 @@ import { onResultSaved } from '@/services/resultRecorder'
 import { useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
 import { subscribeAppEffortRegistry } from '@/services/effortRegistry'
 import { defaultFeedSources, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
-import { listFeedSources } from '@/services/feed/feedSources'
+import { listFeedSources, feedSourceById } from '@/services/feed/feedSources'
 import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { toast } from '@/hooks/use-toast'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
@@ -383,6 +383,10 @@ export function QueriableStreamView({
     }
     return undefined
   }, [profile, parsed])
+  const targetFeedFilter = useMemo(() => {
+    if (parsed.error || isPipelineQuery(parsed)) return null
+    return parsed.filters.find(f => f.key === 'feed' && !f.negate)?.values[0]?.value ?? null
+  }, [parsed])
 
   const seedFiles = useSeedContent()
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
@@ -1033,9 +1037,13 @@ export function QueriableStreamView({
                 Only the core seed is imported
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                {subscribedLibraryIds.length > 0
+                {targetFeedFilter ? (
+                  isFeedSubscribed(targetFeedFilter)
+                    ? `The content for this page comes from "${feedSourceById(targetFeedFilter)?.label ?? targetFeedFilter}", which has not been imported yet. Sync now to import its notebooks.`
+                    : `The content for this page comes from "${feedSourceById(targetFeedFilter)?.label ?? targetFeedFilter}", which is not subscribed yet. Subscribe in Sync settings to import its notebooks.`
+                ) : subscribedLibraryIds.length > 0
                   ? 'The content for this page comes from your subscribed libraries, which have not been imported yet. Sync now to import them — or open Sync settings to add more sources (mirrors, your own libraries).'
-                  : 'The content for this page comes from library sources, and none are subscribed yet. Browse the library manager to subscribe — mirrors and your own libraries both work.'}
+                  : 'The content for this page comes from community libraries, and none are subscribed yet beyond the core seed. Browse the library manager to subscribe — mirrors and your own libraries both work.'}
               </p>
               {feedSyncEvent && (
                 <div className="space-y-1.5 pt-1" data-testid="feed-library-notice-progress">

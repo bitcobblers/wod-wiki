@@ -425,6 +425,22 @@ export function notebookById(id: string): NotebookDef | undefined {
 }
 
 /**
+ * Resolves the canonical slug for a notebook id or slug.
+ * Registry entries (e.g. `community-crossfit-girls`) map to their corpus slug (`crossfit-girls`).
+ */
+export function canonicalNotebookSlug(slugOrId: string): string {
+  const trimmed = slugOrId.trim();
+  const def = notebookById(trimmed);
+  if (def && def.chunkId.startsWith('notebook.')) {
+    return def.chunkId.replace(/^notebook\./, '');
+  }
+  if (trimmed.startsWith('notebook/')) return trimmed.slice('notebook/'.length);
+  if (trimmed.startsWith('notebook:')) return trimmed.slice('notebook:'.length);
+  if (trimmed.startsWith('notebook.')) return trimmed.slice('notebook.'.length);
+  return trimmed;
+}
+
+/**
  * Pre-feed-unit builds synced one notebook at a time: their checkpoints
  * (`seed:community-<slug>`), subscriptions and hidden rows are keyed by
  * notebook id. Those ids fold onto the feed that publishes the notebook;

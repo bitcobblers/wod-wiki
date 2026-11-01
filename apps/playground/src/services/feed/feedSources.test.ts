@@ -12,6 +12,7 @@ import {
   listFeedSources,
   NOTEBOOKS,
   notebookById,
+  canonicalNotebookSlug,
   notebooksOfFeed,
   removeCustomFeedSource,
   FEED_SOURCES,
@@ -133,6 +134,14 @@ describe('feeds and their notebooks', () => {
     expect(feedIdForLegacyId('sport-crossfit')).toBe('sport-crossfit');
     expect(feedIdForLegacyId('some-custom-source')).toBe('some-custom-source');
     expect(notebookById('community-yoga')?.feedId).toBe('sport-yoga');
+  });
+
+  it('resolves canonical slugs for registry IDs and preserves custom slugs', () => {
+    expect(canonicalNotebookSlug('community-crossfit-girls')).toBe('crossfit-girls');
+    expect(canonicalNotebookSlug('community-crossfit-programming')).toBe('crossfit-programming');
+    expect(canonicalNotebookSlug('notebook.crossfit-girls')).toBe('crossfit-girls');
+    expect(canonicalNotebookSlug('notebook/my-garage-gym')).toBe('my-garage-gym');
+    expect(canonicalNotebookSlug('community-custom-wod')).toBe('community-custom-wod');
   });
 
   it('built-in notebook and feed ids are reserved from custom registration', () => {

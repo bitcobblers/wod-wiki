@@ -28,6 +28,8 @@
 // React-Router path patterns (used by <Route path="...">)
 // ---------------------------------------------------------------------------
 
+import { canonicalNotebookSlug } from '@/services/feed/feedSources';
+
 export const ROUTE_PATTERNS = {
   home: '/',
   playgroundRoot: '/playground',
@@ -132,7 +134,9 @@ export function notePath(noteId: string): string {
 
 /** /notebook/:slug — the canonical notebook landing. */
 export function notebookPath(slug: string): string {
-  return `/notebook/${encodeURIComponent(slug)}`;
+  // ponytail: normalize community- or notebook. prefixes to clean slug. Upgrade when IDs are unified.
+  const clean = canonicalNotebookSlug(slug);
+  return `/notebook/${encodeURIComponent(clean)}`;
 }
 
 /** /notebook/:slug/:date — a date-scoped view of a notebook, journal-style. */

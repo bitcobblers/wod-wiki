@@ -104,6 +104,10 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
   // Primary Sync ONLY while a subscribed source has a detected update; a
   // current source shows status text instead of a redundant button.
   const pending = source.subscribed && !source.upToDate && source.remote !== null
+  const closeDetails = (e: React.SyntheticEvent) => {
+    const details = (e.currentTarget as HTMLElement).closest('details');
+    if (details) details.open = false;
+  };
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3" data-testid={`feed-source-${source.id}`}>
@@ -168,14 +172,42 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
           </label>
           {/* Native details/summary overflow — opens without JavaScript, the
               summary is keyboard reachable, links carry noopener. */}
-          <details className="relative shrink-0" data-testid={`feed-more-${source.id}`}>
+          <details
+            className="relative shrink-0"
+            data-testid={`feed-more-${source.id}`}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                e.currentTarget.open = false;
+                e.currentTarget.querySelector('summary')?.focus();
+              }
+            }}
+          >
             <summary
               aria-label={`More actions for ${source.label}`}
               className="flex cursor-pointer list-none items-center justify-center rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden"
             >
               …
             </summary>
-            <div className="absolute right-0 z-20 mt-1 flex w-64 max-w-[80vw] flex-col items-stretch gap-1.5 rounded-lg border border-border bg-card p-2 text-xs shadow-lg">
+            {/* Backdrop closes details on click outside */}
+            <div
+              className="fixed inset-0 z-10"
+              data-testid="feed-more-backdrop"
+              aria-hidden="true"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeDetails(e);
+              }}
+            />
+            <div
+              className="absolute right-0 z-20 mt-1 flex w-64 max-w-[80vw] flex-col items-stretch gap-1.5 rounded-lg border border-border bg-card p-2 text-xs shadow-lg"
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (target.closest('button') || target.closest('a')) {
+                  closeDetails(e);
+                }
+              }}
+            >
               {source.url ? (
                 <a href={source.url} target="_blank" rel="noopener noreferrer" className="break-all font-mono text-primary hover:underline">
                   Published HTML: {source.url}

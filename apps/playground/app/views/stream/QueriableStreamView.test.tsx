@@ -195,6 +195,9 @@ describe('QueriableStreamView component', () => {
     return engine
   }
 
+  const now = new Date()
+  const currentMonthDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-16`
+
   const datedNoteEntries: Entry[] = [
     {
       id: 'note-a',
@@ -202,7 +205,7 @@ describe('QueriableStreamView component', () => {
       sourceNotebook: 'journal',
       sourceNote: 'a',
       title: 'Heavy pulls',
-      date: '2026-10-16',
+      date: currentMonthDay,
     },
     {
       id: 'note-b',
@@ -210,7 +213,7 @@ describe('QueriableStreamView component', () => {
       sourceNotebook: 'girls',
       sourceNote: 'b',
       title: 'Fran',
-      date: '2026-10-16',
+      date: currentMonthDay,
     },
     {
       id: 'note-undated',
@@ -1033,6 +1036,29 @@ describe('QueriableStreamView component', () => {
       expect(screen.getByTestId('location-probe').getAttribute('data-path')).toBe('/settings/sync')
     })
     expect(syncFeedSourceMock).not.toHaveBeenCalled()
+  })
+
+  it('tailors notice copy to feed filter and avoids claiming zero subscriptions when core is present', async () => {
+    const engine = createMockEngine([])
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/notebooks']}>
+        <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const notice = await waitFor(() => screen.getByTestId('feed-library-notice'))
+    expect(notice.textContent).toContain('beyond the core seed')
+    expect(notice.textContent).not.toContain('and none are subscribed yet.')
+    unmount()
+
+    render(
+      <MemoryRouter initialEntries={['/notebooks?q=' + encodeURIComponent(':notebook{feed:sport-crossfit,subscribed:true,false}')]}>
+        <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+    const filteredNotice = await waitFor(() => screen.getByTestId('feed-library-notice'))
+    expect(filteredNotice.textContent).toContain('CrossFit')
+    expect(filteredNotice.textContent).toContain('is not subscribed yet')
   })
 
   it('a subscribed source that is already current shows an up-to-date confirmation', async () => {

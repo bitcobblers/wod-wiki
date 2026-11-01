@@ -7,10 +7,12 @@ let subscribedFeeds = new Set<string>();
 let subscribedNotebooks = new Set<string>();
 let syncedSources: string[] = [];
 const mockNavigate = mock();
+// Load boundary exception: static import binds before mock.module runs in bun:test; dynamic import captures unmocked router.
+const realRouter = await import('react-router-dom');
 mock.module('react-router-dom', () => ({
+  ...realRouter,
   useNavigate: () => mockNavigate,
 }));
-
 mock.module('@/services/feed/feedSubscriptions', () => ({
   getFeedSubscriptionMode: (id: string) => id === 'core' || subscribedFeeds.has(id) ? 'full' : subscribedNotebooks.size ? 'partial' : 'unsubscribed',
   isFeedSubscribed: (id: string) => subscribedFeeds.has(id),
@@ -150,4 +152,25 @@ describe('SyncSection notebook subscriptions and filtering', () => {
     fireEvent.click(screen.getByTestId('browse-notebooks-link-seed-crossfit'));
     expect(mockNavigate).toHaveBeenCalledWith('/notebooks?q=:notebook{feed:seed-crossfit,subscribed:true,false}');
   });
+
+  it('dismisses more actions menu on Escape and backdrop click', async () => {
+    render(<SyncSection />);
+    fireEvent.click(screen.getByTestId('sync-subscribed-only-toggle'));
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-more-seed-crossfit')).toBeTruthy();
+    });
+
+    const details = screen.getByTestId('feed-more-seed-crossfit') as HTMLDetailsElement;
+    details.open = true;
+    expect(details.open).toBe(true);
+
+    fireEvent.keyDown(details, { key: 'Escape' });
+    expect(details.open).toBe(false);
+
+    details.open = true;
+    const backdrop = details.querySelector('[data-testid="feed-more-backdrop"]');
+    expect(backdrop).toBeTruthy();
+    fireEvent.click(backdrop!);
+    expect(details.open).toBe(false);
+  })
 });

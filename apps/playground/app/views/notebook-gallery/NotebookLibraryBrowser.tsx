@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/atoms/primitives/button';
 import { notebookService } from '@/hooks/useBrowserServices';
 import type { Notebook } from '@/types/notebook';
-import { listFeedSources, notebooksOfFeed } from '@/services/feed/feedSources';
+import { listFeedSources, notebooksOfFeed, canonicalNotebookSlug } from '@/services/feed/feedSources';
 import {
   getFeedSubscriptionMode,
   isNotebookSubscribed,
@@ -143,8 +143,8 @@ export function NotebookLibraryBrowser({
       const nbs = notebooksOfFeed(src.id);
       const cp = checkpoints[src.id];
       for (const def of nbs) {
-        const slug = def.id;
         const chunkId = def.chunkId;
+        const slug = canonicalNotebookSlug(chunkId || def.id);
         const sub = isNotebookSubscribed(src.id, chunkId);
         const chunkMeta = cp?.chunks[chunkId];
         const installed = Boolean(chunkMeta);
@@ -222,8 +222,8 @@ export function NotebookLibraryBrowser({
 
       // notebook: filter
       if (notebookFilter) {
-        const slugs = notebookFilter.split(',').map((s) => s.replace(/^notebook\//, ''));
-        if (!slugs.includes(item.slug) && !slugs.includes(item.notebookId)) {
+        const slugs = notebookFilter.split(',').map((s) => canonicalNotebookSlug(s));
+        if (!slugs.includes(item.slug) && !slugs.includes(item.notebookId) && (item.chunkId ? !slugs.includes(canonicalNotebookSlug(item.chunkId)) : true)) {
           return false;
         }
       }
