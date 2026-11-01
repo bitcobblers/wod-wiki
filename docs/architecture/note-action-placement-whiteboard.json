@@ -92,8 +92,8 @@
           "type": "table",
           "columns": ["Zone", "Current", "Updated"],
           "rows": [
-            ["Sticky", "New Journal entry, Cast, sync, page options", "Keep New Journal entry as the only creation primary; keep Cast"],
-            ["L2", "New journal entry, All entries, saved queries, filters", "Journal navigation; labeled predefined queries; recent journal entries; New journal entry"],
+            ["Sticky", "+ Add (journal entry), Cast, sync, page options", "Keep the short + Add create button as the only creation primary; keep Cast"],
+            ["L2", "All entries, saved queries, filters", "Journal navigation; labeled predefined queries; recent journal entries; no create action — creation stays in the sticky header"],
             ["L3", "Layout, fields, grouping, query settings", "Journal filters, date window, grouping, layout, fields, query settings"],
             ["Mobile", "Global journal-plus, WQL, search, page options", "Cast in navbar; bottom-up bubbles: Search, New journal entry, … menu with L3 controls"]
           ]
@@ -109,8 +109,8 @@
           "type": "table",
           "columns": ["Zone", "Current", "Updated"],
           "rows": [
-            ["Sticky", "New Playground, Cast, sync, page options", "Keep New Playground and Cast"],
-            ["L2", "New playground, notebook view links, saved queries, filters", "Playground navigation; labeled queries; recent playgrounds; New playground"],
+            ["Sticky", "+ Add (playground), Cast, sync, page options", "Keep the short + Add create button and Cast"],
+            ["L2", "Notebook view links, saved queries, filters", "Playground navigation; labeled queries; recent playgrounds; no create action — creation stays in the sticky header"],
             ["L3", "Layout, fields, grouping, query settings", "Source and date filters, grouping, layout, fields, query settings"],
             ["Mobile", "Global journal-plus, WQL, search", "Cast in navbar; bottom-up bubbles: Search, New playground, … menu with L3 controls"]
           ]
@@ -126,8 +126,8 @@
           "type": "table",
           "columns": ["Zone", "Current", "Updated"],
           "rows": [
-            ["Sticky", "New Notebook, Feed Settings, Cast, page options", "Keep New Notebook, Feed Settings, and Cast"],
-            ["L2", "Notebook views, Configure sources, saved queries, filters", "Notebook navigation; predefined notebook queries; recent notebooks; New notebook; source management"],
+            ["Sticky", "+ Add (notebook), Feed Settings, Cast, page options", "Keep the short + Add create button, Feed Settings, and Cast"],
+            ["L2", "Notebook views, Configure sources, saved queries, filters", "Notebook navigation; predefined notebook queries; recent notebooks; source management; no create action — creation stays in the sticky header"],
             ["L3", "Layout, fields, grouping, query settings", "Subscription, feed, and text filters; grouping; layout; fields"],
             ["Mobile", "Global journal-plus, WQL, search", "Cast in navbar; bottom-up bubbles: Search, New notebook, … menu with L3 controls"]
           ]
@@ -161,7 +161,7 @@
           "columns": ["Zone", "Current", "Updated"],
           "rows": [
             ["Sticky", "Falls back to New Journal entry", "No default creator because no destination notebook is known; keep Cast"],
-            ["L2", "New note/source flow, page variations, saved queries, filters", "Notes navigation; labeled predefined queries; recent notes; existing source-based creation flow"],
+            ["L2", "Page variations, saved queries, filters", "Notes navigation; labeled predefined queries; recent notes; no create action"],
             ["L3", "Layout, fields, grouping, query settings", "Notebook, source, tag, and date filters; grouping; layout; fields"],
             ["Mobile", "Global journal-plus, WQL, search", "Cast in navbar; bottom-up bubbles: Search, … menu with L3 controls; no misleading New Journal entry"]
           ]
@@ -177,8 +177,8 @@
           "type": "table",
           "columns": ["Zone", "Current", "Updated"],
           "rows": [
-            ["Sticky", "Falls back to New Journal entry", "New Page and Cast; remove the journal fallback"],
-            ["L2", "New page, guides, page variations, saved queries, filters", "Pages and guide navigation; labeled queries; recent pages; New page"],
+            ["Sticky", "Falls back to New Journal entry", "+ Add (page) and Cast; remove the journal fallback"],
+            ["L2", "Guides, page variations, saved queries, filters", "Pages and guide navigation; labeled queries; recent pages; no create action — creation stays in the sticky header"],
             ["L3", "Layout, fields, grouping, query settings", "Page-type and text filters, grouping, layout, fields"],
             ["Mobile", "Global journal-plus, WQL, search", "Cast in navbar; bottom-up bubbles: Search, New page, … menu with L3 controls"]
           ]
@@ -194,8 +194,8 @@
           "type": "table",
           "columns": ["Zone", "Current", "Updated"],
           "rows": [
-            ["Sticky", "New Effort, Cast, page options", "Keep New Effort and Cast"],
-            ["L2", "New effort, page variations, saved queries, filters", "Effort navigation; labeled queries; recent efforts; New effort"],
+            ["Sticky", "+ Add (effort), Cast, page options", "Keep the short + Add create button and Cast"],
+            ["L2", "Page variations, saved queries, filters", "Effort navigation; labeled queries; recent efforts; no create action — creation stays in the sticky header"],
             ["L3", "Layout, fields, grouping, query settings", "Discipline, tag, and text filters; grouping; layout; fields"],
             ["Mobile", "Global journal-plus, WQL, search", "Cast in navbar; bottom-up bubbles: Search, New effort, … menu with L3 controls"]
           ]
@@ -211,8 +211,8 @@
           "type": "table",
           "columns": ["Zone", "Current", "Updated"],
           "rows": [
-            ["Sticky", "New Equipment, Cast, page options", "Keep New Equipment and Cast"],
-            ["L2", "New equipment, page variations, saved queries, filters", "Equipment navigation; labeled queries; recent equipment; New equipment"],
+            ["Sticky", "+ Add (equipment), Cast, page options", "Keep the short + Add create button and Cast"],
+            ["L2", "Page variations, saved queries, filters", "Equipment navigation; labeled queries; recent equipment; no create action — creation stays in the sticky header"],
             ["L3", "Layout, fields, grouping, query settings", "Equipment-type, tag, and text filters; grouping; layout; fields"],
             ["Mobile", "Global journal-plus, WQL, search", "Cast in navbar; bottom-up bubbles: Search, New equipment, … menu with L3 controls"]
           ]
@@ -262,8 +262,8 @@
           "type": "table",
           "columns": ["Zone", "Current", "Updated"],
           "rows": [
-            ["Sticky", "New note", "Keep New note; add Cast and page options for consistency"],
-            ["L2", "Journal library panel, New journal entry, filters", "Up to Journal; calendar widget; recent journal days and notes; important linked workouts"],
+            ["Sticky", "+ Add (note)", "Keep the short + Add create button; add Cast and page options for consistency"],
+            ["L2", "Journal library panel, filters", "Up to Journal; calendar widget; recent journal days and notes; important linked workouts"],
             ["L3", "Date groups and per-note outlines", "On this page and notes first; New note, Add timer, and date navigation second"],
             ["Mobile", "New note primary plus global journal-plus", "Cast in navbar; bottom-up bubbles: Search, New note, … menu with calendar and L3 actions"]
           ]

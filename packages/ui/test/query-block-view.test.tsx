@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach   } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { QueryBlockView, type QueryExecutor } from '../src';
 
@@ -34,6 +34,15 @@ describe('QueryBlockView with injected QueryExecutor and onResultSaved', () => {
     await waitFor(() => {
       expect(screen.getByText('84')).toBeDefined();
     });
+  });
+
+  it('invokes the optional dashboard action', () => {
+    const onAddToDashboard = vi.fn();
+    render(<QueryBlockView query="sum:reps{}" onAddToDashboard={onAddToDashboard} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to dashboard' }));
+
+    expect(onAddToDashboard).toHaveBeenCalledTimes(1);
   });
 
   it('subscribes to onResultSaved callback prop for refresh notifications', async () => {
@@ -94,5 +103,31 @@ describe('QueryBlockView with injected QueryExecutor and onResultSaved', () => {
     const link = screen.getByText('Fran Benchmark').closest('a');
     expect(link).toBeDefined();
     expect(link?.getAttribute('href')).toBe('/note/note-1');
+  });
+
+  it('evaluates multi-line Query Documents with defaults and formulas through SharedQueryDocumentRunner', async () => {
+    const runQuery = vi.fn(async (q: string) => {
+      if (q.startsWith('sum:tis')) return mockScalarResult(q, 200);
+      return mockScalarResult(q, 50);
+    });
+    const executor: QueryExecutor = {
+      runQuery,
+      runFind: vi.fn(async () => ({} as never)),
+      runRows: vi.fn(async () => ({} as never)),
+    };
+
+    const docQuery = [
+      'defaults last 4w',
+      'work = sum:tis{}',
+      'load = sum:sessionLoad{}',
+      'ratio = work / load',
+      'show ratio',
+    ].join('\n');
+
+    render(<QueryBlockView query={docQuery} widgetType="value" executor={executor} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('4')).toBeDefined();
+    });
   });
 });

@@ -13,7 +13,7 @@ describe('resolveNewEntryRoute', () => {
     ['/efforts', 'effort'],
     ['/equipment', 'equipment'],
     ['/pages', 'page'],
-    ['/dashboards', 'dashboard'],
+    ['/tags', 'tag'],
     ['/notes', 'journal'],
   ])('uses the current library type for %s', (pathname, expected) => {
     expect(resolveNewEntryRoute(pathname).defaultKind).toBe(expected)
@@ -53,14 +53,14 @@ describe('routeSupportsCreation', () => {
     '/pages',
     '/efforts',
     '/equipment',
-    '/dashboards',
+    '/tags',
   ])('allows creation on %s', pathname => {
     expect(routeSupportsCreation(pathname)).toBe(true)
   })
 
   it.each([
     '/notes',
-    '/tags',
+    '/dashboards',
     '/feeds',
     '/sessions',
     '/results/result-id',

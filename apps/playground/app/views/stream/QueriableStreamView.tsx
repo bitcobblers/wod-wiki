@@ -15,6 +15,7 @@ import {
   ChevronRightIcon,
   CloudDownload,
   RefreshCw,
+  Save,
   Settings2,
   TriangleAlertIcon,
 } from 'lucide-react'
@@ -86,6 +87,7 @@ import { playgroundPath } from '../../lib/routes'
 import type { StreamProfile } from './streamProfile'
 import { splitReadmeQueries, hasReadmeQuery } from './readmeWql'
 import { ReadmeQueryBlock } from './ReadmeQueryBlock'
+import { QueryToDashboardDialog } from '../analytics/QueryToDashboardDialog'
 import { CanvasProse } from '../../canvas/CanvasProse'
 import { seedNoteId } from '@/services/feed/FeedImporter'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
@@ -304,6 +306,7 @@ export function QueriableStreamView({
   // resolve a profile per item, so they keep their in-code defaults).
   const querySettingsSurface = queryConfigSurface(profile.route)
   const [querySettingsOpen, setQuerySettingsOpen] = useState(false)
+  const [dashboardOpen, setDashboardOpen] = useState(false)
 
   const [entries, setEntries] = useState<Entry[]>([])
 
@@ -960,6 +963,14 @@ export function QueriableStreamView({
           onOpenChange={setQuerySettingsOpen}
         />
       )}
+      {profile.dashboardEnabled && (
+        <QueryToDashboardDialog
+          open={dashboardOpen}
+          onOpenChange={setDashboardOpen}
+          initialQuery={query}
+          subsetQuery={!parsed.error && isFindQuery(parsed) ? query : null}
+        />
+      )}
       {/* Desktop: single-line header — the query bar fills the row left
           empty by the removed title. The header itself is the sticky zone
           (lg:sticky top-0) and MUST be a direct child of this full-height
@@ -976,6 +987,19 @@ export function QueriableStreamView({
             primary={routeSupportsCreation(profile.route) ? <MobileNewEntryCombo /> : undefined}
             label="Stream actions"
           >
+            {profile.dashboardEnabled && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-testid="save-stream-query"
+                disabled={Boolean(parsed.error) || query.trim() === ''}
+                onClick={() => setDashboardOpen(true)}
+              >
+                <Save className="size-3.5" aria-hidden="true" />
+                Add to dashboard
+              </Button>
+            )}
             {actions}
             {/* Mobile thumb ⋯ sheet carries the same L3 controls (whiteboard
                 bottom-up Search → New → … contract). ResponsiveActions

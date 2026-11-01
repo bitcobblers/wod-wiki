@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, ChevronUp, Copy, Trash2 } from 'lucide-react';
-import { isFindQuery, isPipelineQuery, parseQuery, type QueryResult, type AnyParsedQuery, defaultTokenValues, isDashboardWidgetType, resolveWidgetType, substituteTokens, unknownTokensMessage, unknownWidgetTypeMessage, type DashboardDocument, type DashboardWidget, SharedQueryDocumentRunner, type QueryDocumentRunnerHost, type DocumentOutput } from '@bitcobblers/wod-wiki-wql';
+import { isFindQuery, isPipelineQuery, parseQuery, parseDocument, type AnyParsedQuery, defaultTokenValues, isDashboardWidgetType, resolveWidgetType, substituteTokens, unknownTokensMessage, unknownWidgetTypeMessage, type DashboardDocument, type DashboardWidget, SharedQueryDocumentRunner } from '@bitcobblers/wod-wiki-wql';
 import type { QueryExecutor } from '../contracts/query';
 import { WidgetFrame, WidgetToolButton, WidgetEditButton } from './WidgetFrame';
 import { WidgetChart, WidgetProblemBadge } from './WidgetChart';
-import { toChartResult } from './chartData';
+import { createExecutorDocumentHost, outputToRunResult, type WidgetRunResult } from './chartData';
 import { DashboardTokenControls } from './DashboardTokenControls';
+export { createExecutorDocumentHost, outputToRunResult, type WidgetRunResult };
 import { cn } from '../utils/cn';
 
 /** A widget's grid placement — column span 1..4, or a forced full row. */
@@ -58,84 +59,16 @@ export interface DashboardViewProps {
   rangeStart?: number;
   rangeEnd?: number;
   preferredUnit?: string;
+  /** Optional click handler for opening a note/block from content-plane widgets. */
+  onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
+  /** Optional resolver returning the destination href for an item in content-plane widgets. */
+  noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
 }
-
-/** Chart-input result plus the content-plane payloads list widgets read. */
-type WidgetRunResult = QueryResult & {
-  notes?: unknown[];
-  blocks?: unknown[];
-  efforts?: unknown[];
-  runs?: unknown[];
-  containers?: Record<string, { kind: 'page'; id: string; slug?: string; date?: string } | { kind: 'note'; id: string }>;
-};
 
 interface WidgetRun {
   result?: WidgetRunResult;
   error?: string;
 }
-
-/**
- * Executor→runner host adapter (ticket 19 cutover): the shared document
- * runner drives family dispatch; the injected QueryExecutor stays the only
- * execution seam. Range/unit ride every aggregate call; missing pipeline
- * capability surfaces as an output diagnostic — never a silent empty result.
- */
-export function createExecutorDocumentHost(
-  executor: QueryExecutor,
-  range: { rangeStart?: number; rangeEnd?: number; preferredUnit?: string; rollupEnsure?: () => Promise<void> } = {},
-): QueryDocumentRunnerHost {
-  return {
-    runAggregate: (queryText, overrides) =>
-      executor.runQuery(queryText, {
-        context: overrides.context,
-        rangeStart: range.rangeStart,
-        rangeEnd: range.rangeEnd,
-        preferredUnit: range.preferredUnit,
-      }),
-    runFind: async (queryText, context) => {
-      const parsed = parseQuery(queryText);
-      if (!isFindQuery(parsed)) return { kind: 'find', error: `not a content query: ${queryText}` };
-      const res = await executor.runFind(parsed, {
-        context,
-        range: range.rangeStart !== undefined
-          ? { start: range.rangeStart, end: range.rangeEnd ?? Number.MAX_SAFE_INTEGER, endExclusive: false }
-          : undefined,
-      });
-      return {
-        kind: 'find',
-        notes: res.notes,
-        blocks: res.blocks,
-        efforts: res.efforts,
-        containers: res.containers,
-        runs: res.runs,
-        table: res.table,
-      };
-    },
-    runPipeline: async (queryText, context) => {
-      const res = await executor.runPipeline?.(queryText, {
-        context,
-        rangeStart: range.rangeStart,
-        rangeEnd: range.rangeEnd,
-        preferredUnit: range.preferredUnit,
-      });
-      return res ?? { error: 'pipeline queries are not supported by this executor' };
-    },
-    rollupEnsure: range.rollupEnsure,
-  };
-}
-
-/** Document output → widget chart input (content payloads ride along). */
-function outputToRunResult(parsed: AnyParsedQuery, out: DocumentOutput): WidgetRunResult {
-  const base = toChartResult({ parsed, series: out.series, unit: out.unit, error: out.error, table: out.table });
-  return Object.assign(base, {
-    ...(out.notes ? { notes: out.notes } : {}),
-    ...(out.blocks ? { blocks: out.blocks } : {}),
-    ...(out.efforts ? { efforts: out.efforts } : {}),
-    ...(out.containers ? { containers: out.containers } : {}),
-    ...(out.runs ? { runs: out.runs } : {}),
-  });
-}
-
 /**
  * Grid span classes for a widget on the 1 / 2 / 4-column responsive grid.
  * An explicit fence span (`-N` / `-full`) wins; otherwise the type default.
@@ -194,6 +127,8 @@ export function DashboardView({
   rangeStart,
   rangeEnd,
   preferredUnit,
+  onOpenNote,
+  noteHref,
 }: DashboardViewProps) {
   const values = useMemo(
     () => ({ ...defaultTokenValues(document.tokens), ...tokenValues }),
@@ -244,9 +179,14 @@ export function DashboardView({
           next[widget.key] = { error: unknownTokensMessage(missing) };
           continue;
         }
-        const parsed = parseQuery(query);
-        if (parsed.error) {
-          next[widget.key] = { error: parsed.error };
+        const docParse = parseDocument(query);
+        const isMultiLineDoc = !docParse.doc.degenerate && docParse.doc.assignments.length > 0;
+        const parsed: AnyParsedQuery = isMultiLineDoc
+          ? { family: 'aggregate', raw: query, agg: 'sum', metric: docParse.doc.show[0] ?? 'value', filters: [], groupBy: [] }
+          : parseQuery(query);
+        const syntaxErr = isMultiLineDoc ? docParse.diagnostics[0] : parsed.error;
+        if (syntaxErr) {
+          next[widget.key] = { error: syntaxErr };
           continue;
         }
         const resolvedType = resolveWidgetType(widget.type);
@@ -255,7 +195,7 @@ export function DashboardView({
             next[widget.key] = { error: 'content queries return things — use a table or list widget instead' };
             continue;
           }
-        } else if (!isPipelineQuery(parsed) && resolvedType === 'list') {
+        } else if (!isPipelineQuery(parsed) && !isMultiLineDoc && resolvedType === 'list') {
           next[widget.key] = { error: 'aggregate queries return numbers — use a chart or value widget instead' };
           continue;
         }
@@ -415,6 +355,8 @@ export function DashboardView({
                   label={widget.title}
                   unit={preferredUnit}
                   attributes={attributes}
+                  onOpenNote={onOpenNote}
+                  noteHref={noteHref}
                 />
               )}
             </WidgetFrame>

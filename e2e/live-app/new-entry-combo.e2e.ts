@@ -10,20 +10,30 @@ test.describe('Contextual new entry actions', () => {
   test('uses the library type and unifies journal/note/page under Note in the wizard', async ({ page }) => {
     await page.goto('/journal');
     await waitForFeedReady(page);
-    await expect(page.getByTestId('new-entry-primary')).toHaveText('New Journal entry');
+    // The sticky create button is short ("+ Add"); the type rides the
+    // accessible name and the icon.
+    await expect(page.getByTestId('new-entry-primary')).toHaveText('+ Add');
+    await expect(page.getByTestId('new-entry-primary')).toHaveAttribute('aria-label', '+ Add Journal entry');
     await page.getByTestId('new-entry-primary').click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId('new-entry-note')).toBeVisible();
     await expect(dialog.getByTestId('new-entry-playground')).toBeVisible();
+    await expect(dialog.getByTestId('new-entry-notebook')).toBeVisible();
+    await expect(dialog.getByTestId('new-entry-effort')).toBeVisible();
+    await expect(dialog.getByTestId('new-entry-equipment')).toBeVisible();
+    await expect(dialog.getByTestId('new-entry-tag')).toBeVisible();
+    await expect(dialog.getByTestId('new-entry-dashboard')).toHaveCount(0);
     await expect(dialog.getByTestId('journal-create-page-toggle')).not.toBeChecked();
     await page.keyboard.press('Escape');
     await page.goto('/playgrounds');
-    await expect(page.getByTestId('new-entry-primary')).toHaveText('New Playground');
+    await expect(page.getByTestId('new-entry-primary')).toHaveText('+ Add');
+    await expect(page.getByTestId('new-entry-primary')).toHaveAttribute('aria-label', '+ Add Playground');
     await page.goto('/notebooks');
-    await expect(page.getByTestId('notebooks-create-button')).toHaveText('New Notebook');
+    await expect(page.getByTestId('notebooks-create-button')).toHaveText('+ Add');
     await page.goto('/pages');
-    await expect(page.getByTestId('new-entry-primary')).toHaveText('New Page');
+    await expect(page.getByTestId('new-entry-primary')).toHaveText('+ Add');
+    await expect(page.getByTestId('new-entry-primary')).toHaveAttribute('aria-label', '+ Add Page');
     await page.getByTestId('new-entry-primary').click();
     await expect(page.getByRole('dialog').getByTestId('journal-create-page-toggle')).toBeChecked();
   });
@@ -75,7 +85,7 @@ test.describe('Contextual new entry actions', () => {
     await page.goto('/');
     await waitForFeedReady(page);
     await expect(page.getByTestId('new-entry-combo')).toHaveCount(1);
-    await expect(page.getByTestId('new-entry-primary')).toHaveText('New Journal entry');
+    await expect(page.getByTestId('new-entry-primary')).toHaveText('+ Add');
     await expect(page.getByRole('button', { name: /Cast to TV/ })).toBeVisible();
   });
 
@@ -96,11 +106,33 @@ test.describe('Contextual new entry actions', () => {
     expect(newY).toBeLessThan(menuY);
   });
 
-  test('exposes New Dashboard creation on mobile', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto('/dashboards');
+  test('offers dashboard creation from WQL except on dashboard pages', async ({ page }) => {
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 375, height: 812 }]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/page/guide-wql');
+      await waitForFeedReady(page);
+      const action = page.getByTestId('query-add-dashboard').first();
+      await expect(action).toBeVisible();
+      await action.click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.keyboard.press('Escape');
+
+      await page.goto('/dashboard/benchmark-pr-board');
+      await waitForFeedReady(page);
+      await expect(page.getByTestId('query-add-dashboard')).toHaveCount(0);
+    }
+  });
+
+  test('creates a tag from the catalog options', async ({ page }) => {
+    await page.goto('/journal');
     await waitForFeedReady(page);
-    await expect(page.getByRole('button', { name: 'New Dashboard', exact: true })).toBeVisible();
+    await page.getByTestId('new-entry-primary').click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByTestId('new-entry-tag').click();
+    await dialog.getByPlaceholder('e.g., heavy').fill('E2E catalog tag');
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(page).toHaveURL('/t/tag/e2e-catalog-tag');
+    await expect(page.getByRole('heading', { name: 'Edit e2e-catalog-tag' })).toBeVisible();
   });
 
   test('exposes New Note creation on mobile inside a custom notebook', async ({ page }) => {

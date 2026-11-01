@@ -24,10 +24,12 @@ import {
   EditorDialog,
   WidgetChart,
   WqlComposer,
+  createExecutorDocumentHost,
+  outputToRunResult,
   type QueryExecutor,
+  type WidgetRunResult,
 } from '@bitcobblers/wod-wiki-ui';
-import { parseQuery, isFindQuery, type QueryResult } from '@bitcobblers/wod-wiki-engine';
-
+import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine';
 /** Parse the composer's attribute text: whitespace-separated `key=value`
  *  tokens (values may be double-quoted) — the fence-tag encoding. */
 function parseAttributes(text: string): Record<string, string> | undefined {
@@ -46,6 +48,7 @@ function parseAttributes(text: string): Record<string, string> | undefined {
 }
 import {
   DASHBOARD_WIDGET_TYPES,
+  SharedQueryDocumentRunner,
   substituteTokens,
   unknownTokensMessage,
 } from '@bitcobblers/wod-wiki-wql';
@@ -171,7 +174,7 @@ function ComposerSession({
   // itself will do on the grid.
   const [preview, setPreview] = useState<
     | { status: 'idle' | 'loading' }
-    | { status: 'ok'; result: QueryResult }
+    | { status: 'ok'; result: WidgetRunResult }
     | { status: 'error'; message: string }
     | { status: 'blocked'; message: string }
   >({ status: 'idle' });
@@ -192,10 +195,19 @@ function ComposerSession({
     const seq = ++previewSeq.current;
     setPreview({ status: 'loading' });
     const timer = setTimeout(() => {
-      executor
-        .runQuery(substituted.query, { rangeStart, rangeEnd, preferredUnit })
-        .then((result) => {
-          if (previewSeq.current === seq) setPreview({ status: 'ok', result });
+      const host = createExecutorDocumentHost(executor, { rangeStart, rangeEnd, preferredUnit });
+      const runner = new SharedQueryDocumentRunner(host);
+      runner
+        .run(substituted.query)
+        .then((res) => {
+          if (previewSeq.current !== seq) return;
+          const out = res.outputs[0];
+          const err = out?.error ?? res.diagnostics[0];
+          if (!out || err) {
+            setPreview({ status: 'error', message: err ?? 'widget produced no output' });
+            return;
+          }
+          setPreview({ status: 'ok', result: outputToRunResult(parseQuery(substituted.query), out) });
         })
         .catch((err: unknown) => {
           if (previewSeq.current === seq) {
@@ -304,8 +316,38 @@ function ComposerSession({
         {destination}
 
         <section>
-          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-            Calculation
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Query &amp; Filter Manipulation
+            </span>
+            {!readOnly && tokenValues && Object.keys(tokenValues).length > 0 && (
+              <div className="flex flex-wrap items-center gap-1" data-testid="widget-composer-token-chips">
+                {Object.keys(tokenValues).map((tok) => (
+                  <button
+                    key={tok}
+                    type="button"
+                    onClick={() => {
+                      const trimmed = wql.trim();
+                      if (tok === 'scope') {
+                        if (trimmed.includes('{}')) {
+                          setWql(trimmed.replace('{}', '{$scope}'));
+                        } else if (!trimmed.includes('$scope')) {
+                          setWql(`${trimmed} where :note{$scope}`);
+                        }
+                      } else if (!trimmed.includes(`$${tok}`)) {
+                        setWql(trimmed.replace(/\{([^}]*)\}/, (_m, inner: string) =>
+                          inner.trim() ? `{${inner},${tok}:$${tok}}` : `{${tok}:$${tok}}`,
+                        ));
+                      }
+                    }}
+                    className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                    title={`Bind $${tok} token into query`}
+                  >
+                    +${tok}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {readOnly ? (
             <code
@@ -332,23 +374,46 @@ function ComposerSession({
             </code>
           )}
           {!readOnly && (
-            <label className="mt-3 flex flex-col gap-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                Visualization
-              </span>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                data-testid="widget-composer-type"
-                className="min-h-12 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary sm:min-h-0"
-              >
-                {DASHBOARD_WIDGET_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="mt-3 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Visualization
+                </span>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  data-testid="widget-composer-type"
+                  aria-label="Visualization"
+                  className="rounded-md border border-border bg-card px-2 py-1 text-xs font-mono text-foreground focus:outline-none focus:border-primary"
+                >
+                  {DASHBOARD_WIDGET_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5" role="group" aria-label="Visualization picker">
+                {DASHBOARD_WIDGET_TYPES.map((t) => {
+                  const active = type === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setType(t)}
+                      className={`rounded-lg border px-2 py-1.5 text-[11px] font-semibold truncate transition-colors ${
+                        active
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border/70 bg-card text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </section>
 

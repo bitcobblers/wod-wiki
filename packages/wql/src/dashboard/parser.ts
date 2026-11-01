@@ -1,5 +1,5 @@
 import { parseFrontmatter } from './frontmatter';
-import { parseQueryWidgetSuffix, type DashboardSectionInput, type DashboardMeta } from './model';
+import { parseQueryWidgetSuffix, isDashboardWidgetType, type DashboardSectionInput, type DashboardMeta } from './model';
 
 export interface DashboardParsedSection extends DashboardSectionInput {
   /** 0-indexed start line of the section in the raw content. */
@@ -32,11 +32,12 @@ export function parseDashboardNote(rawContent: string): { meta: DashboardMeta; s
     const trimmed = line.trim();
 
     // Query block
-    if (/^```query/.test(trimmed)) {
-      // The full suffix (after ```query) may carry `key=value` presentation
-      // attributes (decision 22) — the whole remainder parses as one suffix.
-      // NOT lowercased: attribute values are case-sensitive ($Token names);
-      // parseQueryWidgetSuffix lowercases the type and keys itself.
+    const isQueryFence = /^```query(?:[:\s]|$)/i.test(trimmed);
+    const widgetFenceMatch = !isQueryFence ? trimmed.match(/^```widget:([a-zA-Z0-9_-]+.*)?$/i) : null;
+    const isWidgetChartFence = Boolean(
+      widgetFenceMatch && widgetFenceMatch[1] && isDashboardWidgetType( parseQueryWidgetSuffix(widgetFenceMatch[1]).type ),
+    );
+    if (isQueryFence || isWidgetChartFence) {
       const tag = trimmed.slice(3);
       let widgetType;
       let spanCols;
@@ -45,8 +46,9 @@ export function parseDashboardNote(rawContent: string): { meta: DashboardMeta; s
       let attributes: Record<string, string> | undefined;
       let attributeOrder: string[] | undefined;
 
-      if (tag.startsWith('query:')) {
-        const spec = parseQueryWidgetSuffix(tag.slice('query:'.length));
+      const colonMatch = tag.match(/^(?:query|widget):(.*)$/i);
+      if (colonMatch) {
+        const spec = parseQueryWidgetSuffix(colonMatch[1]);
         widgetType = spec.type || undefined;
         spanCols = spec.spanCols;
         spanFull = spec.spanFull;
@@ -54,7 +56,6 @@ export function parseDashboardNote(rawContent: string): { meta: DashboardMeta; s
         attributes = spec.attributes;
         attributeOrder = spec.attributeOrder;
       }
-
       const startLine = i;
       i++;
       const bodyLines: string[] = [];

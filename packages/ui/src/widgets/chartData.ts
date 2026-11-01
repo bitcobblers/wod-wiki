@@ -1,4 +1,17 @@
-import type { AnyParsedQuery, QueryResult, Series, TabularResult } from '@bitcobblers/wod-wiki-wql';
+import {
+  isFindQuery,
+  parseQuery,
+  type AnyParsedQuery,
+  type DocumentOutput,
+  type NoteContainer,
+  type PipelineSink,
+  type QueryDocumentRunnerHost,
+  type QueryResult,
+  type RowsRun,
+  type Series,
+  type TabularResult,
+} from '@bitcobblers/wod-wiki-wql';
+import type { QueryExecutor } from '../contracts/query';
 
 export interface MergedPoint {
   ts: number;
@@ -6,10 +19,80 @@ export interface MergedPoint {
 }
 
 /**
+ * Canonical widget execution output — combines the numeric `QueryResult`
+ * shape with content-plane payloads (`notes`, `blocks`, `efforts`, `runs`,
+ * `containers`, `table`, `chart`) so every widget renderer and inline query
+ * block consumes a single unified result type.
+ */
+export type WidgetRunResult = QueryResult & {
+  notes?: unknown[];
+  blocks?: unknown[];
+  efforts?: unknown[];
+  runs?: RowsRun[];
+  containers?: Record<string, NoteContainer>;
+  table?: TabularResult;
+  chart?: PipelineSink;
+};
+
+export interface ExecutorDocumentHostOptions {
+  rangeStart?: number;
+  rangeEnd?: number;
+  preferredUnit?: string;
+  rollupEnsure?: () => Promise<void>;
+}
+
+/**
+ * Executor → SharedQueryDocumentRunner host adapter.
+ * Every UI surface (DashboardView, QueryBlockView, useAnalyticsQueries,
+ * WidgetComposerDialog) executes WQL through this single host seam.
+ */
+export function createExecutorDocumentHost(
+  executor: QueryExecutor,
+  range: ExecutorDocumentHostOptions = {},
+): QueryDocumentRunnerHost {
+  return {
+    runAggregate: (queryText, overrides) =>
+      executor.runQuery(queryText, {
+        context: overrides.context,
+        rangeStart: range.rangeStart,
+        rangeEnd: range.rangeEnd,
+        preferredUnit: range.preferredUnit,
+      }),
+    runFind: async (queryText, context) => {
+      const parsed = parseQuery(queryText);
+      if (!isFindQuery(parsed)) return { kind: 'find', error: `not a content query: ${queryText}` };
+      const res = await executor.runFind(parsed, {
+        context,
+        range: range.rangeStart !== undefined
+          ? { start: range.rangeStart, end: range.rangeEnd ?? Number.MAX_SAFE_INTEGER, endExclusive: false }
+          : undefined,
+      });
+      return {
+        kind: 'find',
+        notes: res.notes,
+        blocks: res.blocks,
+        efforts: res.efforts,
+        containers: res.containers,
+        runs: res.runs,
+        table: res.table,
+      };
+    },
+    runPipeline: async (queryText, context) => {
+      const res = await executor.runPipeline?.(queryText, {
+        context,
+        rangeStart: range.rangeStart,
+        rangeEnd: range.rangeEnd,
+        preferredUnit: range.preferredUnit,
+      });
+      return res ?? { error: 'pipeline queries are not supported by this executor' };
+    },
+    rollupEnsure: range.rollupEnsure,
+  };
+}
+
+/**
  * Adapter — pipeline/document outputs ride the QueryResult shape the widget
- * renderers already consume. The `parsed` union widens to the aggregate
- * member: chart renderers read only `error`/`family` off it, never metric
- * fields of the narrower members.
+ * renderers already consume.
  */
 export function toChartResult(input: {
   parsed: AnyParsedQuery;
@@ -18,18 +101,38 @@ export function toChartResult(input: {
   error?: string;
   table?: TabularResult;
 }): QueryResult {
-  // Presentation-union cast (AnyParsedQuery → aggregate member): renderers
-  // consume `.error`/`.family` only; the raw query text stays intact.
   const parsed = input.parsed as QueryResult['parsed'];
+  const series = input.series ?? [];
+  const scalar = series.length === 1 && series[0].points.length === 1 ? series[0].points[0].value : undefined;
   return {
     parsed,
-    series: input.series ?? [],
+    series,
     stages: { selected: 0, buckets: 0, aggregated: 0, groups: 0 },
     matched: [],
+    ...(scalar !== undefined ? { scalar } : {}),
     ...(input.unit !== undefined ? { unit: input.unit } : {}),
     ...(input.error ? { error: input.error } : {}),
     ...(input.table ? { table: input.table } : {}),
   };
+}
+
+/** Convert a `DocumentOutput` from `SharedQueryDocumentRunner` into `WidgetRunResult`. */
+export function outputToRunResult(parsed: AnyParsedQuery, out: DocumentOutput): WidgetRunResult {
+  const base = toChartResult({
+    parsed,
+    series: out.series,
+    unit: out.unit,
+    error: out.error,
+    table: out.table,
+  });
+  return Object.assign(base, {
+    ...(out.notes ? { notes: out.notes } : {}),
+    ...(out.blocks ? { blocks: out.blocks } : {}),
+    ...(out.efforts ? { efforts: out.efforts } : {}),
+    ...(out.containers ? { containers: out.containers } : {}),
+    ...(out.runs ? { runs: out.runs } : {}),
+    ...(out.chart ? { chart: out.chart } : {}),
+  });
 }
 
 export function mergeSeries(series: Series[]): MergedPoint[] {

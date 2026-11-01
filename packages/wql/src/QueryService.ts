@@ -1176,6 +1176,14 @@ export class QueryService {
     groups.sort((a, b) => sessionCompletedAt(b[1]) - sessionCompletedAt(a[1]));
 
     const planeFilters = parsed.filters.filter((f) => f.key === 'plane');
+    const factFilters = parsed.filters.filter((f) => !['result', 'block', 'note', 'plane'].includes(f.key));
+    const touchesTags = factFilters.some((f) => isTagLabelKey(f.key));
+    let sessionNoteTags: ReadonlyMap<string, readonly string[]> = new Map();
+    if (touchesTags && groups.length > 0) {
+      const dummyPoints = groups.map(([, rows]) => ({ noteId: rows[0]?.noteId ?? '' } as AnalyticsDataPoint));
+      sessionNoteTags = await this.loadNoteTags(dummyPoints, true);
+    }
+    const normalizedFactFilters = factFilters.map((f) => (f.key === 'tag' ? { ...f, key: 'tags' } : f));
     let runs: RowsRun[] = groups
       .map(([resultId, rows]) => {
         let events = rows;
@@ -1186,6 +1194,13 @@ export class QueryService {
               return f.negate ? !matchesAny : matchesAny;
             }),
           );
+        }
+        if (normalizedFactFilters.length > 0) {
+          const matchingSession = events.some((row) => {
+            const facts = projectEventToFacts(row);
+            return facts.some((fact) => matchesFilters(fact, normalizedFactFilters, sessionNoteTags));
+          });
+          if (!matchingSession) events = [];
         }
         return {
           resultId,
@@ -1293,8 +1308,12 @@ export class QueryService {
       return row.timestamp;
     };
 
-    const noteTags: ReadonlyMap<string, readonly string[]> = new Map();
-    const tagFilters = parsed.filters.filter((f) => !['result', 'block', 'note', 'plane'].includes(f.key));
+    const rawTagFilters = parsed.filters.filter((f) => !['result', 'block', 'note', 'plane'].includes(f.key));
+    const tagFilters = rawTagFilters.map((f) => (f.key === 'tag' ? { ...f, key: 'tags' } : f));
+    const touchesTags = tagFilters.some((f) => f.key === 'tags');
+    const noteTags: ReadonlyMap<string, readonly string[]> = touchesTags && eligibleRecords.length > 0
+      ? await this.loadNoteTags(eligibleRecords.map((r) => ({ noteId: r.noteId } as AnalyticsDataPoint)), true)
+      : new Map();
     // C1 + ticket 12: the fetch bound is only a cutoff — scoped and windowed
     // queries alike filter membership by the row's own temporal anchor.
     const timeScoped = !!(parsed.window || options.range);

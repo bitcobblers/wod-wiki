@@ -1,9 +1,9 @@
 import React, { type ReactNode } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
+import type { NoteContainer, QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { isDashboardWidgetType, PLANNED_WIDGET_TYPES, resolveWidgetType, unknownWidgetTypeMessage } from '@bitcobblers/wod-wiki-wql';
 import { SERIES_COLORS } from './chartPalette';
-import { compactNumber } from './chartData';
+import { compactNumber, type WidgetRunResult } from './chartData';
 import { QueryValue } from './QueryValue';
 import { WqlTimeseries } from './WqlTimeseries';
 import { WqlBars } from './WqlBars';
@@ -17,7 +17,7 @@ import { WqlEmptyState } from './WqlEmptyState';
 export interface WidgetChartProps {
   /** Raw widget type from the fence suffix; '' picks the dashboard default (table). */
   type: string;
-  result: QueryResult | undefined;
+  result: WidgetRunResult | QueryResult | undefined;
   /** Fallback label for value widgets (widget title or metric). */
   label?: string;
   unit?: string;
@@ -25,26 +25,72 @@ export interface WidgetChartProps {
   params?: string[];
   /** Fence-tag presentation attributes (decision 22) — preferred over legacy positional params. */
   attributes?: Record<string, string>;
+  /** When true, an empty `type` infers the chart shape (value / timeseries / bar) from `result.series`. */
+  inferDefaultShape?: boolean;
+  /** Optional click handler for opening a note/block from content-plane list results. */
+  onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
+  /** Optional resolver returning the destination href for an item in content-plane list results. */
+  noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
 }
 
-export function WidgetChart({ type, result, label, unit, params, attributes }: WidgetChartProps) {
+function inferChartTypeFromResult(result: QueryResult | undefined): string {
+  if (!result || result.series.length === 0) return 'table';
+  if (result.series.length === 1 && result.series[0].points.length === 1) return 'value';
+  const hasTimeAxis = result.series.some((s) => s.points.length > 1);
+  return hasTimeAxis ? 'timeseries' : 'bar';
+}
+
+export function WidgetChart({
+  type,
+  result,
+  label,
+  unit,
+  params,
+  attributes,
+  inferDefaultShape = false,
+  onOpenNote,
+  noteHref,
+}: WidgetChartProps) {
   if (type !== '' && !isDashboardWidgetType(type)) {
     return <WidgetProblemBadge message={unknownWidgetTypeMessage(type)} />;
   }
 
-  const resolved = resolveWidgetType(type);
+  const resolved = type === '' && inferDefaultShape
+    ? inferChartTypeFromResult(result)
+    : resolveWidgetType(type);
+  const runResult = result as WidgetRunResult | undefined;
 
-  if (resolved === 'table' && (result as any)?.table) {
+  const parsedFamily = (runResult?.parsed as { family?: string } | undefined)?.family;
+  const hasContentItems =
+    parsedFamily === 'find' ||
+    Boolean(runResult?.notes?.length || runResult?.blocks?.length || runResult?.efforts?.length || runResult?.runs?.length);
+
+  if (resolved === 'table' && runResult?.table) {
     return (
       <div className="w-full h-full min-h-[160px]">
-        <TabularTable table={(result as any).table} />
+        <TabularTable table={runResult.table} />
       </div>
     );
   }
-  if (resolved === 'list' && (result as any)?.parsed?.family === 'find') {
+  if (resolved === 'table' && hasContentItems && (!result || !('series' in result) || result.series.length === 0)) {
     return (
       <div className="w-full h-full min-h-[160px]">
-        <ThingList result={result as any} />
+        <ContentRecordsTable
+          result={runResult}
+          onOpenNote={onOpenNote}
+          noteHref={noteHref}
+        />
+      </div>
+    );
+  }
+  if (resolved === 'list' && hasContentItems) {
+    return (
+      <div className="w-full h-full min-h-[160px]">
+        <ThingList
+          result={runResult}
+          onOpenNote={onOpenNote}
+          noteHref={noteHref}
+        />
       </div>
     );
   }
@@ -249,15 +295,235 @@ function TabularTable({ table }: { table: { columns: Array<{ name: string; unit?
   );
 }
 
-function ThingList({ result }: { result: any }) {
-  const items = result.notes?.length ? result.notes : result.blocks?.length ? result.blocks : result.efforts?.length ? result.efforts : result.runs ?? [];
+function containerPageHref(container: NoteContainer | undefined): string | undefined {
+  if (!container || container.kind !== 'page') return undefined;
+  const { slug, date } = container as { slug?: string; date?: string };
+  if (slug) return `/page/${encodeURIComponent(slug)}`;
+  if (date) return `/day/${encodeURIComponent(date)}`;
+  return undefined;
+}
+
+interface ThingListItem {
+  id?: string;
+  resultId?: string;
+  title?: string;
+  label?: string;
+  noteTitle?: string;
+  blockContentId?: string;
+  type?: string;
+  dataType?: string;
+  sourceId?: string;
+  discipline?: string;
+  baseAttributes?: { discipline?: string; met?: number; intensityTier?: string };
+  date?: number | string;
+  createdAt?: number | string;
+  timestamp?: number;
+  tags?: string[];
+}
+
+function formatItemDate(item: ThingListItem): string {
+  const raw = item.date ?? item.timestamp ?? item.createdAt;
+  if (raw === undefined || raw === null || raw === '') return '—';
+  if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const ms = typeof raw === 'number' ? raw : Date.parse(String(raw));
+  if (!Number.isFinite(ms) || ms <= 0) return '—';
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function ContentRecordsTable({
+  result,
+  onOpenNote,
+  noteHref,
+}: {
+  result: WidgetRunResult | undefined;
+  onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
+  noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+}) {
+  const parsed = result?.parsed as unknown as {
+    target?: string;
+    source?: { kind?: string; query?: { family?: string; target?: string } };
+  } | undefined;
+  const target: string =
+    parsed?.target ??
+    (parsed?.source?.kind === 'query' && parsed?.source?.query?.family === 'find'
+      ? (parsed.source.query.target ?? 'note')
+      : result?.blocks?.length
+        ? 'block'
+        : 'note');
+  const isBlock = target === 'block' || Boolean(result?.blocks?.length && !result?.notes?.length);
+  const rawItems: unknown[] = result?.notes?.length
+    ? result.notes
+    : result?.blocks?.length
+      ? result.blocks
+      : result?.efforts?.length
+        ? result.efforts
+        : result?.runs ?? [];
+  const items = rawItems as ThingListItem[];
+
+  if (items.length === 0) {
+    return (
+      <div className="text-xs text-muted-foreground py-4 text-center" data-testid="content-records-table-empty">
+        No {target}s matched this query.
+      </div>
+    );
+  }
+
+  const containers = result?.containers;
+
+  return (
+    <div className="h-full overflow-auto border-y border-border/60 bg-card/40" data-testid="content-records-table">
+      <table className="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr className="border-b border-border bg-muted/30 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <th className="py-2 px-3">Title</th>
+            <th className="py-2 px-3">Kind</th>
+            <th className="py-2 px-3">Tags / Details</th>
+            <th className="py-2 px-3 text-right">Date</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/40">
+          {items.map((item, i) => {
+            const id = item.id ?? item.resultId ?? String(i);
+            const typedItem = { ...item, id, title: item.title ?? item.label ?? item.noteTitle };
+            const title = isBlock
+              ? typedItem.title || typedItem.blockContentId || id
+              : typedItem.title || id;
+            const href = containers
+              ? containerPageHref(containers[id]) ?? (noteHref ? noteHref(typedItem) : undefined)
+              : noteHref
+                ? noteHref(typedItem)
+                : undefined;
+            const kindLabel = item.type ?? item.dataType ?? item.baseAttributes?.discipline ?? target;
+            const detail = Array.isArray(item.tags) && item.tags.length > 0
+              ? item.tags.map((t) => `#${t}`).join(' ')
+              : item.baseAttributes?.met
+                ? `MET ${item.baseAttributes.met}`
+                : item.sourceId ?? '—';
+            return (
+              <tr key={id} className="hover:bg-muted/30 transition-colors">
+                <td className="py-2 px-3 font-medium truncate max-w-[260px]">
+                  {href ? (
+                    <a
+                      href={href}
+                      onClick={(e) => {
+                        if (onOpenNote) {
+                          e.preventDefault();
+                          onOpenNote(typedItem);
+                        }
+                      }}
+                      className="text-primary hover:underline"
+                    >
+                      {title}
+                    </a>
+                  ) : onOpenNote ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenNote(typedItem)}
+                      className="text-left text-primary hover:underline"
+                    >
+                      {title}
+                    </button>
+                  ) : (
+                    <span className="text-foreground">{title}</span>
+                  )}
+                </td>
+                <td className="py-2 px-3 font-mono text-[11px] text-muted-foreground">{kindLabel}</td>
+                <td className="py-2 px-3 font-mono text-[11px] text-muted-foreground truncate max-w-[200px]">{detail}</td>
+                <td className="py-2 px-3 font-mono text-[11px] text-muted-foreground text-right tabular-nums">{formatItemDate(item)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+function ThingList({
+  result,
+  onOpenNote,
+  noteHref,
+}: {
+  result: WidgetRunResult | undefined;
+  onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
+  noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+}) {
+  const parsed = result?.parsed as unknown as {
+    target?: string;
+    source?: { kind?: string; query?: { family?: string; target?: string } };
+  } | undefined;
+  const target: string =
+    parsed?.target ??
+    (parsed?.source?.kind === 'query' && parsed?.source?.query?.family === 'find'
+      ? (parsed.source.query.target ?? 'note')
+      : result?.blocks?.length
+        ? 'block'
+        : 'note');
+  const isBlock = target === 'block' || Boolean(result?.blocks?.length && !result?.notes?.length);
+  const rawItems: unknown[] = result?.notes?.length
+    ? result.notes
+    : result?.blocks?.length
+      ? result.blocks
+      : result?.efforts?.length
+        ? result.efforts
+        : result?.runs ?? [];
+  const items = rawItems as ThingListItem[];
+
+  if (items.length === 0) {
+    return (
+      <div className="text-xs text-muted-foreground py-2" data-testid="thing-list">
+        No {target}s matched this query.
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-auto space-y-1" data-testid="thing-list">
-      {items.map((item: any, i: number) => (
-        <div key={item.id ?? item.resultId ?? i} className="py-1 px-2 text-xs border-b border-border/40 truncate">
-          {item.title ?? item.label ?? item.noteTitle ?? item.id ?? item.resultId}
-        </div>
-      ))}
+      <div className="text-[11px] font-medium text-muted-foreground mb-1">
+        {items.length} {target}{items.length === 1 ? '' : 's'} matched
+      </div>
+      <ul className="space-y-0.5 max-h-48 overflow-y-auto font-mono text-xs">
+        {items.map((item, i) => {
+          const id = item.id ?? item.resultId ?? String(i);
+          const typedItem = { ...item, id, title: item.title ?? item.label ?? item.noteTitle };
+          const title = isBlock
+            ? typedItem.title || typedItem.blockContentId || id
+            : typedItem.title || id;
+          const containers = result?.containers;
+          const href = containers
+            ? containerPageHref(containers[id]) ?? (noteHref ? noteHref(typedItem) : undefined)
+            : noteHref
+              ? noteHref(typedItem)
+              : undefined;
+          return (
+            <li key={id} className="rounded hover:bg-muted/50 truncate">
+              {href ? (
+                <a
+                  href={href}
+                  onClick={(e) => {
+                    if (onOpenNote) {
+                      e.preventDefault();
+                      onOpenNote(typedItem);
+                    }
+                  }}
+                  className="block py-0.5 px-1.5 text-primary hover:underline truncate"
+                >
+                  {title}
+                </a>
+              ) : onOpenNote ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenNote(typedItem)}
+                  className="w-full text-left py-0.5 px-1.5 text-primary hover:underline truncate"
+                >
+                  {title}
+                </button>
+              ) : (
+                <span className="block py-0.5 px-1.5 text-foreground truncate">{title}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

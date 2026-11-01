@@ -58,6 +58,8 @@ export interface StreamProfile {
   notebookSlug?: string
   /** Preferred initial layout mode (defaults to level standard if omitted). */
   defaultLayout?: LayoutMode
+  /** Offer the current WQL as a dashboard widget through the shared composer. */
+  dashboardEnabled?: boolean
   /**
    * True when this surface's entries carry DATES, so the calendar layouts
    * (Agenda / Planner) can place them on a time axis.
@@ -264,6 +266,8 @@ export function createResultDetailProfile(resultId: string): StreamProfile {
     level: 'segment',
     target: 'session',
     scopeOptions: [],
+    defaultLayout: 'rows',
+    dashboardEnabled: true,
     emptyMessage: `No segment records found for result ${resultId}.`,
   }
 }

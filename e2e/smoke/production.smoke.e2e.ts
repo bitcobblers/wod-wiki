@@ -45,9 +45,9 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
 
     await waitForFeedReady(page);
     // Date-page contract (JournalDatePage always renders this action once the
-    // route settles): the page's own New note control, plus the inline editor
-    // when the date already has a note.
-    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeVisible({ timeout: 10_000 });
+    // route settles): the page's own short "+ Add" control, plus the inline
+    // editor when the date already has a note.
+    await expect(page.getByRole('button', { name: '+ Add note', exact: true })).toBeVisible({ timeout: 10_000 });
 
     await page.screenshot({ path: 'e2e/screenshots/smoke-journal.png', fullPage: false });
   });

@@ -4,12 +4,12 @@ import {
   BeakerIcon,
   BookOpenIcon,
   CalendarDaysIcon,
-  ChartBarIcon,
   DocumentDuplicateIcon,
   DocumentTextIcon,
   PlusIcon,
   RectangleStackIcon,
   SparklesIcon,
+  TagIcon,
   WrenchScrewdriverIcon,
 } from '@heroicons/react/20/solid'
 
@@ -20,7 +20,7 @@ import { useNav } from '../../nav/NavContext'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { notebookPath } from '../../lib/routes'
 
-export type NewEntryKind = 'journal' | 'playground' | 'notebook' | 'note' | 'effort' | 'equipment' | 'page' | 'dashboard'
+export type NewEntryKind = 'journal' | 'playground' | 'notebook' | 'note' | 'effort' | 'equipment' | 'tag' | 'page'
 
 export interface NewEntryRouteContext {
   defaultKind: NewEntryKind
@@ -41,15 +41,15 @@ const ENTRY_TYPES: Record<NewEntryKind, EntryType> = {
   note: { kind: 'note', label: 'Note', icon: DocumentTextIcon },
   effort: { kind: 'effort', label: 'Effort', icon: SparklesIcon },
   equipment: { kind: 'equipment', label: 'Equipment', icon: WrenchScrewdriverIcon },
+  tag: { kind: 'tag', label: 'Tag', icon: TagIcon },
   page: { kind: 'page', label: 'Page', icon: RectangleStackIcon },
-  dashboard: { kind: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
 }
 
 /** Creation is a library/collection capability, never a detail-page fallback. */
 export function routeSupportsCreation(pathname: string): boolean {
   // ponytail: literal '/' match; upgrade to normalized path regex if home gains subpath aliases.
   return pathname === '/'
-    || /^\/(?:journal|playgrounds|notebooks|pages|efforts|equipment|dashboards)\/?$/.test(pathname)
+    || /^\/(?:journal|playgrounds|notebooks|pages|efforts|equipment|tags)\/?$/.test(pathname)
     || /^\/notebook\/[^/]+\/?$/.test(pathname)
 }
 
@@ -79,7 +79,7 @@ export function resolveNewEntryRoute(pathname: string): NewEntryRouteContext {
   }
   if (pathname === '/notebooks') return { defaultKind: 'notebook' }
   if (pathname === '/pages') return { defaultKind: 'page' }
-  if (pathname === '/dashboards') return { defaultKind: 'dashboard' }
+  if (pathname === '/tags') return { defaultKind: 'tag' }
   if (pathname.startsWith('/playground')) return { defaultKind: 'playground' }
   if (pathname.startsWith('/effort')) return { defaultKind: 'effort' }
   if (pathname.startsWith('/equipment')) return { defaultKind: 'equipment' }
@@ -98,6 +98,10 @@ export function NewEntryCombo() {
   const readOnlyNotebook = context.defaultKind === 'note' && notebookOrigin === 'feed'
   const DefaultIcon = readOnlyNotebook ? DocumentDuplicateIcon : defaultType.icon
   const defaultLabel = readOnlyNotebook ? 'Clone notebook' : `New ${defaultType.label}`
+  /** Sticky headers keep the button short: "+ Add" (the icon and the
+   *  accessible name still carry the type). A clone is not an add — it keeps
+   *  its own verb. */
+  const visibleLabel = readOnlyNotebook ? 'Clone notebook' : '+ Add'
 
   useEffect(() => {
     let cancelled = false
@@ -154,7 +158,9 @@ export function NewEntryCombo() {
         className={isMobile ? 'size-11 rounded-full px-0' : 'h-9 gap-1.5 px-3 text-xs'}
         disabled={cloning || waitingForOwnership}
         onClick={handleClick}
-        aria-label={defaultLabel}
+        aria-label={isMobile ? defaultLabel : readOnlyNotebook
+          ? defaultLabel
+          : `${visibleLabel} ${defaultType.label}`}
         title={defaultLabel}
         data-testid={context.defaultKind === 'effort'
           ? 'efforts-create-btn'
@@ -165,7 +171,7 @@ export function NewEntryCombo() {
         {cloning
           ? <PlusIcon className="size-3.5 animate-spin" />
           : <DefaultIcon className="size-3.5" />}
-        {!isMobile && <span>{cloning ? 'Cloning…' : defaultLabel}</span>}
+        {!isMobile && <span>{cloning ? 'Cloning…' : visibleLabel}</span>}
       </Button>
     </div>
   )

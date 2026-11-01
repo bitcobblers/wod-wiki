@@ -37,9 +37,9 @@ const TARGET_TYPES: Readonly<Record<string, ReadonlySet<string>>> = {
   note: new Set(['text', 'notebook', 'tag', 'effort', ...WQL_TYPED_TAG_KEYS, 'type', 'page', 'source', 'note', 'time', 'groupby', 'where', 'feed', 'subscribed']),
   block: new Set(['text', 'notebook', 'tag', 'effort', 'type', 'source', 'note', 'time', 'groupby', 'where', 'feed', 'subscribed']),
   effort: new Set([...WQL_EFFORT_FILTER_KEYS, 'groupby']),
-  session: new Set(['result', 'block', 'note', 'plane', 'time', 'groupby']),
-  segment: new Set([...TABLE_KEYS, 'time', 'groupby', 'unit']),
-  event: new Set([...TABLE_KEYS, 'time', 'groupby', 'unit']),
+  session: new Set(['result', 'block', 'note', 'plane', ...FACT_KEYS.map(key => key === 'tags' ? 'tag' : key), 'time', 'groupby']),
+  segment: new Set([...TABLE_KEYS, 'tag', 'time', 'groupby', 'unit']),
+  event: new Set([...TABLE_KEYS, 'tag', 'time', 'groupby', 'unit']),
   // Container planes (ticket 08). `:notebook{}` delegates to the note plane
   // (see the notebook entry above); `:page{}` lists the page placements;
   // `:tag{}` the tags (results are notes); `:equipment{}` the equipment
@@ -92,8 +92,7 @@ export function supportsWqlFilterKey(target: string, family: 'find' | 'aggregate
   const key = rawKey === 'tag' ? 'tags' : rawKey;
   if (family === 'aggregate' || target === 'segment' || target === 'event') {
     return !(WQL_CONTENT_ONLY_KEYS as readonly string[]).includes(key)
-      && key !== 'plane'
-      && !(family === 'find' && key === 'tags');
+      && key !== 'plane';
   }
   return wqlFilterKeys(target, family).includes(key);
 }

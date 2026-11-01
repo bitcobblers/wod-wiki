@@ -21,6 +21,10 @@ Crosswalk mapping domain models (`docs/domain-model/`) to application screens (`
 | **Configuration** | `meta` / `configuration` (IndexedDB) & `localStorage` | `/settings/*`<br>`/dashboards`<br>All shells (theme, audio, nav) | `useTheme()`, `useAudio()`, `useDateLocale()`, `useAnalyticsUnitPreference()`, `readSeedStatus()` | Direct write to `localStorage` or `meta` KV store |
 | **FieldCatalog*** | `fieldCatalog`, `fieldValues`, `fieldSources` | `/dashboards`<br>WQL Autocompleter | `useExplorerVocabulary()`<br>`startFieldCatalogBackfill()` | Background pipeline scans `events` and backfills field catalog entries |
 
+### Library navigation
+
+Efforts, Equipment, Tags, and Sessions are primary L1 destinations, with Sessions directly below Dashboards. Each uses its own route-keyed L2 saved-query list, so custom links saved on one library do not appear on another. Tags includes a built-in `:tag{type:<name>}` link for every registered tag type; saving a custom list preserves the current built-ins. Notes remains a Pages L2 variation.
+
 ---
 ## 2. Screen Architecture Documents
 

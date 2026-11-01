@@ -5,7 +5,7 @@
  * playgrounds (/playgrounds, /playground/:id) views inside the notebooks
  * zone — one route-keyed panel per view.
  *
- * Navigation and discovery only: chrome rows (create action, landing row,
+ * Navigation and discovery only: chrome rows (landing row,
  * Custom row with save/clear, saved shortcuts, page actions) plus a Recent
  * section linking the committed results of the CURRENT route+query. L2 never
  * renders where-clause filters — those moved to the L3 stream controls
@@ -20,7 +20,7 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
-import { BookmarkPlus, Plus, X } from 'lucide-react'
+import { BookmarkPlus, X } from 'lucide-react'
 
 import { parseQuery } from '@bitcobblers/wod-wiki-wql'
 
@@ -37,7 +37,6 @@ import { entryOpenHref } from '../../lib/entryActions'
 import type { NavItem, NavPanelProps } from '../navTypes'
 import { executeNavAction } from '../navTypes'
 import { useCloseNavigationDrawer } from '../NavigationDrawerContext'
-import { useNav, type CreateWizardOptions } from '../NavContext'
 import { navigateToQuery } from './FacetProperties'
 
 export interface ConditionsPanelSpec {
@@ -50,12 +49,6 @@ export interface ConditionsPanelSpec {
   extraChildren?: NavItem[]
   /** Whole zone route family (drives landing-row + L1 activation). */
   familyActive: (loc: Location) => boolean
-  createAction?: {
-    label: string
-    icon?: NavItem['icon']
-    testId?: string
-    onClick: (deps: { navigate: (to: string) => void; openCreateJournal: (opts?: CreateWizardOptions) => void }) => void
-  }
 }
 
 const urlQuery = (loc: Location): string => new URLSearchParams(loc.search).get('q') ?? ''
@@ -67,7 +60,6 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
   return function ConditionsNavPanel(_props: NavPanelProps | Record<string, unknown>) {
     const location = useLocation()
     const navigate = useNavigate()
-    const { openCreateJournal } = useNav()
     // The Route-Default overlay resolves LIVE, so the panel and the view
     // agree on the fallback — and a save in the page's own query settings
     // is reflected here without a reload.
@@ -119,28 +111,6 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
     return (
       <div className="-mx-4 flex flex-col gap-1 py-3" data-testid="conditions-nav-panel">
         <SidebarSection className="px-6">
-          {spec.createAction && (() => {
-            const CreateIcon = spec.createAction.icon ?? Plus
-            return (
-              <div className="mb-2">
-                <button
-                  type="button"
-                  data-testid={spec.createAction.testId ?? 'conditions-nav-create'}
-                  onClick={() => {
-                    spec.createAction!.onClick({
-                      navigate,
-                      openCreateJournal: (opts) => openCreateJournal?.(opts),
-                    })
-                    closeNavigationDrawer()
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
-                >
-                  <CreateIcon className="size-4 shrink-0" />
-                  <span>{spec.createAction.label}</span>
-                </button>
-              </div>
-            )
-          })()}
           {customQuery ? (
             <div className="flex items-center gap-1" data-testid="conditions-nav-custom">
               <SidebarItem

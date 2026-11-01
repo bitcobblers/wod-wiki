@@ -5,14 +5,13 @@
  * component via useSetNavL3() or AppContent's setL3Items() call.
  *
  * Structure:
- *   L1: Home, Notebooks, Notes, Feeds, Pages, Dashboards, Efforts,
- *       Equipment, Sessions, Tags, Settings
+ *   L1: Home, Journal, Notebooks, Pages, Efforts, Equipment, Tags,
+ *       Dashboards, Sessions, Settings
  *   L2 of Home:        the consolidated Guide chapters (markdown/canvas/guide/**;
  *                      the old syntax/behaviors/analytics pillars are folded in)
- *   L2 of the list routes (Notebooks/Notes/Feeds/Pages/Efforts/Equipment/
- *                      Sessions): the shared ConditionsNavPanel — the
- *                      current-result `{}` condition accordion plus grouping
- *                      presets over the CURRENT query
+ *   L2 of the list routes: the shared ConditionsNavPanel with the landing
+ *                      row and saved full-query links. Tags also includes
+ *                      one built-in filter per registered tag type.
  *   L2 of Notebooks:   the notebook family — the Journal and Playgrounds
  *                      VIEWS live inside this zone (they are not concepts of
  *                      their own), each rendered by its own route-keyed
@@ -32,16 +31,16 @@
  */
 
 import { HomeIcon, CodeBracketIcon } from '@heroicons/react/20/solid'
-import { ChartBarIcon, Dumbbell, Rss, Settings, Paintbrush, Sliders, ClipboardList, File, Tag, Library, CalendarPlus, UserRound, Database, CloudDownload, Wrench, Volume2, Calendar } from 'lucide-react'
+import { ChartBarIcon, Dumbbell, Rss, Settings, Paintbrush, Sliders, File, Tag, Library, UserRound, Database, CloudDownload, Wrench, Volume2, Calendar, ClipboardList } from 'lucide-react'
 import type { NavItem } from './navTypes'
 import type { Location } from 'react-router-dom'
-import { NOTES_STREAM_PROFILE, FEEDS_STREAM_PROFILE, PAGES_STREAM_PROFILE, EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, TAGS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
+import { EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, TAGS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
 import { ROUTE_PATTERNS, isEffortsPath, isEquipmentPath } from '../lib/routes'
 
 import { DashboardsNavPanel } from './panels/DashboardsNavPanel'
 import { NotebookZonePanel, JournalViewConditionsPanel } from './panels/NotebookZonePanel'
 import { createPagesZonePanel } from './panels/PagesZonePanel'
-import { createConditionsNavPanel, type ConditionsPanelSpec } from './panels/ConditionsNavPanel'
+import { createConditionsNavPanel } from './panels/ConditionsNavPanel'
 import type { CanvasRoute } from '../canvas/canvasRoutes'
 import { isGuidePinned, setGuidePinned } from '../lib/pinnedGuidesStorage'
 
@@ -105,15 +104,6 @@ function buildHomeChildren(routes: CanvasRoute[]): NavItem[] {
       action: { type: 'route', to: ROUTE_PATTERNS.pages },
       isActive: (loc: Location) => loc.pathname === ROUTE_PATTERNS.pages,
     },
-    {
-      id: 'home-new-journal',
-      label: 'New journal entry',
-      level: 2,
-      icon: CalendarPlus,
-      variant: 'notable',
-      action: { type: 'route', to: '/journal?create=1' },
-      isActive: () => false,
-    },
     ...guideChildrenFrom(routes),
   ]
 }
@@ -136,7 +126,6 @@ interface ListingZoneSpec {
   extraChildren?: NavItem[]
   /** Whole zone route family (L1 activation). */
   familyActive: (loc: Location) => boolean
-  createAction?: ConditionsPanelSpec['createAction']
 }
 
 /** "/notebooks" → "notebooks" — the zone id is the route's bare name. */
@@ -168,7 +157,6 @@ function listingZone(spec: ListingZoneSpec): NavItem {
       profile: spec.profile,
       extraChildren: spec.extraChildren,
       familyActive: spec.familyActive,
-      createAction: spec.createAction,
     }),
   }
 }
@@ -238,19 +226,32 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
           '/canvas',
           '/notes',
           '/note',
-          '/sessions',
-          '/session',
-          '/results',
-          '/efforts',
-          '/effort',
-          '/e',
-          '/equipment',
-          '/tags',
-          '/t',
         ),
       applyFooter: true,
       panel: pagesPanel,
     },
+
+    listingZone({
+      landingLabel: 'All Efforts',
+      icon: Dumbbell,
+      route: ROUTE_PATTERNS.efforts,
+      profile: EFFORTS_STREAM_PROFILE,
+      familyActive: (loc: Location) => isEffortsPath(loc.pathname),
+    }),
+    listingZone({
+      landingLabel: 'All Equipment',
+      icon: Wrench,
+      route: ROUTE_PATTERNS.equipment,
+      profile: EQUIPMENT_STREAM_PROFILE,
+      familyActive: (loc: Location) => isEquipmentPath(loc.pathname),
+    }),
+    listingZone({
+      landingLabel: 'All Tags',
+      icon: Tag,
+      route: ROUTE_PATTERNS.tags,
+      profile: TAGS_STREAM_PROFILE,
+      familyActive: (loc: Location) => startsWithAny(loc.pathname, '/tags', '/t'),
+    }),
 
     {
       id: listRouteId(ROUTE_PATTERNS.dashboards),
@@ -262,6 +263,13 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
         loc.pathname === ROUTE_PATTERNS.dashboards || loc.pathname.startsWith('/dashboard/'),
       panel: DashboardsNavPanel,
     },
+    listingZone({
+      landingLabel: 'All Sessions',
+      icon: ClipboardList,
+      route: ROUTE_PATTERNS.sessions,
+      profile: SESSIONS_STREAM_PROFILE,
+      familyActive: (loc: Location) => startsWithAny(loc.pathname, '/sessions', '/session', '/results'),
+    }),
     {
       id: 'settings',
       label: 'Settings',

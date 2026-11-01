@@ -27,6 +27,7 @@ import {
   useAnalyticsUnitPreference,
   DashboardView,
   type DashboardHeadingAnchor,
+  WqlComposer,
 } from '@bitcobblers/wod-wiki-ui';
 import { useAnalyticsRange } from '../../hooks/useAnalyticsRange';
 import { journalNotes } from '../../services/journalNotes';
@@ -34,16 +35,22 @@ import { dashboardNotes } from '../../services/dashboardNotes';
 import { parseFrontmatter, serializeFrontmatter } from '@/lib/frontmatter';
 import { storageService } from '@/services/storage';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
-import { StickyPageHeader } from '@/panels/page-shells';
+import {
+  StickyPageHeader,
+  PAGE_SHELL_CONTAINER_CLASS,
+  PAGE_SHELL_CONTENT_SURFACE_CLASS,
+} from '@/panels/page-shells';
+import { cn } from '@/lib/utils';
+import { toEntry, blockToEntry, type Entry } from '../../lib/entryMapper';
+import { entryOpenHref } from '../../lib/entryActions';
 import {
   parseDashboardNote,
   type WidgetOpResult,
   buildDashboardDocument,
   defaultTokenValues,
   setDashboardTokenValue,
+  extractNoteWqlOverride,
   type DashboardWidget as ModelWidget,
-} from '@bitcobblers/wod-wiki-wql';
-import {
   appendWidget,
   duplicateWidget,
   moveWidget,
@@ -57,7 +64,7 @@ import { useNav } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
 import { ResponsiveActions } from '../../nav/ResponsiveActions';
 import type { MenuSpec } from '../../nav/menuModel';
-import type { Entry } from '../../lib/entryMapper';
+
 import { NoteContextNav, EMPTY_NOTE_CONTEXT } from '../../pages/shared/noteContextLinks';
 import { SampleDataPrompt } from '../analytics/SampleDataPrompt';
 import { WidgetComposerDialog, type WidgetComposerApply } from './WidgetComposerDialog';
@@ -97,7 +104,19 @@ export function DashboardViewPage() {
     return { doc: buildDashboardDocument(sections, meta), sections };
   }, [source]);
   const document = parsed?.doc ?? null;
-
+  const initialScopeWql = useMemo(() => {
+    if (!source?.rawContent) return '';
+    const fromWql = extractNoteWqlOverride(source.rawContent);
+    if (fromWql) return fromWql;
+    const { meta } = parseFrontmatter(source.rawContent);
+    const scopeVal = meta['dashboard.scope'];
+    if (Array.isArray(scopeVal)) return scopeVal[0] ?? '';
+    return typeof scopeVal === 'string' ? scopeVal : '';
+  }, [source?.rawContent]);
+  const [scopeQueryDraft, setScopeQueryDraft] = useState('');
+  useEffect(() => {
+    setScopeQueryDraft(initialScopeWql);
+  }, [initialScopeWql]);
   // L3 outline: every entry targets a real surface — doc.title the sticky
   // page header, standalone note headings their own grid heading row, and
   // each query block its widget card. Titled headings (buildDashboardDocument
@@ -253,6 +272,28 @@ export function DashboardViewPage() {
     [source],
   );
 
+  const handleScopeQueryChange = useCallback(
+    (nextWql: string) => {
+      setScopeQueryDraft(nextWql);
+      if (!source?.editable || !source.noteId) return;
+      void journalNotes.getById(source.noteId).then(async (note) => {
+        const { meta, body } = parseFrontmatter(note.rawContent);
+        const nextMeta = { ...meta };
+        const trimmed = nextWql.trim();
+        if (trimmed) {
+          nextMeta.wql = trimmed;
+          nextMeta['dashboard.scope'] = [trimmed];
+        } else {
+          delete nextMeta.wql;
+          delete nextMeta['dashboard.scope'];
+        }
+        const raw = `---\n${serializeFrontmatter(nextMeta)}\n---\n${body}`;
+        await journalNotes.update(note, raw);
+        setRefreshKey((k) => k + 1);
+      });
+    },
+    [source],
+  );
   // Toolbar actions (duplicate/remove/reorder/size) start from the revision
   // on screen; a refusal lands in the visible action-error banner.
   const runWidgetOp = useCallback(
@@ -306,7 +347,14 @@ export function DashboardViewPage() {
     [composer, mutateNote],
   );
 
-  // handleClone is declared early (the L3 helpful actions close over it).
+  const effectiveTokenValues = useMemo(() => {
+    const base = document ? defaultTokenValues(document.tokens) : {};
+    const trimmed = scopeQueryDraft.trim();
+    if (!trimmed) return base;
+    const braceMatch = trimmed.match(/^:[a-zA-Z]+\{([^}]*)\}/);
+    const scopeClause = braceMatch ? braceMatch[1] : trimmed;
+    return { ...base, scope: scopeClause };
+  }, [document, scopeQueryDraft]);
 
   // A refresh (new refreshKey) flips the hook to loading=true but KEEPS the
   // previously resolved source — gate the early returns on source-readiness,
@@ -335,45 +383,53 @@ export function DashboardViewPage() {
   }
 
   const editable = source.editable;
-
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="relative flex w-full min-h-screen justify-start items-start bg-card">
       <NoteContextNav data={EMPTY_NOTE_CONTEXT} up={dashboardL2.up} trailingSections={dashboardL2.trailingSections} />
-      <StickyPageHeader
-        id={TITLE_ANCHOR}
-        title={document?.title || source.title}
-        subtitle={editable ? 'Editable dashboard note.' : 'Prebuilt — read-only until cloned to your vault.'}
-        actions={
-          // Whiteboard dashboard sticky: Edit/Done + Cast. Range and units
-          // moved to L3 view controls (dashboard-range / dashboard-units
-          // widgets); the helpful actions mirror them in the ⋯ surfaces.
-          <div className="flex items-center gap-2">
-            <ResponsiveActions
-              label="Dashboard actions"
-              primary={
-                editable ? (
-                  <button
-                    type="button"
-                    data-testid="dashboard-edit-toggle"
-                    aria-pressed={editMode}
-                    onClick={() => setEditMode((v) => !v)}
-                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      editMode
-                        ? 'bg-primary text-primary-foreground'
-                        : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
-                  >
-                    <Pencil size={12} /> {editMode ? 'Done' : 'Edit'}
-                  </button>
-                ) : undefined
-              }
-            />
-            <CastButtonRpc />
-          </div>
-        }
-      />
-      <div className="max-w-[1500px] w-full mx-auto p-4 md:p-6 lg:p-8 flex-1">
-
+      <div className={cn(PAGE_SHELL_CONTAINER_CLASS, PAGE_SHELL_CONTENT_SURFACE_CLASS)}>
+        <StickyPageHeader
+          id={TITLE_ANCHOR}
+          title={document?.title || source.title}
+          subtitle={editable ? 'Editable dashboard note.' : 'Prebuilt — read-only until cloned to your vault.'}
+          queryBar={
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-xs" data-testid="dashboard-scope-query-bar">
+              <WqlComposer
+                query={scopeQueryDraft}
+                onQueryChange={handleScopeQueryChange}
+                compact
+                showDiagnostics={false}
+                placeholder="Filter dashboard scope (e.g. :note{domain:crossfit} or effort:snatch)…"
+                className="min-w-0 flex-1"
+              />
+            </div>
+          }
+          actions={
+            <div className="flex items-center gap-2">
+              <ResponsiveActions
+                label="Dashboard actions"
+                primary={
+                  editable ? (
+                    <button
+                      type="button"
+                      data-testid="dashboard-edit-toggle"
+                      aria-pressed={editMode}
+                      onClick={() => setEditMode((v) => !v)}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        editMode
+                          ? 'bg-primary text-primary-foreground'
+                          : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      <Pencil size={12} /> {editMode ? 'Done' : 'Edit'}
+                    </button>
+                  ) : undefined
+                }
+              />
+              <CastButtonRpc />
+            </div>
+          }
+        />
+        <div className="w-full p-4 md:p-6 lg:p-8 flex-1">
         {actionError && (
           <div
             role="alert"
@@ -440,6 +496,7 @@ export function DashboardViewPage() {
             document={document}
             headings={outline.headings}
             executor={queryService}
+            tokenValues={effectiveTokenValues}
             onTokenChange={editable ? handleTokenChange : undefined}
             editMode={editable && editMode}
             onEditWidget={editable ? (w) => setComposer({ mode: 'edit', widget: w, expectedRaw: source.rawContent }) : undefined}
@@ -452,11 +509,18 @@ export function DashboardViewPage() {
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
             preferredUnit={preferredUnit}
+            noteHref={(item) => {
+              const isBlock = 'blockContentId' in item || 'dataType' in item;
+              const entry = isBlock
+                ? blockToEntry(item as unknown as Parameters<typeof blockToEntry>[0])
+                : toEntry(item as unknown as Parameters<typeof toEntry>[0]);
+              return entryOpenHref(entry);
+            }}
           />
         )}
 
+        </div>
       </div>
-
       <WidgetComposerDialog
         open={composer !== null}
         onClose={() => setComposer(null)}
@@ -482,7 +546,7 @@ export function DashboardViewPage() {
         rangeStart={rangeStart}
         rangeEnd={rangeEnd}
         preferredUnit={preferredUnit}
-        tokenValues={document ? defaultTokenValues(document.tokens) : undefined}
+        tokenValues={effectiveTokenValues}
         onApply={composer?.mode === 'inspect' ? undefined : handleComposerApply}
         footerExtra={
           composer?.mode === 'inspect' ? (

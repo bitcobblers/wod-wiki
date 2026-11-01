@@ -50,7 +50,9 @@ import { effortToDocument, documentToEffort } from '@bitcobblers/wod-wiki-lang';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { ResponsiveActions } from '../nav/ResponsiveActions';
 import { fileToDisplayName } from '@/repositories/groupings';
-
+import { appendWidget, resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
+import { queryService } from '@/services/queryService';
+import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog';
 import { pendingRuntimes } from '../runtimeStore';
 /* ── Resolved view (inline widget) ─────────────────────────────────────────── */
 
@@ -134,7 +136,11 @@ export function EffortDetailPage() {
   const [results] = useState<Session[]>([]);
   const [pendingScheduleBlock, setPendingScheduleBlock] = useState<ScriptBlock | null>(null);
   const [showResolved, setShowResolved] = useState(false);
-
+  const [widgetComposerOpen, setWidgetComposerOpen] = useState(false);
+  const effortScope = useMemo(
+    () => (slug ? resolveEntityScope({ kind: 'effort', slug, label: effort?.label ?? slug }) : null),
+    [slug, effort?.label],
+  );
   // ── Create-custom mode ("/effort/new?mode=create") ───────────────────────
   const opts = parseEffortRouteOptions(searchParams);
   const isCreateMode = opts.mode === 'create';
@@ -296,6 +302,7 @@ export function EffortDetailPage() {
     results,
     helpfulActions: [
       ...(effort && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: effort.slug }] : []),
+      ...(effort ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),
       ...(resolved ? [{ id: 'show-resolved', label: showResolved ? 'Hide Resolved' : 'Show Resolved', onRun: () => setShowResolved(v => !v) }] : []),
       { id: 'copy-link', label: 'Copy link', onRun: handleCopyLink },
     ],
@@ -600,6 +607,18 @@ export function EffortDetailPage() {
             />
         </EditorDialog>
       )}
+      <WidgetComposerDialog
+        open={widgetComposerOpen}
+        onClose={() => setWidgetComposerOpen(false)}
+        mode="add"
+        initialWql={effortScope ? `sum:totalVolume{${effortScope.scopeFilter}} by {week}` : 'sum:totalVolume{} by {week}'}
+        subsetQuery={effortScope?.notesWql ?? null}
+        executor={queryService}
+        tokenValues={effortScope?.tokens}
+        onApply={(spec) => {
+          setDocument(appendWidget(document, spec));
+        }}
+      />
     </div>
   );
 }

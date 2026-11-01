@@ -13,10 +13,12 @@ import { notePersistence } from '@/services/persistence'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { storageService } from '@/services/storage'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
-import { refreshPageSources } from '@/services/queryService'
+import { queryService, refreshPageSources } from '@/services/queryService'
 import { dayPath, notePath, pagePath, runPath } from '../lib/routes'
-import { notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
+import { appendWidget, notebookOriginOfItem, resolveEntityScope } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core'
+import { resolveNotePropertyStack } from '@/app/editor/runtimeTimerModel'
+import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog'
 import { NotePlacementDialog, type NotePlacementMode } from '../components/organisms/journal/NotePlacementDialog'
 import { slugifyRoute } from '../components/organisms/journal/CreateJournalNoteDialog'
 import { localDateKey } from '@/lib/dateFormat'
@@ -66,6 +68,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const [pageSlugInput, setPageSlugInput] = useState('')
   const [savingPageSlug, setSavingPageSlug] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [widgetComposerOpen, setWidgetComposerOpen] = useState(false)
   const [sourceEntry, setSourceEntry] = useState<HistoryRecord | null>(null)
   const handleCopyLink = useCallback(() => {
     // ponytail: navigator.clipboard only; fallback textarea omitted for modern browsers.
@@ -191,6 +194,15 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     [entry, draft.captureForRun, navigate],
   );
 
+  const noteScope = useMemo(
+    () => (entry ? resolveEntityScope({ noteId: entry.id, label: entry.title, rawContent: draft.content }) : null),
+    [entry, draft.content],
+  );
+  const stackedWidgets = useMemo(
+    () => (entry ? resolveNotePropertyStack(draft.content, { noteId: entry.id }).dashboardWidgets : []),
+    [entry, draft.content],
+  );
+
   useNotePageNav({
     content: entry?.rawContent ?? '',
     scriptBlocks,
@@ -208,6 +220,11 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                     setEditingPageSlug(true)
                   },
                 },
+                {
+                  id: 'add-widget',
+                  label: 'Add widget',
+                  onRun: () => setWidgetComposerOpen(true),
+                },
               ]
             : []),
           { id: 'placements', label: 'Note placements', onRun: () => setPlacement('relationships') },
@@ -217,7 +234,6 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
         ]
       : [],
   });
-
   const contextLinks = useNoteContextLinks(
     entry ? { noteId: entry.id, stamps: ownership.stamps } : { noteId: '', stamps: [] },
   );
@@ -383,6 +399,30 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   )}
                 </div>
               )}
+              {!isReadOnly && stackedWidgets.length > 0 && (
+                <div
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs"
+                  data-testid="note-stacked-widgets-tray"
+                >
+                  <span className="font-semibold text-muted-foreground">Attach widget from tags/summaries:</span>
+                  {stackedWidgets.map((sw) => (
+                    <button
+                      key={sw.key}
+                      type="button"
+                      onClick={() => {
+                        draft.onSourceMutate(appendWidget(draft.content, {
+                          title: sw.title,
+                          type: sw.type,
+                          wql: sw.wql,
+                        }))
+                      }}
+                      className="rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 font-medium text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      + {sw.title} ({sw.type})
+                    </button>
+                  ))}
+                </div>
+              )}
               {sourcesReady ? (
                 <div className="rounded-lg border border-border bg-card p-4 shadow-sm min-h-[240px] focus-within:border-accent/80 transition-colors">
                   <NoteEditor
@@ -443,6 +483,18 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             onCloned={(created) => navigate(`${notePath(created.id)}?edit=1`)}
           />
         )}
+        <WidgetComposerDialog
+          open={widgetComposerOpen}
+          onClose={() => setWidgetComposerOpen(false)}
+          mode="add"
+          initialWql={noteScope?.primaryWql ?? ':session{}'}
+          subsetQuery={noteScope?.notesWql ?? null}
+          executor={queryService}
+          tokenValues={noteScope?.tokens}
+          onApply={(spec) => {
+            draft.onSourceMutate(appendWidget(draft.content, spec))
+          }}
+        />
       </WorkbenchSessionProvider>
     )
   }

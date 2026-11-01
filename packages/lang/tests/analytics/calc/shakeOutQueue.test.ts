@@ -3,6 +3,7 @@ import { MetricContainer, MetricType } from '@bitcobblers/wod-wiki-core';
 import {
   compilePropertySummaryCalcs,
   extractPropertyRulesFromMeta,
+  resolvePropertyDashboardWidgets,
   runMetricShakeOutQueue,
 } from '../../../src/analytics/calc/shakeOutQueue';
 import { CalcEngine } from '../../../src/analytics/calc/engine';
@@ -198,5 +199,60 @@ describe('MetricShakeOutQueue', () => {
     expect(summaries).toHaveLength(1);
     expect(summaries[0].name).toBe('totalWork');
     expect(summaries[0].value).toBe(240);
+  });
+
+  it('resolves stacked Dashboard Widgets from Tag widgets.* and Summary Metric calculations across specificity layers', () => {
+    const tagRule = extractPropertyRulesFromMeta(
+      {
+        'metrics.work': 'reps * resistance',
+        'summaries.totalWork': 'sum(work)',
+        'summaries.workByEffort': 'grouped(effort, sum(work))',
+        'widgets.recentSessions': 'table | :session{$scope}',
+      },
+      'tag',
+      'heavy',
+    );
+    const noteRule = extractPropertyRulesFromMeta(
+      {
+        // Note overrides totalWork summary and adds its own custom widget
+        'summaries.totalWork': 'sum(work)',
+        'widgets.noteOverview': 'value | :segment{$scope} | :sum{metric:totalWork} | :value{}',
+      },
+      'note',
+      'note-123',
+    );
+
+    const widgets = resolvePropertyDashboardWidgets([tagRule, noteRule], {
+      scopeFilter: 'note:note-123',
+    });
+
+    expect(widgets.map((w) => w.key)).toEqual([
+      'widget:noteOverview',
+      'widget:recentSessions',
+      'summary:totalWork',
+      'summary:workByEffort',
+    ]);
+
+    const noteOverview = widgets.find((w) => w.key === 'widget:noteOverview')!;
+    expect(noteOverview.type).toBe('value');
+    expect(noteOverview.wql).toBe(':segment{note:note-123} | :sum{metric:totalWork} | :value{}');
+    expect(noteOverview.sourceLayer).toBe('note');
+
+    const recentSessions = widgets.find((w) => w.key === 'widget:recentSessions')!;
+    expect(recentSessions.type).toBe('table');
+    expect(recentSessions.wql).toBe(':session{note:note-123}');
+    expect(recentSessions.sourceLayer).toBe('tag');
+
+    const totalWorkWidget = widgets.find((w) => w.key === 'summary:totalWork')!;
+    expect(totalWorkWidget.origin).toBe('summary');
+    expect(totalWorkWidget.type).toBe('timeseries');
+    expect(totalWorkWidget.wql).toBe('sum:totalWork{note:note-123} by {week}');
+    expect(totalWorkWidget.sourceLayer).toBe('note');
+
+    const byEffortWidget = widgets.find((w) => w.key === 'summary:workByEffort')!;
+    expect(byEffortWidget.origin).toBe('summary');
+    expect(byEffortWidget.type).toBe('bar');
+    expect(byEffortWidget.wql).toBe('sum:workByEffort{note:note-123} by {effort}');
+    expect(byEffortWidget.sourceLayer).toBe('tag');
   });
 });

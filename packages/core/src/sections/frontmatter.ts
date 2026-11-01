@@ -253,3 +253,245 @@ export function patchFrontmatterProperty(
   next.splice(spliceIndex, removeCount, ...replacement);
   return `---${eol}${next.length ? next.join(eol) + eol : ''}---` + raw.slice(m[0].length);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Canonical frontmatter parsing & serialization
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ParsedFrontmatter {
+  meta: Record<string, string | number | string[]>;
+  body: string;
+}
+
+export interface TypedTagItem {
+  label: string;
+  type?: string;
+}
+
+export interface LinkWidget {
+  kind: 'youtube' | 'amazon' | 'strava' | 'source' | 'website' | 'book';
+  url?: string;
+  label: string;
+  videoId?: string;
+}
+
+const FRONTMATTER_BODY_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+
+function unquoteScalar(value: string): string {
+  return value.replace(/^(['"])(.*)\1$/, (_match, quote: string, inner: string) =>
+    quote === '"'
+      ? inner.replace(/\\(["\\nrt])/g, (_all, c: string) =>
+          c === 'n' ? '\n' : c === 'r' ? '\r' : c === 't' ? '\t' : c,
+        )
+      : inner,
+  );
+}
+
+function parseMetaLines(lines: string[]): ParsedFrontmatter['meta'] {
+  const meta: ParsedFrontmatter['meta'] = {};
+
+  for (let i = 0; i < lines.length; i++) {
+    const keyMatch = lines[i].match(/^([A-Za-z][\w.-]*)\s*:(.*)$/);
+    if (!keyMatch) continue;
+
+    const key = keyMatch[1];
+    const rawVal = keyMatch[2].trim();
+
+    if (rawVal === '') {
+      const items: string[] = [];
+      while (i + 1 < lines.length) {
+        const itemMatch = lines[i + 1].match(/^\s+-\s+(.+)$/);
+        if (!itemMatch) break;
+        items.push(unquoteScalar(itemMatch[1].trim()));
+        i++;
+      }
+      if (items.length > 0) {
+        meta[key] = items;
+      } else if (key === 'metrics' || key === 'summaries' || key === 'widgets') {
+        while (i + 1 < lines.length) {
+          const childLine = lines[i + 1];
+          if (/^\s*(?:#.*)?$/.test(childLine)) {
+            i++;
+            continue;
+          }
+          const childMatch = childLine.match(/^\s{2,}([A-Za-z][\w.-]*)\s*:(.*)$/);
+          if (!childMatch) break;
+          i++;
+          const childKey = `${key}.${childMatch[1]}`;
+          const childRaw = childMatch[2].trim();
+          if (childRaw === '') {
+            const childItems: string[] = [];
+            while (i + 1 < lines.length) {
+              const listMatch = lines[i + 1].match(/^\s{4,}-\s+(.+)$/);
+              if (!listMatch) break;
+              childItems.push(unquoteScalar(listMatch[1].trim()));
+              i++;
+            }
+            meta[childKey] = childItems.length > 0 ? childItems : '';
+          } else {
+            const wasQuoted = /^(['"])(.*)\1$/.test(childRaw);
+            const value = unquoteScalar(childRaw);
+            const num = Number(value);
+            meta[childKey] = !wasQuoted && value !== '' && !isNaN(num) ? num : value;
+          }
+        }
+      } else {
+        meta[key] = '';
+      }
+    } else {
+      const wasQuoted = /^(['"])(.*)\1$/.test(rawVal);
+      const value = unquoteScalar(rawVal);
+      const num = Number(value);
+      meta[key] = !wasQuoted && value !== '' && !isNaN(num) ? num : value;
+    }
+  }
+
+  return meta;
+}
+
+/**
+ * Parse the leading YAML frontmatter block of a markdown string.
+ */
+export function parseFrontmatter(raw: string): ParsedFrontmatter {
+  const match = raw.match(FRONTMATTER_BODY_RE);
+  if (!match) return { meta: {}, body: raw };
+  return { meta: parseMetaLines(match[1].split(/\r?\n/)), body: raw.slice(match[0].length) };
+}
+
+/**
+ * Parse frontmatter body content (the lines between the `---` delimiters).
+ */
+export function parseFrontmatterBody(innerContent: string): ParsedFrontmatter['meta'] {
+  return parseMetaLines(innerContent.split(/\r?\n/));
+}
+
+/**
+ * Serialize frontmatter metadata back to YAML body lines (no `---` delimiters).
+ */
+export function serializeFrontmatter(meta: ParsedFrontmatter['meta']): string {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(meta)) {
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        lines.push(`${key}: ""`);
+        continue;
+      }
+      lines.push(`${key}:`);
+      for (const item of value) {
+        lines.push(`  - ${quoteYamlScalar(item)}`);
+      }
+    } else if (typeof value === 'number') {
+      lines.push(`${key}: ${value}`);
+    } else {
+      lines.push(`${key}: ${quoteYamlScalar(value)}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/** Body of `raw` with the leading frontmatter block removed. */
+export function stripFrontmatter(raw: string): string {
+  return parseFrontmatter(raw).body;
+}
+
+/** Scalar value at `key`, or `undefined` when absent or a list. */
+export function getScalar(
+  meta: ParsedFrontmatter['meta'],
+  key: string,
+): string | number | undefined {
+  const value = meta[key];
+  return typeof value === 'string' || typeof value === 'number' ? value : undefined;
+}
+
+/** List value at `key`, or `[]` when absent or a scalar. */
+export function getList(meta: ParsedFrontmatter['meta'], key: string): string[] {
+  const value = meta[key];
+  return Array.isArray(value) ? value : [];
+}
+
+/** Parse the `category` YAML array from a full markdown string's frontmatter. */
+export function parseFrontmatterCategories(raw: string): string[] {
+  return getList(parseFrontmatter(raw).meta, 'category').map(c => c.toLowerCase());
+}
+
+/** Extract the `tags` (or fallback `category`) list from frontmatter raw content. */
+export function extractFrontmatterTags(raw: string): string[] {
+  const meta = FRONTMATTER_BODY_RE.test(raw)
+    ? parseFrontmatter(raw).meta
+    : parseFrontmatterBody(raw);
+  const tags = meta['tags'] ?? meta['category'];
+  const list = Array.isArray(tags)
+    ? tags
+    : typeof tags === 'string' && tags.trim()
+      ? tags.trim().startsWith('[') && tags.trim().endsWith(']')
+        ? tags.trim().slice(1, -1).split(',')
+        : [tags]
+      : [];
+  return [...new Set(list.map(tag => tag.trim()).filter(Boolean))];
+}
+
+/**
+ * Extract both general tags (`tags:` / `category:`) and typed tags
+ * whose frontmatter keys match any known registered tag type name.
+ */
+export function extractTypedFrontmatterTags(
+  raw: string,
+  knownTypeNames: string[] = [],
+): TypedTagItem[] {
+  const meta = FRONTMATTER_BODY_RE.test(raw)
+    ? parseFrontmatter(raw).meta
+    : parseFrontmatterBody(raw);
+
+  const results: TypedTagItem[] = [];
+  for (const tag of extractFrontmatterTags(raw)) {
+    results.push({ label: tag });
+  }
+
+  const metaKeys = Object.keys(meta);
+  for (const typeName of knownTypeNames) {
+    if (typeName === 'tags' || typeName === 'category') continue;
+    const matchedKey = metaKeys.find((k) => k.toLowerCase() === typeName.toLowerCase());
+    if (!matchedKey) continue;
+    const val = meta[matchedKey];
+    if (val === undefined || val === null || val === '') continue;
+
+    let items: string[] = [];
+    if (Array.isArray(val)) {
+      items = val.map(String);
+    } else if (typeof val === 'string' && val.trim()) {
+      const trimmed = val.trim();
+      items = trimmed.startsWith('[') && trimmed.endsWith(']')
+        ? trimmed.slice(1, -1).split(',')
+        : [trimmed];
+    }
+
+    for (const item of items) {
+      const label = item.trim();
+      if (label) results.push({ label, type: typeName });
+    }
+  }
+
+  const map = new Map<string, TypedTagItem>();
+  for (const item of results) {
+    const existing = map.get(item.label);
+    if (!existing || (!existing.type && item.type)) {
+      map.set(item.label, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
+/** Parse flat scalar key-value pairs from raw inner content (no delimiters). */
+export function parseFlatProperties(innerContent: string): Record<string, string> {
+  return parseFrontmatterProps(innerContent.split(/\r?\n/));
+}
+
+/** Parse scalar key-value pairs from an array of lines. */
+export function parseFrontmatterProps(lines: string[]): Record<string, string> {
+  const props: Record<string, string> = {};
+  for (const line of lines) {
+    const match = line.match(/^([^:]+):\s*(.*)$/);
+    if (match) props[match[1].trim()] = match[2].trim();
+  }
+  return props;
+}

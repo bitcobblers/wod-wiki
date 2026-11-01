@@ -2,9 +2,9 @@
  * Navigation ladder acceptance (ticket 10) — L1 list, L2 thing, L3 place.
  *
  * Validates against the live app:
- *  1. Every L1 zone is a canonical library list route and its label IS the
- *     route's name (Notebooks, Notes, Feeds, Pages, Dashboards, Efforts,
- *     Equipment, Sessions, Tags). Journal and Playgrounds are NOT L1 zones.
+ *  1. Every L1 zone is a canonical library list route. Efforts, Equipment,
+ *     and Tags have their own L1 destinations and route-keyed saved queries.
+ *     Tags adds one default L2 filter per registered tag type.
  *  2. Active state follows route identity: the notebooks zone lights for the
  *     whole notebook family (/notebooks, /notebook/:slug, /journal,
  *     /day/:date, /playgrounds) and only that family.
@@ -18,10 +18,10 @@ import { expect, test } from '@playwright/test';
 import { seedNote } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
-const L1_LABELS = ['Home', 'Notebooks', 'Journal', 'Pages', 'Dashboards'];
+const L1_LABELS = ['Home', 'Notebooks', 'Journal', 'Pages', 'Efforts', 'Equipment', 'Tags', 'Dashboards', 'Sessions'];
 
 test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
-  test('L1 rail labels are the primary domains (Home, Notebooks, Journal, Pages, Dashboards); entity lists are rolled up', async ({ page }) => {
+  test('L1 rail labels include the primary effort, equipment, and tag libraries', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
@@ -30,8 +30,8 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     for (const label of L1_LABELS) {
       await expect(primary.getByRole('button', { name: label, exact: true }), `L1 ${label}`).toBeVisible();
     }
-    // Notes, Feeds, Efforts, Equipment, Sessions, Tags, Playgrounds are not L1 rail items.
-    for (const label of ['Notes', 'Feeds', 'Efforts', 'Equipment', 'Sessions', 'Tags', 'Playgrounds']) {
+    // Notes, Feeds, and Playgrounds remain outside the L1 rail.
+    for (const label of ['Notes', 'Feeds', 'Playgrounds']) {
       await expect(primary.getByRole('button', { name: label, exact: true })).toHaveCount(0);
     }
   });
@@ -65,6 +65,37 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     await expect(primary.getByRole('button', { name: 'Pages', exact: true })).toHaveAttribute('aria-current', 'page');
   });
 
+  test('promoted libraries render their own saved-query panels and tag-type filters', async ({ page }) => {
+    const primary = page.getByRole('navigation', { name: 'Primary' });
+    const sidebar = page.getByRole('navigation', { name: 'Main' });
+
+    for (const [path, label, landing] of [
+      ['/efforts', 'Efforts', 'All Efforts'],
+      ['/equipment', 'Equipment', 'All Equipment'],
+      ['/tags', 'Tags', 'All Tags'],
+      ['/sessions', 'Sessions', 'All Sessions'],
+    ] as const) {
+      await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+      await waitForFeedReady(page);
+      await expect(primary.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-current', 'page');
+      await expect(sidebar.getByRole('button', { name: landing, exact: true })).toBeVisible();
+      const queryLinks = sidebar.getByTestId('conditions-nav-panel').locator('[data-slot="section"]').first();
+      await expect(queryLinks.getByRole('button', { name: 'Notes', exact: true })).toHaveCount(0);
+      await expect(queryLinks.getByRole('button', { name: 'Sessions', exact: true })).toHaveCount(0);
+      if (path === '/sessions') {
+        await page.screenshot({ path: '/tmp/sessions-l1.png', fullPage: true });
+      }
+    }
+
+    await page.goto('/tags', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
+    await expect(sidebar.getByTestId('nav-shortcut-tag-type-equipment')).toBeVisible();
+    await expect(sidebar.getByTestId('nav-shortcut-tag-type-discipline')).toBeVisible();
+    await sidebar.getByTestId('nav-shortcut-tag-type-equipment').click();
+    await expect(page).toHaveURL(/\/tags\?q=/);
+    await expect(sidebar.getByTestId('nav-shortcut-tag-type-equipment')).toHaveAttribute('aria-current', 'page');
+  });
+
   test('the journal view renders inside the notebooks zone with its own chrome', async ({ page }) => {
     await page.goto('/journal', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
@@ -74,10 +105,13 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     // landmark (the 'Primary' nav carries the L1 icon rail only; an unnamed
     // sidebar nav and a 'Breadcrumb' landmark also exist — never .first()).
     const sidebar = page.getByRole('navigation', { name: 'Main' });
-    // Journal view chrome: create action, landing, and the two view rows.
-    await expect(sidebar.getByRole('button', { name: 'New journal entry' })).toBeVisible();
+    // Journal view chrome: landing and the two view rows. Creation lives in
+    // the sticky header, not the L2 panel.
     await expect(sidebar.getByRole('button', { name: 'Journal', exact: true })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'All entries', exact: true })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'New journal entry' })).toHaveCount(0);
+    // The sticky header owns creation.
+    await expect(page.getByTestId('new-entry-primary')).toHaveText('+ Add');
   });
 
   test('the notebooks landing and the playgrounds view keep their own chrome', async ({ page }) => {
@@ -85,13 +119,14 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     await waitForFeedReady(page);
     const sidebar = page.getByRole('navigation', { name: 'Main' });
     await expect(sidebar.getByRole('button', { name: 'Subscribed notebooks', exact: true })).toBeVisible();
-    // The landing offers no journal/playgrounds create actions.
+    // The L2 panel offers no create actions on any view.
     await expect(sidebar.getByRole('button', { name: 'New journal entry' })).toHaveCount(0);
     await expect(sidebar.getByRole('button', { name: 'New playground' })).toHaveCount(0);
 
     await page.goto('/playgrounds', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await expect(sidebar.getByRole('button', { name: 'New playground' })).toBeVisible({ timeout: 15_000 });
     await expect(sidebar.getByRole('button', { name: 'All playgrounds', exact: true })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'New playground' })).toHaveCount(0);
+    await expect(page.getByTestId('new-entry-primary')).toHaveText('+ Add');
   });
 });
 
@@ -123,8 +158,9 @@ test.describe('Nav ladder — mobile (375px)', () => {
     await expect(page).toHaveURL(/\/journal(?:\?.*)?$/);
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: 'Open navigation' }).click();
-    await expect(drawer.getByRole('button', { name: 'New journal entry' })).toBeVisible({ timeout: 15_000 });
     await expect(drawer.getByRole('button', { name: 'All entries', exact: true })).toBeVisible();
+    // The L2 panel has no create action — the dock FAB owns creation.
+    await expect(drawer.getByRole('button', { name: 'New journal entry' })).toHaveCount(0);
     // Playgrounds view: reachable through Notebooks L1.
     await primary.getByRole('button', { name: 'Notebooks', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -133,8 +169,8 @@ test.describe('Nav ladder — mobile (375px)', () => {
     await expect(page).toHaveURL(/\/playgrounds(?:\?.*)?$/);
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: 'Open navigation' }).click();
-    await expect(drawer.getByRole('button', { name: 'New playground' })).toBeVisible({ timeout: 15_000 });
     await expect(drawer.getByRole('button', { name: 'All playgrounds', exact: true })).toBeVisible();
+    await expect(drawer.getByRole('button', { name: 'New playground' })).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Close navigation' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
