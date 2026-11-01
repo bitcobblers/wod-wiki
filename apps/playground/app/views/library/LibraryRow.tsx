@@ -139,7 +139,7 @@ export function LibraryRow({
       tabIndex={0}
       onClick={() => navigate(entryOpenHref(entry))}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(entryOpenHref(entry)) } }}
-      className={`flex items-center gap-4 px-6 py-3.5 hover:bg-muted/40 transition-colors text-left group w-full cursor-pointer ${
+      className={`flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 hover:bg-muted/40 transition-colors text-left group w-full cursor-pointer ${
         isPrimary ? 'bg-primary/[0.025]' : ''
       }`}
       data-testid={`library-row-${entry.kind}`}
@@ -213,7 +213,7 @@ export function LibraryRow({
         )}
       </div>
       {dateLabel && showDate && (
-        <span className="flex-shrink-0 text-[10px] text-muted-foreground/70 tabular-nums" data-testid="library-row-date">
+        <span className="flex-shrink-0 text-[10px] text-muted-foreground/70 tabular-nums self-start sm:self-auto pt-0.5 sm:pt-0" data-testid="library-row-date">
           {dateLabel}
         </span>
       )}
@@ -252,7 +252,7 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
     && (entry.editable ?? true)
     && targets.length > 0
   return (
-    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity max-sm:basis-full max-sm:justify-end max-sm:pt-1" onClick={e => e.stopPropagation()}>
       <ActionButton title={notebookHref ? "Details" : "Open"} testId="action-open" onClick={() => navigate(entryOpenHref(entry))}>
         <PlayIcon className="size-3.5" />
       </ActionButton>
@@ -276,7 +276,7 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
           targets={targets}
           triggerTestId="action-move"
           itemTestIdPrefix="action-move-"
-          triggerClassName="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          triggerClassName="size-8 max-sm:min-h-11 max-sm:min-w-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
           onMove={(notebookId) => onMoveNotebook?.(entry, notebookId)}
         />
       )}
@@ -355,7 +355,7 @@ function ActionButton({ title, testId, onClick, children }: ActionButtonProps) {
       title={title}
       onClick={onClick}
       data-testid={testId}
-      className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+      className="size-8 max-sm:min-h-11 max-sm:min-w-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
     >
       {children}
     </button>

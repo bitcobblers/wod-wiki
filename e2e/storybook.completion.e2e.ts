@@ -182,6 +182,19 @@ test('time body offers structure, unit, and property completions', async ({ page
   await page.keyboard.press('Enter');
   await expect(host.locator('.cm-line', { hasText: /^sound$/ })).toHaveCount(1);
 });
+test('time body offers effort completion and accepts with detail matching canonical slug', async ({ page }) => {
+  const host = await openNoteEditor(page);
+  await openBodyLine(page, LINE.timeBodyRest);
+  await page.keyboard.type('Thr');
+  await expect(menu(page)).toBeVisible();
+  const thr = menu(page).locator('li', { hasText: 'Thrusters' }).first();
+  await expect(thr).toBeVisible();
+  // Parity gate: detail is the canonical slug 'thruster', aligned with production builder
+  await expect(thr.locator('.cm-completionDetail')).toHaveText('thruster');
+  await page.keyboard.press('Enter');
+  await expect(host.locator('.cm-line', { hasText: 'Thrusters' })).toHaveCount(1);
+});
+
 
 test('time body rejects duplicate efforts and units but keeps choice slots open', async ({ page }) => {
   await openNoteEditor(page);

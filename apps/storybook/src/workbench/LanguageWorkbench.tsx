@@ -54,7 +54,7 @@ import {
   useRoundDisplay,
 } from '@bitcobblers/wod-wiki-engine/react';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
-import { toEventRows, toSummaryEventRows, type EventStore } from '@bitcobblers/wod-wiki-wql';
+import { captureContext, toEventRows, toSummaryEventRows, type EventStore } from '@bitcobblers/wod-wiki-wql';
 import { toStoredOutputStatement, type StoredOutputStatement } from '@bitcobblers/wod-wiki-engine';
 import {
   editorPreset,
@@ -89,6 +89,7 @@ import type { ScriptBlock as PlaygroundScriptBlock } from '@/components/Editor/t
 import { cursorFocusExtension } from '@/app/editor/cursorFocusExtension';
 import { createRuntimeForBlock } from '@/app/editor/runtimeTimerModel';
 import { getTagIndex } from '@/services/tags/tagCatalogue';
+import { buildNestedCompletionOptions } from '@/app/editor/noteEditorServices';
 import { MetricInlinePanel } from '@/components/organisms/editor/MetricInlinePanel';
 import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
 import { VisualStatePanel } from '@/panels/visual-state-panel';
@@ -206,12 +207,16 @@ const WORKBENCH_SOUND_OPTIONS = [
   { value: 'sonar-ping', label: 'Sonar Ping' },
 ] as const;
 
-const WORKBENCH_WHITEBOARD_COMPLETION = {
-  efforts: () => WORKBENCH_EFFORT_OPTIONS,
-  equipment: () => WORKBENCH_EQUIPMENT_OPTIONS,
-  tags: () => WORKBENCH_TAG_OPTIONS,
-  sounds: () => WORKBENCH_SOUND_OPTIONS,
-};
+const WORKBENCH_NESTED_OPTIONS = buildNestedCompletionOptions({
+  loadCatalog: async () => ({
+    efforts: WORKBENCH_EFFORT_OPTIONS.map((e) => ({ slug: e.value, label: e.label })),
+    equipment: WORKBENCH_EQUIPMENT_OPTIONS.map((e) => ({ slug: e.value, label: e.label })),
+  }),
+  loadTags: () => WORKBENCH_TAG_OPTIONS.map((t) => t.value),
+  loadSounds: () => WORKBENCH_SOUND_OPTIONS.map((s) => ({ id: s.value, name: s.label })),
+});
+
+const WORKBENCH_WHITEBOARD_COMPLETION = WORKBENCH_NESTED_OPTIONS.whiteboardScript;
 
 export function useCodeMirror(
   host: React.RefObject<HTMLDivElement | null>,
@@ -284,10 +289,12 @@ export function useNoteEditor(
   const wqlExecutor = useMemo<QueryExecutor>(() => {
     const svc = buildServiceForJournal(JOURNALS.crossfit);
     const newest = Math.max(...JOURNALS.crossfit.records.map((r) => r.timestamp));
+    const context = captureContext(newest, 'UTC');
     return {
-      runQuery: (q, opts) => svc.runQuery(q, { rangeEnd: newest, ...opts }),
-      runFind: (parsed, opts) => svc.runFind(parsed, { anchorNow: newest, ...opts }),
-      runRows: (parsed, opts) => svc.runRows(parsed, { anchorNow: newest, ...opts }),
+      runQuery: (q, opts) => svc.runQuery(q, { ...opts, context }),
+      runFind: (parsed, opts) => svc.runFind(parsed, { ...opts, context, anchorNow: newest }),
+      runRows: (parsed, opts) => svc.runRows(parsed, { ...opts, context, anchorNow: newest }),
+      runPipeline: (t, opts) => svc.runPipeline(t, { ...opts, context, anchorNow: newest }),
     };
   }, []);
 

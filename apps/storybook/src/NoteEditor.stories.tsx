@@ -24,7 +24,7 @@ const NOTE_COMPLETION_SAMPLE = [
   'completions belong inside the fences below.',
   '',
   '```query',
-  ':journal{effort:snatch} last 4w | :sum{metric:tis} | :bar{}',
+  ':journal{} last 4w | :sum{metric:tis} | :bar{}',
   '```',
   '',
   '```wql',
@@ -193,6 +193,10 @@ export const UniversalNoteEditor: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId('note-editor-host')).toBeVisible();
+    await expect(canvas.getByText('Benchmark Day')).toBeVisible();
+    // Parity gate: default pipeline query executes cleanly without pipeline-unsupported error
+    await expect(canvas.queryByText(/pipeline queries are not supported/i)).toBeNull();
+    await expect(canvas.queryByText(/query execution error/i)).toBeNull();
   },
 };
 

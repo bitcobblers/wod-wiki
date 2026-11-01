@@ -1,6 +1,7 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin } from '@codemirror/view';
-import { frontmatterSuggestions, frontmatterReferenceIndex, referenceIndexReload, type FrontmatterReferenceProvider } from '@bitcobblers/wod-wiki-ui/extensions';
+import { frontmatterSuggestions, frontmatterReferenceIndex, referenceIndexReload, type FrontmatterReferenceProvider, type NestedCompletionOptions } from '@bitcobblers/wod-wiki-ui/extensions';
+import { loadSuggestions } from '@bitcobblers/wod-wiki-ui';
 import {
   addAliasToEffort,
   createReferenceIndex,
@@ -18,7 +19,8 @@ import { storageService } from '@/services/storage';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
 import { getAppEquipmentRegistry, hydrateAppEquipmentRegistry } from '@/services/equipmentRegistry';
-import { refreshTagIndex } from '@/services/tags/tagCatalogue';
+import { getTagIndex, refreshTagIndex } from '@/services/tags/tagCatalogue';
+import { readSoundProfiles } from '@/services/sound/soundProfiles';
 import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
 import { v7 as uuidv7 } from 'uuid';
 import { appWarn } from '@/lib/log';
@@ -166,6 +168,63 @@ export async function loadReferenceCatalog(): Promise<CatalogSnapshot> {
   return {
     efforts: [...effortRegistry.list()],
     equipment: [...getAppEquipmentRegistry().list()],
+  };
+}
+export interface NoteCompletionSources {
+  loadCatalog?: () => Promise<{ efforts: readonly { slug: string; label: string }[]; equipment: readonly { slug: string; label: string }[] }>;
+  loadTags?: () => Promise<readonly string[]> | readonly string[];
+  loadSounds?: () => Promise<readonly { id: string; name: string }[]> | readonly { id: string; name: string }[];
+  loadWqlSuggestions?: (key: string) => Promise<readonly { value: string; label?: string }[]>;
+}
+
+/**
+ * Shared factory for nested ```wql, ```query, ```time, and ```log completion options.
+ * Used identically by playground NoteEditor and Storybook LanguageWorkbench.
+ */
+export function buildNestedCompletionOptions(sources?: NoteCompletionSources): NestedCompletionOptions {
+  return {
+    wql: {
+      values: async (key) => {
+        const loader = sources?.loadWqlSuggestions ?? (async (k) => loadSuggestions(k === 'tags' ? 'tag' : k));
+        return (await loader(key)).map((item) => ({
+          label: item.value,
+          detail: item.label,
+          type: 'constant' as const,
+        }));
+      },
+    },
+    whiteboardScript: {
+      efforts: async () => {
+        const catalog = sources?.loadCatalog ? await sources.loadCatalog() : await loadReferenceCatalog();
+        return catalog.efforts.map((effort) => ({
+          value: effort.slug,
+          label: effort.label,
+          detail: effort.slug,
+        }));
+      },
+      equipment: async () => {
+        const catalog = sources?.loadCatalog ? await sources.loadCatalog() : await loadReferenceCatalog();
+        return catalog.equipment.map((item) => ({
+          value: item.slug,
+          label: item.label,
+          detail: item.slug,
+        }));
+      },
+      tags: async () => {
+        if (sources?.loadTags) {
+          const tags = await sources.loadTags();
+          return tags.map((t) => ({ value: t }));
+        }
+        return getTagIndex().list().map((tag) => ({ value: tag.slug }));
+      },
+      sounds: () => {
+        if (sources?.loadSounds) {
+          const sounds = sources.loadSounds();
+          if (Array.isArray(sounds)) return sounds.map((s) => ({ value: s.id, label: s.name }));
+        }
+        return readSoundProfiles().map((profile) => ({ value: profile.id, label: profile.name }));
+      },
+    },
   };
 }
 

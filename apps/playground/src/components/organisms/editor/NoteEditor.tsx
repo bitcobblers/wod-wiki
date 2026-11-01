@@ -75,7 +75,7 @@ import { cursorFocusExtension, getCursorFocusState } from "@/app/editor/cursorFo
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { INotePersistence } from "@/services/persistence";
 import { queryService, onResultSaved } from "@/hooks/useCastSignaling";
-import { createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence } from "@/app/editor/noteEditorServices";
+import { createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence, buildNestedCompletionOptions } from "@/app/editor/noteEditorServices";
 import { readSoundProfiles } from "@/hooks/useBrowserServices";
 
 import { entryOpenHref } from '../../../../app/lib/entryActions';
@@ -1084,37 +1084,7 @@ const frontmatterCompletionSource: CustomCompletionSource = async (context: Comp
 
 // Exactly the wqlCompletionSource options the standalone WQL editors configure,
 // so nested ```query/```wql bodies rank, apply, and insert identically.
-const NOTE_NESTED_WQL_OPTIONS: NestedCompletionOptions = {
-  wql: {
-    values: async (key) =>
-      (await loadSuggestions(key === 'tags' ? 'tag' : key)).map((item) => ({
-        label: item.value,
-        detail: item.label,
-        type: 'constant' as const,
-      })),
-  },
-  // Exactly the WhiteboardScriptCompletionOptions a standalone WB editor gets:
-  // efforts/equipment from the shared reference catalog, tags from the cached
-  // tag index, sound profiles from the sound service. The provider's sport
-  // comes from each section's `:sport` fence suffix, not here.
-  whiteboardScript: {
-    efforts: async () =>
-      (await loadReferenceCatalog()).efforts.map((effort) => ({
-        value: effort.slug,
-        label: effort.label,
-        detail: effort.slug,
-      })),
-    equipment: async () =>
-      (await loadReferenceCatalog()).equipment.map((item) => ({
-        value: item.slug,
-        label: item.label,
-        detail: item.slug,
-      })),
-    tags: async () => getTagIndex().list().map((tag) => ({ value: tag.slug })),
-    sounds: () =>
-      readSoundProfiles().map((profile) => ({ value: profile.id, label: profile.name })),
-  },
-};
+const NOTE_NESTED_WQL_OPTIONS: NestedCompletionOptions = buildNestedCompletionOptions();
 
 // ---------- Helpers ----------
 

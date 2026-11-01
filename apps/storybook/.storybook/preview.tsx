@@ -42,8 +42,9 @@ const preview: Preview = {
         document.documentElement.classList.toggle('dark', theme === 'dark');
         return () => document.documentElement.classList.remove('dark');
       }, [theme]);
+      const isBleed = context.parameters?.layout === 'fullscreen' || context.parameters?.canvas === 'none';
       return (
-        <div className="min-h-screen bg-background text-foreground p-4 font-sans">
+        <div className={`min-h-screen bg-background text-foreground ${isBleed ? '' : 'p-4 '}font-sans`}>
           <Story />
         </div>
       );

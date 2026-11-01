@@ -8,7 +8,7 @@
  * - Center Content Surface: `PAGE_SHELL_CONTAINER_CLASS` (`xl:max-w-[984px] 2xl:max-w-none lg:rounded-[2.5rem]`) + `PAGE_SHELL_CONTENT_SURFACE_CLASS` (`bg-background ring-1 ring-zinc-950/5 shadow-sm lg:shadow-[-18px_0_36px_-28px_rgba(15,23,42,0.16),18px_0_36px_-28px_rgba(15,23,42,0.16)] dark:ring-white/10`) with `StickyPageHeader` and `PageActions`.
  * - Zone 4 (`SecondaryNav` / `StreamControlsNav`): Fixed `w-60` (240px) right-hand L3 rail (`px-3 py-4 gap-4`).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, fn, userEvent, within } from 'storybook/test';
@@ -34,6 +34,11 @@ import type { EntityLevel } from '@app/lib/fieldProjection';
 import { getDefaultVisibleFieldIds } from '@app/lib/fieldProjection';
 import { PageActions } from '@app/pages/shared/PageActions';
 import { LibraryRow } from '@app/views/library/LibraryRow';
+import { StreamFeed } from '@app/views/stream/StreamFeed';
+import { PropertyTable } from '@app/views/stream/PropertyTable';
+import { CalendarAgendaView } from '@app/views/stream/CalendarAgendaView';
+import { CalendarPlannerView } from '@app/views/stream/CalendarPlannerView';
+import { groupEntriesByDimension } from '@app/lib/entryGrouping';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import { ALL_ENTRY_FLAVORS, SAMPLE_NOTEBOOK_TARGETS } from './entryFixtures';
 
@@ -259,6 +264,12 @@ function FullShellHarness({
     };
   }, [query, layout, groupDims, visibleFields, level, setStreamControls, setL3Items]);
 
+  const entries = ALL_ENTRY_FLAVORS.slice(0, 6);
+  const streamGroups = useMemo(
+    () => groupEntriesByDimension(entries, groupDims.length > 0 ? groupDims : 'date'),
+    [entries, groupDims],
+  );
+
   return (
     <div data-testid="full-shell-story">
       <SidebarLayout
@@ -294,19 +305,70 @@ function FullShellHarness({
               />
             }
           />
-          <div className="divide-y divide-border/60">
-            {ALL_ENTRY_FLAVORS.slice(0, 6).map((entry) => (
-              <LibraryRow
-                key={entry.id}
-                entry={entry}
-                dateLabel={entry.date ?? 'Undated'}
+          {layout === 'rows' && (
+            <div data-testid="shell-center-rows">
+              <PropertyTable
+                entries={entries}
+                level={level}
+                visibleFieldIds={visibleFields}
+                stickyHeaderTop={0}
+              />
+            </div>
+          )}
+          {layout === 'feed' && (
+            <div data-testid="shell-center-feed">
+              <StreamFeed
+                groups={streamGroups}
+                batch={{ visible: entries, total: entries.length }}
+                stickyOffset={0}
+                onRunEntry={() => {}}
+                onAddToToday={() => {}}
+                moveNotebookTargets={SAMPLE_NOTEBOOK_TARGETS}
+                onMoveNotebook={() => {}}
+              />
+            </div>
+          )}
+          {layout === 'agenda' && (
+            <div data-testid="shell-center-agenda">
+              <CalendarAgendaView
+                entries={entries}
+                stickyOffset={0}
+                visibleFieldIds={visibleFields}
                 onAddToToday={() => {}}
                 onRunStart={() => {}}
                 moveNotebookTargets={SAMPLE_NOTEBOOK_TARGETS}
                 onMoveNotebook={() => {}}
               />
-            ))}
-          </div>
+            </div>
+          )}
+          {layout === 'planner' && (
+            <div data-testid="shell-center-planner">
+              <CalendarPlannerView
+                entries={entries}
+                visibleFieldIds={visibleFields}
+                onAddToToday={() => {}}
+                onRunStart={() => {}}
+                moveNotebookTargets={SAMPLE_NOTEBOOK_TARGETS}
+                onMoveNotebook={() => {}}
+              />
+            </div>
+          )}
+          {(layout === 'cards' || (!['rows', 'feed', 'agenda', 'planner'].includes(layout))) && (
+            <div className="divide-y divide-border/60" data-testid="shell-center-cards">
+              {entries.map((entry) => (
+                <LibraryRow
+                  key={entry.id}
+                  entry={entry}
+                  dateLabel={entry.date ?? 'Undated'}
+                  visibleFieldIds={visibleFields}
+                  onAddToToday={() => {}}
+                  onRunStart={() => {}}
+                  moveNotebookTargets={SAMPLE_NOTEBOOK_TARGETS}
+                  onMoveNotebook={() => {}}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </SidebarLayout>
     </div>
@@ -318,6 +380,26 @@ export const FullPlaygroundShellLayout: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId('full-shell-story')).toBeVisible();
+    await expect(canvas.getByTestId('shell-center-cards')).toBeVisible();
+
+    // Parity gate: clicking each layout option mounts the corresponding real center view
+    const feedBtn = canvas.getByTestId('l3-layout-feed');
+    await userEvent.click(feedBtn);
+    await expect(canvas.getByTestId('shell-center-feed')).toBeVisible();
+    await expect(canvas.getByTestId('stream-feed')).toBeVisible();
+
+    const rowsBtn = canvas.getByTestId('l3-layout-rows');
+    await userEvent.click(rowsBtn);
+    await expect(canvas.getByTestId('shell-center-rows')).toBeVisible();
+    await expect(canvas.getByTestId('property-table')).toBeVisible();
+
+    const agendaBtn = canvas.getByTestId('l3-layout-agenda');
+    await userEvent.click(agendaBtn);
+    await expect(canvas.getByTestId('shell-center-agenda')).toBeVisible();
+
+    const plannerBtn = canvas.getByTestId('l3-layout-planner');
+    await userEvent.click(plannerBtn);
+    await expect(canvas.getByTestId('shell-center-planner')).toBeVisible();
   },
 };
 

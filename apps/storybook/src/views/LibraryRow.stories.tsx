@@ -19,7 +19,7 @@
  */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router-dom';
-import { expect, fn, within } from 'storybook/test';
+import { expect, fn, userEvent, within } from 'storybook/test';
 import { LibraryRow } from '@app/views/library/LibraryRow';
 import {
   ALL_ENTRY_FLAVORS,
@@ -124,9 +124,20 @@ type Story = StoryObj<LibraryRowStoryArgs>;
 
 /** Interactive single row — use Controls to switch between all 12 Entry flavors. */
 export const InteractiveEntryRow: Story = {
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByTestId('library-row-note')).toBeVisible();
+    const row = canvas.getByTestId('library-row-note');
+    await expect(row).toBeVisible();
+
+    // Parity gate: keyboard navigation focuses row and actions can be triggered
+    await userEvent.tab();
+    expect(document.activeElement).toBe(row);
+
+    const addBtn = canvas.queryByTestId('action-add');
+    if (addBtn) {
+      await userEvent.click(addBtn);
+      await expect(args.onAddToToday).toHaveBeenCalled();
+    }
   },
 };
 

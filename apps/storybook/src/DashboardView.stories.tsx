@@ -2,35 +2,38 @@ import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 import { DashboardView, type QueryExecutor } from '@bitcobblers/wod-wiki-ui';
-import { buildDashboardDocument, parseDashboardNote } from '@bitcobblers/wod-wiki-wql';
+import { buildDashboardDocument, captureContext, defaultTokenValues, parseDashboardNote } from '@bitcobblers/wod-wiki-wql';
 import { JOURNALS, buildServiceForJournal } from './gallery/journals';
 
 const journalService = buildServiceForJournal(JOURNALS.crossfit);
 const corpusNewest = Math.max(...JOURNALS.crossfit.records.map((r) => r.timestamp));
+const corpusContext = captureContext(corpusNewest, 'UTC');
 
 const executor: QueryExecutor = {
-  runQuery: (query, options) => journalService.runQuery(query, { rangeEnd: corpusNewest, ...options }),
-  runFind: (parsed, options) => journalService.runFind(parsed, { anchorNow: corpusNewest, ...options }),
-  runRows: (parsed, options) => journalService.runRows(parsed, { anchorNow: corpusNewest, ...options }),
+  runQuery: (query, options) => journalService.runQuery(query, { ...options, context: corpusContext }),
+  runFind: (parsed, options) => journalService.runFind(parsed, { ...options, context: corpusContext, anchorNow: corpusNewest }),
+  runRows: (parsed, options) => journalService.runRows(parsed, { ...options, context: corpusContext, anchorNow: corpusNewest }),
+  runPipeline: (query, options) => journalService.runPipeline(query, { ...options, context: corpusContext, anchorNow: corpusNewest }),
 };
 
 const DEFAULT_DASHBOARD_MARKDOWN = [
   '---',
   'title: Training Block Overview',
-  'tokens:',
-  '  range:',
-  '    default: 8w',
-  '    options: [4w, 8w, 12w]',
-  '  unit:',
-  '    default: lb',
-  '    options: [lb, kg]',
+  'dashboard: true',
+  'dashboard.range:',
+  '  - 8w',
+  '  - 4w',
+  '  - 12w',
+  'dashboard.unit:',
+  '  - lb',
+  '  - kg',
   '---',
   '',
   '# Training Block Overview',
   '',
-  'How has total volume trended across weeks?',
+  'How has workload trended across weeks?',
   '```query:timeseries',
-  'sum:totalVolume{} by {week} last $range',
+  'sum:tis{} by {week} last $range',
   '```',
   '',
   'What is the session load distribution by discipline?',
@@ -53,8 +56,10 @@ interface DashboardStoryArgs {
 function DashboardHarness({ markdown, editMode, preferredUnit }: DashboardStoryArgs) {
   const { meta, sections } = parseDashboardNote(markdown);
   const document = buildDashboardDocument(sections, meta);
-  const [tokens, setTokens] = useState<Record<string, string>>({ range: '8w', unit: preferredUnit });
-
+  const [tokens, setTokens] = useState<Record<string, string>>(() => ({
+    ...defaultTokenValues(document.tokens),
+    unit: preferredUnit,
+  }));
   return (
     <div className="max-w-6xl space-y-4" data-testid="dashboard-view-story">
       <DashboardView
@@ -96,11 +101,20 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId('dashboard-view-story')).toBeVisible();
+    await expect(canvas.getByTestId('dashboard-token-controls')).toBeVisible();
+    // Parity gate: widgets populate without empty state or missing tokens
+    await expect(canvas.queryByText(/no data for this range/i)).toBeNull();
+    await expect(canvas.queryByText(/unknown token/i)).toBeNull();
   },
 };
 
 export const EditModeArrange: Story = {
   args: {
     editMode: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByTestId('dashboard-view-story')).toBeVisible();
+    await expect(canvas.getByTestId('widget-toolbar-w0')).toBeVisible();
   },
 };
