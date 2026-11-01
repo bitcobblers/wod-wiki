@@ -4,6 +4,18 @@ import type { FrontMatterSubtype, Section } from '../types/section';
 
 export { blockContentId };
 export const KNOWN_SECTION_WIDGETS: readonly string[] = ['playground-run-tip', 'attention', 'code-example', 'syntax-group'];
+const KNOWN_QUERY_WIDGET_TYPES: Readonly<Record<string, true>> = {
+  table: true,
+  list: true,
+  value: true,
+  timeseries: true,
+  bar: true,
+  donut: true,
+  toplist: true,
+  'stacked-bar': true,
+  'goal-rings': true,
+  'zone-distribution': true,
+};
 
 export function matchDialectFence(trimmedLine: string): { dialect: 'time' | 'log'; sport?: string } | null {
   const match = trimmedLine.match(/^`{3,}(time|log)(?::([\w-]+))?\s*$/i);
@@ -86,9 +98,15 @@ export function parseDocumentSections(content: string, options: SectionRecogniti
       const tag = fence[2].trim();
       const dialect = marker[0] === '`' ? matchDialectFence(`\`\`\`${tag}`) : null;
       const widget = marker[0] === '`' ? tag.match(/^widget:([\w-]+)$/) : null;
-      const query = marker[0] === '`' ? tag.match(/^query(?:[:\s](.*))?$/i) : null;
       const names = options.registeredWidgets ?? KNOWN_SECTION_WIDGETS;
       const knownWidget = widget && ('has' in names ? names.has(widget[1]) : names.includes(widget[1]));
+      const widgetChartMatch = marker[0] === '`' && !knownWidget
+        ? tag.match(/^widget:([a-zA-Z-]+)(?:-(?:full|\d+))?(?:\s+.*)?$/i)
+        : null;
+      const isWidgetChart = Boolean(widgetChartMatch && KNOWN_QUERY_WIDGET_TYPES[widgetChartMatch[1].toLowerCase()]);
+      const query = marker[0] === '`'
+        ? (tag.match(/^query(?:[:\s](.*))?$/i) ?? (isWidgetChart ? tag.match(/^widget:?(.*)$/i) : null))
+        : null;
       const type = closed && dialect ? dialect.dialect : closed && knownWidget ? 'widget' : closed && query ? 'query' : 'code';
       const section = make(type, line, end);
       section.contentFrom = offsets[line] + lines[line].length + separators[line].length;

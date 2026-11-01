@@ -33,7 +33,9 @@ import { documentToEquipment } from '@bitcobblers/wod-wiki-lang';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { ResponsiveActions } from '../nav/ResponsiveActions';
 import { fileToDisplayName } from '@/repositories/groupings';
-
+import { appendWidget, resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
+import { queryService } from '@/services/queryService';
+import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog';
 export function EquipmentDetailPage() {
   const { slug: slugParam, tag: tagParam } = useParams<{ slug?: string; tag?: string }>();
   const slug = slugParam ?? tagParam;
@@ -67,7 +69,11 @@ export function EquipmentDetailPage() {
   }, [equipment, navigate]);
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([]);
-
+  const [widgetComposerOpen, setWidgetComposerOpen] = useState(false);
+  const equipmentScope = useMemo(
+    () => (slug ? resolveEntityScope({ kind: 'equipment', slug, label: equipment?.label ?? slug }) : null),
+    [slug, equipment?.label],
+  );
   // ── Create mode ("/equipment/new?mode=create" or "?mode=create" on any slug) ──
   const isCreateMode = searchParams.get('mode') === 'create';
   const [createDocument, setCreateDocument] = useState(() =>
@@ -128,6 +134,7 @@ export function EquipmentDetailPage() {
     scriptBlocks,
     helpfulActions: [
       ...(equipment && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: equipment.slug }] : []),
+      ...(equipment ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),
       { id: 'copy-link', label: 'Copy link', onRun: handleCopyLink },
     ],
   });
@@ -341,6 +348,18 @@ export function EquipmentDetailPage() {
             <NoteContextNav data={contextData} up={ownership?.up} relatedLabel="Used in" trailingSections={trailingSections} />
           </div>
         }
+      />
+      <WidgetComposerDialog
+        open={widgetComposerOpen}
+        onClose={() => setWidgetComposerOpen(false)}
+        mode="add"
+        initialWql={equipmentScope ? `sum:totalVolume{${equipmentScope.scopeFilter}} by {week}` : 'sum:totalVolume{} by {week}'}
+        subsetQuery={equipmentScope?.notesWql ?? null}
+        executor={queryService}
+        tokenValues={equipmentScope?.tokens}
+        onApply={(spec) => {
+          setDocument(appendWidget(document, spec));
+        }}
       />
     </div>
   );

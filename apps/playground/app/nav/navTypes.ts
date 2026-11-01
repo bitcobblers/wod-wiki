@@ -117,7 +117,6 @@ export interface NavItem extends Omit<INavActivation, 'icon'> {
   applyFooter?: boolean
   to?: string
   disabled?: boolean
-  variant?: 'default' | 'notable'
   meta?: Record<string, unknown>
   pinned?: boolean
   onTogglePin?: () => void

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach   } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { QueryBlockView, type QueryExecutor } from '../src';
 
@@ -34,6 +34,15 @@ describe('QueryBlockView with injected QueryExecutor and onResultSaved', () => {
     await waitFor(() => {
       expect(screen.getByText('84')).toBeDefined();
     });
+  });
+
+  it('invokes the optional dashboard action', () => {
+    const onAddToDashboard = vi.fn();
+    render(<QueryBlockView query="sum:reps{}" onAddToDashboard={onAddToDashboard} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to dashboard' }));
+
+    expect(onAddToDashboard).toHaveBeenCalledTimes(1);
   });
 
   it('subscribes to onResultSaved callback prop for refresh notifications', async () => {

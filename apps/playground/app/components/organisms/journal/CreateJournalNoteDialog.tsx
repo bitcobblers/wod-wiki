@@ -3,42 +3,41 @@ import { useNavigate } from 'react-router-dom'
 import {
   BeakerIcon,
   BookOpenIcon,
-  ChartBarIcon,
   DocumentTextIcon,
   SparklesIcon,
+  TagIcon,
   WrenchScrewdriverIcon,
 } from '@heroicons/react/20/solid'
-import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
-import { effortToDocument } from '@bitcobblers/wod-wiki-lang'
+import { EditorDialog, WqlComposer } from '@bitcobblers/wod-wiki-ui'
+import { effortToDocument, tagRecordToDocument } from '@bitcobblers/wod-wiki-lang'
+import type { Tag } from '@bitcobblers/wod-wiki-core'
 import { Button } from '@/components/atoms/primitives/button'
 import { storageService } from '@/services/storage'
 import { notebookService } from '@/services/NotebookService'
 import { commitReferenceNote } from '@/repositories/referenceNotes'
 import { getScriptNotebooks, type ScriptNotebook } from '@/repositories/script-notebooks'
-import { parseFrontmatter } from '@/lib/frontmatter'
 import type { HistoryRecord } from '@/types/history'
 import type { Notebook } from '@/types/notebook'
 
 import { formatDateHeader } from '../../../lib/dateFormat'
 import {
-  dashboardViewPath,
   effortPath,
   equipmentPath,
   notePath,
   notebookItemPath,
   notebookPath,
   playgroundPath,
+  tagPath,
 } from '../../../lib/routes'
 import { blankEquipmentDocument } from '../../../hooks/useEquipmentContent'
 import { createPlaygroundPage } from '../../../services/createPlaygroundPage'
-import { dashboardNotes } from '../../../services/dashboardNotes'
 import { getTodayDateKey } from '../../../services/dateUtils'
 import { parseJournalDate } from '../../../services/parseJournalDate'
 import { journalNotes, type CreateJournalNoteInput } from '../../../services/journalNotes'
 import { DEFAULT_PLAYGROUND_CONTENT } from '../../../templates/defaultPlaygroundContent'
 
-export type ResourceKind = 'journal' | 'note' | 'playground' | 'notebook' | 'page' | 'dashboard' | 'effort' | 'equipment'
-export type ComposerKind = 'note' | 'playground' | 'notebook' | 'dashboard' | 'effort' | 'equipment'
+export type ResourceKind = 'journal' | 'note' | 'playground' | 'notebook' | 'page' | 'effort' | 'equipment' | 'tag'
+export type ComposerKind = 'note' | 'playground' | 'notebook' | 'effort' | 'equipment' | 'tag'
 export type StartMode = 'blank' | 'notebook' | 'source'
 
 export interface CreateJournalNoteDialogProps {
@@ -70,9 +69,9 @@ const KIND_OPTIONS: KindOption[] = [
   { kind: 'note', label: 'Note', subtitle: 'Journal, notebook, or page', group: 'workspace', icon: DocumentTextIcon },
   { kind: 'playground', label: 'Playground', subtitle: 'Scratchpad timer session', group: 'workspace', icon: BeakerIcon },
   { kind: 'notebook', label: 'Notebook', subtitle: 'Collection of notes', group: 'workspace', icon: BookOpenIcon },
-  { kind: 'dashboard', label: 'Dashboard', subtitle: 'WQL charts & metrics', group: 'workspace', icon: ChartBarIcon },
   { kind: 'effort', label: 'Effort', subtitle: 'Movement definition', group: 'catalog', icon: SparklesIcon },
   { kind: 'equipment', label: 'Equipment', subtitle: 'Gear definition', group: 'catalog', icon: WrenchScrewdriverIcon },
+  { kind: 'tag', label: 'Tag', subtitle: 'Reusable script contribution', group: 'catalog', icon: TagIcon },
 ]
 
 export function slugifyRoute(value: string): string {
@@ -129,6 +128,7 @@ export function CreateJournalNoteDialog({
 
   // Unified template selection: '' = Blank, 'nb:<id>' = notebook note, 'src:<groupId>::<path>' = feed workout
   const [templateKey, setTemplateKey] = useState('')
+  const [wqlScope, setWqlScope] = useState('')
   const [notebookNotes, setNotebookNotes] = useState<NotebookNoteChoice[] | null>(null)
   const [sources, setSources] = useState<SourceState | null>(null)
   const templatesReq = useRef(0)
@@ -154,6 +154,7 @@ export function CreateJournalNoteDialog({
     setCustomPageSlug('')
     setPageSlugTouched(false)
     setTemplateKey('')
+    setWqlScope('')
     setCreating(false)
     setSubmitError(null)
     setTargetNotebookId(defaultNotebookSlug ? `notebook/${defaultNotebookSlug}` : '')
@@ -182,7 +183,7 @@ export function CreateJournalNoteDialog({
 
   const supportsTemplates = kind === 'note' || kind === 'playground'
   const supportsDateAndTarget = kind === 'note'
-  const requiresTitle = kind === 'notebook'
+  const requiresTitle = kind === 'notebook' || kind === 'tag'
   // ponytail: effort/equipment allow empty title to land on /effort/new?mode=create or /equipment/new?mode=create; upgrade to inline schema validation if reference creation drops the editor create route.
 
   // Load starter templates and feed sources in background when creating a Note or Playground.
@@ -250,15 +251,15 @@ export function CreateJournalNoteDialog({
         : isNotebookTarget
           ? 'Untitled note'
           : `Journal — ${formatDateHeader(dateParsed?.dateKey ?? getTodayDateKey())}`
-      : kind === 'dashboard'
-        ? 'New Dashboard'
-        : kind === 'playground'
-          ? 'New playground'
-          : kind === 'notebook'
-            ? 'e.g., Morning Routines'
-            : kind === 'effort'
-              ? 'e.g., Kettlebell Swing'
-              : 'e.g., Kettlebell'
+      : kind === 'playground'
+        ? 'New playground'
+        : kind === 'notebook'
+          ? 'e.g., Morning Routines'
+          : kind === 'effort'
+            ? 'e.g., Kettlebell Swing'
+            : kind === 'equipment'
+              ? 'e.g., Kettlebell'
+              : 'e.g., heavy'
 
   const suggestedPageSlug = useMemo(() => {
     const fromTitle = slugifyRoute(title)
@@ -313,13 +314,23 @@ export function CreateJournalNoteDialog({
         return
       }
 
-      if (kind === 'dashboard') {
-        const created = await dashboardNotes.createDashboard(title.trim() || undefined)
-        const { meta } = parseFrontmatter(created.rawContent)
-        const slug = typeof meta.slug === 'string' && meta.slug ? meta.slug : created.slug ?? created.id
-        onCreated?.(created)
+      if (kind === 'tag') {
+        const slug = slugifyRoute(title)
+        const tag: Tag = {
+          id: `tag-user-${crypto.randomUUID()}`,
+          label: slug,
+          contributions: [],
+          createdAt: Date.now(),
+        }
+        await commitReferenceNote({
+          kind: 'tag',
+          slug,
+          title: slug,
+          rawContent: tagRecordToDocument(tag),
+          expectedSourceRevision: 0,
+        })
         onOpenChange(false)
-        navigate(dashboardViewPath(slug))
+        navigate(tagPath('tag', slug))
         return
       }
 
@@ -408,10 +419,12 @@ export function CreateJournalNoteDialog({
       } else {
         const resolvedTitle = title.trim() || fallbackTitle
         const needsHeading = isNotebookTarget || enablePageRoute
+        const trimmedWql = wqlScope.trim()
+        const wqlFence = trimmedWql ? `\n\`\`\`query\n${trimmedWql}\n\`\`\`\n` : ''
         input = {
           journalDate: parsed.dateKey,
           title: resolvedTitle,
-          rawContent: needsHeading ? `# ${resolvedTitle}\n` : '',
+          rawContent: (needsHeading ? `# ${resolvedTitle}\n` : '') + wqlFence,
           tags: [],
           slug: slugForNote,
           type: effectiveType,
@@ -558,7 +571,7 @@ export function CreateJournalNoteDialog({
           {/* 1. Hero Input: Title / Name first */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="journal-create-title" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {kind === 'notebook' || kind === 'effort' || kind === 'equipment' ? 'Name' : 'Title'}{' '}
+              {kind === 'notebook' || kind === 'effort' || kind === 'equipment' || kind === 'tag' ? 'Name' : 'Title'}{' '}
               {requiresTitle ? (
                 <span className="text-destructive">*</span>
               ) : (
@@ -705,7 +718,23 @@ export function CreateJournalNoteDialog({
             </div>
           )}
 
-          {/* Notebook-specific fields: Icon & Description */}
+          {kind === 'note' && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                Initial WQL Widget <span className="font-normal text-muted-foreground/80">(optional — embeds a query block in this note)</span>
+              </span>
+              <div data-testid="note-create-wql-composer">
+                <WqlComposer
+                  query={wqlScope}
+                  onQueryChange={setWqlScope}
+                  compact
+                  showDiagnostics={false}
+                  placeholder="e.g. :note{domain:crossfit} or sum:totalVolume{} by {week}"
+                />
+              </div>
+            </div>
+          )}
+
           {kind === 'notebook' && (
             <>
               <div className="flex flex-col gap-1.5">

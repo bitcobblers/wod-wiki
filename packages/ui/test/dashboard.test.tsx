@@ -301,4 +301,39 @@ describe('DashboardView and useAnalyticsQueries with injected QueryExecutor', ()
     render(<DashboardView document={doc} executor={mockExecutor} />);
     await waitFor(() => expect(screen.getByText('250')).toBeDefined());
   });
+
+  it('renders a content-plane :note query as an interactive table when widgetType is table (or bare ```query)', async () => {
+    const runFindMock = vi.fn(async () => ({
+      parsed: { family: 'find', raw: ':note{domain:crossfit}', target: 'note', filters: [] },
+      notes: [
+        { id: 'note-fran', title: 'Fran', type: 'wod', tags: ['benchmark', 'crossfit'], date: '2026-10-15' },
+        { id: 'note-cindy', title: 'Cindy', type: 'wod', tags: ['amrap'], date: '2026-10-16' },
+      ],
+      blocks: [],
+      stages: { selected: 2, matched: 2 },
+    }) as unknown as FindQueryResult);
+    const mockExecutor: QueryExecutor = {
+      runQuery: vi.fn(async (q: string) => mockQueryResult(q, 0)),
+      runFind: runFindMock,
+      runRows: vi.fn(async () => ({} as unknown as RowsQueryResult)),
+    };
+
+    const doc: DashboardDocument = buildDashboardDocument(
+      [{ type: 'query', content: ':note{domain:crossfit}', widgetType: 'table' }],
+      {},
+    );
+
+    render(
+      <DashboardView
+        document={doc}
+        executor={mockExecutor}
+        noteHref={(item) => `/note/${item.id}`}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('content-records-table')).toBeDefined());
+    const franLink = screen.getByText('Fran').closest('a');
+    expect(franLink?.getAttribute('href')).toBe('/note/note-fran');
+    expect(screen.getByText('#benchmark #crossfit')).toBeDefined();
+  });
 });

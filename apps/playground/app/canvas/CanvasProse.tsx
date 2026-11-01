@@ -10,21 +10,22 @@
  *  - File links (.pdf, .mov, etc.) with a download/open icon
  */
 
-import { Children } from 'react'
+import { Children, useState } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { parseFrontmatter, type ParsedFrontmatter } from '@/lib/frontmatter'
 import { QueryBlockView } from '@bitcobblers/wod-wiki-ui'
-import { parseQueryWidgetSuffix } from '@bitcobblers/wod-wiki-wql'
+import { isFindQuery, parseQuery, parseQueryWidgetSuffix } from '@bitcobblers/wod-wiki-wql'
 import { queryService } from '@/services/queryService'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { entryOpenHref } from '../lib/entryActions'
 import { wqlStreamHref } from '../lib/wqlLink'
 import { toEntry, blockToEntry } from '../lib/entryMapper'
 import type { Note } from '@/types/storage'
+import { QueryToDashboardDialog } from '../views/analytics/QueryToDashboardDialog'
 
 // ── File-type helpers ─────────────────────────────────────────────────────────
 
@@ -63,6 +64,12 @@ function CanvasQueryBlock({
   attributes?: Record<string, string>
 }) {
   const sourcesReady = usePageSourcesReady()
+  const location = useLocation()
+  const [dashboardOpen, setDashboardOpen] = useState(false)
+  const isDashboardPage = /^\/dashboards?(?:\/|$)/.test(location.pathname)
+  const parsed = parseQuery(queryText)
+  const subsetQuery = !parsed.error && isFindQuery(parsed) ? queryText : null
+
   if (!sourcesReady) {
     return (
       <div className="my-5 not-prose text-xs text-muted-foreground py-2">Loading…</div>
@@ -77,6 +84,7 @@ function CanvasQueryBlock({
         attributes={attributes}
         executor={queryService}
         readOnly={true}
+        onAddToDashboard={isDashboardPage ? undefined : () => setDashboardOpen(true)}
         noteHref={(item) => {
           const isBlock = 'blockContentId' in item || 'dataType' in item
           const entry = isBlock
@@ -84,6 +92,12 @@ function CanvasQueryBlock({
             : toEntry(item as unknown as Parameters<typeof toEntry>[0])
           return entryOpenHref(entry)
         }}
+      />
+      <QueryToDashboardDialog
+        open={dashboardOpen}
+        onOpenChange={setDashboardOpen}
+        initialQuery={queryText}
+        subsetQuery={subsetQuery}
       />
     </div>
   )
@@ -217,14 +231,19 @@ const components: Components = {
         </code>
       )
     }
-    if (language === 'query' || language.startsWith('query:') || language.startsWith('query ')) {
+    if (
+      language === 'query' ||
+      language.startsWith('query:') ||
+      language.startsWith('query ') ||
+      language.startsWith('widget:')
+    ) {
       const queryText = (typeof children === 'string'
         ? children
         : Array.isArray(children)
           ? children.join('')
           : String(children ?? '')
       ).trim()
-      const rawSuffix = language.replace(/^query[:\s]?/, '').trim()
+      const rawSuffix = language.replace(/^(?:query|widget)[:\s]?/, '').trim()
       const parsedSuffix = rawSuffix ? parseQueryWidgetSuffix(rawSuffix) : undefined
       return (
         <CanvasQueryBlock

@@ -1,7 +1,9 @@
-import { describe, expect, it, mock } from 'bun:test';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, mock, afterEach } from 'bun:test';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { CanvasProse } from './CanvasProse';
+
+afterEach(cleanup);
 
 // Population is an IndexedDB-backed integration concern — this structural
 // test only needs the gate open.
@@ -20,9 +22,21 @@ describe('CanvasProse query block embedding', () => {
       ':note{tags:benchmark}',
       '```',
     ].join('\n');
-    render(<CanvasProse prose={markdown} />);
+    render(<MemoryRouter><CanvasProse prose={markdown} /></MemoryRouter>);
 
     expect(screen.getByTestId('query-block-view')).toBeDefined();
+    expect(screen.getByTestId('query-add-dashboard')).toBeDefined();
+  });
+
+  it('hides dashboard creation from query blocks on dashboard pages', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard/example']}>
+        <CanvasProse prose={'```query\nsum:reps{}\n```'} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('query-block-view')).toBeDefined();
+    expect(screen.queryByTestId('query-add-dashboard')).toBeNull();
   });
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, mock, beforeEach } from 'bun:test'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import type { CommitReferenceNoteInput } from '@/repositories/referenceNotes'
 
 const createNoteMock = mock(async (input: { title: string; journalDate?: string; slug?: string; type?: string; rawContent: string }) => ({
   id: 'note-123',
@@ -27,11 +28,7 @@ const createNotebookMock = mock(async (name: string, description: string, icon: 
 }))
 
 const createPlaygroundMock = mock(async () => 'pg-1')
-const createDashboardMock = mock(async (title = 'New Dashboard') => ({
-  id: 'dash-1',
-  title,
-  rawContent: `---\ndashboard: true\nslug: custom-dash\n---\n`,
-}))
+const commitReferenceNoteMock = mock(async (_input: CommitReferenceNoteInput) => ({ id: 't/tag/heavy', sourceRevision: 1 }))
 
 mock.module('../../../services/journalNotes', () => ({
   journalNotes: {
@@ -53,10 +50,8 @@ mock.module('../../../services/createPlaygroundPage', () => ({
   createPlaygroundPage: createPlaygroundMock,
 }))
 
-mock.module('../../../services/dashboardNotes', () => ({
-  dashboardNotes: {
-    createDashboard: createDashboardMock,
-  },
+mock.module('@/repositories/referenceNotes', () => ({
+  commitReferenceNote: commitReferenceNoteMock,
 }))
 
 import { CreateJournalNoteDialog } from './CreateJournalNoteDialog'
@@ -68,7 +63,7 @@ describe('CreateJournalNoteDialog unified wizard', () => {
     moveNoteMock.mockClear()
     createNotebookMock.mockClear()
     createPlaygroundMock.mockClear()
-    createDashboardMock.mockClear()
+    commitReferenceNoteMock.mockClear()
   })
 
   it('tracks the preselected calendar date into the created note and target notebook', async () => {
@@ -164,6 +159,40 @@ describe('CreateJournalNoteDialog unified wizard', () => {
 
     await waitFor(() => {
       expect(createNotebookMock).toHaveBeenCalledWith('Oly Cycle', '', '📓')
+    })
+  })
+
+  it('orders creation options, omits dashboard, and creates a tag', async () => {
+    render(
+      <MemoryRouter>
+        <CreateJournalNoteDialog open={true} onOpenChange={() => {}} defaultKind="journal" />
+      </MemoryRouter>,
+    )
+
+    const options = screen.getByRole('group', { name: 'Resource type' })
+    expect(Array.from(options.querySelectorAll('button')).map(button => button.getAttribute('data-testid'))).toEqual([
+      'new-entry-note',
+      'new-entry-playground',
+      'new-entry-notebook',
+      'new-entry-effort',
+      'new-entry-equipment',
+      'new-entry-tag',
+    ])
+
+    fireEvent.click(screen.getByTestId('new-entry-tag'))
+    const createBtn = screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement
+    expect(createBtn.disabled).toBe(true)
+    fireEvent.change(screen.getByPlaceholderText('e.g., heavy'), { target: { value: 'Heavy Breathing' } })
+    fireEvent.click(createBtn)
+
+    await waitFor(() => {
+      expect(commitReferenceNoteMock).toHaveBeenCalledTimes(1)
+    })
+    expect(commitReferenceNoteMock.mock.calls[0]?.[0]).toMatchObject({
+      kind: 'tag',
+      slug: 'heavy-breathing',
+      title: 'heavy-breathing',
+      expectedSourceRevision: 0,
     })
   })
 })

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Edit3 } from 'lucide-react';
+import { ChartBar, Edit3 } from 'lucide-react';
 import {
   parseQuery,
   parseDocument,
@@ -46,6 +46,8 @@ export interface QueryBlockViewProps {
   tokenValues?: Record<string, string>;
   /** Fence-tag presentation attributes (decision 22). */
   attributes?: Record<string, string>;
+  /** Optional action for saving this query as a dashboard widget. */
+  onAddToDashboard?: () => void;
   /** Optional RPE capture handler. */
   onCaptureRpe?: (resultId: string, rpe: number) => Promise<void>;
   /** Optional click handler for opening a note from :note results. */
@@ -65,6 +67,7 @@ export function QueryBlockView({
   widgetError,
   tokenValues,
   attributes,
+  onAddToDashboard,
   onCaptureRpe,
   onOpenNote,
   noteHref,
@@ -192,33 +195,33 @@ export function QueryBlockView({
   return (
     <div data-testid="query-block-view">
       {widgetError ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly}>
+        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
             {widgetError}
           </div>
         </QueryBlockShell>
       ) : unknownType ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly}>
+        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <WidgetProblemBadge message={unknownWidgetTypeMessage(widgetType)} />
         </QueryBlockShell>
       ) : missing.length > 0 ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly}>
+        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <WidgetProblemBadge message={unknownTokensMessage(missing)} />
         </QueryBlockShell>
       ) : syntaxError ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly}>
+        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
             Query syntax error: {syntaxError}
           </div>
         </QueryBlockShell>
       ) : runError ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly}>
+        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
             Query execution error: {runError}
           </div>
         </QueryBlockShell>
       ) : (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly}>
+        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <QueryBlockBody
             parsed={parsed}
             result={runResult}
@@ -343,22 +346,41 @@ function QueryBlockShell({
   children,
   onEdit,
   readOnly,
+  onAddToDashboard,
 }: {
   children: React.ReactNode;
   onEdit?: () => void;
   readOnly?: boolean;
+  onAddToDashboard?: () => void;
 }) {
   return (
     <div className="relative group/block my-2 p-3 rounded-lg border border-border/80 bg-card/60 shadow-sm">
-      {onEdit && !readOnly && (
-        <button
-          type="button"
-          onClick={onEdit}
-          title="Edit query in Omni-Composer"
-          className="absolute top-2 right-2 p-1 rounded bg-muted/80 text-muted-foreground hover:text-foreground opacity-0 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity z-10"
-        >
-          <Edit3 className="w-3.5 h-3.5" />
-        </button>
+      {(onAddToDashboard || (onEdit && !readOnly)) && (
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+          {onAddToDashboard && (
+            <button
+              type="button"
+              onClick={onAddToDashboard}
+              aria-label="Add to dashboard"
+              title="Add to dashboard"
+              data-testid="query-add-dashboard"
+              className="p-1 rounded bg-muted/80 text-muted-foreground hover:text-foreground"
+            >
+              <ChartBar className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onEdit && !readOnly && (
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label="Edit query in Omni-Composer"
+              title="Edit query in Omni-Composer"
+              className="p-1 rounded bg-muted/80 text-muted-foreground hover:text-foreground opacity-0 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       )}
       {children}
     </div>

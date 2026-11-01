@@ -1,46 +1,20 @@
 # Screen: Session Execution Detail
 
-- **Route:** `/sessions/:sessionId` (legacy `/results/:resultId`)
-- **Host Component:** `apps/playground/app/pages/SessionDetailPage.tsx` (or Result Detail component)
-- **Domain Models:** `Session`, `EventRecord`, `Note`, `Note` source (rawContent + occurrence map; saved states in `BlockRevision`), `BlockIndexRow`
+- **Route:** `/results/:sessionId`
+- **Host:** `QueriableStreamView` with `createResultDetailProfile(sessionId)`
+- **Pinned source:** `SessionSource` renders the saved workout revision above the results
+- **Domain models:** `Session`, `EventRecord`, `Note`, `BlockRevision`, `BlockIndexRow`
 
----
+## Query and results
 
-## 1. Component & Service Dependencies
+The default WQL is `:session{result:<sessionId>, plane:segment}`. The view defaults to the `PropertyTable` rows layout, with one row per recorded segment. The same WQL composer and URL `?q=` state used by other stream routes owns filtering, so changing a filter updates both the visible query and the executed results.
 
-### Core UI Components
-- `StickyPageHeader` (`apps/playground/src/panels/page-shells/StickyPageHeader.tsx`). Renders workout title, execution date, and back button.
-- `RowsTable` (`@bitcobblers/wod-wiki-ui`). Tabular split times and interval metrics.
-- `WqlBars` / `WqlTimeseries` (`@bitcobblers/wod-wiki-ui`). Visual round pacing charts.
+The saved-workout section remains independent of the segment filter. It resolves the session's pinned note block revision and provides saved-analytics replay and block history.
 
-### Services & Data Adapters
-- `indexedDBService` (`apps/playground/src/services/db/IndexedDBService.ts`). Retrieves the `Session` record and associated `EventRecord` statement stream.
-- `eventsToStoredLogs` (`@bitcobblers/wod-wiki-core`). Reconstructs chronological execution events and round splits.
+## Dashboard composition
 
----
+**Add to dashboard** opens `QueryToDashboardDialog` with the current WQL as both the dataset and the initial widget query. Further query/filter changes therefore carry into dashboard composition without reconstruction. The author can adjust the calculation and visualization, then create a dashboard or append the widget to an editable one.
 
-## 2. Desktop View Layout (≥1024px)
+## Mobile
 
-- **Header Bar:** Workout title, completion badge, start/end timestamps, elapsed time, and parent note link (`/notes/:noteId`).
-- **Performance Summary:** Grid of high-level metric cards (Total Duration, Total Work, Average Heart Rate, Pace).
-- **Interactive Split Charts:** Round-by-round bar chart and interval breakdown.
-- **Statement Stream:** Detailed chronological log of every recorded event, round transition, and user metric entry.
-
----
-
-## 3. Mobile View Layout (<1024px)
-
-- **Navbar:** Session completion header.
-- **Stacked Analytics:** Metric cards stacked vertically, followed by full-width pacing chart.
-- **Collapsible Log:** Statement stream collapsed behind an accordion disclosure to conserve vertical space.
-- **Thumb Dock FAB:** "Repeat Workout" or "Share Result" button.
-
----
-
-## 4. Composable Behaviors
-
-- **Event Reconstruction:**
-  - Raw statements are not stored on the `Session` row directly.
-  - The view dynamically queries `events` where `resultId === sessionId` and folds them into display shapes via `eventsToStoredLogs`.
-- **Parent Workout Re-route:**
-  - Clicking the parent workout link navigates to `/notes/:noteId` (or `/c/:slug/:page-slug` for corpus items).
+The results remain in the rows layout. The compact WQL composer stays in the mobile query dock, and dashboard composition is available through the stream actions menu.

@@ -60,6 +60,11 @@ export function WidgetChart({
     : resolveWidgetType(type);
   const runResult = result as WidgetRunResult | undefined;
 
+  const parsedFamily = (runResult?.parsed as { family?: string } | undefined)?.family;
+  const hasContentItems =
+    parsedFamily === 'find' ||
+    Boolean(runResult?.notes?.length || runResult?.blocks?.length || runResult?.efforts?.length || runResult?.runs?.length);
+
   if (resolved === 'table' && runResult?.table) {
     return (
       <div className="w-full h-full min-h-[160px]">
@@ -67,12 +72,18 @@ export function WidgetChart({
       </div>
     );
   }
-  const parsedFamily = (runResult?.parsed as { family?: string } | undefined)?.family;
-  if (
-    resolved === 'list' &&
-    (parsedFamily === 'find' ||
-      Boolean(runResult?.notes?.length || runResult?.blocks?.length || runResult?.efforts?.length))
-  ) {
+  if (resolved === 'table' && hasContentItems && (!result || !('series' in result) || result.series.length === 0)) {
+    return (
+      <div className="w-full h-full min-h-[160px]">
+        <ContentRecordsTable
+          result={runResult}
+          onOpenNote={onOpenNote}
+          noteHref={noteHref}
+        />
+      </div>
+    );
+  }
+  if (resolved === 'list' && hasContentItems) {
     return (
       <div className="w-full h-full min-h-[160px]">
         <ThingList
@@ -299,8 +310,134 @@ interface ThingListItem {
   label?: string;
   noteTitle?: string;
   blockContentId?: string;
+  type?: string;
+  dataType?: string;
+  sourceId?: string;
+  discipline?: string;
+  baseAttributes?: { discipline?: string; met?: number; intensityTier?: string };
+  date?: number | string;
+  createdAt?: number | string;
+  timestamp?: number;
+  tags?: string[];
 }
 
+function formatItemDate(item: ThingListItem): string {
+  const raw = item.date ?? item.timestamp ?? item.createdAt;
+  if (raw === undefined || raw === null || raw === '') return '—';
+  if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const ms = typeof raw === 'number' ? raw : Date.parse(String(raw));
+  if (!Number.isFinite(ms) || ms <= 0) return '—';
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function ContentRecordsTable({
+  result,
+  onOpenNote,
+  noteHref,
+}: {
+  result: WidgetRunResult | undefined;
+  onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
+  noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+}) {
+  const parsed = result?.parsed as unknown as {
+    target?: string;
+    source?: { kind?: string; query?: { family?: string; target?: string } };
+  } | undefined;
+  const target: string =
+    parsed?.target ??
+    (parsed?.source?.kind === 'query' && parsed?.source?.query?.family === 'find'
+      ? (parsed.source.query.target ?? 'note')
+      : result?.blocks?.length
+        ? 'block'
+        : 'note');
+  const isBlock = target === 'block' || Boolean(result?.blocks?.length && !result?.notes?.length);
+  const rawItems: unknown[] = result?.notes?.length
+    ? result.notes
+    : result?.blocks?.length
+      ? result.blocks
+      : result?.efforts?.length
+        ? result.efforts
+        : result?.runs ?? [];
+  const items = rawItems as ThingListItem[];
+
+  if (items.length === 0) {
+    return (
+      <div className="text-xs text-muted-foreground py-4 text-center" data-testid="content-records-table-empty">
+        No {target}s matched this query.
+      </div>
+    );
+  }
+
+  const containers = result?.containers;
+
+  return (
+    <div className="h-full overflow-auto border-y border-border/60 bg-card/40" data-testid="content-records-table">
+      <table className="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr className="border-b border-border bg-muted/30 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <th className="py-2 px-3">Title</th>
+            <th className="py-2 px-3">Kind</th>
+            <th className="py-2 px-3">Tags / Details</th>
+            <th className="py-2 px-3 text-right">Date</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/40">
+          {items.map((item, i) => {
+            const id = item.id ?? item.resultId ?? String(i);
+            const typedItem = { ...item, id, title: item.title ?? item.label ?? item.noteTitle };
+            const title = isBlock
+              ? typedItem.title || typedItem.blockContentId || id
+              : typedItem.title || id;
+            const href = containers
+              ? containerPageHref(containers[id]) ?? (noteHref ? noteHref(typedItem) : undefined)
+              : noteHref
+                ? noteHref(typedItem)
+                : undefined;
+            const kindLabel = item.type ?? item.dataType ?? item.baseAttributes?.discipline ?? target;
+            const detail = Array.isArray(item.tags) && item.tags.length > 0
+              ? item.tags.map((t) => `#${t}`).join(' ')
+              : item.baseAttributes?.met
+                ? `MET ${item.baseAttributes.met}`
+                : item.sourceId ?? '—';
+            return (
+              <tr key={id} className="hover:bg-muted/30 transition-colors">
+                <td className="py-2 px-3 font-medium truncate max-w-[260px]">
+                  {href ? (
+                    <a
+                      href={href}
+                      onClick={(e) => {
+                        if (onOpenNote) {
+                          e.preventDefault();
+                          onOpenNote(typedItem);
+                        }
+                      }}
+                      className="text-primary hover:underline"
+                    >
+                      {title}
+                    </a>
+                  ) : onOpenNote ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenNote(typedItem)}
+                      className="text-left text-primary hover:underline"
+                    >
+                      {title}
+                    </button>
+                  ) : (
+                    <span className="text-foreground">{title}</span>
+                  )}
+                </td>
+                <td className="py-2 px-3 font-mono text-[11px] text-muted-foreground">{kindLabel}</td>
+                <td className="py-2 px-3 font-mono text-[11px] text-muted-foreground truncate max-w-[200px]">{detail}</td>
+                <td className="py-2 px-3 font-mono text-[11px] text-muted-foreground text-right tabular-nums">{formatItemDate(item)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 function ThingList({
   result,
   onOpenNote,

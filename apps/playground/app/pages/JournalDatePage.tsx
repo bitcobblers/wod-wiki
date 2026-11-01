@@ -321,9 +321,14 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           actions={
             <ResponsiveActions
               primary={
-                <Button type="button" onClick={() => setCreateOpen(true)}>
+                <Button
+                  type="button"
+                  onClick={() => setCreateOpen(true)}
+                  aria-label="+ Add note"
+                  title="New note"
+                >
                   <Plus className="size-4 mr-1.5" aria-hidden="true" />
-                  New note
+                  + Add
                 </Button>
               }
             />

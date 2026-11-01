@@ -59,6 +59,10 @@ export interface DashboardViewProps {
   rangeStart?: number;
   rangeEnd?: number;
   preferredUnit?: string;
+  /** Optional click handler for opening a note/block from content-plane widgets. */
+  onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
+  /** Optional resolver returning the destination href for an item in content-plane widgets. */
+  noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
 }
 
 interface WidgetRun {
@@ -123,6 +127,8 @@ export function DashboardView({
   rangeStart,
   rangeEnd,
   preferredUnit,
+  onOpenNote,
+  noteHref,
 }: DashboardViewProps) {
   const values = useMemo(
     () => ({ ...defaultTokenValues(document.tokens), ...tokenValues }),
@@ -349,6 +355,8 @@ export function DashboardView({
                   label={widget.title}
                   unit={preferredUnit}
                   attributes={attributes}
+                  onOpenNote={onOpenNote}
+                  noteHref={noteHref}
                 />
               )}
             </WidgetFrame>

@@ -48,18 +48,18 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
     });
   }
 
-  test('desktop L2 panel offers New equipment and All Equipment on the list', async ({ page }) => {
+  test('the L2 panel offers All Equipment without a create action; the sticky header owns creation', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/equipment', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
 
-    // L2 rows: the landing ("All Equipment") and the create action, sharing
-    // the stream panel conventions with Efforts.
+    // L2 carries the landing row only — creation moved to the sticky header.
     await expect(page.getByText('All Equipment').first()).toBeVisible();
-    const newEquipment = page.getByTestId('equipment-create-equipment');
-    await expect(newEquipment).toBeVisible();
-    await newEquipment.click();
-    await expect(page).toHaveURL(/\/equipment\/new\?mode=create$/);
+    await expect(page.getByTestId('equipment-create-equipment')).toHaveCount(0);
+
+    const newEquipment = page.getByTestId('new-entry-primary');
+    await expect(newEquipment).toHaveText('+ Add');
+    await expect(newEquipment).toHaveAttribute('aria-label', '+ Add Equipment');
   });
 
   test('renders bundled equipment as a real note page and clones it preserving the source', async ({ page }) => {

@@ -26,7 +26,7 @@ describe('appNavTree - Flattened listing zones', () => {
     cleanup()
   })
 
-  it('derives L1 zones with Efforts, Equipment, and Tags as primary library destinations', () => {
+  it('derives L1 zones with library destinations and Sessions below Dashboards', () => {
     const tree = buildAppNavTree(() => {})
     const l1 = tree.filter(item => item.level === 1).map(item => item.id)
 
@@ -39,12 +39,12 @@ describe('appNavTree - Flattened listing zones', () => {
       'equipment',
       'tags',
       'dashboards',
+      'sessions',
       'settings',
       'buy-me-a-coffee',
     ])
     expect(tree.find(item => item.id === 'notes')).toBeUndefined()
     expect(tree.find(item => item.id === 'feeds')).toBeUndefined()
-    expect(tree.find(item => item.id === 'sessions')).toBeUndefined()
   })
 
   it('derives L1 labels for the core domains', () => {
@@ -85,7 +85,7 @@ describe('appNavTree - Flattened listing zones', () => {
     expect(journal.isActive!(mockLocation('/pages'))).toBe(false)
   })
 
-  it('lights Pages only for pages and its rolled-up notes and sessions routes', () => {
+  it('lights Pages only for pages and its rolled-up notes routes', () => {
     const tree = buildAppNavTree(() => {})
     const pages = tree.find(item => item.id === 'pages')!
 
@@ -93,7 +93,8 @@ describe('appNavTree - Flattened listing zones', () => {
     expect(pages.isActive!(mockLocation('/page/guide-start'))).toBe(true)
     expect(pages.isActive!(mockLocation('/notes'))).toBe(true)
     expect(pages.isActive!(mockLocation('/note/123'))).toBe(true)
-    expect(pages.isActive!(mockLocation('/sessions'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/sessions'))).toBe(false)
+    expect(pages.isActive!(mockLocation('/results/res-42'))).toBe(false)
     expect(pages.isActive!(mockLocation('/efforts'))).toBe(false)
     expect(pages.isActive!(mockLocation('/equipment'))).toBe(false)
     expect(pages.isActive!(mockLocation('/tags'))).toBe(false)
@@ -121,7 +122,7 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
     cleanup()
   })
 
-  it('renders the journal view panel on /journal — create action, view rows, inclusive All row', () => {
+  it('renders the journal view panel on /journal — view rows and inclusive All row', () => {
     render(
       <MemoryRouter initialEntries={['/journal']}>
         <NavProvider tree={appNavTree}>
@@ -131,9 +132,8 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
     )
     expect(screen.getAllByText('Journal').length).toBeGreaterThan(0)
 
-    // Journal view chrome survives the zone fold: its create action and landing.
-    expect(screen.getByTestId('journal-create-entry')).toBeDefined()
-    expect(screen.getByText('New journal entry')).toBeDefined()
+    // Journal view chrome survives the zone fold: its landing row. Creation
+    // lives in the sticky header, not the L2 panel.
     expect(screen.getByText('All entries')).toBeDefined()
 
     // All entries landing row renders
@@ -145,7 +145,7 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
     expect(allRow).not.toBeNull()
   })
 
-  it('renders the notebooks landing panel on /notebooks without the journal create action', () => {
+  it('renders the notebooks landing panel on /notebooks without a create action', () => {
     render(
       <MemoryRouter initialEntries={['/notebooks']}>
         <NavProvider tree={appNavTree}>
@@ -155,8 +155,6 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
     )
 
     expect(screen.getByText('Subscribed notebooks')).toBeDefined()
-    expect(screen.queryByTestId('journal-create-entry')).toBeNull()
-    expect(screen.queryByTestId('playgrounds-create-playground')).toBeNull()
     // The view rows still offer the switch.
     expect(screen.getByText('Configure sources')).toBeDefined()
     expect(screen.getByTestId('notebooks-configure-sources')).toBeDefined()
@@ -165,7 +163,7 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
     expect(configureSources?.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.settingsSync })
   })
 
-  it('renders the playgrounds view panel on /playgrounds with its create action', () => {
+  it('renders the playgrounds view panel on /playgrounds', () => {
     render(
       <MemoryRouter initialEntries={['/playgrounds']}>
         <NavProvider tree={appNavTree}>
@@ -174,8 +172,6 @@ describe('appNavTree - Notebooks zone views (Journal / Playgrounds)', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByTestId('playgrounds-create-playground')).toBeDefined()
-    expect(screen.getByText('New playground')).toBeDefined()
     expect(screen.getByText('All playgrounds')).toBeDefined()
   })
 
@@ -217,7 +213,7 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
     expect(pages?.panel).toBeDefined()
   })
 
-  it('renders Pages L2 with its remaining Notes and Sessions variations', () => {
+  it('renders Pages L2 with its remaining Notes variation', () => {
     render(
       <MemoryRouter initialEntries={['/pages']}>
         <NavProvider tree={appNavTree}>
@@ -228,23 +224,25 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
 
     expect(screen.getAllByText('All pages').length).toBeGreaterThan(0)
     expect(screen.getByText('Notes')).toBeDefined()
-    expect(screen.getByText('Sessions')).toBeDefined()
+    expect(screen.queryByText('Sessions')).toBeNull()
     expect(screen.queryByText('Efforts')).toBeNull()
     expect(screen.queryByText('Equipment')).toBeNull()
     expect(screen.queryByText('Tags')).toBeNull()
   })
 
-  it('renders Sessions conditions with Pages variations on /sessions', () => {
+  it('renders Sessions conditions with its own custom-query row on /sessions', () => {
+    const query = ':session{effort:thruster}'
     render(
-      <MemoryRouter initialEntries={['/sessions']}>
+      <MemoryRouter initialEntries={[`/sessions?q=${encodeURIComponent(query)}`]}>
         <NavProvider tree={appNavTree}>
           <NavSidebar />
         </NavProvider>
       </MemoryRouter>,
     )
 
-    expect(screen.getAllByText('All Sessions').length).toBeGreaterThan(0)
-    expect(screen.getByText('Notes')).toBeDefined()
+    expect(screen.getByTestId('conditions-nav-custom')).toBeDefined()
+    expect(screen.getByLabelText(`Custom query: ${query}`)).toBeDefined()
+    expect(screen.queryByText('Notes')).toBeNull()
     expect(screen.queryByText('Efforts')).toBeNull()
   })
 
@@ -419,12 +417,12 @@ describe('appNavTree - Buy Me a Coffee', () => {
     expect(screen.getAllByText('System')[0]).toBeDefined()
   })
 })
-describe('appNavTree - L2 notable buttons and Catalogs', () => {
+describe('appNavTree - L2 rows and Catalogs', () => {
   afterEach(() => {
     cleanup()
   })
 
-  it('renders top notable button and flattened guide links in Home L2', () => {
+  it('renders flattened guide links in Home L2', () => {
     const dummyRoutes = [
       {
         route: '/page/guide-start',
@@ -441,9 +439,8 @@ describe('appNavTree - L2 notable buttons and Catalogs', () => {
     expect(home.children?.[0]?.label).toBe('Home')
     expect(home.children?.[1]?.id).toBe('home-all-pages')
     expect(home.children?.[1]?.label).toBe('All pages')
-    expect(home.children?.[2]?.id).toBe('home-new-journal')
-    expect(home.children?.[2]?.variant).toBe('notable')
-    expect(home.children?.[2]?.label).toBe('New journal entry')
+    // Creation lives in the sticky header — no create row in the L2 panel.
+    expect(home.children?.find(i => i.id === 'home-new-journal')).toBeUndefined()
     // Guide items are flattened directly under Home (no guide-group accordion)
     expect(home.children?.find(i => i.id === 'guide-group')).toBeUndefined()
     expect(home.children?.find(i => i.id === 'guide-/page/guide-start')).toBeDefined()
@@ -457,40 +454,23 @@ describe('appNavTree - L2 notable buttons and Catalogs', () => {
     expect(notebooks.action).toEqual({ type: 'route', to: ROUTE_PATTERNS.notebooks })
   })
 
-  it('renders the create actions on the notebooks-zone views and the Efforts panel', () => {
+  it('renders no create action in the notebooks-zone view panels or the Efforts panel', () => {
     const tree = buildAppNavTree(() => {})
 
-    render(
-      <MemoryRouter initialEntries={['/journal']}>
-        <NavProvider tree={tree}>
-          <NavSidebar />
-        </NavProvider>
-      </MemoryRouter>,
-    )
-    expect(screen.getByTestId('journal-create-entry')).toBeDefined()
-    expect(screen.getByText('New journal entry')).toBeDefined()
-    cleanup()
-
-    render(
-      <MemoryRouter initialEntries={['/playgrounds']}>
-        <NavProvider tree={tree}>
-          <NavSidebar />
-        </NavProvider>
-      </MemoryRouter>,
-    )
-    expect(screen.getByTestId('playgrounds-create-playground')).toBeDefined()
-    expect(screen.getByText('New playground')).toBeDefined()
-    cleanup()
-
-    render(
-      <MemoryRouter initialEntries={['/efforts']}>
-        <NavProvider tree={tree}>
-          <NavSidebar />
-        </NavProvider>
-      </MemoryRouter>,
-    )
-    expect(screen.getByTestId('efforts-create-effort')).toBeDefined()
-    expect(screen.getByText('New effort')).toBeDefined()
+    for (const path of ['/journal', '/playgrounds', '/efforts']) {
+      render(
+        <MemoryRouter initialEntries={[path]}>
+          <NavProvider tree={tree}>
+            <NavSidebar />
+          </NavProvider>
+        </MemoryRouter>,
+      )
+      expect(screen.queryByText('New journal entry')).toBeNull()
+      expect(screen.queryByText('New playground')).toBeNull()
+      expect(screen.queryByText('New effort')).toBeNull()
+      expect(screen.queryByText('+ Add')).toBeNull()
+      cleanup()
+    }
   })
 })
 

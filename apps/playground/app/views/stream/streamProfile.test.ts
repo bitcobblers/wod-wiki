@@ -141,6 +141,7 @@ describe('streamProfile', () => {
     expect(detail?.defaultWql).toBe(':session{result:res-42, plane:segment}')
     expect(detail?.level).toBe('segment')
     expect(detail?.target).toBe('session')
+    expect(detail?.defaultLayout).toBe('rows')
 
     // Trailing slash normalizes
     const trailing = getStreamProfile('/results/res-42/')

@@ -11,7 +11,7 @@
  */
 import { useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
-import { Calendar, CalendarPlus, FlaskConical, Layers, Library, Settings } from 'lucide-react'
+import { Calendar, FlaskConical, Layers, Library, Settings } from 'lucide-react'
 
 import { ROUTE_PATTERNS } from '../../lib/routes'
 import {
@@ -85,15 +85,6 @@ export const JournalViewConditionsPanel = createConditionsNavPanel({
   profile: JOURNAL_STREAM_PROFILE,
   extraChildren: [allNotesChild],
   familyActive: journalViewActive,
-  createAction: {
-    label: 'New journal entry',
-    icon: CalendarPlus,
-    testId: 'journal-create-entry',
-    onClick: ({ openCreateJournal, navigate }) => {
-      if (openCreateJournal) openCreateJournal({ mode: 'blank' })
-      else navigate('/journal?create=1')
-    },
-  },
 })
 
 const PlaygroundsViewConditionsPanel = createConditionsNavPanel({
@@ -103,13 +94,6 @@ const PlaygroundsViewConditionsPanel = createConditionsNavPanel({
   profile: PLAYGROUNDS_STREAM_PROFILE,
   extraChildren: notebookViewChildren,
   familyActive: playgroundsViewActive,
-  createAction: {
-    label: 'New playground',
-    testId: 'playgrounds-create-playground',
-    onClick: ({ navigate }) => {
-      navigate('/playground')
-    },
-  },
 })
 
 /**

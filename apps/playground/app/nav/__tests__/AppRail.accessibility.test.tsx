@@ -54,7 +54,7 @@ describe('AppRail accessibility', () => {
     const buttons = Array.from(primary.querySelectorAll('button'));
     const labels = buttons.map(b => b.getAttribute('aria-label'));
 
-    expect(labels).toEqual(['Home', 'Journal', 'Notebooks', 'Pages', 'Efforts', 'Equipment', 'Tags', 'Dashboards']);
+    expect(labels).toEqual(['Home', 'Journal', 'Notebooks', 'Pages', 'Efforts', 'Equipment', 'Tags', 'Dashboards', 'Sessions']);
 
     const homeBtn = primary.querySelector('button[aria-label="Home"]');
     expect(homeBtn).not.toBeNull();

@@ -484,7 +484,26 @@ describe('QueriableStreamView component', () => {
     await waitFor(() => {
       expect(screen.getByText('Session Result')).toBeDefined()
     })
+    expect(screen.getByTestId('property-table')).toBeDefined()
     expect(screen.queryByTestId('stream-query-error')).toBeNull()
+  })
+
+  it('opens dashboard composition with the session view\'s current filtered WQL', async () => {
+    const engine = createMockEngine([])
+    const profile = createResultDetailProfile('res-42')
+    const filteredQuery = ':session{result:res-42,plane:segment,effort:thruster}'
+
+    render(
+      <MemoryRouter initialEntries={[`/results/res-42?q=${encodeURIComponent(filteredQuery)}`]}>
+        <QueriableStreamView profile={profile} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByTestId('save-stream-query'))
+
+    expect(screen.getByTestId('widget-composer-subset').textContent).toBe(filteredQuery)
+    expect(screen.getByTestId('widget-composer-wql').textContent).toBe(filteredQuery)
+    expect(screen.getByTestId('widget-composer-apply').getAttribute('disabled')).toBeNull()
   })
 
   it('passes onAddToToday handler to result and segment cards with noteId', async () => {

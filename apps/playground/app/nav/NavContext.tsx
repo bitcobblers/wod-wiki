@@ -138,7 +138,7 @@ export interface NavContextValue {
 }
 
 export interface CreateWizardOptions {
-  kind?: 'journal' | 'note' | 'playground' | 'notebook' | 'page' | 'dashboard' | 'effort' | 'equipment'
+  kind?: 'journal' | 'note' | 'playground' | 'notebook' | 'page' | 'effort' | 'equipment' | 'tag'
   mode?: 'blank' | 'notebook' | 'source'
   date?: string
   notebookSlug?: string

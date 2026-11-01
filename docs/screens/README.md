@@ -23,7 +23,7 @@ Crosswalk mapping domain models (`docs/domain-model/`) to application screens (`
 
 ### Library navigation
 
-Efforts, Equipment, and Tags are primary L1 destinations. Each uses its own route-keyed L2 saved-query list, so custom links saved on one library do not appear on another. Tags includes a built-in `:tag{type:<name>}` link for every registered tag type; saving a custom list preserves the current built-ins. Notes and Sessions remain Pages L2 variations.
+Efforts, Equipment, Tags, and Sessions are primary L1 destinations, with Sessions directly below Dashboards. Each uses its own route-keyed L2 saved-query list, so custom links saved on one library do not appear on another. Tags includes a built-in `:tag{type:<name>}` link for every registered tag type; saving a custom list preserves the current built-ins. Notes remains a Pages L2 variation.
 
 ---
 ## 2. Screen Architecture Documents
