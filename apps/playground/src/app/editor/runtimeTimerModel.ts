@@ -1,7 +1,11 @@
 import {
   createParser,
   extractPropertyRulesFromMeta,
+  extractTagPropertyRules,
+  resolvePropertyDashboardWidgets,
+  resolveEntityScope,
   type PropertyRuleInput,
+  type StackedDashboardWidgetDescriptor,
   type RuntimeStackOptions,
   type IOutputStatement,
   type INowProvider,
@@ -34,26 +38,71 @@ export function notePropertySourcesFromContent(noteContent?: string): PropertyRu
   if (!noteContent || !noteContent.trimStart().startsWith('---')) return [];
   const { meta } = parseFrontmatter(noteContent);
   const noteSource = extractPropertyRulesFromMeta(meta, 'note', 'note-frontmatter');
-  if (Object.keys(noteSource.metrics ?? {}).length > 0 || Object.keys(noteSource.summaries ?? {}).length > 0) {
+  if (
+    Object.keys(noteSource.metrics ?? {}).length > 0 ||
+    Object.keys(noteSource.summaries ?? {}).length > 0 ||
+    Object.keys(noteSource.widgets ?? {}).length > 0
+  ) {
     return [noteSource];
   }
   return [];
 }
 
-export function createRuntimeForBlock(block: ScriptBlock, noteContent?: string): IScriptRuntime | null {
+const KNOWN_FRONTMATTER_TAG_KEYS = [
+  'tags',
+  'category',
+  'domain',
+  'format',
+  'equipment',
+  'quality',
+  'intent',
+  'discipline',
+  'intensity',
+  'sound',
+] as const;
+
+export interface ResolvedNotePropertyStack {
+  readonly activeTags: string[];
+  readonly propertySources: PropertyRuleInput[];
+  readonly dashboardWidgets: StackedDashboardWidgetDescriptor[];
+}
+
+/**
+ * Resolve the complete Property Note stack (`note > tag > effort > equipment > category`)
+ * for a Note's raw content, returning active tag slugs, `PropertyRuleInput[]` for
+ * the Metric Shake-Out Queue, and bound `StackedDashboardWidgetDescriptor[]`
+ * contributed by stacked Tags and Summary Metrics.
+ */
+export function resolveNotePropertyStack(
+  noteContent?: string,
+  options: { noteId?: string; scopeFilter?: string } = {},
+): ResolvedNotePropertyStack {
   const tags = getTagIndex();
   const propertySources: PropertyRuleInput[] = [];
   const activeTags: string[] = [];
   if (noteContent && noteContent.trimStart().startsWith('---')) {
     propertySources.push(...notePropertySourcesFromContent(noteContent));
-    const knownTagKeys = new Set(['tags', 'category', 'domain', 'format', 'quality', 'intent', 'discipline', 'intensity', 'sound']);
-    const authoredTags = extractTypedFrontmatterTags(noteContent, [...knownTagKeys]);
+    const authoredTags = extractTypedFrontmatterTags(noteContent, [...KNOWN_FRONTMATTER_TAG_KEYS]);
     for (const authoredTag of authoredTags) {
       const slug = authoredTag.label.trim();
       if (slug && tags.resolve(slug) && !activeTags.includes(slug)) activeTags.push(slug);
     }
   }
+  const tagRules = extractTagPropertyRules(tags, activeTags);
+  const allSources = [...propertySources, ...tagRules];
+  const scopeFilter = options.scopeFilter
+    ?? (options.noteId ? resolveEntityScope({ noteId: options.noteId, rawContent: noteContent }).scopeFilter : undefined);
+  const dashboardWidgets = resolvePropertyDashboardWidgets(allSources, { scopeFilter });
+  return {
+    activeTags,
+    propertySources,
+    dashboardWidgets,
+  };
+}
 
+export function createRuntimeForBlock(block: ScriptBlock, noteContent?: string): IScriptRuntime | null {
+  const tags = getTagIndex();
+  const { activeTags, propertySources } = resolveNotePropertyStack(noteContent);
   const options: RuntimeStackOptions = {
     analyticsOptions: {
       tags,

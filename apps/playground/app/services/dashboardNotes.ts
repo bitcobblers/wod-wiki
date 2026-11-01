@@ -12,7 +12,12 @@ import type { INotePersistence } from '@/services/persistence';
 import { notePersistence } from '@/services/persistence';
 import type { HistoryRecord } from '@/types/history';
 import { parseFrontmatter, serializeFrontmatter } from '@/lib/frontmatter';
-import { buildDashboardScaffold, DEFAULT_DASHBOARD_TITLE } from '@bitcobblers/wod-wiki-wql';
+import {
+  buildDashboardScaffold,
+  buildDashboardFromScope,
+  DEFAULT_DASHBOARD_TITLE,
+  type BuildScopedDashboardOptions,
+} from '@bitcobblers/wod-wiki-wql';
 
 import { journalNotes, type JournalNotes } from './journalNotes';
 
@@ -23,6 +28,8 @@ export interface DashboardNotesDependencies {
 
 export interface DashboardNotes {
   createDashboard(title?: string): Promise<HistoryRecord>;
+  /** Promote any WQL query or EntityScopeDescriptor into an active Dashboard Note. */
+  createDashboardFromScope(options: BuildScopedDashboardOptions): Promise<HistoryRecord>;
   /** Clone a prebuilt seed into the vault as an editable dashboard note,
    *  stamping its slug so it stays route-addressable at /dashboard/:slug. */
   cloneDashboard(slug: string, seedRawContent: string, title?: string): Promise<HistoryRecord>;
@@ -51,6 +58,13 @@ export function createDashboardNotes({ persistence, journal }: DashboardNotesDep
       return journal.create({ title, rawContent: buildDashboardScaffold(title), type: 'dashboard', sourceId: 'dashboards' });
     },
 
+    async createDashboardFromScope(options) {
+      await deactivateOthers();
+      const rawContent = buildDashboardFromScope(options);
+      const { meta } = parseFrontmatter(rawContent);
+      const title = typeof meta.title === 'string' && meta.title ? meta.title : DEFAULT_DASHBOARD_TITLE;
+      return journal.create({ title, rawContent, type: 'dashboard', sourceId: 'dashboards' });
+    },
     async cloneDashboard(slug, seedRawContent, title) {
       await deactivateOthers();
       // Stamp the slug into the seed's frontmatter so the clone is

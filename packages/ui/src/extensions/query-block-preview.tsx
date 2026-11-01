@@ -6,6 +6,8 @@ import React from "react";
 // @ts-ignore
 import { createRoot } from "react-dom/client";
 import { sectionField, type EditorSection } from "./section-state";
+import { extractDashboardTokens, defaultTokenValues } from "@bitcobblers/wod-wiki-wql";
+import { parseFrontmatter } from "@bitcobblers/wod-wiki-core";
 import { QueryBlockView } from "../blocks/QueryBlockView";
 import type { QueryExecutor } from "../contracts/query";
 import { patchBlockQuery } from "../utils/blockQueryPatcher";
@@ -19,6 +21,7 @@ export interface QueryBlockPreviewOptions {
   onSaveQuery?: (sectionId: string, nextQuery: string) => void | Promise<void>;
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+  tokenValues?: Record<string, string>;
 }
 
 class ReactQueryBlock extends WidgetType {
@@ -29,6 +32,8 @@ class ReactQueryBlock extends WidgetType {
     readonly sectionId: string,
     readonly widgetType?: string,
     readonly widgetError?: string,
+    readonly attributes?: Record<string, string>,
+    readonly tokenValues?: Record<string, string>,
     readonly options?: QueryBlockPreviewOptions,
   ) {
     super();
@@ -40,6 +45,8 @@ class ReactQueryBlock extends WidgetType {
       this.sectionId === other.sectionId &&
       this.widgetType === other.widgetType &&
       this.widgetError === other.widgetError &&
+      JSON.stringify(this.attributes ?? {}) === JSON.stringify(other.attributes ?? {}) &&
+      JSON.stringify(this.tokenValues ?? {}) === JSON.stringify(other.tokenValues ?? {}) &&
       this.options?.readOnly === other.options?.readOnly &&
       this.options?.executor === other.options?.executor &&
       this.options?.onOpenNote === other.options?.onOpenNote &&
@@ -66,6 +73,8 @@ class ReactQueryBlock extends WidgetType {
         query={this.queryText}
         widgetType={this.widgetType}
         widgetError={this.widgetError}
+        attributes={this.attributes}
+        tokenValues={this.tokenValues}
         readOnly={this.options?.readOnly}
         executor={this.options?.executor}
         onResultSaved={this.options?.onResultSaved}
@@ -74,7 +83,6 @@ class ReactQueryBlock extends WidgetType {
         noteHref={this.options?.noteHref}
       />,
     );
-
     return container;
   }
 
@@ -92,6 +100,8 @@ class ReactQueryBlock extends WidgetType {
         query={this.queryText}
         widgetType={this.widgetType}
         widgetError={this.widgetError}
+        attributes={this.attributes}
+        tokenValues={this.tokenValues}
         readOnly={this.options?.readOnly}
         executor={this.options?.executor}
         onResultSaved={this.options?.onResultSaved}
@@ -122,8 +132,11 @@ class ReactQueryBlock extends WidgetType {
 
 function buildQueryBlockDecos(state: EditorState, options?: QueryBlockPreviewOptions): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const { sections } = state.field(sectionField);
+  const { sections, rawContent: fullRawContent } = state.field(sectionField);
   const cursor = state.selection.main.head;
+  const fmMeta = parseFrontmatter(fullRawContent).meta;
+  const fmTokens = defaultTokenValues(extractDashboardTokens(fmMeta));
+  const mergedTokens = { ...fmTokens, ...options?.tokenValues };
 
   for (const section of sections) {
     if (section.type !== "query") continue;
@@ -143,6 +156,8 @@ function buildQueryBlockDecos(state: EditorState, options?: QueryBlockPreviewOpt
           section.id,
           section.queryType,
           section.queryError,
+          section.queryAttributes,
+          mergedTokens,
           options,
         ),
         block: true,

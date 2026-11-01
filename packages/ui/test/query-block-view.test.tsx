@@ -95,4 +95,30 @@ describe('QueryBlockView with injected QueryExecutor and onResultSaved', () => {
     expect(link).toBeDefined();
     expect(link?.getAttribute('href')).toBe('/note/note-1');
   });
+
+  it('evaluates multi-line Query Documents with defaults and formulas through SharedQueryDocumentRunner', async () => {
+    const runQuery = vi.fn(async (q: string) => {
+      if (q.startsWith('sum:tis')) return mockScalarResult(q, 200);
+      return mockScalarResult(q, 50);
+    });
+    const executor: QueryExecutor = {
+      runQuery,
+      runFind: vi.fn(async () => ({} as never)),
+      runRows: vi.fn(async () => ({} as never)),
+    };
+
+    const docQuery = [
+      'defaults last 4w',
+      'work = sum:tis{}',
+      'load = sum:sessionLoad{}',
+      'ratio = work / load',
+      'show ratio',
+    ].join('\n');
+
+    render(<QueryBlockView query={docQuery} widgetType="value" executor={executor} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('4')).toBeDefined();
+    });
+  });
 });

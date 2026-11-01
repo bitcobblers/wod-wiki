@@ -54,6 +54,7 @@ export * from './notebookVocabulary';
 
 // 9. Dashboard Model, Parser, Scaffold & Frontmatter
 export * from './dashboard';
+export * from './entityScope';
 
 // 10. Version info
 export * from './version';

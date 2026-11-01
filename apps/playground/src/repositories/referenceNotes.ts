@@ -82,6 +82,7 @@ const REFERENCE_TX_STORES = [
 function contributionsFromTagDocument(parsed: {
   metrics: Record<string, string | number | readonly string[]>;
   summaries: Record<string, string>;
+  widgets?: Record<string, string>;
   tags: string[];
   functions: string[];
 }): TagContribution[] {
@@ -98,6 +99,9 @@ function contributionsFromTagDocument(parsed: {
   }
   for (const [sKey, sExpr] of Object.entries(parsed.summaries)) {
     contributions.push({ kind: 'metric', type: `summaries.${sKey}`, value: sExpr });
+  }
+  for (const [wKey, wSpec] of Object.entries(parsed.widgets ?? {})) {
+    contributions.push({ kind: 'metric', type: `widgets.${wKey}`, value: wSpec });
   }
   for (const tSlug of parsed.tags) {
     contributions.push({ kind: 'tag', slug: tSlug });

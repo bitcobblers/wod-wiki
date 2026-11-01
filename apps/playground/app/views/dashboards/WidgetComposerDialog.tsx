@@ -24,10 +24,12 @@ import {
   EditorDialog,
   WidgetChart,
   WqlComposer,
+  createExecutorDocumentHost,
+  outputToRunResult,
   type QueryExecutor,
+  type WidgetRunResult,
 } from '@bitcobblers/wod-wiki-ui';
-import { parseQuery, isFindQuery, type QueryResult } from '@bitcobblers/wod-wiki-engine';
-
+import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine';
 /** Parse the composer's attribute text: whitespace-separated `key=value`
  *  tokens (values may be double-quoted) — the fence-tag encoding. */
 function parseAttributes(text: string): Record<string, string> | undefined {
@@ -46,6 +48,7 @@ function parseAttributes(text: string): Record<string, string> | undefined {
 }
 import {
   DASHBOARD_WIDGET_TYPES,
+  SharedQueryDocumentRunner,
   substituteTokens,
   unknownTokensMessage,
 } from '@bitcobblers/wod-wiki-wql';
@@ -171,7 +174,7 @@ function ComposerSession({
   // itself will do on the grid.
   const [preview, setPreview] = useState<
     | { status: 'idle' | 'loading' }
-    | { status: 'ok'; result: QueryResult }
+    | { status: 'ok'; result: WidgetRunResult }
     | { status: 'error'; message: string }
     | { status: 'blocked'; message: string }
   >({ status: 'idle' });
@@ -192,10 +195,19 @@ function ComposerSession({
     const seq = ++previewSeq.current;
     setPreview({ status: 'loading' });
     const timer = setTimeout(() => {
-      executor
-        .runQuery(substituted.query, { rangeStart, rangeEnd, preferredUnit })
-        .then((result) => {
-          if (previewSeq.current === seq) setPreview({ status: 'ok', result });
+      const host = createExecutorDocumentHost(executor, { rangeStart, rangeEnd, preferredUnit });
+      const runner = new SharedQueryDocumentRunner(host);
+      runner
+        .run(substituted.query)
+        .then((res) => {
+          if (previewSeq.current !== seq) return;
+          const out = res.outputs[0];
+          const err = out?.error ?? res.diagnostics[0];
+          if (!out || err) {
+            setPreview({ status: 'error', message: err ?? 'widget produced no output' });
+            return;
+          }
+          setPreview({ status: 'ok', result: outputToRunResult(parseQuery(substituted.query), out) });
         })
         .catch((err: unknown) => {
           if (previewSeq.current === seq) {

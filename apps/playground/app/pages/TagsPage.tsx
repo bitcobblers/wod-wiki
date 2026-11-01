@@ -25,6 +25,7 @@ import { storageService } from '@/services/storage';
 import { loadTagIndex, refreshTagIndex } from '@/services/tags/tagCatalogue';
 import { useTagIndex } from '@/hooks/useTagIndex';
 import { hydrateUserCalcs } from '@/stores/userCalcStore';
+import { resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
@@ -309,11 +310,17 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
   const tagL2 = useMemo<MenuSpec>(() => {
     const spec: MenuSpec = [];
     if (selected) {
+      const tagScope = resolveEntityScope({
+        kind: 'tag',
+        category: selected.type || activeCategory || 'tag',
+        slug: selected.label,
+        label: selected.label,
+      });
       spec.push({
         kind: 'wql',
         id: 'tagged-notes',
         label: 'Tagged notes',
-        query: `:note{tags:${selected.label}}`,
+        query: tagScope.notesWql,
         limit: 5,
         toEntry: (e) => noteLinkPath(e.id),
       });

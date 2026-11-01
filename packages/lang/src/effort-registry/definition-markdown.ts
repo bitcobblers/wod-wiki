@@ -21,6 +21,12 @@
 
 import { v7 as uuidv7 } from 'uuid';
 import {
+  parseFrontmatter,
+  getScalar,
+  type ParsedFrontmatter,
+} from '@bitcobblers/wod-wiki-core';
+import type { Tag, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
+import {
   type IEffort,
   type EffortBaseAttributes,
   type EffortDerivation,
@@ -59,56 +65,6 @@ function quoteYaml(val: string): string {
       .replace(/\t/g, '\\t')}"`;
   }
   return val;
-}
-
-interface ParsedFrontmatter {
-  meta: Record<string, string | number | string[]>;
-  body: string;
-}
-
-/**
- * Flat frontmatter parser: top-level scalar `key: value` (bare numerics coerce,
- * quoted stay strings), `key:` + indented `- item` block lists, empty value → `''`.
- * Indented nested maps are handled by {@link readNestedSection}.
- */
-function parseFrontmatter(raw: string): ParsedFrontmatter {
-  const match = raw.match(FRONTMATTER_RE);
-  if (!match) return { meta: {}, body: raw };
-
-  const lines = match[1].split(/\r?\n/);
-  const meta: ParsedFrontmatter['meta'] = {};
-
-  for (let i = 0; i < lines.length; i++) {
-    const keyMatch = lines[i].match(/^([A-Za-z][\w.-]*)\s*:(.*)$/);
-    if (!keyMatch) continue; // indented/nested/comment lines are not top-level keys
-
-    const key = keyMatch[1];
-    const rawVal = keyMatch[2].trim();
-
-    if (rawVal === '') {
-      const items: string[] = [];
-      while (i + 1 < lines.length) {
-        const itemMatch = lines[i + 1].match(/^\s+-\s+(.+)$/);
-        if (!itemMatch) break;
-        items.push(unquote(itemMatch[1].trim()));
-        i++;
-      }
-      meta[key] = items.length > 0 ? items : '';
-    } else {
-      const wasQuoted = /^(['"])(.*)\1$/.test(rawVal);
-      const value = unquote(rawVal);
-      const num = Number(value);
-      meta[key] = !wasQuoted && value !== '' && !isNaN(num) ? num : value;
-    }
-  }
-
-  return { meta, body: raw.slice(match[0].length) };
-}
-
-/** Scalar value at `key`, or `undefined` when absent or a list. */
-function getScalar(meta: ParsedFrontmatter['meta'], key: string): string | number | undefined {
-  const value = meta[key];
-  return typeof value === 'string' || typeof value === 'number' ? value : undefined;
 }
 
 /**
@@ -674,6 +630,7 @@ export interface TagPropertyDocument {
   aliases: string[];
   metrics: Record<string, string | number | readonly string[]>;
   summaries: Record<string, string>;
+  widgets?: Record<string, string>;
   tags: string[];
   functions: string[];
   body?: string;
@@ -721,6 +678,7 @@ export function documentToTag(doc: string, defaultCategory = 'tag'): TagParseRes
 
   const metrics: Record<string, string | number | readonly string[]> = {};
   const summaries: Record<string, string> = {};
+  const widgets: Record<string, string> = {};
   const nestedMetrics = readNestedSection(innerLines, 'metrics') ?? {};
   for (const [k, v] of Object.entries(nestedMetrics)) {
     if (typeof v === 'number' || typeof v === 'string') metrics[k] = v;
@@ -729,6 +687,10 @@ export function documentToTag(doc: string, defaultCategory = 'tag'): TagParseRes
   for (const [k, v] of Object.entries(nestedSummaries)) {
     if (typeof v === 'number' || typeof v === 'string') summaries[k] = String(v);
   }
+  const nestedWidgets = readNestedSection(innerLines, 'widgets') ?? {};
+  for (const [k, v] of Object.entries(nestedWidgets)) {
+    if (typeof v === 'number' || typeof v === 'string') widgets[k] = String(v);
+  }
   for (const [k, v] of Object.entries(meta)) {
     if (k.startsWith('metrics.')) {
       const sub = k.slice('metrics.'.length).trim();
@@ -736,6 +698,9 @@ export function documentToTag(doc: string, defaultCategory = 'tag'): TagParseRes
     } else if (k.startsWith('summaries.')) {
       const sub = k.slice('summaries.'.length).trim();
       if (sub && !Array.isArray(v)) summaries[sub] = String(v);
+    } else if (k.startsWith('widgets.')) {
+      const sub = k.slice('widgets.'.length).trim();
+      if (sub && !Array.isArray(v)) widgets[sub] = String(v);
     }
   }
 
@@ -748,6 +713,7 @@ export function documentToTag(doc: string, defaultCategory = 'tag'): TagParseRes
       aliases,
       metrics,
       summaries,
+      ...(Object.keys(widgets).length > 0 ? { widgets } : {}),
       tags,
       functions,
       ...(bodyText ? { body: bodyText } : {}),
@@ -789,6 +755,9 @@ export function tagToDocument(tag: TagPropertyDocument): string {
   for (const [k, v] of Object.entries(tag.summaries)) {
     lines.push(`summaries.${k}: ${quoteYaml(v)}`);
   }
+  for (const [k, v] of Object.entries(tag.widgets ?? {})) {
+    lines.push(`widgets.${k}: ${quoteYaml(v)}`);
+  }
   lines.push('---');
   if (tag.body) {
     lines.push('');
@@ -815,6 +784,7 @@ export interface TagCategoryPropertyDocument {
   color?: string;
   metrics?: Record<string, string | number>;
   summaries?: Record<string, string>;
+  widgets?: Record<string, string>;
   body?: string;
 }
 
@@ -831,6 +801,9 @@ export function tagCategoryToDocument(category: TagCategoryPropertyDocument): st
   for (const [k, v] of Object.entries(category.summaries ?? {})) {
     lines.push(`summaries.${k}: ${quoteYaml(v)}`);
   }
+  for (const [k, v] of Object.entries(category.widgets ?? {})) {
+    lines.push(`widgets.${k}: ${quoteYaml(v)}`);
+  }
   lines.push('---');
   if (category.body) {
     lines.push('');
@@ -844,4 +817,85 @@ export function tagCategoryToDocument(category: TagCategoryPropertyDocument): st
     lines.push('```');
   }
   return lines.join('\n');
+}
+
+/**
+ * Synthesize a Property Note document directly from a stored Tag record,
+ * unpacking its `contributions` into `metrics.*`, `summaries.*`, `tags`, and `functions`.
+ */
+export function tagRecordToDocument(tag: Tag, categoryFallback = 'tag'): string {
+  const metrics: Record<string, string | number | readonly string[]> = {};
+  const summaries: Record<string, string> = {};
+  const widgets: Record<string, string> = {};
+  const tags: string[] = [];
+  const functions: string[] = [];
+  for (const c of tag.contributions ?? []) {
+    if (c.kind === 'metric' && c.type.startsWith('summaries.')) {
+      summaries[c.type.slice('summaries.'.length)] = String(c.value);
+    } else if (c.kind === 'metric' && c.type.startsWith('widgets.')) {
+      widgets[c.type.slice('widgets.'.length)] = String(c.value);
+    } else if (c.kind === 'metric' && c.type) {
+      metrics[c.type] = c.unit
+        ? `${String(c.value)} ${c.unit}`
+        : c.value === null || typeof c.value === 'boolean'
+          ? String(c.value ?? '')
+          : c.value;
+    } else if (c.kind === 'tag' && c.slug) {
+      tags.push(c.slug);
+    } else if (c.kind === 'function' && c.name) {
+      functions.push(c.name);
+    }
+  }
+  return tagToDocument({
+    id: tag.id,
+    slug: tag.label,
+    label: tag.label,
+    category: tag.type || categoryFallback,
+    aliases: [],
+    metrics,
+    summaries,
+    ...(Object.keys(widgets).length > 0 ? { widgets } : {}),
+    tags,
+    functions,
+  });
+}
+
+/**
+ * Synthesize a Tag Category Property Note document from a TagTypeRecord.
+ */
+export function tagCategoryRecordToDocument(
+  category: string,
+  record?: TagTypeRecord,
+): string {
+  const title =
+    record?.label ||
+    category
+      .replace(/[-_]+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  const metrics: Record<string, string | number> = {};
+  const summaries: Record<string, string> = {};
+  const widgets: Record<string, string> = {};
+  for (const c of record?.contributions ?? []) {
+    if (c.kind === 'metric' && c.type.startsWith('summaries.')) {
+      summaries[c.type.slice('summaries.'.length)] = String(c.value);
+    } else if (c.kind === 'metric' && c.type.startsWith('widgets.')) {
+      widgets[c.type.slice('widgets.'.length)] = String(c.value);
+    } else if (c.kind === 'metric' && c.type) {
+      metrics[c.type] = c.unit
+        ? `${String(c.value)} ${c.unit}`
+        : typeof c.value === 'number'
+          ? c.value
+          : String(c.value);
+    }
+  }
+  return tagCategoryToDocument({
+    id: record?.id ?? `tag-type-${category}`,
+    name: category,
+    label: title || category,
+    color: record?.color,
+    metrics,
+    summaries,
+    ...(Object.keys(widgets).length > 0 ? { widgets } : {}),
+  });
 }

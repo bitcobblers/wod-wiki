@@ -167,7 +167,9 @@ export {
   extractPropertyRulesFromMeta,
   extractTagPropertyRules,
   compilePropertySummaryCalcs,
+  resolvePropertyDashboardWidgets,
   type PropertyRuleInput,
+  type StackedDashboardWidgetDescriptor,
   type PropertySourceLayer,
   type ShakeOutResult,
   type SkippedDependencyDiagnostic,
@@ -316,6 +318,15 @@ export {
   type DashboardToken,
   type DashboardMeta,
   type QueryWidgetSuffix,
+  // Entity WQL Scope & Dashboard Promotion
+  resolveEntityScope,
+  extractNoteWqlOverride,
+  buildWidgetsForWqlScope,
+  buildDashboardFromScope,
+  type EntityScopeKind,
+  type EntityScopeDescriptor,
+  type ResolveEntityScopeInput,
+  type BuildScopedDashboardOptions,
 } from '@bitcobblers/wod-wiki-wql';
 
 // 5. Language Pack API (#967)

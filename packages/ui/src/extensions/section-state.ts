@@ -32,6 +32,7 @@ export interface EditorSection {
   contentId?: string;
   queryType?: string;
   queryError?: string;
+  queryAttributes?: Record<string, string>;
   embed?: { type: EmbedType; url: string; label: string; videoId?: string; height?: number };
 }
 
@@ -119,7 +120,7 @@ function deriveState(state: EditorState, rawContent: string, sourceRevision: num
       ...(section.contentFrom !== undefined ? { contentFrom: coordinates.editorStarts[section.startLine + 1] ?? end } : {}),
       ...(section.contentTo !== undefined ? { contentTo: coordinates.editorStarts[section.endLine] - (section.type === 'frontmatter' ? 1 : 0) } : {}),
       sport: section.sport, widgetName: section.widgetName, contentId: section.contentId,
-      queryType: query?.type, queryError: query?.error, embed: section.embed,
+      queryType: query?.type, queryError: query?.error, queryAttributes: query?.attributes, embed: section.embed,
     };
   });
   for (const block of Object.values(noteBlocks)) block.version = savedVersions[block.id] ?? block.version;

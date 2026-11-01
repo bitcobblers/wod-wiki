@@ -68,9 +68,28 @@ export interface PropertyRuleInput {
   readonly sourceSlug: string;
   readonly metrics?: Readonly<Record<string, string | number | readonly string[]>>;
   readonly summaries?: Readonly<Record<string, string>>;
+  readonly widgets?: Readonly<Record<string, string>>;
   readonly hints?: Readonly<Record<string, unknown>>;
 }
 
+export interface StackedDashboardWidgetDescriptor {
+  /** Unique key across the stacked note dashboard (`summary:<key>` or `widget:<key>`). */
+  readonly key: string;
+  /** Human-readable card title. */
+  readonly title: string;
+  /** Widget visualization type (`timeseries`, `bar`, `value`, `table`, `list`, …). */
+  readonly type: string;
+  /** WQL query string (supports `$scope`, `$note`, `$effort`, `$tag`, etc.). */
+  readonly wql: string;
+  /** Specificity layer that contributed this widget. */
+  readonly sourceLayer: PropertyRuleInput['layer'];
+  /** Source slug (`note-frontmatter`, tag slug, effort slug, etc.). */
+  readonly sourceSlug: string;
+  /** Origin kind: derived from a `summaries.<key>` calculation or an explicit `widgets.<key>` rule. */
+  readonly origin: 'summary' | 'widget';
+  /** Canonical metric key when `origin === 'summary'`. */
+  readonly metricKey?: string;
+}
 export interface SkippedDependencyDiagnostic {
   readonly target: string;
   readonly expression: string;
@@ -130,6 +149,7 @@ export function extractPropertyRulesFromMeta(
 ): PropertyRuleInput {
   const metrics: Record<string, string | number | readonly string[]> = {};
   const summaries: Record<string, string> = {};
+  const widgets: Record<string, string> = {};
 
   for (const [rawKey, rawValue] of Object.entries(meta)) {
     const key = rawKey.trim();
@@ -155,6 +175,17 @@ export function extractPropertyRulesFromMeta(
           summaries[childKey.trim()] = String(childVal);
         }
       }
+    } else if (key.startsWith('widgets.')) {
+      const subKey = key.slice('widgets.'.length).trim();
+      if (subKey && (typeof rawValue === 'string' || typeof rawValue === 'number')) {
+        widgets[subKey] = String(rawValue);
+      }
+    } else if (key === 'widgets' && isPlainObject(rawValue)) {
+      for (const [childKey, childVal] of Object.entries(rawValue)) {
+        if (typeof childVal === 'string' || typeof childVal === 'number') {
+          widgets[childKey.trim()] = String(childVal);
+        }
+      }
     }
   }
 
@@ -163,6 +194,7 @@ export function extractPropertyRulesFromMeta(
     sourceSlug,
     metrics,
     summaries,
+    ...(Object.keys(widgets).length > 0 ? { widgets } : {}),
   };
 }
 
@@ -196,13 +228,16 @@ export function extractTagPropertyRules(
     // so note, effort, equipment, and tag rules all override them.
     const tagMetrics: Record<string, string | number | readonly string[]> = {};
     const tagSummaries: Record<string, string> = {};
+    const tagWidgets: Record<string, string> = {};
     const categoryMetrics: Record<string, string | number | readonly string[]> = {};
     const categorySummaries: Record<string, string> = {};
+    const categoryWidgets: Record<string, string> = {};
     for (const involvedSlug of resolved.tags) {
       const definition = tags.resolve(involvedSlug);
       if (!definition) continue;
       const metrics = definition.isCategory ? categoryMetrics : tagMetrics;
       const summaries = definition.isCategory ? categorySummaries : tagSummaries;
+      const widgets = definition.isCategory ? categoryWidgets : tagWidgets;
       for (const m of definition.contributions) {
         if (m.kind !== 'metric') continue;
         const key = m.type.trim();
@@ -211,6 +246,11 @@ export function extractTagPropertyRules(
           const subKey = key.slice('summaries.'.length).trim();
           if (subKey && !(subKey in summaries)) {
             summaries[subKey] = String(m.value);
+          }
+        } else if (key.startsWith('widgets.')) {
+          const subKey = key.slice('widgets.'.length).trim();
+          if (subKey && !(subKey in widgets)) {
+            widgets[subKey] = String(m.value);
           }
         } else if (!(key in metrics)) {
           metrics[key] = m.unit
@@ -221,11 +261,23 @@ export function extractTagPropertyRules(
         }
       }
     }
-    if (Object.keys(tagMetrics).length > 0 || Object.keys(tagSummaries).length > 0) {
-      rules.push({ layer: 'tag', sourceSlug: slug, metrics: tagMetrics, summaries: tagSummaries });
+    if (Object.keys(tagMetrics).length > 0 || Object.keys(tagSummaries).length > 0 || Object.keys(tagWidgets).length > 0) {
+      rules.push({
+        layer: 'tag',
+        sourceSlug: slug,
+        metrics: tagMetrics,
+        summaries: tagSummaries,
+        ...(Object.keys(tagWidgets).length > 0 ? { widgets: tagWidgets } : {}),
+      });
     }
-    if (Object.keys(categoryMetrics).length > 0 || Object.keys(categorySummaries).length > 0) {
-      rules.push({ layer: 'category', sourceSlug: slug, metrics: categoryMetrics, summaries: categorySummaries });
+    if (Object.keys(categoryMetrics).length > 0 || Object.keys(categorySummaries).length > 0 || Object.keys(categoryWidgets).length > 0) {
+      rules.push({
+        layer: 'category',
+        sourceSlug: slug,
+        metrics: categoryMetrics,
+        summaries: categorySummaries,
+        ...(Object.keys(categoryWidgets).length > 0 ? { widgets: categoryWidgets } : {}),
+      });
     }
   }
   return rules;
@@ -319,6 +371,9 @@ export function compilePropertySummaryCalcsWithDiagnostics(
     try {
       const compiled = compileLineForm(line, { scope: 'workout' });
       for (const def of compiled.defs) {
+        const groupedMatch = expr.match(/^\s*grouped\s*\(\s*([A-Za-z_][\w.]*)\s*,/);
+        const isGrouped = Boolean(def.output?.isGrouped || groupedMatch);
+        const groupBy = def.output?.groupBy ?? (groupedMatch ? [groupedMatch[1]] : undefined);
         defs.push({
           ...def,
           customAtoms,
@@ -327,7 +382,7 @@ export function compilePropertySummaryCalcsWithDiagnostics(
             key: def.output?.key ?? key,
             emitType: def.output?.emitType ?? key,
             unit: def.output?.unit ?? 'auto',
-            ...(def.output?.isGrouped ? { isGrouped: true, groupBy: def.output.groupBy } : {}),
+            ...(isGrouped ? { isGrouped: true, ...(groupBy ? { groupBy } : {}) } : {}),
             ...(def.output?.label ? { label: def.output.label } : {}),
           },
         });
@@ -337,6 +392,120 @@ export function compilePropertySummaryCalcsWithDiagnostics(
     }
   }
   return { defs, diagnostics };
+}
+
+function parseWidgetSpecValue(
+  key: string,
+  rawSpec: string,
+): { type: string; wql: string; title: string } {
+  const trimmed = rawSpec.trim();
+  const title = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const prefixMatch = trimmed.match(/^([a-z][a-z0-9-]*)\s*\|\s*([\s\S]+)$/i);
+  if (prefixMatch) {
+    return {
+      type: prefixMatch[1].toLowerCase(),
+      wql: prefixMatch[2].trim(),
+      title,
+    };
+  }
+  const sinkMatch = trimmed.match(/\|\s*:([a-z][a-z0-9-]*)\s*\{[^}]*\}\s*$/i);
+  return {
+    type: sinkMatch ? sinkMatch[1].toLowerCase() : 'timeseries',
+    wql: trimmed,
+    title,
+  };
+}
+
+/**
+ * Resolve stacked Dashboard Widget descriptors from a Note and its stacked
+ * Property Notes (`note > tag > effort > equipment > category`), combining:
+ *  1. Explicit `widgets.<key>` contributions on the Note, Tags, Efforts, Equipment, or Tag Categories.
+ *  2. Automatic widgets derived from stacked `summaries.<key>` calculations
+ *     (e.g. `sum:totalWork{$scope} by {week}` or `sum:workByEffort{$scope} by {effort}` when grouped).
+ */
+export function resolvePropertyDashboardWidgets(
+  sources: readonly PropertyRuleInput[],
+  options: { scopeFilter?: string; includeSummaries?: boolean } = {},
+): StackedDashboardWidgetDescriptor[] {
+  const ordered = [...sources].sort(
+    (a, b) => SUMMARY_LAYER_PRECEDENCE[b.layer] - SUMMARY_LAYER_PRECEDENCE[a.layer],
+  );
+  const filterClause = options.scopeFilter?.trim() ?? '$scope';
+  const includeSummaries = options.includeSummaries ?? true;
+  const out: StackedDashboardWidgetDescriptor[] = [];
+  const seenKeys = new Set<string>();
+
+  // 1. Explicit widgets.<key> rules (highest specificity wins per key)
+  for (const source of ordered) {
+    if (!source.widgets) continue;
+    for (const [rawKey, rawSpec] of Object.entries(source.widgets)) {
+      const key = rawKey.trim();
+      if (!key || !rawSpec.trim() || seenKeys.has(`widget:${key}`)) continue;
+      seenKeys.add(`widget:${key}`);
+      const parsed = parseWidgetSpecValue(key, rawSpec);
+      const resolvedWql = filterClause
+        ? parsed.wql.replace(/\$scope\b/g, filterClause)
+        : parsed.wql;
+      out.push({
+        key: `widget:${key}`,
+        title: parsed.title,
+        type: parsed.type,
+        wql: resolvedWql,
+        sourceLayer: source.layer,
+        sourceSlug: source.sourceSlug,
+        origin: 'widget',
+      });
+    }
+  }
+
+  // 2. Summary Metric calculations (`summaries.<key>`) automatically expose attachable widgets
+  if (includeSummaries) {
+    const chosenSummarySource = new Map<string, PropertyRuleInput>();
+    for (const source of ordered) {
+      if (!source.summaries) continue;
+      for (const [rawKey, rawExpr] of Object.entries(source.summaries)) {
+        const key = rawKey.trim();
+        if (!key || !rawExpr.trim() || chosenSummarySource.has(key)) continue;
+        chosenSummarySource.set(key, source);
+      }
+    }
+
+    const compiled = compilePropertySummaryCalcs(sources);
+    for (const def of compiled) {
+      const metricKey = def.output?.key ?? def.id;
+      if (!metricKey || seenKeys.has(`summary:${metricKey}`) || seenKeys.has(`widget:${metricKey}`)) continue;
+      seenKeys.add(`summary:${metricKey}`);
+      const source = chosenSummarySource.get(metricKey) ?? ordered[0];
+      if (!source) continue;
+      const isGrouped = Boolean(def.output?.isGrouped);
+      const groupDim = def.output?.groupBy?.[0] ?? 'effort';
+      const label =
+        def.output?.label ??
+        metricKey
+          .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+          .replace(/[-_]+/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+      const braces = filterClause ? `{${filterClause}}` : '{}';
+      const wql = isGrouped
+        ? `sum:${metricKey}${braces} by {${groupDim}}`
+        : `sum:${metricKey}${braces} by {week}`;
+      out.push({
+        key: `summary:${metricKey}`,
+        title: label,
+        type: isGrouped ? 'bar' : 'timeseries',
+        wql,
+        sourceLayer: source.layer,
+        sourceSlug: source.sourceSlug,
+        origin: 'summary',
+        metricKey,
+      });
+    }
+  }
+
+  return out;
 }
 
 /**

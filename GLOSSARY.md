@@ -31,8 +31,12 @@ A Tag under the prebuilt `equipment` Tag Category (`/t/equipment/:slug`) whose s
 _Avoid_: Gear, apparatus record
 
 **Dashboard Widget**:
-An interactive query or visualization block embedded inside any Note or Property Note.
+An interactive WQL query or visualization block embedded inside any Note, Property Note, or Dashboard, or stacked onto a Note from its referenced Tags and Summary Metrics.
 _Avoid_: Card, panel, chart embed
+
+**Entity Scope**:
+The canonical WQL query predicates and `$scope` tokens associated with a Note, Property Note, Notebook, or Feed, selecting the Notes, Sessions, and statement records belonging to that entity.
+_Avoid_: Route filter, ad-hoc query string
 
 ### Metrics, Summaries & Evaluation
 

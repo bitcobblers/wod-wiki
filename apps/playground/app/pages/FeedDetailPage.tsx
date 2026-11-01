@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ExternalLink, Layers } from 'lucide-react';
 import { feedSourceById, notebooksOfFeed } from '@/services/feed/feedSources';
+import { resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
 import { notebookPath, ROUTE_PATTERNS } from '../lib/routes';
 import { useNav } from '../nav/NavContext';
 import type { NavItemL3 } from '../nav/navTypes';
@@ -29,6 +30,10 @@ export function FeedDetailPage({ feedSlug }: FeedDetailPageProps) {
   const navigate = useNavigate();
   const feed = useMemo(() => feedSourceById(feedSlug), [feedSlug]);
   const notebooks = useMemo(() => (feed ? notebooksOfFeed(feed.id) : []), [feed]);
+  const feedScope = useMemo(
+    () => (feed ? resolveEntityScope({ kind: 'feed', slug: feed.id, label: feed.label }) : null),
+    [feed],
+  );
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = useCallback(() => {
@@ -66,13 +71,22 @@ export function FeedDetailPage({ feedSlug }: FeedDetailPageProps) {
         to: notebookPath(notebook.id),
       })),
     },
+    ...(feedScope
+      ? [{
+          kind: 'wql' as const,
+          id: 'feed-notes',
+          label: 'Feed workouts',
+          query: feedScope.notesWql,
+          limit: 5,
+        }]
+      : []),
     {
       kind: 'section',
       id: 'feed-settings',
       label: 'Settings',
       entries: [{ kind: 'link' as const, id: 'feed-sync-settings', label: 'Settings to Sync', to: ROUTE_PATTERNS.settingsSync }],
     },
-  ], [notebooks]);
+  ], [notebooks, feedScope]);
 
   if (!feed) {
     return (

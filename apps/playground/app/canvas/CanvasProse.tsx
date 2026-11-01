@@ -55,10 +55,12 @@ function CanvasQueryBlock({
   queryText,
   widgetType,
   widgetError,
+  attributes,
 }: {
   queryText: string
   widgetType?: string
   widgetError?: string
+  attributes?: Record<string, string>
 }) {
   const sourcesReady = usePageSourcesReady()
   if (!sourcesReady) {
@@ -72,6 +74,7 @@ function CanvasQueryBlock({
         query={queryText}
         widgetType={widgetType}
         widgetError={widgetError}
+        attributes={attributes}
         executor={queryService}
         readOnly={true}
         noteHref={(item) => {
@@ -228,6 +231,7 @@ const components: Components = {
           queryText={queryText}
           widgetType={parsedSuffix?.type}
           widgetError={parsedSuffix?.error}
+          attributes={parsedSuffix?.attributes}
         />
       )
     }

@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { parseQuery, SharedQueryDocumentRunner, type QueryResult } from '@bitcobblers/wod-wiki-wql';
 import type { QueryExecutor } from '../contracts/query';
-import { createExecutorDocumentHost } from './DashboardView';
-import { toChartResult } from './chartData';
-
+import { createExecutorDocumentHost, outputToRunResult } from './chartData';
 const DAY = 86_400_000;
 const WEEK = 7 * DAY;
 
@@ -55,19 +53,10 @@ export function useAnalyticsQueries(
             const res = await runner.run(q.query);
             const out = res.outputs[0];
             const error = out?.error ?? res.diagnostics[0];
-            // The chart input keeps the raw query's own parse so consumers
-            // reading `parsed.family`/`raw` see the authored family.
-            const result = toChartResult({
-              parsed: parseQuery(q.query),
-              series: out?.series,
-              unit: out?.unit,
-              error,
-              table: out?.table,
-            }) as QueryResult & { notes?: unknown[]; blocks?: unknown[]; efforts?: unknown[]; runs?: unknown[] };
-            if (out?.notes) result.notes = out.notes;
-            if (out?.blocks) result.blocks = out.blocks;
-            if (out?.efforts) result.efforts = out.efforts;
-            if (out?.runs) result.runs = out.runs;
+            const parsed = parseQuery(q.query);
+            const result = out
+              ? outputToRunResult(parsed, { ...out, ...(error ? { error } : {}) })
+              : outputToRunResult(parsed, { name: q.key, kind: 'aggregate', error });
             return [q.key, result] as const;
           }),
         );
