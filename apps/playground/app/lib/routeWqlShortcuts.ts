@@ -23,7 +23,8 @@
  * Reactive: useRouteShortcuts re-reads on any successful write (panel/
  * Settings update live, no reload).
  */
-import { useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import type { TagTypeRecord } from '@bitcobblers/wod-wiki-core'
 import {
   Activity,
   Bookmark,
@@ -47,6 +48,7 @@ import { isFindQuery, parseQuery, serialize, type AnyParsedQuery } from '@bitcob
 import { migrateLegacyStoredWql } from './routeWqlConfig'
 import { LocalStore } from '@/services/storage/LocalStore'
 import { remotePrefsMode, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
+import { storageService } from '@/services/storage'
 
 export interface WqlShortcut {
   id: string
@@ -107,6 +109,7 @@ const LANDING_LABELS: Record<string, string> = {
   '/efforts': 'All Efforts',
   '/equipment': 'All Equipment',
   '/sessions': 'All Sessions',
+  '/tags': 'All Tags',
 }
 
 const LANDING_ICONS: Record<string, string> = {
@@ -119,6 +122,7 @@ const LANDING_ICONS: Record<string, string> = {
   '/efforts': 'dumbbell',
   '/equipment': 'wrench',
   '/sessions': 'clipboard-list',
+  '/tags': 'tag',
 }
 
 /** The built-in links for a route: the landing link. */
@@ -139,6 +143,44 @@ export function builtinShortcuts(routeId: string): WqlShortcut[] {
     ]
   }
   return [defaultLandingShortcut(LANDING_LABELS[id] ?? 'Landing link', LANDING_ICONS[id] ?? 'bookmark')]
+}
+
+export function tagTypeShortcuts(types: readonly TagTypeRecord[]): WqlShortcut[] {
+  return types.map(type => ({
+    id: `tag-type-${type.name}`,
+    label: type.label,
+    icon: 'tag',
+    wql: `:tag{type:${type.name}}`,
+  }))
+}
+
+/** Built-ins plus the registered tag-type filters on the Tags route. Stored
+ *  shortcut lists remain authoritative, matching every other library route. */
+export function useBuiltinRouteShortcuts(routeId: string): WqlShortcut[] {
+  const staticShortcuts = useMemo(() => builtinShortcuts(routeId), [routeId])
+  const [tagTypes, setTagTypes] = useState<TagTypeRecord[]>([])
+
+  useEffect(() => {
+    if (normalizeRouteId(routeId) !== '/tags') return
+    let current = true
+    void storageService.getAllTagTypes()
+      .then(types => {
+        if (current) setTagTypes(types)
+      })
+      .catch(() => {
+        if (current) setTagTypes([])
+      })
+    return () => {
+      current = false
+    }
+  }, [routeId])
+
+  return useMemo(
+    () => normalizeRouteId(routeId) === '/tags'
+      ? [...staticShortcuts, ...tagTypeShortcuts(tagTypes)]
+      : staticShortcuts,
+    [routeId, staticShortcuts, tagTypes],
+  )
 }
 
 function normalizeRouteId(routeId: string): string {
@@ -212,15 +254,19 @@ export function readRouteShortcuts(routeId: string, store: LocalStore = routeSho
  * built-in landing re-added at the front, so no consumer (panel rows,
  * dialog upsert, Settings) can ever drop the default All link.
  */
-export function resolveRouteShortcuts(routeId: string, store: LocalStore = routeShortcutsStore): WqlShortcut[] {
+export function resolveRouteShortcuts(
+  routeId: string,
+  store: LocalStore = routeShortcutsStore,
+  builtins: WqlShortcut[] = builtinShortcuts(routeId),
+): WqlShortcut[] {
   const id = storageRouteId(routeId)
   const legacyId = LEGACY_SHORTCUT_ROUTE_ALIASES[id]
   if (store.getRaw(id) != null || (legacyId != null && store.getRaw(legacyId) != null)) {
     const stored = readRouteShortcuts(routeId, store)
     if (stored.some(s => s.id === ALL_SHORTCUT_ID)) return stored
-    return [builtinShortcuts(routeId)[0]!, ...stored]
+    return [builtins[0]!, ...stored]
   }
-  return builtinShortcuts(routeId)
+  return builtins
 }
 
 /**
@@ -291,7 +337,8 @@ function notifyRouteShortcuts(): void {
 /** Live shortcut list for a route — re-reads after any successful write. */
 export function useRouteShortcuts(routeId: string, store: LocalStore = routeShortcutsStore): WqlShortcut[] {
   useSyncExternalStore(subscribeRouteShortcuts, routeShortcutsVersion)
-  return resolveRouteShortcuts(routeId, store)
+  const builtins = useBuiltinRouteShortcuts(routeId)
+  return resolveRouteShortcuts(routeId, store, builtins)
 }
 
 // ── Matching ────────────────────────────────────────────────────────────────

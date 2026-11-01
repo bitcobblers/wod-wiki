@@ -27,6 +27,7 @@ import {
   shortcutMatchesQuery,
   subscribeRouteShortcuts,
   routeShortcutsVersion,
+  tagTypeShortcuts,
   defaultLandingShortcut,
   type WqlShortcut,
 } from './routeWqlShortcuts'
@@ -88,6 +89,16 @@ describe('routeWqlShortcuts — built-in library-group links', () => {
     ])
   })
 
+  it('creates one tag catalogue filter per registered tag type', () => {
+    expect(tagTypeShortcuts([
+      { id: 'type-domain', name: 'domain', label: 'Domain', createdAt: 0 },
+      { id: 'type-movement', name: 'movement', label: 'Movement', createdAt: 0 },
+    ])).toEqual([
+      { id: 'tag-type-domain', label: 'Domain', icon: 'tag', wql: ':tag{type:domain}' },
+      { id: 'tag-type-movement', label: 'Movement', icon: 'tag', wql: ':tag{type:movement}' },
+    ])
+  })
+
   it('gives every built-in landing icon a rendering in the icon vocabulary', () => {
     // A built-in icon outside SHORTCUT_ICONS renders as `undefined` — the
     // shortcut list would blank the page. Every landing icon must resolve.
@@ -122,6 +133,24 @@ describe('routeWqlShortcuts — built-in library-group links', () => {
       icon: 'calendar',
       wql: '',
     })
+  })
+
+  it('keeps registered tag-type filters when the first custom Tags link is saved', async () => {
+    const backend = new InMemoryBackend()
+    const store = storeOn(backend)
+    const builtins = [
+      ...builtinShortcuts('/tags'),
+      ...tagTypeShortcuts([{ id: 'type-domain', name: 'domain', label: 'Domain', createdAt: 0 }]),
+    ]
+    const custom = { ...SC, id: 'custom-tags', wql: ':tag{text:strength}' }
+    const next = [...resolveRouteShortcuts('/tags', store, builtins), custom]
+
+    expect(await writeRouteShortcuts('/tags', next, store)).toBe(true)
+    expect(resolveRouteShortcuts('/tags', store, builtins).map(s => s.id)).toEqual([
+      ALL_SHORTCUT_ID,
+      'tag-type-domain',
+      'custom-tags',
+    ])
   })
 
   it('a stored landing row with a customized label/icon/wql is kept as stored', async () => {

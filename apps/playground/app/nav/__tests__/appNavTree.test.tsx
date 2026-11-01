@@ -9,6 +9,7 @@ import { resetRouteShortcuts, writeRouteShortcuts } from '../../lib/routeWqlShor
 import { NavProvider } from '../NavContext'
 import { NavSidebar } from '../NavSidebar'
 import { notebookViewChildren } from '../panels/NotebookZonePanel'
+import { storageService } from '@/services/storage'
 
 function mockLocation(pathname: string): Location {
   return {
@@ -25,7 +26,7 @@ describe('appNavTree - Flattened listing zones', () => {
     cleanup()
   })
 
-  it('derives L1 zones: Journal, Notebooks, Pages, Dashboards, Settings — notes, sessions, efforts, equipment, tags, feeds removed from L1', () => {
+  it('derives L1 zones with Efforts, Equipment, and Tags as primary library destinations', () => {
     const tree = buildAppNavTree(() => {})
     const l1 = tree.filter(item => item.level === 1).map(item => item.id)
 
@@ -34,17 +35,16 @@ describe('appNavTree - Flattened listing zones', () => {
       'journal',
       'notebooks',
       'pages',
+      'efforts',
+      'equipment',
+      'tags',
       'dashboards',
       'settings',
       'buy-me-a-coffee',
     ])
-    // Rolled up into Pages L2 or Settings; removed from L1 rail:
     expect(tree.find(item => item.id === 'notes')).toBeUndefined()
     expect(tree.find(item => item.id === 'feeds')).toBeUndefined()
-    expect(tree.find(item => item.id === 'efforts')).toBeUndefined()
-    expect(tree.find(item => item.id === 'equipment')).toBeUndefined()
     expect(tree.find(item => item.id === 'sessions')).toBeUndefined()
-    expect(tree.find(item => item.id === 'tags')).toBeUndefined()
   })
 
   it('derives L1 labels for the core domains', () => {
@@ -85,7 +85,7 @@ describe('appNavTree - Flattened listing zones', () => {
     expect(journal.isActive!(mockLocation('/pages'))).toBe(false)
   })
 
-  it('lights Pages for pages and all rolled-up entity routes (notes, sessions, efforts, equipment, tags)', () => {
+  it('lights Pages only for pages and its rolled-up notes and sessions routes', () => {
     const tree = buildAppNavTree(() => {})
     const pages = tree.find(item => item.id === 'pages')!
 
@@ -94,11 +94,24 @@ describe('appNavTree - Flattened listing zones', () => {
     expect(pages.isActive!(mockLocation('/notes'))).toBe(true)
     expect(pages.isActive!(mockLocation('/note/123'))).toBe(true)
     expect(pages.isActive!(mockLocation('/sessions'))).toBe(true)
-    expect(pages.isActive!(mockLocation('/efforts'))).toBe(true)
-    expect(pages.isActive!(mockLocation('/equipment'))).toBe(true)
-    expect(pages.isActive!(mockLocation('/tags'))).toBe(true)
+    expect(pages.isActive!(mockLocation('/efforts'))).toBe(false)
+    expect(pages.isActive!(mockLocation('/equipment'))).toBe(false)
+    expect(pages.isActive!(mockLocation('/tags'))).toBe(false)
     expect(pages.isActive!(mockLocation('/journal'))).toBe(false)
     expect(pages.isActive!(mockLocation('/notebooks'))).toBe(false)
+  })
+
+  it('activates each promoted library L1 across its detail routes', () => {
+    const tree = buildAppNavTree(() => {})
+    for (const [id, paths] of [
+      ['efforts', ['/efforts', '/effort/run']],
+      ['equipment', ['/equipment', '/equipment/barbell']],
+      ['tags', ['/tags', '/t/domain/strength']],
+    ] as const) {
+      const zone = tree.find(item => item.id === id)!
+      for (const path of paths) expect(zone.isActive!(mockLocation(path))).toBe(true)
+      expect(zone.isActive!(mockLocation('/pages'))).toBe(false)
+    }
   })
 })
 
@@ -204,7 +217,7 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
     expect(pages?.panel).toBeDefined()
   })
 
-  it('renders Pages L2 panel with lateral variations (Notes, Sessions, Efforts, Equipment, Tags) on /pages', () => {
+  it('renders Pages L2 with its remaining Notes and Sessions variations', () => {
     render(
       <MemoryRouter initialEntries={['/pages']}>
         <NavProvider tree={appNavTree}>
@@ -216,12 +229,12 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
     expect(screen.getAllByText('All pages').length).toBeGreaterThan(0)
     expect(screen.getByText('Notes')).toBeDefined()
     expect(screen.getByText('Sessions')).toBeDefined()
-    expect(screen.getByText('Efforts')).toBeDefined()
-    expect(screen.getByText('Equipment')).toBeDefined()
-    expect(screen.getByText('Tags')).toBeDefined()
+    expect(screen.queryByText('Efforts')).toBeNull()
+    expect(screen.queryByText('Equipment')).toBeNull()
+    expect(screen.queryByText('Tags')).toBeNull()
   })
 
-  it('renders Sessions conditions panel with Pages lateral variations on /sessions', () => {
+  it('renders Sessions conditions with Pages variations on /sessions', () => {
     render(
       <MemoryRouter initialEntries={['/sessions']}>
         <NavProvider tree={appNavTree}>
@@ -232,10 +245,10 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
 
     expect(screen.getAllByText('All Sessions').length).toBeGreaterThan(0)
     expect(screen.getByText('Notes')).toBeDefined()
-    expect(screen.getByText('Efforts')).toBeDefined()
+    expect(screen.queryByText('Efforts')).toBeNull()
   })
 
-  it('renders Efforts conditions panel with Pages lateral variations on /efforts', () => {
+  it('renders the Efforts saved-query panel without Pages variations', () => {
     render(
       <MemoryRouter initialEntries={['/efforts']}>
         <NavProvider tree={appNavTree}>
@@ -245,10 +258,36 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
     )
 
     expect(screen.getAllByText('All Efforts').length).toBeGreaterThan(0)
-    expect(screen.getByText('Notes')).toBeDefined()
-    expect(screen.getByText('Sessions')).toBeDefined()
+    expect(screen.queryByText('Notes')).toBeNull()
+    expect(screen.queryByText('Sessions')).toBeNull()
   })
 })
+describe('appNavTree - Tags saved queries', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('renders a default L2 query link for every registered tag type', async () => {
+    const type = { id: 'type-navigation-test', name: 'navigation-test', label: 'Navigation Test', createdAt: 0 }
+    await storageService.putTagType(type)
+    try {
+      render(
+        <MemoryRouter initialEntries={['/tags']}>
+          <NavProvider tree={appNavTree}>
+            <NavSidebar />
+          </NavProvider>
+        </MemoryRouter>,
+      )
+
+      expect(screen.getAllByText('All Tags').length).toBeGreaterThan(0)
+      expect(await screen.findByText('Navigation Test')).toBeDefined()
+      expect(screen.getByTestId('nav-shortcut-tag-type-navigation-test')).toBeDefined()
+    } finally {
+      await storageService.deleteTagType(type.id)
+    }
+  })
+})
+
 describe('appNavTree - Settings navigation', () => {
   afterEach(() => {
     cleanup()

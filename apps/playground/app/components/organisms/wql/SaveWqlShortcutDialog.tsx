@@ -19,6 +19,7 @@ import {
   ALL_SHORTCUT_ID,
   SHORTCUT_ICONS,
   resolveRouteShortcuts,
+  useBuiltinRouteShortcuts,
   writeRouteShortcuts,
   type WqlShortcut,
 } from '../../../lib/routeWqlShortcuts'
@@ -48,6 +49,7 @@ export function SaveWqlShortcutDialog({
   const [icon, setIcon] = useState(editing?.icon ?? 'bookmark')
   const [wql, setWql] = useState(editing ? editing.wql : initialQuery)
   const [storageError, setStorageError] = useState<string | null>(null)
+  const builtins = useBuiltinRouteShortcuts(route)
 
   // Re-seed the draft each time the editor opens — callers reuse one mounted
   // dialog with different prefill (WQL line vs panel Custom row vs Settings).
@@ -82,7 +84,7 @@ export function SaveWqlShortcutDialog({
       ...(editing?.to !== undefined ? { to: editing.to } : {}),
     }
     // Resolve (built-ins included) so a first save never drops them.
-    const others = resolveRouteShortcuts(route).filter(s => s.id !== next.id)
+    const others = resolveRouteShortcuts(route, undefined, builtins).filter(s => s.id !== next.id)
     // Persistence-verified write: false means storage dropped it (browser
     // quota locally, failed server request in api mode) — keep the dialog
     // open with the draft intact instead of claiming success.

@@ -2,9 +2,9 @@
  * Navigation ladder acceptance (ticket 10) — L1 list, L2 thing, L3 place.
  *
  * Validates against the live app:
- *  1. Every L1 zone is a canonical library list route and its label IS the
- *     route's name (Notebooks, Notes, Feeds, Pages, Dashboards, Efforts,
- *     Equipment, Sessions, Tags). Journal and Playgrounds are NOT L1 zones.
+ *  1. Every L1 zone is a canonical library list route. Efforts, Equipment,
+ *     and Tags have their own L1 destinations and route-keyed saved queries.
+ *     Tags adds one default L2 filter per registered tag type.
  *  2. Active state follows route identity: the notebooks zone lights for the
  *     whole notebook family (/notebooks, /notebook/:slug, /journal,
  *     /day/:date, /playgrounds) and only that family.
@@ -18,10 +18,10 @@ import { expect, test } from '@playwright/test';
 import { seedNote } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
-const L1_LABELS = ['Home', 'Notebooks', 'Journal', 'Pages', 'Dashboards'];
+const L1_LABELS = ['Home', 'Notebooks', 'Journal', 'Pages', 'Efforts', 'Equipment', 'Tags', 'Dashboards'];
 
 test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
-  test('L1 rail labels are the primary domains (Home, Notebooks, Journal, Pages, Dashboards); entity lists are rolled up', async ({ page }) => {
+  test('L1 rail labels include the primary effort, equipment, and tag libraries', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
@@ -30,8 +30,8 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     for (const label of L1_LABELS) {
       await expect(primary.getByRole('button', { name: label, exact: true }), `L1 ${label}`).toBeVisible();
     }
-    // Notes, Feeds, Efforts, Equipment, Sessions, Tags, Playgrounds are not L1 rail items.
-    for (const label of ['Notes', 'Feeds', 'Efforts', 'Equipment', 'Sessions', 'Tags', 'Playgrounds']) {
+    // Notes, Feeds, Sessions, and Playgrounds remain outside the L1 rail.
+    for (const label of ['Notes', 'Feeds', 'Sessions', 'Playgrounds']) {
       await expect(primary.getByRole('button', { name: label, exact: true })).toHaveCount(0);
     }
   });
@@ -63,6 +63,30 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
     await page.goto('/pages', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await expect(notebooksBtn).not.toHaveAttribute('aria-current', 'page');
     await expect(primary.getByRole('button', { name: 'Pages', exact: true })).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('promoted libraries render their own saved-query panels and tag-type filters', async ({ page }) => {
+    const primary = page.getByRole('navigation', { name: 'Primary' });
+    const sidebar = page.getByRole('navigation', { name: 'Main' });
+
+    for (const [path, label, landing] of [
+      ['/efforts', 'Efforts', 'All Efforts'],
+      ['/equipment', 'Equipment', 'All Equipment'],
+      ['/tags', 'Tags', 'All Tags'],
+    ] as const) {
+      await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+      await waitForFeedReady(page);
+      await expect(primary.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-current', 'page');
+      await expect(sidebar.getByRole('button', { name: landing, exact: true })).toBeVisible();
+      await expect(sidebar.getByRole('button', { name: 'Notes', exact: true })).toHaveCount(0);
+      await expect(sidebar.getByRole('button', { name: 'Sessions', exact: true })).toHaveCount(0);
+    }
+
+    await expect(sidebar.getByTestId('nav-shortcut-tag-type-equipment')).toBeVisible();
+    await expect(sidebar.getByTestId('nav-shortcut-tag-type-discipline')).toBeVisible();
+    await sidebar.getByTestId('nav-shortcut-tag-type-equipment').click();
+    await expect(page).toHaveURL(/\/tags\?q=/);
+    await expect(sidebar.getByTestId('nav-shortcut-tag-type-equipment')).toHaveAttribute('aria-current', 'page');
   });
 
   test('the journal view renders inside the notebooks zone with its own chrome', async ({ page }) => {
