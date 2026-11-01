@@ -41,7 +41,7 @@ describe('AppRail accessibility', () => {
     expect(homeBtn).not.toBeNull();
   });
 
-  it('renders Home plus the core content domains in Primary nav (Home, Notebooks, Journal, Pages, Dashboards) with highlight', () => {
+  it('renders Home plus the core content domains in Primary nav (Home, Journal, Notebooks, Pages, Dashboards) with highlight', () => {
     const { getByRole } = render(
       <MemoryRouter initialEntries={['/']}>
         <NavProvider tree={appNavTree}>
@@ -54,7 +54,7 @@ describe('AppRail accessibility', () => {
     const buttons = Array.from(primary.querySelectorAll('button'));
     const labels = buttons.map(b => b.getAttribute('aria-label'));
 
-    expect(labels).toEqual(['Home', 'Notebooks', 'Journal', 'Pages', 'Dashboards']);
+    expect(labels).toEqual(['Home', 'Journal', 'Notebooks', 'Pages', 'Dashboards']);
 
     const homeBtn = primary.querySelector('button[aria-label="Home"]');
     expect(homeBtn).not.toBeNull();

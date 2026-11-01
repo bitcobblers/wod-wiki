@@ -25,14 +25,14 @@ describe('appNavTree - Flattened listing zones', () => {
     cleanup()
   })
 
-  it('derives L1 zones: Notebooks, Journal, Pages, Dashboards, Settings — notes, sessions, efforts, equipment, tags, feeds removed from L1', () => {
+  it('derives L1 zones: Journal, Notebooks, Pages, Dashboards, Settings — notes, sessions, efforts, equipment, tags, feeds removed from L1', () => {
     const tree = buildAppNavTree(() => {})
     const l1 = tree.filter(item => item.level === 1).map(item => item.id)
 
     expect(l1).toEqual([
       'home',
-      'notebooks',
       'journal',
+      'notebooks',
       'pages',
       'dashboards',
       'settings',
