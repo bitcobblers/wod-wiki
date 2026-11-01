@@ -18,6 +18,7 @@ import { dayPath, notePath, pagePath, runPath } from '../lib/routes'
 import { notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core'
 import { NotePlacementDialog, type NotePlacementMode } from '../components/organisms/journal/NotePlacementDialog'
+import { slugifyRoute } from '../components/organisms/journal/CreateJournalNoteDialog'
 import { localDateKey } from '@/lib/dateFormat'
 import type { HistoryRecord } from '@/types/history'
 import type { Session } from '@/types/storage'
@@ -61,6 +62,9 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     || (entry !== null && !isNoteEditable(entry, notebookOriginOfItem(entry)))
   // saveError is managed by useNoteDraft
   const [placement, setPlacement] = useState<NotePlacementMode | null>(null)
+  const [editingPageSlug, setEditingPageSlug] = useState(false)
+  const [pageSlugInput, setPageSlugInput] = useState('')
+  const [savingPageSlug, setSavingPageSlug] = useState(false)
   const [copied, setCopied] = useState(false)
   const [sourceEntry, setSourceEntry] = useState<HistoryRecord | null>(null)
   const handleCopyLink = useCallback(() => {
@@ -194,6 +198,18 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     results,
     helpfulActions: entry
       ? [
+          ...(!isReadOnly
+            ? [
+                {
+                  id: 'upgrade-to-page',
+                  label: entry.slug ? 'Edit page route' : 'Upgrade to Page',
+                  onRun: () => {
+                    setPageSlugInput(entry.slug || slugifyRoute(entry.title) || `page-${entry.id.slice(0, 8)}`)
+                    setEditingPageSlug(true)
+                  },
+                },
+              ]
+            : []),
           { id: 'placements', label: 'Note placements', onRun: () => setPlacement('relationships') },
           { id: 'add-timer', label: 'Add timer', onRun: () => draft.onSourceMutate(appendTimerBlock(entry.rawContent)) },
           { id: 'clone', label: 'Clone', onRun: () => setPlacement('clone') },
@@ -255,18 +271,95 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           editor={
             <div className="flex flex-col gap-4 px-4 py-6 sm:px-6 min-w-0 max-w-full">
               <NoteContextNav data={contextLinks} up={ownership.up} calendar={calendar} />
-              {((entry.journalDate && entry.journalDate !== entry.title) || entry.slug || entry.sourceId) && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {((entry.journalDate && entry.journalDate !== entry.title) || entry.slug || entry.sourceId || !isReadOnly) && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
                   {entry.journalDate && entry.journalDate !== entry.title && (
                     <Link to={dayPath(entry.journalDate)} className="underline-offset-2 hover:underline">
                       {entry.journalDate}
                     </Link>
                   )}
-                  {entry.slug && (
-                    <Link to={pagePath(entry.slug)} className="underline-offset-2 hover:underline">
-                      /p/{entry.slug}
-                    </Link>
-                  )}
+                  {editingPageSlug && !isReadOnly ? (
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault()
+                        const nextSlug = slugifyRoute(pageSlugInput)
+                        if (!nextSlug || savingPageSlug) return
+                        setSavingPageSlug(true)
+                        try {
+                          const existingPagePlacement = entry.placements?.find(p => p.slug && !p.date)
+                          const updated = existingPagePlacement
+                            ? existingPagePlacement.slug === nextSlug
+                              ? entry
+                              : await contentProvider.moveRecordPlacement(entry.id, existingPagePlacement.pageId, { slug: nextSlug })
+                            : await contentProvider.addRecordPlacement(entry.id, { slug: nextSlug })
+                          setEntry(prev => prev ? { ...prev, slug: updated.slug, placements: updated.placements } : prev)
+                          setEditingPageSlug(false)
+                        } finally {
+                          setSavingPageSlug(false)
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5"
+                      data-testid="note-page-slug-form"
+                    >
+                      <span className="font-mono text-muted-foreground">/page/</span>
+                      <input
+                        type="text"
+                        value={pageSlugInput}
+                        onChange={e => setPageSlugInput(e.target.value)}
+                        autoFocus
+                        disabled={savingPageSlug}
+                        data-testid="note-page-slug-input"
+                        className="w-36 bg-transparent font-mono text-xs text-foreground focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!slugifyRoute(pageSlugInput) || savingPageSlug}
+                        data-testid="note-page-slug-save"
+                        className="rounded bg-primary px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingPageSlug(false)}
+                        disabled={savingPageSlug}
+                        className="px-1 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </form>
+                  ) : entry.slug ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Link to={pagePath(entry.slug)} className="font-mono underline-offset-2 hover:underline">
+                        /p/{entry.slug}
+                      </Link>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPageSlugInput(entry.slug!)
+                            setEditingPageSlug(true)
+                          }}
+                          data-testid="note-edit-page-slug-btn"
+                          className="text-[11px] text-muted-foreground/70 hover:text-foreground underline-offset-2 hover:underline"
+                        >
+                          Edit slug
+                        </button>
+                      )}
+                    </span>
+                  ) : !isReadOnly ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPageSlugInput(slugifyRoute(entry.title) || `page-${entry.id.slice(0, 8)}`)
+                        setEditingPageSlug(true)
+                      }}
+                      data-testid="note-upgrade-to-page-btn"
+                      className="inline-flex items-center gap-1 rounded border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                    >
+                      + Upgrade to Page
+                    </button>
+                  ) : null}
                   {entry.sourceId && (
                     <span>
                       Cloned from{' '}

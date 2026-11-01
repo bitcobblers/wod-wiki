@@ -18,9 +18,7 @@ import type { PageKind } from './lib/routeView'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import { PaletteShell } from '@/components/organisms/command-palette/PaletteShell'
 import { canvasRouteSource, constructSource } from './services/paletteDataSources'
-import { CreateJournalNoteDialog } from './components/organisms/journal/CreateJournalNoteDialog'
-import { notePath } from './lib/routes'
-import type { HistoryRecord } from '@/types/history'
+import { CreateJournalNoteDialog, type ResourceKind } from './components/organisms/journal/CreateJournalNoteDialog'
 import {
   wqlSearchSource,
   withWqlText,
@@ -60,7 +58,7 @@ import { AnalyticsExplorerPage } from './views/analytics/AnalyticsExplorerPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { DashboardViewPage } from './views/dashboards/DashboardViewPage'
 import { PageActions } from './pages/shared/PageActions'
-import { MobileNewEntryCombo, routeSupportsCreation } from './pages/shared/NewEntryCombo'
+import { MobileNewEntryCombo, resolveNewEntryRoute, routeSupportsCreation } from './pages/shared/NewEntryCombo'
 import { PageDownloadAction, MobilePageOptionsRows } from './pages/shared/PageToolbar'
 import { mapIndexToL3 } from './pages/shared/pageUtils'
 import { useWorkoutItems, EMPTY_WOD_FILES } from './lib/workoutIndex'
@@ -90,24 +88,30 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   const handleSelectWorkout = useSelectWorkout()
   const { workout: currentWorkout, nav: currentNavLinks } = view
 
-  // Global new-journal-note dialog; prefilled from /journal/YYYY-MM-DD routes.
+  // Global creation wizard dialog; prefilled from current route context or explicit trigger options.
   const [journalCreateOpen, setJournalCreateOpen] = useState(false)
+  const [journalCreateKind, setJournalCreateKind] = useState<ResourceKind>('journal')
   const [journalCreateMode, setJournalCreateMode] = useState<'blank' | 'notebook' | 'source'>('blank')
-  const openJournalCreate = useCallback((opts?: { mode?: 'blank' | 'notebook' | 'source' }) => {
-    setJournalCreateMode(opts?.mode ?? 'blank')
-    setJournalCreateOpen(true)
-  }, [])
-  const journalCreateDate = useMemo(
-    () => /^\/day\/(\d{4}-\d{2}-\d{2})\/?$/.exec(location.pathname)?.[1],
+  const [journalCreateDateOverride, setJournalCreateDateOverride] = useState<string | undefined>(undefined)
+  const [journalCreateNotebookSlug, setJournalCreateNotebookSlug] = useState<string | undefined>(undefined)
+  const routeCreateContext = useMemo(() => resolveNewEntryRoute(location.pathname), [location.pathname])
+  const openJournalCreate = useCallback(
+    (opts?: {
+      kind?: ResourceKind
+      mode?: 'blank' | 'notebook' | 'source'
+      date?: string
+      notebookSlug?: string
+    }) => {
+      const ctx = resolveNewEntryRoute(location.pathname)
+      setJournalCreateKind(opts?.kind ?? ctx.defaultKind)
+      setJournalCreateMode(opts?.mode ?? 'blank')
+      setJournalCreateDateOverride(opts?.date ?? ctx.defaultDate)
+      setJournalCreateNotebookSlug(opts?.notebookSlug ?? ctx.notebookSlug)
+      setJournalCreateOpen(true)
+    },
     [location.pathname],
   )
-  const handleJournalNoteCreated = useCallback(
-    (entry: HistoryRecord) => {
-      navigate(`${notePath(entry.id)}?edit=1`)
-    },
-    [navigate],
-  )
-
+  const journalCreateDate = journalCreateDateOverride ?? routeCreateContext.defaultDate
   // General layout shell state: breadcrumb (active L1 › page identity) and
   // the L3 index channel (canvas pages publish here; note pages publish via
   // useNotePageNav — bare shells, so the writers never overlap).
@@ -450,9 +454,10 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       <CreateJournalNoteDialog
         open={journalCreateOpen}
         onOpenChange={setJournalCreateOpen}
+        defaultKind={journalCreateKind}
         defaultDate={journalCreateDate}
+        defaultNotebookSlug={journalCreateNotebookSlug ?? routeCreateContext.notebookSlug}
         defaultMode={journalCreateMode}
-        onCreated={handleJournalNoteCreated}
       />
       <div className="flex flex-col h-full min-h-[calc(100vh-theme(spacing.20))]">
         <div className="flex-1 flex flex-col min-h-0">

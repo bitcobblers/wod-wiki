@@ -1362,7 +1362,9 @@ export function QueriableStreamView({
         onOpenChange={open => {
           if (!open) setCreateOnDate(null)
         }}
+        defaultKind={notebookStreamSlug ? 'note' : 'journal'}
         defaultDate={createOnDate ?? undefined}
+        defaultNotebookSlug={notebookStreamSlug ?? undefined}
         onCreated={() => {
           // The new note is in the vault — re-run the query so the calendar
           // shows it on its day without a reload.

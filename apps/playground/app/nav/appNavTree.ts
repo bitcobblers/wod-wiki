@@ -201,6 +201,17 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       children: homeChildren,
     },
 
+    
+    {
+      id: listRouteId(ROUTE_PATTERNS.journal),
+      label: listRouteLabel(ROUTE_PATTERNS.journal),
+      level: 1,
+      icon: Calendar,
+      action: { type: 'route', to: ROUTE_PATTERNS.journal },
+      isActive: (loc: Location) => startsWithAny(loc.pathname, '/journal', '/day'),
+      applyFooter: true,
+      panel: JournalViewConditionsPanel,
+    },
     {
       id: listRouteId(ROUTE_PATTERNS.notebooks),
       label: listRouteLabel(ROUTE_PATTERNS.notebooks),
@@ -212,18 +223,7 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
       applyFooter: true,
       panel: NotebookZonePanel,
     },
-
-    {
-      id: listRouteId(ROUTE_PATTERNS.journal),
-      label: listRouteLabel(ROUTE_PATTERNS.journal),
-      level: 1,
-      icon: Calendar,
-      action: { type: 'route', to: ROUTE_PATTERNS.journal },
-      isActive: (loc: Location) => startsWithAny(loc.pathname, '/journal', '/day'),
-      applyFooter: true,
-      panel: JournalViewConditionsPanel,
-    },
-
+    
     {
       id: listRouteId(ROUTE_PATTERNS.pages),
       label: listRouteLabel(ROUTE_PATTERNS.pages),

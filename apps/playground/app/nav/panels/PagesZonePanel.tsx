@@ -105,8 +105,9 @@ export function createPagesZonePanel(canvasRoutes: CanvasRoute[] = []): (props: 
     createAction: {
       label: 'New page',
       testId: 'pages-create-page',
-      onClick: ({ navigate }) => {
-        navigate('/page/new?mode=create')
+      onClick: ({ openCreateJournal, navigate }) => {
+        if (openCreateJournal) openCreateJournal({ kind: 'page' })
+        else navigate('/pages?create=1')
       },
     },
   })

@@ -16,7 +16,19 @@ describe('resolveNewEntryRoute', () => {
     ['/dashboards', 'dashboard'],
     ['/notes', 'journal'],
   ])('uses the current library type for %s', (pathname, expected) => {
-    expect(resolveNewEntryRoute(pathname)).toEqual({ defaultKind: expected })
+    expect(resolveNewEntryRoute(pathname).defaultKind).toBe(expected)
+  })
+
+  it('extracts the date from /day/:date and /notebook/:slug/:date routes', () => {
+    expect(resolveNewEntryRoute('/day/2026-10-28')).toEqual({
+      defaultKind: 'journal',
+      defaultDate: '2026-10-28',
+    })
+    expect(resolveNewEntryRoute('/notebook/training/2026-10-28')).toEqual({
+      defaultKind: 'note',
+      notebookSlug: 'training',
+      defaultDate: '2026-10-28',
+    })
   })
 
   it('defaults to a note and retains the destination on notebook routes', () => {

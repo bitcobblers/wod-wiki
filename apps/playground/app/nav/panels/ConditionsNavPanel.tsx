@@ -37,7 +37,7 @@ import { entryOpenHref } from '../../lib/entryActions'
 import type { NavItem, NavPanelProps } from '../navTypes'
 import { executeNavAction } from '../navTypes'
 import { useCloseNavigationDrawer } from '../NavigationDrawerContext'
-import { useNav } from '../NavContext'
+import { useNav, type CreateWizardOptions } from '../NavContext'
 import { navigateToQuery } from './FacetProperties'
 
 export interface ConditionsPanelSpec {
@@ -54,7 +54,7 @@ export interface ConditionsPanelSpec {
     label: string
     icon?: NavItem['icon']
     testId?: string
-    onClick: (deps: { navigate: (to: string) => void; openCreateJournal: (opts?: { mode?: 'blank' | 'source' }) => void }) => void
+    onClick: (deps: { navigate: (to: string) => void; openCreateJournal: (opts?: CreateWizardOptions) => void }) => void
   }
 }
 

@@ -23,7 +23,7 @@ import type { NotePlacement } from '@bitcobblers/wod-wiki-core';
 import { journalNotes } from '../../../services/journalNotes'
 import { parseJournalDate } from '../../../services/parseJournalDate'
 import { getTodayDateKey } from '../../../services/dateUtils'
-
+import { slugifyRoute } from './CreateJournalNoteDialog'
 export type NotePlacementMode = 'relationships' | 'clone'
 
 export interface NotePlacementDialogProps {
@@ -97,7 +97,7 @@ export function NotePlacementDialog({
   const isClone = mode === 'clone'
   const listId = `note-placement-sources-${entry.id}`
   const placements = entry.placements ?? []
-
+  const suggestedSlug = slugifyRoute(entry.title) || `page-${entry.id.slice(0, 8)}`
   const close = () => {
     if (inFlight.current) return
     onOpenChange(false)
@@ -369,16 +369,29 @@ export function NotePlacementDialog({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="note-placement-slug" className="text-sm font-medium">
-            Named page
-          </label>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="note-placement-slug" className="text-sm font-medium">
+              Named page
+            </label>
+            {!slug && suggestedSlug && (
+              <button
+                type="button"
+                onClick={() => setSlug(suggestedSlug)}
+                disabled={saving}
+                data-testid="note-placement-suggest-slug"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Use suggested: /page/{suggestedSlug}
+              </button>
+            )}
+          </div>
           <input
             id="note-placement-slug"
             type="text"
             className={fieldClass}
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
-            placeholder="e.g. marathon-block"
+            placeholder={`e.g. ${suggestedSlug}`}
             autoCapitalize="none"
             spellCheck={false}
             disabled={saving}

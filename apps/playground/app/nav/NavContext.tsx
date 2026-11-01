@@ -133,8 +133,15 @@ export interface NavContextValue {
    * Falls back to standard DOM getBoundingClientRect scroll.
    */
   registerScrollFn: (fn: (id: string) => void) => void
-  openCreateJournal: (opts?: { mode?: 'blank' | 'notebook' | 'source' }) => void
-  registerCreateJournal: (fn: (opts?: { mode?: 'blank' | 'notebook' | 'source' }) => void) => void
+  openCreateJournal: (opts?: CreateWizardOptions) => void
+  registerCreateJournal: (fn: (opts?: CreateWizardOptions) => void) => void
+}
+
+export interface CreateWizardOptions {
+  kind?: 'journal' | 'note' | 'playground' | 'notebook' | 'page' | 'dashboard' | 'effort' | 'equipment'
+  mode?: 'blank' | 'notebook' | 'source'
+  date?: string
+  notebookSlug?: string
 }
 
 const defaultScroll = (id: string) => {
@@ -227,7 +234,7 @@ export function NavProvider({ tree, children }: NavProviderProps) {
 
   // Mutable ref so AppContent can override scroll behaviour without re-rendering
   const scrollFnRef = useRef<(id: string) => void>(defaultScroll)
-  const createJournalFnRef = useRef<((opts?: { mode?: 'blank' | 'notebook' | 'source' }) => void) | null>(null)
+  const createJournalFnRef = useRef<((opts?: CreateWizardOptions) => void) | null>(null)
   // Auto-sync activeL1Id from current pathname
   useEffect(() => {
     const match = tree.find(item => {
@@ -277,11 +284,11 @@ export function NavProvider({ tree, children }: NavProviderProps) {
     scrollFnRef.current = fn
   }, [])
 
-  const openCreateJournal = useCallback((opts?: { mode?: 'blank' | 'notebook' | 'source' }) => {
+  const openCreateJournal = useCallback((opts?: CreateWizardOptions) => {
     createJournalFnRef.current?.(opts)
   }, [])
 
-  const registerCreateJournal = useCallback((fn: (opts?: { mode?: 'blank' | 'notebook' | 'source' }) => void) => {
+  const registerCreateJournal = useCallback((fn: (opts?: CreateWizardOptions) => void) => {
     createJournalFnRef.current = fn
   }, [])
   const value: NavContextValue = useMemo(

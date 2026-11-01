@@ -7,29 +7,34 @@ test.describe('Contextual new entry actions', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
   });
 
-  test('uses the library type and hides notebook notes without a notebook context', async ({ page }) => {
+  test('uses the library type and unifies journal/note/page under Note in the wizard', async ({ page }) => {
     await page.goto('/journal');
     await waitForFeedReady(page);
     await expect(page.getByTestId('new-entry-primary')).toHaveText('New Journal entry');
-    await page.getByRole('button', { name: 'Choose new entry type' }).click();
-    await expect(page.getByTestId('new-entry-note')).toHaveCount(0);
-    await expect(page.getByTestId('new-entry-playground')).toBeVisible();
+    await page.getByTestId('new-entry-primary').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId('new-entry-note')).toBeVisible();
+    await expect(dialog.getByTestId('new-entry-playground')).toBeVisible();
+    await expect(dialog.getByTestId('journal-create-page-toggle')).not.toBeChecked();
     await page.keyboard.press('Escape');
     await page.goto('/playgrounds');
     await expect(page.getByTestId('new-entry-primary')).toHaveText('New Playground');
     await page.goto('/notebooks');
     await expect(page.getByTestId('notebooks-create-button')).toHaveText('New Notebook');
-    await page.goto('/notebook/defaults');
-    await expect(page.getByTestId('new-entry-primary')).toHaveText('New Note');
-    await page.getByRole('button', { name: 'Choose new entry type' }).click();
-    await expect(page.getByTestId('new-entry-note')).toBeVisible();
+    await page.goto('/pages');
+    await expect(page.getByTestId('new-entry-primary')).toHaveText('New Page');
+    await page.getByTestId('new-entry-primary').click();
+    await expect(page.getByRole('dialog').getByTestId('journal-create-page-toggle')).toBeChecked();
   });
 
-  test('creates a playground from another library', async ({ page }) => {
+  test('creates a playground from another library via the wizard', async ({ page }) => {
     await page.goto('/journal');
     await waitForFeedReady(page);
-    await page.getByRole('button', { name: 'Choose new entry type' }).click();
-    await page.getByTestId('new-entry-playground').click();
+    await page.getByTestId('new-entry-primary').click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByTestId('new-entry-playground').click();
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/playground\/[^/]+$/);
     await expect(page.locator('.cm-content')).toBeVisible();
     await expect(page.getByTestId('new-entry-combo')).toHaveCount(0);
@@ -60,6 +65,7 @@ test.describe('Contextual new entry actions', () => {
     await expect(page).toHaveURL('/notebook/combo-notes');
 
     await page.getByTestId('new-entry-primary').click();
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/notebook\/combo-notes\/[0-9a-f-]+$/);
     await expect(page.locator('.cm-content')).toContainText('Untitled note');
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'combo-notes' })).toBeVisible();
