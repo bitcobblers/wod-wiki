@@ -121,7 +121,7 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     expect(querySection?.queryType).toBe('goal-rings');
   });
 
-  it('previewDecorations adds footer block widget when inactive, shifts space to active line when selected', () => {
+  it('previewDecorations styles fence and inner lines without layout-shifting spacers', () => {
     const doc = '# Workout\n\n```time\n(21-15-9)\nThrusters\nPull-ups\n```\n';
     const state = EditorState.create({
       doc,
@@ -132,17 +132,15 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
-    // Inactive: closing fence has footer block widget
-    expect(container.querySelector('.cm-wod-block-footer')).not.toBeNull();
+    expect(container.querySelector('.cm-wod-fence-open')).not.toBeNull();
+    expect(container.querySelector('.cm-wod-inner')).not.toBeNull();
+    expect(container.querySelector('.cm-wod-fence-close')).not.toBeNull();
     expect(container.querySelector('.cm-wod-insert-spacer')).toBeNull();
 
-    // Select Thrusters line (inside workout section)
+    // Moving cursor inside workout section does not inject inter-line block spacers
     const thrustersPos = doc.indexOf('Thrusters');
     view.dispatch({ selection: { anchor: thrustersPos, head: thrustersPos } });
-
-    // Active line should now have insert-spacer widget and footer widget is removed
-    expect(container.querySelector('.cm-wod-insert-spacer')).not.toBeNull();
-    expect(container.querySelector('.cm-wod-block-footer')).toBeNull();
+    expect(container.querySelector('.cm-wod-insert-spacer')).toBeNull();
 
     view.destroy();
     container.remove();

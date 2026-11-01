@@ -1,11 +1,24 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin } from '@codemirror/view';
 import { frontmatterSuggestions, frontmatterReferenceIndex, referenceIndexReload, type FrontmatterReferenceProvider } from '@bitcobblers/wod-wiki-ui/extensions';
-import { createReferenceIndex, type IEffort, type IEquipment, type ReferenceIndex, type ReferenceResolutionDefaults } from '@bitcobblers/wod-wiki-lang';
+import {
+  addAliasToEffort,
+  createReferenceIndex,
+  effortToDocument,
+  equipmentToDocument,
+  slugifyRefLabel,
+  tagToDocument,
+  type IEffort,
+  type IEquipment,
+  type ReferenceIndex,
+  type ReferenceResolutionDefaults,
+} from '@bitcobblers/wod-wiki-lang';
 import { parseFrontmatter } from '@bitcobblers/wod-wiki-wql';
 import { storageService } from '@/services/storage';
-import { getAppEffortRegistry } from '@/services/effortRegistry';
-import { getAppEquipmentRegistry } from '@/services/equipmentRegistry';
+import { commitReferenceNote } from '@/repositories/referenceNotes';
+import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
+import { getAppEquipmentRegistry, hydrateAppEquipmentRegistry } from '@/services/equipmentRegistry';
+import { refreshTagIndex } from '@/services/tags/tagCatalogue';
 import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
 import { v7 as uuidv7 } from 'uuid';
 import { appWarn } from '@/lib/log';
@@ -200,6 +213,104 @@ export function referencePaletteSource(
       return items.filter((item) => item.label.toLowerCase().includes(q));
     },
   };
+}
+
+// ── Inline one-tap entity creation & alias linking ────────────────────
+// ponytail: creates user-tier starter notes with default MET 5.0 / empty contributions; edit full attributes on the opened page when needed.
+
+function displayLabelFromToken(token: string): string {
+  const cleaned = token.replace(/^#/, '').trim();
+  if (!cleaned) return 'Custom';
+  if (cleaned.includes(' ') || /[A-Z]/.test(cleaned)) return cleaned;
+  return cleaned
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export async function createInlineEffortFromToken(rawToken: string): Promise<{ slug: string; label: string }> {
+  const slug = slugifyRefLabel(rawToken) || `effort-${Date.now().toString(36)}`;
+  const label = displayLabelFromToken(rawToken);
+  const aliases = rawToken.trim().toLowerCase() !== label.toLowerCase() && rawToken.trim().toLowerCase() !== slug
+    ? [rawToken.trim()]
+    : [];
+  const now = new Date().toISOString();
+  const doc = effortToDocument({
+    id: `effort-user-${uuidv7()}`,
+    slug,
+    label,
+    aliases,
+    baseAttributes: { met: 5.0 },
+    registrySource: 'user',
+    createdAt: now,
+    updatedAt: now,
+  });
+  await commitReferenceNote({
+    kind: 'effort',
+    slug,
+    rawContent: doc,
+    title: label,
+    expectedSourceRevision: 0,
+  });
+  await hydrateAppEffortRegistry(getAppEffortRegistry());
+  return { slug, label };
+}
+
+export async function addInlineEffortAlias(targetSlug: string, aliasText: string): Promise<IEffort> {
+  const registry = getAppEffortRegistry();
+  const updated = await addAliasToEffort(registry, targetSlug, aliasText);
+  await hydrateAppEffortRegistry(registry);
+  return updated;
+}
+
+export async function createInlineEquipmentFromToken(rawToken: string): Promise<{ slug: string; label: string }> {
+  const slug = slugifyRefLabel(rawToken) || `equipment-${Date.now().toString(36)}`;
+  const label = displayLabelFromToken(rawToken);
+  const aliases = rawToken.trim().toLowerCase() !== label.toLowerCase() && rawToken.trim().toLowerCase() !== slug
+    ? [rawToken.trim()]
+    : [];
+  const doc = equipmentToDocument({
+    id: `equipment-user-${uuidv7()}`,
+    slug,
+    label,
+    aliases,
+    registrySource: 'user',
+  });
+  await commitReferenceNote({
+    kind: 'equipment',
+    slug,
+    rawContent: doc,
+    title: label,
+    expectedSourceRevision: 0,
+  });
+  await hydrateAppEquipmentRegistry(getAppEquipmentRegistry());
+  return { slug, label };
+}
+
+export async function createInlineTagFromSlug(rawSlug: string, category = 'general'): Promise<{ slug: string }> {
+  const slug = rawSlug.replace(/^#/, '').trim();
+  if (!slug) throw new Error('Tag name cannot be empty.');
+  const doc = tagToDocument({
+    id: `tag-${slug}`,
+    slug,
+    label: slug,
+    category,
+    aliases: [],
+    metrics: {},
+    summaries: {},
+    tags: [],
+    functions: [],
+  });
+  await commitReferenceNote({
+    kind: 'tag',
+    slug,
+    rawContent: doc,
+    title: slug,
+    expectedSourceRevision: 0,
+    category,
+  });
+  tagTypesByLabel?.set(slug, category);
+  await refreshTagIndex();
+  return { slug };
 }
 
 // ── Focused-line reference JSON authoring ─────────────────────────────

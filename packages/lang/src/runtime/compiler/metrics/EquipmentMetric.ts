@@ -21,7 +21,7 @@ export class EquipmentMetric implements IMetric {
   /** Canonical slugs, ordered and deduplicated. */
   readonly value: string[];
   readonly image: string;
-  readonly name = 'equipment';
+  readonly name: string;
   readonly metadata: Record<string, unknown>;
 
   constructor(
@@ -36,6 +36,9 @@ export class EquipmentMetric implements IMetric {
   ) {
     this.value = [...new Set(slugs)];
     this.image = options?.source ?? this.value.join(' ');
+    this.name = options?.refs?.length
+      ? options.refs.map(r => r.label).join(', ')
+      : 'equipment';
     this.origin = options?.origin ?? 'parser';
     const reference: ReferenceMetadata = {
       matched: options?.matched ?? 'whole',

@@ -1101,12 +1101,14 @@ const NOTE_NESTED_WQL_OPTIONS: NestedCompletionOptions = {
     efforts: async () =>
       (await loadReferenceCatalog()).efforts.map((effort) => ({
         value: effort.slug,
-        label: `${effort.label} (${effort.slug})`,
+        label: effort.label,
+        detail: effort.slug,
       })),
     equipment: async () =>
       (await loadReferenceCatalog()).equipment.map((item) => ({
         value: item.slug,
-        label: `${item.label} (${item.slug})`,
+        label: item.label,
+        detail: item.slug,
       })),
     tags: async () => getTagIndex().list().map((tag) => ({ value: tag.slug })),
     sounds: () =>

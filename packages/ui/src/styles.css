@@ -191,6 +191,7 @@
   --color-metric-resistance: hsl(var(--metric-resistance));
   --color-metric-action: hsl(var(--metric-action));
   --color-metric-rest: hsl(var(--metric-rest));
+  --color-metric-equipment: hsl(var(--metric-equipment));
 
   --color-signal-positive: hsl(var(--signal-positive));
   --color-signal-caution: hsl(var(--signal-caution));

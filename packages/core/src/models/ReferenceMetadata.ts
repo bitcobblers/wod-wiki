@@ -20,6 +20,8 @@ export interface ReferenceRef {
   slug: string;
   /** Canonical human-readable label (e.g. "Snatch", "Dumbbell"). */
   label: string;
+  /** Exact authored text or alias matched on the line, when distinct from canonical label. */
+  matchedAlias?: string;
 }
 
 /** Why a reference could not be resolved. Stable vocabulary for editor UIs. */

@@ -198,16 +198,19 @@ describe('parser reference metrics', () => {
 
     expect(effortMetric?.value).toBe('snatch');
     expect(effortMetric?.image).toBe('Dumbbell Snatch');
+    expect(effortMetric?.name).toBe('Snatch');
+    expect(statement.exerciseId).toBe('snatch');
     const reference = getReferenceMetadata(effortMetric?.metadata);
     expect(reference?.matched).toBe('split');
     expect(reference?.source).toBe('Dumbbell Snatch');
     expect(reference?.remaining).toBe('Snatch');
 
     expect(equipmentMetric?.value).toEqual(['dumbbell']);
+    expect(equipmentMetric?.name).toBe('Dumbbell');
+    expect(equipmentMetric?.image).toBe('Dumbbell');
     expect(getReferenceMetadata(equipmentMetric?.metadata)?.refs?.[0]).toEqual(
       { kind: 'equipment', slug: 'dumbbell', label: 'Dumbbell' },
     );
-
     const resistance = statement.getMetric(MetricType.Resistance);
     expect(resistance?.value).toMatchObject({ amount: 15, unit: 'kg' });
 
@@ -271,5 +274,21 @@ describe('parser reference metrics', () => {
     const refs = extractStatementRefs(parsed.statements);
     expect(refs.efforts).toEqual(['snatch']);
     expect(refs.equipment).toEqual(['dumbbell']);
+  });
+
+  it('resolves canonical effort references on residual efforts after dialect unit fusion (e.g. 10m Snatch)', () => {
+    const script = parse('10m Snatch');
+    const statement = script.statements[0];
+    const distanceMetric = statement.getMetric(MetricType.Distance);
+    const effortMetric = statement.getMetric(MetricType.Effort);
+
+    expect(distanceMetric?.value).toMatchObject({ amount: 10, unit: 'm' });
+    expect(effortMetric?.value).toBe('snatch');
+    expect(effortMetric?.name).toBe('Snatch');
+    expect(statement.exerciseId).toBe('snatch');
+    expect(getReferenceMetadata(effortMetric?.metadata)?.refs).toEqual([
+      { kind: 'effort', slug: 'snatch', label: 'Snatch' },
+      { kind: 'equipment', slug: 'dumbbell', label: 'Dumbbell' },
+    ]);
   });
 });

@@ -82,7 +82,7 @@ for (const spec of SOURCES) {
     // First sync — everything is "added".
   }
 
-  const { manifest, reportPath, passMs } = generateSeed({
+  const { manifest, indexPath, passMs } = generateSeed({
     markdownDir: spec.markdownDir,
     corpusRoot: spec.corpusRoot,
     outDir: spec.outDir,
@@ -109,14 +109,14 @@ for (const spec of SOURCES) {
   } else {
     console.log(`[sync-seed] ${spec.app}:${spec.id}: first sync — ${manifest.chunks.length} chunks`);
   }
-  console.log(`[sync-seed] ${spec.app}:${spec.id}: report: ${reportPath} (scan ${passMs.scan}ms, block-index ${passMs.blockIndex}ms, parse-gate ${passMs.parseGate}ms, block-efforts ${passMs.blockEfforts}ms, write ${passMs.write}ms)`);
+  console.log(`[sync-seed] ${spec.app}:${spec.id}: landing: ${indexPath} (scan ${passMs.scan}ms, block-index ${passMs.blockIndex}ms, parse-gate ${passMs.parseGate}ms, block-efforts ${passMs.blockEfforts}ms, write ${passMs.write}ms)`);
   results.push({ spec, manifest });
 }
 
 /**
  * seed index — one static HTML page per app (served at `/seed/index.html`)
  * listing that app's compiled sources: version, commit, build time, chunk
- * stats, and links to each source's `report.html` and `manifest.json`.
+ * stats, and links to each source's `index.html` and `manifest.json`.
  * Regenerated on every sync (dev and build run sync-seed before vite), so it
  * always reflects the published artifacts with zero runtime fetches. Each
  * app gets its own index next to its own artifacts — there is no shared
@@ -128,9 +128,9 @@ function writeSeedIndex(app: string, entries: Array<{ spec: FeedSourceSpec; mani
     const bytes = manifest.chunks.reduce((sum, c) => sum + (c.bytes ?? 0), 0);
     const rows = manifest.chunks.reduce((sum, c) => sum + (c.count ?? 0), 0);
     return `  <section>
-    <h2><a href="${spec.id}/report.html">${escape(spec.id)}</a> <small>v${manifest.version}${manifest.dirty ? ' (dirty)' : ''}</small></h2>
+    <h2><a href="${spec.id}/index.html">${escape(spec.id)}</a> <small>v${manifest.version}${manifest.dirty ? ' (dirty)' : ''}</small></h2>
     <p><code>${escape(manifest.commit ?? 'unknown')}</code> · built ${escape(manifest.builtAt)} · ${manifest.chunks.length} chunks · ${rows} rows · ${(bytes / 1024).toFixed(0)} KB</p>
-    <p><a href="${spec.id}/manifest.json">manifest.json</a> · <a href="${spec.id}/report.html">build report</a></p>
+    <p><a href="${spec.id}/manifest.json">manifest.json</a> · <a href="${spec.id}/index.html">feed landing page</a></p>
   </section>`;
   });
   const html = `<!doctype html>

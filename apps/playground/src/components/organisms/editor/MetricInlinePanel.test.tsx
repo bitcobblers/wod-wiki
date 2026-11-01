@@ -293,4 +293,36 @@ describe('MetricInlinePanel chip focus, hover, and palette click', () => {
 
     usePaletteStore.getState()._dismiss();
   });
+
+  it('surfaces inline creation actions for unknown effort and unresolved #tag tokens', () => {
+    const unknownEffort = {
+      type: MetricType.Effort,
+      value: 'Zercher Carry',
+      image: 'Zercher Carry',
+      origin: 'parser',
+      metadata: {
+        references: {
+          matched: 'none',
+          source: 'Zercher Carry',
+          diagnostics: [{ reason: 'unknown-effort', message: 'Unknown effort "Zercher Carry".', token: 'Zercher Carry' }],
+        },
+      },
+    } as IMetric;
+    const unknownTag = {
+      type: MetricType.Custom,
+      value: '#heavy-day',
+      image: '#heavy-day',
+      origin: 'parser',
+    } as IMetric;
+
+    renderPanel([unknownEffort, unknownTag], unknownEffort);
+
+    // Unknown effort starts collapsed as a quiet "Define ▾" chip until clicked
+    fireEvent.click(screen.getByTestId('editor-define-token'));
+
+    expect(screen.getByTestId('editor-create-effort-inline')).toBeDefined();
+    expect(screen.getByTestId('editor-link-alias-inline')).toBeDefined();
+    expect(screen.getByTestId('editor-create-equipment-from-token')).toBeDefined();
+    expect(screen.getByTestId('editor-create-tag-inline')).toBeDefined();
+  });
 });

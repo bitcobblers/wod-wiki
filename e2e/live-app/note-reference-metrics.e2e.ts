@@ -171,4 +171,24 @@ test.describe('Note reference metrics (editor slice)', () => {
     expect(doc).toContain('metrics.rpe: 7');
     expect(doc).toContain('  - kettlebell');
   });
+
+  test('inline one-tap creation of unknown effort and tag from active workout line', async ({ page }) => {
+    const docWithUnknowns = BASE_DOC.replace('10 Dumbbell Snatch @15kg', '10 Zercher Carry #heavy-session');
+    await openNote(page, docWithUnknowns);
+
+    await page.locator('.cm-content').getByText('Zercher Carry').click();
+    const panel = page.locator('.cm-metric-inline-panel');
+    await expect(panel).toBeVisible();
+
+    // Expand the unknown effort's Define menu and create the effort in one tap
+    await panel.getByTestId('editor-define-token').click();
+    await panel.getByTestId('editor-create-effort-inline').click();
+    await expect(panel.getByTestId('editor-ref-unknown')).toHaveCount(0);
+    await expect(panel.getByLabel('Open Zercher Carry page')).toBeVisible();
+
+    // Create tag directly from the unresolved #heavy-session token
+    await panel.getByTestId('editor-create-tag-inline').click();
+    await expect(panel.getByTestId('editor-tag-unknown')).toHaveCount(0);
+    await expect(panel.getByLabel('Open the heavy-session tag')).toBeVisible();
+  });
 });

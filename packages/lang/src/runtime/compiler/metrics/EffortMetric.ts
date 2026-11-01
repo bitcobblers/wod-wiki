@@ -3,6 +3,7 @@ import { IMetric, MetricType, MetricOrigin, REFERENCE_METADATA_KEY } from '@bitc
 export class EffortMetric implements IMetric {
   readonly value: string;
   readonly image: string;
+  readonly name?: string;
   readonly origin: MetricOrigin = 'parser';
   readonly metadata?: Record<string, unknown>;
 
@@ -12,12 +13,17 @@ export class EffortMetric implements IMetric {
     options?: {
       /** Canonical resolved slug when the shared reference resolver matched. */
       resolvedSlug?: string;
+      /** Canonical human-readable display label (e.g. "Kettlebell Swing"). */
+      canonicalLabel?: string;
       /** Structured reference resolution payload under the core metadata key. */
       references?: Record<string, unknown>;
     },
   ) {
     this.value = options?.resolvedSlug ?? effort;
     this.image = effort;
+    if (options?.canonicalLabel) {
+      this.name = options.canonicalLabel;
+    }
     if (options?.references) {
       this.metadata = { [REFERENCE_METADATA_KEY]: options.references };
     }

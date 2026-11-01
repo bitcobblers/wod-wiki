@@ -28,6 +28,7 @@ import type { ReferenceIndex } from '../../effort-registry/reference-resolution'
 import { EquipmentMetric } from './metrics/EquipmentMetric';
 import { EFFORT_DATA_METRIC_TYPE } from '../../analytics/effortResolution';
 import {
+  getReferenceMetadata,
   MetricType,
   REFERENCE_METADATA_KEY,
   type IMetric,
@@ -89,9 +90,15 @@ function tryEnrichBlock(
     return;
   }
 
-  // Get the block label to use as the effort identifier
-  const label = block.label;
-  if (!label) {
+  // Prefer statement-attached EffortMetric / exerciseId when present, falling
+  // back to block.label for legacy callers.
+  const statementEffortMetric = block.getAllMemory()
+    .flatMap(loc => loc.metrics.toArray())
+    .find(m => m.type === MetricType.Effort);
+  const preResolvedMeta = getReferenceMetadata(statementEffortMetric?.metadata);
+  const preResolvedEffortRef = preResolvedMeta?.refs?.find(r => r.kind === 'effort');
+  const label = block.label || preResolvedMeta?.source || (typeof statementEffortMetric?.image === 'string' ? statementEffortMetric.image : '');
+  if (!label && !preResolvedEffortRef && !block.context?.exerciseId) {
     if (debug) logTrace(`[EffortEnrichment] Skipping block with no label: ${block.key}`);
     return;
   }
@@ -122,13 +129,23 @@ function tryEnrichBlock(
   let equipmentRefs: ReferenceRef[] = [];
   let diagnostics: ReferenceDiagnostic[] = [];
   if (references) {
-    const resolution = references.resolve(label);
-    resolved = resolution.effort ?? undefined;
-    matchedKind = resolution.matched;
-    equipmentRefs = resolution.equipment;
-    diagnostics = resolution.diagnostics;
+    const directSlug = preResolvedEffortRef?.slug || block.context?.exerciseId;
+    const directEntity = directSlug ? references.resolveEffort(directSlug) : null;
+    if (directEntity && preResolvedMeta) {
+      resolved = references.materialize(directEntity);
+      matchedKind = preResolvedMeta.matched;
+      equipmentRefs = (preResolvedMeta.refs?.filter(r => r.kind === 'equipment') ?? []) as ReferenceRef[];
+      diagnostics = [...(preResolvedMeta.diagnostics ?? [])];
+    } else {
+      const resolution = references.resolve(label);
+      resolved = resolution.effort ?? undefined;
+      matchedKind = resolution.matched;
+      equipmentRefs = resolution.equipment;
+      diagnostics = resolution.diagnostics;
+    }
   } else {
-    resolved = resolver.resolveEffort(label);
+    const lookupKey = preResolvedEffortRef?.slug || block.context?.exerciseId || label;
+    resolved = resolver.resolveEffort(lookupKey) ?? (lookupKey !== label ? resolver.resolveEffort(label) : undefined);
   }
 
   if (!resolved) {

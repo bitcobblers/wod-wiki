@@ -109,17 +109,18 @@ function structureKeywords(): Completion[] {
 }
 
 function toCompletions(values: readonly CompletionValueOption[], detail: string, quoteValues = false): Completion[] {
-  return values.map(value => ({
-    label: value.label ?? value.value,
-    // `Property` values only lex as String | Number | Identifier, and
-    // Identifier is `[a-zA-Z][a-zA-Z0-9]*` — quote slugs it cannot represent
-    // (hyphens, spaces, leading digits) so they insert parse-valid text;
-    // `parsePropertyValue` unwraps the quotes when the property is consumed.
-    apply: quoteValues && !/^[A-Za-z][A-Za-z0-9]*$/.test(value.value) ? JSON.stringify(value.value) : value.value,
-    detail: value.detail ?? detail,
-    type: 'text',
-    info: value.info,
-  }));
+  return values.map(value => {
+    const insertText = quoteValues
+      ? (!/^[A-Za-z][A-Za-z0-9]*$/.test(value.value) ? JSON.stringify(value.value) : value.value)
+      : (value.label ?? value.value);
+    return {
+      label: value.label ?? value.value,
+      apply: insertText,
+      detail: value.detail ?? (value.label && value.label !== value.value ? value.value : detail),
+      type: 'text',
+      info: value.info,
+    };
+  });
 }
 
 function dialectWords(sport?: string): Completion[] {
@@ -239,7 +240,15 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
     }
 
     const efforts = options.efforts ? toCompletions(await options.efforts(), 'effort') : [];
-    const effortOptions = [...keywords, ...efforts, ...sportWords];
+    const equipmentPrefixes = options.equipment
+      ? (await options.equipment()).map(eq => ({
+          label: eq.label ?? eq.value,
+          apply: `${eq.label ?? eq.value} `,
+          detail: eq.detail ?? 'equipment',
+          type: 'text' as const,
+        }))
+      : [];
+    const effortOptions = [...keywords, ...efforts, ...equipmentPrefixes, ...sportWords];
 
     // Property key: a bare `Identifier` starting the line (grammar's `Identifier
     // colon value`). A fresh word may also begin an effort or snippet, so all
@@ -299,7 +308,7 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
       const typed = context.state.doc.sliceString(first.from, pos).toLowerCase();
       const compatible = effortOptions.filter(option => {
         const inserted = typeof option.apply === 'string' ? option.apply : option.label;
-        return inserted.toLowerCase().startsWith(typed);
+        return inserted.toLowerCase().startsWith(typed) || option.label.toLowerCase().startsWith(typed);
       });
       return { from: first.from, options: compatible, validFor: /^[A-Za-z ]*$/ };
     }

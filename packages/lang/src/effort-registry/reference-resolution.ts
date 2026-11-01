@@ -406,7 +406,13 @@ export function createReferenceIndex(
         if (effortFound.entity) {
           matched = 'split';
           effortEntity = effortFound.entity;
-          equipmentRefs = [equipmentRef(equipmentFound.entity)];
+          const rawPrefix = source.slice(0, candidate.lower.length).trim();
+          equipmentRefs = [{
+            ...equipmentRef(equipmentFound.entity),
+            ...(rawPrefix.toLowerCase() !== equipmentFound.entity.label.toLowerCase()
+              ? { matchedAlias: rawPrefix }
+              : {}),
+          }];
           equipmentAuthored = true;
           remaining = candidateRemaining;
           break;
@@ -451,11 +457,21 @@ export function createReferenceIndex(
 
       fillEquipment();
 
+      const effortMatchText = matched === 'split' ? remaining : source;
       return {
         matched,
         label: source,
         effort: effortEntity ? materializer(effortEntity) : null,
-        effortRef: effortEntity ? { kind: 'effort', slug: effortEntity.slug, label: effortEntity.label } : null,
+        effortRef: effortEntity
+          ? {
+              kind: 'effort',
+              slug: effortEntity.slug,
+              label: effortEntity.label,
+              ...(effortMatchText && effortMatchText.toLowerCase() !== effortEntity.label.toLowerCase()
+                ? { matchedAlias: effortMatchText }
+                : {}),
+            }
+          : null,
         equipment: equipmentRefs,
         remaining,
         diagnostics,

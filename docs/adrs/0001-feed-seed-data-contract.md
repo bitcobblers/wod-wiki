@@ -35,6 +35,15 @@ A seed publication is a directory containing exactly:
   `ChunkGroup` (`chunkIdFor`). Each published notebook gets one chunk
   (`notebook.<slug>`); the reserved chunk ids
   are `canvas`, `dashboards`, `efforts`, `equipment`.
+- `index.html` — the feed landing page at the directory root, so a hosted
+  feed serves it at the feed URL itself. It lists every published notebook
+  and note (title, date, source markdown) plus the build report (version
+  stamp, chunk table), and carries the subscription controls: a whole-feed
+  link, a per-notebook link, and a QR code for each. The links resolve in
+  the page (the hosted feed URL is only known at runtime), so the page
+  inlines its own QR encoder — no CDN, no build step for the reader.
+  Consumers never fetch it — it is for humans reviewing a feed before
+  subscribing.
 Each notebook entry in `manifest.json` carries per-notebook git `version`
 (`git rev-list --count HEAD -- <notebookDir>`), `commit`, `updatedAt`, `builtAt`,
 and content `sha256`, allowing individual notebook sync and change detection.

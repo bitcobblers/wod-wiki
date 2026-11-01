@@ -22,7 +22,7 @@ import {
     tagMarkerType,
     tagReferenceFor,
 } from '../tags/TagContributions';
-import { TAG_REFERENCE_METADATA_KEY, type TagIndex, type TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
+import { getReferenceMetadata, TAG_REFERENCE_METADATA_KEY, type TagIndex, type TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
 
 type MetricPair = { metrics: IMetric; meta: SyntaxMeta };
 
@@ -52,7 +52,7 @@ export const PROPERTY_KEY_TO_METRIC_TYPE: Record<string, MetricType> = {
 
 /** Parser-level reference configuration: shared index + note-level defaults. */
 export interface ParseReferences {
-  index: ReferenceIndex;
+  index?: ReferenceIndex;
   defaults?: ReferenceResolutionDefaults;
   /** Tags a script can reference with `#tag-slug`. */
   tags?: TagIndex;
@@ -109,13 +109,17 @@ export function classifyStatements(facts: SyntaxFacts, references?: ParseReferen
     }
 
     const mergedPairs = mergeFragments(metricPairs);
-    const finalPairs = references
+    const finalPairs = references?.index
       ? applyReferenceResolution(mergedPairs, fact, references)
       : mergedPairs;
 
     statement.metrics = finalPairs.map((pair) => pair.metrics);
     statement.metricMeta = new Map(finalPairs.map((pair) => [pair.metrics, pair.meta]));
-
+    const effortMetric = finalPairs.find((p) => p.metrics.type === MetricType.Effort)?.metrics;
+    const effortRef = getReferenceMetadata(effortMetric?.metadata)?.refs?.find((r) => r.kind === 'effort');
+    if (effortRef?.slug) {
+      statement.exerciseId = effortRef.slug;
+    }
     statement.id = fact.id;
     statement.line = fact.line;
     statement.text = fact.meta.raw;
@@ -158,7 +162,8 @@ function equipmentMeta(resolution: ResolvedReferences, authored: string, meta: S
  * and timer-only lines never receive defaults.
  */
 function applyReferenceResolution(pairs: MetricPair[], fact: SyntaxStatement, references: ParseReferences): MetricPair[] {
-  const { index, defaults } = references;
+  const index = references.index!;
+  const { defaults } = references;
   const result: MetricPair[] = [];
 
   const emitResolution = (resolution: ResolvedReferences, authored: string, meta: SyntaxMeta): void => {
@@ -166,26 +171,30 @@ function applyReferenceResolution(pairs: MetricPair[], fact: SyntaxStatement, re
       result.push({
         metrics: new EffortMetric(authored, {
           resolvedSlug: resolution.effortRef?.slug,
+          canonicalLabel: resolution.effortRef?.label,
           references: referenceMetadata(resolution),
         }),
         meta,
       });
     }
     if (resolution.equipment.length > 0) {
+      const eqMeta = equipmentMeta(resolution, authored, meta);
+      const eqSource = resolution.matched === 'split'
+        ? eqMeta.raw
+        : resolution.matched === 'explicit'
+          ? resolution.equipment.map(ref => ref.label).join(', ')
+          : authored;
       result.push({
         metrics: new EquipmentMetric(
           resolution.equipment.map(ref => ref.slug),
           {
             refs: resolution.equipment,
-            source: authored,
+            source: eqSource,
             matched: resolution.matched,
             diagnostics: resolution.diagnostics,
           },
         ),
-        // The equipment is the prefix of the authored label; the effort is
-        // what follows. Marking the whole phrase for both would let one mark
-        // hide the other.
-        meta: equipmentMeta(resolution, authored, meta),
+        meta: eqMeta,
       });
     }
   };
@@ -277,6 +286,75 @@ function applyReferenceResolution(pairs: MetricPair[], fact: SyntaxStatement, re
 
   result.push(...malformedHints);
   return result;
+}
+
+/**
+ * Re-resolve EffortMetrics produced by dialect unit fusion (e.g. `20m Row` →
+ * `Distance(20, "m")` + `Effort("Row")`) so their canonical effort/equipment
+ * references, display labels, and `statement.exerciseId` are attached.
+ */
+export function resolveFusedEffortReferences(
+  statements: readonly ParsedCodeStatement[],
+  references?: ParseReferences,
+): void {
+  if (!references?.index) return;
+  const { index, defaults } = references;
+  for (const statement of statements) {
+    const current = statement.metrics.toArray();
+    if (!current.some(m => m.type === MetricType.Effort && !m.metadata)) continue;
+    const nextMetrics: IMetric[] = [];
+    const nextMeta = new Map(statement.metricMeta);
+    for (const metric of current) {
+      if (metric.type !== MetricType.Effort || metric.metadata) {
+        nextMetrics.push(metric);
+        continue;
+      }
+      const authored = metric instanceof EffortMetric ? metric.effort : String(metric.value ?? '');
+      const normalized = authored.trim().toLowerCase();
+      if (STRUCTURAL_EFFORT_WORDS.has(normalized) || STANDARD_UNITS.has(normalized)) {
+        nextMetrics.push(metric);
+        continue;
+      }
+      const meta = statement.metricMeta?.get(metric);
+      const resolution = index.resolve(authored, defaults);
+      if (resolution.matched === 'none' && resolution.diagnostics.length === 0) {
+        nextMetrics.push(metric);
+        continue;
+      }
+      nextMeta.delete(metric);
+      if (resolution.effortRef || resolution.matched !== 'none' || resolution.diagnostics.length > 0) {
+        const resolvedEffort = new EffortMetric(authored, {
+          resolvedSlug: resolution.effortRef?.slug,
+          canonicalLabel: resolution.effortRef?.label,
+          references: referenceMetadata(resolution),
+        });
+        nextMetrics.push(resolvedEffort);
+        if (meta) nextMeta.set(resolvedEffort, meta);
+        if (resolution.effortRef?.slug) {
+          statement.exerciseId = resolution.effortRef.slug;
+        }
+      }
+      if (resolution.equipment.length > 0) {
+        const eqMeta = meta ? equipmentMeta(resolution, authored, meta) : undefined;
+        const eqSource = resolution.matched === 'split' && eqMeta
+          ? eqMeta.raw
+          : authored;
+        const eqMetric = new EquipmentMetric(
+          resolution.equipment.map(ref => ref.slug),
+          {
+            refs: resolution.equipment,
+            source: eqSource,
+            matched: resolution.matched,
+            diagnostics: resolution.diagnostics,
+          },
+        );
+        nextMetrics.push(eqMetric);
+        if (eqMeta) nextMeta.set(eqMetric, eqMeta);
+      }
+    }
+    statement.metrics.clear().add(...nextMetrics);
+    statement.metricMeta = nextMeta;
+  }
 }
 
 function classifyPrimitive(primitive: SyntaxPrimitive): MetricPair[] {

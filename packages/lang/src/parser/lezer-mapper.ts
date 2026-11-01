@@ -1,7 +1,7 @@
 import type { Tree } from '@lezer/common';
 import type { ICodeStatement, IMetric } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer, MetricType } from '@bitcobblers/wod-wiki-core';
-import { classifyStatements } from './semantic-classifier';
+import { classifyStatements, resolveFusedEffortReferences } from './semantic-classifier';
 import type { ParseReferences } from './semantic-classifier';
 import { extractSyntaxFacts } from './syntax-parser';
 import { dialectStack } from '../dialects/DialectStack';
@@ -71,6 +71,7 @@ export function extractStatements(
   const facts = extractSyntaxFacts(resolved.source, resolved.tree);
   const statements = classifyStatements(facts, references);
   dialectStack.processAll(statements, sport);
+  resolveFusedEffortReferences(statements, references);
   return normalizeInlineRounds(statements);
 }
 

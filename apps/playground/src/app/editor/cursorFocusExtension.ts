@@ -38,7 +38,7 @@ import {
   type ICodeStatement,
   type IMetric,
 } from "@bitcobblers/wod-wiki-engine";
-import { getTagReference, type TagReferenceMetadata } from "@bitcobblers/wod-wiki-core";
+import { getReferenceMetadata, getTagReference, type TagReferenceMetadata } from "@bitcobblers/wod-wiki-core";
 import { getSharedReferenceIndex, readNoteReferenceDefaults } from "@/app/editor/noteEditorServices";
 import { catalogueReload, catalogueReloadPlugin } from "@/app/editor/catalogueReload";
 
@@ -128,6 +128,22 @@ function buildDecorations(
       const isActiveLine =
         cursorSection === section && stmtDocLine === cursorDocLine;
 
+      // Collect explicit equipment token ranges on this statement so split
+      // phrases (`KB swings`) don't double-underline the equipment prefix.
+      const equipmentRanges: Array<{ from: number; to: number }> = [];
+      for (const m of s.metrics) {
+        if (m.type !== MetricType.Equipment) continue;
+        const eqMeta = getReferenceMetadata(m.metadata);
+        if (eqMeta?.matched === 'whole' || eqMeta?.matched === 'default') continue;
+        const meta = s.metricMeta?.get(m);
+        if (meta) {
+          equipmentRanges.push({
+            from: section.contentFrom + meta.startOffset,
+            to: section.contentFrom + meta.endOffset,
+          });
+        }
+      }
+
       for (const metric of s.metrics) {
         const reference = getTagReference(metric.metadata);
         const isTagMarker = typeof metric.type === 'string' && metric.type.startsWith(TAG_MARKER_PREFIX);
@@ -135,23 +151,53 @@ function buildDecorations(
         // itself — not by the kind of the value it carries.
         if (reference && !isTagMarker) continue;
 
+        if (metric.type === MetricType.Equipment) {
+          const eqMeta = getReferenceMetadata(metric.metadata);
+          if (eqMeta?.matched === 'whole' || eqMeta?.matched === 'default') continue;
+        }
+
+        const isUnresolvedTag =
+          metric.type === MetricType.Custom &&
+          typeof metric.value === 'string' &&
+          /^#[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(metric.value.trim());
+
         const effectiveType = metric.type === MetricType.Choice
           ? (metric as ChoiceGroupMetric).alternatives[0]?.type
           : metric.type;
         const baseClass = isTagMarker
           ? tagMarkClass(reference)
-          : METRIC_MARK_CLASS[effectiveType as string];
+          : isUnresolvedTag
+            ? "cm-tag-unresolved"
+            : METRIC_MARK_CLASS[effectiveType as string];
         if (!baseClass) continue;
 
         const meta = s.metricMeta?.get(metric);
         if (!meta) continue;
 
-        const from = section.contentFrom + meta.startOffset;
+        let from = section.contentFrom + meta.startOffset;
         const to = section.contentFrom + meta.endOffset;
+
+        // When an effort metric shares its start with a split equipment prefix
+        // (`KB swings`), advance the effort mark past the equipment token so
+        // `KB` renders as equipment and `swings` renders as effort.
+        if (metric.type === MetricType.Effort) {
+          for (const eq of equipmentRanges) {
+            if (eq.from === from && eq.to < to) {
+              from = eq.to;
+              while (from < to && /\s/.test(state.doc.sliceString(from, from + 1))) {
+                from++;
+              }
+            }
+          }
+        }
+
         if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
         if (from >= to || from < 0 || to > state.doc.length) continue;
 
-        const cssClass = isActiveLine ? baseClass : `${baseClass}-dim`;
+        const refMeta = getReferenceMetadata(metric.metadata);
+        const hasDiagnostics = (refMeta?.diagnostics?.length ?? 0) > 0;
+        const stateClass = isActiveLine ? baseClass : `${baseClass}-dim`;
+        const cssClass = hasDiagnostics ? `${stateClass} cm-metric-unresolved` : stateClass;
         decos.push(Decoration.mark({ class: cssClass }).range(from, to));
       }
     }
@@ -320,40 +366,61 @@ const metricNavKeymap = Prec.high(keymap.of([
 // ── CSS theme ────────────────────────────────────────────────────────
 
 const metricUnderlineTheme = EditorView.baseTheme({
-  ".cm-metric-underline-duration":   { borderBottom: "2px solid hsl(var(--metric-time))",       color: "hsl(var(--metric-time))" },
-  ".cm-metric-underline-rep":        { borderBottom: "2px solid hsl(var(--metric-rep))",        color: "hsl(var(--metric-rep))" },
-  ".cm-metric-underline-effort":     { borderBottom: "2px solid hsl(var(--metric-effort))",     color: "hsl(var(--metric-effort))" },
-  ".cm-metric-underline-rounds":     { borderBottom: "2px solid hsl(var(--metric-rounds))",     color: "hsl(var(--metric-rounds))" },
-  ".cm-metric-underline-distance":   { borderBottom: "2px solid hsl(var(--metric-distance))",   color: "hsl(var(--metric-distance))" },
-  ".cm-metric-underline-resistance": { borderBottom: "2px solid hsl(var(--metric-resistance))", color: "hsl(var(--metric-resistance))" },
-  ".cm-metric-underline-action":     { borderBottom: "2px solid hsl(var(--metric-action))",     color: "hsl(var(--metric-action))" },
-  ".cm-metric-underline-equipment":  { borderBottom: "2px solid hsl(var(--metric-equipment))",  color: "hsl(var(--metric-equipment))" },
+  ".cm-metric-underline-duration, .cm-metric-underline-duration *":     { borderBottom: "2px solid hsl(var(--metric-time))",       color: "hsl(var(--metric-time)) !important" },
+  ".cm-metric-underline-rep, .cm-metric-underline-rep *":               { borderBottom: "2px solid hsl(var(--metric-rep))",        color: "hsl(var(--metric-rep)) !important" },
+  ".cm-metric-underline-effort, .cm-metric-underline-effort *":         { borderBottom: "2px solid hsl(var(--metric-effort))",     color: "hsl(var(--metric-effort)) !important" },
+  ".cm-metric-underline-rounds, .cm-metric-underline-rounds *":         { borderBottom: "2px solid hsl(var(--metric-rounds))",     color: "hsl(var(--metric-rounds)) !important" },
+  ".cm-metric-underline-distance, .cm-metric-underline-distance *":     { borderBottom: "2px solid hsl(var(--metric-distance))",   color: "hsl(var(--metric-distance)) !important" },
+  ".cm-metric-underline-resistance, .cm-metric-underline-resistance *": { borderBottom: "2px solid hsl(var(--metric-resistance))", color: "hsl(var(--metric-resistance)) !important" },
+  ".cm-metric-underline-action, .cm-metric-underline-action *":         { borderBottom: "2px solid hsl(var(--metric-action))",     color: "hsl(var(--metric-action)) !important" },
+  ".cm-metric-underline-equipment, .cm-metric-underline-equipment *":   { borderBottom: "2px solid hsl(var(--metric-equipment))",  color: "hsl(var(--metric-equipment)) !important" },
 
-  ".cm-metric-underline-duration-dim":   { borderBottom: "2px solid hsl(var(--metric-time) / 0.2)",       color: "hsl(var(--muted-foreground))" },
-  ".cm-metric-underline-rep-dim":        { borderBottom: "2px solid hsl(var(--metric-rep) / 0.2)",        color: "hsl(var(--muted-foreground))" },
-  ".cm-metric-underline-effort-dim":     { borderBottom: "2px solid hsl(var(--metric-effort) / 0.2)",     color: "hsl(var(--muted-foreground))" },
-  ".cm-metric-underline-rounds-dim":     { borderBottom: "2px solid hsl(var(--metric-rounds) / 0.2)",     color: "hsl(var(--muted-foreground))" },
-  ".cm-metric-underline-distance-dim":   { borderBottom: "2px solid hsl(var(--metric-distance) / 0.2)",   color: "hsl(var(--muted-foreground))" },
-  ".cm-metric-underline-resistance-dim": { borderBottom: "2px solid hsl(var(--metric-resistance) / 0.2)", color: "hsl(var(--muted-foreground))" },
-  ".cm-metric-underline-action-dim":     { borderBottom: "2px solid hsl(var(--metric-action) / 0.2)",     color: "hsl(var(--muted-foreground))" },
-  ".cm-metric-underline-equipment-dim":  { borderBottom: "2px solid hsl(var(--metric-equipment) / 0.2)",  color: "hsl(var(--muted-foreground))" },
+  ".cm-metric-underline-duration-dim, .cm-metric-underline-duration-dim *":     { borderBottom: "1.5px solid hsl(var(--metric-time) / 0.35)",       color: "hsl(var(--metric-time) / 0.82) !important" },
+  ".cm-metric-underline-rep-dim, .cm-metric-underline-rep-dim *":               { borderBottom: "1.5px solid hsl(var(--metric-rep) / 0.35)",        color: "hsl(var(--metric-rep) / 0.82) !important" },
+  ".cm-metric-underline-effort-dim, .cm-metric-underline-effort-dim *":         { borderBottom: "1.5px solid hsl(var(--metric-effort) / 0.35)",     color: "hsl(var(--metric-effort) / 0.82) !important" },
+  ".cm-metric-underline-rounds-dim, .cm-metric-underline-rounds-dim *":         { borderBottom: "1.5px solid hsl(var(--metric-rounds) / 0.35)",     color: "hsl(var(--metric-rounds) / 0.82) !important" },
+  ".cm-metric-underline-distance-dim, .cm-metric-underline-distance-dim *":     { borderBottom: "1.5px solid hsl(var(--metric-distance) / 0.35)",   color: "hsl(var(--metric-distance) / 0.82) !important" },
+  ".cm-metric-underline-resistance-dim, .cm-metric-underline-resistance-dim *": { borderBottom: "1.5px solid hsl(var(--metric-resistance) / 0.35)", color: "hsl(var(--metric-resistance) / 0.82) !important" },
+  ".cm-metric-underline-action-dim, .cm-metric-underline-action-dim *":         { borderBottom: "1.5px solid hsl(var(--metric-action) / 0.35)",     color: "hsl(var(--metric-action) / 0.82) !important" },
+  ".cm-metric-underline-equipment-dim, .cm-metric-underline-equipment-dim *":   { borderBottom: "1.5px solid hsl(var(--metric-equipment) / 0.35)",  color: "hsl(var(--metric-equipment) / 0.82) !important" },
+
+  ".cm-metric-unresolved, .cm-metric-unresolved *": {
+    borderBottomStyle: "dashed !important",
+    borderBottomColor: "hsl(var(--warning)) !important",
+  },
 
   // A tag reference is a hashtag: a chip, not an underline.
-  ".cm-tag-reference": {
-    color: "hsl(var(--primary))",
-    backgroundColor: "hsl(var(--primary) / 0.08)",
+  ".cm-tag-reference, .cm-tag-reference *": {
+    color: "hsl(var(--primary)) !important",
+    backgroundColor: "hsl(var(--primary) / 0.10)",
     borderRadius: "3px",
     padding: "0 2px",
   },
-  ".cm-tag-reference-dim": { color: "hsl(var(--muted-foreground))" },
+  ".cm-tag-reference-dim, .cm-tag-reference-dim *": {
+    color: "hsl(var(--primary) / 0.72) !important",
+    backgroundColor: "hsl(var(--primary) / 0.05)",
+    borderRadius: "3px",
+    padding: "0 2px",
+  },
+  ".cm-tag-unresolved, .cm-tag-unresolved *, .cm-tag-unresolved-dim, .cm-tag-unresolved-dim *": {
+    color: "hsl(var(--warning)) !important",
+    borderBottom: "1.5px dashed hsl(var(--warning))",
+    borderRadius: "2px",
+    padding: "0 1px",
+  },
   // A `#sound-` reference names a sound profile.
-  ".cm-tag-reference-sound": {
-    color: "hsl(var(--metric-action))",
+  ".cm-tag-reference-sound, .cm-tag-reference-sound *": {
+    color: "hsl(var(--metric-action)) !important",
     backgroundColor: "hsl(var(--metric-action) / 0.12)",
     borderRadius: "3px",
     padding: "0 2px",
   },
-  ".cm-tag-reference-sound-dim": { color: "hsl(var(--muted-foreground))" },
+  ".cm-tag-reference-sound-dim, .cm-tag-reference-sound-dim *": {
+    color: "hsl(var(--metric-action) / 0.72) !important",
+    backgroundColor: "hsl(var(--metric-action) / 0.06)",
+    borderRadius: "3px",
+    padding: "0 2px",
+  },
 });
 
 // ── Exported extension ───────────────────────────────────────────────

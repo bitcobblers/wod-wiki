@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { EditorState } from "@codemirror/state";
+import { EditorState, type StateField } from "@codemirror/state";
 import { sectionField } from "@bitcobblers/wod-wiki-ui/extensions";
 import {
   cursorFocusExtension,
@@ -45,7 +45,7 @@ describe("cursorFocusExtension", () => {
     expect(activeFocus?.focusedMetric?.type).toBe(MetricType.Effort);
 
     // Read decorations directly from StateField to inspect all token mark ranges
-    const internalStateField = (cursorFocusExtension as unknown as StateField<unknown>[])[0];
+    const internalStateField = (cursorFocusExtension as unknown as StateField<{ decos: { iter(): { value: { spec: unknown } | null; from: number; to: number; next(): void } } }>[])[0];
     const decos = activeState.field(internalStateField).decos;
 
     const markRanges: { from: number; to: number; text: string; cls: string }[] = [];
@@ -110,7 +110,7 @@ describe("cursorFocusExtension", () => {
       selection: { anchor: doc.indexOf("Pushups") + 2 },
     }).state;
 
-    const internalStateField = (cursorFocusExtension as unknown as StateField<unknown>[])[0];
+    const internalStateField = (cursorFocusExtension as unknown as StateField<{ decos: { iter(): { value: { spec: unknown } | null; from: number; to: number; next(): void } } }>[])[0];
     const decos = activeState.field(internalStateField).decos;
 
     const markRanges: { from: number; to: number; text: string; cls: string }[] = [];
@@ -149,7 +149,7 @@ describe("cursorFocusExtension", () => {
     });
 
     const marksIn = (s: EditorState) => {
-      const field = (cursorFocusExtension as unknown as StateField<unknown>[])[0];
+      const field = (cursorFocusExtension as unknown as StateField<{ decos: { iter(): { value: { spec: unknown } | null; from: number; to: number; next(): void } } }>[])[0];
       const decos = s.field(field).decos;
       const out: string[] = [];
       const iter = decos.iter();
@@ -214,5 +214,31 @@ describe("cursorFocusExtension", () => {
     const rowFocus = getCursorFocusState(rowState);
     expect(rowFocus?.statement).toBeDefined();
     expect(rowFocus?.focusedMetric?.type).toBe(MetricType.Distance);
+  });
+
+  it("marks unresolved #tags with cm-tag-unresolved", () => {
+    setTagIndex([]);
+    const doc = ["```time", "10 Pushups #new-tag", "20m Row", "```"].join("\n");
+    const state = EditorState.create({
+      doc,
+      extensions: [sectionField, cursorFocusExtension],
+    });
+
+    const activeState = state.update({
+      selection: { anchor: doc.indexOf("Pushups") + 1 },
+    }).state;
+
+    const internalStateField = (cursorFocusExtension as unknown as StateField<{ decos: { iter(): { value: { spec: unknown } | null; from: number; to: number; next(): void } } }>[])[0];
+    const decos = activeState.field(internalStateField).decos;
+
+    const classes: string[] = [];
+    const iter = decos.iter();
+    while (iter.value) {
+      const spec = iter.value.spec as unknown as { class?: string };
+      if (spec.class) classes.push(spec.class);
+      iter.next();
+    }
+
+    expect(classes).toContain("cm-tag-unresolved");
   });
 });

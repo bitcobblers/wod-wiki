@@ -60,6 +60,7 @@ module.exports = {
           distance:   "hsl(var(--metric-distance))",
           resistance: "hsl(var(--metric-resistance))",
           action:     "hsl(var(--metric-action))",
+          equipment:  "hsl(var(--metric-equipment))",
         },
         /* Semantic state tokens */
         warning: {
