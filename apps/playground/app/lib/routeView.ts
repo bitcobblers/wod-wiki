@@ -333,7 +333,14 @@ export function resolveRouteView(
   if (!canvasPage && !flags.note) {
     const pageSlugMatch = pathname.match(/^\/page\/([^/]+)$/)
     if (pageSlugMatch) {
-      flags.namedPageSlug = decodeURIComponent(pageSlugMatch[1]!)
+      const candidate = decodeURIComponent(pageSlugMatch[1]!)
+      const parsedDate = parseJournalDate(candidate)
+      if (parsedDate) {
+        flags.isDayRoute = true
+        flags.day = parsedDate.dateKey
+      } else {
+        flags.namedPageSlug = candidate
+      }
     }
   }
   const workout = deriveWorkout(flags, pathname, deps.workoutItems, canvasPage)

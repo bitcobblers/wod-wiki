@@ -63,4 +63,19 @@ describe('NoteEditor query block executor wiring', () => {
     notifyResultSaved({ id: 'r1' } as never);
     await waitFor(() => expect(runFind).toHaveBeenCalled());
   });
+
+  it('reconciles mismatched or empty initial blocks without throwing Incomplete actionable block map', () => {
+    const docWithTimer = '# My Note\n\n```time\n10:00\n```\n';
+    expect(() => {
+      render(
+        <NoteEditor
+          value={docWithTimer}
+          noteBlocks={{}}
+          sourceRevision={1}
+          onChange={() => {}}
+        />,
+      );
+    }).not.toThrow();
+    expect(screen.getByRole('textbox')).toBeDefined();
+  });
 });

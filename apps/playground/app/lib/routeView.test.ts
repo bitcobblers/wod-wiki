@@ -469,6 +469,14 @@ describe('resolveRouteView — canonical direct routes (/notebook, /effort, /das
     expect(view.namedPageSlug).toBe('my-custom-note')
   })
 
+  it('classifies /page/:date with a valid journal date as the day route', () => {
+    const view = resolveRouteView('/page/2026-10-31', NO_PARAMS, makeDeps({ canvasPage: null }))
+    expect(view.page).toBe('day')
+    expect(view.isDayRoute).toBe(true)
+    expect(view.day).toBe('2026-10-31')
+    expect(view.namedPageSlug).toBeUndefined()
+  })
+
   it('does not resolve retired page/note spellings', () => {
     expect(resolveRouteView('/p/my-custom-note', NO_PARAMS, makeDeps({ canvasPage: null })).namedPageSlug).toBeUndefined()
     expect(resolveRouteView(`/note/${UUID}/extra`, NO_PARAMS, makeDeps()).isNoteRoute).toBe(false)

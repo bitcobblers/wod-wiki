@@ -62,7 +62,8 @@ function groupByTag(entries: HistoryRecord[]): DayGroup[] {
  * (seed frontmatter `date:`, noon-UTC epoch) with createdAt as the undated
  * fallback, so placement never depends on import time for dated posts.
  */
-export function entryDateKey(entry: Pick<HistoryRecord, 'targetDate'>): string {
+export function entryDateKey(entry: Pick<HistoryRecord, 'targetDate'> & { journalDate?: string }): string {
+  if (entry.journalDate) return entry.journalDate
   return formatDateKey(new Date(entry.targetDate))
 }
 
@@ -85,7 +86,12 @@ export function NotebookDatePage({ slug, date }: NotebookDatePageProps) {
       .then((all) => {
         if (cancelled) return
         const inNotebook = all.filter((entry) => {
-          if (!entry.sourceId?.startsWith(`notebook:${slug}`)) return false
+          const matchesNotebook =
+            entry.notebookId === `notebook/${slug}` ||
+            entry.notebookId === slug ||
+            Boolean(entry.sourceId?.startsWith(`notebook:${slug}`)) ||
+            Boolean(entry.slug?.startsWith(`notebook/${slug}`))
+          if (!matchesNotebook) return false
           return entryDateKey(entry) === date
         })
         setEntries(inNotebook.sort((a, b) => b.createdAt - a.createdAt))

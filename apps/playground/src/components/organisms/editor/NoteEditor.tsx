@@ -48,7 +48,7 @@ import { smartIncrement } from '@bitcobblers/wod-wiki-ui/extensions';
 import { sectionField, SectionState, activeCursorSection, type EditorSection } from '@bitcobblers/wod-wiki-ui/extensions';
 import { sectionIdentity, sectionIdentityHistory, registeredSectionWidgets, sectionSaved, sectionRestore } from '@bitcobblers/wod-wiki-ui/extensions';
 import type { NoteBlock } from '@/types/storage';
-import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+import { reconcileNoteBlocks, validateNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import { captureRun, type CapturedRun, createResultRecorder } from '@/hooks/useBrowserServices';
 import { sessionQueryInsert } from '@bitcobblers/wod-wiki-ui/extensions';
 import { previewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
@@ -462,6 +462,20 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     });
   }, []);
 
+  const effectiveBlocks = useMemo(() => {
+    const rev = Math.max(1, sourceRevision);
+    const registeredWidgets = widgetComponents ? [...widgetComponents.keys()] : KNOWN_SECTION_WIDGETS;
+    if (noteBlocks && Object.keys(noteBlocks).length > 0) {
+      try {
+        validateNoteBlocks(value, noteBlocks, rev, { registeredWidgets });
+        return noteBlocks;
+      } catch {
+        return reconcileNoteBlocks(value, { sourceRevision: rev, blocks: noteBlocks, registeredWidgets });
+      }
+    }
+    return reconcileNoteBlocks(value, { sourceRevision: rev, registeredWidgets });
+  }, [value, noteBlocks, sourceRevision, widgetComponents]);
+
   const baseExtensions = useMemo(
     () => [
       // Core editing
@@ -546,7 +560,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
       // Section tracking (required by all other unified extensions)
       sectionField,
-      sectionIdentity.of({ blocks: noteBlocks ?? reconcileNoteBlocks(value, { sourceRevision: Math.max(1, sourceRevision), registeredWidgets: widgetComponents ? [...widgetComponents.keys()] : KNOWN_SECTION_WIDGETS }), sourceRevision: Math.max(1, sourceRevision), rawContent: value }),
+      sectionIdentity.of({ blocks: effectiveBlocks, sourceRevision: Math.max(1, sourceRevision), rawContent: value }),
       registeredSectionWidgets.of(widgetComponents ? [...widgetComponents.keys()] : KNOWN_SECTION_WIDGETS),
       sectionIdentityHistory,
       frontmatterVisibility.of(showFrontmatter),
@@ -701,17 +715,28 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     const mountNode = editorRef.current;
     if (!mountNode) return;
 
-    const state = EditorState.create({
-      doc: value,
-
-      extensions: [
-        ...baseExtensions,
-        themeCompartment.of(editorTheme(isDark)),
-        languageCompartment.of(languages),
-        modeCompartment.of([]),
-        ...(extraExtensions ?? []),
-      ],
-    });
+    let state: EditorState;
+    try {
+      state = EditorState.create({
+        doc: value,
+        extensions: [
+          ...baseExtensions,
+          themeCompartment.of(editorTheme(isDark)),
+          languageCompartment.of(languages),
+          modeCompartment.of([]),
+          ...(extraExtensions ?? []),
+        ],
+      });
+    } catch (err) {
+      console.error('NoteEditor: Failed to initialize EditorState, recovering with safe fallback', err);
+      state = EditorState.create({
+        doc: value,
+        extensions: [
+          themeCompartment.of(editorTheme(isDark)),
+          languageCompartment.of(languages),
+        ],
+      });
+    }
 
     const view = new EditorView({
       state,

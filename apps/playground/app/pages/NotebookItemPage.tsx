@@ -11,7 +11,7 @@
  *   - Run Now        → adopts to today's journal + navigates to start timer
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import { EditorView } from '@codemirror/view';
@@ -22,6 +22,8 @@ import { CalendarCard } from '@/components/atoms/CalendarCard';
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui';
 import { buildScriptNotebooks, findNotebookItem } from '@/repositories/script-notebooks';
 import { useSeedContent } from '@/services/content/seedContent';
+import { storageService } from '@/services/storage';
+import type { Note } from '@/types/storage';
 import { usePlaygroundContent } from '../hooks/usePlaygroundContent';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
 import { pendingRuntimes } from '../runtimeStore';
@@ -60,10 +62,26 @@ export function NotebookItemPage({
   const navigate = useNavigate();
 
   const files = useSeedContent();
+  const [storedNote, setStoredNote] = useState<Note | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const targetSourceId = `notebook:${slug}/${itemDate}/${item}`;
+    storageService.getAllNotes().then(notes => {
+      if (cancelled) return;
+      const found = notes.find(n => n.sourceId === targetSourceId || n.sourcePath?.includes(`${slug}/${itemDate}/${item}`));
+      if (found) setStoredNote(found);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [slug, itemDate, item]);
+
   const notebookItem = useMemo(() => {
+    if (storedNote) {
+      return { id: item, name: storedNote.title || item, content: storedNote.rawContent, date: itemDate };
+    }
     if (!files) return undefined;
     return findNotebookItem(buildScriptNotebooks(files).find((n) => n.id === slug), itemDate, item);
-  }, [files, slug, itemDate, item]);
+  }, [storedNote, files, slug, itemDate, item]);
   const playgroundCategory = `notebook/${slug}/${itemDate}`;
   // Store local edits under a deterministic key in playgroundContent.
   // The notebook item's canonical content is the mdContent fallback.
