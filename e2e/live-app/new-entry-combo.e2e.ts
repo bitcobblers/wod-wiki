@@ -106,6 +106,35 @@ test.describe('Contextual new entry actions', () => {
     expect(newY).toBeLessThan(menuY);
   });
 
+  test('offers dashboard creation from WQL except on dashboard pages', async ({ page }) => {
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 375, height: 812 }]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/page/guide-wql');
+      await waitForFeedReady(page);
+      const action = page.getByTestId('query-add-dashboard').first();
+      await expect(action).toBeVisible();
+      await action.click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.keyboard.press('Escape');
+
+      await page.goto('/dashboard/benchmark-pr-board');
+      await waitForFeedReady(page);
+      await expect(page.getByTestId('query-add-dashboard')).toHaveCount(0);
+    }
+  });
+
+  test('creates a tag from the catalog options', async ({ page }) => {
+    await page.goto('/journal');
+    await waitForFeedReady(page);
+    await page.getByTestId('new-entry-primary').click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByTestId('new-entry-tag').click();
+    await dialog.getByPlaceholder('e.g., heavy').fill('E2E catalog tag');
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(page).toHaveURL('/t/tag/e2e-catalog-tag');
+    await expect(page.getByRole('heading', { name: 'Edit e2e-catalog-tag' })).toBeVisible();
+  });
+
   test('exposes New Note creation on mobile inside a custom notebook', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto('/notebook/combo-notes');
