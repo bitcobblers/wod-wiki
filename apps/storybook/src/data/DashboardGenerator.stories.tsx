@@ -1,20 +1,23 @@
 /**
- * Data / Dashboard Generator — writes a NEW dashboard note (kind "dashboard",
- * sourceId "dashboards", canonical scaffold + one appended widget) into the
- * ACTIVE database through the app's notePersistence, lists the dashboards it
- * reads back, and renders the opened board with the shared DashboardView
- * (widgets execute live through the app's queryService).
+ * Workbench / Database & Storage / Data Explorer — live IndexedDB WQL library
+ * search and dashboard generator against the active database.
  */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { DashboardGeneratorPage } from './DashboardGeneratorPage';
+import { WqlLibrarySearchPage } from './WqlLibrarySearchPage';
 
-const meta: Meta<typeof DashboardGeneratorPage> = {
-  title: 'Data',
-  component: DashboardGeneratorPage,
-  parameters: { layout: 'padded' },
+const meta: Meta = {
+  id: 'data',
+  title: 'Workbench/Database & Storage/Data Explorer',
+  parameters: { layout: 'padded', database: true },
 };
 export default meta;
-type Story = StoryObj<typeof DashboardGeneratorPage>;
+type Story = StoryObj;
+
+export const WqlLibrarySearch: Story = {
+  name: 'WQL Library Search',
+  render: () => <WqlLibrarySearchPage />,
+};
 
 export const DashboardGenerator: Story = {
   name: 'Dashboard Generator',

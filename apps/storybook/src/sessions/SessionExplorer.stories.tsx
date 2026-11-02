@@ -9,9 +9,10 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { SessionExplorerPage } from './SessionExplorerPage';
 
 const meta: Meta<typeof SessionExplorerPage> = {
-  title: 'Sessions',
+  id: 'sessions',
+  title: 'Workbench/Database & Storage/Session Explorer',
   component: SessionExplorerPage,
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'padded', database: true },
 };
 export default meta;
 type Story = StoryObj<typeof SessionExplorerPage>;

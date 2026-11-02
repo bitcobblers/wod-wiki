@@ -2,8 +2,9 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { DatabaseSelectionPage } from './database/DatabaseSelectionPage';
 
 const meta: Meta = {
-  title: 'Database',
-  parameters: { layout: 'padded' },
+  id: 'database',
+  title: 'Workbench/Database & Storage/IndexedDB Selection',
+  parameters: { layout: 'padded', database: true },
 };
 export default meta;
 type Story = StoryObj;

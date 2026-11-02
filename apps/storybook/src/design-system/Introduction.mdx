@@ -1,0 +1,65 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Design System/Introduction" />
+
+# WOD.wiki Living Design System & Component Workbench
+
+Welcome to the **WOD.wiki Storybook**. This workspace is the single source of truth for UI components, interactive state controls, accessibility verification, and the Whiteboard Language / WQL workbench.
+
+---
+
+## 📂 Information Architecture
+
+Stories mirror the monorepo's package and directory boundaries so you can jump directly between a story and its source file:
+
+<table>
+  <thead>
+    <tr>
+      <th>Section</th>
+      <th>Source Path</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>1. Design System</strong></td>
+      <td><code>packages/ui/src/styles.css</code></td>
+      <td>Mineral (Light) &amp; Arctic Frost (Dark) color tokens, metric semantic palette, typography, and component usage guidelines.</td>
+    </tr>
+    <tr>
+      <td><strong>2. Packages / UI</strong></td>
+      <td><code>packages/ui/src/&#123;composer,widgets,blocks&#125;/</code></td>
+      <td>State-free, zero-IndexedDB components exported by <code>@bitcobblers/wod-wiki-ui</code> (<code>WqlComposer</code>, <code>DashboardView</code>, <code>QueryBlockView</code>, <code>OutputStatementsTable</code>, and the 15 WQL chart widgets).</td>
+    </tr>
+    <tr>
+      <td><strong>3. Playground / Molecules</strong></td>
+      <td><code>apps/playground/src/components/&#123;atoms,molecules&#125;/</code></td>
+      <td>Primitives (<code>Button</code>, <code>Badge</code>), record-type icons (<code>DefaultListItem</code>), result rows (<code>ResultListItem</code>), and action menus (<code>WorkoutActionButton</code>).</td>
+    </tr>
+    <tr>
+      <td><strong>4. Playground / Organisms</strong></td>
+      <td><code>apps/playground/src/components/organisms/&#123;editor,workout&#125;/</code></td>
+      <td>Feature organisms: <code>NoteEditor</code> (CodeMirror 6 single-document editor), <code>RuntimeDebugPanel</code> (live parser AST + stack/memory inspector), <code>WorkoutContextPanel</code>, <code>MinimalTimerSurface</code>, <code>GeneralTimerSurface</code>, and <code>FullscreenTimer</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>5. Workbench</strong></td>
+      <td><code>apps/storybook/src/workbench/</code></td>
+      <td>Integrated development &amp; debugging environment combining the editor, wall-clock timer, <code>RuntimeDebugPanel</code>, and live workouts from the synced feed/seed library.</td>
+    </tr>
+    <tr>
+      <td><strong>6. ParserTests</strong></td>
+      <td><code>apps/storybook/src/parser-tests/</code></td>
+      <td>Golden fixture runner and interactive DSL test builder for <code>@bitcobblers/wod-wiki-lang</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 🧪 Testing & Verification Model
+
+1. **Fast In-Memory Isolation by Default**: Component stories mount with synchronous in-memory fixtures (`inMemoryEventStore`, `MockContentProvider`, or static `QueryExecutor`s) with zero IndexedDB overhead.
+2. **Opt-In Database Plane**: Stories that specifically test browser IndexedDB persistence and feed syncing opt in via `parameters: { database: true }`.
+3. **Interactive Controls (`args`)**: Use the **Controls** panel at the bottom of any component story to toggle states, props, workout scripts, and layouts dynamically.
+4. **Accessibility (`@storybook/addon-a11y`)**: Every story is checked against WCAG 2.1 AA contrast and ARIA rules in the **Accessibility** addon tab.
+5. **Automated Interaction (`play()`)**: Key organisms and molecules carry `play()` functions executed in headless Chromium via `bun run test:storybook`.

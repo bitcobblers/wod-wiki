@@ -17,9 +17,32 @@ import { MinimalTimerSurface } from '@/components/organisms/workout/MinimalTimer
 import { GeneralTimerSurface } from '@/components/organisms/workout/GeneralTimerSurface';
 import type { TimerSurfaceModel } from '@/components/organisms/workout/useTimerSurfaceModel';
 
-const meta: Meta = {
-  title: 'Gallery/Timer Surfaces',
+const meta: Meta<TimerSurfaceModel & { workoutTitle?: string; showPrompts?: boolean }> = {
+  id: 'gallery-timer-surfaces',
+  title: 'Playground/Organisms/Workout/Timer Surfaces',
   parameters: { layout: 'fullscreen' },
+  args: {
+    mainLabel: 'Rest',
+    displayMs: 38_000,
+    sessionElapsedMs: 767_000,
+    roundCurrent: 2,
+    roundTotal: 3,
+    roundLabel: 'Round 2 of 3',
+    upNext: 'Run 400 m',
+    isRunning: true,
+    isPaused: false,
+    isNextDisabled: false,
+    workoutTitle: 'Helen',
+  },
+  argTypes: {
+    mainLabel: { control: 'text', description: 'Primary active movement or state label' },
+    displayMs: { control: { type: 'number', min: 0, step: 1000 }, description: 'Clock time in ms' },
+    roundLabel: { control: 'text', description: 'Round badge caption' },
+    upNext: { control: 'text', description: 'Up next movement cue' },
+    isRunning: { control: 'boolean' },
+    isPaused: { control: 'boolean' },
+    workoutTitle: { control: 'text', description: 'Workout title (General TV surface)' },
+  },
 };
 
 export default meta;
@@ -58,34 +81,38 @@ const handlers = {
   onNext: () => {},
 };
 
-export const MinimalRest: StoryObj = {
-  render: () => (
+export const MinimalRest: StoryObj<typeof meta> = {
+  args: { ...restModel },
+  render: (args) => (
     <div className="mx-auto h-[780px] w-[min(390px,100%)] overflow-hidden rounded-[2rem] border border-border bg-background">
-      <MinimalTimerSurface model={restModel} {...handlers} />
+      <MinimalTimerSurface model={{ ...restModel, ...args }} {...handlers} />
     </div>
   ),
 };
 
-export const MinimalWork: StoryObj = {
-  render: () => (
+export const MinimalWork: StoryObj<typeof meta> = {
+  args: { ...workModel },
+  render: (args) => (
     <div className="mx-auto h-[780px] w-[min(390px,100%)] overflow-hidden rounded-[2rem] border border-border bg-background">
-      <MinimalTimerSurface model={workModel} {...handlers} />
+      <MinimalTimerSurface model={{ ...workModel, ...args }} {...handlers} />
     </div>
   ),
 };
 
-export const GeneralTv: StoryObj = {
-  render: () => (
+export const GeneralTv: StoryObj<typeof meta> = {
+  args: { ...restModel, workoutTitle: 'Helen' },
+  render: (args) => (
     <div className="aspect-video w-full overflow-hidden bg-background">
-      <GeneralTimerSurface model={restModel} workoutTitle="Helen" {...handlers} />
+      <GeneralTimerSurface model={{ ...restModel, ...args }} workoutTitle={args.workoutTitle ?? 'Helen'} {...handlers} />
     </div>
   ),
 };
 
-export const GeneralTvWork: StoryObj = {
-  render: () => (
+export const GeneralTvWork: StoryObj<typeof meta> = {
+  args: { ...workModel, workoutTitle: 'Helen' },
+  render: (args) => (
     <div className="aspect-video w-full overflow-hidden bg-background">
-      <GeneralTimerSurface model={workModel} workoutTitle="Helen" {...handlers} />
+      <GeneralTimerSurface model={{ ...workModel, ...args }} workoutTitle={args.workoutTitle ?? 'Helen'} {...handlers} />
     </div>
   ),
 };
@@ -99,18 +126,20 @@ const promptRow = (
   </div>
 );
 
-export const MinimalPrompts: StoryObj = {
-  render: () => (
+export const MinimalPrompts: StoryObj<typeof meta> = {
+  args: { ...restModel },
+  render: (args) => (
     <div className="mx-auto h-[780px] w-[min(390px,100%)] overflow-hidden rounded-[2rem] border border-border bg-background">
-      <MinimalTimerSurface model={restModel} promptRow={promptRow} {...handlers} />
+      <MinimalTimerSurface model={{ ...restModel, ...args }} promptRow={promptRow} {...handlers} />
     </div>
   ),
 };
 
-export const GeneralPrompts: StoryObj = {
-  render: () => (
+export const GeneralPrompts: StoryObj<typeof meta> = {
+  args: { ...restModel, workoutTitle: 'Helen' },
+  render: (args) => (
     <div className="aspect-video w-full overflow-hidden bg-background">
-      <GeneralTimerSurface model={restModel} workoutTitle="Helen" promptRow={promptRow} {...handlers} />
+      <GeneralTimerSurface model={{ ...restModel, ...args }} workoutTitle={args.workoutTitle ?? 'Helen'} promptRow={promptRow} {...handlers} />
     </div>
   ),
 };

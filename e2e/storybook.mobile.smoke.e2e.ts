@@ -20,11 +20,9 @@ const STORIES = [
   'gallery-wql-example-gallery--bar-section',
   'gallery-wql-example-gallery--table-section',
   'gallery-wql-example-gallery--value-section',
-  // Workbench stories — covered since #997: the Session Outputs Table renders
-  // its Card List below sm, so these previously-overflowing stories hold.
-  'workbench-benchmark-fran--standard-couplet',
+  // Workbench story — covered since #997: the Session Outputs Table renders
+  // its Card List below sm, so this previously-overflowing story holds.
   'playground--for-time-starter',
-  // Gallery rows — covered since #1001: the same Card List path contains the
   // rows cards (inventory 008 measured 815px cards / 472px overflow here),
   // and GalleryCardView roots carry min-w-0 against grid blowout.
   'gallery-wql-example-gallery--rows-find-section',

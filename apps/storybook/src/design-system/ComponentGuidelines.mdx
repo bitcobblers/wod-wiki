@@ -1,0 +1,110 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Design System/Component Guidelines" />
+
+# Component Usage Guidelines
+
+Explicit patterns, contracts, and Do's & Don'ts for building and embedding WOD.wiki components across `packages/ui` and `apps/playground`.
+
+---
+
+## 1. Theme & Dark Mode Host Rule
+
+WOD.wiki uses two calibrated palettes defined in `@bitcobblers/wod-wiki-ui/styles.css`:
+- **Mineral** (Light mode): Warm cream surfaces (`--background: 40 20% 96%`) with geological earth-tone accents.
+- **Arctic Frost** (Dark mode): Nord-inspired polar night surfaces (`--background: 222 16% 21%`) with aurora accents.
+
+<table>
+  <thead>
+    <tr>
+      <th>✅ Do</th>
+      <th>❌ Don't</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Toggle <code>.dark</code> on <code>document.documentElement</code> (<code>&lt;html&gt;</code>).</td>
+      <td>Never place <code>.dark</code> on an inner wrapper <code>&lt;div&gt;</code>—shared <code>@theme inline</code> tokens resolve on <code>:root</code>.</td>
+    </tr>
+    <tr>
+      <td>Use semantic Tailwind utilities (<code>bg-background</code>, <code>bg-card</code>, <code>text-foreground</code>, <code>text-muted-foreground</code>, <code>border-border</code>).</td>
+      <td>Never hardcode hex/RGB colors or raw Tailwind grays (<code>bg-slate-900</code>, <code>text-zinc-400</code>) in shared components.</td>
+    </tr>
+    <tr>
+      <td>Use semantic metric utilities (<code>bg-metric-time/15 text-metric-time</code>, <code>text-metric-rep</code>, <code>text-metric-effort</code>) for workout fragments.</td>
+      <td>Never invent ad-hoc badge colors per component; always derive from <code>metricPresentation</code> or <code>metricColorMap</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 2. `@bitcobblers/wod-wiki-ui` vs `apps/playground`
+
+`packages/ui` is a **state-free, storage-agnostic** package. It must never import browser singletons (`IndexedDB`, `localStorage`, or `@/services/*`).
+
+<table>
+  <thead>
+    <tr>
+      <th>Component</th>
+      <th>Package</th>
+      <th>Data Contract</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>WqlComposer</code></td>
+      <td><code>@bitcobblers/wod-wiki-ui</code></td>
+      <td>Controlled (<code>query</code>, <code>onQueryChange</code>) or uncontrolled (<code>initialQuery</code>). Pass an optional <code>execute: WqlExecutor</code> to enable live stage-count diagnostics.</td>
+    </tr>
+    <tr>
+      <td><code>DashboardView</code></td>
+      <td><code>@bitcobblers/wod-wiki-ui</code></td>
+      <td>Consumes a parsed <code>DashboardDocument</code> and an injected <code>executor: QueryExecutor</code>. Authoring actions (<code>onEditWidget</code>, <code>onResizeWidget</code>) are delegated via callbacks.</td>
+    </tr>
+    <tr>
+      <td><code>QueryBlockView</code></td>
+      <td><code>@bitcobblers/wod-wiki-ui</code></td>
+      <td>Renders <code>```query</code> fence bodies (<code>:note</code>, <code>:rows</code>, or aggregate pipelines) through an injected <code>QueryExecutor</code>.</td>
+    </tr>
+    <tr>
+      <td><code>NoteEditor</code></td>
+      <td><code>apps/playground</code></td>
+      <td>Full single-document CodeMirror 6 organism with inline previews, frontmatter companions, autocomplete, and inline/fullscreen workout execution.</td>
+    </tr>
+    <tr>
+      <td><code>RuntimeDebugPanel</code></td>
+      <td><code>apps/playground</code></td>
+      <td>Inspects an <code>IScriptRuntime</code> instance with two views: <strong>Parser</strong> (<code>WorkoutContextPanel</code> AST &amp; statements) and <strong>Stack</strong> (live call stack + per-block memory table).</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 3. Timer Surfaces (3-Tier Architecture)
+
+Workout execution renders across three responsive tiers sharing the same underlying runtime state:
+
+1. **Minimal Tier (`MinimalTimerSurface`)**: Mobile-first (`375×812`) portrait layout. Status strip + hero clock + Stop/Pause/Next control triad. Zero secondary clutter.
+2. **General Tier (`GeneralTimerSurface`)**: TV / Chromecast 16:9 receiver layout. Adds workout header, secondary timers, and up-next movement banner.
+3. **Detail Tier (`TimerStackView` + `VisualStatePanel`)**: Desktop/Workbench split view showing the active call stack, lap/round splits, and live controls.
+
+<table>
+  <thead>
+    <tr>
+      <th>✅ Do</th>
+      <th>❌ Don't</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Drive <code>MinimalTimerSurface</code> and <code>GeneralTimerSurface</code> via <code>TimerSurfaceModel</code> props so they remain pure and testable without a live tick loop.</td>
+      <td>Don't couple presentation surfaces directly to <code>IndexedDB</code> or router state.</td>
+    </tr>
+    <tr>
+      <td>Always call <code>factory.disposeRuntime(runtime)</code> when unmounting a custom runtime harness.</td>
+      <td>Never leak <code>IScriptRuntime</code> instances across re-renders.</td>
+    </tr>
+  </tbody>
+</table>

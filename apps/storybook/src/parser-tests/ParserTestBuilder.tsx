@@ -76,7 +76,7 @@ export function ParserTestBuilder({
   const [composer, setComposer] = useState<{ entryIndex: number; metricIndex: number | null } | null>(null);
 
   const editorHost = useRef<HTMLDivElement>(null);
-  const { setDoc } = useCodeMirror(editorHost, initialScript, 'wql', setScript);
+  const { setDoc } = useCodeMirror(editorHost, initialScript, 'whiteboard', setScript);
 
   const parsed = useMemo(
     () =>

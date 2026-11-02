@@ -1,9 +1,11 @@
 @import "tailwindcss";
 @import "@bitcobblers/wod-wiki-ui/styles.css";
+@import "../../playground/src/index.css";
 @config "../../../tailwind.config.cjs";
 @source "./**";
 @source "../stories/**";
 @source "../../playground/src/**";
+@source "../../playground/app/**";
 @source "../../../packages/ui/src/**";
 
 @layer base {

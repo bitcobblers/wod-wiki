@@ -56,6 +56,10 @@ import {
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { ScriptBlock } from '@bitcobblers/wod-wiki-core';
 import { TimerStackView } from '@/components/organisms/workout/TimerStackView';
+import { RuntimeDebugPanel } from '@/components/organisms/workout/RuntimeDebugPanel';
+import type { ScriptBlock as PlaygroundScriptBlock } from '@/components/Editor/types';
+import { cursorFocusExtension } from '@/app/editor/cursorFocusExtension';
+import { MetricInlinePanel } from '@/components/organisms/editor/MetricInlinePanel';
 import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
 import { VisualStatePanel } from '@/panels/visual-state-panel';
 import { calculateDuration } from '@/lib/timeUtils';
@@ -65,6 +69,9 @@ import { toStoredOutputStatement, type StoredOutputStatement } from '@bitcobbler
 import { completeWorkbenchRun, prepareWorkbenchRun } from './runPersistence';
 import {
   editorPreset,
+  frontmatterPreview,
+  gutterUnified,
+  loadSuggestions,
   sectionField,
   type EditorSection,
   WidgetFrame,
@@ -88,6 +95,7 @@ import {
   type OutputFilterInput,
 } from '@bitcobblers/wod-wiki-ui';
 import { DEFAULT_NOTE } from './presets';
+import { ParserTestBuilder } from '../parser-tests/ParserTestBuilder';
 
 // ── Demo Language Pack (runtime registration proof) ────────────────────────
 
@@ -136,10 +144,78 @@ function useHtmlDark(): boolean {
   return isDark;
 }
 
+const WORKBENCH_EFFORT_OPTIONS = [
+  { value: 'thruster', label: 'Thrusters', detail: 'weightlifting · MET 8.0' },
+  { value: 'pull-up', label: 'Pull-ups', detail: 'gymnastics · MET 8.0' },
+  { value: 'push-up', label: 'Push-ups', detail: 'gymnastics · MET 3.8' },
+  { value: 'air-squat', label: 'Air Squats', detail: 'bodyweight · MET 5.0' },
+  { value: 'back-squat', label: 'Back Squat', detail: 'strength · MET 6.0' },
+  { value: 'front-squat', label: 'Front Squat', detail: 'strength · MET 6.5' },
+  { value: 'deadlift', label: 'Deadlift', detail: 'strength · MET 6.0' },
+  { value: 'romanian-deadlift', label: 'Romanian Deadlift', detail: 'strength · MET 5.5' },
+  { value: 'power-clean', label: 'Power Cleans', detail: 'weightlifting · MET 8.5' },
+  { value: 'clean-and-jerk', label: 'Clean & Jerk', detail: 'weightlifting · MET 9.0' },
+  { value: 'snatch', label: 'Snatch', detail: 'weightlifting · MET 9.0' },
+  { value: 'kettlebell-swing', label: 'Kettlebell Swings', detail: 'kettlebell · MET 9.8' },
+  { value: 'kettlebell-snatch', label: 'KB Snatch', detail: 'kettlebell · MET 10.0' },
+  { value: 'kettlebell-clean-and-press', label: 'KB Clean & Press', detail: 'kettlebell · MET 8.5' },
+  { value: 'burpee', label: 'Burpees', detail: 'bodyweight · MET 8.0' },
+  { value: 'box-jump', label: 'Box Jumps', detail: 'plyometrics · MET 7.5' },
+  { value: 'box-step-up', label: 'Box Step-Up', detail: 'strength · MET 6.0' },
+  { value: 'double-under', label: 'Double Unders', detail: 'gymnastics · MET 9.5' },
+  { value: 'toes-to-bar', label: 'Toes-to-Bar', detail: 'gymnastics · MET 7.0' },
+  { value: 'handstand-push-up', label: 'Handstand Push-ups', detail: 'gymnastics · MET 8.0' },
+  { value: 'muscle-up', label: 'Muscle-ups', detail: 'gymnastics · MET 9.0' },
+  { value: 'rowing', label: 'Row', detail: 'rowing · MET 7.0' },
+  { value: 'running-8-mph', label: 'Run', detail: 'running · MET 9.8' },
+  { value: 'bike-erg', label: 'Bike Erg', detail: 'cycling · MET 6.8' },
+  { value: 'ski-erg', label: 'Ski Erg', detail: 'rowing · MET 7.2' },
+  { value: 'swimming-freestyle', label: 'Freestyle', detail: 'swimming · MET 8.3' },
+  { value: 'swimming-butterfly', label: 'Butterfly', detail: 'swimming · MET 11.0' },
+  { value: 'swimming-individual-medley', label: 'IM', detail: 'swimming · MET 9.5' },
+] as const;
+
+const WORKBENCH_EQUIPMENT_OPTIONS = [
+  { value: 'barbell', label: 'Barbell', detail: 'equipment' },
+  { value: 'kettlebell', label: 'Kettlebell', detail: 'equipment' },
+  { value: 'dumbbell', label: 'Dumbbell', detail: 'equipment' },
+  { value: 'pull-up-bar', label: 'Pull-up Bar', detail: 'equipment' },
+  { value: 'rower', label: 'Rower', detail: 'equipment' },
+  { value: 'bike-erg', label: 'Bike Erg', detail: 'equipment' },
+  { value: 'ski-erg', label: 'Ski Erg', detail: 'equipment' },
+  { value: 'plyo-box', label: 'Plyo Box', detail: 'equipment' },
+  { value: 'gymnastic-rings', label: 'Gymnastic Rings', detail: 'equipment' },
+  { value: 'weight-vest', label: 'Weight Vest', detail: 'equipment' },
+] as const;
+
+const WORKBENCH_TAG_OPTIONS = [
+  { value: 'benchmark', label: 'benchmark', detail: 'tag' },
+  { value: 'conditioning', label: 'conditioning', detail: 'tag' },
+  { value: 'strength', label: 'strength', detail: 'tag' },
+  { value: 'kettlebell', label: 'kettlebell', detail: 'tag' },
+  { value: 'gymnastics', label: 'gymnastics', detail: 'tag' },
+  { value: 'intervals', label: 'intervals', detail: 'tag' },
+  { value: 'emom', label: 'emom', detail: 'tag' },
+  { value: 'amrap', label: 'amrap', detail: 'tag' },
+] as const;
+
+const WORKBENCH_SOUND_OPTIONS = [
+  { value: 'classic-beep', label: 'Classic Gym Beep' },
+  { value: 'boxing-bell', label: 'Boxing Bell' },
+  { value: 'sonar-ping', label: 'Sonar Ping' },
+] as const;
+
+const WORKBENCH_WHITEBOARD_COMPLETION = {
+  efforts: () => WORKBENCH_EFFORT_OPTIONS,
+  equipment: () => WORKBENCH_EQUIPMENT_OPTIONS,
+  tags: () => WORKBENCH_TAG_OPTIONS,
+  sounds: () => WORKBENCH_SOUND_OPTIONS,
+};
+
 export function useCodeMirror(
   host: React.RefObject<HTMLDivElement | null>,
   doc: string,
-  dialect: 'wql',
+  dialect: 'wql' | 'whiteboard' | 'wod' | 'time',
   onChange: (next: string) => void,
 ): { setDoc: (next: string) => void } {
   const cb = useRef(onChange);
@@ -153,7 +229,7 @@ export function useCodeMirror(
       state: EditorState.create({
         doc,
         extensions: [
-          ...editorPreset({ dialect, isDark }),
+          ...editorPreset({ dialect, isDark, whiteboardScript: WORKBENCH_WHITEBOARD_COMPLETION }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) cb.current(u.state.doc.toString());
           }),
@@ -187,19 +263,32 @@ export function computeNoteSections(doc: string): EditorSection[] {
 }
 
 /**
- * Note editor mount — markdown preset (sections, syntax hiding, linting,
- * completions) exactly like the playground note page. Reports the doc and its
- * parsed sections on every keystroke.
+ * Note editor mount — full Playground parity: markdown preset (sections,
+ * syntax hiding, linting, catalog-backed WQL & Whiteboard Script completions),
+ * token-level semantic metric color underlines (`cursorFocusExtension`),
+ * `frontmatterPreview`, `gutterUnified`, and cursor-version tracking so
+ * `<MetricInlinePanel>` renders below the active workout line.
  */
 export function useNoteEditor(
   host: React.RefObject<HTMLDivElement | null>,
   doc: string,
   onChange: (next: string, sections: EditorSection[]) => void,
-): { setDoc: (next: string) => void } {
+): { setDoc: (next: string) => void; view: EditorView | null; cursorVersion: number } {
   const cb = useRef(onChange);
   cb.current = onChange;
   const viewRef = useRef<EditorView | null>(null);
+  const [viewInstance, setViewInstance] = useState<EditorView | null>(null);
+  const [cursorVersion, setCursorVersion] = useState(0);
   const isDark = useHtmlDark();
+  const wqlExecutor = useMemo<QueryExecutor>(() => {
+    const svc = buildServiceForJournal(JOURNALS.crossfit);
+    const newest = Math.max(...JOURNALS.crossfit.records.map((r) => r.timestamp));
+    return {
+      runQuery: (q, opts) => svc.runQuery(q, { rangeEnd: newest, ...opts }),
+      runFind: (parsed, opts) => svc.runFind(parsed, { anchorNow: newest, ...opts }),
+      runRows: (parsed, opts) => svc.runRows(parsed, { anchorNow: newest, ...opts }),
+    };
+  }, []);
 
   useEffect(() => {
     if (!host.current) return;
@@ -207,10 +296,25 @@ export function useNoteEditor(
       state: EditorState.create({
         doc,
         extensions: [
-          ...editorPreset({ dialect: 'markdown', isDark }),
+          ...editorPreset({
+            dialect: 'markdown',
+            isDark,
+            executor: wqlExecutor,
+            whiteboardScript: WORKBENCH_WHITEBOARD_COMPLETION,
+            tagTypeValues: async (key) =>
+              (await loadSuggestions(key === 'tags' ? 'tag' : key)).map((item) => item.value),
+            extensions: [
+              frontmatterPreview,
+              cursorFocusExtension,
+              ...gutterUnified,
+            ],
+          }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) {
               cb.current(u.state.doc.toString(), u.state.field(sectionField).sections);
+            }
+            if (u.selectionSet || u.docChanged) {
+              setCursorVersion((v) => v + 1);
             }
           }),
         ],
@@ -218,6 +322,7 @@ export function useNoteEditor(
       parent: host.current,
     });
     viewRef.current = view;
+    setViewInstance(view);
     const mount = host.current as unknown as { __codemirrorView?: EditorView };
     mount.__codemirrorView = view;
     cb.current(view.state.doc.toString(), view.state.field(sectionField).sections);
@@ -225,8 +330,9 @@ export function useNoteEditor(
       delete mount.__codemirrorView;
       view.destroy();
       viewRef.current = null;
+      setViewInstance(null);
     };
-  }, [doc, isDark, host]);
+  }, [doc, isDark, host, wqlExecutor]);
   const setDoc = useCallback((next: string) => {
     const view = viewRef.current;
     if (view && view.state.doc.toString() !== next) {
@@ -236,7 +342,7 @@ export function useNoteEditor(
     }
   }, []);
 
-  return { setDoc };
+  return { setDoc, view: viewInstance, cursorVersion };
 }
 
 export interface ParseStats {
@@ -1937,6 +2043,8 @@ export interface LanguageWorkbenchProps {
   showWqlLane?: boolean;
   /** Show or hide 2x2 debug grid (defaults to true) */
   showDebugGrid?: boolean;
+  /** Show or hide the inline Parser Test Builder & Golden Diff panel (defaults to true) */
+  showParserTestPanel?: boolean;
   /** Opt-in run persistence: finished runs are stored as Sessions in the active database under this note. */
   runNote?: { id: string; title: string; persistRuns?: boolean };
   /** Optional custom test ID override */
@@ -1951,6 +2059,7 @@ export function LanguageWorkbench({
   dashboards = DEFAULT_DASHBOARD_QUERIES,
   showWqlLane = true,
   showDebugGrid = true,
+  showParserTestPanel = true,
   runNote,
   'data-testid': testId = 'language-workbench',
 }: LanguageWorkbenchProps = {}) {
@@ -2010,7 +2119,7 @@ export function LanguageWorkbench({
   }, [runSource, activeBlock]);
 
   const noteHost = useRef<HTMLDivElement>(null);
-  useNoteEditor(noteHost, initialNote, (next, sections) => {
+  const { view: noteEditorView, cursorVersion: noteCursorVersion } = useNoteEditor(noteHost, initialNote, (next, sections) => {
     setNoteText(next);
     setNoteSections(sections);
   });
@@ -2257,9 +2366,10 @@ export function LanguageWorkbench({
         <div className="lg:col-span-2 rounded-xl border border-border/70 bg-card/40 backdrop-blur-xs p-3.5 flex flex-col gap-3 shadow-xs">
           <div
             ref={noteHost}
-            className="min-h-72 overflow-hidden rounded-lg border border-border/60 bg-background/70 shadow-inner"
+            className="cm-note-editor min-h-72 overflow-hidden rounded-lg border border-border/60 bg-background/70 shadow-inner"
             data-testid="script-editor-host"
           />
+          <MetricInlinePanel view={noteEditorView} cursorVersion={noteCursorVersion} />
 
           {/* Time-block selector tabs (only if multiple blocks) */}
           {timeBlocks.length > 1 && (
@@ -2301,8 +2411,8 @@ export function LanguageWorkbench({
           )}
         </div>
 
-        {/* Right (1/3 width): Compiled Statements */}
-        <div className="lg:col-span-1">
+        {/* Right (1/3 width): Compiled Statements & Playground RuntimeDebugPanel */}
+        <div className="lg:col-span-1 flex flex-col gap-4">
           {runtime ? (
             <ScriptRuntimeProvider runtime={runtime}>
               <ActiveStatementStrip
@@ -2318,6 +2428,26 @@ export function LanguageWorkbench({
               blockLabel={activeBlock?.label}
             />
           )}
+          <div className="h-[360px] rounded-xl border border-border/70 bg-card/40 overflow-hidden shadow-xs" data-testid="workbench-playground-debugger">
+            <RuntimeDebugPanel
+              runtime={runtime as unknown as Parameters<typeof RuntimeDebugPanel>[0]['runtime']}
+              isOpen={true}
+              onClose={() => {}}
+              embedded={true}
+              activeBlock={{
+                id: activeBlock?.section.id ?? 'workbench-workout',
+                dialect: 'time',
+                startLine: activeBlock?.section.startLine ?? 0,
+                endLine: activeBlock?.section.endLine ?? 0,
+                content: runSource,
+                statements: parse.script?.statements ?? [],
+                state: 'idle',
+                version: 1,
+                createdAt: 0,
+                widgetIds: {},
+              } as PlaygroundScriptBlock}
+            />
+          </div>
         </div>
       </section>
 
@@ -2366,6 +2496,32 @@ export function LanguageWorkbench({
         ) : (
           <IdleDebugGrid script={parse.script} parseError={parse.error} controlsProps={controlsProps} />
         )
+      )}
+      {/* ── Section 6: Inline Parser Test Builder & Expectation Diff ── */}
+      {showParserTestPanel && (
+        <section
+          className="rounded-xl border border-border/70 bg-card/30 backdrop-blur-xs p-5 flex flex-col gap-3 shadow-xs"
+          data-testid="workbench-parser-test-section"
+        >
+          <div className="flex items-center justify-between border-b border-border/50 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+                  Parser Test Builder &amp; Golden Expectation Diff
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Seeded from the active workout block — curate expected metric chips per line and export golden JSON fixtures.
+                </p>
+              </div>
+            </div>
+          </div>
+          <ParserTestBuilder
+            key={runSource}
+            initialScript={runSource}
+            fileTitle={activeBlock?.label || 'workbench-parser-test'}
+          />
+        </section>
       )}
     </div>
   );

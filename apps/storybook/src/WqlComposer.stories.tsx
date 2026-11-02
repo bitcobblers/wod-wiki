@@ -48,13 +48,23 @@ import { isFindQuery } from '@bitcobblers/wod-wiki-engine';
 import { JOURNALS, buildServiceForJournal } from './gallery/journals';
 
 const meta: Meta<typeof WqlComposer> = {
-  title: 'Gallery/WQL Composer',
+  id: 'gallery-wql-composer',
+  title: 'Packages/UI/WQL Composer',
   component: WqlComposer,
   parameters: { layout: 'padded' },
+  args: {
+    initialQuery: ':note{tags:benchmark} last 8w',
+    showDiagnostics: true,
+    compact: false,
+  },
+  argTypes: {
+    initialQuery: { control: 'text', description: 'Initial WQL query string' },
+    showDiagnostics: { control: 'boolean', description: 'Show the live stage-count diagnostics strip' },
+    compact: { control: 'boolean', description: 'Compact single-row composer styling' },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof WqlComposer>;
-
 // ── Live corpus executor ─────────────────────────────────────────────────────
 // The gallery's round trip (journal fixtures → inMemoryEventStore →
 // QueryService) drives stage counts, so every host story shows real numbers.
@@ -72,11 +82,10 @@ const liveExecute: WqlExecutor = async (ast: AnyParsedQuery) => {
 };
 
 // ── Interaction model ────────────────────────────────────────────────────────
-
 export const Default: Story = {
-  render: () => (
+  render: (args) => (
     <div className="max-w-3xl">
-      <WqlComposer />
+      <WqlComposer {...args} execute={liveExecute} />
     </div>
   ),
 };
@@ -251,7 +260,7 @@ const LibraryHarness: React.FC = () => {
     setScope(next);
     const window = wql.match(/last \S+/)?.[0] ?? '';
     const filters = next === 'all' ? '' : `{source:${next}}`;
-    setWql(`:note${window ? ` ${window}` : ''}`);
+    setWql(`:note${filters}${window ? ` ${window}` : ''}`);
   };
 
   return (

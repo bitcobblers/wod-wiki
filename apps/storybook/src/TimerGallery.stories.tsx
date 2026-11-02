@@ -70,13 +70,6 @@ function AutoAdvance() {
   return null;
 }
 
-const meta: Meta = {
-  title: 'Gallery/Timer Screen',
-  parameters: { layout: 'fullscreen' },
-};
-export default meta;
-type Story = StoryObj;
-
 /** Sequential duration segments — the plain countdown clock. */
 const COUNTDOWN_SCRIPT = ['5:00 Row', '10:00 Bike Erg'].join('\n');
 
@@ -95,32 +88,56 @@ const AMRAP_SCRIPT = ['AMRAP 20', '  5 Pull-ups', '  10 Push-ups', '  15 Air Squ
 /** Work/rest interval used for the auto-advanced running state. */
 const RUNNING_INTERVAL_SCRIPT = ['(5)', '  :40 Work', '  *:20 Rest'].join('\n');
 
+const meta: Meta<{ script: string; autoStart: boolean; autoAdvance: boolean }> = {
+  id: 'gallery-timer-screen',
+  title: 'Playground/Organisms/Workout/Fullscreen Timer',
+  parameters: { layout: 'fullscreen' },
+  args: {
+    script: COUNTDOWN_SCRIPT,
+    autoStart: false,
+    autoAdvance: false,
+  },
+  argTypes: {
+    script: { control: 'text', description: 'Whiteboard Script executed by the fullscreen timer' },
+    autoStart: { control: 'boolean', description: 'Start runtime loop immediately on mount' },
+    autoAdvance: { control: 'boolean', description: 'Auto-advance past the WaitingToStart gate' },
+  },
+};
+export default meta;
+type Story = StoryObj<typeof meta>;
+
 /** Plain countdown — two sequential duration segments queued on the stack. */
 export const Countdown: Story = {
-  render: () => <TimerStage id="gallery-countdown" script={COUNTDOWN_SCRIPT} />,
+  args: { script: COUNTDOWN_SCRIPT },
+  render: (args) => <TimerStage id="gallery-countdown" script={args.script} autoStart={args.autoStart} autoAdvance={args.autoAdvance} />,
 };
 
 /** Rounds with forced rest — shows the round counter and rest-segment styling. */
 export const IntervalsWithRest: Story = {
-  render: () => <TimerStage id="gallery-interval-rest" script={INTERVAL_REST_SCRIPT} />,
+  args: { script: INTERVAL_REST_SCRIPT },
+  render: (args) => <TimerStage id="gallery-interval-rest" script={args.script} autoStart={args.autoStart} autoAdvance={args.autoAdvance} />,
 };
 
 /** EMOM — every minute on the minute, laps composed inside each window. */
 export const Emom: Story = {
-  render: () => <TimerStage id="gallery-emom" script={EMOM_SCRIPT} />,
+  args: { script: EMOM_SCRIPT },
+  render: (args) => <TimerStage id="gallery-emom" script={args.script} autoStart={args.autoStart} autoAdvance={args.autoAdvance} />,
 };
 
 /** For time — count-up clock with a fixed round target. */
 export const ForTime: Story = {
-  render: () => <TimerStage id="gallery-for-time" script={FOR_TIME_SCRIPT} />,
+  args: { script: FOR_TIME_SCRIPT },
+  render: (args) => <TimerStage id="gallery-for-time" script={args.script} autoStart={args.autoStart} autoAdvance={args.autoAdvance} />,
 };
 
 /** AMRAP — capped countdown with open-ended rounds. */
 export const Amrap: Story = {
-  render: () => <TimerStage id="gallery-amrap" script={AMRAP_SCRIPT} />,
+  args: { script: AMRAP_SCRIPT },
+  render: (args) => <TimerStage id="gallery-amrap" script={args.script} autoStart={args.autoStart} autoAdvance={args.autoAdvance} />,
 };
 
 /** Running clock — starts the runtime and advances past the gate on load. */
 export const RunningIntervals: Story = {
-  render: () => <TimerStage id="gallery-running" script={RUNNING_INTERVAL_SCRIPT} autoAdvance autoStart />,
+  args: { script: RUNNING_INTERVAL_SCRIPT, autoStart: true, autoAdvance: true },
+  render: (args) => <TimerStage id="gallery-running" script={args.script} autoStart={args.autoStart} autoAdvance={args.autoAdvance} />,
 };

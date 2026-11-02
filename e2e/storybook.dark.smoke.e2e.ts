@@ -13,7 +13,7 @@ import { test, expect, type Page } from '@playwright/test';
 const STORIES = [
   'gallery-wql-composer--default',
   'gallery-wql-example-gallery--value-section',
-  'workbench-benchmark-fran--standard-couplet',
+  'playground--for-time-starter',
   // Database-driven stories — the landing page and the pages that read the
   // active database.
   'database--indexed-db-selection',
