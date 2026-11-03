@@ -75,7 +75,7 @@ function DashboardHarness({ markdown, editMode, preferredUnit }: DashboardStoryA
 }
 
 const meta: Meta<DashboardStoryArgs> = {
-  title: 'Packages/UI/DashboardView',
+  title: 'Packages/UI/Widgets/DashboardView',
   component: DashboardHarness,
   args: {
     markdown: DEFAULT_DASHBOARD_MARKDOWN,

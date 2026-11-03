@@ -28,28 +28,23 @@ Stories mirror the monorepo's package and directory boundaries so you can jump d
     </tr>
     <tr>
       <td><strong>2. Packages / UI</strong></td>
-      <td><code>packages/ui/src/&#123;composer,widgets,blocks&#125;/</code></td>
-      <td>State-free, zero-IndexedDB components exported by <code>@bitcobblers/wod-wiki-ui</code> (<code>WqlComposer</code>, <code>DashboardView</code>, <code>QueryBlockView</code>, <code>OutputStatementsTable</code>, and the 15 WQL chart widgets).</td>
+      <td><code>packages/ui/src/&#123;composer,widgets,blocks,dialog&#125;/</code></td>
+      <td>Shared, state-free components exported by <code>@bitcobblers/wod-wiki-ui</code> grouped by source directory: <strong>Composer</strong> (<code>WqlComposer</code>), <strong>Widgets</strong> (<code>DashboardView</code>), <strong>Blocks</strong> (<code>QueryBlockView</code>, <code>OutputStatementsTable</code>, <code>WQL Example Gallery</code>), and <strong>Dialog</strong>.</td>
     </tr>
     <tr>
-      <td><strong>3. Playground / Molecules</strong></td>
-      <td><code>apps/playground/src/components/&#123;atoms,molecules&#125;/</code></td>
-      <td>Primitives (<code>Button</code>, <code>Badge</code>), record-type icons (<code>DefaultListItem</code>), result rows (<code>ResultListItem</code>), and action menus (<code>WorkoutActionButton</code>).</td>
+      <td><strong>3. Playground</strong></td>
+      <td><code>apps/playground/&#123;src/components,app/views,app/nav&#125;/</code></td>
+      <td>Starts at <a href="?path=/docs/playground-overview--docs"><strong>Playground / Overview</strong></a> (content types, views &amp; navigation map), followed by source-mirrored tiers: <strong>Atoms</strong>, <strong>Molecules</strong>, <strong>Organisms</strong> (<code>Editor</code>, <code>Workout</code>), <strong>Views</strong>, and <strong>Navigation</strong>.</td>
     </tr>
     <tr>
-      <td><strong>4. Playground / Organisms</strong></td>
-      <td><code>apps/playground/src/components/organisms/&#123;editor,workout&#125;/</code></td>
-      <td>Feature organisms: <code>NoteEditor</code> (CodeMirror 6 single-document editor), <code>RuntimeDebugPanel</code> (live parser AST + stack/memory inspector), <code>WorkoutContextPanel</code>, <code>MinimalTimerSurface</code>, <code>GeneralTimerSurface</code>, and <code>FullscreenTimer</code>.</td>
+      <td><strong>4. Shared Resources</strong></td>
+      <td><code>apps/storybook/src/&#123;database,gallery,screens/data,views&#125;/</code></td>
+      <td>Foundational data planes shared across stories: <a href="?path=/docs/shared-resources-seed-database--docs"><strong>Seed &amp; Database</strong></a> (how <code>parameters: &#123; database: true &#125;</code> and IndexedDB seed sync work) and <a href="?path=/docs/shared-resources-fixtures-gallery--docs"><strong>Fixtures &amp; Gallery</strong></a> (the in-memory corpus journals, gallery manifest, and screen/entry fixture builders).</td>
     </tr>
     <tr>
       <td><strong>5. Workbench</strong></td>
-      <td><code>apps/storybook/src/workbench/</code></td>
-      <td>Integrated development &amp; debugging environment combining the editor, wall-clock timer, <code>RuntimeDebugPanel</code>, and live workouts from the synced feed/seed library.</td>
-    </tr>
-    <tr>
-      <td><strong>6. ParserTests</strong></td>
-      <td><code>apps/storybook/src/parser-tests/</code></td>
-      <td>Golden fixture runner and interactive DSL test builder for <code>@bitcobblers/wod-wiki-lang</code>.</td>
+      <td><code>apps/storybook/src/&#123;workbench,parser-tests,data,sessions&#125;/</code></td>
+      <td>Interactive developer tools and harnesses: <strong>Language Workbench</strong>, <strong>Parser Tests</strong> (Test Builder &amp; Runner), and <strong>Database &amp; Storage</strong> explorers (IndexedDB Selection, Data Explorer, Session Explorer).</td>
     </tr>
   </tbody>
 </table>

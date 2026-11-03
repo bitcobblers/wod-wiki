@@ -13,7 +13,7 @@ const executor: QueryExecutor = {
 };
 
 const meta: Meta<typeof QueryBlockView> = {
-  title: 'Packages/UI/QueryBlockView',
+  title: 'Packages/UI/Blocks/QueryBlockView',
   component: QueryBlockView,
   args: {
     query: 'sum:totalVolume{} by {week} last 8w',

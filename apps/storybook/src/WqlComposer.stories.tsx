@@ -49,7 +49,7 @@ import { JOURNALS, buildServiceForJournal } from './gallery/journals';
 
 const meta: Meta<typeof WqlComposer> = {
   id: 'gallery-wql-composer',
-  title: 'Packages/UI/WQL Composer',
+  title: 'Packages/UI/Composer/WQL Composer',
   component: WqlComposer,
   parameters: { layout: 'padded' },
   args: {

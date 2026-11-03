@@ -138,7 +138,7 @@ function OutputTableHarness({ filter: initialFilter, showFilterPills }: OutputTa
 }
 
 const meta: Meta<OutputTableStoryArgs> = {
-  title: 'Packages/UI/OutputStatementsTable',
+  title: 'Packages/UI/Blocks/OutputStatementsTable',
   component: OutputTableHarness,
   args: {
     filter: '',

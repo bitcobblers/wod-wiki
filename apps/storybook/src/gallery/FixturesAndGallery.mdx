@@ -1,0 +1,73 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Shared Resources/Fixtures & Gallery" />
+
+# Shared Fixtures & Gallery Architecture
+
+Component stories in **Packages / UI** and **Playground** run in-memory without IndexedDB overhead. They share three deterministic fixture layers colocated in `apps/storybook/src/` and guarded by unit tests in `apps/storybook/test/`.
+
+---
+
+## 1. Corpus Journals & Analytics Gallery (`src/gallery/`)
+
+The WQL and analytics stories (`WqlComposer`, `DashboardView`, `QueryBlockView`, and `WQL Example Gallery`) execute real WQL queries through `QueryService` over four multi-week training journals from `packages/wql/fixtures/corpus/`:
+
+<table>
+  <thead>
+    <tr>
+      <th>Journal Key</th>
+      <th>Fixture Source</th>
+      <th>Domain Coverage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>JOURNALS.crossfit</code></td>
+      <td><code>packages/wql/fixtures/corpus/crossfit-multi-week.json</code></td>
+      <td>Barbell weightlifting, gymnastics couplets/triplets, benchmark WODs, TIS, and volume rollups.</td>
+    </tr>
+    <tr>
+      <td><code>JOURNALS.endurance</code></td>
+      <td><code>packages/wql/fixtures/corpus/endurance-block.json</code></td>
+      <td>Monostructural rowing/running intervals, distance/pace metrics, and polarized zone splits.</td>
+    </tr>
+    <tr>
+      <td><code>JOURNALS.wellness</code></td>
+      <td><code>packages/wql/fixtures/corpus/mixed-wellness.json</code></td>
+      <td>Sleep, recovery, mobility, and daily readiness scalar metrics.</td>
+    </tr>
+    <tr>
+      <td><code>JOURNALS.climb</code></td>
+      <td><code>packages/wql/fixtures/corpus/climb-yoga.json</code></td>
+      <td>3-tier intensity distributions (<code>low</code> / <code>moderate</code> / <code>high</code>) for stacked-bar and zone charts.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Key Exports
+
+- **`buildServiceForJournal(journal)`** (`apps/storybook/src/gallery/journals.ts`): Returns a ready-to-query `QueryService` backed by `inMemoryEventStore`, `deriveBlockIndex(journal)`, and `bundledEfforts`.
+- **`GALLERY_CARDS` & `SECTION_META`** (`apps/storybook/src/gallery/galleryManifest.ts`): Typed manifest of curated WQL cards covering every `DASHBOARD_WIDGET_TYPE`, all 7 aggregators, `by {day}` / `by {week}` rollups, unit conversions (`kg`/`lb`), `:rows`, `:find`, and error/loading edge states.
+- **Mechanical Guard**: `apps/storybook/test/galleryManifest.test.ts` fails if any widget type, aggregator, journal, or query family loses coverage.
+- **Interactive Story**: <a href="?path=/story/gallery-wql-example-gallery--auto-inference"><code>Packages / UI / Blocks / WQL Example Gallery</code></a>.
+
+---
+
+## 2. Playground Entry & Feed Catalog Fixtures (`src/views/entryFixtures.ts`)
+
+The Playground View and Navigation stories (`LibraryRow & Entry Types`, `Stream, Table & Feed Cards`, `Calendar Agenda & Planner`, and `Navigation & Menus`) share canonical `Entry` projections (`apps/storybook/src/views/entryFixtures.ts`):
+
+- **`ALL_ENTRY_FLAVORS`**: All 12 `Entry` flavors (`JOURNAL_NOTE_ENTRY`, `NOTEBOOK_WORKOUT_ENTRY`, `NOTEBOOK_LANDING_ENTRY`, `PLAYGROUND_SCRATCHPAD_ENTRY`, `GUIDE_DOC_ENTRY`, `BLOCK_HIT_ENTRY`, `RESULT_ENTRY`, `SEGMENT_ENTRY`, `EFFORT_ENTRY`, `DASHBOARD_ENTRY`, `EQUIPMENT_ENTRY`, `TAG_ENTRY`).
+- **`SAMPLE_FEED_SUMMARIES`**: Realistic feed cards (Core Library, CrossFit Girls, Hero WODs, Kettlebell Tactical, Olympic Weightlifting, Endurance).
+- **`SAMPLE_NOTEBOOK_TARGETS`**: Destination notebooks for "Move to Notebook" actions.
+
+---
+
+## 3. Immutable Note & Session Revision Builders (`src/screens/data/`)
+
+For editor and block-revision stories (`NoteEditor` and `OutputStatementsTable`), `apps/storybook/src/screens/data/` provides version-pinned `Note`, `BlockRevision`, and session event streams:
+
+- **`note-editor.ts`**: Multi-revision workout note (`v1` → `v2`) demonstrating how prose edits stay on the `Note` while fenced `time` workout edits mint immutable `BlockRevision`s.
+- **`journal-date-stack.ts`**: Multi-day journal note stack with reconciled actionable block ranges (`wod`, `query`, `widget`, `embed`).
+- **`session-detail.ts`**: Recorded workout session pinned to a specific `BlockRevision` with segment and effort telemetry events.
+- **Mechanical Guard**: `apps/storybook/test/noteFixtures.test.ts` validates block offsets, revision immutability, and WQL `:block` / `:segment` indexing across these fixtures.

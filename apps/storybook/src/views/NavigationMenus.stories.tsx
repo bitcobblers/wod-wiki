@@ -140,7 +140,7 @@ interface NavigationStoryArgs {
 }
 
 const meta: Meta<NavigationStoryArgs> = {
-  title: 'Playground/Navigation & Menus',
+  title: 'Playground/Navigation/Navigation & Menus',
   parameters: {
     layout: 'fullscreen',
   },

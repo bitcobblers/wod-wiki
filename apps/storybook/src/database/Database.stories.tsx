@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { DatabaseSelectionPage } from './database/DatabaseSelectionPage';
+import { DatabaseSelectionPage } from './DatabaseSelectionPage';
 
 const meta: Meta = {
   id: 'database',

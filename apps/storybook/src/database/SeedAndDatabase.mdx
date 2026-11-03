@@ -1,0 +1,100 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Shared Resources/Seed & Database" />
+
+# Seed & Database Plane (`parameters: { database: true }`)
+
+Storybook runs two distinct data planes so component tests stay fast while workbench tools exercise the real Playground storage stack:
+
+1. **In-Memory Isolation (Default)**: Stories mount without IndexedDB or network sync. They use deterministic in-memory fixtures (`JOURNALS`, `entryFixtures`, `note-editor`, or `MockContentProvider`).
+2. **Opt-In Seed & IndexedDB Plane (`parameters: { database: true }`)**: Stories that test persistence, live feed syncing, or multi-database switching opt into `DatabaseProvider` via Storybook parameters.
+
+---
+
+## 1. How the Opt-In Decorator Works
+
+In `apps/storybook/.storybook/preview.tsx`, the global decorator inspects `context.parameters?.database`:
+
+```tsx
+// apps/storybook/.storybook/preview.tsx
+(Story, context) => {
+  if (context.parameters?.database) {
+    return (
+      <DatabaseProvider>
+        <Story />
+      </DatabaseProvider>
+    );
+  }
+  return <Story />;
+}
+```
+
+When `parameters: { database: true }` is set on a story's `meta` (or individual story):
+
+1. `DatabaseProvider` (`apps/storybook/src/database/DatabaseContext.tsx`) waits for `whenStorageReady()` on the active IndexedDB database (default: `wodwiki-db`).
+2. It runs `runBootFeedSync()` once per database to import the compiled core seed artifact (`/seed/core/manifest.json` + NDJSON chunks emitted by `scripts/sync-seed.ts` into `apps/storybook/public/seed`).
+3. It exposes `useDatabase()` so the story can read `activeName`, `databases`, `feed`, `feedSources`, `selectDatabase()`, `createDatabase()`, and `importFeedSource()`.
+
+---
+
+## 2. Opting In from a Story
+
+```tsx
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { useDatabase } from '../database/DatabaseContext';
+
+const meta: Meta = {
+  title: 'Workbench/My Seeded Tool',
+  parameters: {
+    layout: 'padded',
+    database: true, // Mounts DatabaseProvider + syncs /seed/core into IndexedDB
+  },
+};
+export default meta;
+```
+
+---
+
+## 3. Source Files & Workbench Explorers
+
+<table>
+  <thead>
+    <tr>
+      <th>Resource / Tool</th>
+      <th>Location / Link</th>
+      <th>Role</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Seed Sync Build Script</strong></td>
+      <td><code>scripts/sync-seed.ts</code></td>
+      <td>Compiles <code>markdown/</code> into <code>apps/storybook/public/seed/core</code> before <code>storybook dev</code> or <code>storybook build</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Database Context &amp; Provider</strong></td>
+      <td><code>apps/storybook/src/database/DatabaseContext.tsx</code></td>
+      <td>Manages active IndexedDB selection, boot seed import, and on-demand community feed imports.</td>
+    </tr>
+    <tr>
+      <td><strong>IndexedDB Selection</strong></td>
+      <td><a href="?path=/story/database--indexed-db-selection"><code>Workbench / Database &amp; Storage / IndexedDB Selection</code></a></td>
+      <td>Switch active IndexedDB databases, create scratch databases, and import community workout feeds (Hero WODs, CrossFit Girls, Kettlebell, etc.).</td>
+    </tr>
+    <tr>
+      <td><strong>Feed-Backed Workbench</strong></td>
+      <td><a href="?path=/story/playground--library-page"><code>Workbench / Language Workbench / Feed-Backed Library</code></a></td>
+      <td>Browse synced notes via WQL or Command Palette (<code>Ctrl+/</code>), run workouts in the wall-clock runtime, and persist sessions to IndexedDB.</td>
+    </tr>
+    <tr>
+      <td><strong>Data Explorer</strong></td>
+      <td><a href="?path=/story/data--wql-library-search"><code>Workbench / Database &amp; Storage / Data Explorer</code></a></td>
+      <td>Run live WQL queries against the active IndexedDB and generate persistent Dashboard notes.</td>
+    </tr>
+    <tr>
+      <td><strong>Session Explorer</strong></td>
+      <td><a href="?path=/story/sessions--session-explorer"><code>Workbench / Database &amp; Storage / Session Explorer</code></a></td>
+      <td>Inspect recorded workout sessions and telemetry events stored in the active IndexedDB.</td>
+    </tr>
+  </tbody>
+</table>

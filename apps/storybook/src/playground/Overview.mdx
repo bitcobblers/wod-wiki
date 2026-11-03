@@ -1,15 +1,82 @@
 import { Meta } from '@storybook/addon-docs/blocks';
 
-<Meta title="Design System/Content Types, Views & Navigation" />
+<Meta title="Playground/Overview" />
 
-# Content Types, Library Views & Navigation Architecture
+# Playground Overview — Content Types, Views & Navigation
 
 Every record in the WOD.wiki Playground is projected through a unified **`Entry`** model (`apps/playground/app/lib/entryMapper.ts`). How an entry looks—its icon, semantic color badge, metadata chips, inline preview, and action buttons—is determined by its **`EntryKind`** and **`sourceNotebook`**.
 
 ---
 
-## 1. The 12 Content Types & Note Flavors (`LibraryRow`)
+## 1. Playground Surface → Story → Source Map
 
+Every Playground surface in Storybook maps directly to its source tier in `apps/playground/`:
+
+<table>
+  <thead>
+    <tr>
+      <th>Tier / Surface</th>
+      <th>Storybook Path</th>
+      <th>Source Path</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Molecules · Result List Item</strong></td>
+      <td><a href="?path=/story/playground-molecules-resultlistitem--single-result-row"><code>Playground / Molecules / ResultListItem</code></a></td>
+      <td><code>apps/playground/src/components/molecules/ResultListItem.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Molecules · Record Type Icons</strong></td>
+      <td><a href="?path=/story/gallery-record-type-icons--all-record-types"><code>Playground / Molecules / Record Type Icons</code></a></td>
+      <td><code>apps/playground/src/components/molecules/DefaultListItem.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Organisms · Editor · NoteEditor</strong></td>
+      <td><a href="?path=/story/screens--universal-note-editor"><code>Playground / Organisms / Editor / NoteEditor</code></a></td>
+      <td><code>apps/playground/src/components/organisms/editor/NoteEditor.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Organisms · Workout · RuntimeDebugPanel</strong></td>
+      <td><a href="?path=/story/playground-organisms-workout-runtimedebugpanel--embedded-debugger"><code>Playground / Organisms / Workout / RuntimeDebugPanel</code></a></td>
+      <td><code>apps/playground/src/components/organisms/workout/RuntimeDebugPanel.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Organisms · Workout · Timer Surfaces</strong></td>
+      <td><a href="?path=/story/gallery-timer-surfaces--minimal-rest"><code>Playground / Organisms / Workout / Timer Surfaces</code></a></td>
+      <td><code>apps/playground/src/components/organisms/workout/MinimalTimerSurface.tsx</code>, <code>GeneralTimerSurface.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Organisms · Workout · Fullscreen Timer</strong></td>
+      <td><a href="?path=/story/gallery-timer-screen--countdown"><code>Playground / Organisms / Workout / Fullscreen Timer</code></a></td>
+      <td><code>apps/playground/src/components/organisms/review/FullscreenTimer.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Views · LibraryRow &amp; Entry Types</strong></td>
+      <td><a href="?path=/story/playground-views-libraryrow-entry-types--interactive-entry-row"><code>Playground / Views / LibraryRow &amp; Entry Types</code></a></td>
+      <td><code>apps/playground/app/views/library/LibraryRow.tsx</code>, <code>apps/playground/app/lib/entryMapper.ts</code></td>
+    </tr>
+    <tr>
+      <td><strong>Views · Stream, Table &amp; Feed Cards</strong></td>
+      <td><a href="?path=/story/playground-views-stream-table-feed-cards--rich-stream-feed-layout"><code>Playground / Views / Stream, Table &amp; Feed Cards</code></a></td>
+      <td><code>apps/playground/app/views/stream/StreamFeed.tsx</code>, <code>PropertyTable.tsx</code>, <code>NotebookGalleryView.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Views · Calendar Agenda &amp; Planner</strong></td>
+      <td><a href="?path=/story/playground-views-calendar-agenda-planner--month-agenda-layout"><code>Playground / Views / Calendar Agenda &amp; Planner</code></a></td>
+      <td><code>apps/playground/app/views/stream/CalendarAgendaView.tsx</code>, <code>CalendarPlannerView.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Navigation · 4-Zone Shell &amp; Menus</strong></td>
+      <td><a href="?path=/story/playground-navigation-navigation-menus--full-playground-shell-layout"><code>Playground / Navigation / Navigation &amp; Menus</code></a></td>
+      <td><code>apps/playground/app/nav/AppRail.tsx</code>, <code>NavSidebar.tsx</code>, <code>SecondaryNav.tsx</code>, <code>PageActions.tsx</code></td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 2. The 12 Content Types & Note Flavors (`LibraryRow`)
 All list, stream, and agenda surfaces render items via `LibraryRow` (`apps/playground/app/views/library/LibraryRow.tsx`). Even when `kind === 'note'`, the row inspects `sourceNotebook` and `block` payloads so each note flavor carries a distinct visual identity:
 
 <table>
@@ -99,7 +166,7 @@ All list, stream, and agenda surfaces render items via `LibraryRow` (`apps/playg
 
 ---
 
-## 2. The 5 Stream & Library Layout Modes
+## 3. The 5 Stream & Library Layout Modes
 
 Every `QueriableStreamView` route (`/notebooks`, `/journal`, `/efforts`, `/sessions`, `/feeds`) can project its WQL result set into 5 switchable layouts controlled via `StreamControlsNav`:
 
@@ -142,7 +209,7 @@ Every `QueriableStreamView` route (`/notebooks`, `/journal`, `/efforts`, `/sessi
 
 ---
 
-## 3. 4-Zone Shell & Menu Architecture
+## 4. 4-Zone Shell & Menu Architecture
 
 Navigation across the Playground is divided into four coordinated zones sharing a single `MenuSpec` contract (`apps/playground/app/nav/menuModel.ts`):
 

@@ -88,7 +88,13 @@ const AMRAP_SCRIPT = ['AMRAP 20', '  5 Pull-ups', '  10 Push-ups', '  15 Air Squ
 /** Work/rest interval used for the auto-advanced running state. */
 const RUNNING_INTERVAL_SCRIPT = ['(5)', '  :40 Work', '  *:20 Rest'].join('\n');
 
-const meta: Meta<{ script: string; autoStart: boolean; autoAdvance: boolean }> = {
+interface FullscreenTimerStoryArgs {
+  script: string;
+  autoStart: boolean;
+  autoAdvance: boolean;
+}
+
+const meta: Meta<FullscreenTimerStoryArgs> = {
   id: 'gallery-timer-screen',
   title: 'Playground/Organisms/Workout/Fullscreen Timer',
   parameters: { layout: 'fullscreen' },
