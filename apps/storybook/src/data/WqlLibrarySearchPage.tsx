@@ -104,22 +104,31 @@ export function WqlLibrarySearchPage() {
           {result?.notes.map((note) => (
             <li
               key={note.id}
-              className="flex flex-wrap items-baseline gap-x-2 border-b border-border/50 px-3 py-2 last:border-b-0"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-3 py-2 last:border-b-0"
               data-testid="library-search-row"
             >
-              <span className="text-sm font-medium text-primary">{note.title}</span>
-              <span className="text-xs text-muted-foreground" data-testid="library-search-row-date">
-                {formatDateMedium(new Date(note.date ?? note.createdAt))}
-              </span>
-              {note.tags && note.tags.length > 0 && (
-                <span className="flex flex-wrap gap-1" data-testid="library-search-row-tags">
-                  {note.tags.map((tag) => (
-                    <span key={tag} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                      {tag}
-                    </span>
-                  ))}
+              <div className="flex flex-wrap items-baseline gap-x-2 min-w-0">
+                <span className="text-sm font-medium text-primary">{note.title}</span>
+                <span className="text-xs text-muted-foreground" data-testid="library-search-row-date">
+                  {formatDateMedium(new Date(note.date ?? note.createdAt))}
                 </span>
-              )}
+                {note.tags && note.tags.length > 0 && (
+                  <span className="flex flex-wrap gap-1" data-testid="library-search-row-tags">
+                    {note.tags.map((tag) => (
+                      <span key={tag} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                        {tag}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </div>
+              <a
+                href={`/?path=/story/playground--library-page`}
+                className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary hover:bg-primary/20 shrink-0"
+                title="Open Feed Library Explorer Workbench"
+              >
+                Workbench →
+              </a>
             </li>
           ))}
         </ul>
