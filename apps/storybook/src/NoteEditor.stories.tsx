@@ -43,6 +43,31 @@ const NOTE_COMPLETION_SAMPLE = [
   '```',
 ].join('\n');
 
+const THRUSTER_EFFORT_PROPERTY_NOTE = [
+  '---',
+  'id: effort-bundled-thruster',
+  'slug: thruster',
+  'label: Thruster',
+  'aliases:',
+  '  - thrusters',
+  '  - barbell thruster',
+  '  - Weighted Thrusters',
+  'discipline: weightlifting',
+  'intensityTier: high',
+  'metrics.met: 8',
+  'metrics.work: reps * resistance',
+  'summaries.totalWork: sum(work)',
+  '---',
+  '',
+  '# Thruster',
+  '',
+  'Compound front-squat to overhead press. Expand **Properties** above to inspect the three distinct alias pills (`thrusters`, `barbell thruster`, `Weighted Thrusters`), `metrics.met`, and `summaries.totalWork`.',
+  '',
+  '```query',
+  ':note{effort:thruster} last 8w',
+  '```',
+].join('\n');
+
 function NoteEditorSurface({
   doc,
   testId = 'note-editor-host',
@@ -174,4 +199,19 @@ export const UniversalNoteEditor: Story = {
 export const UniversalNoteEditorDialog: Story = {
   name: 'Universal Note Editor Dialog',
   render: (args) => <NoteEditorDialogHarness initialDoc={args.initialDoc} />,
+};
+
+export const EffortPropertyNoteWithAliases: Story = {
+  name: 'Property Note — Effort Aliases, Metrics & Summaries',
+  args: {
+    initialDoc: THRUSTER_EFFORT_PROPERTY_NOTE,
+    mode: 'edit',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByTestId('note-editor-host')).toBeVisible();
+    await expect(canvas.getAllByText('thrusters').length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText('barbell thruster').length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText('Weighted Thrusters').length).toBeGreaterThan(0);
+  },
 };

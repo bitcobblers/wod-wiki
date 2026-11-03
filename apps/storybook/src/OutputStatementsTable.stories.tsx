@@ -62,6 +62,55 @@ const SAMPLE_OUTPUTS: IOutputStatement[] = [
       { type: 'rep', value: 90, origin: 'runtime' },
     ],
   } as unknown as IOutputStatement,
+  {
+    id: 5,
+    outputType: 'segment',
+    sourceBlockKey: 'kb-set-1',
+    sourceStatementId: 4,
+    timeSpan: { started: T0 + 215_000, ended: T0 + 245_000 },
+    metrics: [
+      { type: 'effort', value: 'Kettlebell Swings', origin: 'parser' },
+      { type: 'rep', value: 10, origin: 'runtime' },
+      { type: 'resistance', value: 24, unit: 'kg', image: '24 kg', origin: 'parser' },
+      { type: 'work', value: 240, unit: 'kg', image: '240 kg', origin: 'analyzed', metadata: { canonicalKey: 'work' } },
+      { type: 'power', value: 8, unit: 'kg/s', image: '8 kg/s', origin: 'analyzed', metadata: { canonicalKey: 'power' } },
+    ],
+  } as unknown as IOutputStatement,
+  {
+    id: 6,
+    outputType: 'analytics',
+    sourceBlockKey: 'session',
+    timeSpan: { started: T0, ended: T0 + 245_000 },
+    metrics: [
+      { type: 'label', value: 'totalWork', image: 'totalWork', origin: 'analyzed' },
+      {
+        type: 'totalWork',
+        value: 480,
+        unit: 'kg',
+        image: '480 kg',
+        origin: 'analyzed',
+        metadata: { canonicalKey: 'totalWork' },
+      },
+    ],
+  } as unknown as IOutputStatement,
+  {
+    id: 7,
+    outputType: 'segment',
+    sourceBlockKey: 'missing-dep',
+    sourceStatementId: 5,
+    timeSpan: { started: T0 + 245_000, ended: T0 + 260_000 },
+    metrics: [
+      { type: 'effort', value: 'Thrusters', origin: 'parser' },
+      { type: 'rep', value: 12, origin: 'runtime' },
+      {
+        type: 'diagnostic',
+        value: 'Skipped work: missing resistance',
+        image: 'Skipped work: missing resistance',
+        origin: 'analyzed',
+        metadata: { metricKey: 'work', missing: ['resistance'] },
+      },
+    ],
+  } as unknown as IOutputStatement,
 ];
 
 interface OutputTableStoryArgs {
@@ -125,4 +174,18 @@ export const EmptySession: Story = {
       <OutputStatementsTable outputs={[]} filter="" />
     </div>
   ),
+};
+
+export const PropertyNoteMetricsAndSummaries: Story = {
+  name: 'Property Note Metrics, totalWork Summary & Skipped Dependency',
+  args: {
+    filter: '',
+    showFilterPills: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByTestId('output-statements-story')).toBeVisible();
+    await expect(canvas.getAllByText('480 kg').length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText('Skipped work: missing resistance').length).toBeGreaterThan(0);
+  },
 };

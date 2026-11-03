@@ -159,6 +159,26 @@ export const SWIMMING_IM_NOTE = [
   '```',
 ].join('\n');
 
+/** Property Notes, Metrics & Summaries: Frontmatter equations, #tonnage tag contributions, and workout-level totalWork summary. */
+export const PROPERTY_METRICS_NOTE = [
+  '---',
+  'title: Property Note Metrics & Summaries',
+  'tags: [tonnage]',
+  'metrics.work: reps * resistance',
+  'metrics.power: work / convert(elapsed, s)',
+  'summaries.totalWork: sum(work)',
+  '---',
+  '',
+  '# Property Note Metrics & Summaries',
+  '',
+  'Frontmatter equations (`metrics.work`, `metrics.power`) and `#tonnage` tag contributions evaluate in the Metric Shake-Out Queue; `summaries.totalWork: sum(work)` emits a queryable workout summary.',
+  '',
+  '```time',
+  '(2 Sets)',
+  '  10 Kettlebell Swings 24kg',
+  '```',
+].join('\n');
+
 export interface WorkoutPreset {
   id: string;
   name: string;
@@ -216,5 +236,13 @@ export const WORKOUT_PRESETS: WorkoutPreset[] = [
     badge: 'Swim',
     description: 'Comprehensive 200m IM preparation session with warm-up, stroke focus intervals, and cooldown.',
     markdown: SWIMMING_IM_NOTE,
+  },
+  {
+    id: 'property-metrics',
+    name: 'Property Note Metrics & Summaries',
+    category: 'Analytics',
+    badge: 'Shake-Out',
+    description: 'Frontmatter equations (work, power), #tonnage tag contributions, and totalWork summary emission.',
+    markdown: PROPERTY_METRICS_NOTE,
   },
 ];

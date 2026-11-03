@@ -54,19 +54,8 @@ import {
   useRoundDisplay,
 } from '@bitcobblers/wod-wiki-engine/react';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
-import type { ScriptBlock } from '@bitcobblers/wod-wiki-core';
-import { TimerStackView } from '@/components/organisms/workout/TimerStackView';
-import { RuntimeDebugPanel } from '@/components/organisms/workout/RuntimeDebugPanel';
-import type { ScriptBlock as PlaygroundScriptBlock } from '@/components/Editor/types';
-import { cursorFocusExtension } from '@/app/editor/cursorFocusExtension';
-import { MetricInlinePanel } from '@/components/organisms/editor/MetricInlinePanel';
-import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
-import { VisualStatePanel } from '@/panels/visual-state-panel';
-import { calculateDuration } from '@/lib/timeUtils';
-import type { ITimerDisplayEntry } from '@/clock/types/DisplayTypes';
-import { toEventRows, type EventStore } from '@bitcobblers/wod-wiki-wql';
+import { toEventRows, toSummaryEventRows, type EventStore } from '@bitcobblers/wod-wiki-wql';
 import { toStoredOutputStatement, type StoredOutputStatement } from '@bitcobblers/wod-wiki-engine';
-import { completeWorkbenchRun, prepareWorkbenchRun } from './runPersistence';
 import {
   editorPreset,
   frontmatterPreview,
@@ -94,6 +83,18 @@ import {
   normalizeOutputFilter,
   type OutputFilterInput,
 } from '@bitcobblers/wod-wiki-ui';
+import { TimerStackView } from '@/components/organisms/workout/TimerStackView';
+import { RuntimeDebugPanel } from '@/components/organisms/workout/RuntimeDebugPanel';
+import type { ScriptBlock as PlaygroundScriptBlock } from '@/components/Editor/types';
+import { cursorFocusExtension } from '@/app/editor/cursorFocusExtension';
+import { createRuntimeForBlock } from '@/app/editor/runtimeTimerModel';
+import { getTagIndex } from '@/services/tags/tagCatalogue';
+import { MetricInlinePanel } from '@/components/organisms/editor/MetricInlinePanel';
+import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
+import { VisualStatePanel } from '@/panels/visual-state-panel';
+import { calculateDuration } from '@/lib/timeUtils';
+import type { ITimerDisplayEntry } from '@/clock/types/DisplayTypes';
+import { completeWorkbenchRun, prepareWorkbenchRun } from './runPersistence';
 import { DEFAULT_NOTE } from './presets';
 import { ParserTestBuilder } from '../parser-tests/ParserTestBuilder';
 
@@ -844,9 +845,10 @@ function buildWorkbenchSessionStore(outputs: IOutputStatement[]): EventStore {
     origin: 'playground' as const,
     workoutTimestamp: now,
   };
-  const eventRows = toEventRows(stored, identity);
+  const eventRows = toEventRows(stored.filter((o) => o.outputType !== 'analytics'), identity);
+  const engineSummaryRows = toSummaryEventRows(stored, identity);
 
-  const summaryRows: EventRecord[] = [];
+  const summaryRows: EventRecord[] = [...engineSummaryRows];
   let _totalReps = 0;
   let _totalVolume = 0;
   let _totalDistance = 0;
@@ -2110,7 +2112,7 @@ export function LanguageWorkbench({
   // Whiteboard lane: parse the selected time block on every keystroke.
   const parse: ParseStats = useMemo(() => {
     try {
-      const script = createParser().read(runSource, activeBlock?.section.sport);
+      const script = createParser({ tags: getTagIndex() }).read(runSource, activeBlock?.section.sport);
       const hints = script.statements.flatMap((s) => getHints(s));
       return { script, statements: script.statements.length, hints };
     } catch (e) {
@@ -2125,6 +2127,31 @@ export function LanguageWorkbench({
   });
   // Runtime Lifecycle Actions
   // Auto-mount and initialize runtime in "Ready to Start" state as soon as compile is ready
+  const spawnWorkbenchRuntime = useCallback((statements: ICodeStatement[]) => {
+    const factory = factoryRef.current;
+    if (!factory) return;
+    if (runtime) {
+      factory.disposeRuntime(runtime);
+    }
+    const block: PlaygroundScriptBlock = {
+      id: activeBlock?.section.id ?? 'workbench-workout',
+      startLine: activeBlock?.section.startLine ?? 0,
+      endLine: activeBlock?.section.endLine ?? 0,
+      state: 'idle',
+      version: 1,
+      createdAt: Date.now(),
+      content: runSource,
+      statements,
+    };
+    const newRuntime = createRuntimeForBlock(block, noteText) ?? factory.createRuntime(block, { debugMode: true });
+    if (newRuntime) {
+      pendingStartRef.current = true;
+      setRuntime(newRuntime);
+      setRunSnapshot(runSource);
+    }
+  }, [activeBlock, noteText, runSource, runtime]);
+
+  // Auto-mount and initialize runtime in "Ready to Start" state as soon as compile is ready
   useEffect(() => {
     const factory = factoryRef.current;
     if (!factory) return;
@@ -2138,55 +2165,15 @@ export function LanguageWorkbench({
       return;
     }
 
-    // If no runtime exists or if the source script changed, instantiate a fresh runtime
     if (!runtime || runSnapshot !== runSource) {
-      if (runtime) {
-        factory.disposeRuntime(runtime);
-      }
-      const block: ScriptBlock = {
-        id: activeBlock?.section.id ?? 'workbench-workout',
-        startLine: activeBlock?.section.startLine ?? 0,
-        endLine: activeBlock?.section.endLine ?? 0,
-        state: 'idle',
-        version: 1,
-        createdAt: Date.now(),
-        content: runSource,
-        statements: currentScript.statements,
-      };
-      const newRuntime = factory.createRuntime(block, { debugMode: true });
-      if (newRuntime) {
-        pendingStartRef.current = true;
-        setRuntime(newRuntime);
-        setRunSnapshot(runSource);
-      }
+      spawnWorkbenchRuntime(currentScript.statements);
     }
-  }, [parse.script, runSource, runtime, runSnapshot]);
+  }, [parse.script, runSource, runtime, runSnapshot, spawnWorkbenchRuntime]);
 
   const handleStartWorkout = () => {
-    const factory = factoryRef.current;
-    if (!factory) return;
     const currentScript = parse.script;
     if (!currentScript || currentScript.statements.length === 0) return;
-
-    if (runtime) {
-      factory.disposeRuntime(runtime);
-    }
-    const block: ScriptBlock = {
-      id: activeBlock?.section.id ?? 'workbench-workout',
-      startLine: activeBlock?.section.startLine ?? 0,
-      endLine: activeBlock?.section.endLine ?? 0,
-      state: 'idle',
-      version: 1,
-      createdAt: Date.now(),
-      content: runSource,
-      statements: currentScript.statements,
-    };
-    const newRuntime = factory.createRuntime(block, { debugMode: true });
-    if (newRuntime) {
-      pendingStartRef.current = true;
-      setRuntime(newRuntime);
-      setRunSnapshot(runSource);
-    }
+    spawnWorkbenchRuntime(currentScript.statements);
   };
 
   // Auto-start ticking once the runtime state change (and the execution hook's
@@ -2202,9 +2189,15 @@ export function LanguageWorkbench({
   // active database. Opt-in via runNote; failures surface as a visible,
   // non-fatal message — never an unhandled rejection.
   const persistedRuntimeRef = useRef<IScriptRuntime | null>(null);
+  const finalizedRuntimeRef = useRef<IScriptRuntime | null>(null);
   const finishRun = useCallback((completed: boolean) => {
+    if (!runtime) return;
+    if (finalizedRuntimeRef.current !== runtime) {
+      finalizedRuntimeRef.current = runtime;
+      runtime.finalizeAnalytics?.();
+    }
     const note = runNote;
-    if (!note?.persistRuns || !runtime) return;
+    if (!note?.persistRuns) return;
     if (persistedRuntimeRef.current === runtime) return;
     persistedRuntimeRef.current = runtime;
     const outputs = runtime.getOutputStatements();
@@ -2242,27 +2235,13 @@ export function LanguageWorkbench({
     const factory = factoryRef.current;
     if (!factory) return;
     const currentScript = parse.script;
-    if (runtime) {
+    if (runtime && (!currentScript || currentScript.statements.length === 0)) {
       factory.disposeRuntime(runtime);
       setRuntime(null);
+      return;
     }
     if (currentScript && currentScript.statements.length > 0) {
-      const block: ScriptBlock = {
-        id: activeBlock?.section.id ?? 'workbench-workout',
-        startLine: activeBlock?.section.startLine ?? 0,
-        endLine: activeBlock?.section.endLine ?? 0,
-        state: 'idle',
-        version: 1,
-        createdAt: Date.now(),
-        content: runSource,
-        statements: currentScript.statements,
-      };
-      const newRuntime = factory.createRuntime(block, { debugMode: true });
-      if (newRuntime) {
-        pendingStartRef.current = true;
-        setRuntime(newRuntime);
-        setRunSnapshot(runSource);
-      }
+      spawnWorkbenchRuntime(currentScript.statements);
     }
   };
   useEffect(() => {

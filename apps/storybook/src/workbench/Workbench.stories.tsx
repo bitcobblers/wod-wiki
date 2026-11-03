@@ -15,6 +15,7 @@ import {
   MURPH_NOTE,
   STRENGTH_METCON_NOTE,
   SWIMMING_IM_NOTE,
+  PROPERTY_METRICS_NOTE,
 } from './presets';
 
 const EMPTY_PLAYGROUND_NOTE = [
@@ -48,6 +49,7 @@ const PRESET_MAP: Record<string, string> = {
   swimming: SWIMMING_IM_NOTE,
   forTime: FOR_TIME_SCAFFOLD_NOTE,
   empty: EMPTY_PLAYGROUND_NOTE,
+  propertyMetrics: PROPERTY_METRICS_NOTE,
 };
 
 interface WorkbenchStoryArgs {
@@ -132,6 +134,14 @@ export const ForTimeStarter: Story = {
   name: 'Workout Presets (Controls)',
   args: {
     preset: 'fran',
+  },
+};
+
+export const PropertyNoteMetricsWorkbench: Story = {
+  name: 'Property Notes, #tonnage & Summary Equations',
+  args: {
+    preset: 'propertyMetrics',
+    outputTableQuery: 'sum:totalWork{} by {session}',
   },
 };
 

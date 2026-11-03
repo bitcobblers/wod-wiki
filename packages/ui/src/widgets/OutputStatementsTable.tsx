@@ -108,36 +108,52 @@ export interface CategorizedMetrics {
   hints: IMetric[];
 }
 
-export function extractMetricsByCategory(metrics?: Iterable<IMetric>): CategorizedMetrics {
-  if (!metrics) {
-    return { efforts: [], reps: [], loads: [], rounds: [], durations: [], distances: [], hints: [] };
-  }
+const EFFORT_TYPES = new Set(['effort', 'text', 'action', 'label']);
+const LOAD_TYPES = new Set([
+  'resistance',
+  'intensity',
+  'load',
+  'volume',
+  'work',
+  'power',
+  'calculated',
+  'totalwork',
+  'totalvolume',
+  'tis',
+  'sessionload',
+  'session-load',
+  'calc.metminutes',
+  'metminutes',
+  'totalmetminutes',
+]);
+const ROUND_TYPES = new Set(['rounds', 'current-round', 'increment']);
+const DURATION_TYPES = new Set(['duration', 'time', 'elapsed']);
+const HINT_TYPES = new Set(['hint', 'custom', 'system', 'sound', 'lap', 'group', 'diagnostic']);
 
-  const list = Array.from(metrics) as IMetric[];
-  return {
-    efforts: list.filter((m) => {
-      const t = String(m.type).toLowerCase();
-      return t === 'effort' || t === 'text' || t === 'action' || t === 'label';
-    }),
-    reps: list.filter((m) => String(m.type).toLowerCase() === 'rep'),
-    loads: list.filter((m) => {
-      const t = String(m.type).toLowerCase();
-      return t === 'resistance' || t === 'intensity' || t === 'load' || t === 'volume';
-    }),
-    rounds: list.filter((m) => {
-      const t = String(m.type).toLowerCase();
-      return t === 'rounds' || t === 'current-round' || t === 'increment';
-    }),
-    durations: list.filter((m) => {
-      const t = String(m.type).toLowerCase();
-      return t === 'duration' || t === 'time' || t === 'elapsed';
-    }),
-    distances: list.filter((m) => String(m.type).toLowerCase() === 'distance'),
-    hints: list.filter((m) => {
-      const t = String(m.type).toLowerCase();
-      return t === 'hint' || t === 'custom' || t === 'system' || t === 'sound' || t === 'lap' || t === 'group';
-    }),
+export function extractMetricsByCategory(metrics?: Iterable<IMetric>): CategorizedMetrics {
+  const result: CategorizedMetrics = {
+    efforts: [],
+    reps: [],
+    loads: [],
+    rounds: [],
+    durations: [],
+    distances: [],
+    hints: [],
   };
+  if (!metrics) return result;
+
+  for (const m of metrics) {
+    const t = String(m.type).toLowerCase();
+    if (EFFORT_TYPES.has(t)) result.efforts.push(m);
+    else if (t === 'rep') result.reps.push(m);
+    else if (LOAD_TYPES.has(t)) result.loads.push(m);
+    else if (ROUND_TYPES.has(t)) result.rounds.push(m);
+    else if (DURATION_TYPES.has(t)) result.durations.push(m);
+    else if (t === 'distance') result.distances.push(m);
+    else if (HINT_TYPES.has(t) || typeof m.value !== 'number') result.hints.push(m);
+    else result.loads.push(m);
+  }
+  return result;
 }
 
 // ── Filter presets ───────────────────────────────────────────────────────────
