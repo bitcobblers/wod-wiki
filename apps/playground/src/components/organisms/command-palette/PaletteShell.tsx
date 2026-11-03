@@ -311,7 +311,6 @@ export const PaletteShell: React.FC = () => {
           key={requestSeqRef.current}
           query={query}
           onQueryChange={handleQueryChange}
-          compact
           onValidationChange={handleValidationChange}
           showDiagnostics={isWqlMode && (wqlConfig.showDiagnostics ?? true)}
           execute={wqlConfig.execute}

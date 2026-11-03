@@ -189,14 +189,31 @@ export function PlaygroundLibraryPage({ persistence = notePersistence }: Playgro
     () => ({
       id: 'active-db-notes',
       label: `Notes (${activeName})`,
-      search: async (query: string): Promise<PaletteItem[]> => {
+      search: async (query: string, context?: { scopeWql?: string }): Promise<PaletteItem[]> => {
         const trimmed = query.trim();
         let entries: HistoryRecord[];
 
-        if (trimmed.startsWith(':')) {
-          const parsed = parseQuery(trimmed);
-          if (!parsed.error && isFindQuery(parsed)) {
-            const res = await queryService.runFind(parsed);
+        const parsed = parseQuery(trimmed);
+        if (!parsed.error && isFindQuery(parsed)) {
+          const res = await queryService.runFind(parsed);
+          entries = res.notes.map((n) => ({
+            id: n.id,
+            title: n.title,
+            rawContent: n.rawContent,
+            createdAt: n.createdAt,
+            updatedAt: n.createdAt,
+            targetDate: n.date ?? n.createdAt,
+            tags: n.tags ?? [],
+            type: (n.type as HistoryRecord['type']) ?? 'note',
+            sourceId: n.sourceId,
+            notebookId: n.notebookId,
+            schemaVersion: 1,
+          }));
+        } else if (trimmed.startsWith(':')) {
+          // Mid-edit WQL — keep results or fallback to scope
+          const scopeParsed = parseQuery(context?.scopeWql ?? DEFAULT_WQL);
+          if (!scopeParsed.error && isFindQuery(scopeParsed)) {
+            const res = await queryService.runFind(scopeParsed);
             entries = res.notes.map((n) => ({
               id: n.id,
               title: n.title,
@@ -216,7 +233,6 @@ export function PlaygroundLibraryPage({ persistence = notePersistence }: Playgro
         } else {
           entries = await persistence.listNotes(trimmed ? { search: trimmed } : {});
         }
-
         const prioritized = sortNotesRunnableFirst(entries);
         return prioritized.slice(0, 60).map((entry) => {
           const dateStr = new Date(entry.targetDate).toLocaleDateString();
@@ -252,6 +268,15 @@ export function PlaygroundLibraryPage({ persistence = notePersistence }: Playgro
       .getState()
       .open({
         placeholder: `Search notes in ${activeName}…`,
+        wql: {
+          initialQuery: wqlDraft || DEFAULT_WQL,
+          execute: (ast) =>
+            isFindQuery(ast) ? queryService.runFind(ast) : queryService.runQuery(ast.raw),
+          onApply: (nextWql) => {
+            setWqlDraft(nextWql);
+            void runWqlSearch(nextWql);
+          },
+        },
         sources: [notesSource],
       })
       .then((res) => {
@@ -259,7 +284,7 @@ export function PlaygroundLibraryPage({ persistence = notePersistence }: Playgro
           handleSelect(res.item.payload as HistoryRecord);
         }
       });
-  }, [notesSource, activeName, handleSelect]);
+  }, [notesSource, activeName, wqlDraft, runWqlSearch, handleSelect]);
 
   // Global Ctrl+/ and Cmd+/ hotkey: opens the command palette anywhere on the page
   useEffect(() => {

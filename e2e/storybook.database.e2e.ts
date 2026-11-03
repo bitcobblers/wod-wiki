@@ -83,16 +83,11 @@ test.describe('database-driven Storybook stories', () => {
     // The command palette opens from the Find button (or Ctrl+/ shortcut).
     await page.getByTestId('playground-library-find').click();
 
-    // The palette searches the active database notes.
-    const searchInput = page.getByTestId('palette-search-input');
-    await expect(searchInput).toBeVisible({ timeout: SEED_TIMEOUT });
-    await searchInput.fill('AMRAP');
-
-    // Select the matching workout note to load it into the workbench.
+    // The palette opens in WQL mode with the double-line WqlComposer and lists the active database notes.
+    await expect(page.getByTestId('palette-composer')).toBeVisible({ timeout: SEED_TIMEOUT });
     const amrapOption = page.getByRole('option', { name: /AMRAP/i }).first();
     await expect(amrapOption).toBeVisible({ timeout: SEED_TIMEOUT });
     await amrapOption.click();
-
     // The note is loaded into the active indicator and workbench.
     await expect(page.getByTestId('playground-library-selected')).toContainText('AMRAP');
     // The workbench compiles the fence and the run starts.
