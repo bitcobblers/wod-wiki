@@ -1,0 +1,152 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Design System/Content Types, Views & Navigation" />
+
+# Content Types, Library Views & Navigation Architecture
+
+Every record in the WOD.wiki Playground is projected through a unified **`Entry`** model (`apps/playground/app/lib/entryMapper.ts`). How an entry looks—its icon, semantic color badge, metadata chips, inline preview, and action buttons—is determined by its **`EntryKind`** and **`sourceNotebook`**.
+
+---
+
+## 1. The 12 Content Types & Note Flavors (`LibraryRow`)
+
+All list, stream, and agenda surfaces render items via `LibraryRow` (`apps/playground/app/views/library/LibraryRow.tsx`). Even when `kind === 'note'`, the row inspects `sourceNotebook` and `block` payloads so each note flavor carries a distinct visual identity:
+
+<table>
+  <thead>
+    <tr>
+      <th>Flavor / Kind</th>
+      <th>Discriminator</th>
+      <th>Badge &amp; Icon</th>
+      <th>Unique Row Elements &amp; Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>1. Journal Note</strong></td>
+      <td><code>kind: 'note'</code>, <code>sourceNotebook: 'journal'</code></td>
+      <td><code>Note</code> (Primary Slate · <code>FileTextIcon</code>)</td>
+      <td>Editable; shows <strong>Run</strong>, <strong>Add to Today</strong>, <strong>Move to Notebook</strong> folder dropdown, and <strong>Compare</strong>.</td>
+    </tr>
+    <tr>
+      <td><strong>2. Feed / Notebook Workout</strong></td>
+      <td><code>kind: 'note'</code>, <code>sourceNotebook: &lt;slug&gt;</code></td>
+      <td><code>Notebook</code> (Amber · <code>Rss</code>)</td>
+      <td>Read-only feed workout; shows <strong>Run</strong>, <strong>Add to Today</strong> (clones into Journal), and <strong>Compare</strong>.</td>
+    </tr>
+    <tr>
+      <td><strong>3. Notebook Landing</strong></td>
+      <td><code>kind: 'note'</code>, <code>sourceNote: ''</code></td>
+      <td><code>Notebook</code> (Amber · <code>Rss</code>)</td>
+      <td>Collection root; renders inline <strong>Details</strong> and <strong>Feed</strong> pill links beside the title.</td>
+    </tr>
+    <tr>
+      <td><strong>4. Playground Scratchpad</strong></td>
+      <td><code>kind: 'note'</code>, <code>sourceNotebook: 'playground'</code></td>
+      <td><code>Playground</code> (Primary · <code>FlaskConical</code>)</td>
+      <td>Undated authoring scratchpad; lands in the Calendar's <em>Undated Shelf</em>.</td>
+    </tr>
+    <tr>
+      <td><strong>5. Documentation Guide</strong></td>
+      <td><code>kind: 'note'</code>, <code>sourceNotebook: 'guides'</code></td>
+      <td><code>Guide</code> (Primary · <code>BookOpen</code>)</td>
+      <td>Bundled reference canvas page (<code>/page/:slug</code>).</td>
+    </tr>
+    <tr>
+      <td><strong>6. Actionable Block Hit</strong></td>
+      <td><code>kind: 'note'</code> + <code>entry.block</code></td>
+      <td><code>time</code> / <code>query</code> chip + <code>Note</code></td>
+      <td>Produced by <code>:block</code> WQL queries; renders a 3-line monospace code preview beneath the parent note title.</td>
+    </tr>
+    <tr>
+      <td><strong>7. Executed Result</strong></td>
+      <td><code>kind: 'result'</code></td>
+      <td><code>Result</code> (Sky · <code>Trophy</code>)</td>
+      <td>Completed session; displays duration/volume/TIS subtitle plus an interactive movement history pill (<code>/effort/:slug</code>).</td>
+    </tr>
+    <tr>
+      <td><strong>8. Telemetry Segment</strong></td>
+      <td><code>kind: 'segment'</code></td>
+      <td><code>Segment</code> (Indigo · <code>Layers</code>)</td>
+      <td>Per-round or per-interval split from a recorded session.</td>
+    </tr>
+    <tr>
+      <td><strong>9. Movement Effort</strong></td>
+      <td><code>kind: 'effort'</code></td>
+      <td><code>Effort</code> (Emerald · <code>Dumbbell</code>)</td>
+      <td>Movement catalog item showing discipline, MET score, intensity tier, and aliases.</td>
+    </tr>
+    <tr>
+      <td><strong>10. Analytics Dashboard</strong></td>
+      <td><code>kind: 'dashboard'</code></td>
+      <td><code>Dashboard</code> (Cyan · <code>LayoutDashboard</code>)</td>
+      <td>Multi-widget WQL board (<code>/dashboard/:slug</code>).</td>
+    </tr>
+    <tr>
+      <td><strong>11. Equipment Item</strong></td>
+      <td><code>kind: 'equipment'</code></td>
+      <td><code>Equipment</code> (Orange · <code>Wrench</code>)</td>
+      <td>Implement reference (<code>/equipment/:slug</code>).</td>
+    </tr>
+    <tr>
+      <td><strong>12. Typed Tag</strong></td>
+      <td><code>kind: 'tag'</code></td>
+      <td><code>Tag</code> (Violet · <code>TagIcon</code>)</td>
+      <td>Facet tag (e.g. <code>#discipline:gymnastics</code> → <code>/t/:type/:tag</code>).</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 2. The 5 Stream & Library Layout Modes
+
+Every `QueriableStreamView` route (`/notebooks`, `/journal`, `/efforts`, `/sessions`, `/feeds`) can project its WQL result set into 5 switchable layouts controlled via `StreamControlsNav`:
+
+<table>
+  <thead>
+    <tr>
+      <th>Layout Mode</th>
+      <th>Component</th>
+      <th>When Used &amp; Visual Behavior</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Cards</strong></td>
+      <td><code>LibraryRow</code> + <code>StickyGroupHeader</code></td>
+      <td>Default compact list grouped by date or WQL <code>by &#123;dimension&#125;</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Rows (Table)</strong></td>
+      <td><code>PropertyTable</code></td>
+      <td>Sortable spreadsheet view whose columns adapt to the active <code>EntityLevel</code> (<code>note</code>, <code>session</code>, <code>result</code>, <code>segment</code>, <code>effort</code>).</td>
+    </tr>
+    <tr>
+      <td><strong>Feed</strong></td>
+      <td><code>StreamFeed</code></td>
+      <td>Rich reading view: expands fenced workout scripts inline (up to 8 lines with <em>Show more</em>), renders execution telemetry pills, and exposes 44px touch action buttons.</td>
+    </tr>
+    <tr>
+      <td><strong>Agenda</strong></td>
+      <td><code>CalendarAgendaView</code></td>
+      <td>Month viewport with a 31-day density ribbon, sticky calendar-shaped day headers (<code>THU 24</code>), per-day <code>+</code> creation button, and an <code>Undated Shelf</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Planner</strong></td>
+      <td><code>CalendarPlannerView</code></td>
+      <td>7-column weekly planning grid (vertical week cards on mobile) rendering notebook-accented <code>CalendarEntryChip</code>s; clicking any empty cell schedules a note on that date.</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 3. 4-Zone Shell & Menu Architecture
+
+Navigation across the Playground is divided into four coordinated zones sharing a single `MenuSpec` contract (`apps/playground/app/nav/menuModel.ts`):
+
+1. **Zone 1 — Primary Icon Rail (`AppRail`)**: Fixed 56px left rail holding L1 destinations (Home, Notebooks/Library, Dashboards, Pages, Search `⌘/`, Settings).
+2. **Zone 2 — Context Sidebar (`NavSidebar` / `ConditionsNavPanel`)**: Route-scoped L2 panel listing saved WQL shortcuts, notebook trees, and recent stream hits.
+3. **Zone 3 — Page Header & Mobile Thumb Dock (`PageActions` & `ResponsiveActions`)**: Desktop header action bar (`NewEntryCombo`, `SyncActivityIndicators`, `CastButtonRpc`, `ActionsMenu` `⋯`) that automatically collapses into a thumb-zone FAB + overflow sheet on mobile (`<1024px`).
+4. **Zone 4 — Secondary "On This Page" Rail (`SecondaryNav` / `StreamControlsNav`)**: Right-hand L3 rail on wide screens (`2xl+`) and `⋯` menu on smaller screens, housing Date Window, Group-By checkboxes, the 5-mode Layout switcher, Field visibility toggles, and the in-page section outline (`MenuList`).

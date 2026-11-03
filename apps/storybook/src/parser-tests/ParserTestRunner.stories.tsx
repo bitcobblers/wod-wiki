@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ParserTestRunner } from './ParserTestRunner';
 
 const meta: Meta<typeof ParserTestRunner> = {
-  title: 'ParserTests/Runner',
+  id: 'parsertests-runner',
+  title: 'Workbench/Parser Tests/Runner',
   component: ParserTestRunner,
   parameters: { layout: 'padded' },
 };

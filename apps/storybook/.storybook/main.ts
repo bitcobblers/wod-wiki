@@ -7,6 +7,7 @@ const rootDir = path.resolve(import.meta.dirname, '../../..');
 
 const config: StorybookConfig = {
   stories: [
+    '../src/**/*.mdx',
     '../src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
   ],
   // Serves this app's own /seed (core artifact emitted by scripts/sync-seed.ts

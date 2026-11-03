@@ -4,6 +4,7 @@
     "noEmit": true,
     "paths": {
       "@/*": ["../playground/src/*"],
+      "@app/*": ["../playground/app/*"],
       "@bitcobblers/wod-wiki-core": ["../../packages/core/src"],
       "@bitcobblers/wod-wiki-lang": ["../../packages/lang/src"],
       "@bitcobblers/wod-wiki-wql": ["../../packages/wql/src"],

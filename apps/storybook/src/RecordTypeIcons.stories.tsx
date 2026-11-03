@@ -11,17 +11,19 @@
  * 2. Short title
  * 3. Long title (verifying text truncation)
  */
-import type { Meta } from '@storybook/react-vite';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { HistoryRecord } from '@/types/history';
 import { historyEntryToListItem } from '@/components/molecules/adapters/historyAdapter';
 import { DefaultListItem } from '@/components/molecules/DefaultListItem';
 import type { ListItemContext } from '@/components/molecules/types';
 
 const meta: Meta = {
-  title: 'Gallery/Record Type Icons',
+  id: 'gallery-record-type-icons',
+  title: 'Playground/Molecules/Record Type Icons',
   parameters: { layout: 'padded' },
 };
 export default meta;
+type Story = StoryObj;
 const defaultContext: ListItemContext = {
   isSelected: false,
   isActive: false,
@@ -42,6 +44,7 @@ function makeEntry(overrides: Partial<HistoryRecord> & { type: HistoryRecord['ty
       startTime: 1774000000000,
       endTime: 1774000320000,
       duration: 320000,
+      completed: true,
     },
     ...overrides,
   };

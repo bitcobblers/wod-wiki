@@ -19,13 +19,19 @@ const preview: Preview = {
     },
   },
   decorators: [
-    // Every story shares the playground storage plane: the provider resolves
-    // the active local database and runs the boot seed sync once per session.
-    (Story) => (
-      <DatabaseProvider>
-        <Story />
-      </DatabaseProvider>
-    ),
+    // Opt-in IndexedDB plane: only stories with `parameters: { database: true }`
+    // mount the full DatabaseProvider and boot seed sync. All other component
+    // stories stay fast and state-free in memory.
+    (Story, context) => {
+      if (context.parameters?.database) {
+        return (
+          <DatabaseProvider>
+            <Story />
+          </DatabaseProvider>
+        );
+      }
+      return <Story />;
+    },
     // Dark-Mode Standard host rule (wayfinder #994/#998): the `dark` class
     // lives on <html>, never on a wrapper — shared tokens resolve per
     // element (@theme inline), so this flips every story. Cleanup restores
@@ -48,35 +54,52 @@ const preview: Preview = {
     options: {
       storySort: {
         order: [
-          'Database',
-          ['IndexedDB Selection'],
+          'Design System',
+          ['Introduction', 'Design Tokens', 'Content Types, Views & Navigation', 'Component Guidelines'],
+          'Packages',
+          [
+            'UI',
+            ['WQL Composer', 'DashboardView', 'QueryBlockView', 'OutputStatementsTable', 'WQL Example Gallery'],
+          ],
           'Playground',
-          ['LibraryPage', 'EmptyWorkbench', 'IntervalStarter', 'ForTimeStarter', 'EmomStarter', '*'],
+          [
+            'Molecules',
+            ['ResultListItem', 'Record Type Icons'],
+            'Organisms',
+            [
+              'Editor',
+              ['NoteEditor'],
+              'Workout',
+              ['RuntimeDebugPanel', 'Timer Surfaces', 'Fullscreen Timer'],
+            ],
+            'Views',
+            [
+              'LibraryRow & Entry Types',
+              'Stream, Table & Feed Cards',
+              'Calendar Agenda & Planner',
+            ],
+            'Navigation & Menus',
+          ],
           'Workbench',
           [
-            'Benchmark — Fran',
-            'Tabata & EMOM',
-            'The Golos Method — Kettlebell',
-            'Strength & Triplet',
-            'Swimming IM Prep',
-            'Murph (Hero WOD)',
-            'Custom Workout (Clone Template)',
+            'Language Workbench',
+            'Parser Tests',
+            ['Test Builder', 'Runner'],
+            'Database & Storage',
+            ['IndexedDB Selection', 'Data Explorer', 'Session Explorer'],
             '*',
           ],
-          'Gallery',
-          ['WQL Example Gallery', 'Timer Screen', 'WQL Composer', 'Record Type Icons', '*'],
-          'Data',
-          'Sessions',
         ],
       },
     },
     controls: {
+      expanded: true,
       matchers: {
         color: /(background|color)$/i,
         date: /Date$/i,
       },
     },
-    a11y: { test: 'off' },
+    a11y: { test: 'todo' },
   },
 };
 
