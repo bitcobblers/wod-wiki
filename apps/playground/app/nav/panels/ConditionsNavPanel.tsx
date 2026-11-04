@@ -218,16 +218,26 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
         {recentEntries.length > 0 && (
           <SidebarSection className="px-6" data-testid="conditions-nav-recent">
             <SidebarHeading>Recent</SidebarHeading>
-            {recentEntries.map(entry => (
-              <SidebarItem
-                key={`${entry.id}:${entry.block?.blockId ?? ''}`}
-                href={entryOpenHref(entry)}
-                onClick={closeNavigationDrawer}
-                data-testid="conditions-nav-recent-link"
-              >
-                <SidebarLabel>{entry.title}</SidebarLabel>
-              </SidebarItem>
-            ))}
+            {recentEntries.map(entry => {
+              const timeLabel = entry.execution?.timestamp
+                ? new Date(entry.execution.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                : null
+              return (
+                <SidebarItem
+                  key={`${entry.id}:${entry.block?.blockId ?? ''}`}
+                  href={entryOpenHref(entry)}
+                  onClick={closeNavigationDrawer}
+                  data-testid="conditions-nav-recent-link"
+                >
+                  <SidebarLabel>{entry.title}</SidebarLabel>
+                  {timeLabel && (
+                    <span className="ml-auto text-[10px] text-muted-foreground/60 tabular-nums shrink-0">
+                      {timeLabel}
+                    </span>
+                  )}
+                </SidebarItem>
+              )
+            })}
           </SidebarSection>
         )}
 

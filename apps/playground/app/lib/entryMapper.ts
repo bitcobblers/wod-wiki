@@ -120,7 +120,7 @@ export interface Entry {
   feedId?: string
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const UUID_RE = /^(?:uuid-|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)/i
 
 /** A route slug: a non-empty string that is not a storage UUID. */
 function namedSlug(value: unknown): string | undefined {
@@ -484,16 +484,19 @@ export function formatDuration(ms: number): string {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
+
 function deriveTitleFromNoteId(noteId: string): string {
   if (!noteId) return 'Workout Session'
+  if (UUID_RE.test(noteId)) return 'Workout Session'
   const ref = parseNoteId(noteId)
   if (ref.kind === 'journal') {
     return ref.id ? `Journal: ${ref.id}` : 'Journal Entry'
   }
   if (ref.kind === 'workout') {
+    if (UUID_RE.test(ref.id)) return 'Workout Session'
     return formatEffortName(ref.id) || ref.id
   }
-  return ref.id ? formatEffortName(ref.id) : noteId
+  return ref.id && !UUID_RE.test(ref.id) ? formatEffortName(ref.id) : (UUID_RE.test(noteId) ? 'Workout Session' : noteId)
 }
 
 export function effortToEntry(effort: IEffort): Entry {
@@ -612,12 +615,23 @@ export function rowsRunToEntry(run: RowsRun, options?: { noteTitle?: string }): 
   const dateStr = formatDateKey(new Date(run.timestamp))
   const blockContentId = run.events.find(e => !!e.blockContentId)?.blockContentId
 
+  if (run.timestamp) {
+    const timeStr = new Date(run.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    if (timeStr && timeStr !== 'Invalid Date') {
+      subtitleParts.unshift(timeStr)
+    }
+  }
+
+  const baseTitle = options?.noteTitle && !UUID_RE.test(options.noteTitle)
+    ? options.noteTitle
+    : deriveTitleFromNoteId(run.noteId)
+
   return {
     id: run.resultId,
     kind: 'result',
     sourceNotebook: 'results',
     sourceNote: run.resultId,
-    title: options?.noteTitle ?? deriveTitleFromNoteId(run.noteId),
+    title: baseTitle,
     date: dateStr,
     blockContentId,
     subtitle: subtitleParts.join(' • '),

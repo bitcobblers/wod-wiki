@@ -324,6 +324,8 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                         onChange={e => setPageSlugInput(e.target.value)}
                         autoFocus
                         disabled={savingPageSlug}
+                        aria-label="Page slug"
+                        placeholder="slug"
                         data-testid="note-page-slug-input"
                         className="w-36 bg-transparent font-mono text-xs text-foreground focus:outline-none"
                       />

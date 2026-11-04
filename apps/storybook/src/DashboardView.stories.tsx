@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, within } from 'storybook/test';
+import { expect, userEvent, within } from 'storybook/test';
 import { DashboardView, type QueryExecutor } from '@bitcobblers/wod-wiki-ui';
 import { buildDashboardDocument, captureContext, defaultTokenValues, parseDashboardNote } from '@bitcobblers/wod-wiki-wql';
 import { JOURNALS, buildServiceForJournal } from './gallery/journals';
@@ -31,9 +31,9 @@ const DEFAULT_DASHBOARD_MARKDOWN = [
   '',
   '# Training Block Overview',
   '',
-  'How has workload trended across weeks?',
+  'How has Fran training volume trended across weeks?',
   '```query:timeseries',
-  'sum:tis{} by {week} last $range',
+  'sum:totalVolume{effort:fran} by {week} in $unit last $range',
   '```',
   '',
   'What is the session load distribution by discipline?',
@@ -41,9 +41,9 @@ const DEFAULT_DASHBOARD_MARKDOWN = [
   'sum:sessionLoad{} by {discipline} last $range',
   '```',
   '',
-  'Total repetitions logged',
+  'Total Fran volume logged',
   '```query:value',
-  'sum:rep{} last $range',
+  'sum:totalVolume{effort:fran} in $unit last $range',
   '```',
 ].join('\n');
 
@@ -66,7 +66,7 @@ function DashboardHarness({ markdown, editMode, preferredUnit }: DashboardStoryA
         document={document}
         executor={executor}
         editMode={editMode}
-        preferredUnit={preferredUnit}
+        preferredUnit={(tokens['unit'] as 'lb' | 'kg') ?? preferredUnit}
         tokenValues={tokens}
         onTokenChange={(name, val) => setTokens((prev) => ({ ...prev, [name]: val }))}
         onEditWidget={() => {}}
@@ -105,6 +105,16 @@ export const Default: Story = {
     // Parity gate: widgets populate without empty state or missing tokens
     await expect(canvas.queryByText(/no data for this range/i)).toBeNull();
     await expect(canvas.queryByText(/unknown token/i)).toBeNull();
+
+    // Unit conversion parity gate (N1): $unit control changes query output and unit labels
+    await expect(canvas.getByText(/17,600/)).toBeVisible();
+    const kgBtn = canvas.getByRole('button', { name: 'kg' });
+    await userEvent.click(kgBtn);
+    await expect(canvas.getByText(/8,000/)).toBeVisible();
+    // Range control switching updates date window points
+    const fourWeeksBtn = canvas.getByRole('button', { name: '4w' });
+    await userEvent.click(fourWeeksBtn);
+    await expect(canvas.queryByText(/no data for this range/i)).toBeNull();
   },
 };
 

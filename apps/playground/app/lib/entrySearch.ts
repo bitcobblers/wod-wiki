@@ -16,6 +16,7 @@
  */
 import { queryService } from '@/services/queryService';
 import { storageService } from '@/services/storage';
+import { normalizeNoteTitle, extractHeadingTitle } from '@/lib/noteTitle';
 import {
   parseQuery,
   isFindQuery,
@@ -130,6 +131,17 @@ export class StreamQueryEngine {
       this.noteTitleResolver = serviceOrOptions?.noteTitleResolver;
       this.noteBlockInfo = serviceOrOptions?.noteBlockInfo ?? false;
       this.noteTagsResolver = serviceOrOptions?.noteTagsResolver;
+    }
+    if (!this.noteTitleResolver) {
+      this.noteTitleResolver = async (noteId: string) => {
+        try {
+          const note = await storageService.getNote(noteId);
+          if (!note) return undefined;
+          return normalizeNoteTitle(note.title) || extractHeadingTitle(note.rawContent ?? '');
+        } catch {
+          return undefined;
+        }
+      };
     }
   }
 

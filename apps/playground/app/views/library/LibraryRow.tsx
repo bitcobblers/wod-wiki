@@ -212,11 +212,18 @@ export function LibraryRow({
           ) : null
         )}
       </div>
-      {dateLabel && showDate && (
-        <span className="flex-shrink-0 text-[10px] text-muted-foreground/70 tabular-nums self-start sm:self-auto pt-0.5 sm:pt-0" data-testid="library-row-date">
-          {dateLabel}
-        </span>
-      )}
+      {(() => {
+        const effectiveDateLabel = dateLabel ?? (
+          entry.execution?.timestamp
+            ? new Date(entry.execution.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+            : undefined
+        )
+        return effectiveDateLabel && showDate ? (
+          <span className="flex-shrink-0 text-[10px] text-muted-foreground/70 tabular-nums self-start sm:self-auto pt-0.5 sm:pt-0" data-testid="library-row-date">
+            {effectiveDateLabel}
+          </span>
+        ) : null
+      })()}
       {actions ?? (
         <RowActions
           entry={entry}
