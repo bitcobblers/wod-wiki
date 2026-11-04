@@ -144,13 +144,18 @@ export function useNoteDraft({
     }
   }, [saves.flush, noteId, metadata, noteType, accept]);
 
+  const flush = useCallback(async (): Promise<void> => {
+    await saves.flush();
+  }, [saves.flush]);
+
   return {
     content: restoredContent ?? draftRef.current.rawContent,
     committedBlocks: committed.blocks,
     committedRevision: committed.sourceRevision,
+    committedSourceRevision: useCallback(() => committedRevisionRef.current, []),
     draftSnapshot: draftRef.current,
     saveError: actionError ?? (saves.error ? `Save failed. ${saves.error instanceof Error ? saves.error.message : String(saves.error)} Your draft is kept. Retry saving.` : null),
-    flush: saves.flush,
+    flush,
     onLineChange: saves.onLineChange,
     onBlur: saves.onBlur,
     onIdentityChange,

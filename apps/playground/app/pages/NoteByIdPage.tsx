@@ -434,7 +434,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                     sourceRevision={draft.committedRevision}
                     onIdentityChange={draft.onIdentityChange}
                     onSaved={draft.accept}
-                    beforeRun={async () => { await draft.flush(); return draft.committedRevision; }}
+                    beforeRun={async () => { await draft.flush(); return draft.committedSourceRevision(); }}
                     onSaveRequest={draft.flush}
                     onCommitChange={draft.flush}
                     onCursorPositionChange={draft.onLineChange}

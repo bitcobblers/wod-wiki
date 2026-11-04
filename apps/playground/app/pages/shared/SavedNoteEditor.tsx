@@ -42,7 +42,7 @@ function SavedNoteEditorInstance({ entry, onChange, registerRun, ...props }: Sav
         sourceRevision={draft.committedRevision}
         onIdentityChange={draft.onIdentityChange}
         onSaved={draft.accept}
-        beforeRun={async () => { await draft.flush(); return draft.committedRevision; }}
+        beforeRun={async () => { await draft.flush(); return draft.committedSourceRevision(); }}
         onSaveRequest={draft.flush}
         onChange={draft.onSourceMutate}
         onBlur={draft.onBlur}

@@ -38,6 +38,15 @@ describe('current visible draft actions', () => {
     expect(submit).not.toHaveBeenCalled();
     expect(screen.getAllByRole('alert')[0].textContent).toBeTruthy();
   });
+  it('empty query with showDiagnostics={false} renders no parse error alert', () => {
+    render(<WqlComposer query="" showDiagnostics={false} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('invalid query with showDiagnostics={false} renders parse error alert', () => {
+    render(<WqlComposer query=":note{invalid:" showDiagnostics={false} />);
+    expect(screen.getByRole('alert').textContent).toContain('Cannot parse');
+  });
 
   it('opening a picker emits no rewrite and starts without an active option', () => {
     const change = vi.fn();
