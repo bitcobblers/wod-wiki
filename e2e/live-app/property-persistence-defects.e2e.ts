@@ -65,7 +65,7 @@ test.describe('Property Note persistence acceptance', () => {
     await efforts.waitForDetailLoaded();
 
     await page.getByRole('button', { name: 'Show property details' }).click();
-    const met = efforts.frontmatterProperties().getByLabel('MET value');
+    const met = efforts.frontmatterProperties().getByLabel('Value for metrics.met');
     await met.fill('9');
     await met.press('Enter');
 
@@ -80,11 +80,11 @@ test.describe('Property Note persistence acceptance', () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.waitForDetailLoaded();
     await page.getByRole('button', { name: 'Show property details' }).click();
-    await expect(efforts.frontmatterProperties().getByLabel('MET value')).toHaveValue('9');
+    await expect(efforts.frontmatterProperties().getByLabel('Value for metrics.met')).toHaveValue('9');
     await efforts.gotoDetail('thruster');
     await expect(efforts.detailSource()).toContainText('Bundled');
     await page.getByRole('button', { name: 'Show property details' }).click();
-    await expect(efforts.frontmatterProperties().getByLabel('MET value')).toHaveValue('8');
+    await expect(efforts.frontmatterProperties().getByLabel('Value for metrics.met')).toHaveValue('8');
     expect(pageErrors).toEqual([]);
   });
 

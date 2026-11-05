@@ -135,8 +135,8 @@ test.describe('effort properties vs fixed dock at 375×812 (finding #11)', () =>
       await detailsToggle.click();
     }
     // The reported fields: metrics.met, discipline, and their neighbors.
-    await expect(properties.getByLabel('MET value')).toBeVisible();
-    await expect(properties.getByLabel('Discipline', { exact: true })).toBeVisible();
+    await expect(properties.getByLabel('Value for metrics.met')).toBeVisible();
+    await expect(properties.getByLabel('Value for discipline')).toBeVisible();
 
     const dock = page.getByTestId('actions-dock');
     await expect(dock).toBeAttached();
@@ -190,8 +190,8 @@ test.describe('effort properties vs fixed dock at 375×812 (finding #11)', () =>
     await detailsToggle.click();
 
     const properties = efforts.frontmatterProperties();
-    await expect(properties.getByLabel('MET value')).toBeVisible();
-    await expect(properties.getByLabel('Discipline', { exact: true })).toBeVisible();
+    await expect(properties.getByLabel('Value for metrics.met')).toBeVisible();
+    await expect(properties.getByLabel('Value for discipline')).toBeVisible();
     await expect(page.getByTestId('actions-dock')).toBeAttached();
 
     // No dock button may intersect or hit-test-cover a freshly inserted field.
@@ -205,7 +205,7 @@ test.describe('effort properties vs fixed dock at 375×812 (finding #11)', () =>
     // verifies the hit target — a covering dock fails this click). The
     // focused-input state is the keyboard-open case in environments with a
     // soft keyboard: the dock stays put only while the zone stays clear.
-    const met = properties.getByLabel('MET value');
+    const met = properties.getByLabel('Value for metrics.met');
     await met.click();
     await expect(met).toBeFocused();
 

@@ -53,7 +53,7 @@ import { captureRun, type CapturedRun, createResultRecorder } from '@/hooks/useB
 import { sessionQueryInsert } from '@bitcobblers/wod-wiki-ui/extensions';
 import { previewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
 import { embedPreviewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
-import { frontmatterPreview, frontmatterVisibility } from '@bitcobblers/wod-wiki-ui/extensions';
+import { frontmatterPreview, frontmatterVisibility, frontmatterDebugMode } from '@bitcobblers/wod-wiki-ui/extensions';
 import { markdownTablePreview } from '@bitcobblers/wod-wiki-ui/extensions';
 import { linkPreview } from '@bitcobblers/wod-wiki-ui/extensions';
 import { markdownSyntaxHiding } from '@bitcobblers/wod-wiki-ui/extensions';
@@ -83,6 +83,7 @@ import { toEntry, blockToEntry } from '../../../../app/lib/entryMapper';
 import { OverlayTrack } from "@/components/organisms/editor/OverlayTrack";
 import { useOverlayWidthState } from "@/components/Editor/overlays/useOverlayWidthState";
 import type { OverlaySlotProps } from "@/components/organisms/editor/OverlayTrack";
+import { useDebugMode } from "@/contexts/DebugModeContext";
 import { FrontmatterCompanion } from "@/components/organisms/editor/FrontmatterCompanion";
 import { WhiteboardCompanion } from "@/components/organisms/editor/WhiteboardCompanion";
 import { WidgetCompanion } from "@/components/organisms/editor/WidgetCompanion";
@@ -267,8 +268,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   // retired module-global registry existed for the same reason).
 
   const isDark = theme === "dark" || theme === "vs-dark";
+  const { isDebugMode } = useDebugMode();
   const notePersistence = resolveNotePersistence(defaultNotePersistenceRef, providedNotePersistence);
-
   // Overlay track state
   const [cursorSectionId, setCursorSectionId] = useState<string | null>(null);
   const [sections, setSections] = useState<EditorSection[]>([]);
@@ -564,6 +565,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       registeredSectionWidgets.of(widgetComponents ? [...widgetComponents.keys()] : KNOWN_SECTION_WIDGETS),
       sectionIdentityHistory,
       frontmatterVisibility.of(showFrontmatter),
+      frontmatterDebugMode.of(isDebugMode),
       ...(enablePreview || !showFrontmatter ? [frontmatterPreview] : []),
 
       // Block-level preview decorations
@@ -700,6 +702,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       initialLineWrapping,
       enablePreview,
       showFrontmatter,
+      isDebugMode,
       enableLinting,
       enableOverlay,
       noteId,

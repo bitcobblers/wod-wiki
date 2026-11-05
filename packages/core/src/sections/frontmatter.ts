@@ -168,15 +168,26 @@ export function patchFrontmatterProperty(
   // at top level but its root map (`metrics:`, `summaries:`) exists as a
   // nested block, walk the split path so nested blocks patch in place.
   let effectivePath = path;
-  if (
-    path.length === 1 &&
-    path[0].includes('.') &&
-    findProperty(lines, path[0], 0, 0, lines.length) === -1
-  ) {
-    const split = path[0].split('.');
-    const rootIdx = findProperty(lines, split[0], 0, 0, lines.length);
-    if (rootIdx !== -1 && propertyExtent(lines, rootIdx, 0).length > 1) {
-      effectivePath = split;
+  if (path.length === 1 && findProperty(lines, path[0], 0, 0, lines.length) === -1) {
+    if (path[0].includes('.')) {
+      const split = path[0].split('.');
+      const rootIdx = findProperty(lines, split[0], 0, 0, lines.length);
+      if (rootIdx !== -1) {
+        effectivePath = split;
+        if (/:\s*(?:""|''|\{\})?\s*$/.test(lines[rootIdx])) {
+          lines[rootIdx] = lines[rootIdx].replace(/:\s*(?:""|''|\{\})\s*$/, ':');
+        }
+      } else if (split[0] === 'metrics' && (split[1] === 'met' || split[1] === 'disciplineFactor')) {
+        const baseIdx = findProperty(lines, 'baseAttributes', 0, 0, lines.length);
+        if (baseIdx !== -1 && propertyExtent(lines, baseIdx, 0).length > 1) {
+          effectivePath = ['baseAttributes', split[1]];
+        }
+      }
+    } else if (path[0] === 'discipline' || path[0] === 'intensityTier') {
+      const baseIdx = findProperty(lines, 'baseAttributes', 0, 0, lines.length);
+      if (baseIdx !== -1 && propertyExtent(lines, baseIdx, 0).length > 1) {
+        effectivePath = ['baseAttributes', path[0]];
+      }
     }
   }
 
@@ -307,7 +318,7 @@ function parseMetaLines(lines: string[]): ParsedFrontmatter['meta'] {
       }
       if (items.length > 0) {
         meta[key] = items;
-      } else if (key === 'metrics' || key === 'summaries' || key === 'widgets') {
+      } else if (key === 'metrics' || key === 'summaries' || key === 'widgets' || key === 'baseAttributes') {
         while (i + 1 < lines.length) {
           const childLine = lines[i + 1];
           if (/^\s*(?:#.*)?$/.test(childLine)) {
@@ -317,7 +328,10 @@ function parseMetaLines(lines: string[]): ParsedFrontmatter['meta'] {
           const childMatch = childLine.match(/^\s{2,}([A-Za-z][\w.-]*)\s*:(.*)$/);
           if (!childMatch) break;
           i++;
-          const childKey = `${key}.${childMatch[1]}`;
+          const childName = childMatch[1];
+          const childKey = key === 'baseAttributes'
+            ? (childName === 'met' || childName === 'disciplineFactor' ? `metrics.${childName}` : childName)
+            : `${key}.${childName}`;
           const childRaw = childMatch[2].trim();
           if (childRaw === '') {
             const childItems: string[] = [];

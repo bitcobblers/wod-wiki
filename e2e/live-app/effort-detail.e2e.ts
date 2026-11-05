@@ -59,7 +59,7 @@ test.describe('Effort detail', () => {
     await expect(properties).toBeVisible();
     await expect(properties.getByLabel('Value for slug')).toHaveValue('burpee');
     await expect(properties.getByLabel('Value for label')).toHaveValue('Burpee');
-    await expect(properties.getByLabel('MET value')).toHaveValue('10');
+    await expect(properties.getByLabel('Value for metrics.met')).toHaveValue('10');
     await expect(efforts.notebookEditor()).toBeVisible();
     await expect(efforts.cloneButton()).toBeVisible();
 

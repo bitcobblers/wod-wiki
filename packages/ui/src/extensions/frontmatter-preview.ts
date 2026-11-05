@@ -1,6 +1,6 @@
-import { Decoration, EditorView, WidgetType } from "@codemirror/view";
+import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
-import { StateField, StateEffect, EditorState, RangeSetBuilder, Facet } from "@codemirror/state";
+import { StateField, StateEffect, EditorState, RangeSetBuilder, Facet, Prec } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import { parseFrontmatterBody, type ParsedFrontmatter } from "@bitcobblers/wod-wiki-wql";
 import { patchFrontmatterProperty } from "@bitcobblers/wod-wiki-core";
@@ -88,6 +88,21 @@ export const frontmatterVisibility = Facet.define<boolean, boolean>({
   combine: (values) => values[0] ?? true,
 });
 
+export const frontmatterDebugMode = Facet.define<boolean, boolean>({
+  combine: (values) => values[0] ?? false,
+});
+
+/** Internal system properties hidden from the Properties UI unless debug mode is enabled (always visible in Edit YAML). */
+export const INTERNAL_FRONTMATTER_KEYS: ReadonlySet<string> = new Set([
+  "type",
+  "id",
+  "registrysource",
+  "registry-source",
+]);
+
+export function isInternalFrontmatterKey(key: string): boolean {
+  return INTERNAL_FRONTMATTER_KEYS.has(key.trim().toLowerCase());
+}
 export const setFrontmatterDetailed = StateEffect.define<boolean>();
 export const frontmatterDetailed = StateField.define<boolean>({
   create: () => false,
@@ -117,7 +132,52 @@ export const frontmatterSource = StateField.define<boolean>({
   },
 });
 
-const pendingFocus = new WeakMap<EditorView, { kind: "key" | "tag"; key: string }>();
+const pendingFocus = new WeakMap<EditorView, { kind: "key" | "value" | "tag"; key: string }>();
+const persistedDetailed = new WeakMap<HTMLElement, boolean>();
+
+function exitToEditorBody(view: EditorView): void {
+  const { sections } = view.state.field(sectionField);
+  const fm = sections.find((s) => s.type === "frontmatter");
+  const targetPos = fm ? Math.min(view.state.doc.length, fm.to) : 0;
+  view.dispatch({
+    selection: { anchor: targetPos },
+    scrollIntoView: true,
+  });
+  view.focus();
+}
+
+function triggerAddOrEditProperty(view: EditorView, root?: HTMLElement, _sectionId?: string): void {
+  const { sections } = view.state.field(sectionField);
+  const fm = sections.find((s) => s.type === "frontmatter");
+  if (!fm) {
+    pendingFocus.set(view, { kind: "key", key: "property" });
+    patchPropertyInView(view, "new", ["property"], "", true);
+    return;
+  }
+
+  if (!view.state.field(frontmatterDetailed)) {
+    view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+  }
+
+  const activeRoot = root ?? view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview");
+  const emptyKey = activeRoot?.querySelector<HTMLInputElement>(
+    'input[data-frontmatter-field="key"]:is([value=""], [value="property"])',
+  );
+  if (emptyKey) {
+    emptyKey.focus();
+    emptyKey.select?.();
+    return;
+  }
+
+  const addBtn = activeRoot?.querySelector<HTMLButtonElement>('button[aria-label="Add property"]');
+  if (addBtn) {
+    addBtn.click();
+    return;
+  }
+
+  pendingFocus.set(view, { kind: "key", key: "property" });
+  patchPropertyInView(view, fm.id, ["property"], "", true);
+}
 const widgetCleanup = new WeakMap<HTMLElement, (() => void)[]>();
 let helperId = 0;
 
@@ -188,14 +248,14 @@ function attachSuggestions(
   kind: "key" | "value",
   key: string,
   excluded: readonly string[],
-  commit: () => void,
+  commit: (fromSuggestion?: boolean) => void,
   valueKind: "tags" | "effort" | "equipment" = "tags",
 ): void {
   const provider = view.state.facet(frontmatterSuggestions);
   if (!provider || !input.parentElement) return;
   const panel = new SuggestionPanel(input, {
     label: kind === "key" ? "Suggested properties" : suggestionListLabel(valueKind),
-    onPick: () => commit(),
+    onPick: () => commit(true),
     // The popup floats over the properties panel; it must never cover the
     // metadata actions below it.
     avoid: () => root.querySelector<HTMLElement>("[data-frontmatter-actions]"),
@@ -222,21 +282,34 @@ function attachSuggestions(
         // aliases are searchable but never written.
         candidates = entries.map((entry) => ({
           value: entry.slug,
-          label: `${entry.label} (${entry.slug})`,
+          label: entry.label.toLowerCase() === entry.slug.toLowerCase() ? entry.label : `${entry.label} (${entry.slug})`,
           haystack: [entry.label, entry.slug, ...entry.aliases].join(" ").toLowerCase(),
         }));
       } else {
-        candidates = catalog.tags
-          .filter((tag) => isTagProperty(key) || tag.type?.toLowerCase() === key.trim().toLowerCase())
+        const normKey = key.trim().toLowerCase();
+        const fromTags = catalog.tags
+          .filter((tag) => isTagProperty(key) || tag.type?.toLowerCase() === normKey)
           .map((tag) => ({ value: tag.label, label: tag.label, haystack: tag.label.toLowerCase() }));
+        if (fromTags.length > 0) {
+          candidates = fromTags;
+        } else if (normKey === "discipline") {
+          candidates = EFFORT_DISCIPLINES.map((d) => ({ value: d, label: d, haystack: d.toLowerCase() }));
+        } else if (normKey === "intensitytier" || normKey === "intensity") {
+          candidates = ["low", "moderate", "high"].map((t) => ({ value: t, label: t, haystack: t }));
+        } else {
+          candidates = [];
+        }
       }
       const selected = new Set(excluded.map((label) => label.toLowerCase()));
+      const seenValues = new Set<string>();
       const choices = candidates
-        .filter(
-          (candidate) =>
-            (query === "" || candidate.haystack.includes(query)) &&
-            !selected.has(candidate.value.toLowerCase()),
-        )
+        .filter((candidate) => {
+          const lower = candidate.value.toLowerCase();
+          if (selected.has(lower) || seenValues.has(lower)) return false;
+          if (query !== "" && !candidate.haystack.includes(query)) return false;
+          seenValues.add(lower);
+          return true;
+        })
         .map((candidate) => ({ value: candidate.value, label: candidate.label }));
       panel.setChoices(choices);
       if (choices.length > 0) panel.open();
@@ -309,8 +382,12 @@ function patchPropertyInView(
     if (expandDetailed) view.dispatch({ effects: setFrontmatterDetailed.of(true) });
     return;
   }
+  const currentAnchor = view.state.selection.main.anchor;
+  const fmEnd = next.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/)?.[0].length ?? 0;
+  const safeAnchor = currentAnchor <= fmEnd ? fmEnd : Math.min(currentAnchor, next.length);
   view.dispatch({
     changes: { from: 0, to: wholeDoc.length, insert: next },
+    selection: { anchor: safeAnchor },
     ...(expandDetailed ? { effects: setFrontmatterDetailed.of(true) } : {}),
   });
 }
@@ -331,7 +408,13 @@ function renamePropertyInView(
     null,
   );
   if (next === wholeDoc) return;
-  view.dispatch({ changes: { from: 0, to: wholeDoc.length, insert: next } });
+  const currentAnchor = view.state.selection.main.anchor;
+  const fmEnd = next.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/)?.[0].length ?? 0;
+  const safeAnchor = currentAnchor <= fmEnd ? fmEnd : Math.min(currentAnchor, next.length);
+  view.dispatch({
+    changes: { from: 0, to: wholeDoc.length, insert: next },
+    selection: { anchor: safeAnchor },
+  });
 }
 
 function detectDefinitionKind(meta: ParsedFrontmatter['meta']): DefinitionKind {
@@ -344,49 +427,10 @@ function detectDefinitionKind(meta: ParsedFrontmatter['meta']): DefinitionKind {
   return null;
 }
 
-/** ponytail: tolerant draft reader for display only — swaps to the shared lang parser once it tolerates incomplete drafts; all writes go through patchFrontmatterProperty. */
-function readBaseAttributes(
-  body: string,
-  meta: ParsedFrontmatter['meta'] = {},
-): { met?: string; discipline?: string; intensityTier?: string; hasBaseBlock?: boolean } {
-  const out: { met?: string; discipline?: string; intensityTier?: string; hasBaseBlock?: boolean } = {};
-  if (meta["metrics.met"] !== undefined && !Array.isArray(meta["metrics.met"])) {
-    out.met = String(meta["metrics.met"]);
-  }
-  if (meta["discipline"] !== undefined && !Array.isArray(meta["discipline"])) {
-    out.discipline = String(meta["discipline"]);
-  }
-  if (meta["intensityTier"] !== undefined && !Array.isArray(meta["intensityTier"])) {
-    out.intensityTier = String(meta["intensityTier"]);
-  }
-  let inBase = false;
-  for (const line of body.split(/\r?\n/)) {
-    if (/^baseAttributes:\s*(#.*)?$/.test(line)) {
-      inBase = true;
-      out.hasBaseBlock = true;
-      continue;
-    }
-    if (!inBase) continue;
-    if (/^\S/.test(line)) break;
-    const match = line.match(/^\s+([\w-]+):\s*(.*)$/);
-    if (!match) continue;
-    if (match[1] === "met" || match[1] === "discipline" || match[1] === "intensityTier") {
-      out[match[1]] = unquoteYamlScalar(match[2].trim());
-    }
-  }
-  return out;
-}
-
-function unquoteYamlScalar(val: string): string {
-  if (val.startsWith('"') && val.endsWith('"')) return val.slice(1, -1).replace(/\\(["\\])/g, "$1");
-  if (val.startsWith("'") && val.endsWith("'")) return val.slice(1, -1).replace(/\\'/g, "'");
-  return val;
-}
-
 /** Suggestion candidate kind for a property's value editor. */
 function referenceValueKind(key: string, docKind: DefinitionKind): "tags" | "effort" | "equipment" {
   const normalized = key.trim().toLowerCase();
-  if (normalized === "metrics.effort") return "effort";
+  if (normalized === "metrics.effort" || normalized === "effort") return "effort";
   if (normalized === "metrics.equipment" || normalized === "equipment") return "equipment";
   if (normalized === "aliases" && docKind === "equipment") return "equipment";
   if (normalized === "aliases" && docKind === "effort") return "effort";
@@ -713,9 +757,10 @@ function createSummaryDraftRow(
   const settle = (doCommit: boolean) => {
     if (settled) return;
     settled = true;
-    const rawKey = (keyInput.value.trim() || "summary").replace(/^summaries\./i, "");
+    const keyTrim = keyInput.value.trim();
+    const rawKey = (keyTrim || "summary").replace(/^summaries\./i, "");
     const rawExpr = valInput.value.trim();
-    if (doCommit && rawExpr) {
+    if (doCommit && (rawExpr || keyTrim)) {
       commit([`summaries.${rawKey}`], rawExpr);
     }
     row.remove();
@@ -748,7 +793,7 @@ function createSummaryDraftRow(
   const onBlur = () => queueMicrotask(() => {
     if (!row.isConnected) return;
     if (row.contains(document.activeElement)) return;
-    settle(valInput.value.trim().length > 0);
+    settle(keyInput.value.trim().length > 0 || valInput.value.trim().length > 0);
   });
   keyInput.addEventListener("blur", onBlur);
   valInput.addEventListener("blur", onBlur);
@@ -911,7 +956,15 @@ function createFrontmatterSummary(
     { label: "Aliases", entries: entries.filter(([key]) => isAliasProperty(key)), hash: false },
   ];
   for (const group of groups) {
-    const values = group.entries.flatMap(([, value]) => parseTagList(value));
+    const seen = new Set<string>();
+    const values = group.entries
+      .flatMap(([, value]) => parseTagList(value))
+      .filter((val) => {
+        const lower = val.toLowerCase();
+        if (seen.has(lower)) return false;
+        seen.add(lower);
+        return true;
+      });
     if (values.length === 0) continue;
     const row = document.createElement("div");
     row.className = "flex flex-wrap items-center gap-1.5 px-3 py-2";
@@ -965,13 +1018,21 @@ export class DefaultFrontmatterWidget extends WidgetType {
   readonly rawContent: string;
   readonly readOnly: boolean;
   readonly detailed: boolean;
+  readonly debugMode: boolean;
 
-  constructor(sectionId: string, rawContent?: string, readOnly: boolean = false, detailed: boolean = false) {
+  constructor(
+    sectionId: string,
+    rawContent?: string,
+    readOnly: boolean = false,
+    detailed: boolean = false,
+    debugMode: boolean = false,
+  ) {
     super();
     this.sectionId = sectionId;
     this.rawContent = rawContent ?? "";
     this.readOnly = readOnly;
     this.detailed = detailed;
+    this.debugMode = debugMode;
   }
 
   eq(other: DefaultFrontmatterWidget): boolean {
@@ -979,10 +1040,10 @@ export class DefaultFrontmatterWidget extends WidgetType {
       this.sectionId === other.sectionId &&
       this.rawContent === other.rawContent &&
       this.readOnly === other.readOnly &&
-      this.detailed === other.detailed
+      this.detailed === other.detailed &&
+      this.debugMode === other.debugMode
     );
   }
-
   ignoreEvent(): boolean {
     return true;
   }
@@ -1005,6 +1066,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
       summaryButton.className = "ml-auto px-1 py-0.5 text-[11px] font-normal hover:text-foreground cursor-pointer";
       summaryButton.textContent = "Hide details ▴";
       summaryButton.addEventListener("click", () => {
+        persistedDetailed.set(view.dom, false);
         view.dispatch({ effects: setFrontmatterDetailed.of(false) });
       });
       heading.appendChild(summaryButton);
@@ -1018,13 +1080,13 @@ export class DefaultFrontmatterWidget extends WidgetType {
 
     const body = this.rawContent.replace(/^---\r?\n?/, "").replace(/\r?\n?---\r?$/, "");
     const meta = parseFrontmatterBody(body);
-    const entries = Object.entries(meta);
+    const showInternal = this.debugMode || view.state.facet(frontmatterDebugMode);
+    const entries = Object.entries(meta).filter(([key]) => showInternal || !isInternalFrontmatterKey(key));
     const docKind = detectDefinitionKind(meta);
     const referenceProvider = view.state.facet(frontmatterReferenceIndex)?.() ?? null;
-    const base = docKind === "effort" ? readBaseAttributes(body, meta) : {};
-
     if (!this.detailed) {
       box.appendChild(createFrontmatterSummary(entries, () => {
+        persistedDetailed.set(view.dom, true);
         view.dispatch({ effects: setFrontmatterDetailed.of(true) });
       }));
     } else {
@@ -1038,12 +1100,14 @@ export class DefaultFrontmatterWidget extends WidgetType {
       box.appendChild(emptyRow);
     }
 
-    for (const [key, value] of entries) {
+    const entryKeys = entries.map(([name]) => name);
+    for (let idxInEntries = 0; idxInEntries < entries.length; idxInEntries++) {
+      const [key, value] = entries[idxInEntries];
       const isTags = isTagProperty(key);
       const valueKind = referenceValueKind(key, docKind);
       const isReferenceList = (isReferenceKey(key, docKind) || key === "aliases") && Array.isArray(value);
+      const isChipList = isTags || isReferenceList || Array.isArray(value);
       const nested = value === "" && ownsNestedBlock(body, key);
-
       const row = document.createElement("div");
       row.className =
         "flex items-center min-h-[34px] border-b border-dashed border-border last:border-b-0 group hover:bg-muted/10 transition-colors max-[479px]:flex-col max-[479px]:items-stretch";
@@ -1057,7 +1121,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
       // The column joins the row before it is filled, so a field can find the
       // row it belongs to (the suggestion panel expands under that row).
       row.appendChild(keyCol);
-      keyCol.appendChild(isTags || isReferenceList ? createTagIcon() : createListIcon());
+      keyCol.appendChild(isChipList ? createTagIcon() : createListIcon());
 
       if (this.readOnly || nested) {
         const keyLabel = document.createElement("span");
@@ -1082,15 +1146,21 @@ export class DefaultFrontmatterWidget extends WidgetType {
         );
 
         let currentKey = key;
-        const commitKey = () => {
+        const commitKey = (andFocusValue = false) => {
           const nextKey = keyInput.value.trim();
           if (!nextKey || nextKey === currentKey) {
             keyInput.value = currentKey;
+            if (andFocusValue) {
+              row.querySelector<HTMLInputElement>('input[data-frontmatter-field="value"]')?.focus();
+            }
             return;
           }
           if (!/^[A-Za-z_][\w.-]*$/.test(nextKey) || nextKey in meta) {
             keyInput.value = currentKey;
             return;
+          }
+          if (andFocusValue) {
+            pendingFocus.set(view, { kind: "value", key: nextKey });
           }
           renamePropertyInView(view, this.sectionId, currentKey, nextKey, value as string | number | readonly string[]);
           delete meta[currentKey];
@@ -1107,10 +1177,56 @@ export class DefaultFrontmatterWidget extends WidgetType {
         attachSuggestions(keyInput, view, root, "key", key, entries.map(([name]) => name), commitKey);
         keyInput.addEventListener("blur", commitKeyIfAttached);
         keyInput.addEventListener("keydown", (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === ";") {
+            e.preventDefault();
+            triggerAddOrEditProperty(view, root, this.sectionId);
+            return;
+          }
           if (e.defaultPrevented) return;
+
+          if (e.key === "Tab") {
+            e.preventDefault();
+            if (!e.shiftKey) {
+              commitKey(true);
+              row.querySelector<HTMLInputElement>('input[data-frontmatter-field="value"]')?.focus();
+            } else if (idxInEntries > 0) {
+              commitKey(false);
+              const prevKey = entryKeys[idxInEntries - 1];
+              box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${prevKey}"] input[data-frontmatter-field="value"]`)?.focus();
+            } else {
+              commitKey(false);
+              root.querySelector<HTMLButtonElement>('button[aria-label="Show property summary"]')?.focus();
+            }
+            return;
+          }
+
           if (e.key === "Enter") {
             e.preventDefault();
-            keyInput.blur();
+            commitKey(true);
+            row.querySelector<HTMLInputElement>('input[data-frontmatter-field="value"]')?.focus();
+            return;
+          }
+
+          if (e.key === "ArrowDown") {
+            if (keyInput.getAttribute("aria-expanded") === "true") return;
+            e.preventDefault();
+            if (idxInEntries < entries.length - 1) {
+              const nextKey = entryKeys[idxInEntries + 1];
+              box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${nextKey}"] input[data-frontmatter-field="key"]`)?.focus();
+            } else {
+              root.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.focus();
+            }
+            return;
+          }
+
+          if (e.key === "ArrowUp") {
+            if (keyInput.getAttribute("aria-expanded") === "true") return;
+            e.preventDefault();
+            if (idxInEntries > 0) {
+              const prevKey = entryKeys[idxInEntries - 1];
+              box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${prevKey}"] input[data-frontmatter-field="key"]`)?.focus();
+            }
+            return;
           }
         });
 
@@ -1145,7 +1261,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
             : null;
       };
 
-      if (isTags || isReferenceList) {
+      if (isChipList) {
         const chips = parseTagList(value);
         const chipIsReference = valueKind !== "tags";
         const isAliasRow = isAliasProperty(key);
@@ -1154,10 +1270,10 @@ export class DefaultFrontmatterWidget extends WidgetType {
           const match = chipIsReference ? refMatch(chip) : null;
           const pill = document.createElement("span");
           pill.className = match
-            ? "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-muted/60 text-foreground border border-border/60"
+            ? "group/pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted/50 text-foreground border border-border/60"
             : chipIsReference
-              ? "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-destructive/10 text-destructive border border-destructive/30"
-              : "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 dark:border-amber-500/30";
+              ? "group/pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/30"
+              : "group/pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted/40 text-foreground/90 border border-border/60";
 
           const pillText = document.createElement("span");
           // Aliases are the note's own alternate names, not durable
@@ -1167,13 +1283,14 @@ export class DefaultFrontmatterWidget extends WidgetType {
           pillText.textContent = isAliasRow ? chip : (match ? match.label : chip);
           pill.appendChild(pillText);
 
-          if (match && referenceProvider) {
+          if (match && referenceProvider && (!isAliasRow || idx === 0)) {
             const openLink = document.createElement("a");
             openLink.href = referenceProvider.openHref(valueKind as "effort" | "equipment", match.slug);
             openLink.title = `Open ${match.label} page`;
             openLink.setAttribute("aria-label", `Open ${match.label} page`);
-            openLink.className =
-              "inline-flex items-center justify-center text-muted-foreground/60 hover:text-foreground cursor-pointer";
+            openLink.className = isAliasRow
+              ? "inline-flex items-center justify-center text-muted-foreground/40 hover:text-foreground cursor-pointer"
+              : "inline-flex items-center justify-center text-muted-foreground/60 hover:text-foreground cursor-pointer";
             openLink.appendChild(createExternalIcon());
             pill.appendChild(openLink);
           }
@@ -1181,9 +1298,10 @@ export class DefaultFrontmatterWidget extends WidgetType {
           if (!this.readOnly) {
             const rmBtn = document.createElement("button");
             rmBtn.type = "button";
+            rmBtn.tabIndex = -1;
             rmBtn.setAttribute("aria-label", isTags ? `Remove tag ${chip}` : `Remove ${chip}`);
             rmBtn.className =
-              "inline-flex items-center justify-center text-muted-foreground/60 hover:text-foreground dark:hover:text-foreground cursor-pointer";
+              "inline-flex items-center justify-center text-muted-foreground/50 hover:text-destructive cursor-pointer transition-colors";
             rmBtn.appendChild(createCloseIcon("sm"));
             rmBtn.addEventListener("click", (e) => {
               e.preventDefault();
@@ -1198,7 +1316,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
         if (!this.readOnly) {
           const chipInput = document.createElement("input");
           chipInput.className =
-            "flex-none w-44 max-w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring";
+            "flex-1 min-w-[96px] bg-transparent px-1 py-0.5 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:bg-background/80 focus:ring-1 focus:ring-ring rounded transition-colors";
           chipInput.placeholder = chips.length === 0
             ? (isReferenceList ? `Add ${valueKind === "effort" ? "effort" : "equipment"}…` : "Add tags…")
             : (isTags ? "Add tag…" : "Add…");
@@ -1225,14 +1343,77 @@ export class DefaultFrontmatterWidget extends WidgetType {
           attachSuggestions(chipInput, view, root, "value", key, chips, commitNewChip, valueKind);
 
           chipInput.addEventListener("keydown", (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === ";") {
+              e.preventDefault();
+              triggerAddOrEditProperty(view, root, this.sectionId);
+              return;
+            }
             if (e.defaultPrevented) return;
-            if (e.key === "Enter" || e.key === ",") {
+
+            if ((e.key === "Enter" || e.key === ",") && chipInput.value.trim()) {
               e.preventDefault();
               commitNewChip();
-            } else if (e.key === "Backspace" && !chipInput.value && chips.length > 0) {
+              return;
+            }
+
+            if (e.key === "Backspace" && !chipInput.value && chips.length > 0) {
               e.preventDefault();
               pendingFocus.set(view, { kind: "tag", key });
               commitList(chips.slice(0, -1));
+              return;
+            }
+
+            if (e.key === "Tab") {
+              if (chipInput.value.trim() && !e.shiftKey) {
+                e.preventDefault();
+                commitNewChip();
+                return;
+              }
+              e.preventDefault();
+              if (!e.shiftKey) {
+                if (idxInEntries < entries.length - 1) {
+                  const nextKey = entryKeys[idxInEntries + 1];
+                  box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${nextKey}"] input[data-frontmatter-field="key"]`)?.focus();
+                } else {
+                  root.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.focus();
+                }
+              } else {
+                row.querySelector<HTMLInputElement>('input[data-frontmatter-field="key"]')?.focus();
+              }
+              return;
+            }
+
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (idxInEntries < entries.length - 1) {
+                const nextKey = entryKeys[idxInEntries + 1];
+                box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${nextKey}"] input[data-frontmatter-field="key"]`)?.focus();
+              } else {
+                root.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.click();
+              }
+              return;
+            }
+
+            if (e.key === "ArrowDown") {
+              if (chipInput.getAttribute("aria-expanded") === "true") return;
+              e.preventDefault();
+              if (idxInEntries < entries.length - 1) {
+                const nextKey = entryKeys[idxInEntries + 1];
+                box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${nextKey}"] input[data-frontmatter-field="value"]`)?.focus();
+              } else {
+                exitToEditorBody(view);
+              }
+              return;
+            }
+
+            if (e.key === "ArrowUp") {
+              if (chipInput.getAttribute("aria-expanded") === "true") return;
+              e.preventDefault();
+              if (idxInEntries > 0) {
+                const prevKey = entryKeys[idxInEntries - 1];
+                box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${prevKey}"] input[data-frontmatter-field="value"]`)?.focus();
+              }
+              return;
             }
           });
           chipInput.addEventListener("blur", () => queueMicrotask(() => {
@@ -1240,7 +1421,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
           }));
 
           const focus = pendingFocus.get(view);
-          if (focus?.kind === "tag" && focus.key === key) {
+          if ((focus?.kind === "tag" || focus?.kind === "value") && focus.key === key) {
             setTimeout(() => {
               if (chipInput.isConnected) chipInput.focus();
             }, 0);
@@ -1291,8 +1472,9 @@ export class DefaultFrontmatterWidget extends WidgetType {
         } else {
           const valInput = document.createElement("input");
           valInput.className =
-            "w-full rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring transition-colors";
+            "w-full bg-transparent px-1.5 py-0.5 -mx-1.5 text-xs text-foreground outline-none placeholder:text-field-placeholder hover:bg-muted/30 focus:bg-background focus:ring-1 focus:ring-ring rounded transition-colors";
           valInput.value = strVal;
+          valInput.placeholder = "Empty";
           valInput.spellcheck = false;
           valInput.setAttribute("aria-label", `Value for ${key}`);
           valInput.dataset.frontmatterField = "value";
@@ -1303,13 +1485,18 @@ export class DefaultFrontmatterWidget extends WidgetType {
           );
 
           let committedVal = strVal;
-          const commitVal = () => {
+          const commitVal = (pendingNextKey?: string | boolean) => {
             const cur = valInput.value.trim();
             if (cur !== committedVal) {
               committedVal = cur;
               const num = Number(cur);
               const next = cur !== "" && !isNaN(num) ? num : cur;
               meta[key] = next;
+              if (typeof pendingNextKey === "string") {
+                pendingFocus.set(view, { kind: "key", key: pendingNextKey });
+              } else if (pendingNextKey === true) {
+                pendingFocus.set(view, { kind: "value", key });
+              }
               patchPropertyInView(view, this.sectionId, [key], next);
             }
           };
@@ -1325,39 +1512,96 @@ export class DefaultFrontmatterWidget extends WidgetType {
           );
           valInput.addEventListener("blur", commitValIfAttached);
           valInput.addEventListener("keydown", (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === ";") {
+              e.preventDefault();
+              triggerAddOrEditProperty(view, root, this.sectionId);
+              return;
+            }
             if (e.defaultPrevented) return;
+
+            if (e.key === "Tab") {
+              e.preventDefault();
+              if (!e.shiftKey) {
+                if (idxInEntries < entries.length - 1) {
+                  const nextKey = entryKeys[idxInEntries + 1];
+                  commitVal(nextKey);
+                  box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${nextKey}"] input[data-frontmatter-field="key"]`)?.focus();
+                } else {
+                  commitVal();
+                  root.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.focus();
+                }
+              } else {
+                commitVal();
+                row.querySelector<HTMLInputElement>('input[data-frontmatter-field="key"]')?.focus();
+              }
+              return;
+            }
+
             if (e.key === "Enter") {
               e.preventDefault();
-              valInput.blur();
+              if (idxInEntries < entries.length - 1) {
+                const nextKey = entryKeys[idxInEntries + 1];
+                commitVal(nextKey);
+                box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${nextKey}"] input[data-frontmatter-field="key"]`)?.focus();
+              } else {
+                commitVal();
+                root.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.click();
+              }
+              return;
+            }
+
+            if (e.key === "ArrowDown") {
+              if (valInput.getAttribute("aria-expanded") === "true") return;
+              e.preventDefault();
+              if (idxInEntries < entries.length - 1) {
+                const nextKey = entryKeys[idxInEntries + 1];
+                box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${nextKey}"] input[data-frontmatter-field="value"]`)?.focus();
+              } else {
+                exitToEditorBody(view);
+              }
+              return;
+            }
+
+            if (e.key === "ArrowUp") {
+              if (valInput.getAttribute("aria-expanded") === "true") return;
+              e.preventDefault();
+              if (idxInEntries > 0) {
+                const prevKey = entryKeys[idxInEntries - 1];
+                box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${prevKey}"] input[data-frontmatter-field="value"]`)?.focus();
+              }
+              return;
             }
           });
+
+          const focus = pendingFocus.get(view);
+          if (focus?.kind === "value" && focus.key === key) {
+            setTimeout(() => {
+              if (!valInput.isConnected) return;
+              valInput.focus();
+              valInput.select?.();
+            }, 0);
+            pendingFocus.delete(view);
+          }
 
           // Note-default effort references surface shared-resolver
           // diagnostics with select-existing / create-page actions.
           if (key.trim().toLowerCase() === "metrics.effort" && referenceProvider) {
             const match = referenceProvider.resolveEffort(strVal);
             if (match) {
-              const pill = document.createElement("span");
-              pill.className =
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-muted/60 text-foreground border border-border/60 shrink-0";
-              const pillText = document.createElement("span");
-              pillText.textContent = match.label;
-              pill.appendChild(pillText);
-
+              valInput.className =
+                "flex-1 min-w-[70px] bg-transparent px-1.5 py-0.5 -mx-1.5 text-xs text-foreground outline-none placeholder:text-field-placeholder hover:bg-muted/30 focus:bg-background focus:ring-1 focus:ring-ring rounded transition-colors";
               const openLink = document.createElement("a");
               openLink.href = referenceProvider.openHref("effort", match.slug);
               openLink.title = `Open ${match.label} page`;
               openLink.setAttribute("aria-label", `Open ${match.label} page`);
               openLink.className =
-                "inline-flex items-center justify-center text-muted-foreground/60 hover:text-foreground cursor-pointer";
+                "shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer";
+              const linkLabel = document.createElement("span");
+              linkLabel.textContent = match.label;
+              openLink.appendChild(linkLabel);
               openLink.appendChild(createExternalIcon());
-              pill.appendChild(openLink);
-
-              valCol.insertBefore(pill, valInput);
-              valInput.className =
-                "flex-1 min-w-[70px] rounded-md border border-field-border bg-background/60 px-2 py-1 text-xs text-foreground outline-none placeholder:text-field-placeholder focus:border-ring focus:ring-1 focus:ring-ring transition-colors";
+              valCol.appendChild(openLink);
             }
-
             const diag = renderEffortValueDiagnostics(
               referenceProvider, strVal,
               (slug) => {
@@ -1391,6 +1635,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
 
         const delBtn = document.createElement("button");
         delBtn.type = "button";
+        delBtn.tabIndex = -1;
         delBtn.setAttribute("aria-label", `Remove property ${key}`);
         delBtn.className =
           "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground/70 hover:text-destructive p-1 rounded transition-opacity cursor-pointer";
@@ -1406,12 +1651,6 @@ export class DefaultFrontmatterWidget extends WidgetType {
       }
     }
 
-    // Effort definition attributes: MET / discipline / intensity tier live in
-    // the nested baseAttributes block; patching each path keeps the rest of
-    // the document byte-identical.
-    if (docKind === "effort" && !this.readOnly) {
-      box.appendChild(this.buildDefinitionRows(view, base));
-    }
     }
 
     if (!this.readOnly) {
@@ -1438,6 +1677,10 @@ export class DefaultFrontmatterWidget extends WidgetType {
       addBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (!this.detailed) {
+          persistedDetailed.set(view.dom, true);
+          view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+        }
         let newKey = "property";
         let count = 1;
         while (newKey in meta) {
@@ -1445,12 +1688,23 @@ export class DefaultFrontmatterWidget extends WidgetType {
           newKey = `property_${count}`;
         }
         pendingFocus.set(view, { kind: "key", key: newKey });
-        patchPropertyInView(view, this.sectionId, [newKey], "", !this.detailed);
-        const keyField = view.dom.querySelector<HTMLInputElement>(
+        patchPropertyInView(view, this.sectionId, [newKey], "", true);
+        const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
+        const keyField = activeRoot.querySelector<HTMLInputElement>(
           `[data-frontmatter-row="${newKey}"] [data-frontmatter-field="key"]`,
         );
         keyField?.focus();
         keyField?.select();
+      });
+      addBtn.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) {
+          e.preventDefault();
+          exitToEditorBody(view);
+        } else if (e.key === "ArrowUp" || (e.key === "Tab" && e.shiftKey)) {
+          e.preventDefault();
+          const allInputs = box.querySelectorAll<HTMLInputElement>('input[data-frontmatter-field]:not([disabled])');
+          allInputs[allInputs.length - 1]?.focus();
+        }
       });
       actionsRow.appendChild(addBtn);
 
@@ -1471,6 +1725,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
         addMetricBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
+          persistedDetailed.set(view.dom, true);
           if (!this.detailed) {
             view.dispatch({ effects: setFrontmatterDetailed.of(true) });
           }
@@ -1506,6 +1761,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
         addSummaryBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
+          persistedDetailed.set(view.dom, true);
           if (!this.detailed) {
             view.dispatch({ effects: setFrontmatterDetailed.of(true) });
           }
@@ -1517,7 +1773,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
             return;
           }
           const draftRow = createSummaryDraftRow(view, (path, value) => {
-            patchPropertyInView(view, this.sectionId, path, value);
+            patchPropertyInView(view, this.sectionId, path, value, true);
           });
           activeBox.appendChild(draftRow);
           draftRow.querySelector<HTMLInputElement>("input")?.focus();
@@ -1540,6 +1796,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
         addTagBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
+          persistedDetailed.set(view.dom, true);
           if (!this.detailed) {
             view.dispatch({ effects: setFrontmatterDetailed.of(true) });
           }
@@ -1594,6 +1851,12 @@ export class DefaultFrontmatterWidget extends WidgetType {
           });
           view.focus();
         });
+        editYamlBtn.addEventListener("keydown", (e) => {
+          if (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) {
+            e.preventDefault();
+            exitToEditorBody(view);
+          }
+        });
         actionsRow.appendChild(editYamlBtn);
       }
 
@@ -1603,97 +1866,6 @@ export class DefaultFrontmatterWidget extends WidgetType {
     return root;
   }
 
-  /**
-   * Effort-definition attribute rows (MET / discipline / intensity tier).
-   * Values live in the nested baseAttributes block; each edit patches that
-   * one path, so unknown sibling keys and comments elsewhere survive.
-   */
-  private buildDefinitionRows(
-    view: EditorView,
-    base: { met?: string; discipline?: string; intensityTier?: string; hasBaseBlock?: boolean },
-  ): HTMLElement {
-    const wrap = document.createElement("div");
-    wrap.setAttribute("data-frontmatter-definition", "true");
-    wrap.className = "border-t border-dashed border-border/60";
-
-    const header = document.createElement("div");
-    header.className = "px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
-    header.textContent = "Definition";
-    wrap.appendChild(header);
-
-    const commitField = (field: "met" | "discipline" | "intensityTier", raw: string) => {
-      if (field === "met") {
-        const num = Number(raw);
-        const path = base.hasBaseBlock ? ["baseAttributes", "met"] : ["metrics.met"];
-        patchPropertyInView(view, this.sectionId, path, raw !== "" && !Number.isNaN(num) ? num : null);
-        return;
-      }
-      const path = base.hasBaseBlock ? ["baseAttributes", field] : [field];
-      patchPropertyInView(view, this.sectionId, path, raw === "" ? null : raw);
-    };
-
-    const fieldRow = (label: string, child: HTMLElement) => {
-      const row = document.createElement("label");
-      row.className =
-        "flex items-center gap-2 px-3 py-1.5 min-h-[34px] border-b border-dashed border-border/60 last:border-b-0 max-[479px]:flex-col max-[479px]:items-stretch";
-      const name = document.createElement("span");
-      name.className = "w-28 shrink-0 text-muted-foreground";
-      name.textContent = label;
-      row.appendChild(name);
-      child.className = "flex-1 min-w-0 bg-transparent text-xs text-foreground outline-none py-0.5";
-      row.appendChild(child);
-      wrap.appendChild(row);
-    };
-
-    const met = document.createElement("input");
-    met.type = "number";
-    met.step = "0.1";
-    met.inputMode = "decimal";
-    met.value = base.met ?? "";
-    met.setAttribute("aria-label", "MET value");
-    met.addEventListener("change", () => queueMicrotask(() => {
-      if (met.isConnected) commitField("met", met.value.trim());
-    }));
-    fieldRow("MET", met);
-
-    const discipline = document.createElement("select");
-    discipline.setAttribute("aria-label", "Discipline");
-    discipline.className =
-      "flex-1 min-w-0 rounded-md border border-input bg-background px-1.5 text-[11px] text-muted-foreground outline-none";
-    const unset = document.createElement("option");
-    unset.value = "";
-    unset.textContent = "Unset";
-    discipline.appendChild(unset);
-    for (const option of EFFORT_DISCIPLINES) {
-      const opt = document.createElement("option");
-      opt.value = option;
-      opt.textContent = option;
-      discipline.appendChild(opt);
-    }
-    discipline.value = base.discipline ?? "";
-    discipline.addEventListener("change", () => commitField("discipline", discipline.value));
-    fieldRow("Discipline", discipline);
-
-    const tier = document.createElement("select");
-    tier.setAttribute("aria-label", "Intensity tier");
-    tier.className =
-      "flex-1 min-w-0 rounded-md border border-input bg-background px-1.5 text-[11px] text-muted-foreground outline-none";
-    const tierUnset = document.createElement("option");
-    tierUnset.value = "";
-    tierUnset.textContent = "Unset";
-    tier.appendChild(tierUnset);
-    for (const option of ["low", "moderate", "high"]) {
-      const opt = document.createElement("option");
-      opt.value = option;
-      opt.textContent = option;
-      tier.appendChild(opt);
-    }
-    tier.value = base.intensityTier ?? "";
-    tier.addEventListener("change", () => commitField("intensityTier", tier.value));
-    fieldRow("Intensity tier", tier);
-
-    return wrap;
-  }
 
   destroy(dom: HTMLElement): void {
     widgetCleanup.get(dom)?.forEach((close) => close());
@@ -1740,13 +1912,22 @@ class EmptyFrontmatterWidget extends WidgetType {
     addBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
+      persistedDetailed.set(view.dom, true);
+      view.dispatch({ effects: setFrontmatterDetailed.of(true) });
       pendingFocus.set(view, { kind: "key", key: "property" });
       patchPropertyInView(view, "new", ["property"], "", true);
-      const keyField = view.dom.querySelector<HTMLInputElement>(
+      const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
+      const keyField = activeRoot.querySelector<HTMLInputElement>(
         '[data-frontmatter-row="property"] [data-frontmatter-field="key"]',
       );
       keyField?.focus();
       keyField?.select();
+    });
+    addBtn.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) {
+        e.preventDefault();
+        exitToEditorBody(view);
+      }
     });
     actionsRow.appendChild(addBtn);
 
@@ -1763,6 +1944,7 @@ class EmptyFrontmatterWidget extends WidgetType {
     addMetricBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
+      persistedDetailed.set(view.dom, true);
       if (!this.detailed) view.dispatch({ effects: setFrontmatterDetailed.of(true) });
       const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
       const existing = activeRoot.querySelector<HTMLInputElement>("[data-frontmatter-metric-draft] input");
@@ -1794,6 +1976,7 @@ class EmptyFrontmatterWidget extends WidgetType {
     addSummaryBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
+      persistedDetailed.set(view.dom, true);
       if (!this.detailed) view.dispatch({ effects: setFrontmatterDetailed.of(true) });
       const activeRoot = view.dom.querySelector<HTMLElement>(".cm-frontmatter-preview") ?? root;
       const existing = activeRoot.querySelector<HTMLInputElement>("[data-frontmatter-summary-draft] input");
@@ -1866,18 +2049,17 @@ function buildFrontmatterDecos(state: EditorState): DecorationSet {
       continue;
     }
 
-    const selected = !state.readOnly && (
-      state.field(frontmatterSource) ||
-      state.selection.ranges.some((range) => range.from < section.to && range.to > section.from)
-    );
+    const detailed = state.field(frontmatterDetailed);
+    const selected = !state.readOnly && state.field(frontmatterSource);
     if (selected) continue;
 
     const rawContent = state.doc.sliceString(section.from, section.to);
+    const debugMode = state.facet(frontmatterDebugMode);
     builder.add(
       section.from,
       section.to,
       Decoration.replace({
-        widget: new DefaultFrontmatterWidget(section.id, rawContent, state.readOnly, state.field(frontmatterDetailed)),
+        widget: new DefaultFrontmatterWidget(section.id, rawContent, state.readOnly, detailed, debugMode),
         block: true,
       }),
     );
@@ -1915,5 +2097,88 @@ export const frontmatterPreviewField = StateField.define<DecorationSet>({
     ),
   ],
 });
+const frontmatterDetailSync = EditorView.updateListener.of((update) => {
+  const current = update.state.field(frontmatterDetailed);
+  const prev = update.startState.field(frontmatterDetailed);
+  if (current !== prev) {
+    if (update.transactions.some((tr) => tr.effects.some((e) => e.is(setFrontmatterDetailed)))) {
+      persistedDetailed.set(update.view.dom, current);
+    } else if (persistedDetailed.get(update.view.dom) === true && !current) {
+      queueMicrotask(() => {
+        if (update.view.state.field(frontmatterDetailed) === false) {
+          update.view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+        }
+      });
+    }
+  } else if (persistedDetailed.get(update.view.dom) === true && !current) {
+    queueMicrotask(() => {
+      if (update.view.state.field(frontmatterDetailed) === false) {
+        update.view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+      }
+    });
+  }
+});
 
-export const frontmatterPreview: Extension = [frontmatterDetailed, frontmatterSource, frontmatterPreviewField];
+// ponytail: Mod-; shortcut and ArrowUp bridge between body and frontmatter; add multi-selection or vim-mode commands when requested.
+export const frontmatterKeymap = Prec.highest(
+  keymap.of([
+    {
+      key: "Mod-;",
+      run(view) {
+        if (view.state.readOnly) return false;
+        triggerAddOrEditProperty(view);
+        return true;
+      },
+    },
+    {
+      key: "ArrowUp",
+      run(view) {
+        if (view.state.readOnly) return false;
+        if (view.state.field(frontmatterSource)) return false;
+        if (!view.state.facet(frontmatterVisibility)) return false;
+
+        const { head } = view.state.selection.main;
+        const { sections } = view.state.field(sectionField);
+        const fm = sections.find((s) => s.type === "frontmatter");
+        if (!fm) return false;
+
+        const cursorLine = view.state.doc.lineAt(head);
+        const fmEndLine = view.state.doc.lineAt(fm.to);
+        if (cursorLine.number > fmEndLine.number + 1) return false;
+
+        const allInputs = view.dom.querySelectorAll<HTMLInputElement>(
+          '.cm-frontmatter-preview input[data-frontmatter-field]:not([disabled])',
+        );
+        if (allInputs.length === 0) {
+          const addBtn = view.dom.querySelector<HTMLButtonElement>(
+            '.cm-frontmatter-preview button[aria-label="Add property"]',
+          );
+          if (addBtn) {
+            addBtn.focus();
+            return true;
+          }
+          const detailsBtn = view.dom.querySelector<HTMLButtonElement>(
+            '.cm-frontmatter-preview button[aria-label="Show property details"]',
+          );
+          if (detailsBtn) {
+            detailsBtn.focus();
+            return true;
+          }
+          return false;
+        }
+        const target = allInputs[allInputs.length - 1];
+        target.focus();
+        target.select?.();
+        return true;
+      },
+    },
+  ]),
+);
+
+export const frontmatterPreview: Extension = [
+  frontmatterDetailed,
+  frontmatterSource,
+  frontmatterPreviewField,
+  frontmatterDetailSync,
+  frontmatterKeymap,
+];

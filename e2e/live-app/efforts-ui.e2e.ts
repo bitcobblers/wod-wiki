@@ -122,8 +122,8 @@ test.describe('Effort Detail Page', () => {
     await expect(efforts.detailSource()).toHaveText('Bundled');
     // Assert metric values, not the number input's decimal formatting.
     const properties = efforts.frontmatterProperties();
-    await expect.poll(async () => Number(await properties.getByLabel('MET value').inputValue())).toBe(7);
-    await expect(page.getByLabel('Intensity tier')).toHaveValue('high');
+    await expect.poll(async () => Number(await properties.getByLabel('Value for metrics.met').inputValue())).toBe(7);
+    await expect(properties.getByLabel('Value for intensityTier')).toHaveValue('high');
     // Properties panel is editable: the slug lives in an input value.
     await expect(properties.getByLabel('Value for slug')).toHaveValue('rowing');
     await expect(efforts.cloneButton()).toBeVisible();
@@ -155,8 +155,8 @@ test.describe('Effort Detail Page', () => {
     const properties = efforts.frontmatterProperties();
     await expect(properties.getByLabel('Value for slug')).toHaveValue('kettlebell-snatch');
     // Frontmatter companion surfaces the effort attributes.
-    await expect.poll(async () => Number(await properties.getByLabel('MET value').inputValue())).toBe(12);
-    await expect(page.getByLabel('Intensity tier')).toHaveValue('high');
+    await expect.poll(async () => Number(await properties.getByLabel('Value for metrics.met').inputValue())).toBe(12);
+    await expect(properties.getByLabel('Value for intensityTier')).toHaveValue('high');
   });
 
   test('shows effort with aliases', async ({ page }) => {

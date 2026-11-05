@@ -6,6 +6,7 @@ import {
   frontmatterPreview,
   frontmatterSuggestions,
   frontmatterVisibility,
+  frontmatterDebugMode,
 } from '../src/extensions';
 
 const SAMPLE_NOTE = `---
@@ -244,6 +245,119 @@ metrics.effort: air-bike
     addBtn?.click();
 
     expect(view.state.doc.toString()).toContain('property:');
+
+    view.destroy();
+    container.remove();
+  });
+  it('allows adding a new property when collapsed after hiding details', () => {
+    const state = EditorState.create({
+      doc: SAMPLE_NOTE,
+      extensions: [sectionField, frontmatterPreview],
+    });
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({ state, parent: container });
+
+    openDetails(container);
+    expect(container.querySelector('button[aria-label="Show property summary"]')).not.toBeNull();
+
+    // Collapse by clicking Hide details
+    container.querySelector<HTMLButtonElement>('button[aria-label="Show property summary"]')?.click();
+    expect(container.querySelector('[data-frontmatter-summary]')).not.toBeNull();
+
+    const addBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Add property'),
+    );
+    addBtn?.click();
+
+    expect(view.state.doc.toString()).toContain('property:');
+    expect(container.querySelector('[data-frontmatter-summary]')).toBeNull();
+    expect(container.querySelector('[data-frontmatter-row="property"]')).not.toBeNull();
+
+    view.destroy();
+    container.remove();
+  });
+  it('allows adding a summary when collapsed', () => {
+    const state = EditorState.create({
+      doc: SAMPLE_NOTE,
+      extensions: [sectionField, frontmatterPreview],
+    });
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({ state, parent: container });
+
+    expect(container.querySelector('[data-frontmatter-summary]')).not.toBeNull();
+
+    const addSummaryBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Add summary"]');
+    expect(addSummaryBtn).not.toBeNull();
+    addSummaryBtn?.click();
+
+    const summaryKeyInput = container.querySelector<HTMLInputElement>('input[aria-label="Summary key"]');
+    const summaryEqInput = container.querySelector<HTMLInputElement>('input[aria-label="Summary equation"]');
+    expect(summaryKeyInput).not.toBeNull();
+    expect(summaryEqInput).not.toBeNull();
+
+    summaryKeyInput!.value = 'totalWork';
+    summaryEqInput!.value = 'sum(work)';
+    summaryEqInput!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    expect(view.state.doc.toString()).toContain('summaries.totalWork: sum(work)');
+    expect(container.querySelector('[data-frontmatter-row="summaries.totalWork"]')).not.toBeNull();
+
+    view.destroy();
+    container.remove();
+  });
+  it('allows creating a summary with blank equation initially', () => {
+    const state = EditorState.create({
+      doc: SAMPLE_NOTE,
+      extensions: [sectionField, frontmatterPreview],
+    });
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({ state, parent: container });
+
+    const addSummaryBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Add summary"]');
+    addSummaryBtn?.click();
+
+    const summaryKeyInput = container.querySelector<HTMLInputElement>('input[aria-label="Summary key"]');
+    summaryKeyInput!.value = 'workRate';
+    summaryKeyInput!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    const summaryEqInput = container.querySelector<HTMLInputElement>('input[aria-label="Summary equation"]');
+    summaryEqInput!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    expect(view.state.doc.toString()).toContain('summaries.workRate: ""');
+
+    view.destroy();
+    container.remove();
+  });
+
+  it('nests summary into existing empty summaries block cleanly', () => {
+    const doc = `---\ntitle: Session\nsummaries:\n---\n# Body\n`;
+    const state = EditorState.create({
+      doc,
+      extensions: [sectionField, frontmatterPreview],
+    });
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({ state, parent: container });
+
+    const addSummaryBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Add summary"]');
+    addSummaryBtn?.click();
+
+    const summaryKeyInput = container.querySelector<HTMLInputElement>('input[aria-label="Summary key"]');
+    const summaryEqInput = container.querySelector<HTMLInputElement>('input[aria-label="Summary equation"]');
+    summaryKeyInput!.value = 'tonnage';
+    summaryEqInput!.value = 'sum(reps * load)';
+    summaryEqInput!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    const updated = view.state.doc.toString();
+    expect(updated).toContain('summaries:\n  tonnage: "sum(reps * load)"');
+    expect(updated).not.toContain('summaries.tonnage');
 
     view.destroy();
     container.remove();
@@ -772,6 +886,207 @@ summaries.totalWork: sum(work)
       summaryEqInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
       expect(view.state.doc.toString()).toContain('summaries.workRate: "sum(work) / convert(sum(elapsed), min)"');
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
+
+  it('provides Obsidian-compatible keyboard navigation, tabbing, shortcuts, and cursor bridge', () => {
+    const doc = [
+      '---',
+      'title: Session',
+      'difficulty: hard',
+      '---',
+      '# Main Content',
+      'Workout description here.',
+    ].join('\n');
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({ doc, extensions: [sectionField, frontmatterPreview] }),
+    });
+
+    try {
+      expect(container.querySelector('[data-frontmatter-summary]')).not.toBeNull();
+      openDetails(container);
+
+      const titleKey = container.querySelector<HTMLInputElement>(
+        '[data-frontmatter-row="title"] input[data-frontmatter-field="key"]',
+      );
+      const titleVal = container.querySelector<HTMLInputElement>(
+        '[data-frontmatter-row="title"] input[data-frontmatter-field="value"]',
+      );
+      const diffKey = container.querySelector<HTMLInputElement>(
+        '[data-frontmatter-row="difficulty"] input[data-frontmatter-field="key"]',
+      );
+      const diffVal = container.querySelector<HTMLInputElement>(
+        '[data-frontmatter-row="difficulty"] input[data-frontmatter-field="value"]',
+      );
+      const addBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Add property"]');
+
+      expect(titleKey).not.toBeNull();
+      expect(titleVal).not.toBeNull();
+      expect(diffKey).not.toBeNull();
+      expect(diffVal).not.toBeNull();
+      expect(addBtn).not.toBeNull();
+
+      // 1. Tab: key -> value in same row
+      titleKey!.focus();
+      titleKey!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(titleVal);
+
+      // 2. Tab: value -> next row's key
+      titleVal!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(diffKey);
+
+      // 3. Shift+Tab: key -> previous row's value
+      diffKey!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(titleVal);
+
+      // 4. Shift+Tab: value -> same row's key
+      titleVal!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(titleKey);
+
+      // 5. Enter: key -> value in same row
+      titleKey!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(titleVal);
+
+      // 6. Enter: value -> next row's key
+      titleVal!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(diffKey);
+
+      // 7. ArrowDown on key: moves to next row's key
+      titleKey!.focus();
+      titleKey!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(diffKey);
+
+      // 8. ArrowUp on key: moves to previous row's key
+      diffKey!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(titleKey);
+
+      // 9. ArrowDown on value: moves to next row's value
+      titleVal!.focus();
+      titleVal!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(diffVal);
+
+      // 10. ArrowUp on value: moves to previous row's value
+      diffVal!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(titleVal);
+
+      // 11. ArrowDown on last row value: exits into CM6 editor body
+      diffVal!.focus();
+      diffVal!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      expect(view.hasFocus).toBe(true);
+
+      // 12. ArrowUp in editor body right after frontmatter moves focus back to last input
+      view.dispatch({ selection: { anchor: view.state.doc.line(5).from } });
+      const upEvt = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true });
+      view.contentDOM.dispatchEvent(upEvt);
+      expect(document.activeElement).toBe(diffVal);
+      // 13. Widget never hides when cursor lands at 0 or when editing properties
+      view.dispatch({ selection: { anchor: 0 } });
+      expect(container.querySelector('.cm-frontmatter-preview')).not.toBeNull();
+
+      // 14. Renaming a key and pressing Tab keeps the properties widget open and focuses the value
+      const addProp = container.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')!;
+      addProp.click();
+      const propKey = container.querySelector<HTMLInputElement>(
+        '[data-frontmatter-row="property"] input[data-frontmatter-field="key"]',
+      )!;
+      expect(propKey).not.toBeNull();
+      propKey.value = 'rpe';
+      propKey.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+      expect(container.querySelector('.cm-frontmatter-preview')).not.toBeNull();
+      expect(container.querySelector('[data-frontmatter-row="rpe"]')).not.toBeNull();
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
+
+  it('renders effort attributes as standard properties with no custom Definition section', () => {
+    const doc = [
+      '---',
+      'type: effort',
+      'slug: snatch',
+      'label: Snatch',
+      'tags: [strength, barbell]',
+      'discipline: strength',
+      'equipment: [barbell]',
+      'metrics.met: 6',
+      'intensityTier: high',
+      '---',
+      '# Snatch',
+    ].join('\n');
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({ doc, extensions: [sectionField, frontmatterPreview] }),
+    });
+
+    try {
+      const summary = container.querySelector('[data-frontmatter-summary]')!;
+      const pills = Array.from(summary.querySelectorAll('span.inline-flex')).map((el) => el.textContent);
+      expect(pills.filter((t) => t === '#strength')).toHaveLength(1);
+      expect(pills.filter((t) => t === '#barbell')).toHaveLength(1);
+
+      openDetails(container);
+      expect(container.querySelector('[data-frontmatter-definition]')).toBeNull();
+      expect(container.querySelector<HTMLInputElement>('[data-frontmatter-row="metrics.met"] input[data-frontmatter-field="value"]')?.value).toBe('6');
+      expect(container.querySelector<HTMLInputElement>('[data-frontmatter-row="discipline"] input[data-frontmatter-field="value"]')?.value).toBe('strength');
+      expect(container.querySelector<HTMLInputElement>('[data-frontmatter-row="intensityTier"] input[data-frontmatter-field="value"]')?.value).toBe('high');
+      // Internal keys (type, id, registrySource) are hidden by default
+      expect(container.querySelector('[data-frontmatter-row="type"]')).toBeNull();
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
+
+  it('hides internal keys (type, id, registrySource, registry-source) unless debug mode or Edit YAML is active', () => {
+    const doc = [
+      '---',
+      'type: effort',
+      'id: effort-bundled-snatch',
+      'registrySource: bundled',
+      'registry-source: legacy',
+      'slug: snatch',
+      'label: Snatch',
+      '---',
+      '# Snatch',
+    ].join('\n');
+    const debugComp = new Compartment();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({
+        doc,
+        extensions: [sectionField, frontmatterPreview, debugComp.of(frontmatterDebugMode.of(false))],
+      }),
+    });
+
+    try {
+      // Summary count only counts non-internal hidden properties (slug + label = 2)
+      expect(container.querySelector('[data-frontmatter-summary]')?.textContent).toContain('2 more properties');
+
+      openDetails(container);
+      expect(container.querySelector('[data-frontmatter-row="type"]')).toBeNull();
+      expect(container.querySelector('[data-frontmatter-row="id"]')).toBeNull();
+      expect(container.querySelector('[data-frontmatter-row="registrySource"]')).toBeNull();
+      expect(container.querySelector('[data-frontmatter-row="registry-source"]')).toBeNull();
+      expect(container.querySelector('[data-frontmatter-row="slug"]')).not.toBeNull();
+      expect(container.querySelector('[data-frontmatter-row="label"]')).not.toBeNull();
+
+      // Enabling debug mode reveals internal keys in the Properties table
+      view.dispatch({ effects: debugComp.reconfigure(frontmatterDebugMode.of(true)) });
+      expect(container.querySelector('[data-frontmatter-row="type"]')).not.toBeNull();
+      expect(container.querySelector('[data-frontmatter-row="id"]')).not.toBeNull();
+      expect(container.querySelector('[data-frontmatter-row="registrySource"]')).not.toBeNull();
+      expect(container.querySelector('[data-frontmatter-row="registry-source"]')).not.toBeNull();
     } finally {
       view.destroy();
       container.remove();
