@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WQL Markdown Query Blocks &amp; Dashboard Pipeline Model</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f8fafc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.6; }
+    .wb-shell { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 56px 0 32px; }
+    .wb-document-header { max-width: 780px; margin-bottom: 32px; padding-right: 120px; }
+    .wb-document-header h1 { margin: 0; font-size: clamp(32px, 6vw, 56px); line-height: 1.08; letter-spacing: -.04em; }
+    .wb-document-header p { margin: 16px 0 0; color: #526078; font-size: 18px; }
+    .wb-stack { display: grid; gap: 20px; }
+    .wb-card, .wb-hero, .wb-note { border: 1px solid #dce3ed; border-radius: 18px; background: #fff; box-shadow: 0 8px 30px #1720330a; }
+    .wb-card { padding: clamp(20px, 4vw, 32px); }
+    .wb-card > h2, .wb-hero h2 { margin: 0 0 12px; font-size: 24px; line-height: 1.25; letter-spacing: -.02em; }
+    .wb-card > p, .wb-hero p, .wb-note p { margin: 8px 0; }
+    .wb-hero { padding: clamp(28px, 6vw, 52px); background: #172033; color: #fff; }
+    .wb-hero p { max-width: 720px; color: #dbe5f3; font-size: 18px; }
+    .wb-eyebrow { margin: 0 0 10px !important; color: #93c5fd !important; font-size: 12px !important; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .wb-grid { display: grid; grid-template-columns: repeat(var(--wb-columns, auto-fit), minmax(min(100%, 220px), 1fr)); gap: 14px; }
+    .wb-grid > article { padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+    .wb-grid h3, .wb-timeline h3 { margin: 0 0 6px; font-size: 17px; line-height: 1.35; }
+    .wb-grid p, .wb-timeline p { margin: 6px 0; }
+    .wb-badge { display: inline-block; margin-bottom: 10px; padding: 2px 8px; border-radius: 999px; background: #dbeafe; color: #1e40af; font-size: 12px; font-weight: 700; }
+    .wb-metrics { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+    .wb-metrics dl { margin: 0; }
+    .wb-metrics dd { margin: 0; font-size: 32px; font-weight: 750; line-height: 1.15; letter-spacing: -.03em; }
+    .wb-metrics dt { margin-top: 6px; color: #526078; }
+    .wb-metrics p { margin: 6px 0 0; color: #64748b; font-size: 13px; }
+    .wb-list { margin: 12px 0 0; padding-left: 24px; }
+    .wb-list li { padding: 5px 0 5px 4px; }
+    .wb-table-wrap { overflow-x: auto; }
+    .wb-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .wb-table th, .wb-table td { padding: 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    .wb-table th { background: #f1f5f9; font-size: 13px; }
+    .wb-timeline { margin: 12px 0 0; padding: 0; list-style: none; }
+    .wb-timeline li { position: relative; margin-left: 7px; padding: 0 0 22px 24px; border-left: 2px solid #cbd5e1; }
+    .wb-timeline li::before { content: ""; position: absolute; top: 6px; left: -7px; width: 12px; height: 12px; border-radius: 50%; background: #2563eb; }
+    .wb-meta { color: #64748b; font-size: 13px; }
+    .wb-note { padding: 20px 24px; border-left: 5px solid #2563eb; box-shadow: none; }
+    .wb-note h2 { margin: 0 0 6px; font-size: 17px; }
+    .wb-note-success { border-left-color: #15803d; }
+    .wb-note-warning { border-left-color: #b45309; }
+    .wb-versions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 32px; padding-top: 20px; border-top: 1px solid #dce3ed; color: #64748b; font-size: 13px; }
+    .wb-versions strong { margin-right: 4px; color: #172033; }
+    .wb-versions a, .wb-versions span[aria-current] { padding: 3px 8px; border-radius: 999px; }
+    .wb-versions a { color: #1d4ed8; text-decoration: none; }
+    .wb-versions a:hover { background: #dbeafe; }
+    .wb-versions span[aria-current] { background: #172033; color: #fff; }
+    .wb-render-error { padding: 20px; border: 2px solid #b91c1c; border-radius: 12px; background: #fef2f2; color: #7f1d1d; }
+    @media (max-width: 600px) { .wb-shell { padding-top: 72px; } .wb-document-header { padding-right: 0; } .wb-card { border-radius: 14px; } .wb-grid { grid-template-columns: 1fr; } }
+    @media print { :root { background: #fff; } .wb-shell { width: 100%; padding: 0; } .wb-card, .wb-hero, .wb-note { box-shadow: none; break-inside: avoid; } }
+  </style>
+<!-- whiteboard-html:style -->
+<meta name="whiteboard-source" content="/home/serge/Projects/wod-wiki/docs/design/wql-markdown-dashboard-whiteboard.v1.html">
+<meta name="whiteboard-skill" content="/home/serge/.agents/skills/whiteboard-html/SKILL.md">
+<style id="wb-styles">
+  html { scroll-padding-top: 80px; color-scheme: light; }
+  [data-whiteboard-anchor] { scroll-margin-top: 80px; }
+  .wb-highlight { outline: 3px solid #b45309; outline-offset: 5px; }
+  .wb-mark { background: #fef08a; color: inherit; padding: 1px 3px; border-radius: 3px; border-bottom: 2px solid #ca8a04; cursor: pointer; text-decoration: none; }
+  .wb-mark:hover, .wb-mark:focus { background: #fde047; outline: 2px solid #ca8a04; outline-offset: 1px; }
+  .wb-mark.wb-mark-active { background: #facc15; border-bottom-color: #b45309; outline: 3px solid #b45309; outline-offset: 2px; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor] { cursor: crosshair; }
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:hover,
+  [data-whiteboard-document].wb-picking [data-whiteboard-anchor]:focus { outline: 2px dashed #b45309; }
+  #wb-bar, .wb-dialog, #wb-current { color: #172033; background: #fff; font: 14px/1.5 system-ui, sans-serif; }
+  #wb-bar { position: fixed; top: 16px; right: 16px; z-index: 100; padding: 5px; border: 1px solid #cbd5e1; border-radius: 9999px; box-shadow: 0 4px 16px #0f172a26; }
+  .wb-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #wb-bar .wb-controls { flex-wrap: nowrap; gap: 3px; }
+  #wb-count { min-width: 20px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; }
+  #wb-bar button, .wb-dialog button, #wb-current button, #wb-float-btn { min-height: 40px; padding: 7px 10px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+  #wb-bar button { display: inline-flex; align-items: center; justify-content: center; width: 40px; padding: 7px; border-color: transparent; border-radius: 9999px; }
+  #wb-bar button:hover { background: #f1f5f9; }
+  #wb-bar button:disabled { opacity: .4; cursor: default; }
+  #wb-bar button svg, #wb-current-toggle svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #wb-bar #wb-copy, .wb-dialog button[type="submit"], #wb-float-btn { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+  #wb-bar #wb-copy:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar #wb-copy.wb-copied { background: #15803d; border-color: #15803d; color: #fff; }
+  #wb-float-btn { position: fixed; z-index: 105; display: none; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3); transform: translate(-50%, -100%); margin-top: -8px; user-select: none; }
+  #wb-float-btn:hover { background: #1e40af; border-color: #1e40af; }
+  #wb-bar button[aria-pressed="true"] { background: #fef3c7; border-color: #b45309; }
+  #wb-bar button:focus-visible, .wb-dialog :focus-visible, #wb-current :focus-visible, #wb-float-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  #wb-status, #wb-storage-warning { position: fixed; top: 70px; right: 16px; z-index: 100; width: min(350px, calc(100% - 32px)); margin: 0; padding: 8px 12px; border-radius: 8px; background: #fff; box-shadow: 0 4px 16px #0f172a26; font-size: 12px; }
+  #wb-storage-warning { top: 112px; }
+  #wb-status:empty, #wb-storage-warning:empty { display: none; }
+  #wb-storage-warning { color: #92400e; }
+  .wb-dialog { width: min(580px, calc(100% - 32px)); max-height: 85vh; overflow: auto; border: 1px solid #94a3b8; border-radius: 10px; padding: 20px; }
+  .wb-dialog::backdrop { background: #0f172a80; }
+  .wb-dialog h2 { margin: 0 0 12px; padding: 0; font-size: 20px; }
+  .wb-dialog label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .wb-dialog textarea { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; resize: vertical; }
+  .wb-dialog .wb-controls { justify-content: flex-end; margin-top: 12px; }
+  #wb-target, #wb-current-quote, #wb-current-context { white-space: pre-wrap; max-height: 160px; overflow: auto; padding: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+  #wb-current-context { font-size: 12px; color: #475569; border-left: 3px solid #cbd5e1; margin: 4px 0 8px; }
+  #wb-current { position: fixed; right: 16px; bottom: 16px; z-index: 90; width: min(350px, calc(100% - 32px)); max-height: min(420px, 45vh); overflow: auto; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 4px 16px #0f172a26; }
+  #wb-current[hidden], #wb-current-body[hidden], #wb-copy [hidden] { display: none !important; }
+  #wb-current h2 { margin: 0; padding: 0; font-size: 14px; }
+  #wb-current-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 42px !important; padding: 10px 12px !important; border: 0 !important; border-radius: 11px !important; text-align: left; }
+  #wb-current-toggle svg { transition: transform 120ms ease; }
+  #wb-current-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  #wb-current-body { padding: 0 16px 16px; }
+  #wb-current-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #wb-current a { color: #1d4ed8; }
+  @media (max-width: 480px) { #wb-bar { top: 8px; right: 8px; } #wb-status { top: 62px; right: 8px; } #wb-storage-warning { top: 104px; } #wb-current { right: 8px; bottom: 8px; } }
+  @media print { #wb-bar, #wb-current, .wb-dialog, #wb-float-btn, #wb-status, #wb-storage-warning { display: none !important; } .wb-highlight, .wb-mark { outline: none; background: transparent; border-bottom: none; } }
+</style>
+<!-- whiteboard-html:end-style --></head>
+<body><!-- whiteboard-html:bar -->
+<header id="wb-bar" aria-label="Document annotations">
+  <div class="wb-controls">
+    <strong id="wb-count" aria-live="polite" aria-label="0 annotations" title="0 annotations">0</strong>
+    <button id="wb-add" type="button" aria-pressed="false" aria-label="Add annotation" title="Add annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="wb-prev" type="button" disabled aria-label="Previous annotation" title="Previous annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+    <button id="wb-next" type="button" disabled aria-label="Next annotation" title="Next annotation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+    <button id="wb-copy" type="button" disabled aria-label="Copy annotations" title="Copy annotations">
+      <svg id="wb-copy-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg>
+      <svg id="wb-copy-check" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="m5 12 4 4L19 6"/></svg>
+    </button>
+  </div>
+  <p id="wb-status" role="status"></p>
+  <p id="wb-storage-warning" role="status"></p>
+</header>
+<!-- whiteboard-html:end-bar -->
+  <div class="wb-shell">
+    <main data-whiteboard-document id="whiteboard"></main>
+    <nav class="wb-versions" aria-label="Whiteboard version history"><strong>Version 1</strong><span aria-current="page">v1</span></nav>
+  </div>
+  <script id="whiteboard-data" type="application/json">{"title":"WQL Markdown Query Blocks & Dashboard Pipeline Model","subtitle":"A consistent mental model for piping WQL lists into graphs, binding reusable values for calculations, and providing stage-aware typeahead inside ```query blocks","components":[{"type":"hero","id":"hero-mental-model","eyebrow":"Unified WQL Mental Model · ```query Blocks & Dashboards","title":"Select a List. Pipe to a Reducer. Pipe to a Graph. Bind Named Values.","body":"Today, WQL feels split across four disconnected dialects: legacy aggregators (sum:tis{}), content finders (:journal{}), multi-line query documents, and fence-suffix dashboard overrides (```query:bar-2). The unified model collapses every ```query block into one left-to-right pipeline: Source List | Function Reducer | Chart Sink, with let-style named bindings (name = ...) that can be reused across calculations and typeahead that adapts to the active stage."},{"type":"metrics","id":"model-metrics","title":"Mental Model Simplification Goals","body":"Replacing fragmented syntax rules with a single composable grammar inside standard Markdown ```query fences.","items":[{"value":"4 → 1","label":"Syntax Dialects Unified","detail":"Single pipeline model: :source | :reducer | :chart"},{"value":"3 Stages","label":"Pipeline Anatomy","detail":"1. List Source  2. Value Reducer  3. Graph Sink"},{"value":"x = ...","label":"Reusable Bindings","detail":"Named values feed downstream math & multi-series charts"},{"value":"6 Slots","label":"Context Typeahead Zones","detail":"Stage-aware completions inside every ```query fence"}]},{"type":"section","id":"problem-diagnosis","title":"1. Why Today's Model Feels Inconsistent","body":"Authors currently have to switch mental models depending on whether they are filtering notes, charting a single metric, combining two series in a calculation, or laying out a dashboard card.","components":[{"type":"table","id":"friction-comparison-table","title":"Current Fragmentation vs. Unified Pipeline Mental Model","body":"How the current inconsistencies are resolved into one predictable rule set.","columns":["Authoring Task","Today's Confusing Mental Model","Why It Hurts Readability","Unified ```query Mental Model"],"rows":[["Filter a list of workouts or segments",":journal{effort:snatch} or :segment{effort:snatch}","Returns a list, but it is unclear how this list turns into a chart without switching to sum:metric{} syntax.","Every query starts as a List Source (:journal, :segment, :session, @today). Unpiped, it renders as a list or table."],["Graph a metric from that list","sum:tis{effort:snatch} by {week} inside ```query:timeseries","Chart choice lives on the Markdown fence (```query:timeseries) while data lives inside, or mixes legacy sum:metric with colon heads.","Pipe the list into a reducer and a chart sink inside a plain ```query block: :segment{effort:snatch} | :sum{metric:tis} by {week} | :timeseries{}"],["Reuse values in another calculation","Undocumented document mode: work = :sum{metric:tis}, ratio = work / recovery, show ratio","Feels like a separate mini-language; unclear whether variables hold lists, time series, or scalars, and how they reach a chart.","First-class Named Bindings: any line can bind name = \u003cpipeline or formula>, and the final pipe or show stage sends those named values straight to a graph."],["Configure chart goals, spans, and layout","Fence tag suffixes: ```query:goal-rings-2 goal=$hangGoal","Splits parameters between fence info-string attributes and query body; breaks standard Markdown code-fence expectations.","Keep fence as ```query (optional layout span). Chart parameters live inside the chart sink braces: | :goal-rings{goal:$hangGoal, span:2}."]]},{"type":"note","id":"core-principle-note","tone":"info","title":"Core Design Principle: Everything Starts as a List, Everything Renders at the Tail","body":"You never have to ask 'Am I writing a content query, an analytics query, or a dashboard widget?' You always start with a list of domain records, optionally pipe (|) it through reducers or formulas to produce numeric series/scalars, and pipe (|) the result into a dashboard visualization."}]},{"type":"section","id":"three-stage-pipeline","title":"2. The 3-Stage Pipeline Mental Model","body":"Inside any ```query block, data flows left-to-right through three predictable stages separated by the pipe operator (|). Omitting later stages simply stops the pipeline earlier with a sensible default view.","components":[{"type":"cards","id":"pipeline-stages-cards","title":"Anatomy of a WQL Pipeline","body":"Each stage has a single job, a distinct prefix sigil, and a clear input/output contract.","columns":3,"items":[{"badge":"Stage 1 · Source (Produces List)","title":":source{filters} or @dataset","body":"Selects a list of items from the vault or active page context. Examples: :journal{equipment:barbell}, :segment{effort:snatch} last 8w, :session{}, @today, @session. If the pipeline stops here, the block renders an interactive List or Rows Table."},{"badge":"Stage 2 · Transform (Reduces List → Numbers)","title":"| :reducer{metric} by {dim}","body":"Consumes the list from Stage 1 and projects/reduces numeric metrics across buckets. Examples: | :sum{metric:totalVolume} by {week}, | :max{metric:resistance}, | :count{}. Chained reducers (:sum by {session} | :avg{}) reduce the previous stage in memory."},{"badge":"Stage 3 · Sink (Pipes Numbers → Graph)","title":"| :chart{presentation}","body":"Consumes the reduced series or list and chooses the dashboard element. Examples: | :timeseries{}, | :bar{stack:effort}, | :value{unit:kg}, | :goal-rings{goal:10000}. If omitted on a numeric pipeline, the block infers :value (1 point), :bar (categories), or :timeseries (time buckets)."}]},{"type":"timeline","id":"progressive-pipeline-examples","title":"Progressive Disclosure: From Simple Filter to Dashboard Graph","body":"A user learns one syntax and progressively adds pipes as their question becomes more analytical.","items":[{"meta":"Step 1 · Just a List","title":":journal{effort:thruster, intent:benchmark} last 12w","body":"Selects all benchmark journal notes containing thrusters in the last 12 weeks. No reducer or chart stage is present, so the ```query block renders a clickable Note Card List."},{"meta":"Step 2 · Pipe List to Count / Table","title":":journal{effort:thruster} last 12w | :count{} by {format} | :bar{}","body":"Takes that exact same list of journal notes, counts how many occurred per workout format (for-time, emom, amrap), and pipes the grouped counts into a horizontal Bar Chart."},{"meta":"Step 3 · Pipe Segment List to Volume Timeseries","title":":segment{effort:thruster} last 12w | :sum{metric:totalVolume} by {week} | :timeseries{}","body":"Selects executed thruster segments over 12 weeks, sums their tonnage per Monday-aligned civil week, and plots the weekly progression as a Timeseries line/area chart."},{"meta":"Step 4 · Multi-Stage Reduction to Hero Stat","title":":segment{effort:thruster} last 12w | :sum{metric:totalVolume} by {session} | :max{} | :value{label:\"Peak Session Volume\"}","body":"Sums thruster volume per session first, then finds the maximum single-session volume across the 12-week window, and renders it as a single Hero Value card."}]}]},{"type":"section","id":"piping-lists-to-graphs","title":"3. Piping WQL Lists into Graphs in Different Ways","body":"The same underlying WQL list can drive completely different dashboard visuals depending on how Stage 2 buckets the list and which Stage 3 graph sink receives the pipe.","components":[{"type":"table","id":"list-to-graph-mapping","title":"Dashboard Graph Sinks & How Lists Pipe Into Them","body":"Every dashboard element accepts a predictable data shape from the preceding pipe stage.","columns":["Graph Sink","Input Shape Expected","How the List Is Piped (Markdown WQL)","Dashboard Element Rendered"],"rows":[[":list{} / :table{}","Unreduced item list (:note, :journal, :segment, :session)",":segment{effort:snatch} last 4w | select date, resistance in kg, reps | order by resistance desc | limit 5 | :table{}","Sortable, paginated tabular record view or rich linked note list."],[":value{}","Single scalar (1 series × 1 point)","@today | :sum{metric:tis} | :value{label:\"Today TIS\", goal:450}","KPI Hero Stat Card with unit, optional delta badge, and target comparison."],[":bar{} / :stacked-bar{}","Categorical series (grouped by tag, effort, discipline, or day)",":segment{} last 4w | :sum{metric:totalVolume} by {discipline, week} | :stacked-bar{}","Grouped or stacked bar chart comparing volume across movement disciplines."],[":timeseries{}","Time-bucketed series (by {day}, by {week}, or .rollup(2w))",":segment{effort:back-squat} last 12w | :max{metric:calc.e1rm} by {week} | :timeseries{smooth:true}","Multi-line or area time-series progression chart with civil-date tooltips."],[":donut{} / :zone-distribution{}","Part-to-whole categorical breakdown (by {intensity} or {domain})","@session | :sum{metric:elapsed} by {intensity} | :donut{}","Proportional ring/donut or intensity-zone distribution bar with percentage legend."],[":toplist{}","Ranked categorical reduction",":segment{} last 8w | :count{} by {effort} | :toplist{limit:5}","Ranked leaderboard bars showing top movements or benchmarks by frequency or load."],[":goal-rings{}","1–3 scalar or ratio values paired with targets","@today | :sum{metric:totalVolume} | :goal-rings{goal:$dailyVolumeGoal}","Concentric activity rings showing completion percentage against fixed or calculated targets."]]}]},{"type":"section","id":"named-values-and-calculations","title":"4. Defining Named Values for Reuse in Calculations & Graphs","body":"A ```query block stays simple for one-liners, but scales naturally when you name intermediate pipelines. Any line of the form name = \u003cpipeline or formula> defines a reusable value (either a time-aligned series or a scalar) that downstream lines can reference by name or $name.","components":[{"type":"cards","id":"value-binding-rules","title":"3 Rules for Named Values Inside ```query Blocks","body":"How bindings work without turning WQL into a complicated programming language.","columns":3,"items":[{"badge":"Rule 1 · Shared Defaults","title":"defaults sets the block's frame","body":"An optional top line (defaults by {week} last 12w) sets the default time window and grouping bucket for every query line in the block, eliminating repetitive suffixes."},{"badge":"Rule 2 · Pointwise & Scalar Math","title":"name = pipeline or expression","body":"Assigning a pipeline (acute = :segment{} last 1w | :avg{metric:sessionLoad}) binds a value. Formulas (acwr = acute / chronic) combine named values using +, -, *, /, or corr(a, b), automatically aligning buckets when grouped or dividing scalars when ungrouped."},{"badge":"Rule 3 · Pipe Bindings to a Graph","title":"show a, b | :chart{}","body":"The final line selects which defined values to plot and pipes them into a chart sink: show acute, chronic | :timeseries{} or show acwr | :value{goal:1.2}. If there is only one formula at the end, it renders automatically."}]},{"type":"table","id":"named-value-examples-table","title":"Concrete Markdown Examples: Named Values in Calculations","body":"How authors write multi-step calculations and pipe them to graphs inside a ```query block.","columns":["Pattern","Authored Markdown (inside ```query ... ```)","How Values Flow & Render"],"rows":[["1. Workload Ratio (Scalar Calculation → Gauge/Value)","acute = :segment{} last 7d | :avg{metric:sessionLoad}\nchronic = :segment{} last 28d | :avg{metric:sessionLoad}\nacwr = acute / chronic\nshow acwr | :value{label:\"ACWR\", goal:1.0}","acute and chronic evaluate to 7-day and 28-day scalar averages. acwr divides them. The final pipe sends acwr into a Value card with target 1.0."],["2. Multi-Series Overlay + Derived Ratio (Series Math → Timeseries)","defaults by {week} last 12w\npush = :segment{effort:bench-press|overhead-press} | :sum{metric:totalVolume}\npull = :segment{effort:pull-up|pendlay-row} | :sum{metric:totalVolume}\nbalance = (pull / push) * 100 -> %\nshow push, pull | :bar{}\nshow balance | :timeseries{}","push and pull share the 12-week weekly buckets. balance computes the weekly pull-to-push percentage pointwise. The block can plot push vs. pull bars or the balance trend."],["3. Relative Intensity (% of 1RM using a Named Scalar Baseline)","best_squat = :segment{effort:back-squat} last 52w | :max{metric:resistance}\nweekly_top = :segment{effort:back-squat} last 8w | :max{metric:resistance} by {week}\npct_1rm = (weekly_top / best_squat) * 100 -> %\nshow pct_1rm | :timeseries{goal:85}","best_squat is a scalar 52-week PR. weekly_top is an 8-week series. Dividing a series by a scalar broadcasts best_squat across every week to plot %1RM."],["4. Page-Level Shared Variables ($token & @dataset)","--- (Frontmatter)\ndashboard.target_tis: 1200\ndashboard.lift: snatch\n---\nwork = :segment{effort:$lift} last 4w | :sum{metric:tis}\nremaining = $target_tis - work\nshow work | :goal-rings{goal:$target_tis}","Frontmatter dashboard.* keys expose interactive header controls ($lift, $target_tis) that substitute into any block's pipelines, formulas, and chart goals."]]},{"type":"note","id":"cross-block-reuse-note","tone":"success","title":"Keep Scope Simple: Block-Local Names + Frontmatter Page Tokens","body":"To keep the mental model effortless: plain identifiers (acute, best_squat) are local to the ```query block where they are defined so blocks can be reordered or copied freely. Values that need to be shared across multiple blocks on a dashboard page are declared once in frontmatter (or a page-level ```query:defs block) and referenced with the $name sigil."}]},{"type":"section","id":"markdown-dashboard-composition","title":"5. Markdown Dashboard Composition Contract","body":"A dashboard is just a Markdown note. Prose headings and questions above a ```query block become the card's title and subtitle; the pipeline inside the block defines the data and the graph.","components":[{"type":"cards","id":"markdown-anatomy-cards","title":"How Markdown Elements Map to Dashboard Cards","body":"Zero hidden JSON state: every visual element on the dashboard corresponds 1:1 to readable Markdown.","columns":4,"items":[{"badge":"1 · Frontmatter","title":"Global Controls & Tokens","body":"dashboard: true enables the grid view. dashboard.window: [8w, 12w, 52w] and dashboard.lift: [snatch, clean] render interactive segmented filter pills at the top of the page and bind $window and $lift."},{"badge":"2 · Heading + Prose","title":"Card Title & Coaching Question","body":"A ### Heading directly above a ```query fence becomes the widget card title. An optional paragraph between the heading and fence becomes the muted coaching question subtitle."},{"badge":"3 · Fence Header","title":"```query [span]","body":"The fence tag stays clean: ```query (or ```query span=2 / span=full for grid width). The visualization type is owned by the pipeline's terminal | :chart{} stage so the query is self-describing."},{"badge":"4 · Fence Body","title":"Bindings + Pipeline","body":"Contains defaults, named value assignments (x = ...), and the output pipeline (| :bar{}). Clicking the card in View mode opens the contextual WQL composer; editing in Markdown mode provides live typeahead."}]}]},{"type":"section","id":"typeahead-design","title":"6. Context-Aware Typeahead Inside ```query Blocks","body":"Writing WQL in Markdown feels effortless when the editor knows which stage of the pipeline the cursor is in and suggests only valid heads, metrics, tags, and user-defined variable names.","components":[{"type":"table","id":"typeahead-slots-table","title":"The 6 Typeahead Slots Inside a ```query Fence","body":"How the autocomplete engine adapts as the author types left-to-right and top-to-bottom.","columns":["Cursor Context / Trigger","Active Grammar Slot","What Typeahead Suggests","Auto-Chaining Behavior on Accept"],"rows":[["Start of line, or after =","1. Source / Dataset / Variable Slot","• Source heads (:journal, :segment, :session, :note, :effort)\n• Page datasets (@today, @session)\n• In-block named values (acute, best_squat) for formula authoring\n• Block keywords (defaults, show)","Accepting a colon head inserts :segment{ and immediately opens the Filter Key menu inside the braces."],["Inside {...} before :","2. Stage-Scoped Filter / Param Key Slot","• On :journal/:note → domain:, format:, equipment:, intent:, effort:, tags:, text:\n• On :segment → effort:, discipline:, intensity:, grade:\n• On :sum/:avg → metric:, plus fact dimensions\n• On :bar/:goal-rings → goal:, unit:, label:, limit:, stack:\n• Excludes keys already used in the same {...} block","Accepting a key inserts effort: and immediately opens the Filter Value menu for that key."],["Inside {...} after key:","3. Dynamic Vault Value Slot","• effort: → EffortResolver slugs + aliases (thruster, back-squat)\n• equipment:/domain:/format: → live indexed TagStore values\n• metric: → base metrics (tis, totalVolume), calc.* targets, and \u003ceffort>.\u003cmetric>\n• goal:/value → $frontmatterTokens and scalar named bindings","Inserts value (quoting if needed); typing | inside braces re-triggers value completions for OR alternatives."],["After closing } of a Source or Reducer","4. Stage Suffix & Pipe Slot","• by {} (opens valid grouping dimensions for current target)\n• last (offers 7d, 4w, 8w, 12w)\n• from (offers YYYY-MM-DD range snippet)\n• .rollup() (on reducers)\n• | (advance to next pipeline stage)\n• Hides singleton suffixes already present on the stage","Accepting by {} places cursor inside braces and lists target-valid dimensions (day, week, effort, discipline)."],["After | (top-level pipe)","5. Downstream Pipeline Stage Slot","• If after a List Source: Reducers (:sum, :avg, :max, :min, :count, :last, :delta), Row pipes (select, order by, limit), or List Sinks (:table, :list)\n• If after a Reducer / Formula: Chained Reducers or Graph Sinks (:timeseries, :bar, :stacked-bar, :value, :donut, :toplist, :goal-rings)\n• Never suggests Sources (:journal) after a pipe","If the previous stage already bound a metric, accepting :max{} needs no metric: key; accepting a chart sink places cursor in {params}."],["In a formula line or after show / $","6. Named Value & Token Reference Slot","• Typing after show or in an arithmetic expression suggests all locally bound names (acute, chronic, push, pull) with their inferred shape badge (Scalar vs. Weekly Series) and unit\n• Typing $ anywhere suggests frontmatter dashboard.* tokens ($lift, $target_tis) with their current active default value","Warns inline if a formula combines incompatible dimensions without a default bucket or references an undefined name."]]},{"type":"cards","id":"typeahead-ux-cards","title":"Typeahead Visual & Interaction Details in the Block","body":"Making completions self-teaching so users do not need to memorize WQL reference docs.","columns":3,"items":[{"badge":"Shape Badges","title":"Show Data Shape in the Popup","body":"Every completion row shows what it produces or expects: :segment{...} shows [List · Events], :sum{...} shows [Reducer → Series/Scalar], :timeseries{} shows [Graph · Time Series], and local variables like best_squat show [Local Scalar · 140 kg]."},{"badge":"Live Output Footer","title":"Inline Stage Preview Strip","body":"While the cursor is inside a ```query block, a compact status footer at the bottom of the fence shows the live evaluation of the current line (e.g., 'Stage 1: 42 segments → Stage 2: 12 weekly buckets → Stage 3: :timeseries') or highlights any missing binding."},{"badge":"Bidirectional Sync","title":"Fence Text ↔ Visual Composer","body":"Because ```query blocks use a canonical pipeline grammar, clicking 'Edit' on a rendered chart card can open the visual pill composer, and any change writes back clean, human-readable pipeline text into the Markdown fence."}]}]},{"type":"section","id":"end-to-end-walkthrough","title":"7. End-to-End Authoring Walkthrough","body":"Tracing how a user writes a ```query block from scratch with typeahead, pipes a list into a calculation, and renders a dashboard graph.","components":[{"type":"timeline","id":"authoring-walkthrough-timeline","items":[{"meta":"1 · Open Fence","title":"Type ```query in Markdown","body":"Typing ```q suggests ```query. Pressing Enter inserts the fenced block and immediately opens Slot 1 completions (Sources, Datasets, defaults, or variable binding)."},{"meta":"2 · Define Shared Frame","title":"Type defaults by {week} last 8w","body":"Selecting defaults offers by {} and last. Inside by {}, typeahead lists calendar and tag dimensions (week, day, effort, discipline). Every line below now inherits weekly bucketing over 8 weeks."},{"meta":"3 · Filter List & Pipe to Named Value","title":"Type snatch_vol = :segment{effort:snatch} | :sum{metric:totalVolume}","body":"After =, user picks :segment{ (List Source), picks effort:snatch from live EffortResolver completions, types |, and picks :sum{metric:totalVolume}. The editor registers snatch_vol as a [Weekly Series · kg]."},{"meta":"4 · Define Second Value & Formula","title":"Type clean_vol = :segment{effort:clean-and-jerk} | :sum{metric:totalVolume} and ratio = (snatch_vol / clean_vol) * 100","body":"As the user types ratio = (, typeahead immediately offers snatch_vol and clean_vol at the top of the list because they are in-scope numeric bindings defined above."},{"meta":"5 · Pipe to Graph Sink","title":"Type show snatch_vol, clean_vol | :stacked-bar{unit:kg}","body":"After show, typeahead offers snatch_vol, clean_vol, and ratio. After |, typeahead knows the input is 2 weekly series and ranks :timeseries{}, :bar{}, and :stacked-bar{} first. Moving the cursor outside the fence renders the live Stacked Bar Chart."}]},{"type":"note","id":"backward-compatibility-note","tone":"warning","title":"Backward Compatibility & Clean Migration Path","body":"Existing single-line aggregate queries (sum:tis{} by {week}) and fence suffixes (```query:timeseries) continue to parse and run via the normalizer, but all typeahead, documentation, and composer write-backs emit the unified colon-pipeline syntax (:segment{} | :sum{metric:tis} by {week} | :timeseries{}) so the mental model converges on one consistent pattern."}]}]}</script>
+  <script id="whiteboard-renderer">
+  (() => {
+    'use strict';
+    const root = document.getElementById('whiteboard');
+    const spec = JSON.parse(document.getElementById('whiteboard-data').textContent);
+    const usedIds = new Set(['whiteboard']);
+    const tones = new Set(['info', 'success', 'warning']);
+
+    function element(tag, className, value) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (value !== undefined && value !== null) node.textContent = String(value);
+      return node;
+    }
+
+    function anchor(node, id) {
+      if (usedIds.has(id)) throw new Error(`Duplicate whiteboard id: ${id}`);
+      usedIds.add(id);
+      node.id = id;
+      node.dataset.whiteboardAnchor = '';
+      return node;
+    }
+
+    function text(parent, tag, value, id, className = '') {
+      if (value === undefined || value === null || value === '') return null;
+      const node = anchor(element(tag, className, value), id);
+      parent.appendChild(node);
+      return node;
+    }
+
+    function baseId(component, path) {
+      if (!component || Array.isArray(component) || typeof component !== 'object') throw new Error(`Component ${path} must be an object`);
+      if (component.id !== undefined && !/^[A-Za-z][A-Za-z0-9_-]*$/.test(component.id)) throw new Error(`Invalid component id at ${path}`);
+      return component.id ? `wb-${component.id}` : `wb-c-${path.replace(/\./g, '-')}`;
+    }
+
+    function headingAndBody(component, node, id) {
+      text(node, 'h2', component.title, `${id}-title`);
+      text(node, 'p', component.body, `${id}-body`);
+    }
+
+    const renderers = {
+      hero(component, path, id) {
+        const node = element('section', 'wb-hero');
+        text(node, 'p', component.eyebrow, `${id}-eyebrow`, 'wb-eyebrow');
+        text(node, 'h2', component.title, `${id}-title`);
+        text(node, 'p', component.body, `${id}-body`);
+        return node;
+      },
+      section(component, path, id) {
+        const node = element('section', 'wb-card wb-stack');
+        headingAndBody(component, node, id);
+        if (!Array.isArray(component.components)) throw new Error(`${path}.components must be an array`);
+        component.components.forEach((child, index) => node.appendChild(render(child, `${path}.${index}`)));
+        return node;
+      },
+      cards(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        const grid = element('div', 'wb-grid');
+        const columns = component.columns === undefined ? 'auto-fit' : component.columns;
+        if (columns !== 'auto-fit' && (!Number.isInteger(columns) || columns < 1 || columns > 4)) throw new Error(`${path}.columns must be auto-fit or an integer from 1 to 4`);
+        grid.style.setProperty('--wb-columns', columns);
+        if (!Array.isArray(component.items)) throw new Error(`${path}.items must be an array`);
+        component.items.forEach((item, index) => {
+          const card = element('article');
+          text(card, 'span', item.badge, `${id}-item-${index}-badge`, 'wb-badge');
+          text(card, 'h3', item.title, `${id}-item-${index}-title`);
+          text(card, 'p', item.body, `${id}-item-${index}-body`);
+          grid.appendChild(card);
+        });
+        node.appendChild(grid);
+        return node;
+      },
+      metrics(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        const grid = element('div', 'wb-grid wb-metrics');
+        if (!Array.isArray(component.items)) throw new Error(`${path}.items must be an array`);
+        component.items.forEach((item, index) => {
+          const pair = element('dl');
+          text(pair, 'dd', item.value, `${id}-item-${index}-value`);
+          text(pair, 'dt', item.label, `${id}-item-${index}-label`);
+          text(pair, 'p', item.detail, `${id}-item-${index}-detail`);
+          grid.appendChild(pair);
+        });
+        node.appendChild(grid);
+        return node;
+      },
+      list(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        if (!Array.isArray(component.items)) throw new Error(`${path}.items must be an array`);
+        const list = element(component.ordered ? 'ol' : 'ul', 'wb-list');
+        component.items.forEach((item, index) => text(list, 'li', item, `${id}-item-${index}`));
+        node.appendChild(list);
+        return node;
+      },
+      table(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        if (!Array.isArray(component.columns) || !Array.isArray(component.rows)) throw new Error(`${path} requires columns and rows arrays`);
+        const wrap = element('div', 'wb-table-wrap');
+        const table = element('table', 'wb-table');
+        const thead = element('thead');
+        const header = element('tr');
+        component.columns.forEach((column, index) => text(header, 'th', column, `${id}-column-${index}`));
+        thead.appendChild(header);
+        table.appendChild(thead);
+        const tbody = element('tbody');
+        component.rows.forEach((row, rowIndex) => {
+          if (!Array.isArray(row) || row.length !== component.columns.length) throw new Error(`${path}.rows.${rowIndex} must have ${component.columns.length} cells`);
+          const tr = element('tr');
+          row.forEach((cell, columnIndex) => text(tr, 'td', cell, `${id}-row-${rowIndex}-cell-${columnIndex}`));
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        node.appendChild(wrap);
+        return node;
+      },
+      timeline(component, path, id) {
+        const node = element('section', 'wb-card');
+        headingAndBody(component, node, id);
+        if (!Array.isArray(component.items)) throw new Error(`${path}.items must be an array`);
+        const list = element('ol', 'wb-timeline');
+        component.items.forEach((item, index) => {
+          const entry = element('li');
+          text(entry, 'p', item.meta, `${id}-item-${index}-meta`, 'wb-meta');
+          text(entry, 'h3', item.title, `${id}-item-${index}-title`);
+          text(entry, 'p', item.body, `${id}-item-${index}-body`);
+          list.appendChild(entry);
+        });
+        node.appendChild(list);
+        return node;
+      },
+      note(component, path, id) {
+        const tone = component.tone || 'info';
+        if (!tones.has(tone)) throw new Error(`${path}.tone must be info, success, or warning`);
+        const node = element('aside', `wb-note wb-note-${tone}`);
+        headingAndBody(component, node, id);
+        return node;
+      }
+    };
+
+    function render(component, path) {
+      const id = baseId(component, path);
+      const renderer = renderers[component.type];
+      if (!renderer) throw new Error(`Unknown component type at ${path}: ${component.type}`);
+      return renderer(component, path, id);
+    }
+
+    try {
+      const header = element('header', 'wb-document-header');
+      text(header, 'h1', spec.title, 'wb-document-title');
+      text(header, 'p', spec.subtitle, 'wb-document-subtitle');
+      const stack = element('div', 'wb-stack');
+      spec.components.forEach((component, index) => stack.appendChild(render(component, String(index))));
+      root.replaceChildren(header, stack);
+    } catch (error) {
+      root.replaceChildren(anchor(element('p', 'wb-render-error', error.message), 'wb-render-error'));
+      console.error(error);
+    }
+  })();
+  </script>
+<!-- whiteboard-html:tail -->
+<button id="wb-float-btn" type="button" aria-label="Annotate selected text">Annotate selection</button>
+<aside id="wb-current" aria-label="Current annotation" hidden>
+  <h2><button id="wb-current-toggle" type="button" aria-expanded="false" aria-controls="wb-current-body"><span id="wb-current-title"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></h2>
+  <div id="wb-current-body" hidden>
+    <a id="wb-current-source">Source block</a>
+    <p id="wb-current-quote"></p>
+    <p id="wb-current-context"></p>
+    <p id="wb-current-note"></p>
+    <div class="wb-controls">
+      <button id="wb-edit" type="button">Edit</button>
+      <button id="wb-delete" type="button">Delete</button>
+      <button id="wb-hide" type="button">Hide</button>
+    </div>
+  </div>
+</aside>
+<dialog id="wb-editor" class="wb-dialog" aria-labelledby="wb-editor-title">
+  <form id="wb-form">
+    <h2 id="wb-editor-title">Add annotation</h2>
+    <p id="wb-target"></p>
+    <label for="wb-note">Comment</label>
+    <textarea id="wb-note" rows="5" required></textarea>
+    <div class="wb-controls">
+      <button id="wb-cancel" type="button">Cancel</button>
+      <button type="submit">Save annotation</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="wb-export" class="wb-dialog" aria-labelledby="wb-export-title">
+  <h2 id="wb-export-title">Copy annotations</h2>
+  <p id="wb-copy-status" role="status"></p>
+  <label for="wb-export-text">Agent feedback</label>
+  <textarea id="wb-export-text" rows="12" readonly></textarea>
+  <div class="wb-controls"><button id="wb-export-close" type="button">Close</button></div>
+</dialog>
+<script id="wb-script">
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const root = document.querySelector('[data-whiteboard-document]');
+  const anchors = [...root.querySelectorAll('[data-whiteboard-anchor]')];
+  const documentUrl = new URL(location.href);
+  documentUrl.hash = '';
+  const storageKey = 'whiteboard-html:' + documentUrl.href;
+  const sourceFile = document.querySelector('meta[name="whiteboard-source"]').content;
+  const skillFile = document.querySelector('meta[name="whiteboard-skill"]').content;
+  const editor = byId('wb-editor');
+  const floatBtn = byId('wb-float-btn');
+  let annotations = [], active = -1, editing = -1, draft = null, picking = false, canPersist = true, copyTimer;
+  const originalTabindex = new Map(anchors.map(el => [el, el.getAttribute('tabindex')]));
+  const warnStorage = message => { byId('wb-storage-warning').textContent = message; };
+
+  function wrapRange(range, id) {
+    const mark = document.createElement('mark');
+    mark.className = 'wb-mark';
+    mark.dataset.wbId = id;
+    mark.tabIndex = 0;
+    mark.title = 'Click to view annotation';
+    try {
+      range.surroundContents(mark);
+      return mark;
+    } catch {
+      const fragment = range.extractContents();
+      mark.appendChild(fragment);
+      range.insertNode(mark);
+      return mark;
+    }
+  }
+
+  function restoreHighlight(container, quote, id) {
+    if (!container || !quote) return null;
+    const text = container.textContent;
+    const idx = text.indexOf(quote);
+    if (idx === -1) return null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let cur = 0, startNode = null, startOffset = 0, endNode = null, endOffset = 0, node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startNode && cur + len > idx) {
+        startNode = node;
+        startOffset = idx - cur;
+      }
+      if (cur + len >= idx + quote.length) {
+        endNode = node;
+        endOffset = (idx + quote.length) - cur;
+        break;
+      }
+      cur += len;
+    }
+    if (startNode && endNode) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      return wrapRange(range, id);
+    }
+    return null;
+  }
+
+  function getContext(range, block) {
+    const fullText = block.textContent.replace(/\s+/g, ' ');
+    const selectedText = range.toString().trim();
+    const idx = fullText.indexOf(selectedText);
+    if (idx === -1) return { quote: selectedText, context: selectedText };
+    const beforeStart = Math.max(0, idx - 45);
+    const prefix = (beforeStart > 0 ? '…' : '') + fullText.slice(beforeStart, idx).trim();
+    const afterEnd = Math.min(fullText.length, idx + selectedText.length + 45);
+    const suffix = fullText.slice(idx + selectedText.length, afterEnd).trim() + (afterEnd < fullText.length ? '…' : '');
+    const context = `${prefix} «${selectedText}» ${suffix}`.trim();
+    return { quote: selectedText, context };
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every(item => item && typeof item.anchor === 'string' && typeof item.quote === 'string' && typeof item.note === 'string' && item.anchor && item.note.trim())) throw new Error('Invalid drafts');
+      annotations = parsed.map((item, i) => {
+        const id = item.id || `wb-ann-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+        const container = document.getElementById(item.anchor);
+        const isHighlight = item.isHighlight !== undefined
+          ? Boolean(item.isHighlight)
+          : Boolean(item.quote && container && item.quote.length < container.textContent.trim().length);
+        return {
+          id,
+          anchor: item.anchor,
+          quote: item.quote,
+          context: item.context || item.quote,
+          isHighlight,
+          note: item.note
+        };
+      });
+      for (const item of annotations) {
+        if (item.isHighlight) {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    }
+  } catch {
+    canPersist = false;
+    warnStorage('Stored drafts could not be read. Existing storage is untouched. New comments stay in memory; Copy before closing.');
+  }
+
+  function persist() {
+    if (!canPersist) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(annotations)); }
+    catch { canPersist = false; warnStorage('Draft storage is unavailable. Comments stay in memory; Copy before closing.'); }
+  }
+
+  function updateCount() {
+    const count = annotations.length;
+    const label = `${count} annotation${count === 1 ? '' : 's'}${active < 0 ? '' : `, ${active + 1} of ${count}`}`;
+    byId('wb-count').textContent = String(count);
+    byId('wb-count').setAttribute('aria-label', label);
+    byId('wb-count').title = label;
+    for (const id of ['wb-prev', 'wb-next', 'wb-copy']) byId(id).disabled = count === 0;
+  }
+
+  function sourceUrl(anchor) {
+    const url = new URL(documentUrl);
+    url.hash = anchor;
+    return url.href;
+  }
+
+  function setExpanded(value) {
+    byId('wb-current-toggle').setAttribute('aria-expanded', String(value));
+    byId('wb-current-body').hidden = !value;
+  }
+
+  function showAnnotation(index) {
+    active = (index + annotations.length) % annotations.length;
+    const item = annotations[active];
+    root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+    root.querySelectorAll('.wb-mark-active').forEach(el => el.classList.remove('wb-mark-active'));
+
+    const mark = root.querySelector(`.wb-mark[data-wb-id="${item.id}"]`);
+    const target = document.getElementById(item.anchor);
+
+    if (mark) {
+      mark.classList.add('wb-mark-active');
+      mark.scrollIntoView({block: 'center', behavior: 'smooth'});
+      mark.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else if (target && root.contains(target)) {
+      target.classList.add('wb-highlight');
+      target.scrollIntoView({block: 'start'});
+      target.setAttribute('tabindex', '-1');
+      target.focus({preventScroll: true});
+      byId('wb-status').textContent = '';
+    } else {
+      byId('wb-status').textContent = `Source anchor #${item.anchor} is missing. Use the exported quote to locate it.`;
+    }
+
+    byId('wb-current-title').textContent = `Annotation ${active + 1} of ${annotations.length}`;
+    byId('wb-current-source').textContent = '#' + item.anchor;
+    byId('wb-current-source').href = sourceUrl(item.anchor);
+    byId('wb-current-quote').textContent = item.quote;
+    byId('wb-current-context').textContent = item.context && item.context !== item.quote ? `Context: ${item.context}` : '';
+    byId('wb-current-context').hidden = !item.context || item.context === item.quote;
+    byId('wb-current-note').textContent = item.note;
+    byId('wb-current').hidden = false;
+    setExpanded(false);
+    updateCount();
+  }
+
+  function setPicking(value) {
+    picking = value;
+    root.classList.toggle('wb-picking', value);
+    byId('wb-add').setAttribute('aria-pressed', String(value));
+    for (const el of anchors) {
+      const previous = originalTabindex.get(el);
+      if (value) el.setAttribute('tabindex', '0');
+      else if (previous === null) el.removeAttribute('tabindex');
+      else el.setAttribute('tabindex', previous);
+    }
+    byId('wb-status').textContent = value ? 'Click a block, or Tab to a block and press Enter. Escape cancels.' : '';
+    hideFloatingButton();
+  }
+
+  function hideFloatingButton() {
+    floatBtn.style.display = 'none';
+  }
+
+  function updateFloatingButton() {
+    if (picking || editor.open) { hideFloatingButton(); return; }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      hideFloatingButton();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    const target = start.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target) || !selection.toString().trim()) {
+      hideFloatingButton();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideFloatingButton();
+      return;
+    }
+    floatBtn.style.display = 'flex';
+    const left = Math.max(60, Math.min(window.innerWidth - 60, rect.left + rect.width / 2));
+    const top = Math.max(rect.top, 50);
+    floatBtn.style.left = `${left}px`;
+    floatBtn.style.top = `${top}px`;
+  }
+
+  function openEditor(item, index = -1, liveRange = null) {
+    setPicking(false);
+    hideFloatingButton();
+    editing = index;
+    draft = {
+      id: item.id || `wb-ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      anchor: item.anchor,
+      quote: item.quote,
+      context: item.context || item.quote,
+      isHighlight: Boolean(item.isHighlight || liveRange),
+      liveRange
+    };
+    byId('wb-editor-title').textContent = index < 0 ? (draft.isHighlight ? 'Add text annotation' : 'Add block annotation') : 'Edit annotation';
+    byId('wb-target').textContent = `#${item.anchor}\n${item.quote}`;
+    byId('wb-note').value = item.note || '';
+    byId('wb-note').setCustomValidity('');
+    window.getSelection().removeAllRanges();
+    editor.showModal();
+    byId('wb-note').focus();
+  }
+
+  floatBtn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(target) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+      }
+    }
+  });
+
+  byId('wb-add').addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0).cloneRange();
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+      const target = start.closest('[data-whiteboard-anchor]');
+      if (target && root.contains(range.startContainer) && root.contains(range.endContainer) && selection.toString().trim()) {
+        const { quote, context } = getContext(range, target);
+        openEditor({ anchor: target.id, quote, context, isHighlight: true }, -1, range);
+        return;
+      }
+    }
+    setPicking(!picking);
+  });
+
+  function pickBlock(event) {
+    const mark = event.target.closest('.wb-mark');
+    if (mark && !picking) {
+      const id = mark.dataset.wbId;
+      const index = annotations.findIndex(a => a.id === id);
+      if (index !== -1) {
+        event.preventDefault();
+        showAnnotation(index);
+        return;
+      }
+    }
+    if (!picking || (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ')) return;
+    const target = event.target.closest('[data-whiteboard-anchor]');
+    if (!target || !root.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openEditor({ anchor: target.id, quote: target.textContent.trim(), context: target.textContent.trim(), isHighlight: false });
+  }
+
+  root.addEventListener('click', pickBlock);
+  root.addEventListener('keydown', pickBlock);
+  document.addEventListener('pointerup', () => setTimeout(updateFloatingButton, 10));
+  document.addEventListener('keyup', e => { if (e.key !== 'Escape') setTimeout(updateFloatingButton, 10); });
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) hideFloatingButton();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (picking) setPicking(false);
+      hideFloatingButton();
+    }
+  });
+
+  byId('wb-note').addEventListener('input', () => byId('wb-note').setCustomValidity(''));
+  byId('wb-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const note = byId('wb-note').value.trim();
+    if (!note) { byId('wb-note').setCustomValidity('Enter a comment.'); byId('wb-note').reportValidity(); return; }
+
+    const item = {
+      id: draft.id,
+      anchor: draft.anchor,
+      quote: draft.quote,
+      context: draft.context,
+      isHighlight: draft.isHighlight,
+      note
+    };
+
+    if (editing < 0) {
+      annotations.push(item);
+      if (item.isHighlight) {
+        if (draft.liveRange) {
+          wrapRange(draft.liveRange, item.id);
+        } else {
+          const container = document.getElementById(item.anchor);
+          if (container) restoreHighlight(container, item.quote, item.id);
+        }
+      }
+    } else {
+      annotations[editing] = item;
+    }
+
+    persist();
+    editor.close();
+    showAnnotation(editing < 0 ? annotations.length - 1 : editing);
+  });
+
+  byId('wb-cancel').addEventListener('click', () => editor.close());
+  byId('wb-prev').addEventListener('click', () => showAnnotation(active < 0 ? annotations.length - 1 : active - 1));
+  byId('wb-next').addEventListener('click', () => showAnnotation(active + 1));
+  byId('wb-edit').addEventListener('click', () => openEditor(annotations[active], active));
+
+  byId('wb-delete').addEventListener('click', () => {
+    if (!confirm('Delete this annotation?')) return;
+    const removed = annotations.splice(active, 1)[0];
+    if (removed) {
+      root.querySelectorAll(`.wb-mark[data-wb-id="${removed.id}"]`).forEach(m => m.replaceWith(...m.childNodes));
+    }
+    persist();
+    if (annotations.length) showAnnotation(Math.min(active, annotations.length - 1));
+    else {
+      active = -1;
+      byId('wb-current').hidden = true;
+      root.querySelectorAll('.wb-highlight').forEach(el => el.classList.remove('wb-highlight'));
+      updateCount();
+    }
+  });
+
+  byId('wb-hide').addEventListener('click', () => { byId('wb-current').hidden = true; });
+  byId('wb-current-toggle').addEventListener('click', () => {
+    setExpanded(byId('wb-current-toggle').getAttribute('aria-expanded') !== 'true');
+  });
+
+  function resetCopyButton() {
+    byId('wb-copy').classList.remove('wb-copied');
+    byId('wb-copy').setAttribute('aria-label', 'Copy annotations');
+    byId('wb-copy').title = 'Copy annotations';
+    byId('wb-copy-icon').toggleAttribute('hidden', false);
+    byId('wb-copy-check').toggleAttribute('hidden', true);
+  }
+
+  byId('wb-copy').addEventListener('click', async () => {
+    const heading = `# Whiteboard HTML annotations\n\nRead skill://whiteboard-html before applying this feedback. If unavailable, read the Skill file below.\nSkill file: ${skillFile}\nDocument: ${sourceFile}\nURL: ${documentUrl.href}\nTitle: ${document.title}\nAnnotations: ${annotations.length}\n`;
+    const body = annotations.map((item, index) => {
+      const label = item.isHighlight ? 'Highlighted text' : 'Quoted text';
+      let block = `\n## Annotation ${index + 1}\nAnchor: #${item.anchor}\nSource: ${sourceUrl(item.anchor)}\n${label}:\n${item.quote.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      if (item.context && item.context !== item.quote) {
+        block += `Context:\n${item.context.split('\n').map(line => '> ' + line).join('\n')}\n`;
+      }
+      block += `Comment:\n${item.note}\n`;
+      return block;
+    }).join('');
+
+    clearTimeout(copyTimer);
+    resetCopyButton();
+    const output = byId('wb-export-text');
+    output.value = heading + body;
+    try {
+      await navigator.clipboard.writeText(output.value);
+      byId('wb-copy').classList.add('wb-copied');
+      byId('wb-copy').setAttribute('aria-label', 'Annotations copied to clipboard');
+      byId('wb-copy').title = 'Annotations copied to clipboard';
+      byId('wb-copy-icon').toggleAttribute('hidden', true);
+      byId('wb-copy-check').toggleAttribute('hidden', false);
+      byId('wb-status').textContent = 'Annotations copied to clipboard. Drafts are kept.';
+      copyTimer = setTimeout(() => {
+        resetCopyButton();
+        byId('wb-status').textContent = '';
+      }, 3000);
+    } catch {
+      byId('wb-copy-status').textContent = 'Clipboard blocked. Text is selected; press Ctrl+C or Cmd+C, then paste into your agent window.';
+      byId('wb-export').showModal();
+      output.focus();
+      output.select();
+    }
+  });
+
+  byId('wb-export-close').addEventListener('click', () => byId('wb-export').close());
+  updateCount();
+})();
+</script>
+<!-- whiteboard-html:end-tail --></body>
+</html>

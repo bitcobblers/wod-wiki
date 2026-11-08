@@ -55,8 +55,13 @@ const EMPTY_TYPES: ReadonlySet<string> = new Set();
 /** Executor-exact aggregate filter keys. `metric` here is the fact-row
  *  metric filter (`agg:sum{metric:reps}` selects those rows) — the guided
  *  `metric` clause is the measure head, a different slot. `tags` is the AST
- *  key of the canonical `tag` clause. */
-const AGGREGATE_KEYS: readonly string[] = WQL_TAG_KEYS;
+ *  key of the canonical `tag` clause.
+ *
+ *  `metric` LEADS the list: a colon function head (`:sum{…}`) selects a
+ *  metric first — it is the required key, so it is offered before the
+ *  optional filters. The single source of truth stays here, so the
+ *  composer's key list and the language module never diverge. */
+const AGGREGATE_KEYS: readonly string[] = ['metric', ...WQL_TAG_KEYS.filter((key) => key !== 'metric')];
 const TARGET_KEYS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
   Object.entries(TARGET_TYPES).map(([target, types]) => [
     target,

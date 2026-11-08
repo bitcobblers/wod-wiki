@@ -17,7 +17,8 @@
  * allowed; cycles are a document-level diagnostic.
  */
 
-import { parseQuery, type AnyParsedQuery, type QueryWindow } from './wql';
+import { parseQuery, type AnyParsedQuery, type PipelineSink, type QueryWindow } from './wql';
+import { serialize } from './serialize';
 
 export interface DocumentDefaults {
     groupBy?: string[];
@@ -40,6 +41,11 @@ export interface DocumentAssignment {
     /** For kind 'query' — the parsed query of any family (defaults merged at run). */
     queryText?: string;
     parsed?: AnyParsedQuery;
+    /** When a pipeline starts from a previously bound assignment (`kb = bench | :sum{…}`). */
+    sourceRef?: string;
+    /** The pipe stages after `<sourceRef> |` (`:sum{…} | :bar{…}`). */
+    pipeTail?: string;
+    transformsText?: string;
     formula?: DocumentFormula;
     raw: string;
 }
@@ -48,6 +54,8 @@ export interface QueryDocument {
     defaults?: DocumentDefaults;
     assignments: DocumentAssignment[];
     show: string[];
+    /** Optional terminal chart sink on the `show` line (`show a, b | :stacked-bar{…}`). */
+    showChart?: PipelineSink;
     /** True when the body carried no document constructs (legacy single query). */
     degenerate: boolean;
 }
@@ -83,6 +91,7 @@ export function parseDocument(text: string): ParsedDocument {
     let hasDefaults = false;
     const assignments: DocumentAssignment[] = [];
     let show: string[] | undefined;
+    let showChart: PipelineSink | undefined;
     let degenerate = false;
 
     const known = new Set<string>();
@@ -107,12 +116,23 @@ export function parseDocument(text: string): ParsedDocument {
             continue;
         }
 
-        // show a, b
+        // show a, b [| :chart{params}]
         if (line.startsWith('show ')) {
-            show = line.slice('show '.length).split(',').map((s) => s.trim()).filter(Boolean);
+            const rest = line.slice('show '.length).trim();
+            const pipeIdx = rest.indexOf('|');
+            const namesPart = pipeIdx === -1 ? rest : rest.slice(0, pipeIdx).trim();
+            show = namesPart.split(',').map((s) => s.trim()).filter(Boolean);
+            if (pipeIdx !== -1) {
+                const sinkText = rest.slice(pipeIdx + 1).trim();
+                const sinkParsed = parseQuery(`:segment{} | ${sinkText}`);
+                if (!sinkParsed.error && sinkParsed.family === 'pipeline' && sinkParsed.sink && sinkParsed.transforms.length === 0) {
+                    showChart = sinkParsed.sink;
+                } else {
+                    diagnostics.push(`Invalid chart sink on show: "${sinkText}"`);
+                }
+            }
             continue;
         }
-
         // <ident> = body
         const assign = /^([A-Za-z_][\w-]*)\s*=\s*(.+)$/.exec(line);
         if (assign) {
@@ -139,6 +159,29 @@ export function parseDocument(text: string): ParsedDocument {
                     assignments.push({ name, kind: 'query', queryText: expression, parsed, raw: line });
                 } else {
                     diagnostics.push(`Assignment "${name}" is not a valid query`);
+                }
+                continue;
+            }
+
+            // Named list/series pipe: `<sourceIdent> | <stages>`
+            const refPipe = /^([A-Za-z_][\w-]*)\s*\|\s*(.+)$/.exec(expression);
+            if (refPipe) {
+                const sourceRef = refPipe[1]!;
+                const pipeTail = refPipe[2]!.trim();
+                const synthetic = parseQuery(`:segment{} | ${pipeTail}`);
+                if (!synthetic.error && synthetic.family === 'pipeline') {
+                    assignments.push({
+                        name,
+                        kind: 'query',
+                        sourceRef,
+                        pipeTail,
+                        transformsText: pipeTail,
+                        queryText: expression,
+                        parsed: synthetic,
+                        raw: line,
+                    });
+                } else {
+                    diagnostics.push(`Assignment "${name}" is not a valid pipeline over "${sourceRef}"`);
                 }
                 continue;
             }
@@ -180,9 +223,12 @@ export function parseDocument(text: string): ParsedDocument {
         }
     }
 
-    // Resolve formula references AFTER all assignments are known (forward
-    // references are legal); cycles are diagnostics.
+    // Resolve formula and sourceRef references AFTER all assignments are known
+    // (forward references are legal); cycles are diagnostics.
     for (const assignment of assignments) {
+        if (assignment.sourceRef && !known.has(assignment.sourceRef)) {
+            diagnostics.push(`Assignment "${assignment.name}" references unknown source "${assignment.sourceRef}"`);
+        }
         if (assignment.kind !== 'formula' || !assignment.formula) continue;
         assignment.formula.references = referencesOf(assignment.formula.expression, known);
         // Unknown identifiers are diagnostics, not silent zeros.
@@ -216,6 +262,7 @@ export function parseDocument(text: string): ParsedDocument {
             ...(Object.keys(defaults).length > 0 ? { defaults } : {}),
             assignments,
             show,
+            ...(showChart ? { showChart } : {}),
             degenerate,
         },
         diagnostics,
@@ -223,7 +270,11 @@ export function parseDocument(text: string): ParsedDocument {
 }
 
 function findCycle(assignments: readonly DocumentAssignment[]): string[] | undefined {
-    const formulas = new Map(assignments.filter((a) => a.kind === 'formula').map((a) => [a.name, a.formula!.references]));
+    const deps = new Map<string, string[]>();
+    for (const a of assignments) {
+        if (a.kind === 'formula' && a.formula) deps.set(a.name, a.formula.references);
+        else if (a.sourceRef) deps.set(a.name, [a.sourceRef]);
+    }
     const state = new Map<string, 1 | 2>();
     const stack: string[] = [];
     const visit = (name: string): string[] | undefined => {
@@ -235,7 +286,7 @@ function findCycle(assignments: readonly DocumentAssignment[]): string[] | undef
         }
         state.set(name, 1);
         stack.push(name);
-        for (const ref of formulas.get(name) ?? []) {
+        for (const ref of deps.get(name) ?? []) {
             const cycle = visit(ref);
             if (cycle) return cycle;
         }
@@ -243,7 +294,7 @@ function findCycle(assignments: readonly DocumentAssignment[]): string[] | undef
         state.set(name, 2);
         return undefined;
     };
-    for (const name of formulas.keys()) {
+    for (const name of deps.keys()) {
         const cycle = visit(name);
         if (cycle) return cycle;
     }
@@ -270,6 +321,19 @@ export function serializeDocument(doc: QueryDocument): string {
     for (const a of doc.assignments) {
         lines.push(a.raw);
     }
-    if (doc.show.length > 0) lines.push(`show ${doc.show.join(', ')}`);
+    if (doc.show.length > 0) {
+        let showLine = `show ${doc.show.join(', ')}`;
+        if (doc.showChart) {
+            const sinkSerialized = serialize({
+                family: 'pipeline',
+                raw: '',
+                source: { kind: 'dataset', name: '@session' },
+                transforms: [],
+                sink: doc.showChart,
+            }).replace(/^@session\s*\|\s*/, '');
+            showLine += ` | ${sinkSerialized}`;
+        }
+        lines.push(showLine);
+    }
     return lines.join('\n');
 }

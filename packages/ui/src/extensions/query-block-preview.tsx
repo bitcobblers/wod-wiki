@@ -6,8 +6,7 @@ import React from "react";
 // @ts-ignore
 import { createRoot } from "react-dom/client";
 import { sectionField, type EditorSection } from "./section-state";
-import { extractDashboardTokens, defaultTokenValues } from "@bitcobblers/wod-wiki-wql";
-import { parseFrontmatter } from "@bitcobblers/wod-wiki-core";
+import { resolveQueryExecutionScope } from "@bitcobblers/wod-wiki-wql";
 import { QueryBlockView } from "../blocks/QueryBlockView";
 import type { QueryExecutor } from "../contracts/query";
 import { patchBlockQuery } from "../utils/blockQueryPatcher";
@@ -22,6 +21,7 @@ export interface QueryBlockPreviewOptions {
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
   tokenValues?: Record<string, string>;
+  noteId?: string;
 }
 
 class ReactQueryBlock extends WidgetType {
@@ -134,9 +134,11 @@ function buildQueryBlockDecos(state: EditorState, options?: QueryBlockPreviewOpt
   const builder = new RangeSetBuilder<Decoration>();
   const { sections, rawContent: fullRawContent } = state.field(sectionField);
   const cursor = state.selection.main.head;
-  const fmMeta = parseFrontmatter(fullRawContent).meta;
-  const fmTokens = defaultTokenValues(extractDashboardTokens(fmMeta));
-  const mergedTokens = { ...fmTokens, ...options?.tokenValues };
+  const { tokens: mergedTokens } = resolveQueryExecutionScope({
+    noteId: options?.noteId,
+    rawContent: fullRawContent,
+    tokenValues: options?.tokenValues,
+  });
 
   for (const section of sections) {
     if (section.type !== "query") continue;

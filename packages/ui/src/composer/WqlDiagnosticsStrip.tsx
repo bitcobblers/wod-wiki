@@ -1,7 +1,7 @@
 import { AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '../utils/cn';
-import { isAggregateQuery, isFindQuery, isPipelineQuery, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql';
+import { isAggregateQuery, isFindQuery, isPipelineQuery, wqlGroupingDimensions, type WqlCursorStageInfo } from '@bitcobblers/wod-wiki-wql';
 import { summarizeAggregate, summarizeFind, summarizePipeline, type WqlDiagnostics } from './diagnostics';
 import type { WqlStageCounts } from './useWqlStageCounts';
 
@@ -16,13 +16,24 @@ export interface WqlDiagnosticsStripProps {
    *  a flat header section separated from the composer by an accent line. */
   variant?: 'card' | 'header';
   actions?: ReactNode;
+  activeStage?: WqlCursorStageInfo;
   className?: string;
 }
 
-function SummaryChip({ label, value, testId, warnTitle }: { label: string; value: string; testId: string; warnTitle?: string }) {
+function SummaryChip({ label, value, testId, warnTitle, active, stageRole }: { label: string; value: string; testId: string; warnTitle?: string; active?: boolean; stageRole?: string }) {
   const legacyTestId = testId.startsWith('diag-') ? testId.replace('diag-', 'wql-') : testId;
   return (
-    <span data-testid={testId} title={warnTitle} className="inline-flex items-center gap-1 whitespace-nowrap">
+    <span
+      data-testid={testId}
+      data-stage-role={stageRole}
+      data-active-stage={active ? stageRole : undefined}
+      aria-current={active ? 'step' : undefined}
+      title={warnTitle}
+      className={cn(
+        'inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 transition-colors',
+        active && 'bg-primary/15 text-primary ring-1 ring-primary/40 font-semibold',
+      )}
+    >
       <span className="opacity-60">{label}:</span>
       <span data-testid={legacyTestId} className={cn('font-semibold', warnTitle && 'text-signal-caution underline decoration-wavy underline-offset-2')}>{value}</span>
     </span>
@@ -36,6 +47,7 @@ export function WqlDiagnosticsStrip({
   hideSummary = false,
   variant = 'card',
   actions,
+  activeStage,
   className,
 }: WqlDiagnosticsStripProps) {
   const { valid, ast, error } = diagnostics;
@@ -158,12 +170,31 @@ export function WqlDiagnosticsStrip({
               const summary = summarizePipeline(ast);
               return (
                 <>
-                  <SummaryChip label="source" value={summary.source} testId="diag-summary-source" />
+                  <SummaryChip
+                    label="source"
+                    value={summary.source}
+                    testId="diag-summary-source"
+                    stageRole="source"
+                    active={activeStage?.role === 'source'}
+                  />
                   {summary.functions.map((fn, i) => (
-                    <SummaryChip key={i} label={`fn ${i + 1}`} value={fn} testId={`diag-summary-fn-${i + 1}`} />
+                    <SummaryChip
+                      key={i}
+                      label={`fn ${i + 1}`}
+                      value={fn}
+                      testId={`diag-summary-fn-${i + 1}`}
+                      stageRole="reduce"
+                      active={activeStage?.role === 'reduce' && (activeStage.reduceIndex ?? 0) === i}
+                    />
                   ))}
                   {summary.sink && (
-                    <SummaryChip label="sink" value={summary.sink} testId="diag-summary-sink" />
+                    <SummaryChip
+                      label="sink"
+                      value={summary.sink}
+                      testId="diag-summary-sink"
+                      stageRole="sink"
+                      active={activeStage?.role === 'sink'}
+                    />
                   )}
                   {summary.timeWindow && (
                     <SummaryChip label="time" value={summary.timeWindow} testId="diag-summary-time" />

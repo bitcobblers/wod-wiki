@@ -25,6 +25,7 @@ import {
   captureContext,
   civilDateOf,
   civilDateAdd,
+  coalescingEventStore,
   zonedStartOfDay,
   toEventRows,
   type PageSourceEntry,
@@ -36,18 +37,22 @@ import { getActiveWorkbenchSessionStore } from '@/stores/workbenchSessionStore';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
 import { storageService } from '@/services/storage';
 
-/** Unified event store over IndexedDB — the `events` object store (V16). */
-export const indexedDbEventStore: EventStore = {
+/** Unified event store over IndexedDB — the `events` object store (V16).
+ *
+ *  Wrapped in `coalescingEventStore`: dashboard widgets sharing one resolved
+ *  range join ONE in-flight IndexedDB range read instead of each issuing its
+ *  own. The wrapper is transparent — every other seam passes through. */
+export const indexedDbEventStore: EventStore = coalescingEventStore({
   getEventsByTimeRange: (start: number, end: number) => storageService.getEventsByTimeRange(start, end),
   getEventsByMetricDates: (dates) => storageService.getEventsByMetricDates(dates),
-  getEventsByResult: (resultId: string) => storageService.getEventsByResult(resultId),
-  getEventsForNote: (noteId: string) => storageService.getEventsForNote(noteId),
-  getEventsByContent: (blockContentId: string) => storageService.getEventsByContent(blockContentId),
+  getEventsByResult: (resultId) => storageService.getEventsByResult(resultId),
+  getEventsForNote: (noteId) => storageService.getEventsForNote(noteId),
+  getEventsByContent: (blockContentId) => storageService.getEventsByContent(blockContentId),
   scanAll: () => storageService.scanAll(),
   appendEvents: (rows) => storageService.appendEvents(rows),
   finalizeSummaries: (resultId, rows) => storageService.finalizeSummaries(resultId, rows),
   deleteEvents: (ids) => storageService.deleteEvents(ids),
-};
+});
 
 export const indexedDbNoteStore: NoteQueryStore = {
   getAllNotes: () => storageService.getAllNotes(),

@@ -19,7 +19,7 @@ import { RowsResultsChrome } from './RowsResultsChrome';
 import { WidgetChart, WidgetProblemBadge } from '../widgets/WidgetChart';
 import {
   createExecutorDocumentHost,
-  outputToRunResult,
+  outputsToRunResult,
   type WidgetRunResult,
 } from '../widgets/chartData';
 import { extractBlockQueries } from '../utils/blockQueryPatcher';
@@ -142,22 +142,21 @@ export function QueryBlockView({
         .run(effectiveQuery)
         .then((res) => {
           if (cancelled) return;
-          const out = res.outputs[0];
-          if (!out) {
-            setRunError(res.diagnostics[0] ?? 'widget produced no output');
+          // The document may show several bindings (`show a, b | :chart{}`) —
+          // merge every shown output so no series is silently dropped.
+          const error = res.outputs.find((o) => o.error !== undefined)?.error ?? res.diagnostics[0];
+          if (!res.outputs.length && res.diagnostics.length) {
+            setRunError(res.diagnostics[0]!);
             return;
           }
-          const err = out.error ?? res.diagnostics[0];
-          if (err) {
-            setRunError(err);
+          if (error) {
+            setRunError(error);
             return;
           }
           const effectiveParsed: AnyParsedQuery = isMultiLineDoc
-            ? (out.kind === 'find'
-                ? { family: 'find', raw: effectiveQuery, target: 'note', filters: [] }
-                : { family: 'aggregate', raw: effectiveQuery, agg: 'sum', metric: out.name, filters: [], groupBy: out.groupBy ?? [] })
+            ? { family: 'aggregate', raw: effectiveQuery, agg: 'sum', metric: res.outputs[0]?.name ?? 'value', filters: [], groupBy: [] }
             : parsed;
-          const shaped = outputToRunResult(effectiveParsed, out);
+          const shaped = outputsToRunResult(effectiveParsed, res);
           setRunResult(shaped);
           if (isSessionFind && (shaped.runs ?? []).length === 0 && attemptCount < 4) {
             const delays = [50, 150, 350, 750];

@@ -72,17 +72,20 @@ The page loader registers the datasets before child queries execute:
 
 - `@session` contains the active workout's live execution statements and segment outputs. No active workout means an empty dataset, not the most recent historical workout.
 - `@today` contains telemetry and notes for the current civil day in the captured execution timezone. Day boundaries follow local midnights, including daylight-saving transitions.
+- `@note` contains the active Note's execution statements and Note record when viewing or editing a Note.
 
-Dataset pipelines use the registered in-memory rows. Downstream reducers do not fetch the EventStore again.
+Entity scope tokens (`$thisnote`, `$note`, and `$scope`) and frontmatter `dashboard.<name>` tokens resolve through `resolveQueryExecutionScope` before queries evaluate:
 
 ```wql
+:note{note:$thisnote} | :sum{metric:reps} by {equipment} | :bar{label:"Reps"}
+@note | :sum{metric:reps} by {equipment} | :donut{}
 @session | :sum{metric:tis} | :value{}
 @today | :sum{metric:tis} by {effort} | :bar{}
 ```
 
 ## Charts and query blocks
 
-Chart heads are `:timeseries`, `:bar`, `:table`, `:donut`, `:toplist`, and `:value`. The sink receives the evaluated dataset, not a new query.
+Chart heads are `:timeseries`, `:bar`, `:stacked-bar`, `:table`, `:list`, `:donut`, `:toplist`, `:value`, `:goal-rings`, and `:zone-distribution`. The sink receives the evaluated dataset, not a new query.
 
 ````markdown
 ```query
@@ -92,16 +95,18 @@ Chart heads are `:timeseries`, `:bar`, `:table`, `:donut`, `:toplist`, and `:val
 
 Fence presentation such as `query:table` remains available. An explicit pipeline sink chooses the pipeline's chart.
 
-Query documents retain named assignments, formulas, defaults, and ordered `show` outputs:
+Query documents retain named assignments (including reusable list sources piped into downstream reducers), scalar-to-series broadcast formulas, `defaults`, and ordered `show` outputs with an optional terminal chart sink (`show a, b | :chart{params}`):
 
 ```wql
 defaults by {week} last 12w
-work = :sum{metric:tis}
-recovery = :sum{metric:sessionLoad}
-ratio = work / recovery
-show work, ratio
+bench = :journal{intent:benchmark}
+kb_reps = bench | :sum{metric:reps, equipment:kettlebell}
+bb_reps = bench | :sum{metric:reps, equipment:barbell}
+total_reps = kb_reps + bb_reps
+show kb_reps, bb_reps | :stacked-bar{unit:reps}
 ```
 
+When a formula combines a multi-point time series with an ungrouped single-point scalar (for example, `pct_1rm = (weekly_top / best_squat) * 100 -> %`), the scalar broadcasts across the series' bucket positions.
 ## Filters
 
 Filters are comma-separated `key:value` clauses inside braces. Values within one key can use `|` for alternatives, `!` negates a key, and `*` marks a prefix match where supported. Quoted text preserves spaces and literal pipes.
@@ -120,8 +125,8 @@ Filter support depends on the target. Unsupported filters and presentation claus
 - `last 2w` and `last 30d` select relative windows.
 - `from 2026-09-01 to 2026-09-30` selects a civil range, including the end day.
 - `by {day}` and `by {week}` use civil days and Monday-aligned weeks in the execution timezone.
+- Fact and event grouping/filtering resolves typed Tag Categories (`equipment`, `domain`, `format`, `quality`, `intent`) as well as `discipline` and `intensity` through a 3-tier precedence chain: (1) statement-level metric dimension overrides (`row.dimensions`), (2) `Effort` definition metadata (`effort.equipment`, `effort.baseAttributes`), and (3) parent Note typed tags via batched `relationStore` reads.
 - Note and block grouping is open over note properties: `by {<tag-type>}` groups by any configured tag type (`domain`, `equipment`, custom types from tag settings), resolving each entry's value from its typed tags; entries without the property group under `Unassigned`.
-- `.rollup(2w)` and `.rollup(7d)` select multi-unit buckets. Use grouping instead of `.rollup(1d)` or `.rollup(1w)`.
 - `in kg` and `in lb` request display-unit conversion.
 
 Time selection uses the observation's domain date. Notes use `date`, falling back to `createdAt`; blocks use their parent note date; sessions use completion time; numeric facts use their metric date.
@@ -146,10 +151,9 @@ sum:totalVolume{} where :note{format:emom}
 
 ## Editor completions
 
-Note editors offer the same WQL completions inside ` ```query ` and ` ```wql ` fence bodies as a standalone WQL editor — source heads, functions, charts, filter keys and values, windows, and row-presentation keywords, with identical triggers and ranking. Typing a word character activates the menu (`fin` offers `find`). Host-supplied field catalogs and typed-tag values extend filter suggestions when provided. Filter keys, grouping dimensions, and singleton suffix clauses disappear after they are supplied, so accepted options cannot create duplicate `by`, `.rollup`, or window clauses.
+Note editors offer the same WQL completions inside ` ```query ` and ` ```wql ` fence bodies as a standalone WQL editor — source heads, datasets (`@session`, `@today`, `@note`), functions, charts, stage-scoped filter/chart keys and values, windows, row-presentation keywords, in-block named bindings (`bench`, `kb_reps`), and scope tokens (`$thisnote`, `$note`, `$scope`). Completions resolve per line and per `|` pipeline stage (`source` → `reduce` → `sink`), while `resolveWqlCursorStage` provides visual active-stage feedback in `WqlComposer`.
 
 Fence spelling does not change behavior: `query` and `wql` bodies complete identically. Frontmatter, prose, headings, and widget or embed blocks never receive query suggestions. The shared keyboard behavior applies: arrows move the active option, Enter or Tab accepts into the document, Escape dismisses without inserting.
-
 ## Removed syntax
 
 - `find:<target>` is retired. Use `:<target>`.

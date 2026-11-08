@@ -463,7 +463,7 @@ describe('parseQuery — pipelines', () => {
     if (!isPipelineQuery(parsed)) throw new Error('expected pipeline');
     expect(parsed.source).toEqual({ kind: 'dataset', name: '@session' });
     expect(_parseQuery('@today').source).toEqual({ kind: 'dataset', name: '@today' });
-    expect(WQL_STANDARD_DATASETS).toEqual(['@session', '@today']);
+    expect(WQL_STANDARD_DATASETS).toEqual(['@session', '@today', '@note']);
   });
 
   it('a bare numeric stage inherits the carried metric', () => {

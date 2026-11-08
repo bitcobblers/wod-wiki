@@ -10,7 +10,7 @@ import {
 } from '@codemirror/autocomplete';
 import { syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { linter, type Diagnostic } from '@codemirror/lint';
-import { parseQuery, isPipelineQuery, supportsWqlFilterKey, wqlCompletionSource, wqlHighlightStyle, wqlLanguage } from '@bitcobblers/wod-wiki-wql';
+import { parseQuery, isPipelineQuery, resolveWqlCursorStage, supportsWqlFilterKey, wqlCompletionSource, wqlHighlightStyle, wqlLanguage, type WqlCursorStageInfo } from '@bitcobblers/wod-wiki-wql';
 import { autocompleteTooltipTheme } from '../extensions/autocomplete-theme';
 import { loadSuggestions } from './suggestionSources';
 import type { QueryClause } from './queryClauses';
@@ -267,7 +267,7 @@ export function wqlEditorKeymap(onSubmit: () => void, onEscape: () => boolean, o
   ];
 }
 
-export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder, autoFocus = false, dense = false, onSlotActivate, activeRange, activeClause, className }: {
+export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder, autoFocus = false, dense = false, onSlotActivate, onCursorStageChange, activeRange, activeClause, className }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -279,14 +279,15 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
    *  sticky header); the default is the roomy 48px form height. */
   dense?: boolean;
   onSlotActivate?: (slot: WqlSlotActivation) => void;
+  onCursorStageChange?: (stage: WqlCursorStageInfo) => void;
   activeRange?: { from: number; to: number };
   activeClause?: QueryClause;
   className?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | undefined>(undefined);
-  const callbacks = useRef({ onChange, onSubmit, onEscape, onSlotActivate });
-  callbacks.current = { onChange, onSubmit, onEscape, onSlotActivate };
+  const callbacks = useRef({ onChange, onSubmit, onEscape, onSlotActivate, onCursorStageChange });
+  callbacks.current = { onChange, onSubmit, onEscape, onSlotActivate, onCursorStageChange };
   const replacing = useRef(false);
   const initialValue = useRef(value);
 
@@ -379,6 +380,11 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
           }),
           EditorView.updateListener.of(update => {
             if (update.docChanged && !replacing.current) callbacks.current.onChange(update.state.doc.toString());
+            if ((update.selectionSet || update.docChanged) && callbacks.current.onCursorStageChange) {
+              const docText = update.state.doc.toString();
+              const pos = update.state.selection.main.head;
+              callbacks.current.onCursorStageChange(resolveWqlCursorStage(docText, pos));
+            }
           }),
           EditorView.theme({
             '&': { width: '100%', fontSize: '14px', backgroundColor: 'transparent' },

@@ -56,5 +56,8 @@ export * from './notebookVocabulary';
 export * from './dashboard';
 export * from './entityScope';
 
+// 9b. Query cache — structural keys, LRU bound, scan coalescing
+export * from './queryCache';
+
 // 10. Version info
 export * from './version';

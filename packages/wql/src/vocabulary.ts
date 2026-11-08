@@ -163,12 +163,12 @@ export const WQL_FUNCTION_HEADS = WQL_AGGREGATORS;
 export type WqlFunctionHead = WqlAggregator;
 
 /** Colon chart heads — terminal pipeline sinks (`:timeseries`, `:bar`, …). */
-export const WQL_CHART_HEADS = ['timeseries', 'bar', 'table', 'donut', 'toplist', 'value'] as const;
+export const WQL_CHART_HEADS = ['timeseries', 'bar', 'stacked-bar', 'table', 'list', 'donut', 'toplist', 'value', 'goal-rings', 'zone-distribution'] as const;
 export type WqlChartHead = (typeof WQL_CHART_HEADS)[number];
 
 /** Standard datasets the host registers per page/run before children
  *  evaluate (`@session` active session, `@today` civil-day telemetry+notes). */
-export const WQL_STANDARD_DATASETS = ['@session', '@today'] as const;
+export const WQL_STANDARD_DATASETS = ['@session', '@today', '@note'] as const;
 export type WqlStandardDataset = (typeof WQL_STANDARD_DATASETS)[number];
 
 

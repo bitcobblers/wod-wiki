@@ -16,7 +16,7 @@
  */
 
 import type { QueryWindow, PipelineSink } from './wql';
-import type { Note, BlockIndexRow } from '@bitcobblers/wod-wiki-core';
+import type { Note, BlockIndexRow, EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { TabularResult, RowsRun, NoteContainer } from './QueryService';
 import type { NotePlacement } from '@bitcobblers/wod-wiki-core';
 import { parseDocument, type ParsedDocument, type QueryDocument, type DocumentAssignment } from './document';
@@ -188,6 +188,7 @@ export interface DocumentOutput {
 export interface DocumentResult {
     outputs: DocumentOutput[];
     diagnostics: string[];
+    showChart?: PipelineSink;
 }
 
 /** Payload surfaces the ticket-19 family dispatch may hand back. */
@@ -197,6 +198,7 @@ export interface FamilyRunPayload {
     notes?: Note[];
     blocks?: BlockIndexRow[];
     efforts?: unknown[];
+    events?: EventRecord[];
     containers?: Record<string, NoteContainer>;
     placements?: Record<string, NotePlacement[]>;
     runs?: RowsRun[];
@@ -216,6 +218,9 @@ export interface QueryDocumentRunnerOptions {
     /** Pipeline queries (`:source | :fn | :chart`, `@dataset | …`) surface
      *  the pipeline result — the host's QueryService.runPipeline. */
     runPipeline?: (queryText: string) => Promise<FamilyRunPayload>;
+    /** Evaluate pipeline tail stages (`:sum{…} | :bar{…}`) over an already-evaluated find payload (shared source DAG). */
+    runPipelineFromFind?: (sourceFind: FamilyRunPayload, pipeTail: string) => Promise<FamilyRunPayload>;
+    runAggregateEvents?: (queryText: string, events: readonly EventRecord[], sourceFind?: FamilyRunPayload) => Promise<FamilyRunPayload>;
 }
 
 export class QueryDocumentRunner {
@@ -241,8 +246,8 @@ export class QueryDocumentRunner {
         const doc: QueryDocument = parsed.doc;
         const outputs: DocumentOutput[] = [];
 
-        const values = new Map<string, { byPosition: Map<number, OperandValue>; unit?: string; groupKeys: string[] }>();
-
+        const values = new Map<string, { byPosition: Map<number, OperandValue>; unit?: string; groupKeys: string[]; isScalar: boolean }>();
+        const findPayloads = new Map<string, { payload: FamilyRunPayload; queryText: string }>();
         const evaluate = async (assignment: DocumentAssignment): Promise<void> => {
             if (assignment.kind === 'query') {
                 const merged = this.mergeDefaults(assignment, doc);
@@ -256,6 +261,7 @@ export class QueryDocumentRunner {
                     const findRun = (await this.options?.runFind?.(text)) ?? {
                         error: 'find queries are not supported by this host',
                     };
+                    findPayloads.set(assignment.name, { payload: findRun, queryText: text });
                     outputs.push({
                         name: assignment.name,
                         kind: 'find',
@@ -274,12 +280,34 @@ export class QueryDocumentRunner {
                 // NOTE: no 'rows' family exists in AnyParsedQuery — textual
                 // rows: heads are retired at the parser, so no host dispatch.
                 if (parsedFamily === 'pipeline') {
-                    const text = merged.window
-                        ? appendSuffixes(merged.queryText, merged.window, merged.groupBy)
-                        : merged.queryText;
-                    const pipelineRun = (await this.options?.runPipeline?.(text)) ?? {
-                        error: 'pipeline queries are not supported by this host',
-                    };
+                    let pipelineRun: FamilyRunPayload;
+                    if (assignment.sourceRef && (assignment.pipeTail ?? assignment.transformsText)) {
+                        const rawTail = (assignment.pipeTail ?? assignment.transformsText)!;
+                        const tailWithDefaults = merged.window
+                            ? appendSuffixes(rawTail, merged.window, merged.groupBy)
+                            : (merged.groupBy?.length && !/by\s*\{/.test(rawTail)
+                                ? `${rawTail} by {${merged.groupBy.join(', ')}}`
+                                : rawTail);
+                        const sourceEntry = findPayloads.get(assignment.sourceRef);
+                        if (sourceEntry && this.options?.runPipelineFromFind) {
+                            pipelineRun = await this.options.runPipelineFromFind(sourceEntry.payload, tailWithDefaults);
+                        } else if (sourceEntry && this.options?.runAggregateEvents) {
+                            pipelineRun = await this.options.runAggregateEvents(tailWithDefaults, sourceEntry.payload.events ?? [], sourceEntry.payload);
+                        } else if (sourceEntry) {
+                            pipelineRun = (await this.options?.runPipeline?.(`${sourceEntry.queryText} | ${tailWithDefaults}`)) ?? {
+                                error: 'pipeline queries are not supported by this host',
+                            };
+                        } else {
+                            pipelineRun = { error: `Source "${assignment.sourceRef}" is not a valid list source` };
+                        }
+                    } else {
+                        const text = merged.window
+                            ? appendSuffixes(merged.queryText, merged.window, merged.groupBy)
+                            : merged.queryText;
+                        pipelineRun = (await this.options?.runPipeline?.(text)) ?? {
+                            error: 'pipeline queries are not supported by this host',
+                        };
+                    }
                     // A numeric pipeline stage feeds downstream formulas.
                     const byPosition = new Map<number, OperandValue>();
                     for (const s of pipelineRun.series ?? []) {
@@ -287,8 +315,17 @@ export class QueryDocumentRunner {
                             if (!point.missing) byPosition.set(point.ts, { value: point.value, missingDerived: false });
                         }
                     }
+                    const lastTransform = assignment.parsed?.family === 'pipeline'
+                        ? assignment.parsed.transforms[assignment.parsed.transforms.length - 1]
+                        : undefined;
+                    const hasBuckets = Boolean((merged.groupBy && merged.groupBy.length > 0) || lastTransform?.groupBy?.length || lastTransform?.rollup);
                     if (byPosition.size > 0) {
-                        values.set(assignment.name, { byPosition, unit: pipelineRun.unit, groupKeys: (pipelineRun.series ?? []).map((s) => s.key) });
+                        values.set(assignment.name, {
+                            byPosition,
+                            unit: pipelineRun.unit,
+                            groupKeys: (pipelineRun.series ?? []).map((s) => s.key),
+                            isScalar: !hasBuckets && byPosition.size === 1,
+                        });
                     }
                     outputs.push({
                         name: assignment.name,
@@ -321,7 +358,13 @@ export class QueryDocumentRunner {
                         }
                     }
                 }
-                values.set(assignment.name, { byPosition, unit: run.unit, groupKeys: series.map((s) => s.key) });
+                const hasBuckets = Boolean((merged.groupBy && merged.groupBy.length > 0) || (assignment.parsed?.family === 'aggregate' && assignment.parsed.rollup));
+                values.set(assignment.name, {
+                    byPosition,
+                    unit: run.unit,
+                    groupKeys: series.map((s) => s.key),
+                    isScalar: !hasBuckets && byPosition.size === 1,
+                });
                 outputs.push({
                     name: assignment.name,
                     kind: 'aggregate',
@@ -338,14 +381,29 @@ export class QueryDocumentRunner {
             const formula = assignment.formula!;
             const inputs: PointwiseInputs = {};
             const positions = new Set<number>();
+            const multiPointRefs = formula.references.filter((ref) => {
+                const v = values.get(ref);
+                return v !== undefined && v.byPosition.size > 1;
+            });
             for (const ref of formula.references) {
                 const input = values.get(ref);
                 if (!input) {
                     diagnostics.push(`Formula "${assignment.name}" references unavailable input "${ref}"`);
                     return;
                 }
-                for (const position of input.byPosition.keys()) positions.add(position);
-                inputs[ref] = (position) => input.byPosition.get(position);
+                // Scalar-to-series broadcast: if at least one operand is a multi-point
+                // series and this operand is an ungrouped single-point scalar whose
+                // timestamp does not overlap any position of the multi-point series,
+                // broadcast the scalar across every position of the multi-point series.
+                const overlapsSeries = [...input.byPosition.keys()].some((k) =>
+                    multiPointRefs.some((mRef) => values.get(mRef)?.byPosition.has(k)),
+                );
+                const isBroadcastScalar = multiPointRefs.length > 0 && input.isScalar && input.byPosition.size === 1 && !overlapsSeries;
+                if (!isBroadcastScalar) {
+                    for (const position of input.byPosition.keys()) positions.add(position);
+                }
+                const scalarFallback = isBroadcastScalar ? [...input.byPosition.values()][0] : undefined;
+                inputs[ref] = (position) => input.byPosition.get(position) ?? scalarFallback;
             }
             const byPosition = new Map<number, OperandValue>();
             let error: string | undefined;
@@ -371,7 +429,7 @@ export class QueryDocumentRunner {
                         name: assignment.name, kind: 'formula', pairs: pairCount,
                         error: 'corr needs at least two paired positions',
                     });
-                    values.set(assignment.name, { byPosition: new Map(), groupKeys: [] });
+                    values.set(assignment.name, { byPosition: new Map(), groupKeys: [], isScalar: false });
                     return;
                 }
                 const mean = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
@@ -388,13 +446,13 @@ export class QueryDocumentRunner {
                         name: assignment.name, kind: 'formula', pairs: pairCount,
                         error: 'corr is undefined for zero-variance inputs',
                     });
-                    values.set(assignment.name, { byPosition: new Map(), groupKeys: [] });
+                    values.set(assignment.name, { byPosition: new Map(), groupKeys: [], isScalar: false });
                     return;
                 }
                 const value = cov / Math.sqrt(va * vb);
                 byPosition.set(0, { value, missingDerived: false });
                 outputs.push({ name: assignment.name, kind: 'formula', pairs: pairCount, series: [{ key: 'corr', label: 'corr', points: [{ ts: 0, value }] }] });
-                values.set(assignment.name, { byPosition, groupKeys: ['corr'] });
+                values.set(assignment.name, { byPosition, groupKeys: ['corr'], isScalar: true });
                 return;
             }
 
@@ -415,7 +473,7 @@ export class QueryDocumentRunner {
                     ...(v.missingDerived ? { missingDerived: true } : {}),
                 })),
             }];
-            values.set(assignment.name, { byPosition, unit: formula.unit, groupKeys: [assignment.name] });
+            values.set(assignment.name, { byPosition, unit: formula.unit, groupKeys: [assignment.name], isScalar: byPosition.size === 1 && multiPointRefs.length === 0 });
             outputs.push({
                 name: assignment.name,
                 kind: 'formula',
@@ -434,7 +492,7 @@ export class QueryDocumentRunner {
             progressed = false;
             for (let i = pending.length - 1; i >= 0; i--) {
                 const assignment = pending[i]!;
-                const refs = assignment.formula?.references ?? [];
+                const refs = assignment.formula?.references ?? (assignment.sourceRef ? [assignment.sourceRef] : []);
                 if (refs.every((r) => evaluated.has(r))) {
                     await evaluate(assignment);
                     evaluated.add(assignment.name);
@@ -445,10 +503,15 @@ export class QueryDocumentRunner {
         }
 
         // Keep only ordered show outputs (plus diagnostics).
-        const shown = new Set(doc.show);
+        const byName = new Map(outputs.map((o) => [o.name, o]));
+        const orderedOutputs = doc.show
+            .map((name) => byName.get(name))
+            .filter((o): o is DocumentOutput => o !== undefined)
+            .map((o) => (doc.showChart && !o.chart ? { ...o, chart: doc.showChart } : o));
         return {
-            outputs: outputs.filter((o) => shown.has(o.name)),
+            outputs: orderedOutputs,
             diagnostics,
+            ...(doc.showChart ? { showChart: doc.showChart } : {}),
         };
     }
 
@@ -460,10 +523,12 @@ export class QueryDocumentRunner {
         doc: QueryDocument,
     ): { queryText: string; groupBy?: string[]; window?: QueryWindow } {
         const parsed = assignment.parsed;
-        const aggregateGroupBy = parsed?.family === 'aggregate' ? parsed.groupBy : undefined;
+        const pipelineTransformGroupBy = parsed?.family === 'pipeline'
+            ? parsed.transforms.find((t) => t.groupBy.length > 0)?.groupBy
+            : undefined;
+        const aggregateGroupBy = parsed?.family === 'aggregate' ? parsed.groupBy : pipelineTransformGroupBy;
         const groupBy = aggregateGroupBy?.length ? aggregateGroupBy : doc.defaults?.groupBy;
-        // Pipelines carry no defaultable window — their source query owns
-        // one; aggregates/finds fall back to the document default as before.
+        // Named sourceRef pipelines and single queries fall back to the document default window.
         const window = (parsed && parsed.family !== 'pipeline' ? parsed.window : undefined) ?? doc.defaults?.window;
         return {
             queryText: assignment.queryText ?? '',

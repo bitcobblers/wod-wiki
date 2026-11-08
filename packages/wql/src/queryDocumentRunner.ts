@@ -22,6 +22,7 @@
 import type { EventRecord, Note, BlockIndexRow } from '@bitcobblers/wod-wiki-core';
 import { QueryDocumentRunner as FormulaAwareRunner, type DocumentResult, type DocumentOutput, type FormulaEvaluator, type FamilyRunPayload, appendSuffixes } from './documentRunner';
 import { parseDocument, serializeDocument } from './document';
+import { substituteTokens as substituteDashboardTokens } from './dashboard/model';
 import { captureContext, type ExecutionContext } from './calendar';
 import type { DocumentAssignment } from './document';
 import type { AnyParsedQuery, QueryWindow } from './wql';
@@ -72,11 +73,14 @@ export interface QueryDocumentRunnerHost {
         runs?: RowsRun[];
         table?: TabularResult;
         unit?: string;
+        events?: EventRecord[];
         error?: string;
     }>;
     /** Pipeline execution (`:source | :fn | :chart`, `@dataset | …`) — the
      *  host's QueryService.runPipeline. */
     runPipeline?(queryText: string, context?: ExecutionContext): Promise<FamilyRunPayload>;
+    /** Evaluate pipeline tail stages over an already-evaluated find payload (shared source DAG). */
+    runPipelineFromFind?(sourceFind: FamilyRunPayload, pipeTail: string, context?: ExecutionContext): Promise<FamilyRunPayload>;
     /** Injected formula evaluator override (engine/app composition adapts
      *  lang's calc evaluator); the built-in pointwise evaluator otherwise. */
     formulaEvaluator?: FormulaEvaluator;
@@ -155,6 +159,12 @@ export class QueryDocumentRunner {
                 const res = await this.host.runPipeline?.(queryText, captured.context);
                 return res ?? { error: 'pipeline queries are not supported by this host' };
             },
+            ...(this.host.runPipelineFromFind
+                ? {
+                      runPipelineFromFind: async (sourceFind: FamilyRunPayload, pipeTail: string) =>
+                          this.host.runPipelineFromFind!(sourceFind, pipeTail, captured.context),
+                  }
+                : {}),
         });
         return formulaRunner.run(substituted);
     }
@@ -162,10 +172,7 @@ export class QueryDocumentRunner {
 
 /** Substitute `$name` tokens with active parameter values (raw text). */
 export function substituteTokens(text: string, tokens: Record<string, string>): string {
-    return text.replace(/\$([A-Za-z_][\w-]*)/g, (match, name: string) => {
-        const value = tokens[name];
-        return value !== undefined ? value : match;
-    });
+    return substituteDashboardTokens(text, tokens).query;
 }
 
 /**

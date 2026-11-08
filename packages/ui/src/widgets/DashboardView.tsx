@@ -4,9 +4,9 @@ import { isFindQuery, isPipelineQuery, parseQuery, parseDocument, type AnyParsed
 import type { QueryExecutor } from '../contracts/query';
 import { WidgetFrame, WidgetToolButton, WidgetEditButton } from './WidgetFrame';
 import { WidgetChart, WidgetProblemBadge } from './WidgetChart';
-import { createExecutorDocumentHost, outputToRunResult, type WidgetRunResult } from './chartData';
+import { createExecutorDocumentHost, outputsToRunResult, type WidgetRunResult } from './chartData';
 import { DashboardTokenControls } from './DashboardTokenControls';
-export { createExecutorDocumentHost, outputToRunResult, type WidgetRunResult };
+export { createExecutorDocumentHost, outputsToRunResult, type WidgetRunResult };
 import { cn } from '../utils/cn';
 
 /** A widget's grid placement — column span 1..4, or a forced full row. */
@@ -226,14 +226,12 @@ export function DashboardView({
           try {
             const runner = new SharedQueryDocumentRunner(host);
             const res = await runner.run(query);
-            const out = res.outputs[0];
-            if (!out) {
-              next[widget.key] = { error: res.diagnostics[0] ?? 'widget produced no output' };
-              return;
-            }
-            const error = out.error ?? res.diagnostics[0];
+            // Merge every shown output — a widget whose document shows
+            // several bindings (`show a, b | :stacked-bar{}`) renders all
+            // of them, not just the first.
+            const error = res.outputs.find((o) => o.error !== undefined)?.error ?? res.diagnostics[0];
             next[widget.key] = {
-              result: outputToRunResult(parsed, out),
+              result: outputsToRunResult(parsed, res),
               ...(error ? { error } : {}),
             };
           } catch (err) {
@@ -350,11 +348,16 @@ export function DashboardView({
                 <WidgetProblemBadge message={run.error} />
               ) : (
                 <WidgetChart
-                  type={widget.type}
+                  type={widget.type !== '' ? widget.type : (run?.result?.chart?.head ?? '')}
                   result={run?.result}
                   label={widget.title}
                   unit={preferredUnit}
-                  attributes={attributes}
+                  attributes={{
+                    ...Object.fromEntries(
+                      (run?.result?.chart?.filters ?? []).map((f) => [f.key, f.values.map((v) => v.value).join(',')]),
+                    ),
+                    ...attributes,
+                  }}
                   onOpenNote={onOpenNote}
                   noteHref={noteHref}
                 />

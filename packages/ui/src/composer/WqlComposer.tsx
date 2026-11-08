@@ -8,7 +8,7 @@ import { WqlDiagnosticsStrip } from './WqlDiagnosticsStrip';
 import { useWqlStageCounts, DEFAULT_DIAGNOSTICS_DEBOUNCE_MS, type WqlExecutor, type WqlStageCounts, type AnyParsedQuery } from './useWqlStageCounts';
 import { CLAUSE_META, CONTENT_GROUPING_DIMENSIONS, getClauseMeta, allowedFilterTypesForTarget, type ClauseType, type QueryClause } from './queryClauses';
 import { astToPills, editQueryClause, pivotQuery, resolveQueryDraft, type QueryDraft } from './queryAst';
-import { isPipelineQuery } from '@bitcobblers/wod-wiki-wql';
+import { isPipelineQuery, resolveWqlCursorStage, type WqlCursorStageInfo } from '@bitcobblers/wod-wiki-wql';
 import { useSuggestionBoundTypes } from './suggestionSources';
 import { WqlTextEditor, type WqlSlotActivation } from './WqlTextEditor';
 
@@ -72,6 +72,9 @@ export function WqlComposer({
   const [error, setError] = useState<string>();
   const [undo, setUndo] = useState<string>();
   const [pivot, setPivot] = useState<{ draft: QueryDraft; removed: string[] }>();
+  const [cursorStage, setCursorStage] = useState<WqlCursorStageInfo | undefined>(() =>
+    resolveWqlCursorStage(query ?? initialQuery ?? ':note', 0),
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -334,7 +337,7 @@ export function WqlComposer({
       )}
       data-testid="wql-composer-root"
     >
-      {diagnosticsPosition === 'top' && showDiagnostics && <WqlDiagnosticsStrip diagnostics={diagnostics} stages={stages} actions={action} variant="header" />}
+      {diagnosticsPosition === 'top' && showDiagnostics && <WqlDiagnosticsStrip diagnostics={diagnostics} stages={stages} activeStage={cursorStage} actions={action} variant="header" />}
       {(desktop || compact || active.kind === 'wql' || !guided) && (
         <div className="flex min-w-0 w-full items-center gap-2">
           <div className="min-w-0 flex-1">
@@ -343,9 +346,10 @@ export function WqlComposer({
               placeholder={placeholder}
               dense={compact}
               className={compact ? 'min-w-0 w-full bg-transparent' : undefined}
-              activeRange={active.kind === 'value' ? active.range : undefined}
+              activeRange={active.kind === 'value' ? active.range : (isPipelineQuery(resolved.ast) && cursorStage ? { from: cursorStage.from, to: cursorStage.to } : undefined)}
               activeClause={active.kind === 'value' ? active.clause : undefined}
               onSlotActivate={activateWqlSlot}
+              onCursorStageChange={setCursorStage}
               onChange={(text) => commit(resolveQueryDraft(text))}
               onSubmit={submit}
               onEscape={() => { if (active.kind === 'closed') return false; closeEditor(); return true; }}
@@ -514,7 +518,7 @@ export function WqlComposer({
       {!showDiagnostics && (error ?? (resolved.wql.trim() ? resolved.error : undefined)) && <p role="alert" className="text-sm text-destructive">{error ?? resolved.error}</p>}
       {!guided && !resolved.error && <p className="text-sm text-muted-foreground">Use Edit WQL to preserve every clause.</p>}
       {pending && <p className="text-sm text-muted-foreground" data-testid="wql-composer-pending">{resolved.valid ? 'Current draft includes this text' : resolved.error}</p>}
-      {showDiagnostics && diagnosticsPosition === 'bottom' ? <WqlDiagnosticsStrip diagnostics={diagnostics} stages={stages} actions={action} /> : diagnosticsPosition !== 'top' || !showDiagnostics ? Boolean(actionLabel || diagnosticsActions) && <div className="flex flex-wrap items-center justify-end gap-2">{action}</div> : null}
+      {showDiagnostics && diagnosticsPosition === 'bottom' ? <WqlDiagnosticsStrip diagnostics={diagnostics} stages={stages} activeStage={cursorStage} actions={action} /> : diagnosticsPosition !== 'top' || !showDiagnostics ? Boolean(actionLabel || diagnosticsActions) && <div className="flex flex-wrap items-center justify-end gap-2">{action}</div> : null}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { ensureSyntaxTree } from '@codemirror/language';
 import {
   wqlLanguage,
   wqlCompletionSource,
+  resolveWqlCursorStage,
 } from '../src/language';
 import { wqlFilterKeys, wqlGroupingDimensions } from '../src/capabilities';
 import { WQL_SOURCE_VALUES } from '../src/vocabulary';
@@ -289,8 +290,8 @@ describe('wqlCompletionSource — colon heads', () => {
     expect(complete(':')).toEqual([
       'sum', 'avg', 'min', 'max', 'count', 'last', 'delta',
       'note', 'notes', 'block', 'effort', 'session', 'segment', 'event', 'journal', 'notebook', 'notebooks', 'playground', 'page', 'tag', 'equipment', 'dashboard',
-      'timeseries', 'bar', 'table', 'donut', 'toplist', 'value',
-      '@session', '@today',
+      'timeseries', 'bar', 'stacked-bar', 'table', 'list', 'donut', 'toplist', 'value', 'goal-rings', 'zone-distribution',
+      '@session', '@today', '@note',
     ]);
     expect(complete(':j')).toEqual(['journal']);
   });
@@ -377,5 +378,77 @@ describe('wqlLanguage highlighting', () => {
     expect(classes['.rollup']).toBe('keyword');
     expect(classes['2']).toBe('number');
     expect(classes['w']).toBe('unit');
+  });
+});
+
+describe('WQL-5 stage- and binding-aware typeahead & resolveWqlCursorStage', () => {
+  it('suggests metric: and fact keys inside a stage-2 reducer (:journal{} | :sum{)', () => {
+    const keys = complete(':journal{} | :sum{')!;
+    expect(keys).toContain('metric');
+    expect(keys).toContain('equipment');
+    expect(keys).toContain('effort');
+
+    const metrics = complete(':journal{} | :sum{metric:')!;
+    expect(metrics).toContain('reps');
+    expect(metrics).toContain('totalVolume');
+    expect(metrics).toContain('tis');
+  });
+
+  it('suggests chart heads and reducer heads after a stage-2 pipe (:journal{} | :sum{metric:reps} | :)', () => {
+    const heads = complete(':journal{} | :sum{metric:reps} | :')!;
+    expect(heads).toContain('bar');
+    expect(heads).toContain('stacked-bar');
+    expect(heads).toContain('timeseries');
+    expect(heads).toContain('value');
+    expect(heads).toContain('goal-rings');
+
+    const chartParams = complete(':journal{} | :sum{metric:reps} | :bar{')!;
+    expect(chartParams).toEqual(['label', 'unit', 'goal', 'limit', 'stack', 'type', 'smooth']);
+  });
+
+  it('suggests declared local bindings on show lines, assignment RHS, and formula tails', () => {
+    const doc = [
+      'defaults by {week} last 8w',
+      'bench_notes = :journal{intent:benchmark}',
+      'kb_reps = bench_notes | :sum{metric:reps}',
+      'show ',
+    ].join('\n');
+    const showSuggestions = complete(doc)!;
+    expect(showSuggestions).toEqual(['bench_notes', 'kb_reps']);
+
+    const showChartSuggestions = complete(`${doc}kb_reps | :`)!;
+    expect(showChartSuggestions).toContain('stacked-bar');
+    expect(showChartSuggestions).toContain('bar');
+
+    const formulaDoc = [
+      'snatch_vol = :segment{effort:snatch} | :sum{metric:totalVolume}',
+      'clean_vol = :segment{effort:clean} | :sum{metric:totalVolume}',
+      'ratio = snatch_vol / ',
+    ].join('\n');
+    expect(complete(formulaDoc)).toEqual(['snatch_vol', 'clean_vol']);
+  });
+
+  it('suggests $thisnote, $note, and $scope when typing $ tokens', () => {
+    expect(complete(':note{note:$')).toEqual(['$thisnote', '$note', '$scope']);
+    expect(complete(':segment{note:$this')).toEqual(['$thisnote']);
+  });
+
+  it('resolves the active pipeline stage role (source -> reduce -> sink) as cursor moves', () => {
+    const line = ':journal{effort:snatch} | :sum{metric:reps} by {equipment} | :bar{unit:reps}';
+    const atSource = resolveWqlCursorStage(line, 5);
+    expect(atSource.role).toBe('source');
+    expect(atSource.stageIndex).toBe(0);
+    expect(atSource.head).toBe(':journal');
+
+    const atReduce = resolveWqlCursorStage(line, line.indexOf(':sum') + 2);
+    expect(atReduce.role).toBe('reduce');
+    expect(atReduce.stageIndex).toBe(1);
+    expect(atReduce.reduceIndex).toBe(0);
+    expect(atReduce.head).toBe('sum');
+
+    const atSink = resolveWqlCursorStage(line, line.indexOf(':bar') + 2);
+    expect(atSink.role).toBe('sink');
+    expect(atSink.stageIndex).toBe(2);
+    expect(atSink.head).toBe('bar');
   });
 });

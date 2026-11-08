@@ -226,7 +226,7 @@ export function setDashboardTokenValue(
 
 // ── Token substitution ─────────────────────────────────────────────────────
 
-const TOKEN_REF_RE = /\$([A-Za-z][\w-]*)/g;
+const TOKEN_REF_RE = /\$([A-Za-z_][\w-]*)/g;
 
 /**
  * Substitute `$name` references with token values — raw text replacement at

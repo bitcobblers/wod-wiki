@@ -77,11 +77,19 @@ export class AnalyticsInvalidationBus {
 }
 
 /** Structural cache: entries carry the generation they were computed under;
- *  a read against a different generation is a miss (and drops the entry). */
+ *  a read against a different generation is a miss (and drops the entry).
+ *
+ *  Bounded LRU: the cache holds at most `maxEntries` (default 64) entries.
+ *  A read refreshes recency; a write evicts the least-recently-used entry
+ *  when the cache is full. The bound keeps browser memory flat — an
+ *  unbounded cache over a long-lived dashboard session grows with every
+ *  distinct query the user ever ran. */
 export class QueryCache {
     private readonly entries = new Map<string, { generation: number; value: unknown }>();
+    private readonly maxEntries: number;
 
-    constructor(bus: AnalyticsInvalidationBus) {
+    constructor(bus: AnalyticsInvalidationBus, options: { maxEntries?: number } = {}) {
+        this.maxEntries = Math.max(1, options.maxEntries ?? DEFAULT_MAX_ENTRIES);
         // Any mutation (local or received from another tab) clears every
         // entry — the generation check is the second guard for entries set
         // in the same tick as a mutation.
@@ -95,17 +103,39 @@ export class QueryCache {
             this.entries.delete(key);
             return undefined;
         }
+        // Refresh recency: the Map preserves insertion order, so re-inserting
+        // moves the key to the most-recent end.
+        this.entries.delete(key);
+        this.entries.set(key, entry);
         return entry.value;
     }
 
     set(key: string, value: unknown, generation: number): void {
+        // Re-writing a key must not grow the cache — drop the stale entry
+        // first so the write below re-inserts it as most-recent.
+        this.entries.delete(key);
         this.entries.set(key, { generation, value });
+        while (this.entries.size > this.maxEntries) {
+            const oldest = this.entries.keys().next();
+            if (oldest.done) break;
+            this.entries.delete(oldest.value);
+        }
     }
 
     clear(): void {
         this.entries.clear();
     }
+
+    /** Current entry count — the LRU bound's observable state. */
+    get size(): number {
+        return this.entries.size;
+    }
 }
+
+/** Default LRU bound — 64 entries keeps the cache's memory flat while
+ *  covering a dashboard's working set (one entry per distinct widget
+ *  query plus headroom for range/scrub variations). */
+const DEFAULT_MAX_ENTRIES = 64;
 
 export interface CacheKeyContext {
     rangeStart?: number;

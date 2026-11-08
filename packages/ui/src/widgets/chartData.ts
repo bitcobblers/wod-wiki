@@ -3,6 +3,8 @@ import {
   parseQuery,
   type AnyParsedQuery,
   type DocumentOutput,
+  type DocumentResult,
+  type FamilyRunPayload,
   type NoteContainer,
   type PipelineSink,
   type QueryDocumentRunnerHost,
@@ -72,6 +74,7 @@ export function createExecutorDocumentHost(
         notes: res.notes,
         blocks: res.blocks,
         efforts: res.efforts,
+        events: res.events,
         containers: res.containers,
         runs: res.runs,
         table: res.table,
@@ -86,6 +89,17 @@ export function createExecutorDocumentHost(
       });
       return res ?? { error: 'pipeline queries are not supported by this executor' };
     },
+    ...(executor.runPipelineFromFind
+      ? {
+          runPipelineFromFind: async (sourceFind: FamilyRunPayload, pipeTail: string, context) =>
+            executor.runPipelineFromFind!(sourceFind, pipeTail, {
+              context,
+              rangeStart: range.rangeStart,
+              rangeEnd: range.rangeEnd,
+              preferredUnit: range.preferredUnit,
+            }),
+        }
+      : {}),
     rollupEnsure: range.rollupEnsure,
   };
 }
@@ -132,6 +146,48 @@ export function outputToRunResult(parsed: AnyParsedQuery, out: DocumentOutput): 
     ...(out.containers ? { containers: out.containers } : {}),
     ...(out.runs ? { runs: out.runs } : {}),
     ...(out.chart ? { chart: out.chart } : {}),
+  });
+}
+
+/**
+ * Merge EVERY shown output of a document run into one widget result.
+ *
+ * A Query Document can show several bindings (`show kb, bb | :stacked-bar{}`).
+ * Taking only `outputs[0]` silently dropped every series after the first —
+ * the chart rendered a single band for a stacked-bar that declared two.
+ * This merges all shown series, keeps the first sink/unit, and surfaces the
+ * first error so a failed stage is never swallowed by a healthy sibling.
+ */
+export function outputsToRunResult(parsed: AnyParsedQuery, res: DocumentResult): WidgetRunResult {
+  const outputs = res.outputs;
+  const first = outputs[0];
+  if (!first) {
+    return outputToRunResult(parsed, { name: 'query', kind: 'aggregate', error: res.diagnostics[0] });
+  }
+
+  const series = outputs.flatMap((o) => o.series ?? []);
+  const chart = res.showChart ?? outputs.find((o) => o.chart)?.chart;
+  const unit = outputs.find((o) => o.unit !== undefined)?.unit ?? first.unit;
+  const error = outputs.find((o) => o.error !== undefined)?.error ?? res.diagnostics[0];
+  const table = outputs.find((o) => o.table !== undefined)?.table;
+
+  const merged = outputToRunResult(parsed, {
+    ...first,
+    series,
+    ...(unit !== undefined ? { unit } : {}),
+    ...(table !== undefined ? { table } : {}),
+    ...(error !== undefined ? { error } : {}),
+    ...(chart !== undefined ? { chart } : {}),
+  });
+
+  // Content-plane payloads: the first output that carries each plane wins,
+  // so a `show a, b` document with one content binding still renders rows.
+  return Object.assign(merged, {
+    ...(outputs.find((o) => o.notes !== undefined)?.notes ? { notes: outputs.find((o) => o.notes !== undefined)!.notes } : {}),
+    ...(outputs.find((o) => o.blocks !== undefined)?.blocks ? { blocks: outputs.find((o) => o.blocks !== undefined)!.blocks } : {}),
+    ...(outputs.find((o) => o.efforts !== undefined)?.efforts ? { efforts: outputs.find((o) => o.efforts !== undefined)!.efforts } : {}),
+    ...(outputs.find((o) => o.containers !== undefined)?.containers ? { containers: outputs.find((o) => o.containers !== undefined)!.containers } : {}),
+    ...(outputs.find((o) => o.runs !== undefined)?.runs ? { runs: outputs.find((o) => o.runs !== undefined)!.runs } : {}),
   });
 }
 
