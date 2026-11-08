@@ -22,7 +22,7 @@ width:   50%
 ```
 
 ```query
-sum:totalVolume{discipline:strength} by {week} last 6w
+:segment{discipline:strength} | :sum{metric:totalVolume} by {week} last 6w | :timeseries{}
 ```
 
 Three surfaces use the same language: the **Library** (zero-syntax tri-state browsing), the **Explorer** (`/dashboards` workbench), and **in-note ```query blocks** — the one this chapter focuses on, which [dashboards](/page/guide-dashboards) compose.
@@ -141,7 +141,7 @@ pipeline:
 Content queries can require a numeric threshold computed over each result's linked workouts:
 
 ```query
-:note{tags:pr,notebook:journal} last 8w where sum:totalVolume{} > 5000
+:note{tags:pr,notebook:journal} last 8w where :sum{metric:totalVolume} > 5000 | :table{}
 ```
 
 Keep only journal notes tagged `pr` whose total volume exceeds 5,000 kg. Joins are supported on `:note` and `:block`; other targets report an advisory and ignore the clause. Joins lean on the **Block Content Id** — a content hash of each workout block, stable across reorders and preserved when you clone a feed-delivered benchmark into your journal, so history aggregates across every note where that workout lives.

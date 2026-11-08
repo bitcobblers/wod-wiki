@@ -23,40 +23,40 @@ Readiness is the composite (soreness-inverted 40% / sleep 30% / HRV 30%).
 Green-light for intensity?
 
 ```query:value
-last:calc.readiness{}
+:segment{} | :last{metric:calc.readiness} | :value{}
 ```
 
 ## HRV trend
 Autonomic balance holding?
 
 ```query:timeseries-2
-avg:calc.hrv{} by {day}
+:segment{} | :avg{metric:calc.hrv} by {day} | :timeseries{}
 ```
 
 ## Sleep duration
 Hitting the nightly floor?
 
 ```query:bar
-avg:calc.sleep{} by {day}
+:segment{} | :avg{metric:calc.sleep} by {day} | :bar{}
 ```
 
 ## Soreness
 Subjective load matching objective?
 
 ```query:bar
-avg:calc.soreness{} by {day}
+:segment{} | :avg{metric:calc.soreness} by {day} | :bar{}
 ```
 
 ## Monotony
 Enough day-to-day variation?
 
 ```query:timeseries
-avg:calc.monotony{} by {day}
+:segment{} | :avg{metric:calc.monotony} by {day} | :timeseries{}
 ```
 
 ## Load balance (ACWR)
 Inside the 0.8–1.3 sweet spot all block?
 
 ```query:timeseries
-avg:calc.acwr{} by {day}
+:segment{} | :avg{metric:calc.acwr} by {day} | :timeseries{}
 ```

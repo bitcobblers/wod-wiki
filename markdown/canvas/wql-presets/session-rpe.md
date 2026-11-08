@@ -1,5 +1,5 @@
 # Query sandbox
 
 ```query
-avg:session-rpe{} by {week} last 8w
+:segment{} | :avg{metric:session-rpe} by {week} last 8w | :timeseries{}
 ```

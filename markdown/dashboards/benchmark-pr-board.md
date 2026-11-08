@@ -13,33 +13,33 @@ benchmark notes `benchmark` and they land on the board.
 Which benchmarks moved this quarter?
 
 ```query:table-2
-last:elapsed{tags:benchmark} by {effort}
+:segment{tags:benchmark} | :last{metric:elapsed} by {effort} | :table{}
 ```
 
 ## Fran trend
 Closing on the goal time?
 
 ```query:timeseries
-last:elapsed{effort:fran} by {week}
+:segment{effort:fran} | :last{metric:elapsed} by {week} | :timeseries{}
 ```
 
 ## Work capacity
 Total reps per week rising?
 
 ```query:timeseries
-sum:totalReps{} by {week}
+:segment{} | :sum{metric:totalReps} by {week} | :timeseries{}
 ```
 
 ## Session intensity
 Pacing even or blowing up late?
 
 ```query:bar
-sum:tis{} by {session, day}
+:segment{} | :sum{metric:tis} by {session, day} | :bar{}
 ```
 
 ## Training consistency
 Sessions logged — gaps visible at a glance.
 
 ```query:bar
-count:sessionLoad{} by {day}
+:segment{} | :count{metric:sessionLoad} by {day} | :bar{}
 ```

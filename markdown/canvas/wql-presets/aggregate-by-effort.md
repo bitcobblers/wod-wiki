@@ -1,5 +1,5 @@
 # Query sandbox
 
 ```query
-sum:totalVolume{} by {effort} last 6w
+:segment{} | :sum{metric:totalVolume} by {effort} last 6w | :bar{}
 ```

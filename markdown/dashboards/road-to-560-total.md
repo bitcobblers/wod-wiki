@@ -20,54 +20,54 @@ of each set's projected max.
 How close to the target?
 
 ```query:goal-rings goal=$squatGoal
-max:calc.e1rm{effort:back-squat}
+:segment{effort:back-squat} | :max{metric:calc.e1rm} | :goal-rings{goal:"$squatGoal"}
 ```
 
 ## Bench goal
 How close to the target?
 
 ```query:goal-rings goal=$benchGoal
-max:calc.e1rm{effort:bench-press}
+:segment{effort:bench-press} | :max{metric:calc.e1rm} | :goal-rings{goal:"$benchGoal"}
 ```
 
 ## Deadlift goal
 How close to the target?
 
 ```query:goal-rings goal=$deadliftGoal
-max:calc.e1rm{effort:deadlift}
+:segment{effort:deadlift} | :max{metric:calc.e1rm} | :goal-rings{goal:"$deadliftGoal"}
 ```
 
 ## Estimated 1RM trend
 Is strength actually surging?
 
 ```query:timeseries-2
-max:calc.e1rm{} by {effort, week}
+:segment{} | :max{metric:calc.e1rm} by {effort, week} | :timeseries{}
 ```
 
 ## Tonnage by week
 Enough volume for adaptation?
 
 ```query:bar
-sum:totalVolume{discipline:strength} by {week}
+:segment{discipline:strength} | :sum{metric:totalVolume} by {week} | :bar{}
 ```
 
 ## Average intensity
 Neural demand in the right zone?
 
 ```query:timeseries
-avg:calc.pct1rm{discipline:strength} by {week}
+:segment{discipline:strength} | :avg{metric:calc.pct1rm} by {week} | :timeseries{}
 ```
 
 ## Volume by lift
 Main lifts vs accessories balance?
 
 ```query:toplist
-sum:totalVolume{discipline:strength} by {effort}
+:segment{discipline:strength} | :sum{metric:totalVolume} by {effort} | :toplist{}
 ```
 
 ## Session strain
 Is fatigue outpacing recovery?
 
 ```query:timeseries
-sum:sessionLoad{discipline:strength} by {week}
+:segment{discipline:strength} | :sum{metric:sessionLoad} by {week} | :timeseries{}
 ```

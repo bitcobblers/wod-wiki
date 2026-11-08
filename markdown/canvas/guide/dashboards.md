@@ -36,14 +36,14 @@ dashboard.weeks: 16
 How hard are sessions?
 
 ```query:value
-avg:tis{}
+:segment{} | :avg{metric:tis} | :value{}
 ```
 
 ## Weekly tonnage
 Is volume rising?
 
 ```query:timeseries-2
-sum:totalVolume{} by {week}
+:segment{} | :sum{metric:totalVolume} by {week} | :timeseries{}
 ```
 ````
 
@@ -76,7 +76,7 @@ The fence tag carries type and grid span (`query:<type>[-<1..4>|-full]`); a bare
 The block body is **one WQL line** — everything from [the WQL chapter](/page/guide-wql?h=aggregate) works, including tokens:
 
 ```query
-sum:sessionLoad{intensity:$intensity} by {week}
+:segment{} | :sum{metric:sessionLoad, intensity:$intensity} by {week} | :timeseries{}
 ```
 
 Wellness data comes from a capture fence in any note — wellness keys are plain properties, one per line:
@@ -102,12 +102,12 @@ Copy-paste queries (paste into a ```query block, or straight into the Explorer):
 
 | Question | Query |
 |---|---|
-| Weekly strength volume | `sum:totalVolume{discipline:strength} by {week}` |
-| Top volume movements | `sum:totalVolume{} by {effort}` |
-| TIS trend | `avg:tis{} by {week}` |
-| Acute:chronic load | `avg:calc.acwr{}` |
-| Find benchmark notes | `:note{effort:fran,source:notebooks}` |
-| This week's swings volume | `sum:totalVolume{effort:kettlebell-swings} last 6w` |
+| Weekly strength volume | `:segment{discipline:strength} | :sum{metric:totalVolume} by {week} | :timeseries{}` |
+| Top volume movements | `:segment{} | :sum{metric:totalVolume} by {effort} | :toplist{}` |
+| TIS trend | `:segment{} | :avg{metric:tis} by {week} | :timeseries{}` |
+| Acute:chronic load | `:segment{} | :avg{metric:calc.acwr} | :value{}` |
+| Find benchmark notes | `:note{effort:fran,source:notebooks} | :list{}` |
+| This week's swings volume | `:segment{effort:kettlebell-swings} last 6w | :sum{metric:totalVolume} | :value{}` |
 
 The shared kettlebell note feeds the last row — [run it](/page/guide-start?h=try-it), and it appears among the sample rows.
 

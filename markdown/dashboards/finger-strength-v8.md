@@ -17,33 +17,33 @@ ring target is the frontmatter $hangGoal token.
 Finger strength vs the benchmark cohort?
 
 ```query:goal-rings-2 goal=$hangGoal
-max:calc.mvcBw{}
+:segment{} | :max{metric:calc.mvcBw} | :goal-rings{goal:"$hangGoal"}
 ```
 
 ## Max-hang trend
 Is the strength block working? Retest every 4–8 weeks.
 
 ```query:timeseries-2
-last:calc.mvcBw{} by {week}
+:segment{} | :last{metric:calc.mvcBw} by {week} | :timeseries{}
 ```
 
 ## Grade pyramid
 Base wide enough to support the goal grade?
 
 ```query:bar
-count:calc.sends{} by {grade}
+:segment{} | :count{metric:calc.sends} by {grade} | :bar{}
 ```
 
 ## Finger load (ACWR)
 Keeping tendons in the safe ramp zone?
 
 ```query:timeseries
-avg:calc.acwr{} by {day}
+:segment{} | :avg{metric:calc.acwr} by {day} | :timeseries{}
 ```
 
 ## Hangboard sessions
 Hitting the programmed frequency?
 
 ```query:value
-count:sessionLoad{tags:hangboard}
+:segment{tags:hangboard} | :count{metric:sessionLoad} | :value{}
 ```

@@ -15,68 +15,68 @@ and where the work went.
 How hard are sessions?
 
 ```query:value
-avg:tis{}
+:segment{} | :avg{metric:tis} | :value{}
 ```
 
 ## Total volume
 How much total work?
 
 ```query:value
-sum:totalVolume{}
+:segment{} | :sum{metric:totalVolume} | :value{}
 ```
 
 ## Total reps
 How many reps?
 
 ```query:value
-sum:totalReps{}
+:segment{} | :sum{metric:totalReps} | :value{}
 ```
 
 ## Adherence
 Are planned sessions getting done?
 
 ```query:value
-avg:calc.adherence{}
+:segment{} | :avg{metric:calc.adherence} | :value{}
 ```
 
 ## Weekly tonnage
 Is volume rising?
 
 ```query:timeseries-2
-sum:totalVolume{} by {week}
+:segment{} | :sum{metric:totalVolume} by {week} | :timeseries{}
 ```
 
 ## TIS trend
 Is intensity consistent?
 
 ```query:timeseries
-avg:tis{} by {week}
+:segment{} | :avg{metric:tis} by {week} | :timeseries{}
 ```
 
 ## Volume by effort
 Where does the volume go?
 
 ```query:toplist
-sum:totalVolume{} by {effort}
+:segment{} | :sum{metric:totalVolume} by {effort} | :toplist{}
 ```
 
 ## Load by intensity
 Is training polarized?
 
 ```query:stacked-bar
-sum:sessionLoad{} by {intensity, week}
+:segment{} | :sum{metric:sessionLoad} by {intensity, week} | :stacked-bar{}
 ```
 
 ## Distance by discipline
 Where is the mileage?
 
 ```query:bar
-sum:totalDistance{} by {discipline}
+:segment{} | :sum{metric:totalDistance} by {discipline} | :bar{}
 ```
 
 ## Session load trend
 Is load building?
 
 ```query:timeseries
-sum:sessionLoad{} by {week}
+:segment{} | :sum{metric:sessionLoad} by {week} | :timeseries{}
 ```

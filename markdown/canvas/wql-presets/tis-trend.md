@@ -1,5 +1,5 @@
 # Query sandbox
 
 ```query
-avg:tis{} by {week} last 8w
+:segment{} | :avg{metric:tis} by {week} last 8w | :timeseries{}
 ```

@@ -131,7 +131,7 @@ rpe: 7
 `rpe:` (and `rir:`) are typed session metrics — the parser maps the property to `session-rpe`, the stored fact carries canonical key `session-rpe`, and the executor matches aggregate metric keys by exact string, so weekly intensity is one query:
 
 ```query
-avg:session-rpe{} by {week}
+:segment{} | :avg{metric:session-rpe} by {week} | :timeseries{}
 ```
 
 (Older pages showed `avg:wod.rpe` — no such key exists; `session-rpe` is the real one.)

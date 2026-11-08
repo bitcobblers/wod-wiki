@@ -24,7 +24,7 @@ dashboard.metric:
 How does $metric trend week over week?
 
 \`\`\`query:timeseries
-sum:$metric{} by {week}
+:segment{} | :sum{metric:$metric} by {week} | :timeseries{}
 \`\`\`
 `;
 }
