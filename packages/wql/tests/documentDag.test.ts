@@ -159,7 +159,52 @@ describe('WQL-3 runner — scalar-to-series broadcast', () => {
     const pct = result.outputs.find((o) => o.name === 'pct');
     expect(pct?.series?.[0]?.points.map((p) => p.ts)).toEqual([1, 2, 3]);
     expect(pct?.series?.[0]?.points.map((p) => p.value)).toEqual([10, 20, 30]);
-    expect(pct?.series?.[0]?.points.some((p) => p.ts === 999)).toBe(false);
+    expect(pct?.series?.[0]!.points.some((p) => p.ts === 999)).toBe(false);
     expect(pct?.unit).toBe('%');
+  });
+
+  it('broadcasts a scalar even when its timestamp overlaps a series bucket', async () => {
+    const runner = new QueryDocumentRunner(async (queryText: string) => {
+      if (queryText.includes('by {week}')) {
+        return {
+          series: [{ key: 'reps', label: 'reps', points: [{ ts: 1000, value: 20 }, { ts: 2000, value: 40 }] }],
+          unit: 'reps',
+        };
+      }
+      return { series: [{ key: 'reps', label: 'reps', points: [{ ts: 1000, value: 10 }] }], unit: 'reps' };
+    });
+    const text = [
+      'weekly = sum:reps{} by {week}',
+      'baseline = sum:reps{}',
+      'pct = (weekly / baseline) * 100 -> %',
+      'show pct',
+    ].join('\n');
+    const result = await runner.run(text);
+    expect(result.diagnostics).toEqual([]);
+    const pct = result.outputs.find((o) => o.name === 'pct');
+    expect(pct?.error).toBeUndefined();
+    expect(pct?.series?.[0]!.points.map((p) => p.ts)).toEqual([1000, 2000]);
+    expect(pct?.series?.[0]!.points.map((p) => p.value)).toEqual([200, 400]);
+  });
+
+  it('treats a grouped one-point series as a series, never as a broadcast scalar', async () => {
+    const runner = new QueryDocumentRunner(async (queryText: string) => {
+      if (queryText.includes('by {week}')) {
+        return { series: [{ key: 'reps', label: 'reps', points: [{ ts: 2000, value: 10 }] }], unit: 'reps' };
+      }
+      return { series: [{ key: 'reps', label: 'reps', points: [{ ts: 1000, value: 5 }] }], unit: 'reps' };
+    });
+    const text = [
+      'grouped = sum:reps{} by {week}',
+      'scalar = sum:reps{}',
+      'ratio = scalar * grouped',
+      'show ratio',
+    ].join('\n');
+    const result = await runner.run(text);
+    expect(result.diagnostics).toEqual([]);
+    const ratio = result.outputs.find((o) => o.name === 'ratio');
+    expect(ratio?.error).toBeUndefined();
+    // The grouped series anchors the domain (ts 2000); the scalar broadcasts.
+    expect(ratio?.series?.[0]!.points).toEqual([{ ts: 2000, value: 50 }]);
   });
 });

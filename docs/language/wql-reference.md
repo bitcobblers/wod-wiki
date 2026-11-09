@@ -106,7 +106,9 @@ total_reps = kb_reps + bb_reps
 show kb_reps, bb_reps | :stacked-bar{unit:reps}
 ```
 
-When a formula combines a multi-point time series with an ungrouped single-point scalar (for example, `pct_1rm = (weekly_top / best_squat) * 100 -> %`), the scalar broadcasts across the series' bucket positions.
+When showing multiple bindings, chart series use the binding names as labels. Grouped bindings retain both names, such as `kb_reps · push`, so equal metric or group labels do not overwrite another binding.
+
+Ungrouped single-point scalars combine as values regardless of their observation timestamps. In a formula with a grouped series, a scalar broadcasts across every series bucket, including a bucket matching its timestamp. A grouped result with only one bucket remains a series and aligns by bucket rather than broadcasting.
 ## Filters
 
 Filters are comma-separated `key:value` clauses inside braces. Values within one key can use `|` for alternatives, `!` negates a key, and `*` marks a prefix match where supported. Quoted text preserves spaces and literal pipes.
@@ -152,6 +154,8 @@ sum:totalVolume{} where :note{format:emom}
 ## Editor completions
 
 Note editors offer the same WQL completions inside ` ```query ` and ` ```wql ` fence bodies as a standalone WQL editor — source heads, datasets (`@session`, `@today`, `@note`), functions, charts, stage-scoped filter/chart keys and values, windows, row-presentation keywords, in-block named bindings (`bench`, `kb_reps`), and scope tokens (`$thisnote`, `$note`, `$scope`). Completions resolve per line and per `|` pipeline stage (`source` → `reduce` → `sink`), while `resolveWqlCursorStage` provides visual active-stage feedback in `WqlComposer`.
+
+After a bare `|`, completions offer reducer and chart heads without requiring a typed colon, alongside row operations where applicable. Before the chart pipe in `show a, b | :bar{}`, completions offer local bindings.
 
 Fence spelling does not change behavior: `query` and `wql` bodies complete identically. Frontmatter, prose, headings, and widget or embed blocks never receive query suggestions. The shared keyboard behavior applies: arrows move the active option, Enter or Tab accepts into the document, Escape dismisses without inserting.
 ## Removed syntax

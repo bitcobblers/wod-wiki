@@ -196,7 +196,10 @@ describe('wqlCompletionSource', () => {
   });
 
   it('offers presentation pipe clauses after |, not inside braces', () => {
-    expect(complete(':note | ')).toEqual(['order by', 'select', 'limit']);
+    // Row operators stay available on a bare downstream pipe (alongside the
+    // reducer/chart stage heads); the incidental ordering is not pinned.
+    const pipeLabels = complete(':note | ')!;
+    for (const kw of ['order by', 'select', 'limit']) expect(pipeLabels).toContain(kw);
     // OR pipe inside braces continues the same key's value list.
     expect(complete('sum:tis{effort:fran|')).toEqual(EFFORTS);
     // Quoted pipe/colon never becomes a suffix boundary.
@@ -450,5 +453,43 @@ describe('WQL-5 stage- and binding-aware typeahead & resolveWqlCursorStage', () 
     expect(atSink.role).toBe('sink');
     expect(atSink.stageIndex).toBe(2);
     expect(atSink.head).toBe('bar');
+  });
+});
+
+describe('wqlCompletionSource — show lines and downstream stage heads', () => {
+  it('offers prior bindings, not chart heads, at a show binding slot before an existing pipe', () => {
+    const doc = 'bench = :journal{}\nshow bench, | :bar{}';
+    expect(complete(doc, doc.indexOf('|'))).toEqual(['bench']);
+  });
+
+  it('offers reducers/chart heads alongside row operators on a bare downstream pipe, colon applied', () => {
+    const labels = complete(':segment{} | ')!;
+    expect(labels).toContain('sum');
+    expect(labels).toContain('bar');
+    expect(labels).toContain('order by');
+    expect(labels).toContain('select');
+    const picked = source(new CompletionContext(EditorState.create({ doc: ':segment{} | ', extensions: [wqlLanguage] }), ':segment{} | '.length, true))!
+      .options.find((o) => o.label === 'sum')!;
+    expect(picked.apply).toBe(':sum{'); // bare pipe: the stage colon is written automatically
+  });
+
+  it('automatically offers reducers after pipe whitespace', () => {
+    const doc = ':segment{} | ';
+    const result = source(new CompletionContext(EditorState.create({ doc, extensions: [wqlLanguage] }), doc.length, false));
+    expect(result?.options.map((option) => option.label)).toContain('sum');
+  });
+
+  it('offers reducers/chart heads alongside row operators after a reducer stage', () => {
+    const labels = complete(':journal{} | :sum{metric:reps} | ')!;
+    expect(labels).toContain('avg');
+    expect(labels).toContain('timeseries');
+    expect(labels).toContain('order by');
+    expect(labels).toContain('limit');
+  });
+
+  it('discovers sum from a typed prefix after a pipe, not just select', () => {
+    const labels = complete(':segment{} | s')!;
+    expect(labels).toContain('sum');
+    expect(labels).toContain('select');
   });
 });

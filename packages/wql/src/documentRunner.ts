@@ -381,9 +381,12 @@ export class QueryDocumentRunner {
             const formula = assignment.formula!;
             const inputs: PointwiseInputs = {};
             const positions = new Set<number>();
-            const multiPointRefs = formula.references.filter((ref) => {
+            // Series operands are inputs not flagged scalar — trust isScalar
+            // metadata, not point count (a grouped one-point series is a
+            // series, never a broadcast scalar).
+            const seriesRefs = formula.references.filter((ref) => {
                 const v = values.get(ref);
-                return v !== undefined && v.byPosition.size > 1;
+                return v !== undefined && !v.isScalar;
             });
             for (const ref of formula.references) {
                 const input = values.get(ref);
@@ -391,19 +394,25 @@ export class QueryDocumentRunner {
                     diagnostics.push(`Formula "${assignment.name}" references unavailable input "${ref}"`);
                     return;
                 }
-                // Scalar-to-series broadcast: if at least one operand is a multi-point
-                // series and this operand is an ungrouped single-point scalar whose
-                // timestamp does not overlap any position of the multi-point series,
-                // broadcast the scalar across every position of the multi-point series.
-                const overlapsSeries = [...input.byPosition.keys()].some((k) =>
-                    multiPointRefs.some((mRef) => values.get(mRef)?.byPosition.has(k)),
-                );
-                const isBroadcastScalar = multiPointRefs.length > 0 && input.isScalar && input.byPosition.size === 1 && !overlapsSeries;
-                if (!isBroadcastScalar) {
+                // Scalars broadcast across every series position regardless of
+                // timestamp overlap; the result domain is the series' positions.
+                const scalarFallback = input.isScalar ? [...input.byPosition.values()][0] : undefined;
+                if (!input.isScalar) {
                     for (const position of input.byPosition.keys()) positions.add(position);
                 }
-                const scalarFallback = isBroadcastScalar ? [...input.byPosition.values()][0] : undefined;
                 inputs[ref] = (position) => input.byPosition.get(position) ?? scalarFallback;
+            }
+            if (positions.size === 0 && formula.references.length > 0) {
+                // No operand contributed a domain: scalar-to-scalar arithmetic
+                // aligns to one point — the first reference's timestamp — and
+                // empty operands never block the result domain.
+                for (const ref of formula.references) {
+                    const anchorTs = [...(values.get(ref)?.byPosition.keys() ?? [])][0];
+                    if (anchorTs !== undefined) {
+                        positions.add(anchorTs);
+                        break;
+                    }
+                }
             }
             const byPosition = new Map<number, OperandValue>();
             let error: string | undefined;
@@ -473,7 +482,7 @@ export class QueryDocumentRunner {
                     ...(v.missingDerived ? { missingDerived: true } : {}),
                 })),
             }];
-            values.set(assignment.name, { byPosition, unit: formula.unit, groupKeys: [assignment.name], isScalar: byPosition.size === 1 && multiPointRefs.length === 0 });
+            values.set(assignment.name, { byPosition, unit: formula.unit, groupKeys: [assignment.name], isScalar: seriesRefs.length === 0 && byPosition.size === 1 });
             outputs.push({
                 name: assignment.name,
                 kind: 'formula',

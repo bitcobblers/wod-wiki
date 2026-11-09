@@ -165,7 +165,12 @@ export function outputsToRunResult(parsed: AnyParsedQuery, res: DocumentResult):
     return outputToRunResult(parsed, { name: 'query', kind: 'aggregate', error: res.diagnostics[0] });
   }
 
-  const series = outputs.flatMap((o) => o.series ?? []);
+  const series = outputs.length === 1 ? first.series ?? [] : outputs.flatMap((out) =>
+    (out.series ?? []).map((series) => ({
+      ...series,
+      key: JSON.stringify([out.name, series.key]),
+      label: out.series?.length === 1 ? out.name : `${out.name} · ${series.label}`,
+    })));
   const chart = res.showChart ?? outputs.find((o) => o.chart)?.chart;
   const unit = outputs.find((o) => o.unit !== undefined)?.unit ?? first.unit;
   const error = outputs.find((o) => o.error !== undefined)?.error ?? res.diagnostics[0];

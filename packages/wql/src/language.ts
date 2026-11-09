@@ -752,7 +752,15 @@ export function wqlCompletionSource(options_: WqlCompletionOptions = {}) {
       { label: 'order by', apply: 'order by ', detail: head.target === 'session' ? 'advisory: order ignored for sessions' : 'sort rows', type: 'keyword' },
       { label: 'select', apply: 'select ', detail: SELECT_IGNORED.has(head.target ?? '') ? `advisory: select ignored for find:${head.target}` : 'choose columns', type: 'keyword' },
     ];
-    return finish(context, from, [...chained(kw, ' '), limitSnippet], typed);
+    // A bare/partial downstream stage can still become a reducer/chart stage:
+    // offer the stage-head vocabulary (colon applied automatically when none
+    // is typed) alongside the row operators.
+    const colonTyped = /^[ \t]*:/.test(text);
+    return finish(context, from, [
+      ...PIPELINE_STAGE_HEAD_OPTIONS.map((o) => headApply(o, colonTyped)),
+      ...chained(kw, ' '),
+      limitSnippet,
+    ], typed);
   };
 
   function inner(context: CompletionContext, replaceSelection = false): CompletionResult | Promise<CompletionResult | null> | null {
@@ -791,13 +799,16 @@ export function wqlCompletionSource(options_: WqlCompletionOptions = {}) {
     if (showM && fullPos >= lineStart + showM[1]!.length) {
       const showBodyOffset = lineStart + showM[1]!.length;
       const showStages = splitLinePipeRanges(lineText.slice(showM[1]!.length), showBodyOffset);
-      if (showStages.length === 1) {
+      // Stage 0 is the binding list — even when a `| :chart{}` stage already
+      // follows on the line; only cursor positions after a `|` are sink slots.
+      const showActiveIdx = Math.max(0, showStages.findIndex((s) => fullPos >= s.from && fullPos <= s.to));
+      if (showActiveIdx === 0) {
         const word = context.matchBefore(/[\w.*-]*/) ?? { from: fullPos, to: fullPos, text: '' };
         const typed = replaceSelection ? '' : word.text;
         return finish(context, word.from, priorBindings, typed);
       }
       // After `|` on a `show` line: complete chart sink or chart params inside `{…}`
-      const sinkStage = showStages[showStages.length - 1]!;
+      const sinkStage = showStages[showActiveIdx]!;
       const stageDoc = fullDoc.slice(sinkStage.from, lineEnd);
       const stagePos = fullPos - sinkStage.from;
       const word = context.matchBefore(/[\w.*-]*/) ?? { from: fullPos, to: fullPos, text: '' };
@@ -824,7 +835,8 @@ export function wqlCompletionSource(options_: WqlCompletionOptions = {}) {
     const exprPos = fullPos - exprOffset;
 
     const word = context.matchBefore(/[\w.*-]*/) ?? { from: fullPos, to: fullPos, text: '' };
-    const opens = word.from === word.to && fullPos > exprOffset && /[{,:|(!"@]/.test(fullDoc[fullPos - 1]);
+    const opens = word.from === word.to && fullPos > exprOffset
+      && (/[{,:|(!"@]/.test(fullDoc[fullPos - 1]) || /\|[ \t]*$/.test(exprDoc.slice(0, exprPos)));
     if (word.from === word.to && !context.explicit && !opens) return null;
 
     const fullScan = scanContext(exprDoc, exprPos);

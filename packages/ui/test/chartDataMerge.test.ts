@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseQuery, isPipelineQuery, type DocumentOutput, type DocumentResult } from '@bitcobblers/wod-wiki-wql';
-import { outputsToRunResult } from '../src/widgets/chartData';
+import { mergeSeries, outputsToRunResult } from '../src/widgets/chartData';
 
 describe('WQL-4 outputsToRunResult multi-series merge', () => {
   const parsed = parseQuery('sum:reps{}');
@@ -14,6 +14,32 @@ describe('WQL-4 outputsToRunResult multi-series merge', () => {
     expect(merged.series?.map((s) => s.label)).toEqual(['kb', 'bb']);
     expect(merged.series?.[0]?.points[0]?.value).toBe(30);
     expect(merged.series?.[1]?.points[0]?.value).toBe(12);
+  });
+
+  it('retains same-metric bindings at the same chart bucket', () => {
+    const merged = outputsToRunResult(parsed, {
+      outputs: [
+        out('kb', [{ key: 'reps', label: 'reps', points: [{ ts: 1, value: 30 }] }]),
+        out('bb', [{ key: 'reps', label: 'reps', points: [{ ts: 1, value: 12 }] }]),
+      ],
+      diagnostics: [],
+    });
+    expect(mergeSeries(merged.series)).toEqual([{ ts: 1, kb: 30, bb: 12 }]);
+  });
+
+  it('keeps group labels distinct across shown bindings', () => {
+    const groups = [
+      { key: 'push', label: 'push', points: [{ ts: 1, value: 30 }] },
+      { key: 'pull', label: 'pull', points: [{ ts: 1, value: 12 }] },
+    ];
+    const merged = outputsToRunResult(parsed, {
+      outputs: [out('current', groups), out('previous', groups)],
+      diagnostics: [],
+    });
+    expect(mergeSeries(merged.series)).toEqual([{
+      ts: 1, 'current · push': 30, 'current · pull': 12,
+      'previous · push': 30, 'previous · pull': 12,
+    }]);
   });
 
   it('prefers the document showChart sink over per-output charts', () => {
