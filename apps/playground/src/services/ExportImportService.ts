@@ -159,6 +159,7 @@ async function saveJsonlNote(note: NoteJsonlNote, provider: IContentProvider): P
     const existing = await provider.getRecord(note.id);
     const input: NoteSaveInput = {
         ...note,
+        tags: note.tags ?? [],
         sourceRevision: existing?.sourceRevision ?? note.sourceRevision,
         blocks: existing?.rawContent === note.rawContent ? existing.blocks : note.blocks,
     };
