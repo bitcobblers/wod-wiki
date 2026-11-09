@@ -4,6 +4,7 @@ import { SEED_REGISTERED_WIDGETS, SEED_SCHEMA, type NotebookIndex, type SeedMani
 function object(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function positive(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0; }
 function nonnegative(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0; }
+function finite(value: unknown): value is number { return typeof value === 'number' && Number.isFinite(value); }
 export function assertSeedManifest(value: unknown): SeedManifest {
   if (!object(value) || value.schema !== SEED_SCHEMA) throw new Error('Incompatible seed schema; rebuild seed artifacts');
   if (!nonnegative(value.version) || typeof value.builtAt !== 'string' || !Number.isFinite(Date.parse(value.builtAt)) || !Array.isArray(value.chunks)) throw new Error('seed manifest failed shape validation');
@@ -47,6 +48,7 @@ export function assertNotebookIndex(value: unknown): NotebookIndex {
     typeof value.notebookId !== 'string' ||
     !value.notebookId ||
     typeof value.label !== 'string' ||
+    !value.label ||
     typeof value.indexPath !== 'string' ||
     !value.indexPath ||
     !nonnegative(value.version) ||
@@ -73,6 +75,38 @@ export function assertNotebookIndex(value: unknown): NotebookIndex {
     }
   }
   return value as unknown as NotebookIndex;
+}
+
+function assertTelemetry(row: Record<string, unknown>, blockIndex: unknown[]): void {
+  if (row.telemetry === undefined) return;
+  if (!object(row.telemetry) || !Array.isArray(row.telemetry.sessions) || !Array.isArray(row.telemetry.events)) throw new Error('invalid seed telemetry');
+  const sessions = new Map<string, Record<string, unknown>>();
+  for (const session of row.telemetry.sessions) {
+    if (!object(session) || typeof session.id !== 'string' || !session.id || sessions.has(session.id)
+      || typeof session.noteId !== 'string' || !session.noteId || (typeof row.uuid === 'string' && session.noteId !== row.uuid)
+      || typeof session.blockId !== 'string' || !positive(session.blockVersion) || typeof session.blockContentId !== 'string'
+      || !finite(session.startTime) || !finite(session.endTime) || !finite(session.duration)
+      || typeof session.completed !== 'boolean' || !finite(session.createdAt)) throw new Error('invalid seed session');
+    const projection = blockIndex.find((candidate: unknown) => object(candidate) && candidate.blockId === session.blockId);
+    if (!object(projection) || projection.dataType !== 'wod' || projection.blockVersion !== session.blockVersion
+      || projection.blockContentId !== session.blockContentId) throw new Error('orphan or incompatible seed session pin');
+    sessions.set(session.id, session);
+  }
+  const eventIds = new Set<string>();
+  for (const event of row.telemetry.events) {
+    if (!object(event) || typeof event.id !== 'string' || !event.id || eventIds.has(event.id)
+      || typeof event.resultId !== 'string' || typeof event.noteId !== 'string'
+      || !finite(event.timestamp) || (event.grain !== 'event' && event.grain !== 'summary')
+      || typeof event.outputType !== 'string' || !Array.isArray(event.metrics)
+      || !event.metrics.every((metric) => object(metric) && typeof metric.type === 'string')
+      || (event.grain === 'summary' && event.metrics.length !== 1)) throw new Error('invalid seed event');
+    const session = sessions.get(event.resultId);
+    if (!session || event.noteId !== session.noteId || event.blockId !== session.blockId
+      || event.blockVersion !== session.blockVersion || event.blockContentId !== session.blockContentId) {
+      throw new Error('orphan or incompatible seed event identity');
+    }
+    eventIds.add(event.id);
+  }
 }
 
 export function assertSeedRows(value: unknown): SeedRow[] {
@@ -119,6 +153,7 @@ export function assertSeedRows(value: unknown): SeedRow[] {
       if (!object(projection) || link.noteId !== projection.noteId || link.blockContentId !== projection.blockContentId || !Number.isFinite(link.createdAt)) throw new Error('invalid seed equipment metadata');
       equipmentLinks.add(String(link.id));
     }
+    assertTelemetry(row, row.blockIndex);
   }
   return value as SeedRow[];
 }

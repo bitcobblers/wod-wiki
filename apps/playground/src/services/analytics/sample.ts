@@ -10,8 +10,8 @@
  * Purge removes sample-tagged live notes and analytics events. Immutable
  * revisions and Session pins remain available until an explicit store wipe.
  */
-import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import { MetricType, blockContentId, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { eventsToStoredLogs, toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
+import { MetricType, blockContentId, parseNoteBundleFromJsonl, reconcileNoteBlocks, serializeNoteBundleToJsonl, type NoteTelemetryBundle } from '@bitcobblers/wod-wiki-core';
 import type { StoredOutputStatement } from '@/components/Editor/types';
 import type { Session } from '@/types/storage';
 import { storageService, type StorageService } from '@/services/storage';
@@ -304,7 +304,7 @@ function buildSessionLogs(session: SampleSession): StoredOutputStatement[] {
   return logs;
 }
 
-function buildSampleResult(session: SampleSession, contentId: string): Session {
+function buildSampleResult(session: SampleSession, contentId: string, createdAt: number): Session {
   const baseId = `sample-${session.noteId}`;
   const resultId = `${baseId}-result`;
   const startTime = session.timestamp;
@@ -318,12 +318,49 @@ function buildSampleResult(session: SampleSession, contentId: string): Session {
     blockContentId: contentId,
     origin: 'journal',
     status: 'completed',
-    createdAt: Date.now(),
+    createdAt,
     startTime,
     endTime,
     duration: session.durationSeconds * 1000,
     completed: true,
   };
+}
+
+function buildSampleBundle(session: SampleSession, now: number) {
+  const body = session.movements.map(movement => `${movement.distanceMeters ? `${movement.distanceMeters}m` : movement.reps} ${movement.effortSlug.replaceAll('-', ' ')}${movement.loadLbs ? ` ${movement.loadLbs}lb` : ''}`).join('\n');
+  const rawContent = `# ${session.title}\n\n\`\`\`log\n${body}\n\`\`\`\n`;
+  const blocks = reconcileNoteBlocks(rawContent, { sourceRevision: 1, createId: () => 'sample-block' });
+  const logs = buildSessionLogs(session);
+  const result = buildSampleResult(session, blockContentId(body), now);
+  const identity = {
+    noteId: session.noteId,
+    resultId: result.id,
+    blockId: result.blockId,
+    blockVersion: result.blockVersion,
+    blockContentId: result.blockContentId,
+    origin: result.origin,
+    pageId: result.pageId,
+    workoutTimestamp: session.timestamp,
+  };
+  const rawEvents = toEventRows(logs, identity);
+  const summaries = toSummaryEventRows(logs, identity);
+  const bundle: NoteTelemetryBundle = {
+    note: {
+      id: session.noteId,
+      title: session.title,
+      createdAt: session.timestamp,
+      updatedAt: session.timestamp,
+      targetDate: session.timestamp,
+      rawContent,
+      sourceRevision: 1,
+      blocks,
+      tags: [SAMPLE_TAG],
+      type: 'playground',
+    },
+    sessions: [result],
+    events: [...rawEvents, ...summaries],
+  };
+  return { bundle, rawContent, blocks, result, rawEvents, summaries };
 }
 
 async function getSampleTagId(): Promise<string | undefined> {
@@ -355,34 +392,72 @@ export async function loadSampleData(): Promise<{ facts: number }> {
   let factsWritten = 0;
 
   for (const session of sessions) {
-    const body = session.movements.map(movement => `${movement.distanceMeters ? `${movement.distanceMeters}m` : movement.reps} ${movement.effortSlug.replaceAll('-', ' ')}${movement.loadLbs ? ` ${movement.loadLbs}lb` : ''}`).join('\n');
-    const rawContent = `# ${session.title}\n\n\`\`\`log\n${body}\n\`\`\`\n`;
-    const blocks = reconcileNoteBlocks(rawContent, { sourceRevision: 1, createId: () => 'sample-block' });
-    const logs = buildSessionLogs(session);
-    const result = buildSampleResult(session, blockContentId(body));
-    const identity = {
-      noteId: session.noteId,
-      resultId: result.id,
-      blockId: result.blockId,
-      blockVersion: result.blockVersion,
-      blockContentId: result.blockContentId,
-      origin: result.origin,
-      pageId: result.pageId,
-      workoutTimestamp: session.timestamp,
-    };
-
+    const sample = buildSampleBundle(session, now);
     factsWritten += await service.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'tags', 'note_tags', 'tag_types', 'sessions', 'events'], async scoped => {
-      await scoped.saveNoteSource({ noteId: session.noteId, rawContent, blocks, expectedSourceRevision: 0, metadata: { title: session.title }, noteType: 'playground', createdAt: session.timestamp });
+      await scoped.saveNoteSource({ noteId: session.noteId, rawContent: sample.rawContent, blocks: sample.blocks, expectedSourceRevision: 0, metadata: { title: session.title }, noteType: 'playground', createdAt: session.timestamp });
       await scoped.setNoteTags(session.noteId, [SAMPLE_TAG]);
-      await scoped.saveSession(result);
-      await scoped.appendEvents(toEventRows(logs, identity));
-      const summaries = toSummaryEventRows(logs, identity);
-      await scoped.finalizeSummaries(result.id, summaries);
-      return summaries.length;
+      await scoped.saveSession(sample.result);
+      await scoped.appendEvents(sample.rawEvents);
+      await scoped.finalizeSummaries(sample.result.id, sample.summaries);
+      return sample.summaries.length;
     });
   }
 
   return { facts: factsWritten };
+}
+
+export function exportSampleDataAsJsonl(now: number = Date.now()): string {
+  return generateSessions(now)
+    .map((session) => serializeNoteBundleToJsonl(buildSampleBundle(session, now).bundle))
+    .join('\n');
+}
+
+export async function importSampleDataFromJsonl(jsonlText: string): Promise<{ notes: number; sessions: number; facts: number }> {
+  const parsed = parseNoteBundleFromJsonl(jsonlText);
+  if (parsed.errors.length > 0) throw new Error(`Invalid sample JSONL: ${parsed.errors.join('; ')}`);
+  let notes = 0;
+  let sessions = 0;
+  let facts = 0;
+
+  for (const bundle of parsed.bundles) {
+    const note = bundle.note;
+    if (!note) throw new Error('Sample JSONL bundle is missing its note');
+    await service.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'tags', 'note_tags', 'tag_types', 'sessions', 'events'], async scoped => {
+      const previous = await scoped.getNote(note.id);
+      await scoped.saveNoteSource({
+        noteId: note.id,
+        rawContent: note.rawContent,
+        blocks: note.blocks,
+        expectedSourceRevision: previous?.sourceRevision ?? 0,
+        metadata: { title: note.title, targetDate: note.targetDate, tags: [SAMPLE_TAG] },
+        noteType: 'playground',
+        createdAt: note.createdAt,
+      });
+      await scoped.setNoteTags(note.id, [SAMPLE_TAG]);
+      for (const session of bundle.sessions) {
+        const rows = bundle.events.filter((event) => event.resultId === session.id);
+        const raw = rows.filter((event) => event.grain === 'event');
+        const suppliedSummaries = rows.filter((event) => event.grain === 'summary');
+        const summaries = suppliedSummaries.length > 0 ? suppliedSummaries : toSummaryEventRows(eventsToStoredLogs(raw), {
+          noteId: session.noteId,
+          resultId: session.id,
+          blockId: session.blockId,
+          blockVersion: session.blockVersion,
+          blockContentId: session.blockContentId,
+          origin: session.origin,
+          pageId: session.pageId,
+          workoutTimestamp: session.startTime,
+        });
+        await scoped.saveSession(session);
+        await scoped.appendEvents(raw);
+        await scoped.finalizeSummaries(session.id, summaries);
+        sessions++;
+        facts += summaries.length;
+      }
+    });
+    notes++;
+  }
+  return { notes, sessions, facts };
 }
 
 export async function purgeSampleData(): Promise<void> {

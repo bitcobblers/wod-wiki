@@ -8,6 +8,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { QueryResult } from '@bitcobblers/wod-wiki-engine';
+import { parseDocument } from '@bitcobblers/wod-wiki-wql';
 
 // EditorDialog focuses via requestAnimationFrame on open — polyfill where
 // the test env lacks it.
@@ -92,8 +93,8 @@ mock.module('../../services/dashboardNotes', () => ({
 function resultOf(raw: string): QueryResult {
   return {
     parsed: { family: 'aggregate', raw, agg: 'sum', metric: 'totalVolume', filters: [], groupBy: [] },
-    series: [],
-    stages: { selected: 0, buckets: 0, aggregated: 0, groups: 0 },
+    series: [{ key: 'total', label: 'total', points: [{ ts: Date.now(), value: 42 }], unit: 'reps' }],
+    stages: { selected: 1, buckets: 1, aggregated: 1, groups: 0 },
     matched: [],
     unit: 'reps',
   } as unknown as QueryResult;
@@ -209,6 +210,45 @@ describe('DashboardViewPage stale-refresh transition', () => {
     // Sanity: the composer is the open dialog, and the banner is inside it.
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByTestId('widget-composer-error')).toBeDefined();
+  });
+});
+
+describe('DashboardViewPage widget layers', () => {
+  it('compiles, previews, and persists goal, baseline, and comparison series', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Volume')).toBeDefined());
+    fireEvent.click(screen.getByTestId('dashboard-edit-toggle'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit widget Volume' }));
+
+    fireEvent.change(await screen.findByTestId('widget-sentence-chart'), { target: { value: 'timeseries' } });
+    fireEvent.click(screen.getByTestId('legend-chip-goal'));
+    fireEvent.click(screen.getByTestId('legend-chip-baseline'));
+    fireEvent.click(screen.getByTestId('legend-chip-compare'));
+
+    const draft = screen.getByTestId('widget-composer-wql').textContent ?? '';
+    const parsed = parseDocument(draft);
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.doc.show).toEqual(['primary', 'goal', 'baseline_4w', 'secondary']);
+    expect(draft).toContain('goal = primary * 0 + 150');
+    expect(draft).toContain('baseline_4w = sum:totalVolume{}.rollup(4w)');
+    expect(draft).toContain('secondary = sum:reps{}');
+    expect(screen.getByTestId('widget-composer-apply').getAttribute('disabled')).toBeNull();
+
+    await screen.findByText('primary');
+    await screen.findByText('baseline_4w');
+    await screen.findByText('secondary');
+
+    fireEvent.click(screen.getByTestId('legend-chip-baseline'));
+    expect(screen.getByTestId('widget-composer-wql').textContent).toContain('baseline_12w');
+    expect(screen.getByRole('button', { name: 'Remove goal' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Remove comparison' })).toBeDefined();
+
+    fireEvent.click(screen.getByTestId('widget-composer-apply'));
+    await waitFor(() => expect(updateCalls).toHaveLength(1));
+    expect(updateCalls[0]).toContain('goal = primary * 0 + 150');
+    expect(updateCalls[0]).toContain('baseline_12w = sum:totalVolume{}.rollup(12w)');
+    expect(updateCalls[0]).toContain('secondary = sum:reps{}');
+    expect(updateCalls[0]).toContain('| :timeseries{}');
   });
 });
 

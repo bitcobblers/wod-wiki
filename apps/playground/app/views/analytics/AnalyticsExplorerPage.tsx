@@ -420,16 +420,25 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
               )}
             </span>
           )}
+          {saveReady && isFindQuery(liveParsed) && (
+            <button
+              type="button"
+              data-testid="explorer-promote-to-chart"
+              title="Chart weekly total volume for this list"
+              onClick={() => selectMetric('totalVolume')}
+              className="mr-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/20"
+            >
+              Promote list to chart →
+            </button>
+          )}
           {vocabulary.metricKeys.map((key) => (
             <button
               key={key}
               type="button"
-              disabled={!saveReady || !isAggregateQuery(liveParsed)}
-              title={
-                draftValid && !isAggregateQuery(liveParsed)
-                  ? 'Metric shortcuts apply to measure queries — pivot the kind through the composer first'
-                  : undefined
-              }
+              disabled={!saveReady}
+              title={isFindQuery(liveParsed)
+                ? `Chart weekly ${key} for this list`
+                : `Change the coaching metric to ${key}`}
               onClick={() => selectMetric(key)}
               className={cn(
                 'rounded-full border px-2 py-0.5 text-[11px] font-mono transition-colors disabled:opacity-40 disabled:hover:bg-transparent',

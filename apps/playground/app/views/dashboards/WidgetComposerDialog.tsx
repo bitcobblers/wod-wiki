@@ -25,11 +25,17 @@ import {
   WidgetChart,
   WqlComposer,
   createExecutorDocumentHost,
-  outputToRunResult,
+  outputsToRunResult,
   type QueryExecutor,
   type WidgetRunResult,
 } from '@bitcobblers/wod-wiki-ui';
-import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine';
+import {
+  isAggregateQuery,
+  isFindQuery,
+  parseQuery,
+  type AnyParsedQuery,
+} from '@bitcobblers/wod-wiki-engine';
+import { setMetricQuery, withGroupBy } from '../../lib/wqlEdits';
 /** Parse the composer's attribute text: whitespace-separated `key=value`
  *  tokens (values may be double-quoted) — the fence-tag encoding. */
 function parseAttributes(text: string): Record<string, string> | undefined {
@@ -48,9 +54,15 @@ function parseAttributes(text: string): Record<string, string> | undefined {
 }
 import {
   DASHBOARD_WIDGET_TYPES,
+  isDashboardWidgetType,
+  isPipelineQuery,
+  parseDocument,
+  serialize,
   SharedQueryDocumentRunner,
   substituteTokens,
   unknownTokensMessage,
+  type DocumentAssignment,
+  type QueryDocument,
 } from '@bitcobblers/wod-wiki-wql';
 
 export interface WidgetComposerApply {
@@ -113,6 +125,125 @@ const SPAN_OPTIONS = [
   { label: 'Full row', spanCols: undefined, spanFull: true },
 ] as const;
 
+
+const METRIC_OPTIONS = ['totalVolume', 'reps', 'tis', 'calc.e1rm', 'calc.readiness'];
+const GROUP_OPTIONS = ['week', 'day', 'session', 'round', 'effort', 'equipment'];
+const BASELINE_PERIODS = [4, 12, 2] as const;
+
+function primaryAssignment(doc: QueryDocument): DocumentAssignment | undefined {
+  return doc.assignments.find((assignment) => assignment.kind === 'query' && doc.show.includes(assignment.name))
+    ?? doc.assignments.find((assignment) => assignment.kind === 'query');
+}
+
+/** Serialize a synthetic source-reference pipeline back over its named source. */
+function serializeAssignment(assignment: DocumentAssignment, parsed: AnyParsedQuery): string {
+  const text = serialize(parsed);
+  if (assignment.sourceRef && isPipelineQuery(parsed)) {
+    return `${assignment.sourceRef} | ${text.split(' | ').slice(1).join(' | ')}`;
+  }
+  return text;
+}
+
+function withoutChartSink(assignment: DocumentAssignment): string {
+  if (!assignment.parsed || !isPipelineQuery(assignment.parsed) || !assignment.parsed.sink) {
+    return assignment.queryText ?? assignment.raw;
+  }
+  return serializeAssignment(assignment, { ...assignment.parsed, sink: undefined });
+}
+
+function replaceAssignment(lines: string[], name: string, body: string): string[] {
+  const assignment = new RegExp(`^${name}\\s*=`);
+  return lines.map((line) => assignment.test(line) ? `${name} = ${body}` : line);
+}
+
+function replaceShow(lines: string[], names: string[], chartType: string): string[] {
+  const show = `show ${names.join(', ')} | :${chartType}{}`;
+  const index = lines.findIndex((line) => line.startsWith('show '));
+  if (index === -1) return [...lines, show];
+  return lines.map((line, lineIndex) => lineIndex === index ? show : line);
+}
+
+function removeLayer(lines: string[], name: string, chartType: string): string[] {
+  const assignment = new RegExp(`^${name}\\s*=`);
+  const remaining = lines.filter((line) => !assignment.test(line));
+  const doc = parseDocument(remaining.join('\n')).doc;
+  return replaceShow(remaining, doc.show.filter((shown) => shown !== name), chartType);
+}
+
+/** Start a layered document without rewriting the calculation's filters or window. */
+function layeredDocument(wql: string, chartType: string): { lines: string[]; primary: DocumentAssignment } | null {
+  const doc = parseDocument(wql).doc;
+  if (!doc.degenerate) {
+    const primary = primaryAssignment(doc);
+    if (!primary) return null;
+    return { lines: wql.trim().split('\n').map((line) => line.trim()).filter(Boolean), primary };
+  }
+  const source = primaryAssignment(doc);
+  if (!source) return null;
+  const lines = [`primary = ${withoutChartSink(source)}`, `show primary | :${chartType}{}`];
+  const primary = primaryAssignment(parseDocument(lines.join('\n')).doc);
+  return primary ? { lines, primary } : null;
+}
+
+function clonedPrimary(
+  primary: DocumentAssignment,
+  edit: { metric?: string; baselineWeeks?: number },
+): string | null {
+  if (!primary.parsed || primary.parsed.error) return null;
+  if (isAggregateQuery(primary.parsed)) {
+    return serialize({
+      ...primary.parsed,
+      metric: edit.metric ?? primary.parsed.metric,
+      ...(edit.baselineWeeks
+        ? { rollup: { size: edit.baselineWeeks, unit: 'w' as const } }
+        : {}),
+    });
+  }
+  if (!isPipelineQuery(primary.parsed) || primary.parsed.transforms.length === 0) return null;
+  const last = primary.parsed.transforms.length - 1;
+  const transforms = primary.parsed.transforms.map((transform, index) => index === last
+    ? {
+        ...transform,
+        metric: edit.metric ?? transform.metric,
+        ...(edit.baselineWeeks
+          ? { rollup: { size: edit.baselineWeeks, unit: 'w' as const } }
+          : {}),
+      }
+    : transform);
+  return serializeAssignment(primary, { ...primary.parsed, transforms, sink: undefined });
+}
+
+function editPrimary(wql: string, edit: (parsed: AnyParsedQuery) => AnyParsedQuery): string {
+  const doc = parseDocument(wql).doc;
+  const primary = primaryAssignment(doc);
+  if (!primary?.parsed || primary.parsed.error) return wql;
+  const body = serializeAssignment(primary, edit(primary.parsed));
+  return replaceAssignment(wql.trim().split('\n'), primary.name, body).join('\n');
+}
+
+function editCalculation(
+  parsed: AnyParsedQuery,
+  edit: { metric?: string; group?: string },
+): AnyParsedQuery {
+  if (isAggregateQuery(parsed)) {
+    const text = edit.metric
+      ? setMetricQuery(serialize(parsed), edit.metric)
+      : withGroupBy(serialize(parsed), edit.group ?? 'week');
+    return parseQuery(text);
+  }
+  if (!isPipelineQuery(parsed) || parsed.transforms.length === 0) return parsed;
+  const last = parsed.transforms.length - 1;
+  const transforms = parsed.transforms.map((transform, index) => {
+    if (index !== last) return transform;
+    const text = edit.metric
+      ? setMetricQuery(serialize(transform), edit.metric)
+      : withGroupBy(serialize(transform), edit.group ?? 'week');
+    const next = parseQuery(text);
+    return isAggregateQuery(next) ? next : transform;
+  });
+  return { ...parsed, transforms };
+}
+
 const PREVIEW_DEBOUNCE_MS = 300;
 
 export function WidgetComposerDialog({ open, ...props }: WidgetComposerDialogProps) {
@@ -157,17 +288,33 @@ function ComposerSession({
   const [applying, setApplying] = useState(false);
   // The composer's synchronous verdict, including transient editor states
   // (unresolved pivot confirm) that a fresh parse cannot see.
-  const [composerValid, setComposerValid] = useState(() => !parseQuery(initialWql).error);
+  const [composerValid, setComposerValid] = useState(() => {
+    const doc = parseDocument(initialWql);
+    return doc.doc.degenerate ? !parseQuery(initialWql).error : doc.diagnostics.length === 0;
+  });
   // A refused write (e.g. the note changed while this dialog was open) stays
   // on screen; the draft is untouched and the author can retry or cancel.
   const [error, setError] = useState<string | null>(null);
 
   const parsed = useMemo(() => parseQuery(wql.trim()), [wql]);
+  const parsedDocument = useMemo(() => parseDocument(wql.trim()), [wql]);
+  const isDocument = !parsedDocument.doc.degenerate && parsedDocument.doc.assignments.length > 0;
+  const effectiveParsed = useMemo<AnyParsedQuery>(() => isDocument
+    ? {
+        family: 'aggregate',
+        raw: wql.trim(),
+        agg: 'sum',
+        metric: parsedDocument.doc.show[0] ?? 'value',
+        filters: [],
+        groupBy: [],
+      }
+    : parsed, [isDocument, parsed, parsedDocument, wql]);
+  const draftError = isDocument ? parsedDocument.diagnostics[0] : parsed.error;
   const resolvedType = type === '' ? 'table' : type;
   const widgetReady =
-    !parsed.error &&
+    !draftError &&
     wql.trim() !== '' &&
-    (isFindQuery(parsed) ? resolvedType === 'table' || resolvedType === 'list' : resolvedType !== 'list');
+    (isFindQuery(effectiveParsed) ? resolvedType === 'table' || resolvedType === 'list' : resolvedType !== 'list');
 
   // Preview: execute through the board's executor with the board's
   // range/unit context and token substitution — matching what the widget
@@ -202,12 +349,12 @@ function ComposerSession({
         .then((res) => {
           if (previewSeq.current !== seq) return;
           const out = res.outputs[0];
-          const err = out?.error ?? res.diagnostics[0];
+          const err = res.outputs.find((output) => output.error)?.error ?? res.diagnostics[0];
           if (!out || err) {
             setPreview({ status: 'error', message: err ?? 'widget produced no output' });
             return;
           }
-          setPreview({ status: 'ok', result: outputToRunResult(parseQuery(substituted.query), out) });
+          setPreview({ status: 'ok', result: outputsToRunResult(effectiveParsed, res) });
         })
         .catch((err: unknown) => {
           if (previewSeq.current === seq) {
@@ -216,19 +363,19 @@ function ComposerSession({
         });
     }, PREVIEW_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [wql, widgetReady, executor, rangeStart, rangeEnd, preferredUnit, tokenValues]);
+  }, [wql, widgetReady, executor, rangeStart, rangeEnd, preferredUnit, tokenValues, effectiveParsed]);
 
   // The preview answers the last VALID draft; an invalid edit makes it stale
   // until the draft parses again.
   const previewStale = !widgetReady && preview.status === 'ok';
 
-  const applyReady = widgetReady && composerValid;
+  const applyReady = widgetReady && (isDocument || composerValid);
 
   const handleApply = async () => {
     if (!applyReady || !onApply || applying) return;
     // Validate the current draft text at action time — state set by the
     // composer's synchronous callback in the same event is not relied on.
-    if (parseQuery(wql.trim()).error || wql.trim() === '') return;
+    if (draftError || wql.trim() === '') return;
     setApplying(true);
     setError(null);
     try {
@@ -249,6 +396,90 @@ function ComposerSession({
     } finally {
       setApplying(false);
     }
+  };
+
+  const primary = primaryAssignment(parsedDocument.doc);
+  const sentenceParsed = isDocument ? primary?.parsed : parsed;
+  const sentenceMetric = isAggregateQuery(sentenceParsed)
+    ? sentenceParsed.metric
+    : isPipelineQuery(sentenceParsed)
+      ? sentenceParsed.transforms.at(-1)?.metric
+      : undefined;
+  const sentenceGroup = isAggregateQuery(sentenceParsed)
+    ? sentenceParsed.groupBy[0]
+    : isPipelineQuery(sentenceParsed)
+      ? sentenceParsed.transforms.at(-1)?.groupBy[0]
+      : undefined;
+  const metricOptions = sentenceMetric && !METRIC_OPTIONS.includes(sentenceMetric)
+    ? [sentenceMetric, ...METRIC_OPTIONS]
+    : METRIC_OPTIONS;
+  const groupOptions = sentenceGroup && !GROUP_OPTIONS.includes(sentenceGroup)
+    ? [sentenceGroup, ...GROUP_OPTIONS]
+    : GROUP_OPTIONS;
+  const goalActive = parsedDocument.doc.assignments.some((assignment) => assignment.name === 'goal');
+  const baseline = parsedDocument.doc.assignments.find((assignment) => /^baseline_(2w|4w|12w)$/.test(assignment.name));
+  const baselineWeeks = baseline ? Number(/^baseline_(\d+)w$/.exec(baseline.name)?.[1]) : undefined;
+  const compareActive = parsedDocument.doc.assignments.some((assignment) => assignment.name === 'secondary');
+
+  const changeCalculation = (edit: { metric?: string; group?: string }) => {
+    if (isDocument) {
+      setWql(editPrimary(wql, (current) => editCalculation(current, edit)));
+    } else {
+      setWql(serialize(editCalculation(parsed, edit)));
+    }
+  };
+
+  const changeVisualization = (next: string) => {
+    if (!isDashboardWidgetType(next)) return;
+    setType(next);
+    if (isDocument) {
+      setWql(replaceShow(wql.trim().split('\n'), parsedDocument.doc.show, next).join('\n'));
+    } else if (isPipelineQuery(parsed)) {
+      setWql(serialize({ ...parsed, sink: { head: next, filters: parsed.sink?.filters ?? [] } }));
+    }
+  };
+
+  const toggleGoal = () => {
+    const layered = layeredDocument(wql, resolvedType);
+    if (!layered) return;
+    if (goalActive) {
+      setWql(removeLayer(layered.lines, 'goal', resolvedType).join('\n'));
+      return;
+    }
+    const lines = [...layered.lines, `goal = ${layered.primary.name} * 0 + 150`];
+    const shown = parseDocument(lines.join('\n')).doc.show;
+    setWql(replaceShow(lines, [...shown, 'goal'], resolvedType).join('\n'));
+  };
+
+  const cycleBaseline = () => {
+    const layered = layeredDocument(wql, resolvedType);
+    if (!layered) return;
+    const baselineIndex = BASELINE_PERIODS.findIndex((period) => period === baselineWeeks);
+    const nextWeeks = baselineIndex >= 0
+      ? BASELINE_PERIODS[(baselineIndex + 1) % BASELINE_PERIODS.length]
+      : 4;
+    if (!nextWeeks) return;
+    const clone = clonedPrimary(layered.primary, { baselineWeeks: nextWeeks });
+    if (!clone) return;
+    const withoutCurrent = baseline ? removeLayer(layered.lines, baseline.name, resolvedType) : layered.lines;
+    const name = `baseline_${nextWeeks}w`;
+    const lines = [...withoutCurrent, `${name} = ${clone}`];
+    const shown = parseDocument(withoutCurrent.join('\n')).doc.show.filter((shownName) => shownName !== baseline?.name && shownName !== 'query');
+    setWql(replaceShow(lines, [...shown, name], resolvedType).join('\n'));
+  };
+
+  const toggleCompare = () => {
+    const layered = layeredDocument(wql, resolvedType);
+    if (!layered) return;
+    if (compareActive) {
+      setWql(removeLayer(layered.lines, 'secondary', resolvedType).join('\n'));
+      return;
+    }
+    const clone = clonedPrimary(layered.primary, { metric: sentenceMetric === 'reps' ? 'tis' : 'reps' });
+    if (!clone) return;
+    const lines = [...layered.lines, `secondary = ${clone}`];
+    const shown = parseDocument(lines.join('\n')).doc.show;
+    setWql(replaceShow(lines, [...shown, 'secondary'], resolvedType).join('\n'));
   };
 
   return (
@@ -280,7 +511,7 @@ function ComposerSession({
                   type="button"
                   data-testid="widget-composer-apply"
                   disabled={!applyReady || applying}
-                  title={parsed.error ? parsed.error : undefined}
+                  title={draftError}
                   onClick={() => void handleApply()}
                   className="min-h-12 px-3 py-1.5 text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow transition-colors"
                 >
@@ -381,7 +612,7 @@ function ComposerSession({
                 </span>
                 <select
                   value={type}
-                  onChange={(e) => setType(e.target.value)}
+                  onChange={(e) => changeVisualization(e.target.value)}
                   data-testid="widget-composer-type"
                   aria-label="Visualization"
                   className="rounded-md border border-border bg-card px-2 py-1 text-xs font-mono text-foreground focus:outline-none focus:border-primary"
@@ -401,7 +632,7 @@ function ComposerSession({
                       key={t}
                       type="button"
                       aria-pressed={active}
-                      onClick={() => setType(t)}
+                      onClick={() => changeVisualization(t)}
                       className={`rounded-lg border px-2 py-1.5 text-[11px] font-semibold truncate transition-colors ${
                         active
                           ? 'border-primary bg-primary/10 text-primary'
@@ -519,6 +750,65 @@ function ComposerSession({
           </section>
         )}
 
+        {!readOnly && (
+          <div
+            data-testid="widget-sentence-bar"
+            className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs"
+          >
+            {isFindQuery(effectiveParsed) ? (
+              <button
+                type="button"
+                data-testid="widget-promote-to-chart"
+                onClick={() => {
+                  setWql(setMetricQuery(wql, 'totalVolume'));
+                  setType('timeseries');
+                }}
+                className="rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 font-semibold text-primary hover:bg-primary/20"
+              >
+                Promote list to chart →
+              </button>
+            ) : (
+              <>
+                <span className="font-medium text-muted-foreground">Plot</span>
+                <select
+                  aria-label="Coaching metric"
+                  data-testid="widget-sentence-metric"
+                  value={sentenceMetric ?? ''}
+                  disabled={!sentenceMetric}
+                  onChange={(event) => changeCalculation({ metric: event.target.value })}
+                  className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
+                >
+                  {!sentenceMetric && <option value="">No metric</option>}
+                  {metricOptions.map((metric) => <option key={metric} value={metric}>{metric}</option>)}
+                </select>
+                <span className="text-muted-foreground">by</span>
+                <select
+                  aria-label="Group by"
+                  data-testid="widget-sentence-group"
+                  value={sentenceGroup ?? 'week'}
+                  disabled={!sentenceMetric}
+                  onChange={(event) => changeCalculation({ group: event.target.value })}
+                  className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
+                >
+                  {groupOptions.map((group) => <option key={group} value={group}>{group}</option>)}
+                </select>
+                <span className="text-muted-foreground">as</span>
+                <select
+                  aria-label="Chart type"
+                  data-testid="widget-sentence-chart"
+                  value={resolvedType}
+                  onChange={(event) => changeVisualization(event.target.value)}
+                  className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
+                >
+                  {DASHBOARD_WIDGET_TYPES.filter((widgetType) => widgetType !== 'list' && widgetType !== 'table').map((widgetType) => (
+                    <option key={widgetType} value={widgetType}>{widgetType}</option>
+                  ))}
+                </select>
+              </>
+            )}
+          </div>
+        )}
+
         <section>
           <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-2">
             Preview
@@ -536,9 +826,9 @@ function ComposerSession({
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-xs text-destructive font-mono px-4 text-center">
-                  {parsed.error
-                    ? parsed.error
-                    : isFindQuery(parsed)
+                  {draftError
+                    ? draftError
+                    : isFindQuery(effectiveParsed)
                       ? 'find: queries return things — use a table or list widget instead'
                       : 'Compose a calculation to preview.'}
                 </div>
@@ -568,6 +858,57 @@ function ComposerSession({
               />
             )}
           </div>
+          {!readOnly && !isFindQuery(effectiveParsed) && (
+            <div data-testid="widget-legend-bar" className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Layers</span>
+              <span className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  data-testid="legend-chip-goal"
+                  aria-pressed={goalActive}
+                  onClick={toggleGoal}
+                  className="rounded-full border border-border px-2.5 py-1 text-[11px] font-medium hover:bg-muted aria-pressed:border-primary/50 aria-pressed:bg-primary/10 aria-pressed:text-primary"
+                >
+                  {goalActive ? 'Goal 150' : '+ Target Goal'}
+                </button>
+                {goalActive && <button type="button" aria-label="Remove goal" onClick={toggleGoal} className="rounded-full px-1.5 text-muted-foreground hover:bg-muted">×</button>}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  data-testid="legend-chip-baseline"
+                  aria-pressed={Boolean(baseline)}
+                  onClick={cycleBaseline}
+                  className="rounded-full border border-border px-2.5 py-1 text-[11px] font-medium hover:bg-muted aria-pressed:border-primary/50 aria-pressed:bg-primary/10 aria-pressed:text-primary"
+                >
+                  {baselineWeeks ? `${baselineWeeks}w rolling avg` : '+ 4w Baseline'}
+                </button>
+                {baseline && (
+                  <button
+                    type="button"
+                    aria-label="Remove baseline"
+                    onClick={() => {
+                      const layered = layeredDocument(wql, resolvedType);
+                      if (layered) setWql(removeLayer(layered.lines, baseline.name, resolvedType).join('\n'));
+                    }}
+                    className="rounded-full px-1.5 text-muted-foreground hover:bg-muted"
+                  >×</button>
+                )}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  data-testid="legend-chip-compare"
+                  aria-pressed={compareActive}
+                  onClick={toggleCompare}
+                  className="rounded-full border border-border px-2.5 py-1 text-[11px] font-medium hover:bg-muted aria-pressed:border-primary/50 aria-pressed:bg-primary/10 aria-pressed:text-primary"
+                >
+                  {compareActive ? 'Compare series' : '+ Compare / Clone Series'}
+                </button>
+                {compareActive && <button type="button" aria-label="Remove comparison" onClick={toggleCompare} className="rounded-full px-1.5 text-muted-foreground hover:bg-muted">×</button>}
+              </span>
+            </div>
+          )}
         </section>
 
         {error && (

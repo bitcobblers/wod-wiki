@@ -21,6 +21,15 @@ import { editQueryClause } from '@bitcobblers/wod-wiki-ui';
 /** Content targets that carry a Where-stored storage scope. */
 const SCOPED_TARGETS = new Set(['note', 'block']);
 
+const CONTENT_FILTER_KEYS: Record<string, true> = {
+  source: true,
+  tags: true,
+  notebook: true,
+  text: true,
+  type: true,
+  has: true,
+};
+
 /** The query's Where-stored scope (the single non-negated `source:` filter
  *  value) or null when the query is all-sources, not a scoped content find,
  *  or carries anything the scope picker cannot represent (multi-value or
@@ -60,14 +69,39 @@ export function setScopeFilter(query: string, scope: string | null): string {
   ).wql;
 }
 
-/** Set the aggregate metric on an aggregate (metrics-plane) query. Find
- *  queries are returned unchanged — pivoting onto the metrics plane is a
- *  kind pivot owned by the shared composer's pivot flow (with its
- *  incompatibility prompt), never a silent side effect of a metric pick. */
+/** Set an aggregate's metric, or promote a content list to a weekly metric
+ *  chart. Fact filters stay on the aggregate; content filters move into a
+ *  cross-store join. Non-note source heads also keep an explicit join so
+ *  journal/segment scope is not broadened by the promotion. */
 export function setMetricQuery(query: string, metric: string): string {
   const parsed = parseQuery(query);
-  if (parsed.error || !isAggregateQuery(parsed)) return query;
-  return serialize({ ...parsed, metric });
+  if (parsed.error) return query;
+  if (isAggregateQuery(parsed)) return serialize({ ...parsed, metric });
+  if (!isFindQuery(parsed)) return query;
+
+  const sourceHead = /^:(journal|notebooks|playground)(?:\{|\s|$)/.exec(query.trim())?.[1];
+  const contentFilters = parsed.filters.filter((filter) => {
+    if (!CONTENT_FILTER_KEYS[filter.key]) return false;
+    if (sourceHead && filter.key === 'source' && filter.values.length === 1 && filter.values[0].value === sourceHead) {
+      return false;
+    }
+    return true;
+  });
+  const factFilters = parsed.filters.filter((filter) => !CONTENT_FILTER_KEYS[filter.key]);
+  return serialize({
+    family: 'aggregate',
+    raw: '',
+    agg: 'sum',
+    metric,
+    filters: factFilters,
+    groupBy: ['week'],
+    window: parsed.window,
+    ...(contentFilters.length > 0 || sourceHead || parsed.target !== 'note'
+      ? { join: { target: sourceHead ?? parsed.target, filters: contentFilters } }
+      : {}),
+  })
+    .replace(' where find:', ' where :')
+    .replace(/ where :(journal|notebooks|playground)$/, ' where :$1{}');
 }
 
 /** Drop the time-selection window. */

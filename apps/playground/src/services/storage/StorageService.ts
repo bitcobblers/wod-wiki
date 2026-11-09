@@ -701,6 +701,13 @@ export class StorageService implements NotePersistenceStorage {
     return rows.sort((a, b) => a.savedAt - b.savedAt || a.blockId.localeCompare(b.blockId) || a.version - b.version);
   }
 
+  async saveBlockRevisions(revisions: BlockRevision[]): Promise<void> {
+    if (revisions.length === 0) return;
+    await this.storage.transaction(['block_revisions'], 'readwrite', async tx => {
+      await tx.readwrite('block_revisions').putMany(revisions);
+    });
+  }
+
   async saveNoteSource(input: SaveNoteInput): Promise<Note> {
     // efforts/equipment are read (never written) by the scoped block-index
     // rebuild — they must be in the enclosing transaction scope.

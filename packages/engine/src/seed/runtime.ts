@@ -1,5 +1,5 @@
 import { mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core';
-import type { IStorage, IReadWriteStore } from '@bitcobblers/wod-wiki-storage';
+import type { EventRecord, IStorage, IReadWriteStore, Session } from '@bitcobblers/wod-wiki-storage';
 import { userDeletedSeedNoteId } from '@bitcobblers/wod-wiki-storage';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
@@ -194,7 +194,7 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       if (!tagIds.has(label)) tagIds.set(label, await seedNoteId(`tag:${label}`));
     }
   }
-  return storage.transaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'page', 'page_notes', 'tags', 'note_tags', 'efforts', 'equipment', 'meta'], 'readwrite', async (tx) => {
+  return storage.transaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'page', 'page_notes', 'tags', 'note_tags', 'efforts', 'equipment', 'meta', 'sessions', 'events'], 'readwrite', async (tx) => {
     const metaStore = tx.readwrite('meta');
     // Durable user deletion intent (StorageService.deleteNote tombstones):
     // seed rows the user deleted through the app are never re-created by
@@ -280,6 +280,11 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     const tagsByLabel = new Map(labels.map((label, i) => [label, matches[i][0]]));
     const changedTags: Tag[] = [], changedNotes: Note[] = [], revisions: BlockRevision[] = [], pages: Page[] = [], pageNotes: PageNote[] = [], noteTags: NoteTag[] = [];
     const blocks: SeedRow['blockIndex'] = [], blockEfforts: SeedRow['blockEfforts'] = [], blockEquipment: SeedRow['blockEquipment'] = [];
+    const sessionStore = tx.readwrite('sessions'), eventStore = tx.readwrite('events');
+    const telemetrySessionIds = write.rows.flatMap((row) => row.telemetry?.sessions.map((session) => session.id) ?? []);
+    const storedTelemetrySessions = await sessionStore.getMany(telemetrySessionIds);
+    const existingTelemetrySessions = new Map(telemetrySessionIds.map((sessionId, i) => [sessionId, storedTelemetrySessions[i]]));
+    const sessions: Session[] = [], events: EventRecord[] = [];
     for (const [i, row] of write.rows.entries()) {
       const id = ids[i], existing = existingById.get(id);
       if (!owned.has(id)) {
@@ -341,6 +346,36 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
         const prior = currentIndexes[slot.get(id)!].find((b) => b.id === projection.id);
         if (!prior || prior.isStatic === true) blocks.push(projection);
       }
+      const resolvedSessions = new Map<string, Session>();
+      for (const compiled of row.telemetry?.sessions ?? []) {
+        if (compiledById.get(compiled.blockId)?.dataType !== 'wod') throw new Error('Orphan seed session pin');
+        const prior = existingTelemetrySessions.get(compiled.id);
+        if (prior && prior.noteId !== id) throw new Error(`Seed session ${compiled.id} belongs to another note`);
+        const blockId = prior?.blockId ?? remap.get(compiled.blockId);
+        if (!blockId) throw new Error('Orphan seed session pin');
+        const block = map[blockId];
+        if (!prior && !block) throw new Error('Orphan seed session pin');
+        const session: Session = {
+          ...compiled,
+          noteId: id,
+          blockId,
+          blockVersion: prior?.blockVersion ?? block!.version,
+          blockContentId: prior?.blockContentId ?? compiledById.get(compiled.blockId)?.blockContentId,
+        };
+        sessions.push(session);
+        resolvedSessions.set(session.id, session);
+      }
+      for (const compiled of row.telemetry?.events ?? []) {
+        const session = resolvedSessions.get(compiled.resultId);
+        if (!session) throw new Error('Orphan seed event result');
+        events.push({
+          ...compiled,
+          noteId: id,
+          blockId: session.blockId,
+          blockVersion: session.blockVersion,
+          blockContentId: session.blockContentId,
+        });
+      }
       for (const compiled of row.blockEfforts) {
         const blockId = remap.get(compiled.blockId);
         if (!blockId || compiledById.get(compiled.blockId)?.dataType !== 'wod') throw new Error('Orphan seed effort link');
@@ -399,6 +434,8 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     await putChanged(indexStore, blocks, blocks.map((b) => b.id));
     await putChanged(effortLinks, blockEfforts, blockEfforts.map((b) => b.id));
     await putChanged(equipmentLinks, blockEquipment, blockEquipment.map((b) => b.id));
+    await putChanged(sessionStore, sessions, sessions.map((session) => session.id));
+    await putChanged(eventStore, events, events.map((event) => event.id));
     if (changedTags.length) await tagsStore.putMany([...new Map(changedTags.map((t) => [t.id, t])).values()]);
     if (noteTags.length) await tagLinks.putMany(noteTags);
     await putChanged(tx.readwrite('page'), pages, pages.map((p) => p.id));

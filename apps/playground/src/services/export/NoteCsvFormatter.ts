@@ -1,4 +1,5 @@
 import type { HistoryRecord } from '@/types/history';
+import type { EventRecord, Session } from '@/types/storage';
 
 /**
  * Escape a CSV field value
@@ -139,5 +140,43 @@ export function resultsToCSV(entry: HistoryRecord): string {
         return arrayToCSV(headers, [['No results found', null, null, null, null, null, null, null, null, null, null]]);
     }
 
+    return arrayToCSV(headers, rows);
+}
+
+export function sessionsToCSV(noteId: string, sessions: Session[]): string {
+    return arrayToCSV([
+        'Note ID', 'Session ID', 'Block ID', 'Block Version', 'Block Content ID',
+        'Origin', 'Status', 'Start Time', 'End Time', 'Duration', 'Completed',
+        'Rounds Completed', 'Total Rounds', 'Reps Completed', 'Created At',
+    ], sessions.map((session) => [
+        noteId, session.id, session.blockId, session.blockVersion, session.blockContentId,
+        session.origin, session.status, session.startTime, session.endTime, session.duration,
+        session.completed, session.roundsCompleted, session.totalRounds, session.repsCompleted,
+        session.createdAt,
+    ]));
+}
+
+export function eventsToCSV(noteId: string, events: EventRecord[]): string {
+    const headers = [
+        'Note ID', 'Session ID', 'Event ID', 'Block ID', 'Block Version', 'Block Content ID',
+        'Grain', 'Output Type', 'Effort Slug', 'Timestamp', 'Metric Type', 'Metric Key',
+        'Metric Value', 'Metric Unit', 'Metric Origin',
+    ];
+    const rows: (string | number | null | undefined)[][] = [];
+    for (const event of events) {
+        for (const metric of event.metrics) {
+            const metadata = 'metadata' in metric ? metric.metadata : undefined;
+            const canonicalKey = metadata && typeof metadata === 'object' && 'canonicalKey' in metadata
+                ? metadata.canonicalKey : undefined;
+            rows.push([
+                noteId, event.resultId, event.id, event.blockId, event.blockVersion,
+                event.blockContentId, event.grain, event.outputType, event.effortSlug,
+                event.timestamp, metric.type,
+                typeof canonicalKey === 'string' ? canonicalKey : undefined,
+                metric.value !== undefined ? JSON.stringify(metric.value) : undefined,
+                metric.unit, metric.origin,
+            ]);
+        }
+    }
     return arrayToCSV(headers, rows);
 }

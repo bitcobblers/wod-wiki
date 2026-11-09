@@ -1,4 +1,4 @@
-import type { BlockEffort, BlockEquipment, BlockIndexRow, NoteBlock } from '@bitcobblers/wod-wiki-core';
+import type { BlockEffort, BlockEquipment, BlockIndexRow, EventRecord, NoteBlock, Session } from '@bitcobblers/wod-wiki-core';
 import { KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 
 export const SEED_SCHEMA = 9;
@@ -13,6 +13,7 @@ export interface SeedRow {
   blockIndex: BlockIndexRow[];
   blockEfforts: BlockEffort[];
   blockEquipment: BlockEquipment[];
+  telemetry?: { sessions: Session[]; events: EventRecord[] };
   commit?: string;
   uuid?: string;
   version?: number;

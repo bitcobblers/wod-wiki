@@ -232,6 +232,22 @@ describe('AnalyticsExplorerPage', () => {
     );
   });
 
+  it('promotes a seeded find only when the widget sentence action is clicked', async () => {
+    renderPage(':note{tags:pr,source:journal}');
+    fireEvent.click(await waitFor(() => screen.getByTestId('save-query')));
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('widget-promote-to-chart')));
+
+    expect(screen.getByTestId('widget-composer-wql').textContent).toBe(
+      'sum:totalVolume{} by {week} where :note{tags:pr,source:journal}',
+    );
+    expect(screen.getByTestId('widget-composer-type')).toHaveProperty('value', 'timeseries');
+    expect(screen.getByTestId('widget-sentence-metric')).toHaveProperty('value', 'totalVolume');
+    expect(screen.getByTestId('widget-sentence-group')).toHaveProperty('value', 'week');
+    expect(screen.getByTestId('widget-legend-bar')).toBeDefined();
+    expect(screen.getByTestId('widget-composer-apply').getAttribute('disabled')).toBeNull();
+  });
+
   it('Save persists the exact composed WQL as a widget on a new dashboard', async () => {
     renderPage(':note{tags:pr,source:journal}');
     fireEvent.click(await waitFor(() => screen.getByTestId('save-query')));
@@ -394,6 +410,28 @@ describe('AnalyticsExplorerPage', () => {
     fireEvent.click(await waitFor(() => screen.getByText('tis')));
     await waitFor(() => expect(screen.getByTestId('token-slot-metric').textContent).toContain('tis'));
     await waitFor(() => expect(pageRuns()).toContain('sum:tis{}'));
+  });
+
+  it('enables metric chips on a find and submits the promoted chart', async () => {
+    renderPage(':note{tags:pr,source:journal} last 8w');
+
+    const chip = await waitFor(() => screen.getByText('tis'));
+    expect(chip.getAttribute('disabled')).toBeNull();
+    fireEvent.click(chip);
+
+    await waitFor(() => expect(pageRuns()).toContain(
+      'sum:tis{} by {week} last 8w where :note{tags:pr,source:journal}',
+    ));
+  });
+
+  it('promotes a find to weekly volume from the sentence control', async () => {
+    renderPage(':note{effort:back-squat}');
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('explorer-promote-to-chart')));
+
+    await waitFor(() => expect(pageRuns()).toContain(
+      'sum:totalVolume{effort:back-squat} by {week}',
+    ));
   });
 
   it('dispatches find queries through runFind', async () => {
