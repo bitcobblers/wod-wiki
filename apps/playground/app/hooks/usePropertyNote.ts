@@ -247,7 +247,6 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
       await handleSave(value);
     },
   });
-
   const setDocument = useCallback(
     (value: string) => {
       setDocumentState(value);
@@ -296,17 +295,14 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
     if (applyCloneFields) {
       cloned = applyCloneFields(cloned, item, patched);
     }
-    setItem(cloned);
-    setDocumentState(patched.raw);
     try {
-      const saved = await commitReferenceNote({
+      await commitReferenceNote({
         kind,
         slug: patched.slug,
         rawContent: patched.raw,
         title: patched.label,
         expectedSourceRevision: 0,
       });
-      committedNote.current = { id: saved.id, revision: saved.sourceRevision };
       await refresh();
     } catch (err) {
       toast({

@@ -103,8 +103,14 @@ export class EffortsPage {
 
   async waitForDetailLoaded() {
     await expect(this.detailRoot().or(this.detailNotFound())).toBeVisible({ timeout: 15_000 });
+    const detailsToggle = this.page.getByRole('button', { name: /Show property details/i });
+    try {
+      await detailsToggle.waitFor({ state: 'visible', timeout: 2_000 });
+      await detailsToggle.click();
+    } catch {
+      // Property details not present or already expanded
+    }
   }
-
   /**
    * First boot seed-imports the bundled registry into IndexedDB in the
    * background; the catalog/detail render the built-in fixture set until it
@@ -153,7 +159,11 @@ export class EffortsPage {
   /** Replace the catalog WQL query in the header composer and apply it. */
   async applyQuery(wql: string) {
     const composer = this.catalogSearch();
-    await composer.click();
+    const closeBtn = this.page.getByRole('button', { name: 'Close segment editor' });
+    if (await closeBtn.isVisible().catch(() => false)) {
+      await closeBtn.click().catch(() => {});
+    }
+    await composer.focus();
     await this.page.keyboard.press('ControlOrMeta+a');
     await this.page.keyboard.insertText(wql);
     await this.page.keyboard.press('Enter');

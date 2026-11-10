@@ -71,9 +71,12 @@ test.describe('Effort detail', () => {
     const efforts = new EffortsPage(page);
     await efforts.gotoDetail('burpee');
     await seedBundledEfforts(page);
+    await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
+    await efforts.waitForDetailLoaded();
     await efforts.cloneButton().click();
     await expect(page).toHaveURL(/\/effort\/burpee-custom$/);
+    await efforts.waitForDetailLoaded();
     await expect(efforts.detailSource()).toContainText('Custom');
 
     const label = efforts.frontmatterProperties().getByLabel('Value for label');
