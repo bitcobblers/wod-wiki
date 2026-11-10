@@ -151,6 +151,7 @@ export default defineConfig({
             { find: '@bitcobblers/wod-wiki-storage', replacement: resolve(import.meta.dirname, '../../packages/storage/src') },
             // `@/` -> ./src for app-support library imports (hooks, clock,
             // runtime views); application code itself lives under ./app.
+            { find: /^@\/testing(\/.*)?$/, replacement: resolve(import.meta.dirname, 'tests/testing$1') },
             { find: '@', replacement: resolve(import.meta.dirname, 'src') },
         ],
     },

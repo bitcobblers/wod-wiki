@@ -33,7 +33,7 @@ import {
 } from '@bitcobblers/wod-wiki-wql';
 import { toStoredOutputStatement } from '@bitcobblers/wod-wiki-lang';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
-import { getActiveWorkbenchSessionStore } from '@/stores/workbenchSessionStore';
+import { useActiveRunStore } from '@/stores/activeRunStore';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
 import { storageService } from '@/services/storage';
 
@@ -119,22 +119,18 @@ pageSourceRegistry.set('@today', todayEntry);
  *  live `@session` facts and segment outputs. Returns the REGISTRY entry
  *  (mutated in place) so every reader sees the same current projection. */
 function projectLiveSession(): PageSourceEntry {
-  const session = getActiveWorkbenchSessionStore().getState();
-  const outputs: IOutputStatement[] = session.runtime?.getOutputStatements() ?? [];
-  const entry = session.currentEntry;
-  sessionEntry.notes = entry ? [{
-    id: entry.id, title: entry.title, createdAt: entry.createdAt, date: entry.targetDate,
-    rawContent: entry.rawContent, sourceRevision: entry.sourceRevision ?? 1, blocks: entry.blocks ?? {},
-  }] : [];
+  const { runtime, activeNoteId } = useActiveRunStore.getState();
+  const outputs: IOutputStatement[] = runtime?.getOutputStatements() ?? [];
+  sessionEntry.notes = [];
   if (outputs.length === 0) {
     sessionEntry.events = [];
     return sessionEntry;
   }
+  const resolvedNoteId = activeNoteId ?? '';
   sessionEntry.events = toEventRows(outputs.map(toStoredOutputStatement), {
-    noteId: entry?.id ?? '',
-    resultId: `live:${entry?.id ?? 'session'}`,
+    noteId: resolvedNoteId,
+    resultId: `live:${resolvedNoteId || 'session'}`,
     origin: 'playground',
-    workoutTimestamp: entry?.targetDate,
   });
   return sessionEntry;
 }

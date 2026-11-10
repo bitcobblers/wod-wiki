@@ -23,9 +23,9 @@ mock.module('@bitcobblers/wod-wiki-engine/react', () => ({
   useScriptRuntime: () => null,
 }));
 
-mock.module('@/stores/workbenchSessionStore', () => ({
-  useWorkbenchSession: (selector: ((state: unknown) => unknown) | undefined) => {
-    const state = { viewMode: 'track', execution: { status: 'idle' } };
+mock.module('@/stores/activeRunStore', () => ({
+  useActiveRunStore: (selector: ((state: unknown) => unknown) | undefined) => {
+    const state = { execution: { status: 'idle' } };
     return selector ? selector(state) : state;
   },
 }));

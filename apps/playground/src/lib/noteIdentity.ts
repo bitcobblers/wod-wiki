@@ -1,16 +1,12 @@
 /**
- * noteIdentity (parse half) — a typed view over the composite noteId string.
- *
- * The noteId is a `${category}/${name}` composite overloaded as a storage key,
- * the results join key, AND a routing discriminator. `parseNoteId` gives it a
- * typed `NoteRef` so consumers stop `noteId.split('/')`-ing ad-hoc. It is pure
- * string parsing with no routing knowledge, so it lives in the library
- * (`src/lib/`) — the kind→route rule (`noteRefToPath`) needs the app's route
- * table and stays in `playground/src/lib/noteIdentity.ts`.
+ * noteIdentity — typed view over composite noteId strings plus canonical
+ * kind→route resolution.
  *
  * ADDITIVE: it never rewrites stored ids — `raw` carries the original string
  * for use as a storage key, so no result is ever orphaned by a format change.
  */
+
+import { dayPath, playgroundPath, notebookItemPath, effortPath, equipmentPath, notePath } from './routes';
 
 /** Which note family a noteId belongs to. */
 export type NoteKind = 'journal' | 'playground' | 'workout';
@@ -42,4 +38,21 @@ export function parseNoteId(noteId: string): NoteRef {
   if (head === 'playground') return { kind: 'playground', id: name, raw: noteId };
   if (segs.length < 2) return { kind: 'workout', id: head, raw: noteId };
   return { kind: 'workout', category: head, id: name, raw: noteId };
+}
+
+/**
+ * Canonical back-route for a note — the single home for the kind→path rule,
+ * replacing ad-hoc `noteId.split('/')` switches.
+ */
+export function noteRefToPath(ref: NoteRef): string {
+  switch (ref.kind) {
+    case 'journal':
+      return dayPath(ref.id);
+    case 'playground':
+      return playgroundPath(ref.id);
+    case 'workout':
+      if (ref.category === 'effort') return effortPath(ref.id);
+      if (ref.category === 'equipment') return equipmentPath(ref.id);
+      return ref.category ? notebookItemPath(ref.category, ref.id) : notePath(ref.raw);
+  }
 }

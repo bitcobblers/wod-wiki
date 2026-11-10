@@ -28,7 +28,7 @@ import { equipmentPath, effortPath, ROUTE_PATTERNS } from '../lib/routes';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import type { MenuSpec } from '../nav/menuModel';
 import { toast } from '@/hooks/use-toast';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 import { documentToEquipment } from '@bitcobblers/wod-wiki-lang';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { ResponsiveActions } from '../nav/ResponsiveActions';

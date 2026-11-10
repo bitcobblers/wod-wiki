@@ -158,19 +158,34 @@ export function outputToRunResult(parsed: AnyParsedQuery, out: DocumentOutput): 
  * This merges all shown series, keeps the first sink/unit, and surfaces the
  * first error so a failed stage is never swallowed by a healthy sibling.
  */
-export function outputsToRunResult(parsed: AnyParsedQuery, res: DocumentResult): WidgetRunResult {
+export function outputsToRunResult(
+  parsed: AnyParsedQuery,
+  res: DocumentResult,
+  attributes?: Record<string, string>,
+): WidgetRunResult {
   const outputs = res.outputs;
   const first = outputs[0];
   if (!first) {
     return outputToRunResult(parsed, { name: 'query', kind: 'aggregate', error: res.diagnostics[0] });
   }
 
-  const series = outputs.length === 1 ? first.series ?? [] : outputs.flatMap((out) =>
-    (out.series ?? []).map((series) => ({
-      ...series,
-      key: JSON.stringify([out.name, series.key]),
-      label: out.series?.length === 1 ? out.name : `${out.name} · ${series.label}`,
-    })));
+  const labelFor = (outName: string) => attributes?.[`label.${outName}`] ?? outName;
+
+  const series = outputs.length === 1
+    ? (first.series ?? []).map((s) => {
+        const customLabel = attributes?.[`label.${first.name}`];
+        return customLabel && (first.series?.length ?? 0) === 1
+          ? { ...s, label: customLabel }
+          : s;
+      })
+    : outputs.flatMap((out) => {
+        const displayName = labelFor(out.name);
+        return (out.series ?? []).map((series) => ({
+          ...series,
+          key: JSON.stringify([out.name, series.key]),
+          label: out.series?.length === 1 ? displayName : `${displayName} · ${series.label}`,
+        }));
+      });
   const chart = res.showChart ?? outputs.find((o) => o.chart)?.chart;
   const unit = outputs.find((o) => o.unit !== undefined)?.unit ?? first.unit;
   const error = outputs.find((o) => o.error !== undefined)?.error ?? res.diagnostics[0];

@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client";
 import { sectionField, type EditorSection } from "./section-state";
 import { resolveQueryExecutionScope } from "@bitcobblers/wod-wiki-wql";
 import { QueryBlockView } from "../blocks/QueryBlockView";
+import type { InlineMetricEditPayload } from "../widgets/OutputStatementsTable";
 import type { QueryExecutor } from "../contracts/query";
 import { patchBlockQuery } from "../utils/blockQueryPatcher";
 
@@ -18,6 +19,8 @@ export interface QueryBlockPreviewOptions {
   onResultSaved?: (callback: () => void) => (() => void) | void;
   readOnly?: boolean;
   onSaveQuery?: (sectionId: string, nextQuery: string) => void | Promise<void>;
+  onCaptureRpe?: (resultId: string, rpe: number) => Promise<void>;
+  onEditMetric?: (resultId: string, payload: InlineMetricEditPayload) => void | Promise<void>;
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
   tokenValues?: Record<string, string>;
@@ -79,6 +82,8 @@ class ReactQueryBlock extends WidgetType {
         executor={this.options?.executor}
         onResultSaved={this.options?.onResultSaved}
         onSaveQuery={handleSaveQuery}
+        onCaptureRpe={this.options?.onCaptureRpe}
+        onEditMetric={this.options?.onEditMetric}
         onOpenNote={this.options?.onOpenNote}
         noteHref={this.options?.noteHref}
       />,
@@ -105,6 +110,8 @@ class ReactQueryBlock extends WidgetType {
         readOnly={this.options?.readOnly}
         executor={this.options?.executor}
         onResultSaved={this.options?.onResultSaved}
+        onCaptureRpe={this.options?.onCaptureRpe}
+        onEditMetric={this.options?.onEditMetric}
         onOpenNote={this.options?.onOpenNote}
         noteHref={this.options?.noteHref}
         onSaveQuery={handleSaveQuery}

@@ -23,12 +23,11 @@ import {
   useStackDisplayRows,
 } from '@bitcobblers/wod-wiki-engine/react';
 import { useRoundDisplay } from '@bitcobblers/wod-wiki-engine/react';
-import { calculateDuration } from '@/lib/timeUtils';
+import { calculateDuration, metricPresentation } from '@bitcobblers/wod-wiki-engine';
 
 import { TimerStackView } from '@/components/organisms/workout/TimerStackView';
 import { MetricTrackerCard } from '@/components/organisms/track/MetricTrackerCard';
-import { useWorkbenchSession } from '@/stores/workbenchSessionStore'
-import { metricPresentation } from '@bitcobblers/wod-wiki-engine';
+import { useActiveRunStore } from '@/stores/activeRunStore';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 
 export type TimerStatus = 'idle' | 'running' | 'paused' | 'completed';
@@ -95,13 +94,12 @@ export interface TimerDisplayProps {
  */
 const StackIntegratedTimer: React.FC<TimerDisplayProps> = (props) => {
   const runtime = useScriptRuntime();
-  const viewMode = useWorkbenchSession(s => s.viewMode);
   // Subscribe to runtime execution status so the Play/Pause toggle reflects
   // the runtime state, not just whether a timer span is currently open.
   // This prevents the "Run while running silently does nothing" UX bug ([UX-02]):
   // even between segments where no timer span is open, the runtime is still
   // active and the button must show Pause (not Play).
-  const executionStatus = useWorkbenchSession(s => s.execution.status);
+  const executionStatus = useActiveRunStore(s => s.execution.status);
 
   // Flash message state for required-timer skip attempts
   // skipFlashKey increments on each skip, giving the flash element a unique key
@@ -402,7 +400,7 @@ const StackIntegratedTimer: React.FC<TimerDisplayProps> = (props) => {
         compact={props.compact}
         focusedBlockId={focusedBlockId}
         timerStates={timerStates}
-        enableGestures={viewMode === 'track'}
+        enableGestures={true}
         getFocusProps={props.getFocusProps}
       />
     </div>
@@ -418,8 +416,6 @@ const StackIntegratedTimer: React.FC<TimerDisplayProps> = (props) => {
  * shared owner covers all tiers and gates.
  */
 export const TimerDisplay: React.FC<TimerDisplayProps> = (props) => {
-  const viewMode = useWorkbenchSession(s => s.viewMode);
-
   // If display stack is enabled (runtime available), render with runtime hooks
   if (props.enableDisplayStack) {
     return <StackIntegratedTimer {...props} />;
@@ -438,7 +434,7 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = (props) => {
       isPaused={props.isPaused}
       disableNext={props.disableNext}
       compact={props.compact}
-      enableGestures={viewMode === 'track'}
+      enableGestures={true}
       getFocusProps={props.getFocusProps}
     />
   );

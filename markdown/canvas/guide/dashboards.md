@@ -4,12 +4,12 @@ template: canvas
 route: /page/guide-dashboards
 type: guide
 title: "Dashboards & Cookbook"
-description: "Dashboards are notes with query widgets — frontmatter tokens, widget fences, and the composer."
+description: "Dashboards are notes with YAML query widgets — frontmatter tokens, WQL data selection, and the visual builder."
 ---
 
 # Dashboards & Cookbook {sticky dark full-bleed}
 
-A dashboard is **just a note**: mark it `dashboard: true`, and every in-note query block becomes a widget on one grid. The panel on the right has the real Training Block Review board loaded — its ```query blocks render live results right in the sandbox, and you can edit a query without touching the seeded board.
+A dashboard is **just a note**: mark it `dashboard: true`, and every in-note ```query block becomes a widget on one grid. **WQL** selects and aggregates data (`query:` / `series:`), while **YAML** inside ```query describes layout, titles, multi-series baselines, formulas, goals, columns, and sorting.
 
 ```view
 name:    sandbox
@@ -32,28 +32,30 @@ dashboard: true
 dashboard.weeks: 16
 ---
 
-## Avg TIS
-How hard are sessions?
-
-```query:value
-:segment{} | :avg{metric:tis} | :value{}
+```query
+title: Avg TIS
+description: How hard are sessions?
+view: value
+query: avg:tis{}
 ```
 
-## Weekly tonnage
-Is volume rising?
-
-```query:timeseries-2
-:segment{} | :sum{metric:totalVolume} by {week} | :timeseries{}
+```query
+title: Weekly tonnage
+description: Is volume rising?
+view: timeseries
+span: 2
+window: $weeks w
+query: sum:totalVolume{} by {week}
 ```
 ````
 
 Three conventions:
 
-- The **heading above a block** is the widget title.
-- The **paragraph directly above a block** is its question/subtitle.
-- `dashboard.weeks`, `dashboard.intensity: [low, moderate, high]`, or any `dashboard.<name>` value in frontmatter becomes a **token control** referenced as `$name` — `$weeks`, `$intensity`. List tokens render as segmented controls; unknown token references produce a visible refusal, never a silent blank.
+- **1-line WQL shorthand** (`:session{result:<id>}`) stays valid inside ```query for zero-boilerplate session tables, expanding into YAML only when customized.
+- **Self-contained YAML** inside ```query owns `title`, `description`, `view`, `span` (`1..4` or `full`), `window`, `groupBy`, `goal`, `targets`, `columns`, `sort`, and `query` / `series`.
+- `dashboard.weeks`, `dashboard.intensity: [low, moderate, high]`, or any `dashboard.<name>` value in frontmatter becomes a **token control** referenced directly in WQL or YAML as `$name` — `$weeks`, `$intensity`, `$scope`. List tokens render as segmented controls; unknown token references produce a visible refusal, never a silent blank.
 
-## Widget types and spans {#widgets}
+## Widget views and multi-series YAML {#widgets}
 
 ```button
 label:  Try it: Benchmark PR board
@@ -62,22 +64,38 @@ pipeline:
   - set-source: dashboards/benchmark-pr-board.md
 ```
 
-The fence tag carries type and grid span (`query:<type>[-<1..4>|-full]`); a bare ```query defaults to `table`. Grid is 4 columns wide.
+Every ```query block sets `view:` (defaulting to `table` for 1-line shorthand) and optional `span:` on a 4-column grid:
 
-| Tag | Widget |
+| `view:` | Renders |
 |---|---|
-| ```query | table (default) |
-| ```query:list / ```query:value | list / single big number |
-| ```query:timeseries / ```query:timeseries-2 / ```query:timeseries-4 | line over time, 1/2/4 columns |
-| ```query:bar / ```query:stacked-bar | bars / stacked bars |
-| ```query:toplist | ranked rows |
-| ```query:goal-rings / ```query:zone-distribution | progress rings / zone split |
+| `table` (default) | sortable session/segment rows with dynamic custom metrics & PR badges |
+| `list` / `value` | note/block cards / single big scalar |
+| `timeseries` | line over time (`span: 2` or `span: full` for wider cards) |
+| `bar` / `stacked-bar` | grouped or stacked bars |
+| `toplist` / `donut` | ranked breakdown / proportional share |
+| `goal-rings` / `zone-distribution` | progress rings (`goal: $target`) / zone split (`targets: [80, 2, 18]`) |
 
-The block body is **one WQL line** — everything from [the WQL chapter](/page/guide-wql?h=aggregate) works, including tokens:
+Single-series widgets use `query: <wql>`; multi-layer baselines and formulas use `series:`:
 
+````yaml
 ```query
-:segment{} | :sum{metric:sessionLoad, intensity:$intensity} by {week} | :timeseries{}
+title: Weekly Strength Tonnage vs Baseline
+view: timeseries
+span: 2
+groupBy: [week]
+series:
+  - id: tonnage
+    label: Weekly Tonnage
+    query: sum:totalVolume{discipline:strength, $scope}
+  - id: baseline
+    label: 4w Baseline
+    query: avg:totalVolume{discipline:strength, $scope}.rollup(4w)
+  - id: ratio
+    label: Acute Ratio
+    formula: tonnage / baseline
+    unit: ratio
 ```
+````
 
 Wellness data comes from a capture fence in any note — wellness keys are plain properties, one per line:
 
@@ -92,22 +110,22 @@ Capture those daily and boards like Recovery Readiness light up ([what feeds `ca
 ## Compose, inspect, clone {#composer}
 
 - **Vault boards** (`/dashboard/<your-note>`) are yours: add, edit, duplicate, reorder, and resize widgets in place; concurrent-edit guards refuse lost writes visibly.
-- **Prebuilt boards** are read-only, but **Inspect** shows any widget's query with a live preview, and **Clone to vault** copies the whole board into your journal to edit.
-- The widget composer is the same three steps for both: pick the **dataset** (a WQL line), the **calculation** (aggregator/metric/filters/window via the composer pills), and the **visualization** (type + span) — preview executes against your live journal with your range and kg/lb preferences.
+- **Prebuilt boards** are read-only, but **Inspect** shows any widget's structured query object with a live preview, and **Clone to vault** copies the whole board into your journal to edit.
+- The `<QueryObjectBuilder />` powers inline note blocks, dashboard cards, and the Analytics Explorer from the same `QueryBlockObject` state — preview executes against your live journal with your range and kg/lb preferences.
 - Empty journal? Widgets stay honest with a sample-data prompt instead of fake numbers.
 
 ## Cookbook {#cookbook}
 
-Copy-paste queries (paste into a ```query block, or straight into the Explorer):
+Copy-paste WQL queries (use in `query:` inside a ```query block, or straight into the Explorer):
 
-| Question | Query |
-|---|---|
-| Weekly strength volume | `:segment{discipline:strength} | :sum{metric:totalVolume} by {week} | :timeseries{}` |
-| Top volume movements | `:segment{} | :sum{metric:totalVolume} by {effort} | :toplist{}` |
-| TIS trend | `:segment{} | :avg{metric:tis} by {week} | :timeseries{}` |
-| Acute:chronic load | `:segment{} | :avg{metric:calc.acwr} | :value{}` |
-| Find benchmark notes | `:note{effort:fran,source:notebooks} | :list{}` |
-| This week's swings volume | `:segment{effort:kettlebell-swings} last 6w | :sum{metric:totalVolume} | :value{}` |
+| Question | WQL `query:` | Suggested `view:` |
+|---|---|---|
+| Weekly strength volume | `sum:totalVolume{discipline:strength} by {week}` | `timeseries` |
+| Top volume movements | `sum:totalVolume{} by {effort}` | `toplist` |
+| TIS trend | `avg:tis{} by {week}` | `timeseries` |
+| Acute:chronic load | `avg:calc.acwr{}` | `value` |
+| Find benchmark notes | `:note{effort:fran,source:notebooks}` | `list` |
+| This week's swings volume | `sum:totalVolume{effort:kettlebell-swings} last 6w` | `value` |
 
 The shared kettlebell note feeds the last row — [run it](/page/guide-start?h=try-it), and it appears among the sample rows.
 
@@ -118,15 +136,15 @@ Six real dashboard notes ship with the app — open any of them, or Inspect → 
 | Board | Built around |
 |---|---|
 | [Training Block Review](/d/training-block-review) | values (`avg:tis{}`, `sum:totalVolume{}`, `avg:calc.adherence{}`), weekly volume timeseries, volume by effort toplist, stacked load by intensity/week, distance by discipline |
-| [Road to 560 Total](/d/road-to-560-total) | strength PR progression toward a total |
-| [Polarized Base Marathon](/d/polarized-base-marathon) | endurance polarization (intensity split across weeks) |
+| [Road to 560 Total](/d/road-to-560-total) | strength PR progression toward a total (`goal: $squatGoal`) |
+| [Polarized Base Marathon](/d/polarized-base-marathon) | endurance polarization (`targets: [80, 2, 18]`) |
 | [Finger Strength V8](/d/finger-strength-v8) | climbing: `calc.mvcBw` hang strength vs grade |
 | [Benchmark PR Board](/d/benchmark-pr-board) | `last:elapsed{tags:benchmark} by {effort}`, benchmark timeseries |
 | [Recovery Readiness](/d/recovery-readiness) | ```wellness capture → `last:calc.readiness{}`, HRV/monotony/ACWR trends |
 
 ## Try it {#try-it}
 
-**Run** — the sandbox has the real board loaded: edit the *Weekly tonnage* query in the panel, change `by {week}` to `by {day}`, and watch the widget re-run — sandbox edits never touch the seeded board. Then open the live board: every widget executes against your journal, rows without facts badge as **sample answers until you have logged work of your own**. **Observe** — in the board view, inspect the *Weekly tonnage* widget and clone the board to keep an edit. Sample answers and board edits read saved sessions; they never rewrite them.
+**Run** — the sandbox has the real board loaded: edit the *Weekly tonnage* block in the panel, change `by {week}` to `by {day}`, and watch the widget re-run — sandbox edits never touch the seeded board. Then open the live board: every widget executes against your journal, rows without facts badge as **sample answers until you have logged work of your own**. **Observe** — in the board view, inspect the *Weekly tonnage* widget and clone the board to keep an edit. Sample answers and board edits read saved sessions; they never rewrite them.
 
 ```button
 label:  Open Training Block Review →
@@ -141,4 +159,3 @@ target: preview
 pipeline:
   - navigate: /dashboards
 ```
-

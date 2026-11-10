@@ -9,37 +9,38 @@ domain: crossfit
 CrossFit / Hyrox prebuilt — benchmark retests and work capacity. Tag
 benchmark notes `benchmark` and they land on the board.
 
-## Benchmark scores
-Which benchmarks moved this quarter?
-
-```query:table-2
-:segment{tags:benchmark} | :last{metric:elapsed} by {effort} | :table{}
+```query
+title: Benchmark scores
+description: Which benchmarks moved this quarter?
+view: table
+span: 2
+query: last:elapsed{tags:benchmark} by {effort}
 ```
 
-## Fran trend
-Closing on the goal time?
-
-```query:timeseries
-:segment{effort:fran} | :last{metric:elapsed} by {week} | :timeseries{}
+```query
+title: Fran trend
+description: Closing on the goal time?
+view: timeseries
+query: last:elapsed{effort:fran} by {week}
 ```
 
-## Work capacity
-Total reps per week rising?
-
-```query:timeseries
-:segment{} | :sum{metric:totalReps} by {week} | :timeseries{}
+```query
+title: Work capacity
+description: Total reps per week rising?
+view: timeseries
+query: sum:totalReps{} by {week}
 ```
 
-## Session intensity
-Pacing even or blowing up late?
-
-```query:bar
-:segment{} | :sum{metric:tis} by {session, day} | :bar{}
+```query
+title: Session intensity
+description: Pacing even or blowing up late?
+view: bar
+query: sum:tis{} by {session, day}
 ```
 
-## Training consistency
-Sessions logged — gaps visible at a glance.
-
-```query:bar
-:segment{} | :count{metric:sessionLoad} by {day} | :bar{}
+```query
+title: Training consistency
+description: "Sessions logged — gaps visible at a glance."
+view: bar
+query: count:sessionLoad{} by {day}
 ```

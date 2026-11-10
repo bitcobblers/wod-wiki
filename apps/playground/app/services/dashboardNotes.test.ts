@@ -93,7 +93,8 @@ describe('createDashboardNotes.createDashboard', () => {
     expect(meta['dashboard']).toBe('true');
     expect(meta['dashboard.active']).toBe('true');
     expect(meta['title']).toBe('Road to Regionals');
-    expect(stored.rawContent).toContain('```query:');
+    expect(stored.rawContent).toContain('```query\ntitle: Weekly Trend');
+    expect(stored.rawContent).toContain('query: sum:$metric{} by {week}');
   });
 
   it('defaults the title', async () => {

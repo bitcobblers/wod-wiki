@@ -20,7 +20,7 @@ export interface EffortsQueryState {
 /** First non-negated value of a filter key — '' when absent or unparseable. */
 function filterValue(query: string, key: string): string {
   const parsed = parseQuery(query);
-  if (parsed.error) return '';
+  if (parsed.error || parsed.family === 'pipeline') return '';
   const f = parsed.filters.find((flt) => flt.key === key && !flt.negate);
   return f?.values.map((v) => v.value).join('|') ?? '';
 }
@@ -28,7 +28,7 @@ function filterValue(query: string, key: string): string {
 /** Set (or clear, when empty) one filter key, keeping every other clause. */
 function withFilter(query: string, key: string, value: string): string {
   const parsed = parseQuery(query);
-  if (parsed.error) return query; // never destroy unparseable state
+  if (parsed.error || parsed.family === 'pipeline') return query; // never destroy unparseable state
   const filters = parsed.filters.filter((f) => f.key !== key);
   const trimmed = value.trim();
   if (trimmed) filters.push({ key, negate: false, values: [{ value: trimmed, wildcard: false }] });

@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Session } from '@/types/storage';
-import { useWorkbenchSession } from '@/stores/workbenchSessionStore'
+import { notePersistence } from '@/hooks/useBrowserServices';
 
 export interface UseScriptBlockResultsReturn {
   /** All results for this section, sorted most recent first */
@@ -22,7 +22,7 @@ export interface UseScriptBlockResultsReturn {
  *
  * @param noteId   - The note containing the WOD block (short or full UUID)
  * @param sectionId - The WOD section ID within the note
- * @param extendedResultsOverride - Optional explicit in-memory results (bypasses context)
+ * @param extendedResultsOverride - Optional explicit in-memory results (bypasses persistence)
  * @param contentId - Cross-note fingerprint, never occurrence identity.
  */
 export function useScriptBlockResults(
@@ -34,12 +34,6 @@ export function useScriptBlockResults(
   const [results, setResults] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Read the in-memory `currentEntry` from the Workbench Session (Static
-  // Mode populates this on mount; production backends hydrate via
-  // `loadEntry` from the route's `noteId`).
-  const currentEntry = useWorkbenchSession((s) => s.currentEntry);
-  const getNote = useWorkbenchSession((s) => s.getNote);
-  const extendedResults = extendedResultsOverride ?? currentEntry?.extendedResults;
   useEffect(() => {
     if (!noteId || !sectionId) {
       setResults([]);
@@ -51,9 +45,10 @@ export function useScriptBlockResults(
 
     async function fetchResults() {
       // 1. Check for in-memory results (Static Mode or immediate UI update)
-      // Use extendedResults array if available (Mutable Static mode)
-      if (Array.isArray(extendedResults)) {
-        const inMemoryMatches = extendedResults.filter(result => result.noteId === noteId && result.blockId === sectionId);
+      if (Array.isArray(extendedResultsOverride)) {
+        const inMemoryMatches = extendedResultsOverride.filter(
+          (result) => result.noteId === noteId && result.blockId === sectionId,
+        );
 
         if (inMemoryMatches.length > 0) {
           if (!cancelled) {
@@ -65,18 +60,8 @@ export function useScriptBlockResults(
       }
 
       // 2. Fallback through the note persistence seam (History Mode).
-      // The session exposes `getNote` as a proxy to the injected port;
-      // skip if no port is wired (e.g. outside a provider).
-      if (typeof getNote !== 'function') {
-        if (!cancelled) {
-          setResults([]);
-          setLoading(false);
-        }
-        return;
-      }
-
       try {
-        const entry = await getNote(noteId!, {
+        const entry = await notePersistence.getNote(noteId!, {
           projection: 'history-detail',
           resultSelection: {
             mode: 'all-for-section',
@@ -84,7 +69,6 @@ export function useScriptBlockResults(
           },
         });
         if (!cancelled) {
-          // Sort by createdAt descending (most recent first)
           setResults((entry?.extendedResults ?? []).sort((a, b) => b.createdAt - a.createdAt));
         }
       } catch {
@@ -97,7 +81,7 @@ export function useScriptBlockResults(
     fetchResults();
 
     return () => { cancelled = true; };
-  }, [noteId, sectionId, extendedResults, getNote, contentId]);
+  }, [noteId, sectionId, extendedResultsOverride, contentId]);
 
   return { results, loading };
 }

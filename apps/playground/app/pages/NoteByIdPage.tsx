@@ -6,10 +6,8 @@ import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { JournalPageShell } from '@/panels/page-shells'
 import { NoteEditor, type EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor'
 import { BlockHistory, revertBlock } from '@/components/organisms/editor/BlockHistory'
-import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore';
 import { useNoteDraft } from '../hooks/useNoteDraft'
 import { useNoteL1Zone } from '../nav/NavContext'
-import { notePersistence } from '@/services/persistence'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { storageService } from '@/services/storage'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
@@ -273,7 +271,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     )
 
     body = (
-      <WorkbenchSessionProvider notePersistence={notePersistence} provider={contentProvider}>
+      <>
         <JournalPageShell
           title={entry.title}
           subtitle={
@@ -497,7 +495,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             draft.onSourceMutate(appendWidget(draft.content, spec))
           }}
         />
-      </WorkbenchSessionProvider>
+      </>
     )
   }
 

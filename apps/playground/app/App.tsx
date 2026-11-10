@@ -43,6 +43,7 @@ import { feedProgressDetail, feedProgressLabel } from '@/services/feed/feedProgr
 import { profileService } from '@/services/storage'
 import { initSeedContentBroadcast, invalidateSeedContent } from '@/services/content/seedContent'
 import { loadTagIndex } from '@/services/tags/tagCatalogue'
+import { startFieldCatalogBackfill } from './services/fieldCatalog'
 import { Button } from '@/components/atoms/primitives/button'
 import type { WorkoutItem } from './lib/workoutIndex'
 
@@ -94,6 +95,7 @@ function GlobalState() {
     // (the editor, the parser, the runtime) reads it from one cache, so it
     // is loaded once here — for the whole app, not just the workbench.
     void loadTagIndex().catch(() => { /* Tags are optional — a document without them still runs. */ })
+    void startFieldCatalogBackfill().catch(() => { /* Field catalog backfill is best-effort. */ })
   }, [])
   return null
 }

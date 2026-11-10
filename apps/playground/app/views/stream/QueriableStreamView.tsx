@@ -71,7 +71,7 @@ import { MobileNewEntryCombo, routeSupportsCreation } from '../../pages/shared/N
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings, LAYOUT_MODES, type LayoutMode } from '../../lib/viewSettingsStorage'
 import { useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
-import { todayKey } from '../../lib/dateFormat'
+import { todayKey } from '@/lib/dateFormat'
 import { withoutWindow, withGroupBy } from '../../lib/wqlEdits'
 import { LibraryRow } from '../library/LibraryRow'
 import { PropertyTable } from './PropertyTable'
@@ -870,7 +870,12 @@ export function QueriableStreamView({
     }
     if (!parsed.error && parsed.window) {
       const w = parsed.window
-      const label = w.kind === 'relative' ? `last ${w.size}${w.unit}` : `from ${w.start}${w.end ? ` to ${w.end}` : ''}`
+      const label =
+        w.kind === 'relative'
+          ? `last ${w.size}${w.unit}`
+          : w.kind === 'param'
+            ? `last $${w.param}${w.unit ? ` ${w.unit}` : ''}`
+            : `from ${w.start}${w.end ? ` to ${w.end}` : ''}`
       remedies.push({
         id: 'remove-window',
         label: `Remove time window (${label})`,

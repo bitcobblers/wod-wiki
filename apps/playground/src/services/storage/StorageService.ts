@@ -23,7 +23,17 @@ import type { DomainDetail, DomainQuery, DomainQueryResult } from '@bitcobblers/
 import type { IStorage, IStorageTransaction, StoreName } from './IStorage';
 import { NotePersistenceError, type NotePersistenceStorage, type SaveNoteInput } from '../persistence/types';
 import { extractHeadingTitle } from '@/lib/noteTitle';
+import {
+  applyCatalogEventDelete,
+  applyCatalogEventUpsert,
+  applyCatalogSourceContributions,
+  extractContributionsFromNote,
+  fieldSourceId,
+  notifyFieldCatalogChanged,
+} from '@/services/catalog/fieldCatalog';
 const NOTE_BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
+
+const CATALOG_MUTATION_STORES: StoreName[] = ['field_catalog', 'field_sources', 'field_values'];
 
 /**
  * IStorage view over one open transaction. Every StorageService method called
@@ -105,7 +115,20 @@ export class StorageService implements NotePersistenceStorage {
    *   they route every call through the enclosing transaction and must not
    *   expose the remote queryDomain capability (stale remote reads).
    */
-  constructor(private readonly storage: IStorage, private readonly scopedTx = false) {}
+  constructor(
+    private readonly storage: IStorage,
+    private readonly scopedTx = false,
+    private readonly txCatalogState?: { changed: boolean },
+  ) {}
+
+  private markCatalogChanged(changed: boolean): void {
+    if (!changed) return;
+    if (this.txCatalogState) {
+      this.txCatalogState.changed = true;
+    } else if (!this.scopedTx) {
+      notifyFieldCatalogChanged();
+    }
+  }
 
   /**
    * One mutation transaction across Note/tag/page/Session/event/
@@ -118,8 +141,17 @@ export class StorageService implements NotePersistenceStorage {
     stores: K[],
     fn: (scoped: StorageService) => Promise<R>,
   ): Promise<R> {
-    return this.storage.transaction(stores, 'readwrite', (tx) =>
-      fn(new StorageService(new TransactionScopedStorage(tx), true)));
+    const needsCatalog = stores.includes('notes' as K) || stores.includes('events' as K);
+    const expanded = needsCatalog
+      ? (Array.from(new Set<StoreName>([...stores, ...CATALOG_MUTATION_STORES])) as K[])
+      : stores;
+    const state = this.txCatalogState ?? { changed: false };
+    const result = await this.storage.transaction(expanded, 'readwrite', (tx) =>
+      fn(new StorageService(new TransactionScopedStorage(tx), true, state)));
+    if (!this.scopedTx && state.changed) {
+      notifyFieldCatalogChanged();
+    }
+    return result;
   }
 
   /**
@@ -267,12 +299,14 @@ export class StorageService implements NotePersistenceStorage {
   }
 
   async deleteNote(id: string): Promise<void> {
+    let catalogChanged = false;
     await this.storage.transaction(
-      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'meta'],
+      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'meta', ...CATALOG_MUTATION_STORES],
       'readwrite',
       async (tx) => {
         const note = await tx.readonly('notes').get(id);
         await tx.readwrite('notes').delete(id);
+        catalogChanged = await applyCatalogSourceContributions(tx, fieldSourceId('note', id), []);
 
 
         const attachments = tx.readwrite('attachments');
@@ -318,6 +352,7 @@ export class StorageService implements NotePersistenceStorage {
         }
       },
     );
+    this.markCatalogChanged(catalogChanged);
   }
 
   // ---------------------------------------------------------------------------
@@ -767,9 +802,22 @@ export class StorageService implements NotePersistenceStorage {
       if (previous && rowsEqual(previous, note)) return previous;
       if (revisions.length) await scoped.storage.readwrite('block_revisions').putMany(revisions);
       await scoped.saveNote(note);
+      await scoped.syncNoteCatalog(note);
       await scoped.rebuildBlockIndexForNote(note.id);
       return note;
     });
+  }
+
+  private async syncNoteCatalog(note: Note): Promise<void> {
+    let changed = false;
+    await this.storage.transaction(CATALOG_MUTATION_STORES, 'readwrite', async (tx) => {
+      changed = await applyCatalogSourceContributions(
+        tx,
+        fieldSourceId('note', note.id),
+        extractContributionsFromNote(note),
+      );
+    });
+    this.markCatalogChanged(changed);
   }
 
   // ---------------------------------------------------------------------------
@@ -826,35 +874,63 @@ export class StorageService implements NotePersistenceStorage {
 
   async appendEvents(rows: EventRecord[]): Promise<void> {
     if (rows.length === 0) return;
-    await this.storage.transaction(['events'], 'readwrite', async (tx) => {
+    let catalogChanged = false;
+    await this.storage.transaction(['events', ...CATALOG_MUTATION_STORES], 'readwrite', async (tx) => {
       const store = tx.readwrite('events');
+      const byResult = new Map<string, EventRecord[]>();
       for (const row of rows) {
         await store.put(row);
+        if (row.resultId) {
+          const list = byResult.get(row.resultId);
+          if (list) list.push(row);
+          else byResult.set(row.resultId, [row]);
+        }
+      }
+      for (const [resultId, resultRows] of byResult) {
+        if (await applyCatalogEventUpsert(tx, resultId, resultRows)) {
+          catalogChanged = true;
+        }
       }
     });
+    this.markCatalogChanged(catalogChanged);
   }
 
   async finalizeSummaries(resultId: string, rows: EventRecord[]): Promise<void> {
-    await this.storage.transaction(['events'], 'readwrite', async (tx) => {
+    let catalogChanged = false;
+    await this.storage.transaction(['events', ...CATALOG_MUTATION_STORES], 'readwrite', async (tx) => {
       const store = tx.readwrite('events');
       const existing = await store.getAllFromIndex('by-result-grain', [resultId, 'summary']);
+      const replacedIds = new Set<string>();
       for (const row of existing) {
+        replacedIds.add(row.id);
         await store.delete(row.id);
       }
       for (const row of rows) {
         await store.put(row);
       }
+      if (existing.length > 0 || rows.length > 0) {
+        catalogChanged = await applyCatalogEventUpsert(tx, resultId, rows, replacedIds);
+      }
     });
+    this.markCatalogChanged(catalogChanged);
   }
 
   async deleteEvents(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
-    await this.storage.transaction(['events'], 'readwrite', async (tx) => {
+    let catalogChanged = false;
+    await this.storage.transaction(['events', ...CATALOG_MUTATION_STORES], 'readwrite', async (tx) => {
       const store = tx.readwrite('events');
+      const existingRows: EventRecord[] = [];
       for (const id of ids) {
+        const found = await store.get(id);
+        if (found) existingRows.push(found);
         await store.delete(id);
       }
+      if (existingRows.length > 0) {
+        catalogChanged = await applyCatalogEventDelete(tx, existingRows);
+      }
     });
+    this.markCatalogChanged(catalogChanged);
   }
 
   async getEventsForNote(noteId: string): Promise<EventRecord[]> {

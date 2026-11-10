@@ -278,13 +278,12 @@ export function DashboardViewPage() {
       if (!source?.editable || !source.noteId) return;
       void journalNotes.getById(source.noteId).then(async (note) => {
         const { meta, body } = parseFrontmatter(note.rawContent);
-        const nextMeta = { ...meta };
+        let nextMeta = { ...meta };
+        delete nextMeta.wql;
         const trimmed = nextWql.trim();
         if (trimmed) {
-          nextMeta.wql = trimmed;
-          nextMeta['dashboard.scope'] = [trimmed];
+          nextMeta = setDashboardTokenValue(nextMeta, 'scope', trimmed);
         } else {
-          delete nextMeta.wql;
           delete nextMeta['dashboard.scope'];
         }
         const raw = `---\n${serializeFrontmatter(nextMeta)}\n---\n${body}`;
@@ -529,6 +528,11 @@ export function DashboardViewPage() {
           composer && composer.mode !== 'add'
             ? composer.widget.body
             : 'sum:totalVolume{}'
+        }
+        initialObject={
+          composer && composer.mode !== 'add'
+            ? composer.widget.queryObject
+            : undefined
         }
         initial={
           composer && composer.mode !== 'add'

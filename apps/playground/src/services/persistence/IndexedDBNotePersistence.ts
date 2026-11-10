@@ -1,24 +1,37 @@
 import { v7 as uuidv7 } from 'uuid';
+import {
+  parseDocumentSections,
+  reconcileNoteBlocks,
+  KNOWN_SECTION_WIDGETS,
+  projectPlacements,
+  resolvePlacements,
+  type PageTarget,
+} from '@bitcobblers/wod-wiki-core';
+import { createParser } from '@bitcobblers/wod-wiki-engine';
+import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
+import type { DomainDetail, DomainPredicate } from '@bitcobblers/wod-wiki-storage';
 
+import type { ScriptBlock, Sessions } from '@/components/Editor/types';
+import { localDateKey } from '@/lib/dateFormat';
+import { extractTypedFrontmatterTags } from '@/lib/frontmatter';
 import { toShortId } from '@/lib/idUtils';
-import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
-import { storageService } from '@/services/storage';
-import type { StorageService } from '@/services/storage/StorageService';
-import type { HistoryRecord } from '@/types/history';
-import type { IContentProvider } from '@/types/content-provider';
-import type { Attachment, EventRecord, Note, Session, BlockRevision } from '@/types/storage';
+import { formatPlaygroundTimestampId } from '@/lib/playgroundDisplay';
+import { captureWellnessFacts } from '@/services/analytics/wellness';
+import { replayResultAnalytics } from '@/services/analytics/workoutDerivation';
+import { storageService, type StorageService } from '@/services/storage';
+import type {
+  AttachmentCreateInput,
+  ContentProviderMode,
+  IContentProvider,
+  NoteRecordPatch,
+  NoteSaveInput,
+} from '@/types/content-provider';
+import type { HistoryQuery, HistoryRecord, ProviderCapabilities } from '@/types/history';
+import type { Attachment, BlockRevision, EventRecord, Note, NoteBlock, Page, Session } from '@/types/storage';
 
 import { resolveAttachmentInput } from './attachmentInput';
 import type { INotePersistence } from './INotePersistence';
 import { sessionToPayload } from './sessionPayload';
-import {
-  replayResultAnalytics,
-} from '@/services/analytics/workoutDerivation';
-import { captureWellnessFacts } from '@/services/analytics/wellness';
-import { createParser } from '@bitcobblers/wod-wiki-engine';
-import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import type { Sessions } from '@/components/Editor/types';
-import { parseDocumentSections, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import {
   NotePersistenceError,
   type CreateNoteInput,
@@ -31,6 +44,24 @@ import {
   type StartedSession,
 } from './types';
 
+const BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
+const MUTATION_STORES = [
+  'notes',
+  'block_revisions',
+  'page',
+  'page_notes',
+  'tags',
+  'note_tags',
+  'tag_types',
+  'sessions',
+  'events',
+  'block_index',
+  'block_efforts',
+  'block_equipment',
+  'efforts',
+  'equipment',
+] as const;
+
 function sortNewest(results: Session[]): Session[] {
   return [...results].sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -39,19 +70,79 @@ function limitResults(results: Session[], limit?: number): Session[] {
   return limit == null ? results : results.slice(0, limit);
 }
 
-export class IndexedDBNotePersistence implements INotePersistence {
+function entryFromDomainRow(row: DomainDetail): HistoryRecord {
+  const placements = resolvePlacements(row.links, row.pages);
+  const projection = projectPlacements(placements);
+  return {
+    id: row.note.id,
+    title: row.note.title,
+    slug: projection.pageSlug,
+    pageId: projection.pageId,
+    journalDate: projection.journalDate,
+    placements,
+    createdAt: row.note.createdAt,
+    updatedAt: row.note.createdAt,
+    targetDate: row.note.date ?? row.note.createdAt,
+    rawContent: row.note.rawContent,
+    blocks: row.note.blocks,
+    sourceRevision: row.note.sourceRevision,
+    tags: row.tags.map(tag => tag.label),
+    type: row.note.type ?? 'note',
+    sourceId: row.note.sourceId,
+    notebookId: row.note.notebookId,
+    seedOrigin: row.note.seedOrigin,
+    schemaVersion: 1,
+  };
+}
+
+function entryDateWindow(query?: HistoryQuery): { start: number; end: number } | undefined {
+  if (query?.dateRange) return query.dateRange;
+  if (query?.daysBack != null) {
+    const end = Date.now();
+    return { start: end - query.daysBack * 86_400_000, end };
+  }
+  return undefined;
+}
+
+/**
+ * Unified IndexedDB-backed note persistence & content provider.
+ *
+ * Consolidates `INotePersistence` (high-level note, session, and replay API)
+ * and `IContentProvider` (record CRUD, placements, tags, and attachments)
+ * into a single service over `StorageService`.
+ */
+export class IndexedDBNotePersistence implements INotePersistence, IContentProvider {
+  readonly mode: ContentProviderMode = 'history';
+  readonly capabilities: ProviderCapabilities = {
+    canWrite: true,
+    canDelete: true,
+    canFilter: true,
+    canMultiSelect: true,
+    supportsHistory: true,
+  };
+
   constructor(
     private readonly storage: StorageService = storageService,
-    private readonly contentProvider: IContentProvider = new IndexedDBContentProvider(storage),
+    private readonly contentProviderOverride?: IContentProvider,
   ) {}
 
+  get persistenceStorage(): StorageService {
+    return this.storage;
+  }
+
+  private get provider(): IContentProvider {
+    return this.contentProviderOverride ?? this;
+  }
+
+  // ── INotePersistence ───────────────────────────────────────────────────────
+
   async createNote(input: CreateNoteInput): Promise<HistoryRecord> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     const existing = await this.storage.getNote(input.id);
     if (existing) {
       throw new Error(`Note already exists: ${input.id}`);
     }
-    return this.contentProvider.saveRecord({
+    return this.provider.saveRecord({
       id: input.id,
       title: input.title,
       rawContent: input.rawContent,
@@ -65,7 +156,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
   }
 
   async getNote(locator: NoteLocator, options: GetNoteOptions = {}): Promise<HistoryRecord> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     const note = await this.resolveNote(locator);
     if (!note) {
       throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
@@ -74,7 +165,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
     const projection = options.projection ?? 'workbench';
     const includeSections = options.includeSections ?? projection !== 'summary';
     const includeAttachments = options.includeAttachments ?? false;
-    const baseEntry = await this.contentProvider.getRecord(note.id);
+    const baseEntry = await this.provider.getRecord(note.id);
     if (!baseEntry) {
       throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
     }
@@ -100,23 +191,13 @@ export class IndexedDBNotePersistence implements INotePersistence {
       return Promise.all(
         query.ids.map(id => this.getNote(id, {
           projection,
-          // Mirror the list branch: history-detail means "every result for the
-          // note", not the default 'latest' single-result projection. Without
-          // this, callers like the canvas that load via listNotes({ids}) get an
-          // entry with no extendedResults, so the inline results bar never
-          // hydrates on reload.
           ...(projection === 'history-detail' && { resultSelection: { mode: 'all-for-note' as const } }),
         })),
       );
     }
 
-    let entries = await this.contentProvider.getRecords(query);
+    let entries = await this.provider.getRecords(query);
     if (query.journalDate) {
-      // A note is on a date page when one of its placements sits on that
-      // date's page — not only when the date is the note's primary one.
-      // The placements list is always present but may be empty; a note with
-      // no placements is not on any page, so the primary-date fallback
-      // applies only when the membership list is non-empty.
       entries = entries.filter(entry =>
         entry.placements && entry.placements.length > 0
           ? entry.placements.some(placement => placement.date === query.journalDate)
@@ -147,12 +228,9 @@ export class IndexedDBNotePersistence implements INotePersistence {
   }
 
   async mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryRecord> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     const note = await this.resolveNote(locator);
     if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
-    // Pre-flight: reject a stale draft before opening the wide write
-    // transaction. The in-transaction expectedSourceRevision check in
-    // saveNoteSource remains the authoritative race guard.
     if (mutation.expectedSourceRevision !== undefined && mutation.expectedSourceRevision !== note.sourceRevision) {
       throw new NotePersistenceError('STALE_SOURCE', `Note ${note.id} changed since it was loaded`);
     }
@@ -161,19 +239,31 @@ export class IndexedDBNotePersistence implements INotePersistence {
     await this.storage.withTransaction(
       ['notes', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'block_revisions', 'sessions', 'events', 'attachments', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'],
       async scoped => {
-        const provider = new IndexedDBContentProvider(scoped);
-        await provider.updateRecord(note.id, { ...mutation.metadata, rawContent: mutation.rawContent,
-          blocks: mutation.blocks, expectedSourceRevision: mutation.expectedSourceRevision,
-          results: mutation.workoutResult?.data, blockId: mutation.workoutResult?.blockId,
-          blockVersion: mutation.workoutResult?.blockVersion, blockContentId: mutation.workoutResult?.blockContentId,
-          origin: mutation.workoutResult?.origin, resultId: mutation.workoutResult?.id });
+        const scopedProvider = new IndexedDBNotePersistence(scoped);
+        await scopedProvider.updateRecord(note.id, {
+          ...mutation.metadata,
+          rawContent: mutation.rawContent,
+          blocks: mutation.blocks,
+          expectedSourceRevision: mutation.expectedSourceRevision,
+          results: mutation.workoutResult?.data,
+          blockId: mutation.workoutResult?.blockId,
+          blockVersion: mutation.workoutResult?.blockVersion,
+          blockContentId: mutation.workoutResult?.blockContentId,
+          origin: mutation.workoutResult?.origin,
+          resultId: mutation.workoutResult?.id,
+        });
         if (mutation.rawContent !== undefined && mutation.rawContent !== note.rawContent) {
-          const entry = await provider.getRecord(note.id);
+          const entry = await scopedProvider.getRecord(note.id);
           await captureWellnessFacts(note.id, mutation.rawContent, scoped, { targetDate: entry?.targetDate });
         }
         for (const attachment of resolvedAttachments) {
-          await scoped.saveAttachment({ ...attachment, id: attachment.id ?? uuidv7(), noteId: note.id,
-            resultId: mutation.workoutResult?.id, createdAt: Date.now() } satisfies Attachment);
+          await scoped.saveAttachment({
+            ...attachment,
+            id: attachment.id ?? uuidv7(),
+            noteId: note.id,
+            resultId: mutation.workoutResult?.id,
+            createdAt: Date.now(),
+          } satisfies Attachment);
         }
         for (const id of mutation.attachments?.remove ?? []) await scoped.deleteAttachment(id);
       },
@@ -182,37 +272,64 @@ export class IndexedDBNotePersistence implements INotePersistence {
   }
 
   async saveNote(input: SaveNoteInput): Promise<HistoryRecord> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     const exists = await this.storage.getNote(input.noteId);
-    if (exists) return this.mutateNote(input.noteId, { rawContent: input.rawContent,
-      blocks: input.blocks, expectedSourceRevision: input.expectedSourceRevision, metadata: input.metadata });
-    if (input.expectedSourceRevision !== 0) throw new NotePersistenceError('STALE_SOURCE', `Note ${input.noteId} no longer exists`);
-    return this.contentProvider.saveRecord({ id: input.noteId, rawContent: input.rawContent,
-      blocks: input.blocks, sourceRevision: 0, title: input.metadata?.title ?? 'Workout Note',
-      tags: input.metadata?.tags ?? [], targetDate: input.metadata?.targetDate ?? Date.now(),
-      journalDate: input.metadata?.journalDate, slug: input.metadata?.slug ?? undefined,
-      type: input.metadata?.type ?? input.noteType, sourceId: input.metadata?.sourceId ?? undefined,
-      createdAt: input.createdAt });
+    if (exists) {
+      return this.mutateNote(input.noteId, {
+        rawContent: input.rawContent,
+        blocks: input.blocks,
+        expectedSourceRevision: input.expectedSourceRevision,
+        metadata: input.metadata,
+      });
+    }
+    if (input.expectedSourceRevision !== 0) {
+      throw new NotePersistenceError('STALE_SOURCE', `Note ${input.noteId} no longer exists`);
+    }
+    return this.provider.saveRecord({
+      id: input.noteId,
+      rawContent: input.rawContent,
+      blocks: input.blocks,
+      sourceRevision: 0,
+      title: input.metadata?.title ?? 'Workout Note',
+      tags: input.metadata?.tags ?? [],
+      targetDate: input.metadata?.targetDate ?? Date.now(),
+      journalDate: input.metadata?.journalDate,
+      slug: input.metadata?.slug ?? undefined,
+      type: input.metadata?.type ?? input.noteType,
+      sourceId: input.metadata?.sourceId ?? undefined,
+      createdAt: input.createdAt,
+    });
   }
 
   async startSession(input: SaveNoteInput, session: Omit<Session, 'blockVersion'>): Promise<StartedSession> {
-    await this.contentProvider.persistenceReady;
-    if (session.noteId !== input.noteId) throw new NotePersistenceError('RESULT_NOTE_MISMATCH', 'Session belongs to another Note');
+    await this.provider.persistenceReady;
+    if (session.noteId !== input.noteId) {
+      throw new NotePersistenceError('RESULT_NOTE_MISMATCH', 'Session belongs to another Note');
+    }
     return this.storage.withTransaction(
       ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types'],
       async scoped => {
-        const persistence = new IndexedDBNotePersistence(scoped, new IndexedDBContentProvider(scoped));
-        await persistence.saveNote(input);
+        const scopedPersistence = new IndexedDBNotePersistence(scoped);
+        await scopedPersistence.saveNote(input);
         const note = await scoped.getNote(input.noteId);
         const block = note?.blocks[session.blockId];
-        if (!note || !block || block.kind !== 'wod') throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Selected workout is not in the saved Note');
+        if (!note || !block || block.kind !== 'wod') {
+          throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Selected workout is not in the saved Note');
+        }
         const revision = await scoped.getBlockRevision(note.id, block.id, block.version);
-        if (!revision) throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Selected workout revision is missing');
+        if (!revision) {
+          throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Selected workout revision is missing');
+        }
         const existing = await scoped.getSessionById(session.id);
         if (existing) throw new Error(`Session already exists: ${session.id}`);
-        const section = parseDocumentSections(revision.rawContent, { registeredWidgets: KNOWN_SECTION_WIDGETS }).find(section => section.scriptBlock);
-        const pinned: Session = { ...session, blockId: block.id, blockVersion: revision.version,
-          blockContentId: section?.scriptBlock?.contentId, status: 'in-progress' };
+        const section = parseDocumentSections(revision.rawContent, BLOCK_OPTIONS).find(sec => sec.scriptBlock);
+        const pinned: Session = {
+          ...session,
+          blockId: block.id,
+          blockVersion: revision.version,
+          blockContentId: section?.scriptBlock?.contentId,
+          status: 'in-progress',
+        };
         await scoped.saveSession(pinned);
         return { note, revision, session: pinned };
       },
@@ -220,25 +337,36 @@ export class IndexedDBNotePersistence implements INotePersistence {
   }
 
   async finishSession(sessionId: string, data: Sessions, createdAt?: number): Promise<Session> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     return this.storage.withTransaction(['sessions', 'block_revisions', 'events'], async scoped => {
       const previous = await scoped.getSessionById(sessionId);
       if (!previous) throw new NotePersistenceError('RESULT_NOT_FOUND', `Session not found: ${sessionId}`);
       const revision = await scoped.getBlockRevision(previous.noteId, previous.blockId, previous.blockVersion);
       if (!revision) throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Pinned workout revision is missing');
-      const session: Session = { ...previous, startTime: data.startTime, endTime: data.endTime,
-        duration: data.duration ?? 0, roundsCompleted: data.roundsCompleted, totalRounds: data.totalRounds,
-        repsCompleted: data.repsCompleted, completed: data.completed,
-        // finishSession is the lifecycle finalize: the row is final whether
-        // the workout completed or the user stopped early. `completed:false`
-        // already records the partial outcome; leaving status 'in-progress'
-        // would claim a resumable session that no caller resumes.
-        status: 'completed', createdAt: createdAt ?? previous.createdAt };
+      const session: Session = {
+        ...previous,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        duration: data.duration ?? 0,
+        roundsCompleted: data.roundsCompleted,
+        totalRounds: data.totalRounds,
+        repsCompleted: data.repsCompleted,
+        completed: data.completed,
+        status: 'completed',
+        createdAt: createdAt ?? previous.createdAt,
+      };
       await scoped.saveSession(session);
       if (data.logs?.length) {
-        const identity = { noteId: session.noteId, resultId: session.id, blockId: session.blockId,
-          blockVersion: session.blockVersion, blockContentId: session.blockContentId,
-          origin: session.origin, pageId: session.pageId, workoutTimestamp: session.endTime };
+        const identity = {
+          noteId: session.noteId,
+          resultId: session.id,
+          blockId: session.blockId,
+          blockVersion: session.blockVersion,
+          blockContentId: session.blockContentId,
+          origin: session.origin,
+          pageId: session.pageId,
+          workoutTimestamp: session.endTime,
+        };
         await scoped.appendEvents(toEventRows(data.logs, identity));
         await scoped.finalizeSummaries(session.id, toSummaryEventRows(data.logs, identity));
       }
@@ -247,36 +375,37 @@ export class IndexedDBNotePersistence implements INotePersistence {
   }
 
   async getBlockRevision(noteId: string, blockId: string, version: number): Promise<BlockRevision | undefined> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     return this.storage.getBlockRevision(noteId, blockId, version);
   }
 
   async getBlockHistory(noteId: string, blockId: string): Promise<BlockRevision[]> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     return this.storage.getBlockHistory(noteId, blockId);
   }
 
   async getNoteBlockHistory(noteId: string): Promise<BlockRevision[]> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     return this.storage.getNoteBlockHistory(noteId);
   }
 
   async deleteNote(locator: NoteLocator): Promise<void> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     const note = await this.resolveNote(locator);
     if (!note) {
       throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${this.describeLocator(locator)}`);
     }
-    await this.contentProvider.deleteRecord(note.id);
+    await this.provider.deleteRecord(note.id);
   }
+
   async getSessionById(sessionId: string): Promise<Session | undefined> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     return this.storage.getSessionById(sessionId);
   }
 
   /** Replay only the immutable workout incarnation pinned at start. */
   async rederiveResultAnalytics(resultId: string): Promise<Session> {
-    await this.contentProvider.persistenceReady;
+    await this.provider.persistenceReady;
     const result = await this.storage.getSessionById(resultId);
     if (!result) {
       throw new NotePersistenceError('RESULT_NOT_FOUND', `Result not found: ${resultId}`);
@@ -287,17 +416,19 @@ export class IndexedDBNotePersistence implements INotePersistence {
     if (!scriptBlock || revision?.kind !== 'wod') {
       throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', `Cannot re-derive result ${resultId}: pinned workout revision is missing`);
     }
-    const block = { ...scriptBlock, id: result.blockId, version: result.blockVersion,
-      dialect: revision.dialect, sport: revision.sport,
-      statements: createParser().read(scriptBlock.content, revision.sport).statements };
+    const block: ScriptBlock = {
+      ...scriptBlock,
+      results: undefined,
+      id: result.blockId,
+      version: result.blockVersion,
+      dialect: revision.dialect,
+      sport: revision.sport,
+      widgetIds: {},
+      statements: createParser().read(scriptBlock.content, revision.sport).statements,
+    };
     const events = this.storage.getEventsByResult ? await this.storage.getEventsByResult(resultId) : [];
     const derivedLogs = replayResultAnalytics(block, events);
 
-    // Event rows are the authoritative store (V21): purge the previous
-    // projection and write the replayed rows so the result converges to
-    // exactly one row set — re-running this is idempotent. Purge + rewrite
-    // commit as ONE events transaction: a failed write rolls the delete back
-    // too (the old warn-and-return lost the previous projection outright).
     if (this.storage.appendEvents && this.storage.finalizeSummaries) {
       const identity = {
         noteId: result.noteId,
@@ -311,7 +442,7 @@ export class IndexedDBNotePersistence implements INotePersistence {
       };
       await this.storage.withTransaction(['events'], async scoped => {
         if (events.length > 0) {
-          await scoped.deleteEvents(events.map((row) => row.id));
+          await scoped.deleteEvents(events.map(row => row.id));
         }
         await scoped.appendEvents(toEventRows(derivedLogs, identity));
         await scoped.finalizeSummaries(result.id, toSummaryEventRows(derivedLogs, identity));
@@ -319,6 +450,331 @@ export class IndexedDBNotePersistence implements INotePersistence {
     }
 
     return result;
+  }
+
+  async getSimilarSessions(
+    blockContentId: string,
+    options: { excludeNoteId?: string; includePlayground?: boolean; limit?: number } = {},
+  ): Promise<Session[]> {
+    let results = await this.storage.getSessionsByContentId(blockContentId);
+    if (options.excludeNoteId) {
+      results = results.filter(r => r.noteId !== options.excludeNoteId);
+    }
+    if (!options.includePlayground) {
+      results = results.filter(r => r.origin !== 'playground');
+    }
+    return limitResults(sortNewest(results), options.limit);
+  }
+
+  // ── IContentProvider ───────────────────────────────────────────────────────
+
+  async getRecords(query?: HistoryQuery): Promise<HistoryRecord[]> {
+    const window = entryDateWindow(query);
+    const selection: DomainPredicate[] = [];
+    if (window) selection.push({ field: 'date', start: window.start, end: window.end });
+    for (const tag of query?.tags ?? []) selection.push({ field: 'tags', values: [tag] });
+    const result = await this.storage.queryDomain(selection.length ? { plan: 'detail', selection } : { plan: 'detail' });
+    let entries: HistoryRecord[];
+    if (result?.plan === 'detail') entries = result.rows.map(entryFromDomainRow);
+    else {
+      const candidates = window ? await this.storage.getNotesByDateRange(window.start, window.end) : await this.storage.getAllNotes();
+      const bundles = await this.storage.getDetailBatches(candidates.map(note => note.id));
+      entries = [...bundles.values()].map(entryFromDomainRow);
+    }
+    entries = entries.filter(entry =>
+      (!window || (entry.targetDate >= window.start && entry.targetDate <= window.end))
+      && (query?.tags ?? []).every(tag => entry.tags.includes(tag)));
+    return entries.sort((a, b) => b.targetDate - a.targetDate);
+  }
+
+  async getRecord(id: string): Promise<HistoryRecord | null> {
+    const note = await this.resolveStoredNote(id);
+    if (!note) return null;
+    const bundle = (await this.storage.getDetailBatches([note.id])).get(note.id);
+    if (!bundle) return null;
+    const entry = entryFromDomainRow(bundle);
+    const latest = (await this.storage.getSessionsForNote(note.id)).sort((a, b) => b.createdAt - a.createdAt)[0];
+    const sections = parseDocumentSections(note.rawContent, BLOCK_OPTIONS).map(section => {
+      const block = Object.values(note.blocks as Record<string, NoteBlock>).find(b => b.from === section.from && b.to === section.to);
+      if (!block) return section;
+      return {
+        ...section,
+        id: block.id,
+        version: block.version,
+        scriptBlock: section.scriptBlock ? { ...section.scriptBlock, id: block.id, version: block.version } : undefined,
+      };
+    });
+    return {
+      ...entry,
+      sections,
+      results: latest ? sessionToPayload(latest, await this.storage.getEventsByResult(latest.id)) : undefined,
+    };
+  }
+
+  async cloneRecord(sourceId: string, targetDate?: number): Promise<HistoryRecord> {
+    const source = await this.getRecord(sourceId);
+    if (!source) throw new Error(`Source entry not found: ${sourceId}`);
+    const date = targetDate ?? Date.now();
+    return this.saveRecord({
+      title: source.title,
+      rawContent: source.rawContent,
+      tags: source.tags,
+      targetDate: date,
+      journalDate: localDateKey(new Date(date)),
+      type: 'journal',
+      sourceId: source.id,
+    });
+  }
+
+  async saveRecord(entry: NoteSaveInput): Promise<HistoryRecord> {
+    const now = Date.now();
+    let noteId = entry.id ?? (entry.type === 'playground' ? formatPlaygroundTimestampId(now) : uuidv7());
+    if (!entry.id && entry.type === 'playground') {
+      const base = noteId;
+      for (let suffix = 1; await this.storage.getNote(noteId); suffix++) {
+        if (suffix > 100) throw new Error('Unable to allocate unique playground timestamp ID');
+        noteId = `${base}-${suffix}`;
+      }
+    }
+    await this.storage.withTransaction([...MUTATION_STORES], async scoped => {
+      const previous = await scoped.getNote(noteId);
+      const expected = previous ? entry.sourceRevision : 0;
+      if (expected === undefined) {
+        throw new NotePersistenceError('STALE_SOURCE', `An expected source revision is required for ${noteId}`);
+      }
+      const scopedPersistence = new IndexedDBNotePersistence(scoped);
+      const tags = await scopedPersistence.changedManualTags(noteId, entry.tags);
+      const blocks = entry.blocks ?? (
+        previous?.rawContent === entry.rawContent
+          ? previous.blocks
+          : reconcileNoteBlocks(entry.rawContent, { ...BLOCK_OPTIONS, sourceRevision: expected || 1 })
+      );
+      await scoped.saveNoteSource({
+        noteId,
+        rawContent: entry.rawContent,
+        blocks,
+        expectedSourceRevision: expected,
+        createdAt: entry.createdAt,
+        metadata: {
+          title: entry.title,
+          type: entry.type,
+          tags,
+          targetDate: entry.targetDate,
+          sourceId: entry.sourceId,
+        },
+      });
+      await scopedPersistence.updateRelationships(noteId, { journalDate: entry.journalDate, slug: entry.slug });
+      await scopedPersistence.updateTags(noteId, entry.rawContent, tags);
+    });
+    const saved = await this.getRecord(noteId);
+    if (!saved) throw new Error(`Saved note disappeared: ${noteId}`);
+    return saved;
+  }
+
+  async updateRecord(id: string, patch: NoteRecordPatch): Promise<HistoryRecord> {
+    const resolved = await this.resolveStoredNote(id);
+    if (!resolved) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${id}`);
+    await this.storage.withTransaction([...MUTATION_STORES], async scoped => {
+      const note = await scoped.getNote(resolved.id);
+      if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${resolved.id}`);
+      const rawContent = patch.rawContent ?? note.rawContent;
+      if (patch.rawContent !== undefined && patch.expectedSourceRevision === undefined) {
+        throw new NotePersistenceError('STALE_SOURCE', `An expected source revision is required for ${note.id}`);
+      }
+      const expected = patch.expectedSourceRevision ?? note.sourceRevision;
+      const scopedPersistence = new IndexedDBNotePersistence(scoped);
+      const tags = patch.tags === undefined ? undefined : await scopedPersistence.changedManualTags(note.id, patch.tags);
+      const blocks = patch.blocks ?? (
+        rawContent === note.rawContent
+          ? note.blocks
+          : reconcileNoteBlocks(rawContent, { ...BLOCK_OPTIONS, sourceRevision: expected })
+      );
+      await scoped.saveNoteSource({
+        noteId: note.id,
+        rawContent,
+        blocks,
+        expectedSourceRevision: expected,
+        metadata: {
+          title: patch.title,
+          type: patch.type,
+          tags,
+          targetDate: patch.targetDate,
+          sourceId: patch.sourceId,
+        },
+      });
+      await scopedPersistence.updateRelationships(note.id, patch);
+      if (patch.tags !== undefined || rawContent !== note.rawContent) {
+        await scopedPersistence.updateTags(note.id, rawContent, tags);
+      }
+      if (patch.results) {
+        if (!patch.blockId || !patch.blockVersion) throw new Error('Recording a result requires its frozen block pin');
+        const revision = await scoped.getBlockRevision(note.id, patch.blockId, patch.blockVersion);
+        if (!revision || revision.kind !== 'wod') {
+          throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Pinned workout revision not found');
+        }
+        const previous = patch.resultId ? await scoped.getSessionById(patch.resultId) : undefined;
+        if (previous && (previous.noteId !== note.id || previous.blockId !== patch.blockId || previous.blockVersion !== patch.blockVersion)) {
+          throw new NotePersistenceError('RESULT_NOTE_MISMATCH', 'Cannot replace a Session pin');
+        }
+        const data = patch.results;
+        const session: Session = {
+          ...previous,
+          id: patch.resultId ?? uuidv7(),
+          noteId: note.id,
+          blockId: patch.blockId,
+          blockVersion: patch.blockVersion,
+          blockContentId: patch.blockContentId,
+          origin: patch.origin ?? previous?.origin,
+          startTime: data.startTime,
+          endTime: data.endTime,
+          duration: data.duration ?? 0,
+          completed: data.completed,
+          roundsCompleted: data.roundsCompleted,
+          totalRounds: data.totalRounds,
+          repsCompleted: data.repsCompleted,
+          status: 'completed',
+          createdAt: previous?.createdAt ?? data.endTime ?? Date.now(),
+        };
+        await scoped.saveSession(session);
+        if (data.logs?.length) {
+          const identity = {
+            noteId: session.noteId,
+            resultId: session.id,
+            blockId: session.blockId,
+            blockVersion: session.blockVersion,
+            blockContentId: session.blockContentId,
+            origin: session.origin,
+            pageId: session.pageId,
+            workoutTimestamp: session.endTime,
+          };
+          await scoped.appendEvents(toEventRows(data.logs, identity));
+          await scoped.finalizeSummaries(session.id, toSummaryEventRows(data.logs, identity));
+        }
+      }
+    });
+    const updated = await this.getRecord(resolved.id);
+    if (!updated) throw new Error(`Saved note disappeared: ${resolved.id}`);
+    return updated;
+  }
+
+  async addRecordPlacement(id: string, target: PageTarget): Promise<HistoryRecord> {
+    const noteId = await this.resolvePlacementNoteId(id);
+    const page = await this.resolveTargetPage(noteId, target);
+    await this.storage.addNoteToPage(noteId, page.id);
+    const updated = await this.getRecord(noteId);
+    if (!updated) throw new Error(`Saved note disappeared: ${noteId}`);
+    return updated;
+  }
+
+  async removeRecordPlacement(id: string, pageId: string): Promise<HistoryRecord> {
+    const noteId = await this.resolvePlacementNoteId(id);
+    await this.storage.removeNoteFromPage(noteId, pageId);
+    const updated = await this.getRecord(noteId);
+    if (!updated) throw new Error(`Saved note disappeared: ${noteId}`);
+    return updated;
+  }
+
+  async moveRecordPlacement(id: string, fromPageId: string, target: PageTarget): Promise<HistoryRecord> {
+    const noteId = await this.resolvePlacementNoteId(id);
+    const page = await this.resolveTargetPage(noteId, target);
+    await this.storage.moveNoteBetweenPages(noteId, fromPageId, page.id);
+    const updated = await this.getRecord(noteId);
+    if (!updated) throw new Error(`Saved note disappeared: ${noteId}`);
+    return updated;
+  }
+
+  async getPageRecords(slug: string): Promise<HistoryRecord[]> {
+    const page = await this.storage.getPageBySlug(slug);
+    if (!page) return [];
+    const placements = await this.storage.getPagePlacements(page.id);
+    if (placements.length === 0) return [];
+    const bundles = await this.storage.getDetailBatches(placements.map(placement => placement.noteId));
+    return placements
+      .map(placement => bundles.get(placement.noteId))
+      .filter((bundle): bundle is DomainDetail => bundle !== undefined)
+      .map(entryFromDomainRow);
+  }
+
+  async deleteRecord(id: string): Promise<void> {
+    await this.storage.deleteNote(id);
+  }
+
+  async getAttachments(noteId: string): Promise<Attachment[]> {
+    return this.storage.getAttachmentsForNote(noteId);
+  }
+
+  async saveAttachment(noteId: string, attachment: AttachmentCreateInput): Promise<Attachment> {
+    const full: Attachment = { ...attachment, id: attachment.id ?? uuidv7(), noteId, createdAt: Date.now() };
+    await this.storage.saveAttachment(full);
+    return full;
+  }
+
+  async deleteAttachment(id: string): Promise<void> {
+    await this.storage.deleteAttachment(id);
+  }
+
+  // ── Private Helpers ────────────────────────────────────────────────────────
+
+  private async updateRelationships(noteId: string, patch: Pick<NoteRecordPatch, 'journalDate' | 'slug'>): Promise<void> {
+    for (const flavor of ['journalDate', 'slug'] as const) {
+      const value = patch[flavor];
+      if (value === undefined) continue;
+      if (!value) {
+        for (const link of await this.storage.getNotePages(noteId)) {
+          const page = await this.storage.getPage(link.pageId);
+          const matches = flavor === 'journalDate' ? !!page?.date : !!page?.slug && !page.date;
+          if (matches) await this.storage.removeNoteFromPage(noteId, link.pageId);
+        }
+        continue;
+      }
+      const destination = await this.resolvePage(noteId, flavor, value);
+      await this.storage.addNoteToPage(noteId, destination.id);
+    }
+  }
+
+  private async resolvePage(noteId: string, flavor: 'journalDate' | 'slug', value: string): Promise<Page> {
+    if (flavor === 'journalDate') return this.storage.getOrCreatePageForDate(value);
+    const existing = await this.storage.getPageBySlug(value);
+    if (existing) return existing;
+    const page: Page = { id: uuidv7(), slug: value, title: (await this.storage.getNote(noteId))?.title, createdAt: Date.now() };
+    await this.storage.savePage(page);
+    return page;
+  }
+
+  private async resolveTargetPage(noteId: string, target: PageTarget): Promise<Page> {
+    if (target.date) return this.storage.getOrCreatePageForDate(target.date);
+    if (target.slug) return this.resolvePage(noteId, 'slug', target.slug);
+    throw new Error('A placement target needs a date or a slug');
+  }
+
+  private async resolvePlacementNoteId(id: string): Promise<string> {
+    const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
+    const note = await this.storage.getNote(id) ?? (rawId !== id ? await this.storage.getNote(rawId) : undefined);
+    if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${id}`);
+    return note.id;
+  }
+
+  private async resolveStoredNote(id: string): Promise<Note | undefined> {
+    const rawId = id.startsWith('playground/') ? id.slice('playground/'.length) : id;
+    return await this.storage.getNote(id)
+      ?? (rawId !== id ? await this.storage.getNote(rawId) : undefined)
+      ?? await this.storage.getNoteBySlug(id)
+      ?? (rawId !== id ? await this.storage.getNoteBySlug(rawId) : undefined);
+  }
+
+  private async changedManualTags(noteId: string, supplied: string[]): Promise<string[] | undefined> {
+    const current = (await this.storage.getTagsForNote(noteId)).map(tag => tag.label).sort();
+    const next = [...new Set(supplied.map(tag => tag.trim()).filter(Boolean))].sort();
+    return current.length === next.length && current.every((tag, index) => tag === next[index]) ? undefined : next;
+  }
+
+  private async updateTags(noteId: string, rawContent: string, manual?: string[]): Promise<void> {
+    const knownTypes = (await this.storage.getAllTagTypes()).map(type => type.name);
+    const declared = parseDocumentSections(rawContent, BLOCK_OPTIONS)
+      .filter(section => section.type === 'frontmatter')
+      .flatMap(section => extractTypedFrontmatterTags(section.displayContent, knownTypes));
+    const base = manual ?? (await this.storage.getNote(noteId))?.tags ?? [];
+    await this.storage.setNoteTags(noteId, [...base, ...declared.map(tag => tag.type ? tag : tag.label)]);
   }
 
   private async resolveNote(locator: NoteLocator): Promise<Note | undefined> {
@@ -355,27 +811,6 @@ export class IndexedDBNotePersistence implements INotePersistence {
     return typeof locator === 'string'
       ? locator
       : locator.id ?? locator.slug ?? locator.shortId ?? locator.title ?? '<empty locator>';
-  }
-
-
-  /**
-   * Cross-note "similar workouts" read path (Candidate 1 / cross-note-result-
-   * aggregation ADR): every result recorded against the same blockContentId,
-   * across all notes. Playground-origin rows are excluded by default — pass
-   * includePlayground to reveal them. Sorted newest-first.
-   */
-  async getSimilarSessions(
-    blockContentId: string,
-    options: { excludeNoteId?: string; includePlayground?: boolean; limit?: number } = {},
-  ): Promise<Session[]> {
-    let results = await this.storage.getSessionsByContentId(blockContentId);
-    if (options.excludeNoteId) {
-      results = results.filter(r => r.noteId !== options.excludeNoteId);
-    }
-    if (!options.includePlayground) {
-      results = results.filter(r => r.origin !== 'playground');
-    }
-    return limitResults(sortNewest(results), options.limit);
   }
 
   private async selectResults(note: Note, selection: ResultSelection = { mode: 'latest' }): Promise<Partial<HistoryRecord>> {

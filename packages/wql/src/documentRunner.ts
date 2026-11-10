@@ -150,6 +150,8 @@ export function appendSuffixes(queryText: string, window: QueryWindow, groupBy?:
     }
     if (window.kind === 'relative' && !/\blast\b/.test(text)) {
         text += ` last ${window.size}${window.unit}`;
+    } else if (window.kind === 'param' && !/\blast\b/.test(text)) {
+        text += ` last $${window.param}${window.unit ? ` ${window.unit}` : ''}`;
     } else if (window.kind === 'range' && !/\bfrom\b/.test(text)) {
         text += ` from ${window.start}${window.end ? ` to ${window.end}` : ''}`;
     }

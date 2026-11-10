@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/atoms/primitives/button";
 import { ButtonGroup } from "@/components/molecules/ButtonGroup";
 import type { INavActivation } from "@/nav/navTypes";
-import { TEST_IDS } from "@/testing/contracts/TestIdContract";
+import { TEST_IDS } from "@/lib/testIds";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

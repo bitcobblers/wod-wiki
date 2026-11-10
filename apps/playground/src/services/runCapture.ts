@@ -2,6 +2,7 @@ import { createParser } from '@bitcobblers/wod-wiki-engine';
 import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
 import { notePersistence, type INotePersistence, type SaveNoteInput } from '@/services/persistence';
 import { storageService } from '@/services/storage';
+import { getTagIndex } from '@/services/tags/tagCatalogue';
 import type { BlockRevision, Note, ResultOrigin, Session } from '@/types/storage';
 import type { ScriptBlock } from '@/components/Editor/types';
 
@@ -23,7 +24,7 @@ export function blockFromRevision(revision: BlockRevision): ScriptBlock {
     content,
     dialect: revision.dialect,
     sport: revision.sport,
-    statements: createParser().read(content, revision.sport).statements,
+    statements: createParser({ tags: getTagIndex() }).read(content, revision.sport).statements,
     startLine: 0,
     endLine: revision.rawContent.split('\n').length - 1,
     version: revision.version,

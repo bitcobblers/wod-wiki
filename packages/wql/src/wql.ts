@@ -43,9 +43,15 @@ export type Aggregator = WqlAggregator;
 export interface TagValue {
   value: string;
   wildcard: boolean;
+  /** Parameter name (without `$`) when authored as a `$param` atom. */
+  param?: string;
 }
 
 export interface TagFilter {
+  /** `'spreadParam'` when authored as a bare `$param` filter (`{$scope}`); `'kv'` (default) otherwise. */
+  kind?: 'kv' | 'spreadParam';
+  /** Parameter name (without `$`) when `kind === 'spreadParam'`. */
+  param?: string;
   key: string;
   negate: boolean;
   values: TagValue[];
@@ -88,8 +94,10 @@ export interface ParsedAggregateQuery {
   family: 'aggregate';
   raw: string;
   agg: Aggregator;
-  /** Canonical Metric Key (fact row `metricKey`). */
+  /** Canonical Metric Key (fact row `metricKey`), or `$param` when parameterized. */
   metric: string;
+  /** Parameter name (without `$`) when `metric` was authored as `$param`. */
+  metricParam?: string;
   filters: TagFilter[];
   /** Tag keys, or virtual dims: day | week | session | round. */
   groupBy: string[];
@@ -217,7 +225,8 @@ export interface ParsedFindQuery {
  */
 export type QueryWindow =
   | { kind: 'relative'; size: number; unit: 'd' | 'w' }
-  | { kind: 'range'; start: string; end?: string };
+  | { kind: 'range'; start: string; end?: string }
+  | { kind: 'param'; param: string; unit?: 'd' | 'w' };
 
 export type AnyParsedQuery = ParsedAggregateQuery | ParsedFindQuery | ParsedPipelineQuery;
 
@@ -564,8 +573,9 @@ export function normalizeWql(raw: string): { query: string; advisories: string[]
  *  literals (C2). */
 function validateSourceFilter(filters: TagFilter[]): string | undefined {
   for (const f of filters) {
-    if (f.key !== 'source') continue;
+    if (f.kind === 'spreadParam' || f.key !== 'source') continue;
     for (const v of f.values) {
+      if (v.param !== undefined) continue;
       const val = v.value;
       if (val === 'page' || val === 'pages') {
         return `source:${val} is retired — page-ness is handled by type:page or source:guides.`;
@@ -596,8 +606,9 @@ function validateSourceFilter(filters: TagFilter[]): string | undefined {
 }
 function validateSubscribedFilter(filters: TagFilter[]): string | undefined {
   for (const f of filters) {
-    if (f.key !== 'subscribed') continue;
+    if (f.kind === 'spreadParam' || f.key !== 'subscribed') continue;
     for (const v of f.values) {
+      if (v.param !== undefined) continue;
       if (v.value !== 'true' && v.value !== 'false') {
         return `Invalid subscribed: value '${v.value}' — expected true or false`;
       }
@@ -608,8 +619,9 @@ function validateSubscribedFilter(filters: TagFilter[]): string | undefined {
 
 function validateFeedFilter(filters: TagFilter[]): string | undefined {
   for (const f of filters) {
-    if (f.key !== 'feed') continue;
+    if (f.kind === 'spreadParam' || f.key !== 'feed') continue;
     for (const v of f.values) {
+      if (v.param !== undefined) continue;
       if (!v.value && !v.wildcard) {
         return `Invalid feed: value — expected a non-empty feed identifier or wildcard`;
       }
@@ -664,6 +676,9 @@ function toQueryWindow(w: ParsedWqlWindowSuffix | undefined): { window?: QueryWi
   if (w.kind === 'relative') {
     return { window: { kind: 'relative', size: w.size, unit: w.unit } };
   }
+  if (w.kind === 'param') {
+    return { window: { kind: 'param', param: w.param, ...(w.unit ? { unit: w.unit } : {}) } };
+  }
   for (const d of [w.start, w.end]) {
     if (d !== undefined && !isCivilDate(d)) {
       return { error: `Invalid window date "${d}" — expected a real calendar date YYYY-MM-DD` };
@@ -688,11 +703,33 @@ function extractFilters(query: SyntaxNode, text: string): TagFilter[] {
   const filters = query.getChild(terms.Filters);
   if (!filters) return out;
   for (const filter of filters.getChildren(terms.Filter)) {
+    const spreadParamNode = filter.getChild(terms.ParamRef);
+    if (spreadParamNode && !filter.getChild(terms.TagKey)) {
+      const wordNode = spreadParamNode.getChild(terms.Word);
+      const param = wordNode ? text.slice(wordNode.from, wordNode.to) : text.slice(spreadParamNode.from + 1, spreadParamNode.to);
+      if (param) {
+        out.push({
+          kind: 'spreadParam',
+          param,
+          key: `$${param}`,
+          negate: false,
+          values: [],
+        });
+      }
+      continue;
+    }
     const keyNode = filter.getChild(terms.TagKey);
     const valueNode = filter.getChild(terms.TagValue);
     if (!keyNode || !valueNode) continue;
-    const values: { value: string; wildcard: boolean }[] = [];
+    const values: TagValue[] = [];
     for (const valueChild of valueNode.getChildren(terms.Value)) {
+      const paramNode = valueChild.getChild(terms.ParamRef);
+      if (paramNode) {
+        const wordNode = paramNode.getChild(terms.Word);
+        const param = wordNode ? text.slice(wordNode.from, wordNode.to) : text.slice(paramNode.from + 1, paramNode.to);
+        if (param) values.push({ value: `$${param}`, wildcard: false, param });
+        continue;
+      }
       // Each Value is `Word(:Word)?Star?` or a quoted phrase `"..."` per the
       // grammar. Slice its source text; a quoted node (#867) carries its
       // surrounding quotes (stripped here), a word value strips a trailing
@@ -818,6 +855,7 @@ function parseAggregateQuery(raw: string, opts: { colon: boolean; inheritedMetri
       return base;
     } else {
       base.metric = mf.values[0]!.value;
+      if (mf.values[0]!.param) base.metricParam = mf.values[0]!.param;
     }
   } else {
     // Legacy head — agg:metric. Unknown aggregators are a semantic error,
@@ -833,13 +871,21 @@ function parseAggregateQuery(raw: string, opts: { colon: boolean; inheritedMetri
     }
     base.agg = aggText as Aggregator;
     base.metric = text.slice(metricNode.from, metricNode.to);
+    const metricParamNode = metricNode.getChild(terms.ParamRef);
+    if (metricParamNode) {
+      const w = metricParamNode.getChild(terms.Word);
+      base.metricParam = w ? text.slice(w.from, w.to) : base.metric.slice(1);
+    }
   }
 
   // Content-plane keys on an aggregate are a category error — a fact row
   // has no note text or source. Every other non-structural key is a
   // candidate custom dimension resolved at runtime (factTagValue falls
   // back to row.dimensions), so it is NOT rejected here.
-  const contentKeys = base.filters.map(f => f.key).filter(k => (WQL_CONTENT_ONLY_KEYS as readonly string[]).includes(k));
+  const contentKeys = base.filters
+    .filter((f) => f.kind !== 'spreadParam' && !f.key.startsWith('$'))
+    .map((f) => f.key)
+    .filter((k) => (WQL_CONTENT_ONLY_KEYS as readonly string[]).includes(k));
   if (contentKeys.length > 0) {
     base.error = `Content filter key(s) ${contentKeys.map(k => `"${k}"`).join(', ')} cannot narrow an aggregate — facts carry effort/dimension data, not note text. Aggregate dims: ${WQL_TAG_KEYS.join(', ')}, plus any custom dimension.`;
     return base;
@@ -1175,7 +1221,7 @@ export function findTargetAdvisories(query: ParsedFindQuery): string[] {
   const advisories: string[] = [];
   const target = query.target;
   const supported = allowedFilterTypesForTarget(target, 'find');
-  const ignored = [...new Set(query.filters.filter(f => !supportsWqlFilterKey(target, 'find', f.key)).map(f => f.key))];
+  const ignored = [...new Set(query.filters.filter(f => f.kind !== 'spreadParam' && !f.key.startsWith('$') && !supportsWqlFilterKey(target, 'find', f.key)).map(f => f.key))];
   if (ignored.length) {
     const custom = target === 'segment' || target === 'event' ? ', custom fact dimensions' : '';
     const effortKey = ignored.find(key => (WQL_EFFORT_FILTER_KEYS as readonly string[]).includes(key));

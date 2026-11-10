@@ -27,6 +27,7 @@ export {
   type AnalyticsUnitPreferenceProps,
   type AnalyticsUnit,
 } from './useAnalyticsUnitPreference';
+export { PRBadge, type PRBadgeProps } from './PRBadge';
 export { RowsTable, type RowsTableProps } from './RowsTable';
 export {
   OutputStatementsTable,
@@ -36,6 +37,9 @@ export {
   type OutputFilterPreset,
   type OutputFilterInput,
   type CategorizedMetrics,
+  type SessionTableSortSpec,
+  type InlineMetricEditPayload,
+  type RowPrHighlight,
   DEFAULT_OUTPUT_FILTERS,
   DEFAULT_PRIMARY_FILTER,
   normalizeOutputFilter,

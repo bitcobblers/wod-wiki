@@ -268,8 +268,8 @@ describe('AnalyticsExplorerPage', () => {
     await waitFor(() => expect(noteUpdates.length).toBe(1));
     expect(createdDashboards[0].title).toBe('My Board');
     const raw = noteUpdates[0].rawContent;
-    // The locked widget section: heading + question-less fence, exact WQL.
-    expect(raw).toContain('## PR Volume');
+    // Self-contained YAML ```query fence: title + exact WQL.
+    expect(raw).toContain('title: PR Volume');
     expect(raw).toContain('```query');
     expect(raw).toContain('sum:totalVolume{} where :note{tags:pr,source:journal}');
   });

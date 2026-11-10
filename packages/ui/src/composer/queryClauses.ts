@@ -67,7 +67,8 @@ export type ClauseType =
   | 'plane'
   | 'pipes'
   | 'feed'
-  | 'subscribed';
+  | 'subscribed'
+  | 'scope';
 
 export interface QueryClause {
   id: string;
@@ -230,6 +231,7 @@ export const CLAUSE_META: Record<ClauseType, ClauseMeta> = {
   pipes:     { label: 'Pipes',      inputType: 'freetext', placeholder: '| order by date | limit 10',  placeholderText: '| select | order | limit', icon: '⇥', description: 'Presentation pipes — select/order/limit/offset' },
   feed:       { label: 'Feed',        inputType: 'select',   placeholder: 'core, local, feed id…',       placeholderText: 'feed: [id]',              icon: '📡', description: 'Filter by publishing feed source', prefix: 'feed:' },
   subscribed: { label: 'Subscribed',  inputType: 'select',   placeholder: 'true, false',                 placeholderText: 'subscribed: [true|false]', icon: '⭐', description: 'Filter by notebook subscription state', prefix: 'subscribed:' },
+  scope:      { label: 'Scope Token', inputType: 'freetext', placeholder: '$scope',                      placeholderText: '$scope',                   icon: '🔗', description: 'Dashboard or note scope parameter ($scope)' },
 };
 
 const CUSTOM_FALLBACK_ICON = '\u{1F9E9}';

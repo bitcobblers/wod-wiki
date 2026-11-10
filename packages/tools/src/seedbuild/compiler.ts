@@ -6,6 +6,7 @@ import {
   buildDashboardDocument,
   isDashboardWidgetType,
   parseDashboardNote,
+  parseDocument,
   parseQuery,
   resolveWidgetType,
 } from '@bitcobblers/wod-wiki-wql';
@@ -164,8 +165,15 @@ export function validateDashboardNote(raw: string): string[] {
     if (!isDashboardWidgetType(resolveWidgetType(widget.type))) {
       problems.push(`${where}: unknown widget type '${widget.type}'`);
     }
-    const parsed = parseQuery(widget.body);
-    if (parsed.error !== undefined) problems.push(`${where}: WQL parse error: ${parsed.error}`);
+    if (widget.body.includes('\n')) {
+      const docParsed = parseDocument(widget.body);
+      if (docParsed.diagnostics.length > 0) {
+        problems.push(`${where}: QueryDocument error: ${docParsed.diagnostics[0]}`);
+      }
+    } else {
+      const parsed = parseQuery(widget.body);
+      if (parsed.error !== undefined) problems.push(`${where}: WQL parse error: ${parsed.error}`);
+    }
     for (const ref of [
       ...widget.body.matchAll(/\$([A-Za-z][\w-]*)/g),
       ...Object.values(widget.attributes).flatMap((v) => [...String(v).matchAll(/\$([A-Za-z][\w-]*)/g)]),

@@ -16,58 +16,62 @@ edit them as the meet approaches. e1RM derives from logged sets via
 calc.e1rm (#904), and %1RM intensity (calc.pct1rm) is the Epley-inverse %
 of each set's projected max.
 
-## Squat goal
-How close to the target?
-
-```query:goal-rings goal=$squatGoal
-:segment{effort:back-squat} | :max{metric:calc.e1rm} | :goal-rings{goal:"$squatGoal"}
+```query
+title: Squat goal
+description: How close to the target?
+view: goal-rings
+goal: $squatGoal
+query: max:calc.e1rm{effort:back-squat}
 ```
 
-## Bench goal
-How close to the target?
-
-```query:goal-rings goal=$benchGoal
-:segment{effort:bench-press} | :max{metric:calc.e1rm} | :goal-rings{goal:"$benchGoal"}
+```query
+title: Bench goal
+description: How close to the target?
+view: goal-rings
+goal: $benchGoal
+query: max:calc.e1rm{effort:bench-press}
 ```
 
-## Deadlift goal
-How close to the target?
-
-```query:goal-rings goal=$deadliftGoal
-:segment{effort:deadlift} | :max{metric:calc.e1rm} | :goal-rings{goal:"$deadliftGoal"}
+```query
+title: Deadlift goal
+description: How close to the target?
+view: goal-rings
+goal: $deadliftGoal
+query: max:calc.e1rm{effort:deadlift}
 ```
 
-## Estimated 1RM trend
-Is strength actually surging?
-
-```query:timeseries-2
-:segment{} | :max{metric:calc.e1rm} by {effort, week} | :timeseries{}
+```query
+title: Estimated 1RM trend
+description: Is strength actually surging?
+view: timeseries
+span: 2
+query: max:calc.e1rm{} by {effort, week}
 ```
 
-## Tonnage by week
-Enough volume for adaptation?
-
-```query:bar
-:segment{discipline:strength} | :sum{metric:totalVolume} by {week} | :bar{}
+```query
+title: Tonnage by week
+description: Enough volume for adaptation?
+view: bar
+query: sum:totalVolume{discipline:strength} by {week}
 ```
 
-## Average intensity
-Neural demand in the right zone?
-
-```query:timeseries
-:segment{discipline:strength} | :avg{metric:calc.pct1rm} by {week} | :timeseries{}
+```query
+title: Average intensity
+description: Neural demand in the right zone?
+view: timeseries
+query: avg:calc.pct1rm{discipline:strength} by {week}
 ```
 
-## Volume by lift
-Main lifts vs accessories balance?
-
-```query:toplist
-:segment{discipline:strength} | :sum{metric:totalVolume} by {effort} | :toplist{}
+```query
+title: Volume by lift
+description: Main lifts vs accessories balance?
+view: toplist
+query: sum:totalVolume{discipline:strength} by {effort}
 ```
 
-## Session strain
-Is fatigue outpacing recovery?
-
-```query:timeseries
-:segment{discipline:strength} | :sum{metric:sessionLoad} by {week} | :timeseries{}
+```query
+title: Session strain
+description: Is fatigue outpacing recovery?
+view: timeseries
+query: sum:sessionLoad{discipline:strength} by {week}
 ```

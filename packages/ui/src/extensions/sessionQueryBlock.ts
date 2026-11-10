@@ -5,6 +5,10 @@ export function sessionQueryWql(resultId: string): string {
   return `:session{result:${resultId}}`;
 }
 
+export function sessionQueryFence(resultId: string): string {
+  return `\`\`\`query\n${sessionQueryWql(resultId)}\n\`\`\``;
+}
+
 export function sessionQueryInsert(
   state: EditorState,
   blockId: string,
@@ -17,6 +21,6 @@ export function sessionQueryInsert(
   }
   return {
     from: section.to,
-    insert: `\n\n\`\`\`query:table\n${sessionQueryWql(resultId)}\n\`\`\``,
+    insert: `\n\n${sessionQueryFence(resultId)}`,
   };
 }

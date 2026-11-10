@@ -245,10 +245,10 @@ describe('DashboardViewPage widget layers', () => {
 
     fireEvent.click(screen.getByTestId('widget-composer-apply'));
     await waitFor(() => expect(updateCalls).toHaveLength(1));
-    expect(updateCalls[0]).toContain('goal = primary * 0 + 150');
-    expect(updateCalls[0]).toContain('baseline_12w = sum:totalVolume{}.rollup(12w)');
-    expect(updateCalls[0]).toContain('secondary = sum:reps{}');
-    expect(updateCalls[0]).toContain('| :timeseries{}');
+    expect(updateCalls[0]).toContain('view: timeseries');
+    expect(updateCalls[0]).toContain('formula: primary * 0 + 150');
+    expect(updateCalls[0]).toContain('query: sum:totalVolume{}.rollup(12w)');
+    expect(updateCalls[0]).toContain('query: sum:reps{}');
   });
 });
 

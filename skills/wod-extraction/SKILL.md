@@ -654,3 +654,43 @@ Use labels as effort names on the round line:
   100m Swim
   :30 Rest
 ```
+
+---
+
+## Query Blocks & Dashboards (`query` Fence: YAML Layout + WQL Selection)
+
+Completed timer sessions emit structured telemetry (`events`) queried via `query` fences in Markdown notes and Dashboard notes (`dashboard: true`).
+
+- **WQL** handles data selection & search (`query:` / `series[].query:`, URL `?q=`, `$scope`):
+  - Content heads: `:session{result:<id>}`, `:note{tags:benchmark}`, `:segment{effort:back-squat}`, `:effort{discipline:strength}`
+  - Aggregate heads: `sum:totalVolume{discipline:strength} by {week}`, `max:calc.e1rm{effort:back-squat}`, `avg:tis{} last 8w`
+  - First-class `$param` AST references: `{$scope}`, `{effort:$effort}`, `sum:$metric{}`, `last $weeks w`
+- **1-Line Shorthand** (default post-timer table block):
+  ````markdown
+  ```query
+  :session{result:0196ed40-8a1c-7000-8000-000000000001}
+  ```
+  ````
+- **Self-Contained YAML Form** (dashboards & customized note widgets — owns layout, view, span, goals, columns, sorting, and multi-series formulas):
+  ````yaml
+  ```query
+  title: Weekly Strength Tonnage
+  description: Is volume rising relative to the 4-week baseline?
+  view: timeseries
+  span: 2
+  window: 8w
+  groupBy: [week]
+  series:
+    - id: tonnage
+      label: Weekly Tonnage
+      query: sum:totalVolume{discipline:strength, $scope}
+    - id: baseline
+      label: 4w Baseline
+      query: avg:totalVolume{discipline:strength, $scope}.rollup(4w)
+    - id: ratio
+      label: Acute Ratio
+      formula: tonnage / baseline
+      unit: ratio
+  ```
+  ````
+  Supported `view:` values: `table`, `list`, `value`, `timeseries`, `bar`, `donut`, `toplist`, `stacked-bar`, `goal-rings` (`goal: $target`), `zone-distribution` (`targets: [80, 2, 18]`).

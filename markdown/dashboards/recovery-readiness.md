@@ -8,8 +8,8 @@ quality:
 # Recovery & Readiness
 
 Recovery prebuilt — readiness, HRV, sleep, and subjective wellness against
-objective load (monotony, ACWR). Capture the wellness inputs in a journaling
-tion ```wellness fence on a daily note:
+objective load (monotony, ACWR). Capture the wellness inputs in a daily
+note's ```wellness fence:
 
 ```wellness
 soreness: 7
@@ -19,44 +19,45 @@ hrv: 62
 
 Readiness is the composite (soreness-inverted 40% / sleep 30% / HRV 30%).
 
-## Readiness today
-Green-light for intensity?
-
-```query:value
-:segment{} | :last{metric:calc.readiness} | :value{}
+```query
+title: Readiness today
+description: Green-light for intensity?
+view: value
+query: last:calc.readiness{}
 ```
 
-## HRV trend
-Autonomic balance holding?
-
-```query:timeseries-2
-:segment{} | :avg{metric:calc.hrv} by {day} | :timeseries{}
+```query
+title: HRV trend
+description: Autonomic balance holding?
+view: timeseries
+span: 2
+query: avg:calc.hrv{} by {day}
 ```
 
-## Sleep duration
-Hitting the nightly floor?
-
-```query:bar
-:segment{} | :avg{metric:calc.sleep} by {day} | :bar{}
+```query
+title: Sleep duration
+description: Hitting the nightly floor?
+view: bar
+query: avg:calc.sleep{} by {day}
 ```
 
-## Soreness
-Subjective load matching objective?
-
-```query:bar
-:segment{} | :avg{metric:calc.soreness} by {day} | :bar{}
+```query
+title: Soreness
+description: Subjective load matching objective?
+view: bar
+query: avg:calc.soreness{} by {day}
 ```
 
-## Monotony
-Enough day-to-day variation?
-
-```query:timeseries
-:segment{} | :avg{metric:calc.monotony} by {day} | :timeseries{}
+```query
+title: Monotony
+description: Enough day-to-day variation?
+view: timeseries
+query: avg:calc.monotony{} by {day}
 ```
 
-## Load balance (ACWR)
-Inside the 0.8–1.3 sweet spot all block?
-
-```query:timeseries
-:segment{} | :avg{metric:calc.acwr} by {day} | :timeseries{}
+```query
+title: Load balance (ACWR)
+description: Inside the 0.8–1.3 sweet spot all block?
+view: timeseries
+query: avg:calc.acwr{} by {day}
 ```

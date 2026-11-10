@@ -14,11 +14,8 @@ import { dayPath, notePath, runPath } from '../lib/routes';
 import { formatDateKey } from '../services/dateUtils';
 import { CreateJournalNoteDialog } from '../components/organisms/journal/CreateJournalNoteDialog';
 import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes, takeParkedRun } from '../runtimeStore';
-import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore';
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from '@/components/atoms/primitives/button'
-import { notePersistence } from '@/services/persistence';
-import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import { sessionQueryInsert, sessionQueryWql } from '@bitcobblers/wod-wiki-ui/extensions';
 import { useNotePageNav, wirePageIndexLinks, type NoteHelpfulAction } from './shared/useNotePageNav';
 import { canGoBack, extractPageIndex, mapIndexToL3, appendTimerBlock } from './shared/pageUtils';
@@ -31,7 +28,6 @@ import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
 import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 
 import { JournalPageShell } from '@/panels/page-shells';
-const journalContentProvider = new IndexedDBContentProvider();
 
 interface JournalDatePageProps {
   journalDate: string;
@@ -314,7 +310,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   };
 
   return (
-    <WorkbenchSessionProvider notePersistence={notePersistence} provider={journalContentProvider}>
+    <>
       <JournalPageShell
           title={journalDate}
           subtitle={`${notes.length} ${notes.length === 1 ? 'note' : 'notes'}`}
@@ -487,6 +483,6 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           }}
         />
       )}
-    </WorkbenchSessionProvider>
+    </>
   );
 }

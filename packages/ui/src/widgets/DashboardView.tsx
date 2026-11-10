@@ -168,9 +168,14 @@ export function DashboardView({
 
     async function load() {
       const next: Record<string, WidgetRun> = {};
-      const runnable: Array<{ widget: DashboardWidget; query: string; parsed: AnyParsedQuery }> = [];
+      const runnable: Array<{
+        widget: DashboardWidget;
+        query: string;
+        parsed: AnyParsedQuery;
+        attributes: Record<string, string>;
+      }> = [];
 
-      for (const { widget, query, missing } of resolved) {
+      for (const { widget, query, missing, attributes } of resolved) {
         if (widget.type !== '' && !isDashboardWidgetType(widget.type)) {
           next[widget.key] = { error: unknownWidgetTypeMessage(widget.type) };
           continue;
@@ -199,7 +204,7 @@ export function DashboardView({
           next[widget.key] = { error: 'aggregate queries return numbers — use a chart or value widget instead' };
           continue;
         }
-        runnable.push({ widget, query, parsed });
+        runnable.push({ widget, query, parsed, attributes });
       }
 
       if (!executor) {
@@ -222,7 +227,7 @@ export function DashboardView({
       });
 
       await Promise.all(
-        runnable.map(async ({ widget, query, parsed }) => {
+        runnable.map(async ({ widget, query, parsed, attributes }) => {
           try {
             const runner = new SharedQueryDocumentRunner(host);
             const res = await runner.run(query);
@@ -231,7 +236,7 @@ export function DashboardView({
             // of them, not just the first.
             const error = res.outputs.find((o) => o.error !== undefined)?.error ?? res.diagnostics[0];
             next[widget.key] = {
-              result: outputsToRunResult(parsed, res),
+              result: outputsToRunResult(parsed, res, attributes),
               ...(error ? { error } : {}),
             };
           } catch (err) {

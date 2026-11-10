@@ -9,7 +9,7 @@ import { describe, expect, it } from 'bun:test'
 import { parseQuery } from '@bitcobblers/wod-wiki-engine'
 import type { Entry } from './entryMapper'
 import { groupEntriesByDimension, parseGroupingDimensions } from './entryGrouping'
-import { formatDateHeader } from './dateFormat'
+import { formatDateHeader } from '@/lib/dateFormat'
 
 function entry(id: string, overrides: Partial<Entry> = {}): Entry {
   return {

@@ -17,7 +17,7 @@ import {
   type WellnessEventStore,
 } from './wellness';
 import type { EventRecord } from '@/types/storage';
-import { dayBucket } from './rollup/workloadRollup';
+import { dayBucket } from '@bitcobblers/wod-wiki-engine';
 
 const T0 = Date.parse('2026-08-09T12:00:00Z');
 

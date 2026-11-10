@@ -162,20 +162,6 @@ mock.module('@/components/organisms/editor/RuntimeTimerPanel', () => ({
   ),
 }))
 
-mock.module('@/components/organisms/review/ReviewGrid', () => ({
-  ReviewGrid: () => <div data-testid="review-grid" />,
-}))
-mock.module('@/services/AnalyticsTransformer', () => ({
-  getAnalyticsFromRuntime: () => ({
-    segments: [{ id: 1, label: 'segment-1' }],
-    groups: [],
-  }),
-  getAnalyticsFromLogs: () => ({
-    segments: [{ id: 1, label: 'segment-1' }],
-    groups: [],
-  }),
-}))
-
 mock.module('../components/atoms/MacOSChrome', () => ({
   MacOSChrome: ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div data-testid="chrome">

@@ -66,8 +66,8 @@ export interface ParsedDocument {
 }
 
 /** A formula expression: identifiers bound to other assignments, arithmetic,
- *  parentheses, numeric literals, and corr(a, b). */
-const FORMULA_CHARS = /^[\w\s.+\-*/(),]+$/;
+ *  parentheses, numeric literals, $param tokens, and corr(a, b). */
+const FORMULA_CHARS = /^[\w$\s.+\-*/(),]+$/;
 
 /** Extract referenced assignment names from a formula expression. */
 function referencesOf(expression: string, known: Set<string>): string[] {
@@ -105,8 +105,15 @@ export function parseDocument(text: string): ParsedDocument {
             if (byMatch) {
                 defaults.groupBy = byMatch[1]!.split(',').map((d) => d.trim()).filter(Boolean);
             }
-            const lastMatch = /last\s+(\d+)\s*(d|w)/.exec(rest);
-            if (lastMatch) {
+            const lastParamMatch = /last\s+\$([a-zA-Z_][\w-]*)(?:\s*(d|w))?/.exec(rest);
+            const lastMatch = !lastParamMatch ? /last\s+(\d+)\s*(d|w)/.exec(rest) : null;
+            if (lastParamMatch) {
+                defaults.window = {
+                    kind: 'param',
+                    param: lastParamMatch[1]!,
+                    ...(lastParamMatch[2] ? { unit: lastParamMatch[2] as 'd' | 'w' } : {}),
+                };
+            } else if (lastMatch) {
                 defaults.window = { kind: 'relative', size: Number(lastMatch[1]), unit: lastMatch[2] as 'd' | 'w' };
             }
             const fromMatch = /from\s+(\d{4}-\d{2}-\d{2})(?:\s+to\s+(\d{4}-\d{2}-\d{2}))?/.exec(rest);
@@ -314,7 +321,13 @@ export function serializeDocument(doc: QueryDocument): string {
         if (doc.defaults.groupBy?.length) parts.push(`by {${doc.defaults.groupBy.join(', ')}}`);
         if (doc.defaults.window) {
             const w = doc.defaults.window;
-            parts.push(w.kind === 'relative' ? `last ${w.size}${w.unit}` : `from ${w.start}${w.end ? ` to ${w.end}` : ''}`);
+            parts.push(
+                w.kind === 'relative'
+                    ? `last ${w.size}${w.unit}`
+                    : w.kind === 'param'
+                      ? `last $${w.param}${w.unit ? ` ${w.unit}` : ''}`
+                      : `from ${w.start}${w.end ? ` to ${w.end}` : ''}`,
+            );
         }
         if (parts.length > 0) lines.push(`defaults ${parts.join(' ')}`);
     }

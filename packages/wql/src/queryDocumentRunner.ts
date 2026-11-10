@@ -22,7 +22,9 @@
 import type { EventRecord, Note, BlockIndexRow } from '@bitcobblers/wod-wiki-core';
 import { QueryDocumentRunner as FormulaAwareRunner, type DocumentResult, type DocumentOutput, type FormulaEvaluator, type FamilyRunPayload, appendSuffixes } from './documentRunner';
 import { parseDocument, serializeDocument } from './document';
-import { substituteTokens as substituteDashboardTokens } from './dashboard/model';
+import { substituteTokens as substituteDashboardTokens, unknownTokensMessage } from './dashboard/model';
+import { bindQueryParams } from './paramRef';
+import { serialize } from './serialize';
 import { captureContext, type ExecutionContext } from './calendar';
 import type { DocumentAssignment } from './document';
 import type { AnyParsedQuery, QueryWindow } from './wql';
@@ -127,13 +129,63 @@ export class QueryDocumentRunner {
             context: runOptions.context ?? this.initialOptions.context ?? captureContext(),
         };
 
-        // 1. Token substitution — raw text at execution time.
-        const substituted = substituteTokens(text, captured.tokens ?? {});
+        const tokens = captured.tokens ?? {};
 
-        // 3. AST rollup inspection on the substituted text: a calc.* target
+        // 1. Parse document with native $param (ParamRef) AST support first,
+        // binding ParamRef nodes structurally so empty optional filters like
+        // `$scope = ""` drop cleanly instead of leaving trailing-comma errors.
+        const initialParsed = parseDocument(text);
+        let effectiveText: string;
+        if (initialParsed.diagnostics.length === 0 && initialParsed.doc.assignments.length > 0) {
+            const missingAll = new Set<string>();
+            const boundAssignments = initialParsed.doc.assignments.map((a: DocumentAssignment) => {
+                if (a.kind === 'query' && a.parsed && !a.sourceRef) {
+                    const bound = bindQueryParams(a.parsed, tokens);
+                    for (const m of bound.missing) missingAll.add(m);
+                    if (bound.missing.length === 0 && !bound.parsed.error) {
+                        const serialized = serialize(bound.parsed);
+                        return {
+                            ...a,
+                            parsed: bound.parsed,
+                            queryText: serialized,
+                            raw: initialParsed.doc.degenerate ? serialized : `${a.name} = ${serialized}`,
+                        };
+                    }
+                }
+                const subRaw = substituteDashboardTokens(a.raw, tokens);
+                for (const m of subRaw.missing) missingAll.add(m);
+                return { ...a, raw: subRaw.query };
+            });
+            let boundDefaults = initialParsed.doc.defaults;
+            if (boundDefaults?.window?.kind === 'param') {
+                const probe = bindQueryParams(
+                    { family: 'find', raw: ':segment{}', target: 'segment', filters: [], window: boundDefaults.window },
+                    tokens,
+                );
+                for (const m of probe.missing) missingAll.add(m);
+                if (probe.missing.length === 0 && probe.parsed.family === 'find') {
+                    boundDefaults = { ...boundDefaults, window: probe.parsed.window };
+                }
+            }
+            if (missingAll.size > 0) {
+                return {
+                    outputs: [],
+                    diagnostics: [unknownTokensMessage([...missingAll])],
+                };
+            }
+            effectiveText = serializeDocument({
+                ...initialParsed.doc,
+                ...(boundDefaults ? { defaults: boundDefaults } : {}),
+                assignments: boundAssignments,
+            });
+        } else {
+            effectiveText = substituteTokens(text, tokens);
+        }
+
+        // 3. AST rollup inspection on the bound document: a calc.* target
         // in the parsed head — including pipeline transform stages — triggers
         // the host ensure exactly once.
-        const parsed = parseDocument(substituted);
+        const parsed = parseDocument(effectiveText);
         if (parsed.doc.assignments.some((a: DocumentAssignment) => consumesRollupFacts(a.parsed))) {
             await this.host.rollupEnsure?.();
         }
@@ -166,7 +218,7 @@ export class QueryDocumentRunner {
                   }
                 : {}),
         });
-        return formulaRunner.run(substituted);
+        return formulaRunner.run(effectiveText);
     }
 }
 

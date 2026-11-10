@@ -19,7 +19,7 @@ import { getScriptNotebooks, type ScriptNotebook } from '@/repositories/script-n
 import type { HistoryRecord } from '@/types/history'
 import type { Notebook } from '@/types/notebook'
 
-import { formatDateHeader } from '../../../lib/dateFormat'
+import { formatDateHeader } from '@/lib/dateFormat'
 import {
   effortPath,
   equipmentPath,

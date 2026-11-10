@@ -53,6 +53,8 @@ import {
   type TagFilter,
 } from './wql';
 import { WQL_SOURCE_VALUES, WQL_TYPED_TAG_KEYS, type WqlTypedTagKey } from './vocabulary';
+import { bindQueryParams } from './paramRef';
+import { unknownTokensMessage } from './dashboard/model';
 import { convertViaCatalog, resolveOutputUnit } from './units';
 import { projectEventToFacts } from './derivation';
 import { dedupeById, selectContributions, type CoverageReport } from './selection';
@@ -658,6 +660,8 @@ export interface QueryOptions {
   /** Captured execution context (ticket 12) — one `{instant, timeZone}`
    *  capture per document run; defaults to a fresh system capture. */
   context?: ExecutionContext;
+  /** Active `$param` bindings applied to `ParamRef` AST nodes at execution time. */
+  params?: Record<string, string>;
 }
 
 /** Options for `runFind` / `runFindBlock` — overrides for the parsed WQL. */
@@ -673,6 +677,8 @@ export interface FindOptions {
   isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
   /** When true (e.g. pipeline source feeding a numeric reducer), skip container/placement hydration. */
   skipContainers?: boolean;
+  /** Active `$param` bindings applied to `ParamRef` AST nodes at execution time. */
+  params?: Record<string, string>;
 }
 
 export interface QueryResult {
@@ -1503,6 +1509,17 @@ export class QueryService {
     if (parsed.error) {
       return { parsed, notes: [], blocks: [], stages: { selected: 0, matched: 0 } };
     }
+    const bound = bindQueryParams(parsed, options.params ?? {});
+    if (bound.missing.length > 0) {
+      const errored: ParsedFindQuery = { ...parsed, error: unknownTokensMessage(bound.missing) };
+      return { parsed: errored, notes: [], blocks: [], stages: { selected: 0, matched: 0 } };
+    }
+    if (bound.parsed.family === 'find') {
+      parsed = bound.parsed;
+      if (parsed.error) {
+        return { parsed, notes: [], blocks: [], stages: { selected: 0, matched: 0 } };
+      }
+    }
     // Hand-built ASTs get the same loud target-capability disclosure as
     // parsed text — re-derived from the parsed shape, never from raw text.
     const computed = findTargetAdvisories(parsed);
@@ -2042,7 +2059,15 @@ export class QueryService {
       stages: { selected: 0, buckets: 0, aggregated: 0, groups: 0 },
       matched: [],
     };
-    if (parsed.error) return empty;
+    const bound = bindQueryParams(parsed, options.params ?? {});
+    if (bound.missing.length > 0) {
+      const err = unknownTokensMessage(bound.missing);
+      return { ...empty, parsed: { ...parsed, error: err }, error: err };
+    }
+    if (bound.parsed.family === 'aggregate') {
+      parsed = bound.parsed;
+    }
+    if (parsed.error) return { ...empty, parsed, error: parsed.error };
 
     // Cross-store join: reads stored summary rows over the content index —
     // the store is authoritative (finalize-owns, ticket 005).
@@ -2099,7 +2124,15 @@ export class QueryService {
       stages: { selected: 0, buckets: 0, aggregated: 0, groups: 0 },
       matched: [],
     };
-    if (query.error) return empty;
+    const bound = bindQueryParams(query, options.params ?? {});
+    if (bound.missing.length > 0) {
+      const err = unknownTokensMessage(bound.missing);
+      return { ...empty, parsed: { ...query, error: err }, error: err };
+    }
+    if (bound.parsed.family === 'aggregate') {
+      query = bound.parsed;
+    }
+    if (query.error) return { ...empty, parsed: query, error: query.error };
     // A content join resolves its scope from the STORE — that would abandon
     // the carried population. Author the join on the pipeline's source stage
     // instead.
@@ -2129,41 +2162,48 @@ export class QueryService {
       const error = parsed.error ?? `Not a pipeline: "${parsed.raw}". Pipelines look like :source{filters} | :sum{metric:x} | :table.`;
       return { parsed: { family: 'pipeline', raw: parsed.raw, source: { kind: 'dataset', name: '' }, transforms: [], error }, error };
     }
-    const fail = (error: string): PipelineResult => ({ parsed, error });
-    if (parsed.error) return fail(parsed.error);
+    let pipeline: ParsedPipelineQuery = parsed;
+    const fail = (error: string): PipelineResult => ({ parsed: pipeline, error });
+    if (pipeline.error) return fail(pipeline.error);
+    const bound = bindQueryParams(pipeline, options.params ?? {});
+    if (bound.missing.length > 0) return fail(unknownTokensMessage(bound.missing));
+    if (bound.parsed.family === 'pipeline') {
+      pipeline = bound.parsed;
+      if (pipeline.error) return fail(pipeline.error);
+    }
 
     let content: FindQueryResult | undefined;
     let carried: QueryResult | undefined;
     let sourceEvents: EventRecord[] | undefined;
     let datasetNotes: Note[] = [];
 
-    if (parsed.source.kind === 'dataset') {
-      const name = parsed.source.name;
+    if (pipeline.source.kind === 'dataset') {
+      const name = pipeline.source.name;
       const dataset = options.pageSources?.get(name) ?? this.datasetStore?.getDataset(name);
       if (!dataset) return fail(`Unknown dataset "${name}" — the host must register it before the query runs.`);
       sourceEvents = dataset.events;
       datasetNotes = dataset.notes;
-    } else if (isFindQuery(parsed.source.query)) {
-      const q = parsed.source.query;
+    } else if (isFindQuery(pipeline.source.query)) {
+      const q = pipeline.source.query;
       content = await this.runFind(q, {
         context: options.context,
-        skipContainers: parsed.transforms.length > 0,
+        skipContainers: pipeline.transforms.length > 0,
         ...((options.rangeStart !== undefined || options.rangeEnd !== undefined)
           ? { range: { start: options.rangeStart ?? 0, end: options.rangeEnd ?? Number.MAX_SAFE_INTEGER, endExclusive: false } }
           : {}),
       });
       if (q.error) return fail(q.error);
     } else {
-      carried = await this.run(parsed.source.query, options);
-      if (parsed.source.query.error) return fail(parsed.source.query.error);
+      carried = await this.run(pipeline.source.query, options);
+      if (pipeline.source.query.error) return fail(pipeline.source.query.error);
     }
 
-    if (parsed.transforms.length === 0) {
+    if (pipeline.transforms.length === 0) {
       // Source-only pipeline (optionally with a chart sink) — the stage
       // result surfaces as-is, no event resolution.
       if (content) {
         return {
-          parsed,
+          parsed: pipeline,
           ...(content.notes.length ? { notes: content.notes } : {}),
           ...(content.blocks.length ? { blocks: content.blocks } : {}),
           ...(content.efforts?.length ? { efforts: content.efforts } : {}),
@@ -2171,42 +2211,42 @@ export class QueryService {
           ...(content.table ? { table: content.table } : {}),
           ...(content.containers ? { containers: content.containers } : {}),
           ...(content.placements ? { placements: content.placements } : {}),
-          ...(parsed.sink ? { chart: parsed.sink } : {}),
+          ...(pipeline.sink ? { chart: pipeline.sink } : {}),
         };
       }
-      if (parsed.source.kind === 'dataset') {
+      if (pipeline.source.kind === 'dataset') {
         // Dataset alone — its notes are the surface; telemetry flows only
         // through transforms.
-        return { parsed, notes: datasetNotes, ...(parsed.sink ? { chart: parsed.sink } : {}) };
+        return { parsed: pipeline, notes: datasetNotes, ...(pipeline.sink ? { chart: pipeline.sink } : {}) };
       }
       return {
-        parsed,
+        parsed: pipeline,
         ...(carried
           ? { series: carried.series, ...(carried.unit ? { unit: carried.unit } : {}), ...(carried.error ? { error: carried.error } : {}) }
           : {}),
-        ...(parsed.sink ? { chart: parsed.sink } : {}),
+        ...(pipeline.sink ? { chart: pipeline.sink } : {}),
       };
     }
 
     if (!carried) {
       if (!sourceEvents && content) sourceEvents = await this.sourceEventsFromFind(content);
-      carried = await this.runAggregateEvents(parsed.transforms[0]!, sourceEvents ?? [], options);
-      for (const transform of parsed.transforms.slice(1)) {
+      carried = await this.runAggregateEvents(pipeline.transforms[0]!, sourceEvents ?? [], options);
+      for (const transform of pipeline.transforms.slice(1)) {
         if (carried.error) break; // an errored stage stops the pipeline
         carried = reduceCarriedResult(carried, transform, options, runContext(options));
       }
     } else {
-      for (const transform of parsed.transforms) {
+      for (const transform of pipeline.transforms) {
         if (carried.error) break; // an errored stage stops the pipeline
         carried = reduceCarriedResult(carried, transform, options, runContext(options));
       }
     }
     return {
-      parsed,
+      parsed: pipeline,
       series: carried.series,
       ...(carried.unit ? { unit: carried.unit } : {}),
       ...(carried.error ? { error: carried.error } : {}),
-      ...(parsed.sink ? { chart: parsed.sink } : {}),
+      ...(pipeline.sink ? { chart: pipeline.sink } : {}),
     };
   }
   /**

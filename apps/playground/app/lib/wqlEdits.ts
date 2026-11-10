@@ -100,7 +100,6 @@ export function setMetricQuery(query: string, metric: string): string {
       ? { join: { target: sourceHead ?? parsed.target, filters: contentFilters } }
       : {}),
   })
-    .replace(' where find:', ' where :')
     .replace(/ where :(journal|notebooks|playground)$/, ' where :$1{}');
 }
 
@@ -117,6 +116,6 @@ export function withoutWindow(query: string): string {
  *  caller falls back to the per-route view setting. */
 export function withGroupBy(query: string, dimension: string): string {
   const parsed = parseQuery(query);
-  if (parsed.error) return query;
+  if (parsed.error || parsed.family === 'pipeline') return query;
   return serialize({ ...parsed, groupBy: [dimension] });
 }

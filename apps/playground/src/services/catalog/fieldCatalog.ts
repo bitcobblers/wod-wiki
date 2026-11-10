@@ -15,12 +15,35 @@
  */
 
 import type {
+  EventRecord,
+  FieldCatalogEntry,
   FieldContribution,
+  FieldValueRecord,
   Note,
   Session,
 } from '@bitcobblers/wod-wiki-core';
 import { fieldRefKey } from '@bitcobblers/wod-wiki-core';
 import { parseFrontmatter } from '@bitcobblers/wod-wiki-wql';
+import type { IStorageTransaction } from '@/services/storage/IStorage';
+
+const catalogListeners = new Set<() => void>();
+
+export function onFieldCatalogChanged(listener: () => void): () => void {
+  catalogListeners.add(listener);
+  return () => {
+    catalogListeners.delete(listener);
+  };
+}
+
+export function notifyFieldCatalogChanged(): void {
+  for (const listener of catalogListeners) {
+    listener();
+  }
+}
+
+export function fieldValueKey(fieldId: string, value: string): string {
+  return `${fieldId}\u0000${value}`;
+}
 
 /** Multiset identity of one contribution — unit/value/spelling evidence is
  *  part of the reversal record, so an evidence change is a real delta. */
@@ -184,7 +207,9 @@ export function extractContributionsFromNote(note: Note): Array<FieldContributio
     const strValue = String(rawValue).trim();
     if (!strValue || /^[{[>|]/.test(strValue)) continue;
     const path = key
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
       .split(/[\s._-]+/)
+      .filter(Boolean)
       .map((w, i) => (i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
       .join('');
     const numeric = typeof rawValue === 'number' || /^-?\d+(\.\d+)?$/.test(strValue);
@@ -200,4 +225,219 @@ export function extractContributionsFromNote(note: Note): Array<FieldContributio
     });
   }
   return contributions;
+}
+
+/**
+ * Apply the exact contribution set for one source record (`note:<id>` or
+ * `result:<id>`) inside an open storage transaction containing
+ * `field_catalog`, `field_sources`, and `field_values`.
+ *
+ * Returns `true` when at least one catalog or value count changed.
+ */
+export async function applyCatalogSourceContributions(
+  tx: Pick<IStorageTransaction, 'readonly' | 'readwrite'>,
+  sourceId: string,
+  next: Array<FieldContribution & { rowId: string }>,
+  now: number = Date.now(),
+): Promise<boolean> {
+  const previousRecord = await tx.readonly('field_sources').get(sourceId);
+  const previous = previousRecord?.contributions ?? [];
+  const { added, removed } = computeCatalogDeltas(previous, next);
+
+  const sameRowIds =
+    previous.length === next.length &&
+    previous.every(
+      (p, idx) =>
+        p.rowId === next[idx]?.rowId &&
+        p.fieldId === next[idx]?.fieldId &&
+        p.unit === next[idx]?.unit &&
+        p.spelling === next[idx]?.spelling &&
+        p.value === next[idx]?.value,
+    );
+
+  if (added.length === 0 && removed.length === 0 && sameRowIds) {
+    if (next.length === 0 && previousRecord) {
+      await tx.readwrite('field_sources').delete(sourceId);
+    }
+    return false;
+  }
+
+  if (next.length === 0) {
+    if (previousRecord) {
+      await tx.readwrite('field_sources').delete(sourceId);
+    }
+  } else {
+    await tx.readwrite('field_sources').put({ id: sourceId, contributions: next });
+  }
+
+  if (added.length === 0 && removed.length === 0) {
+    return false;
+  }
+
+  const catalogStore = tx.readwrite('field_catalog');
+  const valuesStore = tx.readwrite('field_values');
+
+  const entriesCache = new Map<string, FieldCatalogEntry | null>();
+  const loadEntry = async (fieldId: string): Promise<FieldCatalogEntry | null> => {
+    if (entriesCache.has(fieldId)) return entriesCache.get(fieldId)!;
+    const found = await catalogStore.get(fieldId);
+    const cloned: FieldCatalogEntry | null = found
+      ? {
+          ...found,
+          spellings: { ...(found.spellings ?? {}) },
+          units: { ...(found.units ?? {}) },
+        }
+      : null;
+    entriesCache.set(fieldId, cloned);
+    return cloned;
+  };
+
+  const valuesCache = new Map<string, FieldValueRecord | null>();
+  const loadValue = async (vKey: string): Promise<FieldValueRecord | null> => {
+    if (valuesCache.has(vKey)) return valuesCache.get(vKey)!;
+    const found = await valuesStore.get(vKey);
+    const cloned = found ? { ...found } : null;
+    valuesCache.set(vKey, cloned);
+    return cloned;
+  };
+
+  for (const c of added) {
+    let entry = await loadEntry(c.fieldId);
+    if (!entry) {
+      entry = {
+        id: c.fieldId,
+        path: c.path,
+        kind: c.kind,
+        spellings: {},
+        units: {},
+        sourceCount: 0,
+        firstSeen: now,
+        lastSeen: now,
+      };
+      entriesCache.set(c.fieldId, entry);
+    }
+    entry.sourceCount += 1;
+    entry.lastSeen = Math.max(entry.lastSeen, now);
+    if (c.spelling) {
+      entry.spellings[c.spelling] = (entry.spellings[c.spelling] ?? 0) + 1;
+    }
+    if (c.unit) {
+      entry.units[c.unit] = (entry.units[c.unit] ?? 0) + 1;
+    }
+
+    if (c.value !== undefined) {
+      const vKey = fieldValueKey(c.fieldId, c.value);
+      let valRec = await loadValue(vKey);
+      if (!valRec) {
+        valRec = {
+          key: vKey,
+          fieldId: c.fieldId,
+          value: c.value,
+          sourceCount: 0,
+        };
+        valuesCache.set(vKey, valRec);
+      }
+      valRec.sourceCount += 1;
+    }
+  }
+
+  for (const c of removed) {
+    const entry = await loadEntry(c.fieldId);
+    if (entry) {
+      entry.sourceCount = Math.max(0, entry.sourceCount - 1);
+      if (c.spelling && entry.spellings[c.spelling] !== undefined) {
+        entry.spellings[c.spelling] -= 1;
+        if (entry.spellings[c.spelling]! <= 0) delete entry.spellings[c.spelling];
+      }
+      if (c.unit && entry.units[c.unit] !== undefined) {
+        entry.units[c.unit] -= 1;
+        if (entry.units[c.unit]! <= 0) delete entry.units[c.unit];
+      }
+    }
+
+    if (c.value !== undefined) {
+      const vKey = fieldValueKey(c.fieldId, c.value);
+      const valRec = await loadValue(vKey);
+      if (valRec) {
+        valRec.sourceCount = Math.max(0, valRec.sourceCount - 1);
+      }
+    }
+  }
+
+  for (const [fieldId, entry] of entriesCache) {
+    if (!entry) continue;
+    if (entry.sourceCount <= 0) {
+      await catalogStore.delete(fieldId);
+    } else {
+      await catalogStore.put(entry);
+    }
+  }
+
+  for (const [vKey, valRec] of valuesCache) {
+    if (!valRec) continue;
+    if (valRec.sourceCount <= 0) {
+      await valuesStore.delete(vKey);
+    } else {
+      await valuesStore.put(valRec);
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Incrementally update a `result:<resultId>` source record when event or
+ * summary rows are appended or finalized.
+ */
+export async function applyCatalogEventUpsert(
+  tx: Pick<IStorageTransaction, 'readonly' | 'readwrite'>,
+  resultId: string,
+  upsertedRows: readonly EventRecord[],
+  replacedRowIds?: ReadonlySet<string>,
+): Promise<boolean> {
+  if (!resultId) return false;
+  const sourceId = fieldSourceId('result', resultId);
+  const previousRecord = await tx.readonly('field_sources').get(sourceId);
+  const previous = previousRecord?.contributions ?? [];
+  const overwrittenIds = new Set<string>(replacedRowIds ?? []);
+  for (const row of upsertedRows) {
+    overwrittenIds.add(row.id);
+  }
+  const retained = overwrittenIds.size > 0
+    ? previous.filter((c) => !overwrittenIds.has(c.rowId))
+    : [...previous];
+  const next = [...retained, ...extractContributionsFromEventRows(upsertedRows)];
+  return applyCatalogSourceContributions(tx, sourceId, next);
+}
+
+/**
+ * Incrementally remove contributions belonging to deleted event rows.
+ */
+export async function applyCatalogEventDelete(
+  tx: Pick<IStorageTransaction, 'readonly' | 'readwrite'>,
+  deletedRows: readonly EventRecord[],
+): Promise<boolean> {
+  if (deletedRows.length === 0) return false;
+  const byResult = new Map<string, Set<string>>();
+  for (const row of deletedRows) {
+    if (!row.resultId) continue;
+    let ids = byResult.get(row.resultId);
+    if (!ids) {
+      ids = new Set<string>();
+      byResult.set(row.resultId, ids);
+    }
+    ids.add(row.id);
+  }
+
+  let changed = false;
+  for (const [resultId, deletedIds] of byResult) {
+    const sourceId = fieldSourceId('result', resultId);
+    const previousRecord = await tx.readonly('field_sources').get(sourceId);
+    if (!previousRecord) continue;
+    const next = previousRecord.contributions.filter((c) => !deletedIds.has(c.rowId));
+    if (await applyCatalogSourceContributions(tx, sourceId, next)) {
+      changed = true;
+    }
+  }
+  return changed;
 }

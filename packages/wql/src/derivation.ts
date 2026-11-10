@@ -226,11 +226,15 @@ function firstEffortSlug(metrics: StoredOutputStatement['metrics']): string | un
  * a timeSpan carry per-metric temporal anchors ('instant') so projection
  * groups each observation under its own date.
  */
+const PLUMBING_OUTPUT_TYPES = new Set(['load', 'compiler', 'system', 'event']);
+
 export function toEventRows(
   logs: readonly StoredOutputStatement[],
   identity: SummaryFactIdentity,
 ): EventRecord[] {
-  return logs.map((output, seq) => ({
+  return logs
+    .filter((output) => !PLUMBING_OUTPUT_TYPES.has(output.outputType ?? 'segment'))
+    .map((output, seq) => ({
     id: `${identity.resultId}:${seq}`,
     resultId: identity.resultId,
     noteId: identity.noteId,

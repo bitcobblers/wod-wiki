@@ -5,7 +5,7 @@ import type { ScriptBlock } from '@/components/Editor/types';
 import type { RuntimeStackOptions } from '@bitcobblers/wod-wiki-engine';
 import { RuntimeLifecycleContext, type RuntimeLifecycleState } from './RuntimeLifecycleContext';
 import { SubscriptionManagerContext } from './SubscriptionManagerContext';
-import { useWorkbenchSessionStore } from '@/stores/workbenchSessionStore.shim';
+import { useActiveRunStore } from '@/stores/activeRunStore';
 
 export { useRuntimeLifecycle } from '@/components/layout/useRuntimeLifecycle';
 
@@ -57,7 +57,8 @@ export const RuntimeLifecycleProvider: React.FC<RuntimeLifecycleProviderProps> =
       currentSubManagerRef.current = null;
     }
     setSubscriptionManager(null);
-    useWorkbenchSessionStore.getState().setSubscriptionManager(null);
+    useActiveRunStore.getState().setSubscriptionManager(null);
+    useActiveRunStore.getState().setRuntime(null);
 
     // Dispose the runtime synchronously via the ref — NEVER inside a setState
     // updater.  React calls updater functions during the render phase; disposal
@@ -122,11 +123,13 @@ export const RuntimeLifecycleProvider: React.FC<RuntimeLifecycleProviderProps> =
         mgr.add(new LocalRuntimeSubscription({ id: 'local' }));
         currentSubManagerRef.current = mgr;
         setSubscriptionManager(mgr);
-        useWorkbenchSessionStore.getState().setSubscriptionManager(mgr);
+        useActiveRunStore.getState().setRuntime(newRuntime);
+        useActiveRunStore.getState().setSubscriptionManager(mgr);
       } else {
         currentSubManagerRef.current = null;
         setSubscriptionManager(null);
-        useWorkbenchSessionStore.getState().setSubscriptionManager(null);
+        useActiveRunStore.getState().setRuntime(null);
+        useActiveRunStore.getState().setSubscriptionManager(null);
       }
     } catch (err) {
       console.error('[RuntimeProvider] Error creating runtime:', err);

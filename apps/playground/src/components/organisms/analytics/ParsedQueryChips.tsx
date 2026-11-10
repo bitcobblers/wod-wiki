@@ -25,6 +25,7 @@ export interface ParsedQueryChipsProps {
  * Shared with the explorer page's result header. */
 export function windowLabel(w: QueryWindow): string {
   if (w.kind === 'relative') return `last ${w.size}${w.unit}`;
+  if (w.kind === 'param') return `last $${w.param}${w.unit ? ` ${w.unit}` : ''}`;
   return w.end ? `from ${w.start} to ${w.end}` : `from ${w.start}`;
 }
 

@@ -1,4 +1,16 @@
-import { parseQuery, serialize, isFindQuery, isPipelineQuery, WQL_NOTE_DEFAULT_SOURCES, type ParsedAggregateQuery, type ParsedFindQuery, type AnyParsedQuery, type TagFilter } from '@bitcobblers/wod-wiki-wql';
+import {
+  parseQuery,
+  serialize,
+  isFindQuery,
+  isPipelineQuery,
+  WQL_AGGREGATORS,
+  WQL_NOTE_DEFAULT_SOURCES,
+  type Aggregator,
+  type ParsedAggregateQuery,
+  type ParsedFindQuery,
+  type AnyParsedQuery,
+  type TagFilter,
+} from '@bitcobblers/wod-wiki-wql';
 import { composerRegistry } from './ComposerRegistry';
 import { CLAUSE_META, getClauseMeta, allowedFilterTypesForTarget, type QueryClause } from './queryClauses';
 import { getSuggestionBinding } from './suggestionSources';
@@ -51,8 +63,36 @@ function clause(type: string, value: string, extra?: Partial<QueryClause>): Quer
 function windowText(ast: ParsedFindQuery | ParsedAggregateQuery): string {
   const window = ast.window;
   if (!window) return 'all';
-  return window.kind === 'relative' ? `last ${window.size}${window.unit}`
-    : `from ${window.start}${window.end ? ` to ${window.end}` : ''}`;
+  if (window.kind === 'relative') return `last ${window.size}${window.unit}`;
+  if (window.kind === 'param') return `last $${window.param}${window.unit ? ` ${window.unit}` : ''}`;
+  return `from ${window.start}${window.end ? ` to ${window.end}` : ''}`;
+}
+
+/**
+ * Normalize a simple 2-stage `:segment{...} | :agg{metric:...} [by {...}]`
+ * pipeline (no sink, no source join/groupBy/pipes) into its equivalent
+ * `ParsedAggregateQuery` so UI builders can inspect and edit structured pills.
+ */
+export function normalizeSimplePipelineToAggregate(ast: AnyParsedQuery): ParsedAggregateQuery | null {
+  if (!isPipelineQuery(ast) || ast.error || ast.sink || ast.transforms.length !== 1) return null;
+  if (ast.source.kind !== 'query' || ast.source.query.family !== 'find') return null;
+  const src = ast.source.query;
+  if (!['segment', 'event'].includes(src.target) || src.join || src.pipes || (src.groupBy?.length ?? 0) > 0) {
+    return null;
+  }
+  const fn = ast.transforms[0]!;
+  return {
+    family: 'aggregate',
+    raw: ast.raw,
+    agg: fn.agg,
+    metric: fn.metric,
+    ...(fn.metricParam ? { metricParam: fn.metricParam } : {}),
+    filters: [...src.filters, ...fn.filters],
+    groupBy: fn.groupBy ?? [],
+    rollup: fn.rollup,
+    window: fn.window ?? src.window,
+    displayUnit: fn.displayUnit ?? src.displayUnit,
+  };
 }
 
 export function astToPills(ast: AnyParsedQuery): QueryClause[] | null {
@@ -62,9 +102,17 @@ export function astToPills(ast: AnyParsedQuery): QueryClause[] | null {
   if (ast.filters.some((filter) => filter.values.some((value) => value.value.includes('|') || (!value.wildcard && value.value.endsWith('*'))))) return null;
   const pills = [clause('kind', ast.family)];
   if (ast.family === 'find') pills.push(clause('target', ast.target));
-  else pills.push(clause('agg', ast.agg), clause('metric', ast.metric));
+  else pills.push(clause('agg', ast.agg), clause('metric', ast.metricParam ? `$${ast.metricParam}` : ast.metric));
   if (ast.window || allowedFilterTypesForTarget(ast.family === 'find' ? ast.target : '', ast.family).has('time')) pills.push(clause('time', windowText(ast)));
   ast.filters.forEach((filter, filterIndex) => {
+    if (filter.kind === 'spreadParam' && filter.param) {
+      pills.push(clause('scope', `$${filter.param}`, {
+        id: `c-filter-${filterIndex}`,
+        filterIndex,
+        negate: false,
+      }));
+      return;
+    }
     const value = filter.values.map((item) => `${item.value}${item.wildcard ? '*' : ''}`).join('|');
     const custom = composerRegistry.getAllSlots().find((slot) => {
       if (!slot.parseValue) return false;
@@ -90,14 +138,16 @@ export function wqlToPills(wql: string): QueryClause[] | null {
 }
 
 function filterText(filter: TagFilter): string {
-  // Canonical heads vary with the filter (`:journal{`, `:feed{`, …);
-  // strip whatever head the serializer chose. The serializer quotes values
-  // containing whitespace, which the grammar requires. sourceScope mirrors
-  // the generic :note default so serialize never appends a scope suffix.
   return serialize({ family: 'find', raw: '', target: 'note', sourceScope: [...WQL_NOTE_DEFAULT_SOURCES], filters: [filter] }).replace(/^[^{]*\{/, '').replace(/\}$/, '');
 }
 
 function parsedFilter(type: string, value: string, negate: boolean): TagFilter | undefined {
+  if (type === 'scope') {
+    const paramToken = value.startsWith('$') ? value : `$${value}`;
+    if (!/^\$[A-Za-z_][\w-]*$/.test(paramToken)) return undefined;
+    const parsed = parseQuery(`:note{${paramToken}}`);
+    return !parsed.error && isFindQuery(parsed) ? parsed.filters[0] : undefined;
+  }
   const custom = composerRegistry.getSlot(type);
   if (custom) {
     const typed = custom.parseValue ? custom.parseValue(value) : value;
@@ -108,9 +158,13 @@ function parsedFilter(type: string, value: string, negate: boolean): TagFilter |
   const key = TYPE_KEY[type] ?? type;
   const values = value.split('|').map((part) => {
     const wildcard = part.endsWith('*');
-    return { value: wildcard ? part.slice(0, -1) : part, wildcard };
+    const cleanPart = wildcard ? part.slice(0, -1) : part;
+    const paramMatch = !wildcard && /^\$([A-Za-z_][\w-]*)$/.exec(cleanPart);
+    return paramMatch
+      ? { value: cleanPart, wildcard: false, param: paramMatch[1] }
+      : { value: cleanPart, wildcard };
   });
-  const filter = { key, negate, values };
+  const filter: TagFilter = { key, negate, values };
   const parsed = parseQuery(`:note{${filterText(filter)}}`);
   return !parsed.error && isFindQuery(parsed) && parsed.filters.length === 1 && JSON.stringify(semantic(parsed.filters[0])) === JSON.stringify(semantic(filter)) ? parsed.filters[0] : undefined;
 }
@@ -142,8 +196,21 @@ export function editQueryClause(query: string, edited: QueryClause, value: strin
   }
   if (edited.type === 'groupby') return emit({ ...ast, groupBy: [...new Set(clean.split('|').filter(Boolean))] });
   if (edited.type === 'unit') return emit({ ...ast, displayUnit: clean || undefined });
-  if (edited.type === 'agg' && ast.family === 'aggregate') return snapshot(serialize(ast).replace(/^[^:]+:/, `${clean}:`));
-  if (edited.type === 'metric' && ast.family === 'aggregate') return emit({ ...ast, metric: clean });
+  if (edited.type === 'agg' && ast.family === 'aggregate') {
+    if (!(WQL_AGGREGATORS as readonly string[]).includes(clean)) {
+      return snapshot(query, `Invalid aggregator "${clean}"`);
+    }
+    return emit({ ...ast, agg: clean as Aggregator });
+  }
+  if (edited.type === 'metric' && ast.family === 'aggregate') {
+    if (!clean) return snapshot(query, 'Metric cannot be empty');
+    const paramMatch = /^\$([A-Za-z_][\w-]*)$/.exec(clean);
+    return emit({
+      ...ast,
+      metric: clean,
+      metricParam: paramMatch ? paramMatch[1] : undefined,
+    });
+  }
   if (edited.type === 'rollup' && ast.family === 'aggregate') {
     if (!clean) return emit({ ...ast, rollup: undefined });
     const parsed = parseQuery(`sum:tis{} by {week}.rollup(${clean})`);
@@ -151,14 +218,80 @@ export function editQueryClause(query: string, edited: QueryClause, value: strin
     return emit({ ...ast, rollup: parsed.rollup });
   }
   if (edited.type === 'where') {
-    const base = serialize({ ...ast, join: undefined });
-    return snapshot(clean ? `${base} where ${clean}` : base);
+    if (!clean) return emit({ ...ast, join: undefined });
+    if (ast.family === 'find') {
+      const parsedJoin = parseQuery(`:note where ${clean}`);
+      if (parsedJoin.error || !isFindQuery(parsedJoin) || !parsedJoin.join) {
+        return snapshot(query, parsedJoin.error ?? 'Invalid metric join');
+      }
+      return emit({ ...ast, join: parsedJoin.join });
+    }
+    const parsedJoin = parseQuery(`sum:tis{} where ${clean}`);
+    if (parsedJoin.error || parsedJoin.family !== 'aggregate' || !parsedJoin.join) {
+      return snapshot(query, parsedJoin.error ?? 'Invalid content join');
+    }
+    return emit({ ...ast, join: parsedJoin.join });
   }
   if (edited.type === 'pipes' && ast.family === 'find') {
-    const base = serialize({ ...ast, pipes: undefined });
-    return snapshot(clean ? `${base} | ${clean}` : base);
+    if (!clean) return emit({ ...ast, pipes: undefined });
+    const parsedPipes = parseQuery(`:note | ${clean}`);
+    if (parsedPipes.error || !isFindQuery(parsedPipes) || !parsedPipes.pipes) {
+      return snapshot(query, parsedPipes.error ?? 'Invalid presentation pipes');
+    }
+    return emit({ ...ast, pipes: parsedPipes.pipes });
   }
   return current;
+}
+
+/**
+ * Bind a `$token` parameter into a WQL query expression via pure AST mutation
+ * (replaces brittle regex brace surgery).
+ */
+export function bindTokenParamIntoWql(query: string, tokenName: string): string {
+  const trimmed = query.trim();
+  const ast = parseQuery(trimmed);
+  if (ast.error) return query;
+
+  const makeFilter = (): TagFilter =>
+    tokenName === 'scope'
+      ? {
+          kind: 'spreadParam',
+          param: 'scope',
+          key: '$scope',
+          negate: false,
+          values: [{ value: '$scope', wildcard: false, param: 'scope' }],
+        }
+      : {
+          key: tokenName,
+          negate: false,
+          values: [{ value: `$${tokenName}`, wildcard: false, param: tokenName }],
+        };
+
+  const upsertFilters = (filters: readonly TagFilter[]): TagFilter[] => {
+    const next = [...filters];
+    const filter = makeFilter();
+    const idx = next.findIndex((f) =>
+      tokenName === 'scope'
+        ? f.kind === 'spreadParam' && f.param === 'scope'
+        : f.key === tokenName && !f.negate,
+    );
+    if (idx >= 0) next[idx] = filter;
+    else next.push(filter);
+    return next;
+  };
+
+  if (isPipelineQuery(ast)) {
+    if (ast.source.kind !== 'query') return query;
+    return serialize({
+      ...ast,
+      source: {
+        kind: 'query',
+        query: { ...ast.source.query, filters: upsertFilters(ast.source.query.filters) },
+      },
+    });
+  }
+
+  return serialize({ ...ast, filters: upsertFilters(ast.filters) });
 }
 
 export function pivotQuery(query: string, type: 'kind' | 'target', value: string): { draft: QueryDraft; removed: string[] } {
@@ -171,6 +304,7 @@ export function pivotQuery(query: string, type: 'kind' | 'target', value: string
   const allowed = allowedFilterTypesForTarget(target, family === 'aggregate' ? 'aggregate' : 'find');
   const removed: string[] = [];
   const filters = ast.filters.filter((filter) => {
+    if (filter.kind === 'spreadParam') return true;
     const dynamicFact = (family === 'aggregate' || target === 'segment' || target === 'event') && !(filter.key in CLAUSE_META) && Boolean(getSuggestionBinding(filter.key));
     const keep = allowed.has(KEY_TYPE[filter.key] ?? filter.key) || dynamicFact || Boolean(composerRegistry.getSlot(filter.key));
     if (!keep) removed.push(filterText(filter));
@@ -203,14 +337,27 @@ export function resolveQueryDraft(query: string, pendingText = ''): QueryDraft {
   if (!complete.error || /^(find|sum|avg|min|max|count|last|first|p\d+):/.test(text) || /^[\w-]+:[^{]*\{/.test(text) || /^[:@|]/.test(text)) return snapshot(pendingText);
   const base = snapshot(query);
   if (!base.valid) return snapshot(pendingText);
-  // Pipeline + free-text edit: no structured merge — pending text rides as
-  // the whole draft so the raw pipeline stays editable and unflattened.
   if (isPipelineQuery(base.ast)) return snapshot(pendingText);
   if (!isLosslessQuery(base.ast)) return snapshot(query, 'Use Edit WQL for this query.');
   if (/^(last|from)\b/.test(text)) {
     const window = parseQuery(`:note ${text}`);
     if (window.error || !isFindQuery(window) || !window.window) return snapshot(pendingText, window.error ?? 'Invalid time window');
     return emit({ ...base.ast, window: window.window });
+  }
+  if (/^\$[A-Za-z_][\w-]*$/.test(text)) {
+    const paramName = text.slice(1);
+    const filters = [...base.ast.filters];
+    const filter: TagFilter = {
+      kind: 'spreadParam',
+      param: paramName,
+      key: text,
+      negate: false,
+      values: [{ value: text, wildcard: false, param: paramName }],
+    };
+    const index = filters.findIndex((existing) => existing.kind === 'spreadParam' && existing.param === paramName);
+    if (index < 0) filters.push(filter);
+    else filters[index] = filter;
+    return emit({ ...base.ast, filters });
   }
   if (/^!?[\w-]+:/.test(text)) {
     const parsed = parseQuery(`:note{${text}}`);

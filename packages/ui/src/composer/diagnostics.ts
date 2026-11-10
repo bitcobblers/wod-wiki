@@ -27,7 +27,9 @@ export function summarizeFind(ast: ParsedFindQuery): WqlFindSummary {
     timeWindow: ast.window
       ? ast.window.kind === 'relative'
         ? `last ${ast.window.size}${ast.window.unit}`
-        : `from ${ast.window.start}${ast.window.end ? ` to ${ast.window.end}` : ''}`
+        : ast.window.kind === 'param'
+          ? `last $${ast.window.param}${ast.window.unit ? ` ${ast.window.unit}` : ''}`
+          : `from ${ast.window.start}${ast.window.end ? ` to ${ast.window.end}` : ''}`
       : undefined,
     groupBy: ast.groupBy?.length ? ast.groupBy.join(', ') : undefined,
     hasJoin: Boolean(ast.join),
@@ -81,7 +83,9 @@ export function summarizePipeline(ast: ParsedPipelineQuery): WqlPipelineSummary 
     timeWindow: sourceQuery?.window
       ? sourceQuery.window.kind === 'relative'
         ? `last ${sourceQuery.window.size}${sourceQuery.window.unit}`
-        : `from ${sourceQuery.window.start}${sourceQuery.window.end ? ` to ${sourceQuery.window.end}` : ''}`
+        : sourceQuery.window.kind === 'param'
+          ? `last $${sourceQuery.window.param}${sourceQuery.window.unit ? ` ${sourceQuery.window.unit}` : ''}`
+          : `from ${sourceQuery.window.start}${sourceQuery.window.end ? ` to ${sourceQuery.window.end}` : ''}`
       : undefined,
     filterCount: sourceQuery ? sourceQuery.filters.length : 0,
   };

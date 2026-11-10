@@ -359,7 +359,7 @@ export function WqlComposer({
           {desktop && compact && undo && <button type="button" onClick={() => { commit(resolveQueryDraft(undo)); setUndo(undefined); }} className="min-h-9 shrink-0 rounded-lg px-2.5 text-xs text-muted-foreground hover:text-foreground">Undo removal</button>}
         </div>
       )}
-      <div className={cn('flex min-w-0 flex-wrap items-center gap-1', !desktop && !compact && 'rounded-xl border border-border p-2', compact && 'hidden')} data-testid="wql-composer" onKeyDown={(event) => {
+      <div className={cn('flex min-w-0 flex-wrap items-center gap-1', !desktop && !compact && 'rounded-xl border border-border p-2', compact && 'border-t border-border/50 bg-muted/10 px-2 py-1', compact && (!guided || active.kind === 'wql' || visiblePills.length === 0) && 'hidden')} data-testid="wql-composer" onKeyDown={(event) => {
         if (!['Delete', 'Backspace'].includes(event.key) || !(event.target instanceof HTMLButtonElement)) return;
         const buttons = Array.from(event.currentTarget.querySelectorAll('[data-testid^="token-slot-"]:not([data-testid^="token-slot-remove-"]):not([data-testid^="token-slot-value-"])'));
         const pill = visiblePills[buttons.indexOf(event.target)];

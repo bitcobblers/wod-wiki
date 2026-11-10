@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MinimalTimerSurface } from './MinimalTimerSurface';
 import type { TimerSurfaceModel } from './useTimerSurfaceModel';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 
 const baseModel: TimerSurfaceModel = {
   mainLabel: 'Rest',

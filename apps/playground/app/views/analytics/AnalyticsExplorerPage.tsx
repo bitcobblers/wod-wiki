@@ -26,7 +26,7 @@ import { parseQuery, serialize, isAggregateQuery, isFindQuery, type QueryResult,
 import { StickyPageHeader, StickyGroupHeader, useStickyBoundaryOffset } from '@/panels/page-shells';
 import { searchEntries } from '../../lib/entrySearch';
 import { groupEntriesByDimension } from '../../lib/entryGrouping';
-import { formatDateHeader } from '../../lib/dateFormat';
+import { formatDateHeader } from '@/lib/dateFormat';
 import { LibraryRow } from '../library/LibraryRow';
 import { QueryToDashboardDialog } from './QueryToDashboardDialog';
 import { AvailableFieldsPanel } from './AvailableFieldsPanel';

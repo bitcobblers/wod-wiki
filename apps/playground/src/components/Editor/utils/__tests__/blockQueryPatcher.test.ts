@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { patchBlockQuery, extractBlockQueries } from '../blockQueryPatcher';
+import { patchBlockQuery, extractBlockQueries } from '@bitcobblers/wod-wiki-ui';
 
 describe('extractBlockQueries', () => {
   it('extracts plain single WQL query', () => {

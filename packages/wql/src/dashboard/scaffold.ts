@@ -20,11 +20,11 @@ dashboard.metric:
   - totalVolume
 ---
 
-## Weekly Trend
-How does $metric trend week over week?
-
-\`\`\`query:timeseries
-:segment{} | :sum{metric:$metric} by {week} | :timeseries{}
+\`\`\`query
+title: Weekly Trend
+description: How does $metric trend week over week?
+view: timeseries
+query: sum:$metric{} by {week}
 \`\`\`
 `;
 }

@@ -120,8 +120,8 @@ describe('serialize (C6 structured interface)', () => {
         last: { size: 4, unit: 'w' },
       },
     };
-    // Join halves keep the legacy head — the retained compound surface.
-    expect(serialize(a)).toBe('sum:totalVolume{} last 8w where find:note{tags:competition} last 4w');
+    // Join halves serialize with the canonical colon source head.
+    expect(serialize(a)).toBe('sum:totalVolume{} last 8w where :note{tags:competition} last 4w');
     expect(structurallyEqual(parseQuery(serialize(a)), a)).toBe(true);
   });
 

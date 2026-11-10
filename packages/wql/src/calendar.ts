@@ -156,8 +156,15 @@ export interface ResolvedRange {
  *    as an exclusive bound at the following local midnight. An open `to`
  *    stays unbounded. Future ranges are preserved, never replaced.
  */
-export function resolveWindowRange(w: { kind: 'relative'; size: number; unit: 'd' | 'w' } | { kind: 'range'; start: string; end?: string } | undefined, ctx: ExecutionContext): ResolvedRange | undefined {
-  if (!w) return undefined;
+export function resolveWindowRange(
+  w:
+    | { kind: 'relative'; size: number; unit: 'd' | 'w' }
+    | { kind: 'range'; start: string; end?: string }
+    | { kind: 'param'; param: string; unit?: 'd' | 'w' }
+    | undefined,
+  ctx: ExecutionContext,
+): ResolvedRange | undefined {
+  if (!w || w.kind === 'param') return undefined;
   if (w.kind === 'relative') {
     const today = civilDateOf(ctx.instant, ctx.timeZone);
     const start = w.unit === 'd'

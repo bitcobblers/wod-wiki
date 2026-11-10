@@ -26,7 +26,7 @@ import { VisualStatePanel } from "@/panels/visual-state-panel";
 import { PanelSizeProvider, usePanelSize } from "@/panels/panel-system/PanelSizeContext";
 import { ScriptRuntimeProvider, useRuntimeExecution, type UseRuntimeExecutionReturn, NextEvent, ScriptRuntime } from "@/hooks/useRuntimeTimer";
 import type { IScriptRuntime, StackSnapshot } from "@/hooks/useRuntimeTimer";
-import { getActiveWorkbenchSessionStore } from "@/stores/workbenchSessionStore";
+import { useActiveRunStore } from "@/stores/activeRunStore";
 import {
   getActiveCastTransport,
   onCastTransportChange,
@@ -346,6 +346,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       return;
     }
     setRuntime(rt);
+    useActiveRunStore.getState().setRuntime(rt);
     onRuntimeReady?.(rt);
 
     const detach = attachRuntime(rt);
@@ -357,6 +358,9 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
         // Ownership transfers to the host — the clock keeps running.
         onPark?.(rt);
         return;
+      }
+      if (useActiveRunStore.getState().runtime === rt) {
+        useActiveRunStore.getState().setRuntime(null);
       }
       rt.dispose();
     };
@@ -373,6 +377,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     const rt = adoptRuntime;
     setWizardDone(true);
     setRuntime(rt);
+    useActiveRunStore.getState().setRuntime(rt);
     onRuntimeReady?.(rt);
 
     const detach = attachRuntime(rt);
@@ -399,7 +404,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   // (unstable idle elapsedTime would re-fire this effect every render).
   useEffect(() => {
     if (execution.status === 'idle') return;
-    getActiveWorkbenchSessionStore().getState().setExecution(execution);
+    useActiveRunStore.getState().setExecution(execution);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- execution identity is unstable each render; field deps avoid a setExecution loop
   }, [execution.status, execution.elapsedTime, execution.stepCount, execution.startTime]);
 
@@ -601,30 +606,6 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     },
   });
 
-  useEffect(() => {
-    if (!runtime) return;
-    const store = getActiveWorkbenchSessionStore().getState();
-    store.setRuntime(runtime);
-    store.setHandles({
-      handleStart,
-      handlePause: () => execution.pause(),
-      handleStop,
-      handleNext,
-      handleStartWorkoutAction: () => {},
-    });
-    return () => {
-      const current = getActiveWorkbenchSessionStore().getState();
-      if (current.runtime === runtime) {
-        current.setRuntime(null);
-      }
-    };
-  }, [runtime, execution, handleStart, handleStop, handleNext]);
-
-  // The cast stack is wired by `CastSessionManager` against the workbench
-  // `SubscriptionManager`. The inline runtime's snapshots flow to the
-  // receiver through the workbench runtime. D-Pad events are routed by
-  // `CastButtonRpc` against the workbench handles. The completion-message
-  // send below is a one-shot projection that doesn't need a session.
   if (showChoiceWizard) {
     return (
       <PanelSizeProvider>

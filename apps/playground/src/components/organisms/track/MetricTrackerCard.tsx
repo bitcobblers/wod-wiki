@@ -2,9 +2,8 @@ import React from 'react';
 import { useLiveAnalytics } from '@/hooks/useRuntimeTimer';
 import { Sigma } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { computeColumnLabel } from '@bitcobblers/wod-wiki-engine';
+import { computeColumnLabel, formatDurationSmart } from '@bitcobblers/wod-wiki-engine';
 import { getMetricColorClasses, getMetricIcon } from '@/views/runtime/metricColorMap';
-import { formatDurationSmart } from '@/lib/formatTime';
 
 interface MetricTrackerCardProps {
     className?: string;

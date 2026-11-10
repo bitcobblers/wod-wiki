@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { formatTimestamp, formatTime, calculateDuration, roundToTenth } from './timeUtils';
+import { formatTimestamp, formatTime, calculateDuration, roundToTenth } from '@bitcobblers/wod-wiki-engine';
 
 /**
  * timeUtils Contract

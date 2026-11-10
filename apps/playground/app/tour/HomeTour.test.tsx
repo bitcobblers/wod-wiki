@@ -100,13 +100,6 @@ mock.module('@/components/organisms/editor/RuntimeTimerPanel', () => ({
   },
 }))
 
-mock.module('@/components/organisms/review/AnalyticsScorecard', () => ({
-  AnalyticsScorecard: () => null,
-}))
-
-mock.module('@/components/organisms/review/ReviewGrid', () => ({
-  ReviewGrid: () => null,
-}))
 mock.module('@/components/organisms/cast/CastButtonRpc', () => ({
   CastButtonRpc: () => null,
 }))

@@ -12,61 +12,63 @@ calc.tsb (#905, EWMA over session load), the 80/20 intensity split, and
 ACWR. The composite PMC chart widget is deferred (widget library map); the
 three loads read as value widgets here.
 
-## Fitness (CTL)
-42-day chronic load — is base fitness rising?
-
-```query:value
-:segment{} | :last{metric:calc.ctl} | :value{}
+```query
+title: Fitness (CTL)
+description: "42-day chronic load — is base fitness rising?"
+view: value
+query: last:calc.ctl{}
 ```
 
-## Fatigue (ATL)
-7-day acute load — how deep is this week?
-
-```query:value
-:segment{} | :last{metric:calc.atl} | :value{}
+```query
+title: Fatigue (ATL)
+description: "7-day acute load — how deep is this week?"
+view: value
+query: last:calc.atl{}
 ```
 
-## Form (TSB)
-In the −10…−30 training pocket?
-
-```query:value
-:segment{} | :last{metric:calc.tsb} | :value{}
+```query
+title: Form (TSB)
+description: In the −10…−30 training pocket?
+view: value
+query: last:calc.tsb{}
 ```
 
 ## Efficiency factor (calc.ef) is live: running pace ÷ captured avg HR
 (capture `hr: <bpm>` in a ```wellness fence on run days).
 
-## Intensity distribution
-Actually 80/20 — or stuck in the grey zone?
-
-```query:zone-distribution targets="80 2 18"
-:segment{} | :sum{metric:tis} by {intensity} | :zone-distribution{targets:"80 2 18"}
+```query
+title: Intensity distribution
+description: "Actually 80/20 — or stuck in the grey zone?"
+view: zone-distribution
+targets: [80, 2, 18]
+query: sum:tis{} by {intensity}
 ```
 
-## Injury risk (ACWR)
-Inside the 0.8–1.3 sweet spot?
-
-```query:timeseries-2
-:segment{} | :avg{metric:calc.acwr} by {day} | :timeseries{}
+```query
+title: Injury risk (ACWR)
+description: Inside the 0.8–1.3 sweet spot?
+view: timeseries
+span: 2
+query: avg:calc.acwr{} by {day}
 ```
 
-## Weekly distance
-Mileage building ≤10%/week?
-
-```query:timeseries
-:segment{discipline:running} | :sum{metric:totalDistance} by {week} | :timeseries{}
+```query
+title: Weekly distance
+description: Mileage building ≤10%/week?
+view: timeseries
+query: sum:totalDistance{discipline:running} by {week}
 ```
 
-## Longest run
-Is the long run extending?
-
-```query:value
-:segment{discipline:running} | :max{metric:totalDistance} | :value{}
+```query
+title: Longest run
+description: Is the long run extending?
+view: value
+query: max:totalDistance{discipline:running}
 ```
 
-## Efficiency factor
-More speed per unit of effort?
-
-```query:value
-:segment{} | :avg{metric:calc.ef} | :value{}
+```query
+title: Efficiency factor
+description: More speed per unit of effort?
+view: value
+query: avg:calc.ef{}
 ```

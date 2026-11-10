@@ -415,7 +415,7 @@ export interface FieldSourceRecord {
 
 /** One observed categorical value of a field (string/boolean only). */
 export interface FieldValueRecord {
-  key: [string, string]; // [fieldId, value] — value keeps original spelling
+  key: string | [string, string]; // `${fieldId}\u0000${value}` scalar key — value keeps original spelling
   fieldId: string;
   value: string;
   sourceCount: number;

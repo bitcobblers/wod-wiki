@@ -49,7 +49,7 @@ import { sectionField, SectionState, activeCursorSection, type EditorSection } f
 import { sectionIdentity, sectionIdentityHistory, registeredSectionWidgets, sectionSaved, sectionRestore } from '@bitcobblers/wod-wiki-ui/extensions';
 import type { NoteBlock } from '@/types/storage';
 import { reconcileNoteBlocks, validateNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
-import { captureRun, type CapturedRun, createResultRecorder } from '@/hooks/useBrowserServices';
+import { captureRun, type CapturedRun, createResultRecorder, captureMetricCorrection, captureSessionRpe } from '@/hooks/useBrowserServices';
 import { sessionQueryInsert } from '@bitcobblers/wod-wiki-ui/extensions';
 import { previewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
 import { embedPreviewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
@@ -628,6 +628,27 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         executor: queryService,
         onResultSaved,
         readOnly: readonly,
+        onCaptureRpe: readonly
+          ? undefined
+          : async (rId, rpe) => {
+              await captureSessionRpe(rId, rpe);
+            },
+        onEditMetric: readonly
+          ? undefined
+          : async (rId, payload) => {
+              const outcome = await captureMetricCorrection({
+                resultId: rId,
+                occurrence: payload.occurrence,
+                metric: {
+                  type: payload.metric.type as Parameters<typeof captureMetricCorrection>[0]['metric']['type'],
+                  value: payload.metric.value,
+                  image: payload.metric.image,
+                },
+              });
+              if (outcome === 'not-found') {
+                throw new Error('Result segment not found in storage.');
+              }
+            },
         noteHref: (item) => {
           const isBlock = 'blockContentId' in item || 'dataType' in item;
           const entry = isBlock

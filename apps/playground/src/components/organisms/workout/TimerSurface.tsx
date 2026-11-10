@@ -21,7 +21,7 @@ import { MetricTrackerCard } from '@/components/organisms/track/MetricTrackerCar
 import { MinimalTimerSurface } from './MinimalTimerSurface';
 import { GeneralTimerSurface } from './GeneralTimerSurface';
 import { useTimerSurfaceModel, type TimerSurfaceHandlers } from './useTimerSurfaceModel';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 
 export interface TimerSurfaceProps extends TimerSurfaceHandlers {

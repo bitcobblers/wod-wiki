@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/atoms/primitives/car
 import { Badge } from '@/components/atoms/primitives/badge';
 import { Clock, ArrowRight } from '@phosphor-icons/react';
 import { useTimerElapsed } from '@bitcobblers/wod-wiki-engine/react';
-import { formatTimePrecise, formatTimeHHMMSS } from '../../lib/formatTime';
+import { formatTimePrecise, formatTimeHHMMSS } from '@bitcobblers/wod-wiki-engine';
 import { cn } from '@/lib/utils';
 
 export interface DigitalClockProps {

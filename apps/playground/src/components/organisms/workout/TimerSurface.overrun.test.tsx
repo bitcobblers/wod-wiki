@@ -14,7 +14,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { GeneralTimerSurface } from './GeneralTimerSurface';
 import { MinimalTimerSurface } from './MinimalTimerSurface';
 import type { TimerSurfaceModel } from './useTimerSurfaceModel';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 
 const overrunModel: TimerSurfaceModel = {
   mainLabel: 'Rest',

@@ -6,7 +6,7 @@ import type { ScriptBlock } from '@/components/Editor/types'
 import type { ScriptCommand } from '@/components/Editor/overlays/ScriptCommand'
 import { shareBlock, openBlockInPlaygroundNewTab } from '../../services/openInPlayground'
 import { useRingRef } from '../TourRing'
-import { TEST_IDS } from '@/testing/contracts/TestIdContract'
+import { TEST_IDS } from '@/lib/testIds'
 export interface TourEditorScreenProps {
   doc: string
   onDocChange: (next: string) => void

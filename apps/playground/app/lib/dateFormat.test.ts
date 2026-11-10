@@ -1,6 +1,6 @@
 /** formatDateHeader (#858) — date headers always render in English (UTC). */
 import { describe, expect, it } from 'bun:test'
-import { formatDateHeader } from './dateFormat'
+import { formatDateHeader } from '@/lib/dateFormat'
 
 describe('formatDateHeader', () => {
   it('formats a YYYY-MM-DD key as an English long date', () => {

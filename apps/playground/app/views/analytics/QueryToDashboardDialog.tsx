@@ -82,6 +82,7 @@ function SaveFlow({
       spanCols: spec.spanCols,
       spanFull: spec.spanFull,
       wql: spec.wql,
+      queryObject: spec.queryObject,
       attributes: spec.attributes,
     }
     try {

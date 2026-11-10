@@ -90,7 +90,14 @@ function serializeFindStage(f: ParsedFindQuery): string {
  *  — the colon function form; the metric re-enters the filters. */
 function serializeFunctionStage(a: ParsedAggregateQuery): string {
   const filters = a.metric
-    ? [{ key: 'metric', negate: false, values: [{ value: a.metric, wildcard: false }] }, ...a.filters]
+    ? [
+        {
+          key: 'metric',
+          negate: false,
+          values: [{ value: a.metric, wildcard: false, ...(a.metricParam ? { param: a.metricParam } : {}) }],
+        },
+        ...a.filters,
+      ]
     : a.filters;
   let text = `:${a.agg}{${serializeFilters(filters)}}`;
   if (a.groupBy.length) text += ` by {${a.groupBy.join(', ')}}`;
@@ -126,11 +133,19 @@ function serializeValue(value: string): string {
   return `"${value}"`;
 }
 
-/** `{key:val1|val2, !other:val*}` — commas between keys, `|` between a
- * key's OR-alternatives, per-value `*` wildcard, `!` negation. */
+/** `{key:val1|val2, !other:val*, $scope}` — commas between keys, `|` between a
+ * key's OR-alternatives, per-value `*` wildcard, `!` negation, `$param` refs. */
 function serializeFilters(filters: TagFilter[]): string {
   return filters
-    .map((f) => `${f.negate ? '!' : ''}${f.key}:${f.values.map((v) => serializeValue(v.value) + (v.wildcard ? '*' : '')).join('|')}`)
+    .map((f) => {
+      if (f.kind === 'spreadParam' || (f.key.startsWith('$') && f.values.length === 0)) {
+        const p = f.param ?? f.key.replace(/^\$/, '');
+        return `$${p}`;
+      }
+      return `${f.negate ? '!' : ''}${f.key}:${f.values
+        .map((v) => (v.param ? `$${v.param}` : serializeValue(v.value) + (v.wildcard ? '*' : '')))
+        .join('|')}`;
+    })
     .join(',');
 }
 
@@ -142,14 +157,14 @@ function serializeAggHead(agg: string, metric: string, filters: TagFilter[]): st
 }
 
 function serializeAggregateHead(a: ParsedAggregateQuery): string {
-  return serializeAggHead(a.agg, a.metric, a.filters);
+  return serializeAggHead(a.agg, a.metricParam ? `$${a.metricParam}` : a.metric, a.filters);
 }
 
-/** `find:target{filters}[ last <n><unit>]` — the content half of a cross-store
- * join reuses the find head plus its relative window (range windows are
- * rejected on join halves at parse). */
+/** `:target{filters}[ last <n><unit>]` — the content half of a cross-store
+ * join reuses the colon source head plus its relative window (range windows
+ * are rejected on join halves at parse). */
 function serializeFindHalf(target: string, filters: TagFilter[], last?: { size: number; unit: 'd' | 'w' }): string {
-  const head = `find:${target}${filters.length ? `{${serializeFilters(filters)}}` : ''}`;
+  const head = `:${target}${filters.length ? `{${serializeFilters(filters)}}` : ''}`;
   return last ? `${head} last ${last.size}${last.unit}` : head;
 }
 
@@ -160,11 +175,12 @@ function serializeMetricHalf(j: MetricPredicate): string {
 }
 
 
-/** Window clause (C1): `last 8w` or `from 2026-01-01 [to 2026-03-31]`.
+/** Window clause (C1): `last 8w`, `last $range`, or `from 2026-01-01 [to 2026-03-31]`.
  * Returns '' when the AST has no window. */
 function serializeWindow(w: QueryWindow | undefined): string {
   if (!w) return '';
   if (w.kind === 'relative') return `last ${w.size}${w.unit}`;
+  if (w.kind === 'param') return `last $${w.param}${w.unit ? ` ${w.unit}` : ''}`;
   return w.end ? `from ${w.start} to ${w.end}` : `from ${w.start}`;
 }
 

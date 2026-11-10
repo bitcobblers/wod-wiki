@@ -6,7 +6,7 @@
  * stream sections with matching DOM IDs and TOC section links.
  */
 import type { Entry } from './entryMapper'
-import { todayKey, formatDateHeader } from './dateFormat'
+import { todayKey, formatDateHeader } from '@/lib/dateFormat'
 import { parseQuery, type AnyParsedQuery } from '@bitcobblers/wod-wiki-engine'
 import { CONTENT_GROUPING_DIMENSIONS } from '@bitcobblers/wod-wiki-ui'
 import { sortGroupBuckets } from './groupByOptions'
