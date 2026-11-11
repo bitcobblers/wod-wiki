@@ -12,6 +12,7 @@ import { eventsToStoredLogs, type RowsQueryResult } from '@bitcobblers/wod-wiki-
 import { storageService, telemetry, engagementMs, captureMetricCorrection, captureSessionRpe } from '@/hooks/useBrowserServices';
 import { queryService } from "@/hooks/useCastSignaling";
 import { FocusedDialog } from "@/components/molecules/FocusedDialog";
+import { TEST_IDS } from "@/lib/testIds";
 import { CastButtonRpc } from "@/components/organisms/cast/CastButtonRpc";
 import { AudioToggle } from "@/components/atoms/AudioToggle";
 import {
@@ -486,7 +487,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
         </>
       }
     >
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0 flex-col" data-testid={TEST_IDS.TIMER_FULLSCREEN_OVERLAY}>
         {saveBanner}
         <div className="min-h-0 flex-1">
           {queueVisible ? (
@@ -543,7 +544,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
         </>
       }
     >
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0 flex-col" data-testid={TEST_IDS.TIMER_FULLSCREEN_OVERLAY}>
         {saveBanner}
         {startError ? <div className="space-y-2 p-4">
           <p role="alert">Workout not started. {startError}</p>

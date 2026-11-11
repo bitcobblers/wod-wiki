@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
 import { Button } from '@/components/atoms/primitives/button'
+import { TEST_IDS } from '@/lib/testIds'
 import { cn } from '@/lib/utils'
 import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider } from '@/types/content-provider';
@@ -273,7 +274,7 @@ export function NotePlacementDialog({
           <Button type="button" variant="outline" size="lg" onClick={close} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" form="note-placement-form" size="lg" disabled={saving}>
+          <Button type="submit" form="note-placement-form" size="lg" disabled={saving} data-testid={isClone ? TEST_IDS.PLACEMENT_CLONE_SUBMIT_BTN : undefined}>
             {saving ? 'Saving…' : isClone ? 'Clone' : 'Save lineage'}
           </Button>
         </div>
@@ -324,6 +325,7 @@ export function NotePlacementDialog({
                           size="sm"
                           disabled={saving}
                           onClick={() => void handleMovePlacement(placement)}
+                          data-testid={TEST_IDS.PLACEMENT_MOVE_BTN}
                         >
                           Move
                         </Button>
@@ -333,6 +335,7 @@ export function NotePlacementDialog({
                           size="sm"
                           disabled={saving}
                           onClick={() => void handleRemovePlacement(placement.pageId)}
+                          data-testid={TEST_IDS.PLACEMENT_REMOVE_BTN}
                         >
                           Remove
                         </Button>
@@ -356,6 +359,7 @@ export function NotePlacementDialog({
             value={date}
             onChange={(e) => setDate(e.target.value)}
             disabled={saving}
+            data-testid={TEST_IDS.PLACEMENT_DATE_INPUT}
           />
           <p className="text-xs text-muted-foreground">
             {isClone
@@ -391,6 +395,7 @@ export function NotePlacementDialog({
             autoCapitalize="none"
             spellCheck={false}
             disabled={saving}
+            data-testid={TEST_IDS.PLACEMENT_SLUG_INPUT}
           />
           <p className="text-xs text-muted-foreground">
             The /page/&lt;slug&gt; page to place the note on, or to move it to. Typing an
@@ -401,7 +406,7 @@ export function NotePlacementDialog({
 
         {!isClone && (
           <div className="flex gap-2">
-            <Button type="button" size="lg" className="flex-1" disabled={saving} onClick={() => void handleAddPlacement()}>
+            <Button type="button" size="lg" className="flex-1" disabled={saving} onClick={() => void handleAddPlacement()} data-testid={TEST_IDS.PLACEMENT_ADD_BTN}>
               {saving ? 'Saving…' : 'Place on this page'}
             </Button>
             {placements.length > 0 && (
