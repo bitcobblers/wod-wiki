@@ -55,7 +55,21 @@ export async function captureRun(input: SaveNoteInput, block: ScriptBlock, resul
     status: 'in-progress',
     createdAt: startedAt,
   });
-  const scopedCatalog = await resolveScopedPropertyCatalog(storageService.storage, {
+  const needsScopedResolution = Boolean(
+    captured.note.provenance?.sourceNotebookId ||
+    captured.note.provenance?.feedSourceId ||
+    captured.note.feedSourceId ||
+    (captured.note.notebookId &&
+      captured.note.notebookId !== 'notebook/journal' &&
+      captured.note.notebookId !== 'notebook/playground'),
+  );
+  if (!needsScopedResolution) {
+    return { ...captured, block: blockFromRevision(captured.revision) };
+  }
+  const backingStorage =
+    (persistence as { persistenceStorage?: { storage?: typeof storageService.storage } })
+      .persistenceStorage?.storage ?? storageService.storage;
+  const scopedCatalog = await resolveScopedPropertyCatalog(backingStorage, {
     note: captured.note,
   }).catch(() => undefined);
   return { ...captured, block: blockFromRevision(captured.revision, scopedCatalog) };
