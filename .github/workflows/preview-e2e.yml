@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       preview-url:
-        description: Deployed playground base URL to test
+        description: Deployed playground base URL to smoke-check (or run full suite against when use-dist-artifact is false)
         required: false
         type: string
         default: https://preview.wod.wiki
@@ -14,10 +14,15 @@ on:
         type: string
         default: ''
       build-hash:
-        description: Hashed entry-bundle fingerprint (main-<hash>.js) of the build under test; when set, the wait step polls the deployed index.html until it references this hash
+        description: Hashed entry-bundle fingerprint (main-<hash>.js) of the build under test; when set, the CloudFront smoke step polls the deployed index.html until it references this hash
         required: false
         type: string
         default: ''
+      use-dist-artifact:
+        description: When true, run the 4 sharded journal suites locally against the uploaded playground-dist artifact while preview-smoke verifies the live CloudFront deploy in parallel
+        required: false
+        type: boolean
+        default: false
     outputs:
       outcome:
         value: ${{ jobs.preview-e2e.outputs.outcome }}
@@ -53,29 +58,16 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  preview-e2e:
+  preview-smoke:
+    name: Preview CloudFront smoke
     runs-on: ubuntu-22.04
-    outputs:
-      outcome: ${{ steps.preview_e2e.outcome }}
-      tests: ${{ steps.preview_stats.outputs.tests }}
-      passed: ${{ steps.preview_stats.outputs.passed }}
-      failures: ${{ steps.preview_stats.outputs.failures }}
-      flaky: ${{ steps.preview_stats.outputs.flaky }}
-      skipped: ${{ steps.preview_stats.outputs.skipped }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Set up environment (Bun + caches + chromium)
         uses: ./.github/actions/setup-env
 
-      - name: Build packages
-        run: bun run build:packages
-      # S3 sync is immediate but CloudFront may serve the previous build for
-      # up to 5 minutes (max-age=300), and invalidation is best-effort. Wait
-      # for the CURRENT build: when build-hash is provided, the deployed
-      # index.html must reference main-<hash>.js before any test runs —
-      # otherwise tests race the deploy and hit a stale or partial site.
-      - name: Wait for the current build to be live
+      - name: Wait for the current build to be live on CloudFront
         env:
           BUILD_HASH: ${{ inputs.build-hash }}
         run: |
@@ -92,44 +84,146 @@ jobs:
             else
               echo "waiting for $url ($i/45)"
             fi
-            sleep 10
+            sleep 5
           done
-          echo "::error::preview at $url did not serve build main-$BUILD_HASH.js after 7.5 minutes"
+          echo "::error::preview at $url did not serve build main-$BUILD_HASH.js after 3.75 minutes"
           exit 1
 
-      # The full live-app journal suite against the deployed artifact — the
-      # single e2e phase (E2E_APP_URL remote mode; no local server started).
-      - name: Run live-app e2e against the deploy
-        id: preview_e2e
-        run: bun x playwright test --config playwright.journal.config.ts
+      - name: Run CloudFront preview smoke tests
+        run: bun x playwright test --config playwright.smoke.config.ts
         env:
           CI: true
           E2E_APP_URL: ${{ inputs.preview-url || 'https://preview.wod.wiki' }}
 
-      # Per-file + aggregate counts from the Playwright JSON reporter
-      # (test-results/live-e2e-results.json, configured in
-      # playwright.journal.config.ts; junit stays for artifact consumers).
-      # Missing report is loud when the e2e step actually ran — that is a
-      # reporter wiring bug, not "n/a".
+      - name: Upload CloudFront smoke report on failure
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: preview-smoke-playwright-report
+          path: |
+            playwright-report/smoke/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-shard:
+    name: Journal E2E (${{ matrix.shard }}/4)
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up environment (Bun + caches + chromium)
+        uses: ./.github/actions/setup-env
+
+      - name: Build seed compiler packages
+        run: bun run build:packages:e2e
+
+      - name: Download playground dist artifact
+        if: inputs.use-dist-artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: playground-dist
+          path: ./dist/
+
+      - name: Wait for remote build when running without dist artifact
+        if: ${{ !inputs.use-dist-artifact }}
+        env:
+          BUILD_HASH: ${{ inputs.build-hash }}
+        run: |
+          set -euo pipefail
+          url="${{ inputs.preview-url || 'https://preview.wod.wiki' }}"
+          for i in $(seq 1 45); do
+            html=$(curl -fsS "$url" 2>/dev/null || true)
+            if [ -n "$html" ]; then
+              if [ -z "$BUILD_HASH" ] || grep -q "main-$BUILD_HASH.js" <<<"$html"; then
+                echo "preview live with current build: $url"
+                exit 0
+              fi
+            fi
+            sleep 5
+          done
+          echo "::error::preview at $url did not serve build main-$BUILD_HASH.js"
+          exit 1
+
+      - name: Run journal E2E shard ${{ matrix.shard }}/4
+        run: bun x playwright test --config playwright.journal.config.ts --shard=${{ matrix.shard }}/4
+        env:
+          CI: true
+          PLAYWRIGHT_BLOB_REPORT: '1'
+          E2E_DIST_DIR: ${{ inputs.use-dist-artifact && './dist' || '' }}
+          E2E_APP_URL: ${{ !inputs.use-dist-artifact && (inputs.preview-url || 'https://preview.wod.wiki') || '' }}
+
+      - name: Upload shard blob report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload failure artifacts for shard ${{ matrix.shard }}
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: preview-e2e-failures-shard-${{ matrix.shard }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  preview-e2e:
+    name: Merge & publish E2E report
+    runs-on: ubuntu-22.04
+    needs: [e2e-shard, preview-smoke]
+    if: always()
+    outputs:
+      outcome: ${{ steps.gate.outputs.outcome }}
+      tests: ${{ steps.preview_stats.outputs.tests }}
+      passed: ${{ steps.preview_stats.outputs.passed }}
+      failures: ${{ steps.preview_stats.outputs.failures }}
+      flaky: ${{ steps.preview_stats.outputs.flaky }}
+      skipped: ${{ steps.preview_stats.outputs.skipped }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up environment (Bun + caches, no browsers)
+        uses: ./.github/actions/setup-env
+        with:
+          browsers: ''
+
+      - name: Download shard blob reports
+        id: download_blobs
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: blob-report-*
+          path: all-blob-reports
+          merge-multiple: true
+
+      - name: Merge Playwright shard reports
+        id: merge_reports
+        if: steps.download_blobs.outcome == 'success'
+        run: bun x playwright merge-reports --config playwright.merge.config.ts ./all-blob-reports
+
       - name: Collect e2e stats (per-file)
         id: preview_stats
         if: always()
         env:
-          E2E_OUTCOME: ${{ steps.preview_e2e.outcome }}
+          MERGE_OUTCOME: ${{ steps.merge_reports.outcome }}
           DEPLOY_URL: ${{ inputs.preview-url || 'https://preview.wod.wiki' }}
           BUILD_HASH: ${{ inputs.build-hash }}
         run: |
           set -euo pipefail
           report="test-results/live-e2e-results.json"
           if [ ! -f "$report" ]; then
-            if [ -z "$E2E_OUTCOME" ] || [ "$E2E_OUTCOME" = skipped ]; then
-              echo "e2e step did not run; no stats collected"
-              for k in tests passed failures flaky skipped; do
-                echo "$k=n/a" >> "$GITHUB_OUTPUT"
-              done
-              exit 0
-            fi
-            echo "::error::e2e ran ($E2E_OUTCOME) but $report is missing — check the json reporter outputFile in playwright.journal.config.ts"
+            echo "::error::merged e2e report $report is missing (merge outcome: $MERGE_OUTCOME)"
+            for k in tests passed failures flaky skipped; do
+              echo "$k=n/a" >> "$GITHUB_OUTPUT"
+            done
             exit 1
           fi
           E2E_SUMMARY_MD=test-results/e2e-per-file-summary.md \
@@ -145,8 +239,6 @@ jobs:
           }
           EOF
 
-      # Publishes next to the deployed preview build (<slug>/dist/), so the
-      # report is browsable at <preview-url>/e2e-report/index.html.
       - name: Publish HTML report to preview S3 folder
         if: always() && inputs.branch-slug != ''
         env:
@@ -157,17 +249,14 @@ jobs:
         run: |
           set -euo pipefail
           PREFIX="${{ inputs.branch-slug }}/e2e-report/"
-          # Never overwrite the published report with a stale or missing one:
-          # a fresh run must have produced index.html (plus e2e-run-metadata)
-          # before we touch the live report URL.
           if [ ! -f playwright-report/index.html ]; then
-            echo "::error::no fresh playwright-report/index.html (e2e outcome: ${{ steps.preview_e2e.outcome }}); refusing to overwrite s3://$S3_BUCKET/$PREFIX with a stale or missing report"
+            echo "::error::no fresh playwright-report/index.html; refusing to overwrite s3://$S3_BUCKET/$PREFIX"
             exit 1
           fi
           echo "Publishing playwright-report/ to s3://$S3_BUCKET/$PREFIX"
           aws s3 sync playwright-report/ "s3://$S3_BUCKET/$PREFIX" \
             --delete \
-            --cache-control "max-age=300, must-revalidate"
+            --cache-control "max-age=60, must-revalidate"
 
       - name: Upload Playwright HTML report
         uses: actions/upload-artifact@v7
@@ -178,22 +267,24 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload E2E screenshots
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: preview-e2e-screenshots
-          path: test-results/
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Write preview summary
+      - name: Write preview summary & enforce gate
+        id: gate
         if: always()
         env:
+          SHARDS_RESULT: ${{ needs.e2e-shard.result }}
+          SMOKE_RESULT: ${{ needs.preview-smoke.result }}
           BRANCH_SLUG: ${{ inputs.branch-slug }}
           BUILD_HASH: ${{ inputs.build-hash }}
+          FAILURES: ${{ steps.preview_stats.outputs.failures }}
         run: |
           set -euo pipefail
+          if [ "$SHARDS_RESULT" = "success" ] && [ "$SMOKE_RESULT" = "success" ] && [ "${FAILURES:-1}" = "0" ]; then
+            outcome="success"
+          else
+            outcome="failure"
+          fi
+          echo "outcome=$outcome" >> "$GITHUB_OUTPUT"
+
           report_url=""
           if [ -n "$BRANCH_SLUG" ]; then
             if [ "$BRANCH_SLUG" = "main" ]; then
@@ -203,12 +294,14 @@ jobs:
             fi
           fi
           cat <<EOF >> "$GITHUB_STEP_SUMMARY"
-          ## Live-app e2e against the deploy
+          ## Live-app e2e summary
 
           - Deploy URL: ${{ inputs.preview-url || 'https://preview.wod.wiki' }}
+          - CloudFront smoke outcome: $SMOKE_RESULT
+          - Journal shards outcome (4 shards): $SHARDS_RESULT
+          - Overall outcome: $outcome
           - Commit: $GITHUB_SHA
           - Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          - Playwright outcome: ${{ steps.preview_e2e.outcome }}
           - Tests: ${{ steps.preview_stats.outputs.tests }} (pass ${{ steps.preview_stats.outputs.passed }}, fail ${{ steps.preview_stats.outputs.failures }}, flaky ${{ steps.preview_stats.outputs.flaky }}, skipped ${{ steps.preview_stats.outputs.skipped }})
           EOF
           if [ -n "$BUILD_HASH" ]; then
@@ -219,4 +312,8 @@ jobs:
           fi
           if [ -f test-results/e2e-per-file-summary.md ]; then
             cat test-results/e2e-per-file-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "$outcome" != "success" ]; then
+            exit 1
           fi

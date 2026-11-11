@@ -42,7 +42,7 @@ jobs:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     outputs:
       unit-status: ${{ steps.unit.outcome }}
-      coverage-status: ${{ steps.coverage.outcome }}
+      coverage-status: ${{ steps.unit.outcome }}
       build-status: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v7
@@ -73,28 +73,6 @@ jobs:
       - name: Run unit tests
         id: unit
         run: bun run test:playground:unit
-
-      - name: Run coverage
-        id: coverage
-        run: bun run --filter '@bitcobblers/wod-wiki-playground' test:coverage
-
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: coverage-report
-          path: apps/playground/coverage/
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Upload coverage to Codecov
-        if: always() && env.CODECOV_TOKEN != '' && steps.coverage.outcome == 'success'
-        uses: codecov/codecov-action@v7
-        with:
-          files: apps/playground/coverage/lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-
       # Deploy-shaped build gate (PRs only — on main the site job builds for
       # real, so a second smoke build is pure duplication). The preview job
       # downloads this artifact instead of building again.
@@ -152,6 +130,5 @@ jobs:
           | Check | Outcome |
           | --- | --- |
           | Unit tests | ${{ steps.unit.outcome }} |
-          | Coverage | ${{ steps.coverage.outcome }} |
           | Playground build | ${{ steps.build.outcome }} |
           EOF

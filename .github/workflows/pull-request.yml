@@ -89,11 +89,56 @@ jobs:
     uses: ./.github/workflows/_verify.yml
     secrets: inherit
     with:
-      build-preview-artifact: true
-      preview-base-path: /${{ needs.slug.outputs.slug }}/dist/
-      app-version: ${{ needs.slug.outputs.preview-version }}
+      build-preview-artifact: false
 
+  build-playground:
+    name: Build playground preview
+    runs-on: ubuntu-22.04
+    if: github.event.action != 'closed'
+    needs: [slug]
+    outputs:
+      build-status: ${{ steps.build.outcome }}
+    steps:
+      - uses: actions/checkout@v7
 
+      - name: Set up environment (Bun + caches, no browsers)
+        uses: ./.github/actions/setup-env
+        with:
+          browsers: ''
+
+      - name: Build seed compiler packages
+        run: bun run build:packages:e2e
+
+      - name: Build playground
+        id: build
+        run: bun run build:app
+        env:
+          VITE_BASE_PATH: /${{ needs.slug.outputs.slug }}/dist/
+          VITE_APP_VERSION: ${{ needs.slug.outputs.preview-version }}
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://wod.wiki/api' }}
+          VITE_CAST_APP_ID: ${{ vars.VITE_CAST_APP_ID }}
+
+      - name: Build receiver
+        if: steps.build.outcome == 'success'
+        run: bun x vite build --config apps/playground/vite.receiver.config.ts --outDir dist
+
+      - name: Check receiver CSS compatibility
+        if: steps.build.outcome == 'success'
+        run: bun scripts/check-receiver-css-compat.cjs apps/playground/dist/assets/receiver-*.css
+
+      - name: Inject GA tag
+        if: steps.build.outcome == 'success' && vars.G_TAG != ''
+        run: |
+          grep -rl 'G-PROD-ID' apps/playground/dist \
+            | xargs -r sed -i 's/G-PROD-ID/${{ vars.G_TAG }}/g'
+
+      - name: Upload playground dist
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playground-dist
+          path: apps/playground/dist/
+          retention-days: 1
 
   build-test-packages:
     name: Build & test packages
@@ -123,7 +168,7 @@ jobs:
     name: Deploy preview
     runs-on: ubuntu-22.04
     if: github.event.action != 'closed'
-    needs: [slug, verify]
+    needs: [slug, build-playground]
     environment: preview
     outputs:
       bundle-hash: ${{ steps.fingerprint.outputs.hash }}
@@ -137,14 +182,7 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       PREVIEW_VERSION: ${{ needs.slug.outputs.preview-version }}
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up environment (Bun + caches, no browsers)
-        uses: ./.github/actions/setup-env
-        with:
-          browsers: ''
-
-      - name: Download playground dist (built by verify)
+      - name: Download playground dist (built by build-playground)
         uses: actions/download-artifact@v7
         with:
           name: playground-dist
@@ -173,10 +211,9 @@ jobs:
             --exclude "*" --include "assets/*"
           aws s3 sync ./dist/ "s3://$S3_BUCKET/$PREFIX" \
             --delete \
-            --cache-control "max-age=300, must-revalidate" \
+            --cache-control "max-age=30, must-revalidate" \
             --exclude "*.map" \
             --exclude "assets" --exclude "assets/*"
-
 
 
       - name: Create CloudFront invalidation (best-effort)
@@ -257,7 +294,7 @@ jobs:
       preview-url: https://${{ needs.slug.outputs.slug }}.preview.wod.wiki
       branch-slug: ${{ needs.slug.outputs.slug }}
       build-hash: ${{ needs.preview.outputs.bundle-hash }}
-
+      use-dist-artifact: true
   e2e-storybook:
     name: Storybook E2E
     runs-on: ubuntu-22.04
@@ -287,7 +324,7 @@ jobs:
   pr-summary:
     runs-on: ubuntu-22.04
     if: always() && github.event_name == 'pull_request' && github.event.action != 'closed'
-    needs: [build-test-packages, verify, storybook, e2e, e2e-storybook]
+    needs: [build-test-packages, verify, build-playground, storybook, e2e, e2e-storybook]
     permissions:
       contents: read
       pull-requests: write
@@ -296,9 +333,9 @@ jobs:
         uses: actions/github-script@v9
         env:
           VERIFY_RESULT: ${{ needs.verify.result }}
+          BUILD_PLAYGROUND_RESULT: ${{ needs.build-playground.result }}
           UNIT_STATUS: ${{ needs.verify.outputs.unit-status }}
-          COVERAGE_STATUS: ${{ needs.verify.outputs.coverage-status }}
-          BUILD_STATUS: ${{ needs.verify.outputs.build-status }}
+          BUILD_STATUS: ${{ needs.build-playground.outputs.build-status }}
           PKG_RESULT: ${{ needs.build-test-packages.result }}
           STORYBOOK_TEST: ${{ needs.storybook.outputs.test-status }}
           STORYBOOK_RESULT: ${{ needs.storybook.result }}
@@ -316,9 +353,8 @@ jobs:
             };
 
             const statuses = {
-              overall: [process.env.VERIFY_RESULT, process.env.PKG_RESULT, process.env.STORYBOOK_RESULT, process.env.E2E_RESULT, process.env.STORYBOOK_E2E_RESULT].every(result => result === 'success') ? 'success' : 'failure',
+              overall: [process.env.VERIFY_RESULT, process.env.BUILD_PLAYGROUND_RESULT, process.env.PKG_RESULT, process.env.STORYBOOK_RESULT, process.env.E2E_RESULT, process.env.STORYBOOK_E2E_RESULT].every(result => result === 'success') ? 'success' : 'failure',
               unit: process.env.UNIT_STATUS || 'skipped',
-              coverage: process.env.COVERAGE_STATUS || 'skipped',
               build: process.env.BUILD_STATUS || 'skipped',
               packages: process.env.PKG_RESULT || 'skipped',
               storybookTest: process.env.STORYBOOK_TEST || 'skipped',
@@ -332,8 +368,7 @@ jobs:
               : '## ⚠️ PR verification needs attention';
 
             const marker = '<!-- wod-wiki-pr-verification -->';
-            const body = `${marker}\n${headline}\n\n| Check | Status |\n| --- | --- |\n| Packages (lint/typecheck/test/build) | ${statusIcon(statuses.packages)} ${statuses.packages} |\n| Playground unit | ${statusIcon(statuses.unit)} ${statuses.unit} |\n| Playground coverage | ${statusIcon(statuses.coverage)} ${statuses.coverage} |\n| Playground build | ${statusIcon(statuses.build)} ${statuses.build} |\n| Storybook tests | ${statusIcon(statuses.storybookTest)} ${statuses.storybookTest} |\n| Storybook build | ${statusIcon(statuses.storybookBuild)} ${statuses.storybookBuild} |\n| Playground E2E | ${statusIcon(statuses.e2e)} ${statuses.e2e} |\n| Storybook E2E | ${statusIcon(statuses.storybookE2e)} ${statuses.storybookE2e} |\n\n- Actions run: [View run](${runUrl})\n- Coverage artifact: [Artifacts](${runUrl}#artifacts)`;
-
+            const body = `${marker}\n${headline}\n\n| Check | Status |\n| --- | --- |\n| Packages (lint/typecheck/test/build) | ${statusIcon(statuses.packages)} ${statuses.packages} |\n| Playground unit | ${statusIcon(statuses.unit)} ${statuses.unit} |\n| Playground build | ${statusIcon(statuses.build)} ${statuses.build} |\n| Storybook tests | ${statusIcon(statuses.storybookTest)} ${statuses.storybookTest} |\n| Storybook build | ${statusIcon(statuses.storybookBuild)} ${statuses.storybookBuild} |\n| Playground E2E | ${statusIcon(statuses.e2e)} ${statuses.e2e} |\n| Storybook E2E | ${statusIcon(statuses.storybookE2e)} ${statuses.storybookE2e} |\n\n- Actions run: [View run](${runUrl})`;
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,

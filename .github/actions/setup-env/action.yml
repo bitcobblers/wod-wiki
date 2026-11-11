@@ -55,7 +55,23 @@ runs:
           bun x playwright install --with-deps chromium firefox webkit
         elif [ "${{ inputs.browsers }}" = "chromium" ]; then
           bun x playwright install chromium
-          bun x playwright install-deps chromium || echo "::warning::Optional Chromium apt font packages skipped due to apt mirror error"
+          shopt -s nullglob
+          bins=(
+            ~/.cache/ms-playwright/chromium*/chrome-linux*/chrome
+            ~/.cache/ms-playwright/chromium_headless_shell*/chrome-headless-shell-linux*/chrome-headless-shell
+            ~/.cache/ms-playwright/chromium_headless_shell*/chrome-linux*/headless_shell
+          )
+          shopt -u nullglob
+          missing_libs=0
+          for bin in "${bins[@]}"; do
+            if ldd "$bin" 2>/dev/null | grep -q 'not found'; then
+              missing_libs=1
+              break
+            fi
+          done
+          if [ "${#bins[@]}" -eq 0 ] || [ "$missing_libs" -ne 0 ]; then
+            bun x playwright install-deps chromium || echo "::warning::Optional Chromium apt font packages skipped due to apt mirror error"
+          fi
         else
           bun x playwright install --with-deps ${{ inputs.browsers }}
         fi
@@ -76,7 +92,23 @@ runs:
           bun x playwright install chromium firefox webkit
         elif [ "${{ inputs.browsers }}" = "chromium" ]; then
           bun x playwright install chromium
-          bun x playwright install-deps chromium || echo "::warning::Optional Chromium apt font packages skipped due to apt mirror error"
+          shopt -s nullglob
+          bins=(
+            ~/.cache/ms-playwright/chromium*/chrome-linux*/chrome
+            ~/.cache/ms-playwright/chromium_headless_shell*/chrome-headless-shell-linux*/chrome-headless-shell
+            ~/.cache/ms-playwright/chromium_headless_shell*/chrome-linux*/headless_shell
+          )
+          shopt -u nullglob
+          missing_libs=0
+          for bin in "${bins[@]}"; do
+            if ldd "$bin" 2>/dev/null | grep -q 'not found'; then
+              missing_libs=1
+              break
+            fi
+          done
+          if [ "${#bins[@]}" -eq 0 ] || [ "$missing_libs" -ne 0 ]; then
+            bun x playwright install-deps chromium || echo "::warning::Optional Chromium apt font packages skipped due to apt mirror error"
+          fi
         else
           bun x playwright install-deps ${{ inputs.browsers }}
           bun x playwright install ${{ inputs.browsers }}

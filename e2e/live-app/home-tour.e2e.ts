@@ -255,40 +255,40 @@ test.describe('library & community feeds gallery', () => {
     const copies = section.locator('[data-marquee-copy="0"]')
 
     // Alphabetical before any import: CrossFit leads row A.
-    const crossfit = firstCopy.getByTestId('feed-card-seed-crossfit')
+    const crossfit = firstCopy.getByTestId('feed-card-sport-crossfit')
     await expect(crossfit).toBeVisible()
-    await expect(crossfit.getByTestId('feed-card-seed-crossfit-import')).toBeVisible()
+    await expect(crossfit.getByTestId('feed-card-sport-crossfit-import')).toBeVisible()
     // The card says what one Subscribe brings: its notebooks.
     for (const notebook of [
       'community-crossfit-programming',
       'community-crossfit-girls',
       'community-crossfit-heroes',
     ]) {
-      await expect(crossfit.getByTestId(`feed-card-seed-crossfit-notebook-${notebook}`)).toBeVisible()
+      await expect(crossfit.getByTestId(`feed-card-sport-crossfit-notebook-${notebook}`)).toBeVisible()
     }
 
     // Search matches the seed AND the notebooks it publishes.
     await section.getByTestId('package-search-input').fill('heroes')
-    await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
-    await expect(copies.getByTestId('feed-card-seed-swimming')).toHaveCount(0)
+    await expect(copies.getByTestId('feed-card-sport-crossfit')).toBeVisible()
+    await expect(copies.getByTestId('feed-card-sport-swimming')).toHaveCount(0)
     await section.getByTestId('package-search-input').fill('kettlebell zebras')
-    await expect(copies.getByTestId('feed-card-seed-crossfit')).toHaveCount(0)
+    await expect(copies.getByTestId('feed-card-sport-crossfit')).toHaveCount(0)
     await section.getByTestId('package-search-input').fill('')
-    await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
+    await expect(copies.getByTestId('feed-card-sport-crossfit')).toBeVisible()
 
     // Feed facets keep only the seeds published by that source — the
     // canonical facet now that collection/feed kinds collapsed into
     // notebooks (one Subscribe imports every notebook a feed publishes).
-    await section.getByTestId('filter-feed-source').selectOption('seed-crossfit')
-    await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
+    await section.getByTestId('filter-feed-source').selectOption('sport-crossfit')
+    await expect(copies.getByTestId('feed-card-sport-crossfit')).toBeVisible()
     await expect(copies.getByTestId('feed-card-r-workoutroutines')).toHaveCount(0)
     await section.getByTestId('filter-feed-source').selectOption('')
-    await expect(copies.getByTestId('feed-card-seed-crossfit')).toBeVisible()
+    await expect(copies.getByTestId('feed-card-sport-crossfit')).toBeVisible()
 
     // Sort by name keeps CrossFit leading.
     await section.getByTestId('package-sort-name').click()
     await expect(section.getByTestId('jump-row-a').locator('[data-marquee-copy="0"] article[data-testid^="feed-card-"]').first())
-      .toHaveAttribute('data-testid', 'feed-card-seed-crossfit')
+      .toHaveAttribute('data-testid', 'feed-card-sport-crossfit')
   })
 
   test('mobile slides the same cards in one alternating row', async ({ page }) => {
@@ -302,8 +302,8 @@ test.describe('library & community feeds gallery', () => {
     await expect(section.getByTestId('jump-row-a')).toHaveCount(0)
     await expect(section.getByTestId('jump-row-b')).toHaveCount(0)
     const firstCopy = section.getByTestId('jump-row-mobile').locator('[data-marquee-copy="0"]')
-    await expect(firstCopy.getByTestId('feed-card-seed-crossfit')).toBeVisible()
-    await expect(firstCopy.getByTestId('feed-card-seed-crossfit-notebook-community-crossfit-games')).toBeVisible()
+    await expect(firstCopy.getByTestId('feed-card-sport-crossfit')).toBeVisible()
+    await expect(firstCopy.getByTestId('feed-card-sport-crossfit-notebook-community-crossfit-games')).toBeVisible()
   })
 })
 

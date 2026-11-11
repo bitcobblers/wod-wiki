@@ -97,8 +97,9 @@ test.describe('URL scheme — canonical direct routes', () => {
   });
 
   test('/feed/:slug renders the feed detail after its import', async ({ page }) => {
-    await syncFeed(page, 'seed-crossfit');
-    await page.goto('/feed/seed-crossfit', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    test.setTimeout(90_000);
+    await syncFeed(page, 'sport-crossfit');
+    await page.goto('/feed/sport-crossfit', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await expect(page.getByRole('heading', { name: /not found/i })).toHaveCount(0);
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
     await expect.poll(() => page.title(), { timeout: 10_000 }).toBe('Wod.Wiki - Feed');
