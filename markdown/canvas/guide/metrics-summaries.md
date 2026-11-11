@@ -66,7 +66,7 @@ Equations resolve in waves as their inputs arrive. Scalar arithmetic preserves t
 
 Saved Summary Metrics become queryable WQL facts:
 ```query
-sum:totalWork{} by {week} last 6w
+:segment{} | :sum{metric:totalWork} by {week} last 6w | :timeseries{}
 ```
 Use the `+ Add metric` and `+ Add summary` buttons in the editor's Properties panel to create your own frontmatter equations.
 

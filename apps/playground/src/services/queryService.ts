@@ -25,6 +25,7 @@ import {
   captureContext,
   civilDateOf,
   civilDateAdd,
+  coalescingEventStore,
   zonedStartOfDay,
   toEventRows,
   type PageSourceEntry,
@@ -32,22 +33,27 @@ import {
 } from '@bitcobblers/wod-wiki-wql';
 import { toStoredOutputStatement } from '@bitcobblers/wod-wiki-lang';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
-import { getActiveWorkbenchSessionStore } from '@/stores/workbenchSessionStore';
+import { useActiveRunStore } from '@/stores/activeRunStore';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
 import { storageService } from '@/services/storage';
-
-/** Unified event store over IndexedDB — the `events` object store (V16). */
-export const indexedDbEventStore: EventStore = {
+import { playgroundFeedCatalogStore } from '@/services/feed/feedCatalog';
+import { isNotebookSubscribed } from '@/services/feed/feedSubscriptions';
+/** Unified event store over IndexedDB — the `events` object store (V16).
+ *
+ *  Wrapped in `coalescingEventStore`: dashboard widgets sharing one resolved
+ *  range join ONE in-flight IndexedDB range read instead of each issuing its
+ *  own. The wrapper is transparent — every other seam passes through. */
+export const indexedDbEventStore: EventStore = coalescingEventStore({
   getEventsByTimeRange: (start: number, end: number) => storageService.getEventsByTimeRange(start, end),
   getEventsByMetricDates: (dates) => storageService.getEventsByMetricDates(dates),
-  getEventsByResult: (resultId: string) => storageService.getEventsByResult(resultId),
-  getEventsForNote: (noteId: string) => storageService.getEventsForNote(noteId),
-  getEventsByContent: (blockContentId: string) => storageService.getEventsByContent(blockContentId),
+  getEventsByResult: (resultId) => storageService.getEventsByResult(resultId),
+  getEventsForNote: (noteId) => storageService.getEventsForNote(noteId),
+  getEventsByContent: (blockContentId) => storageService.getEventsByContent(blockContentId),
   scanAll: () => storageService.scanAll(),
   appendEvents: (rows) => storageService.appendEvents(rows),
   finalizeSummaries: (resultId, rows) => storageService.finalizeSummaries(resultId, rows),
   deleteEvents: (ids) => storageService.deleteEvents(ids),
-};
+});
 
 export const indexedDbNoteStore: NoteQueryStore = {
   getAllNotes: () => storageService.getAllNotes(),
@@ -114,22 +120,18 @@ pageSourceRegistry.set('@today', todayEntry);
  *  live `@session` facts and segment outputs. Returns the REGISTRY entry
  *  (mutated in place) so every reader sees the same current projection. */
 function projectLiveSession(): PageSourceEntry {
-  const session = getActiveWorkbenchSessionStore().getState();
-  const outputs: IOutputStatement[] = session.runtime?.getOutputStatements() ?? [];
-  const entry = session.currentEntry;
-  sessionEntry.notes = entry ? [{
-    id: entry.id, title: entry.title, createdAt: entry.createdAt, date: entry.targetDate,
-    rawContent: entry.rawContent, sourceRevision: entry.sourceRevision ?? 1, blocks: entry.blocks ?? {},
-  }] : [];
+  const { runtime, activeNoteId } = useActiveRunStore.getState();
+  const outputs: IOutputStatement[] = runtime?.getOutputStatements() ?? [];
+  sessionEntry.notes = [];
   if (outputs.length === 0) {
     sessionEntry.events = [];
     return sessionEntry;
   }
+  const resolvedNoteId = activeNoteId ?? '';
   sessionEntry.events = toEventRows(outputs.map(toStoredOutputStatement), {
-    noteId: entry?.id ?? '',
-    resultId: `live:${entry?.id ?? 'session'}`,
+    noteId: resolvedNoteId,
+    resultId: `live:${resolvedNoteId || 'session'}`,
     origin: 'playground',
-    workoutTimestamp: entry?.targetDate,
   });
   return sessionEntry;
 }
@@ -297,6 +299,9 @@ export function createQueryService(): QueryService {
     blockEffortsStore: {
       getAllFromIndex: (index, key) => storageService.getAllFromIndex('block_efforts', index, key),
     },
+    blockEquipmentStore: {
+      getAllFromIndex: (index, key) => storageService.getAllFromIndex('block_equipment', index, key),
+    },
     tagsStore: {
       getAllFromIndex: (index, key) => storageService.getAllFromIndex('tags', index, key),
       // The :tag{} plane lists every tag record (labels + contributions).
@@ -321,6 +326,8 @@ export function createQueryService(): QueryService {
     datasetStore: {
       getDataset: (name) => (name === '@session' ? projectLiveSession() : pageSourceRegistry.getDataset(name)),
     },
+    feedCatalogStore: playgroundFeedCatalogStore,
+    isNotebookSubscribed: (feedId, chunkId) => isNotebookSubscribed(feedId, chunkId),
   });
 }
 

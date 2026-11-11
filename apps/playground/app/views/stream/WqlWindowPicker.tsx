@@ -64,11 +64,12 @@ export function WqlWindowPicker({ query, onQueryChange, highlightDates = new Set
   const currentLabel = useMemo(() => {
     if (!currentWindow) return 'All time'
     if (currentWindow.kind === 'relative') return `last ${currentWindow.size}${currentWindow.unit}`
+    if (currentWindow.kind === 'param') return `last $${currentWindow.param}${currentWindow.unit ? ` ${currentWindow.unit}` : ''}`
     return currentWindow.end ? `from ${currentWindow.start} to ${currentWindow.end}` : `from ${currentWindow.start}`
   }, [currentWindow])
 
   const effectiveRange = useMemo(() => {
-    if (!currentWindow) return null
+    if (!currentWindow || currentWindow.kind === 'param') return null
     if (currentWindow.kind === 'range') {
       return { start: currentWindow.start, end: currentWindow.end ?? currentWindow.start }
     }

@@ -41,7 +41,7 @@ import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import type { MenuSpec } from '../nav/menuModel';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/atoms/primitives/toast';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 import { shareBlock } from '../services/openInPlayground';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
@@ -300,6 +300,7 @@ export function EffortDetailPage() {
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     results,
+    enableUnrecognizedActions: false,
     helpfulActions: [
       ...(effort && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: effort.slug }] : []),
       ...(effort ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),

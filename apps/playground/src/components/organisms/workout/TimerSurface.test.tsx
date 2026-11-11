@@ -9,7 +9,7 @@
 
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { cleanup, render, screen } from '@testing-library/react';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 import type { PanelSizeInfo } from '@/panels/panel-system/PanelSizeContext';
 import type { TimerSurfaceHandlers, TimerSurfaceModel } from './useTimerSurfaceModel';
 

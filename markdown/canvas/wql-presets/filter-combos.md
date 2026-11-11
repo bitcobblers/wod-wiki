@@ -1,5 +1,5 @@
 # Query sandbox
 
 ```query
-sum:totalVolume{!discipline:recovery, intensity:high} by {week} last 8w
+:segment{!discipline:recovery, intensity:high} | :sum{metric:totalVolume} by {week} last 8w | :timeseries{}
 ```

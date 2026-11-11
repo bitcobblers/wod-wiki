@@ -19,12 +19,11 @@
  * (calc.e1rm, calc.pct1rm) are the Epley formulas from
  * packages/lang/src/analytics/calc/seeds.ts applied per logged top set.
  */
-import { QueryService, inMemoryEventStore, type QueryResult } from '@bitcobblers/wod-wiki-engine';
+import { QueryService, inMemoryEventStore, computeWorkloadRollups, dayBucket, type QueryResult } from '@bitcobblers/wod-wiki-engine';
 import { toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 import type { StoredOutputStatement } from '@/components/Editor/types';
 import type { EventRecord } from '@/types/storage';
-import { computeWorkloadRollups, dayBucket } from '@/services/analytics/rollup';
 
 /** A named WQL query backing one showcase widget. */
 export interface AnalyticsQueryDef {

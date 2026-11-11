@@ -62,8 +62,12 @@ import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
-import { MobileStreamControlsNav } from '../../nav/SecondaryNav'
-import { NotebookLibraryBrowser } from '../notebook-gallery/NotebookLibraryBrowser'
+import { cloneRemotePreviewNoteToNotebook } from '@/services/feed/feedCatalog'
+import { toggleNotebookSubscription, unsubscribeFeedSource } from '@/services/feed/feedSync'
+import { setFeedSubscribed } from '@/services/feed/feedSubscriptions'
+import { setNotebookPublic } from '@bitcobblers/wod-wiki-engine'
+import { storage, storageBackend } from '@/services/storage'
+import { exportFeedRepositoryZip, publishSelfHostedFeed } from '@/services/ExportImportService'
 import { FeedIntakeBanner } from '../notebook-gallery/FeedIntakeBanner'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
 import { ROUTE_PATTERNS } from '../../lib/routes'
@@ -71,7 +75,7 @@ import { MobileNewEntryCombo, routeSupportsCreation } from '../../pages/shared/N
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings, LAYOUT_MODES, type LayoutMode } from '../../lib/viewSettingsStorage'
 import { useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
-import { todayKey } from '../../lib/dateFormat'
+import { todayKey } from '@/lib/dateFormat'
 import { withoutWindow, withGroupBy } from '../../lib/wqlEdits'
 import { LibraryRow } from '../library/LibraryRow'
 import { PropertyTable } from './PropertyTable'
@@ -327,24 +331,27 @@ export function QueriableStreamView({
   const mobileSlot = useMobileQuerySlot()
 
   const isNotebooksRoute = profile.route === '/notebooks'
+  const isFeedsRoute = profile.route === '/feeds'
   const feedIntakeParam = useMemo(
-    () => isNotebooksRoute ? new URLSearchParams(location.search).get('feed') : null,
-    [isNotebooksRoute, location.search],
+    () => (isNotebooksRoute || isFeedsRoute) ? new URLSearchParams(location.search).get('feed') : null,
+    [isNotebooksRoute, isFeedsRoute, location.search],
   )
-  const dismissFeedIntake = useCallback(() => {
+  const dismissFeedIntake = useCallback((nextQuery?: string) => {
     const params = new URLSearchParams(location.search)
     params.delete('feed')
-    const search = params.toString()
+    params.delete('q')
+    const rest = params.toString()
+    const qPart = typeof nextQuery === 'string' && nextQuery.length > 0 ? `q=${nextQuery}` : ''
+    const search = [rest, qPart].filter(Boolean).join('&')
     navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true })
   }, [navigate, location.pathname, location.search])
   useEffect(() => {
     if (!feedIntakeParam) return
     const isKnown = listFeedSources().some((s) => s.id === feedIntakeParam)
     if (isKnown) {
-      setQuery(`:notebook{feed:${feedIntakeParam},subscribed:true,false}`)
-      dismissFeedIntake()
+      dismissFeedIntake(`:notebook{feed:${feedIntakeParam},subscribed:true,false}`)
     }
-  }, [feedIntakeParam, dismissFeedIntake, setQuery])
+  }, [feedIntakeParam, dismissFeedIntake])
   const openLibraryManager = useCallback(() => {
     navigate(ROUTE_PATTERNS.settingsSync)
   }, [navigate])
@@ -563,6 +570,73 @@ export function QueriableStreamView({
       setActionError(err instanceof Error ? err.message : String(err))
     }
   }, [])
+  const handleToggleSubscribeEntry = useCallback(async (entry: Entry) => {
+    setActionError(null)
+    try {
+      const nextSub = !entry.subscribed
+      if (entry.kind === 'feed' && entry.feedId) {
+        if (nextSub) {
+          setFeedSubscribed(entry.feedId, true)
+          await syncFeedSource(entry.feedId)
+        } else {
+          await unsubscribeFeedSource(entry.feedId)
+        }
+      } else if (entry.kind === 'notebook' && entry.feedId && entry.seedChunkId) {
+        await toggleNotebookSubscription(entry.feedId, entry.seedChunkId, nextSub)
+      }
+      setSavedTick(t => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    }
+  }, [])
+
+  const handleTogglePublicNotebookEntry = useCallback(async (entry: Entry) => {
+    if (!entry.notebookId) return
+    setActionError(null)
+    try {
+      await setNotebookPublic(storage, entry.notebookId, !entry.isPublic)
+      setSavedTick(t => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    }
+  }, [])
+
+  const handlePublishOutboundFeed = useCallback(async () => {
+    setActionError(null)
+    try {
+      if (storageBackend === 'api') {
+        const res = await publishSelfHostedFeed()
+        toast({
+          title: `Published Feed v${res.report.manifest.version}`,
+          description: `${res.report.totalNotes} note(s) live at ${res.feedUrl}`,
+        })
+      } else {
+        const report = await exportFeedRepositoryZip()
+        toast({
+          title: 'Exported wod-wiki-feed-repository.zip',
+          description: `${report.totalNotes} note(s) and ${report.totalPublicSessions} public session(s) exported.`,
+        })
+      }
+      setSavedTick(t => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    }
+  }, [])
+
+  const handleCloneRemoteEntry = useCallback(async (entry: Entry) => {
+    setActionError(null)
+    try {
+      const targetNb = moveNotebookTargets[0]?.id ?? 'notebook/defaults'
+      const cloned = await cloneRemotePreviewNoteToNotebook(entry.id, targetNb)
+      toast({
+        title: `Cloned "${cloned.title}"`,
+        description: `Saved to ${targetNb.replace(/^notebook\//, '')}. You own this copy and can edit or publish it.`,
+      })
+      setSavedTick(t => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    }
+  }, [moveNotebookTargets])
   useEffect(() => onResultSaved(() => setSavedTick((t) => t + 1)), [])
   // The effort corpus keeps importing after the readiness gate flips (the
   // gate ungates on first paint; the effort chunk lands later). When the
@@ -660,11 +734,25 @@ export function QueriableStreamView({
       setLoading(true)
       setStages(undefined)
       activeEngine
-        .query(query, next => {
-          // Stage counts cancel together with results — a superseded run
-          // never publishes counts.
-          if (!cancelled) setStages(next)
-        })
+        .query(
+          query,
+          next => {
+            if (!cancelled) setStages(next)
+          },
+          {
+            notebookPlane:
+              isNotebooksRoute &&
+              isFindQuery(parsed) &&
+              parsed.filters.some(
+                f =>
+                  f.key === 'subscribed' ||
+                  f.key === 'feed' ||
+                  (f.key === 'type' && f.values.some(v => v.value === 'notebook')),
+              )
+                ? 'containers'
+                : 'notes',
+          },
+        )
         .then((results: Entry[]) => {
           if (!cancelled) {
             setEntries(results)
@@ -744,7 +832,7 @@ export function QueriableStreamView({
   const groupCountMap = useMemo(() => new Map(allGroups.map(g => [g.id, g.entries.length])), [allGroups])
 
   // Publish dynamic section links and L3 stream controls to NavContext
-  const { setL3Items, scrollToSection, navState, setStreamControls } = useNav()
+  const { setL3Items, setL3Actions, scrollToSection, navState, setStreamControls } = useNav()
   useEffect(() => {
     if (allGroups.length === 0) {
       setL3Items([])
@@ -787,6 +875,24 @@ export function QueriableStreamView({
     },
     [groupDims, query, setQuery, handleGroupByChange],
   )
+
+  const saveDisabled = Boolean(parsed.error) || query.trim() === ''
+  useEffect(() => {
+    if (!profile.dashboardEnabled) {
+      setL3Actions?.([])
+      return
+    }
+    setL3Actions?.([
+      {
+        id: 'stream-save-to-dashboard',
+        label: 'Add to dashboard',
+        icon: Save,
+        disabled: saveDisabled,
+        onRun: () => setDashboardOpen(true),
+      },
+    ])
+    return () => setL3Actions?.([])
+  }, [profile.dashboardEnabled, saveDisabled, setL3Actions])
 
   useEffect(() => {
     setStreamControls?.({
@@ -844,8 +950,23 @@ export function QueriableStreamView({
   // plane type). Subtracted from a user query to find authorship.
   const defaultImpliedFilters = useMemo(() => {
     const baseline = parseQuery(profile.defaultWql)
-    return !baseline.error && isFindQuery(baseline) ? baseline.filters : []
-  }, [profile.defaultWql])
+    const out = !baseline.error && isFindQuery(baseline) ? [...baseline.filters] : []
+    const headMatch = /^:([a-z0-9_-]+)/i.exec(query.trim())
+    if (headMatch?.[1]) {
+      const bareHead = parseQuery(`:${headMatch[1]}{}`)
+      if (!bareHead.error && isFindQuery(bareHead)) {
+        out.push(...bareHead.filters)
+      }
+    }
+    if (profile.scopeOptions.length === 1) {
+      out.push({
+        key: 'source',
+        negate: false,
+        values: [{ value: profile.scopeOptions[0]!, wildcard: false }],
+      })
+    }
+    return out
+  }, [profile.defaultWql, profile.scopeOptions, query])
 
   // Nothing imported on a seed-library route: the emptiness is the missing
   // corpus, not the query — the empty state points at the import action and
@@ -870,7 +991,12 @@ export function QueriableStreamView({
     }
     if (!parsed.error && parsed.window) {
       const w = parsed.window
-      const label = w.kind === 'relative' ? `last ${w.size}${w.unit}` : `from ${w.start}${w.end ? ` to ${w.end}` : ''}`
+      const label =
+        w.kind === 'relative'
+          ? `last ${w.size}${w.unit}`
+          : w.kind === 'param'
+            ? `last $${w.param}${w.unit ? ` ${w.unit}` : ''}`
+            : `from ${w.start}${w.end ? ` to ${w.end}` : ''}`
       remedies.push({
         id: 'remove-window',
         label: `Remove time window (${label})`,
@@ -993,7 +1119,7 @@ export function QueriableStreamView({
                 variant="outline"
                 size="sm"
                 data-testid="save-stream-query"
-                disabled={Boolean(parsed.error) || query.trim() === ''}
+                disabled={saveDisabled}
                 onClick={() => setDashboardOpen(true)}
               >
                 <Save className="size-3.5" aria-hidden="true" />
@@ -1001,11 +1127,6 @@ export function QueriableStreamView({
               </Button>
             )}
             {actions}
-            {/* Mobile thumb ⋯ sheet carries the same L3 controls (whiteboard
-                bottom-up Search → New → … contract). ResponsiveActions
-                registers children only on mobile, so the desktop header row
-                and the 2xl+ rail keep sole ownership — no duplicates. */}
-            <MobileStreamControlsNav />
           </ResponsiveActions>
         }
         queryBar={
@@ -1170,18 +1291,16 @@ export function QueriableStreamView({
         </div>
       )}
 
-      {isNotebooksRoute && feedIntakeParam && (
+      {(isNotebooksRoute || isFeedsRoute) && feedIntakeParam && (
         <div className="px-6 pt-4">
           <FeedIntakeBanner
             feedParam={feedIntakeParam}
-            onDismiss={dismissFeedIntake}
+            onDismiss={() => dismissFeedIntake()}
             onRegistered={(feedId) => {
-              dismissFeedIntake()
-              setQuery(`:notebook{feed:${feedId},subscribed:true,false}`)
+              dismissFeedIntake(`:notebook{feed:${feedId},subscribed:true,false}`)
             }}
             onSubscribed={(feedId) => {
-              dismissFeedIntake()
-              setQuery(`:notebook{feed:${feedId}}`)
+              dismissFeedIntake(`:notebook{feed:${feedId}}`)
             }}
           />
         </div>
@@ -1211,28 +1330,30 @@ export function QueriableStreamView({
         </div>
       )}
 
-      {/* Main Content: On /notebooks, render the unified NotebookLibraryBrowser.
-          On other stream routes, render Rows (table) / Feed (rich cards) / Cards (grouped stream). */}
-      {isNotebooksRoute && !readmeOverride && !libraryNotImported ? (
-        <div className="p-6 flex-1">
-          <NotebookLibraryBrowser
-            query={query}
-            layout={settings.layout}
-            refreshKey={savedTick}
-            onChanged={() => setSavedTick((t) => t + 1)}
-            onQueryChange={setQuery}
-            onEditNotebook={() => setCreateNotebookOpen(true)}
-            onDeleteNotebook={async (id) => {
-              try {
-                await notebookService.delete(id)
-                setSavedTick((t) => t + 1)
-              } catch {
-                // Deletion failed (e.g. reserved slug refused)
-              }
-            }}
-          />
+      {/* Zero-import remote preview banner when viewing an unsubscribed remote Notebook */}
+      {entries.length > 0 && entries.every(e => e.isRemotePreview) && notebookStreamSlug && (
+        <div className="mx-6 mt-4 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs" data-testid="remote-notebook-preview-banner">
+          <div>
+            <p className="font-semibold text-foreground">
+              Zero-import Remote Preview · {entries.length} note{entries.length === 1 ? '' : 's'}
+            </p>
+            <p className="text-muted-foreground mt-0.5">
+              Browsing directly from published Feed index without importing into your vault. Clone individual workouts or subscribe to pull the notebook locally.
+            </p>
+          </div>
+          {entries[0]?.feedId && (
+            <Button
+              size="sm"
+              onClick={() => void toggleNotebookSubscription(entries[0]!.feedId!, `notebook.${notebookStreamSlug}`, true).then(() => setSavedTick(t => t + 1))}
+              data-testid="remote-preview-subscribe-btn"
+            >
+              + Subscribe &amp; Pull Notebook
+            </Button>
+          )}
         </div>
-      ) : readmeOverride ? null : layout === 'rows' ? (
+      )}
+      {/* Unified Stream Content across all Library routes (/feeds, /notebooks, /notes, /journal, /sessions, /efforts, /tags) */}
+      {readmeOverride ? null : layout === 'rows' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <PropertyTable
             entries={entries}
@@ -1328,6 +1449,10 @@ export function QueriableStreamView({
                               onRunStart={handleRunEntry}
                               moveNotebookTargets={moveNotebookTargets}
                               onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.id, notebookId)}
+                              onToggleSubscribe={(e) => void handleToggleSubscribeEntry(e)}
+                              onTogglePublicNotebook={(e) => void handleTogglePublicNotebookEntry(e)}
+                              onPublishFeed={() => void handlePublishOutboundFeed()}
+                              onCloneRemote={(e) => void handleCloneRemoteEntry(e)}
                             />
                           ))}
                         </div>
@@ -1360,6 +1485,10 @@ export function QueriableStreamView({
                           onRunStart={handleRunEntry}
                           moveNotebookTargets={moveNotebookTargets}
                           onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.id, notebookId)}
+                          onToggleSubscribe={(e) => void handleToggleSubscribeEntry(e)}
+                          onTogglePublicNotebook={(e) => void handleTogglePublicNotebookEntry(e)}
+                          onPublishFeed={() => void handlePublishOutboundFeed()}
+                          onCloneRemote={(e) => void handleCloneRemoteEntry(e)}
                         />
                       ))}
                     </div>

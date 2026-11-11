@@ -8,8 +8,8 @@ quality:
 # Recovery & Readiness
 
 Recovery prebuilt — readiness, HRV, sleep, and subjective wellness against
-objective load (monotony, ACWR). Capture the wellness inputs in a journaling
-tion ```wellness fence on a daily note:
+objective load (monotony, ACWR). Capture the wellness inputs in a daily
+note's ```wellness fence:
 
 ```wellness
 soreness: 7
@@ -19,44 +19,45 @@ hrv: 62
 
 Readiness is the composite (soreness-inverted 40% / sleep 30% / HRV 30%).
 
-## Readiness today
-Green-light for intensity?
-
-```query:value
-last:calc.readiness{}
+```query
+title: Readiness today
+description: Green-light for intensity?
+view: value
+query: last:calc.readiness{}
 ```
 
-## HRV trend
-Autonomic balance holding?
-
-```query:timeseries-2
-avg:calc.hrv{} by {day}
+```query
+title: HRV trend
+description: Autonomic balance holding?
+view: timeseries
+span: 2
+query: avg:calc.hrv{} by {day}
 ```
 
-## Sleep duration
-Hitting the nightly floor?
-
-```query:bar
-avg:calc.sleep{} by {day}
+```query
+title: Sleep duration
+description: Hitting the nightly floor?
+view: bar
+query: avg:calc.sleep{} by {day}
 ```
 
-## Soreness
-Subjective load matching objective?
-
-```query:bar
-avg:calc.soreness{} by {day}
+```query
+title: Soreness
+description: Subjective load matching objective?
+view: bar
+query: avg:calc.soreness{} by {day}
 ```
 
-## Monotony
-Enough day-to-day variation?
-
-```query:timeseries
-avg:calc.monotony{} by {day}
+```query
+title: Monotony
+description: Enough day-to-day variation?
+view: timeseries
+query: avg:calc.monotony{} by {day}
 ```
 
-## Load balance (ACWR)
-Inside the 0.8–1.3 sweet spot all block?
-
-```query:timeseries
-avg:calc.acwr{} by {day}
+```query
+title: Load balance (ACWR)
+description: Inside the 0.8–1.3 sweet spot all block?
+view: timeseries
+query: avg:calc.acwr{} by {day}
 ```

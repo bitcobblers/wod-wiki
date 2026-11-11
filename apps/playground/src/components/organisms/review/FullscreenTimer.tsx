@@ -3,13 +3,14 @@ import type { EditorView } from "@codemirror/view";
 import { RuntimeTimerPanel } from "@/components/organisms/editor/RuntimeTimerPanel";
 import type { ScriptBlock, Sessions } from "@/components/Editor/types";
 import { toStoredOutputStatement } from '@/components/Editor/types';
-import { ReviewGrid } from "@/components/organisms/review/ReviewGrid";
+import { RowsResultsChrome, RowsTable, type InlineMetricEditPayload } from "@bitcobblers/wod-wiki-ui";
 import { useDebugMode } from "@/contexts/DebugModeContext";
 import { getAnalyticsFromLogs } from "@/hooks/useWorkbenchServices";
 import type { IScriptRuntime } from "@/hooks/useRuntimeTimer";
-import { type Segment, MetricType, OutputStatement } from '@bitcobblers/wod-wiki-engine';
-import { eventsToStoredLogs } from '@bitcobblers/wod-wiki-wql';
-import { storageService, telemetry, engagementMs, captureMetricCorrection } from '@/hooks/useBrowserServices';
+import { type Segment, MetricType, OutputStatement, type EventRecord } from '@bitcobblers/wod-wiki-engine';
+import { eventsToStoredLogs, type RowsQueryResult } from '@bitcobblers/wod-wiki-wql';
+import { storageService, telemetry, engagementMs, captureMetricCorrection, captureSessionRpe } from '@/hooks/useBrowserServices';
+import { queryService } from "@/hooks/useCastSignaling";
 import { FocusedDialog } from "@/components/molecules/FocusedDialog";
 import { CastButtonRpc } from "@/components/organisms/cast/CastButtonRpc";
 import { AudioToggle } from "@/components/atoms/AudioToggle";
@@ -106,7 +107,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   }, [prepareRun]);
   useEffect(() => { void prepare(); }, [prepare]);
   const [completedSegments, setCompletedSegments] = useState<Segment[] | null>(null);
-  const [selectedSegmentIds, setSelectedSegmentIds] = useState<Set<number>>(new Set());
+  const [reviewEvents, setReviewEvents] = useState<EventRecord[] | null>(null);
   const { isDebugMode } = useDebugMode();
   // Track runtime dialog load, review screen, and duration in GA4 & telemetry
   const mountTimeRef = useRef(Date.now());
@@ -211,6 +212,16 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   );
   const queueVisible = completedSegments !== null && !!resultId && queueItems.length > 0 && !queueDismissed;
 
+  const refreshFromStoredEvents = useCallback(async (targetResultId: string) => {
+    const events = await storageService.getEventsByResult(targetResultId);
+    setReviewEvents(events);
+    const logs = eventsToStoredLogs(events).map((output) =>
+      toStoredOutputStatement(new OutputStatement(output)),
+    );
+    const { segments } = getAnalyticsFromLogs(logs);
+    setCompletedSegments(segments);
+  }, []);
+
   const handleCapture = useCallback(async (item: CollectionItem, value: unknown) => {
     if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('Invalid value');
     if (item.kind !== 'value') throw new Error('Unsupported entry');
@@ -227,12 +238,36 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     if (outcome === 'not-found') {
       throw new Error('This result entry could not be found — retry or skip.');
     }
-    const events = await storageService.getEventsByResult(resultId);
-    const logs = eventsToStoredLogs(events).map(output => toStoredOutputStatement(new OutputStatement(output)));
-    const { segments } = getAnalyticsFromLogs(logs);
-    setCompletedSegments(segments);
+    await refreshFromStoredEvents(resultId);
     setCapturedFields((prev) => new Set(prev).add(entryFieldId(item)));
-  }, [resultId]);
+  }, [resultId, refreshFromStoredEvents]);
+
+  const handleInlineEditMetric = useCallback(
+    async (targetResultId: string, payload: InlineMetricEditPayload) => {
+      const outcome = await captureMetricCorrection({
+        resultId: targetResultId,
+        occurrence: payload.occurrence,
+        metric: {
+          type: payload.metric.type as MetricType,
+          value: payload.metric.value,
+          image: payload.metric.image,
+        },
+      });
+      if (outcome === 'not-found') {
+        throw new Error('This result entry could not be found.');
+      }
+      await refreshFromStoredEvents(targetResultId);
+    },
+    [refreshFromStoredEvents],
+  );
+
+  const handleCaptureRpe = useCallback(
+    async (targetResultId: string, rpe: number) => {
+      await captureSessionRpe(targetResultId, rpe);
+      await refreshFromStoredEvents(targetResultId);
+    },
+    [refreshFromStoredEvents],
+  );
 
   const handleSkipQueueItem = useCallback((item: CollectionItem) => {
     // Actual unknown stays unknown — skip only drops the prompt.
@@ -280,6 +315,14 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     setSaveState('idle');
     setSavedConfirmed(true);
     const { results } = report;
+    if (resultId) {
+      try {
+        const storedEvents = await storageService.getEventsByResult(resultId);
+        if (storedEvents.length > 0) setReviewEvents(storedEvents);
+      } catch {
+        // Fall back to in-memory segments when storage has no events (e.g. unit test mocks)
+      }
+    }
     if (results.logs && results.logs.length > 0) {
       try {
         const { segments } = getAnalyticsFromLogs(results.logs, results.startTime);
@@ -350,34 +393,49 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     void commitReport();
   };
 
-  const handleSelectSegment = (id: number, modifiers?: { ctrlKey: boolean; shiftKey: boolean }, visibleIds?: number[]) => {
-    setSelectedSegmentIds((prev) => {
-      const next = new Set(prev);
-      if (modifiers?.ctrlKey) {
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-      } else if (modifiers?.shiftKey && visibleIds) {
-        const lastId = Array.from(prev).pop();
-        if (lastId !== undefined) {
-          const startIdx = visibleIds.indexOf(lastId);
-          const endIdx = visibleIds.indexOf(id);
-          if (startIdx !== -1 && endIdx !== -1) {
-            const min = Math.min(startIdx, endIdx);
-            const max = Math.max(startIdx, endIdx);
-            for (let i = min; i <= max; i++) next.add(visibleIds[i]);
-          } else {
-            next.add(id);
-          }
-        } else {
-          next.add(id);
-        }
-      } else {
-        next.clear();
-        next.add(id);
-      }
-      return next;
-    });
-  };
+  const reviewResult = useMemo<RowsQueryResult | null>(() => {
+    if (completedSegments === null) return null;
+    const effectiveId = resultId ?? 'standalone-review';
+    const events: EventRecord[] =
+      reviewEvents && reviewEvents.length > 0
+        ? reviewEvents
+        : completedSegments.map((seg, idx) => {
+            const ctx = (seg as Segment & { context?: Record<string, unknown> }).context;
+            const started = seg.absoluteStartTime ?? Date.now();
+            const ended = started + Math.max(0, (seg.duration ?? 0) * 1000);
+            return {
+              id: `${effectiveId}:${seg.id ?? idx}`,
+              grain: 'event',
+              outputType: String(ctx?.outputType ?? seg.type ?? 'segment'),
+              sourceBlockKey: String(ctx?.sourceBlockKey ?? seg.name ?? `segment-${idx}`),
+              ...(typeof ctx?.sourceStatementId === 'number'
+                ? { sourceStatementId: ctx.sourceStatementId }
+                : {}),
+              stackLevel: seg.depth,
+              completionReason: typeof ctx?.completionReason === 'string' ? ctx.completionReason : undefined,
+              timestamp: started,
+              timeSpan: { started, ended },
+              metrics: seg.metrics ? Array.from(seg.metrics) : [],
+            } as unknown as EventRecord;
+          });
+    const timestamp = events[0]?.timeSpan?.started ?? Date.now();
+    return {
+      parsed: {
+        family: 'find',
+        raw: `:session{result:${effectiveId}}`,
+        target: 'session',
+        filters: [{ key: 'result', negate: false, values: [{ value: effectiveId, wildcard: false }] }],
+      },
+      runs: [
+        {
+          resultId: effectiveId,
+          noteId: '',
+          timestamp,
+          events,
+        },
+      ],
+    } as unknown as RowsQueryResult;
+  }, [completedSegments, reviewEvents, resultId]);
 
   const saveBanner =
     saveState === 'idle' ? null : (
@@ -433,16 +491,24 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
               runId={resultId ? `result:${resultId}` : undefined}
               className="mx-auto max-w-md"
             />
-          ) : (
-            <ReviewGrid
-              runtime={null}
-              segments={completedSegments}
-              selectedSegmentIds={selectedSegmentIds}
-              onSelectSegment={handleSelectSegment}
-              groups={[]}
-              gridViewPreset={isDebugMode ? 'debug' : 'default'}
-            />
-          )}
+          ) : reviewResult && resultId ? (
+            <div className="h-full overflow-auto p-4 sm:p-6">
+              <RowsResultsChrome
+                resultId={resultId}
+                sessionResult={reviewResult}
+                executor={queryService}
+                onCaptureRpe={handleCaptureRpe}
+                onEditMetric={handleInlineEditMetric}
+              />
+            </div>
+          ) : reviewResult ? (
+            <div className="h-full overflow-auto p-4 sm:p-6">
+              <RowsTable
+                result={reviewResult}
+                filter={isDebugMode ? '' : undefined}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </FocusedDialog>

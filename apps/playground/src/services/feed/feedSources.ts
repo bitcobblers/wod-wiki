@@ -294,6 +294,7 @@ export const FEED_SOURCES: FeedSource[] = [
   feedSource('yt-strongfirst', 'StrongFirst', 'wod-wiki-youtube-strongfirst', 'StrongFirst hardstyle kettlebell workouts.'),
   feedSource('yt-the-stone-circle', 'The Stone Circle', 'wod-wiki-youtube-the-stone-circle', 'Sandbag power-endurance and density training.'),
   feedSource('samples-movement', 'Movement Examples', 'wod-wiki-samples-movement', 'Unconventional and parkour-style training examples.'),
+  feedSource('samples-results', 'Results Samples', 'wod-wiki-samples-results', 'Recorded sessions from the public sports datasets — HYROX races, athletics, CrossFit leaderboards, and swimming.'),
   feedSource('sport-yoga', 'Yoga Examples', 'wod-wiki-sport-yoga', 'Yoga session examples.'),
   feedSource('r-workoutroutines', 'r/WorkoutRoutines', 'wod-wiki-r-workoutroutines', 'Community feed from the r/WorkoutRoutines subreddit.'),
 ];
@@ -364,6 +365,12 @@ export const NOTEBOOKS: NotebookDef[] = [
   notebook('wayback-zombie-fit', 'zombiefit', 'notebook.zombiefit', 'ZombieFit', 'workouts', 'The ZombieFit archive — parkour-inspired fitness WODs, 2009–2013.'),
   notebook('sport-golos-method', 'the-golos-method', 'notebook.the-golos-method', 'The Golos Method', 'workouts', 'Daily minimalist strength and conditioning — dense, repeatable sessions.'),
   notebook('samples-movement', 'unconventional', 'notebook.unconventional', 'Unconventional', 'workouts', 'Unconventional training — maces, clubs, sandbags, and parkour movement.'),
+  // Recorded sessions from the public sports datasets
+  notebook('samples-results', 'hyrox-races', 'notebook.hyrox-races', 'HYROX Race Results', 'results', 'Real HYROX race runs, station by station, from the public Pyrox results.'),
+  notebook('samples-results', 'athletics-results', 'notebook.athletics-results', 'Athletics Results', 'results', 'Track-and-field performances with 100 m splits, from the AthTech Challenge results.'),
+  notebook('samples-results', 'crossfit-leaderboards', 'notebook.crossfit-leaderboards', 'CrossFit Leaderboards', 'results', 'CrossFit Games and Open event-by-event scores from the official leaderboards.'),
+  notebook('samples-results', 'swimming-results', 'notebook.swimming-results', 'Swimming Race Results', 'results', 'Swimming race times from the World Aquatics rankings.'),
+  notebook('samples-results', 'swimming-training', 'notebook.swimming-training', 'Swimming Training Load', 'results', 'Twelve weeks of pool training load, one note per week.'),
   notebook('sport-yoga', 'yoga', 'notebook.yoga', 'Yoga', 'workouts', 'Yoga sessions for mobility and recovery.'),
   // Reddit programs
   notebook('r-workoutroutines', 'workoutroutines-reddit', 'notebook.workoutroutines-reddit', 'r/WorkoutRoutines', 'programs', 'Community workouts from the r/WorkoutRoutines subreddit.'),

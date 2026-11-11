@@ -11,10 +11,12 @@ export * from './capabilities';
 export { parser as wqlParser } from './grammar/wql.parser';
 export * as wqlTerms from './grammar/wql.parser.terms';
 
-// 3. WQL parser, AST, and suffixes
+// 3. WQL parser, AST, suffixes, $param binding, and YAML ```query block codec
 export * from './wql';
 export * from './wqlSuffix';
 export * from './serialize';
+export * from './paramRef';
+export * from './queryBlockCodec';
 
 // 4. Disciplines
 export * from './disciplines';
@@ -55,6 +57,9 @@ export * from './notebookVocabulary';
 // 9. Dashboard Model, Parser, Scaffold & Frontmatter
 export * from './dashboard';
 export * from './entityScope';
+
+// 9b. Query cache — structural keys, LRU bound, scan coalescing
+export * from './queryCache';
 
 // 10. Version info
 export * from './version';

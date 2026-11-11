@@ -7,7 +7,7 @@
  * in the Library page, not the row.
  */
 import { useNavigate, Link } from 'react-router-dom'
-import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon } from 'lucide-react'
+import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Copy, Share2 } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/atoms/primitives/dropdown-menu'
 import type { Entry } from '../../lib/entryMapper'
 import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryNotebookHref } from '../../lib/entryActions'
@@ -46,6 +46,10 @@ export interface LibraryRowProps {
    */
   moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
   onMoveNotebook?: (entry: Entry, notebookId: string) => void
+  onToggleSubscribe?: (entry: Entry) => void
+  onCloneRemote?: (entry: Entry) => void
+  onPublishFeed?: (entry: Entry) => void
+  onTogglePublicNotebook?: (entry: Entry) => void
 }
 
 const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
@@ -57,6 +61,8 @@ const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
   dashboard: LayoutDashboard,
   equipment: Wrench,
   tag: TagIcon,
+  feed: Rss,
+  notebook: BookOpen,
 }
 
 const KIND_LABEL: Record<Entry['kind'], string> = {
@@ -68,6 +74,8 @@ const KIND_LABEL: Record<Entry['kind'], string> = {
   dashboard: 'Dashboard',
   equipment: 'Equipment',
   tag: 'Tag',
+  feed: 'Feed',
+  notebook: 'Notebook',
 }
 
 const KIND_TONE: Record<Entry['kind'], string> = {
@@ -79,6 +87,8 @@ const KIND_TONE: Record<Entry['kind'], string> = {
   dashboard: 'bg-cyan-500/10 text-cyan-600 group-hover:bg-cyan-500/20',
   equipment: 'bg-orange-500/10 text-orange-600 group-hover:bg-orange-500/20',
   tag: 'bg-violet-500/10 text-violet-600 group-hover:bg-violet-500/20',
+  feed: 'bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20',
+  notebook: 'bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500/20',
 }
 
 export function LibraryRow({
@@ -92,6 +102,10 @@ export function LibraryRow({
   onRunStart,
   moveNotebookTargets,
   onMoveNotebook,
+  onToggleSubscribe,
+  onCloneRemote,
+  onPublishFeed,
+  onTogglePublicNotebook,
 }: LibraryRowProps) {
   const navigate = useNavigate()
   // Annotation 4 — plain `note` kind conflates journal/guide/playground and
@@ -164,6 +178,41 @@ export function LibraryRow({
           <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 border border-border rounded-full px-1.5 py-0.5">
             {kindLabel}
           </span>
+          {(entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && (
+            <span
+              className={`text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
+                entry.subscribed
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
+                  : 'border-border bg-muted text-muted-foreground'
+              }`}
+              data-testid={`library-row-sub-status-${entry.sourceNote}`}
+            >
+              {entry.subscribed ? 'Subscribed' : 'Unsubscribed'}
+            </span>
+          )}
+          {entry.kind === 'notebook' && entry.feedId === 'local' && (
+            <span
+              className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
+                entry.isPublic
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
+                  : 'border-border bg-muted/60 text-muted-foreground'
+              }`}
+              data-testid={`library-row-visibility-${entry.sourceNotebook}`}
+            >
+              {entry.isPublic ? <Globe className="size-2.5" /> : <Lock className="size-2.5" />}
+              {entry.isPublic ? 'Public' : 'Private'}
+            </span>
+          )}
+          {entry.kind === 'feed' && entry.unpublishedChanges && (
+            <span className="text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-amber-500/40 bg-amber-500/10 text-amber-600">
+              Unpublished changes
+            </span>
+          )}
+          {entry.isRemotePreview && (
+            <span className="text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-sky-500/40 bg-sky-500/10 text-sky-600">
+              Remote Preview
+            </span>
+          )}
           {entry.execution?.effortSlug && (
             <Link
               to={effortPath(entry.execution.effortSlug)}
@@ -231,6 +280,10 @@ export function LibraryRow({
           onRunStart={onRunStart}
           moveNotebookTargets={moveNotebookTargets}
           onMoveNotebook={onMoveNotebook}
+          onToggleSubscribe={onToggleSubscribe}
+          onCloneRemote={onCloneRemote}
+          onPublishFeed={onPublishFeed}
+          onTogglePublicNotebook={onTogglePublicNotebook}
         />
       )}
     </div>
@@ -243,9 +296,13 @@ interface RowActionsProps {
   onRunStart?: (entry: Entry) => void
   moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
   onMoveNotebook?: (entry: Entry, notebookId: string) => void
+  onToggleSubscribe?: (entry: Entry) => void
+  onCloneRemote?: (entry: Entry) => void
+  onPublishFeed?: (entry: Entry) => void
+  onTogglePublicNotebook?: (entry: Entry) => void
 }
 
-function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook }: RowActionsProps) {
+function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, onCloneRemote, onPublishFeed, onTogglePublicNotebook }: RowActionsProps) {
   const navigate = useNavigate()
   const compareHref = entryCompareHref(entry)
   const notebookHref = entryNotebookHref(entry)
@@ -263,6 +320,54 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
       <ActionButton title={notebookHref ? "Details" : "Open"} testId="action-open" onClick={() => navigate(entryOpenHref(entry))}>
         <PlayIcon className="size-3.5" />
       </ActionButton>
+      {(entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && onToggleSubscribe && (
+        <button
+          type="button"
+          onClick={() => onToggleSubscribe(entry)}
+          data-testid={entry.subscribed ? `row-unsubscribe-${entry.sourceNote}` : `row-subscribe-${entry.sourceNote}`}
+          className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors ${
+            entry.subscribed
+              ? 'border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40'
+              : 'bg-primary text-primary-foreground hover:bg-primary/90'
+          }`}
+        >
+          <CloudDownload className="size-3" />
+          <span>{entry.subscribed ? 'Unsubscribe' : 'Subscribe'}</span>
+        </button>
+      )}
+      {entry.kind === 'notebook' && entry.feedId === 'local' && onTogglePublicNotebook && (
+        <button
+          type="button"
+          onClick={() => onTogglePublicNotebook(entry)}
+          data-testid={`row-toggle-public-${entry.sourceNotebook}`}
+          className="h-7 px-2.5 rounded-lg border border-border text-[11px] font-semibold flex items-center gap-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          {entry.isPublic ? <Lock className="size-3" /> : <Globe className="size-3" />}
+          <span>{entry.isPublic ? 'Make Private' : 'Make Public'}</span>
+        </button>
+      )}
+      {entry.kind === 'feed' && entry.sourceNote === 'local' && onPublishFeed && (
+        <button
+          type="button"
+          onClick={() => onPublishFeed(entry)}
+          data-testid="row-publish-local-feed"
+          className="h-7 px-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+        >
+          <Share2 className="size-3" />
+          <span>Publish / Export</span>
+        </button>
+      )}
+      {entry.isRemotePreview && onCloneRemote && (
+        <button
+          type="button"
+          onClick={() => onCloneRemote(entry)}
+          data-testid={`row-clone-remote-${entry.id}`}
+          className="h-7 px-2.5 rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+        >
+          <Copy className="size-3" />
+          <span>Clone</span>
+        </button>
+      )}
       {notebookHref && (
         <ActionButton title="Notebook" testId="action-notebook" onClick={() => navigate(notebookHref)}>
           <Rss className="size-3.5" />

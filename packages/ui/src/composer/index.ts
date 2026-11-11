@@ -74,4 +74,25 @@ export {
   WHERE_METRICS,
   PLANE_OPTIONS,
 } from './queryClauses';
-export { wqlToPills, resolveQueryDraft, editQueryClause, type QueryDraft } from './queryAst';
+export {
+  wqlToPills,
+  resolveQueryDraft,
+  editQueryClause,
+  bindTokenParamIntoWql,
+  normalizeSimplePipelineToAggregate,
+  type QueryDraft,
+} from './queryAst';
+export {
+  QueryObjectBuilder,
+  primaryQueryOf,
+  setPrimaryQueryOnObject,
+  promoteFindToChartObject,
+  bindTokenToQueryObject,
+  toggleGoalLayer,
+  cycleBaselineLayer,
+  toggleCompareLayer,
+  removeSeriesLayer,
+  type QueryObjectBuilderProps,
+  type QueryObjectBuilderDensity,
+  type QueryObjectValidationState,
+} from './QueryObjectBuilder';

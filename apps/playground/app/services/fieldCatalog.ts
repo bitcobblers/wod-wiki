@@ -13,9 +13,17 @@ import type {
 } from '@bitcobblers/wod-wiki-wql';
 import type { FieldCatalogEntry } from '@/types/storage';
 import { storage, type IStorage } from '@/services/storage';
-import type { FieldValueRecord } from '@bitcobblers/wod-wiki-core';
+import {
+    applyCatalogSourceContributions,
+    extractContributionsFromEventRows,
+    extractContributionsFromNote,
+    fieldSourceId,
+    notifyFieldCatalogChanged,
+    onFieldCatalogChanged,
+} from '@/services/catalog/fieldCatalog';
 
-type FieldCatalogValueRecord = FieldValueRecord;
+const BACKFILL_REVISION = 1;
+const BACKFILL_CHUNK_SIZE = 50;
 
 function entryToSuggestion(entry: FieldCatalogEntry): CatalogFieldSuggestion {
     return {
@@ -30,14 +38,35 @@ function entryToSuggestion(entry: FieldCatalogEntry): CatalogFieldSuggestion {
 
 export class IndexedDbFieldCatalog implements IFieldCatalog {
     private readonly listeners = new Set<() => void>();
+    private readonly unsubscribeGlobal: () => void;
 
-    constructor(private readonly storageInstance: IStorage = storage) {}
+    constructor(private readonly storageInstance: IStorage = storage) {
+        this.unsubscribeGlobal = onFieldCatalogChanged(() => this.notifyChanged());
+    }
+
+    subscribe(listener: () => void): () => void {
+        this.listeners.add(listener);
+        return () => {
+            this.listeners.delete(listener);
+        };
+    }
+
+    dispose(): void {
+        this.unsubscribeGlobal();
+        this.listeners.clear();
+    }
 
     async listByPrefix(prefix: string, limit = 20): Promise<CatalogFieldSuggestion[]> {
         const range = prefix && typeof IDBKeyRange !== 'undefined'
             ? IDBKeyRange.bound(prefix, `${prefix}\uFFFF`, false, true)
             : undefined;
         const entries = await this.storageInstance.readonly('field_catalog').getAllFromIndex('by-path', range, limit);
+        if (prefix && !range) {
+            return entries
+                .filter((e) => e.path.startsWith(prefix))
+                .slice(0, limit)
+                .map(entryToSuggestion);
+        }
         return entries.map(entryToSuggestion);
     }
 
@@ -48,15 +77,16 @@ export class IndexedDbFieldCatalog implements IFieldCatalog {
 
     async listValues(path: string, valuePrefix: string, limit = 20): Promise<CatalogValueSuggestion[]> {
         const variants = await this.lookup(path);
+        const lowerPrefix = valuePrefix.toLowerCase();
         const out: CatalogValueSuggestion[] = [];
         for (const variant of variants) {
             if (out.length >= limit) break;
-            const range = valuePrefix && typeof IDBKeyRange !== 'undefined'
-                ? IDBKeyRange.bound([variant.id, valuePrefix], [variant.id, `${valuePrefix}\uFFFF`], false, true)
-                : undefined;
-            const page = await this.storageInstance.readonly('field_values').getAllFromIndex('by-field', range, limit - out.length);
-            for (const record of page) {
-                out.push({ fieldId: record.fieldId, value: record.value });
+            const records = await this.storageInstance.readonly('field_values').getAllFromIndex('by-field', variant.id);
+            for (const record of records) {
+                if (out.length >= limit) break;
+                if (!lowerPrefix || record.value.toLowerCase().startsWith(lowerPrefix)) {
+                    out.push({ fieldId: record.fieldId, value: record.value });
+                }
             }
         }
         return out;
@@ -67,10 +97,136 @@ export class IndexedDbFieldCatalog implements IFieldCatalog {
     }
 
     observeStore(_store?: unknown): void {
-        // Post-commit notification hook
+        // Post-commit notifications arrive via onFieldCatalogChanged from StorageService.
     }
 }
 
 export const fieldCatalog = new IndexedDbFieldCatalog(storage);
 
-export function startFieldCatalogBackfill(): void {}
+const inFlightBackfills = new WeakMap<IStorage, Promise<void>>();
+
+/**
+ * Resumable background backfill of `field_catalog*` from existing `notes` and
+ * `events` rows (zero DB schema migration). Idempotent once
+ * `field_catalog_meta` records `status: 'complete'` at `BACKFILL_REVISION`.
+ */
+export function startFieldCatalogBackfill(storageInstance: IStorage = storage): Promise<void> {
+    const existing = inFlightBackfills.get(storageInstance);
+    if (existing) return existing;
+
+    const run = (async () => {
+        try {
+            const meta = await storageInstance.readonly('field_catalog_meta').get('backfill');
+            if (meta?.status === 'complete' && meta.revision >= BACKFILL_REVISION) {
+                return;
+            }
+
+            const cursor = { ...(meta?.cursor ?? {}) };
+            await storageInstance.transaction(['field_catalog_meta'], 'readwrite', async (tx) => {
+                await tx.readwrite('field_catalog_meta').put({
+                    id: 'backfill',
+                    status: 'initializing',
+                    cursor: { ...cursor },
+                    revision: BACKFILL_REVISION,
+                    updatedAt: Date.now(),
+                });
+            });
+
+            let anyChanged = false;
+
+            // 1. Backfill notes frontmatter contributions in bounded chunks
+            const allNotes = (await storageInstance.readonly('notes').getAll())
+                .sort((a, b) => a.id.localeCompare(b.id));
+            const remainingNotes = cursor.notes
+                ? allNotes.filter((n) => n.id > cursor.notes!)
+                : allNotes;
+
+            for (let i = 0; i < remainingNotes.length; i += BACKFILL_CHUNK_SIZE) {
+                const chunk = remainingNotes.slice(i, i + BACKFILL_CHUNK_SIZE);
+                await storageInstance.transaction(
+                    ['field_catalog', 'field_sources', 'field_values', 'field_catalog_meta'],
+                    'readwrite',
+                    async (tx) => {
+                        for (const note of chunk) {
+                            const changed = await applyCatalogSourceContributions(
+                                tx,
+                                fieldSourceId('note', note.id),
+                                extractContributionsFromNote(note),
+                                note.createdAt || Date.now(),
+                            );
+                            if (changed) anyChanged = true;
+                        }
+                        cursor.notes = chunk[chunk.length - 1]!.id;
+                        await tx.readwrite('field_catalog_meta').put({
+                            id: 'backfill',
+                            status: 'initializing',
+                            cursor: { ...cursor },
+                            revision: BACKFILL_REVISION,
+                            updatedAt: Date.now(),
+                        });
+                    },
+                );
+            }
+
+            // 2. Backfill persisted events grouped by resultId in bounded chunks
+            const allEvents = await storageInstance.readonly('events').getAll();
+            const byResult = new Map<string, typeof allEvents>();
+            for (const ev of allEvents) {
+                if (!ev.resultId) continue;
+                const list = byResult.get(ev.resultId);
+                if (list) list.push(ev);
+                else byResult.set(ev.resultId, [ev]);
+            }
+            const sortedResults = [...byResult.keys()].sort();
+            const remainingResults = cursor.results
+                ? sortedResults.filter((id) => id > cursor.results!)
+                : sortedResults;
+
+            for (let i = 0; i < remainingResults.length; i += BACKFILL_CHUNK_SIZE) {
+                const chunkIds = remainingResults.slice(i, i + BACKFILL_CHUNK_SIZE);
+                await storageInstance.transaction(
+                    ['field_catalog', 'field_sources', 'field_values', 'field_catalog_meta'],
+                    'readwrite',
+                    async (tx) => {
+                        for (const resultId of chunkIds) {
+                            const rows = byResult.get(resultId) ?? [];
+                            const changed = await applyCatalogSourceContributions(
+                                tx,
+                                fieldSourceId('result', resultId),
+                                extractContributionsFromEventRows(rows),
+                            );
+                            if (changed) anyChanged = true;
+                        }
+                        cursor.results = chunkIds[chunkIds.length - 1]!;
+                        await tx.readwrite('field_catalog_meta').put({
+                            id: 'backfill',
+                            status: 'initializing',
+                            cursor: { ...cursor },
+                            revision: BACKFILL_REVISION,
+                            updatedAt: Date.now(),
+                        });
+                    },
+                );
+            }
+
+            await storageInstance.transaction(['field_catalog_meta'], 'readwrite', async (tx) => {
+                await tx.readwrite('field_catalog_meta').put({
+                    id: 'backfill',
+                    status: 'complete',
+                    cursor,
+                    revision: BACKFILL_REVISION,
+                    updatedAt: Date.now(),
+                });
+            });
+
+            if (anyChanged) {
+                notifyFieldCatalogChanged();
+            }
+        } finally {
+            inFlightBackfills.delete(storageInstance);
+        }
+    })();
+
+    inFlightBackfills.set(storageInstance, run);
+    return run;
+}

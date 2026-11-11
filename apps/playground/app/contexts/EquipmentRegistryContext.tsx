@@ -17,14 +17,19 @@ interface EquipmentRegistryContextValue {
   registry: IEquipmentRegistry;
   isReady: boolean;
   error: Error | null;
+  /** Successful hydration count; increments whenever equipment is created/refreshed. */
+  revision: number;
   refresh: () => Promise<void>;
 }
 
 const EquipmentRegistryContext = createContext<EquipmentRegistryContextValue | null>(null);
 
 export function EquipmentRegistryProvider({ children }: { children: React.ReactNode }) {
-  const [isReady, setIsReady] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [{ isReady, error, revision }, setStatus] = useState<Pick<EquipmentRegistryContextValue, 'isReady' | 'error' | 'revision'>>({
+    isReady: false,
+    error: null,
+    revision: 0,
+  });
   const registry = getAppEquipmentRegistry();
 
   const init = useCallback(async () => {
@@ -32,16 +37,13 @@ export function EquipmentRegistryProvider({ children }: { children: React.ReactN
       // Always re-read — hydration replaces the bundled tier and reloads the
       // user tier (see EffortRegistryContext).
       await hydrateAppEquipmentRegistry(registry);
-      setIsReady(true);
-      setError(null);
+      setStatus((s) => ({ isReady: true, error: null, revision: s.revision + 1 }));
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
-      setIsReady(false);
+      setStatus((s) => ({ ...s, isReady: false, error: err instanceof Error ? err : new Error(String(err)) }));
     }
   }, [registry]);
 
   const refresh = useCallback(async () => {
-    setIsReady(false);
     await init();
   }, [init]);
 
@@ -58,10 +60,14 @@ export function EquipmentRegistryProvider({ children }: { children: React.ReactN
   }, [refresh]);
 
   return (
-    <EquipmentRegistryContext.Provider value={{ registry, isReady, error, refresh }}>
+    <EquipmentRegistryContext.Provider value={{ registry, isReady, error, revision, refresh }}>
       {children}
     </EquipmentRegistryContext.Provider>
   );
+}
+
+export function useOptionalEquipmentRegistry(): EquipmentRegistryContextValue | null {
+  return useContext(EquipmentRegistryContext);
 }
 
 export function useEquipmentRegistry(): EquipmentRegistryContextValue {

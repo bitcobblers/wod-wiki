@@ -54,6 +54,8 @@ import {
   equipmentToCsv,
   extractNoteIdentity,
   extractTypedTags,
+  ingestPortableFilesIntoStorage,
+  serializeNoteBundleToJsonl,
   sessionToCsv,
 } from '@bitcobblers/wod-wiki-engine';
 import {
@@ -232,13 +234,13 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       i++;
     } else if (arg === '--format') {
       const fmt = args[++i] as OutputFormat;
-      if (fmt === 'json' || fmt === 'table' || fmt === 'csv') {
+      if (fmt === 'json' || fmt === 'table' || fmt === 'csv' || fmt === 'jsonl') {
         result.format = fmt;
       }
       i++;
     } else if (arg.startsWith('--format=')) {
       const fmt = arg.slice('--format='.length) as OutputFormat;
-      if (fmt === 'json' || fmt === 'table' || fmt === 'csv') {
+      if (fmt === 'json' || fmt === 'table' || fmt === 'csv' || fmt === 'jsonl') {
         result.format = fmt;
       }
       i++;
@@ -931,12 +933,28 @@ export async function cliMain(
             writeErr(`[wod ${verb}] Session not found in ${db.path}: ${id}`);
             return 1;
           }
-          const csv = sessionToCsv(bundle.session, bundle.events);
-          const target = parsed.output && parsed.output !== '-' ? parsed.output : `${id}.csv`;
-          if (parsed.output === '-') {
-            writeOut(csv);
+          const wantsJsonl = parsed.format === 'jsonl' || (parsed.output !== undefined && /\.jsonl$/i.test(parsed.output));
+          const defaultExt = wantsJsonl ? 'jsonl' : 'csv';
+          const target = parsed.output && parsed.output !== '-' ? parsed.output : `${id}.${defaultExt}`;
+          let payload: string;
+          if (wantsJsonl) {
+            const rev = await db.storage.readonly('block_revisions').get([
+              bundle.session.noteId,
+              bundle.session.blockId,
+              bundle.session.blockVersion,
+            ]);
+            payload = serializeNoteBundleToJsonl({
+              ...(rev ? { revisions: [rev] } : {}),
+              sessions: [bundle.session],
+              events: bundle.events,
+            }) + '\n';
           } else {
-            nodeFs().writeFileSync(target, csv, 'utf-8');
+            payload = sessionToCsv(bundle.session, bundle.events);
+          }
+          if (parsed.output === '-') {
+            writeOut(payload.trimEnd());
+          } else {
+            nodeFs().writeFileSync(target, payload, 'utf-8');
           }
           if (parsed.output !== '-') writeOut(`[wod ${verb}] session ${id} → ${target} (${bundle.events.length} events)`);
         } else if (kind === 'effort') {
@@ -1061,13 +1079,25 @@ export async function cliMain(
         }
         return 0;
       }
-      const { session, events } = csvToSessionRows(fs.readFileSync(file, 'utf-8'));
+      const rawSessionText = fs.readFileSync(file, 'utf-8');
       const db = await openCliDb(cliDb());
       try {
-        const result = await persistSessionBundle(db, session, events);
-        writeOut(
-          `[wod import] session ${session.id} — ${result.events} events → ${db.path}`,
-        );
+        if (/\.jsonl$/i.test(file)) {
+          const report = await ingestPortableFilesIntoStorage(db.storage, [{ path: file, content: rawSessionText }]);
+          if (report.errors.length > 0 && report.sessionsImported === 0) {
+            writeErr(`[wod import] ${report.errors.join('; ')}`);
+            return 1;
+          }
+          writeOut(
+            `[wod import] session jsonl — ${report.sessionsImported} session(s), ${report.eventsImported} events → ${db.path}`,
+          );
+        } else {
+          const { session, events } = csvToSessionRows(rawSessionText);
+          const result = await persistSessionBundle(db, session, events);
+          writeOut(
+            `[wod import] session ${session.id} — ${result.events} events → ${db.path}`,
+          );
+        }
       } finally {
         await db.close();
       }

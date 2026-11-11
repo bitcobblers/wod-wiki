@@ -13,10 +13,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
 import { BlockHistory, revertBlock } from '@/components/organisms/editor/BlockHistory'
 import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
-import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore'
-import { notePersistence } from '@/services/persistence'
 import { captureStoredRun } from '@/services/runCapture';
-import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { JournalPageShell } from '@/panels/page-shells'
 import type { WidgetRegistry } from '@/components/Editor/widgets/types'
 import { PlaygroundRunTipWidget } from '../components/molecules/PlaygroundRunTipWidget'
@@ -55,8 +52,6 @@ import { useOnboardingEvents } from '../hooks/useOnboardingEvents'
 import { CalendarPlus } from 'lucide-react'
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { provenanceLink, type ContextNoteLink } from './shared/noteContextLinks'
-
-const contentProvider = new IndexedDBContentProvider()
 
 export interface PlaygroundNotePageProps {
   theme: string
@@ -257,6 +252,7 @@ export function PlaygroundNotePage({
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     results,
+    noteId: runtimeNoteId,
     // Whiteboard playground L3: Move to journal, Reset, Clone after the
     // outline (Move also stays the sticky pill below).
     helpfulActions: [
@@ -271,7 +267,12 @@ export function PlaygroundNotePage({
   // runtime note is UUID-keyed; ownership derives the /playground/<name>
   // stamp journal copies carry.
   const ownership = useMemo(() => noteOwnership({ id: runtimeNoteId, type: 'playground' }), [runtimeNoteId])
-  const contextData = useNoteContextLinks({ noteId: runtimeNoteId, stamps: ownership.stamps })
+  const contextData = useNoteContextLinks({
+    noteId: runtimeNoteId,
+    stamps: ownership.stamps,
+    liveContent: content,
+    revision: sourceRevision,
+  })
 
   // Spawn provenance — "Open in Playground" stamps the source page path into
   // sourceId (path-like); the bare 'playground' intake marker renders nothing.
@@ -398,9 +399,6 @@ export function PlaygroundNotePage({
 
   return (
     <>
-      {/* The provider wires the persistence port the editor's block companions
-        use to load results — without it playground notes never display them. */}
-      <WorkbenchSessionProvider notePersistence={notePersistence} provider={contentProvider}>
       <JournalPageShell
         title={pageTitle}
         actions={headerActions}
@@ -441,7 +439,6 @@ export function PlaygroundNotePage({
           </div>
         }
       />
-      </WorkbenchSessionProvider>
       {pendingScheduleBlock && (
         <EditorDialog
           open

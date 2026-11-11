@@ -19,13 +19,16 @@ import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 import { toStoredOutputStatement } from '@/components/Editor/types';
 
 const factory = runtimeFactory;
+const preparedBlocks = new WeakSet<object>();
 
 export function prepareRuntimeBlock(block: ScriptBlock): ScriptBlock & { statements: NonNullable<ScriptBlock['statements']> } {
   // Parse at Run time, not only at editor render time. The tag catalogue can
   // finish loading after the block was first parsed; reusing those statements
   // would leave inline #tag references as inert custom annotations forever.
   const parser = createParser({ tags: getTagIndex() });
-  return { ...block, statements: parser.read(block.content, block.sport).statements };
+  const prepared = { ...block, statements: parser.read(block.content, block.sport).statements };
+  preparedBlocks.add(prepared);
+  return prepared;
 }
 
 /**
@@ -110,7 +113,10 @@ export function createRuntimeForBlock(block: ScriptBlock, noteContent?: string):
       propertySources,
     },
   };
-  return factory.createRuntime(prepareRuntimeBlock(block), options) ?? null;
+  // Preserve pre-run wizard mutations (`Choice` / `?` target resolution) when
+  // `block` was already run-time-parsed via `prepareRuntimeBlock(block)`.
+  const runBlock = preparedBlocks.has(block) && block.statements ? block : prepareRuntimeBlock(block);
+  return factory.createRuntime(runBlock, options) ?? null;
 }
 
 export function buildSessions(

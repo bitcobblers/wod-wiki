@@ -10,16 +10,21 @@ import {
   unknownTokensMessage,
   unknownWidgetTypeMessage,
   SharedQueryDocumentRunner,
+  isYamlQueryBlockBody,
+  parseQueryBlock,
+  queryBlockToDocumentText,
+  queryBlockAttributes,
   type AnyParsedQuery,
   type RowsQueryResult,
 } from '@bitcobblers/wod-wiki-wql';
 import type { QueryExecutor } from '../contracts/query';
 import { RowsTable } from '../widgets/RowsTable';
+import type { InlineMetricEditPayload } from '../widgets/OutputStatementsTable';
 import { RowsResultsChrome } from './RowsResultsChrome';
 import { WidgetChart, WidgetProblemBadge } from '../widgets/WidgetChart';
 import {
   createExecutorDocumentHost,
-  outputToRunResult,
+  outputsToRunResult,
   type WidgetRunResult,
 } from '../widgets/chartData';
 import { extractBlockQueries } from '../utils/blockQueryPatcher';
@@ -50,10 +55,14 @@ export interface QueryBlockViewProps {
   onAddToDashboard?: () => void;
   /** Optional RPE capture handler. */
   onCaptureRpe?: (resultId: string, rpe: number) => Promise<void>;
+  /** Optional inline metric actuals editor (`captureMetricCorrection`). */
+  onEditMetric?: (resultId: string, payload: InlineMetricEditPayload) => void | Promise<void>;
   /** Optional click handler for opening a note from :note results. */
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   /** Optional resolver returning the destination href for an item in :note results. */
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+  /** Optional handler to reveal the raw fenced WQL source in the host editor. */
+  onEditSource?: () => void;
 }
 
 export function QueryBlockView({
@@ -69,13 +78,21 @@ export function QueryBlockView({
   attributes,
   onAddToDashboard,
   onCaptureRpe,
+  onEditMetric,
   onOpenNote,
   noteHref,
+  onEditSource,
 }: QueryBlockViewProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const extracted = useMemo(() => extractBlockQueries(query), [query]);
+  const yamlObject = useMemo(
+    () => (isYamlQueryBlockBody(query) ? parseQueryBlock(query) : undefined),
+    [query],
+  );
+
+  const extracted = useMemo(() => (yamlObject ? [] : extractBlockQueries(query)), [query, yamlObject]);
   const rawBody = useMemo(() => {
+    if (yamlObject) return queryBlockToDocumentText(yamlObject);
     const trimmed = query.trim();
     if (trimmed.includes('\n')) {
       const docParsed = parseDocument(trimmed);
@@ -84,32 +101,44 @@ export function QueryBlockView({
       }
     }
     return extracted.length > 0 ? extracted[0].query : query;
-  }, [extracted, query]);
+  }, [extracted, query, yamlObject]);
+
+  const effectiveWidgetType = useMemo(() => {
+    if (widgetType != null && widgetType !== '') return widgetType;
+    if (yamlObject) return yamlObject.rawViewType ?? yamlObject.view;
+    return widgetType;
+  }, [widgetType, yamlObject]);
+
+  const combinedAttributes = useMemo(() => {
+    if (!yamlObject) return attributes;
+    return { ...queryBlockAttributes(yamlObject), ...attributes };
+  }, [attributes, yamlObject]);
 
   const { query: effectiveQuery, missing } = useMemo(() => {
     const subQuery = substituteTokens(rawBody, tokenValues ?? {});
     const missingSet = new Set(subQuery.missing);
-    for (const value of Object.values(attributes ?? {})) {
+    for (const value of Object.values(combinedAttributes ?? {})) {
       for (const m of substituteTokens(value, tokenValues ?? {}).missing) missingSet.add(m);
     }
     return { query: subQuery.query, missing: [...missingSet] };
-  }, [rawBody, tokenValues, attributes]);
+  }, [rawBody, tokenValues, combinedAttributes]);
 
   const resolvedAttributes = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const [key, value] of Object.entries(attributes ?? {})) {
+    for (const [key, value] of Object.entries(combinedAttributes ?? {})) {
       out[key] = substituteTokens(value, tokenValues ?? {}).query;
     }
     return out;
-  }, [attributes, tokenValues]);
+  }, [combinedAttributes, tokenValues]);
 
   const docParse = useMemo(() => parseDocument(effectiveQuery), [effectiveQuery]);
   const isMultiLineDoc = !docParse.doc.degenerate && docParse.doc.assignments.length > 0;
   const parsed = useMemo(() => parseQuery(effectiveQuery), [effectiveQuery]);
+  const effectiveWidgetError = widgetError ?? yamlObject?.error;
   const syntaxError = isMultiLineDoc ? docParse.diagnostics[0] : parsed.error;
 
   const unknownType =
-    widgetType != null && widgetType !== '' && !isDashboardWidgetType(widgetType);
+    effectiveWidgetType != null && effectiveWidgetType !== '' && !isDashboardWidgetType(effectiveWidgetType);
   const [runResult, setRunResult] = useState<WidgetRunResult | undefined>(undefined);
   const [runError, setRunError] = useState<string | undefined>(undefined);
   const [rowsRefreshKey, setRowsRefreshKey] = useState(0);
@@ -131,7 +160,7 @@ export function QueryBlockView({
     setRunError(undefined);
     setRunResult(undefined);
 
-    if (syntaxError || widgetError || unknownType || missing.length > 0 || !executor) return;
+    if (syntaxError || effectiveWidgetError || unknownType || missing.length > 0 || !executor) return;
 
     const isSessionFind = !isMultiLineDoc && isFindQuery(parsed) && parsed.target === 'session';
     const host = createExecutorDocumentHost(executor);
@@ -142,22 +171,21 @@ export function QueryBlockView({
         .run(effectiveQuery)
         .then((res) => {
           if (cancelled) return;
-          const out = res.outputs[0];
-          if (!out) {
-            setRunError(res.diagnostics[0] ?? 'widget produced no output');
+          // The document may show several bindings (`show a, b | :chart{}`) —
+          // merge every shown output so no series is silently dropped.
+          const error = res.outputs.find((o) => o.error !== undefined)?.error ?? res.diagnostics[0];
+          if (!res.outputs.length && res.diagnostics.length) {
+            setRunError(res.diagnostics[0]!);
             return;
           }
-          const err = out.error ?? res.diagnostics[0];
-          if (err) {
-            setRunError(err);
+          if (error) {
+            setRunError(error);
             return;
           }
           const effectiveParsed: AnyParsedQuery = isMultiLineDoc
-            ? (out.kind === 'find'
-                ? { family: 'find', raw: effectiveQuery, target: 'note', filters: [] }
-                : { family: 'aggregate', raw: effectiveQuery, agg: 'sum', metric: out.name, filters: [], groupBy: out.groupBy ?? [] })
+            ? { family: 'aggregate', raw: effectiveQuery, agg: 'sum', metric: res.outputs[0]?.name ?? 'value', filters: [], groupBy: [] }
             : parsed;
-          const shaped = outputToRunResult(effectiveParsed, out);
+          const shaped = outputsToRunResult(effectiveParsed, res, resolvedAttributes);
           setRunResult(shaped);
           if (isSessionFind && (shaped.runs ?? []).length === 0 && attemptCount < 4) {
             const delays = [50, 150, 350, 750];
@@ -176,10 +204,11 @@ export function QueryBlockView({
       cancelled = true;
       clearTimeout(retryTimer);
     };
-  }, [effectiveQuery, parsed, isMultiLineDoc, syntaxError, widgetError, unknownType, missing, executor, rowsRefreshKey]);
+  }, [effectiveQuery, parsed, isMultiLineDoc, syntaxError, effectiveWidgetError, unknownType, missing, executor, rowsRefreshKey, resolvedAttributes]);
 
   const canEdit = onSaveQuery !== undefined && !readOnly;
   const onEdit = canEdit ? () => setIsModalOpen(true) : undefined;
+  const effectiveEditSource = !readOnly ? onEditSource : undefined;
 
   const resultId = useMemo(() => {
     if (!isFindQuery(parsed) || parsed.target !== 'session') return undefined;
@@ -188,49 +217,56 @@ export function QueryBlockView({
   }, [parsed]);
 
   const fallbackLabel = useMemo(() => {
+    if (yamlObject?.title) return yamlObject.title;
     if (!isFindQuery(parsed) && !isPipelineQuery(parsed)) return parsed.metric;
     return parsed.raw;
-  }, [parsed]);
+  }, [parsed, yamlObject]);
 
   return (
     <div data-testid="query-block-view">
-      {widgetError ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+      {effectiveWidgetError ? (
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
-            {widgetError}
+            {effectiveWidgetError}
           </div>
         </QueryBlockShell>
       ) : unknownType ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
-          <WidgetProblemBadge message={unknownWidgetTypeMessage(widgetType)} />
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+          <WidgetProblemBadge message={unknownWidgetTypeMessage(effectiveWidgetType)} />
         </QueryBlockShell>
       ) : missing.length > 0 ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <WidgetProblemBadge message={unknownTokensMessage(missing)} />
         </QueryBlockShell>
       ) : syntaxError ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
             Query syntax error: {syntaxError}
           </div>
         </QueryBlockShell>
       ) : runError ? (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
             Query execution error: {runError}
           </div>
         </QueryBlockShell>
       ) : (
-        <QueryBlockShell onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <QueryBlockBody
             parsed={parsed}
             result={runResult}
             resultId={resultId}
-            widgetType={widgetType}
+            widgetType={effectiveWidgetType}
+            isMultiLineDoc={isMultiLineDoc}
+            yamlColumns={yamlObject?.columns}
+            yamlSort={yamlObject?.sort}
+            yamlLimit={yamlObject?.limit}
+            yamlComparePr={yamlObject?.comparePr}
             attributes={resolvedAttributes}
             fallbackLabel={fallbackLabel}
             executor={executor}
             onCaptureRpe={onCaptureRpe}
+            onEditMetric={readOnly ? undefined : onEditMetric}
             onCaptured={() => setRowsRefreshKey((k) => k + 1)}
             onOpenNote={onOpenNote}
             noteHref={noteHref}
@@ -241,7 +277,9 @@ export function QueryBlockView({
         <WqlQueryInspectorModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          initialQuery={effectiveQuery}
+          initialQuery={query}
+          initialWidgetType={widgetType}
+          initialAttributes={attributes}
           executor={executor}
           onApply={(nextQuery) => onSaveQuery(nextQuery)}
         />
@@ -255,10 +293,16 @@ function QueryBlockBody({
   result,
   resultId,
   widgetType,
+  isMultiLineDoc,
+  yamlColumns,
+  yamlSort,
+  yamlLimit,
+  yamlComparePr,
   attributes,
   fallbackLabel,
   executor,
   onCaptureRpe,
+  onEditMetric,
   onCaptured,
   onOpenNote,
   noteHref,
@@ -267,10 +311,16 @@ function QueryBlockBody({
   result: WidgetRunResult | undefined;
   resultId?: string;
   widgetType?: string;
+  isMultiLineDoc?: boolean;
+  yamlColumns?: readonly string[];
+  yamlSort?: readonly { col: string; dir: 'asc' | 'desc' }[];
+  yamlLimit?: number;
+  yamlComparePr?: boolean;
   attributes?: Record<string, string>;
   fallbackLabel: string;
   executor?: QueryExecutor;
   onCaptureRpe?: (resultId: string, rpe: number) => Promise<void>;
+  onEditMetric?: (resultId: string, payload: InlineMetricEditPayload) => void | Promise<void>;
   onCaptured: () => void;
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
@@ -294,13 +344,33 @@ function QueryBlockBody({
         sessionResult={result as unknown as RowsQueryResult}
         executor={executor}
         onCaptureRpe={onCaptureRpe}
+        onEditMetric={onEditMetric}
         onCaptured={onCaptured}
+        columns={yamlColumns}
+        sort={yamlSort}
+        limit={yamlLimit}
+        comparePr={yamlComparePr}
       />
     );
   }
 
   if (result.runs && (isFindQuery(parsed) || result.runs.length > 0)) {
-    return <RowsTable result={result as unknown as RowsQueryResult} />;
+    return (
+      <RowsTable
+        result={result as unknown as RowsQueryResult}
+        columns={yamlColumns}
+        sort={yamlSort}
+        limit={yamlLimit}
+        onEditMetric={
+          onEditMetric
+            ? async (rId, payload) => {
+                await onEditMetric(rId, payload);
+                onCaptured();
+              }
+            : undefined
+        }
+      />
+    );
   }
 
   if (
@@ -325,7 +395,8 @@ function QueryBlockBody({
   );
   const mergedAttributes = { ...sinkAttributes, ...attributes };
   const needsChartHeight =
-    isPipelineQuery(parsed) && (Boolean(effectiveType) || (result.series?.length ?? 0) > 0);
+    (isPipelineQuery(parsed) || isMultiLineDoc || (effectiveType !== '' && effectiveType !== 'value')) &&
+    (Boolean(effectiveType) || (result.series?.length ?? 0) > 0);
 
   return (
     <div className={needsChartHeight ? 'w-full h-[220px] min-h-[160px]' : undefined}>
@@ -343,20 +414,46 @@ function QueryBlockBody({
 }
 
 function QueryBlockShell({
+  title,
+  description,
   children,
   onEdit,
+  onEditSource,
   readOnly,
   onAddToDashboard,
 }: {
+  title?: string;
+  description?: string;
   children: React.ReactNode;
   onEdit?: () => void;
+  onEditSource?: () => void;
   readOnly?: boolean;
   onAddToDashboard?: () => void;
 }) {
   return (
-    <div className="relative group/block my-2 p-3 rounded-lg border border-border/80 bg-card/60 shadow-sm">
-      {(onAddToDashboard || (onEdit && !readOnly)) && (
+    <div className="relative group/block p-3 rounded-[8px] border border-border bg-card">
+      {(onAddToDashboard || (onEdit && !readOnly) || (onEditSource && !readOnly)) && (
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+          {onEditSource && !readOnly && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEditSource();
+              }}
+              aria-label="Edit query source"
+              title="Edit raw WQL source"
+              data-testid="query-edit-source"
+              className="px-1.5 py-0.5 rounded-[4px] border border-border bg-muted/70 text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground opacity-80 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+            >
+              Source
+            </button>
+          )}
           {onAddToDashboard && (
             <button
               type="button"
@@ -364,7 +461,7 @@ function QueryBlockShell({
               aria-label="Add to dashboard"
               title="Add to dashboard"
               data-testid="query-add-dashboard"
-              className="p-1 rounded bg-muted/80 text-muted-foreground hover:text-foreground"
+              className="p-1 rounded-[4px] border border-border bg-muted/70 text-muted-foreground hover:text-foreground"
             >
               <ChartBar className="w-3.5 h-3.5" />
             </button>
@@ -375,11 +472,17 @@ function QueryBlockShell({
               onClick={onEdit}
               aria-label="Edit query in Omni-Composer"
               title="Edit query in Omni-Composer"
-              className="p-1 rounded bg-muted/80 text-muted-foreground hover:text-foreground opacity-0 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity"
+              className="p-1 rounded-[4px] border border-border bg-muted/70 text-muted-foreground hover:text-foreground opacity-0 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity"
             >
               <Edit3 className="w-3.5 h-3.5" />
             </button>
           )}
+        </div>
+      )}
+      {(title || description) && (
+        <div className="mb-2 pr-24">
+          {title && <div className="text-xs font-semibold text-foreground">{title}</div>}
+          {description && <div className="text-[11px] text-muted-foreground">{description}</div>}
         </div>
       )}
       {children}

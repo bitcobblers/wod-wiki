@@ -1,10 +1,15 @@
 /**
  * menuModel — l3ToMenuEntries adaptation contract.
  *
- * The whiteboard L3 model publishes outline + helpful actions through
- * NavContext l3Items; this is the single place they become menu entries:
- *   - outline scroll/call items → links (On this page first)
- *   - `panel` items → live widget entries (dashboard range/units)
+ * `l3Items` represents the pure structural Goto slot ("On this page"):
+ *   - scroll actions → MenuLink with `sectionId`
+ *   - route actions  → MenuLink with `to`
+ *   - call actions   → MenuLink with `onRun`
+ *   - `secondaryAction` call → inline `onRun` + `runIcon` button
+ *
+ * Modifiers (`streamControls` / `analyticsControls`) and context actions
+ * (`l3Actions`) live in their own dedicated L3 slots rather than multiplexing
+ * through `l3Items`.
  */
 import { describe, expect, it } from 'bun:test'
 import { l3ToMenuEntries } from '../menuModel'
@@ -17,30 +22,40 @@ const scrollItem = (id: string): NavItemL3 => ({
   action: { type: 'scroll', sectionId: id },
 })
 
-describe('l3ToMenuEntries — L3 helpful action ordering', () => {
-  it('keeps outline entries first and maps call actions to onRun rows', () => {
+describe('l3ToMenuEntries — pure Goto link mapping', () => {
+  it('maps scroll, route, and secondary run affordances to MenuLink entries', () => {
+    const runHandler = () => {}
     const entries = l3ToMenuEntries([
       scrollItem('heading-1'),
-      { id: 'helpful-clone', label: 'Clone', level: 3, action: { type: 'call', handler: () => {} } },
+      {
+        id: 'time-line-5',
+        label: '10:00 AMRAP',
+        level: 3,
+        action: { type: 'scroll', sectionId: 'time-line-5' },
+        secondaryAction: {
+          id: 'run-5',
+          label: 'Start workout',
+          action: { type: 'call', handler: runHandler },
+        },
+        secondaryRunIcon: 'play',
+      },
+      {
+        id: 'workout-fran',
+        label: 'Fran',
+        level: 3,
+        action: { type: 'route', to: '/note/fran' },
+      },
     ])
-    expect(entries).toHaveLength(2)
-    expect(entries[0]).toMatchObject({ kind: 'link', id: 'heading-1', sectionId: 'heading-1' })
-    expect(entries[1]).toMatchObject({ kind: 'link', id: 'helpful-clone', label: 'Clone' })
-    expect(entries[1]!.kind === 'link' && entries[1]!.onRun).toBeInstanceOf(Function)
-  })
 
-  it('renders panel items as widget entries carrying their id and label', () => {
-    const Widget = () => null
-    const entries = l3ToMenuEntries([
-      { id: 'dashboard-range', label: 'Date range', level: 3, action: { type: 'none' }, panel: Widget },
-      scrollItem('after'),
-    ])
-    expect(entries[0]!.kind).toBe('widget')
-    const widget = entries[0]!
-    if (widget.kind === 'widget') {
-      expect(widget.id).toBe('dashboard-range')
-      expect(widget.render()).toBeTruthy()
-    }
-    expect(entries[1]!.kind).toBe('link')
+    expect(entries).toHaveLength(3)
+    expect(entries[0]).toMatchObject({ kind: 'link', id: 'heading-1', sectionId: 'heading-1' })
+    expect(entries[1]).toMatchObject({
+      kind: 'link',
+      id: 'time-line-5',
+      sectionId: 'time-line-5',
+      onRun: runHandler,
+      runIcon: 'play',
+    })
+    expect(entries[2]).toMatchObject({ kind: 'link', id: 'workout-fran', to: '/note/fran' })
   })
 })

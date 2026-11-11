@@ -32,7 +32,7 @@ export type { WorkoutEvent, WorkoutEventSubscriber } from '@/services/WorkoutEve
 export { notebookService, NotebookService } from '@/services/NotebookService';
 
 // ── Storage ───────────────────────────────────────────────────────────────
-export { storageService, setStorageForTesting, resetStorageForTesting, InMemoryStorage } from '@/services/storage';
+export { storage, storageBackend, storageService, whenStorageReady, setStorageForTesting, resetStorageForTesting, InMemoryStorage } from '@/services/storage';
 export { StorageService } from '@/services/storage/StorageService';
 
 // ── Persistence ───────────────────────────────────────────────────────────
@@ -44,6 +44,7 @@ export { telemetry, engagementMs } from '@/services/telemetry';
 
 // ── Registries & tags ─────────────────────────────────────────────────────
 export { getAppEffortRegistry } from '@/services/effortRegistry';
+export { getAppEquipmentRegistry } from '@/services/equipmentRegistry';
 export { getTagIndex } from '@/services/tags/tagCatalogue';
 
 // ── Run capture & recording ───────────────────────────────────────────────
@@ -56,3 +57,4 @@ export { readSoundProfiles } from '@/services/sound/soundProfiles';
 
 // ── Analytics corrections ─────────────────────────────────────────────────
 export { captureMetricCorrection } from '@/services/analytics/captureMetricCorrection';
+export { captureSessionRpe } from '@/services/analytics/captureSessionRpe';

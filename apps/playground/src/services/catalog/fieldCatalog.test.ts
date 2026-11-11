@@ -101,3 +101,102 @@ describe('field catalog — idempotent delta math (ticket 14)', () => {
     expect(fieldSourceId('note', 'r1')).toBe('note:r1');
   });
 });
+
+describe('field catalog — atomic StorageService wiring & backfill (Milestone 5)', () => {
+  it('updates field_catalog and field_values on note/event writes and prunes at zero on delete', async () => {
+    const { InMemoryStorage } = await import('@/services/storage/InMemoryStorage');
+    const { StorageService } = await import('@/services/storage/StorageService');
+    const { IndexedDbFieldCatalog } = await import('../../../app/services/fieldCatalog');
+
+    const mem = new InMemoryStorage();
+    const service = new StorageService(mem);
+    const catalog = new IndexedDbFieldCatalog(mem);
+
+    let notifications = 0;
+    const unsub = catalog.subscribe(() => {
+      notifications += 1;
+    });
+
+    await service.saveNoteSource({
+      noteId: 'note-cat-1',
+      rawContent: '---\ncoach: Greg\nshoe: Metcon\n---\n# Session',
+      expectedSourceRevision: 0,
+      metadata: { title: 'Session' },
+    });
+
+    expect((await catalog.lookup('coach')).map((c) => c.path)).toEqual(['coach']);
+    expect((await catalog.listValues('coach', 'gr')).map((v) => v.value)).toEqual(['Greg']);
+    expect(notifications).toBeGreaterThanOrEqual(1);
+
+    await service.appendEvents([
+      {
+        id: 'res-1:0',
+        resultId: 'res-1',
+        noteId: 'note-cat-1',
+        grain: 'event',
+        outputType: 'segment',
+        timestamp: 1000,
+        metrics: [
+          {
+            type: 'custom' as never,
+            value: 52,
+            unit: 'ms',
+            origin: 'user',
+            metadata: { fieldRef: { path: 'hrv', kind: 'number' }, originalKey: 'HRV' },
+          },
+        ],
+      },
+    ]);
+
+    const hrvLookup = await catalog.lookup('hrv');
+    expect(hrvLookup).toHaveLength(1);
+    expect(hrvLookup[0]!.units).toEqual(['ms']);
+    expect(hrvLookup[0]!.spellings).toEqual(['HRV']);
+
+    // Deleting event & note prunes catalog entries cleanly back to zero
+    await service.deleteEvents(['res-1:0']);
+    expect(await catalog.lookup('hrv')).toEqual([]);
+
+    await service.deleteNote('note-cat-1');
+    expect(await catalog.lookup('coach')).toEqual([]);
+    expect(await catalog.listValues('coach', '')).toEqual([]);
+
+    unsub();
+    catalog.dispose();
+  });
+
+  it('backfills existing notes and events idempotently via startFieldCatalogBackfill', async () => {
+    const { InMemoryStorage } = await import('@/services/storage/InMemoryStorage');
+    const { IndexedDbFieldCatalog, startFieldCatalogBackfill } = await import('../../../app/services/fieldCatalog');
+
+    const mem = new InMemoryStorage();
+    // Seed raw rows directly (simulating pre-existing DB rows before catalog wiring)
+    await mem.readwrite('notes').put({
+      id: 'pre-note-1',
+      title: 'Morning',
+      rawContent: '---\nsleepQuality: Great\n---\n# Morning',
+      sourceRevision: 1,
+      blocks: {},
+      createdAt: 100,
+    });
+    await mem.readwrite('events').put({
+      id: 'pre-res-1:summary:tis',
+      resultId: 'pre-res-1',
+      noteId: 'pre-note-1',
+      grain: 'summary',
+      outputType: 'analytics',
+      timestamp: 200,
+      metrics: [{ type: 'tis' as never, value: 42, origin: 'analyzed', metadata: { canonicalKey: 'tis' } }],
+    });
+
+    await startFieldCatalogBackfill(mem);
+    // Second run is a no-op because field_catalog_meta is marked complete
+    await startFieldCatalogBackfill(mem);
+
+    const catalog = new IndexedDbFieldCatalog(mem);
+    expect((await catalog.lookup('sleepQuality')).map((c) => c.path)).toEqual(['sleepQuality']);
+    expect((await catalog.listValues('sleepQuality', '')).map((v) => v.value)).toEqual(['Great']);
+    expect((await catalog.lookup('tis')).map((c) => c.path)).toEqual(['tis']);
+    catalog.dispose();
+  });
+});

@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryState } from 'nuqs'
+import { ListFilter } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlayIcon, StopIcon, ArrowTopRightOnSquareIcon, PencilSquareIcon } from '@heroicons/react/20/solid'
 
@@ -99,18 +100,32 @@ function MenuRow({
   entry,
   active,
   onActivate,
+  onFilter,
 }: {
   entry: MenuLink
   active: boolean
   onActivate: (entry: MenuLink) => void
+  onFilter: (to: string) => void
 }) {
   const run = entry.onRun
-  return (
+  const filterTo = entry.filterTo
+  const filterAria = entry.filterLabel ?? `Filter notes by ${entry.label}`
+  const runTitle =
+    entry.runIcon === 'link'
+      ? 'View workout'
+      : entry.runIcon === 'stop'
+        ? 'Stop workout'
+        : entry.runIcon === 'edit'
+          ? 'Edit note'
+          : 'Start workout'
+
+  const primaryButton = (
     <button
       type="button"
       onClick={() => onActivate(entry)}
       className={cn(
-        'group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
+        'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
+        !run && !filterTo && 'w-full',
         entry.muted ? 'text-[11.5px]' : 'text-[13px]',
         active
           ? 'bg-primary/10 font-semibold text-primary'
@@ -128,26 +143,39 @@ function MenuRow({
       )}
       <span className="min-w-0 flex-1 line-clamp-2 break-words" title={entry.label}>{entry.label}</span>
       {entry.badge && (
-        <span className="shrink-0 font-mono text-[10px] text-muted-foreground/50">{entry.badge}</span>
+        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-muted-foreground/80">
+          {entry.badge}
+        </span>
+      )}
+    </button>
+  )
+
+  if (!run && !filterTo) {
+    return primaryButton
+  }
+
+  return (
+    <div className="group flex w-full items-center gap-0.5">
+      {primaryButton}
+      {filterTo && (
+        <button
+          type="button"
+          aria-label={filterAria}
+          title={filterAria}
+          data-testid={`menu-filter-${entry.id}`}
+          onClick={() => onFilter(filterTo)}
+          className="flex size-7 max-lg:size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground/55 transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ListFilter className="size-3.5" />
+        </button>
       )}
       {run && (
-        <span
-          role="button"
-          tabIndex={-1}
-          title={
-            entry.runIcon === 'link'
-              ? 'View workout'
-              : entry.runIcon === 'stop'
-                ? 'Stop workout'
-                : entry.runIcon === 'edit'
-                  ? 'Edit note'
-                  : 'Start workout'
-          }
-          onClick={e => {
-            e.stopPropagation()
-            entry.onRun?.()
-          }}
-          className="flex size-5 shrink-0 items-center justify-center rounded text-primary opacity-0 transition-all group-hover:opacity-100 hover:bg-primary/10"
+        <button
+          type="button"
+          aria-label={runTitle}
+          title={runTitle}
+          onClick={() => entry.onRun?.()}
+          className="flex size-6 max-lg:size-8 shrink-0 items-center justify-center rounded text-primary opacity-70 lg:opacity-0 transition-all group-hover:opacity-100 hover:bg-primary/10"
         >
           {entry.runIcon === 'link' ? (
             <ArrowTopRightOnSquareIcon className="size-3.5" />
@@ -158,9 +186,9 @@ function MenuRow({
           ) : (
             <PlayIcon className="size-3.5" />
           )}
-        </span>
+        </button>
       )}
-    </button>
+    </div>
   )
 }
 
@@ -181,9 +209,15 @@ export function MenuList({
   const activate = (entry: MenuLink) => {
     closeDrawer()
     if (onSection) return onSection(entry)
+    if (entry.onSelect) return entry.onSelect()
     if (entry.onRun) return entry.onRun()
     if (entry.to) return navigate(entry.to)
     if (entry.sectionId) return scrollToSection(entry.sectionId)
+  }
+
+  const activateFilter = (to: string) => {
+    closeDrawer()
+    navigate(to)
   }
   return (
     <div className="flex flex-col gap-0.5">
@@ -213,6 +247,7 @@ export function MenuList({
             entry={entry}
             active={activeId != null && entry.sectionId === activeId}
             onActivate={activate}
+            onFilter={activateFilter}
           />
         )
       })}

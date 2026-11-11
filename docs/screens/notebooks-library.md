@@ -1,26 +1,25 @@
-# Screen: Notebooks &amp; Notes Stream
+# Screen: Feeds, Notebooks &amp; Notes Stream
 
-- **Route:** `/notebooks`, `/notes`
-- **Host Component:** `apps/playground/app/views/stream/QueriableStreamView.tsx` (`NOTEBOOKS_STREAM_PROFILE`, `NOTES_STREAM_PROFILE`)
-- **Domain Models:** `Notebook` (`notebook/{slug}`), `Note`, `Tag`, `BlockIndexRow`
+- **Route:** `/feeds`, `/notebooks`, `/notes`, `/notebook/:slug`
+- **Host Component:** `apps/playground/app/views/stream/QueriableStreamView.tsx` (`FEEDS_STREAM_PROFILE`, `NOTEBOOKS_STREAM_PROFILE`, `NOTES_STREAM_PROFILE`, `createNotebookProfile`)
+- **Domain Models:** `Feed`, `Notebook` (`notebook/{slug}`), `Note`, `Session`, `PublicationVisibility`
 
 ---
 
 ## 1. Component & Service Dependencies
 
 ### Core UI Components
-- `QueriableStreamView` (`apps/playground/app/views/stream/QueriableStreamView.tsx`). Renders stream profiles for the notebook library and its notes.
-- `StreamQueryBar` (`apps/playground/app/views/stream/StreamQueryBar.tsx`). Houses WQL queries like `:note{source:notebooks} by {tag}`.
-- `LibraryRow` (`apps/playground/app/views/library/LibraryRow.tsx`). Individual item component rendering workout metadata, tags, and action buttons.
-- `PropertyTable` (`apps/playground/app/views/library/PropertyTable.tsx`). Compact tabular view for dense browsing.
-- `NotebookManageDrawer` (`apps/playground/app/pages/NotebookManageDrawer.tsx`). The `?manage=1` manager: per-source identity, subscribe/unsubscribe/delete, auto-sync toggles.
+- `QueriableStreamView` (`apps/playground/app/views/stream/QueriableStreamView.tsx`). Renders unified stream profiles across distributed Feed sources (`:feed{}`), Notebook containers (`:notebook{}`), and member Notes (`:note{notebook:<slug>}`), including zero-import remote previews.
+- `StreamQueryBar` (`apps/playground/app/views/stream/StreamQueryBar.tsx`). Houses WQL queries like `:feed{}`, `:notebook{subscribed:true} by {feed}`, and `:note{notebook:*}`.
+- `LibraryRow` (`apps/playground/app/views/library/LibraryRow.tsx`). Renders Feed, Notebook, and Note rows with inline Subscribe/Unsubscribe, Public/Private visibility toggles, Publish/Export Feed actions, and 1-click Remote Clone.
+- `PropertyTable` (`apps/playground/app/views/stream/PropertyTable.tsx`). Compact tabular view for dense browsing.
+- `FeedIntakeBanner` (`apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx`). Consent banner for `/subscribe?source=<url>` (`Register only` for zero-import catalog browsing, `Import Once`, or `Subscribe & Sync`).
 
 ### Services & Seed Data
-- `seedContent` (`apps/playground/src/services/content/seedContent.ts`). Provides bundled notebooks from `markdown/notebooks/`.
-- `buildScriptNotebooks` (`apps/playground/src/repositories/script-notebooks.ts`). Derives notebook structures, item counts, and categories from seed files over the shared `groupings.ts` discovery.
-- `queryService` (`apps/playground/src/services/queryService.ts`). Handles facet filters and tag searches across notebook notes.
+- `feedCatalog` (`apps/playground/src/services/feed/feedCatalog.ts`). Persists discovered `SeedManifest` summaries into `meta` (`catalog:<feedId>`), exposes `playgroundFeedCatalogStore` to `QueryService`, and resolves zero-import remote `NotebookIndex` previews and single-Note clones via `HttpFeedTree`.
+- `ExportImportService` (`apps/playground/src/services/ExportImportService.ts`). Exports/imports canonical YAML-frontmatter `.md` Notes and symmetric `.jsonl`/`.csv` telemetry bundles, and exports `wod-wiki-feed-repository` bundles via `ZipFeedTree` or `DirectoryHandleFeedTree`.
+- `queryService` (`apps/playground/src/services/queryService.ts`). Executes `:feed{}`, `:notebook{}`, and `:note{}` queries uniformly across local and remote catalogs.
 - `feedSync` (`apps/playground/src/services/feed/feedSync.ts`). Subscription state, background update checks, and the grouped feed-updates snapshot.
-
 ---
 
 ## 2. Desktop View Layout (≥1024px)

@@ -135,3 +135,57 @@ describe('ticket 20 — cache equivalence', () => {
     expect(cache.get(key, bus.generationId)).toBe(computed);
   });
 });
+
+describe('WQL-4 — bounded LRU cache', () => {
+  it('evicts the least-recently-used entry once maxEntries is exceeded', () => {
+    const bus = new AnalyticsInvalidationBus(() => undefined as never);
+    const cache = new QueryCache(bus, { maxEntries: 3 });
+    cache.set('a', 1, 1);
+    cache.set('b', 2, 1);
+    cache.set('c', 3, 1);
+    expect(cache.size).toBe(3);
+
+    // 'a' is read, so 'b' becomes the least-recently-used entry.
+    expect(cache.get('a', 1)).toBe(1);
+    cache.set('d', 4, 1);
+
+    expect(cache.size).toBe(3);
+    expect(cache.get('b', 1)).toBeUndefined();
+    expect(cache.get('a', 1)).toBe(1);
+    expect(cache.get('c', 1)).toBe(3);
+    expect(cache.get('d', 1)).toBe(4);
+  });
+
+  it('defaults to a 64-entry bound', () => {
+    const bus = new AnalyticsInvalidationBus(() => undefined as never);
+    const cache = new QueryCache(bus);
+    for (let i = 0; i < 64; i++) cache.set(`k${i}`, i, 1);
+    expect(cache.size).toBe(64);
+    cache.set('k64', 64, 1);
+    expect(cache.size).toBe(64);
+    // The oldest entry was evicted; the newest survives.
+    expect(cache.get('k0', 1)).toBeUndefined();
+    expect(cache.get('k64', 1)).toBe(64);
+  });
+
+  it('re-writing an existing key does not grow the cache', () => {
+    const bus = new AnalyticsInvalidationBus(() => undefined as never);
+    const cache = new QueryCache(bus, { maxEntries: 2 });
+    cache.set('a', 1, 1);
+    cache.set('b', 2, 1);
+    cache.set('a', 10, 1);
+    expect(cache.size).toBe(2);
+    expect(cache.get('a', 1)).toBe(10);
+    expect(cache.get('b', 1)).toBe(2);
+  });
+
+  it('a mutation clears the bounded cache', async () => {
+    const bus = new AnalyticsInvalidationBus(() => undefined as never);
+    const cache = new QueryCache(bus, { maxEntries: 2 });
+    cache.set('a', 1, 1);
+    cache.set('b', 2, 1);
+    await bus.publishMutation();
+    expect(cache.size).toBe(0);
+    expect(cache.get('a', bus.generationId)).toBeUndefined();
+  });
+});

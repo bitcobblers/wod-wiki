@@ -179,6 +179,7 @@ export class StreamQueryEngine {
   private async hydrateEntries(entries: Entry[], withNoteFields: boolean): Promise<void> {
     const bundleIds = new Set<string>();
     for (const entry of entries) {
+      if (entry.kind === 'feed' || entry.kind === 'notebook' || entry.isRemotePreview) continue;
       if (entry.sourceNotebook === 'journal') bundleIds.add(entry.id);
       if (withNoteFields && (!entry.title || !entry.tags || entry.tags.length === 0)) {
         bundleIds.add(entry.id);
@@ -211,7 +212,7 @@ export class StreamQueryEngine {
       }
     }
   }
-  async query(input: string | AnyParsedQuery, onStages?: (stages: { selected: number; matched: number }) => void): Promise<Entry[]> {
+  async query(input: string | AnyParsedQuery, onStages?: (stages: { selected: number; matched: number }) => void, options?: { notebookPlane?: 'notes' | 'containers' }): Promise<Entry[]> {
     const parsed: AnyParsedQuery = typeof input === 'string' ? parseQuery(input) : input;
     if (!parsed || parsed.error) return [];
 
@@ -273,7 +274,7 @@ export class StreamQueryEngine {
         return entries;
       }
 
-      const primaryResult = await this.service.runFind(parsed);
+      const primaryResult = await this.service.runFind(parsed, options?.notebookPlane ? { notebookPlane: options.notebookPlane } : undefined);
       const entries = primaryResult.notes.map(toEntry);
       if (this.noteTagsResolver) {
         // Session tag resolver keeps precedence; only page links batch here.

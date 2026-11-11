@@ -226,11 +226,15 @@ function firstEffortSlug(metrics: StoredOutputStatement['metrics']): string | un
  * a timeSpan carry per-metric temporal anchors ('instant') so projection
  * groups each observation under its own date.
  */
+const PLUMBING_OUTPUT_TYPES = new Set(['load', 'compiler', 'system', 'event']);
+
 export function toEventRows(
   logs: readonly StoredOutputStatement[],
   identity: SummaryFactIdentity,
 ): EventRecord[] {
-  return logs.map((output, seq) => ({
+  return logs
+    .filter((output) => !PLUMBING_OUTPUT_TYPES.has(output.outputType ?? 'segment'))
+    .map((output, seq) => ({
     id: `${identity.resultId}:${seq}`,
     resultId: identity.resultId,
     noteId: identity.noteId,
@@ -325,14 +329,23 @@ export function toSummaryEventRows(
  * from the row's label metric as fallback. Deterministic fact ids:
  * `${record.id}:${factOrdinal}`.
  */
-export function projectEventToFacts(record: EventRecord): AnalyticsDataPoint[] {
-  // User corrections ride the same row as the planned/runtime values they
-  // override (user actuals are preserved, not swapped). Project only the
-  // ownership-visible winners — the canonical 5-tier ledger (user-entry >
-  // runtime > user-plan > dialect > parser) — so raw fact queries count the
-  // authoritative value once instead of double-counting planned+actual.
-  // Row metrics are the stored union (IMetric[] | legacy loose rows); the
-  // ledger consumes the IMetric shape.
+export interface ProjectEventToFactsFilter {
+  metricKey?: string;
+}
+
+export function matchesFactMetricKey(metricKey: string | undefined, queryMetric: string | undefined): boolean {
+  return (
+    !queryMetric ||
+    metricKey === queryMetric ||
+    (queryMetric === 'rep' && metricKey === 'reps') ||
+    (queryMetric === 'reps' && metricKey === 'rep')
+  );
+}
+
+export function projectEventToFacts(record: EventRecord): AnalyticsDataPoint[];
+export function projectEventToFacts(record: EventRecord, filter?: ProjectEventToFactsFilter): AnalyticsDataPoint[];
+export function projectEventToFacts(record: EventRecord, filter?: ProjectEventToFactsFilter | number): AnalyticsDataPoint[] {
+  const resolvedFilter = typeof filter === 'object' && filter !== null ? filter : undefined;
   const metrics = createMetricOwnershipLedger(record.metrics as unknown as readonly IMetric[]).visible() as readonly {
     type?: string; value?: unknown; unit?: string; image?: string;
     metadata?: Record<string, unknown>;
@@ -347,8 +360,8 @@ export function projectEventToFacts(record: EventRecord): AnalyticsDataPoint[] {
     const metricKey = metadataString(m.metadata, 'canonicalKey')
       ?? fieldRef?.path
       ?? (m.type ?? '');
+    if (!matchesFactMetricKey(metricKey, resolvedFilter?.metricKey)) return [];
     // Ticket 12: a civil-date temporal anchor keeps its recorded civil date
-    // (never a fabricated midnight instant); instant facts group under the
     // anchor instant's civil date in the execution timezone at query time.
     const temporal = record.metricTemporal?.[0];
     // Partition identity (groupTags metadata) is a queryable dim set —
@@ -419,16 +432,9 @@ export function projectEventToFacts(record: EventRecord): AnalyticsDataPoint[] {
     if (dimKey) dims[dimKey] = String(m.value);
   }
   const rowDims = Object.keys(dims).length > 0 ? dims : undefined;
+  let metricOrdinal = 0;
   metrics.forEach((m) => {
     if (m.type === MetricType.Label || m.type === 'label' || typeof m.value !== 'number') return;
-    // Ticket 11 key resolution: explicitly-stamped canonicalKey first, then
-    // the typed field reference — PropertyMetric variants survive under
-    // their normalized path instead of collapsing into a pooled `custom`.
-    // Legacy fallbacks for unlabeled legacy data only (pre-fieldRef logs):
-    // label-derived key, `reps` for rep metrics, or the metric's own type.
-    // A Custom-typed metric with no identity source no longer invents the
-    // pooled `custom` key (finding 3.1) — it has no queryable identity, so
-    // it projects no fact.
     const fieldRef = readFieldRef(m.metadata);
     const legacyFallback = m.type === MetricType.Rep || m.type === 'rep'
       ? 'reps'
@@ -437,9 +443,9 @@ export function projectEventToFacts(record: EventRecord): AnalyticsDataPoint[] {
     const metricKey = metadataString(m.metadata, 'canonicalKey')
       ?? fieldRef?.path
       ?? (labelName ? resolveCanonicalMetricKey(labelName) : legacyFallback);
-    const ordinal = facts.length;
+    const ordinal = metricOrdinal++;
+    if (!matchesFactMetricKey(metricKey, resolvedFilter?.metricKey)) return [];
     // Ticket 12: the fact carries its own temporal anchor — the metric's
-    // occurrence instant when the row has one, so a workout-start
     // timestamp never relocates an observation whose own date differs.
     const temporal = record.metricTemporal?.[ordinal];
     const factTimestamp = temporal?.temporalKind === 'instant' && temporal.instant !== undefined

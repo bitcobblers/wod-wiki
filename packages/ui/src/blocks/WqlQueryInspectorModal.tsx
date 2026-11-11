@@ -1,26 +1,36 @@
 /**
- * WqlQueryInspectorModal — edit a ```query block's WQL through the shared
- * composer, hosted on the shared EditorDialog (sheet presentation on
- * mobile: no autofocus, footer outside the scroll body).
+ * WqlQueryInspectorModal — Sheet/dialog host over `<QueryObjectBuilder density="inline" />`.
  *
- * The draft is controlled and its validity tracked synchronously alongside
- * every change; Apply re-validates the exact draft text at action time and
- * hands it to the host — the fence patcher upstream preserves the rest of
- * the note source. A rejected write keeps the dialog open with the draft
- * intact and the error visible; Cancel (or Escape) never writes.
+ * Accepts either a 1-line WQL shorthand (`:session{result:<id>}`) or a YAML
+ * `QueryBlockObject` body, edits it through `<QueryObjectBuilder density="inline" />`,
+ * and serializes back via `serializeQueryBlock(draftObj)` — keeping untouched
+ * 1-line table queries minimal while upgrading customized views/titles/columns
+ * cleanly into 2-space YAML.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  isYamlQueryBlockBody,
+  parseDocument,
+  parseQuery,
+  parseQueryBlock,
+  queryBlockToDocumentText,
+  serializeQueryBlock,
+  type QueryBlockObject,
+} from '@bitcobblers/wod-wiki-wql';
 import { EditorDialog } from '../dialog/EditorDialog';
-import { WqlComposer, type WqlExecutor, type WqlValidationState } from '../composer';
-import { isFindQuery, parseQuery } from '@bitcobblers/wod-wiki-wql';
+import {
+  QueryObjectBuilder,
+  type QueryObjectValidationState,
+} from '../composer';
 import type { QueryExecutor } from '../contracts/query';
 
 export interface WqlQueryInspectorModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialQuery: string;
-  /** Persist the applied query. A returned Promise gates the button until
-   *  it settles; a rejection keeps the dialog open with the error visible. */
+  initialWidgetType?: string;
+  initialAttributes?: Record<string, string>;
+  /** Persist the applied query block body (1-line WQL or YAML). */
   onApply: (newQuery: string) => void | Promise<void>;
   title?: string;
   subtitle?: string;
@@ -29,47 +39,75 @@ export interface WqlQueryInspectorModalProps {
   executor?: QueryExecutor;
 }
 
+function hydrateInitialObject(
+  initialQuery: string,
+  initialWidgetType?: string,
+  initialAttributes?: Record<string, string>,
+): QueryBlockObject {
+  const hasAttrs = Boolean(initialAttributes && Object.keys(initialAttributes).length > 0);
+  if (!isYamlQueryBlockBody(initialQuery) && !initialWidgetType && !hasAttrs && !initialQuery.trim().includes('\n')) {
+    return { view: 'table', query: initialQuery.trim() };
+  }
+  const fenceTag = initialWidgetType ? `query:${initialWidgetType}` : undefined;
+  const parsed = parseQueryBlock(initialQuery, { fenceTag });
+  if (hasAttrs && initialAttributes) {
+    return {
+      ...parsed,
+      attributes: { ...(parsed.attributes ?? {}), ...initialAttributes },
+    };
+  }
+  return parsed;
+}
+
+function isObjectValid(obj: QueryBlockObject): boolean {
+  if (obj.error) return false;
+  const docText = queryBlockToDocumentText(obj).trim();
+  if (!docText) return false;
+  const doc = parseDocument(docText);
+  if (!doc.doc.degenerate && doc.doc.assignments.length > 0) {
+    return doc.diagnostics.length === 0;
+  }
+  return !parseQuery(docText).error;
+}
+
 export function WqlQueryInspectorModal({
   isOpen,
   onClose,
   initialQuery,
+  initialWidgetType,
+  initialAttributes,
   onApply,
-  title = 'Edit Block Query',
-  subtitle = 'Use the Omni-Composer to edit this block query.',
+  title = 'Edit Query Block',
+  subtitle = 'Configure data query and presentation options.',
   applyLabel = 'Apply to Block',
   executor,
 }: WqlQueryInspectorModalProps) {
-  const [wql, setWql] = useState<string>(initialQuery);
-  const [validation, setValidation] = useState<WqlValidationState>({
-    valid: !parseQuery(initialQuery).error,
-  });
+  const [draftObj, setDraftObj] = useState<QueryBlockObject>(() =>
+    hydrateInitialObject(initialQuery, initialWidgetType, initialAttributes),
+  );
+  const [validation, setValidation] = useState<QueryObjectValidationState>(() => ({
+    valid: isObjectValid(hydrateInitialObject(initialQuery, initialWidgetType, initialAttributes)),
+  }));
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setWql(initialQuery);
-      setValidation({ valid: !parseQuery(initialQuery).error });
+      const next = hydrateInitialObject(initialQuery, initialWidgetType, initialAttributes);
+      setDraftObj(next);
+      setValidation({ valid: isObjectValid(next) });
       setError(null);
     }
-  }, [isOpen, initialQuery]);
+  }, [isOpen, initialQuery, initialWidgetType, initialAttributes]);
 
-  const diagnosticsExecutor = useCallback<WqlExecutor>(
-    (ast) => {
-      if (!executor) throw new Error('No executor provided');
-      return isFindQuery(ast) ? executor.runFind(ast) : executor.runQuery(ast.raw);
-    },
-    [executor],
-  );
+  const serializedDraft = useMemo(() => serializeQueryBlock(draftObj), [draftObj]);
 
   const handleApply = async () => {
-    // Validate the exact draft at action time; the composer's synchronous
-    // state is not relied on within the same event.
-    if (applying || parseQuery(wql).error) return;
+    if (applying || !isObjectValid(draftObj)) return;
     setApplying(true);
     setError(null);
     try {
-      await onApply(wql);
+      await onApply(serializeQueryBlock(draftObj));
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -87,8 +125,11 @@ export function WqlQueryInspectorModal({
       description={subtitle}
       footer={
         <>
-          <div className="flex-1 min-w-0 truncate font-mono text-xs text-muted-foreground" data-testid="wql-inspector-draft">
-            {wql}
+          <div
+            className="flex-1 min-w-0 truncate font-mono text-xs text-muted-foreground"
+            data-testid="wql-inspector-draft"
+          >
+            {serializedDraft}
           </div>
           <button
             type="button"
@@ -110,15 +151,18 @@ export function WqlQueryInspectorModal({
       }
     >
       <div className="space-y-4">
-        <WqlComposer
-          query={wql}
-          onQueryChange={setWql}
+        <QueryObjectBuilder
+          density="inline"
+          value={draftObj}
+          onChange={setDraftObj}
           onValidationChange={setValidation}
-          execute={executor ? diagnosticsExecutor : undefined}
-          showDiagnostics
+          executor={executor}
         />
         {error && (
-          <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive font-mono">
+          <p
+            role="alert"
+            className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive font-mono"
+          >
             {error}
           </p>
         )}

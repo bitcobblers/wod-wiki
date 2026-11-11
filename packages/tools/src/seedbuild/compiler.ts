@@ -1,11 +1,12 @@
 /** Compiles exact source, occurrence maps and sparse projections into atomic notes chunks. */
 import { parseScript, whiteboardParser } from '@bitcobblers/wod-wiki-lang';
-import { blockContentId, parseDocumentSections, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { blockContentId, parseDocumentSections, parseNoteBundleFromJsonl, reconcileNoteBlocks, serializeNoteBundleToJsonl } from '@bitcobblers/wod-wiki-core';
 import type { BlockEffort, BlockEquipment, BlockIndexRow } from '@bitcobblers/wod-wiki-storage';
 import {
   buildDashboardDocument,
   isDashboardWidgetType,
   parseDashboardNote,
+  parseDocument,
   parseQuery,
   resolveWidgetType,
 } from '@bitcobblers/wod-wiki-wql';
@@ -164,8 +165,15 @@ export function validateDashboardNote(raw: string): string[] {
     if (!isDashboardWidgetType(resolveWidgetType(widget.type))) {
       problems.push(`${where}: unknown widget type '${widget.type}'`);
     }
-    const parsed = parseQuery(widget.body);
-    if (parsed.error !== undefined) problems.push(`${where}: WQL parse error: ${parsed.error}`);
+    if (widget.body.includes('\n')) {
+      const docParsed = parseDocument(widget.body);
+      if (docParsed.diagnostics.length > 0) {
+        problems.push(`${where}: QueryDocument error: ${docParsed.diagnostics[0]}`);
+      }
+    } else {
+      const parsed = parseQuery(widget.body);
+      if (parsed.error !== undefined) problems.push(`${where}: WQL parse error: ${parsed.error}`);
+    }
     for (const ref of [
       ...widget.body.matchAll(/\$([A-Za-z][\w-]*)/g),
       ...Object.values(widget.attributes).flatMap((v) => [...String(v).matchAll(/\$([A-Za-z][\w-]*)/g)]),
@@ -299,7 +307,31 @@ export function dateKeyToCreatedAt(dateKey: string): number {
 // block plane (here) and the app's importer (note plane).
 
 
-export function compileSeedRow(path: string, content: string, metadata: { routeId?: string; noteTitle?: string; sourceId?: string; createdAt?: number } = {}): SeedRow {
+function compileCompanionTelemetry(path: string, jsonl: string, blockIndex: BlockIndexRow[]): SeedRow['telemetry'] {
+  const firstWod = blockIndex.find((block) => block.dataType === 'wod');
+  const noteId = seedNoteIdSync(path);
+  const normalized = jsonl.split(/\r?\n/).map((line) => {
+    if (!line.trim()) return line;
+    const parsed: unknown = JSON.parse(line);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return line;
+    const record: Record<string, unknown> = { ...parsed, noteId };
+    if (record.kind === 'session' || record.kind === 'event') {
+      if (!firstWod) throw new Error(`Telemetry for '${path}' requires a wod block`);
+      if (record.blockId === undefined || record.blockId === '@first-wod') record.blockId = firstWod.blockId;
+      if (record.blockVersion === undefined || record.blockVersion === '@first-wod') record.blockVersion = firstWod.blockVersion;
+      if (record.blockContentId === undefined || record.blockContentId === '@first-wod') record.blockContentId = firstWod.blockContentId;
+    }
+    return JSON.stringify(record);
+  }).join('\n');
+  const parsed = parseNoteBundleFromJsonl(normalized);
+  if (parsed.errors.length > 0) throw new Error(`Invalid telemetry companion '${path}': ${parsed.errors.join('; ')}`);
+  return {
+    sessions: parsed.bundles.flatMap((bundle) => bundle.sessions),
+    events: parsed.bundles.flatMap((bundle) => bundle.events),
+  };
+}
+
+export function compileSeedRow(path: string, content: string, metadata: { routeId?: string; noteTitle?: string; sourceId?: string; createdAt?: number; telemetryJsonl?: string } = {}): SeedRow {
   let ordinal = 0;
   const blocks = reconcileNoteBlocks(content, { sourceRevision: 1, registeredWidgets: SEED_REGISTERED_WIDGETS, createId: () => `seed:${path}:${ordinal++}` });
   const noteId = metadata.routeId ?? path;
@@ -308,7 +340,8 @@ export function compileSeedRow(path: string, content: string, metadata: { routeI
     const section = sections.find((section) => section.from === block.from && section.to === block.to);
     return { id: `${noteId}:${block.id}`, noteId, blockId: block.id, blockVersion: 1, sourceRevision: 1, from: block.from, to: block.to, position, dataType: block.kind, ...(block.kind === 'wod' ? { blockContentId: blockContentId(section?.scriptBlock?.content ?? content.slice(block.from, block.to)) } : {}), rawContent: content.slice(block.from, block.to), noteTitle: metadata.noteTitle ?? fileToDisplayName(path.split('/').at(-1) ?? path), createdAt: metadata.createdAt ?? 0, isStatic: true, sourceId: metadata.sourceId, sourcePath: path, routeId: metadata.routeId };
   });
-  return { path, content, blocks, blockIndex, blockEfforts: [], blockEquipment: [] };
+  const telemetry = metadata.telemetryJsonl === undefined ? undefined : compileCompanionTelemetry(path, metadata.telemetryJsonl, blockIndex);
+  return { path, content, blocks, blockIndex, blockEfforts: [], blockEquipment: [], ...(telemetry ? { telemetry } : {}) };
 }
 
 export function buildBlockIndexRows(markdownDir: string, corpusRoot: string, excludePaths: readonly string[] = []): BlockIndexRow[] {
@@ -665,7 +698,8 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
     const rows: SeedRow[] = files.map((p) => {
       const raw = readFileSync(join(corpusRoot, p), 'utf8');
       const content = raw;
-      const compiled = compileSeedRow(p, content);
+      const companionPath = join(corpusRoot, p.replace(/\.md$/, '.jsonl'));
+      const compiled = compileSeedRow(p, content, { telemetryJsonl: existsSync(companionPath) ? readFileSync(companionPath, 'utf8') : undefined });
       compiled.blockIndex = blocksByPath.get(p) ?? compiled.blockIndex;
       compiled.blockEfforts = effortsByPath.get(p) ?? [];
       compiled.blockEquipment = equipmentByPath.get(p) ?? [];
@@ -682,6 +716,9 @@ export function generateSeed(options: GenerateSeedOptions = {}): GenerateSeedRes
       mkdirSync(dirname(recordOutFile), { recursive: true });
       const recordBytes = Buffer.from(JSON.stringify(compiled, null, 2), 'utf8');
       writeFileSync(recordOutFile, recordBytes);
+      if (compiled.telemetry) {
+        writeFileSync(join(outDir, p.replace(/\.md$/, '.jsonl')), serializeNoteBundleToJsonl(compiled.telemetry) + '\n');
+      }
 
       const title = compiled.blockIndex[0]?.noteTitle ?? fileToDisplayName(p.split('/').at(-1) ?? p);
       records.push({

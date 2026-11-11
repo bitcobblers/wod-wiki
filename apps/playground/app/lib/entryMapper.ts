@@ -19,7 +19,7 @@ import { formatPlaygroundPageTitle } from '@/lib/playgroundDisplay'
  *  notebook (ticket 05) — there is no separate session/post kind; the
  *  notebook the note belongs to (`notebookId`) and its corpus route carry
  *  the distinction the old kinds encoded. */
-export type EntryKind = 'note' | 'result' | 'segment' | 'effort' | 'event' | 'dashboard' | 'equipment' | 'tag'
+export type EntryKind = 'note' | 'result' | 'segment' | 'effort' | 'event' | 'dashboard' | 'equipment' | 'tag' | 'feed' | 'notebook'
 
 /** Block-level payload on an Entry produced from a :block hit (#855):
  *  the card shows the parent note's identity plus the block's own type and
@@ -118,6 +118,17 @@ export interface Entry {
   typedTags?: Array<{ label: string; type?: string }>
   /** Publishing feed source id (e.g. 'core', 'seed-crossfit', or 'local'). */
   feedId?: string
+  /** True when the entry is subscribed (for feed / notebook rows). */
+  subscribed?: boolean
+  /** True when a notebook or note is marked public for outbound Feed publishing. */
+  isPublic?: boolean
+  /** True when a feed source has unpublished local changes or remote updates. */
+  unpublishedChanges?: boolean
+  updateAvailable?: boolean
+  /** True when this Note entry is a zero-import remote preview (`remote:<feedId>:<uuid>`). */
+  isRemotePreview?: boolean
+  /** Seed chunk id for notebook rows (`notebook.<slug>`). */
+  seedChunkId?: string
 }
 
 const UUID_RE = /^(?:uuid-|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)/i
@@ -218,12 +229,16 @@ export function toEntry(note: Note): Entry {
   // Executor-exact metadata (the fields WQL note-plane filters match) rides
   // on every mapped entry so facet consumers never re-derive presentation
   // approximations. One wrap — the branch logic below stays untouched.
+  const base = toEntryBase(note)
   return {
-    ...toEntryBase(note),
+    ...base,
     noteType: note.type,
-    notebookId: notebookOfItem(note),
-    feedId: note.feedSourceId ?? (notebookOriginOfItem(note) === 'user' ? 'local' : 'core'),
-    editable: isNoteEditable(note, notebookOriginOfItem(note)),
+    notebookId: base.notebookId ?? notebookOfItem(note),
+    feedId: base.feedId ?? note.feedSourceId ?? (notebookOriginOfItem(note) === 'user' ? 'local' : 'core'),
+    editable: base.editable ?? isNoteEditable(note, notebookOriginOfItem(note)),
+    ...(note.public !== undefined ? { isPublic: note.public } : {}),
+    ...(note.id.startsWith('remote:') ? { isRemotePreview: true, editable: false } : {}),
+    ...(note.seedChunkId ? { seedChunkId: note.seedChunkId } : {}),
   }
 }
 
@@ -231,6 +246,58 @@ function toEntryBase(note: Note): Entry {
   const id = note.id
   const title = note.title
   const tags = note.tags && note.tags.length > 0 ? note.tags : undefined
+
+  if (note.type === 'feed' && id.startsWith('feed/')) {
+    const feedSlug = id.slice('feed/'.length)
+    const tagList = note.tags ?? []
+    return {
+      id,
+      kind: 'feed',
+      sourceNotebook: 'feeds',
+      sourceNote: feedSlug,
+      sourceId: note.sourceId,
+      sourcePath: note.sourcePath,
+      title,
+      date: null,
+      createdAt: note.createdAt,
+      subtitle: note.sourcePath,
+      detail: note.rawContent.split('\n')[0] || undefined,
+      feedId: feedSlug,
+      subscribed: tagList.includes('subscribed:true'),
+      unpublishedChanges: tagList.includes('status:unpublished'),
+      updateAvailable: tagList.includes('status:update-available'),
+      editable: false,
+      ...(tags ? { tags } : {}),
+    }
+  }
+
+  if (note.type === 'notebook' && (id.startsWith('notebook/') || id.startsWith('feed-notebook/'))) {
+    const slug = note.notebookId ? note.notebookId.replace(/^notebook\//, '') : id.split('/').at(-1) ?? id
+    const tagList = note.tags ?? []
+    const countTag = tagList.find((t) => t.startsWith('count:'))
+    const count = countTag ? Number(countTag.slice('count:'.length)) : 0
+    const feedSlug = note.feedSourceId ?? 'local'
+    return {
+      id,
+      kind: 'notebook',
+      sourceNotebook: slug,
+      sourceNote: slug,
+      sourceId: note.sourceId,
+      sourcePath: note.sourcePath,
+      notebookId: `notebook/${slug}`,
+      title,
+      date: null,
+      createdAt: note.createdAt,
+      subtitle: `${feedSlug} · ${count} note${count === 1 ? '' : 's'}`,
+      detail: note.rawContent || undefined,
+      feedId: feedSlug,
+      subscribed: tagList.includes('subscribed:true'),
+      isPublic: note.public === true || tagList.includes('visibility:public'),
+      seedChunkId: note.seedChunkId ?? `notebook.${slug}`,
+      editable: feedSlug === 'local',
+      ...(tags ? { tags } : {}),
+    }
+  }
 
   if (isPlaygroundNote(note)) {
     return {

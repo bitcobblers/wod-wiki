@@ -11,18 +11,24 @@
  *     parseNoteId catch-all
  */
 import { describe, expect, it } from 'bun:test'
+import type { Page, PageNote, Tag } from '@bitcobblers/wod-wiki-core'
 import type { BlockEffort, BlockIndexRow, Note } from '@/types/storage'
 import { extractPageIndex, mapIndexToL3 } from './pageUtils'
 import {
   backlinkNotes,
   buildNoteContextSpec,
+  collectionLinks,
   effortLinks,
   effortUsageLinks,
   EMPTY_NOTE_CONTEXT,
+  equipmentLinks,
   noteLinkPath,
   noteOwnership,
+  notesFacetFilterPath,
+  pagePlacementLinks,
   provenanceLink,
   relatedBlockLinks,
+  tagLinks,
 } from './noteContextLinks'
 
 describe('extractPageIndex — query and widget fences', () => {
@@ -113,10 +119,11 @@ describe('noteOwnership — source-aware zone / up / stamps', () => {
     expect(own.stamps).toEqual([])
   })
 
-  it('user-created notebook note: notebooks zone, notebook slug up from notebookId', () => {
+  it('user-created notebook note: notebooks zone, notebook slug up from notebookId even when dated', () => {
     const own = noteOwnership({
       id: '018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f70',
       type: 'note',
+      journalDate: '2026-11-10',
       notebookId: 'notebook/dogfood-notebook',
     })
     expect(own.zone).toBe('notebooks')
@@ -246,7 +253,7 @@ describe('buildNoteContextSpec — whiteboard L2 ordering', () => {
   const up = { id: 'u', title: 'Playgrounds', to: '/playgrounds' }
   const source = { id: 's', title: 'Source', to: '/notebook/girls' }
 
-  it('orders Up, Source, calendar, sections, Related, Efforts, Journal copies, trailing', () => {
+  it('orders Up, Source, calendar, sections, facets (Collections..Unrecognized), Related, Journal copies, trailing', () => {
     const spec = buildNoteContextSpec({
       data,
       up,
@@ -260,8 +267,8 @@ describe('buildNoteContextSpec — whiteboard L2 ordering', () => {
       'note-context-source',
       'note-context-calendar',
       'recent',
-      'note-context-related',
       'note-context-efforts',
+      'note-context-related',
       'note-context-backlinks',
       'recent-efforts',
     ])
@@ -282,5 +289,96 @@ describe('buildNoteContextSpec — whiteboard L2 ordering', () => {
     const spec = buildNoteContextSpec({ data, up, relatedLabel: 'Used in' })
     const related = spec.find(e => e.id === 'note-context-related')
     expect(related && related.kind === 'section' && related.label).toBe('Used in')
+  })
+
+  it('builds 2-part facet links (entity route + /notes?q= filter) and de-dupes Collections/Pages against Up/Source', () => {
+    const collections = collectionLinks({
+      id: 'n1',
+      notebookId: 'notebook/crossfit-girls',
+      tags: ['notebook:hero-wods', 'notebook:journal'],
+    })
+    expect(collections).toEqual([
+      { id: 'crossfit-girls', title: 'crossfit-girls', to: '/notebook/crossfit-girls' },
+      { id: 'hero-wods', title: 'hero-wods', to: '/notebook/hero-wods' },
+    ])
+
+    const pagesById = new Map<string, Page>([
+      ['p-date', { id: 'p-date', date: '2026-04-12', createdAt: 1 }],
+      ['p-board', { id: 'p-board', slug: 'prep-cycle', title: 'Prep Cycle', createdAt: 1 }],
+    ])
+    const placements: PageNote[] = [
+      { id: 'pn-1', pageId: 'p-date', noteId: 'n1', position: 0, createdAt: 1 },
+      { id: 'pn-2', pageId: 'p-board', noteId: 'n1', position: 1, createdAt: 1 },
+    ]
+    const pages = pagePlacementLinks(placements, pagesById)
+    expect(pages).toEqual([
+      { id: 'p-date', title: '2026-04-12', to: '/day/2026-04-12' },
+      { id: 'p-board', title: 'Prep Cycle', to: '/page/prep-cycle' },
+    ])
+
+    const tags = tagLinks([
+      { id: 't1', label: 'crossfit', type: 'domain', createdAt: 1 },
+      { id: 't2', label: 'heavy', createdAt: 1 },
+      // effort & equipment tags are merged into Efforts/Equipment, never emitted under /t/effort/* or /t/equipment/*
+      { id: 't3', label: 'fran', type: 'effort', createdAt: 1 },
+      { id: 't4', label: 'kettlebell', type: 'equipment', createdAt: 1 },
+    ] as Tag[])
+    expect(tags).toEqual([
+      {
+        id: 'domain:crossfit',
+        title: '#crossfit',
+        to: '/t/domain/crossfit',
+        filterTo: notesFacetFilterPath('domain', 'crossfit'),
+        filterLabel: 'Filter notes by #crossfit',
+      },
+      {
+        id: 'general:heavy',
+        title: '#heavy',
+        to: '/t/general/heavy',
+        filterTo: notesFacetFilterPath('tags', 'heavy'),
+        filterLabel: 'Filter notes by #heavy',
+      },
+    ])
+
+    const equipment = equipmentLinks(
+      [{ equipmentSlug: 'kettlebell' }],
+      new Set(['kettlebell']),
+      new Map([['kettlebell', 'Kettlebell']]),
+    )
+    expect(equipment).toEqual([
+      {
+        id: 'kettlebell',
+        title: 'Kettlebell',
+        to: '/equipment/kettlebell',
+        filterTo: notesFacetFilterPath('equipment', 'kettlebell'),
+        filterLabel: 'Filter notes by Kettlebell',
+      },
+    ])
+
+    // Up points to /day/2026-04-12 and Source points to /notebook/crossfit-girls →
+    // buildNoteContextSpec de-duplicates both from Pages & Collections!
+    const spec = buildNoteContextSpec({
+      data: {
+        collections,
+        pages,
+        tags,
+        efforts: [],
+        equipment,
+        unrecognized: [],
+        related: [],
+        backlinks: [],
+      },
+      up: { id: '2026-04-12', title: 'Journal', to: '/day/2026-04-12' },
+      source: { id: 'src', title: 'crossfit-girls', to: '/notebook/crossfit-girls' },
+    })
+
+    const collectionsSec = spec.find(s => s.id === 'note-context-collections')
+    expect(
+      collectionsSec && collectionsSec.kind === 'section' && collectionsSec.entries.map(e => (e.kind === 'link' ? e.label : '')),
+    ).toEqual(['hero-wods'])
+    const pagesSec = spec.find(s => s.id === 'note-context-pages')
+    expect(
+      pagesSec && pagesSec.kind === 'section' && pagesSec.entries.map(e => (e.kind === 'link' ? e.label : '')),
+    ).toEqual(['Prep Cycle'])
   })
 })

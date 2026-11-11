@@ -14,11 +14,8 @@ import { dayPath, notePath, runPath } from '../lib/routes';
 import { formatDateKey } from '../services/dateUtils';
 import { CreateJournalNoteDialog } from '../components/organisms/journal/CreateJournalNoteDialog';
 import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes, takeParkedRun } from '../runtimeStore';
-import { WorkbenchSessionProvider } from '@/stores/workbenchSessionStore';
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from '@/components/atoms/primitives/button'
-import { notePersistence } from '@/services/persistence';
-import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import { sessionQueryInsert, sessionQueryWql } from '@bitcobblers/wod-wiki-ui/extensions';
 import { useNotePageNav, wirePageIndexLinks, type NoteHelpfulAction } from './shared/useNotePageNav';
 import { canGoBack, extractPageIndex, mapIndexToL3, appendTimerBlock } from './shared/pageUtils';
@@ -31,7 +28,6 @@ import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
 import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 
 import { JournalPageShell } from '@/panels/page-shells';
-const journalContentProvider = new IndexedDBContentProvider();
 
 interface JournalDatePageProps {
   journalDate: string;
@@ -196,7 +192,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   // ── L3 outline: full per-note outline with Run + badges for single-note
   // dates; grouped per-note outline (one entry per note card) otherwise.
-  const { setL3Items } = useNav();
+  const { setL3Items, setL3Actions } = useNav();
   // Result badges per note (keyed like blocks). Stable ids key the fetch so
   // content edits don't re-query.
   const [resultsByNote, setResultsByNote] = useState<Record<string, Session[]>>({});
@@ -250,6 +246,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     scriptBlocks: singleNote ? (blocksByNote[singleNote.id] ?? []) : [],
     onStartWorkout: handleOutlineRun,
     results,
+    noteId: singleNote?.id,
     helpfulActions: singleHelpfulActions,
     enabled: Boolean(singleNote),
   });
@@ -275,30 +272,33 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         items.push(...mapIndexToL3([{ ...link, id: `note-${note.id}:${link.id}`, label: `${labelPrefix} · ${link.label}` }]));
       }
     }
-    const first = notes[0]!;
-    items.push({
-      id: 'helpful-add-timer',
-      label: 'Add timer',
-      level: 3,
-      action: { type: 'call', handler: () => handleNoteContentChange(first.id, appendTimerBlock(first.rawContent)) },
-    });
     return items;
-  }, [notes, blocksByNote, resultsByNote, handleOutlineRunFor, handleNoteContentChange]);
+  }, [notes, blocksByNote, resultsByNote, handleOutlineRunFor]);
+
+  const multiNoteFirst = notes && notes.length > 1 ? notes[0]! : null;
   // Publish-on-mount / clear-on-unmount, guarded so the single-note outline
   // published by useNotePageNav is never clobbered on transitions (destroy
   // phase runs before create phase, so the flag keeps clear/create paired).
   const publishedGroupedRef = useRef(false);
   useEffect(() => {
-    if (groupedL3.length === 0) return;
+    if (!multiNoteFirst) return;
     publishedGroupedRef.current = true;
     setL3Items(groupedL3);
+    setL3Actions?.([
+      {
+        id: 'helpful-add-timer',
+        label: 'Add timer',
+        onRun: () => handleNoteContentChange(multiNoteFirst.id, appendTimerBlock(multiNoteFirst.rawContent)),
+      },
+    ]);
     return () => {
       if (publishedGroupedRef.current) {
         publishedGroupedRef.current = false;
         setL3Items([]);
+        setL3Actions?.([]);
       }
     };
-  }, [groupedL3, setL3Items]);
+  }, [groupedL3, multiNoteFirst, handleNoteContentChange, setL3Items, setL3Actions]);
 
   if (!notes) return <div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>;
 
@@ -314,7 +314,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   };
 
   return (
-    <WorkbenchSessionProvider notePersistence={notePersistence} provider={journalContentProvider}>
+    <>
       <JournalPageShell
           title={journalDate}
           subtitle={`${notes.length} ${notes.length === 1 ? 'note' : 'notes'}`}
@@ -487,6 +487,6 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           }}
         />
       )}
-    </WorkbenchSessionProvider>
+    </>
   );
 }

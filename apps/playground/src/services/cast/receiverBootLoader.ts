@@ -4,7 +4,7 @@ export const RECEIVER_BOOT_DEGRADED_STATUS = 'waiting-for-cast (degraded)';
 export const RECEIVER_BOOT_STANDALONE_STATUS = 'waiting-for-cast (standalone)';
 export const RECEIVER_BOOT_START_FAILURE_STATUS = 'waiting-for-cast (start-failure)';
 
-type BootLoaderDismissReason = 'ready' | 'timeout' | 'standalone' | 'no-caf' | 'start-failure';
+export type BootLoaderDismissReason = 'ready' | 'timeout' | 'error' | 'standalone' | 'no-caf' | 'start-failure';
 
 export interface ReceiverWaitingScreenCopy {
   title: string;
@@ -41,8 +41,8 @@ export function dismissReceiverBootLoader(
 export function armReceiverBootFallback(
   onTimeout: () => void,
   timeoutMs: number = RECEIVER_BOOT_READY_TIMEOUT_MS,
-): number {
-  return window.setTimeout(onTimeout, timeoutMs) as unknown as number;
+): ReturnType<typeof setTimeout> {
+  return setTimeout(onTimeout, timeoutMs);
 }
 
 export function receiverStandaloneModeEnabled(search: string = window.location.search): boolean {

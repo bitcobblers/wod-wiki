@@ -8,6 +8,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { QueryResult } from '@bitcobblers/wod-wiki-engine';
+import { parseDocument } from '@bitcobblers/wod-wiki-wql';
 
 // EditorDialog focuses via requestAnimationFrame on open — polyfill where
 // the test env lacks it.
@@ -92,8 +93,8 @@ mock.module('../../services/dashboardNotes', () => ({
 function resultOf(raw: string): QueryResult {
   return {
     parsed: { family: 'aggregate', raw, agg: 'sum', metric: 'totalVolume', filters: [], groupBy: [] },
-    series: [],
-    stages: { selected: 0, buckets: 0, aggregated: 0, groups: 0 },
+    series: [{ key: 'total', label: 'total', points: [{ ts: Date.now(), value: 42 }], unit: 'reps' }],
+    stages: { selected: 1, buckets: 1, aggregated: 1, groups: 0 },
     matched: [],
     unit: 'reps',
   } as unknown as QueryResult;
@@ -212,10 +213,51 @@ describe('DashboardViewPage stale-refresh transition', () => {
   });
 });
 
-describe('DashboardViewPage L3 outline', () => {
-  it('publishes real anchors for consecutive and trailing headings without lossy remapping', async () => {
+describe('DashboardViewPage widget layers', () => {
+  it('compiles, previews, and persists goal, baseline, and comparison series', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Volume')).toBeDefined());
+    fireEvent.click(screen.getByTestId('dashboard-edit-toggle'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit widget Volume' }));
+
+    fireEvent.change(await screen.findByTestId('widget-sentence-chart'), { target: { value: 'timeseries' } });
+    fireEvent.click(screen.getByTestId('legend-chip-goal'));
+    fireEvent.click(screen.getByTestId('legend-chip-baseline'));
+    fireEvent.click(screen.getByTestId('legend-chip-compare'));
+
+    const draft = screen.getByTestId('widget-composer-wql').textContent ?? '';
+    const parsed = parseDocument(draft);
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.doc.show).toEqual(['primary', 'goal', 'baseline_4w', 'secondary']);
+    expect(draft).toContain('goal = primary * 0 + 150');
+    expect(draft).toContain('baseline_4w = sum:totalVolume{}.rollup(4w)');
+    expect(draft).toContain('secondary = sum:reps{}');
+    expect(screen.getByTestId('widget-composer-apply').getAttribute('disabled')).toBeNull();
+
+    await screen.findByText('primary');
+    await screen.findByText('baseline_4w');
+    await screen.findByText('secondary');
+
+    fireEvent.click(screen.getByTestId('legend-chip-baseline'));
+    expect(screen.getByTestId('widget-composer-wql').textContent).toContain('baseline_12w');
+    expect(screen.getByRole('button', { name: 'Remove goal' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Remove comparison' })).toBeDefined();
+
+    fireEvent.click(screen.getByTestId('widget-composer-apply'));
+    await waitFor(() => expect(updateCalls).toHaveLength(1));
+    expect(updateCalls[0]).toContain('view: timeseries');
+    expect(updateCalls[0]).toContain('formula: primary * 0 + 150');
+    expect(updateCalls[0]).toContain('query: sum:totalVolume{}.rollup(12w)');
+    expect(updateCalls[0]).toContain('query: sum:reps{}');
+  });
+});
+
+describe('DashboardViewPage L3 3-slot contract', () => {
+  it('publishes pure structural anchors to l3Items, Range/Units to analyticsControls, and board actions to l3Actions', async () => {
     storedRaw = HEADING_RAW;
-    const captured: NavItemL3[][] = [];
+    const capturedOutline: NavItemL3[][] = [];
+    let capturedAnalytics: unknown = null;
+    let capturedActions: Array<{ id: string; label: string }> = [];
     render(
       <MemoryRouter initialEntries={['/dashboard/outline-board']} initialIndex={0}>
         <NavContext.Provider
@@ -224,12 +266,17 @@ describe('DashboardViewPage L3 outline', () => {
             navState: initialNavState,
             dispatch: () => {},
             l3Items: [],
-            setL3Items: (items: NavItemL3[]) => captured.push(items),
+            setL3Items: (items: NavItemL3[]) => capturedOutline.push(items),
+            setL3Actions: (actions) => { capturedActions = actions; },
+            setAnalyticsControls: (controls) => { capturedAnalytics = controls; },
             secondarySpec: undefined,
             setSecondarySpec: () => {},
             scrollToSection: () => {},
             registerScrollFn: () => {},
             setContextNav: () => {},
+            setStreamControls: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
           }}
         >
           <Routes>
@@ -241,16 +288,22 @@ describe('DashboardViewPage L3 outline', () => {
 
     await waitFor(() => expect(screen.getByText('Standalone A')).toBeDefined());
     await waitFor(() => {
-      const ids = captured.at(-1)?.map((item) => item.id) ?? [];
-      // Document order: sticky title, titled widget, both consecutive
-      // standalone headings (each its own anchor), second widget, trailing —
-      // then the L3 view-control widgets and helpful actions (whiteboard:
-      // on-this-page first, Edit/Clone/range/units/Copy link after).
+      const ids = capturedOutline.at(-1)?.map((item) => item.id) ?? [];
+      // Slot 2 ("On this page") holds ONLY pure document/widget anchors in document order.
       expect(ids).toEqual([
         'dashboard-title', 'widget-w0', 'note-h4', 'note-h5', 'widget-w1', 'note-h9',
-        'dashboard-range', 'dashboard-units', 'helpful-edit', 'helpful-copy-link',
       ]);
     });
+
+    // Slot 1 (Modifiers): Range + Units via AnalyticsControlsNav.
+    expect(capturedAnalytics).toEqual({ showRange: true, showUnits: true });
+
+    // Slot 3 ("Actions"): Edit, Add widget (editable vault board), Copy link.
+    expect(capturedActions.map(a => a.id)).toEqual([
+      'helpful-edit',
+      'helpful-add-widget',
+      'helpful-copy-link',
+    ]);
 
     // Every heading entry targets a rendered anchor — no fake targets.
     for (const id of ['dashboard-title', 'note-h4', 'note-h5', 'note-h9']) {

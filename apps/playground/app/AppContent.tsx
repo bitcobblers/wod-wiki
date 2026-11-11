@@ -19,6 +19,7 @@ import { usePaletteStore } from '@/components/organisms/command-palette/palette-
 import { PaletteShell } from '@/components/organisms/command-palette/PaletteShell'
 import { canvasRouteSource, constructSource } from './services/paletteDataSources'
 import { CreateJournalNoteDialog, type ResourceKind } from './components/organisms/journal/CreateJournalNoteDialog'
+import { CreateReferenceFromLabelHost } from './components/organisms/references/CreateReferenceFromLabelDialog'
 import {
   wqlSearchSource,
   withWqlText,
@@ -28,6 +29,7 @@ import {
   navigatePaletteResult,
 } from './services/wqlSearchSource'
 import { usePageScrollSync } from './hooks/usePageScrollSync'
+import { useIsMobile } from './hooks/useIsMobile'
 import { useNav } from './nav/NavContext'
 import { useTheme } from '@/contexts/ThemeProvider'
 import { useCanvasRoutes } from './canvas/canvasRoutes'
@@ -59,7 +61,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { DashboardViewPage } from './views/dashboards/DashboardViewPage'
 import { PageActions } from './pages/shared/PageActions'
 import { MobileNewEntryCombo, resolveNewEntryRoute, routeSupportsCreation } from './pages/shared/NewEntryCombo'
-import { PageDownloadAction, MobilePageOptionsRows } from './pages/shared/PageToolbar'
+import { PageDownloadAction } from './pages/shared/PageToolbar'
 import { mapIndexToL3 } from './pages/shared/pageUtils'
 import { useWorkoutItems, EMPTY_WOD_FILES } from './lib/workoutIndex'
 import { createPlaygroundPage } from './services/createPlaygroundPage'
@@ -74,6 +76,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   const routeParams = useParams()
 
   const { theme } = useTheme()
+  const isMobile = useIsMobile()
 
   const seedFiles = useSeedContent()
   const wodFiles = seedFiles ?? EMPTY_WOD_FILES
@@ -115,7 +118,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   // General layout shell state: breadcrumb (active L1 › page identity) and
   // the L3 index channel (canvas pages publish here; note pages publish via
   // useNotePageNav — bare shells, so the writers never overlap).
-  const { tree: l1Items, navState, setL3Items, setSecondarySpec, registerCreateJournal } = useNav()
+  const { tree: l1Items, navState, setL3Items, setL3Actions, setSecondarySpec, registerCreateJournal } = useNav()
   const activeL1Id = (navState as { activeL1Id?: string | null })?.activeL1Id ?? null
   const activeL1 = (l1Items ?? []).find(item => item?.id === activeL1Id) ?? null
   // Shell title first; bare pages fall back to the route-derived workout name
@@ -164,18 +167,20 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     navigate(playgroundPath(pageId))
   }, [canvasWorkout, navigate])
   useEffect(() => {
-    if (!view.shell.withIndex || (currentNavLinks.length === 0 && !canvasWorkout)) return
-    setL3Items([
-      ...mapIndexToL3(currentNavLinks),
-      ...(canvasWorkout ? [{
-        id: 'helpful-add-timer',
-        label: 'Add timer',
-        level: 3 as const,
-        action: { type: 'call' as const, handler: () => void handleCanvasAddTimer() },
-      }] : []),
-    ])
+    if (!view.shell.withIndex || currentNavLinks.length === 0) return
+    setL3Items(mapIndexToL3(currentNavLinks))
     return () => setL3Items([])
-  }, [view.shell.withIndex, currentNavLinks, canvasWorkout, handleCanvasAddTimer, setL3Items])
+  }, [view.shell.withIndex, currentNavLinks, setL3Items])
+
+  useEffect(() => {
+    if (!view.shell.withIndex || !canvasWorkout) return
+    setL3Actions?.([{
+      id: 'canvas-add-timer',
+      label: 'Add timer',
+      onRun: () => void handleCanvasAddTimer(),
+    }])
+    return () => setL3Actions?.([])
+  }, [view.shell.withIndex, canvasWorkout, handleCanvasAddTimer, setL3Actions])
   // Open the palette for global search (Ctrl/Cmd+/ — WQL mode, issue #834).
   // The mounted stream composer registers a getter for its LIVE draft — the
   // exact text, invalid included (invalid drafts never reach the URL, so a
@@ -275,7 +280,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     ),
     dashboardExplorer: () => (
       <AnalyticsExplorerPage
-        actions={<PageActions mode="notebook-readonly" showCreate currentWorkout={currentWorkout} index={[]} />}
+        actions={isMobile ? undefined : <PageActions mode="notebook-readonly" showCreate currentWorkout={currentWorkout} index={[]} />}
       />
     ),
     dashboardView: () => <DashboardViewPage />,
@@ -333,7 +338,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
           key={profile.route}
           profile={profile}
           registerStreamDraft={registerStreamDraft}
-          actions={<PageActions mode="notebook-readonly" showCreate={routeSupportsCreation(location.pathname)} currentWorkout={currentWorkout} index={[]} />}
+          actions={isMobile ? undefined : <PageActions mode="notebook-readonly" showCreate={routeSupportsCreation(location.pathname)} currentWorkout={currentWorkout} index={[]} />}
         /></>
       )
     },
@@ -382,12 +387,14 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
               primary={routeSupportsCreation(location.pathname) ? <MobileNewEntryCombo /> : undefined}
               label="Page actions"
             >
-              <PageActions
-                mode={view.shell.actionsMode}
-                currentWorkout={currentWorkout}
-                index={currentNavLinks}
-                showCreate={routeSupportsCreation(location.pathname)}
-              />
+              {!isMobile && (
+                <PageActions
+                  mode={view.shell.actionsMode}
+                  currentWorkout={currentWorkout}
+                  index={currentNavLinks}
+                  showCreate={routeSupportsCreation(location.pathname)}
+                />
+              )}
             </ResponsiveActions>
           )
           : undefined}
@@ -441,16 +448,6 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       pageAction={currentWorkout.content !== '' ? <PageDownloadAction currentWorkout={currentWorkout} /> : undefined}
       onSearch={openSearchPalette}
     >
-      {/* Mobile L3 lives in the right drawer and the thumb … sheet. Streams
-          register their own controls; other routes use this shared fallback. */}
-      <ResponsiveActions fallback label="Page options">
-        {view.page !== 'library' && (
-          <MobilePageOptionsRows
-            currentWorkout={currentWorkout}
-            items={currentNavLinks.length > 0 ? mapIndexToL3(currentNavLinks) : undefined}
-          />
-        )}
-      </ResponsiveActions>
       <CreateJournalNoteDialog
         open={journalCreateOpen}
         onOpenChange={setJournalCreateOpen}
@@ -466,6 +463,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       </div>
 
       <PaletteShell />
+      <CreateReferenceFromLabelHost />
       <SyncActivityNotifier />
     </SidebarLayout>
   )

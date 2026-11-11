@@ -7,7 +7,7 @@
  * (notes / blocks / efforts) is unchanged by workout-data unification.
  */
 
-import type { BlockIndexRow, Note, EventRecord, Page, PageNote } from '@bitcobblers/wod-wiki-core';
+import type { BlockIndexRow, Note, EventRecord, Page, PageNote, FeedSourceCatalogRow, FeedNotebookCatalogRow } from '@bitcobblers/wod-wiki-core';
 import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 
 export type { IEffort };
@@ -149,6 +149,12 @@ export interface NoteRelationBundle {
   pages: Page[];
 }
 
+export interface FeedCatalogQueryStore {
+  getAllFeeds(): Promise<FeedSourceCatalogRow[]>;
+  getAllNotebooks(): Promise<FeedNotebookCatalogRow[]>;
+  getRemoteNotebookNotes?(slug: string, feedId?: string): Promise<Note[]>;
+}
+
 export interface QueryServiceStores {
   eventStore?: EventStore;
   noteStore?: NoteQueryStore;
@@ -158,6 +164,8 @@ export interface QueryServiceStores {
   effortStore?: EffortQueryStore;
   /** Serves exercise containment rows (`block_efforts` store). */
   blockEffortsStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
+  /** Serves equipment containment rows (`block_equipment` store). */
+  blockEquipmentStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
   /** Serves tag records (`tags` store). `getAll` backs the `:tag{}` plane;
    *  absent → the plane resolves to no rows. */
   tagsStore?: {
@@ -191,4 +199,6 @@ export interface QueryServiceStores {
   };
   /** Optional notebook subscription checker for feed-owned notes/notebooks. */
   isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
+  /** Distributed feed & notebook catalog seam for `:feed{}`, `:notebook{type:notebook}`, and zero-import remote previews. */
+  feedCatalogStore?: FeedCatalogQueryStore;
 }

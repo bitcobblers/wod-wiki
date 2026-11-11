@@ -68,6 +68,7 @@ export function parseDashboardNote(rawContent: string): { meta: DashboardMeta; s
       sections.push({
         type: 'query',
         content: bodyLines.join('\n'),
+        fenceTag: tag,
         widgetType,
         spanCols,
         spanFull,

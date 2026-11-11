@@ -93,7 +93,7 @@ import { buildNestedCompletionOptions } from '@/app/editor/noteEditorServices';
 import { MetricInlinePanel } from '@/components/organisms/editor/MetricInlinePanel';
 import { PanelSizeProvider } from '@/panels/panel-system/PanelSizeContext';
 import { VisualStatePanel } from '@/panels/visual-state-panel';
-import { calculateDuration } from '@/lib/timeUtils';
+import { calculateDuration } from '@bitcobblers/wod-wiki-engine';
 import type { ITimerDisplayEntry } from '@/clock/types/DisplayTypes';
 import { completeWorkbenchRun, prepareWorkbenchRun } from './runPersistence';
 import { DEFAULT_NOTE } from './presets';

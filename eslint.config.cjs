@@ -42,6 +42,8 @@ module.exports = [
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-require-imports': 'off',
       'no-undef': 'off', // TypeScript owns undefined-name checking; eslint no-undef false-positives on ambient types
+      'no-redeclare': 'off', // TypeScript function overloads false-positive on core no-redeclare
+      '@typescript-eslint/no-redeclare': 'error',
       '@typescript-eslint/no-unsafe-function-type': 'off',
       '@typescript-eslint/no-this-alias': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',

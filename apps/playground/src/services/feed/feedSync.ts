@@ -38,6 +38,7 @@ import {
   type FeedSyncOutcome,
   type SourceSyncCoreResult,
 } from './feedSyncCore';
+import { saveFeedCatalogManifest } from './feedCatalog';
 import type { FeedWorkerToMain } from './feedSync.worker';
 
 export { SEED_BROADCAST_CHANNEL } from '@/types/seed';
@@ -247,6 +248,7 @@ function applySourceResult(
   const broadcast = deps.broadcast ?? defaultBroadcast;
   const report = deps.reportActivity !== false;
   if (result.manifestChecked) markFeedChecked(spec.id, now());
+  if (result.manifest) void saveFeedCatalogManifest(spec.id, result.manifest);
   if (result.outcome === 'error') {
     const message = result.error ?? 'feed sync failed';
     if (deps.mode === 'background') updates?.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'error' });

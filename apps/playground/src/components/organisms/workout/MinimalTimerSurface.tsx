@@ -13,7 +13,7 @@ import React from 'react';
 import { TimerControls, TimerHero, useTimerSwipeGestures } from './TimerCore';
 import { TimerStatusStrip } from './TimerStatusStrip';
 import type { TimerSurfaceModel } from './useTimerSurfaceModel';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 
 export interface TimerSurfaceProps {

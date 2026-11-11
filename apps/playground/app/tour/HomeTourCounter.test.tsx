@@ -58,14 +58,6 @@ mock.module('@/components/atoms/AudioToggle', () => ({
   AudioToggle: () => null,
 }))
 
-mock.module('@/components/organisms/review/AnalyticsScorecard', () => ({
-  AnalyticsScorecard: () => null,
-}))
-
-mock.module('@/components/organisms/review/ReviewGrid', () => ({
-  ReviewGrid: () => null,
-}))
-
 mock.module('@/components/organisms/cast/CastButtonRpc', () => ({
   CastButtonRpc: () => null,
 }))

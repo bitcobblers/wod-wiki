@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { notePersistence } from '@/services/persistence'
 import { parseFrontmatter } from '@/lib/frontmatter'
 import { buildDashboardSeeds } from '../lib/dashboardSeeds'
+import { subscribeDashboardsChanged } from '../services/dashboardEvents'
 import { useSeedContent } from '@/services/content/seedContent'
 
 export interface DashboardSource {
@@ -111,6 +112,13 @@ export function useDashboardList(): { items: DashboardListItem[]; loading: boole
   const seeds = useMemo(() => (files ? buildDashboardSeeds(files) : []), [files])
   const [items, setItems] = useState<DashboardListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [version, setVersion] = useState(0)
+
+  useEffect(() => {
+    return subscribeDashboardsChanged(() => {
+      setVersion((v) => v + 1)
+    })
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -139,7 +147,7 @@ export function useDashboardList(): { items: DashboardListItem[]; loading: boole
     return () => {
       cancelled = true
     }
-  }, [seeds])
+  }, [seeds, version])
 
   return { items, loading }
 }

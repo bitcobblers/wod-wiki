@@ -6,8 +6,11 @@ import {
   DEFAULT_OUTPUT_FILTERS,
   DEFAULT_PRIMARY_FILTER,
   normalizeOutputFilter,
+  type InlineMetricEditPayload,
   type OutputFilterInput,
   type OutputStatementRow,
+  type RowPrHighlight,
+  type SessionTableSortSpec,
 } from './OutputStatementsTable';
 
 export interface RowsTableProps {
@@ -19,6 +22,17 @@ export interface RowsTableProps {
   /** Controlled filter expression — omit to let the table own its filter state. */
   filter?: string;
   onFilterChange?: (filter: string) => void;
+  /** Optional explicit column whitelist & order (from YAML `columns: [...]`). */
+  columns?: readonly string[];
+  /** Optional initial or controlled sort specs (from YAML `sort: [...]`). */
+  sort?: readonly SessionTableSortSpec[];
+  onSortChange?: (next: SessionTableSortSpec[]) => void;
+  /** Optional row cap after filtering and sorting. */
+  limit?: number;
+  /** Optional inline actuals editor (`captureMetricCorrection`), scoped per run `resultId`. */
+  onEditMetric?: (resultId: string, payload: InlineMetricEditPayload) => void | Promise<void>;
+  /** Optional PR highlights keyed by row `id` or `sourceBlockKey`. */
+  prHighlights?: ReadonlyMap<string | number, RowPrHighlight> | Record<string, RowPrHighlight>;
 }
 
 function formatRunHeader(run: RowsRun): string {
@@ -34,6 +48,12 @@ export function RowsTable({
   presets,
   filter,
   onFilterChange,
+  columns,
+  sort,
+  onSortChange,
+  limit,
+  onEditMetric,
+  prHighlights,
 }: RowsTableProps) {
   const [internalFilter, setInternalFilter] = useState(DEFAULT_PRIMARY_FILTER);
   const activeFilter = filter ?? internalFilter;
@@ -83,6 +103,17 @@ export function RowsTable({
             outputs={statements}
             filter={activeFilter}
             timeOrigin={startTime}
+            onClearFilter={() => setFilter('')}
+            columns={columns}
+            sort={sort}
+            onSortChange={onSortChange}
+            limit={limit}
+            onEditMetric={
+              onEditMetric
+                ? (payload) => onEditMetric(run.resultId, payload)
+                : undefined
+            }
+            prHighlights={prHighlights}
           />
         </section>
       ))}

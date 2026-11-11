@@ -114,6 +114,7 @@ export function StreamQueryBar({
         onQueryChange={onQueryChange}
         compact
         showDiagnostics={false}
+        hiddenClauseTypes={['agg', 'metric', 'rollup', 'pipes']}
         preferredChoices={scopeOptions}
         placeholder="Filter or search…"
         className="min-w-0 flex-1"

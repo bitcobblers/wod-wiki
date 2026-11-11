@@ -17,10 +17,10 @@
 
 import React from 'react';
 import { Cast, Timer, Volume2 } from 'lucide-react';
-import { formatTimeMMSS } from '@/lib/formatTime';
+import { formatTimeMMSS } from '@bitcobblers/wod-wiki-engine';
 import { TimerControls, TimerHero } from './TimerCore';
 import type { TimerSurfaceProps } from './MinimalTimerSurface';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 
 export interface GeneralTimerSurfaceProps extends TimerSurfaceProps {
   /** Workout title shown in the top bar (hidden when unknown) */

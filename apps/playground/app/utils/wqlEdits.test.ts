@@ -95,11 +95,25 @@ describe('setMetricQuery', () => {
     );
   });
 
-  it('never pivots a find query — kind pivots run through the composer warned flow', () => {
-    expect(setMetricQuery(':note{tags:pr} last 2w', 'totalVolume')).toBe(
-      ':note{tags:pr} last 2w',    );
-    expect(setMetricQuery(':note{source:journal,tags:pr} last 2w', 'totalVolume')).toBe(
-      ':note{source:journal,tags:pr} last 2w',    );
+  it('promotes fact-filtered lists without losing their window', () => {
+    expect(setMetricQuery(':note{effort:back-squat} last 8w', 'totalVolume')).toBe(
+      'sum:totalVolume{effort:back-squat} by {week} last 8w',
+    );
+  });
+
+  it('moves content filters into a join and preserves non-note scope', () => {
+    expect(setMetricQuery(':note{tags:pr,source:journal} last 8w', 'totalVolume')).toBe(
+      'sum:totalVolume{} by {week} last 8w where :note{tags:pr,source:journal}',
+    );
+    expect(setMetricQuery(':journal{effort:back-squat}', 'totalVolume')).toBe(
+      'sum:totalVolume{effort:back-squat} by {week} where :journal{}',
+    );
+  });
+
+  it('splits mixed filters and drops presentation pipes', () => {
+    expect(setMetricQuery(':note{effort:back-squat,tags:pr} | limit 5', 'tis')).toBe(
+      'sum:tis{effort:back-squat} by {week} where :note{tags:pr}',
+    );
   });
 
   it('returns unparseable input untouched', () => {

@@ -108,7 +108,7 @@ export type WqlGrain = (typeof WQL_GRAINS)[number];
  *  planes (ticket 08) are first-class targets: `:notebook{}` lists the
  *  notes across every notebook, `:page{}` the page placements, `:tag{}` the tags,
  *  `:equipment{}` the equipment notes — the latter two resolve to notes. */
-export const WQL_FIND_TARGETS = ['note', 'block', 'effort', 'session', 'segment', 'event', 'notebook', 'page', 'tag', 'equipment'] as const;
+export const WQL_FIND_TARGETS = ['note', 'block', 'effort', 'session', 'segment', 'event', 'notebook', 'page', 'tag', 'equipment', 'feed'] as const;
 export type WqlFindTarget = (typeof WQL_FIND_TARGETS)[number];
 
 /** Canonical source filter values: the allowed storage locations. Corpus-
@@ -128,7 +128,7 @@ export type WqlSourceValue = (typeof WQL_SOURCE_VALUES)[number];
 export const WQL_SOURCE_HEADS = [
   'note', 'notes', 'block', 'effort', 'session', 'segment', 'event',
   'journal', 'notebook', 'notebooks', 'playground',
-  'page', 'tag', 'equipment',
+  'page', 'tag', 'equipment', 'feed', 'feeds',
   'dashboard',
 ] as const;
 export type WqlSourceHead = (typeof WQL_SOURCE_HEADS)[number];
@@ -163,12 +163,12 @@ export const WQL_FUNCTION_HEADS = WQL_AGGREGATORS;
 export type WqlFunctionHead = WqlAggregator;
 
 /** Colon chart heads — terminal pipeline sinks (`:timeseries`, `:bar`, …). */
-export const WQL_CHART_HEADS = ['timeseries', 'bar', 'table', 'donut', 'toplist', 'value'] as const;
+export const WQL_CHART_HEADS = ['timeseries', 'bar', 'stacked-bar', 'table', 'list', 'donut', 'toplist', 'value', 'goal-rings', 'zone-distribution'] as const;
 export type WqlChartHead = (typeof WQL_CHART_HEADS)[number];
 
 /** Standard datasets the host registers per page/run before children
  *  evaluate (`@session` active session, `@today` civil-day telemetry+notes). */
-export const WQL_STANDARD_DATASETS = ['@session', '@today'] as const;
+export const WQL_STANDARD_DATASETS = ['@session', '@today', '@note'] as const;
 export type WqlStandardDataset = (typeof WQL_STANDARD_DATASETS)[number];
 
 

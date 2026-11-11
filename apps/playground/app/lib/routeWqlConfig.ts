@@ -21,7 +21,7 @@
  * settings change the open page without a reload.
  */
 import { useMemo, useSyncExternalStore } from 'react'
-import { WQL_FIND_TARGETS, WQL_SOURCE_VALUES } from '@bitcobblers/wod-wiki-engine'
+import { WQL_FIND_TARGETS, WQL_SOURCE_VALUES, type WqlSourceValue } from '@bitcobblers/wod-wiki-engine'
 import type { StreamProfile } from '../views/stream/streamProfile'
 import { migrateLegacyCatalogFilter } from './legacyWql'
 import { LocalStore } from '@/services/storage/LocalStore'
@@ -333,7 +333,7 @@ export function applyRouteWqlConfig(profile: StreamProfile, config?: RouteWqlCon
     ...profile,
     defaultWql: resolved.defaultWql ?? profile.defaultWql,
     scopeOptions: resolved.typeOptions
-      ? resolved.typeOptions.filter(v => (WQL_SOURCE_VALUES as readonly string[]).includes(v))
+      ? resolved.typeOptions.filter((v): v is WqlSourceValue => (WQL_SOURCE_VALUES as readonly string[]).includes(v))
       : profile.scopeOptions,
     groupByOptions: resolved.groupByOptions,
   }

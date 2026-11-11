@@ -4,3 +4,4 @@ export * from './section';
 export * from './notebook';
 export * from './feed';
 export * from './core';
+export * from './feed-catalog';

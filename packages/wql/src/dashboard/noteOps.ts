@@ -19,23 +19,31 @@
 
 import { parseDashboardNote, type DashboardParsedSection } from './parser';
 import { DASHBOARD_GRID_MAX_COLS } from './model';
+import {
+  isYamlQueryBlockBody,
+  parseQueryBlock,
+  queryBlockToDocumentText,
+  serializeQueryBlockFence,
+  type QueryBlockObject,
+} from '../queryBlockCodec';
 import type { NoteBlockChange } from '@bitcobblers/wod-wiki-core';
 
 // ── Widget spec ────────────────────────────────────────────────────────────
 
 export interface WidgetSpec {
-  /** Card title — renders as a `## ` heading above the block. */
+  /** Card title — persisted as `title:` inside the YAML ```query fence. */
   title?: string;
-  /** Coaching question — the paragraph between the heading and the block. */
+  /** Coaching question / description — persisted as `description:` inside YAML. */
   question?: string;
-  /** Raw widget type from the fence suffix ('' → the `table` default). */
+  /** Raw widget type (`''` → the `table` default). */
   type: string;
   spanCols?: number;
   spanFull?: boolean;
-  /** The composed Query Document text — stored verbatim as the block body
-   *  (single-line or multi-line; decision 22). */
+  /** The composed WQL / Query Document text. */
   wql: string;
-  /** Fence-tag presentation attributes (goal targets, …). */
+  /** Optional pre-built structured `QueryBlockObject` (preferred by `<QueryObjectBuilder />`). */
+  queryObject?: QueryBlockObject;
+  /** Presentation attributes (goal targets, …). */
   attributes?: Record<string, string>;
   /** Attribute emission order (defaults to Object key order). */
   attributeOrder?: string[];
@@ -68,18 +76,28 @@ export function widgetBodyLine(spec: Pick<WidgetSpec, 'wql'>): string {
   return spec.wql.trim();
 }
 
-/** The markdown lines of a whole widget group (heading? / question? / fence block). */
+/** Convert a `WidgetSpec` into its canonical `QueryBlockObject`. */
+export function widgetSpecToQueryObject(spec: WidgetSpec): QueryBlockObject {
+  if (spec.queryObject) {
+    const base: QueryBlockObject = { ...spec.queryObject };
+    if (spec.title !== undefined) base.title = spec.title.trim() || undefined;
+    if (spec.question !== undefined) base.description = spec.question.trim() || undefined;
+    if (spec.spanFull) base.span = 'full';
+    else if (spec.spanCols !== undefined) base.span = spec.spanCols as 1 | 2 | 3 | 4;
+    return base;
+  }
+  const tag = widgetFenceTag(spec).slice(3);
+  return parseQueryBlock(spec.wql, {
+    fenceTag: tag,
+    adjacentTitle: spec.title?.trim() || undefined,
+    adjacentDescription: spec.question?.trim() || undefined,
+  });
+}
+
+/** The markdown lines of a widget — canonical self-contained ```query block (YAML or 1-line shorthand). */
 export function renderWidgetGroup(spec: WidgetSpec): string[] {
-  const lines: string[] = [];
-  const title = spec.title?.trim();
-  const question = spec.question?.trim();
-  if (title) lines.push(`## ${title}`);
-  if (question) lines.push(question);
-  if (lines.length > 0) lines.push('');
-  lines.push(widgetFenceTag(spec));
-  lines.push(widgetBodyLine(spec));
-  lines.push('```');
-  return lines;
+  const obj = widgetSpecToQueryObject(spec);
+  return serializeQueryBlockFence(obj).split('\n');
 }
 
 // ── Group location ─────────────────────────────────────────────────────────
@@ -98,6 +116,23 @@ interface WidgetGroup {
  * Returns null when the widget vanished or the body no longer matches —
  * the caller must re-read and never write.
  */
+function normalizedBlockBodies(block: DashboardParsedSection): Set<string> {
+  const candidates = new Set<string>();
+  const trimmed = block.content.trim();
+  candidates.add(trimmed);
+  const legacyNorm = block.content
+    .split('\n')
+    .filter((l) => { const s = l.trim(); return s !== '' && !s.startsWith('#'); })
+    .map((l) => l.trim())
+    .join('\n');
+  candidates.add(legacyNorm);
+  if (isYamlQueryBlockBody(block.content)) {
+    const obj = parseQueryBlock(block.content, { fenceTag: block.fenceTag });
+    candidates.add(queryBlockToDocumentText(obj).trim());
+  }
+  return candidates;
+}
+
 function findWidgetGroup(
   sections: readonly DashboardParsedSection[],
   key: string,
@@ -108,15 +143,12 @@ function findWidgetGroup(
   if (widgetIndex === -1) return { ok: false, reason: 'not-found' };
   const block = querySections[widgetIndex]!;
 
-  // Identity guard (decision 22): the widget's EXACT full fenced body must
-  // still be what the caller's last parse saw — any concurrent change
-  // stale-marks the operation (re-read; never a blind or partial write).
-  const body = block.content
-    .split('\n')
-    .filter((l) => { const s = l.trim(); return s !== '' && !s.startsWith('#'); })
-    .map((l) => l.trim())
-    .join('\n');
-  if (body !== expectedBody.trim()) return { ok: false, reason: 'stale-body' };
+  // Identity guard: accept either the compiled executable body (`widget.body`)
+  // or the exact raw YAML/fenced body (`widget.rawBody`), while rejecting any
+  // concurrent modification.
+  if (!normalizedBlockBodies(block).has(expectedBody.trim())) {
+    return { ok: false, reason: 'stale-body' };
+  }
 
   return {
     ok: true,
@@ -125,11 +157,15 @@ function findWidgetGroup(
 }
 
 /**
- * Group start for a query block: the associated title heading / coaching
- * question paragraph directly above it (strict adjacency — the document
- * builder's association rule), or the block's own line when untitled.
+ * Group start for a query block: a self-contained YAML block with its own
+ * `title:` owns only its fence lines; legacy / untitled blocks include any
+ * strictly adjacent heading / paragraph directly above.
  */
 function groupStartLine(sections: readonly DashboardParsedSection[], block: DashboardParsedSection): number {
+  if (isYamlQueryBlockBody(block.content)) {
+    const obj = parseQueryBlock(block.content, { fenceTag: block.fenceTag });
+    if (obj.title) return block.startLine;
+  }
   const idx = sections.indexOf(block);
   const above = sections[idx - 1];
   if (above?.type === 'markdown' && above.subtype === 'paragraph') {
@@ -330,7 +366,19 @@ export function resizeWidget(
     (s) => s.type === 'query' && s.startLine >= group.startLine && s.endLine <= group.endLine,
   )!;
   const lines = raw.split('\n');
-  const indent = lines[block.startLine].match(/^\s*/)![0];
+  if (isYamlQueryBlockBody(block.content)) {
+    const obj = parseQueryBlock(block.content, { fenceTag: block.fenceTag });
+    if (span.spanFull) obj.span = 'full';
+    else if (span.spanCols != null && span.spanCols > 1) obj.span = span.spanCols as 2 | 3 | 4;
+    else delete obj.span;
+    const indent = lines[block.startLine]!.match(/^\s*/)![0];
+    const nextFenceLines = serializeQueryBlockFence(obj, { forceYaml: true })
+      .split('\n')
+      .map((l) => indent + l);
+    lines.splice(block.startLine, block.endLine - block.startLine + 1, ...nextFenceLines);
+    return widgetResult(raw, lines.join('\n'));
+  }
+  const indent = lines[block.startLine]!.match(/^\s*/)![0];
   lines[block.startLine] =
     indent +
     widgetFenceTag({

@@ -5,6 +5,6 @@
  * This re-export is provided for backward compatibility during migration.
  */
 
-export * from '../../src/testing/harness';
+export * from '../testing/harness';
 export { OutputTracingHarness } from './OutputTracingHarness';
 export type { TracedOutput, ExpectedOutput } from './OutputTracingHarness';

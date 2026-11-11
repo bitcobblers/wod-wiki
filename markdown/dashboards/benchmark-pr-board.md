@@ -9,37 +9,38 @@ domain: crossfit
 CrossFit / Hyrox prebuilt — benchmark retests and work capacity. Tag
 benchmark notes `benchmark` and they land on the board.
 
-## Benchmark scores
-Which benchmarks moved this quarter?
-
-```query:table-2
-last:elapsed{tags:benchmark} by {effort}
+```query
+title: Benchmark scores
+description: Which benchmarks moved this quarter?
+view: table
+span: 2
+query: last:elapsed{tags:benchmark} by {effort}
 ```
 
-## Fran trend
-Closing on the goal time?
-
-```query:timeseries
-last:elapsed{effort:fran} by {week}
+```query
+title: Fran trend
+description: Closing on the goal time?
+view: timeseries
+query: last:elapsed{effort:fran} by {week}
 ```
 
-## Work capacity
-Total reps per week rising?
-
-```query:timeseries
-sum:totalReps{} by {week}
+```query
+title: Work capacity
+description: Total reps per week rising?
+view: timeseries
+query: sum:totalReps{} by {week}
 ```
 
-## Session intensity
-Pacing even or blowing up late?
-
-```query:bar
-sum:tis{} by {session, day}
+```query
+title: Session intensity
+description: Pacing even or blowing up late?
+view: bar
+query: sum:tis{} by {session, day}
 ```
 
-## Training consistency
-Sessions logged — gaps visible at a glance.
-
-```query:bar
-count:sessionLoad{} by {day}
+```query
+title: Training consistency
+description: "Sessions logged — gaps visible at a glance."
+view: bar
+query: count:sessionLoad{} by {day}
 ```

@@ -57,8 +57,8 @@ function metricMetadata(metric: unknown): Record<string, unknown> | undefined {
 }
 
 describe('toEventRows — logs → event rows, 1:1 per statement (ticket 002)', () => {
-  it('maps every statement to an event row with promoted identity and deterministic id', () => {
-    const rows = toEventRows([statement(), statement({ outputType: 'system' })], IDENTITY);
+  it('maps every non-plumbing statement to an event row with promoted identity and deterministic id', () => {
+    const rows = toEventRows([statement(), statement({ outputType: 'milestone' })], IDENTITY);
 
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
@@ -80,9 +80,28 @@ describe('toEventRows — logs → event rows, 1:1 per statement (ticket 002)', 
       stackLevel: 2,
     });
     expect(rows[1].id).toBe('r1:1');
+    expect(rows[1].outputType).toBe('milestone');
     expect(rows[1].timestamp).toBe(TS + 5_000);
     // metrics array carried verbatim
     expect(rows[0].metrics).toEqual(statement().metrics);
+  });
+
+  it('filters runtime debug plumbing output types (load, compiler, system, event) out of persisted event rows', () => {
+    const rows = toEventRows(
+      [
+        statement({ outputType: 'load' }),
+        statement({ outputType: 'compiler' }),
+        statement({ outputType: 'segment' }),
+        statement({ outputType: 'system' }),
+        statement({ outputType: 'event' }),
+        statement({ outputType: 'completion' }),
+      ],
+      IDENTITY,
+    );
+    expect(rows.map((r) => ({ id: r.id, outputType: r.outputType }))).toEqual([
+      { id: 'r1:0', outputType: 'segment' },
+      { id: 'r1:1', outputType: 'completion' },
+    ]);
   });
 
   it('falls back to the workout timestamp when the statement has no timeSpan', () => {

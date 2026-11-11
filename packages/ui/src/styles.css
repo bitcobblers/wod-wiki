@@ -63,16 +63,16 @@
     --field-placeholder: 30 12% 42%;
     --radius: 1rem;
 
-    /* ── Metric tokens — 7 semantic colors ────────────────────────── */
-    --metric-time:       212 32% 50%;  /* #5980a8 slate blue */
-    --metric-rep:        30 46% 45%;   /* #a87040 raw sienna */
-    --metric-effort:     140 28% 42%;  /* #508860 moss green */
-    --metric-rounds:     270 26% 50%;  /* #7c62a0 slate violet */
-    --metric-distance:   180 36% 40%;  /* #408888 deep teal */
-    --metric-resistance: 0 34% 48%;    /* #a05858 terracotta */
-    --metric-action:     46 52% 37%;   /* #948030 ochre */
-    --metric-rest:       172 30% 40%;  /* sea teal (rest intervals) */
-    --metric-equipment:  215 18% 42%;  /* steel (equipment references) */
+    /* ── Metric tokens — 7 semantic colors (WCAG AA >= 4.5:1 on --card & --background) ── */
+    --metric-time:       212 36% 42%;  /* #446991 slate blue */
+    --metric-rep:        30 48% 38%;   /* #8f5d32 raw sienna */
+    --metric-effort:     140 32% 36%;  /* #3e7951 moss green */
+    --metric-rounds:     270 28% 45%;  /* #715393 slate violet */
+    --metric-distance:   180 40% 34%;  /* #347979 deep teal */
+    --metric-resistance: 0 36% 43%;    /* #954646 terracotta */
+    --metric-action:     46 54% 33%;   /* #826d27 ochre */
+    --metric-rest:       172 34% 34%;  /* sea teal (rest intervals) */
+    --metric-equipment:  215 20% 38%;  /* steel (equipment references) */
 
     /* ── Signal accents — vivid status hues for charts/validity ─────
      * Rings, zone bands, delta indicators, validity icons (#1000). */
@@ -225,7 +225,8 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: 4px;
 
-  --font-sans: Inter, system-ui, -apple-system, sans-serif;
+  --font-sans: "Geist Sans", "SF Pro Display", Switzer, "Helvetica Neue", system-ui, -apple-system, sans-serif;
+  --font-serif: Newsreader, "Instrument Serif", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   --breakpoint-xl: 1280px;

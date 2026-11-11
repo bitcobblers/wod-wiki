@@ -6,6 +6,7 @@ import { ensureSyntaxTree } from '@codemirror/language';
 import {
   wqlLanguage,
   wqlCompletionSource,
+  resolveWqlCursorStage,
 } from '../src/language';
 import { wqlFilterKeys, wqlGroupingDimensions } from '../src/capabilities';
 import { WQL_SOURCE_VALUES } from '../src/vocabulary';
@@ -195,7 +196,10 @@ describe('wqlCompletionSource', () => {
   });
 
   it('offers presentation pipe clauses after |, not inside braces', () => {
-    expect(complete(':note | ')).toEqual(['order by', 'select', 'limit']);
+    // Row operators stay available on a bare downstream pipe (alongside the
+    // reducer/chart stage heads); the incidental ordering is not pinned.
+    const pipeLabels = complete(':note | ')!;
+    for (const kw of ['order by', 'select', 'limit']) expect(pipeLabels).toContain(kw);
     // OR pipe inside braces continues the same key's value list.
     expect(complete('sum:tis{effort:fran|')).toEqual(EFFORTS);
     // Quoted pipe/colon never becomes a suffix boundary.
@@ -288,9 +292,9 @@ describe('wqlCompletionSource — colon heads', () => {
   it('offers head names after the colon, narrowed by prefix', () => {
     expect(complete(':')).toEqual([
       'sum', 'avg', 'min', 'max', 'count', 'last', 'delta',
-      'note', 'notes', 'block', 'effort', 'session', 'segment', 'event', 'journal', 'notebook', 'notebooks', 'playground', 'page', 'tag', 'equipment', 'dashboard',
-      'timeseries', 'bar', 'table', 'donut', 'toplist', 'value',
-      '@session', '@today',
+      'note', 'notes', 'block', 'effort', 'session', 'segment', 'event', 'journal', 'notebook', 'notebooks', 'playground', 'page', 'tag', 'equipment', 'feed', 'feeds', 'dashboard',
+      'timeseries', 'bar', 'stacked-bar', 'table', 'list', 'donut', 'toplist', 'value', 'goal-rings', 'zone-distribution',
+      '@session', '@today', '@note',
     ]);
     expect(complete(':j')).toEqual(['journal']);
   });
@@ -377,5 +381,115 @@ describe('wqlLanguage highlighting', () => {
     expect(classes['.rollup']).toBe('keyword');
     expect(classes['2']).toBe('number');
     expect(classes['w']).toBe('unit');
+  });
+});
+
+describe('WQL-5 stage- and binding-aware typeahead & resolveWqlCursorStage', () => {
+  it('suggests metric: and fact keys inside a stage-2 reducer (:journal{} | :sum{)', () => {
+    const keys = complete(':journal{} | :sum{')!;
+    expect(keys).toContain('metric');
+    expect(keys).toContain('equipment');
+    expect(keys).toContain('effort');
+
+    const metrics = complete(':journal{} | :sum{metric:')!;
+    expect(metrics).toContain('reps');
+    expect(metrics).toContain('totalVolume');
+    expect(metrics).toContain('tis');
+  });
+
+  it('suggests chart heads and reducer heads after a stage-2 pipe (:journal{} | :sum{metric:reps} | :)', () => {
+    const heads = complete(':journal{} | :sum{metric:reps} | :')!;
+    expect(heads).toContain('bar');
+    expect(heads).toContain('stacked-bar');
+    expect(heads).toContain('timeseries');
+    expect(heads).toContain('value');
+    expect(heads).toContain('goal-rings');
+
+    const chartParams = complete(':journal{} | :sum{metric:reps} | :bar{')!;
+    expect(chartParams).toEqual(['label', 'unit', 'goal', 'limit', 'stack', 'type', 'smooth']);
+  });
+
+  it('suggests declared local bindings on show lines, assignment RHS, and formula tails', () => {
+    const doc = [
+      'defaults by {week} last 8w',
+      'bench_notes = :journal{intent:benchmark}',
+      'kb_reps = bench_notes | :sum{metric:reps}',
+      'show ',
+    ].join('\n');
+    const showSuggestions = complete(doc)!;
+    expect(showSuggestions).toEqual(['bench_notes', 'kb_reps']);
+
+    const showChartSuggestions = complete(`${doc}kb_reps | :`)!;
+    expect(showChartSuggestions).toContain('stacked-bar');
+    expect(showChartSuggestions).toContain('bar');
+
+    const formulaDoc = [
+      'snatch_vol = :segment{effort:snatch} | :sum{metric:totalVolume}',
+      'clean_vol = :segment{effort:clean} | :sum{metric:totalVolume}',
+      'ratio = snatch_vol / ',
+    ].join('\n');
+    expect(complete(formulaDoc)).toEqual(['snatch_vol', 'clean_vol']);
+  });
+
+  it('suggests $thisnote, $note, and $scope when typing $ tokens', () => {
+    expect(complete(':note{note:$')).toEqual(['$thisnote', '$note', '$scope']);
+    expect(complete(':segment{note:$this')).toEqual(['$thisnote']);
+  });
+
+  it('resolves the active pipeline stage role (source -> reduce -> sink) as cursor moves', () => {
+    const line = ':journal{effort:snatch} | :sum{metric:reps} by {equipment} | :bar{unit:reps}';
+    const atSource = resolveWqlCursorStage(line, 5);
+    expect(atSource.role).toBe('source');
+    expect(atSource.stageIndex).toBe(0);
+    expect(atSource.head).toBe(':journal');
+
+    const atReduce = resolveWqlCursorStage(line, line.indexOf(':sum') + 2);
+    expect(atReduce.role).toBe('reduce');
+    expect(atReduce.stageIndex).toBe(1);
+    expect(atReduce.reduceIndex).toBe(0);
+    expect(atReduce.head).toBe('sum');
+
+    const atSink = resolveWqlCursorStage(line, line.indexOf(':bar') + 2);
+    expect(atSink.role).toBe('sink');
+    expect(atSink.stageIndex).toBe(2);
+    expect(atSink.head).toBe('bar');
+  });
+});
+
+describe('wqlCompletionSource — show lines and downstream stage heads', () => {
+  it('offers prior bindings, not chart heads, at a show binding slot before an existing pipe', () => {
+    const doc = 'bench = :journal{}\nshow bench, | :bar{}';
+    expect(complete(doc, doc.indexOf('|'))).toEqual(['bench']);
+  });
+
+  it('offers reducers/chart heads alongside row operators on a bare downstream pipe, colon applied', () => {
+    const labels = complete(':segment{} | ')!;
+    expect(labels).toContain('sum');
+    expect(labels).toContain('bar');
+    expect(labels).toContain('order by');
+    expect(labels).toContain('select');
+    const picked = source(new CompletionContext(EditorState.create({ doc: ':segment{} | ', extensions: [wqlLanguage] }), ':segment{} | '.length, true))!
+      .options.find((o) => o.label === 'sum')!;
+    expect(picked.apply).toBe(':sum{'); // bare pipe: the stage colon is written automatically
+  });
+
+  it('automatically offers reducers after pipe whitespace', () => {
+    const doc = ':segment{} | ';
+    const result = source(new CompletionContext(EditorState.create({ doc, extensions: [wqlLanguage] }), doc.length, false));
+    expect(result?.options.map((option) => option.label)).toContain('sum');
+  });
+
+  it('offers reducers/chart heads alongside row operators after a reducer stage', () => {
+    const labels = complete(':journal{} | :sum{metric:reps} | ')!;
+    expect(labels).toContain('avg');
+    expect(labels).toContain('timeseries');
+    expect(labels).toContain('order by');
+    expect(labels).toContain('limit');
+  });
+
+  it('discovers sum from a typed prefix after a pipe, not just select', () => {
+    const labels = complete(':segment{} | s')!;
+    expect(labels).toContain('sum');
+    expect(labels).toContain('select');
   });
 });

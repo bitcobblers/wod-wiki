@@ -59,6 +59,8 @@ export interface Note {
   sourcePath?: string;
   /** Git commit hash in which this note was published or changed. */
   seedCommit?: string;
+  /** Whether a user-owned notebook landing note (`notebook/{slug}`) publishes its member notes to the outbound Feed. */
+  public?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,6 +192,9 @@ export interface Session {
   completed: boolean;
 
   createdAt: number;
+
+  /** Whether this Session's telemetry is published when its parent Note belongs to a public Notebook. */
+  public?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -415,7 +420,7 @@ export interface FieldSourceRecord {
 
 /** One observed categorical value of a field (string/boolean only). */
 export interface FieldValueRecord {
-  key: [string, string]; // [fieldId, value] — value keeps original spelling
+  key: string | [string, string]; // `${fieldId}\u0000${value}` scalar key — value keeps original spelling
   fieldId: string;
   value: string;
   sourceCount: number;

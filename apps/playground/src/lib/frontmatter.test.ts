@@ -70,10 +70,11 @@ describe('parseFrontmatter', () => {
     expect(parseFrontmatter(raw).meta).toEqual({ tags: '[a, b]' });
   });
 
-  it('ignores indented nested-map lines', () => {
-    const raw = '---\nbaseAttributes:\n  met: 4\nlabel: Squat\n---\nContent';
+  it('ignores non-alias indented nested-map lines while folding legacy baseAttributes', () => {
+    const raw = '---\ncustomMap:\n  foo: 1\nbaseAttributes:\n  met: 4\nlabel: Squat\n---\nContent';
     expect(parseFrontmatter(raw).meta).toEqual({
-      baseAttributes: '',
+      customMap: '',
+      'metrics.met': 4,
       label: 'Squat',
     });
   });

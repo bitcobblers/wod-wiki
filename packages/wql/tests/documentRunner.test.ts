@@ -38,11 +38,12 @@ describe('ticket 17 — document evaluation', () => {
   it('missing operands substitute zero and the result is flagged missing-derived', async () => {
     const { runner } = fakeRunner({
       a: { key: 'a', label: 'a', points: [{ ts: weeks[0]!, value: 10 }, { ts: weeks[1]!, value: 20 }] },
+      // Grouped one-point series → a series operand, so week 2 stays missing.
       b: { key: 'b', label: 'b', points: [{ ts: weeks[0]!, value: 5 }] }, // week 2 missing
     });
     const result = await runner.run([
       'a = sum:a{}',
-      'b = sum:b{}',
+      'b = sum:b{} by {week}',
       'c = a / b',
       'show c',
     ].join('\n'));
@@ -69,6 +70,22 @@ describe('ticket 17 — document evaluation', () => {
     expect(result.outputs[0]!.error).toBeUndefined();
     expect(result.outputs[0]!.series![0]!.points[0]!.value).toBe(10);
     expect(result.outputs[0]!.series![0]!.points[0]!.missingDerived).toBe(true);
+  });
+
+  it('ungrouped scalar-to-scalar arithmetic aligns to one point even when timestamps differ', async () => {
+    const { runner } = fakeRunner({
+      a: { key: 'a', label: 'a', points: [{ ts: 1000, value: 20 }] },
+      b: { key: 'b', label: 'b', points: [{ ts: 2000, value: 10 }] },
+    });
+    const result = await runner.run([
+      'a = sum:a{}',
+      'b = sum:b{}',
+      'c = a / b',
+      'show c',
+    ].join('\n'));
+    const c = result.outputs.find((o) => o.name === 'c')!;
+    expect(c.error).toBeUndefined();
+    expect(c.series![0]!.points).toEqual([{ ts: 1000, value: 2 }]);
   });
 
   it('corr is paired-only and reports the pair count', async () => {

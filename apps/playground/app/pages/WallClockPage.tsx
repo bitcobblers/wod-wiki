@@ -8,8 +8,7 @@
 
 import { useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { parseNoteId } from '@/lib/noteIdentity'
-import { noteRefToPath } from '../lib/noteIdentity'
+import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
 import { sessionDetailPath } from '../lib/routes'
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer'
 import { playgroundRecorder } from '@/services/resultRecorder'
@@ -18,16 +17,16 @@ import type { Sessions } from '@/components/Editor/types'
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
 import { storageService } from '@/services/storage';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
+import { sessionQueryFence, sessionQueryWql } from '@bitcobblers/wod-wiki-ui/extensions';
 
 async function injectSessionQueryIntoNote(noteId: string, blockId: string, resultId: string): Promise<void> {
-  // ponytail: insert query block at end of workout fence if not already present; upgrade to card widget when parser expands.
   const note = await storageService.getNote(noteId);
   if (!note) return;
-  const wql = `:session{result:${resultId}}`;
+  const wql = sessionQueryWql(resultId);
   if (note.rawContent.includes(wql)) return;
   const block = Object.values(note.blocks ?? {}).find(b => b.id === blockId);
   if (!block || block.to == null) return;
-  const newContent = `${note.rawContent.slice(0, block.to)}\n\n\`\`\`query:table\n${wql}\n\`\`\`${note.rawContent.slice(block.to)}`;
+  const newContent = `${note.rawContent.slice(0, block.to)}\n\n${sessionQueryFence(resultId)}${note.rawContent.slice(block.to)}`;
   const provider = new IndexedDBContentProvider();
   await provider.updateRecord(note.id, { rawContent: newContent, expectedSourceRevision: note.sourceRevision });
 }

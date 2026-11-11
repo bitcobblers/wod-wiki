@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { getAnalyticsFromRuntime, getAnalyticsFromLogs, AnalyticsTransformer, SegmentWithMetadata } from './AnalyticsTransformer';
+import { getAnalyticsFromRuntime, getAnalyticsFromLogs, AnalyticsTransformer, type SegmentWithMetadata } from '@bitcobblers/wod-wiki-engine';
 import { IScriptRuntime } from '@bitcobblers/wod-wiki-engine';
 import { TimeSpan } from '@bitcobblers/wod-wiki-engine';
 import { IOutputStatement, OutputStatementType } from '@bitcobblers/wod-wiki-engine';

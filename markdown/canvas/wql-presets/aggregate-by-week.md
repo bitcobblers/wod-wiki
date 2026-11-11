@@ -1,5 +1,5 @@
 # Query sandbox
 
 ```query
-sum:totalVolume{discipline:strength} by {week} last 6w
+:segment{discipline:strength} | :sum{metric:totalVolume} by {week} last 6w | :timeseries{}
 ```

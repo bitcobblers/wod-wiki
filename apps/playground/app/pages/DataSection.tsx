@@ -32,6 +32,16 @@ import {
   type TargetStatus,
 } from '@/services/storage/restoreService'
 import { toast } from '@/hooks/use-toast'
+import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
+import {
+  exportAllNotes,
+  exportFeedRepositoryToDirectory,
+  exportFeedRepositoryZip,
+  importFromZip,
+  pickFile,
+  publishSelfHostedFeed,
+  supportsDirectoryPicker,
+} from '@/services/ExportImportService'
 import { cn } from '@/lib/utils'
 
 // ── Turso connect form (shared with the boot recovery screen) ─────────────────
@@ -471,6 +481,156 @@ function RestoreSection() {
     </div>
   )
 }
+const portableContentProvider = new IndexedDBContentProvider()
+
+function PortabilityAndFeedPublishSection({ isApiBuild }: { isApiBuild: boolean }) {
+  const [busyAction, setBusyAction] = useState<string | null>(null)
+
+  const runAction = async (key: string, fn: () => Promise<void>) => {
+    if (busyAction) return
+    setBusyAction(key)
+    try {
+      await fn()
+    } catch (err) {
+      toast({
+        title: 'Operation failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 space-y-4" data-testid="portability-and-feed-publish-section">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">Portable Notes (.md + .jsonl / .csv) &amp; Feed Publishing</h3>
+        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+          Import or export canonical YAML-frontmatter Markdown notes and companion Session/Event telemetry (.jsonl or .csv), or publish your public notebooks as a WOD Wiki Feed.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busyAction !== null}
+          data-testid="data-export-notes-jsonl"
+          onClick={() =>
+            void runAction('export-jsonl', async () => {
+              await exportAllNotes(portableContentProvider, { telemetryFormat: 'jsonl' })
+              toast({ title: 'Exported Notes (.md + .jsonl)' })
+            })
+          }
+          className="gap-1.5"
+        >
+          <Download className="size-3.5" />
+          <span>Export Notes (.md + .jsonl)</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busyAction !== null}
+          data-testid="data-export-notes-csv"
+          onClick={() =>
+            void runAction('export-csv', async () => {
+              await exportAllNotes(portableContentProvider, { telemetryFormat: 'csv' })
+              toast({ title: 'Exported Notes (.md + .csv)' })
+            })
+          }
+          className="gap-1.5"
+        >
+          <Download className="size-3.5" />
+          <span>Export Notes (.md + .csv)</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busyAction !== null}
+          data-testid="data-import-portable"
+          onClick={() =>
+            void runAction('import', async () => {
+              const file = await pickFile('.md,.markdown,.jsonl,.csv,.zip')
+              if (!file) return
+              const res = await importFromZip(file, portableContentProvider)
+              toast({
+                title: `Imported ${res.imported} note(s), ${res.sessionsImported ?? 0} session(s)`,
+                description: res.errors.length > 0 ? res.errors.slice(0, 2).join('; ') : 'Import complete.',
+              })
+            })
+          }
+          className="gap-1.5"
+        >
+          <ArchiveRestore className="size-3.5" />
+          <span>Import (.md / .jsonl / .csv / .zip)</span>
+        </Button>
+      </div>
+      <div className="border-t border-border pt-3 flex flex-wrap items-center gap-2">
+        {isApiBuild ? (
+          <Button
+            size="sm"
+            disabled={busyAction !== null}
+            data-testid="data-publish-server-feed"
+            onClick={() =>
+              void runAction('pub-server', async () => {
+                const res = await publishSelfHostedFeed()
+                toast({
+                  title: `Published Server Feed v${res.report.manifest.version}`,
+                  description: `Serving ${res.report.totalNotes} note(s) at ${res.feedUrl}`,
+                })
+              })
+            }
+          >
+            Publish Self-Hosted Feed (/feed/)
+          </Button>
+        ) : (
+          <>
+            <Button
+              size="sm"
+              disabled={busyAction !== null}
+              data-testid="data-export-feed-repo-zip"
+              onClick={() =>
+                void runAction('pub-zip', async () => {
+                  const report = await exportFeedRepositoryZip()
+                  toast({
+                    title: 'Exported wod-wiki-feed-repository.zip',
+                    description: `${report.notebooks.length} notebook(s), ${report.totalNotes} note(s), ${report.totalPublicSessions} public session(s).`,
+                  })
+                })
+              }
+              className="gap-1.5"
+            >
+              <Download className="size-3.5" />
+              <span>Export Feed Repository (.zip)</span>
+            </Button>
+            {supportsDirectoryPicker() && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busyAction !== null}
+                data-testid="data-export-feed-repo-folder"
+                onClick={() =>
+                  void runAction('pub-folder', async () => {
+                    const report = await exportFeedRepositoryToDirectory()
+                    if (report) {
+                      toast({
+                        title: 'Wrote wod-wiki-feed-repository to folder',
+                        description: `${report.notebooks.length} notebook(s), ${report.totalNotes} note(s) written.`,
+                      })
+                    }
+                  })
+                }
+              >
+                Export Feed Repo to Folder
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 
 export function DataSection() {
   const [settings] = useState<DataSettingsRead>(readDataSettings)
@@ -612,6 +772,7 @@ export function DataSection() {
           </>
         )}
       </section>
+      <PortabilityAndFeedPublishSection isApiBuild={isApiBuild} />
 
     </div>
   )

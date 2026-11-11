@@ -34,6 +34,8 @@ const KIND_CATEGORY: Record<EntryKind, string> = {
   dashboard: 'Dashboards',
   equipment: 'Equipment',
   tag: 'Tags',
+  feed: 'Feeds',
+  notebook: 'Notebooks',
 };
 
 function toPaletteItem(entry: Entry): PaletteItem {

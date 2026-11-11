@@ -23,7 +23,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TvMinimal, Cast } from 'lucide-react';
 import { Button } from '@/components/atoms/primitives/button';
-import { useWorkbenchSessionStore } from '@/stores/workbenchSessionStore.shim';
+import { useActiveRunStore } from '@/stores/activeRunStore';
 import {
     sharedCastSessionManager,
     type CastSessionHandle,
@@ -108,7 +108,7 @@ export const CastButtonRpc: React.FC = () => {
         try {
             // Read the registry once at connect time — we don't want
             // this callback to invalidate on every store update.
-            const registry = useWorkbenchSessionStore.getState().subscriptionManager;
+            const registry = useActiveRunStore.getState().subscriptionManager;
             const handle = sessionManager.connect(transport, registry);
             handleRef.current = handle;
             setSessionHandle(handle);
@@ -146,19 +146,16 @@ export const CastButtonRpc: React.FC = () => {
                 }
             });
 
-            // Push the current workbench mode immediately so the
-            // receiver doesn't sit on the waiting screen while it waits
-            // for the first reactive WorkbenchCastBridge effect tick.
-            // The send (with disconnect-tolerant error handling) is
-            // owned by the session — the resolver stays here.
-            const wb = useWorkbenchSessionStore.getState();
+            // Push the current active run mode immediately so the
+            // receiver doesn't sit on the waiting screen on connect.
+            const active = useActiveRunStore.getState();
             const message = workbenchModeResolver.resolve({
-                viewMode: wb.viewMode,
-                executionStatus: wb.execution.status,
-                runtime: wb.runtime,
-                analyticsSegments: wb.analyticsSegments,
-                selectedBlock: wb.selectedBlock,
-                documentItems: wb.documentItems,
+                viewMode: active.runtime ? 'track' : 'plan',
+                executionStatus: active.execution.status,
+                runtime: active.runtime,
+                analyticsSegments: [],
+                selectedBlock: null,
+                documentItems: [],
             });
             handle.pushInitialWorkbench(message);
         } finally {

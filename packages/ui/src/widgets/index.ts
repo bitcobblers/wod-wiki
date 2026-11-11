@@ -15,7 +15,7 @@ export { RangeSelector, type AnalyticsRangeWeeks, type RangeSelectorProps } from
 export { useAnalyticsQueries, type AnalyticsQueryDef, type AnalyticsQueriesState } from './useAnalyticsQueries';
 export { useChartShape, type ChartShape } from './useChartShape';
 export { SERIES_COLORS } from './chartPalette';
-export { mergeSeries, compactNumber, formatTimestamp, tooltipTimestamp, toChartResult, createExecutorDocumentHost, outputToRunResult, type MergedPoint, type WidgetRunResult, type ExecutorDocumentHostOptions } from './chartData';
+export { mergeSeries, compactNumber, formatTimestamp, tooltipTimestamp, toChartResult, createExecutorDocumentHost, outputToRunResult, outputsToRunResult, type MergedPoint, type WidgetRunResult, type ExecutorDocumentHostOptions } from './chartData';
 export {
   AnalyticsUnitPreference,
   useAnalyticsUnitPreference,
@@ -27,6 +27,7 @@ export {
   type AnalyticsUnitPreferenceProps,
   type AnalyticsUnit,
 } from './useAnalyticsUnitPreference';
+export { PRBadge, type PRBadgeProps } from './PRBadge';
 export { RowsTable, type RowsTableProps } from './RowsTable';
 export {
   OutputStatementsTable,
@@ -36,6 +37,9 @@ export {
   type OutputFilterPreset,
   type OutputFilterInput,
   type CategorizedMetrics,
+  type SessionTableSortSpec,
+  type InlineMetricEditPayload,
+  type RowPrHighlight,
   DEFAULT_OUTPUT_FILTERS,
   DEFAULT_PRIMARY_FILTER,
   normalizeOutputFilter,

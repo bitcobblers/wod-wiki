@@ -9,13 +9,6 @@
  * which is exactly what post-hoc re-derivation (replay) needs.
  *
  * Policies enforced here (one home, no drift):
- *
- * LEGACY (wayfinder datadog-analytics ticket 11): this module duplicates
- * `resolveCanonicalMetricKey` and the V12/V13 fact-row emitters of
- * `packages/wql/src/derivation.ts` for pre-V16 upgrade backfills. Do NOT
- * extend it and do NOT port new identity behavior into it (typed field
- * references live only in the wql canonical copy); retirement belongs to
- * the DB-v17 minimum-version decision (ticket 14).
  *   - Canonical input/output is StoredOutputStatement[] — a SINGLE logs
  *     stream holding all tiers. Tier 2 is discriminated by outputType
  *     ('analytics'); there is no separate analytics property (CONTEXT.md,
@@ -45,7 +38,7 @@ import {
   type ScriptBlock,
   type StoredOutputStatement,
 } from '@/components/Editor/types';
-import type { AnalyticsDataPoint, EventRecord } from '@/types/storage';
+import type { EventRecord } from '@/types/storage';
 
 export interface DeriveWorkoutOptions {
   /** Block the workout was run from — supplies dialect + statements for the
@@ -147,80 +140,4 @@ export {
   type SummaryFactIdentity,
   type SummaryFactSourceOutput,
 };
-/** Read a string metadata field off the projection value metric, when present. */
-function metadataString(metadata: Record<string, unknown> | undefined, key: string): string | undefined {
-  const value = metadata?.[key];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
 
-
-/**
- * Normalize ALL metrics from a result's logs — summary facts (Tier 2) PLUS
- * atomic per-segment metrics (Tier 0/1) — into persisted AnalyticsDataPoint
- * rows.
- *
- * V13 expansion: the analytics store now holds every numeric metric emitted
- * by the runtime, not just summary projections. This makes atomic metrics
- * (reps, resistance, elapsed time per segment) available for indexed
- * cross-workout queries and threshold filters (via the by-value compound
- * index).
- *
- * Summary facts keep grain 'summary'; atomic segment metrics get grain
- * 'segment'. The two coexist in the same store, distinguished by grain.
- */
-/** Legacy fact-row shape — the pre-V16 analytics store allowed grain
- *  'segment' | 'summary' | 'rollup'. Only the V12/V13 upgrade backfills still
- *  write these rows; V16 deletes the store in the same transaction. */
-export type LegacyFactRow = Omit<AnalyticsDataPoint, 'grain'> & { grain?: 'segment' | 'summary' | 'rollup' | 'event' };
-
-export function normalizeAllMetrics(
-  logs: readonly SummaryFactSourceOutput[],
-  identity: SummaryFactIdentity,
-): LegacyFactRow[] {
-  // Summary facts (Tier 2) — unchanged from normalizeSummaryFacts.
-  const summaryFacts = normalizeSummaryFacts(logs, identity);
-
-  // Atomic segment metrics (Tier 0/1) — one row per numeric metric per output.
-  const now = Date.now();
-  const segmentFacts: LegacyFactRow[] = [];
-  let seq = 0;
-
-  for (const output of logs) {
-    if (output.outputType === 'analytics') continue; // handled by summary path
-    for (const metric of output.metrics) {
-      if (typeof metric.value !== 'number') continue;
-      const metricKey = String(metric.type);
-      const effortSlug = metadataString(metric.metadata, 'effortSlug');
-      const discipline = metadataString(metric.metadata, 'effortDiscipline');
-      const intensityTier = metadataString(metric.metadata, 'effortIntensityTier');
-      const grade = metadataString(metric.metadata, 'grade');
-
-      segmentFacts.push({
-        id: `${identity.resultId}-seg${seq++}-${metricKey}-${now}`,
-        noteId: identity.noteId,
-        blockContentId: identity.blockContentId,
-        origin: identity.origin,
-        pageId: identity.pageId,
-        grain: 'segment',
-        blockId: identity.blockId,
-        blockVersion: identity.blockVersion,
-        resultId: identity.resultId,
-        type: metricKey,
-        value: metric.value,
-        unit: metric.unit,
-        label: metricKey,
-        metricKey,
-        metricLabel: metricKey,
-        metricUnit: metric.unit,
-        ...(effortSlug ? { effortSlug } : {}),
-        ...(discipline ? { discipline } : {}),
-        ...(intensityTier ? { intensityTier } : {}),
-        ...(grade ? { grade } : {}),
-        timestamp: identity.workoutTimestamp ?? output.timeSpan.started ?? now,
-        createdAt: now,
-      });
-    }
-  }
-
-  return [...summaryFacts, ...segmentFacts];
-}

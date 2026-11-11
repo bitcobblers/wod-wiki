@@ -1,12 +1,12 @@
 import React, { useMemo, useRef, useCallback, useLayoutEffect, useState } from 'react';
 import { Play, Pause, SkipForward, Square, Timer } from 'lucide-react';
 import { ITimerDisplayEntry, IDisplayCardEntry } from '@/clock/types/DisplayTypes';
-import { formatTimeMMSS } from '@/lib/formatTime';
+import { formatTimeMMSS } from '@bitcobblers/wod-wiki-engine';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 import { useAudio } from '@/contexts/AudioContext';
 import type { AudioContextType } from '@/contexts/AudioContext';
 import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 
 export interface TimerStackViewProps {
     elapsedMs: number;

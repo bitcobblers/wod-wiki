@@ -11,11 +11,13 @@
  * Pure module — zero DOM or storage dependencies.
  */
 
-import { parseFrontmatter, getScalar } from '@bitcobblers/wod-wiki-core';
+import { parseFrontmatter, getScalar, type EventRecord, type Note } from '@bitcobblers/wod-wiki-core';
 import { WQL_TYPED_TAG_KEYS } from './vocabulary';
 import { parseQuery, isFindQuery, isPipelineQuery } from './wql';
 import { dashboardSlug, DEFAULT_DASHBOARD_TITLE } from './dashboard/scaffold';
+import { extractDashboardTokens, defaultTokenValues, type DashboardMeta } from './dashboard/model';
 import { renderWidgetGroup, type WidgetSpec } from './dashboard/noteOps';
+import { PageSourceRegistry, type PageSourceEntry } from './queryDocumentRunner';
 
 export type EntityScopeKind =
   | 'note'
@@ -171,6 +173,7 @@ export function resolveEntityScope(input: ResolveEntityScopeInput): EntityScopeD
           scope: scopeFilter,
           effort: slug,
           note: id,
+          thisnote: id,
           metric: 'totalVolume',
         },
       };
@@ -198,6 +201,7 @@ export function resolveEntityScope(input: ResolveEntityScopeInput): EntityScopeD
           scope: scopeFilter,
           equipment: slug,
           note: id,
+          thisnote: id,
           metric: 'totalVolume',
         },
       };
@@ -234,6 +238,7 @@ export function resolveEntityScope(input: ResolveEntityScopeInput): EntityScopeD
           tag: slug,
           category: cat,
           note: id,
+          thisnote: id,
           metric: 'tis',
         },
       };
@@ -267,6 +272,7 @@ export function resolveEntityScope(input: ResolveEntityScopeInput): EntityScopeD
           scope: scopeFilter,
           category: cat,
           note: id,
+          thisnote: id,
           metric: 'tis',
         },
       };
@@ -393,11 +399,64 @@ export function resolveEntityScope(input: ResolveEntityScopeInput): EntityScopeD
         tokens: {
           scope: scopeFilter,
           note: id || slug,
+          thisnote: id || slug,
           metric: 'tis',
         },
       };
     }
   }
+}
+
+export interface ResolveQueryExecutionScopeInput {
+  noteId?: string;
+  rawContent?: string;
+  tokenValues?: Record<string, string>;
+  pageSources?: PageSourceRegistry | ReadonlyMap<string, PageSourceEntry>;
+  noteEvents?: EventRecord[];
+  note?: Note;
+}
+
+export interface QueryExecutionScope {
+  tokens: Record<string, string>;
+  pageSources: PageSourceRegistry;
+}
+
+/**
+ * Resolve the unified execution scope (tokens + page dataset registry) for
+ * a ```query block or Dashboard Widget.
+ *
+ * Merge precedence:
+ *   1. Entity scope defaults (`note`, `thisnote`, `scope`, `metric`) when `noteId` is given
+ *   2. Frontmatter `dashboard.*` token defaults when `rawContent` is given
+ *   3. Caller `tokenValues` overrides
+ */
+export function resolveQueryExecutionScope(input: ResolveQueryExecutionScopeInput = {}): QueryExecutionScope {
+  const entityTokens = input.noteId?.trim()
+    ? resolveEntityScope({ noteId: input.noteId, rawContent: input.rawContent }).tokens
+    : {};
+  const fmMeta = input.rawContent ? (parseFrontmatter(input.rawContent).meta as DashboardMeta) : undefined;
+  const fmTokens = fmMeta ? defaultTokenValues(extractDashboardTokens(fmMeta)) : {};
+  const tokens: Record<string, string> = {
+    ...entityTokens,
+    ...fmTokens,
+    ...(input.tokenValues ?? {}),
+  };
+
+  const pageSources = input.pageSources instanceof PageSourceRegistry
+    ? input.pageSources
+    : new PageSourceRegistry(input.pageSources ? [...input.pageSources.entries()] : []);
+
+  if (input.noteEvents !== undefined || input.note !== undefined) {
+    const existing = pageSources.get('@note');
+    pageSources.set('@note', {
+      events: input.noteEvents ?? existing?.events ?? [],
+      notes: input.note ? [input.note] : existing?.notes ?? [],
+    });
+  } else if (input.noteId?.trim() && !pageSources.has('@note')) {
+    pageSources.set('@note', { events: [], notes: [] });
+  }
+
+  return { tokens, pageSources };
 }
 
 /**

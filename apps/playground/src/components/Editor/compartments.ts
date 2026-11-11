@@ -16,6 +16,12 @@ export const languageCompartment = new Compartment();
 export const modeCompartment = new Compartment();
 
 /**
+ * Compartment for mobile inputmode switching ('none' while tactile scroll-wheel
+ * composer is active, 'text' when typing mode or desktop is active).
+ */
+export const inputModeCompartment = new Compartment();
+
+/**
  * Helper to reconfigure multiple compartments at once.
  */
 export function reconfigureCompartments(view: { dispatch: (spec: { effects: readonly unknown[] }) => void }, config: {

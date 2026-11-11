@@ -117,8 +117,8 @@ describe('feeds and their notebooks', () => {
       expect(feedIds.has(notebook.feedId)).toBe(true);
       expect(notebooksOfFeed(notebook.feedId)).toContainEqual(notebook);
     }
-    // The split corpus: 14 feeds, one checkpoint and one Subscribe each.
-    expect(FEED_SOURCES).toHaveLength(14);
+    // The split corpus: 15 feeds, one checkpoint and one Subscribe each.
+    expect(FEED_SOURCES).toHaveLength(15);
     expect(listFeedSources().map((s) => s.id)).toEqual([...feedIds]);
   });
 

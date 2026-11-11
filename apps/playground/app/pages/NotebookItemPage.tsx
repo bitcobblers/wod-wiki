@@ -195,19 +195,26 @@ export function NotebookItemPage({
     ];
   }, [firstWodBlock, content, handleAddToToday, navigate, onChange]);
 
-  useNotePageNav({
-    content,
-    scriptBlocks,
-    onStartWorkout: handleStartWorkout,
-    helpfulActions: itemHelpfulActions,
-  });
-
   // Canonical corpus id (`notebook/<slug>/<date>/<item>`) drives ownership
   // and the block indexes. Notebook runs stamp the listing path as
   // sourceNote, so per-item journal-copy backlinks don't exist in the data.
   const corpusId = `notebook/${slug}/${itemDate}/${item}`;
+
+  useNotePageNav({
+    content,
+    scriptBlocks,
+    onStartWorkout: handleStartWorkout,
+    noteId: corpusId,
+    helpfulActions: itemHelpfulActions,
+  });
+
   const ownership = useMemo(() => noteOwnership({ id: corpusId, type: 'note' }), [corpusId]);
-  const contextData = useNoteContextLinks({ noteId: corpusId, stamps: ownership.stamps });
+  const contextData = useNoteContextLinks({
+    noteId: corpusId,
+    stamps: ownership.stamps,
+    liveContent: content,
+    revision: sourceRevision,
+  });
 
   const commands = useScriptBlockCommands('notebook-readonly', {
     onPlay: handleStartWorkout,
@@ -222,14 +229,14 @@ export function NotebookItemPage({
       <JournalPageShell
         title={notebookItem?.name ?? item}
         actions={
-          <ResponsiveActions label="Workout actions">
-          {/* No `index`: the ⋯ menu mirrors NavContext l3Items (outline + helpful). */}
-          <PageActions
-            mode="notebook-readonly"
-            currentWorkout={{ name: notebookItem?.name ?? item, content }}
-            index={[]}
-          />
-          </ResponsiveActions>
+          <div className="flex items-center gap-2">
+            <ResponsiveActions label="Workout actions" />
+            <PageActions
+              mode="notebook-readonly"
+              currentWorkout={{ name: notebookItem?.name ?? item, content }}
+              index={[]}
+            />
+          </div>
         }
         editor={
           <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">

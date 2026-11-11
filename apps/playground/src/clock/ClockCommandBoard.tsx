@@ -12,7 +12,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ClockValueEntry } from '@/clock/ClockValueEntry';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 import {
   getClockKeyMode,

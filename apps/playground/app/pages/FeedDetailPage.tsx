@@ -21,6 +21,7 @@ import type { NavItemL3 } from '../nav/navTypes';
 import type { MenuSpec } from '../nav/menuModel';
 import { NoteContextNav, EMPTY_NOTE_CONTEXT } from './shared/noteContextLinks';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
+import { L3DrawerTrigger } from '@/panels/page-shells';
 
 export interface FeedDetailPageProps {
   feedSlug: string;
@@ -43,20 +44,24 @@ export function FeedDetailPage({ feedSlug }: FeedDetailPageProps) {
     });
   }, []);
 
-  // L3: the notebooks listing as the on-this-page anchor, then Settings to
-  // Sync and Copy link (whiteboard feed L3).
-  const { setL3Items } = useNav();
+  // L3: Slot 2 ("On this page") holds the notebooks anchor; Slot 3 ("Actions")
+  // holds Settings to Sync and Copy link.
+  const { setL3Items, setL3Actions } = useNav();
   useEffect(() => {
     const links: NavItemL3[] = notebooks.length > 0
       ? [{ id: 'feed-notebooks', label: 'Notebooks', level: 3, action: { type: 'scroll', sectionId: 'feed-notebooks' } }]
       : [];
-    links.push(
-      { id: 'helpful-settings-sync', label: 'Settings to Sync', level: 3, action: { type: 'call', handler: () => navigate(ROUTE_PATTERNS.settingsSync) } },
-      { id: 'helpful-copy-link', label: copied ? 'Copied' : 'Copy link', level: 3, action: { type: 'call', handler: handleCopyLink } },
-    );
     setL3Items(links);
     return () => setL3Items([]);
-  }, [notebooks, copied, handleCopyLink, navigate, setL3Items]);
+  }, [notebooks, setL3Items]);
+
+  useEffect(() => {
+    setL3Actions?.([
+      { id: 'helpful-settings-sync', label: 'Settings to Sync', onRun: () => navigate(ROUTE_PATTERNS.settingsSync) },
+      { id: 'helpful-copy-link', label: copied ? 'Copied' : 'Copy link', onRun: handleCopyLink },
+    ]);
+    return () => setL3Actions?.([]);
+  }, [copied, handleCopyLink, navigate, setL3Actions]);
 
   // L2: Up to Feeds, notebooks supplied by this source, Settings to Sync.
   const l2 = useMemo<MenuSpec>(() => [
@@ -129,9 +134,10 @@ export function FeedDetailPage({ feedSlug }: FeedDetailPageProps) {
               ) : null}
             </div>
           </div>
-          {/* Cast: shared navbar on mobile, desktop header here. */}
-          <div className="max-lg:hidden">
+          {/* Cast + lg–2xl Page options: shared navbar on mobile, desktop header here. */}
+          <div className="max-lg:hidden flex items-center gap-1.5">
             <CastButtonRpc />
+            <L3DrawerTrigger />
           </div>
         </header>
 

@@ -172,13 +172,11 @@ export abstract class BaseNotePage {
     await startBtn.click();
   }
 
-  /** Open the actions dropdown (vertical ellipsis in the sticky header). */
+  /** Open the L3 Page options slide-over drawer (< 2xl viewports). */
   async openActionsMenu() {
-    const trigger = this.page
-      .locator('div.flex.items-center.gap-2.shrink-0 button, div.flex.items-center.gap-4 button')
-      .last();
+    const trigger = this.page.getByRole('button', { name: /Page options/i }).first();
     await trigger.click();
-    await this.page.waitForTimeout(300);
+    await this.page.waitForTimeout(200);
   }
 
   // ── Assertions ───────────────────────────────────────────────────────────

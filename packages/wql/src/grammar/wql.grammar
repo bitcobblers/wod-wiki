@@ -52,8 +52,10 @@ Head { colon Word | Aggregator colon Metric }
 Aggregator { Word }
 
 // Dotted Canonical Metric Key namespaces: totalVolume, calc.acwr,
-// <effortSlug>.<family> (segments may carry effort-slug dashes).
-Metric { Word (dot Word)* }
+// <effortSlug>.<family> (segments may carry effort-slug dashes), or a $param.
+ParamRef { Dollar Word }
+
+Metric { Word (dot Word)* | ParamRef }
 
 // Standard/page dataset references: @session, @today, or a host-registered
 // page source name. `@` never lexes inside Word, so At is lexically safe.
@@ -61,7 +63,7 @@ DatasetReference { At Word }
 
 Filters { braceOpen (Filter (comma Filter)*)? braceClose }
 
-Filter { Negate? TagKey colon TagValue }
+Filter { Negate? TagKey colon TagValue | ParamRef }
 
 TagKey { Word }
 
@@ -69,11 +71,11 @@ TagKey { Word }
 // alternative carries its own trailing wildcard star.
 // A value is one or more OR-ed atoms; each atom is `Word(:Word)*` — dotted
 // and catalog-id forms like `calc.acwr` / `collection:crossfit-girls` —
-// or a bare `Word`, or a double-quoted phrase for multi-word text
-// (`text:"300 Air Squats"`, #867). Quoted atoms carry no colon/wildcard forms.
+// a `$param` reference, a bare `Word`, or a double-quoted phrase for multi-word
+// text (`text:"300 Air Squats"`, #867). Quoted atoms carry no colon/wildcard forms.
 TagValue { Value (pipe Value)* }
 
-Value { Star | Word ((colon | dot) Word)* Star? | Quoted Star? }
+Value { Star | ParamRef | Word ((colon | dot) Word)* Star? | Quoted Star? }
 
 GroupBy { By braceOpen (Dimension (comma Dimension)*)? braceClose }
 
@@ -90,6 +92,7 @@ Rollup { RollupDot parenOpen Int Word parenClose }
   RollupDot { ".rollup" }
   Int { $[0-9]+ }
   Word { $[a-zA-Z0-9_-]+ }
+  Dollar { "$" }
   At { "@" }
   Star { "*" }
   Negate { "!" }

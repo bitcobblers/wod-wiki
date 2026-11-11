@@ -1,13 +1,29 @@
 /**
- * Date formatting helpers pinned to 'en-US' so the UI is stable regardless of
+ * Date formatting helpers pinned to 'en-US' / 'en' so the UI is stable regardless of
  * the user's browser locale (e.g. zh-CN would otherwise render "12月8日").
  *
  * All callers should use these helpers instead of calling `Date.prototype.toLocaleDateString`
  * or `Date.prototype.toLocaleString` with an undefined or locale-agnostic `locales` argument.
  */
 
-export function formatDateHeader(date: Date): string {
-  return date.toLocaleDateString('en-US', {
+/** Return today's date as `YYYY-MM-DD` (UTC). */
+export function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Format a `Date` (long weekday header in `'en-US'`) or a `YYYY-MM-DD` string
+ * (UTC localized medium/long date in `'en'`).
+ */
+export function formatDateHeader(date: Date): string;
+export function formatDateHeader(yyyymmdd: string): string;
+export function formatDateHeader(dateOrKey: Date | string): string {
+  if (typeof dateOrKey === 'string') {
+    const [y, m, d] = dateOrKey.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(y!, m! - 1, d!));
+    return utcDate.toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  }
+  return dateOrKey.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',

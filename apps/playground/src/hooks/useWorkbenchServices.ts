@@ -12,7 +12,7 @@
 import { useMemo } from 'react';
 
 // ── Analytics ─────────────────────────────────────────────────────────────
-export { getAnalyticsFromRuntime, getAnalyticsFromLogs } from '@/services/AnalyticsTransformer';
+export { getAnalyticsFromRuntime, getAnalyticsFromLogs } from '@bitcobblers/wod-wiki-engine';
 // Ticket 13: one unit catalog — the display seam lives in the wql engine
 // (the kg/lb-only duplicate under src/services/analytics/units is deleted).
 export { convertDisplay as convert, getUnitFamily } from '@bitcobblers/wod-wiki-wql';
@@ -21,11 +21,20 @@ export { convertDisplay as convert, getUnitFamily } from '@bitcobblers/wod-wiki-
 export { getProfileDisplayName } from '@/services/profile';
 
 // ── Export / import ───────────────────────────────────────────────────────
-export { exportAllNotes, exportNote, importFromZip, pickFile } from '@/services/ExportImportService';
+export {
+  exportAllNotes,
+  exportNote,
+  exportFeedRepositoryToDirectory,
+  exportFeedRepositoryZip,
+  importFromZip,
+  pickFile,
+  publishSelfHostedFeed,
+  supportsDirectoryPicker,
+} from '@/services/ExportImportService';
 
 // ── React hook ────────────────────────────────────────────────────────────
 
-import { getAnalyticsFromLogs } from '@/services/AnalyticsTransformer';
+import { getAnalyticsFromLogs } from '@bitcobblers/wod-wiki-engine';
 import type { StoredOutputStatement } from '@/components/Editor/types';
 
 export interface UseWorkbenchServicesReturn {

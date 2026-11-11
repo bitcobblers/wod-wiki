@@ -14,8 +14,19 @@
  *    import recreates the session and its events verbatim.
  */
 
-import { WQL_TYPED_TAG_KEYS } from '@bitcobblers/wod-wiki-wql';
-import type { EventRecord } from '@bitcobblers/wod-wiki-core';
+import { WQL_TYPED_TAG_KEYS, toNotebookId, notebookSlugFromId } from '@bitcobblers/wod-wiki-wql';
+import {
+  KNOWN_SECTION_WIDGETS,
+  parseNoteBundleFromJsonl,
+  reconcileNoteBlocks,
+  serializeNoteBundleToJsonl,
+  type BlockRevision,
+  type EventRecord,
+  type NoteBlock,
+  type NoteTelemetryBundle,
+  type NoteTelemetryBundleResult,
+  type ParseLoadRecord,
+} from '@bitcobblers/wod-wiki-core';
 import type { Note, Session } from '@bitcobblers/wod-wiki-storage';
 
 // ---------------------------------------------------------------------------
@@ -25,9 +36,32 @@ import type { Note, Session } from '@bitcobblers/wod-wiki-storage';
 /** Identity stamped into exported note markdown so imports can find their note. */
 export const NOTE_ID_FRONTMATTER_KEY = 'wod-note-id';
 
-export interface NoteIdentity { noteId: string; title?: string }
+export interface NoteIdentity {
+  noteId: string;
+  title?: string;
+  date?: string;
+  notebook?: string;
+  public?: boolean;
+}
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const NOTEBOOK_LANDING_ID_RE = /^notebook\/[a-z0-9][a-z0-9._-]*$/i;
+
+function unquoteYamlScalar(raw: string): string {
+  const trimmed = raw.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    try {
+      if (trimmed.startsWith('"')) return JSON.parse(trimmed) as string;
+    } catch {
+      // fall through
+    }
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
 
 /** Read the stamped note identity from the leading frontmatter block, if any. */
 export function extractNoteIdentity(markdown: string): NoteIdentity | undefined {
@@ -35,15 +69,30 @@ export function extractNoteIdentity(markdown: string): NoteIdentity | undefined 
   if (!block) return undefined;
   let noteId: string | undefined;
   let title: string | undefined;
+  let date: string | undefined;
+  let notebook: string | undefined;
+  let isPublic: boolean | undefined;
   for (const line of block[1].split(/\r?\n/)) {
     const kv = line.match(/^([^:]+):\s*(.*)$/);
     if (!kv) continue;
     const key = kv[1].trim();
-    const value = kv[2].trim();
-    if (key === NOTE_ID_FRONTMATTER_KEY && UUID_RE.test(value)) noteId = value;
+    const value = unquoteYamlScalar(kv[2]);
+    if (key === NOTE_ID_FRONTMATTER_KEY && (UUID_RE.test(value) || NOTEBOOK_LANDING_ID_RE.test(value))) {
+      noteId = value;
+    }
     if (key === 'title' && value) title = value;
+    if (key === 'date' && value) date = value;
+    if (key === 'notebook' && value) notebook = value;
+    if (key === 'public' && (value === 'true' || value === 'false')) isPublic = value === 'true';
   }
-  return noteId ? { noteId, title } : undefined;
+  if (!noteId) return undefined;
+  return {
+    noteId,
+    ...(title !== undefined ? { title } : {}),
+    ...(date !== undefined ? { date } : {}),
+    ...(notebook !== undefined ? { notebook } : {}),
+    ...(isPublic !== undefined ? { public: isPublic } : {}),
+  };
 }
 
 /** True when a scalar is safe to emit bare in a `key: value` frontmatter line. */
@@ -54,16 +103,54 @@ const FRONTMATTER_SAFE = /^[^:#\[\]{}'"*&,!?|>%@`\s][^:#\[\]{}"']*$/;
  * keys are replaced in place; a missing block is prepended. Scalars needing
  * YAML quoting are skipped (the note row title is authoritative in storage).
  */
+function formatFrontmatterScalar(value: string): string | undefined {
+  if (FRONTMATTER_SAFE.test(value)) return value;
+  if (!value.includes('\n') && !value.includes('\r')) return JSON.stringify(value);
+  return undefined;
+}
+
+export function parseFrontmatterDateMs(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const clean = unquoteYamlScalar(raw);
+  const ymd = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    const ts = Date.parse(`${clean}T12:00:00Z`);
+    const d = new Date(ts);
+    if (
+      Number.isFinite(ts) &&
+      d.getUTCMonth() === Number(ymd[2]) - 1 &&
+      d.getUTCDate() === Number(ymd[3])
+    ) {
+      return ts;
+    }
+    return undefined;
+  }
+  const parsed = Date.parse(clean);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/**
+ * Ensure the leading frontmatter carries `title` + `wod-note-id` (and optional
+ * portable metadata: `date`, `notebook`, `public`). Existing keys are replaced
+ * in place; a missing block is prepended.
+ */
 export function injectIdentityFrontmatter(markdown: string, identity: NoteIdentity): string {
   const stamp = (lines: string[]): string[] => {
     const replaceOrInsert = (key: string, value: string | undefined): void => {
-      if (value === undefined || !FRONTMATTER_SAFE.test(value)) return;
+      if (value === undefined) return;
+      const formatted = formatFrontmatterScalar(value);
+      if (formatted === undefined) return;
       const idx = lines.findIndex((l) => l.startsWith(`${key}:`));
-      if (idx >= 0) lines[idx] = `${key}: ${value}`;
-      else lines.push(`${key}: ${value}`);
+      if (idx >= 0) lines[idx] = `${key}: ${formatted}`;
+      else lines.push(`${key}: ${formatted}`);
     };
     replaceOrInsert('title', identity.title);
     replaceOrInsert(NOTE_ID_FRONTMATTER_KEY, identity.noteId);
+    replaceOrInsert('date', identity.date);
+    replaceOrInsert('notebook', identity.notebook);
+    if (identity.public !== undefined) {
+      replaceOrInsert('public', identity.public ? 'true' : 'false');
+    }
     return lines;
   };
 
@@ -77,11 +164,113 @@ export function injectIdentityFrontmatter(markdown: string, identity: NoteIdenti
   return `---\n${lines.join('\n')}\n---\n\n${markdown}`;
 }
 
-/** Export the exact authored Note source, with identity for re-import. */
+/** Export the exact authored Note source, with YAML frontmatter identity for re-import and Feed repositories. */
 export function composeNoteMarkdown(note: Note): string {
-  return injectIdentityFrontmatter(note.rawContent, { noteId: note.id, title: note.title });
+  const notebookSlug = note.notebookId ? notebookSlugFromId(note.notebookId) : undefined;
+  const dateStr =
+    typeof note.date === 'number' && Number.isFinite(note.date)
+      ? new Date(note.date).toISOString().slice(0, 10)
+      : undefined;
+  return injectIdentityFrontmatter(note.rawContent, {
+    noteId: note.id,
+    title: note.title,
+    ...(dateStr ? { date: dateStr } : {}),
+    ...(notebookSlug ? { notebook: notebookSlug } : {}),
+    ...(note.public === true ? { public: true } : {}),
+  });
 }
 
+export interface ParsedNoteMarkdown {
+  id?: string;
+  title: string;
+  rawContent: string;
+  date?: number;
+  notebookId?: string;
+  public?: boolean;
+  tags: string[];
+  typedTags: TypedTagItem[];
+  blocks: Record<string, NoteBlock>;
+}
+
+/**
+ * Parse canonical YAML-frontmatter or plain Markdown into a recoverable Note payload.
+ * Strips synthetic `wod-note-id` when it was injected into a frontmatter-free Note
+ * so export → import round-trips keep `rawContent` clean.
+ */
+export function parseNoteMarkdown(
+  markdown: string,
+  options: { defaultDate?: number; fallbackTitle?: string; sourceRevision?: number } = {},
+): ParsedNoteMarkdown {
+  const identity = extractNoteIdentity(markdown);
+  const meta = readFrontmatterMeta(markdown);
+  const typedTags = extractTypedTags(markdown);
+
+  let rawContent = markdown;
+  const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?(?:\r?\n)?/.exec(markdown);
+  if (fmMatch) {
+    const fmLines = fmMatch[1].split(/\r?\n/);
+    const nonIdentityLines = fmLines.filter((line) => {
+      const kv = line.match(/^([^:]+):/);
+      if (!kv) return true;
+      const k = kv[1].trim().toLowerCase();
+      return k !== NOTE_ID_FRONTMATTER_KEY;
+    });
+    const onlyTitleLeft =
+      nonIdentityLines.length === 1 &&
+      nonIdentityLines[0].trim().toLowerCase().startsWith('title:');
+    const body = markdown.slice(fmMatch[0].length);
+    if (nonIdentityLines.length === 0 || (onlyTitleLeft && /^#\s+.+/m.test(body))) {
+      rawContent = body;
+    } else if (nonIdentityLines.length !== fmLines.length) {
+      const nl = markdown.startsWith('---\r\n') ? '\r\n' : '\n';
+      const rest = markdown.slice(
+        (/^---\r?\n[\s\S]*?\r?\n---/.exec(markdown)?.[0].length ?? fmMatch[0].length),
+      );
+      rawContent = `---${nl}${nonIdentityLines.join(nl)}${nl}---${rest}`;
+    }
+  }
+
+  const headingMatch = rawContent.match(/^#\s+(.+)$/m) ?? markdown.match(/^#\s+(.+)$/m);
+  const metaTitle = typeof meta['title'] === 'string' ? unquoteYamlScalar(meta['title']) : undefined;
+  const title =
+    identity?.title ??
+    metaTitle ??
+    (headingMatch ? headingMatch[1].trim() : undefined) ??
+    options.fallbackTitle ??
+    'Imported Note';
+
+  const rawDate = identity?.date ?? (typeof meta['date'] === 'string' ? meta['date'] : undefined);
+  const date = parseFrontmatterDateMs(rawDate) ?? options.defaultDate;
+
+  const rawNotebook =
+    identity?.notebook ?? (typeof meta['notebook'] === 'string' ? unquoteYamlScalar(meta['notebook']) : undefined);
+  const notebookId = rawNotebook ? toNotebookId(rawNotebook) : undefined;
+
+  const rawPublic = meta['public'];
+  const isPublic =
+    identity?.public ??
+    (typeof rawPublic === 'string' && (rawPublic === 'true' || rawPublic === 'false')
+      ? rawPublic === 'true'
+      : undefined);
+
+  const sourceRevision = options.sourceRevision ?? 1;
+  const blocks = reconcileNoteBlocks(rawContent, {
+    sourceRevision,
+    registeredWidgets: KNOWN_SECTION_WIDGETS,
+  });
+
+  return {
+    ...(identity?.noteId ? { id: identity.noteId } : {}),
+    title,
+    rawContent,
+    ...(date !== undefined ? { date } : {}),
+    ...(notebookId ? { notebookId } : {}),
+    ...(isPublic !== undefined ? { public: isPublic } : {}),
+    tags: asList(meta['tags']),
+    typedTags,
+    blocks,
+  };
+}
 // ---------------------------------------------------------------------------
 // Frontmatter tags (general + typed: equipment, quality, …)
 // ---------------------------------------------------------------------------
@@ -176,7 +365,7 @@ export function effortToMarkdown(effort: {
   slug: string;
   label: string;
   aliases?: string[];
-  baseAttributes: Record<string, unknown>;
+  baseAttributes: object;
   body?: string;
 }): string {
   const lines = ['---', `id: ${effort.id}`, `slug: ${effort.slug}`, `label: ${effort.label}`];
@@ -564,3 +753,235 @@ export function csvToSessionRows(csv: string): SessionImportRows {
   if (!session) throw new Error('[wod import] Session CSV did not contain session columns');
   return { session, events: [...eventRows.values()] };
 }
+
+// ---------------------------------------------------------------------------
+// Unified TelemetryBundle CSV ⇄ JSONL equivalence
+// ---------------------------------------------------------------------------
+
+const TELEMETRY_EXTRA_COLS = [
+  'revisionKind',
+  'revisionRawContent',
+  'revisionSavedAt',
+  'revisionDialect',
+  'revisionSport',
+  'parseId',
+  'parseStage',
+  'parseStatus',
+  'parseDiagnosticsJson',
+  'parseMetricsJson',
+] as const;
+
+export const TELEMETRY_CSV_HEADER = [
+  'recordKind',
+  ...SESSION_CSV_HEADER,
+  ...TELEMETRY_EXTRA_COLS,
+] as const;
+
+/**
+ * Serialize a full `NoteTelemetryBundle` (`revisions`, `parses`, `sessions`,
+ * `events`) to CSV — lossless tabular twin of `serializeNoteBundleToJsonl`.
+ */
+export function telemetryBundleToCsv(bundle: NoteTelemetryBundle): string {
+  const lines: string[] = [TELEMETRY_CSV_HEADER.join(',')];
+
+  for (const rev of bundle.revisions ?? []) {
+    const sessionCols = new Array<string>(SESSION_HEADER.length).fill('');
+    sessionCols[1] = escapeCsvField(rev.noteId);
+    sessionCols[2] = escapeCsvField(rev.blockId);
+    sessionCols[3] = escapeCsvField(rev.version);
+    const eventCols = new Array<string>(EVENT_HEADER.length).fill('');
+    const extraCols = [
+      escapeCsvField(rev.kind),
+      escapeCsvField(rev.rawContent),
+      escapeCsvField(rev.savedAt),
+      escapeCsvField(rev.dialect ?? ''),
+      escapeCsvField(rev.sport ?? ''),
+      '', '', '', '', '',
+    ];
+    lines.push(['revision', ...sessionCols, ...eventCols, ...extraCols].join(','));
+  }
+
+  for (const p of bundle.parses ?? []) {
+    const sessionCols = new Array<string>(SESSION_HEADER.length).fill('');
+    sessionCols[1] = escapeCsvField(p.noteId);
+    sessionCols[2] = escapeCsvField(p.blockId ?? '');
+    sessionCols[3] = escapeCsvField(p.blockVersion ?? '');
+    const eventCols = new Array<string>(EVENT_HEADER.length).fill('');
+    eventCols[3] = escapeCsvField(p.timestamp);
+    const extraCols = [
+      '', '', '', '', '',
+      escapeCsvField(p.id),
+      escapeCsvField(p.stage),
+      escapeCsvField(p.status),
+      escapeCsvField(p.diagnostics ? JSON.stringify(p.diagnostics) : ''),
+      escapeCsvField(p.metrics ? JSON.stringify(p.metrics) : ''),
+    ];
+    lines.push(['parse', ...sessionCols, ...eventCols, ...extraCols].join(','));
+  }
+
+  const eventsBySession = new Map<string, EventRecord[]>();
+  for (const ev of bundle.events) {
+    const arr = eventsBySession.get(ev.resultId);
+    if (arr) arr.push(ev);
+    else eventsBySession.set(ev.resultId, [ev]);
+  }
+
+  for (const session of bundle.sessions) {
+    const sCells = sessionCells(session);
+    const trailingEmpty = new Array<string>(TELEMETRY_EXTRA_COLS.length).fill('');
+    lines.push(['session', ...sCells, ...new Array<string>(EVENT_HEADER.length).fill(''), ...trailingEmpty].join(','));
+
+    const ordered = [...(eventsBySession.get(session.id) ?? [])].sort((a, b) =>
+      a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+    );
+    for (const ev of ordered) {
+      const metrics = (ev.metrics ?? []) as readonly Metric[];
+      if (metrics.length === 0) {
+        const emptyMetric: Metric = { type: '' };
+        lines.push(['event', ...sCells, ...metricCells(ev, emptyMetric, -1), ...trailingEmpty].join(','));
+      } else {
+        metrics.forEach((m, i) => {
+          lines.push(['event', ...sCells, ...metricCells(ev, m, i), ...trailingEmpty].join(','));
+        });
+      }
+    }
+  }
+
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Parse a `telemetryBundleToCsv` (or single-session `sessionToCsv`) CSV back
+ * into `NoteTelemetryBundleResult` — exact round-trip twin of `parseNoteBundleFromJsonl`.
+ */
+export function csvToTelemetryBundle(csv: string): NoteTelemetryBundleResult {
+  const records = splitCsvRecords(csv);
+  if (records.length < 2) return { bundles: [], errors: [] };
+  const header = parseCsvLine(records[0]);
+  if (header[0] !== 'recordKind') {
+    try {
+      const single = csvToSessionRows(csv);
+      return {
+        bundles: [{ sessions: [single.session], events: single.events }],
+        errors: [],
+      };
+    } catch (err) {
+      return { bundles: [], errors: [err instanceof Error ? err.message : String(err)] };
+    }
+  }
+
+  const col = new Map<string, number>();
+  header.forEach((name, idx) => col.set(name, idx));
+  const at = (cells: string[], name: string): string => {
+    const idx = col.get(name);
+    return idx === undefined ? '' : (cells[idx] ?? '');
+  };
+
+  const revisionsByNote = new Map<string, BlockRevision[]>();
+  const parsesByNote = new Map<string, ParseLoadRecord[]>();
+  const sessionCsvLinesBySession = new Map<string, { noteId: string; lines: string[] }>();
+  const errors: string[] = [];
+
+  for (const [idx, line] of records.slice(1).entries()) {
+    const cells = parseCsvLine(line);
+    if (cells.length === 1 && cells[0] === '') continue;
+    const kind = at(cells, 'recordKind');
+    const noteId = nonempty(at(cells, 'noteId'));
+    if (!noteId) {
+      errors.push(`Row ${idx + 2}: missing noteId`);
+      continue;
+    }
+
+    if (kind === 'revision') {
+      const revKind = nonempty(at(cells, 'revisionKind')) as BlockRevision['kind'] | undefined;
+      const blockId = nonempty(at(cells, 'blockId'));
+      const version = num(at(cells, 'blockVersion'));
+      const savedAt = num(at(cells, 'revisionSavedAt'));
+      if (!revKind || !blockId || !version || savedAt === undefined) {
+        errors.push(`Row ${idx + 2}: invalid revision columns`);
+        continue;
+      }
+      const rev: BlockRevision = {
+        noteId,
+        blockId,
+        version,
+        kind: revKind,
+        rawContent: at(cells, 'revisionRawContent'),
+        savedAt,
+        ...(nonempty(at(cells, 'revisionDialect')) ? { dialect: nonempty(at(cells, 'revisionDialect')) as 'time' | 'log' } : {}),
+        ...(nonempty(at(cells, 'revisionSport')) ? { sport: nonempty(at(cells, 'revisionSport')) } : {}),
+      };
+      const list = revisionsByNote.get(noteId) ?? [];
+      list.push(rev);
+      revisionsByNote.set(noteId, list);
+    } else if (kind === 'parse') {
+      const id = nonempty(at(cells, 'parseId'));
+      const stage = nonempty(at(cells, 'parseStage')) as ParseLoadRecord['stage'] | undefined;
+      const status = nonempty(at(cells, 'parseStatus')) as ParseLoadRecord['status'] | undefined;
+      const timestamp = num(at(cells, 'timestamp'));
+      if (!id || !stage || !status || timestamp === undefined) {
+        errors.push(`Row ${idx + 2}: invalid parse columns`);
+        continue;
+      }
+      const parseRec: ParseLoadRecord = {
+        id,
+        noteId,
+        ...(nonempty(at(cells, 'blockId')) ? { blockId: nonempty(at(cells, 'blockId')) } : {}),
+        ...(num(at(cells, 'blockVersion')) !== undefined ? { blockVersion: num(at(cells, 'blockVersion')) } : {}),
+        stage,
+        status,
+        timestamp,
+        ...(nonempty(at(cells, 'parseDiagnosticsJson')) ? { diagnostics: jsonCell<string[]>(at(cells, 'parseDiagnosticsJson')) } : {}),
+        ...(nonempty(at(cells, 'parseMetricsJson')) ? { metrics: jsonCell<Record<string, unknown>>(at(cells, 'parseMetricsJson')) } : {}),
+      };
+      const list = parsesByNote.get(noteId) ?? [];
+      list.push(parseRec);
+      parsesByNote.set(noteId, list);
+    } else if (kind === 'session' || kind === 'event') {
+      const sessionId = nonempty(at(cells, 'sessionId'));
+      if (!sessionId) {
+        errors.push(`Row ${idx + 2}: missing sessionId`);
+        continue;
+      }
+      const subCells = SESSION_CSV_HEADER.map((h) => escapeCsvField(at(cells, h)));
+      const bucket = sessionCsvLinesBySession.get(sessionId) ?? {
+        noteId,
+        lines: [SESSION_CSV_HEADER.join(',')],
+      };
+      bucket.lines.push(subCells.join(','));
+      sessionCsvLinesBySession.set(sessionId, bucket);
+    } else {
+      errors.push(`Row ${idx + 2}: unknown recordKind '${kind}'`);
+    }
+  }
+
+  const bundlesByNote = new Map<string, NoteTelemetryBundle>();
+  const ensureBundle = (noteId: string): NoteTelemetryBundle => {
+    const existing = bundlesByNote.get(noteId);
+    if (existing) return existing;
+    const created: NoteTelemetryBundle = { sessions: [], events: [] };
+    bundlesByNote.set(noteId, created);
+    return created;
+  };
+
+  for (const [noteId, revs] of revisionsByNote) {
+    ensureBundle(noteId).revisions = revs;
+  }
+  for (const [noteId, parses] of parsesByNote) {
+    ensureBundle(noteId).parses = parses;
+  }
+  for (const [, { noteId, lines }] of sessionCsvLinesBySession) {
+    try {
+      const parsed = csvToSessionRows(lines.join('\n') + '\n');
+      const bundle = ensureBundle(noteId);
+      bundle.sessions.push(parsed.session);
+      bundle.events.push(...parsed.events);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  return { bundles: [...bundlesByNote.values()], errors };
+}
+
+export { parseNoteBundleFromJsonl, serializeNoteBundleToJsonl };

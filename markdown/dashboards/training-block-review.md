@@ -11,72 +11,73 @@ The general coaching check-in, re-authored from the retired hardcoded
 dashboard page (#899 decision 8). Weekly questions about volume, intensity,
 and where the work went.
 
-## Avg TIS
-How hard are sessions?
-
-```query:value
-avg:tis{}
+```query
+title: Avg TIS
+description: How hard are sessions?
+view: value
+query: avg:tis{}
 ```
 
-## Total volume
-How much total work?
-
-```query:value
-sum:totalVolume{}
+```query
+title: Total volume
+description: How much total work?
+view: value
+query: sum:totalVolume{}
 ```
 
-## Total reps
-How many reps?
-
-```query:value
-sum:totalReps{}
+```query
+title: Total reps
+description: How many reps?
+view: value
+query: sum:totalReps{}
 ```
 
-## Adherence
-Are planned sessions getting done?
-
-```query:value
-avg:calc.adherence{}
+```query
+title: Adherence
+description: Are planned sessions getting done?
+view: value
+query: avg:calc.adherence{}
 ```
 
-## Weekly tonnage
-Is volume rising?
-
-```query:timeseries-2
-sum:totalVolume{} by {week}
+```query
+title: Weekly tonnage
+description: Is volume rising?
+view: timeseries
+span: 2
+query: sum:totalVolume{} by {week}
 ```
 
-## TIS trend
-Is intensity consistent?
-
-```query:timeseries
-avg:tis{} by {week}
+```query
+title: TIS trend
+description: Is intensity consistent?
+view: timeseries
+query: avg:tis{} by {week}
 ```
 
-## Volume by effort
-Where does the volume go?
-
-```query:toplist
-sum:totalVolume{} by {effort}
+```query
+title: Volume by effort
+description: Where does the volume go?
+view: toplist
+query: sum:totalVolume{} by {effort}
 ```
 
-## Load by intensity
-Is training polarized?
-
-```query:stacked-bar
-sum:sessionLoad{} by {intensity, week}
+```query
+title: Load by intensity
+description: Is training polarized?
+view: stacked-bar
+query: sum:sessionLoad{} by {intensity, week}
 ```
 
-## Distance by discipline
-Where is the mileage?
-
-```query:bar
-sum:totalDistance{} by {discipline}
+```query
+title: Distance by discipline
+description: Where is the mileage?
+view: bar
+query: sum:totalDistance{} by {discipline}
 ```
 
-## Session load trend
-Is load building?
-
-```query:timeseries
-sum:sessionLoad{} by {week}
+```query
+title: Session load trend
+description: Is load building?
+view: timeseries
+query: sum:sessionLoad{} by {week}
 ```

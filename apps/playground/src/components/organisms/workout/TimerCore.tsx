@@ -15,11 +15,11 @@
 
 import React, { useCallback, useRef } from 'react';
 import { Play, Pause, SkipForward, Square, Timer, Layers } from 'lucide-react';
-import { formatTimeMMSS } from '@/lib/formatTime';
+import { formatTimeMMSS } from '@bitcobblers/wod-wiki-engine';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 import { useAudio } from '@/contexts/AudioContext';
 import type { AudioContextType } from '@/contexts/AudioContext';
-import { TEST_IDS } from '@/testing/contracts/TestIdContract';
+import { TEST_IDS } from '@/lib/testIds';
 import { FitArea } from '@/components/organisms/workout/TimerStackView';
 import type { TimerSurfaceModel } from './useTimerSurfaceModel';
 

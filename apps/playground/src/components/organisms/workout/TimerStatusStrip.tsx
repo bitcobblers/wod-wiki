@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { Timer } from 'lucide-react';
-import { formatTimeMMSS } from '@/lib/formatTime';
+import { formatTimeMMSS } from '@bitcobblers/wod-wiki-engine';
 
 export interface TimerStatusStripProps {
   sessionElapsedMs: number;

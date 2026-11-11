@@ -8,6 +8,9 @@ export { IndexedDBNotePersistence } from './IndexedDBNotePersistence';
 export * from './types';
 
 export function createNotePersistence(provider: IContentProvider): INotePersistence {
+  if (provider instanceof IndexedDBNotePersistence) {
+    return provider;
+  }
   const storage = provider.persistenceStorage;
   if (!storage) throw new Error('Content provider requires atomic storage for note persistence');
   return new IndexedDBNotePersistence(storage, provider);
@@ -18,4 +21,4 @@ export function createNotePersistence(provider: IContentProvider): INotePersiste
  * Use this in non-React contexts (page-level scripts, legacy routes)
  * that need note persistence without a WorkbenchContext.
  */
-export const notePersistence: INotePersistence = new IndexedDBNotePersistence();
+export const notePersistence = new IndexedDBNotePersistence();

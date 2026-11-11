@@ -17,12 +17,14 @@ export interface ParsedWqlRollupSuffix {
   raw: string;
 }
 
-/** A window clause (C1): relative (`last 8w`) or civil-date range
- *  (`from 2026-01-01 [to 2026-03-31]`). One window per query — `last` and
- *  `from` are mutually exclusive (validated as a C3-style conflict). */
+/** A window clause (C1): relative (`last 8w`), civil-date range
+ *  (`from 2026-01-01 [to 2026-03-31]`), or a `$param` reference (`last $range`
+ *  or `last $weeks w`). One window per query — `last` and `from` are mutually
+ *  exclusive (validated as a C3-style conflict). */
 export type ParsedWqlWindowSuffix =
   | { kind: 'relative'; size: number; unit: 'd' | 'w'; raw: string }
-  | { kind: 'range'; start: string; end?: string; raw: string };
+  | { kind: 'range'; start: string; end?: string; raw: string }
+  | { kind: 'param'; param: string; unit?: 'd' | 'w'; raw: string };
 
 export interface ParsedWqlSuffixes {
   /** Outer cross-store join clause text (`where ...`). */
@@ -78,6 +80,7 @@ const DISPLAY_UNIT_RE = /\s+in\s+([a-zA-Z0-9_-]+)\s*$/;
 const ROLLUP_RE = /\.rollup\((\d+)?([a-zA-Z]*)\)\s*$/;
 const BY_RE = /\s+by\s+\{([^}]*)\}\s*$/;
 const LAST_RE = /\s+last\s+(\d+)([dw])\s*$/i;
+const LAST_PARAM_RE = /\s+last\s+\$([a-zA-Z_][\w-]*)(?:\s+([dw]))?\s*$/i;
 const FROM_TO_RE = /\s+from\s+(\d{4}-\d{2}-\d{2})(?:\s+to\s+(\d{4}-\d{2}-\d{2}))?\s*$/i;
 /**
  * Extract suffixes from a raw WQL query string.
@@ -140,32 +143,40 @@ export function parseWqlSuffixes(raw: string): ParsedWqlSuffixes {
   // first (it is the rightmost window form when both appear), then `last`;
   // any second occurrence — same kind or cross-kind — is a C3 conflict.
   const froms = stripRepeated(FROM_TO_RE);
+  const lastParams = stripRepeated(LAST_PARAM_RE);
   const lasts = stripRepeated(LAST_RE);
   {
-    const windows = [
+    const windows: Array<ParsedWqlWindowSuffix & { at: number }> = [
       ...froms.map((m) => ({
         kind: 'range' as const,
-        start: m[1],
+        start: m[1]!,
         end: m[2],
+        raw: m[0].trim(),
+        at: m.index,
+      })),
+      ...lastParams.map((m) => ({
+        kind: 'param' as const,
+        param: m[1]!,
+        ...(m[2] ? { unit: m[2].toLowerCase() as 'd' | 'w' } : {}),
         raw: m[0].trim(),
         at: m.index,
       })),
       ...lasts.map((m) => ({
         kind: 'relative' as const,
-        size: parseInt(m[1], 10),
-        unit: m[2].toLowerCase() as 'd' | 'w',
+        size: parseInt(m[1]!, 10),
+        unit: m[2]!.toLowerCase() as 'd' | 'w',
         raw: m[0].trim(),
         at: m.index,
       })),
     ].sort((a, b) => a.at - b.at);
     if (windows.length > 1) {
       conflicts.push(
-        `Duplicate 'window' clause: '${windows[0].raw}' conflicts with '${windows[windows.length - 1].raw}'`,
+        `Duplicate 'window' clause: '${windows[0]!.raw}' conflicts with '${windows[windows.length - 1]!.raw}'`,
       );
     }
     if (windows.length === 1) {
-      const w = windows[0];
-      window = w.kind === 'range' ? { kind: 'range', start: w.start, end: w.end, raw: w.raw } : { kind: 'relative', size: w.size, unit: w.unit, raw: w.raw };
+      const { at: _at, ...w } = windows[0]!;
+      window = w;
     }
   }
 
@@ -246,12 +257,14 @@ function normalizeCommaFilterValues(text: string): string {
   const merged: string[] = [];
   for (let i = 0; i < parts.length; i++) {
     let part = parts[i]!;
-    while (i + 1 < parts.length) {
-      const next = parts[i + 1]!.trim();
-      if (next && !next.includes(':') && !next.includes('"')) {
-        part = `${part}|${next}`;
-        i++;
-      } else break;
+    if (!part.trim().startsWith('$')) {
+      while (i + 1 < parts.length) {
+        const next = parts[i + 1]!.trim();
+        if (next && !next.includes(':') && !next.includes('"') && !next.startsWith('$')) {
+          part = `${part}|${next}`;
+          i++;
+        } else break;
+      }
     }
     merged.push(part);
   }

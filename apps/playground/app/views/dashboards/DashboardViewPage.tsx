@@ -22,8 +22,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Plus } from 'lucide-react';
 import { queryService } from '@/services/queryService';
 import {
-  RangeSelector,
-  AnalyticsUnitPreference,
   useAnalyticsUnitPreference,
   DashboardView,
   type DashboardHeadingAnchor,
@@ -32,6 +30,7 @@ import {
 import { useAnalyticsRange } from '../../hooks/useAnalyticsRange';
 import { journalNotes } from '../../services/journalNotes';
 import { dashboardNotes } from '../../services/dashboardNotes';
+import { notifyDashboardsChanged } from '../../services/dashboardEvents';
 import { parseFrontmatter, serializeFrontmatter } from '@/lib/frontmatter';
 import { storageService } from '@/services/storage';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
@@ -41,7 +40,7 @@ import {
   PAGE_SHELL_CONTENT_SURFACE_CLASS,
 } from '@/panels/page-shells';
 import { cn } from '@/lib/utils';
-import { toEntry, blockToEntry, type Entry } from '../../lib/entryMapper';
+import { toEntry, blockToEntry } from '../../lib/entryMapper';
 import { entryOpenHref } from '../../lib/entryActions';
 import {
   parseDashboardNote,
@@ -59,13 +58,11 @@ import {
   updateWidget,
 } from '@bitcobblers/wod-wiki-wql';
 import { useDashboardSource } from '../../hooks/useDashboards';
-import { analyticsExplorerPath, dashboardsPath, dashboardViewPath } from '../../lib/routes';
+import { analyticsExplorerPath } from '../../lib/routes';
 import { useNav } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
 import { ResponsiveActions } from '../../nav/ResponsiveActions';
-import type { MenuSpec } from '../../nav/menuModel';
 
-import { NoteContextNav, EMPTY_NOTE_CONTEXT } from '../../pages/shared/noteContextLinks';
 import { SampleDataPrompt } from '../analytics/SampleDataPrompt';
 import { WidgetComposerDialog, type WidgetComposerApply } from './WidgetComposerDialog';
 
@@ -121,7 +118,7 @@ export function DashboardViewPage() {
   // page header, standalone note headings their own grid heading row, and
   // each query block its widget card. Titled headings (buildDashboardDocument
   // adjacency) surface as their widget entry's label.
-  const { setL3Items, registerScrollFn } = useNav();
+  const { setL3Items, setL3Actions, setAnalyticsControls, registerScrollFn } = useNav();
   const outline = useMemo(() => {
     if (!parsed) return { headings: [], items: [] as NavItemL3[] };
     const { doc, sections } = parsed;
@@ -160,50 +157,55 @@ export function DashboardViewPage() {
     });
     return { headings, items };
   }, [parsed]);
-  // Declared early so the L3 helpful actions below can close over them.
+  // Declared early so the L3 actions below can close over them.
   const [editMode, setEditMode] = useState(false);
+  const [composer, setComposer] = useState<ComposerState | null>(null);
   const handleClone = useCallback(async () => {
     if (!source || source.editable) return;
     await dashboardNotes.cloneDashboard(source.slug, source.rawContent, source.title);
+    notifyDashboardsChanged();
     setRefreshKey((k) => k + 1); // re-resolve → vault clone shadows the seed
   }, [source]);
-  // Whiteboard dashboard L3: on-this-page/widget links first, then Edit/Done,
-  // Clone to vault, Copy link, and the range/units view controls as live L3
-  // widgets (rendered by the rail + mobile right drawer via NavItem.panel).
-  const RangeWidget = useCallback(() => <RangeSelector />, [])
-  const UnitsWidget = useCallback(() => <AnalyticsUnitPreference />, [])
   const handleCopyLink = useCallback(() => {
     void navigator.clipboard?.writeText(window.location.href)
   }, [])
-  const l3Items = useMemo(() => [
-    ...outline.items,
-    { id: 'dashboard-range', label: 'Date range', level: 3 as const, action: { type: 'none' as const }, panel: RangeWidget },
-    { id: 'dashboard-units', label: 'Units', level: 3 as const, action: { type: 'none' as const }, panel: UnitsWidget },
-    { id: 'helpful-edit', label: editMode ? 'Done' : 'Edit', level: 3 as const, action: { type: 'call' as const, handler: () => setEditMode(v => !v) } },
-    ...(!source?.editable && source ? [{ id: 'helpful-clone', label: 'Clone to vault', level: 3 as const, action: { type: 'call' as const, handler: () => void handleClone() }, key: source.slug }] : []),
-    { id: 'helpful-copy-link', label: 'Copy link', level: 3 as const, action: { type: 'call' as const, handler: handleCopyLink } },
-  ], [outline.items, editMode, source, RangeWidget, UnitsWidget, handleClone, handleCopyLink]);
-  useEffect(() => {
-    setL3Items(l3Items);
-    return () => setL3Items([]);
-  }, [l3Items, setL3Items]);
 
-  // Whiteboard dashboard L2: Up to Dashboards; recent dashboards (this one
-  // filtered out).
-  const dashboardL2 = useMemo(() => ({
-    up: { id: 'dashboards', title: 'Dashboards', to: dashboardsPath() },
-    trailingSections: [
-      {
-        kind: 'wql' as const,
-        id: 'recent-dashboards',
-        label: 'Recent dashboards',
-        query: ':note{type:dashboard}',
-        limit: 5,
-        toEntry: (e: Entry) => dashboardViewPath(e.id),
-        filterEntry: (e: Entry) => e.id !== source?.noteId,
-      },
-    ] as MenuSpec,
-  }), [source]);
+  // L3 Slot 1 (Modifiers): Range + Units via AnalyticsControlsNav.
+  useEffect(() => {
+    setAnalyticsControls?.({ showRange: true, showUnits: true });
+    return () => setAnalyticsControls?.(null);
+  }, [setAnalyticsControls]);
+
+  // L3 Slot 2 (Goto / "On this page"): pure structural headings + widget anchors.
+  useEffect(() => {
+    setL3Items(outline.items);
+    return () => setL3Items([]);
+  }, [outline.items, setL3Items]);
+
+  // L3 Slot 3 ("Actions"): Edit/Done, Add widget (vault), Clone to vault (prebuilt), Copy link.
+  useEffect(() => {
+    const actions = [
+      ...(source?.editable
+        ? [
+            { id: 'helpful-edit', label: editMode ? 'Done' : 'Edit', onRun: () => setEditMode(v => !v) },
+            {
+              id: 'helpful-add-widget',
+              label: 'Add widget',
+              onRun: () => {
+                setEditMode(true);
+                setComposer({ mode: 'add', expectedRaw: source.rawContent });
+              },
+            },
+          ]
+        : [
+            { id: 'helpful-edit', label: editMode ? 'Done' : 'Edit', onRun: () => setEditMode(v => !v) },
+            ...(source ? [{ id: 'helpful-clone', label: 'Clone to vault', onRun: () => void handleClone() }] : []),
+          ]),
+      { id: 'helpful-copy-link', label: 'Copy link', onRun: handleCopyLink },
+    ];
+    setL3Actions?.(actions);
+    return () => setL3Actions?.([]);
+  }, [editMode, source, handleClone, handleCopyLink, setL3Actions]);
 
   // Outline clicks scroll and flash. The component `document` (parsed
   // DashboardDocument) shadows the DOM global here — hence globalThis.
@@ -227,8 +229,6 @@ export function DashboardViewPage() {
       });
   }, [registerScrollFn]);
 
-  // editMode is declared early (the L3 helpful actions close over it).
-  const [composer, setComposer] = useState<ComposerState | null>(null);
   // Visible refusal surface for toolbar widget ops that lost the revision
   // race (a concurrent edit landed between render and write).
   const [actionError, setActionError] = useState<string | null>(null);
@@ -253,6 +253,7 @@ export function DashboardViewPage() {
         throw new Error('The widget changed on disk — this edit was not saved.');
       }
       await journalNotes.update(note, typeof next === 'string' ? next : next.note, typeof next === 'string' ? undefined : next);
+      notifyDashboardsChanged();
       setRefreshKey((k) => k + 1);
     },
     [source],
@@ -267,6 +268,7 @@ export function DashboardViewPage() {
       const newMeta = setDashboardTokenValue(meta, name, value);
       const raw = `---\n${serializeFrontmatter(newMeta)}\n---\n${body}`;
       await journalNotes.update(note, raw);
+      notifyDashboardsChanged();
       setRefreshKey((k) => k + 1);
     },
     [source],
@@ -278,13 +280,12 @@ export function DashboardViewPage() {
       if (!source?.editable || !source.noteId) return;
       void journalNotes.getById(source.noteId).then(async (note) => {
         const { meta, body } = parseFrontmatter(note.rawContent);
-        const nextMeta = { ...meta };
+        let nextMeta = { ...meta };
+        delete nextMeta.wql;
         const trimmed = nextWql.trim();
         if (trimmed) {
-          nextMeta.wql = trimmed;
-          nextMeta['dashboard.scope'] = [trimmed];
+          nextMeta = setDashboardTokenValue(nextMeta, 'scope', trimmed);
         } else {
-          delete nextMeta.wql;
           delete nextMeta['dashboard.scope'];
         }
         const raw = `---\n${serializeFrontmatter(nextMeta)}\n---\n${body}`;
@@ -385,7 +386,6 @@ export function DashboardViewPage() {
   const editable = source.editable;
   return (
     <div className="relative flex w-full min-h-screen justify-start items-start bg-card">
-      <NoteContextNav data={EMPTY_NOTE_CONTEXT} up={dashboardL2.up} trailingSections={dashboardL2.trailingSections} />
       <div className={cn(PAGE_SHELL_CONTAINER_CLASS, PAGE_SHELL_CONTENT_SURFACE_CLASS)}>
         <StickyPageHeader
           id={TITLE_ANCHOR}
@@ -529,6 +529,11 @@ export function DashboardViewPage() {
           composer && composer.mode !== 'add'
             ? composer.widget.body
             : 'sum:totalVolume{}'
+        }
+        initialObject={
+          composer && composer.mode !== 'add'
+            ? composer.widget.queryObject
+            : undefined
         }
         initial={
           composer && composer.mode !== 'add'

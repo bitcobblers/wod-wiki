@@ -14,26 +14,23 @@
  */
 
 import { WQL_CALC_TARGETS } from '../vocabulary';
+import {
+  isYamlQueryBlockBody,
+  parseQueryBlock,
+  queryBlockAttributes,
+  queryBlockToDocumentText,
+  type QueryBlockObject,
+} from '../queryBlockCodec';
+export {
+  DASHBOARD_WIDGET_TYPES,
+  DASHBOARD_GRID_MAX_COLS,
+  isDashboardWidgetType,
+  parseQueryWidgetSuffix,
+  type DashboardWidgetType,
+  type QueryWidgetSuffix,
+} from './fenceSuffix';
 
 // ── Widget types ───────────────────────────────────────────────────────────
-
-export const DASHBOARD_WIDGET_TYPES = [
-  'table',
-  'list',
-  'value',
-  'timeseries',
-  'bar',
-  'donut',
-  'toplist',
-  'stacked-bar',
-  'goal-rings',
-  'zone-distribution',
-] as const;
-export type DashboardWidgetType = (typeof DASHBOARD_WIDGET_TYPES)[number];
-
-export function isDashboardWidgetType(type: string): type is DashboardWidgetType {
-  return (DASHBOARD_WIDGET_TYPES as readonly string[]).includes(type);
-}
 
 /** The widget type a block renders as: a bare ```query fence defaults to `table`. */
 export function resolveWidgetType(type: string | undefined): string {
@@ -67,92 +64,6 @@ export function isProposedMetric(metricKey: string | undefined): boolean {
   if (!metricKey) return false;
   if (!metricKey.startsWith('calc.')) return false;
   return !KNOWN_CALC_METRICS.has(metricKey);
-}
-
-// ── Fence-tag suffix parse ─────────────────────────────────────────────────
-
-export const DASHBOARD_GRID_MAX_COLS = 4;
-
-export interface QueryWidgetSuffix {
-  /** Raw widget type from the tag, lowercased; '' for a bare ```query fence. */
-  type: string;
-  /** Grid column span 1..4 (`-N`). */
-  spanCols?: number;
-  /** Full-row flag (`-full`). Mutually exclusive with spanCols. */
-  spanFull?: boolean;
-  /** Presentation attributes: `key=value` tokens after the type/span
-   *  (decision 22 — positional params ride the fence tag, not the body). */
-  attributes: Record<string, string>;
-  /** Attribute order for stable re-serialization. */
-  attributeOrder: string[];
-  /** Set when the suffix is malformed (the type is still reported raw). */
-  error?: string;
-}
-
-/**
- * Parse the suffix after `query:` in a fence tag — `<type>`, `<type>-<N>` or
- * `<type>-full`. Unknown types parse fine (renderers badge them); structural
- * problems (empty type, bad span, `-N-full` combo) set `error`.
- */
-export function parseQueryWidgetSuffix(suffix: string): QueryWidgetSuffix {
-  if (suffix === '') {
-    return { type: '', attributes: {}, attributeOrder: [], error: 'missing widget type after "query:"' };
-  }
-
-  // Attributes: `key=value` pairs after the type/span token (a quoted value
-  // may contain spaces). The head token carries type + span; everything
-  // after the first whitespace is attribute tail.
-  const attributes: Record<string, string> = {};
-  const attributeOrder: string[] = [];
-  const trimmedSuffix = suffix.trim();
-  const headEnd = trimmedSuffix.search(/\s/);
-  const head = headEnd === -1 ? trimmedSuffix : trimmedSuffix.slice(0, headEnd);
-  const attrTail = headEnd === -1 ? '' : trimmedSuffix.slice(headEnd);
-  const attrPattern = /([a-zA-Z][a-zA-Z0-9_-]*)=("([^"]*)"|\S+)/g;
-  let consumed = 0;
-  for (const match of attrTail.matchAll(attrPattern)) {
-    consumed += match[0].length;
-    const key = match[1]!.toLowerCase();
-    const value = match[3] !== undefined ? match[3] : match[2]!;
-    if (key in attributes) {
-      return { type: head, attributes, attributeOrder, error: `duplicate attribute "${key}"` };
-    }
-    attributes[key] = value;
-    attributeOrder.push(key);
-  }
-  const leftover = attrTail.replace(attrPattern, '').trim();
-  if (leftover !== '') {
-    return { type: head, attributes, attributeOrder, error: `malformed attribute "${leftover.split(/\s+/)[0]}"` };
-  }
-  void consumed;
-
-  let rest = head.toLowerCase();
-  let spanCols: number | undefined;
-  let spanFull: boolean | undefined;
-
-  if (rest.endsWith('-full')) {
-    spanFull = true;
-    rest = rest.slice(0, -'-full'.length);
-  } else {
-    const spanMatch = rest.match(/-(\d+)$/);
-    if (spanMatch) {
-      spanCols = Number(spanMatch[1]);
-      rest = rest.slice(0, -spanMatch[0].length);
-    }
-  }
-
-  if (rest === '' || !/^[a-z][a-z0-9-]*$/.test(rest)) {
-    return { type: rest, spanCols, spanFull, attributes, attributeOrder, error: `malformed widget type "${suffix}"` };
-  }
-  if (/-(\d+|full)$/.test(rest)) {
-    // A second trailing modifier (e.g. `bar-2-full`, `bar-full-2`) — span and
-    // full are mutually exclusive. Kebab hyphens inside the type are fine.
-    return { type: rest, spanCols, spanFull, attributes, attributeOrder, error: `malformed widget suffix "${suffix}"` };
-  }
-  if (spanCols != null && (spanCols < 1 || spanCols > DASHBOARD_GRID_MAX_COLS)) {
-    return { type: rest, spanCols, spanFull, attributes, attributeOrder, error: `span ${spanCols} outside 1..${DASHBOARD_GRID_MAX_COLS}` };
-  }
-  return { type: rest, spanCols, spanFull, attributes, attributeOrder };
 }
 
 // ── Frontmatter tokens ─────────────────────────────────────────────────────
@@ -226,7 +137,7 @@ export function setDashboardTokenValue(
 
 // ── Token substitution ─────────────────────────────────────────────────────
 
-const TOKEN_REF_RE = /\$([A-Za-z][\w-]*)/g;
+const TOKEN_REF_RE = /\$([A-Za-z_][\w-]*)/g;
 
 /**
  * Substitute `$name` references with token values — raw text replacement at
@@ -238,14 +149,28 @@ export function substituteTokens(
   values: Record<string, string>,
 ): { query: string; missing: string[] } {
   const missing = new Set<string>();
-  const substituted = query.replace(TOKEN_REF_RE, (raw, name: string) => {
+  let hadEmpty = false;
+  let substituted = query.replace(TOKEN_REF_RE, (raw, name: string) => {
     const value = values[name];
     if (value == null) {
       missing.add(name);
       return raw;
     }
+    if (value.trim() === '') hadEmpty = true;
     return value;
   });
+  if (hadEmpty) {
+    // Cleanly drop empty optional spread filters (`{a:1, $scope}` when $scope="")
+    // and empty window clauses (`last $range` when $range="") without leaving
+    // dangling commas or orphan `last` keywords.
+    substituted = substituted
+      .replace(/\{\s*,+/g, '{')
+      .replace(/,+\s*\}/g, '}')
+      .replace(/,\s*,+/g, ', ')
+      .replace(/\blast\s+(?:[dw]\b)?(?=\s*(?:\||$|\r?\n))/gi, '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
+  }
   return { query: substituted, missing: [...missing] };
 }
 
@@ -268,6 +193,8 @@ export interface DashboardSectionInput {
   subtype?: string;
   /** Raw inner content of the section. */
   content: string;
+  /** Raw fence tag (`query` or `query:bar-2`) when parsed from markdown. */
+  fenceTag?: string;
   /** Widget type suffix parsed from the fence tag (query sections). */
   widgetType?: string;
   /** Grid column span parsed from the fence tag (query sections). */
@@ -288,18 +215,20 @@ export interface DashboardWidget {
   type: string;
   spanCols?: number;
   spanFull?: boolean;
-  /** Full fenced body — a Query Document (decision 22), comment lines
-   *  stripped, surrounding whitespace trimmed, line structure preserved. */
+  /** Executable Query Document / WQL string consumed by runners and validators. */
   body: string;
-  /** Malformed fence-suffix reason — renderers badge instead of executing. */
+  /** Raw fenced text before YAML → QueryDocument compilation. */
+  rawBody?: string;
+  /** Canonical structured QueryBlockObject parsed from YAML, 1-line shorthand, or legacy fences. */
+  queryObject?: QueryBlockObject;
+  /** Malformed fence-suffix or YAML reason — renderers badge instead of executing. */
   widgetError?: string;
-  /** Fence-tag presentation attributes (decision 22) — positional params
-   *  ride the tag, never the body. */
+  /** Presentation attributes (`goal`, `targets`, `comparePr`, `label.<id>`, or legacy tag attrs). */
   attributes: Record<string, string>;
   attributeOrder: string[];
-  /** Title from the markdown heading directly above (or above the question). */
+  /** Title from inline YAML `title:` (preferred) or markdown heading directly above. */
   title?: string;
-  /** Coaching question from the paragraph directly above the block. */
+  /** Coaching question / description from inline YAML `description:` or paragraph directly above. */
   question?: string;
 }
 
@@ -340,27 +269,70 @@ export function buildDashboardDocument(
   sections.forEach((section, i) => {
     if (section.type !== 'query') return;
 
-    // Decision 22: the widget body is the FULL fenced content — a multi-line
-    // Query Document. Comment lines are stripped; line structure is kept so
-    // documents survive round-trips byte-for-byte.
+    let adjacentTitle: string | undefined;
+    let adjacentQuestion: string | undefined;
+    const above = sections[i - 1];
+    if (above?.type === 'markdown' && above.subtype === 'paragraph') {
+      adjacentQuestion = paragraphText(above.content);
+      const heading = sections[i - 2];
+      if (heading?.type === 'markdown' && heading.subtype === 'heading') {
+        adjacentTitle = headingText(heading.content);
+      }
+    } else if (above?.type === 'markdown' && above.subtype === 'heading') {
+      adjacentTitle = headingText(above.content);
+    }
+
+    if (isYamlQueryBlockBody(section.content)) {
+      const obj = parseQueryBlock(section.content, {
+        fenceTag: section.fenceTag,
+        adjacentTitle,
+        adjacentDescription: adjacentQuestion,
+      });
+      const compiledBody = queryBlockToDocumentText(obj);
+      const derivedAttrs = queryBlockAttributes(obj);
+      const mergedAttributes: Record<string, string> = {
+        ...derivedAttrs.attributes,
+        ...(section.attributes ?? {}),
+      };
+      const mergedOrder = [
+        ...derivedAttrs.attributeOrder,
+        ...(section.attributeOrder ?? []).filter((k) => !(k in derivedAttrs.attributes)),
+      ];
+      widgets.push({
+        key: `w${widgets.length}`,
+        type: section.widgetType ?? obj.rawViewType ?? obj.view,
+        spanCols: section.spanCols ?? (typeof obj.span === 'number' ? obj.span : undefined),
+        spanFull: section.spanFull ?? (obj.span === 'full' ? true : undefined),
+        widgetError: section.widgetError ?? obj.error,
+        body: compiledBody,
+        rawBody: section.content.trim(),
+        queryObject: obj,
+        attributes: mergedAttributes,
+        attributeOrder: mergedOrder,
+        title: obj.title ?? adjacentTitle,
+        question: obj.description ?? adjacentQuestion,
+      });
+      return;
+    }
+
+    // Legacy or 1-line shorthand body: preserve line-normalized body verbatim
+    // while hydrating `queryObject` for the unified builder.
     const body = section.content
       .split('\n')
       .filter((l) => { const s = l.trim(); return s !== '' && !s.startsWith('#'); })
       .map((l) => l.trim())
       .join('\n');
 
-    let title: string | undefined;
-    let question: string | undefined;
-    const above = sections[i - 1];
-    if (above?.type === 'markdown' && above.subtype === 'paragraph') {
-      question = paragraphText(above.content);
-      const heading = sections[i - 2];
-      if (heading?.type === 'markdown' && heading.subtype === 'heading') {
-        title = headingText(heading.content);
-      }
-    } else if (above?.type === 'markdown' && above.subtype === 'heading') {
-      title = headingText(above.content);
-    }
+    const synthesizedTag =
+      section.fenceTag ??
+      (section.widgetType
+        ? `query:${section.widgetType}${section.spanFull ? '-full' : section.spanCols ? `-${section.spanCols}` : ''}`
+        : 'query');
+    const obj = parseQueryBlock(section.content, {
+      fenceTag: synthesizedTag,
+      adjacentTitle,
+      adjacentDescription: adjacentQuestion,
+    });
 
     widgets.push({
       key: `w${widgets.length}`,
@@ -369,10 +341,12 @@ export function buildDashboardDocument(
       spanFull: section.spanFull,
       widgetError: section.widgetError,
       body,
+      rawBody: body,
+      queryObject: obj,
       attributes: section.attributes ?? {},
       attributeOrder: section.attributeOrder ?? [],
-      title,
-      question,
+      title: adjacentTitle,
+      question: adjacentQuestion,
     });
   });
 

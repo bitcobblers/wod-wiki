@@ -29,6 +29,7 @@ import { resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
+import { L3DrawerTrigger } from '@/panels/page-shells';
 import { buildTagNoteDocument, usePropertyNote } from '../hooks/usePropertyNote';
 import { tagPath, tagCategoryPath, effortPath, equipmentPath, ROUTE_PATTERNS } from '../lib/routes';
 import { useNav } from '../nav/NavContext';
@@ -275,7 +276,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
   }, []);
 
   const savePropertyNote = propertyNote.save;
-  const { setL3Items } = useNav();
+  const { setL3Items, setL3Actions } = useNav();
   useEffect(() => {
     const outline: NavItemL3[] = [
       { id: 'tags-new', label: 'New tag', level: 3, action: { type: 'scroll', sectionId: 'tags-new' } },
@@ -285,19 +286,25 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
     } else if (activeCategory) {
       outline.push({ id: 'tags-category', label: `Category: ${activeCategory}`, level: 3, action: { type: 'scroll', sectionId: 'tags-category' } });
     }
-    outline.push(
-      ...(selected ? [
-        { id: 'helpful-save', label: 'Save', level: 3 as const, action: { type: 'call' as const, handler: () => void saveRef.current() } },
-        { id: 'helpful-delete', label: 'Delete', level: 3 as const, action: { type: 'call' as const, handler: () => void removeRef.current() } },
-      ] : []),
-      ...(selected ? [] : (propertyNote.document ? [
-        { id: 'helpful-save-category', label: 'Save Category Note', level: 3 as const, action: { type: 'call' as const, handler: () => void savePropertyNote() } },
-      ] : [])),
-      { id: 'helpful-copy-link', label: 'Copy link', level: 3 as const, action: { type: 'call' as const, handler: handleCopyLink } },
-    );
     setL3Items(outline);
     return () => setL3Items([]);
-  }, [selected, activeCategory, propertyNote.document, savePropertyNote, handleCopyLink, setL3Items]);
+  }, [selected, activeCategory, setL3Items]);
+
+  useEffect(() => {
+    const actions = [
+      ...(selected
+        ? [
+            { id: 'helpful-save', label: 'Save', onRun: () => void saveRef.current() },
+            { id: 'helpful-delete', label: 'Delete', onRun: () => void removeRef.current() },
+          ]
+        : propertyNote.document
+          ? [{ id: 'helpful-save-category', label: 'Save Category Note', onRun: () => void savePropertyNote() }]
+          : []),
+      { id: 'helpful-copy-link', label: 'Copy link', onRun: handleCopyLink },
+    ];
+    setL3Actions?.(actions);
+    return () => setL3Actions?.([]);
+  }, [selected, propertyNote.document, savePropertyNote, handleCopyLink, setL3Actions]);
 
   const up = useMemo(
     () => (activeCategory && selected
@@ -385,9 +392,10 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
               another tag, or a function — a named calculation that runs where the tag applies.
             </p>
           </div>
-          {/* Cast: shared navbar on mobile, desktop header here. */}
-          <div className="max-lg:hidden">
+          {/* Cast + lg–2xl Page options: shared navbar on mobile, desktop header here. */}
+          <div className="max-lg:hidden flex items-center gap-1.5">
             <CastButtonRpc />
+            <L3DrawerTrigger />
           </div>
         </div>
         {cycles.length > 0 && (

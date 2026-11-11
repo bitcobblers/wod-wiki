@@ -113,22 +113,4 @@ if (!(vi as any).mocked) {
     configurable: true,
   });
 }
-// ── Pre-mock workbenchSyncStore for components that use useUserOverrides ──────
-mock.module('@/stores/workbenchSyncStore', () => {
-  const overrides = new Map();
-  return {
-    useWorkbenchSyncStore: (selector: any) => {
-      const state = { 
-        userOutputOverrides: overrides,
-        viewMode: 'track',
-        execution: { status: 'idle' },
-      };
-      return selector ? selector(state) : state;
-    },
-    create: () => ({
-      getState: () => ({ userOutputOverrides: overrides }),
-      setState: () => {},
-      subscribe: () => () => {},
-    }),
-  };
-});
+

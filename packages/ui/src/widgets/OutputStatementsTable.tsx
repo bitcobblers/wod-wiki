@@ -1,6 +1,11 @@
-import { useMemo, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { IMetric } from '@bitcobblers/wod-wiki-core';
-import { metricPresentation, type MetricPresentationToken } from '@bitcobblers/wod-wiki-lang';
+import {
+  computeColumnLabel,
+  metricPresentation,
+  type MetricPresentationToken,
+} from '@bitcobblers/wod-wiki-lang';
+import { PRBadge } from './PRBadge';
 
 // ── Time formatting ──────────────────────────────────────────────────────────
 
@@ -96,7 +101,7 @@ export const OUTPUT_TYPE_DOT: Record<string, string> = {
   analytics: 'bg-type-analytics shadow-type-analytics/50',
 };
 
-// ── Metric categorisation (fixed column vocabulary) ──────────────────────────
+// ── Metric categorisation (base column vocabulary + dynamic custom discovery) ─
 
 export interface CategorizedMetrics {
   efforts: IMetric[];
@@ -129,6 +134,18 @@ const LOAD_TYPES = new Set([
 const ROUND_TYPES = new Set(['rounds', 'current-round', 'increment']);
 const DURATION_TYPES = new Set(['duration', 'time', 'elapsed']);
 const HINT_TYPES = new Set(['hint', 'custom', 'system', 'sound', 'lap', 'group', 'diagnostic']);
+
+function isBaseBucketType(lowerType: string): boolean {
+  return (
+    EFFORT_TYPES.has(lowerType) ||
+    lowerType === 'rep' ||
+    LOAD_TYPES.has(lowerType) ||
+    ROUND_TYPES.has(lowerType) ||
+    DURATION_TYPES.has(lowerType) ||
+    lowerType === 'distance' ||
+    HINT_TYPES.has(lowerType)
+  );
+}
 
 export function extractMetricsByCategory(metrics?: Iterable<IMetric>): CategorizedMetrics {
   const result: CategorizedMetrics = {
@@ -195,7 +212,7 @@ export function normalizeOutputFilter(filter: OutputFilterInput): OutputFilterPr
   return { label: str, query: str };
 }
 
-// ── Row shape ────────────────────────────────────────────────────────────────
+// ── Row, Sort, PR, and Inline-Edit Shapes ────────────────────────────────────
 
 /** Structural subset satisfied by live `IOutputStatement`s, stored statements,
  *  and `EventRecord` event rows alike. */
@@ -205,7 +222,49 @@ export interface OutputStatementRow {
   readonly timeSpan?: { started: number; ended?: number };
   readonly metrics?: Iterable<IMetric>;
   readonly sourceBlockKey?: string;
+  readonly sourceStatementId?: number;
+  readonly stackLevel?: number;
   readonly completionReason?: string;
+}
+
+export interface SessionTableSortSpec {
+  col: string;
+  dir: 'asc' | 'desc';
+}
+
+export interface InlineMetricEditPayload {
+  occurrence: {
+    blockKey: string;
+    sourceStatementId?: number;
+    stackLevel?: number;
+  };
+  metric: {
+    type: string;
+    value: number;
+    image: string;
+  };
+}
+
+export interface RowPrHighlight {
+  label?: string;
+  improvement?: number;
+  unit?: string;
+}
+
+function lookupPrHighlight(
+  out: OutputStatementRow,
+  prHighlights?: ReadonlyMap<string | number, RowPrHighlight> | Record<string, RowPrHighlight>,
+): RowPrHighlight | undefined {
+  if (!prHighlights) return undefined;
+  const get = (key: string | number | undefined): RowPrHighlight | undefined => {
+    if (key === undefined || key === '') return undefined;
+    if (prHighlights instanceof Map) {
+      return (prHighlights as ReadonlyMap<string | number, RowPrHighlight>).get(key) ??
+        (prHighlights as ReadonlyMap<string | number, RowPrHighlight>).get(String(key));
+    }
+    return (prHighlights as Record<string, RowPrHighlight>)[String(key)];
+  };
+  return get(out.id) ?? get(out.sourceBlockKey);
 }
 
 /** Client-side row filter: `type:<x>` targets the output type, otherwise free
@@ -235,6 +294,221 @@ function matchesOutputFilter(out: OutputStatementRow, filter: string): boolean {
   return Boolean(typeMatch || keyMatch || reasonMatch || metricMatch);
 }
 
+// ── Dynamic Column Model ─────────────────────────────────────────────────────
+
+type BuiltinColKind =
+  | 'type'
+  | 'time'
+  | 'effort'
+  | 'reps'
+  | 'loads'
+  | 'rounds'
+  | 'durations'
+  | 'distances'
+  | 'hints'
+  | 'metric';
+
+interface SessionColumnDef {
+  id: string;
+  kind: BuiltinColKind;
+  header: string;
+  className: string;
+  /** Exact metric type (lowercased) when `kind === 'metric'`. */
+  metricTypeLower?: string;
+  /** Default metric type written on inline edit. */
+  editableType?: string;
+}
+
+const BASE_COLUMNS: readonly SessionColumnDef[] = [
+  { id: 'type', kind: 'type', header: 'Type', className: 'p-2 w-12 text-center' },
+  { id: 'time', kind: 'time', header: 'Time', className: 'p-2 min-w-[110px]' },
+  { id: 'effort', kind: 'effort', header: '🏃 Movement', className: 'p-2 font-sans min-w-[140px]' },
+  { id: 'reps', kind: 'reps', header: '🔢 Reps', className: 'p-2 font-sans min-w-[60px]', editableType: 'rep' },
+  { id: 'loads', kind: 'loads', header: '💪 Load', className: 'p-2 font-sans min-w-[70px]', editableType: 'resistance' },
+  { id: 'rounds', kind: 'rounds', header: '🔄 Rounds', className: 'p-2 font-sans min-w-[80px]' },
+  { id: 'durations', kind: 'durations', header: '⏱️ Target', className: 'p-2 font-sans min-w-[70px]', editableType: 'duration' },
+  { id: 'distances', kind: 'distances', header: '📏 Distance', className: 'p-2 font-sans min-w-[70px]', editableType: 'distance' },
+  { id: 'hints', kind: 'hints', header: '🏷️ Hints', className: 'p-2 font-sans min-w-[110px]' },
+];
+
+const COLUMN_ALIAS_MAP: Record<string, string> = {
+  type: 'type',
+  time: 'time',
+  elapsed: 'time',
+  effort: 'effort',
+  efforts: 'effort',
+  movement: 'effort',
+  exercise: 'effort',
+  rep: 'reps',
+  reps: 'reps',
+  load: 'loads',
+  loads: 'loads',
+  weight: 'loads',
+  resistance: 'loads',
+  round: 'rounds',
+  rounds: 'rounds',
+  duration: 'durations',
+  durations: 'durations',
+  target: 'durations',
+  distance: 'distances',
+  distances: 'distances',
+  hint: 'hints',
+  hints: 'hints',
+};
+
+function makeCustomMetricColumn(rawType: string): SessionColumnDef {
+  return {
+    id: rawType,
+    kind: 'metric',
+    header: computeColumnLabel(rawType),
+    className: 'p-2 font-sans min-w-[72px]',
+    metricTypeLower: rawType.toLowerCase(),
+    editableType: rawType,
+  };
+}
+
+function buildActiveColumns(
+  outputs: readonly OutputStatementRow[],
+  explicitColumns?: readonly string[],
+): SessionColumnDef[] {
+  if (explicitColumns && explicitColumns.length > 0) {
+    const out: SessionColumnDef[] = [];
+    const seen = new Set<string>();
+    for (const rawCol of explicitColumns) {
+      const trimmed = rawCol.trim();
+      if (!trimmed) continue;
+      const mappedId = COLUMN_ALIAS_MAP[trimmed.toLowerCase()];
+      const base = mappedId ? BASE_COLUMNS.find((c) => c.id === mappedId) : undefined;
+      const col = base ?? makeCustomMetricColumn(trimmed);
+      if (seen.has(col.id.toLowerCase())) continue;
+      seen.add(col.id.toLowerCase());
+      out.push(col);
+    }
+    return out.length > 0 ? out : [...BASE_COLUMNS];
+  }
+
+  // Discover any custom / Property Note / #tag numeric metrics not covered by
+  // the 9 built-in buckets (e.g. calc.e1rm, pace, rpe, watts, cadence).
+  const dynamicCols: SessionColumnDef[] = [];
+  const seenDynamic = new Set<string>();
+  for (const row of outputs) {
+    if (!row.metrics) continue;
+    for (const m of row.metrics) {
+      const rawType = String(m.type ?? '').trim();
+      if (!rawType) continue;
+      const lower = rawType.toLowerCase();
+      if (isBaseBucketType(lower) || seenDynamic.has(lower)) continue;
+      if (typeof m.value === 'number' && Number.isFinite(m.value)) {
+        seenDynamic.add(lower);
+        dynamicCols.push(makeCustomMetricColumn(rawType));
+      }
+    }
+  }
+
+  if (dynamicCols.length === 0) return [...BASE_COLUMNS];
+  return [
+    ...BASE_COLUMNS.slice(0, BASE_COLUMNS.length - 1),
+    ...dynamicCols,
+    BASE_COLUMNS[BASE_COLUMNS.length - 1]!,
+  ];
+}
+
+function extractMetricsForColumn(
+  out: OutputStatementRow,
+  col: SessionColumnDef,
+  dynamicLowerTypes: ReadonlySet<string>,
+): IMetric[] {
+  const all = out.metrics ? Array.from(out.metrics) : [];
+  if (col.kind === 'metric' && col.metricTypeLower) {
+    return all.filter((m) => String(m.type).toLowerCase() === col.metricTypeLower);
+  }
+  switch (col.kind) {
+    case 'effort':
+      return all.filter((m) => EFFORT_TYPES.has(String(m.type).toLowerCase()));
+    case 'reps':
+      return all.filter((m) => String(m.type).toLowerCase() === 'rep');
+    case 'loads':
+      return all.filter((m) => {
+        const t = String(m.type).toLowerCase();
+        if (dynamicLowerTypes.has(t)) return false;
+        if (LOAD_TYPES.has(t)) return true;
+        return !isBaseBucketType(t) && typeof m.value === 'number';
+      });
+    case 'rounds':
+      return all.filter((m) => ROUND_TYPES.has(String(m.type).toLowerCase()));
+    case 'durations':
+      return all.filter((m) => DURATION_TYPES.has(String(m.type).toLowerCase()));
+    case 'distances':
+      return all.filter((m) => String(m.type).toLowerCase() === 'distance');
+    case 'hints':
+      return all.filter((m) => {
+        const t = String(m.type).toLowerCase();
+        return HINT_TYPES.has(t) || (!isBaseBucketType(t) && typeof m.value !== 'number');
+      });
+    default:
+      return [];
+  }
+}
+
+function resolveSortColumn(
+  rawCol: string,
+  columns: readonly SessionColumnDef[],
+): SessionColumnDef | undefined {
+  const lower = rawCol.trim().toLowerCase();
+  const alias = COLUMN_ALIAS_MAP[lower];
+  return (
+    columns.find((c) => c.id.toLowerCase() === lower) ??
+    (alias ? columns.find((c) => c.id === alias) : undefined) ??
+    makeCustomMetricColumn(rawCol)
+  );
+}
+
+function extractSortComparable(
+  out: OutputStatementRow,
+  col: SessionColumnDef,
+  dynamicLowerTypes: ReadonlySet<string>,
+): number | string | undefined {
+  if (col.kind === 'type') return String(out.outputType ?? '');
+  if (col.kind === 'time') {
+    if (out.timeSpan?.started !== undefined && out.timeSpan?.ended !== undefined) {
+      return out.timeSpan.ended - out.timeSpan.started;
+    }
+    return out.timeSpan?.started;
+  }
+  const list = extractMetricsForColumn(out, col, dynamicLowerTypes);
+  if (list.length === 0) return undefined;
+  // Prefer user-origin override when multiple metrics share a cell.
+  const preferred = list.find((m) => m.origin === 'user') ?? list[0]!;
+  if (typeof preferred.value === 'number' && Number.isFinite(preferred.value)) {
+    return preferred.value;
+  }
+  return preferred.image ?? String(preferred.value ?? '');
+}
+
+function compareRowsBySpecs(
+  a: OutputStatementRow,
+  b: OutputStatementRow,
+  specs: readonly SessionTableSortSpec[],
+  columns: readonly SessionColumnDef[],
+  dynamicLowerTypes: ReadonlySet<string>,
+): number {
+  for (const spec of specs) {
+    const col = resolveSortColumn(spec.col, columns);
+    if (!col) continue;
+    const va = extractSortComparable(a, col, dynamicLowerTypes);
+    const vb = extractSortComparable(b, col, dynamicLowerTypes);
+    if (va === undefined && vb === undefined) continue;
+    if (va === undefined) return 1;
+    if (vb === undefined) return -1;
+    const cmp =
+      typeof va === 'number' && typeof vb === 'number'
+        ? va - vb
+        : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' });
+    if (cmp !== 0) return spec.dir === 'desc' ? -cmp : cmp;
+  }
+  return 0;
+}
+
 // ── Filter pills ─────────────────────────────────────────────────────────────
 
 export function OutputFilterPills({
@@ -251,6 +525,7 @@ export function OutputFilterPills({
       {presets.map((p) => (
         <button
           key={p.label}
+          type="button"
           onClick={() => onChange(p.query)}
           data-testid={`output-filter-preset-${p.label.toLowerCase().replace(/\s+/g, '-')}`}
           className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] cursor-pointer transition-all ${
@@ -274,26 +549,35 @@ export interface OutputStatementsTableProps {
   filter?: string;
   /** Epoch ms the +offset column is relative to. Defaults to first statement start. */
   timeOrigin?: number;
-  /** Clears the active filter — enables the Card List's Clear-filter
-   *  affordance on the filtered-empty state. Optional; hosts without a
-   *  clearable filter omit it. */
+  /** Clears the active filter — enables the Card List's Clear-filter affordance. */
   onClearFilter?: () => void;
+  /** Optional explicit column whitelist & order (from YAML `columns: [...]`). */
+  columns?: readonly string[];
+  /** Initial or controlled sort order (from YAML `sort: [...]`). */
+  sort?: readonly SessionTableSortSpec[];
+  /** Notifies host when user clicks column headers to re-sort. */
+  onSortChange?: (next: SessionTableSortSpec[]) => void;
+  /** Optional maximum rows to display after filtering and sorting. */
+  limit?: number;
+  /** Optional inline actuals editor callback (`captureMetricCorrection`). */
+  onEditMetric?: (payload: InlineMetricEditPayload) => void | Promise<void>;
+  /** Optional PR highlights keyed by row `id` or `sourceBlockKey`. */
+  prHighlights?: ReadonlyMap<string | number, RowPrHighlight> | Record<string, RowPrHighlight>;
 }
 
-/** The Card List — phone presentation below `sm`. One stacked card per output
- *  statement on a type-dot timeline rail: header (type chip + movement badges
- *  | compact `+offset (elapsed)`), category-ordered metric badges, hints row.
- *  Same rows, filter pipeline, and badge components as the table. */
+/** The Card List — phone presentation below `sm`. */
 function StatementCards({
   rows,
   outputs,
   t0,
   onClearFilter,
+  prHighlights,
 }: {
   rows: readonly OutputStatementRow[];
   outputs: readonly OutputStatementRow[];
   t0: number | undefined;
   onClearFilter?: () => void;
+  prHighlights?: ReadonlyMap<string | number, RowPrHighlight> | Record<string, RowPrHighlight>;
 }) {
   if (rows.length === 0) {
     const filtered = outputs.length > 0;
@@ -332,8 +616,7 @@ function StatementCards({
         const hoverInfo = `#${out.id ?? idx + 1} · Block: ${out.sourceBlockKey || 'session'}${
           out.completionReason ? ` · Reason: ${out.completionReason}` : ''
         }`;
-        // Category order per the locked Card List anatomy: reps → loads →
-        // rounds → durations → distances; movement badges live in the header.
+        const pr = lookupPrHighlight(out, prHighlights);
         const bodyMetrics = [...cats.reps, ...cats.loads, ...cats.rounds, ...cats.durations, ...cats.distances];
         const hasBody = bodyMetrics.length > 0;
 
@@ -360,6 +643,7 @@ function StatementCards({
                     {String(out.outputType ?? 'system').slice(0, 4)}
                   </span>
                   {presentBadges(cats.efforts)}
+                  {pr && <PRBadge improvement={pr.improvement} unit={pr.unit} label={pr.label} />}
                 </div>
                 <div className="whitespace-nowrap text-right font-mono text-[11px] tabular-nums leading-tight">
                   <span className="font-bold text-primary">{offsetStr}</span>{' '}
@@ -385,124 +669,371 @@ function StatementCards({
   );
 }
 
-/** The Session Results surface — Card List below `sm`, the 9-column table at
- *  `sm` and above. One component: same props, same filtering; hosts (analytics
- *  explorer, editor query blocks, workbench) inherit the phone path. */
+/** The Session Results surface — Card List below `sm`, dynamic sortable/editable table at `sm` and up. */
 export function OutputStatementsTable({
   outputs,
   filter = '',
   timeOrigin,
   onClearFilter,
+  columns: explicitColumns,
+  sort: controlledSort,
+  onSortChange,
+  limit,
+  onEditMetric,
+  prHighlights,
 }: OutputStatementsTableProps) {
   const t0 = timeOrigin ?? (outputs.length > 0 ? outputs[0].timeSpan?.started : undefined);
+  const [internalSort, setInternalSort] = useState<SessionTableSortSpec[]>(
+    controlledSort ? [...controlledSort] : [],
+  );
+  useEffect(() => {
+    if (controlledSort) setInternalSort([...controlledSort]);
+  }, [controlledSort]);
+
+  const activeSort = controlledSort ?? internalSort;
+
+  const activeColumns = useMemo(
+    () => buildActiveColumns(outputs, explicitColumns),
+    [outputs, explicitColumns],
+  );
+
+  const dynamicLowerTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of activeColumns) {
+      if (c.kind === 'metric' && c.metricTypeLower) set.add(c.metricTypeLower);
+    }
+    return set;
+  }, [activeColumns]);
+
+  const handleSortClick = useCallback(
+    (colId: string, shiftKey: boolean) => {
+      const computeNext = (prev: readonly SessionTableSortSpec[]): SessionTableSortSpec[] => {
+        const existing = prev.find((s) => s.col.toLowerCase() === colId.toLowerCase());
+        if (shiftKey) {
+          if (!existing) return [...prev, { col: colId, dir: 'asc' }];
+          if (existing.dir === 'asc') {
+            return prev.map((s) =>
+              s.col.toLowerCase() === colId.toLowerCase() ? { ...s, dir: 'desc' } : s,
+            );
+          }
+          return prev.filter((s) => s.col.toLowerCase() !== colId.toLowerCase());
+        }
+        if (!existing) return [{ col: colId, dir: 'asc' }];
+        if (existing.dir === 'asc') return [{ col: colId, dir: 'desc' }];
+        return [];
+      };
+      const next = computeNext(activeSort);
+      setInternalSort(next);
+      onSortChange?.(next);
+    },
+    [activeSort, onSortChange],
+  );
 
   const rows = useMemo(() => {
-    if (!filter.trim()) return outputs;
-    return outputs.filter((out) => matchesOutputFilter(out, filter));
-  }, [outputs, filter]);
+    const filtered = !filter.trim()
+      ? [...outputs]
+      : outputs.filter((out) => matchesOutputFilter(out, filter));
+    if (activeSort.length > 0) {
+      filtered.sort((a, b) => compareRowsBySpecs(a, b, activeSort, activeColumns, dynamicLowerTypes));
+    }
+    if (limit !== undefined && limit > 0) {
+      return filtered.slice(0, limit);
+    }
+    return filtered;
+  }, [outputs, filter, activeSort, activeColumns, dynamicLowerTypes, limit]);
+
+  // Inline actuals editor state
+  const [editingCell, setEditingCell] = useState<{
+    rowKey: string;
+    colId: string;
+    metricType: string;
+    unit?: string;
+    draft: string;
+    error?: string;
+    saving?: boolean;
+  } | null>(null);
+
+  const commitInlineEdit = useCallback(
+    async (out: OutputStatementRow) => {
+      if (!editingCell || !onEditMetric || !out.sourceBlockKey) return;
+      const num = Number(editingCell.draft.trim());
+      if (!Number.isFinite(num) || editingCell.draft.trim() === '') {
+        setEditingCell((prev) => (prev ? { ...prev, error: 'Enter a valid number' } : null));
+        return;
+      }
+      if (editingCell.metricType.toLowerCase() === 'rep' && (!Number.isSafeInteger(num) || num < 0)) {
+        setEditingCell((prev) => (prev ? { ...prev, error: 'Reps must be a whole number ≥ 0' } : null));
+        return;
+      }
+      const image = editingCell.unit ? `${num} ${editingCell.unit}` : String(num);
+      setEditingCell((prev) => (prev ? { ...prev, saving: true, error: undefined } : null));
+      try {
+        await onEditMetric({
+          occurrence: {
+            blockKey: out.sourceBlockKey,
+            ...(out.sourceStatementId !== undefined ? { sourceStatementId: out.sourceStatementId } : {}),
+            ...(out.stackLevel !== undefined ? { stackLevel: out.stackLevel } : {}),
+          },
+          metric: {
+            type: editingCell.metricType,
+            value: num,
+            image,
+          },
+        });
+        setEditingCell(null);
+      } catch (err) {
+        setEditingCell((prev) =>
+          prev ? { ...prev, saving: false, error: err instanceof Error ? err.message : String(err) } : null,
+        );
+      }
+    },
+    [editingCell, onEditMetric],
+  );
+
+  const prAttachColId = useMemo(() => {
+    return (
+      activeColumns.find((c) => c.kind === 'effort')?.id ??
+      activeColumns.find((c) => c.kind === 'loads')?.id ??
+      activeColumns[0]?.id
+    );
+  }, [activeColumns]);
 
   return (
     <>
       {/* Phone: Card List below sm (wayfinder #992/#997) */}
       <div className="sm:hidden">
-        <StatementCards rows={rows} outputs={outputs} t0={t0} onClearFilter={onClearFilter} />
+        <StatementCards
+          rows={rows}
+          outputs={outputs}
+          t0={t0}
+          onClearFilter={onClearFilter}
+          prHighlights={prHighlights}
+        />
       </div>
-      {/* sm and up: the 9-column table */}
+      {/* sm and up: dynamic sortable/editable table */}
       <div className="hidden overflow-x-auto rounded-md border border-border/50 bg-background/40 sm:block">
         <table className="w-full text-left font-mono text-xs border-collapse" data-testid="output-statements-table">
           <thead>
             <tr className="border-b border-border/60 bg-muted/40 text-[10px] uppercase font-bold text-muted-foreground tracking-wider whitespace-nowrap">
-              <th className="p-2 w-12 text-center">Type</th>
-              <th className="p-2 min-w-[110px]">Time</th>
-              <th className="p-2 font-sans min-w-[140px]">🏃 Movement</th>
-              <th className="p-2 font-sans min-w-[60px]">🔢 Reps</th>
-              <th className="p-2 font-sans min-w-[70px]">💪 Load</th>
-              <th className="p-2 font-sans min-w-[80px]">🔄 Rounds</th>
-              <th className="p-2 font-sans min-w-[70px]">⏱️ Target</th>
-              <th className="p-2 font-sans min-w-[70px]">📏 Distance</th>
-              <th className="p-2 font-sans min-w-[110px]">🏷️ Hints</th>
+              {activeColumns.map((col) => {
+                const sortEntry = activeSort.find(
+                  (s) =>
+                    s.col.toLowerCase() === col.id.toLowerCase() ||
+                    COLUMN_ALIAS_MAP[s.col.toLowerCase()] === col.id,
+                );
+                const ariaSort = sortEntry
+                  ? sortEntry.dir === 'asc'
+                    ? 'ascending'
+                    : 'descending'
+                  : 'none';
+                return (
+                  <th
+                    key={col.id}
+                    aria-sort={ariaSort}
+                    onClick={(e) => handleSortClick(col.id, e.shiftKey)}
+                    data-testid={`sort-col-${col.id}`}
+                    className={`${col.className} cursor-pointer select-none hover:text-foreground transition-colors`}
+                    title={`Sort by ${col.header}`}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span>{col.header}</span>
+                      {sortEntry && (
+                        <span className="text-primary font-mono text-[10px]" aria-hidden>
+                          {sortEntry.dir === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
-        <tbody className="divide-y divide-border/40">
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={9} className="p-8 text-center text-muted-foreground font-sans text-xs">
-                {outputs.length === 0
-                  ? 'No output statements recorded for this run.'
-                  : 'No output statements match the current filter.'}
-              </td>
-            </tr>
-          ) : (
-            rows.map((out, idx) => {
-              const cats = extractMetricsByCategory(out.metrics);
-              const started = out.timeSpan?.started;
-              const ended = out.timeSpan?.ended;
-              const elapsedStr = ended !== undefined && started !== undefined ? formatMMSS(ended - started) : 'running';
-              const wallTimeStr = formatClockTime(new Date(ended ?? started ?? 0));
-              const offsetStr = started !== undefined && t0 !== undefined ? `+${formatMMSS(started - t0)}` : '+00:00';
-              const hoverInfo = `#${out.id ?? idx + 1} · Block: ${out.sourceBlockKey || 'session'}${
-                out.completionReason ? ` · Reason: ${out.completionReason}` : ''
-              }`;
-
-              const badgeCell = (badges: IMetric[]) => (
-                <td className="p-2 font-sans">
-                  {badges.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">{presentBadges(badges)}</div>
-                  ) : (
-                    <span className="text-muted-foreground/30 font-mono text-[11px] select-none">—</span>
-                  )}
+          <tbody className="divide-y divide-border/40">
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={activeColumns.length} className="p-8 text-center text-muted-foreground font-sans text-xs">
+                  {outputs.length === 0
+                    ? 'No output statements recorded for this run.'
+                    : 'No output statements match the current filter.'}
                 </td>
-              );
+              </tr>
+            ) : (
+              rows.map((out, idx) => {
+                const started = out.timeSpan?.started;
+                const ended = out.timeSpan?.ended;
+                const elapsedStr =
+                  ended !== undefined && started !== undefined ? formatMMSS(ended - started) : 'running';
+                const wallTimeStr = formatClockTime(new Date(ended ?? started ?? 0));
+                const offsetStr = started !== undefined && t0 !== undefined ? `+${formatMMSS(started - t0)}` : '+00:00';
+                const hoverInfo = `#${out.id ?? idx + 1} · Block: ${out.sourceBlockKey || 'session'}${
+                  out.completionReason ? ` · Reason: ${out.completionReason}` : ''
+                }`;
+                const rowKey = String(out.id ?? `${out.sourceBlockKey ?? 'row'}-${idx}`);
+                const pr = lookupPrHighlight(out, prHighlights);
+                const canInlineEditRow =
+                  Boolean(onEditMetric) &&
+                  String(out.outputType ?? '').toLowerCase() === 'segment' &&
+                  Boolean(out.sourceBlockKey);
 
-              return (
-                <tr
-                  key={out.id ?? idx}
-                  title={hoverInfo}
-                  className="hover:bg-muted/30 transition-colors group cursor-default"
-                >
-                  {/* 1. Type (minimal size, first column) */}
-                  <td className="p-2 text-center whitespace-nowrap">
-                    <span
-                      className={`inline-block rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider ${
-                        OUTPUT_TYPE_CLASS[String(out.outputType)] ?? OUTPUT_TYPE_CLASS.system
-                      }`}
-                      title={`Type: ${out.outputType} | ${hoverInfo}`}
-                    >
-                      {String(out.outputType ?? 'system').slice(0, 4)}
-                    </span>
-                  </td>
+                return (
+                  <tr
+                    key={rowKey}
+                    title={hoverInfo}
+                    className="hover:bg-muted/30 transition-colors group cursor-default"
+                  >
+                    {activeColumns.map((col) => {
+                      if (col.kind === 'type') {
+                        return (
+                          <td key={col.id} className="p-2 text-center whitespace-nowrap">
+                            <span
+                              className={`inline-block rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider ${
+                                OUTPUT_TYPE_CLASS[String(out.outputType)] ?? OUTPUT_TYPE_CLASS.system
+                              }`}
+                              title={`Type: ${out.outputType} | ${hoverInfo}`}
+                            >
+                              {String(out.outputType ?? 'system').slice(0, 4)}
+                            </span>
+                          </td>
+                        );
+                      }
 
-                  {/* 2. Consolidated time (line 1: offset & elapsed, line 2: wall time) */}
-                  <td className="p-2 whitespace-nowrap leading-tight">
-                    <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                      <span className="font-bold text-primary tabular-nums">{offsetStr}</span>
-                      <span className="text-[10px] text-muted-foreground/80 tabular-nums">({elapsedStr})</span>
-                    </div>
-                    <div className="font-mono text-[10px] text-muted-foreground/70 tabular-nums">
-                      {wallTimeStr}
-                    </div>
-                  </td>
+                      if (col.kind === 'time') {
+                        return (
+                          <td key={col.id} className="p-2 whitespace-nowrap leading-tight">
+                            <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                              <span className="font-bold text-primary tabular-nums">{offsetStr}</span>
+                              <span className="text-[10px] text-muted-foreground/80 tabular-nums">({elapsedStr})</span>
+                            </div>
+                            <div className="font-mono text-[10px] text-muted-foreground/70 tabular-nums">
+                              {wallTimeStr}
+                            </div>
+                          </td>
+                        );
+                      }
 
-                  {/* 3. Movement */}
-                  {badgeCell(cats.efforts)}
-                  {/* 4. Reps */}
-                  {badgeCell(cats.reps)}
-                  {/* 5. Load */}
-                  {badgeCell(cats.loads)}
-                  {/* 6. Rounds */}
-                  {badgeCell(cats.rounds)}
-                  {/* 7. Target (durations) */}
-                  {badgeCell(cats.durations)}
-                  {/* 8. Distance */}
-                  {badgeCell(cats.distances)}
-                  {/* 9. Hints */}
-                  {badgeCell(cats.hints)}
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
+                      const badges = extractMetricsForColumn(out, col, dynamicLowerTypes);
+                      const isEditableCol = canInlineEditRow && Boolean(col.editableType);
+                      const isEditingThis =
+                        editingCell?.rowKey === rowKey && editingCell?.colId === col.id;
+                      const showPrHere = pr && col.id === prAttachColId;
+
+                      if (isEditingThis && editingCell) {
+                        return (
+                          <td key={col.id} className="p-1.5 font-sans">
+                            <form
+                              className="flex flex-col gap-0.5"
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                void commitInlineEdit(out);
+                              }}
+                            >
+                              <div className="inline-flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  autoFocus
+                                  disabled={editingCell.saving}
+                                  data-testid="inline-metric-input"
+                                  aria-label={`Edit ${col.header}`}
+                                  value={editingCell.draft}
+                                  onChange={(e) =>
+                                    setEditingCell((prev) =>
+                                      prev ? { ...prev, draft: e.target.value, error: undefined } : null,
+                                    )
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      e.stopPropagation();
+                                      setEditingCell(null);
+                                    }
+                                  }}
+                                  className="w-16 rounded border border-primary bg-background px-1.5 py-0.5 font-mono text-xs text-foreground focus:outline-none"
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={editingCell.saving}
+                                  data-testid="inline-metric-save"
+                                  className="rounded bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingCell(null)}
+                                  className="rounded border border-border px-1 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              {editingCell.error && (
+                                <span role="alert" className="text-[10px] text-destructive">
+                                  {editingCell.error}
+                                </span>
+                              )}
+                            </form>
+                          </td>
+                        );
+                      }
+
+                      const openEditor = () => {
+                        if (!isEditableCol || !col.editableType) return;
+                        const preferred = badges.find((m) => m.origin === 'user') ?? badges.find((m) => typeof m.value === 'number');
+                        const targetType = preferred ? String(preferred.type) : col.editableType;
+                        const unit = preferred && 'unit' in preferred && typeof (preferred as { unit?: unknown }).unit === 'string'
+                          ? (preferred as { unit: string }).unit
+                          : undefined;
+                        setEditingCell({
+                          rowKey,
+                          colId: col.id,
+                          metricType: targetType,
+                          unit,
+                          draft: preferred && typeof preferred.value === 'number' ? String(preferred.value) : '',
+                        });
+                      };
+
+                      return (
+                        <td key={col.id} className="p-2 font-sans">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {badges.length > 0 ? (
+                              isEditableCol ? (
+                                <button
+                                  type="button"
+                                  onClick={openEditor}
+                                  data-testid={`edit-cell-${col.id}-${idx}`}
+                                  title={`Click to edit ${col.header}`}
+                                  className="inline-flex flex-wrap items-center gap-1 rounded hover:ring-1 hover:ring-primary/50 cursor-pointer text-left"
+                                >
+                                  {presentBadges(badges)}
+                                </button>
+                              ) : (
+                                presentBadges(badges)
+                              )
+                            ) : isEditableCol ? (
+                              <button
+                                type="button"
+                                onClick={openEditor}
+                                data-testid={`edit-cell-${col.id}-${idx}`}
+                                title={`Log ${col.header}`}
+                                className="text-muted-foreground/50 hover:text-primary font-mono text-[11px] px-1 rounded border border-transparent hover:border-dashed hover:border-primary/50 cursor-pointer"
+                              >
+                                + log
+                              </button>
+                            ) : (
+                              <span className="text-muted-foreground/30 font-mono text-[11px] select-none">—</span>
+                            )}
+                            {showPrHere && (
+                              <PRBadge improvement={pr.improvement} unit={pr.unit} label={pr.label} />
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
     </>
   );

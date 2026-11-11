@@ -98,6 +98,16 @@ export function entryOpenHref(entry: Entry): string {
         const label = segments?.label ?? entry.sourceNote ?? entry.id
         return `/t/${encodeURIComponent(type)}/${encodeURIComponent(label)}`
       }
+      case 'feed':
+        return entry.sourceNote === 'local'
+          ? `/notebooks?q=${encodeURIComponent(':notebook{feed:local,subscribed:true,false}')}`
+          : `/feed/${encodeURIComponent(entry.sourceNote || entry.id)}`
+      case 'notebook': {
+        const base = `/notebook/${encodeURIComponent(entry.sourceNotebook)}`
+        return entry.feedId && entry.feedId !== 'local' && entry.feedId !== 'core' && entry.subscribed === false
+          ? `${base}?feed=${encodeURIComponent(entry.feedId)}`
+          : base
+      }
       case 'effort':
         return `/effort/${encodeURIComponent(entry.effort?.slug ?? entry.id)}`
       case 'result':

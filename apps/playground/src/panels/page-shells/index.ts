@@ -19,6 +19,12 @@ export { ScopedRuntimeProvider, type ScopedRuntimeProviderProps } from './Scoped
 // Page Shells
 export { CanvasPage, type CanvasPageProps } from './CanvasPage';
 export { StickyPageHeader, type StickyPageHeaderProps } from './StickyPageHeader';
+export {
+  L3DrawerTrigger,
+  L3DrawerStateProvider,
+  useL3DrawerState,
+  type L3DrawerState,
+} from './L3DrawerTrigger';
 export { measureStickyBoundary, useStickyBoundaryOffset, STICKY_BOUNDARY_SELECTOR } from './stickyBoundary';
 export { StickyGroupHeader, type StickyGroupHeaderProps } from './StickyGroupHeader';
 export {

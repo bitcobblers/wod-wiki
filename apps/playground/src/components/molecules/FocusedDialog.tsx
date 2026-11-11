@@ -9,7 +9,7 @@
 import React, { useEffect } from "react";
 import * as ReactDOM from "react-dom";
 import { X } from "lucide-react";
-import { TEST_IDS } from "@/testing/contracts/TestIdContract";
+import { TEST_IDS } from "@/lib/testIds";
 
 export interface FocusedDialogProps {
   /** Title shown in the header bar. If omitted, no header is rendered. */

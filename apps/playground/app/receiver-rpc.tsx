@@ -42,7 +42,7 @@ import {
     dismissReceiverBootLoader,
     RECEIVER_BOOT_DEGRADED_STATUS,
     RECEIVER_BOOT_READY_TIMEOUT_MS,
-} from './receiverBootLoader';
+} from '@/services/cast/receiverBootLoader';
 import '@/index.css';
 // ============================================================================
 // ReceiverApp — Main receiver component

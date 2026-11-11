@@ -13,14 +13,18 @@
  * collapses it into a single call.
  */
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type ComponentType } from 'react'
+import { PlusCircle } from 'lucide-react'
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown'
 import type { ScriptBlock } from '@/components/Editor/types'
 import type { Session } from '@/types/storage'
-import type { NavItemL3 } from '../../nav/navTypes'
-import { useNav } from '../../nav/NavContext'
+import { openCreateReferenceDialog } from '../../components/organisms/references/CreateReferenceFromLabelDialog'
+import { useNav, type L3ActionItem } from '../../nav/NavContext'
 import { extractPageIndex, mapIndexToL3 } from './pageUtils'
+import { useLiveNoteFacets } from './useLiveNoteFacets'
 import { groupResultsByVersion } from '@/utils/groupResultsByVersion';
+
+const QUERY_FENCE_RE = /^[ \t]*```query\b/m
 
 export interface UseNotePageNavOptions {
   /** Current editor content. */
@@ -39,20 +43,27 @@ export interface UseNotePageNavOptions {
   /** Optional callback to edit the note from the L3 header item. */
   onEditNote?: () => void
   /**
-   * Per-page L3 helpful actions (Clone, Placements, Reset, Copy link…),
-   * published after the outline so "On this page" stays first. They ride
-   * the same NavContext l3Items channel as the outline, so the 2xl+ rail,
-   * the lg–2xl ⋯ menu and the mobile right drawer all carry them.
+   * Per-page L3 context actions (Add timer, Clone, Note placements, Reset,
+   * Copy link…), published into L3 Slot 3 ("Actions") via `setL3Actions`
+   * so "On this page" remains purely structural Goto anchors.
    */
   helpfulActions?: NoteHelpfulAction[]
+  /** Optional canonical note id so unrecognized-label creation rebuilds this note's containment index. */
+  noteId?: string
+  /** Set false on YAML entity definition pages (Effort/Equipment) so unsaved self-definitions don't prompt. */
+  enableUnrecognizedActions?: boolean
   /** Set to false on pages/modes where outline is managed elsewhere (e.g. multi-note dates). */
   enabled?: boolean
 }
-/** A per-page L3 helpful action rendered after the page outline. */
+
+/** A per-page L3 context action rendered under the "Actions" section. */
 export interface NoteHelpfulAction {
   id: string
   label: string
+  icon?: ComponentType<{ className?: string }>
   onRun: () => void
+  disabled?: boolean
+  testId?: string
   /**
    * Bump to re-publish when the handler closes over freshly loaded data
    * (e.g. the resolved effort). ids/labels already re-publish.
@@ -60,27 +71,26 @@ export interface NoteHelpfulAction {
   key?: string
 }
 
-/** Helpful actions as NavItemL3 call rows (whole-row click runs). */
-export function helpfulActionsToL3(
+/** Convert note helpful actions into L3 Slot 3 action rows with latest-closure lookup. */
+export function helpfulActionsToL3Actions(
   actions: readonly NoteHelpfulAction[],
   actionsRef?: { current: readonly NoteHelpfulAction[] },
-): NavItemL3[] {
+): L3ActionItem[] {
   return actions.map(a => ({
     id: `helpful-${a.id}`,
     label: a.label,
-    level: 3 as const,
-    action: {
-      type: 'call' as const,
-      handler: () => {
-        if (actionsRef) {
-          const latest = actionsRef.current.find(item => item.id === a.id)
-          if (latest) {
-            latest.onRun()
-            return
-          }
+    icon: a.icon,
+    disabled: a.disabled,
+    testId: a.testId,
+    onRun: () => {
+      if (actionsRef) {
+        const latest = actionsRef.current.find(item => item.id === a.id)
+        if (latest) {
+          latest.onRun()
+          return
         }
-        a.onRun()
-      },
+      }
+      a.onRun()
     },
   }))
 }
@@ -153,6 +163,8 @@ export function useNotePageNav({
   results,
   onEditNote,
   helpfulActions,
+  noteId,
+  enableUnrecognizedActions = true,
   enabled = true,
 }: UseNotePageNavOptions): PageNavLink[] {
   const index = useMemo(
@@ -160,22 +172,66 @@ export function useNotePageNav({
     [content, scriptBlocks, onStartWorkout, results, onEditNote],
   )
 
+  const hasEmbeddedQueryBlocks = useMemo(() => QUERY_FENCE_RE.test(content), [content])
+
+  const liveFacets = useLiveNoteFacets(content, {
+    enabled: enabled && enableUnrecognizedActions,
+  })
+
+  const defineActions = useMemo<NoteHelpfulAction[]>(() => {
+    if (!enableUnrecognizedActions) return []
+    return liveFacets.unrecognized.slice(0, 6).map(item => {
+      const displayLabel = item.suggestedKind === 'tag' ? `#${item.rawLabel}` : item.rawLabel
+      return {
+        id: `define-${item.suggestedKind}-${item.candidateSlug}`,
+        label: `Define "${displayLabel}"…`,
+        icon: PlusCircle,
+        testId: `l3-define-${item.candidateSlug}`,
+        key: noteId ?? '',
+        onRun: () => openCreateReferenceDialog({ item, noteId }),
+      }
+    })
+  }, [enableUnrecognizedActions, liveFacets.unrecognized, noteId])
+
+  const combinedActions = useMemo<readonly NoteHelpfulAction[]>(
+    () => (defineActions.length > 0 ? [...defineActions, ...(helpfulActions ?? [])] : (helpfulActions ?? [])),
+    [defineActions, helpfulActions],
+  )
+
   // Latest helpful actions by ref; the publish effect re-runs when their
-  // signature (ids + labels + keys) changes, so freshly loaded closures
-  // replace the published handlers without re-running every render.
-  const helpfulRef = useRef<readonly NoteHelpfulAction[]>(helpfulActions ?? [])
-  helpfulRef.current = helpfulActions ?? []
-  const helpfulSig = helpfulRef.current.map(a => [a.id, a.label, a.key ?? ''].join(':')).join(';')
+  // signature (ids + labels + keys + disabled) changes, so freshly loaded
+  // closures replace the published handlers without re-running every render.
+  const helpfulRef = useRef<readonly NoteHelpfulAction[]>(combinedActions)
+  helpfulRef.current = combinedActions
+  const helpfulSig = helpfulRef.current
+    .map(a => [a.id, a.label, a.key ?? '', a.disabled ? '1' : '0'].join(':'))
+    .join(';')
 
-  const { setL3Items } = useNav()
-  useEffect(() => {
-    if (!enabled) return
-    return () => setL3Items([])
-  }, [enabled, setL3Items])
+  const { setL3Items, setL3Actions, setAnalyticsControls } = useNav()
 
   useEffect(() => {
     if (!enabled) return
-    setL3Items([...mapIndexToL3(index), ...helpfulActionsToL3(helpfulRef.current, helpfulRef)])
-  }, [enabled, index, setL3Items, helpfulSig])
+    return () => {
+      setL3Items([])
+      setL3Actions?.([])
+      setAnalyticsControls?.(null)
+    }
+  }, [enabled, setL3Items, setL3Actions, setAnalyticsControls])
+
+  useEffect(() => {
+    if (!enabled) return
+    setL3Items(mapIndexToL3(index))
+  }, [enabled, index, setL3Items])
+
+  useEffect(() => {
+    if (!enabled) return
+    setL3Actions?.(helpfulActionsToL3Actions(helpfulRef.current, helpfulRef))
+  }, [enabled, setL3Actions, helpfulSig])
+
+  useEffect(() => {
+    if (!enabled) return
+    setAnalyticsControls?.(hasEmbeddedQueryBlocks ? { showRange: false, showUnits: true } : null)
+  }, [enabled, hasEmbeddedQueryBlocks, setAnalyticsControls])
+
   return index
 }

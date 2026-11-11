@@ -13,37 +13,40 @@ completed sends by grade. Capture a hang test / bodyweight in a
 ```wellness fence (`hang: 30kg`, `weight: 80kg`) on strength days; the
 ring target is the frontmatter $hangGoal token.
 
-## Max-hang goal
-Finger strength vs the benchmark cohort?
-
-```query:goal-rings-2 goal=$hangGoal
-max:calc.mvcBw{}
+```query
+title: Max-hang goal
+description: Finger strength vs the benchmark cohort?
+view: goal-rings
+span: 2
+goal: $hangGoal
+query: max:calc.mvcBw{}
 ```
 
-## Max-hang trend
-Is the strength block working? Retest every 4–8 weeks.
-
-```query:timeseries-2
-last:calc.mvcBw{} by {week}
+```query
+title: Max-hang trend
+description: Is the strength block working? Retest every 4–8 weeks.
+view: timeseries
+span: 2
+query: last:calc.mvcBw{} by {week}
 ```
 
-## Grade pyramid
-Base wide enough to support the goal grade?
-
-```query:bar
-count:calc.sends{} by {grade}
+```query
+title: Grade pyramid
+description: Base wide enough to support the goal grade?
+view: bar
+query: count:calc.sends{} by {grade}
 ```
 
-## Finger load (ACWR)
-Keeping tendons in the safe ramp zone?
-
-```query:timeseries
-avg:calc.acwr{} by {day}
+```query
+title: Finger load (ACWR)
+description: Keeping tendons in the safe ramp zone?
+view: timeseries
+query: avg:calc.acwr{} by {day}
 ```
 
-## Hangboard sessions
-Hitting the programmed frequency?
-
-```query:value
-count:sessionLoad{tags:hangboard}
+```query
+title: Hangboard sessions
+description: Hitting the programmed frequency?
+view: value
+query: count:sessionLoad{tags:hangboard}
 ```

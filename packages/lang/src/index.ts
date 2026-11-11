@@ -30,6 +30,22 @@ export * from './analytics';
 // 8. Output statement conversion
 export * from './conversion';
 
+// 9. Canonical time & duration utilities
+export {
+  formatTimeMMSS,
+  formatTimeHHMMSS,
+  formatTimePrecise,
+  formatSecondsMMSS,
+  formatSecondsHHMMSS,
+  formatDurationSmart,
+  formatDurationCompact,
+  formatTimestamp,
+} from './utils/formatTime';
+export {
+  formatTime,
+  calculateDuration,
+  roundToTenth,
+} from './utils/timeUtils';
 
 // 10. Parser fixture DSL & comparator (golden-test harness)
 export * from './parser-fixture';

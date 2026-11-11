@@ -318,7 +318,7 @@ function parseMetaLines(lines: string[]): ParsedFrontmatter['meta'] {
       }
       if (items.length > 0) {
         meta[key] = items;
-      } else if (key === 'metrics' || key === 'summaries' || key === 'widgets') {
+      } else if (key === 'metrics' || key === 'summaries' || key === 'widgets' || key === 'baseAttributes') {
         while (i + 1 < lines.length) {
           const childLine = lines[i + 1];
           if (/^\s*(?:#.*)?$/.test(childLine)) {
@@ -328,7 +328,10 @@ function parseMetaLines(lines: string[]): ParsedFrontmatter['meta'] {
           const childMatch = childLine.match(/^\s{2,}([A-Za-z][\w.-]*)\s*:(.*)$/);
           if (!childMatch) break;
           i++;
-          const childKey = `${key}.${childMatch[1]}`;
+          const childName = childMatch[1];
+          const childKey = key === 'baseAttributes'
+            ? (childName === 'met' || childName === 'disciplineFactor' ? `metrics.${childName}` : childName)
+            : `${key}.${childName}`;
           const childRaw = childMatch[2].trim();
           if (childRaw === '') {
             const childItems: string[] = [];

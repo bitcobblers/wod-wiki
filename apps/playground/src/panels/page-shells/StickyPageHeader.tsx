@@ -23,6 +23,7 @@
 
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { L3DrawerTrigger, useL3DrawerState } from './L3DrawerTrigger';
 
 export interface StickyPageHeaderProps {
   /** DOM anchor on the sticky zone (e.g. L3 "page title" scroll target). */
@@ -62,6 +63,9 @@ export function StickyPageHeader({
   titleTestId,
   className,
 }: StickyPageHeaderProps) {
+  const { railHasContent } = useL3DrawerState();
+  const showRightCluster = Boolean(actions || railHasContent);
+
   return (
     <div
       id={id}
@@ -95,9 +99,10 @@ export function StickyPageHeader({
           </div>
         )}
         {queryBar && <div className="min-w-0 flex-1">{queryBar}</div>}
-        {actions && (
+        {showRightCluster && (
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
             {actions}
+            <L3DrawerTrigger />
           </div>
         )}
       </div>

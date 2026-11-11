@@ -2,13 +2,13 @@ import type { DocumentItem } from '@/components/Editor/utils/documentStructure';
 import type { ScriptBlock } from '@/components/Editor/types';
 import type { Segment } from '@bitcobblers/wod-wiki-engine';
 import type { ViewMode } from '@/panels/panel-system/ResponsiveViewport';
-import type { ExecutionStatus } from '@bitcobblers/wod-wiki-engine';
+import type { UseRuntimeExecutionReturn } from '@bitcobblers/wod-wiki-engine/react';
 import type { RpcWorkbenchUpdate } from '@/services/cast/rpc/RpcMessages';
 import { buildPreviewProjection, buildReviewProjection } from './workbenchProjection';
 
 export interface WorkbenchModeResolverState {
   readonly viewMode: ViewMode;
-  readonly executionStatus: ExecutionStatus;
+  readonly executionStatus: UseRuntimeExecutionReturn['status'];
   readonly runtime: unknown | null;
   readonly analyticsSegments: Segment[];
   readonly selectedBlock: ScriptBlock | null;

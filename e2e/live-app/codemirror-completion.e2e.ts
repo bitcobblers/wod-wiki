@@ -34,6 +34,12 @@ test('playground note editor applies nested WQL and Whiteboard completions', asy
   expect(await note.editorDoc()).toContain(':note{');
 
   await page.keyboard.type('source:journal}');
+  await page.keyboard.type(' | ');
+  const sum = menu.locator('.cm-completionLabel', { hasText: /^sum$/ });
+  await expect(sum).toHaveCount(1);
+  await sum.click();
+  expect(await note.editorDoc()).toContain(':note{source:journal} | :sum{');
+  await page.keyboard.press('Escape');
   await note.replaceEditorMarker('WORKOUT');
   await page.keyboard.type('100 k');
   const kg = menu.locator('.cm-completionLabel', { hasText: /^kg$/ });

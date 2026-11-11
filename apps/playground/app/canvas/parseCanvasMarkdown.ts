@@ -8,8 +8,8 @@ import { parseFrontmatter } from '@/lib/frontmatter'
  * into a structured `ParsedCanvasPage` that `CanvasPage.tsx` renders.
  */
 
-/** Where the runtime opens when set-state: track fires. */
-export type OpenMode = 'view' | 'dialog' | 'route'
+import type { OpenMode, PipelineStep } from '@/nav/navTypes'
+export type { OpenMode, PipelineStep }
 
 export interface ViewButton {
   label: string
@@ -27,11 +27,6 @@ export interface ViewBlock {
   width: string
   /** Buttons rendered directly on the sticky panel. */
   buttons: ViewButton[]
-}
-
-export interface PipelineStep {
-  action: string
-  value: string
 }
 
 export interface CommandBlock {

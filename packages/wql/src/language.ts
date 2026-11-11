@@ -14,7 +14,7 @@
 
 import { LRLanguage, LanguageSupport, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { autocompletion, CompletionContext, CompletionResult, Completion, snippetCompletion, startCompletion } from "@codemirror/autocomplete";
-import type { Extension } from "@codemirror/state";
+import { EditorState, type Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { styleTags, tags as t } from "@lezer/highlight";
 import { parser } from "./grammar/wql.parser";
@@ -76,6 +76,9 @@ export const wqlLanguage = LRLanguage.define({
         DatasetReference: t.keyword,
         "DatasetReference/Word": t.keyword,
         At: t.punctuation,
+        ParamRef: t.special(t.variableName),
+        "ParamRef/Word": t.special(t.variableName),
+        Dollar: t.punctuation,
         TagKey: t.propertyName,
         "TagKey/Word": t.propertyName,
         TagValue: t.string,
@@ -289,6 +292,153 @@ const HEAD_OPTIONS: Completion[] = [
   ...WQL_STANDARD_DATASETS.map((label) => ({ label, detail: 'page dataset', type: 'class' as const })),
 ];
 
+const PIPELINE_STAGE_HEAD_OPTIONS: Completion[] = [
+  ...WQL_FUNCTION_HEADS.map((label) => ({ label, detail: 'function head', type: 'keyword' as const })),
+  ...WQL_CHART_HEADS.map((label) => ({ label, detail: 'chart head', type: 'class' as const })),
+];
+
+const CHART_HEAD_OPTIONS: Completion[] = WQL_CHART_HEADS.map((label) => ({
+  label,
+  detail: 'chart head',
+  type: 'class' as const,
+}));
+
+const TOKEN_COMPLETION_OPTIONS: Completion[] = [
+  { label: '$thisnote', detail: 'current note ID', type: 'variable' },
+  { label: '$note', detail: 'current note ID', type: 'variable' },
+  { label: '$scope', detail: 'entity scope filter', type: 'variable' },
+];
+
+export type WqlCursorStageRole = 'source' | 'reduce' | 'sink' | 'binding' | 'defaults';
+
+export interface WqlCursorStageInfo {
+  role: WqlCursorStageRole;
+  /** 0-indexed pipeline stage index within the active line (0 = source, 1+ = reduce/sink). */
+  stageIndex: number;
+  /** 0-indexed transform index (0 for first reducer stage, 1 for second, etc.). */
+  reduceIndex?: number;
+  head?: string;
+  from: number;
+  to: number;
+}
+
+/** Split a line into top-level `|` stage ranges (ignoring `|` inside `{…}` or `"…"`). */
+function splitLinePipeRanges(line: string, lineOffset = 0): Array<{ text: string; from: number; to: number }> {
+  const stages: Array<{ text: string; from: number; to: number }> = [];
+  let depth = 0;
+  let quoted = false;
+  let start = 0;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"') quoted = false;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = true;
+      continue;
+    }
+    if (ch === '{') depth++;
+    else if (ch === '}') depth = Math.max(0, depth - 1);
+    else if (ch === '|' && depth === 0) {
+      stages.push({ text: line.slice(start, i), from: lineOffset + start, to: lineOffset + i });
+      start = i + 1;
+    }
+  }
+  stages.push({ text: line.slice(start), from: lineOffset + start, to: lineOffset + line.length });
+  return stages;
+}
+
+/**
+ * Resolve the active pipeline stage role and character range at `pos` inside
+ * a single-line or multi-line WQL document — powers WqlComposer visual stage
+ * feedback (`source` → `reduce` → `sink`).
+ */
+export function resolveWqlCursorStage(doc: string, pos: number): WqlCursorStageInfo {
+  const clamped = Math.max(0, Math.min(pos, doc.length));
+  const lineStart = doc.lastIndexOf('\n', Math.max(0, clamped - 1)) + 1;
+  const nextNl = doc.indexOf('\n', clamped);
+  const lineEnd = nextNl === -1 ? doc.length : nextNl;
+  const rawLine = doc.slice(lineStart, lineEnd);
+
+  if (/^\s*defaults\b/.test(rawLine)) {
+    return { role: 'defaults', stageIndex: 0, from: lineStart, to: lineEnd };
+  }
+
+  const showM = /^(\s*show\s+)/.exec(rawLine);
+  if (showM) {
+    const bodyOffset = lineStart + showM[1]!.length;
+    const stages = splitLinePipeRanges(rawLine.slice(showM[1]!.length), bodyOffset);
+    const activeIdx = Math.max(0, stages.findIndex((s) => clamped >= s.from && clamped <= s.to));
+    const active = stages[activeIdx] ?? stages[stages.length - 1]!;
+    if (activeIdx > 0) {
+      const headM = /^\s*:?([A-Za-z][\w-]*)/.exec(active.text);
+      return { role: 'sink', stageIndex: activeIdx, head: headM?.[1], from: active.from, to: active.to };
+    }
+    return { role: 'binding', stageIndex: 0, from: active.from, to: active.to };
+  }
+
+  const assignM = /^(\s*[A-Za-z_][\w-]*\s*=\s*)/.exec(rawLine);
+  const exprStart = assignM ? lineStart + assignM[1]!.length : lineStart;
+  if (assignM && clamped < exprStart) {
+    return { role: 'binding', stageIndex: 0, from: lineStart, to: exprStart };
+  }
+
+  const exprText = doc.slice(exprStart, lineEnd);
+  const stages = splitLinePipeRanges(exprText, exprStart);
+  let activeIdx = stages.findIndex((s) => clamped >= s.from && clamped <= s.to);
+  if (activeIdx === -1) activeIdx = stages.length - 1;
+  const active = stages[activeIdx]!;
+  const headM = /^\s*([:@]?)([A-Za-z][\w-]*)/.exec(active.text);
+  const headName = headM?.[2]?.toLowerCase();
+
+  if (headName && (WQL_CHART_HEADS as readonly string[]).includes(headName)) {
+    return { role: 'sink', stageIndex: activeIdx, head: headName, from: active.from, to: active.to };
+  }
+  if (activeIdx === 0) {
+    if (headName && (WQL_FUNCTION_HEADS as readonly string[]).includes(headName) && stages.length === 1) {
+      return { role: 'reduce', stageIndex: 0, reduceIndex: 0, head: headName, from: active.from, to: active.to };
+    }
+    return { role: 'source', stageIndex: 0, head: headM ? `${headM[1] ?? ''}${headName}` : undefined, from: active.from, to: active.to };
+  }
+  if (/^\s*(?:select|order\s+by|limit|offset)\b/i.test(active.text)) {
+    return { role: 'source', stageIndex: activeIdx, head: 'pipes', from: active.from, to: active.to };
+  }
+  return {
+    role: 'reduce',
+    stageIndex: activeIdx,
+    reduceIndex: activeIdx - 1,
+    head: headName,
+    from: active.from,
+    to: active.to,
+  };
+}
+
+/** Scan lines before `lineStart` for `<ident> = …` bindings. */
+function collectPriorBindings(doc: string, lineStart: number): Completion[] {
+  if (lineStart <= 0) return [];
+  const priorText = doc.slice(0, lineStart);
+  const seen = new Set<string>();
+  const out: Completion[] = [];
+  for (const raw of priorText.split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('//')) continue;
+    const m = /^([A-Za-z_][\w-]*)\s*=\s*(.+)$/.exec(line);
+    if (!m) continue;
+    const name = m[1]!;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const rhs = m[2]!.trim();
+    const isList = /^:(?:note|notes|journal|notebook|notebooks|playground|block|effort|session|segment|event)\b/.test(rhs) && !rhs.includes('| :');
+    out.push({
+      label: name,
+      detail: isList ? 'bound list' : 'bound value',
+      type: 'variable',
+    });
+  }
+  return out;
+}
+
 /** Insertion for a head option: `:name{` at query start, `name{` when the
  *  leading colon is already typed; datasets insert bare. */
 function headApply(o: Completion, colonTyped: boolean): Completion {
@@ -328,12 +478,15 @@ function resolveHead(_agg: string, _typedTarget: string): Head {
 
 /** A colon head: function → aggregate family; source head → its content
  *  plane (scoped aliases resolve to 'note'); chart → sink params. */
+const CHART_PARAM_KEYS: readonly string[] = ['label', 'unit', 'goal', 'limit', 'stack', 'type', 'smooth'];
+
 function resolveColonHead(name: string): Head {
   const n = name.toLowerCase();
   if ((WQL_FUNCTION_HEADS as readonly string[]).includes(n)) return { family: 'aggregate' };
-  if ((WQL_CHART_HEADS as readonly string[]).includes(n)) return { family: 'find' };
+  if ((WQL_CHART_HEADS as readonly string[]).includes(n)) return { family: 'find', target: '__chart__' };
   const headTarget = (head: string): string => {
     if ((WQL_NOTE_HEAD_ALIASES as readonly string[]).includes(head)) return 'note';
+    if (head === 'feeds') return 'feed';
     const scoped = (WQL_SOURCE_HEAD_SCOPES as Readonly<Record<string, string>>)[head]
       || (WQL_TYPE_HEADS as Readonly<Record<string, string>>)[head];
     return scoped ? 'note' : head;
@@ -354,6 +507,7 @@ const FIND_KEY_UNION: readonly string[] = [
 ];
 
 function filterKeysFor(head: Head): readonly string[] {
+  if (head.target === '__chart__') return CHART_PARAM_KEYS;
   return head.family === 'find'
     ? (head.target ? wqlFilterKeys(head.target, 'find') : FIND_KEY_UNION)
     : wqlFilterKeys('', 'aggregate');
@@ -602,61 +756,196 @@ export function wqlCompletionSource(options_: WqlCompletionOptions = {}) {
       { label: 'order by', apply: 'order by ', detail: head.target === 'session' ? 'advisory: order ignored for sessions' : 'sort rows', type: 'keyword' },
       { label: 'select', apply: 'select ', detail: SELECT_IGNORED.has(head.target ?? '') ? `advisory: select ignored for find:${head.target}` : 'choose columns', type: 'keyword' },
     ];
-    return finish(context, from, [...chained(kw, ' '), limitSnippet], typed);
+    // A bare/partial downstream stage can still become a reducer/chart stage:
+    // offer the stage-head vocabulary (colon applied automatically when none
+    // is typed) alongside the row operators.
+    const colonTyped = /^[ \t]*:/.test(text);
+    return finish(context, from, [
+      ...PIPELINE_STAGE_HEAD_OPTIONS.map((o) => headApply(o, colonTyped)),
+      ...chained(kw, ' '),
+      limitSnippet,
+    ], typed);
   };
 
   function inner(context: CompletionContext, replaceSelection = false): CompletionResult | Promise<CompletionResult | null> | null {
-    const doc = context.state.doc.toString();
-    const pos = context.pos;
-    const word = context.matchBefore(/[\w.*-]*/) ?? { from: pos, to: pos, text: '' };
-    // Structural characters open the next slot immediately, no keystroke needed.
-    const opens = word.from === word.to && pos > 0 && /[{,:|(!"@]/.test(doc[pos - 1]);
+    const fullDoc = context.state.doc.toString();
+    const fullPos = context.pos;
+    const lineStart = fullDoc.lastIndexOf('\n', Math.max(0, fullPos - 1)) + 1;
+    const nextNl = fullDoc.indexOf('\n', fullPos);
+    const lineEnd = nextNl === -1 ? fullDoc.length : nextNl;
+    const lineText = fullDoc.slice(lineStart, lineEnd);
+    const priorBindings = collectPriorBindings(fullDoc, lineStart);
+
+    // 1. `$token` completion anywhere on the line (`$`, `$this`, `$no`, …)
+    const dollarMatch = context.matchBefore(/\$[A-Za-z_0-9-]*/);
+    if (dollarMatch) {
+      const typedToken = replaceSelection ? '$' : dollarMatch.text;
+      return finish(context, dollarMatch.from, TOKEN_COMPLETION_OPTIONS, typedToken);
+    }
+
+    // 2. `defaults …` line
+    const defaultsM = /^(\s*defaults\s+)/.exec(lineText);
+    if (defaultsM && fullPos >= lineStart + defaultsM[1]!.length) {
+      const subOffset = lineStart + defaultsM[1]!.length;
+      const subDoc = ':segment{} ' + fullDoc.slice(subOffset, lineEnd);
+      const shift = ':segment{} '.length - subOffset;
+      const subPos = fullPos + shift;
+      const word = context.matchBefore(/[\w.*-]*/) ?? { from: fullPos, to: fullPos, text: '' };
+      const typed = replaceSelection ? '' : word.text;
+      const scan = scanContext(subDoc, subPos);
+      const subCtx = new CompletionContext(EditorState.create({ doc: subDoc }), subPos, context.explicit);
+      const res = suffixSlot(subCtx, subDoc, scan, word.from + shift, typed, { family: 'aggregate' }, ':segment{}'.length);
+      return res && { ...res, from: res.from - shift, ...(res.to !== undefined ? { to: res.to - shift } : {}) };
+    }
+
+    // 3. `show a, b [| :chart{params}]` line
+    const showM = /^(\s*show\s+)/.exec(lineText);
+    if (showM && fullPos >= lineStart + showM[1]!.length) {
+      const showBodyOffset = lineStart + showM[1]!.length;
+      const showStages = splitLinePipeRanges(lineText.slice(showM[1]!.length), showBodyOffset);
+      // Stage 0 is the binding list — even when a `| :chart{}` stage already
+      // follows on the line; only cursor positions after a `|` are sink slots.
+      const showActiveIdx = Math.max(0, showStages.findIndex((s) => fullPos >= s.from && fullPos <= s.to));
+      if (showActiveIdx === 0) {
+        const word = context.matchBefore(/[\w.*-]*/) ?? { from: fullPos, to: fullPos, text: '' };
+        const typed = replaceSelection ? '' : word.text;
+        return finish(context, word.from, priorBindings, typed);
+      }
+      // After `|` on a `show` line: complete chart sink or chart params inside `{…}`
+      const sinkStage = showStages[showActiveIdx]!;
+      const stageDoc = fullDoc.slice(sinkStage.from, lineEnd);
+      const stagePos = fullPos - sinkStage.from;
+      const word = context.matchBefore(/[\w.*-]*/) ?? { from: fullPos, to: fullPos, text: '' };
+      const typed = replaceSelection ? '' : word.text;
+      const scan = scanContext(stageDoc, stagePos);
+      const colonHeadM = /^[ \t]*:[ \t]*([A-Za-z][\w-]*)/.exec(stageDoc);
+      if (scan.depth > 0 && colonHeadM) {
+        const head = resolveColonHead(colonHeadM[1]!);
+        const subCtx = new CompletionContext(EditorState.create({ doc: stageDoc }), stagePos, context.explicit);
+        const res = braceSlot(subCtx, stageDoc, scan, word.from - sinkStage.from, typed, head);
+        const rebase = (r: CompletionResult | null) =>
+          r && { ...r, from: r.from + sinkStage.from, ...(r.to !== undefined ? { to: r.to + sinkStage.from } : {}) };
+        return res instanceof Promise ? res.then(rebase) : rebase(res);
+      }
+      const colonTyped = word.from > sinkStage.from && fullDoc[word.from - 1] === ':';
+      const headFrom = colonTyped ? word.from : word.from;
+      return finish(context, headFrom, CHART_HEAD_OPTIONS.map((o) => headApply(o, colonTyped)), typed);
+    }
+
+    // 4. Strip leading `<ident> = ` assignment prefix if cursor is on the RHS
+    const assignM = /^(\s*[A-Za-z_][\w-]*\s*=\s*)/.exec(lineText);
+    const exprOffset = assignM && fullPos >= lineStart + assignM[1]!.length ? lineStart + assignM[1]!.length : lineStart;
+    const exprDoc = fullDoc.slice(exprOffset, lineEnd);
+    const exprPos = fullPos - exprOffset;
+
+    const word = context.matchBefore(/[\w.*-]*/) ?? { from: fullPos, to: fullPos, text: '' };
+    const opens = word.from === word.to && fullPos > exprOffset
+      && (/[{,:|(!"@]/.test(fullDoc[fullPos - 1]) || /\|[ \t]*$/.test(exprDoc.slice(0, exprPos)));
     if (word.from === word.to && !context.explicit && !opens) return null;
 
-    const scan = scanContext(doc, pos);
-    if (scan.quoted && scan.depth === 0) return null; // free text inside a phrase
+    const fullScan = scanContext(exprDoc, exprPos);
+    if (fullScan.quoted && fullScan.depth === 0) return null;
 
-    // Selected-token replacement lists every slot alternative unfiltered.
     const typed = replaceSelection ? '' : word.text;
 
-    // Colon heads (`:note{…}`, `:sum{metric:…}`) and the legacy word-colon head.
-    const colonHeadM = /^[ \t]*:[ \t]*([A-Za-z][\w-]*)/.exec(doc);
-    const headM = colonHeadM ?? /^[ \t]*([A-Za-z]+)[ \t]*:[ \t]*([A-Za-z0-9_.-]*)/.exec(doc);
-    const head = colonHeadM
-      ? resolveColonHead(colonHeadM[1]!)
-      : headM ? resolveHead(headM[1]!, headM[2]!) : { family: 'aggregate' as const };
+    // Split `exprDoc` up to `lineEnd` into top-level `|` stages and locate the stage containing `exprPos`.
+    const stages = splitLinePipeRanges(exprDoc, 0);
+    let activeStageIdx = stages.findIndex((s) => exprPos >= s.from && exprPos <= s.to);
+    if (activeStageIdx === -1) activeStageIdx = stages.length - 1;
+    const activeStage = stages[activeStageIdx]!;
 
-    if (scan.pipeFrom >= 0 && scan.depth === 0) return pipeSlot(context, doc, scan, word.from, typed, head);
-    if (scan.depth > 0) return braceSlot(context, doc, scan, word.from, typed, head);
+    // First stage head (used for row-presentation pipes like `:note | order by `)
+    const firstStageText = stages[0]!.text;
+    const firstColonM = /^[ \t]*:[ \t]*([A-Za-z][\w-]*)/.exec(firstStageText);
+    const firstHeadM = firstColonM ?? /^[ \t]*([A-Za-z]+)[ \t]*:[ \t]*([A-Za-z0-9_.-]*)/.exec(firstStageText);
+    const firstHead: Head = firstColonM
+      ? resolveColonHead(firstColonM[1]!)
+      : firstHeadM ? resolveHead(firstHeadM[1]!, firstHeadM[2]!) : { family: 'aggregate' as const };
 
-    // A '@' before the typed word means a dataset reference — offer only
-    // datasets ('@to' must not surface 'toplist').
-    const datasetTyped = word.from > 0 && doc[word.from - 1] === '@';
-    const headPool = datasetTyped ? HEAD_OPTIONS.filter((o) => o.label.startsWith('@')) : HEAD_OPTIONS;
+    if (activeStageIdx > 0) {
+      const stageText = activeStage.text;
+      const stagePos = exprPos - activeStage.from;
+      const stageAbsOffset = exprOffset + activeStage.from;
+      const stageColonM = /^[ \t]*:[ \t]*([A-Za-z][\w-]*)/.exec(stageText);
+
+      // If this stage is a colon stage (`:sum{…}`, `:bar{…}`, or `:`)
+      if (stageColonM || /^[ \t]*:[ \t]*$/.test(stageText.slice(0, stagePos))) {
+        const stageScan = scanContext(stageText, stagePos);
+        const stageHead = stageColonM ? resolveColonHead(stageColonM[1]!) : { family: 'aggregate' as const };
+        const subCtx = new CompletionContext(EditorState.create({ doc: stageText }), stagePos, context.explicit);
+        const rebase = (r: CompletionResult | null) =>
+          r && { ...r, from: r.from + stageAbsOffset, ...(r.to !== undefined ? { to: r.to + stageAbsOffset } : {}) };
+        if (stageScan.depth > 0) {
+          const res = braceSlot(subCtx, stageText, stageScan, word.from - stageAbsOffset, typed, stageHead);
+          return res instanceof Promise ? res.then(rebase) : rebase(res);
+        }
+        if (!stageColonM || stagePos <= stageColonM[0].length) {
+          return finish(context, word.from, PIPELINE_STAGE_HEAD_OPTIONS.map((o) => headApply(o, true)), typed);
+        }
+        const res = suffixSlot(subCtx, stageText, stageScan, word.from - stageAbsOffset, typed, stageHead, stageColonM[0].length);
+        return rebase(res);
+      }
+
+      // Otherwise, delegate to `pipeSlot` (for `:note | order by …`, `:segment | select …`, `:note | `)
+      const subCtx = new CompletionContext(EditorState.create({ doc: exprDoc }), exprPos, context.explicit);
+      const res = pipeSlot(subCtx, exprDoc, fullScan, word.from - exprOffset, typed, firstHead);
+      return res && { ...res, from: res.from + exprOffset, ...(res.to !== undefined ? { to: res.to + exprOffset } : {}) };
+    }
+
+    // Stage 0 (before any top-level `|`)
+    const subCtx = new CompletionContext(EditorState.create({ doc: exprDoc }), exprPos, context.explicit);
+    const rebaseExpr = (r: CompletionResult | null) =>
+      r && { ...r, from: r.from + exprOffset, ...(r.to !== undefined ? { to: r.to + exprOffset } : {}) };
+
+    if (fullScan.depth > 0) {
+      const res = braceSlot(subCtx, exprDoc, fullScan, word.from - exprOffset, typed, firstHead);
+      return res instanceof Promise ? res.then(rebaseExpr) : rebaseExpr(res);
+    }
+
+    // Formula arithmetic tail (e.g. `ratio = snatch_vol / `): offer prior local bindings
+    if (priorBindings.length > 0 && /[+\-*/(]\s*[\w-]*$/.test(exprDoc.slice(0, exprPos))) {
+      return finish(context, word.from, priorBindings, typed);
+    }
+
+    const datasetTyped = word.from > exprOffset && fullDoc[word.from - 1] === '@';
+    const colonTyped = word.from > exprOffset && fullDoc[word.from - 1] === ':';
+    const docKeywords: Completion[] = exprOffset === lineStart && lineStart > 0
+      ? [
+          { label: 'defaults', apply: 'defaults ', detail: 'block defaults', type: 'keyword' },
+          { label: 'show', apply: 'show ', detail: 'display outputs', type: 'keyword' },
+        ]
+      : [];
+    const headPool = datasetTyped
+      ? HEAD_OPTIONS.filter((o) => o.label.startsWith('@'))
+      : colonTyped
+        ? HEAD_OPTIONS
+        : [...priorBindings, ...docKeywords, ...HEAD_OPTIONS];
     const headTyped = datasetTyped ? '@' + typed : typed;
-
     const headFrom = datasetTyped ? word.from - 1 : word.from;
 
-    if (!headM) return finish(context, headFrom, headPool.map((o) => headApply(o, false)), headTyped);
+    if (!firstHeadM) {
+      return finish(
+        context,
+        headFrom,
+        headPool.map((o) => (o.type === 'variable' || o.label === 'defaults' || o.label === 'show' ? o : headApply(o, colonTyped))),
+        headTyped,
+      );
+    }
 
-    if (colonHeadM) {
-      // Before/inside the head word after ':': offer every head.
-      if (pos <= colonHeadM[0].length) {
-        return finish(context, headFrom, headPool.map((o) => headApply(o, true)), headTyped);
+    if (firstColonM) {
+      if (exprPos <= firstColonM[0].length) {
+        return finish(context, headFrom, HEAD_OPTIONS.map((o) => headApply(o, true)), headTyped);
       }
-      return suffixSlot(context, doc, scan, word.from, typed, head, colonHeadM[0].length);
+      return rebaseExpr(suffixSlot(subCtx, exprDoc, fullScan, word.from - exprOffset, typed, firstHead, firstColonM[0].length));
     }
 
-    const colonIdx = headM[0].indexOf(':');
-    if (pos <= colonIdx) return finish(context, word.from, chained(LEGACY_HEAD_OPTIONS, ':'), typed);
-    if (pos <= headM[0].length) {
-      // Head target/metric slot: `last` the aggregator vs `last` the window
-      // is disambiguated here — before/inside the head word it is the
-      // aggregator; after the complete head it is a suffix (below). The
-      // retired find:/rows: dispatch keywords offer nothing here.
-      return metricHeadSlot(context, word.from, typed);
+    const colonIdx = firstHeadM[0].indexOf(':');
+    if (exprPos <= colonIdx) return finish(context, word.from, [...priorBindings, ...chained(LEGACY_HEAD_OPTIONS, ':')], typed);
+    if (exprPos <= firstHeadM[0].length) {
+      const res = metricHeadSlot(subCtx, word.from - exprOffset, typed);
+      return res instanceof Promise ? res.then(rebaseExpr) : rebaseExpr(res);
     }
-    return suffixSlot(context, doc, scan, word.from, typed, head, headM[0].length);
+    return rebaseExpr(suffixSlot(subCtx, exprDoc, fullScan, word.from - exprOffset, typed, firstHead, firstHeadM[0].length));
   }
 
   /** A non-empty selection means "replace this token": offer every option for

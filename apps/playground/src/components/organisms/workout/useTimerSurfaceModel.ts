@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getRuntimeNowMs,
   metricPresentation,
+  calculateDuration,
 } from '@bitcobblers/wod-wiki-engine';
 import {
   useScriptRuntime,
@@ -27,8 +28,7 @@ import {
   useRoundDisplay,
   useNextPreview,
 } from '@bitcobblers/wod-wiki-engine/react';
-import { calculateDuration } from '@/lib/timeUtils';
-import { useWorkbenchSession } from '@/stores/workbenchSessionStore';
+import { useActiveRunStore } from '@/stores/activeRunStore';
 
 export interface TimerSurfaceHandlers {
   onStart: () => void;
@@ -67,7 +67,7 @@ export interface TimerSurfaceModel {
 
 export function useTimerSurfaceModel(handlers: TimerSurfaceHandlers): TimerSurfaceModel {
   const runtime = useScriptRuntime();
-  const executionStatus = useWorkbenchSession(s => s.execution.status);
+  const executionStatus = useActiveRunStore(s => s.execution.status);
   const primaryTimer = usePrimaryTimer();
   const allTimers = useStackTimers();
   const stackItems = useStackDisplayRows();

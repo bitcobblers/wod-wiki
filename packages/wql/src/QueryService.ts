@@ -53,6 +53,8 @@ import {
   type TagFilter,
 } from './wql';
 import { WQL_SOURCE_VALUES, WQL_TYPED_TAG_KEYS, type WqlTypedTagKey } from './vocabulary';
+import { bindQueryParams } from './paramRef';
+import { unknownTokensMessage } from './dashboard/model';
 import { convertViaCatalog, resolveOutputUnit } from './units';
 import { projectEventToFacts } from './derivation';
 import { dedupeById, selectContributions, type CoverageReport } from './selection';
@@ -76,6 +78,7 @@ import type {
   EffortQueryStore,
   IEffort,
   QueryServiceStores,
+  FeedCatalogQueryStore,
   NoteRelationBundle,
   WqlDomainOrder,
   WqlDomainPredicate,
@@ -98,6 +101,7 @@ export type {
   EffortQueryStore,
   IEffort,
   QueryServiceStores,
+  FeedCatalogQueryStore,
 };
 
 
@@ -451,7 +455,8 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
     }
     if (plane === 'note' && (WQL_TYPED_TAG_KEYS as readonly string[]).includes(filter.key) && literal) {
       // Typed-tag narrow (ticket 08) — the wire's typedTag arm joins the
-      // tags by-type index, exactly the JS stage's (type, label) resolution.
+      // tags by-type index (and `block_equipment` when `tagType === 'equipment'`),
+      // matching the JS stage's (type, label) resolution.
       // Note plane only: runFindBlock never applies typed tags in JS.
       compiled.push({ field: 'typedTag', tagType: filter.key, values });
       continue;
@@ -658,6 +663,8 @@ export interface QueryOptions {
   /** Captured execution context (ticket 12) — one `{instant, timeZone}`
    *  capture per document run; defaults to a fresh system capture. */
   context?: ExecutionContext;
+  /** Active `$param` bindings applied to `ParamRef` AST nodes at execution time. */
+  params?: Record<string, string>;
 }
 
 /** Options for `runFind` / `runFindBlock` — overrides for the parsed WQL. */
@@ -671,6 +678,12 @@ export interface FindOptions {
   /** Captured execution context (ticket 12). */
   context?: ExecutionContext;
   isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
+  /** When true (e.g. pipeline source feeding a numeric reducer), skip container/placement hydration. */
+  skipContainers?: boolean;
+  /** Active `$param` bindings applied to `ParamRef` AST nodes at execution time. */
+  params?: Record<string, string>;
+  /** When 'containers' (e.g. `/notebooks` library plane), `:notebook{…}` returns Notebook container rows instead of member Notes. */
+  notebookPlane?: 'notes' | 'containers';
 }
 
 export interface QueryResult {
@@ -759,15 +772,58 @@ export interface TabularResult {
   offset?: number;
 }
 
+interface FactDimensionContext {
+  noteTags: ReadonlyMap<string, readonly string[]>;
+  typedNoteTags: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
+  effortsBySlug: ReadonlyMap<string, IEffort>;
+}
+
+const EMPTY_FACT_DIMS: FactDimensionContext = {
+  noteTags: new Map(),
+  typedNoteTags: new Map(),
+  effortsBySlug: new Map(),
+};
+
+function resolveDimensionContext(
+  dimsOrNoteTags: FactDimensionContext | ReadonlyMap<string, readonly string[]>,
+): FactDimensionContext {
+  if ('noteTags' in dimsOrNoteTags) return dimsOrNoteTags;
+  return { ...EMPTY_FACT_DIMS, noteTags: dimsOrNoteTags };
+}
+
+const TYPED_TAG_KEY_SET: ReadonlySet<string> = new Set(WQL_TYPED_TAG_KEYS);
+
 /**
- * Tag value for a fact row. Tag keys map onto fact fields; 'tags' is the
- * note_tags label set of the parent note (loaded per query, only when used).
+ * Tag value for a fact row with 3-tier precedence:
+ *   Tier 1: Statement-level `row.dimensions` / explicit `row.discipline` / `row.intensityTier`
+ *   Tier 2: Effort-level metadata (`effort.equipment`, `effort.baseAttributes.discipline`, `effort.baseAttributes.intensityTier`)
+ *   Tier 3: Parent Note typed tags (`NoteRelationBundle.tags` where `tag.type === key`)
  */
-function factTagValue(row: AnalyticsDataPoint, key: string, noteTags: ReadonlyMap<string, readonly string[]>): string | readonly string[] | undefined {
+function factTagValue(
+  row: AnalyticsDataPoint,
+  key: string,
+  dimsOrNoteTags: FactDimensionContext | ReadonlyMap<string, readonly string[]> = EMPTY_FACT_DIMS,
+): string | readonly string[] | undefined {
+  const ctx = resolveDimensionContext(dimsOrNoteTags);
+  const effort = row.effortSlug ? ctx.effortsBySlug.get(row.effortSlug) : undefined;
   switch (key) {
     case 'effort': return row.effortSlug;
-    case 'discipline': return row.discipline;
-    case 'intensity': return row.intensityTier;
+    case 'discipline': {
+      const explicit = row.discipline ?? row.dimensions?.['discipline'];
+      if (explicit) return explicit;
+      const fromEffort = effort?.baseAttributes?.discipline;
+      if (fromEffort) return fromEffort;
+      const fromNote = ctx.typedNoteTags.get(row.noteId)?.get('discipline');
+      return fromNote && fromNote.length > 0 ? fromNote : undefined;
+    }
+    case 'intensity': {
+      const explicit = row.intensityTier ?? row.dimensions?.['intensity'];
+      if (explicit) return explicit;
+      const fromEffort = effort?.baseAttributes?.intensityTier;
+      if (fromEffort) return fromEffort;
+      const fromNote = ctx.typedNoteTags.get(row.noteId)?.get('intensity');
+      return fromNote && fromNote.length > 0 ? fromNote : undefined;
+    }
     case 'grade': return row.grade;
     case 'note': return row.noteId;
     case 'page': return row.pageId;
@@ -776,22 +832,32 @@ function factTagValue(row: AnalyticsDataPoint, key: string, noteTags: ReadonlyMa
     case 'metric': return row.metricKey;
     case 'block': return row.blockContentId;
     case 'result': return row.resultId;
-    case 'tags': return noteTags.get(row.noteId) ?? [];
+    case 'tags': return ctx.noteTags.get(row.noteId) ?? [];
+    case 'equipment': {
+      const explicit = row.dimensions?.['equipment'];
+      if (explicit) return explicit;
+      if (effort?.equipment && effort.equipment.length > 0) return effort.equipment;
+      const fromNote = ctx.typedNoteTags.get(row.noteId)?.get('equipment');
+      return fromNote && fromNote.length > 0 ? fromNote : undefined;
+    }
     default: {
-      // Custom dimensions: user-authored property metrics and grouped
-      // partitions live in row.dimensions under normalized (camelCase)
-      // keys — `{coach:greg}` and `by {coach}` resolve here. Facts without
-      // the dim group/filter as unassigned.
-      const dims = row.dimensions;
-      if (!dims) return undefined;
-      return dims[key] ?? dims[normalizeFieldComponent(key)];
+      const rowDims = row.dimensions;
+      const explicit = rowDims ? (rowDims[key] ?? rowDims[normalizeFieldComponent(key)]) : undefined;
+      if (explicit !== undefined) return explicit;
+      if (TYPED_TAG_KEY_SET.has(key)) {
+        const fromNote = ctx.typedNoteTags.get(row.noteId)?.get(key);
+        if (fromNote && fromNote.length > 0) return fromNote;
+      }
+      return undefined;
     }
   }
 }
 
-function matchesFilters(row: AnalyticsDataPoint, filters: TagFilter[], noteTags: ReadonlyMap<string, readonly string[]>): boolean {
-  // OR within a key (and sign); AND across keys/signs. Negation spans the
-  // whole value list for that key/sign.
+function matchesFilters(
+  row: AnalyticsDataPoint,
+  filters: TagFilter[],
+  dimsOrNoteTags: FactDimensionContext | ReadonlyMap<string, readonly string[]>,
+): boolean {
   const groups = new Map<string, TagFilter[]>();
   for (const f of filters) {
     const groupKey = `${f.negate ? '!' : ''}${f.key}`;
@@ -802,7 +868,7 @@ function matchesFilters(row: AnalyticsDataPoint, filters: TagFilter[], noteTags:
   return [...groups.values()].every((group) => {
     const key = group[0].key;
     const negate = group[0].negate;
-    const raw = factTagValue(row, key, noteTags);
+    const raw = factTagValue(row, key, dimsOrNoteTags);
     const rowValues = Array.isArray(raw) ? raw : raw !== undefined ? [raw] : [];
     const hit = rowValues.some((value) =>
       group.some((f) =>
@@ -815,36 +881,20 @@ function matchesFilters(row: AnalyticsDataPoint, filters: TagFilter[], noteTags:
   });
 }
 
-/** Dimension value for grouping; virtual time dims bucket the canonical
- *  time by LOCAL CIVIL CALENDAR (spec v2 decision 2): `day` keys are local
- *  YYYY-MM-DD; `week` keys are the civil Monday's YYYY-MM-DD, computed by
- *  component math — never instant arithmetic, which mislabels DST-shifted
- *  weeks. Keys are locale-independent and lexically sortable.
- *
- *  NOTE: buildResult routes `day`/`week` groupBys to civil bucket keys and
- *  filters them out of tagDims, so the time-dim branches below are
- *  defensive only — kept canonical in case a caller surfaces time dims as
- *  string keys. */
 function dimValue(
   row: AnalyticsDataPoint,
   dim: string,
-  noteTags: ReadonlyMap<string, readonly string[]>,
+  dimsOrNoteTags: FactDimensionContext | ReadonlyMap<string, readonly string[]>,
   ctx: ExecutionContext,
 ): string {
-  // Calendar grouping uses the observation's own temporal anchor (ticket 12):
-  // a date-only fact groups under its recorded civil date — never a fabricated
-  // midnight instant; an instant fact under its civil date in the context tz.
   if (dim === 'day') return row.metricDate ?? civilDateOf(row.timestamp, ctx.timeZone);
   if (dim === 'week') return civilMonday(row.metricDate ?? civilDateOf(row.timestamp, ctx.timeZone));
   if (dim === 'session') return row.resultId;
-  const raw = factTagValue(row, dim, noteTags);
-  // Ticket 16 (finding 3.5): missing group values resolve to the structural
-  // UNASSIGNED sentinel — never a literal '(none)' masquerading as data.
+  const raw = factTagValue(row, dim, dimsOrNoteTags);
   if (raw === undefined) return UNASSIGNED;
   if (typeof raw === 'string') return raw;
   return raw.length ? raw.join(',') : UNASSIGNED;
 }
-
 /** Structural missing-group sentinel — distinct from any literal text
  *  (group identity is the JSON tuple, so it cannot collide). */
 export const UNASSIGNED = '\u0000unassigned';
@@ -1035,10 +1085,14 @@ export class QueryService {
     getDataset(name: string): { events: EventRecord[]; notes: Note[] } | undefined;
   };
   private readonly isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
+  private readonly feedCatalogStore?: FeedCatalogQueryStore;
 
-  // Optional storage seam properties for block_efforts and typed tag resolution.
+  // Optional storage seam properties for block_efforts, block_equipment, and typed tag resolution.
   // Injected by the app adapter (`services/queryService.ts`); tests can supply fakes.
   private blockEffortsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+    getAllFromIndex: async () => [],
+  };
+  private blockEquipmentStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
     getAllFromIndex: async () => [],
   };
   private tagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]>; getAll?(): Promise<any[]> } = {
@@ -1061,9 +1115,15 @@ export class QueryService {
         'noteStore' in storesOrEventStore ||
         'blockStore' in storesOrEventStore ||
         'effortStore' in storesOrEventStore ||
+        'blockEffortsStore' in storesOrEventStore ||
+        'blockEquipmentStore' in storesOrEventStore ||
+        'tagsStore' in storesOrEventStore ||
+        'noteTagsStore' in storesOrEventStore ||
         'pageStore' in storesOrEventStore ||
         'relationStore' in storesOrEventStore ||
-        'datasetStore' in storesOrEventStore)
+        'datasetStore' in storesOrEventStore ||
+        'feedCatalogStore' in storesOrEventStore ||
+        'isNotebookSubscribed' in storesOrEventStore)
     ) {
       const stores = storesOrEventStore as QueryServiceStores;
       this.store = stores.eventStore ?? defaultEventStore;
@@ -1074,9 +1134,11 @@ export class QueryService {
       this.relationStore = stores.relationStore;
       this.datasetStore = stores.datasetStore;
       if (stores.blockEffortsStore) this.blockEffortsStore = stores.blockEffortsStore;
+      if (stores.blockEquipmentStore) this.blockEquipmentStore = stores.blockEquipmentStore;
       if (stores.tagsStore) this.tagsStore = stores.tagsStore;
       if (stores.noteTagsStore) this.noteTagsStore = stores.noteTagsStore;
       if (stores.isNotebookSubscribed) this.isNotebookSubscribed = stores.isNotebookSubscribed;
+      if (stores.feedCatalogStore) this.feedCatalogStore = stores.feedCatalogStore;
     } else {
       this.store = (storesOrEventStore as EventStore | undefined) ?? defaultEventStore;
       this.noteStore = noteStore ?? defaultNoteStore;
@@ -1088,7 +1150,7 @@ export class QueryService {
   /** Windowed flat-fact fetch — the projected view over the event store. */
   async getFactsByTimeRange(start: number, end: number): Promise<AnalyticsDataPoint[]> {
     const rows = await this.store.getEventsByTimeRange(start, end);
-    return rows.flatMap(projectEventToFacts);
+    return rows.flatMap((row) => projectEventToFacts(row));
   }
 
   async runQuery(raw: string, options: QueryOptions = {}): Promise<QueryResult> {
@@ -1177,13 +1239,17 @@ export class QueryService {
 
     const planeFilters = parsed.filters.filter((f) => f.key === 'plane');
     const factFilters = parsed.filters.filter((f) => !['result', 'block', 'note', 'plane'].includes(f.key));
-    const touchesTags = factFilters.some((f) => isTagLabelKey(f.key));
-    let sessionNoteTags: ReadonlyMap<string, readonly string[]> = new Map();
-    if (touchesTags && groups.length > 0) {
-      const dummyPoints = groups.map(([, rows]) => ({ noteId: rows[0]?.noteId ?? '' } as AnalyticsDataPoint));
-      sessionNoteTags = await this.loadNoteTags(dummyPoints, true);
-    }
     const normalizedFactFilters = factFilters.map((f) => (f.key === 'tag' ? { ...f, key: 'tags' } : f));
+    const sessionDims = groups.length > 0 && normalizedFactFilters.length > 0
+      ? await this.loadFactDimensions(
+          groups.map(([, rows]) => ({
+            noteId: rows[0]?.noteId ?? '',
+            effortSlug: rows.find((r) => r.effortSlug)?.effortSlug,
+          } as AnalyticsDataPoint)),
+          normalizedFactFilters,
+          [],
+        )
+      : EMPTY_FACT_DIMS;
     let runs: RowsRun[] = groups
       .map(([resultId, rows]) => {
         let events = rows;
@@ -1198,7 +1264,7 @@ export class QueryService {
         if (normalizedFactFilters.length > 0) {
           const matchingSession = events.some((row) => {
             const facts = projectEventToFacts(row);
-            return facts.some((fact) => matchesFilters(fact, normalizedFactFilters, sessionNoteTags));
+            return facts.some((fact) => matchesFilters(fact, normalizedFactFilters, sessionDims));
           });
           if (!matchingSession) events = [];
         }
@@ -1310,10 +1376,13 @@ export class QueryService {
 
     const rawTagFilters = parsed.filters.filter((f) => !['result', 'block', 'note', 'plane'].includes(f.key));
     const tagFilters = rawTagFilters.map((f) => (f.key === 'tag' ? { ...f, key: 'tags' } : f));
-    const touchesTags = tagFilters.some((f) => f.key === 'tags');
-    const noteTags: ReadonlyMap<string, readonly string[]> = touchesTags && eligibleRecords.length > 0
-      ? await this.loadNoteTags(eligibleRecords.map((r) => ({ noteId: r.noteId } as AnalyticsDataPoint)), true)
-      : new Map();
+    const tableDims = eligibleRecords.length > 0 && tagFilters.length > 0
+      ? await this.loadFactDimensions(
+          eligibleRecords.map((r) => ({ noteId: r.noteId, effortSlug: r.effortSlug } as AnalyticsDataPoint)),
+          tagFilters,
+          [],
+        )
+      : EMPTY_FACT_DIMS;
     // C1 + ticket 12: the fetch bound is only a cutoff — scoped and windowed
     // queries alike filter membership by the row's own temporal anchor.
     const timeScoped = !!(parsed.window || options.range);
@@ -1323,7 +1392,7 @@ export class QueryService {
         if (tagFilters.length === 0) return true;
         const facts = projectEventToFacts(row);
         if (facts.length === 0) return false;
-        return facts.some((fact) => matchesFilters(fact, tagFilters, noteTags));
+        return facts.some((fact) => matchesFilters(fact, tagFilters, tableDims));
       });
 
     const totalCount = eligible.length;
@@ -1360,7 +1429,16 @@ export class QueryService {
 
     const typeOf = new Map(columns.map((c) => [c.name, c.type]));
 
-    let records = eligible.map((row) => {
+    const offset = pipes?.offset ?? 0;
+    const limit = pipes?.limit;
+    const hasOrder = Boolean(pipes?.order && pipes.order.length > 0);
+    const hasGroupBy = Boolean(parsed.groupBy && parsed.groupBy.length > 0);
+    const canSliceBeforeProject = !hasOrder && !hasGroupBy && (limit !== undefined || offset > 0);
+    const rowsToProject = canSliceBeforeProject
+      ? (limit !== undefined ? eligible.slice(offset, offset + limit) : eligible.slice(offset))
+      : eligible;
+
+    let records = rowsToProject.map((row) => {
       const record: Record<string, unknown> = {};
       for (const col of selectCols) {
         const type = typeOf.get(col);
@@ -1418,10 +1496,9 @@ export class QueryService {
       groups = [...groupMap.entries()].map(([key, rows]) => ({ key, label: key, rows }));
     }
 
-    const offset = pipes?.offset ?? 0;
-    const limit = pipes?.limit;
-    const page = limit !== undefined ? records.slice(offset, offset + limit) : records.slice(offset);
-
+    const page = canSliceBeforeProject
+      ? records
+      : (limit !== undefined ? records.slice(offset, offset + limit) : records.slice(offset));
     return {
       parsed,
       notes: [],
@@ -1448,6 +1525,17 @@ export class QueryService {
   async runFind(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {
     if (parsed.error) {
       return { parsed, notes: [], blocks: [], stages: { selected: 0, matched: 0 } };
+    }
+    const bound = bindQueryParams(parsed, options.params ?? {});
+    if (bound.missing.length > 0) {
+      const errored: ParsedFindQuery = { ...parsed, error: unknownTokensMessage(bound.missing) };
+      return { parsed: errored, notes: [], blocks: [], stages: { selected: 0, matched: 0 } };
+    }
+    if (bound.parsed.family === 'find') {
+      parsed = bound.parsed;
+      if (parsed.error) {
+        return { parsed, notes: [], blocks: [], stages: { selected: 0, matched: 0 } };
+      }
     }
     // Hand-built ASTs get the same loud target-capability disclosure as
     // parsed text — re-derived from the parsed shape, never from raw text.
@@ -1480,6 +1568,9 @@ export class QueryService {
     }
     if (parsed.target === 'equipment') {
       return this.runFindEquipment(parsed, options);
+    }
+    if (parsed.target === 'feed') {
+      return this.runFindFeed(parsed, options);
     }
     // Domain candidate read: selection (source clauses + the explicit source
     // fence) narrows before the wire's selectedCount; compiled positive
@@ -1565,6 +1656,36 @@ export class QueryService {
     }
 
     notes = applyNotebookFilter(notes, parsed.filters);
+    // Zero-import remote preview fallback: after `applyNotebookFilter` narrows local notes,
+    // if the requested `notebook:<slug>` has zero local rows, fetch its lightweight index records.
+    if (notes.length === 0 && this.feedCatalogStore?.getRemoteNotebookNotes) {
+      const posNbFilter = parsed.filters.find((f) => f.key === 'notebook' && !f.negate && f.values.length === 1 && !f.values[0]!.wildcard);
+      const subFilter = parsed.filters.find((f) => f.key === 'subscribed' && !f.negate);
+      const explicitlySubscribedOnly =
+        subFilter !== undefined &&
+        subFilter.values.some((v) => v.value === 'true') &&
+        !subFilter.values.some((v) => v.value === 'false');
+      if (posNbFilter && !explicitlySubscribedOnly) {
+        const wantedSlug = notebookSlugFromId(posNbFilter.values[0]!.value);
+        const posFeedFilter = parsed.filters.find((f) => f.key === 'feed' && !f.negate && f.values.length === 1 && !f.values[0]!.wildcard);
+        let remoteNotes = await this.feedCatalogStore.getRemoteNotebookNotes(
+          wantedSlug,
+          posFeedFilter?.values[0]?.value,
+        );
+        for (const filter of parsed.filters) {
+          if (filter.key === 'text') {
+            const search = filter.values.map((v) => v.value).join(' ').toLowerCase();
+            remoteNotes = remoteNotes.filter((n) => {
+              const hit = n.title.toLowerCase().includes(search);
+              return filter.negate ? !hit : hit;
+            });
+          }
+        }
+        if (remoteNotes.length > 0) {
+          notes = remoteNotes;
+        }
+      }
+    }
     const isSubscribedFn = options.isNotebookSubscribed ?? this.isNotebookSubscribed ?? (() => true);
 
     // feed: filter
@@ -1643,7 +1764,7 @@ export class QueryService {
       notes = pipes.limit !== undefined ? notes.slice(offset, offset + pipes.limit) : notes.slice(offset);
     }
 
-    const relations = notes.length && (this.pageStore || this.relationStore)
+    const relations = !options.skipContainers && notes.length && (this.pageStore || this.relationStore)
       ? await this.containersAndPlacements(notes)
       : undefined;
     return {
@@ -1988,7 +2109,15 @@ export class QueryService {
       stages: { selected: 0, buckets: 0, aggregated: 0, groups: 0 },
       matched: [],
     };
-    if (parsed.error) return empty;
+    const bound = bindQueryParams(parsed, options.params ?? {});
+    if (bound.missing.length > 0) {
+      const err = unknownTokensMessage(bound.missing);
+      return { ...empty, parsed: { ...parsed, error: err }, error: err };
+    }
+    if (bound.parsed.family === 'aggregate') {
+      parsed = bound.parsed;
+    }
+    if (parsed.error) return { ...empty, parsed, error: parsed.error };
 
     // Cross-store join: reads stored summary rows over the content index —
     // the store is authoritative (finalize-owns, ticket 005).
@@ -2045,7 +2174,15 @@ export class QueryService {
       stages: { selected: 0, buckets: 0, aggregated: 0, groups: 0 },
       matched: [],
     };
-    if (query.error) return empty;
+    const bound = bindQueryParams(query, options.params ?? {});
+    if (bound.missing.length > 0) {
+      const err = unknownTokensMessage(bound.missing);
+      return { ...empty, parsed: { ...query, error: err }, error: err };
+    }
+    if (bound.parsed.family === 'aggregate') {
+      query = bound.parsed;
+    }
+    if (query.error) return { ...empty, parsed: query, error: query.error };
     // A content join resolves its scope from the STORE — that would abandon
     // the carried population. Author the join on the pipeline's source stage
     // instead.
@@ -2075,40 +2212,48 @@ export class QueryService {
       const error = parsed.error ?? `Not a pipeline: "${parsed.raw}". Pipelines look like :source{filters} | :sum{metric:x} | :table.`;
       return { parsed: { family: 'pipeline', raw: parsed.raw, source: { kind: 'dataset', name: '' }, transforms: [], error }, error };
     }
-    const fail = (error: string): PipelineResult => ({ parsed, error });
-    if (parsed.error) return fail(parsed.error);
+    let pipeline: ParsedPipelineQuery = parsed;
+    const fail = (error: string): PipelineResult => ({ parsed: pipeline, error });
+    if (pipeline.error) return fail(pipeline.error);
+    const bound = bindQueryParams(pipeline, options.params ?? {});
+    if (bound.missing.length > 0) return fail(unknownTokensMessage(bound.missing));
+    if (bound.parsed.family === 'pipeline') {
+      pipeline = bound.parsed;
+      if (pipeline.error) return fail(pipeline.error);
+    }
 
     let content: FindQueryResult | undefined;
     let carried: QueryResult | undefined;
     let sourceEvents: EventRecord[] | undefined;
     let datasetNotes: Note[] = [];
 
-    if (parsed.source.kind === 'dataset') {
-      const name = parsed.source.name;
+    if (pipeline.source.kind === 'dataset') {
+      const name = pipeline.source.name;
       const dataset = options.pageSources?.get(name) ?? this.datasetStore?.getDataset(name);
       if (!dataset) return fail(`Unknown dataset "${name}" — the host must register it before the query runs.`);
       sourceEvents = dataset.events;
       datasetNotes = dataset.notes;
-    } else if (isFindQuery(parsed.source.query)) {
-      const q = parsed.source.query;
+    } else if (isFindQuery(pipeline.source.query)) {
+      const q = pipeline.source.query;
       content = await this.runFind(q, {
         context: options.context,
+        skipContainers: pipeline.transforms.length > 0,
         ...((options.rangeStart !== undefined || options.rangeEnd !== undefined)
           ? { range: { start: options.rangeStart ?? 0, end: options.rangeEnd ?? Number.MAX_SAFE_INTEGER, endExclusive: false } }
           : {}),
       });
       if (q.error) return fail(q.error);
     } else {
-      carried = await this.run(parsed.source.query, options);
-      if (parsed.source.query.error) return fail(parsed.source.query.error);
+      carried = await this.run(pipeline.source.query, options);
+      if (pipeline.source.query.error) return fail(pipeline.source.query.error);
     }
 
-    if (parsed.transforms.length === 0) {
+    if (pipeline.transforms.length === 0) {
       // Source-only pipeline (optionally with a chart sink) — the stage
       // result surfaces as-is, no event resolution.
       if (content) {
         return {
-          parsed,
+          parsed: pipeline,
           ...(content.notes.length ? { notes: content.notes } : {}),
           ...(content.blocks.length ? { blocks: content.blocks } : {}),
           ...(content.efforts?.length ? { efforts: content.efforts } : {}),
@@ -2116,42 +2261,90 @@ export class QueryService {
           ...(content.table ? { table: content.table } : {}),
           ...(content.containers ? { containers: content.containers } : {}),
           ...(content.placements ? { placements: content.placements } : {}),
-          ...(parsed.sink ? { chart: parsed.sink } : {}),
+          ...(pipeline.sink ? { chart: pipeline.sink } : {}),
         };
       }
-      if (parsed.source.kind === 'dataset') {
+      if (pipeline.source.kind === 'dataset') {
         // Dataset alone — its notes are the surface; telemetry flows only
         // through transforms.
-        return { parsed, notes: datasetNotes, ...(parsed.sink ? { chart: parsed.sink } : {}) };
+        return { parsed: pipeline, notes: datasetNotes, ...(pipeline.sink ? { chart: pipeline.sink } : {}) };
       }
       return {
-        parsed,
+        parsed: pipeline,
         ...(carried
           ? { series: carried.series, ...(carried.unit ? { unit: carried.unit } : {}), ...(carried.error ? { error: carried.error } : {}) }
           : {}),
-        ...(parsed.sink ? { chart: parsed.sink } : {}),
+        ...(pipeline.sink ? { chart: pipeline.sink } : {}),
       };
     }
 
     if (!carried) {
       if (!sourceEvents && content) sourceEvents = await this.sourceEventsFromFind(content);
-      carried = await this.runAggregateEvents(parsed.transforms[0]!, sourceEvents ?? [], options);
-      for (const transform of parsed.transforms.slice(1)) {
+      carried = await this.runAggregateEvents(pipeline.transforms[0]!, sourceEvents ?? [], options);
+      for (const transform of pipeline.transforms.slice(1)) {
         if (carried.error) break; // an errored stage stops the pipeline
         carried = reduceCarriedResult(carried, transform, options, runContext(options));
       }
     } else {
-      for (const transform of parsed.transforms) {
+      for (const transform of pipeline.transforms) {
         if (carried.error) break; // an errored stage stops the pipeline
         carried = reduceCarriedResult(carried, transform, options, runContext(options));
       }
     }
     return {
-      parsed,
+      parsed: pipeline,
       series: carried.series,
       ...(carried.unit ? { unit: carried.unit } : {}),
       ...(carried.error ? { error: carried.error } : {}),
-      ...(parsed.sink ? { chart: parsed.sink } : {}),
+      ...(pipeline.sink ? { chart: pipeline.sink } : {}),
+    };
+  }
+  /**
+   * Evaluate pipeline tail stages (`:sum{…} | :bar{…}`) over an already-fetched
+   * `FindQueryResult` (or `FamilyRunPayload`). Resolves and caches `content.events`
+   * on the first call so multiple downstream named branches (`kb = bench | :sum{…}`,
+   * `bb = bench | :sum{…}`) share the exact `EventRecord[]` slice in memory.
+   */
+  async runPipelineFromFind(
+    content: { notes?: Note[]; blocks?: BlockIndexRow[]; events?: EventRecord[]; runs?: RowsRun[]; table?: TabularResult },
+    pipeTail: string,
+    options: PipelineOptions = {},
+  ): Promise<PipelineResult> {
+    const synthetic = parseQuery(`:segment{} | ${pipeTail}`);
+    if (!isPipelineQuery(synthetic) || synthetic.error) {
+      const error = synthetic.error ?? `Invalid pipeline tail: "${pipeTail}"`;
+      return { parsed: { family: 'pipeline', raw: pipeTail, source: { kind: 'dataset', name: '' }, transforms: [], error }, error };
+    }
+    if (!content.events) {
+      content.events = await this.sourceEventsFromFind({
+        parsed: { family: 'find', raw: '', target: 'note', filters: [] },
+        notes: content.notes ?? [],
+        blocks: content.blocks ?? [],
+        stages: { selected: 0, matched: 0 },
+      });
+    }
+    const sourceEvents = content.events;
+    if (synthetic.transforms.length === 0) {
+      return {
+        parsed: synthetic,
+        ...(content.notes?.length ? { notes: content.notes } : {}),
+        ...(content.blocks?.length ? { blocks: content.blocks } : {}),
+        ...(content.runs?.length ? { runs: content.runs } : {}),
+        ...(content.table ? { table: content.table } : {}),
+        ...(synthetic.sink ? { chart: synthetic.sink } : {}),
+      };
+    }
+    let carried = await this.runAggregateEvents(synthetic.transforms[0]!, sourceEvents, options);
+    for (const transform of synthetic.transforms.slice(1)) {
+      if (carried.error) break;
+      carried = reduceCarriedResult(carried, transform, options, runContext(options));
+    }
+    return {
+      parsed: synthetic,
+      series: carried.series,
+      ...(carried.unit ? { unit: carried.unit } : {}),
+      ...(carried.error ? { error: carried.error } : {}),
+      ...(synthetic.sink ? { chart: synthetic.sink } : {}),
     };
   }
 
@@ -2207,30 +2400,22 @@ export class QueryService {
         error: `Aggregate "${parsed.agg}" requires a metric — use ${parsed.agg}{metric:<key>}`,
       };
     }
-    const matchesMetric = (metricKey: string | undefined, queryMetric: string) =>
-      !queryMetric ||
-      metricKey === queryMetric ||
-      (queryMetric === 'rep' && metricKey === 'reps') ||
-      (queryMetric === 'reps' && metricKey === 'rep');
-
     const factTime = (row: AnalyticsDataPoint): number => {
       if (row.metricDate) return zonedNoon(row.metricDate, ctx.timeZone);
       return row.timestamp;
     };
 
+    const metricFilter = parsed.metric ? { metricKey: parsed.metric } : undefined;
     const candidates = eventRows
-      .flatMap(projectEventToFacts)
-      .filter(row => matchesMetric(row.metricKey, parsed.metric))
-      .filter(row => !range || inRange(factTime(row), range));
-    const touchesTags =
-      parsed.filters.some(f => f.key === 'tags') || parsed.groupBy.includes('tags');
-    const noteTags = await this.loadNoteTags(candidates, touchesTags);
+      .flatMap((row) => projectEventToFacts(row, metricFilter))
+      .filter((row) => !range || inRange(factTime(row), range));
+    const factDims = await this.loadFactDimensions(candidates, parsed.filters, parsed.groupBy);
     // Ticket 16: no global effort suppression — coverage selection below
     // keeps every population represented exactly once.
-    const matched = candidates.filter(row => matchesFilters(row, parsed.filters, noteTags));
+    const matched = candidates.filter((row) => matchesFilters(row, parsed.filters, factDims));
 
     const { selected, report } = selectContributions(matched, parsed.agg);
-    return this.buildResult(selected, parsed, options, noteTags, range, report);
+    return this.buildResult(selected, parsed, options, factDims, range, report);
   }
 
   /**
@@ -2241,7 +2426,7 @@ export class QueryService {
     matched: AnalyticsDataPoint[],
     parsed: ParsedAggregateQuery,
     options: QueryOptions,
-    noteTags: ReadonlyMap<string, readonly string[]>,
+    noteTags: FactDimensionContext | ReadonlyMap<string, readonly string[]>,
     range: ResolvedRange | undefined,
     coverage?: CoverageReport,
   ): QueryResult {
@@ -2455,12 +2640,10 @@ export class QueryService {
       facts = facts.filter(f => inRange(f.timestamp, joinRange));
     }
 
-    const touchesTags =
-      parsed.filters.some(f => f.key === 'tags') || parsed.groupBy.includes('tags');
-    const noteTags = await this.loadNoteTags(facts, touchesTags);
-    const matched = facts.filter(f => matchesFilters(f, parsed.filters, noteTags));
+    const factDims = await this.loadFactDimensions(facts, parsed.filters, parsed.groupBy);
+    const matched = facts.filter((f) => matchesFilters(f, parsed.filters, factDims));
     const { selected, report } = selectContributions(matched, parsed.agg);
-    return this.buildResult(selected, parsed, options, noteTags, joinRange, report);
+    return this.buildResult(selected, parsed, options, factDims, joinRange, report);
   }
 
   /** Direction 1 — keep only content owning a wod block whose raw-log metric
@@ -2498,9 +2681,9 @@ export class QueryService {
     join: MetricPredicate,
   ): Promise<Set<string>> {
     const facts = dedupeById(await this.deriveMetricFacts(contentIds, join.metric));
-    const noteTags = await this.loadNoteTags(facts, join.filters.some(f => f.key === 'tags'));
+    const factDims = await this.loadFactDimensions(facts, join.filters, []);
     const filtered = selectContributions(
-      facts.filter(f => matchesFilters(f, join.filters, noteTags)),
+      facts.filter((f) => matchesFilters(f, join.filters, factDims)),
       join.agg,
     ).selected;
     const byContent = new Map<string, AnalyticsDataPoint[]>();
@@ -2534,10 +2717,10 @@ export class QueryService {
     // Ticket 16 (finding 3.7): content-joined queries read every eligible
     // representation — the coverage selection shares the direct path's
     // contract, so detail rows are no longer filtered out here.
+    const metricFilter = metricKey ? { metricKey } : undefined;
     return rows
       .flat()
-      .flatMap(projectEventToFacts)
-      .filter((f) => f.metricKey === metricKey);
+      .flatMap((row) => projectEventToFacts(row, metricFilter));
   }
 
   /** All content blocks — journal and seeded corpus in one store. */
@@ -2571,22 +2754,86 @@ export class QueryService {
     return ids;
   }
 
-  /** Load note tag labels only when the query touches 'tags'. Batched when
-   *  a relationStore is injected — one bundle read per run instead of a
-   *  junction read per row's note. */
-  private async loadNoteTags(rows: AnalyticsDataPoint[], touchesTags: boolean): Promise<Map<string, readonly string[]>> {
+  /**
+   * Load 3-tier fact dimensions (`noteTags`, `typedNoteTags`, `effortsBySlug`)
+   * in at most one batched `relationStore.getBatches` call and one
+   * `effortStore.getAllEfforts` call per query run.
+   */
+  private async loadFactDimensions(
+    rows: readonly AnalyticsDataPoint[],
+    filters: readonly TagFilter[],
+    groupBy: readonly string[],
+  ): Promise<FactDimensionContext> {
+    if (rows.length === 0) return EMPTY_FACT_DIMS;
+    const keys = new Set<string>([...filters.map((f) => f.key), ...groupBy]);
+    const needsUntypedTags = keys.has('tags') || keys.has('tag');
+    const neededTypedKeys = [...keys].filter((k) => TYPED_TAG_KEY_SET.has(k) || k === 'discipline' || k === 'intensity');
+    const needsTypedTags = neededTypedKeys.length > 0;
+    const needsEfforts = keys.has('equipment') || keys.has('discipline') || keys.has('intensity');
+
     const noteTags = new Map<string, readonly string[]>();
-    if (!touchesTags) return noteTags;
-    const noteIds = [...new Set(rows.map(r => r.noteId))];
-    if (this.relationStore) {
-      const bundles = await this.relationStore.getBatches(noteIds);
-      for (const id of noteIds) {
-        noteTags.set(id, (bundles.get(id)?.tags ?? []).map((t) => t.label));
+    const typedNoteTags = new Map<string, Map<string, string[]>>();
+    const effortsBySlug = new Map<string, IEffort>();
+
+    if (needsEfforts) {
+      const efforts = await this.effortStore.getAllEfforts();
+      for (const effort of efforts) {
+        effortsBySlug.set(effort.slug, effort);
       }
-      return noteTags;
     }
-    await Promise.all(noteIds.map(async (id) => noteTags.set(id, await this.noteStore.getNoteTagLabels(id))));
-    return noteTags;
+
+    if (needsUntypedTags || needsTypedTags) {
+      const noteIds = [...new Set(rows.map((r) => r.noteId).filter(Boolean))];
+      if (this.relationStore) {
+        const bundles = await this.relationStore.getBatches(noteIds);
+        for (const id of noteIds) {
+          const tags = bundles.get(id)?.tags ?? [];
+          if (needsUntypedTags) {
+            noteTags.set(id, tags.map((t) => t.label));
+          }
+          if (needsTypedTags) {
+            const byType = new Map<string, string[]>();
+            for (const tag of tags) {
+              if (!tag.type) continue;
+              const list = byType.get(tag.type);
+              if (list) {
+                if (!list.includes(tag.label)) list.push(tag.label);
+              } else {
+                byType.set(tag.type, [tag.label]);
+              }
+            }
+            typedNoteTags.set(id, byType);
+          }
+        }
+      } else {
+        if (needsUntypedTags) {
+          await Promise.all(noteIds.map(async (id) => noteTags.set(id, await this.noteStore.getNoteTagLabels(id))));
+        }
+        if (needsTypedTags && this.tagsStore.getAll) {
+          const allTags = (await this.tagsStore.getAll()) as Array<{ id: string; label: string; type?: string }>;
+          const tagById = new Map(allTags.map((t) => [t.id, t]));
+          await Promise.all(
+            noteIds.map(async (id) => {
+              const links = (await this.noteTagsStore.getAllFromIndex('by-note', id)) as Array<{ tagId: string }>;
+              const byType = new Map<string, string[]>();
+              for (const link of links) {
+                const tag = tagById.get(link.tagId);
+                if (!tag?.type) continue;
+                const list = byType.get(tag.type);
+                if (list) {
+                  if (!list.includes(tag.label)) list.push(tag.label);
+                } else {
+                  byType.set(tag.type, [tag.label]);
+                }
+              }
+              typedNoteTags.set(id, byType);
+            }),
+          );
+        }
+      }
+    }
+
+    return { noteTags, typedNoteTags, effortsBySlug };
   }
 
   /** Resolve matching note IDs for an exercise slug via the block_efforts containment index. */
@@ -2597,11 +2844,24 @@ export class QueryService {
 
   /** Resolve matching note IDs for a canonical typed tag (e.g. equipment:kettlebell). */
   private async getNoteIdsForTypedTag(type: string, label: string): Promise<Set<string>> {
+    const out = new Set<string>();
     const tags = await this.tagsStore.getAllFromIndex('by-label', label);
     const typedTag = tags.find(t => t.type === type);
-    if (!typedTag) return new Set();
-    const links = await this.noteTagsStore.getAllFromIndex('by-tag', typedTag.id);
-    return new Set(links.map(l => l.noteId));
+    if (typedTag) {
+      const links = await this.noteTagsStore.getAllFromIndex('by-tag', typedTag.id);
+      for (const link of links) out.add(link.noteId);
+    }
+    if (type === 'equipment') {
+      const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const candidates = slug && slug !== label ? [label, slug] : [label];
+      for (const key of candidates) {
+        const rows = await this.blockEquipmentStore.getAllFromIndex('by-equipment', key);
+        for (const row of rows) {
+          if (row?.noteId) out.add(row.noteId);
+        }
+      }
+    }
+    return out;
   }
 
   /**
@@ -2616,7 +2876,183 @@ export class QueryService {
    * management surface) is the app's NotebookService model, not WQL rows.
    */
   async runFindNotebook(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {
+    const wantsContainers =
+      options.notebookPlane === 'containers' ||
+      parsed.filters.some(
+        (f) => f.key === 'type' && !f.negate && f.values.some((v) => v.value === 'notebook'),
+      );
+    if (wantsContainers && this.feedCatalogStore) {
+      return this.runFindNotebookContainers(parsed);
+    }
     return this.runFind({ ...parsed, target: 'note' }, options);
+  }
+
+  /**
+   * Execute `:feed{}` — the distributed Feed sources plane.
+   * Returns one synthetic Note-shaped row per registered Feed source
+   * (including "My Published Feed" when local public content or server snapshot exists).
+   */
+  async runFindFeed(parsed: ParsedFindQuery, _options: FindOptions = {}): Promise<FindQueryResult> {
+    const allFeeds = this.feedCatalogStore ? await this.feedCatalogStore.getAllFeeds() : [];
+    const selected = allFeeds.length;
+    let matched = allFeeds;
+
+    for (const filter of parsed.filters) {
+      if (filter.key === 'feed') {
+        const wanted = new Set(filter.values.map((v) => v.value));
+        const hasWildcard = filter.values.some((v) => v.wildcard);
+        matched = matched.filter((f) => {
+          const hit = hasWildcard ? f.id !== 'local' : wanted.has(f.id);
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'subscribed') {
+        const vals = new Set(filter.values.map((v) => v.value));
+        const wantsTrue = vals.has('true');
+        const wantsFalse = vals.has('false');
+        matched = matched.filter((f) => {
+          const hit = wantsTrue && wantsFalse ? true : wantsTrue ? f.subscribed : wantsFalse ? !f.subscribed : true;
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'text') {
+        const search = filter.values.map((v) => v.value).join(' ').toLowerCase();
+        matched = matched.filter((f) => {
+          const hit =
+            f.label.toLowerCase().includes(search) ||
+            (f.description ?? '').toLowerCase().includes(search) ||
+            f.url.toLowerCase().includes(search);
+          return filter.negate ? !hit : hit;
+        });
+      } else if (isTagLabelKey(filter.key)) {
+        const wanted = new Set(filter.values.map((v) => v.value.toLowerCase()));
+        matched = matched.filter((f) => {
+          const rowTags = [
+            `tier:${f.tier}`,
+            f.tier,
+            f.subscribed ? 'subscribed:true' : 'subscribed:false',
+            ...(f.unpublishedChanges ? ['status:unpublished', 'unpublished'] : []),
+            ...(f.updateAvailable ? ['status:update-available', 'update-available'] : []),
+          ].map((t) => t.toLowerCase());
+          const hit = rowTags.some((t) => wanted.has(t));
+          return filter.negate ? !hit : hit;
+        });
+      }
+    }
+
+    let rows: Note[] = matched.map((f) => {
+      const summaryParts = [
+        `${f.notebookCount} notebook${f.notebookCount === 1 ? '' : 's'}`,
+        f.itemCount > 0 ? `${f.itemCount} notes` : '',
+        f.unpublishedChanges ? 'Unpublished changes' : '',
+        f.updateAvailable ? `Update v${f.localVersion ?? 0} → v${f.remoteVersion}` : '',
+      ].filter(Boolean);
+      const body = [f.description ?? '', summaryParts.join(' · '), f.url].filter(Boolean).join('\n');
+      return {
+        id: `feed/${f.id}`,
+        title: f.label,
+        type: 'feed',
+        rawContent: body,
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: f.builtAt ? (Date.parse(f.builtAt) || 0) : 0,
+        sourceId: `feed:${f.id}`,
+        sourcePath: f.url,
+        ...(f.id !== 'local' ? { feedOrigin: 'feed' as const, feedSourceId: f.id, seedOrigin: 'seed' as const } : { seedOrigin: 'user' as const }),
+        tags: [
+          `tier:${f.tier}`,
+          f.subscribed ? 'subscribed:true' : 'subscribed:false',
+          ...(f.unpublishedChanges ? ['status:unpublished'] : []),
+          ...(f.updateAvailable ? ['status:update-available'] : []),
+        ],
+      };
+    });
+
+    rows = applyOrderAndPage(rows, parsed);
+    return { parsed, notes: rows, blocks: [], stages: { selected, matched: rows.length } };
+  }
+
+  /**
+   * Execute `:notebook{type:notebook, ...}` — the Notebook container listing
+   * across user-owned local notebooks and manifest-discovered remote Feed notebooks.
+   */
+  private async runFindNotebookContainers(parsed: ParsedFindQuery): Promise<FindQueryResult> {
+    const allNotebooks = this.feedCatalogStore ? await this.feedCatalogStore.getAllNotebooks() : [];
+    const selected = allNotebooks.length;
+    let matched = allNotebooks;
+
+    for (const filter of parsed.filters) {
+      if (filter.key === 'feed') {
+        const wanted = new Set(filter.values.map((v) => v.value));
+        const hasWildcard = filter.values.some((v) => v.wildcard);
+        matched = matched.filter((nb) => {
+          const hit = hasWildcard ? nb.feedId !== 'local' : wanted.has(nb.feedId);
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'notebook') {
+        const wanted = new Set(filter.values.map((v) => notebookSlugFromId(v.value)));
+        matched = matched.filter((nb) => {
+          const hit = wanted.has(nb.slug) || wanted.has(nb.id) || wanted.has(notebookSlugFromId(nb.chunkId));
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'text') {
+        const search = filter.values.map((v) => v.value).join(' ').toLowerCase();
+        matched = matched.filter((nb) => {
+          const hit =
+            nb.label.toLowerCase().includes(search) ||
+            (nb.description ?? '').toLowerCase().includes(search) ||
+            nb.feedLabel.toLowerCase().includes(search);
+          return filter.negate ? !hit : hit;
+        });
+      }
+    }
+
+    const subFilter = parsed.filters.find((f) => f.key === 'subscribed');
+    if (subFilter) {
+      const vals = new Set(subFilter.values.map((v) => v.value));
+      const wantsTrue = vals.has('true');
+      const wantsFalse = vals.has('false');
+      matched = matched.filter((nb) => {
+        const isSub = nb.origin === 'user' || nb.origin === 'default' || nb.subscribed;
+        const hit = wantsTrue && wantsFalse ? true : wantsTrue ? isSub : wantsFalse ? !isSub : false;
+        return subFilter.negate ? !hit : hit;
+      });
+    } else {
+      matched = matched.filter((nb) => nb.origin === 'user' || nb.origin === 'default' || nb.subscribed);
+    }
+
+    let rows: Note[] = matched.map((nb) => {
+      const isLocal = nb.origin === 'user' || nb.origin === 'default';
+      return {
+        id: isLocal ? `notebook/${nb.slug}` : `feed-notebook/${nb.feedId}/${nb.slug}`,
+        title: nb.label,
+        type: 'notebook',
+        rawContent: nb.description ?? '',
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: nb.updatedAt ? (Date.parse(nb.updatedAt) || 0) : 0,
+        notebookId: `notebook/${nb.slug}`,
+        sourceId: `notebook:${nb.slug}`,
+        ...(nb.feedUrl ? { sourcePath: nb.feedUrl } : {}),
+        ...(isLocal
+          ? { seedOrigin: 'user' as const, ...(nb.public !== undefined ? { public: nb.public } : {}) }
+          : {
+              feedOrigin: 'feed' as const,
+              feedSourceId: nb.feedId,
+              seedOrigin: 'seed' as const,
+              seedChunkId: nb.chunkId,
+              ...(nb.version !== undefined ? { seedVersion: nb.version } : {}),
+            }),
+        tags: [
+          ...(nb.category ? [`category:${nb.category}`] : []),
+          `origin:${nb.origin}`,
+          `count:${nb.count}`,
+          nb.subscribed ? 'subscribed:true' : 'subscribed:false',
+          ...(nb.public ? ['visibility:public'] : []),
+        ],
+      };
+    });
+
+    rows = applyOrderAndPage(rows, parsed);
+    return { parsed, notes: rows, blocks: [], stages: { selected, matched: rows.length } };
   }
 
   /**

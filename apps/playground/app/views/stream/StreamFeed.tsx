@@ -56,6 +56,8 @@ const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
   dashboard: LayoutDashboard,
   equipment: Wrench,
   tag: TagIcon,
+  feed: Rss,
+  notebook: BookOpen,
 }
 
 const KIND_LABEL: Record<Entry['kind'], string> = {
@@ -67,6 +69,8 @@ const KIND_LABEL: Record<Entry['kind'], string> = {
   dashboard: 'Dashboard',
   equipment: 'Equipment',
   tag: 'Tag',
+  feed: 'Feed',
+  notebook: 'Notebook',
 }
 
 /** Collapsed preview height: enough to read the workout's shape (schema,

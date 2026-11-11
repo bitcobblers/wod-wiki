@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { parseNoteId } from '@/lib/noteIdentity';
-import { noteRefToPath } from './noteIdentity';
+import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity';
 import { dayPath, playgroundPath, notebookItemPath, effortPath, equipmentPath, notePath } from './routes';
 
 describe('noteRefToPath', () => {

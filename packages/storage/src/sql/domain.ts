@@ -736,15 +736,30 @@ function predicateSql(ctx: Sql, p: DomainPredicate, plan: Plan): string {
         `EXISTS (SELECT 1 FROM "note_tags" nt JOIN "tags" t ON t."k0" = nt."i_by_tag_0" ` +
           `WHERE nt."i_by_note_0" = ${noteId} AND t."i_by_label_0" IN (${p.values.map((v) => ctx.bind(v)).join(', ')}))`,
       );
-    case 'typedTag':
+    case 'typedTag': {
       // Typed-tag narrow (ticket 08) — joins on the tags by-type index so a
-      // type+label pair resolves in SQL instead of residual JS.
-      return wrap(
-        p.negate === true,
+      // type+label pair resolves in SQL instead of residual JS; for equipment,
+      // also unions workout-script containment rows from `block_equipment`.
+      const tagMatch =
         `EXISTS (SELECT 1 FROM "note_tags" nt JOIN "tags" t ON t."k0" = nt."i_by_tag_0" ` +
-          `WHERE nt."i_by_note_0" = ${noteId} AND t."i_by_type_0" = ${ctx.bind(p.tagType)} ` +
-          `AND t."i_by_label_0" IN (${p.values.map((v) => ctx.bind(v)).join(', ')}))`,
-      );
+        `WHERE nt."i_by_note_0" = ${noteId} AND t."i_by_type_0" = ${ctx.bind(p.tagType)} ` +
+        `AND t."i_by_label_0" IN (${p.values.map((v) => ctx.bind(v)).join(', ')}))`;
+      if (p.tagType === 'equipment') {
+        const slugs = Array.from(
+          new Set(
+            p.values.flatMap((v) => {
+              const slug = v.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+              return slug && slug !== v ? [v, slug] : [v];
+            }),
+          ),
+        );
+        const blockMatch =
+          `EXISTS (SELECT 1 FROM "block_equipment" beq WHERE beq."i_by_note_0" = ${noteId} ` +
+          `AND beq."i_by_equipment_0" IN (${slugs.map((v) => ctx.bind(v)).join(', ')}))`;
+        return wrap(p.negate === true, `(${tagMatch} OR ${blockMatch})`);
+      }
+      return wrap(p.negate === true, tagMatch);
+    }
     case 'effort':
       return wrap(
         p.negate === true,
