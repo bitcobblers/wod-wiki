@@ -44,28 +44,39 @@ runs:
         restore-keys: ${{ runner.os }}-playwright-${{ inputs.browsers }}-
 
     # Full install (binaries + apt deps) when the browser cache missed.
+    # GitHub ubuntu-22.04 runners include all Chromium runtime shared libs
+    # pre-installed (libgbm1, libnss3, libasound2, xvfb, etc.); install-deps
+    # for chromium-only only fetches optional CJK/xfonts packages and fails the
+    # entire job when azure.archive.ubuntu.com has transient DNS/mirror outages.
     - name: Install Playwright browsers (full, on cache miss)
       if: inputs.browsers != '' && steps.pw-cache.outputs.cache-hit != 'true'
       run: |
         if [ "${{ inputs.browsers }}" = "all" ]; then
           bun x playwright install --with-deps chromium firefox webkit
+        elif [ "${{ inputs.browsers }}" = "chromium" ]; then
+          bun x playwright install chromium
+          bun x playwright install-deps chromium || echo "::warning::Optional Chromium apt font packages skipped due to apt mirror error"
         else
           bun x playwright install --with-deps ${{ inputs.browsers }}
         fi
       shell: bash
 
     # Binaries are cached, but their apt system libraries are NOT — always
-    # install deps, even on a cache hit. WebKit's WPE MiniBrowser needs
-    # libwoff2dec & co., which are absent from the stock runner image; skip
-    # this and webkit fails to launch with "error while loading shared
-    # libraries". The plain install remains a no-op when binaries are
-    # already restored.
+    # install deps when non-chromium browsers (webkit/firefox) are requested.
+    # WebKit's WPE MiniBrowser needs libwoff2dec & co., which are absent from
+    # the stock runner image; skip this and webkit fails to launch with "error
+    # while loading shared libraries". For chromium-only, all required shared
+    # libraries are pre-installed on ubuntu-22.04, so optional font apt failures
+    # should warn rather than abort the job.
     - name: Install Playwright system deps + verify browsers (on cache hit)
       if: inputs.browsers != '' && steps.pw-cache.outputs.cache-hit == 'true'
       run: |
         if [ "${{ inputs.browsers }}" = "all" ]; then
           bun x playwright install-deps chromium firefox webkit
           bun x playwright install chromium firefox webkit
+        elif [ "${{ inputs.browsers }}" = "chromium" ]; then
+          bun x playwright install chromium
+          bun x playwright install-deps chromium || echo "::warning::Optional Chromium apt font packages skipped due to apt mirror error"
         else
           bun x playwright install-deps ${{ inputs.browsers }}
           bun x playwright install ${{ inputs.browsers }}

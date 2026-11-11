@@ -67,6 +67,6 @@ export const autocompleteTooltipTheme: Extension = EditorView.theme({
     color: "hsl(var(--muted-foreground))",
   },
   "@media (pointer: coarse)": {
-    ".cm-tooltip-autocomplete > ul > li": { minHeight: "44px" },
+    ".cm-tooltip-autocomplete > ul > li": { minHeight: "48px" },
   },
 });
