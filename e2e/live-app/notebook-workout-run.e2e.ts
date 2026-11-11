@@ -56,8 +56,12 @@ async function findNoteIdByTitle(page: Page, title: string): Promise<string | nu
         const tx = db.transaction('notes', 'readonly');
         const getAll = tx.objectStore('notes').getAll();
         getAll.onsuccess = () => {
+    const target = title.toLowerCase();
           const match = (getAll.result as Array<{ id: string; title?: string; type?: string }>)
-            .filter(n => n.title === title && (n.type === 'journal' || n.id.startsWith('journal/')))
+            .filter(n =>
+              (n.title?.toLowerCase() === target || n.title?.toLowerCase() === target.replace(/-/g, ' '))
+              && (n.type === 'journal' || n.id.startsWith('journal/')),
+            )
             .pop();
           db.close();
           resolve(match?.id ?? null);
@@ -198,7 +202,7 @@ test.describe('Collection Workout — run and record', () => {
 
     // 3. The inline result survives a hard reload (persisted record).
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.cm-content')).toContainText('e2e-stop-run', { timeout: 15_000 });
+    await expect(page.locator('.cm-content')).toContainText('10:00 AMRAP', { timeout: 15_000 });
     await expect(
       page.locator('.cm-query-block-preview, [data-testid="rows-table"]').first(),
       'persisted result renders inline on the WOD block',

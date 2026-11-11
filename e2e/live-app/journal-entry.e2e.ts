@@ -224,16 +224,17 @@ test.describe('Journal Entry — /journal/:date', () => {
     // Verify both identities in the journal default Agenda view before and after reload.
     await page.goto('/journal', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    const firstAgendaDay = page.getByTestId('calendar-agenda-day').filter({ hasText: uniqueTitle }).first();
-    await expect(firstAgendaDay).toBeVisible({ timeout: 45_000 });
+    const firstAgendaSection = page.locator('section', { has: page.locator(`#calendar-day-${today}`) });
+    await expect(firstAgendaSection).toBeVisible({ timeout: 45_000 });
+    await expect(firstAgendaSection.getByTestId('library-row-note').filter({ hasText: uniqueTitle })).toHaveCount(2);
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    const reloadedAgendaDay = page.getByTestId('calendar-agenda-day').filter({ hasText: uniqueTitle }).first();
-    await expect(reloadedAgendaDay).toBeVisible({ timeout: 45_000 });
-    const dayChips = reloadedAgendaDay.getByTestId('calendar-entry-chip');
-    await expect(dayChips).toHaveCount(2);
-    await expect(dayChips.first()).toContainText(uniqueTitle);
-    await expect(dayChips.nth(1)).toContainText(uniqueTitle);
+    const reloadedAgendaSection = page.locator('section', { has: page.locator(`#calendar-day-${today}`) });
+    await expect(reloadedAgendaSection).toBeVisible({ timeout: 45_000 });
+    const dayRows = reloadedAgendaSection.getByTestId('library-row-note').filter({ hasText: uniqueTitle });
+    await expect(dayRows).toHaveCount(2);
+    await expect(dayRows.first()).toContainText(uniqueTitle);
+    await expect(dayRows.nth(1)).toContainText(uniqueTitle);
     await page.screenshot({ path: testInfo.outputPath('journal-entry-06-clone.png') });
   });
 });

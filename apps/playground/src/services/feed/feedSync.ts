@@ -326,6 +326,9 @@ async function runFeedSyncViaWorker(
           totalChunks: msg.progress.totalChunks,
           phase: msg.progress.phase,
         });
+        if (msg.progress.phase === 'committed' && (msg.progress.chunkId === 'efforts' || msg.progress.chunkId === 'equipment')) {
+          void hydrateImportedContent();
+        }
         deps.onProgress?.({
           ...msg.progress,
           sourceId: msg.sourceId,
@@ -579,6 +582,9 @@ async function runSourceSync(
             totalChunks: progress.totalChunks,
             phase: progress.phase,
           });
+          if (progress.phase === 'committed' && (progress.chunkId === 'efforts' || progress.chunkId === 'equipment')) {
+            void hydrateImportedContent();
+          }
           onProgress?.({ ...progress, sourceId: spec.id, sourceLabel: spec.label, sourceIndex, totalSources });
         },
         // First paint: as soon as the canvas chunk (home page + canvas

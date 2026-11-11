@@ -61,7 +61,7 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
     // z-50 lifts the whole dialog (backdrop + panel) above the mobile
     // thumb dock (z-40) and query footer (z-30); relative anchors the
     // Headless stacking context.
-    <Headless.Dialog open={open} onClose={close} className="relative z-50 lg:hidden">
+    <Headless.Dialog open={open} onClose={close} className="fixed inset-0 z-50 lg:hidden">
       <Headless.DialogBackdrop
         transition
         className="fixed inset-0 bg-black/30 dark:bg-black/30 transition data-closed:opacity-0 data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in"

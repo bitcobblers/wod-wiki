@@ -9,7 +9,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { IEffortRegistry, IEffort, EffortRegistrySource } from '@bitcobblers/wod-wiki-lang';
-import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
+import { getAppEffortRegistry, hydrateAppEffortRegistry, subscribeAppEffortRegistry } from '@/services/effortRegistry';
 import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
 
 interface EffortRegistryContextValue {
@@ -49,7 +49,15 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
     init();
   }, [init]);
 
-  // A feed import landed new content → re-read efforts from Storage.
+  // Same-tab feed imports hydrate the singleton directly (BroadcastChannel
+  // does not echo to the posting context) → bump revision so consumers re-read.
+  useEffect(() => {
+    return subscribeAppEffortRegistry(() => {
+      setStatus(s => ({ isReady: true, error: null, revision: s.revision + 1 }));
+    });
+  }, []);
+
+  // A sibling tab's feed import landed new content → re-read efforts from Storage.
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
     const channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);
