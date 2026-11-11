@@ -146,15 +146,16 @@ export class HttpFeedTree implements FeedTreeReader {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(baseUrl: string, fetchImpl: typeof fetch = fetch) {
+  constructor(baseUrl: string, fetchImpl?: typeof fetch) {
     this.baseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    this.fetchImpl = fetchImpl;
+    this.fetchImpl = fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
   }
 
   async read(path: FeedPath): Promise<Uint8Array> {
     const clean = normalizeFeedTreePath(path);
     const isMutableIndex = clean === 'manifest.json' || clean.endsWith('/manifest.json');
-    const res = await this.fetchImpl(`${this.baseUrl}${clean}`, {
+    const doFetch = this.fetchImpl;
+    const res = await doFetch(`${this.baseUrl}${clean}`, {
       cache: isMutableIndex ? 'no-cache' : 'default',
     });
     if (res.status === 404) {

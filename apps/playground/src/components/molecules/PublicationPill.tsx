@@ -73,6 +73,10 @@ export function PublicationPill({
     }
   }, [noteId, externalSessions]);
 
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
   const handleToggleNotebookPublic = async (nextPublic: boolean) => {
     if (!summary.notebookId || busy || isReadOnlyFeedNote) return;
     const prevSummary = summary;

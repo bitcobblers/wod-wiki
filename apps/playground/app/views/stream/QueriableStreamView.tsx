@@ -739,7 +739,19 @@ export function QueriableStreamView({
           next => {
             if (!cancelled) setStages(next)
           },
-          { notebookPlane: isNotebooksRoute ? 'containers' : 'notes' },
+          {
+            notebookPlane:
+              isNotebooksRoute &&
+              isFindQuery(parsed) &&
+              parsed.filters.some(
+                f =>
+                  f.key === 'subscribed' ||
+                  f.key === 'feed' ||
+                  (f.key === 'type' && f.values.some(v => v.value === 'notebook')),
+              )
+                ? 'containers'
+                : 'notes',
+          },
         )
         .then((results: Entry[]) => {
           if (!cancelled) {
