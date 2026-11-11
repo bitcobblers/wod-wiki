@@ -17,8 +17,10 @@ import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { appendWidget, type WidgetSpec } from '@bitcobblers/wod-wiki-wql'
 import { dashboardSlug, DEFAULT_DASHBOARD_TITLE } from '@bitcobblers/wod-wiki-wql'
+import { parseFrontmatter } from '@/lib/frontmatter'
 import { journalNotes } from '../../services/journalNotes'
 import { dashboardNotes } from '../../services/dashboardNotes'
+import { notifyDashboardsChanged } from '../../services/dashboardEvents'
 import { useDashboardList } from '../../hooks/useDashboards'
 import { dashboardViewPath } from '../../lib/routes'
 import {
@@ -90,13 +92,20 @@ function SaveFlow({
         const title = newTitle.trim() || DEFAULT_DASHBOARD_TITLE
         const note = await dashboardNotes.createDashboard(title)
         await journalNotes.update(note, appendWidget(note.rawContent, widget))
+        notifyDashboardsChanged()
+        const { meta } = parseFrontmatter(note.rawContent)
+        const resolvedSlug =
+          typeof meta.slug === 'string' && meta.slug.trim()
+            ? dashboardSlug(meta.slug)
+            : dashboardSlug(title)
         close()
-        navigate(dashboardViewPath(dashboardSlug(title)))
+        navigate(dashboardViewPath(resolvedSlug))
       } else {
         // Fresh read at write time — the note may have changed since the
         // catalog listed it; appendWidget never targets stale content.
         const note = await journalNotes.resolve(destination)
         await journalNotes.update(note, appendWidget(note.rawContent, widget))
+        notifyDashboardsChanged()
         close()
         navigate(dashboardViewPath(destination))
       }

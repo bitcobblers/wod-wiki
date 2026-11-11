@@ -5,8 +5,8 @@
  * from the in-page combo) — each row deep-links analyticsExplorerPath({ q });
  * the active row matches the URL ?q= semantically (canonical serialization),
  * so a link whose text differs from the catalog string still highlights.
- * /dashboard/:slug | /d/:slug: the merged dashboard list (vault first, then
- * prebuilt seeds) with the active row highlighted, plus New dashboard.
+ * /dashboard/:slug: saved vault dashboards first, then prebuilt seeds, with
+ * the active dashboard highlighted, plus New dashboard.
  */
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -51,6 +51,20 @@ export function DashboardsNavPanel(_props: NavPanelProps) {
   };
   const onExplorer = location.pathname === '/dashboards';
   const activeQ = onExplorer ? new URLSearchParams(location.search).get('q') : null;
+  const savedDashboards = items.filter((d) => d.editable);
+  const prebuiltDashboards = items.filter((d) => !d.editable);
+
+  const isDashboardActive = (slug: string): boolean => {
+    const target = dashboardViewPath(slug);
+    if (location.pathname === target) return true;
+    const match = /^\/dashboard\/([^/]+)\/?$/.exec(location.pathname);
+    if (!match) return false;
+    try {
+      return decodeURIComponent(match[1]) === slug;
+    } catch {
+      return match[1] === slug;
+    }
+  };
 
   return (
     <div className="flex flex-col gap-1 px-2 py-3" data-testid="dashboards-nav-panel">
@@ -83,27 +97,63 @@ export function DashboardsNavPanel(_props: NavPanelProps) {
         </>
       )}
 
-      <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
-        Dashboards
-      </div>
-
       {loading ? (
-        <div className="px-3 py-2 text-xs text-muted-foreground/60">Loading…</div>
+        <>
+          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+            Dashboards
+          </div>
+          <div className="px-3 py-2 text-xs text-muted-foreground/60">Loading…</div>
+        </>
       ) : items.length === 0 ? (
-        <div className="px-3 py-2 text-xs text-muted-foreground/60">No dashboards yet.</div>
+        <>
+          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+            Saved dashboards
+          </div>
+          <div className="px-3 py-2 text-xs text-muted-foreground/60">No dashboards yet.</div>
+        </>
       ) : (
-        items.map((d) => (
-          <NavRow
-            key={d.slug}
-            label={d.title}
-            badge={d.editable ? undefined : 'prebuilt'}
-            active={location.pathname === `/dashboard/${d.slug}`}
-            onClick={() => {
-              navigate(dashboardViewPath(d.slug));
-              closeDrawer();
-            }}
-          />
-        ))
+        <>
+          {savedDashboards.length > 0 && (
+            <div className="flex flex-col gap-0.5" data-testid="dashboards-nav-saved">
+              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+                Saved dashboards
+              </div>
+              {savedDashboards.map((d) => (
+                <NavRow
+                  key={d.slug}
+                  label={d.title}
+                  active={isDashboardActive(d.slug)}
+                  testId={`dashboard-nav-item-${d.slug}`}
+                  onClick={() => {
+                    navigate(dashboardViewPath(d.slug));
+                    closeDrawer();
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {prebuiltDashboards.length > 0 && (
+            <div className="flex flex-col gap-0.5" data-testid="dashboards-nav-prebuilt">
+              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+                Prebuilt
+              </div>
+              {prebuiltDashboards.map((d) => (
+                <NavRow
+                  key={d.slug}
+                  label={d.title}
+                  badge="prebuilt"
+                  active={isDashboardActive(d.slug)}
+                  testId={`dashboard-nav-item-${d.slug}`}
+                  onClick={() => {
+                    navigate(dashboardViewPath(d.slug));
+                    closeDrawer();
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
       <button
         type="button"
@@ -125,18 +175,21 @@ function NavRow({
   onClick,
   badge,
   title,
+  testId,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
   badge?: string;
   title?: string;
+  testId?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
+      data-testid={testId}
       className={cn(
         'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-left transition-colors',
         active

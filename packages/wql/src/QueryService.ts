@@ -453,7 +453,8 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
     }
     if (plane === 'note' && (WQL_TYPED_TAG_KEYS as readonly string[]).includes(filter.key) && literal) {
       // Typed-tag narrow (ticket 08) — the wire's typedTag arm joins the
-      // tags by-type index, exactly the JS stage's (type, label) resolution.
+      // tags by-type index (and `block_equipment` when `tagType === 'equipment'`),
+      // matching the JS stage's (type, label) resolution.
       // Note plane only: runFindBlock never applies typed tags in JS.
       compiled.push({ field: 'typedTag', tagType: filter.key, values });
       continue;
@@ -1081,9 +1082,12 @@ export class QueryService {
   };
   private readonly isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
 
-  // Optional storage seam properties for block_efforts and typed tag resolution.
+  // Optional storage seam properties for block_efforts, block_equipment, and typed tag resolution.
   // Injected by the app adapter (`services/queryService.ts`); tests can supply fakes.
   private blockEffortsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+    getAllFromIndex: async () => [],
+  };
+  private blockEquipmentStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
     getAllFromIndex: async () => [],
   };
   private tagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]>; getAll?(): Promise<any[]> } = {
@@ -1106,6 +1110,10 @@ export class QueryService {
         'noteStore' in storesOrEventStore ||
         'blockStore' in storesOrEventStore ||
         'effortStore' in storesOrEventStore ||
+        'blockEffortsStore' in storesOrEventStore ||
+        'blockEquipmentStore' in storesOrEventStore ||
+        'tagsStore' in storesOrEventStore ||
+        'noteTagsStore' in storesOrEventStore ||
         'pageStore' in storesOrEventStore ||
         'relationStore' in storesOrEventStore ||
         'datasetStore' in storesOrEventStore)
@@ -1119,6 +1127,7 @@ export class QueryService {
       this.relationStore = stores.relationStore;
       this.datasetStore = stores.datasetStore;
       if (stores.blockEffortsStore) this.blockEffortsStore = stores.blockEffortsStore;
+      if (stores.blockEquipmentStore) this.blockEquipmentStore = stores.blockEquipmentStore;
       if (stores.tagsStore) this.tagsStore = stores.tagsStore;
       if (stores.noteTagsStore) this.noteTagsStore = stores.noteTagsStore;
       if (stores.isNotebookSubscribed) this.isNotebookSubscribed = stores.isNotebookSubscribed;
@@ -2794,11 +2803,24 @@ export class QueryService {
 
   /** Resolve matching note IDs for a canonical typed tag (e.g. equipment:kettlebell). */
   private async getNoteIdsForTypedTag(type: string, label: string): Promise<Set<string>> {
+    const out = new Set<string>();
     const tags = await this.tagsStore.getAllFromIndex('by-label', label);
     const typedTag = tags.find(t => t.type === type);
-    if (!typedTag) return new Set();
-    const links = await this.noteTagsStore.getAllFromIndex('by-tag', typedTag.id);
-    return new Set(links.map(l => l.noteId));
+    if (typedTag) {
+      const links = await this.noteTagsStore.getAllFromIndex('by-tag', typedTag.id);
+      for (const link of links) out.add(link.noteId);
+    }
+    if (type === 'equipment') {
+      const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const candidates = slug && slug !== label ? [label, slug] : [label];
+      for (const key of candidates) {
+        const rows = await this.blockEquipmentStore.getAllFromIndex('by-equipment', key);
+        for (const row of rows) {
+          if (row?.noteId) out.add(row.noteId);
+        }
+      }
+    }
+    return out;
   }
 
   /**

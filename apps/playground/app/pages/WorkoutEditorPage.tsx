@@ -202,6 +202,7 @@ export function WorkoutEditorPage({
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     onEditNote: isNotebookItem ? handleEditNote : undefined,
+    noteId: entryId ?? noteId,
     helpfulActions,
   })
   // Contextual links (efforts in script, sibling workouts sharing blocks,
@@ -213,6 +214,8 @@ export function WorkoutEditorPage({
   const contextData = useNoteContextLinks({
     noteId,
     stamps: ownership?.stamps ?? [],
+    liveContent: isNotebookItem ? content : undefined,
+    revision: sourceRevision,
   })
   const headerActions = (
     <div className="flex items-center gap-2">

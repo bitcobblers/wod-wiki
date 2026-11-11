@@ -238,3 +238,157 @@ test.describe('Nav ladder — L3 document index', () => {
     await expect(page.getByText('On this page', { exact: true })).toBeVisible({ timeout: 15_000 });
   });
 });
+
+test.describe('Nav ladder — Phase 2 contextual L2/L3 sync, inline saved links & dashboards', () => {
+  test('note page syncs L2/L3 live while typing, creates unrecognized items in place, and navigates 2-part facet + page links', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
+
+    await seedNote(
+      page,
+      'nav-live-facets-note',
+      '# Morning Prep\n\n```time\n21-15-9\n  Thrusters 95 lb\n  Pull-ups\n```\n',
+      { title: 'Morning Prep' },
+    );
+
+    await page.goto('/note/nav-live-facets-note?edit=1', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    const editor = page.locator('.cm-content').first();
+    await expect(editor).toBeVisible({ timeout: 15_000 });
+
+    const sidebar = page.getByRole('navigation', { name: 'Main' });
+
+    // Initial recognized efforts appear in L2 with 2-part filter buttons
+    await expect(sidebar.getByText('Efforts', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(sidebar.getByRole('button', { name: 'Thruster', exact: true })).toBeVisible();
+
+    // Append a new heading + known equipment + unrecognized effort & tag live into the editor
+    await editor.click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.type('\n\n## Finisher\n#hyroxprep\n\n```time\n12 Kettlebell Zottman Curl\n```\n');
+
+    // L3 outline ("On this page") updates live without reload
+    await expect(page.getByRole('button', { name: 'Finisher', exact: true })).toBeVisible({ timeout: 10_000 });
+
+    // L2 Equipment & Unrecognized + L3 Define action update live
+    await expect(sidebar.getByRole('button', { name: 'Kettlebell', exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(sidebar.getByText('Unrecognized', { exact: true })).toBeVisible();
+    const defineAction = page.getByTestId('l3-define-zottman-curl').first();
+    await expect(defineAction).toBeVisible({ timeout: 10_000 });
+
+    // Define "Zottman Curl" in place as an Effort
+    await defineAction.click();
+    const dialog = page.getByTestId('create-reference-dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByTestId('create-reference-submit').click();
+    await expect(dialog).toBeHidden({ timeout: 10_000 });
+
+    // Zottman Curl immediately graduates from Unrecognized into a 2-part Effort link in L2!
+    await expect(sidebar.getByTestId('menu-filter-note-context-efforts:zottman-curl')).toBeVisible({ timeout: 10_000 });
+
+    // Upgrade note to a Page and verify Pages container membership appears in L2
+    await page.getByTestId('note-upgrade-to-page-btn').click();
+    await page.getByTestId('note-page-slug-input').fill('morning-prep-board');
+    await page.getByTestId('note-page-slug-save').click();
+    await expect(sidebar.getByText('Pages', { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(sidebar.getByRole('button', { name: 'Morning Prep', exact: true })).toBeVisible();
+
+    // Part 2 of 2-part link navigates to /notes filtered by that effort
+    await sidebar.getByTestId('menu-filter-note-context-efforts:zottman-curl').click();
+    await expect(page).toHaveURL(/\/notes\?q=.*zottman-curl/);
+
+    // Go back and click Part 1 of 2-part link → canonical /effort/zottman-curl page
+    await page.goBack();
+    await expect(sidebar.getByRole('button', { name: 'Zottman Curl', exact: true })).toBeVisible({ timeout: 15_000 });
+    await sidebar.getByRole('button', { name: 'Zottman Curl', exact: true }).click();
+    await expect(page).toHaveURL(/\/effort\/zottman-curl$/);
+  });
+
+  test('library L2 inline saved-link editor creates, edits, and deletes links cleanly on desktop', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/notes', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
+    await page.evaluate(() => {
+      Object.keys(localStorage)
+        .filter((k) => k.includes('routeWql'))
+        .forEach((k) => localStorage.removeItem(k));
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForFeedReady(page);
+
+    const sidebar = page.getByRole('navigation', { name: 'Main' });
+    await sidebar.getByTestId('conditions-nav-shortcut-add').click();
+    await expect(sidebar.getByTestId('conditions-nav-inline-editor')).toBeVisible();
+
+    await sidebar.getByTestId('conditions-nav-editor-label').fill('Kettlebell Notes');
+    await sidebar.getByTestId('conditions-nav-editor-wql').fill(':note{equipment:kettlebell}');
+    await sidebar.getByTestId('conditions-nav-editor-save').click();
+
+    await expect(sidebar.getByRole('button', { name: 'Kettlebell Notes', exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/notes\?q=.*equipment%3Akettlebell/);
+
+    // Edit & delete inline via Manage mode
+    await sidebar.getByTestId('conditions-nav-edit-toggle').click();
+    await sidebar.getByRole('button', { name: 'Edit Kettlebell Notes' }).click();
+    await sidebar.getByTestId('conditions-nav-editor-label').fill('KB Sessions');
+    await sidebar.getByTestId('conditions-nav-editor-save').click();
+    await expect(sidebar.getByText('KB Sessions', { exact: true })).toBeVisible();
+
+    await sidebar.getByRole('button', { name: 'Delete KB Sessions' }).click();
+    await expect(sidebar.getByText('KB Sessions', { exact: true })).toHaveCount(0);
+    await sidebar.getByTestId('conditions-nav-edit-toggle').click();
+  });
+
+  test('library L2 inline saved-link editor works inside the 375px mobile drawer without stacked modals', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/journal', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
+    await page.evaluate(() => {
+      Object.keys(localStorage)
+        .filter((k) => k.includes('routeWql'))
+        .forEach((k) => localStorage.removeItem(k));
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForFeedReady(page);
+
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+
+    await drawer.getByTestId('conditions-nav-shortcut-add').click();
+    await expect(drawer.getByTestId('conditions-nav-inline-editor')).toBeVisible();
+    // Still a single dialog (no stacked modal over the drawer)
+    await expect(page.getByRole('dialog')).toHaveCount(1);
+
+    await drawer.getByTestId('conditions-nav-editor-label').fill('12 Week Log');
+    await drawer.getByTestId('conditions-nav-editor-wql').fill(':journal{} last 12w');
+    await drawer.getByTestId('conditions-nav-editor-save').click();
+
+    // Drawer remains open after saving in-place, then closes when clicking the saved link
+    await expect(drawer).toBeVisible();
+    await drawer.getByRole('button', { name: '12 Week Log', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/journal\?q=.*12w/);
+  });
+
+  test('dashboard L2 switcher live-syncs newly created saved dashboards with unique slugs', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/dashboards', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForFeedReady(page);
+
+    const sidebar = page.getByRole('navigation', { name: 'Main' });
+    await sidebar.getByTestId('dashboards-nav-new').click();
+    await expect(page).toHaveURL(/\/dashboard\/new-dashboard$/);
+    await expect(sidebar.getByTestId('dashboards-nav-saved')).toBeVisible({ timeout: 10_000 });
+    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard')).toBeVisible();
+
+    // Creating a second dashboard deduplicates slug and updates L2 immediately without reload
+    await sidebar.getByTestId('dashboards-nav-new').click();
+    await expect(page).toHaveURL(/\/dashboard\/new-dashboard-2$/);
+    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard-2')).toBeVisible({ timeout: 10_000 });
+
+    // Switch back to the first saved dashboard via L2
+    await sidebar.getByTestId('dashboard-nav-item-new-dashboard').click();
+    await expect(page).toHaveURL(/\/dashboard\/new-dashboard$/);
+  });
+});

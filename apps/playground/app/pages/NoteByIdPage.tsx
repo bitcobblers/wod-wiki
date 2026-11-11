@@ -202,10 +202,11 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   );
 
   useNotePageNav({
-    content: entry?.rawContent ?? '',
+    content: draft.content,
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     results,
+    noteId: entry?.id,
     helpfulActions: entry
       ? [
           ...(!isReadOnly
@@ -226,14 +227,26 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
               ]
             : []),
           { id: 'placements', label: 'Note placements', onRun: () => setPlacement('relationships') },
-          { id: 'add-timer', label: 'Add timer', onRun: () => draft.onSourceMutate(appendTimerBlock(entry.rawContent)) },
+          { id: 'add-timer', label: 'Add timer', onRun: () => draft.onSourceMutate(appendTimerBlock(draft.content)) },
           { id: 'clone', label: 'Clone', onRun: () => setPlacement('clone') },
           { id: 'copy-link', label: copied ? 'Copied' : 'Copy link', onRun: handleCopyLink },
         ]
       : [],
   });
+  const placementRevision = entry
+    ? `${entry.sourceRevision ?? 0}:${(entry.placements ?? [])
+        .map(p => `${p.pageId}:${p.slug ?? ''}:${p.date ?? ''}`)
+        .join(',')}`
+    : undefined;
   const contextLinks = useNoteContextLinks(
-    entry ? { noteId: entry.id, stamps: ownership.stamps } : { noteId: '', stamps: [] },
+    entry
+      ? {
+          noteId: entry.id,
+          stamps: ownership.stamps,
+          liveContent: draft.content,
+          revision: placementRevision,
+        }
+      : { noteId: '', stamps: [] },
   );
   const journalDates = useJournalEntryDates();
   const calendar = entry?.journalDate ? (

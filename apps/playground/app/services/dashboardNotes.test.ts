@@ -13,6 +13,7 @@ import { parseFrontmatter } from '@/lib/frontmatter';
 
 import { createJournalNotes } from './journalNotes';
 import { createDashboardNotes } from './dashboardNotes';
+import { subscribeDashboardsChanged } from './dashboardEvents';
 
 class MemoryNotePersistence implements Pick<INotePersistence, 'createNote' | 'getNote' | 'listNotes' | 'mutateNote' | 'deleteNote'> {
   readonly notes = new Map<string, HistoryRecord>();
@@ -135,5 +136,27 @@ describe('createDashboardNotes.createDashboard', () => {
 
     expect((await persistence.getNote(plain.id)).rawContent).toBe(before);
     expect(parseFrontmatter((await persistence.getNote(inactive.id)).rawContent).meta['dashboard.active']).toBeUndefined();
+  });
+
+  it('deduplicates slugs on repeated default creations and notifies dashboard subscribers', async () => {
+    const { persistence, dashboards } = await setup();
+    let notifications = 0;
+    const unsub = subscribeDashboardsChanged(() => {
+      notifications += 1;
+    });
+
+    try {
+      const d1 = await dashboards.createDashboard();
+      const d2 = await dashboards.createDashboard();
+      const m1 = parseFrontmatter((await persistence.getNote(d1.id)).rawContent).meta;
+      const m2 = parseFrontmatter((await persistence.getNote(d2.id)).rawContent).meta;
+
+      expect(m1['slug']).toBe('new-dashboard');
+      expect(m2['slug']).toBe('new-dashboard-2');
+      expect(d2.title).toBe('New Dashboard 2');
+      expect(notifications).toBe(2);
+    } finally {
+      unsub();
+    }
   });
 });

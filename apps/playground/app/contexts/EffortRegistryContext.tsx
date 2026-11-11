@@ -64,6 +64,10 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
   );
 }
 
+export function useOptionalEffortRegistry(): EffortRegistryContextValue | null {
+  return useContext(EffortRegistryContext);
+}
+
 export function useEffortRegistry(): EffortRegistryContextValue {
   const ctx = useContext(EffortRegistryContext);
   if (!ctx) {

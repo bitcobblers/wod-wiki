@@ -9,7 +9,10 @@ import { NavigationDrawerProvider } from '../NavigationDrawerContext';
 
 mock.module('../../hooks/useDashboards', () => ({
   useDashboardList: () => ({
-    items: [{ slug: 'pr-board', title: 'PR Board', editable: true }],
+    items: [
+      { slug: 'pr-board', title: 'PR Board', editable: true },
+      { slug: 'strength-trends', title: 'Strength Trends', editable: false },
+    ],
     loading: false,
   }),
 }));
@@ -40,10 +43,13 @@ describe('DashboardsNavPanel', () => {
     expect(screen.getByTestId('dashboards-nav-new')).toBeDefined();
   });
 
-  it('keeps the dashboard list and New dashboard on detail paths; examples off', () => {
+  it('keeps the dashboard list split into Saved dashboards and Prebuilt on detail paths; examples off', () => {
     renderPanel('/dashboard/pr-board');
 
-    expect(screen.getByText('PR Board')).toBeDefined();
+    expect(screen.getByTestId('dashboards-nav-saved')).toBeDefined();
+    expect(screen.getByTestId('dashboards-nav-prebuilt')).toBeDefined();
+    expect(screen.getByText('PR Board').closest('button')!.className).toContain('bg-primary/10');
+    expect(screen.getByText('Strength Trends').closest('button')!.className).not.toContain('bg-primary/10');
     expect(screen.getByTestId('dashboards-nav-new')).toBeDefined();
     expect(screen.queryByText('TIS by round')).toBeNull();
   });

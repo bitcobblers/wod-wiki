@@ -300,6 +300,7 @@ export function EffortDetailPage() {
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     results,
+    enableUnrecognizedActions: false,
     helpfulActions: [
       ...(effort && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: effort.slug }] : []),
       ...(effort ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),

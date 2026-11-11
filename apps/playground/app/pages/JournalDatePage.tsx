@@ -246,6 +246,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     scriptBlocks: singleNote ? (blocksByNote[singleNote.id] ?? []) : [],
     onStartWorkout: handleOutlineRun,
     results,
+    noteId: singleNote?.id,
     helpfulActions: singleHelpfulActions,
     enabled: Boolean(singleNote),
   });

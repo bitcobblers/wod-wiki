@@ -14,11 +14,14 @@
  */
 
 import { useEffect, useMemo, useRef, type ComponentType } from 'react'
+import { PlusCircle } from 'lucide-react'
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown'
 import type { ScriptBlock } from '@/components/Editor/types'
 import type { Session } from '@/types/storage'
+import { openCreateReferenceDialog } from '../../components/organisms/references/CreateReferenceFromLabelDialog'
 import { useNav, type L3ActionItem } from '../../nav/NavContext'
 import { extractPageIndex, mapIndexToL3 } from './pageUtils'
+import { useLiveNoteFacets } from './useLiveNoteFacets'
 import { groupResultsByVersion } from '@/utils/groupResultsByVersion';
 
 const QUERY_FENCE_RE = /^[ \t]*```query\b/m
@@ -45,6 +48,10 @@ export interface UseNotePageNavOptions {
    * so "On this page" remains purely structural Goto anchors.
    */
   helpfulActions?: NoteHelpfulAction[]
+  /** Optional canonical note id so unrecognized-label creation rebuilds this note's containment index. */
+  noteId?: string
+  /** Set false on YAML entity definition pages (Effort/Equipment) so unsaved self-definitions don't prompt. */
+  enableUnrecognizedActions?: boolean
   /** Set to false on pages/modes where outline is managed elsewhere (e.g. multi-note dates). */
   enabled?: boolean
 }
@@ -156,6 +163,8 @@ export function useNotePageNav({
   results,
   onEditNote,
   helpfulActions,
+  noteId,
+  enableUnrecognizedActions = true,
   enabled = true,
 }: UseNotePageNavOptions): PageNavLink[] {
   const index = useMemo(
@@ -165,11 +174,35 @@ export function useNotePageNav({
 
   const hasEmbeddedQueryBlocks = useMemo(() => QUERY_FENCE_RE.test(content), [content])
 
+  const liveFacets = useLiveNoteFacets(content, {
+    enabled: enabled && enableUnrecognizedActions,
+  })
+
+  const defineActions = useMemo<NoteHelpfulAction[]>(() => {
+    if (!enableUnrecognizedActions) return []
+    return liveFacets.unrecognized.slice(0, 6).map(item => {
+      const displayLabel = item.suggestedKind === 'tag' ? `#${item.rawLabel}` : item.rawLabel
+      return {
+        id: `define-${item.suggestedKind}-${item.candidateSlug}`,
+        label: `Define "${displayLabel}"…`,
+        icon: PlusCircle,
+        testId: `l3-define-${item.candidateSlug}`,
+        key: noteId ?? '',
+        onRun: () => openCreateReferenceDialog({ item, noteId }),
+      }
+    })
+  }, [enableUnrecognizedActions, liveFacets.unrecognized, noteId])
+
+  const combinedActions = useMemo<readonly NoteHelpfulAction[]>(
+    () => (defineActions.length > 0 ? [...defineActions, ...(helpfulActions ?? [])] : (helpfulActions ?? [])),
+    [defineActions, helpfulActions],
+  )
+
   // Latest helpful actions by ref; the publish effect re-runs when their
   // signature (ids + labels + keys + disabled) changes, so freshly loaded
   // closures replace the published handlers without re-running every render.
-  const helpfulRef = useRef<readonly NoteHelpfulAction[]>(helpfulActions ?? [])
-  helpfulRef.current = helpfulActions ?? []
+  const helpfulRef = useRef<readonly NoteHelpfulAction[]>(combinedActions)
+  helpfulRef.current = combinedActions
   const helpfulSig = helpfulRef.current
     .map(a => [a.id, a.label, a.key ?? '', a.disabled ? '1' : '0'].join(':'))
     .join(';')

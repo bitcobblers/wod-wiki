@@ -195,19 +195,26 @@ export function NotebookItemPage({
     ];
   }, [firstWodBlock, content, handleAddToToday, navigate, onChange]);
 
-  useNotePageNav({
-    content,
-    scriptBlocks,
-    onStartWorkout: handleStartWorkout,
-    helpfulActions: itemHelpfulActions,
-  });
-
   // Canonical corpus id (`notebook/<slug>/<date>/<item>`) drives ownership
   // and the block indexes. Notebook runs stamp the listing path as
   // sourceNote, so per-item journal-copy backlinks don't exist in the data.
   const corpusId = `notebook/${slug}/${itemDate}/${item}`;
+
+  useNotePageNav({
+    content,
+    scriptBlocks,
+    onStartWorkout: handleStartWorkout,
+    noteId: corpusId,
+    helpfulActions: itemHelpfulActions,
+  });
+
   const ownership = useMemo(() => noteOwnership({ id: corpusId, type: 'note' }), [corpusId]);
-  const contextData = useNoteContextLinks({ noteId: corpusId, stamps: ownership.stamps });
+  const contextData = useNoteContextLinks({
+    noteId: corpusId,
+    stamps: ownership.stamps,
+    liveContent: content,
+    revision: sourceRevision,
+  });
 
   const commands = useScriptBlockCommands('notebook-readonly', {
     onPlay: handleStartWorkout,

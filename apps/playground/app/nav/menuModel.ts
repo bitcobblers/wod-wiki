@@ -23,12 +23,18 @@ export interface MenuLink {
   icon?: ComponentType<{ className?: string }>
   /** Route navigation (react-router `to`). */
   to?: string
+  /** In-place primary click handler (e.g. open Create Reference dialog without leaving the note). */
+  onSelect?: () => void
   /** In-page scroll anchor (id of the section element). */
   sectionId?: string
-  /** Custom action (e.g. start a workout block); wins over to/sectionId. */
+  /** Custom action (e.g. start a workout block); wins over to/sectionId on single-button rows or renders as trailing run button. */
   onRun?: () => void
   /** Icon for the run affordance rendered at the row's right edge. */
   runIcon?: 'play' | 'stop' | 'link' | 'edit'
+  /** Secondary destination — opens `/notes?q=...` pre-filtered to this facet/text. */
+  filterTo?: string
+  /** Accessible label / tooltip for the secondary filter button. */
+  filterLabel?: string
   /** Muted mono prefix (e.g. '08:30' timestamps). */
   timestamp?: string
   /** Trivial count/marker badge. */

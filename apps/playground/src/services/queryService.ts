@@ -298,6 +298,9 @@ export function createQueryService(): QueryService {
     blockEffortsStore: {
       getAllFromIndex: (index, key) => storageService.getAllFromIndex('block_efforts', index, key),
     },
+    blockEquipmentStore: {
+      getAllFromIndex: (index, key) => storageService.getAllFromIndex('block_equipment', index, key),
+    },
     tagsStore: {
       getAllFromIndex: (index, key) => storageService.getAllFromIndex('tags', index, key),
       // The :tag{} plane lists every tag record (labels + contributions).

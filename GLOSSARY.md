@@ -38,6 +38,26 @@ _Avoid_: Card, panel, chart embed
 The canonical WQL query predicates and `$scope` tokens associated with a Note, Property Note, Notebook, or Feed, selecting the Notes, Sessions, and statement records belonging to that entity.
 _Avoid_: Route filter, ad-hoc query string
 
+**Notebook**:
+A named container of Notes (`notebook/:slug`) that is either user-owned and editable (`origin: 'user'` or `'default'`) or mirrored read-only from a subscribed Feed (`origin: 'feed'`).
+_Avoid_: Collection, catalog, folder
+
+**Feed**:
+A distributed source URL (hosted statically via `wod-wiki-feed-repository` or dynamically on a self-hosted `wod server`) that publishes one or more Notebooks, Property Notes, and optional Session telemetry for others to browse, preview, or subscribe to.
+_Avoid_: Library repo, seed package, remote catalog
+
+**Seed**:
+The versioned, content-addressed publication bundle (`manifest.json`, per-Notebook indexes, compiled chunks, and landing page) emitted by a Feed Publisher from authored Markdown Notes and companion JSONL Session logs.
+_Avoid_: Static bundle, dump
+
+**Session**:
+A recorded execution of a pinned workout block on a Note, owning its runtime, loading, and parsing EventRecords and carrying its own `public` opt-in controlling whether that Session's telemetry is published when its Note belongs to a public Notebook.
+_Avoid_: Workout result, run row
+
+**Publication Visibility**:
+The effective exposure state surfaced on a Note and its Sessions: `Private` when the owning Notebook is private, `Published Note` when the owning Notebook is public and zero Sessions on the Note are marked public, or `Published Note + Data` when the owning Notebook is public and one or more Sessions on the Note are marked public (sharing only those opted-in Sessions).
+_Avoid_: Share flag, public toggle
+
 ### Metrics, Summaries & Evaluation
 
 **Metric**:

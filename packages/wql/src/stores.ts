@@ -158,6 +158,8 @@ export interface QueryServiceStores {
   effortStore?: EffortQueryStore;
   /** Serves exercise containment rows (`block_efforts` store). */
   blockEffortsStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
+  /** Serves equipment containment rows (`block_equipment` store). */
+  blockEquipmentStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
   /** Serves tag records (`tags` store). `getAll` backs the `:tag{}` plane;
    *  absent → the plane resolves to no rows. */
   tagsStore?: {

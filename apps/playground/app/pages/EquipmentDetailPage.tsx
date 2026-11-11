@@ -132,6 +132,7 @@ export function EquipmentDetailPage() {
   useNotePageNav({
     content: isCreateMode ? createDocument : document,
     scriptBlocks,
+    enableUnrecognizedActions: false,
     helpfulActions: [
       ...(equipment && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: equipment.slug }] : []),
       ...(equipment ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),

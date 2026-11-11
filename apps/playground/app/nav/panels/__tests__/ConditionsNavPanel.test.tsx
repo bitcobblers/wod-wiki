@@ -108,7 +108,10 @@ function renderPanel(at = '/feeds', drawerClose?: () => void) {
   )
 }
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  localStorage.clear()
+})
 
 // ── pure toggle model ────────────────────────────────────────────────────────
 
@@ -321,6 +324,63 @@ describe('ConditionsNavPanel', () => {
     expect(screen.queryByText('Filters')).toBeNull()
     expect(screen.queryByTestId('conditions-section-tags')).toBeNull()
     expect(screen.queryByTestId('conditions-section-source')).toBeNull()
+  })
+
+  it('supports inline saved-link creation, editing, reordering, and deletion without closing the drawer', async () => {
+    let closed = 0
+    renderPanel('/feeds', () => {
+      closed += 1
+    })
+
+    // 1. Add first saved link inline
+    fireEvent.click(screen.getByTestId('conditions-nav-shortcut-add'))
+    expect(screen.getByTestId('conditions-nav-inline-editor')).toBeTruthy()
+    fireEvent.change(screen.getByTestId('conditions-nav-editor-label'), { target: { value: 'Strength' } })
+    fireEvent.change(screen.getByTestId('conditions-nav-editor-wql'), { target: { value: ':notebook{tags:strength}' } })
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('conditions-nav-inline-editor'))
+    })
+    expect(screen.getByText('Strength')).toBeTruthy()
+    expect(closed).toBe(0)
+
+    // 2. Add second saved link inline
+    fireEvent.click(screen.getByTestId('conditions-nav-shortcut-add'))
+    fireEvent.change(screen.getByTestId('conditions-nav-editor-label'), { target: { value: 'Endurance' } })
+    fireEvent.change(screen.getByTestId('conditions-nav-editor-wql'), { target: { value: ':notebook{tags:endurance}' } })
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('conditions-nav-inline-editor'))
+    })
+    expect(screen.getByText('Endurance')).toBeTruthy()
+
+    // 3. Toggle Manage mode: reorder Endurance above Strength, rename it, then delete Strength
+    fireEvent.click(screen.getByTestId('conditions-nav-edit-toggle'))
+    expect(screen.getByTestId('conditions-nav-manage-list')).toBeTruthy()
+
+    const moveUpButtons = screen.getAllByTitle('Move up')
+    await act(async () => {
+      fireEvent.click(moveUpButtons[1]!)
+    })
+
+    // Edit Endurance → Aerobic
+    const editButtons = screen.getAllByLabelText('Edit Endurance')
+    fireEvent.click(editButtons[0]!)
+    fireEvent.change(screen.getByTestId('conditions-nav-editor-label'), { target: { value: 'Aerobic' } })
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('conditions-nav-inline-editor'))
+    })
+    expect(screen.getByText('Aerobic')).toBeTruthy()
+
+    // Delete Strength
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Delete Strength'))
+    })
+    expect(screen.queryByText('Strength')).toBeNull()
+
+    // Exit Manage mode and verify Aerobic link navigates and closes drawer
+    fireEvent.click(screen.getByTestId('conditions-nav-edit-toggle'))
+    fireEvent.click(screen.getByText('Aerobic'))
+    expect(closed).toBe(1)
+    expect(routedQuery()).toBe(':notebook{tags:endurance}')
   })
 })
 

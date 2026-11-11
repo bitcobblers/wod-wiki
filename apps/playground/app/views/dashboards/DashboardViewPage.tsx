@@ -30,6 +30,7 @@ import {
 import { useAnalyticsRange } from '../../hooks/useAnalyticsRange';
 import { journalNotes } from '../../services/journalNotes';
 import { dashboardNotes } from '../../services/dashboardNotes';
+import { notifyDashboardsChanged } from '../../services/dashboardEvents';
 import { parseFrontmatter, serializeFrontmatter } from '@/lib/frontmatter';
 import { storageService } from '@/services/storage';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
@@ -162,6 +163,7 @@ export function DashboardViewPage() {
   const handleClone = useCallback(async () => {
     if (!source || source.editable) return;
     await dashboardNotes.cloneDashboard(source.slug, source.rawContent, source.title);
+    notifyDashboardsChanged();
     setRefreshKey((k) => k + 1); // re-resolve → vault clone shadows the seed
   }, [source]);
   const handleCopyLink = useCallback(() => {
@@ -251,6 +253,7 @@ export function DashboardViewPage() {
         throw new Error('The widget changed on disk — this edit was not saved.');
       }
       await journalNotes.update(note, typeof next === 'string' ? next : next.note, typeof next === 'string' ? undefined : next);
+      notifyDashboardsChanged();
       setRefreshKey((k) => k + 1);
     },
     [source],
@@ -265,6 +268,7 @@ export function DashboardViewPage() {
       const newMeta = setDashboardTokenValue(meta, name, value);
       const raw = `---\n${serializeFrontmatter(newMeta)}\n---\n${body}`;
       await journalNotes.update(note, raw);
+      notifyDashboardsChanged();
       setRefreshKey((k) => k + 1);
     },
     [source],

@@ -85,3 +85,45 @@ describe('#1047 — pipes on find queries', () => {
     expect(result.notes.map(n => n.title)).toEqual(['Fran Note']);
   });
 });
+
+describe('equipment: filter on :note{} unions note_tags and block_equipment', () => {
+  it('matches notes from both typed note_tags and blockEquipmentStore', async () => {
+    const service = new QueryService({
+      noteStore: {
+        getAllNotes: async () => testNotes,
+        getNoteIdsForTag: async () => new Set<string>(),
+        getNoteTagLabels: async () => [],
+      },
+      tagsStore: {
+        getAllFromIndex: async (index, key) => {
+          if (index === 'by-label' && key === 'kettlebell') {
+            return [{ id: 'tag-eq-kb', label: 'kettlebell', type: 'equipment', createdAt: 1000 }];
+          }
+          return [];
+        },
+      },
+      noteTagsStore: {
+        getAllFromIndex: async (index, key) => {
+          if (index === 'by-tag' && key === 'tag-eq-kb') {
+            return [{ id: 'nt-1', noteId: 'note-1', tagId: 'tag-eq-kb' }];
+          }
+          return [];
+        },
+      },
+      blockStore: { getAllBlocks: async () => testBlocks },
+      blockEquipmentStore: {
+        getAllFromIndex: async (index, key) => {
+          if (index === 'by-equipment' && key === 'kettlebell') {
+            return [{ id: 'be-1', noteId: 'note-2', blockId: 'seg-1', equipmentSlug: 'kettlebell', createdAt: 1000 }];
+          }
+          return [];
+        },
+      },
+    });
+
+    const parsed = parseQuery(':note{equipment:kettlebell} | order by title') as ParsedFindQuery;
+    expect(parsed.error).toBeUndefined();
+    const result = await service.runFind(parsed);
+    expect(result.notes.map(n => n.id)).toEqual(['note-2', 'note-1']);
+  });
+});

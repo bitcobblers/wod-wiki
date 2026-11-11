@@ -1,23 +1,30 @@
 /**
  * noteContextLinks — shared source-aware contextual links for note views.
  *
- * One place for the per-view interlinking from docs/note-pages-inventory.html:
+ * One place for per-view contextual L2 interlinking:
  *   - noteOwnership  — the note's source family → L1 zone id, owning-list "Up"
  *     link, and the sourceNote stamps journal copies carry in `sourceId`.
  *   - provenanceLink — resolve a stamped sourceId to a routable link.
- *   - effort / related-block / backlink lookups over the existing IDB indexes
- *     (block_efforts, block_index by-note/by-content/by-effort, notes.sourceId).
- *
- * Pure functions are exported for tests; `useNoteContextLinks` + the
- * `NoteContextNav` registration are the view surface every note page composes.
+ *   - container membership (Collections → `/notebook/:slug`, Pages → `/page/:slug`
+ *     or `/day/:date`, 1-part links de-duplicated against Up/Source).
+ *   - facet navigation (Tags → `/t/:type/:tag`, Efforts → `/effort/:slug`,
+ *     Equipment → `/equipment/:slug`, all as 2-part rows whose secondary filter
+ *     button opens `/notes?q=:note{...}`).
+ *   - live content sync + Unrecognized label creation via `useLiveNoteFacets`
+ *     and `openCreateReferenceDialog`.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
+import { orderPlacements, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core'
+import { WQL_TYPED_TAG_KEYS } from '@bitcobblers/wod-wiki-wql'
 import { storageService } from '@/services/storage'
-import type { BlockEffort, BlockIndexRow, Note } from '@/types/storage'
+import type { BlockEffort, BlockEquipment, BlockIndexRow, Note } from '@/types/storage'
 import type { HistoryRecord } from '@/types/history'
 import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
+import { openCreateReferenceDialog } from '../../components/organisms/references/CreateReferenceFromLabelDialog'
+import { useOptionalEffortRegistry } from '../../contexts/EffortRegistryContext'
+import { useOptionalEquipmentRegistry } from '../../contexts/EquipmentRegistryContext'
 import { useNav } from '../../nav/NavContext'
 import type { MenuSpec } from '../../nav/menuModel'
 import {
@@ -31,9 +38,18 @@ import {
   playgroundsPath,
   ROUTE_PATTERNS,
   notebookItemPath,
+  tagPath,
 } from '../../lib/routes'
 import { playgroundRouteName } from '../../lib/entryMapper'
 import { formatDateKey } from '../../services/dateUtils'
+import {
+  subscribeReferenceCatalogChanged,
+  useLiveNoteFacets,
+  type LiveNoteFacets,
+} from './useLiveNoteFacets'
+
+const TYPED_WQL_KEYS = new Set<string>(WQL_TYPED_TAG_KEYS)
+const INTERNAL_NOTEBOOKS = new Set(['journal', 'playground', 'guides', 'efforts', 'equipment', 'dashboards'])
 
 /**
  * Routable path for a STORED note id. Composite ids keep their family route
@@ -47,24 +63,60 @@ export function noteLinkPath(noteId: string): string {
   return noteRefToPath(ref)
 }
 
+function formatWqlValue(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return '""'
+  if (/^[a-zA-Z0-9_.-]+$/.test(trimmed)) return trimmed
+  return `"${trimmed.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+/** Canonical `/notes?q=:note{<key>:<value>}` filter URL for 2-part facet links. */
+export function notesFacetFilterPath(key: string, value: string): string {
+  const wql = `:note{${key}:${formatWqlValue(value)}}`
+  return `${ROUTE_PATTERNS.notes}?q=${encodeURIComponent(wql)}`
+}
+
 export interface ContextNoteLink {
   id: string
   title: string
-  to: string
+  to?: string
+  onSelect?: () => void
+  badge?: string
+  filterTo?: string
+  filterLabel?: string
 }
 
 export interface NoteContextData {
-  /** Efforts referenced by this note's scripts (`block_efforts` by-note). */
+  /** Notebooks/collections this note belongs to (1-part → `/notebook/:slug`). */
+  collections?: ContextNoteLink[]
+  /** Named/date pages this note is placed on (1-part → `/page/:slug` or `/day/:date`). */
+  pages?: ContextNoteLink[]
+  /** Non-effort/non-equipment tags on this note (2-part → `/t/:type/:tag` | `/notes?q=...`). */
+  tags?: ContextNoteLink[]
+  /** Efforts referenced by this note (2-part → `/effort/:slug` | `/notes?q=:note{effort:...}`). */
   efforts: ContextNoteLink[]
+  /** Equipment referenced by this note (2-part → `/equipment/:slug` | `/notes?q=:note{equipment:...}`). */
+  equipment?: ContextNoteLink[]
+  /** Unrecognized labels in live content (click → Define dialog | filter → `/notes?q=:note{text:...}`). */
+  unrecognized?: ContextNoteLink[]
   /** Other notes sharing a workout-block content id (same script shape). */
   related: ContextNoteLink[]
   /** Notes whose sourceNote stamp (`sourceId`) points at this note. */
   backlinks: ContextNoteLink[]
 }
 
-/** Relationship-free context — pages whose L2 is Up/calendar/recent only
- *  (notebook dates, feeds, named pages, dashboards, tags). */
-export const EMPTY_NOTE_CONTEXT: NoteContextData = { efforts: [], related: [], backlinks: [] }
+/** Relationship-free context — pages whose L2 is Up/calendar/recent only. */
+export const EMPTY_NOTE_CONTEXT: NoteContextData = {
+  collections: [],
+  pages: [],
+  tags: [],
+  efforts: [],
+  equipment: [],
+  unrecognized: [],
+  related: [],
+  backlinks: [],
+}
+
 /** ponytail: cap related links so the L2 nav section stays scannable; raise when a page wants full lists. */
 const MAX_RELATED = 8
 
@@ -180,20 +232,173 @@ export function provenanceLink(sourceId: string): ContextNoteLink | null {
 
 // ── Index-derived link builders (pure) ───────────────────────────────────────
 
+/** 1-part collection links (`/notebook/:slug`) for any notebook/collection a note belongs to. */
+export function collectionLinks(
+  note: Pick<Note, 'id' | 'notebookId' | 'sourceId' | 'tags'> | undefined,
+  fallbackNoteId?: string,
+): ContextNoteLink[] {
+  const slugs: string[] = []
+  const pushSlug = (raw: string | undefined) => {
+    const clean = raw?.trim()
+    if (!clean || INTERNAL_NOTEBOOKS.has(clean.toLowerCase())) return
+    if (!slugs.includes(clean)) slugs.push(clean)
+  }
+
+  if (note?.notebookId?.startsWith('notebook/')) {
+    pushSlug(note.notebookId.slice('notebook/'.length))
+  }
+  if (note?.tags) {
+    for (const tag of note.tags) {
+      if (tag.startsWith('notebook:') || tag.startsWith('notebook/')) {
+        pushSlug(tag.slice('notebook:'.length))
+      }
+    }
+  }
+  const src = note?.sourceId
+  if (src?.startsWith('/notebook/')) {
+    const seg = src.slice('/notebook/'.length).split('/')[0]
+    if (seg) {
+      try {
+        pushSlug(decodeURIComponent(seg))
+      } catch {
+        pushSlug(seg)
+      }
+    }
+  } else if (src?.startsWith('notebook:')) {
+    const seg = src.slice('notebook:'.length).split('/')[0]
+    if (seg && seg !== '_root') pushSlug(seg)
+  }
+
+  const targetId = note?.id ?? fallbackNoteId
+  if (targetId) {
+    const ref = parseNoteId(targetId)
+    if (ref.kind === 'workout' && ref.category && ref.category !== 'notebook') {
+      pushSlug(ref.category)
+    } else if (targetId.startsWith('notebook/')) {
+      const seg = targetId.slice('notebook/'.length).split('/')[0]
+      pushSlug(seg)
+    }
+  }
+
+  return slugs.map(slug => ({
+    id: slug,
+    title: slug,
+    to: notebookPath(slug),
+  }))
+}
+
+/** 1-part page placement links (`/page/:slug` and canonical `/day/:date`) for a note. */
+export function pagePlacementLinks(
+  links: readonly PageNote[],
+  pagesById: ReadonlyMap<string, Page>,
+): ContextNoteLink[] {
+  const ordered = orderPlacements([...links])
+  const out: ContextNoteLink[] = []
+  const seen = new Set<string>()
+  for (const link of ordered) {
+    const page = pagesById.get(link.pageId)
+    if (!page) continue
+    if (page.date) {
+      const to = dayPath(page.date)
+      if (seen.has(to)) continue
+      seen.add(to)
+      out.push({
+        id: page.id,
+        title: page.date,
+        to,
+      })
+      continue
+    }
+    if (page.slug) {
+      if (page.slug.startsWith('playground/') || page.slug.startsWith('e/')) continue
+      const to = pagePath(page.slug)
+      if (seen.has(to)) continue
+      seen.add(to)
+      out.push({
+        id: page.id,
+        title: page.title || `/page/${page.slug}`,
+        to,
+      })
+    }
+  }
+  return out
+}
+
+/** 2-part tag links (`/t/:type/:tag` + `/notes?q=...`) for non-effort/non-equipment tags. */
+export function tagLinks(tags: readonly Pick<Tag, 'label' | 'type'>[]): ContextNoteLink[] {
+  const out: ContextNoteLink[] = []
+  const seen = new Set<string>()
+  for (const tag of tags) {
+    const label = tag.label.trim()
+    if (!label || label.startsWith('notebook:') || label.startsWith('notebook/')) continue
+    const rawType = (tag.type ?? '').trim()
+    const lowerType = rawType.toLowerCase()
+    if (lowerType === 'effort' || lowerType === 'equipment') continue
+    const type = rawType || 'general'
+    const key = `${type.toLowerCase()}:${label.toLowerCase()}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const filterKey = TYPED_WQL_KEYS.has(lowerType) && lowerType !== 'effort' && lowerType !== 'equipment'
+      ? lowerType
+      : 'tags'
+    out.push({
+      id: `${type}:${label}`,
+      title: `#${label}`,
+      to: tagPath(type, label),
+      filterTo: notesFacetFilterPath(filterKey, label),
+      filterLabel: `Filter notes by #${label}`,
+    })
+  }
+  return out
+}
+
 /** Efforts referenced by a note, from its block_efforts rows (de-duped, in order).
  *  Slugs absent from the catalog link to the efforts search (`?q=slug`) —
  *  a direct detail route would 404 for an uncataloged effort. */
-export function effortLinks(rows: BlockEffort[], knownSlugs?: ReadonlySet<string>): ContextNoteLink[] {
+export function effortLinks(
+  rows: BlockEffort[],
+  knownSlugs?: ReadonlySet<string>,
+  labelsBySlug?: ReadonlyMap<string, string>,
+): ContextNoteLink[] {
   const seen = new Set<string>()
   const out: ContextNoteLink[] = []
   for (const row of rows) {
     if (!row.effortSlug || seen.has(row.effortSlug)) continue
     seen.add(row.effortSlug)
     const isKnown = !knownSlugs || knownSlugs.has(row.effortSlug)
+    const title = labelsBySlug?.get(row.effortSlug) || row.effortSlug
     out.push({
       id: row.effortSlug,
-      title: row.effortSlug,
+      title,
       to: isKnown ? effortPath(row.effortSlug) : `${effortsPath()}?q=${encodeURIComponent(row.effortSlug)}`,
+      filterTo: notesFacetFilterPath('effort', row.effortSlug),
+      filterLabel: `Filter notes by ${title}`,
+    })
+  }
+  return out
+}
+
+/** 2-part equipment links (`/equipment/:slug` + `/notes?q=:note{equipment:<slug>}`). */
+export function equipmentLinks(
+  rows: readonly Pick<BlockEquipment, 'equipmentSlug'>[],
+  knownSlugs?: ReadonlySet<string>,
+  labelsBySlug?: ReadonlyMap<string, string>,
+): ContextNoteLink[] {
+  const seen = new Set<string>()
+  const out: ContextNoteLink[] = []
+  for (const row of rows) {
+    if (!row.equipmentSlug || seen.has(row.equipmentSlug)) continue
+    seen.add(row.equipmentSlug)
+    const isKnown = !knownSlugs || knownSlugs.has(row.equipmentSlug)
+    const title = labelsBySlug?.get(row.equipmentSlug) || row.equipmentSlug
+    out.push({
+      id: row.equipmentSlug,
+      title,
+      to: isKnown
+        ? equipmentPath(row.equipmentSlug)
+        : `${ROUTE_PATTERNS.equipment}?q=${encodeURIComponent(`:equipment{text:${formatWqlValue(row.equipmentSlug)}}`)}`,
+      filterTo: notesFacetFilterPath('equipment', row.equipmentSlug),
+      filterLabel: `Filter notes by ${title}`,
     })
   }
   return out
@@ -257,6 +462,37 @@ export function effortUsageLinks(rows: BlockEffort[], excludeNoteId?: string, no
   return [...byNote.values()]
 }
 
+function liveFacetsToLinks(live: LiveNoteFacets, noteId?: string): Pick<NoteContextData, 'tags' | 'efforts' | 'equipment' | 'unrecognized'> {
+  return {
+    tags: tagLinks(live.tags.map(t => ({ label: t.label, type: t.type }))),
+    efforts: live.efforts.map(e => ({
+      id: e.slug,
+      title: e.label || e.slug,
+      to: effortPath(e.slug),
+      filterTo: notesFacetFilterPath('effort', e.slug),
+      filterLabel: `Filter notes by ${e.label || e.slug}`,
+    })),
+    equipment: live.equipment.map(eq => ({
+      id: eq.slug,
+      title: eq.label || eq.slug,
+      to: equipmentPath(eq.slug),
+      filterTo: notesFacetFilterPath('equipment', eq.slug),
+      filterLabel: `Filter notes by ${eq.label || eq.slug}`,
+    })),
+    unrecognized: live.unrecognized.map(item => {
+      const display = item.suggestedKind === 'tag' ? `#${item.rawLabel}` : item.rawLabel
+      return {
+        id: `${item.suggestedKind}:${item.candidateSlug}`,
+        title: display,
+        badge: 'define',
+        onSelect: () => openCreateReferenceDialog({ item, noteId: noteId || undefined }),
+        filterTo: notesFacetFilterPath('text', item.rawLabel),
+        filterLabel: `Search notes mentioning ${item.rawLabel}`,
+      }
+    }),
+  }
+}
+
 // ── Data hook ────────────────────────────────────────────────────────────────
 
 export interface UseNoteContextLinksOptions {
@@ -265,39 +501,109 @@ export interface UseNoteContextLinksOptions {
   stamps: string[]
   /** When the page IS an effort, also resolve notes whose scripts use it. */
   effortSlug?: string
+  /** Live editor content — drives real-time Tags, Efforts, Equipment & Unrecognized rows. */
+  liveContent?: string
+  /** Bump when note placements, revisions, or metadata change so container links re-query IDB. */
+  revision?: string | number
 }
 
-/** Load the three context datasets over the existing IDB indexes. */
-export function useNoteContextLinks({ noteId, stamps, effortSlug }: UseNoteContextLinksOptions): NoteContextData {
+/** Load contextual container & relationship links from IDB and merge live content facets. */
+export function useNoteContextLinks({
+  noteId,
+  stamps,
+  effortSlug,
+  liveContent,
+  revision,
+}: UseNoteContextLinksOptions): NoteContextData {
   const stampKey = stamps.join('\n')
-  // Key results by route inputs: while inputs change, render EMPTY_NOTE_CONTEXT —
-  // a new note never shows the previous note's still-in-flight relationships.
+  const effortCtx = useOptionalEffortRegistry()
+  const equipmentCtx = useOptionalEquipmentRegistry()
+  const effortsReady = effortCtx ? effortCtx.isReady : true
+  const equipmentReady = equipmentCtx ? equipmentCtx.isReady : true
+  const liveFacets = useLiveNoteFacets(liveContent, {
+    enabled: liveContent !== undefined,
+  })
+  const [catalogVersion, setCatalogVersion] = useState(0)
+  useEffect(() => subscribeReferenceCatalogChanged(() => setCatalogVersion(v => v + 1)), [])
+
+  // Key results by route identity (not revision) so incremental edits update smoothly without flashing empty.
   const [result, setResult] = useState<{ key: string; data: NoteContextData }>({ key: '', data: EMPTY_NOTE_CONTEXT })
-  const routeKey = `${noteId}\u0000${stampKey}\u0000${effortSlug ?? ''}`
-  const data = result.key === routeKey ? result.data : EMPTY_NOTE_CONTEXT
+  const identityKey = `${noteId}\u0000${stampKey}\u0000${effortSlug ?? ''}`
+  const stored = result.key === identityKey ? result.data : EMPTY_NOTE_CONTEXT
 
   useEffect(() => {
+    if (!noteId) return
     let cancelled = false
     const stampList = stampKey ? stampKey.split('\n') : []
     Promise.all([
+      storageService.getNote(noteId).catch(() => undefined),
+      storageService.getNotePages(noteId).catch(() => [] as PageNote[]),
+      storageService.getTagsForNote(noteId).catch(() => [] as Tag[]),
       storageService.getAllFromIndex('block_efforts', 'by-note', noteId) as Promise<BlockEffort[]>,
+      (storageService.getAllFromIndex('block_equipment', 'by-note', noteId) as Promise<BlockEquipment[]>).catch(
+        () => [] as BlockEquipment[],
+      ),
       storageService.getAllFromIndex('block_index', 'by-note', noteId) as Promise<BlockIndexRow[]>,
       storageService.getAllNotes(),
       storageService.getAllEfforts(),
+      storageService.getAllEquipment().catch(() => [] as Array<{ slug: string; label?: string }>),
       effortSlug
         ? (storageService.getAllFromIndex('block_efforts', 'by-effort', effortSlug) as Promise<BlockEffort[]>)
         : Promise.resolve([]),
     ])
-      .then(async ([effortRows, blockRows, notes, allEfforts, usageRows]) => {
-        if (cancelled) return EMPTY_NOTE_CONTEXT
+      .then(async ([
+        noteRecord,
+        notePageLinks,
+        noteTags,
+        effortRows,
+        equipmentRows,
+        blockRows,
+        notes,
+        allEfforts,
+        allEquipment,
+        usageRows,
+      ]) => {
+        if (cancelled) return null
+        const resolvedPages = await Promise.all(
+          notePageLinks.map(l => storageService.getPage(l.pageId).catch(() => undefined)),
+        )
+        if (cancelled) return null
+        const pagesById = new Map<string, Page>()
+        for (const p of resolvedPages) {
+          if (p) pagesById.set(p.id, p)
+        }
+
         const knownEffortSlugs = new Set(allEfforts.map(e => e.slug))
+        const effortLabels = new Map<string, string>(
+          allEfforts.map((e): [string, string] => [e.slug, e.label || e.slug]),
+        )
+        const knownEquipmentSlugs = new Set(allEquipment.map(eq => eq.slug))
+        const equipmentLabels = new Map<string, string>(
+          allEquipment.map((eq): [string, string] => [eq.slug, eq.label || eq.slug]),
+        )
+
+        // Merge effort-typed and equipment-typed note_tags into canonical Efforts / Equipment
+        // so `/t/effort/*` and `/t/equipment/*` never leak and facets never duplicate.
+        const mergedEffortRows: BlockEffort[] = [...effortRows]
+        const mergedEquipmentRows: Pick<BlockEquipment, 'equipmentSlug'>[] = [...equipmentRows]
+        for (const t of noteTags) {
+          const tType = t.type?.trim().toLowerCase()
+          const slug = t.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+          if (!slug) continue
+          if (tType === 'effort') {
+            mergedEffortRows.push({ id: `tag:${slug}`, noteId, blockId: '', effortSlug: slug, createdAt: 0 })
+          } else if (tType === 'equipment') {
+            mergedEquipmentRows.push({ equipmentSlug: slug })
+          }
+        }
+
         const ownContentIds = [...new Set(
           blockRows.filter(r => r.dataType === 'wod' && r.blockContentId).map(r => r.blockContentId as string),
         )]
         const siblingRows = await Promise.all(
           ownContentIds.map(cid => storageService.getAllFromIndex('block_index', 'by-content', cid) as Promise<BlockIndexRow[]>),
         )
-        if (cancelled) return EMPTY_NOTE_CONTEXT
+        if (cancelled) return null
         const related = relatedBlockLinks([...blockRows, ...siblingRows.flat()], noteId)
         if (effortSlug) {
           const seen = new Set(related.map(r => r.id))
@@ -309,27 +615,47 @@ export function useNoteContextLinks({ noteId, stamps, effortSlug }: UseNoteConte
           }
         }
         return {
-          efforts: effortLinks(effortRows, knownEffortSlugs),
+          collections: collectionLinks(noteRecord, noteId),
+          pages: pagePlacementLinks(notePageLinks, pagesById),
+          tags: tagLinks(noteTags),
+          efforts: effortLinks(mergedEffortRows, knownEffortSlugs, effortLabels),
+          equipment: equipmentLinks(mergedEquipmentRows, knownEquipmentSlugs, equipmentLabels),
+          unrecognized: [],
           related,
           backlinks: backlinkNotes(notes, stampList, noteId),
-        }
+        } satisfies NoteContextData
       })
       .then(next => {
-        if (!cancelled && next) setResult({ key: routeKey, data: next })
+        if (!cancelled && next) setResult({ key: identityKey, data: next })
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [noteId, stampKey, effortSlug, routeKey])
+  }, [noteId, stampKey, effortSlug, identityKey, revision, catalogVersion])
 
-  return data
+  return useMemo(() => {
+    if (liveContent === undefined || !effortsReady || !equipmentReady || !liveFacets.ready) {
+      return stored
+    }
+    const liveLinks = liveFacetsToLinks(liveFacets, noteId)
+    return {
+      ...stored,
+      tags: liveLinks.tags,
+      efforts: liveLinks.efforts,
+      equipment: liveLinks.equipment,
+      unrecognized: liveLinks.unrecognized,
+    }
+  }, [liveContent, effortsReady, equipmentReady, liveFacets, noteId, stored])
 }
 
 // ── L2 registration ──────────────────────────────────────────────────────────
 
+export type PartialNoteContextData = Pick<NoteContextData, 'efforts' | 'related' | 'backlinks'> &
+  Partial<Pick<NoteContextData, 'collections' | 'pages' | 'tags' | 'equipment' | 'unrecognized'>>
+
 export interface NoteContextSpecOptions {
-  data: NoteContextData
+  data: PartialNoteContextData
   /** Owning-list link ("Up") — first section when present. */
   up?: ContextNoteLink | null
   /** Provenance link for a stamped sourceId — section after Up when present. */
@@ -352,9 +678,9 @@ export interface NoteContextSpecOptions {
 }
 
 /**
- * Pure L2 spec builder so ordering stays testable. Section order:
- * Up, Source, calendar, sections, Related, Efforts, Journal copies,
- * trailingSections. Empty sections are omitted.
+ * Pure L2 spec builder so ordering stays testable.
+ * De-duplicates `collections` and `pages` against `up` / `source` so a primary
+ * container never renders twice in the same L2 panel.
  */
 export function buildNoteContextSpec({
   data,
@@ -366,21 +692,44 @@ export function buildNoteContextSpec({
   trailingSections,
 }: NoteContextSpecOptions): MenuSpec {
   const spec: MenuSpec = []
-  const section = (id: string, label: string, items: ContextNoteLink[]) => {
-    if (items.length === 0) return
+  const excludedUrls = new Set<string>(
+    [up?.to, source?.to].filter((u): u is string => Boolean(u)),
+  )
+
+  const section = (id: string, label: string, items: readonly ContextNoteLink[] | undefined, dedupeContainers = false) => {
+    if (!items || items.length === 0) return
+    const filtered = dedupeContainers
+      ? items.filter(item => !item.to || !excludedUrls.has(item.to))
+      : items
+    if (filtered.length === 0) return
     spec.push({
       kind: 'section',
       id,
       label,
-      entries: items.map(item => ({ kind: 'link' as const, id: `${id}:${item.id}`, label: item.title, to: item.to })),
+      entries: filtered.map(item => ({
+        kind: 'link' as const,
+        id: `${id}:${item.id}`,
+        label: item.title,
+        ...(item.to ? { to: item.to } : {}),
+        ...(item.onSelect ? { onSelect: item.onSelect } : {}),
+        ...(item.badge ? { badge: item.badge } : {}),
+        ...(item.filterTo ? { filterTo: item.filterTo } : {}),
+        ...(item.filterLabel ? { filterLabel: item.filterLabel } : {}),
+      })),
     })
   }
+
   section('note-context-up', 'Up', up ? [up] : [])
   section('note-context-source', 'Source', source ? [source] : [])
   if (calendar) spec.push({ kind: 'widget', id: 'note-context-calendar', render: () => calendar })
   if (sections) spec.push(...sections)
-  section('note-context-related', relatedLabel, data.related)
+  section('note-context-collections', 'Collections', data.collections, true)
+  section('note-context-pages', 'Pages', data.pages, true)
+  section('note-context-tags', 'Tags', data.tags)
   section('note-context-efforts', 'Efforts', data.efforts)
+  section('note-context-equipment', 'Equipment', data.equipment)
+  section('note-context-unrecognized', 'Unrecognized', data.unrecognized)
+  section('note-context-related', relatedLabel, data.related)
   section('note-context-backlinks', 'Journal copies', data.backlinks)
   if (trailingSections) spec.push(...trailingSections)
   return spec

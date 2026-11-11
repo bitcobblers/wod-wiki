@@ -19,6 +19,7 @@ import { usePaletteStore } from '@/components/organisms/command-palette/palette-
 import { PaletteShell } from '@/components/organisms/command-palette/PaletteShell'
 import { canvasRouteSource, constructSource } from './services/paletteDataSources'
 import { CreateJournalNoteDialog, type ResourceKind } from './components/organisms/journal/CreateJournalNoteDialog'
+import { CreateReferenceFromLabelHost } from './components/organisms/references/CreateReferenceFromLabelDialog'
 import {
   wqlSearchSource,
   withWqlText,
@@ -462,6 +463,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       </div>
 
       <PaletteShell />
+      <CreateReferenceFromLabelHost />
       <SyncActivityNotifier />
     </SidebarLayout>
   )

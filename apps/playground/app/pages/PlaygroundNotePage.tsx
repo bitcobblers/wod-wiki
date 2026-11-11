@@ -252,6 +252,7 @@ export function PlaygroundNotePage({
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     results,
+    noteId: runtimeNoteId,
     // Whiteboard playground L3: Move to journal, Reset, Clone after the
     // outline (Move also stays the sticky pill below).
     helpfulActions: [
@@ -266,7 +267,12 @@ export function PlaygroundNotePage({
   // runtime note is UUID-keyed; ownership derives the /playground/<name>
   // stamp journal copies carry.
   const ownership = useMemo(() => noteOwnership({ id: runtimeNoteId, type: 'playground' }), [runtimeNoteId])
-  const contextData = useNoteContextLinks({ noteId: runtimeNoteId, stamps: ownership.stamps })
+  const contextData = useNoteContextLinks({
+    noteId: runtimeNoteId,
+    stamps: ownership.stamps,
+    liveContent: content,
+    revision: sourceRevision,
+  })
 
   // Spawn provenance — "Open in Playground" stamps the source page path into
   // sourceId (path-like); the bare 'playground' intake marker renders nothing.
